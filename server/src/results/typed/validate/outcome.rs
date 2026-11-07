@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::proto::result::SpanOutcome;
+use std::collections::HashSet;
 
 fn parse(lid: &str, what: &str, raw: i32) -> Result<SpanOutcome, Failure> {
     match SpanOutcome::try_from(raw) {
@@ -66,11 +67,24 @@ pub(super) fn check_fragment(
     Ok(outcome)
 }
 
+/// One projected span (a nested payload span, a pii edit's source):
+/// `project_wire_span` maps a single span, which never coalesces, so
+/// members are refused before anything walks them.
+pub(super) fn check_single(lid: &str, what: &str, frag: &SpanFragment, own_view: bool) -> Result<SpanOutcome, Failure> {
+    if !frag.members.is_empty() {
+        return Err(bad(format!("{lid} {what} lists members; a single projected span is never coalesced")));
+    }
+    check_fragment(lid, what, frag, own_view)
+}
+
 /// The fragments of one annotation, each checked, with an empty one in
 /// a multi-fragment span allowed only as a deletion anchor, and no
-/// native fragment a member of two of them.
+/// native fragment a member of two of them. Linear in the members: the
+/// message's member total is already held under `MAX_FRAGMENTS` by
+/// `validate_typed_document` before any fragment is read.
 pub(super) fn check_fragments(lid: &str, i: usize, frags: &[SpanFragment], own_view: bool) -> Result<(), Failure> {
-    let mut seen: Vec<u32> = Vec::new();
+    let total: usize = frags.iter().map(|f| f.members.len()).sum();
+    let mut seen: HashSet<u32> = HashSet::with_capacity(total);
     for (f_ix, frag) in frags.iter().enumerate() {
         let what = format!("[{i}] fragment {f_ix}");
         let outcome = check_fragment(lid, &what, frag, own_view)?;
@@ -78,10 +92,9 @@ pub(super) fn check_fragments(lid: &str, i: usize, frags: &[SpanFragment], own_v
             return Err(bad(format!("{lid}[{i}] fragment {f_ix} is empty in a multi-fragment span")));
         }
         for m in &frag.members {
-            if seen.contains(&m.index) {
+            if !seen.insert(m.index) {
                 return Err(bad(format!("{lid}[{i}] native fragment {} is a member of two fragments", m.index)));
             }
-            seen.push(m.index);
         }
     }
     Ok(())

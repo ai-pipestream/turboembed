@@ -9,11 +9,15 @@
 #[path = "typed_envelope/fixtures.rs"]
 mod fixtures;
 
-use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, SpanOutcome, Spans, View, ViewId};
-use turbo_analysis_layers::Tokens;
+use turbo_analysis::{
+    Analyzer, Document, EvidenceStep, IxRange, Key, Layer, Provenance, Span, SpanOutcome, Spans, Tag, TagSet, View,
+    ViewId,
+};
+use turbo_analysis_layers::{Entities, Tokens};
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{FragmentMember, SpanFragment, SpanOutcome as Wire, TypedDocumentResult};
+use turbo_kserve::results::MAX_FRAGMENTS;
 use turbo_kserve::results::typed::chain::WireChain;
 use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
 use turbo_pii::rewrite::{MASKED, MaskedView, Pseudonymizer, REDACTED, RedactedView, RewritePolicy};
@@ -358,4 +362,82 @@ fn the_validator_refuses_an_outcome_that_lies() {
         e.source.as_mut().unwrap().outcome = 0;
     };
     assert!(refused(&msg, unspecified).contains("source has no outcome"));
+}
+
+/// One entity over the whole text with one evidence vote on the source.
+fn entity_votes_doc() -> Document {
+    let mut doc = Document::new("abc");
+    let mut tokens = Spans::new(ViewId::SOURCE);
+    tokens.push(Span::new(0, 3));
+    doc.add(&Key::DEFAULT, Tokens { spans: tokens, sentence: None }, Provenance::by("test:tokens")).unwrap();
+    let key = Key::<Entities>::named("v");
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 3));
+    let entities = Entities {
+        spans,
+        tokens: vec![IxRange::new(0, 1)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("ner", &["THING"]),
+        score: vec![0.75],
+    };
+    let on = Provenance { on: vec![Key::<Tokens>::DEFAULT.id()], ..Provenance::by("test:entity") };
+    doc.add(&key, entities, on).unwrap();
+    let step = EvidenceStep::new(key);
+    let evidence = step.build(&doc).unwrap();
+    doc.add(&step.output(), evidence, Provenance { on: vec![key.id()], ..Provenance::by("test:evidence") }).unwrap();
+    doc
+}
+
+/// Codex on #1921: member lists reach the validator from an untrusted
+/// `RoundTripTypedDocument` caller, so they are budgeted before they are
+/// read and checked in linear time once they are.
+#[test]
+fn member_lists_are_budgeted_and_checked_in_linear_time() {
+    let mut doc = insertion_and_deletion();
+    tokens_everywhere(&mut doc);
+    let msg = document_to_typed("v", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
+    let other = msg.layers.iter().position(|l| l.instance == "o0").unwrap();
+    let coalesced = msg.layers[other]
+        .annotations
+        .iter()
+        .position(|a| a.spans.iter().any(|f| f.members.len() > 1))
+        .expect("a coalesced fragment");
+    let members = |n: u32| -> Vec<FragmentMember> {
+        (0..n).map(|index| FragmentMember { index, outcome: Wire::Exact as i32 }).collect()
+    };
+    let with = |m: &mut TypedDocumentResult, n: u32| {
+        let f = m.layers[other].annotations[coalesced].spans.iter_mut().find(|f| !f.members.is_empty()).unwrap();
+        f.members = members(n);
+        f.outcome = Wire::Exact as i32;
+    };
+    // Over the fragment budget: refused by the count alone, before any member is read.
+    let over = u32::try_from(MAX_FRAGMENTS + 1).unwrap();
+    let message = refused(&msg, |m| with(m, over));
+    assert!(message.contains("max_fragments"), "{message}");
+    // Within it: a long well-formed list validates in time linear in its length.
+    let mut big = msg.clone();
+    with(&mut big, 200_000);
+    let started = std::time::Instant::now();
+    validate_typed_document(&big).unwrap();
+    let elapsed = started.elapsed();
+    assert!(elapsed < std::time::Duration::from_secs(5), "200k members took {elapsed:?}");
+    // Votes carry fragments of their own and count too.
+    let voted = entity_votes_doc();
+    let mut votes = document_to_typed("w", &voted, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    validate_typed_document(&votes).unwrap();
+    let l = votes.layers.iter_mut().find(|l| l.id == Entities::NAME.to_string()).expect("an entities layer");
+    let Some(Value::Entity(ent)) = &mut l.annotations[0].value else { panic!("an entity") };
+    ent.votes.first_mut().expect("a vote").spans[0].members = members(over);
+    let message = validate_typed_document(&votes).unwrap_err().message;
+    assert!(message.contains("max_fragments"), "{message}");
+    // A single projected span never coalesces, so members on one are refused outright.
+    let edits = masked_and_redacted();
+    let redacted = edits.get_key(&REDACTED).unwrap().id();
+    let msg = document_to_typed("e", &edits, redacted, OffsetMode::Utf8).unwrap();
+    let listed = |m: &mut TypedDocumentResult| {
+        let l = m.layers.iter_mut().find(|l| l.id == "turbo:pii-edits").unwrap();
+        let Some(Value::PiiEdit(e)) = &mut l.annotations[0].value else { panic!("an edit") };
+        e.source.as_mut().unwrap().members = members(2);
+    };
+    assert!(refused(&msg, listed).contains("source lists members"));
 }

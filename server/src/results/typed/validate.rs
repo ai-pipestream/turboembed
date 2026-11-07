@@ -156,8 +156,7 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
         if layer_lengths.insert((layer.id.as_str(), layer.instance.as_str()), layer.annotations.len()).is_some() {
             return Err(bad(format!("duplicate layer ({:?}, {:?})", layer.id, layer.instance)));
         }
-        total_fragments =
-            total_fragments.saturating_add(layer.annotations.iter().map(|a| a.spans.len().max(1)).sum::<usize>());
+        total_fragments = total_fragments.saturating_add(layer.annotations.iter().map(fragment_count).sum::<usize>());
         if total_fragments as u64 > MAX_FRAGMENTS {
             return Err(over("max_fragments", "typed document fragments", total_fragments as u64));
         }
@@ -168,6 +167,22 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
     // Last: the receipt is checked against a message already known whole.
     receipt::check_receipt(msg)
+}
+
+/// What one annotation costs against `MAX_FRAGMENTS` before any of it is
+/// read: its fragments and, since a coalesced fragment stands for the
+/// native fragments it lists, their members; entity votes carry
+/// fragments of their own. The budget is settled over the whole message
+/// first so no later check walks an unbounded list (issue #1907).
+fn fragment_count(a: &TypedAnnotation) -> usize {
+    fn frags(spans: &[SpanFragment]) -> usize {
+        spans.iter().map(|f| f.members.len()).sum::<usize>() + spans.len().max(1)
+    }
+    let votes = match &a.value {
+        Some(Value::Entity(ent)) => ent.votes.iter().map(|v| frags(&v.spans)).sum(),
+        _ => 0,
+    };
+    frags(&a.spans) + votes
 }
 
 struct LayerCtx<'a> {
@@ -194,7 +209,7 @@ impl LayerCtx<'_> {
     /// One nested fragment of the layer, in the text and with a valid
     /// outcome, as a span.
     fn fragment(&self, what: &str, frag: &SpanFragment) -> Result<Span, Failure> {
-        outcome::check_fragment(self.lid, what, frag, self.own_view)?;
+        outcome::check_single(self.lid, what, frag, self.own_view)?;
         self.offsetter.from_wire(self.text, self.lid, frag.start, frag.end)
     }
 }
