@@ -582,9 +582,14 @@ message PiiKindRef
 
 message PiiMention
 {
-  PiiKindRef kind = 1;
-  PiiConfidenceTier confidence_tier = 2;
+  // Never populated; use kind_ref.
+  string kind = 1 [deprecated = true];
+  // Never populated; use confidence.
+  string confidence_tier = 2 [deprecated = true];
   string normalized = 3;
+  // Fields 4 to 9 are held for the value, release and decision work.
+  PiiKindRef kind_ref = 10;
+  PiiConfidenceTier confidence = 11;
 }
 
 message NoiseSpan

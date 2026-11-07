@@ -41,6 +41,8 @@ fn table_error(e: KindError) -> String {
     }
 }
 
+// Reads the retired string fields only to refuse them.
+#[allow(deprecated)]
 pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &PiiMention) -> Result<(), Failure> {
     let at = || format!("{}[{i}] at {}", ctx.lid, wire_spans(&ann.spans));
     if ctx.lid != Pii::ID {
@@ -49,7 +51,10 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     if ann.spans.is_empty() {
         return Err(bad(format!("{} pii mention has no span", at())));
     }
-    match m.kind.as_ref().and_then(|r| r.kind) {
+    if !m.kind.is_empty() || !m.confidence_tier.is_empty() {
+        return Err(bad(format!("{} pii mention sets a retired string kind or confidence_tier", at())));
+    }
+    match m.kind_ref.as_ref().and_then(|r| r.kind) {
         None => return Err(bad(format!("{} pii kind is missing", at()))),
         Some(Kind::Builtin(id)) => {
             if u16::try_from(id).ok().and_then(PiiKind::from_id).is_none() {
@@ -66,8 +71,8 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
             }
         }
     }
-    if u32::try_from(m.confidence_tier).ok().and_then(PiiConfidence::from_id).is_none() {
-        return Err(bad(format!("{} pii confidence_tier is not a known tier", at())));
+    if u32::try_from(m.confidence).ok().and_then(PiiConfidence::from_id).is_none() {
+        return Err(bad(format!("{} pii confidence is not a known tier", at())));
     }
     Ok(())
 }
