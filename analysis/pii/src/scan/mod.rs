@@ -21,6 +21,7 @@ use std::sync::Arc;
 use turbo_analysis_layers::{PiiKind, PiiKinds};
 
 use crate::hits::{Hits, PiiSink};
+use crate::window::WindowConfig;
 
 /// One OpenNLP extractor class, or a caller-defined extractor named by
 /// the caller.
@@ -283,7 +284,7 @@ impl Scanner {
 
     /// Appends this scanner's candidates in `text`, in the order the Java
     /// extractor's scans run.
-    pub(crate) fn scan(&self, text: &str, hits: &mut Hits) {
+    pub(crate) fn scan(&self, text: &str, window: &WindowConfig, hits: &mut Hits) {
         let ScannerInner::Builtin { extractor, kinds: k } = &self.inner else {
             if let ScannerInner::Custom(c) = &self.inner {
                 let mut sink = PiiSink::new(text, hits);
@@ -326,8 +327,8 @@ impl Scanner {
             Extractor::Crypto => crypto::scan(text, k, hits),
             Extractor::UsIdentity => national::scan_us(text, k, hits),
             Extractor::EuIdentity => national::scan_eu(text, k, hits),
-            Extractor::CaIdentity => labelled::scan_sin(text, hits),
-            Extractor::Device => labelled::scan_imei(text, hits),
+            Extractor::CaIdentity => labelled::scan_sin(text, window, hits),
+            Extractor::Device => labelled::scan_imei(text, window, hits),
             Extractor::Custom(_) => {}
         }
     }

@@ -305,3 +305,33 @@ fn no_value_of_any_pack_appears_in_the_audit_and_every_default_pack_rewrites() {
     }
     assert_eq!(kinds.len(), PiiKind::ALL.len(), "kinds found: {kinds:?}");
 }
+
+#[test]
+fn suppressed_mentions_are_counted_by_kind_and_never_leak_values_in_audit() {
+    let texts = sample_texts();
+    let base = wide();
+    let tok = tokenizer();
+    let mut total_suppressed_seen = 0;
+    for (id, text) in &texts {
+        let baseline = layer(&base, text);
+        let Some(first) = baseline.mentions().next() else {
+            continue;
+        };
+        let first_covered = &text[first.span.start as usize..first.span.end as usize];
+        let detector = wide().allow_kind_term(first.kind, first.normalized).unwrap();
+        let report = detector.audit(text, &tok, usize::MAX);
+        assert!(report.suppressed(first.kind) >= 1, "{id}: expected suppressed count for {}", first.kind);
+        assert!(report.total_suppressed >= 1);
+        total_suppressed_seen += report.total_suppressed;
+        let shown = [report.to_string(), format!("{report:?}")];
+        for m in baseline.mentions() {
+            let covered = &text[m.span.start as usize..m.span.end as usize];
+            for value in [covered, m.normalized, first_covered, first.normalized] {
+                for out in &shown {
+                    assert!(!out.contains(value), "on {id}: {value:?} leaked in suppressed audit:\n{out}");
+                }
+            }
+        }
+    }
+    assert!(total_suppressed_seen > 20, "only {total_suppressed_seen} suppressed mentions checked");
+}

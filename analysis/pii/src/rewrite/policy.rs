@@ -8,11 +8,28 @@ use std::collections::HashMap;
 
 use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
 
+use super::mask::CharRetention;
 use super::replace::MentionCluster;
 use super::{
     Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, PiiRewrite, Pseudonymizer, RewriteError,
     Sha256Tokenizer, StaticReplacer, Truncate,
 };
+
+#[derive(Copy, Clone)]
+pub(super) enum MemberInitial {
+    Abbreviate,
+    Retention(CharRetention),
+}
+
+impl MemberInitial {
+    #[inline]
+    fn keeps(self, piece: &str, rel_at: usize, c: char) -> bool {
+        match self {
+            MemberInitial::Abbreviate => Abbreviator::is_initial_at(piece, rel_at),
+            MemberInitial::Retention(ret) => ret.keeps(rel_at, c),
+        }
+    }
+}
 
 /// Any mention replacement strategy supported by [`PiiRewrite`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -140,31 +157,37 @@ impl RewriteStrategy {
         }
     }
 
-    pub(crate) fn keeps_char_at(&self, text: &str, m: &PiiMention<'_>, abs_at: u32) -> bool {
-        let rel_at = (abs_at - m.span.start) as usize;
+    pub(super) fn retention(&self, text: &str, m: &PiiMention<'_>) -> CharRetention {
         match self {
-            RewriteStrategy::Mask(policy) => policy.keeps_char_at(&text[m.span.range()], rel_at),
-            RewriteStrategy::Truncate(trunc) => trunc.keeps_char_at(&text[m.span.range()], rel_at),
+            RewriteStrategy::Mask(policy) => policy.retention(&text[m.span.range()]),
+            RewriteStrategy::Truncate(trunc) => trunc.retention(&text[m.span.range()]),
             RewriteStrategy::Map(map) => {
-                map.lookup_mention(text, m).is_none() && map.fallback().keeps_char_at(text, m, abs_at)
+                if map.lookup_mention(text, m).is_none() {
+                    map.fallback().retention(text, m)
+                } else {
+                    CharRetention::NONE
+                }
             }
             RewriteStrategy::Pseudonym(_)
             | RewriteStrategy::Hmac(_)
             | RewriteStrategy::Format(_)
             | RewriteStrategy::Static(_)
             | RewriteStrategy::Sha256(_)
-            | RewriteStrategy::Abbreviate(_) => false,
+            | RewriteStrategy::Abbreviate(_) => CharRetention::NONE,
         }
     }
 
-    pub(crate) fn keeps_initial_at(&self, text: &str, m: &PiiMention<'_>, abs_at: u32) -> bool {
-        let rel_at = (abs_at - m.span.start) as usize;
+    pub(super) fn member_initial(&self, text: &str, m: &PiiMention<'_>) -> MemberInitial {
         match self {
-            RewriteStrategy::Abbreviate(_) => Abbreviator::is_initial_at(&text[m.span.range()], rel_at),
+            RewriteStrategy::Abbreviate(_) => MemberInitial::Abbreviate,
             RewriteStrategy::Map(map) => {
-                map.lookup_mention(text, m).is_none() && map.fallback().keeps_initial_at(text, m, abs_at)
+                if map.lookup_mention(text, m).is_none() {
+                    map.fallback().member_initial(text, m)
+                } else {
+                    MemberInitial::Retention(CharRetention::NONE)
+                }
             }
-            other => other.keeps_char_at(text, m, abs_at),
+            other => MemberInitial::Retention(other.retention(text, m)),
         }
     }
 }
@@ -255,27 +278,31 @@ impl<'a> RewriteState<'a> {
         let piece = &text[winner.span.range()];
         match strategy {
             RewriteStrategy::Truncate(trunc) => {
+                let winner_ret = trunc.retention(piece);
+                let member_rets: Vec<_> =
+                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem.kind).retention(text, mem))).collect();
                 for (rel_at, c) in piece.char_indices() {
                     let abs_at = winner.span.start + rel_at as u32;
-                    let keep = trunc.keeps_char_at(piece, rel_at)
-                        && cluster
-                            .members
+                    let keep = winner_ret.keeps(rel_at, c)
+                        && member_rets
                             .iter()
-                            .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
-                            .all(|mem| strategy_for(mem.kind).keeps_char_at(text, mem, abs_at));
+                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
                     out.push(if keep { c } else { trunc.mask() });
                 }
                 Ok(())
             }
             RewriteStrategy::Mask(policy) => {
+                let winner_ret = policy.retention(piece);
+                let member_rets: Vec<_> =
+                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem.kind).retention(text, mem))).collect();
                 for (rel_at, c) in piece.char_indices() {
                     let abs_at = winner.span.start + rel_at as u32;
-                    let keep = policy.keeps_char_at(piece, rel_at)
-                        && cluster
-                            .members
+                    let keep = winner_ret.keeps(rel_at, c)
+                        && member_rets
                             .iter()
-                            .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
-                            .all(|mem| strategy_for(mem.kind).keeps_char_at(text, mem, abs_at));
+                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
                     if keep {
                         out.push(c);
                     } else {
@@ -287,15 +314,19 @@ impl<'a> RewriteState<'a> {
                 Ok(())
             }
             RewriteStrategy::Abbreviate(abbr) => {
+                let member_inits: Vec<_> = cluster
+                    .members
+                    .iter()
+                    .map(|mem| (mem.span, strategy_for(mem.kind).member_initial(text, mem)))
+                    .collect();
                 abbr.write_abbreviated_filtered(
                     piece,
-                    |rel_at| {
+                    |rel_at, c| {
                         let abs_at = winner.span.start + rel_at as u32;
-                        cluster
-                            .members
+                        member_inits
                             .iter()
-                            .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
-                            .all(|mem| strategy_for(mem.kind).keeps_initial_at(text, mem, abs_at))
+                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                            .all(|(span, init)| init.keeps(&text[span.range()], (abs_at - span.start) as usize, c))
                     },
                     out,
                 );
@@ -355,7 +386,9 @@ impl RewritePolicy {
 
     /// Whether overlapping mentions are refused rather than coalesced.
     pub fn refuses_overlaps(&self) -> bool {
-        self.refuse_overlaps || self.default_strategy.refuses_overlaps()
+        self.refuse_overlaps
+            || self.default_strategy.refuses_overlaps()
+            || self.overrides.iter().any(|(_, s)| s.refuses_overlaps())
     }
 
     /// Replaces every mention of `pii`, a layer over `text`, with the

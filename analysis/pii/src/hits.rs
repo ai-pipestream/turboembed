@@ -10,6 +10,8 @@ use std::ops::Range;
 use turbo_analysis::Span;
 use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
 
+use crate::window::WindowConfig;
+
 /// Why a candidate handed to [`PiiSink`] was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SinkError {
@@ -217,15 +219,41 @@ impl Hits {
         &self.buf[h.normalized.start as usize..h.normalized.end as usize]
     }
 
+    /// Applies context label requirements before resolving candidate spans.
+    pub(crate) fn apply_label_policy(&mut self, text: &str, window: &WindowConfig) {
+        self.hits.retain_mut(|h| {
+            if let Some(conf) = window.check(text, Span::new(h.start, h.end), h.kind, h.confidence) {
+                h.confidence = conf;
+                true
+            } else {
+                false
+            }
+        });
+    }
+
     /// Orders the candidates (a stable sort keeps the finding order of
     /// ties) and writes each distinct mention to `out`. Equal mentions
     /// share a span, so they sit in one run of that span. When
     /// `keep_nested` is `false`, any candidate whose span lies strictly
     /// inside an earlier, longer candidate's span is dropped.
-    pub(crate) fn resolve(mut self, keep_nested: bool, out: &mut Pii) {
+    #[cfg(test)]
+    pub(crate) fn resolve(self, keep_nested: bool, out: &mut Pii) {
+        let _ = self.resolve_with(keep_nested, |_, _, _, _| false, out);
+    }
+
+    /// Resolves candidates into `out`, dropping any resolved mention for
+    /// which `is_suppressed(kind, start, end, normalized)` returns `true`
+    /// and returning the suppressed mention counts by [`PiiKind`].
+    pub(crate) fn resolve_with(
+        mut self,
+        keep_nested: bool,
+        mut is_suppressed: impl FnMut(PiiKind, u32, u32, &str) -> bool,
+        out: &mut Pii,
+    ) -> Vec<(PiiKind, usize)> {
         self.hits.sort_by_key(|h| (h.start, Reverse(h.end), h.kind));
         let mut run_start = 0;
         let mut outer: Option<(u32, u32)> = None;
+        let mut suppressed: Vec<(PiiKind, usize)> = Vec::new();
         for i in 0..self.hits.len() {
             let h = &self.hits[i];
             if i > 0 {
@@ -239,12 +267,19 @@ impl Hits {
             {
                 continue;
             }
-            if outer.is_none_or(|(_, oe)| h.end > oe) {
-                outer = Some((h.start, h.end));
-            }
             let value = self.normalized(h);
             let repeat = self.hits[run_start..i].iter().any(|e| e.kind == h.kind && self.normalized(e) == value);
             if !repeat {
+                if is_suppressed(h.kind, h.start, h.end, value) {
+                    match suppressed.iter_mut().find(|(k, _)| *k == h.kind) {
+                        Some((_, count)) => *count += 1,
+                        None => suppressed.push((h.kind, 1)),
+                    }
+                    continue;
+                }
+                if outer.is_none_or(|(_, oe)| h.end > oe) {
+                    outer = Some((h.start, h.end));
+                }
                 out.push(PiiMention {
                     span: Span::new(h.start, h.end),
                     kind: h.kind,
@@ -253,6 +288,8 @@ impl Hits {
                 });
             }
         }
+        suppressed.sort_by_key(|(k, _)| k.name());
+        suppressed
     }
 
     /// The resolved mentions as a layer over `view`.
