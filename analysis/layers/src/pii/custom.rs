@@ -42,6 +42,9 @@ pub enum KindError {
     UnknownCode(u32),
     /// A custom kind indexes past the end of its table.
     UnknownCustom(u16),
+    /// A replacement table gives a custom index a detector rule already
+    /// uses to another name.
+    Renamed(u16),
     /// A confidence id is not one of the four tiers.
     UnknownConfidence(u32),
 }
@@ -58,6 +61,7 @@ impl fmt::Display for KindError {
             KindError::Full => write!(f, "more than {} custom pii kinds", CustomKinds::MAX),
             KindError::UnknownCode(c) => write!(f, "an unknown pii kind code {c}"),
             KindError::UnknownCustom(i) => write!(f, "custom pii kind {i} is not in the kind table"),
+            KindError::Renamed(i) => write!(f, "custom pii kind {i} names another kind in the replacement table"),
             KindError::UnknownConfidence(c) => write!(f, "an unknown pii confidence id {c}"),
         }
     }

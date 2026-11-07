@@ -192,6 +192,11 @@ pub(crate) struct WindowConfig {
 }
 
 impl WindowConfig {
+    /// Every kind with an override, in kind-code order.
+    pub(crate) fn kinds(&self) -> impl Iterator<Item = PiiKind> + '_ {
+        self.overrides.iter().map(|o| o.kind)
+    }
+
     fn find(&self, kind: PiiKind) -> Option<&KindOverride> {
         self.overrides.iter().find(|o| o.kind == kind)
     }
