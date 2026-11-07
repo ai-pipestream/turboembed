@@ -85,15 +85,33 @@ impl Operation {
     }
 }
 
-fn covers_whole(assessed: &[ByteRange], len: u32) -> bool {
-    let mut at = 0u32;
-    for r in assessed {
-        if r.start > at || r.end < r.start {
-            return false;
+/// `ranges` as the proto promises them: each clamped to `[0, len)`, empty
+/// ones dropped, sorted, and overlapping or touching ones merged, so the
+/// result is sorted and disjoint whatever a producer reported.
+pub fn normalize_ranges(ranges: &[ByteRange], len: u32) -> Vec<ByteRange> {
+    let mut out: Vec<ByteRange> = ranges
+        .iter()
+        .map(|r| ByteRange { start: r.start.min(len), end: r.end.min(len) })
+        .filter(|r| r.start < r.end)
+        .collect();
+    out.sort_unstable_by_key(|r| (r.start, r.end));
+    let mut merged: Vec<ByteRange> = Vec::with_capacity(out.len());
+    for r in out {
+        match merged.last_mut() {
+            Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
+            _ => merged.push(r),
         }
-        at = at.max(r.end);
     }
-    at >= len
+    merged
+}
+
+/// Whether normalized `assessed` ranges cover all of `[0, len)`.
+pub fn covers_whole(assessed: &[ByteRange], len: u32) -> bool {
+    match assessed {
+        [] => len == 0,
+        [only] => only.start == 0 && only.end == len,
+        _ => false,
+    }
 }
 
 fn layer_receipt(doc: &Document, key: KeyId, source_len: u32, coverage: &[Coverage]) -> LayerReceipt {
@@ -110,9 +128,12 @@ fn layer_receipt(doc: &Document, key: KeyId, source_len: u32, coverage: &[Covera
     let (status, assessed, truncations) = match wire {
         LayerWireStatus::Ok => match cover {
             Some(c) => {
-                let partial = !c.truncations.is_empty() || !covers_whole(&c.assessed, source_len);
+                let assessed = normalize_ranges(&c.assessed, source_len);
+                let cuts: Vec<i32> =
+                    c.truncations.iter().filter(|t| **t != TruncationReason::Unspecified).map(|t| *t as i32).collect();
+                let partial = !cuts.is_empty() || !covers_whole(&assessed, source_len);
                 let status = if partial { ProcessingStatus::Partial } else { ProcessingStatus::Complete };
-                (status, c.assessed.clone(), c.truncations.iter().map(|t| *t as i32).collect())
+                (status, assessed, cuts)
             }
             None => (ProcessingStatus::Complete, whole, Vec::new()),
         },

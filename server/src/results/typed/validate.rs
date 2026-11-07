@@ -9,6 +9,7 @@ mod envelope;
 mod evidence;
 mod quality;
 mod quotations;
+mod receipt;
 mod shared;
 
 use std::collections::{HashMap, HashSet};
@@ -132,6 +133,10 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
 
     envelope::validate_envelope(msg, &known_models)?;
+    for v in &msg.views {
+        receipt::check_status(&format!("view {:?}", v.instance), v.status, v.error.as_ref())?;
+    }
+    receipt::check_receipt(msg)?;
 
     let mut layer_lengths: HashMap<(&str, &str), usize> = HashMap::with_capacity(msg.layers.len());
     let mut total_fragments = 0usize;
@@ -140,9 +145,7 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
         if layer.id.trim().is_empty() {
             return Err(bad(format!("layers[{l_ix}] has an empty id")));
         }
-        let Ok(_status) = LayerWireStatus::try_from(layer.status) else {
-            return Err(bad(format!("layer {:?} has unknown status {}", layer.id, layer.status)));
-        };
+        receipt::check_status(&format!("layer {:?}", layer.id), layer.status, layer.error.as_ref())?;
         let Ok(_scope) = AnchorKind::try_from(layer.scope) else {
             return Err(bad(format!("layer {:?} has unknown scope {}", layer.id, layer.scope)));
         };
