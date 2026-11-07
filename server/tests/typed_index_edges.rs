@@ -19,6 +19,7 @@ async fn optional_token_ranges_require_both_endpoints() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
             })
             .await
             .unwrap()
@@ -88,6 +89,7 @@ async fn group_and_edge_indices_require_a_target_bound() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
             })
             .await
             .unwrap()
@@ -138,6 +140,7 @@ async fn sentence_and_opinion_references_follow_the_declared_bounds() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
             })
             .await
             .unwrap()
@@ -197,6 +200,7 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
             })
             .await
             .unwrap()
@@ -252,6 +256,7 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
             })
             .await
             .unwrap()
