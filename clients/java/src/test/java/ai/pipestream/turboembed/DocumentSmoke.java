@@ -31,6 +31,10 @@ import turbo.result.v1.TurboTypedAnnotations.LayerReceipt;
 import turbo.result.v1.TurboTypedAnnotations.LayerWireStatus;
 import turbo.result.v1.TurboTypedAnnotations.MappingPayload;
 import turbo.result.v1.TurboTypedAnnotations.OffsetMode;
+import turbo.result.v1.TurboTypedAnnotations.PiiConfidenceTier;
+import turbo.result.v1.TurboTypedAnnotations.PiiKindId;
+import turbo.result.v1.TurboTypedAnnotations.PiiKindRef;
+import turbo.result.v1.TurboTypedAnnotations.PiiMention;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingReceipt;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingStatus;
 import turbo.result.v1.TurboTypedAnnotations.ScopedRef;
@@ -400,7 +404,14 @@ final class Conformance {
         SpanFragment span = first.getSpans(0);
         String got = slice(TEXT, Integer.toUnsignedLong(span.getStart()), Integer.toUnsignedLong(span.getEnd()));
         check(got.equals(VALUE), "pii[0] slices to " + got.length() + " bytes, not the planted value");
-        check(first.getPii().getKind().equals("email"), "pii[0] kind " + first.getPii().getKind());
+        PiiMention mention = first.getPii();
+        check(mention.getKindRef().getKindCase() == PiiKindRef.KindCase.BUILTIN
+                && mention.getKindRef().getBuiltin() == PiiKindId.PII_KIND_ID_EMAIL,
+                "pii[0] kind_ref " + mention.getKindRef());
+        check(mention.getConfidence() == PiiConfidenceTier.PII_CONFIDENCE_TIER_FORMAT,
+                "pii[0] confidence " + mention.getConfidence());
+        check(mention.getKind().isEmpty() && mention.getConfidenceTier().isEmpty(),
+                "pii[0] populates a retired string field");
         check(!first.hasProbability(), "pii[0] carries a probability");
         check(first.hasModelRef(), "pii[0] carries no model_ref");
         boolean known = source.getModelsList().stream().anyMatch(m -> m.getModelRef().equals(first.getModelRef()));
@@ -484,7 +495,7 @@ final class Conformance {
         TypedAnnotation onSource = resolve(roundTrip(stub, source), r);
         TypedAnnotation onMasked = resolve(masked, r);
         check(onSource.equals(pii.getAnnotations(0)), "the reference resolves to another annotation");
-        check(onMasked.getPii().getKind().equals(onSource.getPii().getKind()), "another mention on the masked view");
+        check(onMasked.getPii().getKindRef().equals(onSource.getPii().getKindRef()), "another mention on the masked view");
         expectRefused(() -> resolve(masked, r.toBuilder().setResultId("0" + r.getResultId().substring(1)).build()),
                 "another result");
         expectRefused(() -> resolve(masked, r.toBuilder().setViewInstance("masked").build()), "another view");
@@ -631,6 +642,22 @@ final class Conformance {
         check(offsets.getOffsets() == OffsetMode.UNRECOGNIZED, "offsets 99 in Java");
         why = refused(stub, offsets, "unknown offsets");
         check(why.contains("99"), "unknown offsets refused without naming it: " + why);
+
+        // A kind id or confidence tier this build does not know is what a
+        // redaction decision would need: refused, never read as a built-in.
+        TypedDocumentResult kind = withAnnotation(source, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setKindRef(PiiKindRef.newBuilder().setBuiltinValue(UNKNOWN_ENUM))));
+        PiiKindRef unknownKind = layer(kind, "turbo:pii").getAnnotations(0).getPii().getKindRef();
+        check(unknownKind.getBuiltin() == PiiKindId.UNRECOGNIZED && unknownKind.getBuiltinValue() == UNKNOWN_ENUM,
+                "kind id 99 in Java");
+        why = refused(stub, kind, "unknown pii kind id");
+        check(why.contains("not a built-in kind"), "unknown kind id refused for another reason: " + why);
+        TypedDocumentResult tier = withAnnotation(source, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setConfidenceValue(UNKNOWN_ENUM)));
+        check(layer(tier, "turbo:pii").getAnnotations(0).getPii().getConfidence() == PiiConfidenceTier.UNRECOGNIZED,
+                "confidence 99 in Java");
+        why = refused(stub, tier, "unknown pii confidence tier");
+        check(why.contains("not a known tier"), "unknown tier refused for another reason: " + why);
 
         ProcessingReceipt receipt = source.getReceipt().toBuilder().setStatusValue(UNKNOWN_ENUM).build();
         check(receipt.getStatus() == ProcessingStatus.UNRECOGNIZED, "receipt status 99 in Java");
