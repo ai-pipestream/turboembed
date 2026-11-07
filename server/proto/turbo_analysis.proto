@@ -250,6 +250,9 @@ message ResultLimits
   uint64 max_fragments = 10;
   uint64 max_graph_bytes = 11;
   uint64 max_record_values = 12;
+  // Native edits in one TypedDocumentResult's inline mapping, over
+  // every view.
+  uint64 max_mapping_edits = 13;
 }
 
 message LoadBundleRequest
