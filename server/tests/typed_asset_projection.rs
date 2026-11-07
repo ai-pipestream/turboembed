@@ -71,6 +71,8 @@ async fn assets_keep_payload_presence_when_its_text_is_deleted() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
@@ -126,6 +128,8 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     graph: graph.clone(),
                     view,
                     offsets: mode as i32,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

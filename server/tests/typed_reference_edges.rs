@@ -38,6 +38,8 @@ async fn relations_mentions_and_levels_keep_native_reference_bounds() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()

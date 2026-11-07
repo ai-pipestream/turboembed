@@ -51,6 +51,8 @@ async fn cross_instance_entity_edges_round_trip_and_stay_bounded() {
                     graph: graph.clone(),
                     view: 0,
                     offsets: mode as i32,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

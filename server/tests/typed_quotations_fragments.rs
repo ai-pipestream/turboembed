@@ -59,6 +59,8 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

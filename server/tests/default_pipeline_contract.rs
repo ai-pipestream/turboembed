@@ -7,7 +7,7 @@ use turbo_analysis::{Span, View, ViewId};
 use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
-use turbo_kserve::proto::result::{AnalyzePipelineRequest, LayerWireStatus, OffsetMode};
+use turbo_kserve::proto::result::{AnalyzePipelineRequest, LayerWireStatus, OffsetMode, ProcessingStatus};
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::{Serve, Server};
 
@@ -61,6 +61,7 @@ async fn default_profile_preserves_unicode_text_tokens_offsets_and_steps_without
         let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
         let mut completed = Vec::new();
         let mut terminal = None;
+        let mut receipt = None;
         let mut sequence = 0;
         while let Some(event) = stream.next().await {
             let event = event.unwrap();
@@ -79,10 +80,13 @@ async fn default_profile_preserves_unicode_text_tokens_offsets_and_steps_without
                     completed.push(batch.completed_step);
                 }
                 Event::Complete(complete) => terminal = Some(complete),
+                Event::Receipt(r) => receipt = Some(r),
                 other => panic!("default pipeline failed: {other:?}"),
             }
         }
-        assert_eq!(sequence, 12);
+        // Started, one batch per step, complete, then the terminal receipt.
+        assert_eq!(sequence, 13);
+        assert_eq!(receipt.unwrap().status, ProcessingStatus::Complete as i32);
         assert_eq!(completed.len(), STEPS.len());
         let complete = terminal.unwrap();
         assert_eq!(complete.source_text, TEXT);

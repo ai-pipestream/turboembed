@@ -98,6 +98,8 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -327,7 +329,14 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
     ] {
         invalid(
             &client
-                .inspect_document_graph(InspectDocumentGraphRequest { doc_id: "bad".into(), graph, view, offsets })
+                .inspect_document_graph(InspectDocumentGraphRequest {
+                    doc_id: "bad".into(),
+                    graph,
+                    view,
+                    offsets,
+                    binding: None,
+                    operation_key: String::new(),
+                })
                 .await
                 .unwrap_err(),
         );

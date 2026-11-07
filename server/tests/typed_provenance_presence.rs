@@ -34,6 +34,8 @@ async fn project(c: &mut common::Analysis, doc: &Document, mode: OffsetMode) -> 
             graph: graph.to_vec(),
             view: 0,
             offsets: mode as i32,
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()

@@ -86,6 +86,8 @@ async fn category_evidence_keeps_payloads_producers_support_and_projected_spans(
                     graph: bytes.to_vec(),
                     view,
                     offsets: mode as i32,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
