@@ -232,9 +232,15 @@ impl MaskedView {
         Bound::new(self).write(0, MASKED.name)
     }
 
-    /// `src` with the mentions of `pii`, a layer over it, masked. A mention
+    /// `src` with the mentions of `pii`, a layer over it, masked. A layer
+    /// over another view is refused: its spans are offsets of that view's
+    /// text, so masking `src` with them would mask other bytes. A mention
     /// whose custom kind is outside the layer's table is refused.
     pub fn view(&self, src: &View, pii: &Pii) -> Result<View, MaskError> {
+        let layer = pii.spans.view();
+        if layer != src.id() {
+            return Err(MaskError::ForeignView { layer, view: src.id() });
+        }
         for m in pii.mentions() {
             pii.custom_kinds.check(m.kind).map_err(MaskError::Kind)?;
         }
@@ -252,12 +258,6 @@ impl Annotator for MaskedView {
     type Writes = (View,);
 
     fn annotate(&self, (src, pii): Refs<'_, Self>) -> Result<(View,), Error> {
-        if pii.spans.view() != src.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("the pii layer is over view {}, not view {}", pii.spans.view().0, src.id().0),
-            });
-        }
         let detail = |e: MaskError| Error::Annotator { annotator: Self::ID, detail: e.to_string() };
         Ok((self.view(src, pii).map_err(detail)?,))
     }
