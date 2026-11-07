@@ -428,6 +428,23 @@ reads one back with the message's own validation.
 for a requested view and offset mode. `RoundTripTypedDocument` validates
 and echoes the typed message; it does not reconstruct a native `Document`.
 
+A layer over another view is projected through the lowest common
+ancestor of its view and the requested one, as `Document::map_span`
+maps spans, so a span outside the edits between the two keeps its exact
+bytes; a detour through the source would widen it to the whole of every
+lossy edit above that ancestor (#1906). In debug builds, and so in
+tests, the projection runs the `RoundTripTypedDocument` validation on its
+own message and refuses, with `TURBO_E_INVALID_ARGUMENT`, a document it
+cannot project to a message that validation accepts. Release builds skip
+that check, which costs half to three quarters as much as the projection
+itself.
+
+A `turbo:pii` payload needs a kind, either a built-in kind name or a
+custom kind name of at most 64 bytes, and a confidence tier of `format`,
+`checksum` or `labelled-checksum`. A refusal names the layer, the row and
+its wire spans, never the mention's text, kind or tier. A mention whose
+text the requested view deletes keeps an empty span where it was.
+
 Evidence producers record only annotator and optional model identity.
 Their model-table entries use version `"0"`, config hash `0`, and absent
 execution metadata for the unrecorded fields. They do not borrow those
