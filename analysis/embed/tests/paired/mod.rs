@@ -140,9 +140,10 @@ fn a_board_noisier_than_resolution_is_read_within_its_own_window() {
     assert_eq!(window(&wild), None);
 }
 
-/// Three sets from the Hailo-10H's whole set at window 64 and cap 32 at
-/// 5ddf3192, 2026-11-07, its times swinging over 72.5 to 80.7 ms: no set
-/// is quiet, and all of them at once are read.
+/// The first set is the Hailo-10H's whole set at window 64 and cap 32 at
+/// 5ddf3192, 2026-11-07; the other sets and the self pairs are made up in
+/// the same 72.5 to 80.7 ms swing. No set is quiet, and all of them at
+/// once are read.
 #[test]
 fn bursty_sets_are_read_together_and_a_steady_slowdown_still_fails() {
     let pairs = [
