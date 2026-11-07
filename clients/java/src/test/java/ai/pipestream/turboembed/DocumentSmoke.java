@@ -41,6 +41,7 @@ import turbo.result.v1.TurboTypedAnnotations.ProcessingReceipt;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingStatus;
 import turbo.result.v1.TurboTypedAnnotations.ScopedRef;
 import turbo.result.v1.TurboTypedAnnotations.SpanFragment;
+import turbo.result.v1.TurboTypedAnnotations.SpanOutcome;
 import turbo.result.v1.TurboTypedAnnotations.TypedAnnotation;
 import turbo.result.v1.TurboTypedAnnotations.TypedDocumentResult;
 import turbo.result.v1.TurboTypedAnnotations.TypedLayer;
@@ -224,6 +225,8 @@ final class Conformance {
     static final PiiOutputOptions FULL_TEXT = PiiOutputOptions.newBuilder().setFullText(true).build();
     static final PiiOutputOptions FINDINGS_ONLY = PiiOutputOptions.getDefaultInstance();
     static final Path CASES = Path.of("clients", "java", "src", "test", "resources", "mapping-cases.txt");
+    /** Projected fragments seen per {@link SpanOutcome} number over the mapping cases. */
+    static final int[] OUTCOMES = new int[4];
 
     private Conformance() {}
 
@@ -762,6 +765,9 @@ final class Conformance {
             cases++;
         }
         check(projected > 0, "no layer projection was held to the port");
+        check(OUTCOMES[SpanOutcome.SPAN_OUTCOME_EXACT_VALUE] > 0 && OUTCOMES[SpanOutcome.SPAN_OUTCOME_WIDENED_VALUE] > 0
+                && OUTCOMES[SpanOutcome.SPAN_OUTCOME_DELETED_VALUE] > 0, "the cases show " + Arrays.toString(OUTCOMES)
+                + " fragments by outcome number; exact, widened and deleted must all occur");
         return cases;
     }
 
@@ -778,12 +784,25 @@ final class Conformance {
                 TypedLayer there = layer(shown[v], layer.getId());
                 for (int a = 0; a < nativeLayer.getAnnotationsCount(); a++) {
                     SpanFragment n = nativeLayer.getAnnotations(a).getSpans(0);
-                    long[] got = port.mapSpan(home, v, Integer.toUnsignedLong(n.getStart()), Integer.toUnsignedLong(n.getEnd()));
+                    long nStart = Integer.toUnsignedLong(n.getStart());
+                    long nEnd = Integer.toUnsignedLong(n.getEnd());
+                    long[] got = port.mapSpan(home, v, nStart, nEnd);
                     SpanFragment s = there.getAnnotations(a).getSpans(0);
+                    String where = name + ": " + layer.getId() + "[" + a + "] in view " + v;
                     check(there.getAnnotations(a).getSpansCount() == 1 && Integer.toUnsignedLong(s.getStart()) == got[0]
-                            && Integer.toUnsignedLong(s.getEnd()) == got[1], name + ": " + layer.getId() + "[" + a
-                            + "] in view " + v + " is " + s.getStart() + ".." + s.getEnd() + ", the port maps it to "
-                            + got[0] + ".." + got[1]);
+                            && Integer.toUnsignedLong(s.getEnd()) == got[1], where + " is " + s.getStart() + ".."
+                            + s.getEnd() + ", the port maps it to " + got[0] + ".." + got[1]);
+                    // The outcome is the consumer rule over the chain (#1907 part 2): deleted when a
+                    // non-empty span lands empty, exact when mapping back gives the native span,
+                    // widened otherwise. One native span never coalesces, so it lists no members.
+                    long[] back = port.mapSpan(v, home, got[0], got[1]);
+                    SpanOutcome want = nStart != nEnd && got[0] == got[1] ? SpanOutcome.SPAN_OUTCOME_DELETED
+                            : back[0] == nStart && back[1] == nEnd ? SpanOutcome.SPAN_OUTCOME_EXACT
+                            : SpanOutcome.SPAN_OUTCOME_WIDENED;
+                    check(s.getOutcome() == want, where + " says " + s.getOutcome() + ", the chain says " + want);
+                    check(s.getMembersCount() == 0, where + " lists " + s.getMembersCount() + " members on one native span");
+                    check(v != home || want == SpanOutcome.SPAN_OUTCOME_EXACT, where + " is not exact on its own view");
+                    OUTCOMES[want.getNumber()]++;
                     checked++;
                 }
             }

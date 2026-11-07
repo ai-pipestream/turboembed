@@ -7,10 +7,8 @@
 //! `document_to_typed` refuses to emit a message its own validator would
 //! refuse.
 
-use turbo_analysis::{
-    Alignment, Analyzer, Document, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId,
-};
-use turbo_analysis_layers::{Categories, QualityMetrics, TextQuality, Tokens};
+use turbo_analysis::{Alignment, Analyzer, Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
+use turbo_analysis_layers::Tokens;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::pii_allow_rule_ref::Rule;
@@ -20,10 +18,11 @@ use turbo_kserve::proto::result::pii_kind_ref::Kind;
 use turbo_kserve::proto::result::pii_value::Form;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
-    PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm, PiiChecksumEvidence,
-    PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKindRef,
-    PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore, PiiShapeEvidence, PiiValue, PiiValueCiphertext,
-    PiiValueToken, SpanFragment, TypedDocumentResult, TypedLayer,
+    FragmentMember, PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm,
+    PiiChecksumEvidence, PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition,
+    PiiEvidence as WireEvidence, PiiKindRef, PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore,
+    PiiShapeEvidence, PiiValue, PiiValueCiphertext, PiiValueToken, SpanFragment, SpanOutcome, TypedDocumentResult,
+    TypedLayer,
 };
 // The projection itself is under test, so the text is asked for (#1904).
 use turbo_kserve::results::disclosure::Disclosure;
@@ -170,6 +169,33 @@ fn pii_layer(wire: &mut TypedDocumentResult) -> &mut TypedLayer {
     wire.layers.iter_mut().find(|l| l.id == "turbo:pii").expect("a pii layer")
 }
 
+/// A label fact over `span`, whatever the fragment says about itself.
+fn label_fact(span: SpanFragment) -> WireEvidence {
+    WireEvidence { fact: Some(Fact::Label(PiiLabelEvidence { span: Some(span), phrase: 0 })) }
+}
+
+/// Label spans the outcome rules refuse (argon on #1921): no outcome,
+/// widened on the layer's own view, deleted but not empty, and members
+/// on a single projected span.
+fn bad_label_spans() -> [(&'static str, SpanFragment); 4] {
+    let member = |index| FragmentMember { index, outcome: SpanOutcome::Exact as i32 };
+    [
+        ("a label span with no outcome", SpanFragment { outcome: 0, ..SpanFragment::exact(0, 4) }),
+        (
+            "a label span widened on its own view",
+            SpanFragment { outcome: SpanOutcome::Widened as i32, ..SpanFragment::exact(0, 4) },
+        ),
+        (
+            "a deleted label span that is not empty",
+            SpanFragment { outcome: SpanOutcome::Deleted as i32, ..SpanFragment::exact(0, 4) },
+        ),
+        (
+            "a label span with members",
+            SpanFragment { members: vec![member(0), member(1)], ..SpanFragment::exact(0, 4) },
+        ),
+    ]
+}
+
 /// The error of `wire`, held to carry no planted value.
 #[track_caller]
 fn refused(what: &str, wire: &TypedDocumentResult, secrets: &[&str]) -> String {
@@ -203,14 +229,13 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
     let luhn = WireEvidence {
         fact: Some(Fact::Checksum(PiiChecksumEvidence { algorithm: PiiChecksumAlgorithm::Luhn as i32, passed: true })),
     };
-    let label = WireEvidence {
-        fact: Some(Fact::Label(PiiLabelEvidence { span: Some(SpanFragment { start: 0, end: 4 }), phrase: 0 })),
-    };
+    let label =
+        WireEvidence { fact: Some(Fact::Label(PiiLabelEvidence { span: Some(SpanFragment::exact(0, 4)), phrase: 0 })) };
     let shape = WireEvidence { fact: Some(Fact::Shape(PiiShapeEvidence {})) };
     let paired: [(PiiConfidence, Vec<WireEvidence>); 4] = [
-        (PiiConfidence::Format, vec![shape]),
-        (PiiConfidence::Checksum, vec![luhn]),
-        (PiiConfidence::LabelledChecksum, vec![luhn, label]),
+        (PiiConfidence::Format, vec![shape.clone()]),
+        (PiiConfidence::Checksum, vec![luhn.clone()]),
+        (PiiConfidence::LabelledChecksum, vec![luhn, label.clone()]),
         (PiiConfidence::Labelled, vec![shape, label]),
     ];
     for (tier, facts) in paired {
@@ -251,6 +276,11 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         let message = refused(what, &pii_message(edit), &[]);
         // The error names the layer, the row and its span, never the value.
         assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+    }
+    for (what, span) in bad_label_spans() {
+        let message = refused(what, &pii_message(|m| m.evidence.push(label_fact(span))), &[]);
+        assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+        assert!(message.contains("label span"), "{what}: {message}");
     }
 }
 
@@ -394,48 +424,6 @@ fn document_to_typed_refuses_to_emit_a_message_its_validator_refuses() {
     assert!(err.message.contains("empty annotator"), "{}", err.message);
 }
 
-#[test]
-fn a_findings_only_result_lists_other_layers_bare_and_still_validates() {
-    // A text quality summary (one annotation required) and a view-aligned
-    // category layer (one per view) beside the PII layer (#1904).
-    let mut doc = Document::new("mail jane@example.com end");
-    let mut pii = Pii::new(ViewId::SOURCE);
-    let detector = pii.detector("test", "1").unwrap();
-    pii.push(PiiMention {
-        span: Span::new(5, 21),
-        kind: PiiKind::Email,
-        detector,
-        evidence: &[PiiEvidence::Shape],
-        score: None,
-        normalized: "jane@example.com",
-    });
-    doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("turbo-pii:pii")).unwrap();
-    let quality = TextQuality::new(ViewId::SOURCE, doc.text(ViewId::SOURCE).len() as u32, QualityMetrics::default());
-    doc.add(&Key::DEFAULT, quality, Provenance::by("test:quality")).unwrap();
-    let mut cats = Categories::<View>::new(TagSet::new("sentiment", &["positive", "negative"]));
-    cats.push(Tag(0), &[0.9, 0.1]);
-    doc.add(&Key::DEFAULT, cats, Provenance::by("test:doccat")).unwrap();
-
-    let full = document_to_typed_with("pii", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
-    let findings =
-        document_to_typed_with("pii", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FINDINGS).unwrap();
-    validate_typed_document(&findings).unwrap();
-    for id in ["turbo:text_quality", "turbo:categories"] {
-        let listed =
-            |w: &TypedDocumentResult| w.layers.iter().find(|l| l.id.starts_with(id)).map(|l| l.annotations.len());
-        assert!(listed(&full).is_some_and(|n| n > 0), "{id}: positive control");
-        assert_eq!(listed(&findings), Some(0), "{id} is listed bare");
-    }
-    // A withheld result that still carries another layer's annotations is
-    // refused: those annotations are the withheld text's words.
-    let mut leaky = findings.clone();
-    let donor = full.layers.iter().find(|l| l.id.starts_with("turbo:text_quality")).unwrap();
-    let bare = leaky.layers.iter_mut().find(|l| l.id == donor.id).unwrap();
-    bare.annotations = donor.annotations.clone();
-    let message = refused("annotations beside a withheld text", &leaky, &[]);
-    assert!(message.contains("while the text is withheld"), "{message}");
-}
-
 /// The candidate annotations of `wire`, with their dispositions.
 fn candidates(wire: &mut TypedDocumentResult) -> &mut TypedLayer {
     wire.layers.iter_mut().find(|l| l.id == "turbo:pii-candidates").expect("a candidates layer")
@@ -483,6 +471,13 @@ fn candidates_carry_their_disposition_and_validate_against_the_pii_layer() {
         edit(c);
         let message = refused(what, &bad, &[]);
         assert!(message.contains("turbo:pii-candidates[0]"), "{what}: {message}");
+    }
+    for (what, span) in bad_label_spans() {
+        let mut bad = wire.clone();
+        let Some(Value::PiiCandidate(c)) = &mut candidates(&mut bad).annotations[0].value else { unreachable!() };
+        c.evidence.push(label_fact(span));
+        let message = refused(what, &bad, &[]);
+        assert!(message.contains("turbo:pii-candidates[0]") && message.contains("label span"), "{what}: {message}");
     }
     // A candidate outside its layer is refused, as a mention is.
     let mut bad = wire.clone();

@@ -1,0 +1,11 @@
+
+    Finished `release` profile [optimized] target(s) in 0.12s
+     Running `target/release/turbo-eval.exe gate <records>/scratch/turbo-chunker-254-200-hybrid
+<records>/scratch/fixed-tokens-200-hybrid`
+arguana: 52.17 -> 51.48, -0.70 points (95% interval -1.21 to -0.18, p = 0.0082, 1406 queries)  below the floor
+nfcorpus: 33.56 -> 34.21, +0.66 points (95% interval +0.11 to +1.22, p = 0.0209, 323 queries)
+qasper: 38.13 -> 37.65, -0.48 points (95% interval -1.37 to +0.40, p = 0.2891, 1451 queries)
+scifact: 69.51 -> 69.07, -0.44 points (95% interval -1.63 to +0.71, p = 0.4666, 300 queries)
+FAIL: 0 of 4 sets gained at least 2 points with an interval above zero (2 needed), floor -0.5
+error: process didn't exit successfully: `target/release/turbo-eval.exe gate <records>/scratch/turbo-chunker-254-200-hybrid
+<records>/scratch/fixed-tokens-200-hybrid` (exit code: 1)

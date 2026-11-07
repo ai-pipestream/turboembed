@@ -46,7 +46,7 @@ async fn named_entity_salience_survives_both_views_and_all_offset_modes() {
             assert_eq!(layer.annotations.len(), 2, "nonempty salience was erased");
             assert_eq!(layer.indexes_layer[0].instance, "rollup");
             let end = if view == 0 && mode == OffsetMode::Utf8 { 2 } else { 1 };
-            assert_eq!(layer.annotations[0].spans, [SpanFragment { start: 0, end }]);
+            assert_eq!(layer.annotations[0].spans, [SpanFragment::exact(0, end)]);
             let last = match mode {
                 OffsetMode::Utf8 => {
                     if view == 0 {
@@ -58,7 +58,7 @@ async fn named_entity_salience_survives_both_views_and_all_offset_modes() {
                 OffsetMode::Utf16 => 4,
                 _ => 3,
             };
-            assert_eq!(layer.annotations[1].spans, [SpanFragment { start: last, end: last + 1 }]);
+            assert_eq!(layer.annotations[1].spans, [SpanFragment::exact(last, last + 1)]);
             for (i, annotation) in layer.annotations.iter().enumerate() {
                 let Some(Value::EntitySalience(score)) = &annotation.value else { panic!("salience payload") };
                 assert_eq!((score.entity_index, score.rank), (i as u32, 1 - i as u32));
@@ -185,13 +185,13 @@ async fn named_chunk_table_headers_survive_both_views_and_all_offset_modes() {
                 let start = if view == 0 { 2 } else { 0 };
                 assert_eq!(
                     header.header_cells,
-                    [SpanFragment { start, end: start + if mode == OffsetMode::Utf8 { 2 } else { 1 } }]
+                    [SpanFragment::exact(start, start + if mode == OffsetMode::Utf8 { 2 } else { 1 })]
                 );
                 let size = if mode == OffsetMode::Utf8 { 3 } else { 2 };
                 let span = if i == 0 {
-                    SpanFragment { start, end: start + size }
+                    SpanFragment::exact(start, start + size)
                 } else {
-                    SpanFragment { start: start + size, end: start + size + 1 }
+                    SpanFragment::exact(start + size, start + size + 1)
                 };
                 assert_eq!(annotation.spans, [span]);
             }
@@ -206,7 +206,7 @@ async fn named_chunk_table_headers_survive_both_views_and_all_offset_modes() {
                 match field {
                     "chunk" => header.chunk_index = 99,
                     "table" => header.table_id = 99,
-                    "span" => header.header_cells[0] = SpanFragment { start: 999, end: 1000 },
+                    "span" => header.header_cells[0] = SpanFragment::exact(999, 1000),
                     _ => {}
                 }
                 invalid(client.round_trip_typed_document(bad).await.unwrap_err());

@@ -52,7 +52,7 @@ fn edits_project_onto_the_redacted_view_and_the_source() {
     assert_eq!(on_view.len(), 2);
     for ((spans, e), n) in on_view.iter().zip(native.edits()) {
         assert_eq!(spans, &vec![(n.span.start, n.span.end)]);
-        let src = e.source.unwrap();
+        let src = e.source.clone().unwrap();
         assert_eq!((src.start, src.end), (n.source.start, n.source.end));
         assert_eq!(e.members.len(), n.members.len());
         assert_eq!(e.policy_revision, 7);
@@ -69,7 +69,7 @@ fn edits_project_onto_the_redacted_view_and_the_source() {
     // replaced; UTF-16 offsets move the spans, never the source span.
     let on_source = edits(&document_to_typed("edits", &doc, turbo_analysis::ViewId::SOURCE, OffsetMode::Utf8).unwrap());
     for (spans, e) in &on_source {
-        let src = e.source.unwrap();
+        let src = e.source.clone().unwrap();
         assert_eq!(spans, &vec![(src.start, src.end)]);
     }
     let utf16 = edits(&document_to_typed("edits", &doc, view.id(), OffsetMode::Utf16).unwrap());
@@ -169,8 +169,8 @@ fn tampered_source_spans_are_refused_against_the_chain() {
             }
             validate_typed_document(&w).unwrap_err().message
         };
-        let first = edits(&wire)[0].1.source.unwrap();
-        let second = edits(&wire)[1].1.source.unwrap();
+        let first = edits(&wire)[0].1.source.clone().unwrap();
+        let second = edits(&wire)[1].1.source.clone().unwrap();
         let err = tampered(0, 1, u32::MAX);
         assert!(
             err.contains("disagrees with") || err.contains("overlaps or precedes"),
@@ -225,7 +225,7 @@ fn edits_stored_under_another_name_than_their_view_are_checked() {
         assert_eq!(wire.layers[at].instance, "audit");
         let mut w = wire.clone();
         if let Some(Value::PiiEdit(e)) = &mut w.layers[at].annotations[0].value {
-            e.source = Some(turbo_kserve::proto::result::SpanFragment { start: 1, end: u32::MAX });
+            e.source = Some(turbo_kserve::proto::result::SpanFragment::exact(1, u32::MAX));
         }
         let err = validate_typed_document(&w).unwrap_err().message;
         assert!(err.contains("disagrees with") || err.contains("overlaps or precedes"), "{target:?}: {err}");

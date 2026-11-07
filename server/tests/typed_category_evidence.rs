@@ -154,7 +154,7 @@ fn wire_span(doc: &Document, view: u32, mode: OffsetMode, span: Span) -> SpanFra
         OffsetMode::Utf16 => text[..n as usize].encode_utf16().count() as u32,
         OffsetMode::CodePoint => text[..n as usize].chars().count() as u32,
     };
-    SpanFragment { start: offset(mapped.start), end: offset(mapped.end) }
+    SpanFragment::exact(offset(mapped.start), offset(mapped.end))
 }
 
 fn malformed(good: &TypedDocumentResult, layer: usize) -> Vec<TypedDocumentResult> {

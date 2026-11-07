@@ -32,7 +32,7 @@ pub(super) fn record(
     check_f32_prob("quotation confidence", ctx.lid, i, confidence)?;
     for (name, span) in [("speaker", q.speaker.as_ref()), ("cue_verb", q.cue_verb.as_ref())] {
         if let Some(s) = span {
-            ctx.offsetter.from_wire(ctx.text, &format!("{}[{i}].{name}", ctx.lid), s.start, s.end)?;
+            ctx.fragment(&format!("[{i}].{name}"), s)?;
         }
     }
     // Projected content can retain several fragments or collapse to one empty
