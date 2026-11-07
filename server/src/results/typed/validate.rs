@@ -1,9 +1,11 @@
 //! Validation of `TypedDocumentResult` messages (`RoundTripTypedDocument`,
 //! issue #1219). Re-proves offset validity (`UTF8`, `UTF16`, `CODE_POINT`),
 //! span ordering, probability bounds (`[0.0, 1.0]`), `model_ref` resolution,
-//! aligned anchor integrity, and `indexes_layer` bounds.
+//! aligned anchor integrity, `indexes_layer` bounds, and the result
+//! envelope's identities, provenance and view chain (issue #1907).
 
 mod annotation;
+mod envelope;
 mod evidence;
 mod pii;
 mod pii_edits;
@@ -130,6 +132,8 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
             return Err(bad(format!("duplicate model_ref {:?} in models", m.model_ref)));
         }
     }
+
+    envelope::validate_envelope(msg, &known_models)?;
 
     let mut layer_lengths: HashMap<(&str, &str), usize> = HashMap::with_capacity(msg.layers.len());
     let mut total_fragments = 0usize;

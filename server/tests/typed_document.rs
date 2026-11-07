@@ -14,8 +14,8 @@ use turbo_chunker::chunk_citations;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{
-    AnchorKind, InspectDocumentGraphRequest, LayerWireStatus, OffsetMode as ProtoOffsetMode, SpanFragment,
-    TypedAnnotation, TypedDocumentResult, TypedLayer, typed_annotation::Value,
+    AnchorKind, InspectDocumentGraphRequest, LayerProvenance, LayerWireStatus, OffsetMode as ProtoOffsetMode,
+    SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, typed_annotation::Value,
 };
 use turbo_kserve::results::Wire;
 use turbo_kserve::results::document::codecs;
@@ -176,6 +176,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
             graph: graph_bytes,
             view: 0,
             offsets: ProtoOffsetMode::Utf16 as i32,
+            binding: None,
         })
         .await
         .unwrap()
@@ -254,6 +255,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         graph: vec![0xff, 0x00, 0x01],
         view: 0,
         offsets: ProtoOffsetMode::Utf8 as i32,
+        binding: None,
     })
     .unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
@@ -383,7 +385,21 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
     assert!(round_trip_typed_document(&missing_default_tok).is_err());
 
     // Missing aligned anchor (turbo:tokens@absent) is refused.
+    // The envelope needs a provenance entry per layer; give the probe
+    // layers one so the refusal is the anchor's, not the envelope's.
+    let probe_provenance = |instance: &str| LayerProvenance {
+        layer: "turbo:pos".into(),
+        instance: instance.into(),
+        model_ref: String::new(),
+        provenance_digest: vec![0; 32],
+        content_digest: None,
+        input_snapshot_digest: None,
+        codec_schema: 1,
+        reads: Vec::new(),
+        on: Vec::new(),
+    };
     let mut missing_anchor = base.clone();
+    missing_anchor.provenance.push(probe_provenance(""));
     missing_anchor.layers.push(TypedLayer {
         id: "turbo:pos".into(),
         instance: String::new(),
@@ -394,12 +410,15 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         anchor_layer: Some("turbo:tokens@absent".into()),
         annotations: Vec::new(),
         indexes_layer: Vec::new(),
+        native_view: None,
         custom_pii_kinds: Vec::new(),
     });
-    assert!(round_trip_typed_document(&missing_anchor).is_err());
+    let err = round_trip_typed_document(&missing_anchor).unwrap_err();
+    assert!(err.message.contains("absent"), "{}", err.message);
 
     // Aligned POS annotation with out-of-range target_index (99) is refused.
     let mut bad_aligned_idx = base;
+    bad_aligned_idx.provenance.push(probe_provenance("gold"));
     bad_aligned_idx.layers.push(TypedLayer {
         id: "turbo:pos".into(),
         instance: "gold".into(),
@@ -421,6 +440,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
             })
             .collect(),
         indexes_layer: Vec::new(),
+        native_view: None,
         custom_pii_kinds: Vec::new(),
     });
     assert!(round_trip_typed_document(&bad_aligned_idx).is_err());

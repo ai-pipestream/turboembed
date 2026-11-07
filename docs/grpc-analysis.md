@@ -358,7 +358,7 @@ The limits are the session's: what a request is actually held to, where a
 server started below the model's limits. The response's `limits` field
 names what one result message may carry (`max_sparse_entries`,
 `max_sparse_occurrences`, `max_token_vector_bytes`, `max_rerank_items`,
-`max_answers`, `max_record_values` and the rest); a larger message is `TURBO_E_CAPACITY` (771,
+`max_answers`, `max_record_values`, `max_mapping_edits` and the rest); a larger message is `TURBO_E_CAPACITY` (771,
 `OUT_OF_RANGE`, docs/kserve.md, Errors) naming that limit, and nothing is
 truncated.
 
@@ -497,6 +497,96 @@ source layers still require nonempty spans. Typed validation requires
 event argument spans and checks their offsets and anchor references;
 asset payload spans and outer spans are required, and the payload must
 remain inside its projected outer span, including at an empty boundary.
+
+## The result envelope (issue #1907)
+
+Every `TypedDocumentResult` carries, beside the projected layers, what
+it was computed from, what it is, how each layer was made, and the view
+edit chain, so a consumer can bind the result to its exact input, read
+an old result against its original parse, and map any span between any
+two views without the server. Every digest is the raw 32 bytes of a
+SHA-256 and the proto comment on each field says what it is over; a
+digest that is not available is absent, never zero-filled or invented.
+
+- `input` (`InputIdentity`): the SHA-256 and length of the document's
+  original bytes (the decoded file bytes, else the UTF-8 of the source
+  view) and of the source view's text, plus the caller's `InputBinding`
+  (source repository revision, parse artifact id and digest) copied from
+  `InspectDocumentGraphRequest.binding` exactly as given. The server
+  never invents repository provenance: no binding sent, none returned.
+- `result` (`ResultIdentity`): the SHA-256 of the exact TGRF bytes
+  `DocumentGraph::to_bytes` writes for the document, so `sha256sum` of
+  the graph bytes reproduces it, with the graph format version, the
+  envelope schema version (1) and `result_id`, the digest in lowercase
+  hexadecimal. Protobuf bytes are never digested: they are not canonical
+  across languages. The same bytes give the same identity whatever view
+  or offsets are asked for. On the `InspectDocumentGraph` path the
+  digest is of the server's canonical re-export of the imported graph,
+  not of the request bytes as sent: a graph serialised in another order
+  or with slack gets the identity of its canonical form, so one
+  document has one `result_id` whichever path produced it, and a
+  consumer that keeps non-canonical bytes of its own sees a
+  `verify_result` mismatch against them. The extra export costs less
+  than the import it follows: 6.5 ms for a 4.2 MB graph of 100,000
+  tokens (8.3 ms to import), 62 µs for 36 KB, release build, one core.
+- `provenance` (`LayerProvenance`, one per view and layer instance in
+  document order): the chained provenance digest
+  (`turbo:provenance-digest:v2`), the content digest
+  (`turbo:layer-content:v2`) where the layer type has one, the snapshot
+  of the read layers' content digests (`turbo:upstream-content:v2`), the
+  codec schema the layer's graph bytes are in, the layers read and the
+  anchor and index instances it is on, and the `model_ref` into
+  `models` for the annotator, version, bundle and execution. The FNV
+  `config_hash` on that entry stays a local cache key, never an
+  identity.
+- `mapping` (`MappingPayload`): the inline view tree, `ViewChain` per
+  view in id order with its instance, parent, text digest, text length
+  and its native alignment to its parent as `EditRun`s. A run is
+  `count` consecutive edits of one parent width and one child width,
+  each starting where the one before it ends on both sides, so a
+  masked view's one edit per character costs one run per stretch of
+  equal-width characters; decoding a run gives the native `Edit` list
+  byte for byte. Edit coordinates are UTF-8 bytes whatever the result's
+  `OffsetMode` is, which applies to annotation spans only. Mapping is
+  the stepwise walk from one view up to the lowest common ancestor and
+  down to the other, one alignment at a time, with the native
+  `Side::Start` and `Side::End` widening; a composed net alignment is
+  never substituted, because its empty-span behaviour differs.
+  `turbo_kserve::results::typed::chain::WireChain` is the consumer side
+  in Rust: it rebuilds the tree from the message and its `map_span`
+  reproduces `Document::map_span` exactly for every span it accepts.
+  It checks bounds only: the chain carries byte lengths, not every
+  view's text, so a span that splits a UTF-8 scalar, which
+  `Document::map_span` refuses, is mapped by the wire consumer, and a
+  port of it (#1910) need not promise that refusal. The mapping is inline only
+  and bounded by `max_mapping_edits` (4,194,304 native edits over every
+  view); a document over it is refused with `TURBO_E_CAPACITY`, never
+  truncated. Oneof arm 2, `artifact`, is reserved for an immutable
+  artifact reference and is not served: the server keeps no artifacts.
+- `TypedLayer.native_view`: the view a layer's spans are natively in,
+  before projection into `TypedDocumentResult.view`.
+- `ScopedRef`: a reference to one annotation that means the same thing
+  outside its message: result id, layer, instance, item index, and the
+  native view by instance and text digest. `view`, `native_view`,
+  annotation indexes and `model_ref` values are message-local.
+  `turbo_kserve::results::typed::scoped` builds and resolves them, and
+  refuses a reference into another result or a view whose text changed.
+
+`RoundTripTypedDocument` validates the envelope with the rest: both
+identities present and whole, `result_id` the hexadecimal of the
+content digest, one provenance entry per view and layer whose model
+reference resolves, the `views` list and the mapping naming the same
+instances with the same parents both ways, the mapping a view tree in
+id order whose runs
+decode to a valid alignment that turns the parent's length into the
+child's, and `raw_text` the text of the mapping's target view by length
+and digest. `turbo_kserve::results::typed::identity::verify_input` and
+`verify_result` are the consumer checks: a result is refused against a
+document or graph bytes that are not the ones it names, so changed input
+never inherits old detections.
+
+Fragment projection outcomes (exact, widened, deleted, coalesced) are
+not part of this envelope yet; #1907 tracks them.
 
 ## Streaming bulk document analysis (issue #722)
 
