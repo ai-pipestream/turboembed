@@ -650,6 +650,17 @@ long sweep, not the tile. At 4096 and 16384 tokens the 32 x 32 tile is
 the fastest by median in every row, 3% to 6% under `auto`'s 64 x 64,
 which `auto` picks past 1024 tokens (#849's per-bin tuning).
 
+On an idle M2 at main `89e6a6ae0150` (`docs/receipts/metal-812-idle/`:
+desktop apps closed, GPU 0% busy before all but one of 400 runs, 1-minute
+load 1.8 to 3.1), the ratios hold: MLX leads at 16384 tokens by 23% to
+31%. At 4096 and 16384 tokens the aligned 32 x 32 tile `h32n32a` is about
+10% under `auto`'s 64 x 64, and still about 14% over MLX. The same
+receipt repeats the end-to-end rounds of all-minilm-l6-v2 at FASTEST
+against MLX float16 over five rounds. They agree with #1598's within 1.5%,
+except at 1 x 32 (0.49 now). The x 512 sizes and bge-base were not
+run: the bundle has no 512-token reference case, and `mlx_bench.py` pools
+only by the mean.
+
 ### The 64 x 32 tile
 
 `linear=h64n32` is MLX's tile for a half "nt" product on a small Apple

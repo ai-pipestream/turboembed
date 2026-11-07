@@ -1,0 +1,6 @@
+round 5 size 1x512 commit 89e6a6ae0150730ad38e5d43a5333819e3769a24
+command: target/release/turbo-bench record --bundle <bundles>/all-minilm-l6-v2 --device metal --precision fastest --batch 1 --seq 512 --rows dense --warmup 5 --iterations 20 --no-tei --mlx-model <upstream all-MiniLM-L6-v2> --out <out>
+before: load 1.93 2.30 2.48 gpu 0% at 2026-11-06T02:57:12Z
+turbo-bench: no reference case has 512 tokens or more, or the batch is empty
+exit: 1
+after: load 1.93 2.30 2.48 gpu 0% at 2026-11-06T02:57:13Z
