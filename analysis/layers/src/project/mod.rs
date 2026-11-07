@@ -274,11 +274,15 @@ impl ProjectableLayer for Ordinals {
 
 impl ProjectableLayer for Pii {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
+        let from = self.spans.view();
         let out = Pii {
             spans: doc.project_spans_monotonic(&self.spans, to)?,
             custom_kinds: self.custom_kinds.clone(),
+            detectors: self.detectors.clone(),
             kind: self.kind.clone(),
-            confidence: self.confidence.clone(),
+            detector: self.detector.clone(),
+            evidence: self.evidence.map_label_spans(|s| doc.map_span(from, to, s))?,
+            score: self.score.clone(),
             normalized: self.normalized.clone(),
         };
         check_invariants(&out)?;

@@ -10,7 +10,7 @@ use turbo_pii::rewrite::{
     Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, Pseudonymizer, REDACTED, RedactedView,
     RewritePolicy, RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate,
 };
-use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiEdit, PiiEdits, PiiKind, PiiMention, PiiRule, PiiStrategyKind};
+use turbo_pii::{Pii, PiiDetector, PiiEdit, PiiEdits, PiiEvidence, PiiKind, PiiMention, PiiRule, PiiStrategyKind};
 
 const TEXT: &str = "Für Zoë: jane@example.com, (555) 123-4567, Karte 4111 1111 1111 1111 😀.";
 
@@ -121,8 +121,16 @@ fn chain(
     doc.add(&norm, View::derived(&src, text, alignment), Provenance::by("test")).unwrap();
     let mid = doc.get_key(&norm).unwrap().clone();
     let mut pii = Pii::new(mid.id());
+    let detector = pii.detector("test", "1").unwrap();
     for &(s, e, kind) in mentions {
-        pii.push(PiiMention { span: Span::new(s, e), kind, confidence: PiiConfidence::Format, normalized: "v" });
+        pii.push(PiiMention {
+            span: Span::new(s, e),
+            kind,
+            detector,
+            evidence: &[PiiEvidence::Shape],
+            score: None,
+            normalized: "v",
+        });
     }
     let pii_key = Key::<Pii>::named("norm");
     doc.add(&pii_key, pii, Provenance::by("test")).unwrap();

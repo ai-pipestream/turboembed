@@ -27,7 +27,7 @@ use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::sink::{SinkConfig, SinkReceiver};
 use turbo_kserve::{Serve, Server};
-use turbo_pii::{Pii, PiiConfidence, PiiKind, PiiMention};
+use turbo_pii::{Pii, PiiEvidence, PiiKind, PiiMention};
 
 /// The planted value: an address the PII detector finds, lowercase so its
 /// normalized form is the same bytes.
@@ -293,25 +293,28 @@ async fn format_document_needs_full_text_and_no_format_writes_a_value() {
     s.stop().await;
 }
 
-/// `detail` is decided and capped here; nothing reads it until #1903's
-/// candidates and evidence (#1916) land, so today it changes no answer.
-/// When #1916 and this change meet, that branch wires it and this test
-/// moves to pinning what `detail` adds.
+/// `detail` adds the candidates (#1903) to a findings-only answer: every
+/// span the detector considered, with its facts and the decision taken,
+/// never a value. Without it the candidates layer is listed bare.
 #[tokio::test]
-async fn detail_is_decided_and_capped_but_adds_nothing_yet() {
+async fn detail_adds_the_candidates_and_the_policy_caps_it() {
     let s = server(Serve::default()).await;
     let graph = pii_graph(&s).await;
-    let detail = Some(PiiOutputOptions { detail: true, ..Default::default() });
-    // Each answer carries its own attempt's receipt (#1908); the rest is
-    // the same.
-    let without_receipt = |mut t: TypedDocumentResult| {
-        t.receipt = None;
-        t
+    let candidates = |t: &TypedDocumentResult| {
+        let l = t.layers.iter().find(|l| l.id == "turbo:pii-candidates").expect("the candidates layer is listed");
+        l.annotations.len()
     };
-    assert_eq!(
-        without_receipt(inspect(&s, &graph, 0, detail).await),
-        without_receipt(inspect(&s, &graph, 0, None).await)
-    );
+    let plain = inspect(&s, &graph, 0, None).await;
+    assert_eq!(candidates(&plain), 0, "findings only: the candidates are listed bare");
+    let detail = inspect(&s, &graph, 0, Some(PiiOutputOptions { detail: true, ..Default::default() })).await;
+    assert!(candidates(&detail) > 0, "detail: the candidates are carried");
+    assert!(detail.raw_text.is_empty() && !holds(&detail.encode_to_vec(), PLANTED));
+    assert_findings(&detail);
+    // Both still validate, so a caller can round-trip them.
+    let mut c = client(&s).await;
+    for t in [plain, detail] {
+        c.round_trip_typed_document(t).await.unwrap();
+    }
     s.stop().await;
     let closed = server(Serve { pii_output: PiiOutputPolicy::NONE, ..Serve::default() }).await;
     let req = InspectDocumentGraphRequest {
@@ -333,7 +336,16 @@ async fn the_started_event_sanitizes_the_views_of_an_initial_graph_holding_pii()
     let mut pii = Pii::new(ViewId::SOURCE);
     let at = TEXT.find(PLANTED).unwrap() as u32;
     let span = Span::new(at, at + PLANTED.len() as u32);
-    pii.push(PiiMention { span, kind: PiiKind::Email, confidence: PiiConfidence::Format, normalized: PLANTED });
+    let detector = pii.detector("test", "1").unwrap();
+    let evidence = [PiiEvidence::Shape];
+    pii.push(PiiMention {
+        span,
+        kind: PiiKind::Email,
+        detector,
+        evidence: &evidence,
+        score: None,
+        normalized: PLANTED,
+    });
     doc.add(&Key::DEFAULT, pii, Provenance::by("turbo-pii:pii")).unwrap();
     let declined = Key::<View>::named("declined").id();
     doc.skip(declined, format!("declined near {PLANTED}"), Provenance::by("test:view")).unwrap();

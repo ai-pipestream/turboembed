@@ -14,7 +14,11 @@ checksum is validated with it:
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
 | `AllowList`, `DenyList`, `Pattern`, `PatternKind`, `Case`, `ListError` | Global and per-kind ignore lists, regex-free shape/glob patterns, and Aho-Corasick/fuzzy deny lists (`analysis/pii/src/lists/`) |
-| `PiiConfidence` | `Format`, `Labelled`, `Checksum`, or `LabelledChecksum` |
+| `PiiEvidence`, `ChecksumAlgorithm`, `EvidenceList` | The typed facts a detector records for each candidate: shape, checksum (algorithm and result), label (span and phrase id), deny hit (list and term), rule |
+| `PiiDetectors`, `PiiDetectorRef` | The per-layer table of detector ids and versions every mention refers to |
+| `PiiScore`, `PiiScoreKind` | An optional model score with its kind, model and calibration flag; absent is not zero |
+| `PiiConfidence` | `Format`, `Labelled`, `Checksum`, or `LabelledChecksum`, derived from the facts by `PiiConfidence::derive` |
+| `PiiCandidates`, `PiiCandidate`, `PiiDisposition`, `RejectReason`, `AllowScope`, `AllowRule` | The `turbo:pii-candidates` layer: every span a detector considered and what became of it, with no values |
 | `window`, `LabelPolicy`, `window::has_label` | UAX #29 context-word window helper, per-kind label policies, and caller overrides |
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
@@ -42,7 +46,7 @@ for result in analyzer.run(&mut docs) {
 }
 let pii = docs[0].get::<Pii>().unwrap();
 for m in pii.mentions() {
-    println!("{}..{} {} {} {}", m.span.start, m.span.end, m.kind, m.confidence.name(), m.normalized);
+    println!("{}..{} {} {} {}", m.span.start, m.span.end, m.kind, m.confidence().name(), m.normalized);
 }
 ```
 
@@ -76,11 +80,14 @@ phone, IBAN and card.
 
 `Pii`, in `turbo-analysis-layers`, has one item per mention with the
 columns `spans` (UTF-8 byte offsets into the view, on character
-boundaries), `kind`, `confidence` and `normalized`. The `normalized`
-column is the detected value itself, so it is a `Sensitive<Strs>`: its
-`Debug`, like a `PiiMention`'s, prints `<withheld>`, and reading it is
-spelled `expose()`. Outputs copy it only where their disclosure decision
-allows values (docs/grpc-analysis.md, PII output). Mentions are ordered
+boundaries), `kind`, `detector`, `evidence`, `score` and `normalized`,
+plus the `custom_kinds` and `detectors` tables those columns index
+(`PiiMention::confidence()` derives the tier from the facts). The
+`normalized` column is the detected value itself, so it is a
+`Sensitive<Strs>`: its `Debug`, like a `PiiMention`'s, prints
+`<withheld>`, and reading it is spelled `expose()`. Outputs copy it only
+where their disclosure decision allows values (docs/grpc-analysis.md, PII
+output). Mentions are ordered
 by start, then longer first, then by kind priority; equal mentions (span,
 kind and normalized form) appear once, the first found kept. By default,
 a mention strictly nested inside a longer mention (such as a phone or
@@ -141,9 +148,18 @@ context label within the kind's word window names a format-only mention,
 when a check digit or checksum over the value passes without a context label,
 and `LabelledChecksum` (`"labelled-checksum"`,
 `TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM = 3`, `LABELLED_CHECKSUM(3)`) when a
-context label names the kind and its check digit passes
-(`PiiConfidence::with_label` raises `Format -> Labelled` and
-`Checksum -> LabelledChecksum`).
+context label names the kind and its check digit passes. The tier is
+never stored or set: `PiiConfidence::derive(facts)` reads it off the
+evidence, a passed `Checksum` fact and a `Label` fact being the two
+inputs of the table below, and nothing in detector policy reads the tier
+(see "Evidence, detectors, scores and candidates").
+
+| passed checksum fact | label fact | tier |
+|---|---|---|
+| no | no | `Format` |
+| yes | no | `Checksum` |
+| no | yes | `Labelled` |
+| yes | yes | `LabelledChecksum` |
 
 ### Context-word window
 
@@ -175,11 +191,15 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
   `ca-sin`, `imei`, or `bic` switches that kind onto the general
   bidirectional `N`-word UAX #29 window.
 - **Policies and caller overrides**: `PiiDetector::label_required(kind)`
-  (`LabelPolicy::Required`) drops unlabelled candidates of `kind` and
-  raises labelled ones with `PiiConfidence::with_label`;
+  (`LabelPolicy::Required`) rejects unlabelled candidates of `kind`
+  (recorded in `turbo:pii-candidates` as `RejectedByRule { LabelRequired }`)
+  and records a `Label` fact on labelled ones;
   `PiiDetector::label_boosts(kind)` (`LabelPolicy::Boosts`) keeps
-  unlabelled candidates at their scanner confidence and raises labelled
-  ones (`Format -> Labelled`, `Checksum -> LabelledChecksum`);
+  unlabelled candidates and records a `Label` fact on labelled ones (so
+  their tier derives to `Labelled` or `LabelledChecksum`). The label
+  search is the detector's alone: a scanner or custom extractor cannot
+  record a `Label` fact, so a candidate marked "labelled" by an extractor
+  never passes a `Required` policy (`analysis/pii/tests/window.rs`);
   `PiiDetector::with_label_policy(kind, policy)` sets any `LabelPolicy`
   (including relaxing `ca-sin` or `imei` to `Boosts` or `None`);
   `PiiDetector::with_label_window(kind, n)` overrides the word window
@@ -193,6 +213,62 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
   `N` words of `"Passport"`), the second number also matches the window.
   Callers can narrow the window for that kind with
   `PiiDetector::with_label_window(kind, 1)`.
+
+## Evidence, detectors, scores and candidates
+
+Every mention records why it was found, by whom, and (when a model
+scored it) how strongly, and every candidate a detector considered is
+kept with the decision taken on it (#1903). Facts are primary: the
+confidence tier, the audit report and every policy decision read them.
+
+- **Evidence** (`PiiEvidence`, packed per mention in `EvidenceList`):
+  `Shape` (the text has the kind's shape), `Checksum { algorithm, passed }`
+  (`ChecksumAlgorithm`: Luhn 1, mod 97 2, mod 11 3, mod 23 4, Spanish CIF
+  5, ISO 7064 mod 11,10 6, ICAO 9303 7, Base58Check 8, Bech32 9, EIP-55
+  10, ABA weights 11, other 12, La Poste SIRET mod 5 13), `Label { span, phrase }` (the label
+  phrase's span in the layer's view and its index in the kind's phrase
+  table: built-in phrases first, then `with_extra_label` phrases in
+  registration order), `DenyHit { list, term }` and `Rule { rule }`. Each
+  mention holds at least one fact; a failed checksum is recorded as a
+  fact too (`passed: false`). Label spans are projected with the layer
+  (`turbo:pii` on a derived view carries them in that view's offsets).
+  Fact kinds have stable tags (shape 1, checksum 2, label 3, deny hit 4,
+  rule 5) in the binary codec; an unknown tag, algorithm, score kind or
+  disposition on import is an error, never skipped.
+- **Detectors** (`PiiDetectors`): a per-layer table of
+  `(id, version)` pairs, at most 1024 entries of 128 bytes each. Built-in
+  scanners are `turbo-pii:<extractor>` (`turbo-pii:cursor`,
+  `turbo-pii:iban`, ...) at `BUILTIN_VERSION` (the crate version); deny
+  lists are `DENY_LIST_DETECTOR` (`turbo-pii:deny-list`); a
+  `CustomExtractor` names itself with `id()` and `version()` (default
+  `"0"`). Every mention's `detector` column refers to the table.
+- **Scores** (`PiiScore`): optional per mention; `value`, `kind`
+  (`Probability` 1 in `[0, 1]`, `Logit` 2, `Heuristic` 3 in `[0, 1]`),
+  `model` (a detector ref) and `calibrated`. A mention with no score is
+  `None`, which is not a score of zero.
+  `PiiDetector::with_score_threshold(min)` rejects scored candidates
+  below `min` (`RejectedByRule { Threshold }`) and leaves unscored ones
+  alone.
+- **Candidates** (`PiiCandidates`, `turbo:pii-candidates`, written next
+  to `turbo:pii` by the annotator): one item per candidate any detector
+  produced, with the same kind, detector, evidence and score columns and
+  a `PiiDisposition`: `Kept { mention }` (its row in `turbo:pii`),
+  `AllowedByRule { scope, rule }` (`AllowScope::Global` or `Kind`,
+  `AllowRule::Term(i)` or `Pattern(i)` by registration index),
+  `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`
+  or `Threshold`) or `Repeats { mention }`. The layer has no value or
+  normalized column by construction, so a suppressed candidate never
+  carries text. `PiiAuditReport::with_candidates` counts suppressed
+  candidates per kind from it, and `PiiCandidates::check_against` holds
+  mention references to the `turbo:pii` layer of the same run.
+- **On the wire**: `PiiMention` carries `detector` (5), `evidence` (6)
+  and `score` (7) next to its kind, tier and normalized form, and
+  `TypedAnnotation.pii_candidate` (99) carries a `PiiCandidateAnnotation`;
+  the typed validator refuses a mention whose tier is not the one its
+  evidence derives to, an unknown fact, algorithm, score kind, scope or
+  reason, a missing detector, and a candidate whose mention index lies
+  outside the `turbo:pii` layer of the same instance. The C ABI and the
+  Java binding carry the derived tier only.
 
 ## Masking and labels
 
@@ -385,8 +461,13 @@ spans over multi-byte texts, and that the text equals `mask`.
 - Caller-defined extractors implement `CustomExtractor` (with optional
   `config_hash` for stateful settings, or pass a scan function to
   `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and emit
-  mentions of a `PiiKind::Custom(CustomKindId)`, their own
-  `PiiConfidence`, and `checksum` / `text` helpers via `PiiSink`
+  mentions of a `PiiKind::Custom(CustomKindId)` with their evidence
+  facts (`PiiEvidence::Shape`, `PiiEvidence::Checksum`,
+  `PiiEvidence::Rule`) and an optional `PiiScore` through `PiiSink`
+  (`PiiSink::model` names the detector and version every mention carries;
+  `try_add_candidate` takes a score). The sink refuses an empty fact list
+  and the detector-owned `Label` and `DenyHit` facts
+  (`SinkError::ForeignEvidence`), and a score it cannot hold
   (`analysis/pii/tests/custom_extractors.rs`). A custom kind indexes the
   `CustomKinds` table the detector is given with
   `PiiDetector::with_custom_kinds`; every `Pii` layer carries its own
@@ -449,7 +530,9 @@ values or flag domain-specific terms without writing a custom byte scanner:
 - **Deny list (`DenyList`)**: terms that are always reported under a
   custom kind of the detector's table (`DenyList::new`,
   `DenyList::from_terms`, `DenyList::from_file`, attached via
-  `PiiDetector::with_deny_list`) with `PiiConfidence::Format`.
+  `PiiDetector::with_deny_list`) under the detector `turbo-pii:deny-list`
+  with a `PiiEvidence::DenyHit { list, term }` fact naming the list's
+  registration index and the term's index in it.
   - Exact terms are matched with `turbo-glossary`'s Aho-Corasick
     `TextMatcher` (`Case::Sensitive` or `Case::Insensitive`) at word
     boundaries (`text::on_word_start` and `text::on_end`), with overlaps

@@ -3,9 +3,9 @@ use turbo_analysis::{
     Document, Error, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId,
 };
 use turbo_analysis_layers::{
-    Categories, Chunks, Cut, DocumentHeatmap, EmotionItem, EmotionLayer, EmotionScores, EmotionTarget, Entities,
-    HeatmapLaneKind, Incivility, IncivilityItem, IncivilityScores, IncivilityTarget, Pii, PiiConfidence, PiiKind,
-    PiiMention, Sentences, Tokens,
+    Categories, ChecksumAlgorithm, Chunks, Cut, DocumentHeatmap, EmotionItem, EmotionLayer, EmotionScores,
+    EmotionTarget, Entities, HeatmapLaneKind, Incivility, IncivilityItem, IncivilityScores, IncivilityTarget, Pii,
+    PiiEvidence, PiiKind, PiiMention, Sentences, Tokens,
 };
 
 fn spans<L>(pairs: &[(u32, u32)]) -> Spans<L> {
@@ -44,10 +44,13 @@ fn base_doc() -> Document {
     )
     .unwrap();
     let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span { start: 8, end: 10 },
         kind: PiiKind::Card,
-        confidence: PiiConfidence::Checksum,
+        detector,
+        evidence: &[PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true }],
+        score: None,
         normalized: "x",
     });
     doc.add(&Key::DEFAULT, pii, by()).unwrap();

@@ -7,13 +7,13 @@ use turbo_analysis::{
     Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId,
 };
 use turbo_analysis_layers::{
-    Aspects, Block, Boilerplate, BoilerplateKind, Boundaries, Categories, ChunkTags, Chunks, Confidence, Containment,
-    Currency, Cut, Date, Dependencies, DocumentDate, Entities, Granularity, Incivility, IncivilityLabel,
-    IncivilityTarget, Incongruity, Language, Lemmas, Levels, Matches, Modifier, Money, MorphFeatures, Multiplier,
-    NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, Origin, PhraseChunks, Phrases, Pii, PiiConfidence,
-    PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation, ScaleMarker, Sentences, Stems,
-    Strs, Structure, Subwords, Temporals, Terms, TimeGrain, TimeKind, Times, Tokens, Unit, Utf16Spans, Vectors,
-    WordLemmas, WordPosTags, Words,
+    Aspects, Block, Boilerplate, BoilerplateKind, Boundaries, Categories, ChecksumAlgorithm, ChunkTags, Chunks,
+    Confidence, Containment, Currency, Cut, Date, Dependencies, DocumentDate, Entities, Granularity, Incivility,
+    IncivilityLabel, IncivilityTarget, Incongruity, Language, Lemmas, Levels, Matches, Modifier, Money, MorphFeatures,
+    Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, Origin, PhraseChunks, Phrases, Pii,
+    PiiEvidence, PiiKind, PiiMention, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation,
+    ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Temporals, Terms, TimeGrain, TimeKind, Times, Tokens,
+    Unit, Utf16Spans, Vectors, WordLemmas, WordPosTags, Words,
 };
 use turbo_encoding_layers::{Encoding, EncodingEvidence, SourceEncoding};
 use turbo_normalize_layers::{
@@ -365,17 +365,17 @@ pub fn build_rich_document() -> Document {
         },
     );
 
-    add(
-        &mut doc,
-        Pii {
-            custom_kinds: Default::default(),
-            spans: spans(&[price]),
-            kind: vec![PiiKind::Email],
-            confidence: vec![PiiConfidence::Checksum],
-            normalized: strs(&["a@b.c"]).into(),
-        },
-        Provenance::by("test:pii"),
-    );
+    let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
+    pii.push(PiiMention {
+        span: price,
+        kind: PiiKind::Email,
+        detector,
+        evidence: &[PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true }],
+        score: None,
+        normalized: "a@b.c",
+    });
+    add(&mut doc, pii, Provenance::by("test:pii"));
     add(
         &mut doc,
         Noise { spans: spans(&[emoji]), severity: vec![NoiseSeverity::Damaged], score: vec![0.2] },

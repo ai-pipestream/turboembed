@@ -3,14 +3,18 @@
 
 use std::path::Path;
 
-use turbo_analysis::{Annotator, Error, Refs, View, ViewId};
-use turbo_analysis_layers::{CustomKinds, Pii, PiiKind, PiiKinds};
+use turbo_analysis::ViewId;
+use turbo_analysis_layers::{AllowScope, CustomKinds, Pii, PiiCandidates, PiiKind, PiiKinds};
 
-use crate::hits::Hits;
+use crate::hits::{AllowDecision, Hits};
 use crate::lists::{AllowList, DenyList, ListError, Pattern};
-use crate::scan::{Extractor, Scanner};
+use crate::scan::{BUILTIN_VERSION, Extractor, Scanner};
 use crate::window::WindowConfig;
 
+/// The detector id deny list hits name.
+pub const DENY_LIST_DETECTOR: &str = "turbo-pii:deny-list";
+
+mod annotate;
 mod audit;
 mod custom;
 mod labels;
@@ -121,7 +125,7 @@ impl Pack {
 /// scanner order. By default, a candidate strictly nested inside a
 /// longer candidate is dropped; [`PiiDetector::keeping_nested`] keeps it
 /// for OpenNLP parity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PiiDetector {
     scanners: Vec<Scanner>,
     custom_kinds: CustomKinds,
@@ -130,6 +134,7 @@ pub struct PiiDetector {
     global_allow: AllowList,
     kind_allow: Vec<(PiiKind, AllowList)>,
     deny_lists: Vec<DenyList>,
+    min_score: Option<f32>,
 }
 
 impl PiiDetector {
@@ -143,6 +148,7 @@ impl PiiDetector {
             global_allow: AllowList::new(),
             kind_allow: Vec::new(),
             deny_lists: Vec::new(),
+            min_score: None,
         }
     }
 
@@ -175,6 +181,24 @@ impl PiiDetector {
     /// Whether mentions strictly nested inside a longer mention are kept.
     pub const fn keeps_nested(&self) -> bool {
         self.keep_nested
+    }
+
+    /// This detector rejecting every scored candidate whose score is below
+    /// `min` (`RejectReason::Threshold`). A candidate without a score is
+    /// not subject to the threshold: absent is not zero.
+    ///
+    /// # Panics
+    ///
+    /// When `min` is not finite.
+    pub fn with_score_threshold(mut self, min: f32) -> PiiDetector {
+        assert!(min.is_finite(), "a finite score threshold");
+        self.min_score = Some(min);
+        self
+    }
+
+    /// The score threshold, when one is set.
+    pub const fn score_threshold(&self) -> Option<f32> {
+        self.min_score
     }
 
     /// Merges `allow` into this detector's global allow list, suppressing
@@ -342,144 +366,76 @@ impl PiiDetector {
         self.scanners.iter().fold(PiiKinds::EMPTY, |k, s| k.union(s.kinds()))
     }
 
-    fn is_suppressed(&self, kind: PiiKind, covered: &str, normalized: &str) -> bool {
-        if self.global_allow.matches(covered, normalized) {
-            return true;
+    /// The allow rule that suppresses a mention: the global list first,
+    /// then the list scoped to `kind`.
+    fn allow_rule(&self, kind: PiiKind, covered: &str, normalized: &str) -> AllowDecision {
+        if let Some(rule) = self.global_allow.find_rule(covered, normalized) {
+            return Some((AllowScope::Global, rule));
         }
-        if let Some(allow) = self.kind_allow_list(kind) {
-            return allow.matches(covered, normalized);
-        }
-        false
+        let rule = self.kind_allow_list(kind)?.find_rule(covered, normalized)?;
+        Some((AllowScope::Kind, rule))
     }
 
-    /// Appends every non-suppressed mention in `text` to `out`, returning the
-    /// per-kind counts of mentions suppressed by allow rules. An empty `out`
-    /// takes this detector's custom-kind table.
+    /// Appends every admitted mention in `text` to `out` and every
+    /// candidate with its decision to `candidates`. Both layers must be
+    /// empty and over the same view; they take this detector's custom-kind
+    /// table and the run's detector table.
     ///
     /// # Panics
     ///
     /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`,
-    /// or when `out` holds mentions under a different custom-kind table.
-    pub fn detect_with_suppressed(&self, text: &str, out: &mut Pii) -> Vec<(PiiKind, usize)> {
+    /// or when either layer already holds items.
+    pub fn detect_with_candidates(&self, text: &str, out: &mut Pii, candidates: &mut PiiCandidates) {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
-        if out.kind.is_empty() {
-            out.custom_kinds.clone_from(&self.custom_kinds);
-        }
-        assert!(out.custom_kinds == self.custom_kinds, "the layer's custom-kind table is the detector's");
+        assert!(out.kind.is_empty() && candidates.kind.is_empty(), "empty layers for a detection run");
+        out.custom_kinds.clone_from(&self.custom_kinds);
+        candidates.custom_kinds.clone_from(&self.custom_kinds);
         let mut hits = Hits::default();
         for s in &self.scanners {
-            s.scan(text, &self.window, &self.custom_kinds, &mut hits);
+            hits.begin_detector(s.extractor().id(), s.version());
+            s.scan(text, &self.custom_kinds, &mut hits);
         }
-        for d in &self.deny_lists {
-            d.scan(text, &mut hits);
+        if !self.deny_lists.is_empty() {
+            hits.begin_detector(DENY_LIST_DETECTOR, BUILTIN_VERSION);
+            for (i, d) in self.deny_lists.iter().enumerate() {
+                d.scan(text, i as u32, &mut hits);
+            }
         }
         hits.apply_label_policy(text, &self.window);
-        hits.resolve_with(
+        if let Some(min) = self.min_score {
+            hits.apply_threshold(min);
+        }
+        hits.resolve(
             self.keep_nested,
-            |kind, start, end, normalized| self.is_suppressed(kind, &text[start as usize..end as usize], normalized),
+            |kind, start, end, normalized| self.allow_rule(kind, &text[start as usize..end as usize], normalized),
             out,
-        )
+            candidates,
+        );
     }
 
     /// Appends every mention in `text` to `out`, with byte offsets into
-    /// `text`.
+    /// `text`. `out` must be empty.
     ///
     /// # Panics
     ///
-    /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
+    /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`,
+    /// or when `out` already holds mentions.
     pub fn detect(&self, text: &str, out: &mut Pii) {
-        let _ = self.detect_with_suppressed(text, out);
+        let mut candidates = PiiCandidates::new(out.spans.view());
+        self.detect_with_candidates(text, out, &mut candidates);
     }
 
-    /// The mentions in `text` as a layer over `view`, together with the
-    /// per-kind counts of mentions suppressed by allow rules.
-    pub fn layer_with_suppressed(&self, text: &str, view: ViewId) -> (Pii, Vec<(PiiKind, usize)>) {
+    /// The mentions in `text` as a layer over `view`, together with every
+    /// candidate and its decision.
+    pub fn layer_with_candidates(&self, text: &str, view: ViewId) -> (Pii, PiiCandidates) {
         let mut out = Pii::with_custom_kinds(view, self.custom_kinds.clone());
-        let suppressed = self.detect_with_suppressed(text, &mut out);
-        (out, suppressed)
+        let mut candidates = PiiCandidates::with_tables(view, self.custom_kinds.clone(), Default::default());
+        self.detect_with_candidates(text, &mut out, &mut candidates);
+        (out, candidates)
     }
 
     /// The mentions in `text` as a layer over `view`.
     pub fn layer(&self, text: &str, view: ViewId) -> Pii {
-        let mut out = Pii::with_custom_kinds(view, self.custom_kinds.clone());
-        self.detect(text, &mut out);
-        out
-    }
-}
-
-impl Annotator for PiiDetector {
-    const ID: &'static str = "turbo-pii:pii";
-    type Reads = (View,);
-    type Writes = (Pii,);
-
-    fn annotate(&self, (view,): Refs<'_, Self>) -> Result<(Pii,), Error> {
-        let text = view.text();
-        if u32::try_from(text.len()).is_err() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("a text of {} bytes is past the u32 offset range", text.len()),
-            });
-        }
-        Ok((self.layer(text, view.id()),))
-    }
-
-    fn requires(&self) -> &[turbo_analysis::KeyId] {
-        const REQUIRES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<View>::DEFAULT.id()];
-        REQUIRES
-    }
-
-    fn produces(&self) -> &[turbo_analysis::KeyId] {
-        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Pii>::DEFAULT.id()];
-        PRODUCES
-    }
-
-    /// FNV-1a over each scanner's extractor and kind id bits, plus any
-    /// custom-kind table and configured allow lists and deny lists. Bits are
-    /// keyed on stable kind ids, so adding a kind leaves the hash of every
-    /// existing configuration unchanged.
-    fn config_hash(&self) -> u64 {
-        let mut h = turbo_analysis::Fnv1a::new();
-        for s in &self.scanners {
-            let bits = s.kinds().bits();
-            h.fold_u64(s.extractor().tag()).fold_u64(bits as u64);
-            if bits >> 64 != 0 {
-                h.u8(0xb1).fold_u64((bits >> 64) as u64);
-            }
-            if let Extractor::Custom(name) = s.extractor() {
-                h.bytes(name.as_bytes()).u8(0xff);
-                for &k in s.custom_kinds() {
-                    h.u32(k.code()).u8(0xff);
-                }
-                h.fold_u64(s.custom_config_hash());
-            }
-        }
-        if self.keep_nested {
-            h.fold_u64(1);
-        }
-        if !self.custom_kinds.is_empty() {
-            h.u8(0xc1).usize(self.custom_kinds.len());
-            for name in self.custom_kinds.names() {
-                h.str(name);
-            }
-        }
-        self.window.fold_hash(&mut h);
-        if !self.global_allow.is_empty() {
-            h.u8(0xa1);
-            self.global_allow.fold_hash(&mut h);
-        }
-        if !self.kind_allow.is_empty() {
-            h.u8(0xa2).usize(self.kind_allow.len());
-            for (kind, allow) in &self.kind_allow {
-                h.u32(kind.code());
-                allow.fold_hash(&mut h);
-            }
-        }
-        if !self.deny_lists.is_empty() {
-            h.u8(0xd1).usize(self.deny_lists.len());
-            for deny in &self.deny_lists {
-                deny.fold_hash(&mut h);
-            }
-        }
-        h.finish()
+        self.layer_with_candidates(text, view).0
     }
 }

@@ -22,7 +22,7 @@
 use std::any::TypeId;
 
 use turbo_analysis::{Analyzer, Document, Key, Layer, View, ViewId};
-use turbo_analysis_layers::{Pii, PiiEdits};
+use turbo_analysis_layers::{Pii, PiiCandidates, PiiEdits};
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, TypedLayer, pii_value};
@@ -74,7 +74,7 @@ impl Default for PiiOutputPolicy {
 pub struct Disclosure {
     pub rewritten_text: bool,
     pub full_text: bool,
-    /// Candidates and evidence detail; read by #1903's projection.
+    /// The candidates layer (#1903) in a findings-only answer.
     pub detail: bool,
 }
 
@@ -198,18 +198,22 @@ pub fn withheld() -> PiiValue {
     PiiValue { form: Some(pii_value::Form::Withheld(PiiValueWithheld {})) }
 }
 
-/// Whether layer `id` is part of the findings: `turbo:pii`, and the
-/// `turbo:pii-edits` of a rewrite (spans, covered mentions, rule and
-/// strategy; never an original value).
+/// Whether layer `id` may carry annotations in a findings-only result:
+/// `turbo:pii`; the `turbo:pii-edits` of a rewrite (spans, covered
+/// mentions, rule and strategy); and, when the request asks for `detail`,
+/// `turbo:pii-candidates` (every span a detector considered, with its
+/// facts and the decision taken). None of them carries a value.
 pub fn is_findings_layer(id: &str) -> bool {
-    id == Pii::ID || id == PiiEdits::ID
+    id == Pii::ID || id == PiiEdits::ID || id == PiiCandidates::ID
 }
 
 /// Findings only: every other layer carries the view's words (sentence
 /// text, surfaces, lemmas, canonical names), so with the text withheld
-/// those layers are listed with their status and no annotations.
-pub(crate) fn withhold_annotations(layers: &mut [TypedLayer]) {
-    for l in layers.iter_mut().filter(|l| !is_findings_layer(&l.id)) {
+/// those layers are listed with their status and no annotations. The
+/// candidates are detail (#1903): listed bare unless `detail` is asked.
+pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
+    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (detail && id == PiiCandidates::ID);
+    for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
         l.annotations.clear();
         l.indexes_layer.clear();
     }

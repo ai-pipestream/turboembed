@@ -299,7 +299,7 @@ impl AnalyzerEngine {
             let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
             let label = builder.string_ref(pii.kind_name(mention.kind).unwrap_or(""))?;
             let value = builder.string_ref(mention.normalized)?;
-            let classification = match mention.confidence {
+            let classification = match mention.confidence() {
                 PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
                 PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
                 PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,

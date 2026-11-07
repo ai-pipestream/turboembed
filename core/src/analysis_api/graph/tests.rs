@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::{IxRange, Provenance, Tag, TagSet, View, ViewBuilder};
-use turbo_analysis_layers::{PiiKind, PiiMention, Strs};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiMention, Strs};
 
 use super::*;
 use crate::analysis_api::{
@@ -110,10 +110,13 @@ fn fixture() -> (Document, ViewId) {
     .unwrap();
 
     let mut pii = Pii::new(lower_view);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(17, 23),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "a@b.co",
     });
     doc.add(&Key::<Pii>::named("lower"), pii, Provenance::by("test:pii")).unwrap();
@@ -292,16 +295,24 @@ fn a_caller_graph_holding_a_probability_outside_0_to_1_is_an_invalid_argument() 
 fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
     let mut doc = Document::new("SSN: 123-45-6789, SIN: 046 454 286.".to_owned());
     let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(5, 16),
         kind: PiiKind::UsSsn,
-        confidence: PiiConfidence::Labelled,
+        detector,
+        evidence: &[PiiEvidence::Shape, PiiEvidence::Label { span: Span::new(0, 3), phrase: 0 }],
+        score: None,
         normalized: "123-45-6789",
     });
     pii.push(PiiMention {
         span: Span::new(23, 34),
         kind: PiiKind::CaSin,
-        confidence: PiiConfidence::LabelledChecksum,
+        detector,
+        evidence: &[
+            PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
+            PiiEvidence::Label { span: Span::new(18, 21), phrase: 0 },
+        ],
+        score: None,
         normalized: "046454286",
     });
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test:pii")).unwrap();

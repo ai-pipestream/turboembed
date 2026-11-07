@@ -28,7 +28,7 @@
 //! reduces this cross-talk.
 
 use turbo_analysis::Span;
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::PiiKind;
 use turbo_unicode::word_break::{WordBreak, WordBreak::*, is_extended_pictographic, word_break as unicode_word_break};
 
 use crate::text::{before, letter_or_digit, on_word_start, whitespace};
@@ -44,14 +44,13 @@ const BIC_STRICT_LABELS: [&[u8]; 6] = [b"bic/swift", b"swift/bic", b"bic code", 
 /// How a [`PiiKind`] uses context labels within its word window.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum LabelPolicy {
-    /// Do not inspect the context window; keep the scanner's confidence as-is.
+    /// Do not inspect the context window.
     None,
     /// Admit a candidate only when a label for its kind appears within the
-    /// window, and raise its confidence with [`PiiConfidence::with_label`].
+    /// window; the label is recorded as a `Label` evidence fact.
     Required,
-    /// Keep unlabelled candidates at their scanner confidence, and raise
-    /// confidence with [`PiiConfidence::with_label`] (`Format -> Labelled`,
-    /// `Checksum -> LabelledChecksum`) when a label appears within the window.
+    /// Keep unlabelled candidates, and record a `Label` evidence fact when
+    /// a label appears within the window.
     Boosts,
 }
 
@@ -92,18 +91,24 @@ pub const fn default_policy(kind: PiiKind) -> LabelPolicy {
 /// [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`] when no caller
 /// window override is configured on [`crate::PiiDetector`].
 pub fn has_strict_prefix_label(text: &str, start: usize, kind: PiiKind) -> bool {
+    find_strict_prefix_label(text, start, kind).is_some()
+}
+
+/// The strict prefix label of [`has_strict_prefix_label`]: where it stands
+/// and which phrase of the kind's strict list it is.
+pub fn find_strict_prefix_label(text: &str, start: usize, kind: PiiKind) -> Option<LabelMatch> {
     let (labels, allow_dot): (&[&[u8]], bool) = match kind {
         PiiKind::CaSin => (&SIN_STRICT_LABELS, true),
         PiiKind::Imei => (&IMEI_STRICT_LABELS, false),
         PiiKind::Bic => (&BIC_STRICT_LABELS, true),
-        _ => return false,
+        _ => return None,
     };
-    has_any_label(text, start, labels, allow_dot)
+    find_any_label(text, start, labels, allow_dot)
 }
 
-pub(crate) fn has_any_label(text: &str, start: usize, labels: &[&[u8]], allow_dot: bool) -> bool {
+pub(crate) fn find_any_label(text: &str, start: usize, labels: &[&[u8]], allow_dot: bool) -> Option<LabelMatch> {
     if start > text.len() || !text.is_char_boundary(start) {
-        return false;
+        return None;
     }
     let mut end = start;
     while let Some(c) = before(text, end) {
@@ -113,66 +118,104 @@ pub(crate) fn has_any_label(text: &str, start: usize, labels: &[&[u8]], allow_do
         end -= c.len_utf8();
     }
     let b = text.as_bytes();
-    labels.iter().any(|label| {
-        end >= label.len()
+    labels.iter().enumerate().find_map(|(phrase, label)| {
+        (end >= label.len()
             && b[end - label.len()..end].eq_ignore_ascii_case(label)
-            && on_word_start(text, end - label.len())
+            && on_word_start(text, end - label.len()))
+        .then(|| LabelMatch { span: Span::new((end - label.len()) as u32, end as u32), phrase: phrase as u32 })
     })
+}
+
+/// A context label the window found: where it stands in the text, and
+/// which phrase of the kind's label list (the defaults, then the extras,
+/// in order) it is.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct LabelMatch {
+    pub span: Span,
+    pub phrase: u32,
 }
 
 /// Whether any label in `labels` appears within `window_words` word tokens
 /// before `span.start` or after `span.end` in `text`.
 pub fn has_label(text: &str, span: Span, labels: &[&str], window_words: usize) -> bool {
+    find_label(text, span, labels, window_words).is_some()
+}
+
+/// The first label in `labels` within `window_words` word tokens before
+/// `span.start` or after `span.end` in `text`: the one before the span
+/// wins, then the earliest in `labels`.
+pub fn find_label(text: &str, span: Span, labels: &[&str], window_words: usize) -> Option<LabelMatch> {
     let phrases: Vec<Vec<&str>> = labels.iter().map(|l| words_after(l, usize::MAX)).filter(|p| !p.is_empty()).collect();
-    has_label_pre_split(text, span, &[], &phrases, window_words)
+    find_label_pre_split(text, span, &[], &phrases, window_words)
 }
 
 /// Whether any default label for `kind` appears within [`default_window`]`(kind)`
 /// word tokens before `span.start` or after `span.end` in `text`.
 pub fn has_kind_label(text: &str, span: Span, kind: PiiKind) -> bool {
-    has_label_pre_split::<String>(text, span, default_label_phrases(kind), &[], default_window(kind))
+    find_label_pre_split::<String>(text, span, default_label_phrases(kind), &[], default_window(kind)).is_some()
 }
 
-fn has_label_pre_split<S: AsRef<str>>(
+/// The byte span of `words[at..at + len]` in `text`, the text they are
+/// slices of.
+fn words_span(text: &str, words: &[&str], at: usize, len: usize) -> Span {
+    let offset = |w: &str| (w.as_ptr() as usize - text.as_ptr() as usize) as u32;
+    let last = words[at + len - 1];
+    Span::new(offset(words[at]), offset(last) + last.len() as u32)
+}
+
+fn find_label_pre_split<S: AsRef<str>>(
     text: &str,
     span: Span,
     defaults: &[&[&str]],
     extras: &[Vec<S>],
     window_words: usize,
-) -> bool {
+) -> Option<LabelMatch> {
     if window_words == 0 || (defaults.is_empty() && extras.is_empty()) {
-        return false;
+        return None;
     }
     let (start, end) = (span.start as usize, span.end as usize);
     if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
-        return false;
+        return None;
     }
     let max_len = defaults.iter().map(|p| p.len()).chain(extras.iter().map(Vec::len)).max().unwrap_or(0);
     if max_len == 0 {
-        return false;
+        return None;
     }
     let limit = window_words.saturating_add(max_len).saturating_sub(1);
+    let n_defaults = defaults.len() as u32;
+    let found = |words: &[&str], from_end: bool| {
+        defaults
+            .iter()
+            .enumerate()
+            .find_map(|(i, p)| phrase_at(words, p, window_words, from_end).map(|at| (i as u32, at, p.len())))
+            .or_else(|| {
+                extras.iter().enumerate().find_map(|(i, p)| {
+                    phrase_at(words, p.as_slice(), window_words, from_end)
+                        .map(|at| (n_defaults + i as u32, at, p.len()))
+                })
+            })
+            .map(|(phrase, at, len)| LabelMatch { span: words_span(text, words, at, len), phrase })
+    };
     let before = words_before(&text[..start], limit);
-    if defaults.iter().any(|p| phrase_matches(&before, p, window_words, true))
-        || extras.iter().any(|p| phrase_matches(&before, p.as_slice(), window_words, true))
-    {
-        return true;
+    if let Some(m) = found(&before, true) {
+        return Some(m);
     }
     let after = words_after(&text[end..], limit);
-    defaults.iter().any(|p| phrase_matches(&after, p, window_words, false))
-        || extras.iter().any(|p| phrase_matches(&after, p.as_slice(), window_words, false))
+    found(&after, false)
 }
 
-fn phrase_matches<S: AsRef<str>>(words: &[&str], phrase: &[S], window_words: usize, from_end: bool) -> bool {
+/// Where `phrase` stands in `words` within `window_words` of the near end:
+/// the index of its first word.
+fn phrase_at<S: AsRef<str>>(words: &[&str], phrase: &[S], window_words: usize, from_end: bool) -> Option<usize> {
     let (m, l) = (words.len(), phrase.len());
-    m >= l
-        && l > 0
-        && (1..=window_words.min(m)).any(|d| {
-            m >= d + l - 1 && {
-                let start = if from_end { m - d - (l - 1) } else { d - 1 };
-                words[start..start + l].iter().zip(phrase).all(|(w, lw)| w.eq_ignore_ascii_case(lw.as_ref()))
-            }
+    if m < l || l == 0 {
+        return None;
+    }
+    (1..=window_words.min(m)).find_map(|d| {
+        (m >= d + l - 1).then(|| if from_end { m - d - (l - 1) } else { d - 1 }).filter(|&start| {
+            words[start..start + l].iter().zip(phrase).all(|(w, lw)| w.eq_ignore_ascii_case(lw.as_ref()))
         })
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -262,27 +305,18 @@ impl WindowConfig {
     }
 
     pub(crate) fn has_label(&self, text: &str, span: Span, kind: PiiKind) -> bool {
-        if matches!(kind, PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic) && self.find(kind).is_none() {
-            return has_strict_prefix_label(text, span.start as usize, kind);
-        }
-        let extras = self.find(kind).map_or(&[][..], |o| o.extra_phrases.as_slice());
-        has_label_pre_split(text, span, default_label_phrases(kind), extras, self.window_words(kind))
+        self.find_label(text, span, kind).is_some()
     }
 
-    pub(crate) fn check(
-        &self,
-        text: &str,
-        span: Span,
-        kind: PiiKind,
-        confidence: PiiConfidence,
-    ) -> Option<PiiConfidence> {
-        match self.policy(kind) {
-            LabelPolicy::None => Some(confidence),
-            LabelPolicy::Required => self.has_label(text, span, kind).then(|| confidence.with_label()),
-            LabelPolicy::Boosts => {
-                Some(if self.has_label(text, span, kind) { confidence.with_label() } else { confidence })
-            }
+    /// The label for `kind` (default or caller-added) within `kind`'s
+    /// configured window around `span`, or under the strict prefix rule
+    /// when `kind` has no override.
+    pub(crate) fn find_label(&self, text: &str, span: Span, kind: PiiKind) -> Option<LabelMatch> {
+        if matches!(kind, PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic) && self.find(kind).is_none() {
+            return find_strict_prefix_label(text, span.start as usize, kind);
         }
+        let extras = self.find(kind).map_or(&[][..], |o| o.extra_phrases.as_slice());
+        find_label_pre_split(text, span, default_label_phrases(kind), extras, self.window_words(kind))
     }
 
     pub(crate) fn fold_hash(&self, h: &mut turbo_analysis::Fnv1a) {

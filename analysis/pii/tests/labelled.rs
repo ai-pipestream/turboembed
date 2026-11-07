@@ -194,7 +194,7 @@ fn checksums_and_zeros() {
 #[test]
 fn confidence_is_labelled_checksum() {
     let pii = layer(&imei(), "IMEI: 490154203237518");
-    assert_eq!(pii.mentions().next().unwrap().confidence.name(), "labelled-checksum");
+    assert_eq!(pii.mentions().next().unwrap().confidence().name(), "labelled-checksum");
 }
 
 #[test]
@@ -252,7 +252,7 @@ fn labelled_bics() {
         assert_eq!(normalized(&eu, text), [want], "{text}");
         assert_eq!(kinds(&eu, text), ["bic"]);
         let pii = layer(&eu, text);
-        assert_eq!(pii.mentions().next().unwrap().confidence.name(), "labelled");
+        assert_eq!(pii.mentions().next().unwrap().confidence().name(), "labelled");
     }
     for bad in [
         "DEUTDEFF",

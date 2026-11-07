@@ -4,8 +4,8 @@ use turbo_analysis::{
     Analyzer, Bound, Document, DocumentGraph, IxRange, Key, Layer, Provenance, Span, Spans, Tag, TagSet, View, ViewId,
 };
 use turbo_analysis_layers::{
-    AbbreviationForm, Abbreviations, Currency, Date, Entities, Money, MoneyMention, Origin, Pii, PiiConfidence,
-    PiiKind, PiiMention, Quantities, QuantityMention, Sentences, TemporalMention, TemporalValue, Temporals, Tokens,
+    AbbreviationForm, Abbreviations, Currency, Date, Entities, Money, MoneyMention, Origin, Pii, PiiEvidence, PiiKind,
+    PiiMention, Quantities, QuantityMention, Sentences, TemporalMention, TemporalValue, Temporals, Tokens,
 };
 use turbo_ngram::NGramLanguageModel;
 use turbo_normalize::{
@@ -185,10 +185,13 @@ fn protected_spans_guard_never_alters_pii_money_quantity_temporal_entity_abbrevi
 
     // 5. Pii: "giong@example.com"
     let mut pii = Pii::new(v0);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: find_span("giong@example.com"),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "giong@example.com",
     });
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test")).unwrap();

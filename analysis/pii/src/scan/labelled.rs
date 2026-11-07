@@ -1,4 +1,6 @@
 //! Identifiers gated by a context label in [`crate::window`], Luhn checked.
+//! The scanners add every checked candidate; the detector's label policy
+//! pass records the label fact and rejects the unlabelled ones.
 //!
 //! - Canadian Social Insurance Numbers, `CaIdentityPiiExtractor`: nine
 //!   digits, bare or as three groups split by one space or hyphen, paired
@@ -6,26 +8,24 @@
 //! - IMEIs, `DevicePiiExtractor`: fifteen digits, split by spaces or by
 //!   hyphens (not both), paired with `IMEI`.
 
-use turbo_analysis::Span;
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind};
 
 use crate::checksum::{bic, luhn};
 use crate::hits::Hits;
 use crate::text::{before, on_end, on_number_start, on_word_start};
-use crate::window::WindowConfig;
 
 const SIN_DIGITS: usize = 9;
 const IMEI_DIGITS: usize = 15;
 
-pub(crate) fn scan_sin(text: &str, window: &WindowConfig, hits: &mut Hits) {
-    scan(text, PiiKind::CaSin, window, hits);
+pub(crate) fn scan_sin(text: &str, hits: &mut Hits) {
+    scan(text, PiiKind::CaSin, hits);
 }
 
-pub(crate) fn scan_imei(text: &str, window: &WindowConfig, hits: &mut Hits) {
-    scan(text, PiiKind::Imei, window, hits);
+pub(crate) fn scan_imei(text: &str, hits: &mut Hits) {
+    scan(text, PiiKind::Imei, hits);
 }
 
-pub(crate) fn scan_bic(text: &str, window: &WindowConfig, hits: &mut Hits) {
+pub(crate) fn scan_bic(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i + 8 <= b.len() {
@@ -42,20 +42,15 @@ pub(crate) fn scan_bic(text: &str, window: &WindowConfig, hits: &mut Hits) {
         });
         if let Some(len) = len {
             let end = i + len;
-            let span = Span::new(i as u32, end as u32);
-            if let Some(conf) = window.check(text, span, PiiKind::Bic, PiiConfidence::Format) {
-                hits.add(i, end, PiiKind::Bic, conf, |s| s.push_str(&text[i..end]));
-                i = end;
-            } else {
-                i += 1;
-            }
+            hits.add_text(text, i, end, PiiKind::Bic, PiiEvidence::Shape);
+            i = end;
         } else {
             i += 1;
         }
     }
 }
 
-fn scan(text: &str, kind: PiiKind, window: &WindowConfig, hits: &mut Hits) {
+fn scan(text: &str, kind: PiiKind, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut digits = [0u8; IMEI_DIGITS];
     let mut i = 0;
@@ -70,15 +65,16 @@ fn scan(text: &str, kind: PiiKind, window: &WindowConfig, hits: &mut Hits) {
         };
         match end {
             Some(end) if luhn::valid(&digits[..n]) => {
-                let span = Span::new(i as u32, end as u32);
-                if let Some(conf) = window.check(text, span, kind, PiiConfidence::Checksum) {
-                    hits.add(i, end, kind, conf, |s| {
+                hits.add(
+                    i,
+                    end,
+                    kind,
+                    PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
+                    |s| {
                         s.extend(digits[..n].iter().map(|&d| d as char));
-                    });
-                    i = end;
-                } else {
-                    i += 1;
-                }
+                    },
+                );
+                i = end;
             }
             _ => i += 1,
         }
