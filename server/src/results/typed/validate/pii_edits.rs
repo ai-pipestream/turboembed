@@ -206,7 +206,20 @@ pub(super) fn edit(ctx: &LayerCtx<'_>, i: usize, e: &PiiEditAnnotation) -> Resul
     if u8::try_from(e.strategy).ok().and_then(PiiStrategyKind::from_id).is_none() {
         return Err(bad(format!("{} pii edit strategy is not a known strategy", at())));
     }
-    Ok(())
+    policy_ref(&e.rule_id, &e.policy_digest, false).map_err(|what| bad(format!("{} pii edit {what}", at())))
+}
+
+/// A rule id and policy digest: the digest is empty (no redaction policy)
+/// or 32 bytes, and a rule id names a rule of a policy, so it needs the
+/// digest. `need` requires the digest.
+pub(super) fn policy_ref(rule_id: &str, digest: &[u8], need: bool) -> Result<(), &'static str> {
+    match digest.len() {
+        32 => Ok(()),
+        0 if need => Err("policy_digest is missing"),
+        0 if !rule_id.is_empty() => Err("rule_id names a rule of no policy: policy_digest is empty"),
+        0 => Ok(()),
+        _ => Err("policy_digest is not 32 bytes"),
+    }
 }
 
 fn kind(ctx: &LayerCtx<'_>, k: &PiiKindRef) -> Result<(), &'static str> {
