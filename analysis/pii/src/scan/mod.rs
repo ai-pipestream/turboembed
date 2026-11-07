@@ -24,7 +24,6 @@ use std::sync::Arc;
 use turbo_analysis_layers::{CustomKinds, PiiKind, PiiKinds};
 
 use crate::hits::{Hits, PiiSink};
-use crate::window::WindowConfig;
 
 /// One OpenNLP extractor class, or a caller-defined extractor named by
 /// the caller.
@@ -94,6 +93,25 @@ impl Extractor {
         }
     }
 
+    /// The stable detector id every mention of this extractor names:
+    /// `turbo-pii:` and the pack-style name (`turbo-pii:cursor`,
+    /// `turbo-pii:us-identity`), or the caller extractor's own name.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Extractor::Cursor => "turbo-pii:cursor",
+            Extractor::Banking => "turbo-pii:banking",
+            Extractor::Network => "turbo-pii:network",
+            Extractor::Secrets => "turbo-pii:secrets",
+            Extractor::Crypto => "turbo-pii:crypto",
+            Extractor::UsIdentity => "turbo-pii:us-identity",
+            Extractor::EuIdentity => "turbo-pii:eu-identity",
+            Extractor::BrIdentity => "turbo-pii:br-identity",
+            Extractor::CaIdentity => "turbo-pii:ca-identity",
+            Extractor::Device => "turbo-pii:device",
+            Extractor::Custom(name) => name,
+        }
+    }
+
     pub(crate) const fn tag(self) -> u64 {
         match self {
             Extractor::Cursor => 0,
@@ -111,6 +129,10 @@ impl Extractor {
     }
 }
 
+/// The version the built-in scanners and deny lists record on their
+/// mentions: this crate's.
+pub const BUILTIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// A caller-defined PII extractor, OpenNLP's `PiiExtractor`.
 pub trait CustomExtractor: Send + Sync {
     /// Identifier for this extractor in [`Extractor::Custom`] and
@@ -119,6 +141,12 @@ pub trait CustomExtractor: Send + Sync {
 
     /// The kinds this extractor reports.
     fn kinds(&self) -> &[PiiKind];
+
+    /// The version recorded with every mention this extractor finds, next
+    /// to [`CustomExtractor::name`]. Unversioned extractors report `"0"`.
+    fn version(&self) -> &str {
+        "0"
+    }
 
     /// Scans `text` and appends candidate mentions to `sink`.
     fn scan(&self, text: &str, sink: &mut PiiSink<'_>);
@@ -256,6 +284,16 @@ impl Scanner {
         Scanner::custom(FnExtractor { name, kinds: [kind], scan })
     }
 
+    /// The detector version every mention of this scanner names: this
+    /// crate's version for a built-in extractor, the caller's for a custom
+    /// one.
+    pub fn version(&self) -> &str {
+        match &self.inner {
+            ScannerInner::Builtin { .. } => BUILTIN_VERSION,
+            ScannerInner::Custom(c) => c.version(),
+        }
+    }
+
     pub fn extractor(&self) -> Extractor {
         match &self.inner {
             ScannerInner::Builtin { extractor, .. } => *extractor,
@@ -291,7 +329,7 @@ impl Scanner {
 
     /// Appends this scanner's candidates in `text`, in the order the Java
     /// extractor's scans run.
-    pub(crate) fn scan(&self, text: &str, window: &WindowConfig, kinds: &CustomKinds, hits: &mut Hits) {
+    pub(crate) fn scan(&self, text: &str, kinds: &CustomKinds, hits: &mut Hits) {
         let ScannerInner::Builtin { extractor, kinds: k } = &self.inner else {
             if let ScannerInner::Custom(c) = &self.inner {
                 let mut sink = PiiSink::new(text, kinds, hits);
@@ -333,10 +371,10 @@ impl Scanner {
             }
             Extractor::Crypto => crypto::scan(text, k, hits),
             Extractor::UsIdentity => national::scan_us(text, k, hits),
-            Extractor::EuIdentity => national::scan_eu(text, k, window, hits),
+            Extractor::EuIdentity => national::scan_eu(text, k, hits),
             Extractor::BrIdentity => br::scan_br(text, k, hits),
-            Extractor::CaIdentity => labelled::scan_sin(text, window, hits),
-            Extractor::Device => labelled::scan_imei(text, window, hits),
+            Extractor::CaIdentity => labelled::scan_sin(text, hits),
+            Extractor::Device => labelled::scan_imei(text, hits),
             Extractor::Custom(_) => {}
         }
     }

@@ -1,0 +1,10 @@
+round 5 size 8x128 commit ade3608604e5965ed97095d37020511d71722d78
+command: target/release/turbo-bench record --bundle <bundles>/bge-base-en-v1.5-r1 --device metal --precision fastest --batch 8 --seq 128 --rows dense --warmup 5 --iterations 20 --no-tei --mlx-model <upstream bge-base-en-v1.5> --out <out>
+before: load 1.67 2.05 2.35 gpu 0% at 2026-11-06T03:48:47Z
+metal Apple M2: p50 71.0619 ms, p99 72.1280 ms over 20 runs of [8, 128] ROWS_DENSE, 1024 live tokens, 1024 computed; min cosine 0.999999688026511, max abs diff 9.701214730739594e-5
+library (metal Apple M2): p50 71.0619 ms, p99 72.1280 ms on [8, 128] ROWS_DENSE: 1024 token positions computed of 1024 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 63.0683 ms, p99 64.0399 ms on [8, 128] ROWS_DENSE: 1024 token positions computed of 1024 live
+<scratch>/e2e-bge-out/r5/8x128/m2.metal.embed.fastest-dense.bge-base-en-v1-5-0ecbae3e.ade3608604e5.json
+exit: 0
+after: load 1.70 2.05 2.35 gpu 98% at 2026-11-06T03:48:55Z

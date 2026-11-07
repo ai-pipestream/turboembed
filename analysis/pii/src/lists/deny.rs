@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use turbo_analysis::{Fnv1a, Span};
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{PiiEvidence, PiiKind};
 use turbo_glossary::{Candidate, Case, EntryIx, Glossary, GlossaryMatch, TextMatcher, select};
 use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::java::to_lower_char;
@@ -274,8 +274,10 @@ impl DenyList {
             .collect();
     }
 
-    /// Scans `text` and appends non-overlapping matches for this deny list to `hits`.
-    pub(crate) fn scan(&self, text: &str, hits: &mut Hits) {
+    /// Scans `text` and appends non-overlapping matches for this deny list
+    /// to `hits`, each with a `DenyHit` fact naming `list` (this list's
+    /// position in the detector's composition order) and the term.
+    pub(crate) fn scan(&self, text: &str, list: u32, hits: &mut Hits) {
         let Some(matcher) = &self.matcher else {
             return;
         };
@@ -305,7 +307,8 @@ impl DenyList {
         let mut selected: Vec<GlossaryMatch> = Vec::new();
         select(&mut candidates, &mut selected);
         for m in selected {
-            hits.add_text(text, m.span.start as usize, m.span.end as usize, self.kind, PiiConfidence::Format);
+            let fact = PiiEvidence::DenyHit { list, term: m.entry.0 };
+            hits.add_text(text, m.span.start as usize, m.span.end as usize, self.kind, fact);
         }
     }
 

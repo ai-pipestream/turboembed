@@ -127,11 +127,11 @@ fn attachment_refuses_gold_that_does_not_match_the_words() {
     assert!(Parser::<f32>::new(&s, 0, &mut Rng::new(1)).is_err(), "zero width");
     let p = Parser::<f32>::new(&s, 1, &mut Rng::new(1)).unwrap();
     let core = p.to_core().unwrap();
-    let short = [ParseExample { features: vec![1.0, 2.0], heads: vec![0], rels: vec![0] }];
+    let short = [ParseExample { features: vec![1.0, 2.0], heads: vec![0], rels: vec![0], language: None }];
     assert!(attachment(&core, &short).is_err());
-    let own_head = [ParseExample { features: vec![1.0], heads: vec![1], rels: vec![0] }];
+    let own_head = [ParseExample { features: vec![1.0], heads: vec![1], rels: vec![0], language: None }];
     assert!(attachment(&core, &own_head).is_err());
-    let fine = [ParseExample { features: vec![1.0], heads: vec![0], rels: vec![0] }];
+    let fine = [ParseExample { features: vec![1.0], heads: vec![0], rels: vec![0], language: None }];
     assert_eq!(attachment(&core, &fine).unwrap().words, 1);
 }
 

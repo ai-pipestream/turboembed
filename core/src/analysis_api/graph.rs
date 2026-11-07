@@ -382,7 +382,7 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
         })?;
         let label = builder.string_ref(name)?;
         let value = builder.string_ref(mention.normalized)?;
-        let classification = match mention.confidence {
+        let classification = match mention.confidence() {
             PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
             PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
             PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,

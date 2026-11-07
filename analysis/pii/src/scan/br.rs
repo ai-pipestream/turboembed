@@ -1,7 +1,7 @@
 //! Brazilian tax identifier scanners (`BrIdentityPiiExtractor`): CPF (`br-cpf`)
 //! and CNPJ (`br-cnpj`).
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind, PiiKinds};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiKinds};
 
 use super::fr::read_digit_groups;
 use super::national::on_number_end;
@@ -37,9 +37,15 @@ fn scan_cpf(text: &str, hits: &mut Hits) {
             && on_number_end(text, end, BR_JOINERS)
             && mod11::br_cpf(&norm)
         {
-            hits.add(i, end, PiiKind::BrCpf, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::BrCpf,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Mod11, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;
@@ -88,9 +94,15 @@ fn scan_cnpj(text: &str, hits: &mut Hits) {
             && on_number_end(text, end, BR_JOINERS)
             && mod11::br_cnpj(&norm)
         {
-            hits.add(i, end, PiiKind::BrCnpj, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::BrCnpj,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Mod11, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;

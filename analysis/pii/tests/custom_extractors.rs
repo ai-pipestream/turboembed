@@ -17,8 +17,8 @@ use turbo_pii::rewrite::{
 };
 use turbo_pii::text::{on_end, on_number_start, on_word_start};
 use turbo_pii::{
-    CustomExtractor, Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiKind, PiiKinds, PiiMention, PiiSink, Scanner,
-    ScannerError, SinkError,
+    ChecksumAlgorithm, CustomExtractor, Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiEvidence, PiiKind,
+    PiiKinds, PiiMention, PiiScore, PiiScoreKind, PiiSink, Scanner, ScannerError, SinkError,
 };
 
 /// `account-number`, `se-personnummer` and `employee-badge` of [`test_kinds`].
@@ -28,8 +28,12 @@ const BADGE_KIND: PiiKind = test_kind(3);
 
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
 
+const SHAPE: &[PiiEvidence] = &[PiiEvidence::Shape];
+const LUHN: &[PiiEvidence] = &[PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true }];
+const RULE_SUM_20: PiiEvidence = PiiEvidence::Rule { rule: 1 };
+
 /// Internal account number extractor: `ACCT-dddd-dddd` where the 8 digits
-/// pass a Luhn check digit (`PiiConfidence::Checksum`), normalized to
+/// pass a Luhn check digit (a `Checksum` fact), normalized to
 /// `ACCTdddddddd`.
 struct AccountExtractor {
     prefix: &'static [u8],
@@ -75,7 +79,7 @@ impl CustomExtractor for AccountExtractor {
             digits[4..].copy_from_slice(d2);
             if luhn::valid(&digits) {
                 let end = i + total;
-                sink.add_with(Span::new(i as u32, end as u32), ACCOUNT_KIND, PiiConfidence::Checksum, |norm| {
+                sink.add_with(Span::new(i as u32, end as u32), ACCOUNT_KIND, LUHN, |norm| {
                     norm.push_str("ACCT");
                     for &d in &digits {
                         norm.push(d as char);
@@ -123,7 +127,7 @@ fn scan_se_personnummer(text: &str, sink: &mut PiiSink<'_>) {
         luhn_digits[6..].copy_from_slice(serial_part);
         if luhn::valid(&luhn_digits) {
             let end = i + LEN;
-            sink.add_with(Span::new(i as u32, end as u32), PERSONNUMMER_KIND, PiiConfidence::Checksum, |norm| {
+            sink.add_with(Span::new(i as u32, end as u32), PERSONNUMMER_KIND, LUHN, |norm| {
                 for &d in date_part.iter().chain(serial_part.iter()) {
                     norm.push(d as char);
                 }
@@ -152,8 +156,10 @@ fn scan_badge(text: &str, sink: &mut PiiSink<'_>) {
             let start = i + label.len();
             let end = i + total;
             let sum: u32 = b[start + 2..end].iter().map(|&d| u32::from(d - b'0')).sum();
-            let confidence = if sum == 20 { PiiConfidence::LabelledChecksum } else { PiiConfidence::Format };
-            sink.add_text(Span::new(start as u32, end as u32), BADGE_KIND, confidence);
+            // The badge rule: digits summing to 20 pass the extractor's own
+            // check (rule 1), any other badge is shape only.
+            let evidence: &[PiiEvidence] = if sum == 20 { &[RULE_SUM_20, LUHN[0]] } else { SHAPE };
+            sink.add_text(Span::new(start as u32, end as u32), BADGE_KIND, evidence);
             i = end;
         } else {
             i += 1;
@@ -184,14 +190,14 @@ fn caller_extractors_find_checksum_and_confidence_alongside_builtin_packs() {
     let pii = layer(&d, text);
     assert_eq!(pii.check(), Ok(()));
 
-    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized, &text[m.span.range()])).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized, &text[m.span.range()])).collect();
     assert_eq!(
         items,
         [
             (PiiKind::Email, PiiConfidence::Format, "jane@example.com", "jane@example.com"),
             (ACCOUNT_KIND, PiiConfidence::Checksum, "ACCT12345674", "ACCT-1234-5674"),
             (PERSONNUMMER_KIND, PiiConfidence::Checksum, "198112189876", "19811218-9876"),
-            (BADGE_KIND, PiiConfidence::LabelledChecksum, "B-5555", "B-5555"),
+            (BADGE_KIND, PiiConfidence::Checksum, "B-5555", "B-5555"),
             (BADGE_KIND, PiiConfidence::Format, "B-1234", "B-1234"),
         ]
     );
@@ -288,16 +294,21 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     // Binary graph export/import carries the custom-kind table with the layer.
     let mut doc = Document::new("ACCT-1234-5674 and 811218-9876");
     let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, test_kinds());
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(0, 14),
         kind: ACCOUNT_KIND,
-        confidence: PiiConfidence::Checksum,
+        detector,
+        evidence: LUHN,
+        score: None,
         normalized: "ACCT12345674",
     });
     pii.push(PiiMention {
         span: Span::new(19, 30),
         kind: PERSONNUMMER_KIND,
-        confidence: PiiConfidence::Checksum,
+        detector,
+        evidence: LUHN,
+        score: None,
         normalized: "8112189876",
     });
     doc.add(&turbo_analysis::Key::DEFAULT, pii, Provenance::by("test")).unwrap();
@@ -328,30 +339,26 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     // SinkError validation on malformed spans, empty/overlong/reserved kinds, and empty normalized values.
     let check_sink = |text: &str, sink: &mut PiiSink<'_>| {
         assert_eq!(sink.text(), text);
+        assert_eq!(sink.try_add(Span::new(0, 0), ACCOUNT_KIND, SHAPE, "x"), Err(SinkError::Span(Span::new(0, 0))));
+        assert_eq!(sink.try_add(Span::new(0, 1), ACCOUNT_KIND, SHAPE, "x"), Err(SinkError::Span(Span::new(0, 1))));
+        assert_eq!(sink.try_add(Span::new(0, 99), ACCOUNT_KIND, SHAPE, "x"), Err(SinkError::Span(Span::new(0, 99))));
         assert_eq!(
-            sink.try_add(Span::new(0, 0), ACCOUNT_KIND, PiiConfidence::Format, "x"),
-            Err(SinkError::Span(Span::new(0, 0)))
-        );
-        assert_eq!(
-            sink.try_add(Span::new(0, 1), ACCOUNT_KIND, PiiConfidence::Format, "x"),
-            Err(SinkError::Span(Span::new(0, 1)))
-        );
-        assert_eq!(
-            sink.try_add(Span::new(0, 99), ACCOUNT_KIND, PiiConfidence::Format, "x"),
-            Err(SinkError::Span(Span::new(0, 99)))
-        );
-        assert_eq!(
-            sink.try_add(Span::new(0, 2), test_kind(40), PiiConfidence::Format, "x"),
+            sink.try_add(Span::new(0, 2), test_kind(40), SHAPE, "x"),
             Err(SinkError::Kind(turbo_pii::KindError::UnknownCustom(40)))
         );
+        assert_eq!(sink.try_add(Span::new(0, 2), ACCOUNT_KIND, SHAPE, ""), Err(SinkError::EmptyValue(Span::new(0, 2))));
         assert_eq!(
-            sink.try_add(Span::new(0, 2), ACCOUNT_KIND, PiiConfidence::Format, ""),
+            sink.try_add_with(Span::new(0, 2), ACCOUNT_KIND, SHAPE, |_| {}),
             Err(SinkError::EmptyValue(Span::new(0, 2)))
         );
-        assert_eq!(
-            sink.try_add_with(Span::new(0, 2), ACCOUNT_KIND, PiiConfidence::Format, |_| {}),
-            Err(SinkError::EmptyValue(Span::new(0, 2)))
-        );
+        let model = sink.model("test-model", "3").unwrap();
+        let bad = PiiScore { value: 2.0, kind: PiiScoreKind::Probability, model, calibrated: true };
+        assert!(matches!(
+            sink.try_add_candidate(Span::new(0, 2), ACCOUNT_KIND, SHAPE, Some(bad), |s| s.push('x')),
+            Err(SinkError::Score(_, e)) if e.contains("outside 0..=1")
+        ));
+        let good = PiiScore { value: 0.5, ..bad };
+        assert_eq!(sink.try_add_candidate(Span::new(0, 2), ACCOUNT_KIND, SHAPE, Some(good), |s| s.push('x')), Ok(()));
     };
     let validator = PiiDetector::new(vec![Scanner::custom_fn("Validator", ACCOUNT_KIND, check_sink)])
         .with_custom_kinds(test_kinds());

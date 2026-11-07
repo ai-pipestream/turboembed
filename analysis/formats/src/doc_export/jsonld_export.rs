@@ -296,7 +296,7 @@ impl DocumentFormatter for JsonLdFormatter {
                     s,
                     "{{\"@type\": \"turbo:PiiMention\", \"kind\": {}, \"confidence\": {}, \"start\": {start}, \"end\": {end}, \"normalized\": {}}}",
                     json_string(pii.kind_name(m.kind).unwrap_or("")),
-                    json_string(m.confidence.name()),
+                    json_string(m.confidence().name()),
                     json_string(m.normalized),
                 );
             }

@@ -242,7 +242,12 @@ impl TunedParser<f32> {
             self.encoder.forward(&e.ids, &mut encoder_work)?;
             let (h, pooling) = (self.encoder.geometry().hidden, self.head.spec().word_pooling);
             pool::forward(&encoder_work.out, &e.words, h, pooling, &mut features, &mut count)?;
-            let example = ParseExample { features: features.clone(), heads: e.heads.clone(), rels: e.rels.clone() };
+            let example = ParseExample {
+                features: features.clone(),
+                heads: e.heads.clone(),
+                rels: e.rels.clone(),
+                language: None,
+            };
             let score = attachment(&parser, std::slice::from_ref(&example))?;
             total.words += score.words;
             total.heads += score.heads;

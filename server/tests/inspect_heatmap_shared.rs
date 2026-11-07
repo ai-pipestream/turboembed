@@ -8,8 +8,8 @@ use turbo_analysis::{
 };
 use turbo_analysis_layers::{
     Block, Categories, Chunks, Cut, EmotionItem, EmotionLayer, EmotionScores, EmotionTarget, Incivility,
-    IncivilityItem, IncivilityScores, IncivilityTarget, Pii, PiiConfidence, PiiKind, PiiMention, Sentences,
-    SparseTerms, Structure, Tokens,
+    IncivilityItem, IncivilityScores, IncivilityTarget, Pii, PiiEvidence, PiiKind, PiiMention, Sentences, SparseTerms,
+    Structure, Tokens,
 };
 use turbo_chunker::terms::{TermCounter, TermIndexer};
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
@@ -156,10 +156,13 @@ fn heatmap_entity_density_counts_items() {
 fn heatmap_pii_density_counts_items() {
     let mut d = document();
     let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(0, 7),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "x",
     });
     d.add(&Key::DEFAULT, pii, Provenance::by("test")).unwrap();

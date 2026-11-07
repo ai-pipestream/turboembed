@@ -148,7 +148,7 @@ impl HmacTokenizer {
 #[cfg(test)]
 mod tests {
     use turbo_analysis::{Span, ViewId};
-    use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
+    use turbo_analysis_layers::{Pii, PiiEvidence, PiiKind, PiiMention};
 
     use super::*;
     use crate::rewrite::{PiiAuditReport, source_view};
@@ -156,10 +156,13 @@ mod tests {
     #[test]
     fn empty_normalized_mention_is_refused_in_hmac_rewrite_and_skipped_in_audit_samples() {
         let mut pii = Pii::new(ViewId::SOURCE);
+        let detector = pii.detector("test", "1").unwrap();
         pii.push(PiiMention {
             span: Span::new(0, 5),
             kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
+            detector,
+            evidence: &[PiiEvidence::Shape],
+            score: None,
             normalized: "",
         });
         let tokenizer = HmacTokenizer::new(&[0x42; 32]).unwrap();

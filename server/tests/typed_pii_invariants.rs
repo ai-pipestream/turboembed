@@ -2,18 +2,28 @@
 //! between views through their lowest common ancestor, as
 //! `Document::map_span` maps them; a mention whose text the target view
 //! deletes keeps an empty anchor; a PII payload needs a kind the layer can
-//! reference the layer can resolve and a known confidence tier; and `document_to_typed` refuses to
-//! emit a message its own validator would refuse.
+//! resolve, a detector, known evidence facts and the tier those facts
+//! derive to (#1903); a candidate needs a known disposition; and
+//! `document_to_typed` refuses to emit a message its own validator would
+//! refuse.
 
 use turbo_analysis::{Alignment, Analyzer, Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
+use turbo_kserve::proto::result::pii_allow_rule_ref::Rule;
+use turbo_kserve::proto::result::pii_disposition::Disposition;
+use turbo_kserve::proto::result::pii_evidence::Fact;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
 use turbo_kserve::proto::result::typed_annotation::Value;
-use turbo_kserve::proto::result::{PiiKindRef, PiiMention as WirePii, TypedDocumentResult, TypedLayer};
+use turbo_kserve::proto::result::{
+    PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm, PiiChecksumEvidence,
+    PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKindRef,
+    PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore, PiiShapeEvidence, SpanFragment,
+    TypedDocumentResult, TypedLayer,
+};
 use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
-use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiKind, PiiMention};
+use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiEvidence, PiiKind, PiiMention};
 
 /// The wire spans of every PII annotation, in layer order.
 fn pii_spans(wire: &TypedDocumentResult) -> Vec<Vec<(u32, u32)>> {
@@ -59,10 +69,13 @@ fn typed_projection_maps_sibling_views_through_their_lowest_common_ancestor() {
     let (mut doc, v2, v3) = sibling_views();
     assert_eq!((doc.text(v2), doc.text(v3)), ("[n=123;", "n=123];"));
     let mut pii = Pii::new(v2);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(4, 5),
         kind: PiiKind::Phone,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "2",
     });
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
@@ -181,11 +194,29 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
     for id in [1, 5, 30] {
         validate_typed_document(&pii_message(|m| m.kind_ref = builtin(id))).unwrap_or_else(|e| panic!("{id}: {e:?}"));
     }
-    for tier in PiiConfidence::ALL {
-        let tier = tier.id() as i32;
-        validate_typed_document(&pii_message(|m| m.confidence = tier)).unwrap();
+    // The tier on the wire is the one the facts derive to.
+    let luhn = WireEvidence {
+        fact: Some(Fact::Checksum(PiiChecksumEvidence { algorithm: PiiChecksumAlgorithm::Luhn as i32, passed: true })),
+    };
+    let label =
+        WireEvidence { fact: Some(Fact::Label(PiiLabelEvidence { span: Some(SpanFragment::exact(0, 4)), phrase: 0 })) };
+    let shape = WireEvidence { fact: Some(Fact::Shape(PiiShapeEvidence {})) };
+    let paired: [(PiiConfidence, Vec<WireEvidence>); 4] = [
+        (PiiConfidence::Format, vec![shape.clone()]),
+        (PiiConfidence::Checksum, vec![luhn.clone()]),
+        (PiiConfidence::LabelledChecksum, vec![luhn, label.clone()]),
+        (PiiConfidence::Labelled, vec![shape, label]),
+    ];
+    for (tier, facts) in paired {
+        let wire = pii_message(|m| {
+            m.confidence = tier.id() as i32;
+            m.evidence = facts;
+        });
+        validate_typed_document(&wire).unwrap_or_else(|e| panic!("{}: {e:?}", tier.name()));
     }
-    let refusals: [(&str, Edit); 10] = [
+    let refusals: [(&str, Edit); 18] = [
+        ("a retired string kind", retired_kind),
+        ("a retired string tier", retired_tier),
         ("no kind", |m| m.kind_ref = None),
         ("an empty kind ref", |m| m.kind_ref = Some(PiiKindRef { kind: None })),
         ("unspecified kind", |m| m.kind_ref = builtin(0)),
@@ -194,8 +225,21 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         ("custom kind with no table", |m| m.kind_ref = custom(0)),
         ("unspecified tier", |m| m.confidence = 0),
         ("unknown tier", |m| m.confidence = 5),
-        ("a retired string kind", retired_kind),
-        ("a retired string tier", retired_tier),
+        ("a tier its evidence does not derive to", |m| m.confidence = 2),
+        ("no evidence", |m| m.evidence.clear()),
+        ("an unknown fact", |m| m.evidence.push(WireEvidence { fact: None })),
+        ("an unknown checksum algorithm", |m| {
+            m.evidence =
+                vec![WireEvidence { fact: Some(Fact::Checksum(PiiChecksumEvidence { algorithm: 0, passed: true })) }];
+        }),
+        ("a label with no span", |m| {
+            m.evidence.push(WireEvidence { fact: Some(Fact::Label(PiiLabelEvidence { span: None, phrase: 0 })) });
+        }),
+        ("no detector", |m| m.detector = None),
+        ("an empty detector id", |m| m.detector = Some(WireDetector { id: String::new(), version: "1".to_owned() })),
+        ("an unknown score kind", |m| {
+            m.score = Some(WirePiiScore { value: 0.5, kind: 0, model: m.detector.clone(), calibrated: false });
+        }),
     ];
     for (what, edit) in refusals {
         let message = refused(what, &pii_message(edit), &[]);
@@ -265,10 +309,13 @@ fn document_to_typed_refuses_to_emit_a_message_its_validator_refuses() {
     // and the message is refused where it is validated.
     let mut doc = Document::new("mail jane@example.com end");
     let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(5, 21),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "jane@example.com",
     });
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("")).unwrap();
@@ -280,4 +327,59 @@ fn document_to_typed_refuses_to_emit_a_message_its_validator_refuses() {
     };
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
     assert!(err.message.contains("empty annotator"), "{}", err.message);
+}
+
+/// The candidate annotations of `wire`, with their dispositions.
+fn candidates(wire: &mut TypedDocumentResult) -> &mut TypedLayer {
+    wire.layers.iter_mut().find(|l| l.id == "turbo:pii-candidates").expect("a candidates layer")
+}
+
+#[test]
+fn candidates_carry_their_disposition_and_validate_against_the_pii_layer() {
+    let (doc, _) = deleted_mention();
+    let wire = document_to_typed("cand", &doc, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    validate_typed_document(&wire).unwrap();
+    let mut wire = wire;
+    let layer = candidates(&mut wire);
+    assert_eq!(layer.annotations.len(), 1);
+    let Some(Value::PiiCandidate(c)) = &layer.annotations[0].value else { panic!("a candidate") };
+    assert_eq!(c.disposition.as_ref().and_then(|d| d.disposition), Some(Disposition::Kept(0)));
+    assert_eq!(c.detector.as_ref().map(|d| d.id.as_str()), Some("turbo-pii:cursor"));
+    assert!(!c.evidence.is_empty());
+
+    type CandidateEdit = fn(&mut PiiCandidateAnnotation);
+    let edits: [(&str, CandidateEdit); 5] = [
+        ("no disposition", |c| c.disposition = None),
+        ("a mention index past the pii layer", |c| {
+            c.disposition = Some(WireDisposition { disposition: Some(Disposition::NestedIn(7)) });
+        }),
+        ("an unknown reject reason", |c| {
+            c.disposition = Some(WireDisposition { disposition: Some(Disposition::RejectedByRule(0)) });
+        }),
+        ("an unknown allow scope", |c| {
+            let rule = Some(PiiAllowRuleRef { rule: Some(Rule::Term(0)) });
+            let allowed = PiiAllowedByRule { scope: 0, rule };
+            c.disposition = Some(WireDisposition { disposition: Some(Disposition::AllowedByRule(allowed)) });
+        }),
+        ("no evidence", |c| c.evidence.clear()),
+    ];
+    for (what, edit) in edits {
+        let mut bad = wire.clone();
+        let Some(Value::PiiCandidate(c)) = &mut candidates(&mut bad).annotations[0].value else { unreachable!() };
+        edit(c);
+        let message = refused(what, &bad, &[]);
+        assert!(message.contains("turbo:pii-candidates[0]"), "{what}: {message}");
+    }
+    // A candidate outside its layer is refused, as a mention is.
+    let mut bad = wire.clone();
+    let mut other = candidates(&mut bad).clone();
+    other.id = "turbo:entities".to_owned();
+    other.custom_pii_kinds.clear();
+    // The envelope (#1907) wants a provenance entry for every layer.
+    let mut prov = bad.provenance.iter().find(|p| p.layer == "turbo:pii-candidates").cloned().unwrap();
+    prov.layer = other.id.clone();
+    bad.provenance.push(prov);
+    bad.layers.push(other);
+    let message = refused("a candidate on another layer", &bad, &[]);
+    assert!(message.contains("outside a turbo:pii-candidates layer"), "{message}");
 }
