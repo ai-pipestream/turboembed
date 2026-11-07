@@ -19,7 +19,8 @@ use super::{
     AnalysisResultInner, CoordRange, LayerRef, PoolRef, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_DEPENDENCIES,
     TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_MORPHOLOGY,
     TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS,
-    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
+    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
+    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -381,7 +382,8 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
         let classification = match mention.confidence {
             PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
             PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-            PiiConfidence::Labelled | PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
+            PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
+            PiiConfidence::Labelled => TURBO_PII_CONFIDENCE_LABELLED,
         };
         push_fragments(
             builder,

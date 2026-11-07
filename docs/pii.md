@@ -112,13 +112,17 @@ normalized form and the confidence each gets:
 | `phone` | `+` and digits, or the digits | format |
 
 `PiiConfidence` is ordered `Format < Labelled < Checksum < LabelledChecksum`:
-`Format` (`"format"`) when only the shape backs the kind, `Labelled`
-(`"labelled"`) when a context label within the kind's word window names a
-format-only mention, `Checksum` (`"checksum"`) when a check digit or
-checksum over the value passes without a context label, and
-`LabelledChecksum` (`"labelled-checksum"`) when a context label names the
-kind and its check digit passes (`PiiConfidence::with_label` raises
-`Format -> Labelled` and `Checksum -> LabelledChecksum`).
+`Format` (`"format"`, C ABI `TURBO_PII_CONFIDENCE_FORMAT = 1`, Java
+`TurboPiiConfidence.FORMAT(1)`) when only the shape backs the kind, `Labelled`
+(`"labelled"`, `TURBO_PII_CONFIDENCE_LABELLED = 4`, `LABELLED(4)`) when a
+context label within the kind's word window names a format-only mention,
+`Checksum` (`"checksum"`, `TURBO_PII_CONFIDENCE_CHECKSUM = 2`, `CHECKSUM(2)`)
+when a check digit or checksum over the value passes without a context label,
+and `LabelledChecksum` (`"labelled-checksum"`,
+`TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM = 3`, `LABELLED_CHECKSUM(3)`) when a
+context label names the kind and its check digit passes
+(`PiiConfidence::with_label` raises `Format -> Labelled` and
+`Checksum -> LabelledChecksum`).
 
 ### Context-word window
 
