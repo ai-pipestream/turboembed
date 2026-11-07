@@ -778,13 +778,15 @@ message LayerInfo
   string layer = 1;
   string instance = 2;
   LayerWireStatus status = 3;
-  // Why the layer was skipped, or its failure; empty when OK.
-  string status_detail = 4;
+  reserved 4;
+  reserved "status_detail";
   string annotator = 5;
   string version = 6;
   ModelRef model = 7;
   uint64 config_hash = 8;
   uint32 items = 9;
+  // Why the layer is not OK; absent when it is (issue #1908).
+  optional LayerError error = 10;
 }
 
 // A whole document as binary DocumentGraph bytes (turbo-analysis
@@ -902,6 +904,11 @@ message AnalyzePipelineRequest
   // DocumentGraph writer on the client. Exclusive with `text`,
   // `source_bytes` and `initial_graph`.
   StructureSeed structure_seed = 9;
+
+  // The caller's operation (idempotency) key, echoed on the terminal
+  // receipt; empty when the caller has none. A retry sends the same key
+  // and gets a new attempt id. The server keeps no state for it.
+  string operation_key = 10;
 }
 
 // The kind of one structure block, the `turbo:structure` block kinds.
@@ -973,6 +980,10 @@ message AnalyzeProgressiveEvent
     AnalysisLayerBatch layers_ready = 3;
     AnalysisStepFailure step_failed = 4;
     DocumentGraphResponse complete = 5;
+    // The terminal event of every stream the server ends (issue #1908):
+    // after complete, or when a deadline cancels the run. A stream that
+    // ends without one is incomplete, whatever it delivered before.
+    ProcessingReceipt receipt = 6;
   }
 }
 
@@ -1007,6 +1018,9 @@ message AnalysisStepFailure
   AnalyzeFailure failure = 4;
   repeated string skipped_dependents = 5;
   repeated LayerInfo layers = 6;
+  // The step's error as a sanitized kind; failure.message names the
+  // step and that kind only, never document text (issue #1908).
+  LayerError error = 7;
 }
 
 // ============================================================================

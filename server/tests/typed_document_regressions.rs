@@ -99,6 +99,7 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             view,
             offsets: mode as i32,
             binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -334,6 +335,7 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
                     view,
                     offsets,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap_err(),

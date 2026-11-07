@@ -65,8 +65,8 @@ pub fn inspect_document_window(req: &DocumentWindowRequest) -> Result<DocumentWi
         total_units,
         view_count: graph.views.len() as u32,
         layer_count: graph.layers.len() as u32,
-        layers: graph.layers.iter().map(layer_info).collect(),
-        views: graph.views.iter().map(view_info).collect(),
+        layers: graph.layers.iter().map(|r| layer_info(&graph, r)).collect(),
+        views: graph.views.iter().map(|r| view_info(&graph, r)).collect(),
     };
 
     let (window_proto, window_span) = compute_window(text, req.view, &offsetter, req.page_size, req.page)?;

@@ -76,6 +76,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         model: String::new(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        operation_key: String::new(),
     }
 }
 
@@ -89,7 +90,7 @@ async fn run(client: &mut Analysis, req: AnalyzePipelineRequest) -> Vec<AnalyzeP
 }
 
 fn complete(events: &[AnalyzeProgressiveEvent]) -> &DocumentGraphResponse {
-    let Some(Event::Complete(complete)) = &events.last().unwrap().event else { panic!("no Complete event") };
+    let Some(Event::Complete(complete)) = &events[events.len() - 2].event else { panic!("no Complete event") };
     complete
 }
 
@@ -111,7 +112,7 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
     let (server, mut client) = serve_models(vec![model(&dir, "heads")]).await;
     let events = run(&mut client, request("annotate", "annotate-v1", &[])).await;
 
-    assert_eq!(events.len(), ANNOTATE_V1.steps.len() + 2);
+    assert_eq!(events.len(), ANNOTATE_V1.steps.len() + 3);
     let Some(Event::Started(started)) = &events[0].event else { panic!("no Started event") };
     assert_eq!(started.step_ids.len(), ANNOTATE_V1.steps.len());
     for step in ANNOTATE_V1.steps {
@@ -121,7 +122,7 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
     let produced: Vec<&str> = complete.layers.iter().map(|l| l.layer.as_str()).collect();
     assert_eq!(produced, ANNOTATE_V1.layers);
     for l in &complete.layers {
-        assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {}", l.layer, l.status_detail);
+        assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {:?}", l.layer, l.error);
     }
 
     // Field for field what the tagger crate writes over the same view,
@@ -156,6 +157,7 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
         view: 0,
         offsets: OffsetMode::Utf8 as i32,
         binding: None,
+        operation_key: String::new(),
     })
     .unwrap();
     let count = |id: &str| typed.layers.iter().find(|l| l.id == id).map(|l| l.annotations.len());
@@ -189,10 +191,10 @@ async fn the_all_heads_step_runs_every_head_the_bundle_provides() {
     ];
     expected.sort_unstable();
     assert_eq!(planned, expected);
-    assert_eq!(events.len(), expected.len() + 2);
+    assert_eq!(events.len(), expected.len() + 3);
     let complete = complete(&events);
     for l in &complete.layers {
-        assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {}", l.layer, l.status_detail);
+        assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {:?}", l.layer, l.error);
     }
 
     // The relation head read the entity layer the entity head wrote, and
