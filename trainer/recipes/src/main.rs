@@ -21,6 +21,7 @@
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16] [--max-test N]])
+//!     Multiple banks: --corpus <bank,bank,...> [--sample 0..1]
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--min-tree-freq N] [--seen-lookup K])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;

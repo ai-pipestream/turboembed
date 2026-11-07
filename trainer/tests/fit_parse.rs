@@ -83,7 +83,7 @@ fn data(seed: u64, count: usize) -> Vec<ParseExample> {
                     features.push((if j == c { 1.0 } else { 0.0 } + rng.uniform(0.2)) as f32);
                 }
             }
-            ParseExample { features, heads, rels }
+            ParseExample { features, heads, rels, language: None }
         })
         .collect()
 }

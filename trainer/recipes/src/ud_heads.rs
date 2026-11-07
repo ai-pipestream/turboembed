@@ -207,12 +207,23 @@ pub fn lemma_examples(part: &[UdSentence], features: Vec<Vec<f32>>) -> Vec<Lemma
 /// Parse examples of `part` with its features. A sentence with a
 /// relation `rels` lacks is left out, and counted.
 pub fn parse_examples(part: &[UdSentence], features: Vec<Vec<f32>>, rels: &[String]) -> (Vec<ParseExample>, usize) {
+    parse_examples_with_languages(part, features, rels, None)
+}
+
+/// As [`parse_examples`], preserving each kept sentence's language row.
+pub fn parse_examples_with_languages(
+    part: &[UdSentence],
+    features: Vec<Vec<f32>>,
+    rels: &[String],
+    languages: Option<&[Option<u32>]>,
+) -> (Vec<ParseExample>, usize) {
     let index: BTreeMap<&str, u32> = rels.iter().enumerate().map(|(i, l)| (l.as_str(), i as u32)).collect();
     let mut left_out = 0;
     let mut out = Vec::with_capacity(part.len());
-    for (s, features) in part.iter().zip(features) {
+    for (i, (s, features)) in part.iter().zip(features).enumerate() {
+        let language = languages.and_then(|rows| rows[i]);
         match s.rels.iter().map(|r| index.get(r.as_str()).copied()).collect::<Option<Vec<u32>>>() {
-            Some(ids) => out.push(ParseExample { features, heads: s.heads.clone(), rels: ids }),
+            Some(ids) => out.push(ParseExample { features, heads: s.heads.clone(), rels: ids, language }),
             None => left_out += 1,
         }
     }
@@ -248,13 +259,28 @@ pub fn predict_lemmas(
 ///
 /// What the parser fails on.
 pub fn predict_parses(parser: &BiaffineParser, part: &[UdSentence], features: &[Vec<f32>]) -> Result<Vec<Vec<String>>> {
+    predict_parses_with_languages(parser, part, features, None)
+}
+
+/// As [`predict_parses`], selecting each sentence's language row.
+pub fn predict_parses_with_languages(
+    parser: &BiaffineParser,
+    part: &[UdSentence],
+    features: &[Vec<f32>],
+    languages: Option<&[Option<u32>]>,
+) -> Result<Vec<Vec<String>>> {
     let (mut arcs, mut heads, mut scores, mut rels, mut w) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Default::default());
     let mut out = Vec::with_capacity(part.len());
-    for (s, f) in part.iter().zip(features) {
+    for (i, (s, f)) in part.iter().zip(features).enumerate() {
         let n = s.words.len();
         let words: Vec<u32> = (0..n as u32).collect();
-        parser.arcs(f, &words, &mut arcs, &mut w).map_err(|e| Error(e.message))?;
+        let row = languages.and_then(|rows| rows[i]);
+        let language = match (&parser.spec().language, row) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        parser.arcs_language(f, &words, language, &mut arcs, &mut w).map_err(|e| Error(e.message))?;
         parser.decode(&arcs, n, &mut heads).map_err(|e| Error(e.message))?;
         parser.relations(&heads, &mut scores, &w).map_err(|e| Error(e.message))?;
         parser.relation_labels(&scores, n, &mut rels).map_err(|e| Error(e.message))?;

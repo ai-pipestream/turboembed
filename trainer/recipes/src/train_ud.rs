@@ -53,10 +53,12 @@ pub(super) fn train(
     if lora > 0 || bf16 {
         return Err(Error("--lora and --bf16 require --tune-encoder".into()));
     }
-    let bank = *TREEBANKS
-        .iter()
-        .find(|b| b.id == bank)
-        .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
+    let bank_id = bank;
+    let bank = TREEBANKS.iter().find(|b| b.id == bank_id);
+    if bank.is_none() && (head != UdHead::Deps || !bank_id.contains(',')) {
+        return Err(Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))));
+    }
+    let sample = if bank.is_none() { a.parsed("--sample", 1.0)? } else { 1.0 };
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
     let seen_lookup: Option<usize> = match a.value("--seen-lookup")? {
         None => None,
@@ -79,11 +81,24 @@ pub(super) fn train(
     }
 
     let t = Instant::now();
-    let (mut splits, files, recorded) = read_treebank(&bank, dir, unrecorded)?;
+    let (mut splits, record, languages) = match bank {
+        Some(bank) => {
+            let (splits, files, recorded) = read_treebank(bank, dir, unrecorded)?;
+            let record = record(bank, head, &splits, files, recorded);
+            (splits, record, None)
+        }
+        None => {
+            let multi = turbo_trainer_recipes::ud_multi::read_ud(bank_id, head, dir, unrecorded, sample)?;
+            (
+                multi.splits,
+                multi.record,
+                Some((multi.languages, multi.train_languages, multi.dev_languages, multi.test_languages)),
+            )
+        }
+    };
     if max_train > 0 {
         splits.train.truncate(max_train);
     }
-    let record = record(&bank, head, &splits, files, recorded);
     let read = t.elapsed().as_secs_f64();
     let pairs =
         || splits.train.iter().flat_map(|s| s.words.iter().zip(&s.lemmas).map(|(w, l)| (w.as_str(), l.as_str())));
@@ -92,7 +107,11 @@ pub(super) fn train(
         UdHead::Deps => relations(&splits.train),
     };
     let lookup = seen_lookup.map(|k| mine_seen_lookup(pairs(), k));
-    let spec = spec_with_lookup(head, labels, lookup, &record, &UdOptions { pooling, bilstm, biaffine })?;
+    let mut spec = spec_with_lookup(head, labels, lookup, &record, &UdOptions { pooling, bilstm, biaffine })?;
+    if let Some((names, _, _, _)) = &languages {
+        spec.language = Some(turbo::manifest::LanguageInput { languages: names.clone(), dim: 16 });
+        spec.validate("head").map_err(|e| Error(e.message))?;
+    }
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
@@ -131,8 +150,10 @@ pub(super) fn train(
             .and_then(|(m, r)| Ok((m.tensors(), Model::Lemma(Box::new(m.to_core()?)), r, 0)))
         }
         UdHead::Deps => {
-            let (tr, _) = parse_examples(&splits.train, train_f, &spec.labels);
-            let (dv, left) = parse_examples(&splits.dev, dev_f, &spec.labels);
+            let train_languages = languages.as_ref().map(|(_, rows, _, _)| &rows[..splits.train.len()]);
+            let dev_languages = languages.as_ref().map(|(_, _, rows, _)| &rows[..]);
+            let (tr, _) = parse_examples_with_languages(&splits.train, train_f, &spec.labels, train_languages);
+            let (dv, left) = parse_examples_with_languages(&splits.dev, dev_f, &spec.labels, dev_languages);
             fit_parser_with(&spec, hidden, &tr, &dv, &c, &mut |m, e, d| {
                 save(m.tensors(), e, d).map_err(|x| turbo::status::invalid(x.0))
             })
@@ -147,7 +168,13 @@ pub(super) fn train(
     let test_f = features(&mut enc, &splits.test, pooling)?;
     let (predicted, base) = match &model {
         Model::Lemma(m) => (predict_lemmas(m, &splits.test, &test_f)?, lemma_baseline(&splits.train, &splits.test)),
-        Model::Parser(m) => (predict_parses(m, &splits.test, &test_f)?, deps_baseline(&splits.train, &splits.test)),
+        Model::Parser(m) => {
+            let test_languages = languages.as_ref().map(|(_, _, _, rows)| &rows[..]);
+            (
+                predict_parses_with_languages(m, &splits.test, &test_f, test_languages)?,
+                deps_baseline(&splits.train, &splits.test),
+            )
+        }
     };
     let (train_s, test) = (head.sentences(&splits.train), head.sentences(&splits.test));
     let seen = Seen::of(&train_s);
@@ -190,7 +217,7 @@ pub(super) fn train(
             threads: c.threads,
             max_train,
             dev_left_out,
-            sample: None,
+            sample: languages.map(|_| sample),
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,
