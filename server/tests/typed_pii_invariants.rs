@@ -21,9 +21,9 @@ use turbo_kserve::proto::result::pii_value::Form;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
     PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm, PiiChecksumEvidence,
-    PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKeyRef,
-    PiiKindRef, PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore, PiiShapeEvidence, PiiValue,
-    PiiValueCiphertext, PiiValueToken, SpanFragment, TypedDocumentResult, TypedLayer,
+    PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKindRef,
+    PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore, PiiShapeEvidence, PiiValue, PiiValueCiphertext,
+    PiiValueToken, SpanFragment, TypedDocumentResult, TypedLayer,
 };
 // The projection itself is under test, so the text is asked for (#1904).
 use turbo_kserve::results::disclosure::Disclosure;
@@ -259,11 +259,6 @@ fn value(form: Option<Form>) -> Option<PiiValue> {
     Some(PiiValue { form })
 }
 
-/// A key reference no test resolves.
-fn key() -> Option<PiiKeyRef> {
-    Some(PiiKeyRef { id: "planted-key-id".to_owned(), version: 3 })
-}
-
 #[test]
 fn a_pii_value_must_be_withheld_until_keyed_release_lands() {
     // The projection writes `withheld`, which validates (#1904).
@@ -273,19 +268,16 @@ fn a_pii_value_must_be_withheld_until_keyed_release_lands() {
     assert!(matches!(m.value, Some(PiiValue { form: Some(Form::Withheld(_)) })), "{:?}", m.value);
     validate_typed_document(&wire).unwrap();
     // Every other form is refused before #1909, and the error names the
-    // form, never the clear value, the token, the ciphertext or the key.
-    let secrets = ["planted.clear@example.com", "planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];
+    // form, never the clear value, the token or the ciphertext.
+    let secrets = ["planted.clear@example.com", "planted-token", "planted-cipher", "planted-scheme"];
     let refusals: [(&str, Edit); 5] = [
         ("no value", |m| m.value = None),
         ("a value with no form", |m| m.value = value(None)),
         ("a clear value", |m| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())))),
-        ("a token", |m| {
-            m.value = value(Some(Form::Token(PiiValueToken { token: b"planted-token".to_vec(), key: key() })))
-        }),
+        ("a token", |m| m.value = value(Some(Form::Token(PiiValueToken { token: b"planted-token".to_vec() })))),
         ("a ciphertext", |m| {
             m.value = value(Some(Form::Ciphertext(PiiValueCiphertext {
                 ciphertext: b"planted-cipher".to_vec(),
-                key: key(),
                 scheme: "planted-scheme".to_owned(),
             })))
         }),

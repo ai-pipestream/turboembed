@@ -1090,27 +1090,22 @@ message PiiValue
 // The value is not in the response.
 message PiiValueWithheld {}
 
-// A registered, versioned key: the reference a token or ciphertext names,
-// never key material.
-message PiiKeyRef
-{
-  string id = 1;
-  uint32 version = 2;
-}
-
 // A keyed token standing for the value; equal values under one key give
-// equal tokens.
+// equal tokens. Not produced until #1909. Field 2 is kept for the key
+// reference, which #1909 adds: there is one key reference type
+// (PiiPolicyKeyRef, turbo_pii_policy.proto), and that file imports this
+// one, so this file cannot name it yet.
 message PiiValueToken
 {
   bytes token = 1;
-  PiiKeyRef key = 2;
 }
 
-// The value encrypted under a registered key with a named scheme.
+// The value encrypted under a registered key with a named scheme. Not
+// produced until #1909; field 2 is kept for the key reference, as in
+// PiiValueToken.
 message PiiValueCiphertext
 {
   bytes ciphertext = 1;
-  PiiKeyRef key = 2;
   string scheme = 3;
 }
 

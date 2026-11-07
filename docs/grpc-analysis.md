@@ -541,6 +541,9 @@ wire compatibility, deprecated and never populated.
 - `values`: `UNSPECIFIED` or `WITHHELD`. Token, ciphertext and clear
   values need verified identities and grants (#1909); until then they are
   refused with `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
+  `PiiValueToken` and `PiiValueCiphertext` keep field 2 for their key
+  reference, which #1909 adds: the one key reference type is
+  `PiiPolicyKeyRef`.
 
 The server caps the options with `--pii-output-allow`
 (`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
