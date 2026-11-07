@@ -55,7 +55,9 @@ impl ProjectedFragment {
 impl Document {
     /// `s` of view `from` on view `to`, as [`Document::map_span`] maps it,
     /// with what the mapping did: exact when mapping it back gives `s`,
-    /// deleted when a non-empty `s` lands empty, widened otherwise.
+    /// deleted when a non-empty `s` lands empty, widened otherwise. A span
+    /// starting in bytes a view on the path deleted comes back starting
+    /// after them, so it is never exact: what it lost is always flagged.
     pub fn map_span_outcome(&self, from: ViewId, to: ViewId, s: Span) -> Result<ProjectedSpan, Error> {
         let span = self.map_span(from, to, s)?;
         let outcome = if !s.is_empty() && span.is_empty() {

@@ -248,8 +248,22 @@ fn deletion_and_insertion_anchors() {
             assert!(back.contains(span), "{span:?} -> {back:?}");
         }
     }
-    let partly = doc.map_span(ViewId::SOURCE, out, Span::new(0, 4)).unwrap();
-    assert_eq!(doc.map_span(out, ViewId::SOURCE, partly).unwrap(), Span::new(3, 9));
+    let partly = doc.map_span_outcome(ViewId::SOURCE, out, Span::new(0, 4)).unwrap();
+    assert_eq!(doc.map_span(out, ViewId::SOURCE, partly.span).unwrap(), Span::new(3, 9));
+    // That loss is never silent: a span starting in the deleted bytes is
+    // flagged, never exact; widened when some of it survives, deleted
+    // when none does.
+    assert_eq!(partly.outcome, SpanOutcome::Widened);
+    for (i, &s) in bounds.iter().enumerate().filter(|&(_, &s)| s < 3) {
+        for &e in bounds[i..].iter().filter(|&&e| e > s) {
+            let p = doc.map_span_outcome(ViewId::SOURCE, out, Span::new(s, e)).unwrap();
+            let want = if e <= 3 { SpanOutcome::Deleted } else { SpanOutcome::Widened };
+            assert_eq!(p.outcome, want, "{s}..{e} -> {:?}", p.span);
+        }
+    }
+    let frags = doc.project_fragments(ViewId::SOURCE, out, [Span::new(1, 4), Span::new(5, 6)]).unwrap();
+    assert!(frags.iter().all(|f| f.members.iter().all(|(i, o)| *i != 0 || *o == SpanOutcome::Widened)));
+    assert!(frags.iter().all(|f| f.outcome != SpanOutcome::Exact || f.members.iter().all(|(i, _)| *i != 0)));
 }
 
 #[test]
