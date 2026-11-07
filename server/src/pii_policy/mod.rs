@@ -21,12 +21,14 @@ mod convert;
 mod error;
 mod named;
 mod redact;
+mod registry;
 mod resolve;
 mod strategy;
 
 pub use error::{At, PolicyError};
 pub use named::{NamedPolicies, Redaction, SelectError, select};
 pub use redact::{REDACT_STEP, RedactPlanStep, RedactStep};
+pub use registry::ServerResolver;
 pub use resolve::{KEY_MATERIAL_HEX_LEN, MAX_REF_ID_BYTES, NoRegistry, PolicyResolver, ResolveError};
 pub use strategy::{edit_strategy, strategy_to_proto, whole_mask};
 pub use turbo_analysis::PolicyDigest;

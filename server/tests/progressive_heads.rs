@@ -78,6 +78,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         structure_seed: None,
         pii_output: None,
         operation_key: String::new(),
+        pii_redaction: None,
     }
 }
 

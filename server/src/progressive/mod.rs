@@ -227,7 +227,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
     let redaction = match &req.pii_redaction {
         None => None,
         Some(sel) => Some(
-            pii_policy::select(sel, &state.pii_policies, &pii_policy::NoRegistry)
+            pii_policy::select(sel, &state.pii_policies, &*state.pii_resolver)
                 .map_err(|e| plain(bad(e.to_string())))?,
         ),
     };

@@ -64,6 +64,7 @@ pub fn request(text: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineRequ
         structure_seed: None,
         pii_output: None,
         operation_key: String::new(),
+        pii_redaction: None,
     }
 }
 

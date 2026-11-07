@@ -305,13 +305,7 @@ impl Args {
                     }
                 }
                 "--model" => models.push(ModelConfig::parse(&value()?)?),
-                "--pii-policy" => {
-                    let v = value()?;
-                    if v.is_empty() {
-                        return Err("--pii-policy needs a path".into());
-                    }
-                    pii_policies.push(PathBuf::from(v));
-                }
+                "--pii-policy" => pii_policies.push(pii::policy_path(value()?)?),
                 "--bundle-dir" => {
                     let v = value()?;
                     if v.is_empty() {

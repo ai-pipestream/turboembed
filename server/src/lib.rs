@@ -183,6 +183,8 @@ pub struct Serve {
     /// The redaction policies `turbo-pii:redact` serves by name, converted
     /// at start.
     pub pii_policies: pii_policy::NamedPolicies,
+    /// The registered keys inline policies resolve through.
+    pub pii_resolver: Arc<pii_policy::ServerResolver>,
 }
 
 impl Server {
@@ -211,7 +213,9 @@ impl Server {
         let builder = tls::configure_server(tonic::transport::Server::builder(), serve.tls.as_ref())?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
-        let state = Arc::new(State::new(names, models).with_pii_policies(serve.pii_policies.clone()));
+        let state = Arc::new(
+            State::new(names, models).with_pii_policies(serve.pii_policies.clone(), Arc::clone(&serve.pii_resolver)),
+        );
         let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
         let max_reply_bytes = config::max_reply_bytes(max_message_bytes);
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
