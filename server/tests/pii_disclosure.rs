@@ -280,3 +280,26 @@ async fn format_document_needs_full_text_and_no_format_writes_a_value() {
     assert!(summary.contains("**email**") && !summary.contains(PLANTED), "{summary}");
     s.stop().await;
 }
+
+/// `detail` is decided and capped here; nothing reads it until #1903's
+/// candidates and evidence (#1916) land, so today it changes no answer.
+/// When #1916 and this change meet, that branch wires it and this test
+/// moves to pinning what `detail` adds.
+#[tokio::test]
+async fn detail_is_decided_and_capped_but_adds_nothing_yet() {
+    let s = server(Serve::default()).await;
+    let graph = pii_graph(&s).await;
+    let detail = Some(PiiOutputOptions { detail: true, ..Default::default() });
+    assert_eq!(inspect(&s, &graph, 0, detail).await, inspect(&s, &graph, 0, None).await);
+    s.stop().await;
+    let closed = server(Serve { pii_output: PiiOutputPolicy::NONE, ..Serve::default() }).await;
+    let req = InspectDocumentGraphRequest {
+        graph: graph.clone(),
+        pii_output: Some(PiiOutputOptions { detail: true, ..Default::default() }),
+        ..Default::default()
+    };
+    let e = client(&closed).await.inspect_document_graph(req).await.unwrap_err();
+    assert_eq!(e.code(), tonic::Code::FailedPrecondition, "{e:?}");
+    assert!(e.message().contains("detail"), "{e:?}");
+    closed.stop().await;
+}
