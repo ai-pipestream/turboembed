@@ -1,8 +1,13 @@
 //! The sentence and chunk vector steps on the device or on the CPU, chosen
 //! for each call from a calibration: a [`Dispatch`] holds the step opened
 //! on both at one window and cap on rows a run, plans each call
-//! (`VectorAnnotator::shape`), and runs all of it on the side whose fitted
-//! cost is lower for that call. Each document's layers record the side
+//! (`VectorAnnotator::shape`), and runs all of it on the side the
+//! [`Preference`] in force picks from the two sides' costs for that call.
+//! The default is per backend ([`Preference::for_backend`]): on a Hailo
+//! the device unless it is [`DEFAULT_MARGIN`] or more slower than the CPU,
+//! since a call there leaves the CPU's cores to the rest of the machine
+//! (measured in docs/hailo.md), and on any other device the faster side.
+//! Each document's layers record the side
 //! that made them (`Annotator::annotate_batch_placed`), so a document's
 //! vectors are one side's, and which one is in its provenance.
 //!
@@ -12,7 +17,9 @@
 //! pays for the tokens. The samples are the whole set of texts, its first
 //! sentence alone and its first text alone, at each batch measured.
 
+use std::fmt;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
@@ -24,6 +31,112 @@ use crate::encoder::{Device, Precision, default_ranges};
 use crate::vectors::{Embedder, Input, Output, Shape};
 use crate::window::Which;
 use crate::{SubwordAnnotator, VectorAnnotator, VectorOptions};
+
+/// The variable that sets the [`Preference`] on any device: `latency`,
+/// `offload`, or `offload=<margin>`; unset is the backend's default,
+/// [`Preference::for_backend`].
+pub const PREFER_VAR: &str = "TURBO_CALIBRATION_PREFER";
+
+/// The margin `offload` gives the device when the variable names none,
+/// and the default margin on an [`OFFLOAD_BACKENDS`] device.
+pub const DEFAULT_MARGIN: f64 = 0.25;
+
+/// The backends (`turbo_device_info.backend`) whose default is
+/// `Offload { margin: DEFAULT_MARGIN }`: the Hailo, where a load
+/// measurement showed the CPU's other work keeping most of its rate while
+/// the device ran and the CPU's own calls slowing to half or less beside
+/// it. Every other backend defaults to [`Preference::Latency`].
+pub const OFFLOAD_BACKENDS: [&str; 1] = ["hailo"];
+
+/// The largest margin `offload=<margin>` takes: the device at up to twice
+/// the CPU's time.
+pub const MAX_MARGIN: f64 = 1.0;
+
+/// How a call's side is chosen from the two sides' times for it.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Preference {
+    /// The faster side: the device only when it is faster than the CPU.
+    Latency,
+    /// The device unless its time is at least `1 + margin` times the
+    /// CPU's: a call on the device leaves the CPU free for the rest of the
+    /// machine, which a time measured on a quiet machine does not count.
+    /// A margin of 0 is [`Preference::Latency`].
+    Offload { margin: f64 },
+}
+
+impl Preference {
+    /// The default on a device of `backend`: `Offload` at
+    /// [`DEFAULT_MARGIN`] on an [`OFFLOAD_BACKENDS`] device, else `Latency`.
+    pub fn for_backend(backend: &str) -> Preference {
+        if OFFLOAD_BACKENDS.contains(&backend) {
+            Preference::Offload { margin: DEFAULT_MARGIN }
+        } else {
+            Preference::Latency
+        }
+    }
+
+    /// The device's margin: 0 under [`Preference::Latency`].
+    pub fn margin(&self) -> f64 {
+        match *self {
+            Preference::Latency => 0.0,
+            Preference::Offload { margin } => margin,
+        }
+    }
+
+    /// Whether a call the device takes `device_ms` for and the CPU
+    /// `cpu_ms` runs on the device.
+    pub fn device(&self, device_ms: f64, cpu_ms: f64) -> bool {
+        device_ms < cpu_ms * (1.0 + self.margin())
+    }
+
+    /// The preference [`PREFER_VAR`]'s value names on a device of
+    /// `backend`; unset is [`Preference::for_backend`].
+    pub fn from_var(value: Option<&str>, backend: &str) -> Result<Preference, PreferenceError> {
+        value.map_or(Ok(Preference::for_backend(backend)), str::parse)
+    }
+}
+
+/// Why a [`PREFER_VAR`] value names no [`Preference`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum PreferenceError {
+    /// Neither `latency`, `offload` nor `offload=<margin>`.
+    Unknown(String),
+    /// `offload=<margin>` with a margin that is not a number from 0 to
+    /// [`MAX_MARGIN`].
+    Margin(String),
+}
+
+impl fmt::Display for PreferenceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PreferenceError::Unknown(v) => {
+                write!(f, "{PREFER_VAR} is {v:?}, not latency, offload or offload=<margin>")
+            }
+            PreferenceError::Margin(m) => {
+                write!(f, "{PREFER_VAR}'s margin is {m:?}, not a number from 0 to {MAX_MARGIN}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PreferenceError {}
+
+impl FromStr for Preference {
+    type Err = PreferenceError;
+
+    fn from_str(v: &str) -> Result<Preference, PreferenceError> {
+        match v.split_once('=') {
+            None if v == "latency" => Ok(Preference::Latency),
+            None if v == "offload" => Ok(Preference::Offload { margin: DEFAULT_MARGIN }),
+            Some(("offload", m)) => match m.parse::<f64>() {
+                Ok(0.0) => Ok(Preference::Latency),
+                Ok(margin) if margin > 0.0 && margin <= MAX_MARGIN => Ok(Preference::Offload { margin }),
+                _ => Err(PreferenceError::Margin(m.to_string())),
+            },
+            _ => Err(PreferenceError::Unknown(v.to_string())),
+        }
+    }
+}
 
 /// A side's time for a call, in ms: a cost a run, a row and a token.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -127,10 +240,11 @@ pub struct Dispatch {
     eligible: bool,
     device_cost: Cost,
     cpu_cost: Cost,
-    /// The calls the calibration timed, by shape, and the side with the
-    /// lower median time for each.
-    measured: Vec<(Shape, Side)>,
+    /// The calls the calibration timed, by shape, and the median time of
+    /// each on the device and on the CPU.
+    measured: Vec<(Shape, f64, f64)>,
     force: Option<Side>,
+    prefer: Preference,
 }
 
 impl Dispatch {
@@ -139,7 +253,9 @@ impl Dispatch {
     /// per call from the calibration kept in `dir` (measured first when
     /// there is none, `Calibration::load_or_measure`). `o` must ask for
     /// `base`'s window and cap. The [`FORCE_VAR`] variable sends every call
-    /// to one side. Both are checked before anything is measured.
+    /// to one side, and [`PREFER_VAR`] sets the [`Preference`], else the
+    /// device's backend does ([`Preference::for_backend`]). All three are
+    /// checked before anything is measured.
     pub fn open(
         dir: &Path,
         bundle: &Path,
@@ -148,6 +264,11 @@ impl Dispatch {
         base: &VectorOptions,
     ) -> Result<Dispatch, CoreError> {
         let force = forced(std::env::var(FORCE_VAR).ok().as_deref())?;
+        let named: Option<Preference> = std::env::var(PREFER_VAR)
+            .ok()
+            .map(|v| v.parse())
+            .transpose()
+            .map_err(|e: PreferenceError| CoreError::new(INVALID_ARGUMENT, e.to_string()))?;
         let (max_seq, cap) = (base.encoder.max_seq, base.encoder.max_batch);
         if !o.windows.contains(&max_seq) || !o.batches.contains(&cap) {
             return Err(CoreError::new(
@@ -178,10 +299,10 @@ impl Dispatch {
             on_cpu.extend([(all, p.cpu_ms), (one, p.short_cpu_ms), (doc, p.doc_cpu_ms)]);
         }
         // A call of the same shape timed in sessions of several caps did the
-        // same work in each: its side is the one with the lower median.
-        let mut measured: Vec<(Shape, Side)> = Vec::new();
+        // same work in each: its times are each side's median.
+        let mut measured: Vec<(Shape, f64, f64)> = Vec::new();
         for (s, _) in &on_device {
-            if measured.iter().any(|(m, _)| m == s) {
+            if measured.iter().any(|(m, _, _)| m == s) {
                 continue;
             }
             let median = |samples: &[(Shape, f64)]| {
@@ -189,8 +310,7 @@ impl Dispatch {
                 t.sort_by(f64::total_cmp);
                 t[t.len() / 2]
             };
-            let device_wins = eligible && median(&on_device) < median(&on_cpu);
-            measured.push((*s, if device_wins { Side::Device } else { Side::Cpu }));
+            measured.push((*s, median(&on_device), median(&on_cpu)));
         }
         let fit = |samples: &[(Shape, f64)], side: &str| {
             Cost::fit(samples).ok_or_else(|| {
@@ -200,6 +320,7 @@ impl Dispatch {
                 )
             })
         };
+        let prefer = named.unwrap_or_else(|| Preference::for_backend(&device.execution().backend));
         Ok(Dispatch {
             cap,
             eligible,
@@ -207,23 +328,37 @@ impl Dispatch {
             cpu_cost: fit(&on_cpu, "cpu")?,
             measured,
             force,
+            prefer,
             device,
             cpu,
         })
     }
 
-    /// The side a call of shape `s` runs on: the side measured faster when
-    /// the calibration timed a call of that shape, else the side whose
-    /// fitted cost is lower.
+    /// The side a call of shape `s` runs on: the side the [`Preference`]
+    /// picks from the two sides' median times when the calibration timed a
+    /// call of that shape, else from their fitted costs. The CPU when the
+    /// device's vectors miss the floor.
     pub fn side(&self, s: Shape) -> Side {
         if let Some(side) = self.force {
             return side;
         }
-        if let Some(&(_, side)) = self.measured.iter().find(|(m, _)| *m == s) {
-            return side;
-        }
-        let device = self.eligible && self.device_cost.ms(s) < self.cpu_cost.ms(s);
-        if device { Side::Device } else { Side::Cpu }
+        let (device_ms, cpu_ms) = match self.measured.iter().find(|(m, _, _)| *m == s) {
+            Some(&(_, d, c)) => (d, c),
+            None => (self.device_cost.ms(s), self.cpu_cost.ms(s)),
+        };
+        if self.eligible && self.prefer.device(device_ms, cpu_ms) { Side::Device } else { Side::Cpu }
+    }
+
+    /// The preference this dispatch chooses by.
+    pub fn preference(&self) -> Preference {
+        self.prefer
+    }
+
+    /// This dispatch choosing by `prefer` instead, whatever [`PREFER_VAR`]
+    /// and the backend gave it.
+    pub fn with_preference(mut self, prefer: Preference) -> Dispatch {
+        self.prefer = prefer;
+        self
     }
 
     /// Each side's fitted cost: the device's, then the CPU's.
