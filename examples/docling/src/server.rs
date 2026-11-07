@@ -102,7 +102,7 @@ pub async fn run(
                 return Err(format!("step {} failed: {why}", f.step_id));
             }
             Some(Event::Complete(c)) => graph = Some(c.graph.to_vec()),
-            Some(Event::Started(_)) | None => {}
+            Some(Event::Started(_) | Event::Receipt(_)) | None => {}
         }
     }
     let graph = graph.ok_or("the stream ended without the document")?;

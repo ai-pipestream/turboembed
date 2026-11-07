@@ -69,6 +69,11 @@ define_digest!(
     /// Memoized 256-bit SHA-256 identity of a document's [`SourceBytes`].
     SourceBytesDigest
 );
+define_digest!(
+    /// 256-bit SHA-256 identity of a document's processing configuration,
+    /// independent of its text (`Document::processing_config_digest`).
+    ProcessingConfigDigest
+);
 
 impl ViewTextDigest {
     /// The digest of `text` as a view's UTF-8 text: what [`View::text_digest`]

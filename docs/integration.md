@@ -126,9 +126,11 @@ analysed document handed downstream.
    version. The table is in [grpc-analysis.md](grpc-analysis.md).
 2. **Analyse.** `AnalyzeDocumentProgressive` with `text`, `profile`,
    `model` (the bundle) and `doc_id` streams an event per finished step
-   and ends with `complete`, which carries the document graph. A step
-   that fails is a `step_failed` event naming it; a bundle the profile
-   needs and the server lacks refuses the call before it streams.
+   and ends with `complete`, which carries the document graph, then a
+   terminal `receipt` (issue #1908). A stream that ends without the
+   receipt is incomplete. A step that fails is a `step_failed` event
+   naming it; a bundle the profile needs and the server lacks refuses
+   the call before it streams.
 3. **Read the annotations.** `InspectDocumentGraph` with that graph and
    an offset mode answers a `TypedDocumentResult`: the text, the
    provenance of every model, and one `TypedLayer` per layer, each
