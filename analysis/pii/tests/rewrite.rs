@@ -219,7 +219,7 @@ fn policies_by_kind() {
     ] {
         assert_eq!(by_kind(value, kind), "*".repeat(value.len()), "{kind}");
     }
-    for kind in PiiKind::ALL {
+    for kind in PiiKind::builtins() {
         assert_eq!(by_kind("4111 1111 1111 1111", kind).len(), 19);
     }
     assert_eq!(MaskPolicy::for_kind(PiiKind::Card, 'X').unwrap().masked("4111 1111 1111 1111"), "XXXX XXXX XXXX 1111");

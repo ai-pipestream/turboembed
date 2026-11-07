@@ -29,7 +29,7 @@ pub use deny::DenyList;
 pub use pattern::{Pattern, PatternKind};
 pub use turbo_glossary::Case;
 
-use turbo_analysis_layers::PiiKind;
+use turbo_analysis_layers::{KindError, PiiKind};
 
 /// Why an [`AllowList`], [`DenyList`], or [`Pattern`] configuration was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -42,14 +42,10 @@ pub enum ListError {
     TrailingEscape(String),
     /// A fuzzy edit distance exceeds the supported `0..=2` range.
     InvalidEditDistance(u8),
-    /// A deny-list [`PiiKind`] has an empty name.
-    EmptyKind,
-    /// A [`PiiKind::Custom`] name exceeds [`PiiKind::MAX_CUSTOM_NAME_BYTES`].
-    KindTooLong(&'static str),
-    /// A deny list targets one of the reserved built-in kind names in [`PiiKind::ALL`].
-    ReservedKind(&'static str),
-    /// A [`PiiKind::Custom`] exceeds the [`PiiKind::MAX_CUSTOM_KINDS`] registry capacity.
-    RegistryFull(&'static str),
+    /// A deny list targets a built-in kind; deny lists report custom kinds.
+    BuiltinKind(PiiKind),
+    /// A [`PiiKind::Custom`] outside the detector's custom-kind table.
+    Kind(KindError),
     /// Reading a term or pattern file from disk failed.
     Io {
         /// Path that could not be read.
@@ -68,22 +64,20 @@ impl fmt::Display for ListError {
             ListError::InvalidEditDistance(d) => {
                 write!(f, "fuzzy edit distance {d} is out of range (must be 0, 1, or 2)")
             }
-            ListError::EmptyKind => f.write_str("custom pii kind name must not be empty"),
-            ListError::KindTooLong(name) => {
-                write!(f, "custom pii kind {name:?} is {} bytes (max {})", name.len(), PiiKind::MAX_CUSTOM_NAME_BYTES)
-            }
-            ListError::ReservedKind(name) => {
-                write!(f, "deny list kind {name:?} must be a custom kind, not a reserved built-in kind")
-            }
-            ListError::RegistryFull(name) => {
-                write!(f, "custom pii kind {name:?} exceeds registry capacity ({})", PiiKind::MAX_CUSTOM_KINDS)
-            }
+            ListError::BuiltinKind(k) => write!(f, "deny list kind {k} must be a custom kind, not a built-in kind"),
+            ListError::Kind(e) => e.fmt(f),
             ListError::Io { path, message } => write!(f, "failed to read {}: {message}", path.display()),
         }
     }
 }
 
 impl std::error::Error for ListError {}
+
+impl From<KindError> for ListError {
+    fn from(e: KindError) -> ListError {
+        ListError::Kind(e)
+    }
+}
 
 #[inline]
 pub(crate) const fn case_tag(case: Case) -> u8 {

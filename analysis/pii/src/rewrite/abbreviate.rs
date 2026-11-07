@@ -204,9 +204,9 @@ impl Abbreviator {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
             self.write_abbreviated(&text[m.span.range()], out);
         })
     }

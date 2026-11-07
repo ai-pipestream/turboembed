@@ -5,7 +5,7 @@
 use std::fmt;
 
 use turbo_analysis::{Span, ViewId};
-use turbo_analysis_layers::{Pii, PiiMention};
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiMention, mention_order};
 
 /// Mentions a rewrite cannot replace.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -16,6 +16,8 @@ pub enum RewriteError {
     Overlap(Span, Span),
     /// A mention has an empty normalized form that cannot be tokenized.
     EmptyValue(Span),
+    /// A mention's kind is a custom kind outside the layer's table.
+    Kind(Span, KindError),
 }
 
 impl fmt::Display for RewriteError {
@@ -28,6 +30,7 @@ impl fmt::Display for RewriteError {
             RewriteError::EmptyValue(s) => {
                 write!(f, "mention at {}..{} has an empty normalized form", s.start, s.end)
             }
+            RewriteError::Kind(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
         }
     }
 }
@@ -56,6 +59,7 @@ impl PiiRewrite {
     /// merged mention and all constituent mentions.
     pub(crate) fn group_clusters<'a>(
         text: &str,
+        kinds: &CustomKinds,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
     ) -> Result<Vec<MentionCluster<'a>>, RewriteError> {
         let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
@@ -64,12 +68,15 @@ impl PiiRewrite {
             if start >= end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
                 return Err(RewriteError::Span(m.span));
             }
+            kinds.check(m.kind).map_err(|e| RewriteError::Kind(m.span, e))?;
         }
-        ordered.sort_by_key(|m| (m.span.start, std::cmp::Reverse(m.span.end), m.kind));
+        ordered.sort_by_key(|m| mention_order(m.span.start, m.span.end, m.kind));
         let mut out: Vec<MentionCluster<'a>> = Vec::with_capacity(ordered.len());
-        let mut best_key = (turbo_analysis_layers::PiiKind::Phone, 0u32, std::cmp::Reverse(0u32));
+        let mut best_key = ((u16::MAX, u32::MAX), u32::MAX, std::cmp::Reverse(0u32));
         for m in ordered {
-            let key = (m.kind, m.span.start, std::cmp::Reverse(m.span.end - m.span.start));
+            // The winner of a cluster: the smallest kind priority, then the
+            // earliest start, then the longest span.
+            let key = (m.kind.order_key(), m.span.start, std::cmp::Reverse(m.span.end - m.span.start));
             if let Some(last) = out.last_mut()
                 && m.span.start < last.merged.span.end
             {
@@ -95,9 +102,10 @@ impl PiiRewrite {
     /// replaced without leaking trailing characters.
     pub(crate) fn coalesce_clusters<'a>(
         text: &str,
+        kinds: &CustomKinds,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
     ) -> Result<Vec<PiiMention<'a>>, RewriteError> {
-        Ok(Self::group_clusters(text, mentions)?.into_iter().map(|c| c.merged).collect())
+        Ok(Self::group_clusters(text, kinds, mentions)?.into_iter().map(|c| c.merged).collect())
     }
 
     /// Replaces each mention with the label `label` writes for it, in
@@ -105,19 +113,23 @@ impl PiiRewrite {
     /// overlap; their order does not matter.
     pub(crate) fn replace<'a>(
         text: &str,
+        kinds: &CustomKinds,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
         mut label: impl FnMut(&PiiMention<'a>, &mut String),
     ) -> Result<PiiRewrite, RewriteError> {
-        Self::try_replace(text, mentions, |m, buf| {
+        Self::try_replace(text, kinds, mentions, |m, buf| {
             label(m, buf);
             Ok(())
         })
     }
 
     /// Fallible counterpart to [`PiiRewrite::replace`] propagating a
-    /// [`RewriteError`] from `label`.
+    /// [`RewriteError`] from `label`. Every mention's kind must be built-in
+    /// or in `kinds`, the table of the layer it came from, which the label
+    /// layer carries.
     pub(crate) fn try_replace<'a>(
         text: &str,
+        kinds: &CustomKinds,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
         mut label: impl FnMut(&PiiMention<'a>, &mut String) -> Result<(), RewriteError>,
     ) -> Result<PiiRewrite, RewriteError> {
@@ -127,13 +139,14 @@ impl PiiRewrite {
             if start >= end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
                 return Err(RewriteError::Span(m.span));
             }
+            kinds.check(m.kind).map_err(|e| RewriteError::Kind(m.span, e))?;
         }
         ordered.sort_by_key(|m| m.span.start);
         if let Some(w) = ordered.windows(2).find(|w| w[1].span.start < w[0].span.end) {
             return Err(RewriteError::Overlap(w[0].span, w[1].span));
         }
         let mut out = String::with_capacity(text.len());
-        let mut labels = Pii::new(ViewId::SOURCE);
+        let mut labels = Pii::with_custom_kinds(ViewId::SOURCE, kinds.clone());
         let mut original = Vec::with_capacity(ordered.len());
         let mut shifts = Vec::with_capacity(ordered.len());
         let mut buf = String::new();
@@ -229,7 +242,8 @@ mod tests {
             normalized: "a@b.com",
         };
         assert_eq!(
-            PiiRewrite::replace("0123456789", [empty_span], |_, buf| buf.push_str("EMAIL-1")).err(),
+            PiiRewrite::replace("0123456789", &CustomKinds::new(), [empty_span], |_, buf| buf.push_str("EMAIL-1"))
+                .err(),
             Some(RewriteError::Span(Span::new(3, 3)))
         );
 
@@ -240,11 +254,40 @@ mod tests {
             normalized: "a@b.com",
         };
         assert_eq!(
-            PiiRewrite::replace("0123456789", [valid], |_, _| {}).err(),
+            PiiRewrite::replace("0123456789", &CustomKinds::new(), [valid], |_, _| {}).err(),
             Some(RewriteError::EmptyValue(Span::new(3, 6)))
         );
 
-        let ok = PiiRewrite::replace("0123456789", [valid], |_, buf| buf.push_str("EMAIL-1")).unwrap();
+        let ok =
+            PiiRewrite::replace("0123456789", &CustomKinds::new(), [valid], |_, buf| buf.push_str("EMAIL-1")).unwrap();
         assert_eq!(ok.labels().check(), Ok(()));
+    }
+
+    fn mention(start: u32, end: u32, kind: PiiKind) -> PiiMention<'static> {
+        PiiMention { span: Span::new(start, end), kind, confidence: PiiConfidence::Format, normalized: "v" }
+    }
+
+    #[test]
+    fn a_cluster_winner_is_the_smallest_priority_not_the_smallest_id_or_earliest_span() {
+        // Phone (id 30) starts first and is longer, Email (id 5) has the
+        // smaller priority: the merged mention takes Email's kind.
+        let kinds = CustomKinds::from_names(["ticket"]).unwrap();
+        let ticket = kinds.find("ticket").unwrap();
+        let text = "0123456789";
+        let clusters =
+            PiiRewrite::group_clusters(text, &kinds, [mention(0, 9, PiiKind::Phone), mention(2, 6, PiiKind::Email)])
+                .unwrap();
+        assert_eq!(clusters.len(), 1);
+        assert_eq!((clusters[0].merged.kind, clusters[0].merged.span), (PiiKind::Email, Span::new(0, 9)));
+        // Every built-in kind beats a custom kind, whatever its code.
+        let clusters =
+            PiiRewrite::group_clusters(text, &kinds, [mention(0, 9, ticket), mention(3, 5, PiiKind::Phone)]).unwrap();
+        assert_eq!(clusters[0].merged.kind, PiiKind::Phone);
+        // A custom kind outside the table is refused before any grouping.
+        let stray = PiiKind::Custom(turbo_analysis_layers::CustomKindId::new(4));
+        assert_eq!(
+            PiiRewrite::group_clusters(text, &kinds, [mention(0, 9, stray)]).err(),
+            Some(RewriteError::Kind(Span::new(0, 9), KindError::UnknownCustom(4)))
+        );
     }
 }

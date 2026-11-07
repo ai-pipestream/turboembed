@@ -10,7 +10,7 @@
 //! the edits, since nothing changed there.
 
 use turbo_analysis::{Annotator, Bound, Error, Key, Refs, Span, View, ViewBuilder};
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiKind};
 
 use super::MaskPolicy;
 use super::mask::{MaskError, check};
@@ -136,41 +136,31 @@ pub fn mask_view(src: &View, spans: impl IntoIterator<Item = (Span, MaskPolicy)>
     Ok(View::derived(src, masked, alignment))
 }
 
-/// How a [`MaskedView`] was constructed, so [`MaskedView::config_hash`] knows
-/// each new kind's untouched default policy.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-enum ViewOrigin {
-    All(MaskPolicy),
-    ByKind(char),
-}
-
-impl ViewOrigin {
-    fn default_for(self, kind: PiiKind) -> MaskPolicy {
-        match self {
-            ViewOrigin::All(policy) => policy,
-            ViewOrigin::ByKind(mask) => MaskPolicy::for_kind(kind, mask).expect("validated ASCII mask"),
-        }
-    }
-}
-
 /// Writes the `masked` view: the text it reads with every mention of the
 /// pii layer over it masked with its kind's policy.
+///
+/// Built-in policies are indexed by stable kind id. The view owns a
+/// custom-kind table: a custom kind given to [`MaskedView::with`] indexes
+/// it, and a layer's custom kind is matched to it by name.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskedView {
-    policies: [MaskPolicy; PiiKind::ALL.len()],
+    policies: [MaskPolicy; BUILTIN_SLOTS],
     default_policy: MaskPolicy,
-    origin: ViewOrigin,
-    custom: Vec<(&'static str, MaskPolicy)>,
+    custom_kinds: CustomKinds,
+    custom: Vec<Option<MaskPolicy>>,
 }
+
+/// One slot per built-in id; slot 0 (no kind) is unused.
+const BUILTIN_SLOTS: usize = PiiKind::MAX_BUILTIN_ID as usize + 1;
 
 impl MaskedView {
     /// Every mention masked with `policy`: `Masker.mask(document, layer,
     /// policy)`.
     pub fn all(policy: MaskPolicy) -> MaskedView {
         MaskedView {
-            policies: [policy; PiiKind::ALL.len()],
+            policies: [policy; BUILTIN_SLOTS],
             default_policy: policy,
-            origin: ViewOrigin::All(policy),
+            custom_kinds: CustomKinds::new(),
             custom: Vec::new(),
         }
     }
@@ -179,33 +169,62 @@ impl MaskedView {
     /// `Masker.mask` with `MaskPolicies.byType(mask)`.
     pub fn by_kind(mask: char) -> Result<MaskedView, MaskError> {
         let mut view = MaskedView::all(MaskPolicy::new(mask)?);
-        view.origin = ViewOrigin::ByKind(mask);
-        for k in PiiKind::ALL {
-            view.policies[k.rank() as usize] = MaskPolicy::for_kind(k, mask)?;
+        for k in PiiKind::builtins() {
+            view.policies[slot(k)] = MaskPolicy::for_kind(k, mask)?;
         }
         Ok(view)
     }
 
-    /// This view with the mentions of `kind` masked with `policy`.
-    pub fn with(mut self, kind: PiiKind, policy: MaskPolicy) -> MaskedView {
-        if let PiiKind::Custom(name) = kind {
-            PiiKind::remember_custom(kind);
-            match self.custom.binary_search_by_key(&name, |&(k, _)| k) {
-                Ok(at) => self.custom[at].1 = policy,
-                Err(at) => self.custom.insert(at, (name, policy)),
-            }
-        } else {
-            self.policies[kind.rank() as usize] = policy;
-        }
+    /// This view with `kinds` as its custom-kind table, which every custom
+    /// kind given to [`MaskedView::with`] afterwards indexes. Drops custom
+    /// policies set under an earlier table.
+    pub fn with_custom_kinds(mut self, kinds: CustomKinds) -> MaskedView {
+        self.custom = vec![None; kinds.len()];
+        self.custom_kinds = kinds;
         self
     }
 
-    pub fn policy(&self, kind: PiiKind) -> MaskPolicy {
-        if let PiiKind::Custom(name) = kind {
-            self.custom.binary_search_by_key(&name, |&(k, _)| k).map_or(self.default_policy, |at| self.custom[at].1)
-        } else {
-            self.policies[kind.rank() as usize]
+    /// The table every custom kind of this view indexes.
+    pub fn custom_kinds(&self) -> &CustomKinds {
+        &self.custom_kinds
+    }
+
+    /// This view with the mentions of `kind` masked with `policy`.
+    ///
+    /// # Panics
+    ///
+    /// When `kind` is a custom kind outside the view's table; see
+    /// [`MaskedView::try_with`].
+    pub fn with(self, kind: PiiKind, policy: MaskPolicy) -> MaskedView {
+        self.try_with(kind, policy).expect("a kind of the view's custom-kind table")
+    }
+
+    /// This view with the mentions of `kind` masked with `policy`, refused
+    /// when `kind` is a custom kind outside [`MaskedView::custom_kinds`].
+    pub fn try_with(mut self, kind: PiiKind, policy: MaskPolicy) -> Result<MaskedView, KindError> {
+        self.custom_kinds.check(kind)?;
+        match kind {
+            PiiKind::Custom(c) => self.custom[usize::from(c.index())] = Some(policy),
+            builtin => self.policies[slot(builtin)] = policy,
         }
+        Ok(self)
+    }
+
+    /// The policy of `kind` of this view's table.
+    pub fn policy(&self, kind: PiiKind) -> MaskPolicy {
+        match kind {
+            PiiKind::Custom(c) => {
+                self.custom.get(usize::from(c.index())).copied().flatten().unwrap_or(self.default_policy)
+            }
+            builtin => self.policies[slot(builtin)],
+        }
+    }
+
+    /// The policy of `kind` of a layer whose custom kinds index `kinds`: a
+    /// custom kind is matched to this view's by name, and one the view does
+    /// not list takes the default policy.
+    pub fn policy_in(&self, kinds: &CustomKinds, kind: PiiKind) -> MaskPolicy {
+        self.custom_kinds.translate(kinds, kind).map_or(self.default_policy, |k| self.policy(k))
     }
 
     /// The step for a pipeline, writing the view as [`MASKED`].
@@ -213,10 +232,18 @@ impl MaskedView {
         Bound::new(self).write(0, MASKED.name)
     }
 
-    /// `src` with the mentions of `pii`, a layer over it, masked.
+    /// `src` with the mentions of `pii`, a layer over it, masked. A mention
+    /// whose custom kind is outside the layer's table is refused.
     pub fn view(&self, src: &View, pii: &Pii) -> Result<View, MaskError> {
-        mask_view(src, pii.mentions().map(|m| (m.span, self.policy(m.kind))))
+        for m in pii.mentions() {
+            pii.custom_kinds.check(m.kind).map_err(MaskError::Kind)?;
+        }
+        mask_view(src, pii.mentions().map(|m| (m.span, self.policy_in(&pii.custom_kinds, m.kind))))
     }
+}
+
+fn slot(kind: PiiKind) -> usize {
+    usize::from(kind.builtin_id().unwrap_or(0))
 }
 
 impl Annotator for MaskedView {
@@ -235,31 +262,26 @@ impl Annotator for MaskedView {
         Ok((self.view(src, pii).map_err(detail)?,))
     }
 
-    /// FNV-1a over each kind's mask byte and options, fixed so that stored
-    /// provenance stays comparable across builds.
+    /// FNV-1a over the default policy, then every built-in kind's
+    /// effective policy keyed by its stable id, in id order, then the
+    /// custom table with every custom kind's effective policy. Nothing is
+    /// skipped and nothing about how the view was built is folded, so two
+    /// views hash alike exactly when they mask every kind alike.
     fn config_hash(&self) -> u64 {
         let fold_policy = |h: &mut turbo_analysis::Fnv1a, p: MaskPolicy| {
-            let base = u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
-            h.fold_u64(base);
-            if p.leading() != 0 || (p.trailing() as u64) >= (1u64 << 48) {
-                h.u8(0xfe).fold_u64(p.leading() as u64).fold_u64(p.trailing() as u64);
-            }
+            h.u8(p.mask() as u8).u8(u8::from(p.keeps_format()));
+            h.fold_u64(p.leading() as u64).fold_u64(p.trailing() as u64);
         };
         let mut h = turbo_analysis::Fnv1a::new();
-        let legacy = self.policies[..17].iter().chain(&self.policies[27..30]).copied();
-        for policy in legacy.chain(std::iter::once(self.default_policy)) {
-            fold_policy(&mut h, policy);
+        fold_policy(&mut h, self.default_policy);
+        for k in PiiKind::builtins() {
+            h.u16(k.builtin_id().expect("a built-in kind"));
+            fold_policy(&mut h, self.policies[slot(k)]);
         }
-        for &k in &PiiKind::ALL[17..27] {
-            let policy = self.policies[k.rank() as usize];
-            if policy != self.origin.default_for(k) {
-                h.fold_u64(u64::from(k.hash_bit()));
-                fold_policy(&mut h, policy);
-            }
-        }
-        for &(name, policy) in &self.custom {
-            h.bytes(name.as_bytes()).u8(0xff);
-            fold_policy(&mut h, policy);
+        h.fold_u64(self.custom_kinds.len() as u64);
+        for (kind, name) in self.custom_kinds.kinds().zip(self.custom_kinds.names()) {
+            h.str(name);
+            fold_policy(&mut h, self.policy(kind));
         }
         h.finish()
     }

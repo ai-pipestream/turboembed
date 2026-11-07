@@ -20,7 +20,7 @@ use std::fmt::{self, Write};
 
 use turbo_analysis_layers::{Pii, PiiKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::{PiiRewrite, RewriteError, kind_name};
 
 /// A format template [`FormatRedactor`] cannot accept.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,12 +141,12 @@ impl FormatRedactor {
     }
 
     /// Appends the formatted label for `kind` and 1-based `number` to `out`.
-    pub fn write_label(&self, kind: PiiKind, number: u32, out: &mut String) {
+    pub fn write_label(&self, kind: &str, number: u32, out: &mut String) {
         for seg in &self.segments {
             match seg {
                 Segment::Literal(s) => out.push_str(s),
-                Segment::KindUpper => out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase())),
-                Segment::KindLower => out.push_str(kind.name()),
+                Segment::KindUpper => out.extend(kind.chars().map(|c| c.to_ascii_uppercase())),
+                Segment::KindLower => out.push_str(kind),
                 Segment::ValueNumber => {
                     let _ = write!(out, "{number}");
                 }
@@ -154,8 +154,8 @@ impl FormatRedactor {
         }
     }
 
-    /// Formats the label for `kind` and 1-based `number`.
-    pub fn format_label(&self, kind: PiiKind, number: u32) -> String {
+    /// Formats the label for the kind named `kind` and 1-based `number`.
+    pub fn format_label(&self, kind: &str, number: u32) -> String {
         let mut out = String::new();
         self.write_label(kind, number, &mut out);
         out
@@ -169,9 +169,9 @@ impl FormatRedactor {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
             let n = if self.uses_number {
                 *assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
                     let c = counters.entry(m.kind).or_insert(0);
@@ -181,7 +181,7 @@ impl FormatRedactor {
             } else {
                 1
             };
-            self.write_label(m.kind, n, out);
+            self.write_label(kind_name(&pii.custom_kinds, m.kind), n, out);
         })
     }
 }
@@ -218,8 +218,7 @@ impl StaticReplacer {
     /// Overrides the static replacement text for `kind`.
     pub fn with(mut self, kind: PiiKind, replacement: impl Into<String>) -> StaticReplacer {
         let replacement = replacement.into();
-        PiiKind::remember_custom(kind);
-        match self.overrides.binary_search_by_key(&kind, |(k, _)| *k) {
+        match self.overrides.binary_search_by_key(&kind.code(), |(k, _)| k.code()) {
             Ok(at) => self.overrides[at].1 = replacement,
             Err(at) => self.overrides.insert(at, (kind, replacement)),
         }
@@ -229,7 +228,7 @@ impl StaticReplacer {
     /// The replacement text configured for `kind`.
     pub fn replacement(&self, kind: PiiKind) -> &str {
         self.overrides
-            .binary_search_by_key(&kind, |(k, _)| *k)
+            .binary_search_by_key(&kind.code(), |(k, _)| k.code())
             .map_or(self.default_replacement.as_str(), |at| self.overrides[at].1.as_str())
     }
 
@@ -251,9 +250,9 @@ impl StaticReplacer {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
             out.push_str(self.replacement(m.kind));
         })
     }

@@ -196,14 +196,10 @@ impl WindowConfig {
     }
 
     fn entry_mut(&mut self, kind: PiiKind) -> &mut KindOverride {
-        let _ = PiiKind::remember_custom(kind);
         if let Some(pos) = self.overrides.iter().position(|o| o.kind == kind) {
             return &mut self.overrides[pos];
         }
-        let pos = self
-            .overrides
-            .binary_search_by(|o| (o.kind.rank(), o.kind.name()).cmp(&(kind.rank(), kind.name())))
-            .unwrap_or_else(|e| e);
+        let pos = self.overrides.binary_search_by_key(&kind.code(), |o| o.kind.code()).unwrap_or_else(|e| e);
         self.overrides.insert(
             pos,
             KindOverride {
@@ -288,7 +284,7 @@ impl WindowConfig {
         }
         h.u8(0xfe).usize(self.overrides.len());
         for o in &self.overrides {
-            h.str(o.kind.name())
+            h.u32(o.kind.code())
                 .u8(o.policy.unwrap_or_else(|| default_policy(o.kind)).tag())
                 .usize(o.window_words.unwrap_or_else(|| default_window(o.kind)))
                 .usize(o.extra_labels.len());

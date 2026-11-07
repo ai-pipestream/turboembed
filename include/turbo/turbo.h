@@ -826,6 +826,42 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM 3
 #define TURBO_PII_CONFIDENCE_LABELLED          4
 
+/* Stable PII kind ids, the same numbers as the Rust kind registry, the
+ * proto PiiKindId enum, Java TurboPiiKind and the binary layer codec. An
+ * id is identity only and says nothing of order; ids are append-only and
+ * never reused. 0 is no kind. A PII row's label is the kind's name
+ * (`email`, `de-steuer-id`) or a caller's custom kind name. */
+#define TURBO_PII_KIND_JWT                1
+#define TURBO_PII_KIND_AWS_ACCESS_KEY     2
+#define TURBO_PII_KIND_GITHUB_TOKEN       3
+#define TURBO_PII_KIND_URL_CREDENTIAL     4
+#define TURBO_PII_KIND_EMAIL              5
+#define TURBO_PII_KIND_IBAN               6
+#define TURBO_PII_KIND_IMEI               7
+#define TURBO_PII_KIND_CARD               8
+#define TURBO_PII_KIND_BTC_ADDRESS        9
+#define TURBO_PII_KIND_ETH_ADDRESS        10
+#define TURBO_PII_KIND_MAC                11
+#define TURBO_PII_KIND_IPV6               12
+#define TURBO_PII_KIND_IPV4               13
+#define TURBO_PII_KIND_US_SSN             14
+#define TURBO_PII_KIND_US_ITIN            15
+#define TURBO_PII_KIND_UK_NHS             16
+#define TURBO_PII_KIND_DE_STEUER_ID       17
+#define TURBO_PII_KIND_ES_DNI             18
+#define TURBO_PII_KIND_ES_NIE             19
+#define TURBO_PII_KIND_ES_CIF             20
+#define TURBO_PII_KIND_DE_PERSONALAUSWEIS 21
+#define TURBO_PII_KIND_FR_NIR             22
+#define TURBO_PII_KIND_FR_SIREN           23
+#define TURBO_PII_KIND_FR_SIRET           24
+#define TURBO_PII_KIND_BR_CPF             25
+#define TURBO_PII_KIND_BR_CNPJ            26
+#define TURBO_PII_KIND_BIC                27
+#define TURBO_PII_KIND_CA_SIN             28
+#define TURBO_PII_KIND_ABA_ROUTING        29
+#define TURBO_PII_KIND_PHONE              30
+
 /* Configuration of an in-process analysis pipeline. desc may be NULL for
  * English with the rule sentence splitter and rule tokenizer only. The
  * learned components come from a bundle (docs/bundle.md) named by

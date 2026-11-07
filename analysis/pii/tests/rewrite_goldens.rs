@@ -94,7 +94,7 @@ fn render(text: &str, pii: &Pii, masked_text: &str, tokenizer: &HmacTokenizer) -
     }
     let report = PiiAuditReport::of(pii, tokenizer, PiiAuditReport::DEFAULT_SAMPLES);
     for k in &report.kinds {
-        out.push_str(&format!("AUDIT\t{}\t{}\t{}\t{}\n", k.kind.name(), k.mentions, k.distinct, k.samples.join(", ")));
+        out.push_str(&format!("AUDIT\t{}\t{}\t{}\t{}\n", k.name, k.mentions, k.distinct, k.samples.join(", ")));
     }
     out.push_str(&format!("AUDIT_REPORT\t{}\n", report.to_string().replace('\n', "\\n")));
     (out, label_count, refused)

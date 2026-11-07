@@ -137,6 +137,7 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         &Key::DEFAULT,
         Pii {
             spans: spans(&[(0, 5)]),
+            custom_kinds: Default::default(),
             kind: vec![PiiKind::Email],
             confidence: vec![PiiConfidence::Checksum],
             normalized: strs(&["a@b.c"]),

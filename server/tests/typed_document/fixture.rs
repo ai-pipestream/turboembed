@@ -368,6 +368,7 @@ pub fn build_rich_document() -> Document {
     add(
         &mut doc,
         Pii {
+            custom_kinds: Default::default(),
             spans: spans(&[price]),
             kind: vec![PiiKind::Email],
             confidence: vec![PiiConfidence::Checksum],

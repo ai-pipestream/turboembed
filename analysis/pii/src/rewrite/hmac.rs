@@ -6,9 +6,9 @@
 
 use std::fmt;
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis_layers::Pii;
 
-use super::{PiiRewrite, RewriteError};
+use super::{PiiRewrite, RewriteError, kind_name};
 use crate::checksum::sha256;
 
 /// A key or length the tokenizer cannot take.
@@ -84,17 +84,17 @@ impl HmacTokenizer {
         self.refuse_overlaps
     }
 
-    /// Appends the token of `value` of `kind` to `out`.
-    pub fn write_token(&self, kind: PiiKind, value: &str, out: &mut String) -> Result<(), TokenizerError> {
+    /// Appends the token of `value` of the kind named `kind` to `out`.
+    pub fn write_token(&self, kind: &str, value: &str, out: &mut String) -> Result<(), TokenizerError> {
         if value.is_empty() {
             return Err(TokenizerError::EmptyValue);
         }
-        let mut message = Vec::with_capacity(kind.name().len() + 1 + value.len());
-        message.extend_from_slice(kind.name().as_bytes());
+        let mut message = Vec::with_capacity(kind.len() + 1 + value.len());
+        message.extend_from_slice(kind.as_bytes());
         message.push(0);
         message.extend_from_slice(value.as_bytes());
         let mac = sha256::hmac(&self.key, &message);
-        out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+        out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
         out.push('-');
         const HEX: &[u8; 16] = b"0123456789abcdef";
         out.extend(
@@ -106,8 +106,9 @@ impl HmacTokenizer {
         Ok(())
     }
 
-    /// The token of `value` of `kind`, such as `EMAIL-3f2a1c9d7e4b6a20`.
-    pub fn token(&self, kind: PiiKind, value: &str) -> Result<String, TokenizerError> {
+    /// The token of `value` of the kind named `kind`, such as
+    /// `EMAIL-3f2a1c9d7e4b6a20`.
+    pub fn token(&self, kind: &str, value: &str) -> Result<String, TokenizerError> {
         let mut out = String::new();
         self.write_token(kind, value, &mut out)?;
         Ok(out)
@@ -122,10 +123,11 @@ impl HmacTokenizer {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
-            self.write_token(m.kind, m.normalized, out).expect("checked non-empty normalized values");
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+            self.write_token(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
+                .expect("checked non-empty normalized values");
         })
     }
 }

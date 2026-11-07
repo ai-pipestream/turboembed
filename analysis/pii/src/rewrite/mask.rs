@@ -10,7 +10,7 @@
 use std::fmt;
 
 use turbo_analysis::Span;
-use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
+use turbo_analysis_layers::{KindError, Pii, PiiKind, PiiMention};
 
 use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
@@ -23,6 +23,8 @@ pub enum MaskError {
     NotAscii(char),
     /// A span is past the end of the text or not on character boundaries.
     Span(Span),
+    /// A mention's custom kind is outside its layer's table.
+    Kind(KindError),
 }
 
 impl fmt::Display for MaskError {
@@ -30,6 +32,7 @@ impl fmt::Display for MaskError {
         match self {
             MaskError::NotAscii(c) => write!(f, "the mask {c:?} is not an ASCII character"),
             MaskError::Span(s) => write!(f, "the span {}..{} is not a range of the text", s.start, s.end),
+            MaskError::Kind(e) => e.fmt(f),
         }
     }
 }
@@ -128,9 +131,9 @@ impl MaskPolicy {
     /// Replaces every mention of `pii`, a layer over `text`, with its
     /// masked surface text, coalescing overlapping mentions.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
         let mut idx = 0;
-        PiiRewrite::replace(text, clusters.iter().map(|c| c.merged), |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |m, out| {
             let cluster = &clusters[idx];
             idx += 1;
             let piece = &text[m.span.range()];

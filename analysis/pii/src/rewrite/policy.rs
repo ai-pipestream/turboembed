@@ -6,8 +6,9 @@
 
 use std::collections::HashMap;
 
-use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiKind, PiiMention};
 
+use super::kind_name;
 use super::replace::MentionCluster;
 use super::{
     Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, PiiRewrite, Pseudonymizer, RewriteError,
@@ -169,13 +170,19 @@ impl RewriteStrategy {
     }
 }
 
-#[derive(Default)]
 pub(crate) struct RewriteState<'a> {
+    kinds: &'a CustomKinds,
     assigned: HashMap<(PiiKind, &'a str), u32>,
     counters: HashMap<PiiKind, u32>,
 }
 
 impl<'a> RewriteState<'a> {
+    /// Numbering state for mentions of a layer whose custom kinds index
+    /// `kinds`.
+    pub(crate) fn new(kinds: &'a CustomKinds) -> RewriteState<'a> {
+        RewriteState { kinds, assigned: HashMap::new(), counters: HashMap::new() }
+    }
+
     pub(crate) fn number(&mut self, kind: PiiKind, normalized: &'a str) -> u32 {
         *self.assigned.entry((kind, normalized)).or_insert_with(|| {
             let n = self.counters.entry(kind).or_insert(0);
@@ -198,24 +205,24 @@ impl<'a> RewriteState<'a> {
             }
             RewriteStrategy::Pseudonym(pseudo) => {
                 let n = self.number(m.kind, m.normalized);
-                pseudo.write_label(m.kind, n, out);
+                pseudo.write_label(kind_name(self.kinds, m.kind), n, out);
                 Ok(())
             }
-            RewriteStrategy::Hmac(hmac) => {
-                hmac.write_token(m.kind, m.normalized, out).map_err(|_| RewriteError::EmptyValue(m.span))
-            }
+            RewriteStrategy::Hmac(hmac) => hmac
+                .write_token(kind_name(self.kinds, m.kind), m.normalized, out)
+                .map_err(|_| RewriteError::EmptyValue(m.span)),
             RewriteStrategy::Format(fmt) => {
                 let n = if fmt.uses_number() { self.number(m.kind, m.normalized) } else { 1 };
-                fmt.write_label(m.kind, n, out);
+                fmt.write_label(kind_name(self.kinds, m.kind), n, out);
                 Ok(())
             }
             RewriteStrategy::Static(stat) => {
                 out.push_str(stat.replacement(m.kind));
                 Ok(())
             }
-            RewriteStrategy::Sha256(sha) => {
-                sha.write_digest(m.kind, m.normalized, out).map_err(|_| RewriteError::EmptyValue(m.span))
-            }
+            RewriteStrategy::Sha256(sha) => sha
+                .write_digest(kind_name(self.kinds, m.kind), m.normalized, out)
+                .map_err(|_| RewriteError::EmptyValue(m.span)),
             RewriteStrategy::Map(map) => map.write_mention(self, text, m, out),
             RewriteStrategy::Truncate(trunc) => {
                 trunc.write_truncated(&text[m.span.range()], out);
@@ -308,8 +315,14 @@ impl<'a> RewriteState<'a> {
 
 /// Dispatches each mention to the [`RewriteStrategy`] configured for its
 /// [`PiiKind`], or to a default fallback strategy.
+///
+/// The policy owns a custom-kind table: a custom kind given to
+/// [`RewritePolicy::with`] indexes it, and a layer's custom kind is matched
+/// to the policy's by name, so one policy serves layers whose tables list
+/// their kinds in another order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct RewritePolicy {
+    custom_kinds: CustomKinds,
     overrides: Vec<(PiiKind, RewriteStrategy)>,
     default_strategy: RewriteStrategy,
     refuse_overlaps: bool,
@@ -319,26 +332,66 @@ impl RewritePolicy {
     /// A policy applying `default_strategy` to every kind not explicitly
     /// overridden with [`RewritePolicy::with`].
     pub fn new(default_strategy: impl Into<RewriteStrategy>) -> RewritePolicy {
-        RewritePolicy { overrides: Vec::new(), default_strategy: default_strategy.into(), refuse_overlaps: false }
+        RewritePolicy {
+            custom_kinds: CustomKinds::new(),
+            overrides: Vec::new(),
+            default_strategy: default_strategy.into(),
+            refuse_overlaps: false,
+        }
     }
 
-    /// Assigns `strategy` to mentions of `kind` (built-in or
-    /// [`PiiKind::Custom`]).
-    pub fn with(mut self, kind: PiiKind, strategy: impl Into<RewriteStrategy>) -> RewritePolicy {
-        let strategy = strategy.into();
-        PiiKind::remember_custom(kind);
-        match self.overrides.binary_search_by_key(&kind, |(k, _)| *k) {
-            Ok(at) => self.overrides[at].1 = strategy,
-            Err(at) => self.overrides.insert(at, (kind, strategy)),
-        }
+    /// This policy with `kinds` as its custom-kind table, which every custom
+    /// kind given to [`RewritePolicy::with`] afterwards indexes. Drops the
+    /// overrides of custom kinds made under an earlier table.
+    pub fn with_custom_kinds(mut self, kinds: CustomKinds) -> RewritePolicy {
+        self.overrides.retain(|(k, _)| !k.is_custom());
+        self.custom_kinds = kinds;
         self
     }
 
-    /// The strategy configured for `kind`.
+    /// The table every custom kind of this policy indexes.
+    pub fn custom_kinds(&self) -> &CustomKinds {
+        &self.custom_kinds
+    }
+
+    /// Assigns `strategy` to mentions of `kind` (built-in, or a custom kind
+    /// of [`RewritePolicy::custom_kinds`]).
+    ///
+    /// # Panics
+    ///
+    /// When `kind` is a custom kind outside the policy's table; see
+    /// [`RewritePolicy::try_with`].
+    pub fn with(self, kind: PiiKind, strategy: impl Into<RewriteStrategy>) -> RewritePolicy {
+        self.try_with(kind, strategy).expect("a kind of the policy's custom-kind table")
+    }
+
+    /// Assigns `strategy` to mentions of `kind`, refused when `kind` is a
+    /// custom kind outside [`RewritePolicy::custom_kinds`].
+    pub fn try_with(mut self, kind: PiiKind, strategy: impl Into<RewriteStrategy>) -> Result<RewritePolicy, KindError> {
+        self.custom_kinds.check(kind)?;
+        let strategy = strategy.into();
+        match self.overrides.binary_search_by_key(&kind.code(), |(k, _)| k.code()) {
+            Ok(at) => self.overrides[at].1 = strategy,
+            Err(at) => self.overrides.insert(at, (kind, strategy)),
+        }
+        Ok(self)
+    }
+
+    /// The strategy configured for `kind` of this policy's table.
     pub fn strategy(&self, kind: PiiKind) -> &RewriteStrategy {
         self.overrides
-            .binary_search_by_key(&kind, |(k, _)| *k)
+            .binary_search_by_key(&kind.code(), |(k, _)| k.code())
             .map_or(&self.default_strategy, |at| &self.overrides[at].1)
+    }
+
+    /// The strategy for `kind` of a layer whose custom kinds index `kinds`:
+    /// a custom kind is matched to this policy's by name, and one the
+    /// policy does not list takes the default strategy.
+    pub fn strategy_in(&self, kinds: &CustomKinds, kind: PiiKind) -> &RewriteStrategy {
+        match self.custom_kinds.translate(kinds, kind) {
+            Some(k) => self.strategy(k),
+            None => &self.default_strategy,
+        }
     }
 
     /// The default fallback strategy for kinds without an explicit override.
@@ -361,23 +414,25 @@ impl RewritePolicy {
     /// Replaces every mention of `pii`, a layer over `text`, with the
     /// strategy configured for its [`PiiKind`].
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mut state = RewriteState::default();
+        let mut state = RewriteState::new(&pii.custom_kinds);
         if self.refuse_overlaps {
-            return PiiRewrite::try_replace(text, pii.mentions(), |m, out| {
-                state.write_strategy(self.strategy(m.kind), text, m, out)
+            return PiiRewrite::try_replace(text, &pii.custom_kinds, pii.mentions(), |m, out| {
+                state.write_strategy(self.strategy_in(&pii.custom_kinds, m.kind), text, m, out)
             });
         }
-        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
         for cluster in &clusters {
-            if cluster.members.len() > 1 && cluster.members.iter().any(|m| self.strategy(m.kind).refuses_overlaps()) {
+            if cluster.members.len() > 1
+                && cluster.members.iter().any(|m| self.strategy_in(&pii.custom_kinds, m.kind).refuses_overlaps())
+            {
                 return Err(RewriteError::Overlap(cluster.members[0].span, cluster.members[1].span));
             }
         }
         let mut idx = 0;
-        PiiRewrite::try_replace(text, clusters.iter().map(|c| c.merged), |_, out| {
+        PiiRewrite::try_replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |_, out| {
             let cluster = &clusters[idx];
             idx += 1;
-            state.write_cluster(|k| self.strategy(k), text, cluster, out)
+            state.write_cluster(|k| self.strategy_in(&pii.custom_kinds, k), text, cluster, out)
         })
     }
 }

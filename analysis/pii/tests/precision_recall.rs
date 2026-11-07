@@ -331,7 +331,7 @@ fn corpora() -> Vec<Labelled> {
     let mut out: Vec<Labelled> = Vec::new();
     for line in fixtures("golden-true-positives.tsv") {
         let f: Vec<&str> = line.splitn(4, '\t').collect();
-        let kind = PiiKind::parse(f[0]).expect("a kind").name();
+        let kind = PiiKind::parse(f[0]).expect("a kind").builtin_name().unwrap();
         let start = f[3].find(f[1]).expect("covered text in the source") as u32;
         let label = (start, start + f[1].len() as u32, kind);
         match out.iter_mut().find(|l| l.text == f[3]) {

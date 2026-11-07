@@ -86,7 +86,7 @@ fn next_digit(c: u8) -> u8 {
 
 #[track_caller]
 fn refused(d: &PiiDetector, kind: PiiKind, text: &str) {
-    assert!(!kinds(d, text).contains(&kind.name()), "{text}");
+    assert!(!kinds(d, text).contains(&kind.builtin_name().unwrap()), "{text}");
 }
 
 fn digit_mutations_refused(d: &PiiDetector, kind: PiiKind, value: &str, prefix: &str) {

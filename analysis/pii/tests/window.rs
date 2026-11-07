@@ -14,9 +14,16 @@ use turbo_pii::window::{
     DEFAULT_WINDOW_WORDS, LabelPolicy, default_labels, default_policy, default_window, has_kind_label, has_label,
     has_strict_prefix_label,
 };
-use turbo_pii::{Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiKind, PiiSink, Scanner};
+use turbo_pii::{
+    CustomKindId, CustomKinds, Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiKind, PiiSink, Scanner,
+};
 
-const PASSPORT_KIND: PiiKind = PiiKind::custom("passport");
+/// Entry 0 of [`passport_kinds`].
+const PASSPORT_KIND: PiiKind = PiiKind::Custom(CustomKindId::new(0));
+
+fn passport_kinds() -> CustomKinds {
+    CustomKinds::from_names(["passport"]).unwrap()
+}
 
 /// Toy 9-digit candidate scanner (`Format` confidence) used to exercise
 /// `label_required`, `label_boosts`, and window width overrides on a custom
@@ -120,7 +127,7 @@ fn window_helper_enforces_word_distance_bounds_and_invalid_spans() {
 
 #[test]
 fn kind_defaults_match_specification() {
-    for kind in PiiKind::ALL {
+    for kind in PiiKind::builtins() {
         assert!(!default_labels(kind).is_empty(), "{kind} should have default labels");
         if matches!(kind, PiiKind::CaSin | PiiKind::Imei) {
             assert_eq!(default_window(kind), 1, "{kind}");
@@ -245,7 +252,7 @@ fn label_required_drops_unlabelled_and_promotes_labelled_candidates() {
 }
 
 #[test]
-fn label_boosts_and_binary_wire_tags_preserve_backwards_compatibility() {
+fn label_boosts_and_binary_wire_confidence_ids_are_the_c_codes() {
     let det = PiiDetector::new(vec![
         Scanner::all(Extractor::UsIdentity),
         Scanner::all(Extractor::EuIdentity),
@@ -267,14 +274,14 @@ fn label_boosts_and_binary_wire_tags_preserve_backwards_compatibility() {
         ]
     );
 
-    // Binary graph export/import preserves existing wire tags:
-    // Format = 0, Checksum = 1, LabelledChecksum = 2, Labelled = 3.
+    // Binary graph export writes the stable confidence ids, the C codes:
+    // Format = 1, Checksum = 2, LabelledChecksum = 3, Labelled = 4.
     let mut doc = Document::new(text);
     doc.add(&turbo_analysis::Key::DEFAULT, pii, Provenance::by("test")).unwrap();
     let bytes = export(&doc, &codecs()).unwrap().to_bytes().unwrap();
     assert!(
-        bytes.windows(8).any(|w| w == [4, 0, 0, 0, 0, 1, 2, 3]),
-        "expected wire tags [0, 1, 2, 3] for [Format, Checksum, LabelledChecksum, Labelled]"
+        bytes.windows(8).any(|w| w == [4, 0, 0, 0, 1, 2, 3, 4]),
+        "expected wire ids [1, 2, 3, 4] for [Format, Checksum, LabelledChecksum, Labelled]"
     );
     let round_tripped = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs()).unwrap();
     let back_pii = round_tripped.get::<Pii>().unwrap();
@@ -288,6 +295,7 @@ fn label_boosts_and_binary_wire_tags_preserve_backwards_compatibility() {
 fn caller_overrides_extra_labels_window_width_and_sin_policy() {
     // Custom kind with caller-supplied labels and `label_required`.
     let passport_det = PiiDetector::new(vec![Scanner::custom_fn("PassportScanner", PASSPORT_KIND, scan_nine_digits)])
+        .with_custom_kinds(passport_kinds())
         .label_required(PASSPORT_KIND)
         .with_extra_labels(PASSPORT_KIND, ["passport", "pass no", "travel document"]);
 
@@ -329,6 +337,7 @@ fn caller_overrides_extra_labels_window_width_and_sin_policy() {
 #[test]
 fn known_limitation_nearby_label_for_another_number_and_window_narrowing() {
     let det = PiiDetector::new(vec![Scanner::custom_fn("PassportScanner", PASSPORT_KIND, scan_nine_digits)])
+        .with_custom_kinds(passport_kinds())
         .label_required(PASSPORT_KIND)
         .with_extra_label(PASSPORT_KIND, "passport");
 
