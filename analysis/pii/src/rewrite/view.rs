@@ -26,6 +26,7 @@ pub const MASKED: Key<View> = Key::named("masked");
 struct Cover {
     start: u32,
     end: u32,
+    keep_until: u32,
     keep_from: u32,
     order: usize,
     policy: MaskPolicy,
@@ -34,6 +35,20 @@ struct Cover {
 impl Cover {
     fn new(text: &str, span: Span, policy: MaskPolicy, order: usize) -> Cover {
         let piece = &text[span.start as usize..span.end as usize];
+        let mut keep_until = span.start;
+        if policy.leading() > 0 {
+            keep_until = span.end;
+            let mut kept = 0;
+            for (at, c) in piece.char_indices() {
+                if letter_or_digit(c) {
+                    kept += 1;
+                    if kept == policy.leading() {
+                        keep_until = span.start + (at + c.len_utf8()) as u32;
+                        break;
+                    }
+                }
+            }
+        }
         // The keep_trailing-th letter or digit from the end starts the
         // readable tail; with fewer of them, all are readable.
         let mut keep_from = span.end;
@@ -50,12 +65,12 @@ impl Cover {
                 }
             }
         }
-        Cover { start: span.start, end: span.end, keep_from, order, policy }
+        Cover { start: span.start, end: span.end, keep_until, keep_from, order, policy }
     }
 
     /// Whether this span masks the character `c` at byte `at`.
     fn masks(&self, c: char, at: u32) -> bool {
-        if letter_or_digit(c) { at < self.keep_from } else { !self.policy.keeps_format() }
+        if letter_or_digit(c) { at >= self.keep_until && at < self.keep_from } else { !self.policy.keeps_format() }
     }
 }
 
@@ -199,14 +214,20 @@ impl Annotator for MaskedView {
     /// FNV-1a over each kind's mask byte and options, fixed so that stored
     /// provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
-        let pack_policy =
-            |p: MaskPolicy| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
+        let fold_policy = |h: &mut turbo_analysis::Fnv1a, p: MaskPolicy| {
+            let base = u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
+            h.fold_u64(base);
+            if p.leading() != 0 || (p.trailing() as u64) >= (1u64 << 48) {
+                h.u8(0xfe).fold_u64(p.leading() as u64).fold_u64(p.trailing() as u64);
+            }
+        };
         let mut h = turbo_analysis::Fnv1a::new();
         for policy in self.policies.iter().copied().chain(std::iter::once(self.default_policy)) {
-            h.fold_u64(pack_policy(policy));
+            fold_policy(&mut h, policy);
         }
         for &(name, policy) in &self.custom {
-            h.bytes(name.as_bytes()).u8(0xff).fold_u64(pack_policy(policy));
+            h.bytes(name.as_bytes()).u8(0xff);
+            fold_policy(&mut h, policy);
         }
         h.finish()
     }

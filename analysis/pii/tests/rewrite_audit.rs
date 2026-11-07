@@ -6,7 +6,10 @@ mod support;
 use std::path::PathBuf;
 use support::*;
 use turbo_analysis::Layer;
-use turbo_pii::rewrite::{HmacTokenizer, PiiAuditReport, Pseudonymizer, TokenizerError};
+use turbo_pii::rewrite::{
+    Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, PiiAuditReport, Pseudonymizer, RewritePolicy,
+    Sha256Tokenizer, StaticReplacer, TokenizerError, Truncate,
+};
 use turbo_pii::{Pack, PiiDetector, PiiKind};
 
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
@@ -229,16 +232,45 @@ fn sample_texts() -> Vec<(String, String)> {
 fn no_value_of_any_pack_appears_in_the_audit_and_every_default_pack_rewrites() {
     let texts = sample_texts();
     assert!(texts.len() > 50, "only {} sample texts", texts.len());
+    let fmt_kind = FormatRedactor::new("{{{REDACTED-%t}}}").unwrap();
+    let fmt_num = FormatRedactor::new("[%t-%v]").unwrap();
+    let stat = StaticReplacer::default().with(PiiKind::Email, "[EMAIL-REDACTED]");
+    let sha = Sha256Tokenizer::new();
+    let map = MapReplacer::new([("jane@example.com", "MAPPED-EMAIL-1")], false)
+        .unwrap()
+        .with_fallback(FormatRedactor::new("<FALLBACK-%t-%v>").unwrap());
+    let keep_start = Truncate::keep_start(4);
+    let keep_end = Truncate::keep_end(4);
+    let abbr = Abbreviator::dotted();
+    let policy = RewritePolicy::new(StaticReplacer::default())
+        .with(PiiKind::Email, fmt_num.clone())
+        .with(PiiKind::Phone, keep_end)
+        .with(PiiKind::Card, sha.clone())
+        .with(PiiKind::Iban, keep_start)
+        .with(PiiKind::UsSsn, fmt_kind.clone());
+
     let mut kinds = std::collections::HashSet::new();
     for p in Pack::ALL {
         let detector = pack(p);
         let mut checked = 0;
         for (id, text) in &texts {
             let pii = layer(&detector, text);
-            let pseudo = Pseudonymizer::default().rewrite(text, &pii).unwrap();
-            assert_eq!(pseudo.labels().check(), Ok(()));
-            let hmac = tokenizer().rewrite(text, &pii).unwrap();
-            assert_eq!(hmac.labels().check(), Ok(()));
+            let rewrites = [
+                ("pseudonym", Pseudonymizer::default().rewrite(text, &pii).unwrap()),
+                ("hmac", tokenizer().rewrite(text, &pii).unwrap()),
+                ("format-kind", fmt_kind.rewrite(text, &pii).unwrap()),
+                ("format-num", fmt_num.rewrite(text, &pii).unwrap()),
+                ("static", stat.rewrite(text, &pii).unwrap()),
+                ("sha256", sha.rewrite(text, &pii).unwrap()),
+                ("map", map.rewrite(text, &pii).unwrap()),
+                ("keep-start", keep_start.rewrite(text, &pii).unwrap()),
+                ("keep-end", keep_end.rewrite(text, &pii).unwrap()),
+                ("abbreviate", abbr.rewrite(text, &pii).unwrap()),
+                ("policy", policy.rewrite(text, &pii).unwrap()),
+            ];
+            for (name, r) in &rewrites {
+                assert_eq!(r.labels().check(), Ok(()), "{name} on {id}");
+            }
             let report = PiiAuditReport::of(&pii, &tokenizer(), usize::MAX);
             let shown = [report.to_string(), format!("{report:?}")];
             for m in pii.mentions() {
@@ -246,6 +278,22 @@ fn no_value_of_any_pack_appears_in_the_audit_and_every_default_pack_rewrites() {
                 for value in [covered, m.normalized] {
                     for out in &shown {
                         assert!(!out.contains(value), "{} on {id}: {value:?} is in the audit:\n{out}", p.name());
+                    }
+                    for (name, r) in &rewrites {
+                        let mapped = &r.text()[r.map_span(m.span).range()];
+                        assert!(
+                            !mapped.contains(value),
+                            "{} ({name}) on {id}: {value:?} leaked in rewritten span {mapped:?}",
+                            p.name(),
+                        );
+                        for l in r.labels().mentions() {
+                            assert!(
+                                !l.normalized.contains(value),
+                                "{} ({name}) on {id}: {value:?} leaked in label {:?}",
+                                p.name(),
+                                l.normalized
+                            );
+                        }
                     }
                 }
                 kinds.insert(m.kind);
