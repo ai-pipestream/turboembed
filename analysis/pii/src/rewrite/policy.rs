@@ -39,9 +39,12 @@ pub enum RewriteStrategy {
     Abbreviate(Abbreviator),
 }
 
+/// A whole-value `'*'` mask. Never a per-document pseudonym (`EMAIL-1`
+/// names different values in different documents) or an unkeyed SHA-256
+/// (issue #1882).
 impl Default for RewriteStrategy {
     fn default() -> RewriteStrategy {
-        RewriteStrategy::Pseudonym(Pseudonymizer::default())
+        RewriteStrategy::Mask(MaskPolicy::new(MaskPolicy::DEFAULT_MASK).expect("'*' is ASCII"))
     }
 }
 
