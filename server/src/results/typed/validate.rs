@@ -7,6 +7,7 @@
 mod annotation;
 mod envelope;
 mod evidence;
+mod pii;
 mod quality;
 mod quotations;
 mod receipt;

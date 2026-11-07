@@ -9,13 +9,14 @@
 
 use std::fmt;
 
-use turbo_analysis::Span;
+use turbo_analysis::{Span, ViewId};
 use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
 
 use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
 
-/// A mask the policy cannot take.
+/// Why a mask cannot be written: a mask the policy cannot take, a span
+/// the text does not have, or a layer over another view.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MaskError {
     /// The mask is not one ASCII byte, so writing it would change byte
@@ -23,6 +24,9 @@ pub enum MaskError {
     NotAscii(char),
     /// A span is past the end of the text or not on character boundaries.
     Span(Span),
+    /// The pii layer is over view `layer`, not over `view`, the view being
+    /// masked, so its spans are offsets of another text.
+    ForeignView { layer: ViewId, view: ViewId },
 }
 
 impl fmt::Display for MaskError {
@@ -30,6 +34,9 @@ impl fmt::Display for MaskError {
         match self {
             MaskError::NotAscii(c) => write!(f, "the mask {c:?} is not an ASCII character"),
             MaskError::Span(s) => write!(f, "the span {}..{} is not a range of the text", s.start, s.end),
+            MaskError::ForeignView { layer, view } => {
+                write!(f, "the pii layer is over view {}, not view {}", layer.0, view.0)
+            }
         }
     }
 }
