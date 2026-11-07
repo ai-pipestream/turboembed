@@ -432,6 +432,9 @@ pub fn document_to_typed_with(
     }
 
     let shown = disclosure.view_text(doc, target_view);
+    if !shown {
+        crate::results::disclosure::withhold_annotations(&mut layers);
+    }
     let typed = TypedDocumentResult {
         doc_id: doc_id.to_owned(),
         raw_text: if shown { target_text.to_owned() } else { String::new() },

@@ -2,7 +2,7 @@
 //! mention's kind reference and confidence tier. A kind is a built-in id
 //! [`PiiKind::from_id`] knows or an index into the layer's
 //! `custom_pii_kinds`; a tier is one [`PiiConfidence::from_id`] knows.
-//! `UNSPECIFIED` (0) is neither. The normalized form is not judged here.
+//! `UNSPECIFIED` (0) is neither. The value must be `withheld` (#1904).
 //! An error names the layer, the row and its wire spans, never the
 //! mention's text, its normalized form, a custom kind name, or the refused
 //! number, which are caller input.
@@ -14,6 +14,7 @@ use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiConfidence, PiiKind}
 
 use super::*;
 use crate::proto::result::pii_kind_ref::Kind;
+use crate::proto::result::pii_value::Form;
 use crate::proto::result::{PiiMention, TypedLayer};
 
 /// The number of custom kinds `layer` names: its `custom_pii_kinds`, which
@@ -58,6 +59,21 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     // all, it was released, and only `withheld` is produced.
     if !m.normalized.is_empty() {
         return Err(bad(format!("{} pii mention sets the retired normalized value; use value", at())));
+    }
+    // Every mention says how its value was released. Only `withheld` is
+    // produced until keyed release lands (#1909), so a missing or empty
+    // value, a clear value, a token or a ciphertext is refused. The error
+    // names the form, never its contents.
+    let refused = match m.value.as_ref().map(|v| v.form.as_ref()) {
+        Some(Some(Form::Withheld(_))) => None,
+        None => Some("is missing"),
+        Some(None) => Some("has no form"),
+        Some(Some(Form::Clear(_))) => Some("is clear"),
+        Some(Some(Form::Token(_))) => Some("is a token"),
+        Some(Some(Form::Ciphertext(_))) => Some("is a ciphertext"),
+    };
+    if let Some(why) = refused {
+        return Err(bad(format!("{} pii mention value {why}; only withheld is supported", at())));
     }
     match m.kind_ref.as_ref().and_then(|r| r.kind) {
         None => return Err(bad(format!("{} pii kind is missing", at()))),

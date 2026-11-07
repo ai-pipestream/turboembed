@@ -505,7 +505,12 @@ bytes, no `source_text` and an empty `raw_text`. `DocumentGraphResponse`
 then carries `findings`, the typed projection onto the source view in
 UTF-8 offsets, in place of the graph; progressive step snapshots carry no
 graph once the PII step has run. Status details are cut to the failure
-kind and the layer or annotator it names, without free text.
+kind and the layer or annotator it names, without free text. Other layers
+carry the view's words (sentence text, token surfaces, lemmas), so while
+the text is withheld they are listed with their status and no
+annotations. A typed result is refused on validation when a mention's
+value is anything but `withheld` (missing, no form, clear, token or
+ciphertext) until keyed release lands (#1909).
 
 `FormatDocument` of such a document needs `full_text`, since every
 format carries the document text; no format (JSON-LD, markdown or any

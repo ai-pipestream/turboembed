@@ -12,6 +12,8 @@ use std::time::Duration;
 use common::tiny;
 use prost::Message;
 use tokio_stream::StreamExt;
+use turbo_analysis::export::export;
+use turbo_analysis::{Document, Key, Provenance, Span, View, ViewId};
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
@@ -22,8 +24,10 @@ use turbo_kserve::proto::result::{
 };
 use turbo_kserve::proto::sink::DocumentSinkItem;
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
+use turbo_kserve::results::document::codecs;
 use turbo_kserve::sink::{SinkConfig, SinkReceiver};
 use turbo_kserve::{Serve, Server};
+use turbo_pii::{Pii, PiiConfidence, PiiKind, PiiMention};
 
 /// The planted value: an address the PII detector finds, lowercase so its
 /// normalized form is the same bytes.
@@ -302,4 +306,37 @@ async fn detail_is_decided_and_capped_but_adds_nothing_yet() {
     assert_eq!(e.code(), tonic::Code::FailedPrecondition, "{e:?}");
     assert!(e.message().contains("detail"), "{e:?}");
     closed.stop().await;
+}
+
+#[tokio::test]
+async fn the_started_event_sanitizes_the_views_of_an_initial_graph_holding_pii() {
+    // An initial graph that already holds PII, beside a view declined with
+    // a free-text reason that carries the planted value.
+    let mut doc = Document::new(TEXT);
+    let mut pii = Pii::new(ViewId::SOURCE);
+    let at = TEXT.find(PLANTED).unwrap() as u32;
+    let span = Span::new(at, at + PLANTED.len() as u32);
+    pii.push(PiiMention { span, kind: PiiKind::Email, confidence: PiiConfidence::Format, normalized: PLANTED });
+    doc.add(&Key::DEFAULT, pii, Provenance::by("turbo-pii:pii")).unwrap();
+    let declined = Key::<View>::named("declined").id();
+    doc.skip(declined, format!("declined near {PLANTED}"), Provenance::by("test:view")).unwrap();
+    let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    let s = server(Serve::default()).await;
+    let req = AnalyzePipelineRequest {
+        doc_id: "doc-pii".into(),
+        initial_graph: graph,
+        offsets: OffsetMode::Utf8 as i32,
+        steps: vec!["turbo-sentdetect:rules".into()],
+        ..Default::default()
+    };
+    let mut stream = client(&s).await.analyze_document_progressive(req).await.unwrap().into_inner();
+    let Some(Event::Started(started)) = stream.next().await.unwrap().unwrap().event else { panic!("started first") };
+    let view = started.views.iter().find(|v| v.instance == "declined").expect("the declined view is listed");
+    assert!(!view.status_detail.contains(PLANTED), "{}", view.status_detail);
+    assert!(!holds(&started.encode_to_vec(), PLANTED));
+    while let Some(ev) = stream.next().await {
+        let ev = ev.unwrap();
+        assert!(!holds(&ev.encode_to_vec(), PLANTED), "a later event carries the planted value: {ev:?}");
+    }
+    s.stop().await;
 }

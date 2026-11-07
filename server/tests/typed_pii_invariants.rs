@@ -10,8 +10,12 @@ use turbo_analysis_layers::Tokens;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
+use turbo_kserve::proto::result::pii_value::Form;
 use turbo_kserve::proto::result::typed_annotation::Value;
-use turbo_kserve::proto::result::{PiiKindRef, PiiMention as WirePii, TypedDocumentResult, TypedLayer};
+use turbo_kserve::proto::result::{
+    PiiKeyRef, PiiKindRef, PiiMention as WirePii, PiiValue, PiiValueCiphertext, PiiValueToken, TypedDocumentResult,
+    TypedLayer,
+};
 // The projection itself is under test, so the text is asked for (#1904).
 use turbo_kserve::results::disclosure::Disclosure;
 use turbo_kserve::results::typed::{document_to_typed, document_to_typed_with, validate_typed_document};
@@ -203,6 +207,49 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         let message = refused(what, &pii_message(edit), &[]);
         // The error names the layer, the row and its span, never the value.
         assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+    }
+}
+
+/// A value of `form`, or `None` for a value with no form.
+fn value(form: Option<Form>) -> Option<PiiValue> {
+    Some(PiiValue { form })
+}
+
+/// A key reference no test resolves.
+fn key() -> Option<PiiKeyRef> {
+    Some(PiiKeyRef { id: "planted-key-id".to_owned(), version: 3 })
+}
+
+#[test]
+fn a_pii_value_must_be_withheld_until_keyed_release_lands() {
+    // The projection writes `withheld`, which validates (#1904).
+    let wire = pii_message(|_| {});
+    let mut layer = wire.layers.iter().filter(|l| l.id == "turbo:pii").flat_map(|l| &l.annotations);
+    let Some(Value::Pii(m)) = &layer.next().expect("a pii annotation").value else { panic!("a pii annotation") };
+    assert!(matches!(m.value, Some(PiiValue { form: Some(Form::Withheld(_)) })), "{:?}", m.value);
+    validate_typed_document(&wire).unwrap();
+    // Every other form is refused before #1909, and the error names the
+    // form, never the clear value, the token, the ciphertext or the key.
+    let secrets = ["planted.clear@example.com", "planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];
+    let refusals: [(&str, Edit); 5] = [
+        ("no value", |m| m.value = None),
+        ("a value with no form", |m| m.value = value(None)),
+        ("a clear value", |m| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())))),
+        ("a token", |m| {
+            m.value = value(Some(Form::Token(PiiValueToken { token: b"planted-token".to_vec(), key: key() })))
+        }),
+        ("a ciphertext", |m| {
+            m.value = value(Some(Form::Ciphertext(PiiValueCiphertext {
+                ciphertext: b"planted-cipher".to_vec(),
+                key: key(),
+                scheme: "planted-scheme".to_owned(),
+            })))
+        }),
+    ];
+    for (what, edit) in refusals {
+        let message = refused(what, &pii_message(edit), &secrets);
+        assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+        assert!(message.contains("only withheld is supported"), "{what}: {message}");
     }
 }
 

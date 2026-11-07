@@ -36,7 +36,7 @@ use crate::proto::result::{
 };
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy, sanitized_status};
-use crate::results::document::{codecs, export_document_response, layer_info_with, view_info};
+use crate::results::document::{codecs, export_document_response, layer_info_with, view_info_with};
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
@@ -268,7 +268,8 @@ fn run_progressive_task(
             doc_id,
             offsets: proto_offsets,
             step_ids: analyzer.step_ids().into_iter().map(str::to_owned).collect(),
-            views: initial_export.views.iter().map(view_info).collect(),
+            // An initial graph may already hold PII (#1904).
+            views: initial_export.views.iter().map(|r| view_info_with(r, disclosure.sanitize(&doc))).collect(),
         })),
     };
     if tx.blocking_send(Ok(started)).is_err() {
@@ -339,8 +340,7 @@ fn run_progressive_task(
                 .filter(|r| written_names.contains(&(r.layer.clone(), r.instance.clone())))
                 .map(|r| layer_info_with(r, sanitize))
                 .collect();
-            let views =
-                snap_graph.views.iter().map(|r| crate::results::document::view_info_with(r, sanitize)).collect();
+            let views = snap_graph.views.iter().map(|r| view_info_with(r, sanitize)).collect();
             let graph_bytes = if !disclosure.graph(current_doc) {
                 Vec::new()
             } else {

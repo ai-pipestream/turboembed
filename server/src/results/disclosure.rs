@@ -22,11 +22,11 @@
 use std::any::TypeId;
 
 use turbo_analysis::export::{ErrorRecord, StatusRecord};
-use turbo_analysis::{Document, Error, Key, Status, View, ViewId};
+use turbo_analysis::{Document, Error, Key, Layer, Status, View, ViewId};
 use turbo_analysis_layers::Pii;
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
-use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, pii_value};
+use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, TypedLayer, pii_value};
 
 /// The annotator id prefix of the views a PII rewrite writes.
 pub const REWRITE_ANNOTATOR_PREFIX: &str = "turbo-pii:";
@@ -197,6 +197,16 @@ pub fn is_rewrite_view(doc: &Document, view: ViewId) -> bool {
 /// The value every finding carries today.
 pub fn withheld() -> PiiValue {
     PiiValue { form: Some(pii_value::Form::Withheld(PiiValueWithheld {})) }
+}
+
+/// Findings only: every layer but `turbo:pii` carries the view's words
+/// (sentence text, surfaces, lemmas, canonical names), so with the text
+/// withheld those layers are listed with their status and no annotations.
+pub(crate) fn withhold_annotations(layers: &mut [TypedLayer]) {
+    for l in layers.iter_mut().filter(|l| l.id != Pii::ID) {
+        l.annotations.clear();
+        l.indexes_layer.clear();
+    }
 }
 
 /// A status detail cut to what kind of failure it is and which layer or
