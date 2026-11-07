@@ -5,6 +5,7 @@ mod support;
 
 use support::*;
 use turbo_pii::checksum::luhn;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{MaskPolicy, Pseudonymizer, mask, mask_all, mask_by_kind};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
@@ -41,7 +42,10 @@ fn union_pay_prefix_in_every_format() {
                 assert_found(&cards(), &text, &[(start, start + formatted.len() as u32, "card", number)]);
                 let pii = layer(&cards(), &text);
                 assert_eq!(mask_all(&text, &pii, '*').unwrap(), format!("{prefix}{}.", "*".repeat(formatted.len())));
-                assert_eq!(Pseudonymizer::new("", "").rewrite(&text, &pii).unwrap().text(), format!("{prefix}CARD-1."));
+                assert_eq!(
+                    Pseudonymizer::new("", "").rewrite(&source_view(&text), &pii).unwrap().text(),
+                    format!("{prefix}CARD-1.")
+                );
             }
         }
     }

@@ -104,10 +104,21 @@ macro_rules! tuples {
             }
             fn store(self, doc: &mut Document, names: &[&'static str], p: &Provenance) -> Result<(), Error> {
                 let ids = <Self as Writes>::ids(names);
+                // The id the document gave the last view this step wrote:
+                // later outputs over the pending view move onto it.
+                let mut written_view: Option<crate::ViewId> = None;
                 $({
-                    let p = made_on_own(&self.$i, &ids[..$i], p);
-                    doc.add(&Key::<$L>::named(names[$i]), self.$i, p)?;
+                    let mut layer = self.$i;
+                    if let Some(v) = written_view {
+                        layer.bind_pending_view(v);
+                    }
+                    let p = made_on_own(&layer, &ids[..$i], p);
+                    doc.add(&Key::<$L>::named(names[$i]), layer, p)?;
+                    if TypeId::of::<$L>() == TypeId::of::<View>() {
+                        written_view = doc.get_key(&Key::<View>::named(names[$i])).map(View::id);
+                    }
                 })+
+                let _ = written_view;
                 Ok(())
             }
         }

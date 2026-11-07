@@ -8,6 +8,7 @@ mod annotation;
 mod envelope;
 mod evidence;
 mod pii;
+mod pii_edits;
 mod quality;
 mod quotations;
 mod receipt;
@@ -264,6 +265,7 @@ fn validate_layer(
     quality::layer(layer)?;
     quotations::layer(layer)?;
     evidence::layer(layer)?;
+    pii_edits::layer(msg, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }

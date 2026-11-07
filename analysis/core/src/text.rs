@@ -11,6 +11,11 @@ pub struct ViewId(pub u16);
 
 impl ViewId {
     pub const SOURCE: ViewId = ViewId(0);
+    /// The id of a view no document has taken yet ([`crate::View::derived`]).
+    /// A layer one step writes over the view the same step writes is over
+    /// this id; storing the step's outputs binds it to the id the document
+    /// gave that view ([`crate::Layer::bind_pending_view`]).
+    pub const PENDING: ViewId = ViewId(u16::MAX);
 }
 
 /// One changed stretch: `parent` bytes became `child` bytes. Outside the
