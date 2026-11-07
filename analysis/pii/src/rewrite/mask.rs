@@ -83,6 +83,12 @@ pub struct MaskPolicy {
 }
 
 impl MaskPolicy {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u8(self.mask).u8(u8::from(self.keep_format)).usize(self.keep_leading).usize(self.keep_trailing);
+    }
+
     /// The character the defaults mask with.
     pub const DEFAULT_MASK: char = '*';
 

@@ -208,11 +208,11 @@ impl Layer for PiiEdits {
     const ID: &'static str = "turbo:pii-edits";
     positional!(PiiEdits);
 
+    /// The covered pii layer, always, so an empty edits layer is still
+    /// checked against it.
     fn indexes(&self) -> Vec<(KeyId, usize)> {
-        match self.members.iter().map(|m| m.get() + 1).max() {
-            Some(bound) => vec![(Key::<Pii>::DEFAULT.id(), bound)],
-            None => Vec::new(),
-        }
+        let bound = self.members.iter().map(|m| m.get() + 1).max().unwrap_or(0);
+        vec![(Key::<Pii>::DEFAULT.id(), bound)]
     }
 
     fn bind_pending_view(&mut self, view: ViewId) {
@@ -269,25 +269,25 @@ impl Layer for PiiEdits {
     }
 
     /// The cross-check against the authoritative chain: the view is a
-    /// derived one, every edit's span is its source span mapped to the
-    /// view and back, the pii layer is over the parent, and each edit's
-    /// members are exactly the mentions overlapping its source span.
+    /// derived one, the edits are the view's alignment edits one for one,
+    /// the pii layer is over the parent, every mention is under an edit,
+    /// and each edit's members are exactly the mentions overlapping its
+    /// source span.
     fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
         let view = view_by_id(doc, self.spans.view()).ok_or("pii edits must be over a view of the document")?;
         let parent = view.parent().ok_or("pii edits must be over a derived view, not the source")?;
-        let alignment = view.alignment();
-        for (i, e) in self.edits().enumerate() {
-            if alignment.span_to_child(e.source) != e.span || alignment.span_to_parent(e.span) != e.source {
+        let aligned = view.alignment().edits();
+        if aligned.len() != self.spans.len() {
+            return Err("pii edits must list every edit of the view's alignment, one for one".into());
+        }
+        for (i, (e, a)) in self.edits().zip(aligned).enumerate() {
+            if e.source != a.parent || e.span != a.child {
                 return Err(format!("pii edit {i} disagrees with the view's alignment"));
             }
         }
-        let pii_key = on.iter().find(|k| k.ty == TypeId::of::<Pii>());
-        let pii = match pii_key {
-            Some(k) => doc.get_key(&Key::<Pii>::named(k.name)),
-            None if self.members.is_empty() => return Ok(()),
-            None => doc.get::<Pii>(),
-        };
-        let pii = pii.ok_or("pii edits need the pii layer they cover")?;
+        let pii_key =
+            on.iter().find(|k| k.ty == TypeId::of::<Pii>()).ok_or("pii edits need the pii layer they cover")?;
+        let pii = doc.get_key(&Key::<Pii>::named(pii_key.name)).ok_or("pii edits need the pii layer they cover")?;
         if pii.spans.view() != parent {
             return Err("pii edits must cover a pii layer over the view's parent".into());
         }
@@ -297,11 +297,16 @@ impl Layer for PiiEdits {
         let mut under: Vec<Vec<Ix<Pii>>> = vec![Vec::new(); self.source.len()];
         for (ix, m) in pii.spans.iter() {
             let first = self.source.partition_point(|s| s.end <= m.start);
+            let mut covered = false;
             for (k, s) in self.source.iter().enumerate().skip(first) {
                 if s.start >= m.end {
                     break;
                 }
                 under[k].push(ix);
+                covered = true;
+            }
+            if !covered {
+                return Err(format!("pii mention {} is under no edit", ix.get()));
             }
         }
         for (i, e) in self.edits().enumerate() {

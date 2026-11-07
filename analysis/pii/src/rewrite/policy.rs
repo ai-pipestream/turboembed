@@ -100,6 +100,23 @@ impl From<Abbreviator> for RewriteStrategy {
 }
 
 impl RewriteStrategy {
+    /// Folds the strategy's kind and every parameter that changes what it
+    /// writes into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u8(self.kind().id());
+        match self {
+            RewriteStrategy::Mask(s) => s.fold_config(h),
+            RewriteStrategy::Pseudonym(s) => s.fold_config(h),
+            RewriteStrategy::Hmac(s) => s.fold_config(h),
+            RewriteStrategy::Format(s) => s.fold_config(h),
+            RewriteStrategy::Static(s) => s.fold_config(h),
+            RewriteStrategy::Sha256(s) => s.fold_config(h),
+            RewriteStrategy::Map(s) => s.fold_config(h),
+            RewriteStrategy::Truncate(s) => s.fold_config(h),
+            RewriteStrategy::Abbreviate(s) => s.fold_config(h),
+        }
+    }
+
     /// Whether this strategy refuses overlapping mentions with
     /// [`RewriteError::Overlap`].
     pub fn refuses_overlaps(&self) -> bool {
@@ -298,11 +315,20 @@ impl RewritePolicy {
         }
     }
 
-    /// Every rule's strategy kind: the default's, then each override's
-    /// kind code and strategy kind, in code order.
-    pub(crate) fn strategy_kinds(&self) -> impl Iterator<Item = (u32, PiiStrategyKind)> + '_ {
-        std::iter::once((0, self.default_strategy.kind()))
-            .chain(self.overrides.iter().map(|(k, s)| (k.code(), s.kind())))
+    /// Folds the revision, whether the policy refuses overlaps, the
+    /// default strategy and each override, a custom kind by its name, with
+    /// every parameter of each strategy, into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u64(self.revision).u8(u8::from(self.refuse_overlaps));
+        self.default_strategy.fold_config(h);
+        h.usize(self.overrides.len());
+        for (kind, strategy) in &self.overrides {
+            match kind.builtin_id() {
+                Some(id) => h.u8(0).u16(id),
+                None => h.u8(1).str(self.custom_kinds.name(*kind).unwrap_or("")),
+            };
+            strategy.fold_config(h);
+        }
     }
 
     /// The default fallback strategy for kinds without an explicit override.

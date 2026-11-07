@@ -11,18 +11,26 @@ fn mention(start: u32, end: u32, kind: PiiKind) -> PiiMention<'static> {
 /// The source with its pii layer and a derived view replacing 5..12 with
 /// `[E]` and 16..24 with `[P]`, the view's id returned.
 fn doc() -> (Document, ViewId) {
+    doc_with(&[(5, 12, PiiKind::Email), (16, 24, PiiKind::Phone), (20, 24, PiiKind::Phone)], true)
+}
+
+/// The source with a pii layer of `mentions` and the derived view, which
+/// replaces nothing unless `replace`.
+fn doc_with(mentions: &[(u32, u32, PiiKind)], replace: bool) -> (Document, ViewId) {
     let mut doc = Document::new(TEXT);
     let mut pii = Pii::new(ViewId::SOURCE);
-    pii.push(mention(5, 12, PiiKind::Email));
-    pii.push(mention(16, 24, PiiKind::Phone));
-    pii.push(mention(20, 24, PiiKind::Phone));
+    for &(start, end, kind) in mentions {
+        pii.push(mention(start, end, kind));
+    }
     doc.add(&Key::DEFAULT, pii, Provenance::by("test")).unwrap();
     let src = doc.get::<View>().unwrap().clone();
     let mut b = ViewBuilder::new(TEXT);
-    b.keep(5);
-    b.replace(12, "[E]");
-    b.keep(16);
-    b.replace(24, "[P]");
+    if replace {
+        b.keep(5);
+        b.replace(12, "[E]");
+        b.keep(16);
+        b.replace(24, "[P]");
+    }
     let (text, alignment) = b.finish();
     doc.add(&Key::<View>::named("redacted"), View::derived(&src, text, alignment), Provenance::by("test")).unwrap();
     let id = doc.get_key(&Key::<View>::named("redacted")).unwrap().id();
@@ -118,4 +126,55 @@ fn a_pending_view_is_bound_and_a_real_one_kept() {
     assert_eq!(e.spans.get(Ix::new(1)), Span::new(12, 15));
     e.bind_pending_view(ViewId(4));
     assert_eq!(e.spans.view(), ViewId(3));
+}
+
+fn refused(doc: &mut Document, e: PiiEdits) -> String {
+    format!("{:?}", add(doc, e).unwrap_err())
+}
+
+#[test]
+fn edits_dropping_an_alignment_edit_are_refused() {
+    let (mut first_doc, view) = doc();
+    let mut e = PiiEdits::new(view, 7);
+    let first = edits(view, &[Ix::new(1), Ix::new(2)]);
+    e.push(first.get(Ix::new(0)));
+    assert!(refused(&mut first_doc, e).contains("every edit of the view's alignment"));
+    let (mut again, view) = doc();
+    assert!(refused(&mut again, PiiEdits::new(view, 7)).contains("every edit of the view's alignment"));
+}
+
+#[test]
+fn an_edit_on_an_unchanged_stretch_is_refused() {
+    let (mut doc, view) = doc();
+    let mut e = edits(view, &[Ix::new(1), Ix::new(2)]);
+    // 0..4 maps to itself both ways, but the alignment made no edit there.
+    e.source[0] = Span::new(0, 4);
+    e.spans = {
+        let mut s = Spans::new(view);
+        s.push(Span::new(0, 4));
+        s.push(Span::new(12, 15));
+        s
+    };
+    assert!(refused(&mut doc, e).contains("disagrees with the view's alignment"));
+}
+
+#[test]
+fn a_mention_under_no_edit_is_refused() {
+    let (mut doc, view) = doc_with(&[(0, 4, PiiKind::Email), (5, 12, PiiKind::Email), (16, 24, PiiKind::Phone)], true);
+    let mut e = PiiEdits::new(view, 7);
+    let base = edits(view, &[Ix::new(2)]);
+    e.push(PiiEdit { members: &[Ix::new(1)], ..base.get(Ix::new(0)) });
+    e.push(base.get(Ix::new(1)));
+    assert!(refused(&mut doc, e).contains("pii mention 0 is under no edit"));
+}
+
+#[test]
+fn an_empty_layer_is_checked_against_its_view_and_pii() {
+    let (mut doc, view) = doc_with(&[], false);
+    add(&mut doc, PiiEdits::new(view, 0)).unwrap();
+    let (mut doc, view) = doc_with(&[(5, 12, PiiKind::Email)], false);
+    assert!(refused(&mut doc, PiiEdits::new(view, 0)).contains("pii mention 0 is under no edit"));
+    // No pii layer at all: refused before the edits are looked at.
+    let mut bare = Document::new(TEXT);
+    assert!(add(&mut bare, PiiEdits::new(ViewId::SOURCE, 0)).is_err());
 }

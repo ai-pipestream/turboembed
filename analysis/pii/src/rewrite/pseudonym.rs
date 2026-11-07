@@ -25,6 +25,12 @@ pub struct Pseudonymizer {
 }
 
 impl Pseudonymizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.str(&self.prefix).str(&self.suffix).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// Labels such as `[EMAIL-1]` with `prefix` `[` and `suffix` `]`.
     pub fn new(prefix: impl Into<String>, suffix: impl Into<String>) -> Pseudonymizer {
         Pseudonymizer { prefix: prefix.into(), suffix: suffix.into(), refuse_overlaps: false }

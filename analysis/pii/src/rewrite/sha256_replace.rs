@@ -50,6 +50,12 @@ impl Default for Sha256Tokenizer {
 }
 
 impl Sha256Tokenizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.usize(self.length).u8(u8::from(self.kind_prefix)).str(&self.prefix).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// The full SHA-256 digest length in hexadecimal digits (256 bits).
     pub const DEFAULT_LENGTH: usize = 64;
 

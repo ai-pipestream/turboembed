@@ -35,6 +35,13 @@ impl Default for Abbreviator {
 }
 
 impl Abbreviator {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.str(&self.separator).str(&self.trailing);
+        h.u8(u8::from(self.preserve_hyphens)).u8(u8::from(self.uppercase)).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// Dotted initials (`"John Fitzgerald Kennedy"` -> `"J.F.K."`).
     pub fn new() -> Abbreviator {
         Abbreviator::dotted()

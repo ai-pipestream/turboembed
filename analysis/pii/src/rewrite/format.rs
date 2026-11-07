@@ -68,6 +68,12 @@ pub struct FormatRedactor {
 }
 
 impl FormatRedactor {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.str(&self.template).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// Parses and validates `template`.
     ///
     /// Supported specifiers are `%t` (uppercase kind name), `%k` (lowercase
@@ -214,6 +220,22 @@ impl Default for StaticReplacer {
 }
 
 impl StaticReplacer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    /// A custom kind's override is folded by the kind's name, so two
+    /// tables that number their kinds apart hash alike.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.str(&self.default_replacement).usize(self.overrides.len());
+        for (kind, rep) in &self.overrides {
+            match kind.builtin_id() {
+                Some(id) => h.u8(0).u16(id),
+                None => h.u8(1).str(self.custom_kinds.name(*kind).unwrap_or("")),
+            };
+            h.str(rep);
+        }
+        h.u8(u8::from(self.refuse_overlaps));
+    }
+
     /// The default static replacement string.
     pub const DEFAULT_REPLACEMENT: &'static str = "[REDACTED]";
 

@@ -51,16 +51,14 @@ impl Annotator for RedactedView {
         Ok(rewrite.into_parts())
     }
 
-    /// FNV-1a over the policy's revision, whether it refuses overlaps, and
-    /// each rule's code and strategy kind. Keys, templates and lookup
-    /// tables are not folded, so no secret reaches the provenance: the
-    /// caller's revision names them.
+    /// FNV-1a over the whole policy: its revision, whether it refuses
+    /// overlaps, and every rule with each parameter that changes what its
+    /// strategy writes, so two policies that write differently never share
+    /// a hash. An HMAC key and a lookup table enter only through a SHA-256
+    /// digest, never as themselves.
     fn config_hash(&self) -> u64 {
         let mut h = Fnv1a::new();
-        h.fold_u64(self.policy.revision()).u8(u8::from(self.policy.refuses_overlaps()));
-        for (code, kind) in self.policy.strategy_kinds() {
-            h.u32(code).u8(kind.id());
-        }
+        self.policy.fold_config(&mut h);
         h.finish()
     }
 }

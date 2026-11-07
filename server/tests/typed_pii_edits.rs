@@ -8,7 +8,7 @@ use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::pii_edit_rule::Rule;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
 use turbo_kserve::proto::result::typed_annotation::Value;
-use turbo_kserve::proto::result::{PiiEditAnnotation, PiiStrategy, TypedDocumentResult};
+use turbo_kserve::proto::result::{PiiEditAnnotation, PiiStrategy, TypedDocumentResult, TypedLayer};
 use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
 use turbo_pii::rewrite::{Pseudonymizer, REDACTED, RedactedView, RewritePolicy, StaticReplacer};
 use turbo_pii::{PiiDetector, PiiEdits, PiiKind};
@@ -96,4 +96,51 @@ fn broken_edits_are_refused() {
     assert!(broken(&|e| e.strategy = 0).contains("not a known strategy"));
     assert!(broken(&|e| e.rule = None).contains("rule is missing"));
     assert!(broken(&|e| e.source = None).contains("no source span"));
+}
+
+#[test]
+fn edits_are_checked_across_the_layer() {
+    let doc = redacted_doc();
+    let view = doc.get_key(&REDACTED).unwrap();
+    let wire = document_to_typed("edits", &doc, view.id(), OffsetMode::Utf8).unwrap();
+    let at = wire.layers.iter().position(|l| l.id == "turbo:pii-edits").unwrap();
+    assert!(!wire.layers[at].indexes_layer.is_empty(), "the projection names the covered pii layer");
+    let broken = |f: &dyn Fn(&mut TypedLayer)| {
+        let mut w = wire.clone();
+        f(&mut w.layers[at]);
+        validate_typed_document(&w).unwrap_err().message
+    };
+    let edit = |l: &mut TypedLayer, i: usize| match &mut l.annotations[i].value {
+        Some(Value::PiiEdit(e)) => e.clone(),
+        _ => unreachable!(),
+    };
+    let set = |l: &mut TypedLayer, i: usize, e: PiiEditAnnotation| l.annotations[i].value = Some(Value::PiiEdit(e));
+    assert!(
+        broken(&|l| {
+            let mut e = edit(l, 1);
+            e.policy_revision = 8;
+            set(l, 1, e);
+        })
+        .contains("policy_revision differs")
+    );
+    assert!(
+        broken(&|l| {
+            let mut e = edit(l, 1);
+            e.source = edit(l, 0).source;
+            set(l, 1, e);
+        })
+        .contains("overlaps or precedes")
+    );
+    assert!(broken(&|l| l.annotations[1].value = None).contains("is not a pii edit"));
+    // Without indexes_layer the pii layer of the same instance bounds the
+    // members, so an out-of-range row is still refused.
+    assert!(
+        broken(&|l| {
+            l.indexes_layer.clear();
+            let mut e = edit(l, 1);
+            e.members = vec![99];
+            set(l, 1, e);
+        })
+        .contains("outside the covered")
+    );
 }

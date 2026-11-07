@@ -54,6 +54,14 @@ impl fmt::Debug for HmacTokenizer {
 }
 
 impl HmacTokenizer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        // The key enters only as an HMAC under a fixed label, never as itself.
+        h.bytes(&sha256::hmac(&self.key, b"turbo-pii:redacted config key"));
+        h.usize(self.length).u8(u8::from(self.refuse_overlaps));
+    }
+
     pub const DEFAULT_LENGTH: usize = 16;
     pub const MIN_KEY_BYTES: usize = 32;
 

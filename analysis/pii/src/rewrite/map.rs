@@ -77,6 +77,25 @@ pub struct MapReplacer {
 }
 
 impl MapReplacer {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        // The table's entries are values a caller chose to replace, so they
+        // enter only through a SHA-256 digest of the sorted table.
+        let mut rows: Vec<(&String, &String)> = self.table.iter().collect();
+        rows.sort_unstable();
+        let mut flat = Vec::new();
+        for (k, v) in rows {
+            for s in [k, v] {
+                flat.extend_from_slice(&(s.len() as u64).to_le_bytes());
+                flat.extend_from_slice(s.as_bytes());
+            }
+        }
+        h.bytes(&crate::checksum::sha256::digest(&flat));
+        h.u8(u8::from(self.case_sensitive)).u8(self.target as u8).u8(u8::from(self.refuse_overlaps));
+        self.fallback.fold_config(h);
+    }
+
     /// Builds a lookup table from `(key, replacement)` pairs.
     ///
     /// Keys and replacements are trimmed of surrounding whitespace; empty

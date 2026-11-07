@@ -42,6 +42,13 @@ pub struct Truncate {
 }
 
 impl Truncate {
+    /// Folds every parameter that changes what this strategy writes into
+    /// `h`, for the step's config hash.
+    pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u8(self.side as u8).usize(self.count).u32(u32::from(self.mask));
+        h.u8(u8::from(self.keep_format)).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// The default mask character (`'*'`).
     pub const DEFAULT_MASK: char = '*';
 
