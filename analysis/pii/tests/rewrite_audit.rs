@@ -6,6 +6,7 @@ mod support;
 use std::path::PathBuf;
 use support::*;
 use turbo_analysis::Layer;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{
     Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, PiiAuditReport, Pseudonymizer, RewritePolicy,
     Sha256Tokenizer, StaticReplacer, TokenizerError, Truncate,
@@ -98,11 +99,14 @@ fn hmac_rewrites_agree_across_texts() {
     let t = tokenizer();
     let token = t.token("email", "jane@example.com").unwrap();
     let text = "mail jane@example.com or jane@example.com";
-    assert_eq!(t.rewrite(text, &layer(&cursor(), text)).unwrap().text(), format!("mail {token} or {token}"));
+    assert_eq!(
+        t.rewrite(&source_view(text), &layer(&cursor(), text)).unwrap().text(),
+        format!("mail {token} or {token}")
+    );
     for (text, want) in
         [("From jane@example.com", format!("From {token}")), ("To jane@example.com", format!("To {token}"))]
     {
-        assert_eq!(t.rewrite(text, &layer(&cursor(), text)).unwrap().text(), want);
+        assert_eq!(t.rewrite(&source_view(text), &layer(&cursor(), text)).unwrap().text(), want);
     }
 }
 
@@ -124,7 +128,7 @@ fn audit_counts() {
         r.kind(PiiKind::Email).unwrap().samples,
         [t.token("email", "jane@example.com").unwrap(), t.token("email", "bob@example.com").unwrap()]
     );
-    let rewritten = t.rewrite(AUDIT_TEXT, &layer(&cursor(), AUDIT_TEXT)).unwrap().into_text();
+    let rewritten = t.rewrite(&source_view(AUDIT_TEXT), &layer(&cursor(), AUDIT_TEXT)).unwrap().into_text();
     for sample in &r.kind(PiiKind::Email).unwrap().samples {
         assert!(rewritten.contains(sample.as_str()));
     }
@@ -200,8 +204,8 @@ fn rewrites_on_every_thread() {
                 let pii = manual(&[(0, 1, PiiKind::Email, &value)]);
                 let want = t.token("email", &value).unwrap();
                 for _ in 0..32 {
-                    assert_eq!(t.rewrite("x", &pii).unwrap().text(), want);
-                    assert_eq!(p.rewrite("x", &pii).unwrap().text(), "[EMAIL-1]");
+                    assert_eq!(t.rewrite(&source_view("x"), &pii).unwrap().text(), want);
+                    assert_eq!(p.rewrite(&source_view("x"), &pii).unwrap().text(), "[EMAIL-1]");
                     assert_eq!(PiiAuditReport::of(&pii, t, 3).kinds[0].samples, std::slice::from_ref(&want));
                 }
             });
@@ -253,17 +257,17 @@ fn no_value_of_any_pack_appears_in_the_audit_and_every_default_pack_rewrites() {
         for (id, text) in &texts {
             let pii = layer(&detector, text);
             let rewrites = [
-                ("pseudonym", Pseudonymizer::default().rewrite(text, &pii).unwrap()),
-                ("hmac", tokenizer().rewrite(text, &pii).unwrap()),
-                ("format-kind", fmt_kind.rewrite(text, &pii).unwrap()),
-                ("format-num", fmt_num.rewrite(text, &pii).unwrap()),
-                ("static", stat.rewrite(text, &pii).unwrap()),
-                ("sha256", sha.rewrite(text, &pii).unwrap()),
-                ("map", map.rewrite(text, &pii).unwrap()),
-                ("keep-start", keep_start.rewrite(text, &pii).unwrap()),
-                ("keep-end", keep_end.rewrite(text, &pii).unwrap()),
-                ("abbreviate", abbr.rewrite(text, &pii).unwrap()),
-                ("policy", policy.rewrite(text, &pii).unwrap()),
+                ("pseudonym", Pseudonymizer::default().rewrite(&source_view(text), &pii).unwrap()),
+                ("hmac", tokenizer().rewrite(&source_view(text), &pii).unwrap()),
+                ("format-kind", fmt_kind.rewrite(&source_view(text), &pii).unwrap()),
+                ("format-num", fmt_num.rewrite(&source_view(text), &pii).unwrap()),
+                ("static", stat.rewrite(&source_view(text), &pii).unwrap()),
+                ("sha256", sha.rewrite(&source_view(text), &pii).unwrap()),
+                ("map", map.rewrite(&source_view(text), &pii).unwrap()),
+                ("keep-start", keep_start.rewrite(&source_view(text), &pii).unwrap()),
+                ("keep-end", keep_end.rewrite(&source_view(text), &pii).unwrap()),
+                ("abbreviate", abbr.rewrite(&source_view(text), &pii).unwrap()),
+                ("policy", policy.rewrite(&source_view(text), &pii).unwrap()),
             ];
             for (name, r) in &rewrites {
                 assert_eq!(r.labels().check(), Ok(()), "{name} on {id}");
@@ -277,7 +281,7 @@ fn no_value_of_any_pack_appears_in_the_audit_and_every_default_pack_rewrites() {
                         assert!(!out.contains(value), "{} on {id}: {value:?} is in the audit:\n{out}", p.name());
                     }
                     for (name, r) in &rewrites {
-                        let mapped = &r.text()[r.map_span(m.span).range()];
+                        let mapped = &r.text()[r.to_derived(m.span).unwrap().range()];
                         assert!(
                             !mapped.contains(value),
                             "{} ({name}) on {id}: {value:?} leaked in rewritten span {mapped:?}",

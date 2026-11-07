@@ -1,11 +1,16 @@
-//! Replacing mentions with labels, OpenNLP's `PiiRewrite`: the new text,
-//! the labels as mentions of it, and a map from offsets in the original
-//! to offsets in the new text.
+//! Replacing mentions with labels, OpenNLP's `PiiRewrite`, as a derived
+//! view: the new text is a [`View`] of the text the mentions were found
+//! in, written with a [`ViewBuilder`], so its alignment maps every offset
+//! both ways. The rewrite also records each replacement in a
+//! [`PiiEdits`] layer over that view and each label in a [`Pii`] layer
+//! over it.
 
 use std::fmt;
 
-use turbo_analysis::{Span, ViewId};
-use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiMention, mention_order};
+use turbo_analysis::{Alignment, Ix, Span, View, ViewBuilder, ViewId};
+use turbo_analysis_layers::{
+    CustomKinds, KindError, Pii, PiiEdit, PiiEdits, PiiMention, PiiRule, PiiStrategyKind, mention_order,
+};
 
 /// Mentions a rewrite cannot replace.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,6 +23,9 @@ pub enum RewriteError {
     EmptyValue(Span),
     /// A mention's kind is a custom kind outside the layer's table.
     Kind(Span, KindError),
+    /// The pii layer is over view `layer`, not over `view`, the view being
+    /// rewritten, so its spans are offsets of another text.
+    ForeignView { layer: ViewId, view: ViewId },
 }
 
 impl fmt::Display for RewriteError {
@@ -31,49 +39,77 @@ impl fmt::Display for RewriteError {
                 write!(f, "mention at {}..{} has an empty normalized form", s.start, s.end)
             }
             RewriteError::Kind(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
+            RewriteError::ForeignView { layer, view } => {
+                write!(f, "the pii layer is over view {}, not view {}", layer.0, view.0)
+            }
         }
     }
 }
 
 impl std::error::Error for RewriteError {}
 
-/// A coalesced union span and the individual overlapping mentions that
-/// formed it.
+/// A coalesced union span, the individual overlapping mentions that
+/// formed it, and their indexes in the pii layer, ascending.
 pub(crate) struct MentionCluster<'a> {
     pub(crate) merged: PiiMention<'a>,
     pub(crate) members: Vec<PiiMention<'a>>,
+    pub(crate) refs: Vec<Ix<Pii>>,
 }
 
-/// A text with its mentions replaced by labels.
+/// Which rule chose the strategy of one replacement, and the strategy.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) struct EditOrigin {
+    pub(crate) rule: PiiRule,
+    pub(crate) strategy: PiiStrategyKind,
+}
+
+impl EditOrigin {
+    /// A replacement by the only strategy of a single-strategy rewrite.
+    pub(crate) const fn only(strategy: PiiStrategyKind) -> EditOrigin {
+        EditOrigin { rule: PiiRule::Default, strategy }
+    }
+}
+
+/// A text with its mentions replaced by labels: the derived view, its
+/// edits layer and its label layer.
+///
+/// The view's id, and the view the two layers are over, is
+/// [`ViewId::PENDING`] until a document takes the view; a pipeline step
+/// ([`super::RedactedView`]) stores the view and its edits together, and
+/// the document binds the edits to the id it gives the view.
 pub struct PiiRewrite {
-    text: String,
+    view: View,
     labels: Pii,
-    original: Vec<Span>,
-    shifts: Vec<i64>,
-    original_len: u32,
+    edits: PiiEdits,
+    parent_len: usize,
+}
+
+/// Every mention of `pii` with its index.
+fn indexed(pii: &Pii) -> impl Iterator<Item = (Ix<Pii>, PiiMention<'_>)> {
+    pii.spans.iter().map(|(i, _)| (i, pii.get(i)))
 }
 
 impl PiiRewrite {
     /// Validates every mention's span in `text` and groups overlapping
     /// mentions into disjoint union clusters, keeping both the top-ranked
-    /// merged mention and all constituent mentions.
+    /// merged mention and all constituent mentions with their indexes.
     pub(crate) fn group_clusters<'a>(
         text: &str,
         kinds: &CustomKinds,
-        mentions: impl IntoIterator<Item = PiiMention<'a>>,
+        mentions: impl IntoIterator<Item = (Ix<Pii>, PiiMention<'a>)>,
     ) -> Result<Vec<MentionCluster<'a>>, RewriteError> {
-        let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
-        for m in &ordered {
+        let mut ordered: Vec<(Ix<Pii>, PiiMention<'a>)> = mentions.into_iter().collect();
+        for (_, m) in &ordered {
             let (start, end) = (m.span.start as usize, m.span.end as usize);
             if start >= end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
                 return Err(RewriteError::Span(m.span));
             }
             kinds.check(m.kind).map_err(|e| RewriteError::Kind(m.span, e))?;
         }
-        ordered.sort_by_key(|m| mention_order(m.span.start, m.span.end, m.kind));
+        ordered.sort_by_key(|(_, m)| mention_order(m.span.start, m.span.end, m.kind));
         let mut out: Vec<MentionCluster<'a>> = Vec::with_capacity(ordered.len());
         let mut best_key = ((u16::MAX, u32::MAX), u32::MAX, std::cmp::Reverse(0u32));
-        for m in ordered {
+        for (ix, m) in ordered {
             // The winner of a cluster: the smallest kind priority, then the
             // earliest start, then the longest span.
             let key = (m.kind.order_key(), m.span.start, std::cmp::Reverse(m.span.end - m.span.start));
@@ -88,183 +124,221 @@ impl PiiRewrite {
                     best_key = key;
                 }
                 last.members.push(m);
+                last.refs.push(ix);
             } else {
                 best_key = key;
-                out.push(MentionCluster { merged: m, members: vec![m] });
+                out.push(MentionCluster { merged: m, members: vec![m], refs: vec![ix] });
             }
+        }
+        for c in &mut out {
+            c.refs.sort_unstable();
         }
         Ok(out)
     }
 
-    /// Validates every mention's span in `text` and coalesces overlapping
-    /// mentions into disjoint union spans, keeping the top-ranked mention's
-    /// kind, confidence, and normalized form so every covered byte is
-    /// replaced without leaking trailing characters.
-    pub(crate) fn coalesce_clusters<'a>(
-        text: &str,
-        kinds: &CustomKinds,
-        mentions: impl IntoIterator<Item = PiiMention<'a>>,
-    ) -> Result<Vec<PiiMention<'a>>, RewriteError> {
-        Ok(Self::group_clusters(text, kinds, mentions)?.into_iter().map(|c| c.merged).collect())
-    }
-
-    /// Replaces each mention with the label `label` writes for it, in
-    /// text order. The mentions must be non-empty, lie in `text`, and not
-    /// overlap; their order does not matter.
-    pub(crate) fn replace<'a>(
-        text: &str,
-        kinds: &CustomKinds,
-        mentions: impl IntoIterator<Item = PiiMention<'a>>,
-        mut label: impl FnMut(&PiiMention<'a>, &mut String),
+    /// Replaces every cluster of the mentions of `pii`, a layer over
+    /// `src`, with the label `write` writes for it, in text order, through
+    /// a [`ViewBuilder`] over `src`: one edit per cluster. A cluster of
+    /// more than one mention that `refuses` is refused, before any label
+    /// is written. `write` names the rule and strategy of each label.
+    pub(crate) fn derive<'a>(
+        src: &View,
+        pii: &'a Pii,
+        refuses: impl Fn(&MentionCluster<'a>) -> bool,
+        policy_revision: u64,
+        mut write: impl FnMut(&MentionCluster<'a>, &mut String) -> Result<EditOrigin, RewriteError>,
     ) -> Result<PiiRewrite, RewriteError> {
-        Self::try_replace(text, kinds, mentions, |m, buf| {
-            label(m, buf);
-            Ok(())
-        })
-    }
-
-    /// Fallible counterpart to [`PiiRewrite::replace`] propagating a
-    /// [`RewriteError`] from `label`. Every mention's kind must be built-in
-    /// or in `kinds`, the table of the layer it came from, which the label
-    /// layer carries.
-    pub(crate) fn try_replace<'a>(
-        text: &str,
-        kinds: &CustomKinds,
-        mentions: impl IntoIterator<Item = PiiMention<'a>>,
-        mut label: impl FnMut(&PiiMention<'a>, &mut String) -> Result<(), RewriteError>,
-    ) -> Result<PiiRewrite, RewriteError> {
-        let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
-        for m in &ordered {
-            let (start, end) = (m.span.start as usize, m.span.end as usize);
-            if start >= end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
-                return Err(RewriteError::Span(m.span));
-            }
-            kinds.check(m.kind).map_err(|e| RewriteError::Kind(m.span, e))?;
+        let layer = pii.spans.view();
+        if layer != src.id() {
+            return Err(RewriteError::ForeignView { layer, view: src.id() });
         }
-        ordered.sort_by_key(|m| m.span.start);
-        if let Some(w) = ordered.windows(2).find(|w| w[1].span.start < w[0].span.end) {
-            return Err(RewriteError::Overlap(w[0].span, w[1].span));
+        let text = src.text();
+        let clusters = Self::group_clusters(text, &pii.custom_kinds, indexed(pii))?;
+        if let Some(c) = clusters.iter().find(|c| c.members.len() > 1 && refuses(c)) {
+            return Err(RewriteError::Overlap(c.members[0].span, c.members[1].span));
         }
-        let mut out = String::with_capacity(text.len());
-        let mut labels = Pii::with_custom_kinds(ViewId::SOURCE, kinds.clone());
-        let mut original = Vec::with_capacity(ordered.len());
-        let mut shifts = Vec::with_capacity(ordered.len());
+        let mut out = ViewBuilder::new(text);
+        let mut origins = Vec::with_capacity(clusters.len());
         let mut buf = String::new();
-        let mut copied = 0;
-        for m in &ordered {
-            let (start, end) = (m.span.start as usize, m.span.end as usize);
-            out.push_str(&text[copied..start]);
+        for c in &clusters {
+            let span = c.merged.span;
             buf.clear();
-            label(m, &mut buf)?;
+            origins.push(write(c, &mut buf)?);
             if buf.is_empty() {
-                return Err(RewriteError::EmptyValue(m.span));
+                return Err(RewriteError::EmptyValue(span));
             }
-            let from = out.len() as u32;
-            out.push_str(&buf);
-            let to = out.len() as u32;
+            out.keep(span.start as usize);
+            out.replace(span.end as usize, &buf);
+        }
+        let (new_text, alignment) = out.finish();
+        // Every cluster replaced non-empty bytes, so each recorded one
+        // edit, in order.
+        debug_assert_eq!(alignment.edits().len(), clusters.len());
+        let mut labels = Pii::with_custom_kinds(ViewId::PENDING, pii.custom_kinds.clone());
+        let mut edits = PiiEdits::new(ViewId::PENDING, policy_revision);
+        for ((c, origin), e) in clusters.iter().zip(&origins).zip(alignment.edits()) {
+            let m = c.merged;
             labels.push(PiiMention {
-                span: Span::new(from, to),
+                span: e.child,
                 kind: m.kind,
                 confidence: m.confidence,
-                normalized: &buf,
+                normalized: &new_text[e.child.start as usize..e.child.end as usize],
             });
-            original.push(m.span);
-            shifts.push(i64::from(to) - i64::from(from) - (end - start) as i64 + shifts.last().copied().unwrap_or(0));
-            copied = end;
+            edits.push(PiiEdit {
+                span: e.child,
+                source: e.parent,
+                members: &c.refs,
+                rule: origin.rule,
+                strategy: origin.strategy,
+            });
         }
-        out.push_str(&text[copied..]);
-        Ok(PiiRewrite { text: out, labels, original, shifts, original_len: text.len() as u32 })
+        Ok(PiiRewrite { view: View::derived(src, new_text, alignment), labels, edits, parent_len: text.len() })
+    }
+
+    /// The derived view.
+    pub fn view(&self) -> &View {
+        &self.view
     }
 
     /// The new text.
     pub fn text(&self) -> &str {
-        &self.text
+        self.view.text()
     }
 
     pub fn into_text(self) -> String {
-        self.text
+        self.view.text().to_owned()
+    }
+
+    /// How the new text lines up with the text the mentions were in.
+    pub fn alignment(&self) -> &Alignment {
+        self.view.alignment()
     }
 
     /// The labels as mentions of the new text, in text order, each with
     /// its label as the normalized form and the kind and confidence of the
-    /// mention it replaced.
+    /// mention it replaced. The layer is over [`ViewId::PENDING`].
     pub fn labels(&self) -> &Pii {
         &self.labels
     }
 
-    /// `mapOffset`: an offset of the original text in the new text. An
-    /// offset inside a replaced mention maps to the start of its label.
-    ///
-    /// # Panics
-    ///
-    /// When `offset` is past the end of the original text.
-    pub fn map_offset(&self, offset: u32) -> u32 {
-        self.map(offset, true)
+    /// One edit per replacement, over [`ViewId::PENDING`].
+    pub fn edits(&self) -> &PiiEdits {
+        &self.edits
     }
 
-    /// `mapSpan`: a span of the original text in the new text. A
-    /// non-empty span that touches a replaced mention takes in its whole
-    /// label; an empty span stays empty, at [`PiiRewrite::map_offset`].
-    ///
-    /// # Panics
-    ///
-    /// When the span is past the end of the original text.
-    pub fn map_span(&self, span: Span) -> Span {
-        let start = self.map(span.start, true);
-        let end = if span.is_empty() { start } else { start.max(self.map(span.end, false)) };
-        Span::new(start, end)
+    /// The derived view and its edits, for a step to store together.
+    pub fn into_parts(self) -> (View, PiiEdits) {
+        (self.view, self.edits)
     }
 
-    fn map(&self, offset: u32, towards_start: bool) -> u32 {
-        assert!(offset <= self.original_len, "offset {offset} is past the end of the original text");
-        let preceding = self.original.partition_point(|s| s.start < offset);
-        let Some(p) = preceding.checked_sub(1) else { return offset };
-        if offset < self.original[p].end {
-            let label = self.labels.spans.get(turbo_analysis::Ix::new(p as u32));
-            return if towards_start { label.start } else { label.end };
+    /// A span of the original text in the new text. A non-empty span that
+    /// touches a replaced mention takes in its whole label, so the result
+    /// covers every byte the span stood for; a span outside every mention
+    /// keeps its bytes. Refused past the end of the original text.
+    pub fn to_derived(&self, span: Span) -> Result<Span, RewriteError> {
+        if span.start > span.end || span.end as usize > self.parent_len {
+            return Err(RewriteError::Span(span));
         }
-        (i64::from(offset) + self.shifts[p]) as u32
+        Ok(self.alignment().span_to_child(span))
+    }
+
+    /// A span of the new text in the original text, by the same rules:
+    /// a span touching a label takes in the whole mention it replaced.
+    pub fn to_original(&self, span: Span) -> Result<Span, RewriteError> {
+        if span.start > span.end || span.end as usize > self.text().len() {
+            return Err(RewriteError::Span(span));
+        }
+        Ok(self.alignment().span_to_parent(span))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use turbo_analysis::Layer;
+    use turbo_analysis::{Document, Layer};
     use turbo_analysis_layers::{PiiConfidence, PiiKind};
 
-    #[test]
-    fn replace_rejects_empty_spans_and_empty_labels_and_keeps_labels_valid() {
-        let empty_span = PiiMention {
-            span: Span::new(3, 3),
-            kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
-            normalized: "a@b.com",
-        };
-        assert_eq!(
-            PiiRewrite::replace("0123456789", &CustomKinds::new(), [empty_span], |_, buf| buf.push_str("EMAIL-1"))
-                .err(),
-            Some(RewriteError::Span(Span::new(3, 3)))
-        );
-
-        let valid = PiiMention {
-            span: Span::new(3, 6),
-            kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
-            normalized: "a@b.com",
-        };
-        assert_eq!(
-            PiiRewrite::replace("0123456789", &CustomKinds::new(), [valid], |_, _| {}).err(),
-            Some(RewriteError::EmptyValue(Span::new(3, 6)))
-        );
-
-        let ok =
-            PiiRewrite::replace("0123456789", &CustomKinds::new(), [valid], |_, buf| buf.push_str("EMAIL-1")).unwrap();
-        assert_eq!(ok.labels().check(), Ok(()));
+    fn src(text: &str) -> View {
+        Document::new(text).get::<View>().expect("the source view").clone()
     }
 
-    fn mention(start: u32, end: u32, kind: PiiKind) -> PiiMention<'static> {
-        PiiMention { span: Span::new(start, end), kind, confidence: PiiConfidence::Format, normalized: "v" }
+    fn layer(mentions: &[PiiMention<'_>]) -> Pii {
+        let mut pii = Pii::new(ViewId::SOURCE);
+        for &m in mentions {
+            pii.push(m);
+        }
+        pii
+    }
+
+    fn email(start: u32, end: u32) -> PiiMention<'static> {
+        PiiMention {
+            span: Span::new(start, end),
+            kind: PiiKind::Email,
+            confidence: PiiConfidence::Format,
+            normalized: "a@b.com",
+        }
+    }
+
+    fn label(text: &'static str) -> impl FnMut(&MentionCluster<'_>, &mut String) -> Result<EditOrigin, RewriteError> {
+        move |_, buf| {
+            buf.push_str(text);
+            Ok(EditOrigin::only(PiiStrategyKind::Static))
+        }
+    }
+
+    #[test]
+    fn derive_rejects_empty_spans_and_empty_labels_and_keeps_labels_valid() {
+        let view = src("0123456789");
+        assert_eq!(
+            PiiRewrite::derive(&view, &layer(&[email(3, 3)]), |_| false, 0, label("EMAIL-1")).err(),
+            Some(RewriteError::Span(Span::new(3, 3)))
+        );
+        let one = layer(&[email(3, 6)]);
+        assert_eq!(
+            PiiRewrite::derive(&view, &one, |_| false, 0, label("")).err(),
+            Some(RewriteError::EmptyValue(Span::new(3, 6)))
+        );
+        let ok = PiiRewrite::derive(&view, &one, |_| false, 9, label("EMAIL-1")).unwrap();
+        assert_eq!(ok.text(), "012EMAIL-16789");
+        assert_eq!(ok.labels().check(), Ok(()));
+        assert_eq!(ok.edits().check(), Ok(()));
+        assert_eq!(ok.view().parent(), Some(ViewId::SOURCE));
+        assert_eq!((ok.labels().spans.view(), ok.edits().spans.view()), (ViewId::PENDING, ViewId::PENDING));
+        let e = ok.edits().get(Ix::new(0));
+        assert_eq!(
+            (e.source, e.span, e.members, ok.edits().policy_revision),
+            (Span::new(3, 6), Span::new(3, 10), &[Ix::new(0)][..], 9)
+        );
+    }
+
+    #[test]
+    fn a_layer_over_another_view_is_refused() {
+        let mut other = layer(&[email(3, 6)]);
+        other.spans = turbo_analysis::Spans::new(ViewId(2));
+        other.spans.push(Span::new(3, 6));
+        assert_eq!(
+            PiiRewrite::derive(&src("0123456789"), &other, |_| false, 0, label("X")).err(),
+            Some(RewriteError::ForeignView { layer: ViewId(2), view: ViewId::SOURCE })
+        );
+    }
+
+    #[test]
+    fn both_directions_go_through_the_alignment_and_are_bounded() {
+        let r = PiiRewrite::derive(&src("ab 0123 cd"), &layer(&[email(3, 7)]), |_| false, 0, label("[E]")).unwrap();
+        assert_eq!(r.text(), "ab [E] cd");
+        assert_eq!(r.to_derived(Span::new(0, 2)), Ok(Span::new(0, 2)));
+        assert_eq!(r.to_derived(Span::new(4, 5)), Ok(Span::new(3, 6)));
+        assert_eq!(r.to_derived(Span::new(8, 10)), Ok(Span::new(7, 9)));
+        assert_eq!(r.to_original(Span::new(4, 5)), Ok(Span::new(3, 7)));
+        assert_eq!(r.to_derived(Span::new(0, 11)), Err(RewriteError::Span(Span::new(0, 11))));
+        assert_eq!(r.to_original(Span::new(0, 10)), Err(RewriteError::Span(Span::new(0, 10))));
+    }
+
+    fn mention(start: u32, end: u32, kind: PiiKind) -> (Ix<Pii>, PiiMention<'static>) {
+        (
+            Ix::new(start),
+            PiiMention { span: Span::new(start, end), kind, confidence: PiiConfidence::Format, normalized: "v" },
+        )
     }
 
     #[test]
@@ -279,6 +353,7 @@ mod tests {
                 .unwrap();
         assert_eq!(clusters.len(), 1);
         assert_eq!((clusters[0].merged.kind, clusters[0].merged.span), (PiiKind::Email, Span::new(0, 9)));
+        assert_eq!(clusters[0].refs, vec![Ix::new(0), Ix::new(2)]);
         // Every built-in kind beats a custom kind, whatever its code.
         let clusters =
             PiiRewrite::group_clusters(text, &kinds, [mention(0, 9, ticket), mention(3, 5, PiiKind::Phone)]).unwrap();

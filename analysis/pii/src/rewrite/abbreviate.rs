@@ -1,8 +1,10 @@
 //! Reducing mentions to initials ([`Abbreviator`]), such as
 //! `"John Fitzgerald Kennedy"` to `"J.F.K."` or `"JFK"`.
 
-use turbo_analysis_layers::Pii;
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
+use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
 
@@ -183,16 +185,19 @@ impl Abbreviator {
         out
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with the
-    /// abbreviated form of its surface text.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
-        };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
-            self.write_abbreviated(&text[m.span.range()], out);
-        })
+    /// Replaces every mention of `pii`, a layer over `src`, with the
+    /// abbreviated form of its surface text, as a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let text = src.text();
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                self.write_abbreviated(&text[c.merged.span.range()], out);
+                Ok(EditOrigin::only(PiiStrategyKind::Abbreviate))
+            },
+        )
     }
 }

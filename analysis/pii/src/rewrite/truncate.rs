@@ -7,10 +7,12 @@
 //! letter and digit) is masked so that a short identifier or secret is
 //! never left in the clear.
 
-use turbo_analysis_layers::Pii;
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
 use super::mask::CharRetention;
-use super::{PiiRewrite, RewriteError};
+use super::replace::EditOrigin;
+use super::{PiiRewrite, RewriteError, absolute};
 use crate::text::letter_or_digit;
 
 /// Which end of a mention [`Truncate`] keeps readable when the mention is
@@ -189,36 +191,36 @@ impl Truncate {
         }
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// truncated/masked surface form.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        if self.refuse_overlaps {
-            return PiiRewrite::replace(text, &pii.custom_kinds, pii.mentions(), |m, out| {
-                self.write_truncated(&text[m.span.range()], out);
-            });
-        }
-        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
-        let mut idx = 0;
-        PiiRewrite::replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |m, out| {
-            let cluster = &clusters[idx];
-            idx += 1;
-            let piece = &text[m.span.range()];
-            if cluster.members.len() == 1 {
-                self.write_truncated(piece, out);
-                return;
-            }
-            let winner_ret = self.retention(piece);
-            let member_rets: Vec<_> =
-                cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
-            for (rel_at, c) in piece.char_indices() {
-                let abs_at = m.span.start + rel_at as u32;
-                let keep = winner_ret.keeps(rel_at, c)
-                    && member_rets
-                        .iter()
-                        .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
-                        .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
-                out.push(if keep { c } else { self.mask });
-            }
-        })
+    /// Replaces every mention of `pii`, a layer over `src`, with its
+    /// truncated/masked surface form, as a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let text = src.text();
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |cluster, out| {
+                let m = cluster.merged;
+                let piece = &text[m.span.range()];
+                if cluster.members.len() == 1 {
+                    self.write_truncated(piece, out);
+                    return Ok(EditOrigin::only(PiiStrategyKind::Truncate));
+                }
+                let winner_ret = self.retention(piece);
+                let member_rets: Vec<_> =
+                    cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
+                for (rel_at, c) in piece.char_indices() {
+                    let abs_at = absolute(m.span, rel_at);
+                    let keep = winner_ret.keeps(rel_at, c)
+                        && member_rets
+                            .iter()
+                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
+                    out.push(if keep { c } else { self.mask });
+                }
+                Ok(EditOrigin::only(PiiStrategyKind::Truncate))
+            },
+        )
     }
 }

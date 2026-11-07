@@ -9,6 +9,7 @@ mod support;
 use support::*;
 use turbo_analysis::{Annotator, Document, Layer, Span, View};
 use turbo_pii::checksum::sha256;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{
     Abbreviator, FormatError, FormatRedactor, HmacTokenizer, KeepSide, MapError, MapReplacer, MapTarget, MaskPolicy,
     MaskedView, PiiRewrite, Pseudonymizer, RewriteError, RewritePolicy, RewriteStrategy, Sha256Replacer,
@@ -49,10 +50,18 @@ fn assert_offset_and_span_maps(text: &str, sources: &[Span], rewrite: &PiiRewrit
     let bounds: Vec<u32> = (0..=text.len()).filter(|&i| text.is_char_boundary(i)).map(|i| i as u32).collect();
     for &s in &bounds {
         let start = expected_offset(s, false, sources, &labels);
-        assert_eq!(rewrite.map_offset(s), start, "offset {s} in {text:?}");
+        // An empty span strictly inside a replaced mention stands for that
+        // mention, so it takes in the whole label; any other empty span
+        // stays empty.
+        let inside = sources.iter().position(|m| m.start < s && s < m.end);
         for &e in bounds.iter().filter(|&&e| e >= s) {
-            let end = if s == e { start } else { expected_offset(e, true, sources, &labels) };
-            assert_eq!(rewrite.map_span(Span::new(s, e)), Span::new(start, end), "span {s}..{e} in {text:?}");
+            let want = match inside {
+                Some(k) if s == e => labels[k],
+                _ if s == e => Span::new(start, start),
+                _ => Span::new(start, expected_offset(e, true, sources, &labels)),
+            };
+            assert_eq!(rewrite.to_derived(Span::new(s, e)), Ok(want), "span {s}..{e} in {text:?}");
+            assert!(rewrite.to_original(want).unwrap().contains(Span::new(s, e)), "{s}..{e} in {text:?}");
         }
     }
 }
@@ -66,7 +75,7 @@ fn format_redactor_expands_templates_reuses_numbers_and_rejects_bad_syntax() {
     let kind_only = FormatRedactor::new("{{{REDACTED-%t}}}").unwrap();
     assert_eq!(kind_only.template(), "{{{REDACTED-%t}}}");
     assert!(!kind_only.uses_number());
-    let r1 = kind_only.rewrite(text, &pii).unwrap();
+    let r1 = kind_only.rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(
         r1.text(),
         "Contact {{{REDACTED-EMAIL}}}, call {{{REDACTED-PHONE}}}, or reply to {{{REDACTED-EMAIL}}} and {{{REDACTED-EMAIL}}}."
@@ -75,14 +84,14 @@ fn format_redactor_expands_templates_reuses_numbers_and_rejects_bad_syntax() {
 
     let numbered = FormatRedactor::new("[%t-%v]").unwrap();
     assert!(numbered.uses_number());
-    let r2 = numbered.rewrite(text, &pii).unwrap();
+    let r2 = numbered.rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(r2.text(), "Contact [EMAIL-1], call [PHONE-1], or reply to [EMAIL-1] and [EMAIL-2].");
     assert_offset_and_span_maps(text, &sources, &r2);
 
     let lower_and_percent = FormatRedactor::new("<%k#%v:100%%>").unwrap();
     assert_eq!(lower_and_percent.format_label("us-ssn", 3), "<us-ssn#3:100%>");
     assert_eq!(lower_and_percent.format_label("person-name", 2), "<person-name#2:100%>");
-    let r3 = lower_and_percent.rewrite(text, &pii).unwrap();
+    let r3 = lower_and_percent.rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(
         r3.text(),
         "Contact <email#1:100%>, call <phone#1:100%>, or reply to <email#1:100%> and <email#2:100%>."
@@ -103,7 +112,7 @@ fn static_replacer_is_consistent_within_and_across_documents() {
 
     let def = StaticReplacer::default();
     assert_eq!(def.replacement(PiiKind::Email), "[REDACTED]");
-    let r1 = def.rewrite(text1, &pii1).unwrap();
+    let r1 = def.rewrite(&source_view(text1), &pii1).unwrap();
     assert_eq!(r1.text(), "From [REDACTED] to [REDACTED], phone [REDACTED].");
     let s1: Vec<Span> = pii1.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text1, &s1, &r1);
@@ -116,14 +125,16 @@ fn static_replacer_is_consistent_within_and_across_documents() {
     assert_eq!(by_kind.replacement(PiiKind::Phone), "<PII>");
     assert_eq!(by_kind.replacement(PERSON_KIND), "<NAME>");
 
-    let k1 = by_kind.rewrite(text1, &pii1).unwrap();
-    let k2 = by_kind.rewrite(text2, &pii2).unwrap();
+    let k1 = by_kind.rewrite(&source_view(text1), &pii1).unwrap();
+    let k2 = by_kind.rewrite(&source_view(text2), &pii2).unwrap();
     assert_eq!(k1.text(), "From <EMAIL> to <EMAIL>, phone <PII>.");
     assert_eq!(k2.text(), "Card <CARD> for <EMAIL>.");
 
     let empty = StaticReplacer::new("");
     assert_eq!(
-        empty.rewrite("mail jane@example.com", &layer(&cursor(), "mail jane@example.com")).map(|r| r.into_text()),
+        empty
+            .rewrite(&source_view("mail jane@example.com"), &layer(&cursor(), "mail jane@example.com"))
+            .map(|r| r.into_text()),
         Err(RewriteError::EmptyValue(Span::new(5, 21)))
     );
 }
@@ -141,7 +152,7 @@ fn sha256_tokenizer_hashes_normalized_values_and_validates_lengths() {
 
     let text = "Contact JANE@EXAMPLE.COM or jane@example.com.";
     let pii = layer(&cursor(), text);
-    let r = sha.rewrite(text, &pii).unwrap();
+    let r = sha.rewrite(&source_view(text), &pii).unwrap();
     let expected_upper: String = sha256::digest(b"JANE@example.com").iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(r.text(), format!("Contact {expected_upper} or {expected_jane}."));
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
@@ -158,7 +169,10 @@ fn sha256_tokenizer_hashes_normalized_values_and_validates_lengths() {
     }
     assert_eq!(sha.digest("email", ""), Err(TokenizerError::EmptyValue));
     let empty_norm = manual(&[(0, 4, PiiKind::Email, "")]);
-    assert_eq!(sha.rewrite("abcd", &empty_norm).map(|r| r.into_text()), Err(RewriteError::EmptyValue(Span::new(0, 4))));
+    assert_eq!(
+        sha.rewrite(&source_view("abcd"), &empty_norm).map(|r| r.into_text()),
+        Err(RewriteError::EmptyValue(Span::new(0, 4)))
+    );
 }
 
 #[test]
@@ -177,7 +191,7 @@ fn map_replacer_supports_inline_tsv_files_case_sensitivity_targets_and_fallbacks
 
     let text = "Mail JANE@EXAMPLE.COM, bob@example.com, call (555) 123-4567, or ask bob@example.com.";
     let pii = layer(&cursor(), text);
-    let r = inline.rewrite(text, &pii).unwrap();
+    let r = inline.rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(r.text(), "Mail USER_JANE, [UNMAPPED-EMAIL-1], call MAIN_DESK, or ask [UNMAPPED-EMAIL-1].");
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text, &sources, &r);
@@ -191,14 +205,15 @@ fn map_replacer_supports_inline_tsv_files_case_sensitivity_targets_and_fallbacks
     assert_eq!(cs.target(), MapTarget::Surface);
     let r_cs = cs
         .rewrite(
-            "JANE@example.com jane@example.com (555) 123-4567",
+            &source_view("JANE@example.com jane@example.com (555) 123-4567"),
             &layer(&cursor(), "JANE@example.com jane@example.com (555) 123-4567"),
         )
         .unwrap();
     assert_eq!(r_cs.text(), "MISS LOWER_JANE SURFACE_PHONE");
 
     let norm_only = cs.with_target(MapTarget::Normalized);
-    let r_norm = norm_only.rewrite("call (555) 123-4567", &layer(&cursor(), "call (555) 123-4567")).unwrap();
+    let r_norm =
+        norm_only.rewrite(&source_view("call (555) 123-4567"), &layer(&cursor(), "call (555) 123-4567")).unwrap();
     assert_eq!(r_norm.text(), "call MISS");
 
     // TSV and custom-delimited parsing + file loading.
@@ -269,7 +284,7 @@ fn truncate_keeps_start_or_end_chars_and_masks_all_when_mention_is_too_short() {
     let mv = MaskedView::all(first4).view(doc.get::<View>().unwrap(), &pii).unwrap();
     assert_eq!(mv.text(), mask(text, pii.mentions().map(|m| (m.span, first4))).unwrap());
     assert_eq!(mv.text(), "Für Zoë: card 4111-****-****-**** 😀");
-    let mr = first4.rewrite(text, &pii).unwrap();
+    let mr = first4.rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(mr.text(), "Für Zoë: card 4111-****-****-**** 😀");
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text, &sources, &mr);
@@ -311,7 +326,7 @@ fn abbreviator_reduces_multi_word_hyphenated_and_unicode_names_to_initials() {
         (33, 48, PERSON_KIND, "Jean-Luc Picard"),
         (54, 75, PERSON_KIND, "Åsa-Britt Östergren"),
     ]);
-    let r = hyph_dotted.rewrite(text, &pii).unwrap();
+    let r = hyph_dotted.rewrite(&source_view(text), &pii).unwrap();
     assert_eq!(r.text(), "Guests: J.F.K., J.-L.P., and Å.-B.Ö..");
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text, &sources, &r);
@@ -342,7 +357,7 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     let borrowed: Vec<(u32, u32, PiiKind, &str)> = rows.iter().map(|r| (r.0, r.1, r.2, r.3.as_str())).collect();
     pii = manual(&borrowed);
 
-    let r = policy.rewrite(text, &pii).unwrap();
+    let r = policy.rewrite(&source_view(text), &pii).unwrap();
     let expected_card =
         Sha256Tokenizer::with_length(8).unwrap().with_kind_prefix().digest("card", "4111111111111111").unwrap();
     assert_eq!(
@@ -362,49 +377,65 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     let expected_err = Err(RewriteError::Overlap(Span::new(8, 17), Span::new(13, 29)));
 
     assert_eq!(
-        FormatRedactor::new("{{{REDACTED-%t}}}").unwrap().rewrite(overlap_text, &overlap_pii).unwrap().text(),
+        FormatRedactor::new("{{{REDACTED-%t}}}")
+            .unwrap()
+            .rewrite(&source_view(overlap_text), &overlap_pii)
+            .unwrap()
+            .text(),
         "https://{{{REDACTED-URL-CREDENTIAL}}}/path"
     );
     assert_eq!(
         FormatRedactor::new("{{{REDACTED-%t}}}")
             .unwrap()
             .refusing_overlaps()
-            .rewrite(overlap_text, &overlap_pii)
+            .rewrite(&source_view(overlap_text), &overlap_pii)
             .map(|r| r.into_text()),
         expected_err.clone()
     );
     assert_eq!(
-        StaticReplacer::default().refusing_overlaps().rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        StaticReplacer::default()
+            .refusing_overlaps()
+            .rewrite(&source_view(overlap_text), &overlap_pii)
+            .map(|r| r.into_text()),
         expected_err.clone()
     );
     assert_eq!(
-        Sha256Tokenizer::new().refusing_overlaps().rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        Sha256Tokenizer::new()
+            .refusing_overlaps()
+            .rewrite(&source_view(overlap_text), &overlap_pii)
+            .map(|r| r.into_text()),
         expected_err.clone()
     );
     assert_eq!(
         MapReplacer::new([("a", "b")], false)
             .unwrap()
             .refusing_overlaps()
-            .rewrite(overlap_text, &overlap_pii)
+            .rewrite(&source_view(overlap_text), &overlap_pii)
             .map(|r| r.into_text()),
         expected_err.clone()
     );
     assert_eq!(
-        Truncate::keep_end(2).refusing_overlaps().rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        Truncate::keep_end(2)
+            .refusing_overlaps()
+            .rewrite(&source_view(overlap_text), &overlap_pii)
+            .map(|r| r.into_text()),
         expected_err.clone()
     );
     assert_eq!(
-        Abbreviator::dotted().refusing_overlaps().rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        Abbreviator::dotted()
+            .refusing_overlaps()
+            .rewrite(&source_view(overlap_text), &overlap_pii)
+            .map(|r| r.into_text()),
         expected_err.clone()
     );
     assert_eq!(
-        policy.clone().refusing_overlaps().rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        policy.clone().refusing_overlaps().rewrite(&source_view(overlap_text), &overlap_pii).map(|r| r.into_text()),
         expected_err.clone()
     );
     // Inner strategy refusing_overlaps is honored by RewritePolicy and MapReplacer fallback.
     assert_eq!(
         RewritePolicy::new(Truncate::keep_start(5).refusing_overlaps())
-            .rewrite(overlap_text, &overlap_pii)
+            .rewrite(&source_view(overlap_text), &overlap_pii)
             .map(|r| r.into_text()),
         expected_err.clone()
     );
@@ -412,16 +443,21 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
         RewritePolicy::new(StaticReplacer::default()).with(PiiKind::Email, Truncate::keep_start(5).refusing_overlaps());
     assert!(policy_override_refusing.refuses_overlaps());
     assert_eq!(
-        policy_override_refusing.rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        policy_override_refusing.rewrite(&source_view(overlap_text), &overlap_pii).map(|r| r.into_text()),
         expected_err.clone()
     );
     let map_refusing_fallback = MapReplacer::new([("unmatched", "X")], false)
         .unwrap()
         .with_fallback(Truncate::keep_start(5).refusing_overlaps());
     assert!(map_refusing_fallback.refuses_overlaps());
-    assert_eq!(map_refusing_fallback.rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()), expected_err.clone());
     assert_eq!(
-        RewritePolicy::new(map_refusing_fallback).rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
+        map_refusing_fallback.rewrite(&source_view(overlap_text), &overlap_pii).map(|r| r.into_text()),
+        expected_err.clone()
+    );
+    assert_eq!(
+        RewritePolicy::new(map_refusing_fallback)
+            .rewrite(&source_view(overlap_text), &overlap_pii)
+            .map(|r| r.into_text()),
         expected_err
     );
 
@@ -437,7 +473,7 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
         ),
     ] {
         let mixed = RewritePolicy::new(StaticReplacer::new("[REDACTED]")).with(PiiKind::Email, email_strat.clone());
-        let out = mixed.rewrite(nested_text, &nested_pii).unwrap();
+        let out = mixed.rewrite(&source_view(nested_text), &nested_pii).unwrap();
         assert!(!out.text().contains("alice") && !out.text().contains("A."), "{email_strat:?} -> {}", out.text());
         assert_offset_and_span_maps(nested_text, &[Span::new(8, 25)], &out);
     }
@@ -448,7 +484,7 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     let t0 = std::time::Instant::now();
     let long_out = RewritePolicy::new(MaskPolicy::new('*').unwrap())
         .with(PiiKind::Email, Truncate::keep_end(4))
-        .rewrite(&long_s, &long_pii)
+        .rewrite(&source_view(&long_s), &long_pii)
         .unwrap();
     assert!(t0.elapsed().as_millis() < 500);
     assert!(long_out.text().ends_with("aaaa") && long_out.text()[..7_996].chars().all(|c| c == '*'));
@@ -456,11 +492,13 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     // EmptyValue is propagated by RewritePolicy for HmacTokenizer and Sha256Tokenizer.
     let empty_pii = manual(&[(0, 4, PiiKind::Email, "")]);
     assert_eq!(
-        RewritePolicy::new(HmacTokenizer::new(KEY).unwrap()).rewrite("abcd", &empty_pii).map(|r| r.into_text()),
+        RewritePolicy::new(HmacTokenizer::new(KEY).unwrap())
+            .rewrite(&source_view("abcd"), &empty_pii)
+            .map(|r| r.into_text()),
         Err(RewriteError::EmptyValue(Span::new(0, 4)))
     );
     assert_eq!(
-        RewritePolicy::new(Sha256Tokenizer::new()).rewrite("abcd", &empty_pii).map(|r| r.into_text()),
+        RewritePolicy::new(Sha256Tokenizer::new()).rewrite(&source_view("abcd"), &empty_pii).map(|r| r.into_text()),
         Err(RewriteError::EmptyValue(Span::new(0, 4)))
     );
 
@@ -484,7 +522,7 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
                 let val = format!("value{s}");
                 let pii: Pii = manual(&[(s, e, PiiKind::Email, &val)]);
                 for strat in &strategies {
-                    let rw = strat.rewrite(sample, &pii).unwrap();
+                    let rw = strat.rewrite(&source_view(sample), &pii).unwrap();
                     assert_offset_and_span_maps(sample, &[span], &rw);
                 }
             }

@@ -30,10 +30,10 @@ pub struct View {
 
 impl View {
     /// A view made from `parent` (alignment from a `ViewBuilder`). Its id is
-    /// given when the document takes it.
+    /// [`ViewId::PENDING`] until the document takes it and gives it one.
     pub fn derived(parent: &View, text: String, alignment: Alignment) -> View {
         View {
-            id: ViewId(u16::MAX),
+            id: ViewId::PENDING,
             parent: Some(parent.id),
             text: text.into(),
             alignment,

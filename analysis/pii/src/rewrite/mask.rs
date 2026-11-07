@@ -9,10 +9,11 @@
 
 use std::fmt;
 
-use turbo_analysis::Span;
-use turbo_analysis_layers::{KindError, Pii, PiiKind, PiiMention};
+use turbo_analysis::{Span, View};
+use turbo_analysis_layers::{KindError, Pii, PiiKind, PiiMention, PiiStrategyKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::replace::EditOrigin;
+use super::{PiiRewrite, RewriteError, absolute};
 use crate::text::letter_or_digit;
 
 /// A mask the policy cannot take.
@@ -146,44 +147,50 @@ impl MaskPolicy {
 
     /// `MaskPolicy.apply`: `value` with this policy over all of it.
     pub fn masked(self, value: &str) -> String {
-        assert!(u32::try_from(value.len()).is_ok(), "the value is longer than u32 offsets reach");
+        let len = u32::try_from(value.len()).expect("the value is longer than u32 offsets reach");
         let mut out = value.as_bytes().to_vec();
-        self.apply(value, Span::new(0, value.len() as u32), &mut out);
+        self.apply(value, Span::new(0, len), &mut out);
         String::from_utf8(out).expect("masking writes whole characters")
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// masked surface text, coalescing overlapping mentions.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
-        let mut idx = 0;
-        PiiRewrite::replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |m, out| {
-            let cluster = &clusters[idx];
-            idx += 1;
-            let piece = &text[m.span.range()];
-            if cluster.members.len() == 1 {
-                out.push_str(&self.masked(piece));
-                return;
-            }
-            let winner_ret = self.retention(piece);
-            let member_rets: Vec<(Span, CharRetention)> =
-                cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
-            for (rel_at, c) in piece.char_indices() {
-                let abs_at = m.span.start + rel_at as u32;
-                let keep = winner_ret.keeps(rel_at, c)
-                    && member_rets
-                        .iter()
-                        .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
-                        .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
-                if keep {
-                    out.push(c);
-                } else {
-                    for _ in 0..c.len_utf8() {
-                        out.push(self.mask());
+    /// Replaces every mention of `pii`, a layer over `src`, with its
+    /// masked surface text, coalescing overlapping mentions, as a view
+    /// derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let text = src.text();
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| false,
+            0,
+            |cluster, out| {
+                let m = cluster.merged;
+                let piece = &text[m.span.range()];
+                if cluster.members.len() == 1 {
+                    out.push_str(&self.masked(piece));
+                    return Ok(EditOrigin::only(PiiStrategyKind::Mask));
+                }
+                let winner_ret = self.retention(piece);
+                let member_rets: Vec<(Span, CharRetention)> =
+                    cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
+                for (rel_at, c) in piece.char_indices() {
+                    let abs_at = absolute(m.span, rel_at);
+                    let keep = winner_ret.keeps(rel_at, c)
+                        && member_rets
+                            .iter()
+                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
+                    if keep {
+                        out.push(c);
+                    } else {
+                        for _ in 0..c.len_utf8() {
+                            out.push(self.mask());
+                        }
                     }
                 }
-            }
-        })
+                Ok(EditOrigin::only(PiiStrategyKind::Mask))
+            },
+        )
     }
 
     /// Precomputes byte-offset retention bounds for `piece` in `O(|piece|)`.

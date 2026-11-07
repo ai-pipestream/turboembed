@@ -42,6 +42,7 @@ pub use pii::{
     CUSTOM_CODE_BASE, CustomKindId, CustomKinds, KindError, KindRow, Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention,
     mention_order,
 };
+pub use pii_edits::{PiiEdit, PiiEdits, PiiRule, PiiStrategyKind};
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
     MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
@@ -166,6 +167,7 @@ mod numbers;
 mod ordinals;
 mod payload_hash;
 mod pii;
+mod pii_edits;
 mod predicate;
 mod project;
 mod quality;

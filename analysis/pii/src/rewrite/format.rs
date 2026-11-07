@@ -18,8 +18,10 @@
 use std::collections::HashMap;
 use std::fmt::{self, Write};
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis::View;
+use turbo_analysis_layers::{Pii, PiiKind, PiiStrategyKind};
 
+use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError, kind_name};
 
 /// A format template [`FormatRedactor`] cannot accept.
@@ -161,28 +163,31 @@ impl FormatRedactor {
         out
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// formatted label.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+    /// Replaces every mention of `pii`, a layer over `src`, with its
+    /// formatted label, as a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         let mut assigned: HashMap<(PiiKind, &str), u32> = HashMap::new();
         let mut counters: HashMap<PiiKind, u32> = HashMap::new();
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
-        };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
-            let n = if self.uses_number {
-                *assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
-                    let c = counters.entry(m.kind).or_insert(0);
-                    *c += 1;
-                    *c
-                })
-            } else {
-                1
-            };
-            self.write_label(kind_name(&pii.custom_kinds, m.kind), n, out);
-        })
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                let m = c.merged;
+                let n = if self.uses_number {
+                    *assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
+                        let c = counters.entry(m.kind).or_insert(0);
+                        *c += 1;
+                        *c
+                    })
+                } else {
+                    1
+                };
+                self.write_label(kind_name(&pii.custom_kinds, m.kind), n, out);
+                Ok(EditOrigin::only(PiiStrategyKind::Format))
+            },
+        )
     }
 }
 
@@ -244,16 +249,18 @@ impl StaticReplacer {
         self.refuse_overlaps
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with its fixed
-    /// replacement string.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mentions: Vec<_> = if self.refuse_overlaps {
-            pii.mentions().collect()
-        } else {
-            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
-        };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
-            out.push_str(self.replacement(m.kind));
-        })
+    /// Replaces every mention of `pii`, a layer over `src`, with its fixed
+    /// replacement string, as a view derived from `src`.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        PiiRewrite::derive(
+            src,
+            pii,
+            |_| self.refuse_overlaps,
+            0,
+            |c, out| {
+                out.push_str(self.replacement(c.merged.kind));
+                Ok(EditOrigin::only(PiiStrategyKind::Static))
+            },
+        )
     }
 }
