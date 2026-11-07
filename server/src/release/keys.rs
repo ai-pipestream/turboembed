@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use turbo_pii::checksum::sha256;
 
-use crate::proto::result::{PiiKeyRef, PiiValueToken};
+use crate::proto::result::{PiiPolicyKeyRef, PiiValueToken};
 
 /// The fewest and most bytes a token key file may hold.
 pub const MIN_KEY_BYTES: usize = 32;
@@ -43,8 +43,23 @@ impl KeyRef {
         }
     }
 
-    pub fn proto(&self) -> PiiKeyRef {
-        PiiKeyRef { id: self.id.clone(), version: self.version }
+    /// The one key reference type of the API (turbo_pii_policy.proto).
+    pub fn policy(&self) -> PiiPolicyKeyRef {
+        PiiPolicyKeyRef { id: self.id.clone(), version: self.version }
+    }
+
+    /// A policy's key reference, refused without an id or a version.
+    pub fn of_policy(r: &PiiPolicyKeyRef) -> Result<KeyRef, String> {
+        if r.id.is_empty() || r.version == 0 {
+            return Err("a key reference needs an id and a version from 1".into());
+        }
+        Ok(KeyRef { id: r.id.clone(), version: r.version })
+    }
+
+    /// The key a released token names: its `key_id` and `key_version`,
+    /// the PiiPolicyKeyRef identity carried as plain fields.
+    pub fn of_token(t: &PiiValueToken) -> Result<KeyRef, String> {
+        KeyRef::of_policy(&PiiPolicyKeyRef { id: t.key_id.clone(), version: t.key_version })
     }
 }
 
@@ -114,7 +129,11 @@ impl TokenKey {
         let mut msg = Vec::with_capacity(TOKEN_DOMAIN.len() + value.len());
         msg.extend_from_slice(TOKEN_DOMAIN);
         msg.extend_from_slice(value.as_bytes());
-        PiiValueToken { token: sha256::hmac(&self.bytes.0, &msg).to_vec(), key: Some(self.key.proto()) }
+        PiiValueToken {
+            token: sha256::hmac(&self.bytes.0, &msg).to_vec(),
+            key_id: self.key.id.clone(),
+            key_version: self.key.version,
+        }
     }
 }
 

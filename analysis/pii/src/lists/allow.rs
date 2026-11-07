@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use turbo_analysis::Fnv1a;
+use turbo_analysis_layers::AllowRule;
 use turbo_glossary::Case;
 use turbo_unicode::java::to_lower_char;
 
@@ -289,10 +290,32 @@ impl AllowList {
     /// Whether a mention with `covered` surface text and `normalized` form
     /// matches any rule in this allow list.
     pub fn matches(&self, covered: &str, normalized: &str) -> bool {
-        if self.is_empty() {
-            return false;
+        self.find_rule(covered, normalized).is_some()
+    }
+
+    /// The rule `value` matches: the first exact term in registration
+    /// order, then the first pattern.
+    pub fn find_rule_for_value(&self, value: &str) -> Option<AllowRule> {
+        let exact = self.exact_set.contains(value);
+        let folded = (!self.folded_set.is_empty()).then(|| fold_lower(value)).filter(|f| self.folded_set.contains(f));
+        if exact || folded.is_some() {
+            let at = self.terms.iter().position(|(term, case)| match case {
+                Case::Sensitive => exact && term == value,
+                Case::Insensitive => folded.as_deref().is_some_and(|f| fold_lower(term) == f),
+            })?;
+            return Some(AllowRule::Term(at as u32));
         }
-        self.matches_value(covered) || (normalized != covered && self.matches_value(normalized))
+        self.patterns.iter().position(|p| p.matches(value)).map(|at| AllowRule::Pattern(at as u32))
+    }
+
+    /// The rule a mention with `covered` surface text and `normalized` form
+    /// matches: by the covered text first, then by the normalized form.
+    pub fn find_rule(&self, covered: &str, normalized: &str) -> Option<AllowRule> {
+        if self.is_empty() {
+            return None;
+        }
+        self.find_rule_for_value(covered)
+            .or_else(|| (normalized != covered).then(|| self.find_rule_for_value(normalized)).flatten())
     }
 
     pub(crate) fn fold_hash(&self, h: &mut Fnv1a) {

@@ -66,7 +66,10 @@ fn documents(texts: &[Text]) -> Vec<Document> {
 /// layer records.
 fn run(a: &Analyzer, texts: &[Text]) -> Vec<(Vec<f32>, String)> {
     let mut docs = documents(texts);
-    assert!(a.run(&mut docs).iter().all(|r| r.is_ok()));
+    // Each document's error in full, so a device fault names its status.
+    for r in a.run(&mut docs) {
+        r.unwrap();
+    }
     let key = Key::<Vectors<Sentences>>::DEFAULT.id();
     docs.iter()
         .map(|d| {
@@ -235,7 +238,9 @@ fn worded(bundle: &Path, texts: &[Text]) -> Vec<Document> {
         .build()
         .unwrap();
     let mut docs = documents(texts);
-    assert!(words.run(&mut docs).iter().all(|r| r.is_ok()));
+    for r in words.run(&mut docs) {
+        r.unwrap();
+    }
     docs
 }
 

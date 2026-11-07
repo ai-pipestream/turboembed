@@ -17,6 +17,7 @@ pub mod inspect;
 mod kserve;
 pub mod metrics;
 pub mod offsets;
+pub mod pii_policy;
 pub mod probe;
 pub mod progressive;
 pub mod release;

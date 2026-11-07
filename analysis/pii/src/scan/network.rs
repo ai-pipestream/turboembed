@@ -3,7 +3,7 @@
 //! addresses as six pairs split by `:` or `-` or three quads split by
 //! `.`. The MAC scan runs first, then IPv6, then IPv4, as in the Java.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind, PiiKinds};
+use turbo_analysis_layers::{PiiEvidence, PiiKind, PiiKinds};
 
 use crate::hits::Hits;
 use crate::text::{before, hex_value, letter_or_digit, on_end_before, on_number_start, on_word_start};
@@ -53,7 +53,7 @@ fn scan_ipv4(text: &str, hits: &mut Hits) {
         match end {
             Some(end) => {
                 let o = octets;
-                hits.add(i, end, PiiKind::Ipv4, PiiConfidence::Format, |s| {
+                hits.add(i, end, PiiKind::Ipv4, PiiEvidence::Shape, |s| {
                     use std::fmt::Write;
                     let _ = write!(s, "{}.{}.{}.{}", o[0], o[1], o[2], o[3]);
                 });
@@ -122,7 +122,7 @@ fn scan_ipv6(text: &str, hits: &mut Hits) {
         };
         match found {
             Some(v) => {
-                hits.add(i, v.end, PiiKind::Ipv6, PiiConfidence::Format, |s| format_ipv6(&v.groups, s));
+                hits.add(i, v.end, PiiKind::Ipv6, PiiEvidence::Shape, |s| format_ipv6(&v.groups, s));
                 i = v.end;
             }
             None => i += 1,
@@ -291,7 +291,7 @@ fn scan_macs(text: &str, hits: &mut Hits) {
         };
         match found {
             Some((end, _)) => {
-                hits.add(i, end, PiiKind::Mac, PiiConfidence::Format, |s| {
+                hits.add(i, end, PiiKind::Mac, PiiEvidence::Shape, |s| {
                     use std::fmt::Write;
                     for (k, byte) in bytes.iter().enumerate() {
                         if k > 0 {

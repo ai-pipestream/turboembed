@@ -1,22 +1,22 @@
-/// How much the text supports a mention's kind. A summary of the evidence,
-/// not a policy order. [`PiiConfidence::id`] is the stable number shared
-/// by the codec, the proto enum, the C `TURBO_PII_CONFIDENCE_*` constants
-/// and Java.
+use super::PiiEvidence;
+
+/// How much the text supports a mention's kind: a summary derived from the
+/// mention's [`PiiEvidence`] by [`PiiConfidence::derive`], never a policy
+/// order. "Has a label" and "a checksum passed" are independent facts.
+/// [`PiiConfidence::id`] is the stable number shared by the codec, the
+/// proto enum, the C `TURBO_PII_CONFIDENCE_*` constants and Java.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PiiConfidence {
-    /// The shape alone: the syntax of an address, a key or a token, a
-    /// registered domain or calling code, allocated number ranges. No
-    /// check digit backs it.
+    /// No passed checksum and no label: the shape alone.
     Format,
     /// A context label within the window names the kind (`Passport:`,
-    /// `SSN`), and the value matches the kind's format without a check
-    /// digit.
+    /// `SSN`), and no checksum passed.
     Labelled,
-    /// A checksum or check digit over the value passes: Luhn, mod-97,
+    /// A checksum or check digit over the value passed: Luhn, mod-97,
     /// mod-11, ISO 7064, base58check, bech32, EIP-55, the ABA weights.
     Checksum,
     /// A context label within the window names the kind (`IMEI:`, `SIN`),
-    /// and its check digit passes.
+    /// and a check digit passed.
     LabelledChecksum,
 }
 
@@ -61,11 +61,17 @@ impl PiiConfidence {
         }
     }
 
-    /// Raises `Format` to `Labelled` and `Checksum` to `LabelledChecksum`.
-    pub const fn with_label(self) -> PiiConfidence {
-        match self {
-            PiiConfidence::Format | PiiConfidence::Labelled => PiiConfidence::Labelled,
-            PiiConfidence::Checksum | PiiConfidence::LabelledChecksum => PiiConfidence::LabelledChecksum,
+    /// The derivation table: a passed checksum fact and a label fact,
+    /// each present or not, give the four tiers. A failed checksum counts
+    /// for nothing.
+    pub fn derive(evidence: &[PiiEvidence]) -> PiiConfidence {
+        let checksum = evidence.iter().any(|e| e.is_checksum_passed());
+        let label = evidence.iter().any(|e| e.is_label());
+        match (checksum, label) {
+            (false, false) => PiiConfidence::Format,
+            (false, true) => PiiConfidence::Labelled,
+            (true, false) => PiiConfidence::Checksum,
+            (true, true) => PiiConfidence::LabelledChecksum,
         }
     }
 }

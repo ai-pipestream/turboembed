@@ -6,7 +6,7 @@
 use prost::Message as _;
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Error, Key, Provenance, Span, Spans, ViewId};
-use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention, Sentences, Tokens};
+use turbo_analysis_layers::{ChecksumAlgorithm, Pii, PiiEvidence, PiiKind, PiiMention, Sentences, Tokens};
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{
     ByteRange, InspectDocumentGraphRequest, LayerErrorKind, LayerReceipt, LayerWireStatus, ProcessingReceipt,
@@ -192,10 +192,13 @@ fn no_receipt_or_layer_error_carries_a_planted_value() {
     let mut doc = with_sentences(TEXT);
     let mut pii = Pii::new(ViewId::SOURCE);
     let (start, end) = (5, 5 + PLANTED.len() as u32);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(start, end),
         kind: PiiKind::Card,
-        confidence: PiiConfidence::Checksum,
+        detector,
+        evidence: &[PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true }],
+        score: None,
         normalized: PLANTED,
     });
     doc.add(&Key::DEFAULT, pii, Provenance::by("test:pii")).unwrap();

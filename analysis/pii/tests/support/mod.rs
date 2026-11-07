@@ -227,11 +227,14 @@ pub fn base64url(bytes: &[u8]) -> String {
 /// A layer of the given mentions, in the order given, over [`test_kinds`].
 pub fn manual(mentions: &[(u32, u32, PiiKind, &str)]) -> Pii {
     let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, test_kinds());
+    let detector = pii.detector("test", "1").unwrap();
     for &(start, end, kind, normalized) in mentions {
         pii.push(turbo_pii::PiiMention {
             span: turbo_analysis::Span::new(start, end),
             kind,
-            confidence: turbo_pii::PiiConfidence::Format,
+            detector,
+            evidence: &[turbo_pii::PiiEvidence::Shape],
+            score: None,
             normalized,
         });
     }

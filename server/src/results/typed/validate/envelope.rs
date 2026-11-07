@@ -103,7 +103,9 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
     // listed with its status and is not in the mapping.
     let mut written = 0usize;
     for info in &msg.views {
-        let ok = info.status == LayerWireStatus::Ok as i32;
+        // Only a known not-complete status leaves a view out; any other
+        // number is judged, and named, where view statuses are checked.
+        let ok = info.status != LayerWireStatus::Skipped as i32 && info.status != LayerWireStatus::Failed as i32;
         written += usize::from(ok);
         if ok && chain.by_instance(&info.instance).is_none() {
             return Err(bad(format!("view {:?} is not in the mapping", info.instance)));

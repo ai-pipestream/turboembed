@@ -78,8 +78,7 @@ async fn a_grant_for_one_kind_releases_that_kind_only_after_the_audit_ack() {
     let got = forms(&typed);
     let pii_value::Form::Token(t) = &got[0] else { panic!("a token: {got:?}") };
     assert_eq!(t.token.len(), 32);
-    let key = t.key.clone().unwrap();
-    assert_eq!((key.id.as_str(), key.version), ("tok", 4));
+    assert_eq!((t.key_id.as_str(), t.key_version), ("tok", 4));
     assert!(withheld(&got[1]));
     assert!(!holds(&typed.encode_to_vec(), EMAIL.as_bytes()), "a token release carries no clear value");
     assert!(!holds(&typed.encode_to_vec(), KEY_BYTES));

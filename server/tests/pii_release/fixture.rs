@@ -22,7 +22,7 @@ use turbo_kserve::results::disclosure::PiiOutputPolicy;
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::tls::TlsConfig;
 use turbo_kserve::{Serve, Server};
-use turbo_pii::{Pii, PiiConfidence, PiiKind, PiiMention};
+use turbo_pii::{Pii, PiiEvidence, PiiKind, PiiMention};
 
 use super::certs::*;
 use crate::common;
@@ -175,10 +175,12 @@ pub async fn connect(s: &Server, identity: bool) -> Result<AnalysisServiceClient
 pub fn graph() -> Vec<u8> {
     let mut doc = Document::new(TEXT);
     let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
+    let evidence = [PiiEvidence::Shape];
     for (value, kind) in [(EMAIL, PiiKind::Email), (PHONE, PiiKind::Phone)] {
         let at = TEXT.find(value).unwrap() as u32;
         let span = Span::new(at, at + value.len() as u32);
-        pii.push(PiiMention { span, kind, confidence: PiiConfidence::Format, normalized: value });
+        pii.push(PiiMention { span, kind, detector, evidence: &evidence, score: None, normalized: value });
     }
     doc.add(&Key::DEFAULT, pii, Provenance::by("turbo-pii:pii")).unwrap();
     export(&doc, codecs()).unwrap().to_bytes().unwrap()

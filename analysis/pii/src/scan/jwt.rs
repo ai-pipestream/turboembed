@@ -3,7 +3,7 @@
 //! lengths and zero unused bits, whose first segment decodes to UTF-8
 //! JSON with one top-level `alg` that is a non-empty ASCII string.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
 use super::jws;
 use super::secrets::{on_token_end, on_token_start};
@@ -96,7 +96,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
             decode(&b[i..header_end], &mut header);
             std::str::from_utf8(&header).is_ok_and(jws::valid_header)
         } {
-            hits.add_text(text, i, p, PiiKind::Jwt, PiiConfidence::Format);
+            hits.add_text(text, i, p, PiiKind::Jwt, PiiEvidence::Shape);
             i = p;
         } else {
             i += 1;

@@ -9,7 +9,7 @@ use std::fmt;
 
 use turbo_analysis::{Alignment, Ix, Span, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{
-    CustomKinds, KindError, Pii, PiiEdit, PiiEdits, PiiMention, PiiRule, PiiStrategyKind, mention_order,
+    CustomKinds, DetectorError, KindError, Pii, PiiEdit, PiiEdits, PiiMention, PiiRule, PiiStrategyKind, mention_order,
 };
 
 /// Mentions a rewrite cannot replace.
@@ -23,6 +23,9 @@ pub enum RewriteError {
     EmptyValue(Span),
     /// A mention's kind is a custom kind outside the layer's table.
     Kind(Span, KindError),
+    /// A mention's detector is outside the layer's table, or the label
+    /// layer's table is full.
+    Detector(Span, String),
     /// The pii layer is over view `layer`, not over `view`, the view being
     /// rewritten, so its spans are offsets of another text.
     ForeignView { layer: ViewId, view: ViewId },
@@ -39,6 +42,7 @@ impl fmt::Display for RewriteError {
                 write!(f, "mention at {}..{} has an empty normalized form", s.start, s.end)
             }
             RewriteError::Kind(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
+            RewriteError::Detector(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
             RewriteError::ForeignView { layer, view } => {
                 write!(f, "the pii layer is over view {}, not view {}", layer.0, view.0)
             }
@@ -119,7 +123,9 @@ impl PiiRewrite {
                 last.merged.span.end = last.merged.span.end.max(m.span.end);
                 if key < best_key {
                     last.merged.kind = m.kind;
-                    last.merged.confidence = m.confidence;
+                    last.merged.detector = m.detector;
+                    last.merged.evidence = m.evidence;
+                    last.merged.score = m.score;
                     last.merged.normalized = m.normalized;
                     best_key = key;
                 }
@@ -178,10 +184,19 @@ impl PiiRewrite {
         let mut edits = PiiEdits::new(ViewId::PENDING, policy_revision);
         for ((c, origin), e) in clusters.iter().zip(&origins).zip(alignment.edits()) {
             let m = c.merged;
+            // The label carries its source mention's detector, facts and
+            // score on; the detector is re-registered in the label layer's
+            // own table.
+            let (id, version) = pii.detectors.get(m.detector).ok_or_else(|| {
+                RewriteError::Detector(m.span, DetectorError::Unknown(m.detector.index()).to_string())
+            })?;
+            let detector = labels.detector(id, version).map_err(|e| RewriteError::Detector(m.span, e.to_string()))?;
             labels.push(PiiMention {
                 span: e.child,
                 kind: m.kind,
-                confidence: m.confidence,
+                detector,
+                evidence: m.evidence,
+                score: m.score,
                 normalized: &new_text[e.child.start as usize..e.child.end as usize],
             });
             edits.push(PiiEdit {
@@ -215,8 +230,8 @@ impl PiiRewrite {
     }
 
     /// The labels as mentions of the new text, in text order, each with
-    /// its label as the normalized form and the kind and confidence of the
-    /// mention it replaced. The layer is over [`ViewId::PENDING`].
+    /// its label as the normalized form and the kind, detector, evidence
+    /// and score of the mention it replaced. The layer is over [`ViewId::PENDING`].
     pub fn labels(&self) -> &Pii {
         &self.labels
     }
@@ -256,14 +271,18 @@ impl PiiRewrite {
 mod tests {
     use super::*;
     use turbo_analysis::{Document, Layer};
-    use turbo_analysis_layers::{PiiConfidence, PiiKind};
+    use turbo_analysis_layers::{PiiDetectorRef, PiiEvidence, PiiKind};
+
+    const SHAPE: &[PiiEvidence] = &[PiiEvidence::Shape];
 
     fn src(text: &str) -> View {
         Document::new(text).get::<View>().expect("the source view").clone()
     }
 
+    /// A layer whose detector table holds the test detector at 0.
     fn layer(mentions: &[PiiMention<'_>]) -> Pii {
         let mut pii = Pii::new(ViewId::SOURCE);
+        pii.detector("test", "1").unwrap();
         for &m in mentions {
             pii.push(m);
         }
@@ -274,7 +293,9 @@ mod tests {
         PiiMention {
             span: Span::new(start, end),
             kind: PiiKind::Email,
-            confidence: PiiConfidence::Format,
+            detector: PiiDetectorRef::new(0),
+            evidence: SHAPE,
+            score: None,
             normalized: "a@b.com",
         }
     }
@@ -301,6 +322,7 @@ mod tests {
         let ok = PiiRewrite::derive(&view, &one, |_| false, 9, label("EMAIL-1")).unwrap();
         assert_eq!(ok.text(), "012EMAIL-16789");
         assert_eq!(ok.labels().check(), Ok(()));
+        assert_eq!(ok.labels().detectors.get(ok.labels().detector[0]), Some(("test", "1")));
         assert_eq!(ok.edits().check(), Ok(()));
         assert_eq!(ok.view().parent(), Some(ViewId::SOURCE));
         assert_eq!((ok.labels().spans.view(), ok.edits().spans.view()), (ViewId::PENDING, ViewId::PENDING));
@@ -309,6 +331,15 @@ mod tests {
             (e.source, e.span, e.members, ok.edits().policy_revision),
             (Span::new(3, 6), Span::new(3, 10), &[Ix::new(0)][..], 9)
         );
+    }
+
+    #[test]
+    fn a_mention_with_a_detector_outside_the_table_is_refused() {
+        let foreign = layer(&[PiiMention { detector: PiiDetectorRef::new(4), ..email(3, 6) }]);
+        assert!(matches!(
+            PiiRewrite::derive(&src("0123456789"), &foreign, |_| false, 0, label("X")),
+            Err(RewriteError::Detector(..))
+        ));
     }
 
     #[test]
@@ -337,7 +368,14 @@ mod tests {
     fn mention(start: u32, end: u32, kind: PiiKind) -> (Ix<Pii>, PiiMention<'static>) {
         (
             Ix::new(start),
-            PiiMention { span: Span::new(start, end), kind, confidence: PiiConfidence::Format, normalized: "v" },
+            PiiMention {
+                span: Span::new(start, end),
+                kind,
+                detector: PiiDetectorRef::new(0),
+                evidence: SHAPE,
+                score: None,
+                normalized: "v",
+            },
         )
     }
 

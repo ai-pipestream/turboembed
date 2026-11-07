@@ -495,9 +495,9 @@ message TypedLayer
   optional uint32 native_view = 10;
   // Why the layer is not OK; absent when it is.
   optional LayerError error = 11;
-  // The custom-kind names a turbo:pii layer's PiiKindRef.custom indexes,
-  // and for a turbo:pii-edits layer its covered pii layer's table; empty
-  // for every other layer.
+  // The custom-kind names a turbo:pii or turbo:pii-candidates layer's
+  // PiiKindRef.custom indexes, and for a turbo:pii-edits layer its covered
+  // pii layer's table; empty for every other layer.
   repeated string custom_pii_kinds = 12;
 }
 
@@ -951,9 +951,107 @@ message PiiKindRef
   }
 }
 
-// One PII finding: its kind and confidence, with its span on the
-// enclosing TypedAnnotation. The detected value is not part of a finding:
-// `value` says in which form, if any, it was released (#1904).
+// Who found a mention: a detector id that is stable across releases
+// (`turbo-pii:cursor`, `turbo-pii:deny-list`, a custom extractor's id) and
+// the version of that detector.
+message PiiDetectorRef
+{
+  string id = 1;
+  string version = 2;
+}
+
+// The check digit algorithm a checksum fact ran. UNSPECIFIED is refused.
+enum PiiChecksumAlgorithm
+{
+  PII_CHECKSUM_ALGORITHM_UNSPECIFIED = 0;
+  PII_CHECKSUM_ALGORITHM_LUHN = 1;
+  PII_CHECKSUM_ALGORITHM_MOD97 = 2;
+  PII_CHECKSUM_ALGORITHM_MOD11 = 3;
+  PII_CHECKSUM_ALGORITHM_MOD23 = 4;
+  PII_CHECKSUM_ALGORITHM_ES_CIF = 5;
+  PII_CHECKSUM_ALGORITHM_ISO7064_MOD11_10 = 6;
+  PII_CHECKSUM_ALGORITHM_ICAO9303 = 7;
+  PII_CHECKSUM_ALGORITHM_BASE58CHECK = 8;
+  PII_CHECKSUM_ALGORITHM_BECH32 = 9;
+  PII_CHECKSUM_ALGORITHM_EIP55 = 10;
+  PII_CHECKSUM_ALGORITHM_ABA_WEIGHTS = 11;
+  PII_CHECKSUM_ALGORITHM_OTHER = 12;
+  PII_CHECKSUM_ALGORITHM_LA_POSTE_MOD5 = 13;
+}
+
+// The text has the shape of the kind and nothing more was checked.
+message PiiShapeEvidence
+{
+}
+
+// A check digit algorithm ran over the mention and passed or failed.
+message PiiChecksumEvidence
+{
+  PiiChecksumAlgorithm algorithm = 1;
+  bool passed = 2;
+}
+
+// A label phrase for the kind stands near the mention: the phrase's wire
+// span in this view, and its index in the detector's label phrase table.
+message PiiLabelEvidence
+{
+  SpanFragment span = 1;
+  uint32 phrase = 2;
+}
+
+// A deny list term matched: the list's index in the detector's
+// configuration and the term's index in that list.
+message PiiDenyHitEvidence
+{
+  uint32 list = 1;
+  uint32 term = 2;
+}
+
+// A custom rule matched, by its index in the detector's configuration.
+message PiiRuleEvidence
+{
+  uint32 rule = 1;
+}
+
+// One fact a detector recorded for a candidate. The confidence tier is
+// derived from these facts and never the other way round; a reader that
+// finds no fact it knows refuses the mention.
+message PiiEvidence
+{
+  oneof fact
+  {
+    PiiShapeEvidence shape = 1;
+    PiiChecksumEvidence checksum = 2;
+    PiiLabelEvidence label = 3;
+    PiiDenyHitEvidence deny_hit = 4;
+    PiiRuleEvidence rule = 5;
+  }
+}
+
+// What a score's number means. UNSPECIFIED is refused.
+enum PiiScoreKind
+{
+  PII_SCORE_KIND_UNSPECIFIED = 0;
+  PII_SCORE_KIND_PROBABILITY = 1;
+  PII_SCORE_KIND_LOGIT = 2;
+  PII_SCORE_KIND_HEURISTIC = 3;
+}
+
+// An optional model score for a mention. A mention without one carries no
+// PiiScore at all, which is not a score of zero.
+message PiiScore
+{
+  float value = 1;
+  PiiScoreKind kind = 2;
+  PiiDetectorRef model = 3;
+  bool calibrated = 4;
+}
+
+// A kept mention. Its detected value is not part of the finding:
+// `value` says in which form, if any, it was released (#1904). The tier is derived from
+// the evidence by PiiConfidence::derive and is carried for readers that
+// want one number; a message whose tier is not the one its evidence
+// derives to is refused.
 message PiiMention
 {
   // Never populated; use kind_ref.
@@ -964,7 +1062,10 @@ message PiiMention
   // instead (#1904).
   string normalized = 3 [deprecated = true];
   PiiValue value = 4;
-  // Fields 5 to 9 are held for the release and decision work.
+  // 8 and 9 are spare.
+  PiiDetectorRef detector = 5;
+  repeated PiiEvidence evidence = 6;
+  optional PiiScore score = 7;
   PiiKindRef kind_ref = 10;
   PiiConfidenceTier confidence = 11;
 }
@@ -990,28 +1091,28 @@ message PiiValue
 // The value is not in the response.
 message PiiValueWithheld {}
 
-// A registered, versioned key: the reference a token or ciphertext names,
-// never key material.
-message PiiKeyRef
-{
-  string id = 1;
-  uint32 version = 2;
-}
-
-// A keyed token standing for the value; equal values under one key give
-// equal tokens.
+// A keyed token standing for the value: HMAC-SHA-256 under a registered
+// key (#1909). Equal values under one key give equal tokens.
 message PiiValueToken
 {
   bytes token = 1;
-  PiiKeyRef key = 2;
+  // The key the token was made under: the PiiPolicyKeyRef identity (id,
+  // version) of turbo_pii_policy.proto, carried as plain fields because
+  // that file imports this one.
+  string key_id = 2;
+  uint32 key_version = 3;
 }
 
-// The value encrypted under a registered key with a named scheme.
+// The value encrypted under a registered key with a named scheme. Not
+// produced until #1885.
 message PiiValueCiphertext
 {
   bytes ciphertext = 1;
-  PiiKeyRef key = 2;
+  // The key, as in PiiValueToken: the PiiPolicyKeyRef identity (id,
+  // version).
+  string key_id = 2;
   string scheme = 3;
+  uint32 key_version = 4;
 }
 
 // The form a request asks PII values in. UNSPECIFIED means WITHHELD.
@@ -1055,6 +1156,66 @@ message PiiOutputOptions
   // server without release, are refused with TURBO_E_UNSUPPORTED_OPTION
   // (UNIMPLEMENTED).
   PiiValueForm values = 4;
+}
+
+// Why a rule rejected a candidate. UNSPECIFIED is refused.
+enum PiiRejectReason
+{
+  PII_REJECT_REASON_UNSPECIFIED = 0;
+  PII_REJECT_REASON_LABEL_REQUIRED = 1;
+  PII_REJECT_REASON_THRESHOLD = 2;
+}
+
+// Which allow table a rule came from. UNSPECIFIED is refused.
+enum PiiAllowScope
+{
+  PII_ALLOW_SCOPE_UNSPECIFIED = 0;
+  PII_ALLOW_SCOPE_GLOBAL = 1;
+  PII_ALLOW_SCOPE_KIND = 2;
+}
+
+// An allow rule by its index in the detector's configuration: a term of
+// the allow list or a pattern.
+message PiiAllowRuleRef
+{
+  oneof rule
+  {
+    uint32 term = 1;
+    uint32 pattern = 2;
+  }
+}
+
+// A candidate an allow rule suppressed.
+message PiiAllowedByRule
+{
+  PiiAllowScope scope = 1;
+  PiiAllowRuleRef rule = 2;
+}
+
+// What became of a candidate. A mention index is a row of the turbo:pii
+// layer with the same instance name.
+message PiiDisposition
+{
+  oneof disposition
+  {
+    uint32 kept = 1;
+    PiiAllowedByRule allowed_by_rule = 2;
+    uint32 nested_in = 3;
+    PiiRejectReason rejected_by_rule = 4;
+    uint32 repeats = 5;
+  }
+}
+
+// One candidate of a turbo:pii-candidates layer: every span a detector
+// considered, with its facts and the decision taken on it. A candidate
+// never carries a value or a normalized form.
+message PiiCandidateAnnotation
+{
+  PiiKindRef kind = 1;
+  PiiDetectorRef detector = 2;
+  repeated PiiEvidence evidence = 3;
+  optional PiiScore score = 4;
+  PiiDisposition disposition = 5;
 }
 
 // How a PII rewrite wrote a replacement: the same numbers as the native
@@ -1676,5 +1837,6 @@ message TypedAnnotation
     ChunkCitationAnnotation chunk_citation = 96;
     GrammarDiagnosticAnnotation grammar_diagnostic = 97;
     PiiEditAnnotation pii_edit = 98;
+    PiiCandidateAnnotation pii_candidate = 99;
   }
 }

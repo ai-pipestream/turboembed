@@ -1,7 +1,7 @@
 //! Spanish (DNI, NIE, CIF) and German Personalausweis national identifier
 //! scanners.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind};
 
 use super::national::{JOINERS, on_number_end};
 use crate::checksum::{es, icao9303};
@@ -31,9 +31,15 @@ pub(crate) fn scan_es_dni(text: &str, hits: &mut Hits) {
             continue;
         }
         if let Some((end, norm)) = read_es_dni(text, i) {
-            hits.add(i, end, PiiKind::EsDni, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::EsDni,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Mod23, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;
@@ -70,9 +76,15 @@ pub(crate) fn scan_es_nie(text: &str, hits: &mut Hits) {
             continue;
         }
         if let Some((end, norm)) = read_es_nie(text, i) {
-            hits.add(i, end, PiiKind::EsNie, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::EsNie,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Mod23, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;
@@ -115,9 +127,15 @@ pub(crate) fn scan_es_cif(text: &str, hits: &mut Hits) {
             continue;
         }
         if let Some((end, norm)) = read_es_cif(text, i) {
-            hits.add(i, end, PiiKind::EsCif, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::EsCif,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::EsCif, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;
@@ -168,9 +186,15 @@ pub(crate) fn scan_de_personalausweis(text: &str, hits: &mut Hits) {
             && clean_token_end(text, end)
             && icao9303::de_personalausweis(candidate)
         {
-            hits.add(i, end, PiiKind::DePersonalausweis, PiiConfidence::Checksum, |s| {
-                s.push_str(&text[i..end]);
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::DePersonalausweis,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Icao9303, passed: true },
+                |s| {
+                    s.push_str(&text[i..end]);
+                },
+            );
             i = end;
         } else {
             i += 1;

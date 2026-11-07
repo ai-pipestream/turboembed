@@ -205,7 +205,7 @@ impl DocumentFormatter for MarkdownFormatter {
                     buf,
                     "- **{}** [{s}..{e}] (confidence: `{}`)",
                     escape_markdown(pii.kind_name(m.kind).unwrap_or("")),
-                    m.confidence.name(),
+                    m.confidence().name(),
                 );
             }
             buf.push('\n');
