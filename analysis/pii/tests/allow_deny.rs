@@ -13,7 +13,7 @@ use support::*;
 use turbo_analysis::{Annotator, Layer, Span, ViewId};
 use turbo_pii::rewrite::{HmacTokenizer, PiiAuditReport};
 use turbo_pii::{
-    AllowList, Case, DenyList, ListError, Pack, Pattern, PatternKind, PiiConfidence, PiiDetector, PiiKind,
+    AllowList, Case, DenyList, ListError, Pack, Pattern, PatternKind, PiiConfidence, PiiDetector, PiiEvidence, PiiKind,
 };
 
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
@@ -60,7 +60,8 @@ fn per_kind_ignore_leaves_other_kinds_alone() {
     );
 
     let phone_ignored = wide().allow_kind_term(PiiKind::Phone, "943 476 5919").unwrap();
-    let (pii, suppressed) = phone_ignored.layer_with_suppressed(text, ViewId::SOURCE);
+    let (pii, suppressed) = phone_ignored.layer_with_candidates(text, ViewId::SOURCE);
+    let suppressed = suppressed.suppressed_by_kind();
     assert_eq!(pii.check(), Ok(()));
     assert_eq!(pii.mentions().map(|m| m.kind).collect::<Vec<_>>(), [PiiKind::UkNhs, PiiKind::Email, PiiKind::Card]);
     assert_eq!(suppressed, [(PiiKind::Phone, 1)]);
@@ -75,7 +76,8 @@ fn per_kind_ignore_leaves_other_kinds_alone() {
 
     // Ignoring `help@example.com` under `Email` drops only the email.
     let email_ignored = wide().allow_kind_term(PiiKind::Email, "help@example.com").unwrap();
-    let (pii_email, sup_email) = email_ignored.layer_with_suppressed(text, ViewId::SOURCE);
+    let (pii_email, sup_email) = email_ignored.layer_with_candidates(text, ViewId::SOURCE);
+    let sup_email = sup_email.suppressed_by_kind();
     assert_eq!(
         pii_email.mentions().map(|m| m.kind).collect::<Vec<_>>(),
         [PiiKind::UkNhs, PiiKind::Phone, PiiKind::Card]
@@ -91,7 +93,8 @@ fn global_ignore_suppresses_covered_text_and_normalized_form_across_kinds() {
     // by covered surface text ("(555) 123-4567") globally suppresses all
     // matching kinds, including both `UkNhs` and `Phone` on "943 476 5919".
     let detector = wide().allow_terms(["9434765919", "(555) 123-4567", "4111111111111111"]).unwrap();
-    let (pii, suppressed) = detector.layer_with_suppressed(text, ViewId::SOURCE);
+    let (pii, suppressed) = detector.layer_with_candidates(text, ViewId::SOURCE);
+    let suppressed = suppressed.suppressed_by_kind();
     assert_eq!(pii.check(), Ok(()));
     assert_eq!(
         pii.mentions().map(|m| (m.kind, m.normalized)).collect::<Vec<_>>(),
@@ -152,7 +155,8 @@ fn allow_list_shape_and_glob_patterns() {
         .allow_kind_shape(PiiKind::UsSsn, "ddd-dd-dddd")
         .unwrap();
 
-    let (pii, suppressed) = detector.layer_with_suppressed(text, ViewId::SOURCE);
+    let (pii, suppressed) = detector.layer_with_candidates(text, ViewId::SOURCE);
+    let suppressed = suppressed.suppressed_by_kind();
     assert_eq!(pii.check(), Ok(()));
     assert_eq!(
         pii.mentions().map(|m| (m.kind, m.normalized)).collect::<Vec<_>>(),
@@ -207,7 +211,8 @@ fn file_loading_for_allow_and_deny_lists() {
 
     let text = "Write to desk@example.com or jane@example.com, call +44 20 7946 0958, \
                 card 4111 1111 1111 1111, regarding Project Hyperion and Sunburst.";
-    let (pii, suppressed) = detector.layer_with_suppressed(text, ViewId::SOURCE);
+    let (pii, suppressed) = detector.layer_with_candidates(text, ViewId::SOURCE);
+    let suppressed = suppressed.suppressed_by_kind();
     assert_eq!(pii.check(), Ok(()));
     assert_eq!(
         pii.mentions().map(|m| (m.kind, m.normalized)).collect::<Vec<_>>(),
@@ -232,7 +237,7 @@ fn deny_list_exact_and_fuzzy_edits_0_1_2_and_capitalised_only() {
     let d0 =
         PiiDetector::new(vec![]).denying(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(0).unwrap());
     assert_eq!(
-        layer(&d0, text).mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect::<Vec<_>>(),
+        layer(&d0, text).mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect::<Vec<_>>(),
         [(kind, PiiConfidence::Format, "Palantir")]
     );
 
@@ -402,7 +407,7 @@ fn suppressed_outer_mention_does_not_drop_nested_other_kind() {
         .with_custom_kinds(test_kinds())
         .with_custom_fn("ticket", ticket, |text, sink| {
             if let Some(pos) = text.find("TICKET ") {
-                sink.add_text(Span::new(pos as u32, text.len() as u32), custom("ticket"), PiiConfidence::Format);
+                sink.add_text(Span::new(pos as u32, text.len() as u32), custom("ticket"), &[PiiEvidence::Shape]);
             }
         })
         .unwrap();

@@ -179,6 +179,7 @@ struct LayerCtx<'a> {
     target_bounds: Vec<usize>,
     layer_len: usize,
     lid: &'a str,
+    instance: &'a str,
     custom_pii_kinds: usize,
 }
 
@@ -355,6 +356,7 @@ fn validate_layer(
         target_bounds,
         layer_len: layer.annotations.len(),
         lid,
+        instance: layer.instance.as_str(),
         custom_pii_kinds,
     };
     for (i, ann) in layer.annotations.iter().enumerate() {

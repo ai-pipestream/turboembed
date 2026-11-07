@@ -7,7 +7,7 @@ use support::*;
 use turbo_analysis::text::{Alignment, Side};
 use turbo_analysis::{Analyzer, Annotator, Document, Key, Provenance, Span, View, ViewBuilder, ViewId};
 use turbo_pii::rewrite::{MASKED, MaskError, MaskPolicy, MaskedView, mask, mask_by_kind, mask_view};
-use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiKind, PiiMention};
+use turbo_pii::{Pii, PiiDetector, PiiEvidence, PiiKind, PiiMention};
 
 fn whole(c: char) -> MaskPolicy {
     MaskPolicy::new(c).unwrap()
@@ -246,10 +246,13 @@ fn the_view_entry_point_refuses_a_layer_over_another_view() {
     let plain = doc.get_key(&Key::<View>::named("plain")).unwrap().clone();
     assert_eq!(plain.text(), "abcd");
     let mut pii = Pii::new(plain.id());
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(1, 3),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "bc",
     });
     let masker = MaskedView::all(whole('*'));

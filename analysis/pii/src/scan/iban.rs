@@ -2,7 +2,7 @@
 //! and more capitals or digits, in groups split by single spaces, of the
 //! length the country's registry entry gives, passing mod 97.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind};
 
 use crate::checksum::mod97;
 use crate::hits::Hits;
@@ -51,9 +51,15 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
             .find(|&&(end, n)| n == registered && on_end(text, end) && mod97::remainder(&compact[..n]) == 1);
         match found {
             Some(&(end, n)) => {
-                hits.add(i, end, PiiKind::Iban, PiiConfidence::Checksum, |s| {
-                    s.extend(compact[..n].iter().map(|&c| c as char));
-                });
+                hits.add(
+                    i,
+                    end,
+                    PiiKind::Iban,
+                    PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Mod97, passed: true },
+                    |s| {
+                        s.extend(compact[..n].iter().map(|&c| c as char));
+                    },
+                );
                 i = end;
             }
             None => i += 1,

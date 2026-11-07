@@ -3,7 +3,7 @@
 //! UnionPay's 81, passing Luhn. Separator-delimited prefixes are tried
 //! longest first, so an expiry date after the number does not hide it.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind};
 
 use crate::checksum::luhn;
 use crate::hits::Hits;
@@ -54,9 +54,15 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
         });
         match found {
             Some(&(end, n)) => {
-                hits.add(i, end, PiiKind::Card, PiiConfidence::Checksum, |s| {
-                    s.extend(digits[..n].iter().map(|&d| d as char));
-                });
+                hits.add(
+                    i,
+                    end,
+                    PiiKind::Card,
+                    PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
+                    |s| {
+                        s.extend(digits[..n].iter().map(|&d| d as char));
+                    },
+                );
                 i = end;
             }
             None => i += 1,

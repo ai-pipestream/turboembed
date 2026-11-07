@@ -4,16 +4,19 @@
 
 use turbo_analysis::{Span, ViewId};
 use turbo_pii::rewrite::{StaticReplacer, source_view};
-use turbo_pii::{CustomKinds, Pii, PiiConfidence, PiiKind, PiiMention};
+use turbo_pii::{CustomKinds, Pii, PiiEvidence, PiiKind, PiiMention};
+
+const SHAPE: &[PiiEvidence] = &[PiiEvidence::Shape];
 
 const TEXT: &str = "A-1 B-2";
 
 /// A layer over [`TEXT`] on `kinds`: "A-1" is `acct`, "B-2" is `other`.
 fn layer(kinds: &CustomKinds) -> Pii {
     let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, kinds.clone());
+    let detector = pii.detector("test", "1").unwrap();
     for (span, name) in [(Span::new(0, 3), "acct"), (Span::new(4, 7), "other")] {
         let kind = kinds.find(name).unwrap();
-        pii.push(PiiMention { span, kind, confidence: PiiConfidence::Format, normalized: "x" });
+        pii.push(PiiMention { span, kind, detector, evidence: SHAPE, score: None, normalized: "x" });
     }
     pii
 }
@@ -36,10 +39,13 @@ fn an_override_follows_the_kind_name_not_the_custom_index() {
     // A kind the replacer's table does not name takes the default.
     let c = CustomKinds::from_names(["acct-number", "other"]).unwrap();
     let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, c.clone());
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(0, 3),
         kind: c.find("acct-number").unwrap(),
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: SHAPE,
+        score: None,
         normalized: "x",
     });
     assert_eq!(replacer.rewrite(&source_view(TEXT), &pii).unwrap().into_text(), "DEFAULT B-2");

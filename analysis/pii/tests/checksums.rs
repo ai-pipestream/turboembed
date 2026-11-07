@@ -222,6 +222,9 @@ fn spanish_german_french_brazilian_and_bic_validators() {
     assert!(fr::siret(b"35600000000048"));
     assert!(fr::siret(b"35600000000010"));
     assert!(!fr::siret(b"35600000000011"));
+    assert_eq!(fr::siret_rule(b"73282932000074"), Some(fr::SiretRule::Luhn));
+    assert_eq!(fr::siret_rule(b"35600000000010"), Some(fr::SiretRule::LaPosteMod5));
+    assert_eq!(fr::siret_rule(b"35600000000011"), None);
 
     // Receita Federal CPF & CNPJ (numeric and 2026 alphanumeric IN RFB 2.229/2024).
     assert!(mod11::uk_nhs(b"9434765919"));

@@ -7,11 +7,10 @@
 //!   (`dd ddd ddd ddd` or eleven bare digits, ISO 7064 MOD 11,10 with
 //!   the repetition rules).
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind, PiiKinds};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiKinds};
 
 use crate::hits::Hits;
 use crate::text::{on_end, on_number_start};
-use crate::window::WindowConfig;
 
 /// No letter or digit after `end`, and none of `joiners` going on with a
 /// digit.
@@ -36,7 +35,7 @@ pub(crate) fn scan_us(text: &str, kinds: PiiKinds, hits: &mut Hits) {
             continue;
         };
         let separator = b[i + 3];
-        hits.add(i, i + LENGTH, kind, PiiConfidence::Format, |s| {
+        hits.add(i, i + LENGTH, kind, PiiEvidence::Shape, |s| {
             s.extend(b[i..i + LENGTH].iter().map(|&c| if c == separator { '-' } else { c as char }));
         });
         i += LENGTH;
@@ -72,7 +71,7 @@ const STEUER_GROUPS: &[usize] = &[2, 3, 3, 3];
 pub(crate) const JOINERS: &[u8] = b".,- ";
 
 /// European national and business identifiers of `kinds`.
-pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, window: &WindowConfig, hits: &mut Hits) {
+pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, hits: &mut Hits) {
     if kinds.contains(PiiKind::DeSteuerId) {
         scan_grouped(text, STEUER_GROUPS, PiiKind::DeSteuerId, hits);
     }
@@ -101,7 +100,7 @@ pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, window: &WindowConfig, hits: 
         super::fr::scan_fr_siret(text, hits);
     }
     if kinds.contains(PiiKind::Bic) {
-        super::labelled::scan_bic(text, window, hits);
+        super::labelled::scan_bic(text, hits);
     }
 }
 
@@ -120,7 +119,9 @@ fn scan_grouped(text: &str, groups: &[usize], kind: PiiKind, hits: &mut Hits) {
         let valid = |value: &[u8]| if kind == PiiKind::UkNhs { valid_nhs(value) } else { valid_steuer_id(value) };
         match end {
             Some(end) if valid(value) => {
-                hits.add(i, end, kind, PiiConfidence::Checksum, |s| {
+                let algorithm =
+                    if kind == PiiKind::UkNhs { ChecksumAlgorithm::Mod11 } else { ChecksumAlgorithm::Iso7064Mod11_10 };
+                hits.add(i, end, kind, PiiEvidence::Checksum { algorithm, passed: true }, |s| {
                     s.extend(value.iter().map(|&d| (b'0' + d) as char));
                 });
                 i = end;
