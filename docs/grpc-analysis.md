@@ -607,8 +607,12 @@ and never recomputed on the wire:
   edit's bounds, so it covers more than the native span stood for.
 - `SPAN_OUTCOME_DELETED`: a non-empty native span landed on text the
   result's view deleted; the fragment is empty and anchors where the
-  text was. A deleted fragment is kept, not dropped, so an item with two
-  fragments on deleted text has two empty anchors.
+  text was. A deleted fragment is kept, not dropped: a standalone one
+  stays as an empty anchor of its own, so an item with two fragments on
+  deleted text has two empty anchors, and one that lands inside or
+  touching another projected fragment coalesces into it as a member
+  with outcome deleted. Before #1907 a deleted fragment was dropped from
+  a multi-fragment span.
 
 Coalescing is a separate fact. Onto another view, projected fragments
 that overlap, or an empty one inside or touching another, coalesce into
