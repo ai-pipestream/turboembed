@@ -43,7 +43,7 @@ pub use annotate::{Annotator, Bound, Locality, Placed, Refs, Step};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
 pub use doc::{
     ContentDigest, Document, DuplicateLayerPolicy, InputSnapshotDigest, LayerStatus, PROCESSING_CONFIG_DIGEST_RULE,
-    ProcessingConfigDigest, ProvenanceDigest, SourceBytesDigest, Status, View, ViewTextDigest,
+    PolicyDigest, ProcessingConfigDigest, ProvenanceDigest, SourceBytesDigest, Status, View, ViewTextDigest,
 };
 pub use error::Error;
 pub use evidence::{Evidence, EvidenceError, EvidenceStep, Evidenced, Producer, Support};

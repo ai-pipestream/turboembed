@@ -9,7 +9,8 @@ mod view;
 
 pub use config_digest::PROCESSING_CONFIG_DIGEST_RULE;
 pub use digest::{
-    ContentDigest, InputSnapshotDigest, ProcessingConfigDigest, ProvenanceDigest, SourceBytesDigest, ViewTextDigest,
+    ContentDigest, InputSnapshotDigest, PolicyDigest, ProcessingConfigDigest, ProvenanceDigest, SourceBytesDigest,
+    ViewTextDigest,
 };
 pub use merge::DuplicateLayerPolicy;
 pub use view::View;
