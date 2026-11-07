@@ -259,7 +259,7 @@ fn validate_layer(
     quality::layer(layer)?;
     quotations::layer(layer)?;
     evidence::layer(layer)?;
-    pii_edits::layer(layer, layer_lengths)?;
+    pii_edits::layer(msg, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }

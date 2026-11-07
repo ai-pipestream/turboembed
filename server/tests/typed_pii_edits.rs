@@ -144,3 +144,59 @@ fn edits_are_checked_across_the_layer() {
         .contains("outside the covered")
     );
 }
+
+#[test]
+fn tampered_source_spans_are_refused_against_the_chain() {
+    let doc = redacted_doc();
+    let view = doc.get_key(&REDACTED).unwrap();
+    for (target, offsets) in [
+        (view.id(), OffsetMode::Utf8),
+        (view.id(), OffsetMode::Utf16),
+        (turbo_analysis::ViewId::SOURCE, OffsetMode::Utf8),
+        (turbo_analysis::ViewId::SOURCE, OffsetMode::CodePoint),
+    ] {
+        let wire = document_to_typed("edits", &doc, target, offsets).unwrap();
+        validate_typed_document(&wire).unwrap();
+        let at = wire.layers.iter().position(|l| l.id == "turbo:pii-edits").unwrap();
+        let tampered = |i: usize, start: u32, end: u32| {
+            let mut w = wire.clone();
+            if let Some(Value::PiiEdit(e)) = &mut w.layers[at].annotations[i].value {
+                let s = e.source.as_mut().unwrap();
+                (s.start, s.end) = (start, end);
+            }
+            validate_typed_document(&w).unwrap_err().message
+        };
+        let first = edits(&wire)[0].1.source.unwrap();
+        let second = edits(&wire)[1].1.source.unwrap();
+        let err = tampered(0, 1, u32::MAX);
+        assert!(
+            err.contains("disagrees with") || err.contains("overlaps or precedes"),
+            "{target:?} {offsets:?}: {err}"
+        );
+        assert!(tampered(0, first.start + 1, first.end).contains("disagrees with"), "{target:?} {offsets:?}");
+        if target == turbo_analysis::ViewId::SOURCE {
+            // Only the source shows the parent: a longer last source span
+            // keeps every gap but no longer matches its span there.
+            assert!(tampered(1, second.start, second.end + 1).contains("disagrees with"));
+        }
+    }
+}
+
+#[test]
+fn members_are_checked_against_the_mentions_on_the_source() {
+    let doc = redacted_doc();
+    let wire = document_to_typed("edits", &doc, turbo_analysis::ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let at = wire.layers.iter().position(|l| l.id == "turbo:pii-edits").unwrap();
+    let mut w = wire.clone();
+    let swap = |w: &mut TypedDocumentResult, i: usize, members: Vec<u32>| {
+        if let Some(Value::PiiEdit(e)) = &mut w.layers[at].annotations[i].value {
+            e.members = members;
+        }
+    };
+    let m0 = edits(&wire)[0].1.members.clone();
+    let m1 = edits(&wire)[1].1.members.clone();
+    swap(&mut w, 0, m1.clone());
+    swap(&mut w, 1, m0.clone());
+    let err = validate_typed_document(&w).unwrap_err().message;
+    assert!(err.contains("exactly the mentions"), "{err}");
+}

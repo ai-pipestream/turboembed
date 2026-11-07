@@ -35,6 +35,11 @@ fn masks_that_keep_different_characters_hash_apart() {
     let text = "mail jane@example.com now";
     assert_ne!(redacted(whole.clone(), text), redacted(first4.clone(), text));
     assert_ne!(hash(whole), hash(first4));
+    // The mask character alone: '*' and '#' write different views.
+    let star = RewritePolicy::new(MaskPolicy::new('*').unwrap());
+    let hash_mark = RewritePolicy::new(MaskPolicy::new('#').unwrap());
+    assert_ne!(redacted(star.clone(), text), redacted(hash_mark.clone(), text));
+    assert_ne!(hash(star), hash(hash_mark));
 }
 
 #[test]
