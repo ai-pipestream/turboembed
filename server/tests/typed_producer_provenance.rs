@@ -98,6 +98,7 @@ async fn check(entities: bool) {
                     view: 0,
                     offsets: mode as i32,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

@@ -45,6 +45,7 @@ pub(crate) fn graph_item(doc_id: &str, graph: Vec<u8>, typed: Option<SinkTyped>)
             view: t.view,
             offsets: t.offsets as i32,
             binding: None,
+            operation_key: String::new(),
         })?),
         None => None,
     };

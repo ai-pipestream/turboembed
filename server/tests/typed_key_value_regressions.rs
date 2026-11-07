@@ -40,6 +40,7 @@ async fn key_value_component_spans_obey_wire_boundaries_in_both_views() {
                     view,
                     offsets: mode as i32,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

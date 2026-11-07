@@ -25,19 +25,19 @@ use std::collections::HashMap;
 
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{
-    Anchor, Document, Evidence, Execution, Ix, Key, KeyId, Layer, ModelRef, Provenance, Span, Spans, Status, View,
-    ViewId,
+    Anchor, Document, Evidence, Execution, Ix, Key, KeyId, Layer, ModelRef, Provenance, Span, Spans, View, ViewId,
 };
 use turbo_analysis_layers::{Categories, Entities, Opinions};
 
 use super::document::codecs;
+use super::receipt::error::layer_status;
+use super::receipt::{self, Operation, check_operation_key};
 use super::{MAX_GRAPH_BYTES, Wire, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
-    AnchorKind, ExecutionInfo, InputBinding, InspectDocumentGraphRequest, LayerIndexBound, LayerWireStatus,
-    MappingPayload, ModelProvenance, SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo,
-    mapping_payload,
+    AnchorKind, ExecutionInfo, InputBinding, InspectDocumentGraphRequest, LayerIndexBound, MappingPayload,
+    ModelProvenance, SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo, mapping_payload,
 };
 
 pub use validate::validate_typed_document;
@@ -244,20 +244,12 @@ pub(crate) fn find_aligned_to<A: Layer>(doc: &Document, anchor_key: KeyId) -> Op
     None
 }
 
-pub(crate) fn status_to_wire(status: Option<&Status>) -> (LayerWireStatus, String) {
-    match status {
-        Some(Status::Complete) | None => (LayerWireStatus::Ok, String::new()),
-        Some(Status::Skipped(reason)) => (LayerWireStatus::Skipped, reason.clone()),
-        Some(Status::Failed(err)) => (LayerWireStatus::Failed, format!("{err:?}")),
-    }
-}
-
 pub(crate) fn build_layer<L: Layer>(
     cx: &mut ProjectionCx<'_>,
     key: KeyId,
     project: impl FnOnce(&mut ProjectionCx<'_>, &L, Option<&str>) -> Vec<TypedAnnotation>,
 ) -> TypedLayer {
-    let (status, status_detail) = status_to_wire(cx.doc.status(key));
+    let (status, error) = layer_status(cx.doc, key);
     let model_ref = cx.doc.provenance(key).map(|p| cx.register_provenance(p));
     let mut model_refs: Vec<String> = model_ref.iter().cloned().collect();
     let made_on = cx.doc.made_on(key);
@@ -315,13 +307,13 @@ pub(crate) fn build_layer<L: Layer>(
         id: key.layer.to_string(),
         instance: key.name.to_owned(),
         status: status as i32,
-        status_detail,
         scope: scope as i32,
         model_refs,
         anchor_layer,
         annotations,
         indexes_layer,
         native_view,
+        error,
     }
 }
 
@@ -347,14 +339,14 @@ fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
         if key.ty != TypeId::of::<View>() {
             continue;
         }
-        let (status, status_detail) = status_to_wire(doc.status(key));
+        let (status, error) = layer_status(doc, key);
         let annotator = doc.provenance(key).map(|p| p.annotator.to_owned()).unwrap_or_default();
         let parent = doc
             .get_key(&Key::<View>::named(key.name))
             .and_then(|v| v.parent())
             .and_then(|pid| id_names.iter().find(|(id, _)| *id == pid).map(|(_, name)| name.clone()))
             .unwrap_or_default();
-        views.push(ViewInfo { instance: key.name.to_owned(), status: status as i32, status_detail, annotator, parent });
+        views.push(ViewInfo { instance: key.name.to_owned(), status: status as i32, annotator, parent, error });
     }
     (views, id_names)
 }
@@ -370,11 +362,12 @@ pub fn document_to_typed(
     target_view: ViewId,
     offsets: OffsetMode,
 ) -> Result<TypedDocumentResult, Failure> {
-    document_to_typed_bound(doc_id, doc, target_view, offsets, None)
+    document_to_typed_bound(doc_id, doc, target_view, offsets, None, "")
 }
 
 /// [`document_to_typed`] with the caller's `binding` of the input copied
-/// into the result's input identity. The document is exported through
+/// into the result's input identity and its `operation_key` on the
+/// receipt of this attempt (issue #1908). The document is exported through
 /// the server's codecs for its result identity: the content digest is of
 /// those TGRF bytes, and a document a codec refuses is refused here.
 pub fn document_to_typed_bound(
@@ -383,7 +376,9 @@ pub fn document_to_typed_bound(
     target_view: ViewId,
     offsets: OffsetMode,
     binding: Option<&InputBinding>,
+    operation_key: &str,
 ) -> Result<TypedDocumentResult, Failure> {
+    check_operation_key(operation_key)?;
     let (views, view_ids) = collect_views(doc);
     if !view_ids.iter().any(|(id, _)| *id == target_view) {
         return Err(bad(format!("target view {} is outside the document's {} views", target_view.0, view_ids.len())));
@@ -409,19 +404,19 @@ pub fn document_to_typed_bound(
         {
             layers.push(typed);
         } else {
-            let (status, status_detail) = status_to_wire(cx.doc.status(key));
+            let (status, error) = layer_status(cx.doc, key);
             let model_refs = cx.doc.provenance(key).map(|p| vec![cx.register_provenance(p)]).unwrap_or_default();
             layers.push(TypedLayer {
                 id: key.layer.to_string(),
                 instance: key.name.to_owned(),
                 status: status as i32,
-                status_detail,
                 scope: AnchorKind::Document as i32,
                 model_refs,
                 anchor_layer: None,
                 annotations: Vec::new(),
                 indexes_layer: Vec::new(),
                 native_view: None,
+                error,
             });
         }
     }
@@ -436,6 +431,8 @@ pub fn document_to_typed_bound(
     let graph_bytes = graph.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
     let provenance = identity::layer_provenances(&mut cx, &graph);
     let mapping = Some(MappingPayload { payload: Some(mapping_payload::Payload::Inline(chain::inline_mapping(doc)?)) });
+    let (input, result) = (identity::input_identity(doc, binding), identity::result_identity(&graph_bytes));
+    let receipt = receipt::build(&Operation::start(operation_key), doc, input.clone(), Some(result.clone()), &[]);
 
     let typed = TypedDocumentResult {
         doc_id: doc_id.to_owned(),
@@ -445,10 +442,11 @@ pub fn document_to_typed_bound(
         models: cx.models,
         views,
         layers,
-        input: Some(identity::input_identity(doc, binding)),
-        result: Some(identity::result_identity(&graph_bytes)),
+        input: Some(input),
+        result: Some(result),
         provenance,
         mapping,
+        receipt: Some(receipt),
     };
     // Debug builds and tests refuse to emit what `RoundTripTypedDocument`
     // would refuse. Release builds skip it: on a 20 KB document the check
@@ -469,7 +467,7 @@ pub fn inspect_document_graph(req: &InspectDocumentGraphRequest) -> Result<Typed
     let view_u16 = u16::try_from(req.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", req.view)))?;
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    document_to_typed_bound(&req.doc_id, &doc, ViewId(view_u16), offsets, req.binding.as_ref())
+    document_to_typed_bound(&req.doc_id, &doc, ViewId(view_u16), offsets, req.binding.as_ref(), &req.operation_key)
 }
 
 /// Validates `msg` and returns a clone for `RoundTripTypedDocument`.
