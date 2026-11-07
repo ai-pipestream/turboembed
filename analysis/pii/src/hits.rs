@@ -198,9 +198,6 @@ impl Hits {
     /// Applies context label requirements before resolving candidate spans.
     pub(crate) fn apply_label_policy(&mut self, text: &str, window: &WindowConfig) {
         self.hits.retain_mut(|h| {
-            if matches!(h.confidence, PiiConfidence::Labelled | PiiConfidence::LabelledChecksum) {
-                return true;
-            }
             if let Some(conf) = window.check(text, Span::new(h.start, h.end), h.kind, h.confidence) {
                 h.confidence = conf;
                 true
