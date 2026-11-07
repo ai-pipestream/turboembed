@@ -34,6 +34,14 @@ pub struct Mlx {
     pub work: PathBuf,
 }
 
+/// What the runner is asked for beyond its paths.
+struct Args {
+    precision: u32,
+    pooling: &'static str,
+    warmup: u32,
+    iterations: u32,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Receipt {
@@ -44,6 +52,7 @@ struct Receipt {
     /// The host's 1, 5 and 15-minute load averages before the runs.
     loadavg: [f64; 3],
     dtype: String,
+    pooling: String,
     batch: u32,
     seq: u32,
     times_ms: Vec<f64>,
@@ -56,8 +65,18 @@ pub fn dtype(precision: u32) -> &'static str {
     if precision == turbo::TURBO_PRECISION_FASTEST { "float16" } else { "float32" }
 }
 
+/// The runner's --pooling for the bundle's pooling: the mean over the
+/// mask, or the first token's state (CLS). Last-token pooling is refused.
+pub fn pooling(p: turbo::manifest::Pooling) -> Result<&'static str> {
+    match p {
+        turbo::manifest::Pooling::Mean => Ok("mean"),
+        turbo::manifest::Pooling::Cls => Ok("cls"),
+        _ => Err("MLX's encoder pools by the mean or by CLS; the bundle's contract pools otherwise".into()),
+    }
+}
+
 /// The argv of the runner, with `script`, `model` and `work` as given.
-fn argv(script: &str, model: &str, work: &str, precision: u32, warmup: u32, iterations: u32) -> Vec<String> {
+fn argv(script: &str, model: &str, work: &str, a: &Args) -> Vec<String> {
     [
         "python3",
         "-E",
@@ -65,13 +84,15 @@ fn argv(script: &str, model: &str, work: &str, precision: u32, warmup: u32, iter
         "--model",
         model,
         "--dtype",
-        dtype(precision),
+        dtype(a.precision),
+        "--pooling",
+        a.pooling,
         "--rows",
         &format!("{work}/rows.json"),
         "--warmup",
-        &warmup.to_string(),
+        &a.warmup.to_string(),
         "--iterations",
-        &iterations.to_string(),
+        &a.iterations.to_string(),
         "--version",
         MLX_VERSION,
         "--out",
@@ -104,9 +125,10 @@ pub fn run(o: &Mlx, m: &Measurement, warmup: u32, iterations: u32) -> Result<Ref
     if m.backend() != "metal" {
         return Err("MLX is a reference for the metal backend only".into());
     }
-    if !m.normalize() || m.pooling() != turbo::manifest::Pooling::Mean {
-        return Err("MLX's encoder pools by the mean and normalizes; the bundle's contract does not".into());
+    if !m.normalize() {
+        return Err("MLX's encoder normalizes; the bundle's contract does not".into());
     }
+    let a = Args { precision: m.precision, pooling: pooling(m.pooling())?, warmup, iterations };
     check_model_dir(&o.model, m)?;
     let nonce = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
     let root = o.work.join(format!("mlx-{}-{nonce}", std::process::id()));
@@ -119,13 +141,13 @@ pub fn run(o: &Mlx, m: &Measurement, warmup: u32, iterations: u32) -> Result<Ref
     std::fs::write(root.join("rows.json"), rows.to_string()).map_err(|e| e.to_string())?;
     let model = o.model.canonicalize().map_err(|e| format!("--mlx-model: {e}"))?;
     let path = |p: &Path| p.to_string_lossy().into_owned();
-    let run = argv(&path(&script), &path(&model), &path(&root), m.precision, warmup, iterations);
+    let run = argv(&path(&script), &path(&model), &path(&root), &a);
     let out = Command::new(&run[0]).args(&run[1..]).output().map_err(|e| format!("MLX runner: {e}"))?;
     if !out.status.success() {
         return Err(format!("MLX runner failed ({}): {}", out.status, String::from_utf8_lossy(&out.stderr)));
     }
     let bytes = std::fs::read(root.join("receipt.json")).map_err(|e| e.to_string())?;
-    let recorded = argv(MLX_SCRIPT, MLX_MODEL, WORK, m.precision, warmup, iterations);
+    let recorded = argv(MLX_SCRIPT, MLX_MODEL, WORK, &a);
     from_receipt(&bytes, m, iterations, recorded)
 }
 
@@ -137,6 +159,9 @@ pub fn from_receipt(bytes: &[u8], m: &Measurement, iterations: u32, command: Vec
     let rows = &m.rows;
     if e.batch != rows.batch || e.seq != rows.seq || e.vectors.len() != rows.row_count() || rows.row_count() == 0 {
         return Err("MLX receipt differs from the measured rows".into());
+    }
+    if e.pooling != pooling(m.pooling())? {
+        return Err(format!("MLX receipt: {:?} pooling where the bundle's contract is {:?}", e.pooling, m.pooling()));
     }
     if e.dtype != dtype(m.precision) || e.version != MLX_VERSION {
         return Err(format!(
@@ -179,13 +204,14 @@ pub fn from_receipt(bytes: &[u8], m: &Measurement, iterations: u32, command: Vec
     let [l1, l5, l15] = e.loadavg;
     let procedure = format!(
         "MLX {} on the machine's Python, the BERT encoder of bench/reference/mlx_reference.py with every weight \
-         cast to {}, mx.compile, mean pooling and L2 in F32, on the same token rows as a padded batch; untimed \
+         cast to {}, mx.compile, {} pooling and L2 in F32, on the same token rows as a padded batch; untimed \
          runs, then {} timed as host wall time, each waited for with mx.eval, the rows already on the device \
          and the vectors not read back: min {:.4} ms, mean {:.4} ms. min_cosine is against each row's expected \
          vector. Host load averages before the runs {l1:.2} {l5:.2} {l15:.2}. SHA-256 of lib/libmlx.dylib (the \
          pin) {}, lib/mlx.metallib {}, mlx.core {}; runner {}",
         e.version,
         dtype(m.precision),
+        e.pooling,
         ms.len(),
         ms[0],
         mean,

@@ -661,6 +661,13 @@ except at 1 x 32 (0.49 now). The x 512 sizes and bge-base were not
 run: the bundle has no 512-token reference case, and `mlx_bench.py` pools
 only by the mean.
 
+bge-base-en-v1.5 against MLX float16, at FASTEST over five rounds
+(`docs/receipts/metal-812-bge-idle/`, at main plus the MLX reference's CLS
+pooling): FASTEST trails by 5% to 9% up to 4 x 128 and by 8% to 35% from
+8 x 128 up, including 1 and 8 x 512, and leads only at 1 x 32 (0.76). At
+32 x 256 and 32 x 512 both sides varied by 30% to 50% from round to round,
+so those rows wait for another sitting.
+
 ### The 64 x 32 tile
 
 `linear=h64n32` is MLX's tile for a half "nt" product on a small Apple
