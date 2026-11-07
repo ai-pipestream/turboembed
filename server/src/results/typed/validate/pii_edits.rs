@@ -64,26 +64,32 @@ struct Pair {
     source: Span,
 }
 
-/// The checks against the chain the message can show. The edits are the
-/// alignment of their view one for one (the native layer refuses any
-/// other), so where the message is projected onto the edits' own view the
-/// unchanged stretches between edits must be as long in the parent as in
-/// the view; where it is projected onto the source and the source is the
-/// parent, every edit's span is its source span, inside the text, and its
-/// members are exactly the mentions under it. Another projection shows
-/// neither text, and only the graph check applies.
+/// The checks against the chain the message can show. The message does
+/// not name the view a layer's native spans are in (#1907 adds that), and
+/// the instance names of a step's view and its edits are the caller's, so
+/// the edits' view is known only when the message has one derived view:
+/// the native layer is always over a derived view. With several, only the
+/// layer-wide checks and the graph check apply.
+///
+/// The edits are the alignment of their view one for one (the native
+/// layer refuses any other), so where the message is projected onto that
+/// view the unchanged stretches between edits must be as long in the
+/// parent as in the view; where it is projected onto the source and the
+/// source is the parent, every edit's span is its source span, inside the
+/// text, and its members are exactly the mentions under it.
 fn chain(msg: &TypedDocumentResult, offsetter: &Offsetter, layer: &TypedLayer) -> Result<(), Failure> {
     let lid = layer.id.as_str();
-    let Some(view) = msg.views.iter().find(|v| v.instance == layer.instance) else {
-        return Err(bad(format!("{lid} is over no view of the message")));
-    };
-    if view.parent.is_empty() && view.instance.is_empty() {
-        return Err(bad(format!("{lid} must be over a derived view, not the source")));
+    if layer.annotations.is_empty() {
+        return Ok(());
     }
-    let on_source = msg.view == u32::from(ViewId::SOURCE.0) && view.parent.is_empty();
-    let derived: Vec<&str> = msg.views.iter().filter(|v| !v.instance.is_empty()).map(|v| v.instance.as_str()).collect();
-    let on_own = msg.view != u32::from(ViewId::SOURCE.0) && derived == [layer.instance.as_str()];
-    if !on_source && !on_own {
+    let mut derived = msg.views.iter().filter(|v| !v.instance.is_empty());
+    let view = match (derived.next(), derived.next()) {
+        (Some(v), None) => v,
+        (None, _) => return Err(bad(format!("{lid} needs a derived view in the message"))),
+        (Some(_), Some(_)) => return Ok(()),
+    };
+    let on_source = msg.view == u32::from(ViewId::SOURCE.0);
+    if on_source && !view.parent.is_empty() {
         return Ok(());
     }
     let mut pairs = Vec::with_capacity(layer.annotations.len());
@@ -136,12 +142,16 @@ fn members_on_source(
     for (m, ann) in pii.annotations.iter().enumerate() {
         let (Some(first), Some(last)) = (ann.spans.first(), ann.spans.last()) else { continue };
         let span = offsetter.from_wire(&msg.raw_text, &format!("{}[{m}] span", Pii::ID), first.start, last.end)?;
+        // The sources are ordered and disjoint (checked across the layer
+        // first), so the edits a mention overlaps are one run.
+        let first = pairs.partition_point(|p| p.source.end <= span.start);
         let mut covered = false;
-        for (k, p) in pairs.iter().enumerate() {
-            if p.source.start < span.end && span.start < p.source.end {
-                under[k].push(u32::try_from(m).expect("fewer than 2^32 mentions"));
-                covered = true;
+        for (k, p) in pairs.iter().enumerate().skip(first) {
+            if p.source.start >= span.end {
+                break;
             }
+            under[k].push(u32::try_from(m).expect("fewer than 2^32 mentions"));
+            covered = true;
         }
         if !covered {
             return Err(bad(format!("{lid} leaves {}[{m}] under no edit", Pii::ID)));

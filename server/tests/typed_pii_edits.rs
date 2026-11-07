@@ -200,3 +200,60 @@ fn members_are_checked_against_the_mentions_on_the_source() {
     let err = validate_typed_document(&w).unwrap_err().message;
     assert!(err.contains("exactly the mentions"), "{err}");
 }
+
+#[test]
+fn edits_stored_under_another_name_than_their_view_are_checked() {
+    let policy = RewritePolicy::new(Pseudonymizer::default());
+    let analyzer = Analyzer::builder()
+        .add(PiiDetector::cursor())
+        .step(RedactedView::new(policy).bound().write(1, "audit"))
+        .build()
+        .unwrap();
+    let mut docs = vec![Document::new(TEXT)];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    let doc = docs.pop().unwrap();
+    let view = doc.get_key(&REDACTED).unwrap();
+    for target in [view.id(), turbo_analysis::ViewId::SOURCE] {
+        let wire = document_to_typed("audit", &doc, target, OffsetMode::Utf8).unwrap();
+        validate_typed_document(&wire).unwrap();
+        let at = wire.layers.iter().position(|l| l.id == "turbo:pii-edits").unwrap();
+        assert_eq!(wire.layers[at].instance, "audit");
+        let mut w = wire.clone();
+        if let Some(Value::PiiEdit(e)) = &mut w.layers[at].annotations[0].value {
+            e.source = Some(turbo_kserve::proto::result::SpanFragment { start: 1, end: u32::MAX });
+        }
+        let err = validate_typed_document(&w).unwrap_err().message;
+        assert!(err.contains("disagrees with") || err.contains("overlaps or precedes"), "{target:?}: {err}");
+        // The first source moved by one keeps the layer ordered; only the
+        // chain sees it.
+        let mut w = wire.clone();
+        if let Some(Value::PiiEdit(e)) = &mut w.layers[at].annotations[0].value {
+            e.source.as_mut().unwrap().start += 1;
+        }
+        assert!(validate_typed_document(&w).unwrap_err().message.contains("disagrees with"), "{target:?}");
+    }
+}
+
+#[test]
+fn many_edits_are_matched_to_their_mentions() {
+    let text = "a@b.io ".repeat(5000);
+    let policy = RewritePolicy::new(StaticReplacer::new("[E]"));
+    let analyzer =
+        Analyzer::builder().add(PiiDetector::cursor()).step(RedactedView::new(policy).bound()).build().unwrap();
+    let mut docs = vec![Document::new(text.as_str())];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    let doc = docs.pop().unwrap();
+    let wire = document_to_typed("many", &doc, turbo_analysis::ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let at = wire.layers.iter().position(|l| l.id == "turbo:pii-edits").unwrap();
+    assert_eq!(wire.layers[at].annotations.len(), 5000);
+    validate_typed_document(&wire).unwrap();
+    let mut w = wire.clone();
+    if let Some(Value::PiiEdit(e)) = &mut w.layers[at].annotations[4999].value {
+        e.members = vec![4998];
+    }
+    assert!(validate_typed_document(&w).unwrap_err().message.contains("exactly the mentions"));
+}
