@@ -126,7 +126,7 @@ fn window_helper_enforces_word_distance_bounds_and_invalid_spans() {
 fn kind_defaults_match_specification() {
     for kind in PiiKind::ALL {
         assert!(!default_labels(kind).is_empty(), "{kind} should have default labels");
-        if matches!(kind, PiiKind::CaSin | PiiKind::Imei) {
+        if matches!(kind, PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic) {
             assert_eq!(default_window(kind), 1, "{kind}");
             assert_eq!(default_policy(kind), LabelPolicy::Required, "{kind}");
         } else {
@@ -373,6 +373,18 @@ fn caller_overrides_extra_labels_window_width_and_sin_policy() {
     let pii = layer(&boost_sin, text);
     let items: Vec<_> = pii.mentions().map(|m| (m.confidence, m.normalized)).collect();
     assert_eq!(items, [(PiiConfidence::Checksum, "046454286"), (PiiConfidence::LabelledChecksum, "046454286")]);
+
+    // Configuring BIC's window and extra labels enables bidirectional UAX #29 matching and custom labels.
+    let bic_det = PiiDetector::pack(Pack::EuIdentity)
+        .with_label_window(PiiKind::Bic, 3)
+        .with_extra_label(PiiKind::Bic, "bankcode");
+    let text = "DEUTDEFF (SWIFT) and bankcode on wire BNPAFRPPXXX.";
+    let pii = layer(&bic_det, text);
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+    assert_eq!(
+        items,
+        [(PiiKind::Bic, PiiConfidence::Labelled, "DEUTDEFF"), (PiiKind::Bic, PiiConfidence::Labelled, "BNPAFRPPXXX"),]
+    );
 }
 
 #[test]

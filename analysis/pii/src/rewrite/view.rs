@@ -212,7 +212,11 @@ impl Annotator for MaskedView {
     }
 
     /// FNV-1a over each kind's mask byte and options, fixed so that stored
-    /// provenance stays comparable across builds.
+    /// provenance stays comparable across builds. The 10 kinds in
+    /// `PiiKind::ALL[17..27]` are compared against a baseline inferred from
+    /// `(default_policy, legacy_20_policies)`: `MaskPolicy::for_kind(k, mask)`
+    /// when `default_policy` is a whole mask and at least 10 of the 20 legacy
+    /// kinds match `for_kind`, otherwise `default_policy`.
     fn config_hash(&self) -> u64 {
         let fold_policy = |h: &mut turbo_analysis::Fnv1a, p: MaskPolicy| {
             let base = u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
@@ -222,8 +226,34 @@ impl Annotator for MaskedView {
             }
         };
         let mut h = turbo_analysis::Fnv1a::new();
-        for policy in self.policies.iter().copied().chain(std::iter::once(self.default_policy)) {
+        let legacy = self.policies[..17].iter().chain(&self.policies[27..30]).copied();
+        for policy in legacy.chain(std::iter::once(self.default_policy)) {
             fold_policy(&mut h, policy);
+        }
+        let is_by_kind_baseline = self.default_policy.leading() == 0
+            && self.default_policy.trailing() == 0
+            && !self.default_policy.keeps_format()
+            && PiiKind::ALL
+                .iter()
+                .copied()
+                .filter(|k| k.hash_bit() < 20)
+                .filter(|&k| {
+                    MaskPolicy::for_kind(k, self.default_policy.mask())
+                        .is_ok_and(|p| self.policies[k.rank() as usize] == p)
+                })
+                .count()
+                >= 10;
+        for &k in &PiiKind::ALL[17..27] {
+            let baseline = if is_by_kind_baseline {
+                MaskPolicy::for_kind(k, self.default_policy.mask()).expect("validated ASCII mask")
+            } else {
+                self.default_policy
+            };
+            let policy = self.policies[k.rank() as usize];
+            if policy != baseline {
+                h.fold_u64(u64::from(k.hash_bit()));
+                fold_policy(&mut h, policy);
+            }
         }
         for &(name, policy) in &self.custom {
             h.bytes(name.as_bytes()).u8(0xff);

@@ -1,0 +1,9 @@
+MASKED	Bitte überweisen Sie an DE89 3704 0044 0532 0130 00 und schreiben Sie an büro@example.de oder info@example.de.
+
+MASK_ALL	Bitte überweisen Sie an DE89 3704 0044 0532 0130 00 und schreiben Sie an büro@example.de oder info@example.de.
+
+REWRITE	pseudonymize	OK	Bitte überweisen Sie an DE89 3704 0044 0532 0130 00 und schreiben Sie an büro@example.de oder info@example.de.
+
+REWRITE	hmac	OK	Bitte überweisen Sie an DE89 3704 0044 0532 0130 00 und schreiben Sie an büro@example.de oder info@example.de.
+
+AUDIT_REPORT	no pii found

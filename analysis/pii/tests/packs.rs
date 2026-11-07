@@ -21,7 +21,9 @@ fn everything() -> String {
         "mail jane@example.com call (555) 123-4567 iban DE89 3704 0044 0532 0130 00 card 4111 1111 1111 1111 routing 021000021 \
          host 10.1.2.3 peer 2001:db8::1 mac 00:1b:44:11:3a:b7 key AKIAIOSFODNN7EXAMPLE url https://u:p@example.com/ \
          github ghp_{} jwt eyJhbGciOiJIUzI1NiJ9.e30.YQ btc {LEGACY} eth 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed \
-         ssn 123-45-6789 itin 900-70-1234 nhs 943 476 5919 idnr 65929970489 SIN: 046 454 286 IMEI: 490154203237518",
+         ssn 123-45-6789 itin 900-70-1234 nhs 943 476 5919 idnr 65929970489 dni 12345678Z nie X1234567L cif A58818501 \
+         npa T220001293 nir 2 94 03 2A 123 456 92 siren 732 829 320 siret 732 829 320 00074 BIC: DEUTDEFF500 \
+         cpf 529.982.247-25 cnpj 11.222.333/0001-81 SIN: 046 454 286 IMEI: 490154203237518",
         "a".repeat(36)
     )
 }
@@ -37,14 +39,15 @@ fn kinds_found(d: &PiiDetector) -> PiiKinds {
 #[test]
 fn every_pack_is_in_order_and_finds_its_kinds_only() {
     use PiiKind::*;
-    let expected: [(Pack, &[PiiKind]); 10] = [
+    let expected: [(Pack, &[PiiKind]); 11] = [
         (Pack::Payment, &[Iban, Card, AbaRouting]),
         (Pack::Contact, &[Email, Phone]),
         (Pack::Network, &[Ipv4, Ipv6, Mac]),
         (Pack::Secrets, &[AwsAccessKey, UrlCredential, GithubToken, Jwt]),
         (Pack::Crypto, &[BtcAddress, EthAddress]),
         (Pack::UsIdentity, &[UsSsn, UsItin]),
-        (Pack::EuIdentity, &[UkNhs, DeSteuerId]),
+        (Pack::EuIdentity, &[UkNhs, DeSteuerId, EsDni, EsNie, EsCif, DePersonalausweis, FrNir, FrSiren, FrSiret, Bic]),
+        (Pack::BrIdentity, &[BrCpf, BrCnpj]),
         (Pack::CaIdentity, &[CaSin]),
         (Pack::Device, &[Imei]),
         (Pack::AllStructured, &PiiKind::ALL),
@@ -204,6 +207,16 @@ fn kind_ranks() {
             "us-itin",
             "uk-nhs",
             "de-steuer-id",
+            "es-dni",
+            "es-nie",
+            "es-cif",
+            "de-personalausweis",
+            "fr-nir",
+            "fr-siren",
+            "fr-siret",
+            "br-cpf",
+            "br-cnpj",
+            "bic",
             "ca-sin",
             "aba-routing",
             "phone"
@@ -234,13 +247,14 @@ fn kind_ranks() {
 
 #[test]
 fn kind_selection() {
-    let samples: [(Extractor, &str); 6] = [
+    let samples: [(Extractor, &str); 7] = [
         (Extractor::Cursor, "jane@example.com"),
         (Extractor::Network, "10.1.2.3"),
         (Extractor::Secrets, "AKIAIOSFODNN7EXAMPLE"),
         (Extractor::Crypto, LEGACY),
         (Extractor::UsIdentity, "123-45-6789"),
         (Extractor::EuIdentity, "943 476 5919"),
+        (Extractor::BrIdentity, "529.982.247-25"),
     ];
     for (extractor, sample) in samples {
         let all: Vec<PiiKind> = extractor.kinds().iter().collect();
