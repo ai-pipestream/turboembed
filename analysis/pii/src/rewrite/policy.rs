@@ -4,33 +4,17 @@
 //! Callers configure a default [`RewriteStrategy`] and override individual
 //! built-in or [`PiiKind::Custom`] kinds with `.with(kind, strategy)`.
 
-use std::collections::HashMap;
+use turbo_analysis::View;
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiKind, PiiMention, PiiRule, PiiStrategyKind};
 
-use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiKind, PiiMention};
-
-use super::kind_name;
 use super::mask::CharRetention;
-use super::replace::MentionCluster;
+use super::replace::{EditOrigin, MentionCluster};
+use super::state::MemberInitial;
+pub(crate) use super::state::RewriteState;
 use super::{
     Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, PiiRewrite, Pseudonymizer, RewriteError,
     Sha256Tokenizer, StaticReplacer, Truncate,
 };
-
-#[derive(Copy, Clone)]
-pub(super) enum MemberInitial {
-    Abbreviate,
-    Retention(CharRetention),
-}
-
-impl MemberInitial {
-    #[inline]
-    fn keeps(self, piece: &str, rel_at: usize, c: char) -> bool {
-        match self {
-            MemberInitial::Abbreviate => Abbreviator::is_initial_at(piece, rel_at),
-            MemberInitial::Retention(ret) => ret.keeps(rel_at, c),
-        }
-    }
-}
 
 /// Any mention replacement strategy supported by [`PiiRewrite`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -116,6 +100,23 @@ impl From<Abbreviator> for RewriteStrategy {
 }
 
 impl RewriteStrategy {
+    /// Folds the strategy's kind and every parameter that changes what it
+    /// writes into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u8(self.kind().id());
+        match self {
+            RewriteStrategy::Mask(s) => s.fold_config(h),
+            RewriteStrategy::Pseudonym(s) => s.fold_config(h),
+            RewriteStrategy::Hmac(s) => s.fold_config(h),
+            RewriteStrategy::Format(s) => s.fold_config(h),
+            RewriteStrategy::Static(s) => s.fold_config(h),
+            RewriteStrategy::Sha256(s) => s.fold_config(h),
+            RewriteStrategy::Map(s) => s.fold_config(h),
+            RewriteStrategy::Truncate(s) => s.fold_config(h),
+            RewriteStrategy::Abbreviate(s) => s.fold_config(h),
+        }
+    }
+
     /// Whether this strategy refuses overlapping mentions with
     /// [`RewriteError::Overlap`].
     pub fn refuses_overlaps(&self) -> bool {
@@ -134,17 +135,32 @@ impl RewriteStrategy {
 
     /// Replaces every mention of `pii`, a layer over `text`, with this
     /// strategy.
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         match self {
-            RewriteStrategy::Mask(s) => s.rewrite(text, pii),
-            RewriteStrategy::Pseudonym(s) => s.rewrite(text, pii),
-            RewriteStrategy::Hmac(s) => s.rewrite(text, pii),
-            RewriteStrategy::Format(s) => s.rewrite(text, pii),
-            RewriteStrategy::Static(s) => s.rewrite(text, pii),
-            RewriteStrategy::Sha256(s) => s.rewrite(text, pii),
-            RewriteStrategy::Map(s) => s.rewrite(text, pii),
-            RewriteStrategy::Truncate(s) => s.rewrite(text, pii),
-            RewriteStrategy::Abbreviate(s) => s.rewrite(text, pii),
+            RewriteStrategy::Mask(s) => s.rewrite(src, pii),
+            RewriteStrategy::Pseudonym(s) => s.rewrite(src, pii),
+            RewriteStrategy::Hmac(s) => s.rewrite(src, pii),
+            RewriteStrategy::Format(s) => s.rewrite(src, pii),
+            RewriteStrategy::Static(s) => s.rewrite(src, pii),
+            RewriteStrategy::Sha256(s) => s.rewrite(src, pii),
+            RewriteStrategy::Map(s) => s.rewrite(src, pii),
+            RewriteStrategy::Truncate(s) => s.rewrite(src, pii),
+            RewriteStrategy::Abbreviate(s) => s.rewrite(src, pii),
+        }
+    }
+
+    /// The kind of this strategy, as the edits layer records it.
+    pub const fn kind(&self) -> PiiStrategyKind {
+        match self {
+            RewriteStrategy::Mask(_) => PiiStrategyKind::Mask,
+            RewriteStrategy::Pseudonym(_) => PiiStrategyKind::Pseudonym,
+            RewriteStrategy::Hmac(_) => PiiStrategyKind::Hmac,
+            RewriteStrategy::Format(_) => PiiStrategyKind::Format,
+            RewriteStrategy::Static(_) => PiiStrategyKind::Static,
+            RewriteStrategy::Sha256(_) => PiiStrategyKind::Sha256,
+            RewriteStrategy::Map(_) => PiiStrategyKind::Map,
+            RewriteStrategy::Truncate(_) => PiiStrategyKind::Truncate,
+            RewriteStrategy::Abbreviate(_) => PiiStrategyKind::Abbreviate,
         }
     }
 
@@ -193,157 +209,6 @@ impl RewriteStrategy {
     }
 }
 
-pub(crate) struct RewriteState<'a> {
-    kinds: &'a CustomKinds,
-    assigned: HashMap<(PiiKind, &'a str), u32>,
-    counters: HashMap<PiiKind, u32>,
-}
-
-impl<'a> RewriteState<'a> {
-    /// Numbering state for mentions of a layer whose custom kinds index
-    /// `kinds`.
-    pub(crate) fn new(kinds: &'a CustomKinds) -> RewriteState<'a> {
-        RewriteState { kinds, assigned: HashMap::new(), counters: HashMap::new() }
-    }
-
-    pub(crate) fn number(&mut self, kind: PiiKind, normalized: &'a str) -> u32 {
-        *self.assigned.entry((kind, normalized)).or_insert_with(|| {
-            let n = self.counters.entry(kind).or_insert(0);
-            *n += 1;
-            *n
-        })
-    }
-
-    pub(crate) fn write_strategy(
-        &mut self,
-        strategy: &RewriteStrategy,
-        text: &str,
-        m: &PiiMention<'a>,
-        out: &mut String,
-    ) -> Result<(), RewriteError> {
-        match strategy {
-            RewriteStrategy::Mask(policy) => {
-                out.push_str(&policy.masked(&text[m.span.range()]));
-                Ok(())
-            }
-            RewriteStrategy::Pseudonym(pseudo) => {
-                let n = self.number(m.kind, m.normalized);
-                pseudo.write_label(kind_name(self.kinds, m.kind), n, out);
-                Ok(())
-            }
-            RewriteStrategy::Hmac(hmac) => hmac
-                .write_token(kind_name(self.kinds, m.kind), m.normalized, out)
-                .map_err(|_| RewriteError::EmptyValue(m.span)),
-            RewriteStrategy::Format(fmt) => {
-                let n = if fmt.uses_number() { self.number(m.kind, m.normalized) } else { 1 };
-                fmt.write_label(kind_name(self.kinds, m.kind), n, out);
-                Ok(())
-            }
-            RewriteStrategy::Static(stat) => {
-                out.push_str(stat.replacement_in(self.kinds, m.kind));
-                Ok(())
-            }
-            RewriteStrategy::Sha256(sha) => sha
-                .write_digest(kind_name(self.kinds, m.kind), m.normalized, out)
-                .map_err(|_| RewriteError::EmptyValue(m.span)),
-            RewriteStrategy::Map(map) => map.write_mention(self, text, m, out),
-            RewriteStrategy::Truncate(trunc) => {
-                trunc.write_truncated(&text[m.span.range()], out);
-                Ok(())
-            }
-            RewriteStrategy::Abbreviate(abbr) => {
-                abbr.write_abbreviated(&text[m.span.range()], out);
-                Ok(())
-            }
-        }
-    }
-
-    pub(crate) fn write_cluster<'b>(
-        &mut self,
-        strategy_for: impl Fn(PiiKind) -> &'b RewriteStrategy,
-        text: &str,
-        cluster: &MentionCluster<'a>,
-        out: &mut String,
-    ) -> Result<(), RewriteError> {
-        for mem in &cluster.members {
-            if mem.normalized.is_empty() && strategy_for(mem.kind).requires_normalized(text, mem) {
-                return Err(RewriteError::EmptyValue(mem.span));
-            }
-        }
-        let winner = &cluster.merged;
-        if cluster.members.len() == 1 {
-            return self.write_strategy(strategy_for(winner.kind), text, winner, out);
-        }
-        let mut strategy = strategy_for(winner.kind);
-        while let RewriteStrategy::Map(map) = strategy {
-            if let Some(rep) = map.lookup_mention(text, winner) {
-                out.push_str(rep);
-                return Ok(());
-            }
-            strategy = map.fallback();
-        }
-        let piece = &text[winner.span.range()];
-        match strategy {
-            RewriteStrategy::Truncate(trunc) => {
-                let winner_ret = trunc.retention(piece);
-                let member_rets: Vec<_> =
-                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem.kind).retention(text, mem))).collect();
-                for (rel_at, c) in piece.char_indices() {
-                    let abs_at = winner.span.start + rel_at as u32;
-                    let keep = winner_ret.keeps(rel_at, c)
-                        && member_rets
-                            .iter()
-                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
-                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
-                    out.push(if keep { c } else { trunc.mask() });
-                }
-                Ok(())
-            }
-            RewriteStrategy::Mask(policy) => {
-                let winner_ret = policy.retention(piece);
-                let member_rets: Vec<_> =
-                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem.kind).retention(text, mem))).collect();
-                for (rel_at, c) in piece.char_indices() {
-                    let abs_at = winner.span.start + rel_at as u32;
-                    let keep = winner_ret.keeps(rel_at, c)
-                        && member_rets
-                            .iter()
-                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
-                            .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
-                    if keep {
-                        out.push(c);
-                    } else {
-                        for _ in 0..c.len_utf8() {
-                            out.push(policy.mask());
-                        }
-                    }
-                }
-                Ok(())
-            }
-            RewriteStrategy::Abbreviate(abbr) => {
-                let member_inits: Vec<_> = cluster
-                    .members
-                    .iter()
-                    .map(|mem| (mem.span, strategy_for(mem.kind).member_initial(text, mem)))
-                    .collect();
-                abbr.write_abbreviated_filtered(
-                    piece,
-                    |rel_at, c| {
-                        let abs_at = winner.span.start + rel_at as u32;
-                        member_inits
-                            .iter()
-                            .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
-                            .all(|(span, init)| init.keeps(&text[span.range()], (abs_at - span.start) as usize, c))
-                    },
-                    out,
-                );
-                Ok(())
-            }
-            other => self.write_strategy(other, text, winner, out),
-        }
-    }
-}
-
 /// Dispatches each mention to the [`RewriteStrategy`] configured for its
 /// [`PiiKind`], or to a default fallback strategy.
 ///
@@ -357,6 +222,7 @@ pub struct RewritePolicy {
     overrides: Vec<(PiiKind, RewriteStrategy)>,
     default_strategy: RewriteStrategy,
     refuse_overlaps: bool,
+    revision: u64,
 }
 
 impl RewritePolicy {
@@ -368,6 +234,7 @@ impl RewritePolicy {
             overrides: Vec::new(),
             default_strategy: default_strategy.into(),
             refuse_overlaps: false,
+            revision: 0,
         }
     }
 
@@ -425,6 +292,45 @@ impl RewritePolicy {
         }
     }
 
+    /// This policy at `revision`, the caller's number for this version of
+    /// it, which every edit it makes records. It names what the edits
+    /// layer leaves out, such as keys and lookup tables.
+    pub fn with_revision(mut self, revision: u64) -> RewritePolicy {
+        self.revision = revision;
+        self
+    }
+
+    /// The caller's revision of this policy; 0 when none was given.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    /// The rule of this policy for `kind` of a layer whose custom kinds
+    /// index `kinds`: its override, named as the layer names the kind, or
+    /// the default.
+    pub fn rule_in(&self, kinds: &CustomKinds, kind: PiiKind) -> PiiRule {
+        match self.custom_kinds.translate(kinds, kind) {
+            Some(k) if self.overrides.binary_search_by_key(&k.code(), |(o, _)| o.code()).is_ok() => PiiRule::Kind(kind),
+            _ => PiiRule::Default,
+        }
+    }
+
+    /// Folds the revision, whether the policy refuses overlaps, the
+    /// default strategy and each override, a custom kind by its name, with
+    /// every parameter of each strategy, into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.u64(self.revision).u8(u8::from(self.refuse_overlaps));
+        self.default_strategy.fold_config(h);
+        h.usize(self.overrides.len());
+        for (kind, strategy) in &self.overrides {
+            match kind.builtin_id() {
+                Some(id) => h.u8(0).u16(id),
+                None => h.u8(1).str(self.custom_kinds.name(*kind).unwrap_or("")),
+            };
+            strategy.fold_config(h);
+        }
+    }
+
     /// The default fallback strategy for kinds without an explicit override.
     pub fn default_strategy(&self) -> &RewriteStrategy {
         &self.default_strategy
@@ -444,28 +350,26 @@ impl RewritePolicy {
             || self.overrides.iter().any(|(_, s)| s.refuses_overlaps())
     }
 
-    /// Replaces every mention of `pii`, a layer over `text`, with the
-    /// strategy configured for its [`PiiKind`].
-    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mut state = RewriteState::new(&pii.custom_kinds);
-        if self.refuse_overlaps {
-            return PiiRewrite::try_replace(text, &pii.custom_kinds, pii.mentions(), |m, out| {
-                state.write_strategy(self.strategy_in(&pii.custom_kinds, m.kind), text, m, out)
-            });
-        }
-        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
-        for cluster in &clusters {
-            if cluster.members.len() > 1
-                && cluster.members.iter().any(|m| self.strategy_in(&pii.custom_kinds, m.kind).refuses_overlaps())
-            {
-                return Err(RewriteError::Overlap(cluster.members[0].span, cluster.members[1].span));
+    /// Replaces every mention of `pii`, a layer over `src`, with the
+    /// strategy configured for its [`PiiKind`], as a view derived from
+    /// `src`. Each edit records the rule of its cluster's winning kind and
+    /// this policy's revision.
+    pub fn rewrite(&self, src: &View, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let text = src.text();
+        let kinds = &pii.custom_kinds;
+        let mut state = RewriteState::new(kinds);
+        let refuses = |c: &MentionCluster<'_>| {
+            self.refuse_overlaps || c.members.iter().any(|m| self.strategy_in(kinds, m.kind).refuses_overlaps())
+        };
+        PiiRewrite::derive(src, pii, refuses, self.revision, |cluster, out| {
+            let winner = cluster.merged.kind;
+            let strategy = self.strategy_in(kinds, winner);
+            if self.refuse_overlaps {
+                state.write_strategy(strategy, text, &cluster.merged, out)?;
+            } else {
+                state.write_cluster(|k| self.strategy_in(kinds, k), text, cluster, out)?;
             }
-        }
-        let mut idx = 0;
-        PiiRewrite::try_replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |_, out| {
-            let cluster = &clusters[idx];
-            idx += 1;
-            state.write_cluster(|k| self.strategy_in(&pii.custom_kinds, k), text, cluster, out)
+            Ok(EditOrigin { rule: self.rule_in(kinds, winner), strategy: strategy.kind() })
         })
     }
 }
