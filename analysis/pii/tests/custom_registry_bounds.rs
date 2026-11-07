@@ -6,6 +6,7 @@
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Document, Key, Layer, Provenance, Span, ViewId};
 use turbo_analysis_layers::export::codecs;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{MaskError, RewriteError, StaticReplacer, mask_all, mask_by_kind};
 use turbo_pii::{
     CustomKindId, CustomKinds, KindError, Pii, PiiDetector, PiiEvidence, PiiKind, PiiMention, PiiSink, Scanner,
@@ -95,7 +96,7 @@ fn unknown_kinds_are_refused_where_they_enter() {
     // Every redaction path refuses it too.
     let stray = one(CustomKinds::new(), FIRST);
     assert_eq!(
-        StaticReplacer::new("[X]").rewrite("BADGE-1", &stray).err(),
+        StaticReplacer::new("[X]").rewrite(&source_view("BADGE-1"), &stray).err(),
         Some(RewriteError::Kind(Span::new(0, 7), KindError::UnknownCustom(0)))
     );
     let unknown = Err(MaskError::Kind(KindError::UnknownCustom(0)));

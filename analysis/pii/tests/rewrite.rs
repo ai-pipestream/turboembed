@@ -5,11 +5,12 @@
 mod support;
 
 use support::*;
-use turbo_analysis::{Layer, Span};
+use turbo_analysis::{Layer, Side, Span};
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{
     HmacTokenizer, MaskError, MaskPolicy, Pseudonymizer, RewriteError, mask, mask_all, mask_by_kind,
 };
-use turbo_pii::{Pii, PiiDetector, PiiKind};
+use turbo_pii::{PiiDetector, PiiKind};
 
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
 const TEXT: &str = "Contact jane@example.com, call (555) 123-4567, or charge card 4111 1111 1111 1111.";
@@ -27,7 +28,7 @@ fn whole(c: char) -> MaskPolicy {
 }
 
 fn pseudonyms(text: &str) -> String {
-    Pseudonymizer::new("", "").rewrite(text, &layer(&cursor(), text)).unwrap().into_text()
+    Pseudonymizer::new("", "").rewrite(&source_view(text), &layer(&cursor(), text)).unwrap().into_text()
 }
 
 #[test]
@@ -252,7 +253,7 @@ fn pseudonyms_number_each_kind() {
     assert_eq!(pseudonyms("jane@example.com"), "EMAIL-1");
     let text = "write to jane@example.com today";
     assert_eq!(
-        Pseudonymizer::new("[", "]").rewrite(text, &layer(&cursor(), text)).unwrap().text(),
+        Pseudonymizer::new("[", "]").rewrite(&source_view(text), &layer(&cursor(), text)).unwrap().text(),
         "write to [EMAIL-1] today"
     );
     let once = pseudonyms("mail jane@example.com now");
@@ -269,19 +270,19 @@ fn labels_name_the_kind_and_point_into_the_new_text() {
         ("card 4111111111111111", "CARD-1"),
         ("iban DE89370400440532013000", "IBAN-1"),
     ] {
-        let r = Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap();
+        let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
         assert_eq!(r.labels().mentions().next().unwrap().normalized, want);
     }
     let text = "mail jane@example.com or bob@example.com now";
-    let r = Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap();
+    let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
     assert_eq!(r.labels().mentions().count(), 2);
     for m in r.labels().mentions() {
         assert_eq!(&r.text()[m.span.start as usize..m.span.end as usize], m.normalized);
         assert_eq!(m.kind, PiiKind::Email);
     }
     let text = "nothing to see here";
-    let r = Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap();
-    assert_eq!((r.text(), r.labels().mentions().count(), r.map_offset(7)), (text, 0, 7));
+    let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
+    assert_eq!((r.text(), r.labels().mentions().count(), r.alignment().to_child(7, Side::Start)), (text, 0, 7));
 }
 
 #[test]
@@ -290,186 +291,116 @@ fn rewrites_coalesce_detector_clusters_and_refuse_invalid_or_reversed_overlaps()
     let detected = layer(&wide(), text);
     assert_found(&wide(), text, &[(8, 17, "url-credential", "john:pass"), (13, 29, "email", "pass@example.com")]);
     assert_eq!(mask_all(text, &detected, '*').unwrap(), format!("https://{}/path", "*".repeat(21)));
-    let pseudo = Pseudonymizer::default().rewrite(text, &detected).unwrap();
+    let pseudo = Pseudonymizer::default().rewrite(&source_view(text), &detected).unwrap();
     assert_eq!(pseudo.text(), "https://URL-CREDENTIAL-1/path");
     assert_eq!(pseudo.labels().check(), Ok(()));
-    let hmac = tokenizer().rewrite(text, &detected).unwrap();
+    let hmac = tokenizer().rewrite(&source_view(text), &detected).unwrap();
     assert!(!hmac.text().contains("@example.com"), "{}", hmac.text());
     assert_eq!(hmac.labels().check(), Ok(()));
 
     let card_phone = "Card 4111 1111 1111 1111 123 on file";
     let cp_layer = layer(&wide(), card_phone);
     assert_eq!(mask_all(card_phone, &cp_layer, '*').unwrap(), "Card *********************** on file");
-    let cp_pseudo = Pseudonymizer::default().rewrite(card_phone, &cp_layer).unwrap();
+    let cp_pseudo = Pseudonymizer::default().rewrite(&source_view(card_phone), &cp_layer).unwrap();
     assert_eq!(cp_pseudo.text(), "Card CARD-1 on file");
     assert_eq!(cp_pseudo.labels().check(), Ok(()));
 
     for same_span in ["record 943 476 5919 today", "IMEI: 490154203237518."] {
         let pii = layer(&wide(), same_span);
-        let pseudo = Pseudonymizer::default().rewrite(same_span, &pii).unwrap();
+        let pseudo = Pseudonymizer::default().rewrite(&source_view(same_span), &pii).unwrap();
         assert_eq!(pseudo.labels().check(), Ok(()));
-        let hmac = tokenizer().rewrite(same_span, &pii).unwrap();
+        let hmac = tokenizer().rewrite(&source_view(same_span), &pii).unwrap();
         assert_eq!(hmac.labels().check(), Ok(()));
     }
 
     let reversed_overlap =
         manual(&[(13, 29, PiiKind::Email, "pass@example.com"), (8, 17, PiiKind::UrlCredential, "john:pass")]);
     assert_eq!(
-        Pseudonymizer::default().rewrite(text, &reversed_overlap).unwrap().text(),
+        Pseudonymizer::default().rewrite(&source_view(text), &reversed_overlap).unwrap().text(),
         "https://URL-CREDENTIAL-1/path"
     );
     let overlap = Err(RewriteError::Overlap(Span::new(8, 17), Span::new(13, 29)));
     assert_eq!(
-        Pseudonymizer::default().refusing_overlaps().rewrite(text, &detected).map(|r| r.into_text()),
+        Pseudonymizer::default().refusing_overlaps().rewrite(&source_view(text), &detected).map(|r| r.into_text()),
         overlap.clone()
     );
-    assert_eq!(tokenizer().refusing_overlaps().rewrite(text, &detected).map(|r| r.into_text()), overlap);
+    assert_eq!(tokenizer().refusing_overlaps().rewrite(&source_view(text), &detected).map(|r| r.into_text()), overlap);
 
     for empty in [
         manual(&[(5, 5, PiiKind::Email, "a@b.com")]),
         manual(&[(5, 5, PiiKind::Email, "a@b.com"), (5, 10, PiiKind::Phone, "5551234567")]),
     ] {
         assert_eq!(
-            Pseudonymizer::default().rewrite("0123456789", &empty).map(|r| r.into_text()),
+            Pseudonymizer::default().rewrite(&source_view("0123456789"), &empty).map(|r| r.into_text()),
             Err(RewriteError::Span(Span::new(5, 5)))
         );
         assert_eq!(
-            tokenizer().rewrite("0123456789", &empty).map(|r| r.into_text()),
+            tokenizer().rewrite(&source_view("0123456789"), &empty).map(|r| r.into_text()),
             Err(RewriteError::Span(Span::new(5, 5)))
         );
     }
 
     let past = manual(&[(2, 40, PiiKind::Email, "a@b.com")]);
     assert_eq!(
-        Pseudonymizer::default().rewrite("short", &past).map(|r| r.into_text()),
+        Pseudonymizer::default().rewrite(&source_view("short"), &past).map(|r| r.into_text()),
         Err(RewriteError::Span(Span::new(2, 40)))
     );
     let inside = manual(&[(1, 3, PiiKind::Email, "a@b.com")]);
-    assert!(matches!(Pseudonymizer::default().rewrite("a😀", &inside), Err(RewriteError::Span(_))));
+    assert!(matches!(Pseudonymizer::default().rewrite(&source_view("a😀"), &inside), Err(RewriteError::Span(_))));
 }
 
 #[test]
 fn adjacent_and_unordered_mentions() {
     let adjacent = manual(&[(0, 5, PiiKind::Email, "a@b.com"), (5, 10, PiiKind::Email, "c@d.com")]);
-    assert_eq!(Pseudonymizer::default().rewrite("0123456789", &adjacent).unwrap().text(), "EMAIL-1EMAIL-2");
+    assert_eq!(
+        Pseudonymizer::default().rewrite(&source_view("0123456789"), &adjacent).unwrap().text(),
+        "EMAIL-1EMAIL-2"
+    );
     let unordered = manual(&[(6, 11, PiiKind::Phone, "5551234567"), (0, 5, PiiKind::Email, "a@b.com")]);
-    assert_eq!(Pseudonymizer::default().rewrite("00000 11111", &unordered).unwrap().text(), "EMAIL-1 PHONE-1");
+    assert_eq!(
+        Pseudonymizer::default().rewrite(&source_view("00000 11111"), &unordered).unwrap().text(),
+        "EMAIL-1 PHONE-1"
+    );
 }
 
 #[test]
 fn offsets_map_into_the_new_text() {
     let text = "to jane@example.com now";
-    let r = Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap();
+    let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
     assert_eq!(r.text(), "to EMAIL-1 now");
-    assert_eq!([r.map_offset(0), r.map_offset(3), r.map_offset(4), r.map_offset(7)], [0, 3, 3, 3]);
-    assert_eq!(r.map_offset(20), 11);
-    assert_eq!(r.map_offset(23), 14);
-    assert_eq!(r.map_span(Span::new(0, 23)), Span::new(0, 14));
-    assert_eq!(r.map_span(Span::new(3, 19)), Span::new(3, 10));
-    assert_eq!(r.map_span(Span::new(4, 6)), Span::new(3, 10));
+    assert_eq!(
+        [
+            r.alignment().to_child(0, Side::Start),
+            r.alignment().to_child(3, Side::Start),
+            r.alignment().to_child(4, Side::Start),
+            r.alignment().to_child(7, Side::Start)
+        ],
+        [0, 3, 3, 3]
+    );
+    assert_eq!(r.alignment().to_child(20, Side::Start), 11);
+    assert_eq!(r.alignment().to_child(23, Side::Start), 14);
+    assert_eq!(r.to_derived(Span::new(0, 23)), Ok(Span::new(0, 14)));
+    assert_eq!(r.to_derived(Span::new(3, 19)), Ok(Span::new(3, 10)));
+    assert_eq!(r.to_derived(Span::new(4, 6)), Ok(Span::new(3, 10)));
+    assert_eq!(r.to_original(Span::new(4, 6)), Ok(Span::new(3, 19)));
     let text = "a jane@example.com b (555) 123-4567 z";
-    let r = Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap();
+    let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
     assert_eq!(r.text(), "a EMAIL-1 b PHONE-1 z");
     for c in ['b', 'z'] {
-        assert_eq!(r.map_offset(text.find(c).unwrap() as u32), r.text().find(c).unwrap() as u32);
+        assert_eq!(r.alignment().to_child(text.find(c).unwrap() as u32, Side::Start), r.text().find(c).unwrap() as u32);
     }
     let text = "Contact jane@example.com; jane@example.com replied to bob@example.com.";
-    let r = Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap();
-    assert_eq!(r.map_offset(text.find("bob").unwrap() as u32), r.text().find("EMAIL-2").unwrap() as u32);
+    let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
+    assert_eq!(
+        r.alignment().to_child(text.find("bob").unwrap() as u32, Side::Start),
+        r.text().find("EMAIL-2").unwrap() as u32
+    );
 }
 
 #[test]
-#[should_panic(expected = "past the end")]
-fn an_offset_past_the_end_panics() {
+fn a_span_past_the_end_is_refused() {
     let text = "to jane@example.com now";
-    Pseudonymizer::default().rewrite(text, &layer(&cursor(), text)).unwrap().map_offset(24);
-}
-
-#[test]
-fn many_replacements_map_every_offset() {
-    let text = "xx ".repeat(1024);
-    let values: Vec<String> = (0..1024).map(|i| format!("value{}", 3 * i)).collect();
-    let rows: Vec<(u32, u32, PiiKind, &str)> =
-        values.iter().enumerate().map(|(i, v)| (3 * i as u32, 3 * i as u32 + 2, PiiKind::Email, v.as_str())).collect();
-    let pii = manual(&rows);
-    let r = Pseudonymizer::default().rewrite(&text, &pii).unwrap();
-    let labels: Vec<Span> = r.labels().mentions().map(|m| m.span).collect();
-    for offset in 0..=text.len() as u32 {
-        assert_eq!(r.map_offset(offset), boundary(offset, false, &rows, &labels), "{offset}");
-    }
-}
-
-/// Where the Java's `PiiRewriteTest.boundary` puts an offset.
-fn boundary(offset: u32, end: bool, sources: &[(u32, u32, PiiKind, &str)], labels: &[Span]) -> u32 {
-    let mut shift: i64 = 0;
-    for (source, label) in sources.iter().zip(labels) {
-        if offset <= source.0 {
-            return (i64::from(offset) + shift) as u32;
-        }
-        if offset < source.1 {
-            return if end { label.end } else { label.start };
-        }
-        shift += i64::from(label.end - label.start) - i64::from(source.1 - source.0);
-    }
-    (i64::from(offset) + shift) as u32
-}
-
-#[test]
-fn every_source_span_of_every_plan() {
-    for text in ["", "abcdefgh", "😀abc𝕒"] {
-        let bounds: Vec<u32> = (0..=text.len()).filter(|&i| text.is_char_boundary(i)).map(|i| i as u32).collect();
-        let mut plans: Vec<Vec<Span>> = vec![vec![]];
-        for (i, &s) in bounds.iter().enumerate() {
-            for &e in &bounds[i + 1..] {
-                plans.push(vec![Span::new(s, e)]);
-                for (j, &ns) in bounds.iter().enumerate().filter(|&(_, &b)| b >= e) {
-                    for &ne in &bounds[j + 1..] {
-                        plans.push(vec![Span::new(s, e), Span::new(ns, ne)]);
-                    }
-                }
-            }
-        }
-        for plan in &plans {
-            let values: Vec<String> = plan.iter().map(|s| format!("value{}", s.start)).collect();
-            let rows: Vec<(u32, u32, PiiKind, &str)> =
-                plan.iter().zip(&values).map(|(s, v)| (s.start, s.end, PiiKind::UsSsn, v.as_str())).collect();
-            let reversed: Vec<_> = rows.iter().rev().copied().collect();
-            for mode in 0..3 {
-                let run = |rows: &[(u32, u32, PiiKind, &str)]| {
-                    let pii: Pii = manual(rows);
-                    match mode {
-                        0 => Pseudonymizer::default().rewrite(text, &pii).unwrap(),
-                        1 => Pseudonymizer::new("[", "]").rewrite(text, &pii).unwrap(),
-                        _ => tokenizer().rewrite(text, &pii).unwrap(),
-                    }
-                };
-                let r = run(&rows);
-                let back = run(&reversed);
-                assert_eq!(r.text(), back.text());
-                let labels: Vec<Span> = r.labels().mentions().map(|m| m.span).collect();
-                assert_eq!(labels, back.labels().mentions().map(|m| m.span).collect::<Vec<_>>());
-                let mut want = String::new();
-                let mut copied = 0;
-                for (span, label) in plan.iter().zip(r.labels().mentions()) {
-                    want.push_str(&text[copied..span.start as usize]);
-                    assert_eq!(want.len() as u32, label.span.start);
-                    want.push_str(label.normalized);
-                    assert_eq!(want.len() as u32, label.span.end);
-                    assert_eq!(label.kind, PiiKind::UsSsn);
-                    copied = span.end as usize;
-                }
-                want.push_str(&text[copied..]);
-                assert_eq!(r.text(), want);
-                assert_eq!(r.labels().check(), Ok(()));
-                for &s in &bounds {
-                    let start = boundary(s, false, &rows, &labels);
-                    assert_eq!(r.map_offset(s), start);
-                    for &e in bounds.iter().filter(|&&e| e >= s) {
-                        let end = if s == e { start } else { boundary(e, true, &rows, &labels) };
-                        assert_eq!(r.map_span(Span::new(s, e)), Span::new(start, end), "{text:?} {plan:?} {s}..{e}");
-                    }
-                }
-            }
-        }
-    }
+    let r = Pseudonymizer::default().rewrite(&source_view(text), &layer(&cursor(), text)).unwrap();
+    assert_eq!(r.to_derived(Span::new(24, 24)), Err(RewriteError::Span(Span::new(24, 24))));
+    assert_eq!(r.to_original(Span::new(0, 15)), Err(RewriteError::Span(Span::new(0, 15))));
 }

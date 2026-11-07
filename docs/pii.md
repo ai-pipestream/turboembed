@@ -286,9 +286,11 @@ the same label for the same kind and value within one text.
 `HmacTokenizer` replaces it with the kind in capitals, `-` and the first
 hexadecimal digits of the HMAC-SHA-256 of the kind name, a zero byte and
 the normalized value, under a key of at least 32 bytes; the label is the
-same in every text for one key. Both return a `PiiRewrite` with the new
-text, the labels as a layer of it, and `map_offset` and `map_span` from
-the original to the new text; overlapping mentions are coalesced by
+same in every text for one key. Both return a `PiiRewrite`: the new text
+as a `View` derived from the one read, written with `ViewBuilder` so its
+alignment maps both ways, the labels as a layer of it, and its
+`turbo:pii-edits` layer (see "The redacted view" below); `to_derived` and
+`to_original` map a span either way through the alignment; overlapping mentions are coalesced by
 default into their union span under the kind of highest priority, while
 `refusing_overlaps` and invalid or empty spans are refused
 (`RewriteError`). `PiiAuditReport` counts mentions by kind, with keyed
@@ -304,10 +306,11 @@ values they stand for.
 
 ### Additional rewrite strategies and per-kind composition
 
-Every strategy below works standalone via `.rewrite(text, &pii)` and inside
+Every strategy below works standalone via `.rewrite(&view, &pii)` (with
+`rewrite::source_view(text)` for a text outside a document) and inside
 a composable per-`PiiKind` `RewritePolicy` (`RewritePolicy::new(default).with(kind, strategy)`),
-producing a `PiiRewrite` whose `map_offset` and `map_span` map UTF-8 byte
-offsets and spans from the source text into the rewritten text
+producing a `PiiRewrite` whose derived view maps UTF-8 byte spans from
+the source text into the rewritten text and back
 (`analysis/pii/tests/rewrite_strategies.rs` and
 `analysis/pii/tests/rewrite_audit.rs`):
 
@@ -374,6 +377,35 @@ offsets and spans from the source text into the rewritten text
   `RewriteError::Overlap`; when coalesced, a source character inside the
   union span is kept only when every overlapping mention covering that byte
   permits keeping it under its own strategy.
+
+### The redacted view
+
+`RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
+`View` and the `turbo:pii` layer over it and writes the rewritten text as
+a `View` derived from it, with the `turbo:pii-edits` layer over that view,
+both as the instance named `redacted` (`rewrite::REDACTED`). The step
+writes the view first and the edits second; the edits are made over
+`ViewId::PENDING` and moved onto the id the document gives the view as the
+two are stored (`Layer::bind_pending_view`).
+
+`turbo:pii-edits` (`PiiEdits`) has one item a replacement: its span in the
+redacted view, its source span in the parent view, the covered mentions
+of the pii layer as a list of rows (any subset, so overlapping members are
+listed one by one), the rule of the policy that chose the strategy
+(`PiiRule::Default` or `PiiRule::Kind`), the strategy kind
+(`PiiStrategyKind`), and the caller's policy revision
+(`RewritePolicy::with_revision`). It holds no original value. The
+document refuses an edits layer whose spans disagree with the view's
+alignment in either direction, or whose members are not exactly the
+mentions under each source span. Across the rewrite a span maps source to
+redacted to source as containment, not equality: a span touching a
+replacement comes back as the whole mention it replaced
+(`analysis/pii/tests/redacted_view.rs`, which builds view chains with
+`ViewBuilder` for combining marks, ZWJ emoji, a split ligature, overlaps,
+unequal lengths, and deletion and insertion anchors).
+`Document::map_span_outcome` says whether a projected span is exact,
+widened or deleted, and `Document::project_fragments` reports which of an
+item's fragments coalesced, as a separate fact.
 
 ### The masked view
 

@@ -44,6 +44,7 @@ pub use pii::{
     PiiScoreKind, mention_order,
 };
 pub use pii_candidates::{AllowRule, AllowScope, PiiCandidate, PiiCandidates, PiiDisposition, RejectReason};
+pub use pii_edits::{PiiEdit, PiiEdits, PiiRule, PiiStrategyKind};
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
     MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
@@ -169,6 +170,7 @@ mod ordinals;
 mod payload_hash;
 mod pii;
 mod pii_candidates;
+mod pii_edits;
 mod predicate;
 mod project;
 mod quality;
