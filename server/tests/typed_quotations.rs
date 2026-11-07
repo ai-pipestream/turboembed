@@ -45,6 +45,7 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
                     view,
                     offsets: mode as i32,
                     pii_output: None,
+                    binding: None,
                 })
                 .await
                 .unwrap()

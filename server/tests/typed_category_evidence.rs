@@ -93,6 +93,7 @@ async fn category_evidence_keeps_payloads_producers_support_and_projected_spans(
                     view,
                     offsets: mode as i32,
                     pii_output: full_text(),
+                    binding: None,
                 })
                 .await
                 .unwrap()

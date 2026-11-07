@@ -1,6 +1,12 @@
 //! Strongly-typed `TypedDocumentResult` projection (`proto/turbo_typed_annotations.proto`,
-//! issue #1219) and validation (`RoundTripTypedDocument`, `InspectDocumentGraph`).
+//! issue #1219) and validation (`RoundTripTypedDocument`, `InspectDocumentGraph`),
+//! with the result envelope of issue #1907: input and result identity
+//! (`identity`), per-layer provenance digests, the view edit chain
+//! (`chain`) and scoped references (`scoped`).
 
+pub mod chain;
+mod entry;
+pub mod identity;
 mod layers_context;
 mod layers_core;
 mod layers_domain;
@@ -11,29 +17,34 @@ mod layers_quotations;
 mod layers_sentiment;
 mod layers_shared;
 mod layers_structure;
+pub mod scoped;
 mod validate;
 
 use std::any::TypeId;
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use turbo_analysis::export::{DocumentGraph, import};
+use turbo_analysis::export::export;
 use turbo_analysis::{
     Anchor, Document, Evidence, Execution, Ix, Key, KeyId, Layer, ModelRef, Provenance, Span, Spans, Status, View,
     ViewId,
 };
 use turbo_analysis_layers::{Categories, Entities, Opinions};
 
-use super::disclosure::{self, Disclosure, PiiOutputPolicy};
+use super::disclosure::{self, Disclosure};
 use super::document::codecs;
-use super::{MAX_GRAPH_BYTES, Wire, model_to_proto, over};
+use super::model_to_proto;
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
-    AnchorKind, ExecutionInfo, InspectDocumentGraphRequest, LayerIndexBound, LayerWireStatus, ModelProvenance,
-    SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo,
+    AnchorKind, ExecutionInfo, InputBinding, LayerIndexBound, LayerWireStatus, MappingPayload, ModelProvenance,
+    SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo, mapping_payload,
 };
 
+pub use entry::{
+    document_to_typed, document_to_typed_with, inspect_document_graph, inspect_document_graph_under,
+    round_trip_typed_document,
+};
 pub use validate::validate_typed_document;
 
 pub(crate) fn bad(message: impl Into<String>) -> Failure {
@@ -272,8 +283,10 @@ pub(crate) fn build_layer<L: Layer>(
         Anchor::Document => (AnchorKind::Document, None),
     };
 
+    let mut native_view = None;
     let (annotations, indexes_layer) = match cx.doc.get_key(&Key::<L>::named(key.name)) {
         Some(layer) => {
+            native_view = layer.text_spans().map(|ts| u32::from(ts.view.0));
             let raw_indexes = layer.indexes();
             let mut bounds = Vec::with_capacity(raw_indexes.len());
             for (idx_key, bound) in raw_indexes {
@@ -321,6 +334,7 @@ pub(crate) fn build_layer<L: Layer>(
         annotations,
         indexes_layer,
         custom_pii_kinds: Vec::new(),
+        native_view,
     }
 }
 
@@ -358,28 +372,16 @@ fn collect_views(doc: &Document, sanitize: bool) -> (Vec<ViewInfo>, Vec<(ViewId,
     (views, id_names)
 }
 
-/// Projects all shared layers on `doc` into a strongly-typed [`TypedDocumentResult`]
-/// with spans mapped to `target_view` and converted into `offsets`, under
-/// [`Disclosure::FINDINGS`]. With debug assertions on, the result is also
-/// put through [`validate_typed_document`], and a message it refuses is an
-/// error.
-pub fn document_to_typed(
+/// [`document_to_typed_with`] with the caller's `binding` of the input
+/// copied into the result's input identity. The document is exported
+/// through the server's codecs for its result identity: the content digest
+/// is of those TGRF bytes, and a document a codec refuses is refused here.
+pub fn document_to_typed_bound(
     doc_id: &str,
     doc: &Document,
     target_view: ViewId,
     offsets: OffsetMode,
-) -> Result<TypedDocumentResult, Failure> {
-    document_to_typed_with(doc_id, doc, target_view, offsets, &Disclosure::FINDINGS)
-}
-
-/// [`document_to_typed`] under `disclosure`: on a document holding PII,
-/// `raw_text` is empty unless the disclosure lets the target view's text
-/// leave, and status details are cut to identities without `full_text`.
-pub fn document_to_typed_with(
-    doc_id: &str,
-    doc: &Document,
-    target_view: ViewId,
-    offsets: OffsetMode,
+    binding: Option<&InputBinding>,
     disclosure: &Disclosure,
 ) -> Result<TypedDocumentResult, Failure> {
     let sanitize = disclosure.sanitize(doc);
@@ -421,6 +423,7 @@ pub fn document_to_typed_with(
                 annotations: Vec::new(),
                 indexes_layer: Vec::new(),
                 custom_pii_kinds: Vec::new(),
+                native_view: None,
             });
         }
     }
@@ -435,6 +438,11 @@ pub fn document_to_typed_with(
     if !shown {
         crate::results::disclosure::withhold_annotations(&mut layers);
     }
+    let graph = export(doc, codecs()).map_err(|e| bad(format!("document graph export: {e}")))?;
+    let graph_bytes = graph.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
+    let provenance = identity::layer_provenances(&mut cx, &graph);
+    let mapping = Some(MappingPayload { payload: Some(mapping_payload::Payload::Inline(chain::inline_mapping(doc)?)) });
+
     let typed = TypedDocumentResult {
         doc_id: doc_id.to_owned(),
         raw_text: if shown { target_text.to_owned() } else { String::new() },
@@ -445,6 +453,10 @@ pub fn document_to_typed_with(
         models: cx.models,
         views,
         layers,
+        input: Some(identity::input_identity(doc, binding)),
+        result: Some(identity::result_identity(&graph_bytes)),
+        provenance,
+        mapping,
     };
     // Debug builds and tests refuse to emit what `RoundTripTypedDocument`
     // would refuse. Release builds skip it: on a 20 KB document the check
@@ -453,46 +465,4 @@ pub fn document_to_typed_with(
         validate_typed_document(&typed)?;
     }
     Ok(typed)
-}
-
-/// Imports the binary `DocumentGraph` in `req` and projects it into a
-/// [`TypedDocumentResult`] in the requested view and [`OffsetMode`], under
-/// the disclosure its `pii_output` asks for and [`PiiOutputPolicy::ALL`]
-/// allows.
-pub fn inspect_document_graph(req: &InspectDocumentGraphRequest) -> Result<TypedDocumentResult, Failure> {
-    inspect_document_graph_under(req, PiiOutputPolicy::ALL)
-}
-
-/// [`inspect_document_graph`] under the server's `policy`.
-pub fn inspect_document_graph_under(
-    req: &InspectDocumentGraphRequest,
-    policy: PiiOutputPolicy,
-) -> Result<TypedDocumentResult, Failure> {
-    let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
-    if req.graph.len() as u64 > MAX_GRAPH_BYTES {
-        return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
-    }
-    let offsets = OffsetMode::from_proto(req.offsets)?;
-    let view_u16 = u16::try_from(req.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", req.view)))?;
-    let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
-    let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    document_to_typed_with(&req.doc_id, &doc, ViewId(view_u16), offsets, &disclosure)
-}
-
-/// Validates `msg` and returns a clone for `RoundTripTypedDocument`.
-pub fn round_trip_typed_document(msg: &TypedDocumentResult) -> Result<TypedDocumentResult, Failure> {
-    validate_typed_document(msg)?;
-    Ok(msg.clone())
-}
-
-impl Wire for TypedDocumentResult {
-    type Msg = TypedDocumentResult;
-
-    fn to_msg(&self) -> Self::Msg {
-        self.clone()
-    }
-
-    fn from_msg(msg: &Self::Msg) -> Result<Self, Failure> {
-        round_trip_typed_document(msg)
-    }
 }

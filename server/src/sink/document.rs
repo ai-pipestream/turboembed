@@ -58,6 +58,7 @@ pub(crate) fn graph_item(
             view: t.view,
             offsets: t.offsets as i32,
             pii_output: options,
+            binding: None,
         })?),
         None => listed.findings.take().map(|f| TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }),
     };

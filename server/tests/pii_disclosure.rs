@@ -113,6 +113,7 @@ async fn inspect(s: &Server, graph: &[u8], view: u32, pii_output: Option<PiiOutp
         view,
         offsets: OffsetMode::Utf8 as i32,
         pii_output,
+        binding: None,
     };
     client(s).await.inspect_document_graph(req).await.unwrap().into_inner()
 }

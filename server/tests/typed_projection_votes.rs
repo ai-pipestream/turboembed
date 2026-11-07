@@ -64,6 +64,7 @@ async fn verify(fragments: &[Span], collapse: bool, byte_expected: (u32, u32), u
                         view,
                         offsets: mode as i32,
                         pii_output: None,
+                        binding: None,
                     })
                     .await
                     .unwrap()
