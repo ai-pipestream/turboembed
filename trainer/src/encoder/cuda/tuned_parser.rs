@@ -263,7 +263,12 @@ impl TunedCudaParser {
             encoder.forward(&e.ids, &mut w.states)?;
             let (h, pooling) = (encoder.geometry().hidden, self.head.spec().word_pooling);
             pool::forward(&w.states, &e.words, h, pooling, &mut w.features, &mut w.count)?;
-            let example = ParseExample { features: w.features.clone(), heads: e.heads.clone(), rels: e.rels.clone() };
+            let example = ParseExample {
+                features: w.features.clone(),
+                heads: e.heads.clone(),
+                rels: e.rels.clone(),
+                language: None,
+            };
             let score = attachment(&parser, std::slice::from_ref(&example))?;
             total.words += score.words;
             total.heads += score.heads;

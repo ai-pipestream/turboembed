@@ -162,8 +162,20 @@ impl BiaffineParser {
     /// subword states and word map as [`super::TokenTagger::scores`]
     /// takes them. Returns n. Keeps the relation views in `w`.
     pub fn arcs(&self, states: &[f32], words: &[u32], out: &mut Vec<f32>, w: &mut Work) -> Result<usize> {
+        self.arcs_language(states, words, None, out, w)
+    }
+
+    /// As [`arcs`](Self::arcs), selecting a language embedding by name.
+    pub fn arcs_language(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        language: Option<&str>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, None, &mut w.words)?;
+        let n = self.reader.read_language(states, words, None, language, &mut w.words)?;
         w.n = n;
         if n == 0 {
             return Ok(0);
