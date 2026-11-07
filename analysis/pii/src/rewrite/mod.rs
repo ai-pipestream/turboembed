@@ -24,6 +24,7 @@
 
 mod abbreviate;
 mod audit;
+mod chosen;
 mod format;
 mod hmac;
 mod map;
@@ -39,6 +40,7 @@ mod view;
 
 pub use abbreviate::Abbreviator;
 pub use audit::{KindReport, PiiAuditReport};
+pub use chosen::{Choice, StrategyChooser, rewrite_chosen};
 pub use format::{FormatError, FormatRedactor, StaticReplacer};
 pub use hmac::{HmacTokenizer, TokenizerError};
 pub use map::{MapError, MapReplacer, MapTarget, TSV_DELIMITER};

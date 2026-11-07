@@ -287,6 +287,7 @@ fn edits_that_disagree_with_the_mentions_are_refused() {
         members: &[],
         rule: PiiRule::Default,
         strategy: PiiStrategyKind::Static,
+        rule_id: "",
     });
     let mut p = Provenance::by("test");
     p.reads.push(Key::<Pii>::named("norm").id());
