@@ -154,11 +154,10 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                         probability: None,
                         model_ref: mref.clone(),
                         value: Some(Value::Pii(PiiMention {
-                            kind: Some(pii_kind_ref(m.kind)),
-                            confidence_tier: i32::from(m.confidence.id()),
-                            #[allow(deprecated)]
-                            normalized: String::new(),
+                            kind_ref: Some(pii_kind_ref(m.kind)),
+                            confidence: i32::from(m.confidence.id()),
                             value: Some(crate::results::disclosure::withheld()),
+                            ..PiiMention::default()
                         })),
                     }
                 })

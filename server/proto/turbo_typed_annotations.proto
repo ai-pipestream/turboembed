@@ -592,12 +592,17 @@ message PiiKindRef
 // `value` says in which form, if any, it was released (#1904).
 message PiiMention
 {
-  PiiKindRef kind = 1;
-  PiiConfidenceTier confidence_tier = 2;
-  // Deprecated: was the normalized value in clear. Never populated; read
-  // `value` instead (#1904).
+  // Never populated; use kind_ref.
+  string kind = 1 [deprecated = true];
+  // Never populated; use confidence.
+  string confidence_tier = 2 [deprecated = true];
+  // Never populated: was the normalized value in clear; read `value`
+  // instead (#1904).
   string normalized = 3 [deprecated = true];
   PiiValue value = 4;
+  // Fields 5 to 9 are held for the release and decision work.
+  PiiKindRef kind_ref = 10;
+  PiiConfidenceTier confidence = 11;
 }
 
 // The form a PII mention's value is released in. A finding carries

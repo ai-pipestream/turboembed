@@ -165,25 +165,39 @@ fn refused(what: &str, wire: &TypedDocumentResult, secrets: &[&str]) -> String {
     err.message
 }
 
+/// Sets the retired string kind, which is never populated.
+#[allow(deprecated)]
+fn retired_kind(m: &mut WirePii) {
+    m.kind = "email".to_owned();
+}
+
+/// Sets the retired string tier, which is never populated.
+#[allow(deprecated)]
+fn retired_tier(m: &mut WirePii) {
+    m.confidence_tier = "format".to_owned();
+}
+
 #[test]
 fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
     validate_typed_document(&pii_message(|_| {})).unwrap();
     for id in [1, 5, 30] {
-        validate_typed_document(&pii_message(|m| m.kind = builtin(id))).unwrap_or_else(|e| panic!("{id}: {e:?}"));
+        validate_typed_document(&pii_message(|m| m.kind_ref = builtin(id))).unwrap_or_else(|e| panic!("{id}: {e:?}"));
     }
     for tier in PiiConfidence::ALL {
         let tier = tier.id() as i32;
-        validate_typed_document(&pii_message(|m| m.confidence_tier = tier)).unwrap();
+        validate_typed_document(&pii_message(|m| m.confidence = tier)).unwrap();
     }
-    let refusals: [(&str, Edit); 8] = [
-        ("no kind", |m| m.kind = None),
-        ("an empty kind ref", |m| m.kind = Some(PiiKindRef { kind: None })),
-        ("unspecified kind", |m| m.kind = builtin(0)),
-        ("kind past the table", |m| m.kind = builtin(31)),
-        ("negative kind", |m| m.kind = builtin(-7)),
-        ("custom kind with no table", |m| m.kind = custom(0)),
-        ("unspecified tier", |m| m.confidence_tier = 0),
-        ("unknown tier", |m| m.confidence_tier = 5),
+    let refusals: [(&str, Edit); 10] = [
+        ("no kind", |m| m.kind_ref = None),
+        ("an empty kind ref", |m| m.kind_ref = Some(PiiKindRef { kind: None })),
+        ("unspecified kind", |m| m.kind_ref = builtin(0)),
+        ("kind past the table", |m| m.kind_ref = builtin(31)),
+        ("negative kind", |m| m.kind_ref = builtin(-7)),
+        ("custom kind with no table", |m| m.kind_ref = custom(0)),
+        ("unspecified tier", |m| m.confidence = 0),
+        ("unknown tier", |m| m.confidence = 5),
+        ("a retired string kind", retired_kind),
+        ("a retired string tier", retired_tier),
     ];
     for (what, edit) in refusals {
         let message = refused(what, &pii_message(edit), &[]);
@@ -199,8 +213,8 @@ fn custom_kind_refs_index_the_layers_own_table() {
         pii_layer(&mut wire).custom_pii_kinds = names.iter().map(|n| (*n).to_owned()).collect();
         wire
     };
-    validate_typed_document(&with_table(&["badge", "ticket"], |m| m.kind = custom(1))).unwrap();
-    refused("index past the table", &with_table(&["badge", "ticket"], |m| m.kind = custom(2)), &["badge"]);
+    validate_typed_document(&with_table(&["badge", "ticket"], |m| m.kind_ref = custom(1))).unwrap();
+    refused("index past the table", &with_table(&["badge", "ticket"], |m| m.kind_ref = custom(2)), &["badge"]);
     let long = "q".repeat(65);
     let tables: [(&str, Vec<&str>); 4] = [
         ("an empty name", vec!["badge", ""]),
