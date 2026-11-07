@@ -1,0 +1,44 @@
+### commit 89e6a6ae0150730ad38e5d43a5333819e3769a24; TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test metal_f16; 2026-11-06T02:58:35Z
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+test a_tuned_session_runs_one_of_the_choices_and_forces_back ... ok
+test a_weight_past_f16_s_range_computes_its_layer_in_f32 ... ok
+test attn_auto_switches_past_512_packed_tokens ... ok
+test each_f16_choice_matches_the_cpu_within_fastest_s_floor ... ok
+test fastest_computes_in_f16_and_says_so ... ok
+test heads_past_64_or_not_a_multiple_of_8_run_f16_attention ... ok
+test masked_keys_inside_a_row_are_left_out_at_fastest ... ok
+test each_f16_tile_matches_the_cpu_on_partial_tiles ... ok
+test the_choices_line_forces_back_and_refuses_what_it_cannot_run ... ok
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.68s
+### commit 89e6a6ae0150730ad38e5d43a5333819e3769a24; TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_BUNDLE=<bundles>/all-minilm-l6-v2 cargo test --release -p turbo --features metal --test metal_f16 -- --ignored --nocapture; 2026-11-06T02:58:42Z
+running 1 test
+~/turbo-bundles/all-minilm-l6-v2: 8 rows of up to 256 tokens, 1 - lowest cosine with the cpu 1.965e-6
+  Q: largest magnitude 11.9, 0.0% of F16's range
+  K: largest magnitude 11.9, 0.0% of F16's range
+  V: largest magnitude 5.3, 0.0% of F16's range
+  attention context: largest magnitude 3.3, 0.0% of F16's range
+  GELU output: largest magnitude 25.3, 0.0% of F16's range
+  residual stream: largest magnitude 30.3, 0.0% of F16's range
+  linear=h32: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h64: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h128: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h32n32: 1 - lowest cosine with the cpu 1.965e-6
+  linear=h64n32: 1 - lowest cosine with the cpu 1.965e-6
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 1.84s
+### commit 89e6a6ae0150730ad38e5d43a5333819e3769a24; TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_BUNDLE=<bundles>/bge-base-en-v1.5-r1 cargo test --release -p turbo --features metal --test metal_f16 -- --ignored --nocapture; 2026-11-06T02:58:44Z
+running 1 test
+~/turbo-bundles/bge-base-en-v1.5-r1: 8 rows of up to 512 tokens, 1 - lowest cosine with the cpu 4.635e-6
+  Q: largest magnitude 22.5, 0.0% of F16's range
+  K: largest magnitude 12.4, 0.0% of F16's range
+  V: largest magnitude 10.3, 0.0% of F16's range
+  attention context: largest magnitude 3.3, 0.0% of F16's range
+  GELU output: largest magnitude 51.8, 0.1% of F16's range
+  residual stream: largest magnitude 102.6, 0.2% of F16's range
+  linear=h32: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h64: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h128: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h32n32: 1 - lowest cosine with the cpu 4.635e-6
+  linear=h64n32: 1 - lowest cosine with the cpu 4.635e-6
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 16.94s

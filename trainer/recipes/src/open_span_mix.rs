@@ -35,6 +35,22 @@ pub fn read_corpora(ids: &str, dir: &Path, unrecorded: bool) -> Result<Vec<Corpu
     Ok(out)
 }
 
+/// Returns training feature rows in the same order as the transformed
+/// sentences. `period` is the sentence count after optional truncation and
+/// before optional balancing, so repeated sentences reuse their own rows.
+pub fn align_train_features(features: &[Vec<f32>], sentences: usize, period: usize) -> Result<Vec<Vec<f32>>> {
+    if sentences == 0 {
+        return Ok(Vec::new());
+    }
+    if period == 0 || period > features.len() {
+        return Err(Error(format!(
+            "open-span training features do not match sentences: {sentences} rows requested with period {period} over {} features",
+            features.len()
+        )));
+    }
+    Ok((0..sentences).map(|i| features[i % period].clone()).collect())
+}
+
 pub fn combine(corpora: &[Corpus]) -> Result<Corpus> {
     let Some(first) = corpora.first() else { return Err(Error("open-span needs at least one corpus".into())) };
     if corpora.len() == 1 {
