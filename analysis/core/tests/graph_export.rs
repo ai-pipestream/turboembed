@@ -5,7 +5,9 @@
 //! Refusals (versions, schemas, missing codecs, dangling endpoints,
 //! malformed bytes) are typed errors.
 
-use turbo_analysis::export::{Codecs, DocumentGraph, ExportError, NodeRef, export, import, layer_ref, node_ref};
+use turbo_analysis::export::{
+    Codecs, DocumentGraph, DocumentGraphRef, ExportError, NodeRef, export, import, layer_ref, node_ref,
+};
 use turbo_analysis::text::Edit;
 use turbo_analysis::{
     Alignment, Analyzer, Annotator, Document, Edge, Edges, Error, Groups, Ix, Key, Layer, ModelRef, Provenance, Refs,
@@ -172,9 +174,13 @@ fn unknown_versions_and_schemas_are_refused() {
     );
 
     let mut bytes = graph.to_bytes().unwrap();
+    // A format 1 graph (before #1901's PII kind ids) is refused by name of
+    // both versions, never misparsed, by the owning and the borrowing reader.
     bytes[4] = 1;
     bytes[5] = 0;
-    assert_eq!(DocumentGraph::from_bytes(&bytes), Err(ExportError::UnsupportedVersion { found: 1, supported: 2 }));
+    let v1 = Err(ExportError::UnsupportedVersion { found: 1, supported: 2 });
+    assert_eq!(DocumentGraph::from_bytes(&bytes), v1);
+    assert_eq!(DocumentGraphRef::parse(&bytes).map(|_| ()), v1.map(|_: DocumentGraph| ()));
 }
 
 #[test]
