@@ -252,10 +252,27 @@ fn the_envelope_refusals_of_round_trip() {
     // raw_text that is not the target view's text, by length and by digest.
     assert!(round(&|m| m.raw_text.push('x')).contains("bytes and the mapping"));
     assert!(round(&|m| m.raw_text = m.raw_text.replacen('H', "h", 1)).contains("text_digest"));
-    assert!(round(&|m| m.views.pop().map(|_| ()).unwrap()).contains("not in views"));
+    // The views list and the mapping name the same views both ways: a
+    // mapping view missing from views, a view too few or too many, and
+    // a ghost view declared with provenance but absent from the mapping.
+    assert!(round(&|m| m.views[1] = m.views[0].clone()).contains("not in views"));
+    assert!(round(&|m| m.views.pop().map(|_| ()).unwrap()).contains("views are listed"));
+    assert!(round(&|m| m.views.push(m.views[0].clone())).contains("views are listed"));
+    assert!(round(&|m| ghost_view(m)).contains("not in the mapping"));
     // The views list and the mapping must agree on every parent.
     assert!(round(&|m| m.views[2].parent = "ascii".into()).contains("has parent"));
     assert!(round(&|m| m.views[0].parent = "ascii".into()).contains("has parent"));
+}
+
+/// Adds a "ghost" view to `m`: a `ViewInfo` and provenance entry for an
+/// instance the mapping does not carry.
+fn ghost_view(m: &mut turbo_kserve::proto::result::TypedDocumentResult) {
+    let mut view = m.views[1].clone();
+    view.instance = "ghost".into();
+    m.views.push(view);
+    let mut p = m.provenance.iter().find(|p| p.layer == "turbo:view" && p.instance == "ascii").unwrap().clone();
+    p.instance = "ghost".into();
+    m.provenance.push(p);
 }
 
 #[test]

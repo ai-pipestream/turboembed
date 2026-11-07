@@ -98,6 +98,15 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
     }
 
     let chain = WireChain::from_payload(msg.mapping.as_ref())?;
+    // The views list and the mapping name the same views, both ways.
+    for info in &msg.views {
+        if chain.by_instance(&info.instance).is_none() {
+            return Err(bad(format!("view {:?} is not in the mapping", info.instance)));
+        }
+    }
+    if msg.views.len() != chain.views().len() {
+        return Err(bad(format!("{} views are listed and the mapping has {}", msg.views.len(), chain.views().len())));
+    }
     for v in chain.views() {
         let Some(info) = msg.views.iter().find(|i| i.instance == v.instance) else {
             return Err(bad(format!("mapping view {:?} is not in views", v.instance)));

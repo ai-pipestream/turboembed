@@ -242,12 +242,15 @@ message EditRun
 // canonical UTF-8 byte coordinates, exactly the native Alignment, in
 // runs. Outside the edits parent and child are byte for byte the
 // same. Mapping between any two views is the stepwise walk up from
-// the source view to their lowest common ancestor and down again,
+// the span's own view to their lowest common ancestor and down again,
 // one alignment at a time, a span's start widened to the start of an
 // edit it falls inside and its end to that edit's end (Side::Start
 // and Side::End); an empty span at inserted or deleted bytes stays
 // empty before them. A composed net alignment is never substituted:
-// its empty-span behaviour differs.
+// its empty-span behaviour differs. A consumer of this chain holds
+// byte lengths, not every view's text, so it can refuse only a span
+// outside its view; the server also refuses a span that splits a
+// UTF-8 scalar, and a port need not promise that refusal.
 message ViewChain
 {
   // Message-local ViewId; the source view is 0.

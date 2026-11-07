@@ -487,7 +487,15 @@ digest that is not available is absent, never zero-filled or invented.
   envelope schema version (1) and `result_id`, the digest in lowercase
   hexadecimal. Protobuf bytes are never digested: they are not canonical
   across languages. The same bytes give the same identity whatever view
-  or offsets are asked for.
+  or offsets are asked for. On the `InspectDocumentGraph` path the
+  digest is of the server's canonical re-export of the imported graph,
+  not of the request bytes as sent: a graph serialised in another order
+  or with slack gets the identity of its canonical form, so one
+  document has one `result_id` whichever path produced it, and a
+  consumer that keeps non-canonical bytes of its own sees a
+  `verify_result` mismatch against them. The extra export costs less
+  than the import it follows: 6.5 ms for a 4.2 MB graph of 100,000
+  tokens (8.3 ms to import), 62 µs for 36 KB, release build, one core.
 - `provenance` (`LayerProvenance`, one per view and layer instance in
   document order): the chained provenance digest
   (`turbo:provenance-digest:v2`), the content digest
@@ -513,7 +521,11 @@ digest that is not available is absent, never zero-filled or invented.
   never substituted, because its empty-span behaviour differs.
   `turbo_kserve::results::typed::chain::WireChain` is the consumer side
   in Rust: it rebuilds the tree from the message and its `map_span`
-  reproduces `Document::map_span` exactly. The mapping is inline only
+  reproduces `Document::map_span` exactly for every span it accepts.
+  It checks bounds only: the chain carries byte lengths, not every
+  view's text, so a span that splits a UTF-8 scalar, which
+  `Document::map_span` refuses, is mapped by the wire consumer, and a
+  port of it (#1910) need not promise that refusal. The mapping is inline only
   and bounded by `max_mapping_edits` (4,194,304 native edits over every
   view); a document over it is refused with `TURBO_E_CAPACITY`, never
   truncated. Oneof arm 2, `artifact`, is reserved for an immutable
@@ -530,7 +542,9 @@ digest that is not available is absent, never zero-filled or invented.
 `RoundTripTypedDocument` validates the envelope with the rest: both
 identities present and whole, `result_id` the hexadecimal of the
 content digest, one provenance entry per view and layer whose model
-reference resolves, the mapping a view tree in id order whose runs
+reference resolves, the `views` list and the mapping naming the same
+instances with the same parents both ways, the mapping a view tree in
+id order whose runs
 decode to a valid alignment that turns the parent's length into the
 child's, and `raw_text` the text of the mapping's target view by length
 and digest. `turbo_kserve::results::typed::identity::verify_input` and
