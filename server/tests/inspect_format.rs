@@ -483,8 +483,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                 graph: graph_bytes.clone(),
                 format_id: fmt_id.into(),
                 offsets: OffsetMode::Utf16 as i32,
-                // The document holds PII; every format carries its text (#1904).
-                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
+                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }), // PII text (#1904)
             })
             .await
             .unwrap_or_else(|e| panic!("FormatDocument({fmt_id}) failed: {e:?}"))
