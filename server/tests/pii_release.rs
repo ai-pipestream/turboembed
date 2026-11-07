@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use prost::Message;
 use tonic::Code;
-use turbo_kserve::proto::audit::PiiAccessForm;
+use turbo_kserve::proto::audit::{PiiAccessForm, RecordPiiAccessRequest};
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
     DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, TypedDocumentResult,
@@ -117,16 +117,22 @@ async fn a_retried_release_records_one_event() {
     let grant = format!("{}:token:*", client_fingerprint());
     let s = server(&files, release(&files, &[grant], at, SECOND), open_policy()).await;
     let mut c = connect(&s, true).await.unwrap();
+    // Two attempts at one operation: same key, different attempts.
     let first = c.inspect_document_graph(ask(PiiValueForm::Token, "op-retry", 3)).await.unwrap().into_inner();
-    let again = c.inspect_document_graph(ask(PiiValueForm::Token, "op-retry", 3)).await.unwrap().into_inner();
+    let again = c.inspect_document_graph(ask(PiiValueForm::Token, "op-retry", 4)).await.unwrap().into_inner();
     assert_eq!(first, again, "a retry answers the same tokens");
     assert!(forms(&first).iter().all(|f| matches!(f, pii_value::Form::Token(_))), "`*` grants every kind");
-    assert_eq!(audit.calls.lock().unwrap().len(), 2, "each attempt is recorded before it answers");
+    let calls = audit.calls.lock().unwrap().clone();
+    assert_eq!(calls.len(), 2, "each attempt is recorded before it answers");
+    let ids: Vec<String> =
+        calls.iter().map(|c| RecordPiiAccessRequest::decode(c.as_slice()).unwrap().event.unwrap().event_id).collect();
+    assert_eq!(ids[0], ids[1], "the attempt is not part of the event id");
     let events = audit.events.lock().unwrap().clone();
-    assert_eq!(events.len(), 1, "both calls carry one event id");
-    assert_eq!(events.values().next().unwrap().mentions.len(), 2);
-    // Another attempt is another event.
-    c.inspect_document_graph(ask(PiiValueForm::Token, "op-retry", 4)).await.unwrap();
+    assert_eq!(events.len(), 1, "one recorded event");
+    let e = events.values().next().unwrap();
+    assert_eq!((e.mentions.len(), e.attempt_id.as_str(), e.input_digest.len()), (2, "3", 32));
+    // Another operation is another event.
+    c.inspect_document_graph(ask(PiiValueForm::Token, "op-other", 3)).await.unwrap();
     assert_eq!(audit.events.lock().unwrap().len(), 2);
     s.stop().await;
 }
@@ -205,7 +211,15 @@ async fn releases_are_refused_where_they_are_not_offered() {
     let code = |r: Result<tonic::Response<TypedDocumentResult>, tonic::Status>| r.unwrap_err().code();
     assert_eq!(code(c.inspect_document_graph(ask(PiiValueForm::Ciphertext, "op", 0)).await), Code::Unimplemented);
     assert_eq!(code(c.inspect_document_graph(ask(PiiValueForm::Clear, "op", 0)).await), Code::FailedPrecondition);
-    assert_eq!(code(c.inspect_document_graph(ask(PiiValueForm::Token, "", 0)).await), Code::InvalidArgument);
+    // Without an operation key the release is refused and the findings
+    // are served; nothing is recorded.
+    let typed = c.inspect_document_graph(ask(PiiValueForm::Token, "", 0)).await.unwrap().into_inner();
+    assert!(forms(&typed).iter().all(withheld));
+    // The default path on a release server withholds every value.
+    let mut plain = ask(PiiValueForm::Unspecified, "op", 0);
+    plain.pii_output = None;
+    let typed = c.inspect_document_graph(plain).await.unwrap().into_inner();
+    assert!(forms(&typed).iter().all(withheld));
     // Only InspectDocumentGraph releases values.
     let options =
         Some(PiiOutputOptions { values: PiiValueForm::Token as i32, operation_key: "op".into(), ..Default::default() });

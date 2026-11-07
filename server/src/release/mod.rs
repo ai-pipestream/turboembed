@@ -24,7 +24,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use turbo_pii::checksum::sha256;
 
-use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
+use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE};
 use crate::proto::audit::{PiiAccessEvent, PiiAccessKindGrant};
 use crate::proto::result::{InspectDocumentGraphRequest, PiiOutputOptions, PiiValueForm, TypedDocumentResult};
 use crate::results::disclosure::PiiOutputPolicy;
@@ -96,7 +96,8 @@ impl Release {
         policy: PiiOutputPolicy,
     ) -> Result<TypedDocumentResult, Failure> {
         let options = req.pii_output.take().unwrap_or_default();
-        let (operation_key, attempt) = (options.operation_key.clone(), options.attempt);
+        let operation_key = options.operation_key.clone();
+        let attempt_id = options.attempt.to_string();
         if form == Form::Ciphertext {
             return Err(Failure::new(
                 crate::api::TURBO_E_UNSUPPORTED_OPTION,
@@ -111,13 +112,6 @@ impl Release {
                 format!("pii_output.values {} is not allowed by this server's PII output policy", form.name()),
             ));
         }
-        if operation_key.is_empty() {
-            return Err(Failure::new(
-                TURBO_E_INVALID_ARGUMENT,
-                0,
-                "a PII value release needs pii_output.operation_key".to_owned(),
-            ));
-        }
         req.pii_output = Some(PiiOutputOptions { values: PiiValueForm::Unspecified as i32, ..options });
         let grant = self.grants.of(service.as_ref());
         let doc_id = req.doc_id.clone();
@@ -125,7 +119,9 @@ impl Release {
         let (mut typed, plan) = tokio::task::spawn_blocking(move || plan::project(&req, policy, Forms::of(form), &g))
             .await
             .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
-        if plan.is_empty() {
+        // A release needs the caller's operation key, so its retries share
+        // one audit event; without one the answer is the findings only.
+        if plan.is_empty() || operation_key.is_empty() {
             return Ok(typed);
         }
         let Some(service) = service else {
@@ -141,15 +137,25 @@ impl Release {
                 effective.push(PiiAccessKindGrant { builtin_kind: builtin, custom_kind: p.custom.clone(), forms });
             }
         }
+        let policy_digest = policy_digest(policy, &grant).to_vec();
+        let input_digest = typed.input.as_ref().map(|i| i.source_text_digest.clone()).unwrap_or_default();
+        let event_id = audit::event_id(&audit::EventKey {
+            operation_key: &operation_key,
+            input_digest: &input_digest,
+            mentions: &mentions,
+            effective: &effective,
+            policy_digest: &policy_digest,
+        });
         let event = PiiAccessEvent {
-            event_id: audit::event_id(&operation_key, attempt, &mentions),
+            event_id,
             operation_key,
-            attempt,
+            attempt_id,
+            input_digest,
             service_fingerprint: service.0.to_vec(),
             effective,
             mentions,
             policy_id: POLICY_ID.into(),
-            policy_digest: policy_digest(policy, &grant).to_vec(),
+            policy_digest,
             time_unix_nanos: SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64),
             doc_id,
         };

@@ -6,11 +6,11 @@ use std::path::PathBuf;
 
 use turbo_analysis_layers::{PiiKind, Sensitive};
 
-use super::audit::event_id;
+use super::audit::{EventKey, event_id};
 use super::caps::{Fingerprint, Form, Forms, Grant, Grants, effective};
 use super::keys::{KeyRef, TokenKey, TokenKeyFile, active};
 use super::*;
-use crate::proto::audit::PiiAccessMention;
+use crate::proto::audit::{PiiAccessKindGrant, PiiAccessMention};
 
 const FP: &str = "aa00000000000000000000000000000000000000000000000000000000000001";
 const PLANTED: &str = "alice.planted@example.com";
@@ -57,22 +57,45 @@ fn a_grant_for_one_kind_covers_that_kind_only_and_no_service_gets_nothing() {
     assert_eq!(grants.of(Some(&other)), Grant::default());
 }
 
+fn id(
+    op: &str,
+    input: &[u8],
+    mentions: &[PiiAccessMention],
+    effective: &[PiiAccessKindGrant],
+    policy: &[u8],
+) -> String {
+    event_id(&EventKey { operation_key: op, input_digest: input, mentions, effective, policy_digest: policy })
+}
+
+fn kind(builtin: u32, forms: &[Form]) -> PiiAccessKindGrant {
+    PiiAccessKindGrant {
+        builtin_kind: builtin,
+        custom_kind: String::new(),
+        forms: forms.iter().map(|f| f.audit() as i32).collect(),
+    }
+}
+
 #[test]
-fn the_event_id_is_fixed_by_operation_attempt_and_mention_set() {
+fn the_event_id_is_fixed_by_what_a_retry_keeps() {
     let a = [mention("pii", 0, Form::Token), mention("pii", 2, Form::Token)];
     let b = [mention("pii", 2, Form::Token), mention("pii", 0, Form::Token)];
-    let id = event_id("op-1", 0, &a);
-    assert_eq!(id.len(), 64);
-    assert!(id.bytes().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
-    assert_eq!(id, event_id("op-1", 0, &b), "the order mentions are listed in does not matter");
-    assert_ne!(id, event_id("op-1", 1, &a), "another attempt");
-    assert_ne!(id, event_id("op-2", 0, &a), "another operation");
-    assert_ne!(id, event_id("op-1", 0, &a[..1]), "another mention set");
-    assert_ne!(id, event_id("op-1", 0, &[mention("pii", 0, Form::Clear), mention("pii", 2, Form::Token)]));
+    let eff = [kind(1, &[Form::Token]), kind(30, &[Form::Token])];
+    let (input, policy) = ([1u8; 32], [2u8; 32]);
+    let base = id("op-1", &input, &a, &eff, &policy);
+    assert_eq!(base.len(), 64);
+    assert!(base.bytes().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    let swapped = [eff[1].clone(), eff[0].clone()];
+    assert_eq!(base, id("op-1", &input, &b, &swapped, &policy), "list order does not matter");
+    assert_ne!(base, id("op-2", &input, &a, &eff, &policy), "another operation");
+    assert_ne!(base, id("op-1", &[3; 32], &a, &eff, &policy), "another input");
+    assert_ne!(base, id("op-1", &input, &a[..1], &eff, &policy), "another mention set");
+    assert_ne!(base, id("op-1", &input, &[mention("pii", 0, Form::Clear), a[1].clone()], &eff, &policy));
+    assert_ne!(base, id("op-1", &input, &a, &eff[..1], &policy), "other forms in effect");
+    assert_ne!(base, id("op-1", &input, &a, &eff, &[4; 32]), "another policy");
     // Length prefixes keep the fields apart.
     assert_ne!(
-        event_id("op", 0, &[mention("1pii", 0, Form::Token)]),
-        event_id("op1", 0, &[mention("pii", 0, Form::Token)])
+        id("op", &input, &[mention("1pii", 0, Form::Token)], &eff, &policy),
+        id("op1", &input, &[mention("pii", 0, Form::Token)], &eff, &policy)
     );
 }
 

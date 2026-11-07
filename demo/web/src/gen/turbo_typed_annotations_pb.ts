@@ -2764,8 +2764,8 @@ export type PiiOutputOptions = Message<"turbo.result.v1.PiiOutputOptions"> & {
 
   /**
    * The caller's operation (idempotency) key and attempt for a release.
-   * A request with TOKEN or CLEAR values must set operation_key; a retry
-   * sends the same key and attempt, so its audit event has the same id.
+   * Without an operation key no value is released and the answer is the
+   * findings only. Every attempt at one release has one audit event id.
    *
    * @generated from field: string operation_key = 5;
    */

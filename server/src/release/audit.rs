@@ -11,7 +11,7 @@ use tonic::transport::{Channel, Endpoint};
 use turbo_pii::checksum::sha256::Sha256;
 
 use crate::proto::audit::turbo_audit_service_client::TurboAuditServiceClient;
-use crate::proto::audit::{PiiAccessEvent, PiiAccessMention, RecordPiiAccessRequest};
+use crate::proto::audit::{PiiAccessEvent, PiiAccessKindGrant, PiiAccessMention, RecordPiiAccessRequest};
 
 /// `--pii-audit-timeout-ms` when not given.
 pub const DEFAULT_AUDIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -70,28 +70,51 @@ impl AuditClient {
     }
 }
 
+/// What a retry of one release keeps, which the event id is a digest
+/// over. The attempt, the time, the service and the document id are not
+/// part of it, so every attempt at one release has one id.
+pub struct EventKey<'a> {
+    pub operation_key: &'a str,
+    /// The SHA-256 of the source text the mentions index into.
+    pub input_digest: &'a [u8],
+    pub mentions: &'a [PiiAccessMention],
+    pub effective: &'a [PiiAccessKindGrant],
+    pub policy_digest: &'a [u8],
+}
+
 /// The event id of a release: 64 lowercase hexadecimal digits of the
-/// SHA-256 over the operation key, the attempt and the mentions in
-/// (layer, index) order. The time, the service and the document id are
-/// not part of it, so a retry of one release has one id.
-pub fn event_id(operation_key: &str, attempt: u32, mentions: &[PiiAccessMention]) -> String {
-    let mut sorted: Vec<&PiiAccessMention> = mentions.iter().collect();
-    sorted.sort_by(|a, b| (&a.layer_instance, a.index).cmp(&(&b.layer_instance, b.index)));
+/// SHA-256 over `key`, with mentions in (layer, index) order and kinds in
+/// (built-in id, custom name) order.
+pub fn event_id(key: &EventKey<'_>) -> String {
+    let mut mentions: Vec<&PiiAccessMention> = key.mentions.iter().collect();
+    mentions.sort_by(|a, b| (&a.layer_instance, a.index).cmp(&(&b.layer_instance, b.index)));
+    let mut effective: Vec<&PiiAccessKindGrant> = key.effective.iter().collect();
+    effective.sort_by(|a, b| (a.builtin_kind, &a.custom_kind).cmp(&(b.builtin_kind, &b.custom_kind)));
     let mut h = Sha256::default();
     h.update(EVENT_DOMAIN);
     let bytes = |h: &mut Sha256, b: &[u8]| {
         h.update(&(b.len() as u64).to_be_bytes());
         h.update(b);
     };
-    bytes(&mut h, operation_key.as_bytes());
-    h.update(&attempt.to_be_bytes());
-    h.update(&(sorted.len() as u64).to_be_bytes());
-    for m in sorted {
+    bytes(&mut h, key.operation_key.as_bytes());
+    bytes(&mut h, key.input_digest);
+    h.update(&(mentions.len() as u64).to_be_bytes());
+    for m in mentions {
         bytes(&mut h, m.layer_instance.as_bytes());
         h.update(&m.index.to_be_bytes());
         h.update(&m.builtin_kind.to_be_bytes());
         bytes(&mut h, m.custom_kind.as_bytes());
         h.update(&m.form.to_be_bytes());
     }
+    h.update(&(effective.len() as u64).to_be_bytes());
+    for e in effective {
+        h.update(&e.builtin_kind.to_be_bytes());
+        bytes(&mut h, e.custom_kind.as_bytes());
+        h.update(&(e.forms.len() as u64).to_be_bytes());
+        for f in &e.forms {
+            h.update(&f.to_be_bytes());
+        }
+    }
+    bytes(&mut h, key.policy_digest);
     h.finish().iter().map(|b| format!("{b:02x}")).collect()
 }

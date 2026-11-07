@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file turbo_audit.proto.
  */
 export const file_turbo_audit: GenFile = /*@__PURE__*/
-  fileDesc("ChF0dXJib19hdWRpdC5wcm90bxIOdHVyYm8uYXVkaXQudjEiRwoWUmVjb3JkUGlpQWNjZXNzUmVxdWVzdBItCgVldmVudBgBIAEoCzIeLnR1cmJvLmF1ZGl0LnYxLlBpaUFjY2Vzc0V2ZW50IisKF1JlY29yZFBpaUFjY2Vzc1Jlc3BvbnNlEhAKCGV2ZW50X2lkGAEgASgJIpEBChBQaWlBY2Nlc3NNZW50aW9uEhYKDmxheWVyX2luc3RhbmNlGAEgASgJEg0KBWluZGV4GAIgASgNEhQKDGJ1aWx0aW5fa2luZBgDIAEoDRITCgtjdXN0b21fa2luZBgEIAEoCRIrCgRmb3JtGAUgASgOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSJtChJQaWlBY2Nlc3NLaW5kR3JhbnQSFAoMYnVpbHRpbl9raW5kGAEgASgNEhMKC2N1c3RvbV9raW5kGAIgASgJEiwKBWZvcm1zGAMgAygOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSKlAgoOUGlpQWNjZXNzRXZlbnQSEAoIZXZlbnRfaWQYASABKAkSFQoNb3BlcmF0aW9uX2tleRgCIAEoCRIPCgdhdHRlbXB0GAMgASgNEhsKE3NlcnZpY2VfZmluZ2VycHJpbnQYBCABKAwSNQoJZWZmZWN0aXZlGAUgAygLMiIudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzS2luZEdyYW50EjIKCG1lbnRpb25zGAYgAygLMiAudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzTWVudGlvbhIRCglwb2xpY3lfaWQYByABKAkSFQoNcG9saWN5X2RpZ2VzdBgIIAEoDBIXCg90aW1lX3VuaXhfbmFub3MYCSABKAQSDgoGZG9jX2lkGAogASgJKoYBCg1QaWlBY2Nlc3NGb3JtEh8KG1BJSV9BQ0NFU1NfRk9STV9VTlNQRUNJRklFRBAAEhkKFVBJSV9BQ0NFU1NfRk9STV9UT0tFThABEh4KGlBJSV9BQ0NFU1NfRk9STV9DSVBIRVJURVhUEAISGQoVUElJX0FDQ0VTU19GT1JNX0NMRUFSEAMyeQoRVHVyYm9BdWRpdFNlcnZpY2USZAoPUmVjb3JkUGlpQWNjZXNzEiYudHVyYm8uYXVkaXQudjEuUmVjb3JkUGlpQWNjZXNzUmVxdWVzdBonLnR1cmJvLmF1ZGl0LnYxLlJlY29yZFBpaUFjY2Vzc1Jlc3BvbnNlIgBiBnByb3RvMw");
+  fileDesc("ChF0dXJib19hdWRpdC5wcm90bxIOdHVyYm8uYXVkaXQudjEiRwoWUmVjb3JkUGlpQWNjZXNzUmVxdWVzdBItCgVldmVudBgBIAEoCzIeLnR1cmJvLmF1ZGl0LnYxLlBpaUFjY2Vzc0V2ZW50IisKF1JlY29yZFBpaUFjY2Vzc1Jlc3BvbnNlEhAKCGV2ZW50X2lkGAEgASgJIpEBChBQaWlBY2Nlc3NNZW50aW9uEhYKDmxheWVyX2luc3RhbmNlGAEgASgJEg0KBWluZGV4GAIgASgNEhQKDGJ1aWx0aW5fa2luZBgDIAEoDRITCgtjdXN0b21fa2luZBgEIAEoCRIrCgRmb3JtGAUgASgOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSJtChJQaWlBY2Nlc3NLaW5kR3JhbnQSFAoMYnVpbHRpbl9raW5kGAEgASgNEhMKC2N1c3RvbV9raW5kGAIgASgJEiwKBWZvcm1zGAMgAygOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSK+AgoOUGlpQWNjZXNzRXZlbnQSEAoIZXZlbnRfaWQYASABKAkSFQoNb3BlcmF0aW9uX2tleRgCIAEoCRISCgphdHRlbXB0X2lkGAMgASgJEhsKE3NlcnZpY2VfZmluZ2VycHJpbnQYBCABKAwSNQoJZWZmZWN0aXZlGAUgAygLMiIudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzS2luZEdyYW50EjIKCG1lbnRpb25zGAYgAygLMiAudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzTWVudGlvbhIRCglwb2xpY3lfaWQYByABKAkSFQoNcG9saWN5X2RpZ2VzdBgIIAEoDBIXCg90aW1lX3VuaXhfbmFub3MYCSABKAQSDgoGZG9jX2lkGAogASgJEhQKDGlucHV0X2RpZ2VzdBgLIAEoDCqGAQoNUGlpQWNjZXNzRm9ybRIfChtQSUlfQUNDRVNTX0ZPUk1fVU5TUEVDSUZJRUQQABIZChVQSUlfQUNDRVNTX0ZPUk1fVE9LRU4QARIeChpQSUlfQUNDRVNTX0ZPUk1fQ0lQSEVSVEVYVBACEhkKFVBJSV9BQ0NFU1NfRk9STV9DTEVBUhADMnkKEVR1cmJvQXVkaXRTZXJ2aWNlEmQKD1JlY29yZFBpaUFjY2VzcxImLnR1cmJvLmF1ZGl0LnYxLlJlY29yZFBpaUFjY2Vzc1JlcXVlc3QaJy50dXJiby5hdWRpdC52MS5SZWNvcmRQaWlBY2Nlc3NSZXNwb25zZSIAYgZwcm90bzM");
 
 /**
  * @generated from message turbo.audit.v1.RecordPiiAccessRequest
@@ -140,25 +140,26 @@ export const PiiAccessKindGrantSchema: GenMessage<PiiAccessKindGrant> = /*@__PUR
  */
 export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   /**
-   * 64 lowercase hexadecimal digits: SHA-256 over the operation key, the
-   * attempt and the mention set, so a retried release has the same id.
+   * 64 lowercase hexadecimal digits: SHA-256 over what a retry keeps,
+   * the operation key, input_digest, the mention set, the forms in
+   * effect and policy_digest. The attempt is not part of it, so every
+   * attempt at one release has the same id.
    *
    * @generated from field: string event_id = 1;
    */
   eventId: string;
 
   /**
-   * The caller's operation key and attempt, as the request gave them
-   * (PiiOutputOptions.operation_key and attempt).
+   * The caller's operation key, and the attempt that made this release.
    *
    * @generated from field: string operation_key = 2;
    */
   operationKey: string;
 
   /**
-   * @generated from field: uint32 attempt = 3;
+   * @generated from field: string attempt_id = 3;
    */
-  attempt: number;
+  attemptId: string;
 
   /**
    * The calling service: the SHA-256 of its verified client
@@ -206,6 +207,14 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
    * @generated from field: string doc_id = 10;
    */
   docId: string;
+
+  /**
+   * The SHA-256 of the source text the mentions index into
+   * (InputIdentity.source_text_digest of the answer).
+   *
+   * @generated from field: bytes input_digest = 11;
+   */
+  inputDigest: Uint8Array;
 };
 
 /**

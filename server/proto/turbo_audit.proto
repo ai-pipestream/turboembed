@@ -62,13 +62,14 @@ message PiiAccessKindGrant {
 
 // One access to PII values. It carries no value, token or text.
 message PiiAccessEvent {
-  // 64 lowercase hexadecimal digits: SHA-256 over the operation key, the
-  // attempt and the mention set, so a retried release has the same id.
+  // 64 lowercase hexadecimal digits: SHA-256 over what a retry keeps,
+  // the operation key, input_digest, the mention set, the forms in
+  // effect and policy_digest. The attempt is not part of it, so every
+  // attempt at one release has the same id.
   string event_id = 1;
-  // The caller's operation key and attempt, as the request gave them
-  // (PiiOutputOptions.operation_key and attempt).
+  // The caller's operation key, and the attempt that made this release.
   string operation_key = 2;
-  uint32 attempt = 3;
+  string attempt_id = 3;
   // The calling service: the SHA-256 of its verified client
   // certificate's DER bytes, 32 bytes.
   bytes service_fingerprint = 4;
@@ -83,4 +84,7 @@ message PiiAccessEvent {
   uint64 time_unix_nanos = 9;
   // The request's document id.
   string doc_id = 10;
+  // The SHA-256 of the source text the mentions index into
+  // (InputIdentity.source_text_digest of the answer).
+  bytes input_digest = 11;
 }

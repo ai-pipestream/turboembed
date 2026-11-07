@@ -533,8 +533,8 @@ wire compatibility, deprecated and never populated.
   server without PII release, are refused with
   `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
 - `operation_key` and `attempt`: the caller's operation (idempotency) key
-  and attempt for a release; `operation_key` is required with `TOKEN` or
-  `CLEAR`.
+  and attempt for a release. Without an operation key no value is
+  released and the answer carries the findings only.
 
 The server caps the options with `--pii-output-allow`
 (`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
@@ -596,13 +596,14 @@ Before any value leaves, the server records one `PiiAccessEvent` with
 at most `--pii-audit-timeout-ms` (`TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS`,
 5000 by default). A call that fails, times out or acknowledges another
 event id fails the request with `TURBO_E_BUSY` (`UNAVAILABLE`) and no
-value. The event carries the operation key and attempt, the service
-fingerprint, the forms in effect per kind, the released mentions by layer
+value. The event carries the operation key and attempt, the input
+digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
 instance and index with their kind and form, the policy id and the
 SHA-256 of its rules, the time and the document id; never a value, token
-or text. Its id is the SHA-256 of the operation key, the attempt and the
-mention set, so a retried release has the same id and the audit service
-keeps one record. The sink drops items when its queue is full, so it
+or text. Its id is the SHA-256 of what a retry keeps: the operation
+key, the input digest, the mention set, the forms in effect and the
+policy digest. The attempt is not part of it, so every attempt at one
+release has the same id and the audit service keeps one record. The sink drops items when its queue is full, so it
 never carries these events. A request that releases nothing records
 nothing.
 
