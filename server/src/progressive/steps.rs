@@ -38,6 +38,7 @@ mod block5;
 pub mod heads;
 
 use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
+use crate::pii_policy::Redaction;
 use crate::state::{Loaded, State};
 
 pub(super) const DEFAULT_STEPS: &[&str] = &[
@@ -286,7 +287,16 @@ fn add_norm<N: Normalizer>(builder: Builder, n: N, read_view: &'static str, writ
 /// Builds an [`Analyzer`] from `initial_doc` and the requested `step_names`
 /// without model state.
 pub fn compile_analyzer(initial_doc: &Document, step_names: &[&str]) -> Result<Analyzer, Failure> {
-    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[])
+    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], None)
+}
+
+/// [`compile_analyzer`] with the redaction policy `turbo-pii:redact` runs.
+pub fn compile_analyzer_with_redaction(
+    initial_doc: &Document,
+    step_names: &[&str],
+    redaction: &Redaction,
+) -> Result<Analyzer, Failure> {
+    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], Some(redaction))
 }
 
 /// Builds an [`Analyzer`] from `initial_doc`, resolving model-backed steps and
@@ -298,7 +308,12 @@ pub(crate) fn compile_analyzer_with_state(
     model_name: &str,
     profile_name: &str,
     required_bundles: &[&str],
+    redaction: Option<&Redaction>,
 ) -> Result<Analyzer, Failure> {
+    let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
+    if redaction.is_some() && !redacts {
+        return Err(bad("pii_redaction is set but the steps do not include turbo-pii:redact"));
+    }
     // A step named by a legacy layer id runs as the step its current id names.
     let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
     let step_names: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
@@ -348,7 +363,8 @@ pub(crate) fn compile_analyzer_with_state(
             continue;
         }
 
-        let (next_builder, handled) = block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names)?;
+        let (next_builder, handled) =
+            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction)?;
         let (next_builder, handled) = match handled {
             true => (next_builder, true),
             false => heads::add_step(next_builder, name, head_plan.as_ref()),

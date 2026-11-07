@@ -19,10 +19,14 @@
 pub mod canonical;
 mod convert;
 mod error;
+mod named;
+mod redact;
 mod resolve;
 mod strategy;
 
 pub use error::{At, PolicyError};
+pub use named::{NamedPolicies, Redaction, SelectError, select};
+pub use redact::{REDACT_STEP, RedactPlanStep, RedactStep};
 pub use resolve::{KEY_MATERIAL_HEX_LEN, MAX_REF_ID_BYTES, NoRegistry, PolicyResolver, ResolveError};
 pub use strategy::{edit_strategy, strategy_to_proto, whole_mask};
 pub use turbo_analysis::PolicyDigest;
@@ -31,8 +35,9 @@ use turbo_pii::rewrite::RewriteStrategy;
 use turbo_pii::{AllowList, ChecksumAlgorithm, CustomKinds, DenyList, LabelPolicy, Pattern, PiiEvidence, PiiKind};
 use turbo_pii::{PiiScore, PiiScoreKind};
 
-/// A converted redaction policy.
-#[derive(Clone, Debug)]
+/// A converted redaction policy. Its `Debug` names the policy by id,
+/// revision and digest only: terms, map tables and keys are never printed.
+#[derive(Clone)]
 pub struct RedactionPolicy {
     pub id: String,
     pub revision: u64,
@@ -149,6 +154,18 @@ pub enum PolicyFlag {
     /// A strategy entry whose strategy or one of whose conditions this
     /// server does not know became an unconditional whole-value mask.
     UnknownStrategy { rule_id: String, entry: usize },
+}
+
+impl std::fmt::Debug for RedactionPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedactionPolicy")
+            .field("id", &self.id)
+            .field("revision", &self.revision)
+            .field("digest", &self.digest.to_hex())
+            .field("rules", &self.rules.len())
+            .field("flags", &self.flags.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl RedactionPolicy {

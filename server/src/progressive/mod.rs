@@ -44,12 +44,13 @@ use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
 
+use crate::pii_policy;
 pub use profiles::{
     ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
     profile_capabilities,
 };
 use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state};
-pub use steps::{compile_analyzer, heads};
+pub use steps::{compile_analyzer, compile_analyzer_with_redaction, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
@@ -223,8 +224,23 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
         }
     };
 
-    compile_analyzer_with_state(initial_doc, &step_names, Some(state), &req.model, profile_name, required_bundles)
-        .map_err(plain)
+    let redaction = match &req.pii_redaction {
+        None => None,
+        Some(sel) => Some(
+            pii_policy::select(sel, &state.pii_policies, &pii_policy::NoRegistry)
+                .map_err(|e| plain(bad(e.to_string())))?,
+        ),
+    };
+    compile_analyzer_with_state(
+        initial_doc,
+        &step_names,
+        Some(state),
+        &req.model,
+        profile_name,
+        required_bundles,
+        redaction.as_ref(),
+    )
+    .map_err(plain)
 }
 
 /// Sends the terminal receipt of `op` over `doc`: `result` is the

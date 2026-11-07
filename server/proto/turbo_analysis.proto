@@ -12,6 +12,7 @@ syntax = "proto3";
 package turbo.result.v1;
 
 import public "turbo_typed_annotations.proto";
+import "turbo_pii_policy.proto";
 
 // Analysis results and the server's bundle capabilities.
 //
@@ -922,6 +923,10 @@ message AnalyzePipelineRequest
   // What the step snapshots and the final answer carry once the document
   // holds PII findings; see PiiOutputOptions.
   PiiOutputOptions pii_output = 11;
+
+  // The policy for the turbo-pii:redact step, which needs one; refused
+  // when the steps do not include turbo-pii:redact.
+  PiiRedactionSelection pii_redaction = 12;
 }
 
 // The kind of one structure block, the `turbo:structure` block kinds.

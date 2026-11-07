@@ -118,6 +118,8 @@ pub(crate) struct State {
     /// Serializes load(): one load at a time, so two LoadBundle calls
     /// never load the same new model twice.
     loading: Mutex<()>,
+    /// The redaction policies loaded and converted at start, by id.
+    pub(crate) pii_policies: crate::pii_policy::NamedPolicies,
 }
 
 fn not_found(name: &str) -> Failure {
@@ -151,7 +153,14 @@ impl State {
             stopping: AtomicBool::new(false),
             health_tx,
             loading: Mutex::new(()),
+            pii_policies: crate::pii_policy::NamedPolicies::default(),
         }
+    }
+
+    /// This state serving `policies` by name.
+    pub(crate) fn with_pii_policies(mut self, policies: crate::pii_policy::NamedPolicies) -> Self {
+        self.pii_policies = policies;
+        self
     }
 
     fn notify_health(&self) {

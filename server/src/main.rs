@@ -72,6 +72,17 @@ async fn health(args: impl Iterator<Item = String>) -> ExitCode {
     }
 }
 
+/// Reads and converts every `--pii-policy` file; an error names the file
+/// by its position among the flags, never by its path or contents.
+fn load_pii_policies(paths: &[PathBuf]) -> Result<turbo_kserve::pii_policy::NamedPolicies, String> {
+    let files = paths
+        .iter()
+        .enumerate()
+        .map(|(i, p)| std::fs::read(p).map_err(|e| format!("--pii-policy {i}: cannot be read ({})", e.kind())))
+        .collect::<Result<Vec<_>, _>>()?;
+    turbo_kserve::pii_policy::NamedPolicies::from_encoded(&files, &turbo_kserve::pii_policy::NoRegistry)
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let mut argv = std::env::args().skip(1).peekable();
@@ -103,7 +114,15 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    let pii_policies = match load_pii_policies(&args.pii_policies) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     let serve = Serve {
+        pii_policies,
         admin: args.admin,
         drive,
         zoo: args.zoo,
