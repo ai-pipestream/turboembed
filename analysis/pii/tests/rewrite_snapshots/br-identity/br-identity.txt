@@ -1,0 +1,15 @@
+MASKED	CPF ***.***.***-** e CNPJ **.***.***/****-**.
+
+MASK_ALL	CPF ############## e CNPJ ##################.
+
+REWRITE	pseudonymize	OK	CPF BR-CPF-1 e CNPJ BR-CNPJ-1.
+
+LABEL	pseudonymize	4	18	4	12	BR-CPF-1
+LABEL	pseudonymize	26	44	20	29	BR-CNPJ-1
+REWRITE	hmac	OK	CPF BR-CPF-6b4b48a7312c9829 e CNPJ BR-CNPJ-4fbeb63a347dc43d.
+
+LABEL	hmac	4	18	4	27	BR-CPF-6b4b48a7312c9829
+LABEL	hmac	26	44	35	59	BR-CNPJ-4fbeb63a347dc43d
+AUDIT	br-cnpj	1	1	BR-CNPJ-4fbeb63a347dc43d
+AUDIT	br-cpf	1	1	BR-CPF-6b4b48a7312c9829
+AUDIT_REPORT	br-cnpj: 1 mentions, 1 distinct [BR-CNPJ-4fbeb63a347dc43d]\nbr-cpf: 1 mentions, 1 distinct [BR-CPF-6b4b48a7312c9829]

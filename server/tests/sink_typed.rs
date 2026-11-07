@@ -90,7 +90,8 @@ async fn forward(typed: Option<SinkTyped>) -> (Server, DocumentSinkItem) {
 
 async fn inspect(s: &Server, graph: Vec<u8>, offsets: OffsetMode) -> TypedDocumentResult {
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let req = InspectDocumentGraphRequest { doc_id: "doc-1".into(), graph, view: 0, offsets: offsets as i32 };
+    let req =
+        InspectDocumentGraphRequest { doc_id: "doc-1".into(), graph, view: 0, offsets: offsets as i32, binding: None };
     c.inspect_document_graph(req).await.unwrap().into_inner()
 }
 

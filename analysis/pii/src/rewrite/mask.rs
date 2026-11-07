@@ -240,6 +240,16 @@ impl MaskPolicy {
             | PiiKind::UsItin
             | PiiKind::UkNhs
             | PiiKind::DeSteuerId
+            | PiiKind::EsDni
+            | PiiKind::EsNie
+            | PiiKind::EsCif
+            | PiiKind::DePersonalausweis
+            | PiiKind::FrNir
+            | PiiKind::FrSiren
+            | PiiKind::FrSiret
+            | PiiKind::BrCpf
+            | PiiKind::BrCnpj
+            | PiiKind::Bic
             | PiiKind::Imei
             | PiiKind::CaSin
             | PiiKind::AbaRouting => whole.keeping_format(),

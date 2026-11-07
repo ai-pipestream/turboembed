@@ -1,0 +1,9 @@
+MASKED	éuser@example.com and 4111111111111111é and ß192.0.2.1
+
+MASK_ALL	éuser@example.com and 4111111111111111é and ß192.0.2.1
+
+REWRITE	pseudonymize	OK	éuser@example.com and 4111111111111111é and ß192.0.2.1
+
+REWRITE	hmac	OK	éuser@example.com and 4111111111111111é and ß192.0.2.1
+
+AUDIT_REPORT	no pii found

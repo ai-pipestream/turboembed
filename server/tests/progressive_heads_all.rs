@@ -119,6 +119,7 @@ fn typed(complete: &DocumentGraphResponse, offsets: OffsetMode) -> TypedDocument
         graph: complete.graph.to_vec(),
         view: 0,
         offsets: offsets as i32,
+        binding: None,
     })
     .unwrap()
 }
