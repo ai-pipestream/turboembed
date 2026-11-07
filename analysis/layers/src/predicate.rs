@@ -72,8 +72,11 @@ impl FilterableLayer for Pii {
         Pii {
             spans: self.spans.retain_indices(kept),
             custom_kinds: self.custom_kinds.clone(),
+            detectors: self.detectors.clone(),
             kind: kept.iter().map(|&ix| self.kind[ix.get()]).collect(),
-            confidence: kept.iter().map(|&ix| self.confidence[ix.get()]).collect(),
+            detector: kept.iter().map(|&ix| self.detector[ix.get()]).collect(),
+            evidence: self.evidence.retain(kept.iter().map(|ix| ix.get())),
+            score: kept.iter().map(|&ix| self.score[ix.get()]).collect(),
             normalized,
         }
     }

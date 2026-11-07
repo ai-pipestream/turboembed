@@ -1,4 +1,4 @@
-//! Context-word window (`turbo_pii::window`), `PiiConfidence::Labelled`,
+//! Context-word window (`turbo_pii::window`), label evidence facts,
 //! `LabelPolicy`, and caller overrides on `PiiDetector`.
 
 mod support;
@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use support::*;
 use turbo_analysis::export::{DocumentGraph, export, import};
-use turbo_analysis::{Annotator, Document, Provenance, Span};
+use turbo_analysis::{Annotator, Document, Ix, Layer, Provenance, Span, ViewId};
 use turbo_analysis_layers::export::codecs;
 use turbo_pii::text::{on_end, on_number_start};
 use turbo_pii::window::{
@@ -15,7 +15,8 @@ use turbo_pii::window::{
     has_strict_prefix_label,
 };
 use turbo_pii::{
-    CustomKindId, CustomKinds, Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiKind, PiiSink, Scanner,
+    ChecksumAlgorithm, CustomKindId, CustomKinds, Extractor, Pack, Pii, PiiConfidence, PiiDetector, PiiDisposition,
+    PiiEvidence, PiiKind, PiiSink, RejectReason, Scanner, SinkError,
 };
 
 /// Entry 0 of [`passport_kinds`].
@@ -25,15 +26,21 @@ fn passport_kinds() -> CustomKinds {
     CustomKinds::from_names(["passport"]).unwrap()
 }
 
-/// Toy 9-digit candidate scanner (`Format` confidence) used to exercise
+const SHAPE: &[PiiEvidence] = &[PiiEvidence::Shape];
+const LUHN: &[PiiEvidence] = &[PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true }];
+/// What an extractor that claims its candidates are labelled hands the
+/// sink: a label fact only the detector may record.
+const CLAIMED_LABEL: &[PiiEvidence] = &[PiiEvidence::Label { span: Span::new(0, 8), phrase: 0 }];
+
+/// Toy 9-digit candidate scanner with the given facts, used to exercise
 /// `label_required`, `label_boosts`, and window width overrides on a custom
-/// kind without check-digit coupling.
-fn scan_nine_with(text: &str, sink: &mut PiiSink<'_>, conf: PiiConfidence) {
+/// kind without check-digit coupling. A refused candidate is dropped.
+fn scan_nine_with(text: &str, sink: &mut PiiSink<'_>, evidence: &[PiiEvidence]) {
     let b = text.as_bytes();
     let mut i = 0;
     while i + 9 <= b.len() {
         if on_number_start(text, i) && b[i..i + 9].iter().all(u8::is_ascii_digit) && on_end(text, i + 9) {
-            sink.add_text(Span::new(i as u32, (i + 9) as u32), PASSPORT_KIND, conf);
+            let _ = sink.try_add_text(Span::new(i as u32, (i + 9) as u32), PASSPORT_KIND, evidence);
             i += 9;
         } else {
             i += 1;
@@ -42,7 +49,7 @@ fn scan_nine_with(text: &str, sink: &mut PiiSink<'_>, conf: PiiConfidence) {
 }
 
 fn scan_nine_digits(text: &str, sink: &mut PiiSink<'_>) {
-    scan_nine_with(text, sink, PiiConfidence::Format);
+    scan_nine_with(text, sink, SHAPE);
 }
 
 #[test]
@@ -191,7 +198,7 @@ fn sin_and_imei_preserve_default_strict_prefix_parity_and_support_opt_in_window(
         "Social Insurance Number\r\n046 454 286",
     ] {
         let pii = layer(&sin_window, text);
-        let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+        let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
         assert_eq!(items, [(PiiKind::CaSin, PiiConfidence::LabelledChecksum, "046454286")], "{text}");
     }
 
@@ -206,7 +213,7 @@ fn sin_and_imei_preserve_default_strict_prefix_parity_and_support_opt_in_window(
         "490154203237518\r\n(imei)",
     ] {
         let pii = layer(&imei_window, text);
-        let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+        let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
         assert_eq!(items, [(PiiKind::Imei, PiiConfidence::LabelledChecksum, "490154203237518")], "{text}");
     }
 }
@@ -236,7 +243,7 @@ fn label_required_drops_unlabelled_and_promotes_labelled_candidates() {
                 whereas SSN 123-45-6789 and 234-56-7890 (social security) are kept, \
                 and unlabelled ITIN 912-70-1234 still matches.";
     let pii = layer(&ssn_req, text);
-    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
     assert_eq!(
         items,
         [
@@ -251,59 +258,72 @@ fn label_required_drops_unlabelled_and_promotes_labelled_candidates() {
     let text = "Unlabelled 943 476 5919 stands alone near the start of this paragraph; \
                 NHS number: 943 476 5919 is kept.";
     let pii = layer(&nhs_req, text);
-    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
     assert_eq!(items, [(PiiKind::UkNhs, PiiConfidence::LabelledChecksum, "9434765919")]);
 
-    // Pre-labelled custom extractor candidates (`Labelled` and `LabelledChecksum`) must also pass `label_required`.
-    let scan_lbl: fn(&str, &mut PiiSink<'_>) = |t, s| scan_nine_with(t, s, PiiConfidence::Labelled);
-    let scan_lbl_chk: fn(&str, &mut PiiSink<'_>) = |t, s| scan_nine_with(t, s, PiiConfidence::LabelledChecksum);
-    for (pre_conf, scan_fn) in [(PiiConfidence::Labelled, scan_lbl), (PiiConfidence::LabelledChecksum, scan_lbl_chk)] {
-        let det = PiiDetector::new(vec![Scanner::custom_fn("PreLabelled", PASSPORT_KIND, scan_fn)])
-            .with_custom_kinds(passport_kinds())
-            .label_required(PASSPORT_KIND)
-            .with_extra_label(PASSPORT_KIND, "passport");
-        assert_none(&det, "Unlabelled 123456789 has no context label");
-        let pii = layer(&det, "Unlabelled 111222333 sits far away from the start; passport: 123456789.");
-        let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
-        assert_eq!(items, [(PASSPORT_KIND, pre_conf, "123456789")]);
+    // A custom extractor cannot mark its candidates as labelled: the
+    // sink refuses the label fact, so under `label_required` nothing
+    // remains, and with a real label in the window the detector records
+    // the label it found.
+    let scan_claimed: fn(&str, &mut PiiSink<'_>) = |t, s| scan_nine_with(t, s, CLAIMED_LABEL);
+    let det = PiiDetector::new(vec![Scanner::custom_fn("PreLabelled", PASSPORT_KIND, scan_claimed)])
+        .with_custom_kinds(passport_kinds())
+        .label_required(PASSPORT_KIND)
+        .with_extra_label(PASSPORT_KIND, "passport");
+    assert_none(&det, "Unlabelled 123456789 has no context label");
+    assert_none(&det, "Unlabelled 111222333 sits far away from the start; passport: 123456789.");
+}
+
+#[test]
+fn label_required_reads_the_recorded_label_fact_never_the_extractor() {
+    // A custom extractor that claims a label is refused by the sink, and a
+    // checksum-backed one passes `label_required` only when the detector's
+    // own window finds a label, which is then recorded as a fact.
+    fn claimed(text: &str, sink: &mut PiiSink<'_>) {
+        assert_eq!(
+            sink.try_add_text(Span::new(0, 9), PASSPORT_KIND, CLAIMED_LABEL),
+            Err(SinkError::ForeignEvidence(Span::new(0, 9), "label"))
+        );
+        assert_eq!(
+            sink.try_add_text(Span::new(0, 9), PASSPORT_KIND, &[PiiEvidence::DenyHit { list: 0, term: 0 }]),
+            Err(SinkError::ForeignEvidence(Span::new(0, 9), "deny-hit"))
+        );
+        assert_eq!(sink.try_add_text(Span::new(0, 9), PASSPORT_KIND, &[]), Err(SinkError::NoEvidence(Span::new(0, 9))));
+        scan_nine_with(text, sink, LUHN);
+    }
+    let detector = PiiDetector::new(vec![Scanner::custom_fn("Prelabelled", PASSPORT_KIND, claimed)])
+        .with_custom_kinds(passport_kinds())
+        .with_extra_label(PASSPORT_KIND, "passport")
+        .with_label_window(PASSPORT_KIND, 1);
+    let required = detector.clone().label_required(PASSPORT_KIND);
+    for text in ["123456789", "passport is 123456789", "123456789 is passport"] {
+        let (pii, candidates) = required.layer_with_candidates(text, ViewId::SOURCE);
+        assert_eq!(pii.len(), 0, "{text}");
+        assert_eq!(candidates.check(), Ok(()));
+        let rows: Vec<_> = candidates.candidates().map(|c| (c.span, c.disposition, c.evidence.to_vec())).collect();
+        let at = text.find("123456789").unwrap() as u32;
+        let rejected = PiiDisposition::RejectedByRule { reason: RejectReason::LabelRequired };
+        assert_eq!(rows, [(Span::new(at, at + 9), rejected, LUHN.to_vec())], "{text}");
+    }
+    for (text, label) in [("passport: 123456789", Span::new(0, 8)), ("123456789 (passport)", Span::new(11, 19))] {
+        let (pii, candidates) = required.layer_with_candidates(text, ViewId::SOURCE);
+        let mentions: Vec<_> =
+            pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized, m.evidence.to_vec())).collect();
+        let facts = vec![LUHN[0], PiiEvidence::Label { span: label, phrase: 0 }];
+        assert_eq!(mentions, [(PASSPORT_KIND, PiiConfidence::LabelledChecksum, "123456789", facts)], "{text}");
+        assert_eq!(candidates.disposition, [PiiDisposition::Kept { mention: Ix::new(0) }]);
+        assert_eq!(candidates.get(Ix::new(0)).evidence, pii.get(Ix::new(0)).evidence);
+        assert_eq!(pii.detectors.get(pii.detector[0]), Some(("Prelabelled", "0")));
+    }
+    // Optional policies keep the scanner's facts without a label.
+    for optional in [detector.clone(), detector.label_boosts(PASSPORT_KIND)] {
+        let pii = layer(&optional, "123456789");
+        assert_eq!(pii.mentions().map(|m| m.confidence()).collect::<Vec<_>>(), [PiiConfidence::Checksum]);
     }
 }
 
 #[test]
-fn label_required_rechecks_prelabelled_custom_candidates() {
-    fn labelled(text: &str, sink: &mut PiiSink<'_>) {
-        scan_nine_with(text, sink, PiiConfidence::Labelled);
-    }
-    fn labelled_checksum(text: &str, sink: &mut PiiSink<'_>) {
-        scan_nine_with(text, sink, PiiConfidence::LabelledChecksum);
-    }
-    type ScanFn = fn(&str, &mut PiiSink<'_>);
-    let scanners: [(PiiConfidence, ScanFn); 2] =
-        [(PiiConfidence::Labelled, labelled), (PiiConfidence::LabelledChecksum, labelled_checksum)];
-    for (confidence, scan) in scanners {
-        let detector = PiiDetector::new(vec![Scanner::custom_fn("Prelabelled", PASSPORT_KIND, scan)])
-            .with_custom_kinds(passport_kinds())
-            .with_extra_label(PASSPORT_KIND, "passport")
-            .with_label_window(PASSPORT_KIND, 1);
-        let required = detector.clone().label_required(PASSPORT_KIND);
-        for text in ["123456789", "passport is 123456789", "123456789 is passport"] {
-            assert_none(&required, text);
-        }
-        for text in ["passport: 123456789", "123456789 (passport)"] {
-            let pii = layer(&required, text);
-            let mentions: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
-            assert_eq!(mentions, [(PASSPORT_KIND, confidence, "123456789")], "{text}");
-        }
-        // Optional policies retain scanner evidence even without a context label.
-        for optional in [detector.clone(), detector.label_boosts(PASSPORT_KIND)] {
-            let pii = layer(&optional, "123456789");
-            assert_eq!(pii.mentions().map(|m| m.confidence).collect::<Vec<_>>(), [confidence]);
-        }
-    }
-}
-
-#[test]
-fn label_boosts_and_binary_wire_confidence_ids_are_the_c_codes() {
+fn label_boosts_record_label_facts_and_survive_the_graph() {
     let det = PiiDetector::new(vec![
         Scanner::all(Extractor::UsIdentity),
         Scanner::all(Extractor::EuIdentity),
@@ -314,7 +334,7 @@ fn label_boosts_and_binary_wire_confidence_ids_are_the_c_codes() {
     let text = "Unlabelled 123-45-6789 and 943 476 5919 stand alone near the start of this paragraph; \
                 IMEI: 490154203237518 and labelled SSN: 123-45-6789.";
     let pii = layer(&det, text);
-    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
     assert_eq!(
         items,
         [
@@ -325,21 +345,32 @@ fn label_boosts_and_binary_wire_confidence_ids_are_the_c_codes() {
         ]
     );
 
-    // Binary graph export writes the stable confidence ids, the C codes:
-    // Format = 1, Checksum = 2, LabelledChecksum = 3, Labelled = 4.
+    // The label facts name the label's span and phrase; the IMEI's is the
+    // strict prefix list's "imei" (phrase 0), the SSN's is "ssn" (phrase 0).
+    let imei_label = text.find("IMEI").unwrap() as u32;
+    let ssn_label = text.find("SSN").unwrap() as u32;
+    assert_eq!(
+        pii.get(Ix::new(2)).evidence,
+        &[LUHN[0], PiiEvidence::Label { span: Span::new(imei_label, imei_label + 4), phrase: 0 }]
+    );
+    assert_eq!(
+        pii.get(Ix::new(3)).evidence,
+        &[PiiEvidence::Shape, PiiEvidence::Label { span: Span::new(ssn_label, ssn_label + 3), phrase: 0 }]
+    );
+    assert_eq!(pii.detectors.get(pii.detector[3]), Some(("turbo-pii:us-identity", turbo_pii::BUILTIN_VERSION)));
+
+    // Binary graph export carries the facts, so the derived tiers survive
+    // the round trip without a tier column.
     let mut doc = Document::new(text);
     doc.add(&turbo_analysis::Key::DEFAULT, pii, Provenance::by("test")).unwrap();
     let bytes = export(&doc, &codecs()).unwrap().to_bytes().unwrap();
-    assert!(
-        bytes.windows(8).any(|w| w == [4, 0, 0, 0, 1, 2, 3, 4]),
-        "expected wire ids [1, 2, 3, 4] for [Format, Checksum, LabelledChecksum, Labelled]"
-    );
     let round_tripped = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs()).unwrap();
     let back_pii = round_tripped.get::<Pii>().unwrap();
     assert_eq!(
-        back_pii.confidence,
+        back_pii.mentions().map(|m| m.confidence()).collect::<Vec<_>>(),
         [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum, PiiConfidence::Labelled,]
     );
+    assert_eq!(back_pii.evidence, doc.get::<Pii>().unwrap().evidence);
 }
 
 #[test]
@@ -356,7 +387,7 @@ fn caller_overrides_extra_labels_window_width_and_sin_policy() {
     let text = "Order 111222333 was shipped early this morning; \
                 Passport # 123456789; travel document: 987654321; 555666777 (Pass No.).";
     let pii = layer(&passport_det, text);
-    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
     assert_eq!(
         items,
         [
@@ -381,7 +412,7 @@ fn caller_overrides_extra_labels_window_width_and_sin_policy() {
     let boost_sin = PiiDetector::pack(Pack::CaIdentity).with_label_policy(PiiKind::CaSin, LabelPolicy::Boosts);
     let text = "Unlabelled 046 454 286 and SIN: 046-454-286.";
     let pii = layer(&boost_sin, text);
-    let items: Vec<_> = pii.mentions().map(|m| (m.confidence, m.normalized)).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.confidence(), m.normalized)).collect();
     assert_eq!(items, [(PiiConfidence::Checksum, "046454286"), (PiiConfidence::LabelledChecksum, "046454286")]);
 
     // Configuring BIC's window and extra labels enables bidirectional UAX #29 matching and custom labels.
@@ -390,7 +421,7 @@ fn caller_overrides_extra_labels_window_width_and_sin_policy() {
         .with_extra_label(PiiKind::Bic, "bankcode");
     let text = "DEUTDEFF (SWIFT) and bankcode on wire BNPAFRPPXXX.";
     let pii = layer(&bic_det, text);
-    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect();
+    let items: Vec<_> = pii.mentions().map(|m| (m.kind, m.confidence(), m.normalized)).collect();
     assert_eq!(
         items,
         [(PiiKind::Bic, PiiConfidence::Labelled, "DEUTDEFF"), (PiiKind::Bic, PiiConfidence::Labelled, "BNPAFRPPXXX"),]

@@ -2,7 +2,7 @@
 //! and the userinfo of URLs. JSON Web Tokens are in `jwt`. The scans run
 //! in the Java's order: URL credentials, JWTs, AWS keys, GitHub tokens.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
 use crate::hits::Hits;
 use crate::text::{on_end, on_word_start, starts_with};
@@ -37,7 +37,7 @@ pub(crate) fn scan_aws(text: &str, hits: &mut Hits) {
             && b[i + 4..i + 4 + AWS_BODY].iter().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
             && on_token_end(text, i + 4 + AWS_BODY);
         if found {
-            hits.add_text(text, i, i + 4 + AWS_BODY, PiiKind::AwsAccessKey, PiiConfidence::Format);
+            hits.add_text(text, i, i + 4 + AWS_BODY, PiiKind::AwsAccessKey, PiiEvidence::Shape);
             i += 4 + AWS_BODY;
         } else {
             i += 1;
@@ -88,7 +88,7 @@ pub(crate) fn scan_github(text: &str, hits: &mut Hits) {
         }
         if token_end - body_start >= minimum && (installation || token_end - i <= GITHUB_MAX) && on_token_end(text, end)
         {
-            hits.add_text(text, i, token_end, PiiKind::GithubToken, PiiConfidence::Format);
+            hits.add_text(text, i, token_end, PiiKind::GithubToken, PiiEvidence::Shape);
         }
         // The scanned run is skipped even when refused, so a prefix inside
         // it is not read again.
@@ -124,7 +124,7 @@ pub(crate) fn scan_url_credentials(text: &str, hits: &mut Hits) {
         }
         let found = b.get(p) == Some(&b'@') && colon.is_some_and(|c| c > start && c + 1 < p);
         if found {
-            hits.add_text(text, start, p, PiiKind::UrlCredential, PiiConfidence::Format);
+            hits.add_text(text, start, p, PiiKind::UrlCredential, PiiEvidence::Shape);
             i = p;
         } else {
             i += 1;

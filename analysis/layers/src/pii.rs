@@ -3,19 +3,26 @@
 //! addresses, credentials, wallet addresses, national and device
 //! identifiers.
 //!
-//! The layer holds what OpenNLP's PII extractors find (`PiiPacks` in the
-//! `opennlp.tools.pii` package): one item per mention with its kind, the
-//! normalized form OpenNLP writes, and how strongly the text supports the
-//! kind. Mentions of different kinds may overlap, as in the Java, so the
-//! layer allows any overlap.
+//! One item per mention with its kind, the detector that found it, the
+//! typed facts ([`PiiEvidence`]) that support it, an optional score, and
+//! the normalized form. The [`PiiConfidence`] tier is derived from the
+//! facts. Mentions of different kinds may overlap, so the layer allows any
+//! overlap. The decisions behind the layer (what was found and dropped,
+//! and why) are the `turbo:pii-candidates` layer, [`crate::PiiCandidates`].
 
 mod confidence;
 mod custom;
+mod detectors;
+mod evidence;
 mod kind;
+mod score;
 
 pub use confidence::PiiConfidence;
 pub use custom::{CustomKindId, CustomKinds, KindError};
+pub use detectors::{DetectorError, PiiDetectorRef, PiiDetectors};
+pub use evidence::{ChecksumAlgorithm, EvidenceList, PiiEvidence};
 pub use kind::{CUSTOM_CODE_BASE, KindRow, PiiKind, PiiKinds, mention_order};
+pub use score::{PiiScore, PiiScoreKind};
 
 use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, ViewId};
 
@@ -31,35 +38,60 @@ pub struct Pii {
     /// The table every [`PiiKind::Custom`] of [`Pii::kind`] indexes,
     /// exported with the layer.
     pub custom_kinds: CustomKinds,
+    /// The table every [`Pii::detector`] and every [`PiiScore::model`]
+    /// indexes, exported with the layer.
+    pub detectors: PiiDetectors,
     pub kind: Vec<PiiKind>,
-    pub confidence: Vec<PiiConfidence>,
-    /// The value as OpenNLP normalizes it: digits without separators, a
-    /// lowercased domain, an RFC 5952 IPv6 address, an EIP-55 address.
+    /// The detector that found each mention.
+    pub detector: Vec<PiiDetectorRef>,
+    /// The facts behind each mention, at least one.
+    pub evidence: EvidenceList,
+    /// A numeric score where a model gave one; `None` is not zero.
+    pub score: Vec<Option<PiiScore>>,
+    /// The normalized value: digits without separators, a lowercased
+    /// domain, an RFC 5952 IPv6 address, an EIP-55 address.
     pub normalized: Strs,
 }
 
 /// One mention, as handed to [`Pii::push`].
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct PiiMention<'a> {
     pub span: Span,
     pub kind: PiiKind,
-    pub confidence: PiiConfidence,
+    pub detector: PiiDetectorRef,
+    pub evidence: &'a [PiiEvidence],
+    pub score: Option<PiiScore>,
     pub normalized: &'a str,
+}
+
+impl PiiMention<'_> {
+    /// The tier the facts derive to ([`PiiConfidence::derive`]).
+    pub fn confidence(&self) -> PiiConfidence {
+        PiiConfidence::derive(self.evidence)
+    }
 }
 
 impl Pii {
     /// An empty layer over `view`.
     pub fn new(view: ViewId) -> Pii {
-        Pii::with_custom_kinds(view, CustomKinds::new())
+        Pii::with_tables(view, CustomKinds::new(), PiiDetectors::new())
     }
 
     /// An empty layer over `view` whose custom kinds index `custom_kinds`.
     pub fn with_custom_kinds(view: ViewId, custom_kinds: CustomKinds) -> Pii {
+        Pii::with_tables(view, custom_kinds, PiiDetectors::new())
+    }
+
+    /// An empty layer over `view` with both tables.
+    pub fn with_tables(view: ViewId, custom_kinds: CustomKinds, detectors: PiiDetectors) -> Pii {
         Pii {
             spans: Spans::new(view),
             custom_kinds,
+            detectors,
             kind: Vec::new(),
-            confidence: Vec::new(),
+            detector: Vec::new(),
+            evidence: EvidenceList::default(),
+            score: Vec::new(),
             normalized: Strs::default(),
         }
     }
@@ -70,28 +102,50 @@ impl Pii {
         self.custom_kinds.name(kind)
     }
 
+    /// The entry of [`Pii::detectors`] for `id` at `version`, added when
+    /// new.
+    pub fn detector(&mut self, id: &str, version: &str) -> Result<PiiDetectorRef, DetectorError> {
+        self.detectors.add(id, version)
+    }
+
     /// Appends one mention to every column. [`Layer::check`] refuses a
-    /// custom kind outside [`Pii::custom_kinds`].
+    /// custom kind outside [`Pii::custom_kinds`], a detector outside
+    /// [`Pii::detectors`] and an empty evidence list.
     pub fn push(&mut self, m: PiiMention<'_>) -> Ix<Pii> {
         self.kind.push(m.kind);
-        self.confidence.push(m.confidence);
+        self.detector.push(m.detector);
+        self.evidence.push(m.evidence);
+        self.score.push(m.score);
         self.normalized.push(m.normalized);
         self.spans.push(m.span)
     }
 
     /// Mention `i`, column by column.
     pub fn get(&self, i: Ix<Pii>) -> PiiMention<'_> {
+        let at = i.get();
         PiiMention {
             span: self.spans.get(i),
-            kind: self.kind[i.get()],
-            confidence: self.confidence[i.get()],
-            normalized: self.normalized.get(i.get()),
+            kind: self.kind[at],
+            detector: self.detector[at],
+            evidence: self.evidence.get(at),
+            score: self.score[at],
+            normalized: self.normalized.get(at),
         }
     }
 
     /// Every mention, in layer order.
     pub fn mentions(&self) -> impl Iterator<Item = PiiMention<'_>> {
         self.spans.iter().map(|(i, _)| self.get(i))
+    }
+
+    fn check_tables(&self, i: usize, m: &PiiMention<'_>) -> Result<(), String> {
+        self.custom_kinds.check(m.kind).map_err(|e| format!("pii mention {i}: {e}"))?;
+        self.detectors.check(m.detector).map_err(|e| format!("pii mention {i}: {e}"))?;
+        if let Some(s) = m.score {
+            s.check().map_err(|e| format!("pii mention {i}: {e}"))?;
+            self.detectors.check(s.model).map_err(|e| format!("pii mention {i} score model: {e}"))?;
+        }
+        Ok(())
     }
 }
 
@@ -107,26 +161,43 @@ impl Layer for Pii {
         for name in self.custom_kinds.names() {
             h.str(name);
         }
-        for (&k, &c) in self.kind.iter().zip(&self.confidence) {
-            h.u32(k.code()).u8(c.id());
+        self.detectors.fold_hash(&mut h);
+        self.evidence.fold_hash(&mut h);
+        for (&k, &d) in self.kind.iter().zip(&self.detector) {
+            h.u32(k.code()).u16(d.index());
+        }
+        for s in &self.score {
+            match s {
+                None => {
+                    h.u8(0);
+                }
+                Some(s) => {
+                    h.u8(1);
+                    s.fold_hash(&mut h);
+                }
+            }
         }
         Some(h.finish())
     }
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        if self.kind.len() != n || self.confidence.len() != n || self.normalized.len() != n {
+        if self.kind.len() != n
+            || self.detector.len() != n
+            || self.evidence.len() != n
+            || self.score.len() != n
+            || self.normalized.len() != n
+        {
             return Err("every column as long as the spans".into());
         }
         self.spans.check(Self::OVERLAP)?;
+        self.evidence.check()?;
         let mut previous: Option<PiiMention<'_>> = None;
         for (i, m) in self.mentions().enumerate() {
             if m.span.is_empty() {
                 return Err(format!("pii mention {i} is empty at {}", m.span.start));
             }
-            if let Err(e) = self.custom_kinds.check(m.kind) {
-                return Err(format!("pii mention {i}: {e}"));
-            }
+            self.check_tables(i, &m)?;
             if m.normalized.is_empty() {
                 return Err(format!("pii mention {i} has no normalized form"));
             }

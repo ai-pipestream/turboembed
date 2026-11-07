@@ -2,7 +2,7 @@
 //! each `@`, an ASCII local part and a dotted domain whose last label is a
 //! registered top-level domain.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
 use crate::hits::Hits;
 use crate::tables::tlds;
@@ -50,7 +50,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
         {
             continue;
         }
-        hits.add(start, end, PiiKind::Email, PiiConfidence::Format, |s| {
+        hits.add(start, end, PiiKind::Email, PiiEvidence::Shape, |s| {
             s.push_str(&text[start..=at]);
             s.extend(b[at + 1..end].iter().map(|c| c.to_ascii_lowercase() as char));
         });

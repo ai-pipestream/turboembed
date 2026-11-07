@@ -1,15 +1,24 @@
 //! Candidates and their order, OpenNLP's `Hits`: by start, longer first,
 //! then by kind priority, then in the order they were found; equal mentions
 //! once, the first kept. By default, a candidate strictly nested inside a
-//! longer candidate is dropped; OpenNLP parity mode keeps it.
+//! longer candidate is dropped; OpenNLP parity mode keeps it. Every
+//! candidate ends up in the `turbo:pii-candidates` layer with the decision
+//! taken on it; the kept ones also become `turbo:pii` mentions.
 
 use std::fmt;
 use std::ops::Range;
 
-use turbo_analysis::Span;
-use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiConfidence, PiiKind, PiiMention, mention_order};
+use turbo_analysis::{Ix, Span};
+use turbo_analysis_layers::{
+    AllowRule, AllowScope, KindError, Pii, PiiCandidate, PiiCandidates, PiiDetectorRef, PiiDetectors, PiiDisposition,
+    PiiEvidence, PiiKind, PiiMention, PiiScore, RejectReason, mention_order,
+};
 
-use crate::window::WindowConfig;
+use crate::window::{LabelPolicy, WindowConfig};
+
+mod sink;
+
+pub use sink::PiiSink;
 
 /// Why a candidate handed to [`PiiSink`] was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +30,14 @@ pub enum SinkError {
     Kind(KindError),
     /// The normalized form is empty.
     EmptyValue(Span),
+    /// No evidence fact was given.
+    NoEvidence(Span),
+    /// A fact only the detector records: a context label or a deny list
+    /// hit. The detector's own label window decides labels, so an
+    /// extractor cannot mark a candidate as labelled.
+    ForeignEvidence(Span, &'static str),
+    /// A score that is not finite or outside its kind's range.
+    Score(Span, String),
 }
 
 impl fmt::Display for SinkError {
@@ -31,351 +48,246 @@ impl fmt::Display for SinkError {
             SinkError::EmptyValue(s) => {
                 write!(f, "candidate at {}..{} has an empty normalized form", s.start, s.end)
             }
+            SinkError::NoEvidence(s) => write!(f, "candidate at {}..{} has no evidence", s.start, s.end),
+            SinkError::ForeignEvidence(s, kind) => {
+                write!(
+                    f,
+                    "candidate at {}..{} records {kind} evidence, which only the detector records",
+                    s.start, s.end
+                )
+            }
+            SinkError::Score(s, detail) => write!(f, "candidate at {}..{}: {detail}", s.start, s.end),
         }
     }
 }
 
 impl std::error::Error for SinkError {}
 
-/// Candidate sink passed to a [`crate::CustomExtractor`] during scanning.
-pub struct PiiSink<'a> {
-    text: &'a str,
-    kinds: &'a CustomKinds,
-    hits: &'a mut Hits,
-}
-
-impl<'a> PiiSink<'a> {
-    pub(crate) fn new(text: &'a str, kinds: &'a CustomKinds, hits: &'a mut Hits) -> PiiSink<'a> {
-        PiiSink { text, kinds, hits }
-    }
-
-    /// The detector's custom-kind table, which every custom kind handed to
-    /// this sink must index.
-    pub const fn custom_kinds(&self) -> &'a CustomKinds {
-        self.kinds
-    }
-
-    /// The source text being scanned.
-    pub const fn text(&self) -> &'a str {
-        self.text
-    }
-
-    fn check_span(&self, span: Span, kind: PiiKind) -> Result<(usize, usize), SinkError> {
-        self.kinds.check(kind).map_err(SinkError::Kind)?;
-        let (start, end) = (span.start as usize, span.end as usize);
-        if start >= end
-            || end > self.text.len()
-            || !self.text.is_char_boundary(start)
-            || !self.text.is_char_boundary(end)
-        {
-            return Err(SinkError::Span(span));
-        }
-        Ok((start, end))
-    }
-
-    /// Appends a candidate whose normalized form is `normalized`, after
-    /// verifying that `span` is a non-empty character-boundary range of
-    /// [`PiiSink::text`], `kind` is built-in or in [`PiiSink::custom_kinds`],
-    /// and `normalized` is non-empty.
-    pub fn try_add(
-        &mut self,
-        span: Span,
-        kind: PiiKind,
-        confidence: PiiConfidence,
-        normalized: &str,
-    ) -> Result<(), SinkError> {
-        let (start, end) = self.check_span(span, kind)?;
-        if normalized.is_empty() {
-            return Err(SinkError::EmptyValue(span));
-        }
-        self.hits.add(start, end, kind, confidence, |s| s.push_str(normalized));
-        Ok(())
-    }
-
-    /// Appends a candidate whose normalized form is `normalized`.
-    ///
-    /// # Panics
-    ///
-    /// When [`PiiSink::try_add`] would return an error.
-    pub fn add(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence, normalized: &str) {
-        self.try_add(span, kind, confidence, normalized).expect("valid candidate mention");
-    }
-
-    /// Appends a candidate whose normalized form is the covered slice of
-    /// [`PiiSink::text`].
-    pub fn try_add_text(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence) -> Result<(), SinkError> {
-        let (start, end) = self.check_span(span, kind)?;
-        self.hits.add_text(self.text, start, end, kind, confidence);
-        Ok(())
-    }
-
-    /// Appends a candidate whose normalized form is the covered slice of
-    /// [`PiiSink::text`].
-    ///
-    /// # Panics
-    ///
-    /// When [`PiiSink::try_add_text`] would return an error.
-    pub fn add_text(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence) {
-        self.try_add_text(span, kind, confidence).expect("valid candidate mention");
-    }
-
-    /// Appends a candidate whose normalized form `write` writes into the
-    /// shared candidate buffer without allocating a temporary `String`.
-    pub fn try_add_with(
-        &mut self,
-        span: Span,
-        kind: PiiKind,
-        confidence: PiiConfidence,
-        write: impl FnOnce(&mut String),
-    ) -> Result<(), SinkError> {
-        let (start, end) = self.check_span(span, kind)?;
-        let from = self.hits.buf.len() as u32;
-        write(&mut self.hits.buf);
-        let to = self.hits.buf.len() as u32;
-        if from == to {
-            return Err(SinkError::EmptyValue(span));
-        }
-        self.hits.hits.push(Hit { start: start as u32, end: end as u32, kind, confidence, normalized: from..to });
-        Ok(())
-    }
-
-    /// Appends a candidate whose normalized form `write` writes into the
-    /// shared candidate buffer.
-    ///
-    /// # Panics
-    ///
-    /// When [`PiiSink::try_add_with`] would return an error.
-    pub fn add_with(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence, write: impl FnOnce(&mut String)) {
-        self.try_add_with(span, kind, confidence, write).expect("valid candidate mention");
-    }
-}
-
-/// One candidate, with its normalized form as a range of the shared
-/// buffer.
+/// One candidate: its facts as a range of the shared fact list, the label
+/// the window found (added by the policy pass), its normalized form as a
+/// range of the shared buffer, and the rule that rejected it, if one did.
 #[derive(Clone, Debug)]
 struct Hit {
     start: u32,
     end: u32,
     kind: PiiKind,
-    confidence: PiiConfidence,
+    detector: PiiDetectorRef,
+    facts: Range<u32>,
+    label: Option<PiiEvidence>,
+    score: Option<PiiScore>,
     normalized: Range<u32>,
+    rejected: Option<RejectReason>,
 }
 
 /// The candidates of one text: the scanners append, [`Hits::resolve`]
-/// orders them and drops repeats.
-#[derive(Default, Debug)]
+/// orders them and decides each one.
+#[derive(Debug)]
 pub(crate) struct Hits {
     hits: Vec<Hit>,
     buf: String,
+    facts: Vec<PiiEvidence>,
+    detectors: PiiDetectors,
+    current: PiiDetectorRef,
 }
 
+impl Default for Hits {
+    fn default() -> Hits {
+        Hits {
+            hits: Vec::new(),
+            buf: String::new(),
+            facts: Vec::new(),
+            detectors: PiiDetectors::new(),
+            current: PiiDetectorRef::new(0),
+        }
+    }
+}
+
+/// What an allow rule decided for a resolved mention, or nothing.
+pub(crate) type AllowDecision = Option<(AllowScope, AllowRule)>;
+
 impl Hits {
-    /// Adds a candidate whose normalized form `write` appends to the
-    /// buffer it is given, so no string is made per candidate.
+    /// Names the detector every candidate added from now on belongs to.
+    pub(crate) fn begin_detector(&mut self, id: &str, version: &str) {
+        self.current = self.detectors.add(id, version).expect("a valid detector id");
+    }
+
+    /// The detector table so far, for a sink registering a scoring model.
+    pub(crate) fn detectors_mut(&mut self) -> &mut PiiDetectors {
+        &mut self.detectors
+    }
+
+    /// Adds a candidate with `facts` whose normalized form `write` appends
+    /// to the buffer it is given, so no string is made per candidate.
+    pub(crate) fn add_candidate(
+        &mut self,
+        start: usize,
+        end: usize,
+        kind: PiiKind,
+        facts: &[PiiEvidence],
+        score: Option<PiiScore>,
+        write: impl FnOnce(&mut String),
+    ) -> bool {
+        let from = self.buf.len() as u32;
+        write(&mut self.buf);
+        let to = self.buf.len() as u32;
+        if from == to {
+            return false;
+        }
+        let f0 = self.facts.len() as u32;
+        self.facts.extend_from_slice(facts);
+        let f1 = self.facts.len() as u32;
+        self.hits.push(Hit {
+            start: start as u32,
+            end: end as u32,
+            kind,
+            detector: self.current,
+            facts: f0..f1,
+            label: None,
+            score,
+            normalized: from..to,
+            rejected: None,
+        });
+        true
+    }
+
+    /// Adds a candidate with one fact.
     pub(crate) fn add(
         &mut self,
         start: usize,
         end: usize,
         kind: PiiKind,
-        confidence: PiiConfidence,
+        fact: PiiEvidence,
         write: impl FnOnce(&mut String),
     ) {
-        let from = self.buf.len() as u32;
-        write(&mut self.buf);
-        let to = self.buf.len() as u32;
-        self.hits.push(Hit { start: start as u32, end: end as u32, kind, confidence, normalized: from..to });
+        self.add_candidate(start, end, kind, &[fact], None, write);
     }
 
-    /// Adds a candidate whose normalized form is the text it covers.
-    pub(crate) fn add_text(&mut self, text: &str, start: usize, end: usize, kind: PiiKind, confidence: PiiConfidence) {
-        self.add(start, end, kind, confidence, |s| s.push_str(&text[start..end]));
+    /// Adds a candidate with one fact whose normalized form is the text it
+    /// covers.
+    pub(crate) fn add_text(&mut self, text: &str, start: usize, end: usize, kind: PiiKind, fact: PiiEvidence) {
+        self.add(start, end, kind, fact, |s| s.push_str(&text[start..end]));
     }
 
     fn normalized(&self, h: &Hit) -> &str {
         &self.buf[h.normalized.start as usize..h.normalized.end as usize]
     }
 
-    /// Applies context label requirements before resolving candidate spans.
+    /// Applies the context label policies: every candidate of a kind with
+    /// a `Required` or `Boosts` policy is checked against the window, a
+    /// found label is recorded as a fact, and under `Required` a candidate
+    /// without one is rejected. Nothing here reads a tier or a flag an
+    /// extractor set.
     pub(crate) fn apply_label_policy(&mut self, text: &str, window: &WindowConfig) {
-        self.hits.retain_mut(|h| {
-            if let Some(conf) = window.check(text, Span::new(h.start, h.end), h.kind, h.confidence) {
-                h.confidence = conf;
-                true
-            } else {
-                false
+        for h in &mut self.hits {
+            let policy = window.policy(h.kind);
+            if policy == LabelPolicy::None {
+                continue;
             }
-        });
+            match window.find_label(text, Span::new(h.start, h.end), h.kind) {
+                Some(found) => h.label = Some(PiiEvidence::Label { span: found.span, phrase: found.phrase }),
+                None if policy == LabelPolicy::Required => h.rejected = Some(RejectReason::LabelRequired),
+                None => {}
+            }
+        }
+    }
+
+    /// Rejects every scored candidate whose score is below `min`. A
+    /// candidate without a score is not subject to the threshold.
+    pub(crate) fn apply_threshold(&mut self, min: f32) {
+        for h in &mut self.hits {
+            if h.rejected.is_none() && h.score.is_some_and(|s| s.value < min) {
+                h.rejected = Some(RejectReason::Threshold);
+            }
+        }
+    }
+
+    fn evidence(&self, h: &Hit, into: &mut Vec<PiiEvidence>) {
+        into.clear();
+        into.extend_from_slice(&self.facts[h.facts.start as usize..h.facts.end as usize]);
+        into.extend(h.label);
     }
 
     /// Orders the candidates (a stable sort keeps the finding order of
-    /// ties) and writes each distinct mention to `out`. Equal mentions
-    /// share a span, so they sit in one run of that span. When
-    /// `keep_nested` is `false`, any candidate whose span lies strictly
-    /// inside an earlier, longer candidate's span is dropped.
-    #[cfg(test)]
-    pub(crate) fn resolve(self, keep_nested: bool, out: &mut Pii) {
-        let _ = self.resolve_with(keep_nested, |_, _, _, _| false, out);
-    }
-
-    /// Resolves candidates into `out`, dropping any resolved mention for
-    /// which `is_suppressed(kind, start, end, normalized)` returns `true`
-    /// and returning the suppressed mention counts by [`PiiKind`], ordered by
-    /// kind name as the audit report orders its kinds.
-    pub(crate) fn resolve_with(
+    /// ties), writes each distinct, admitted mention to `out` and every
+    /// candidate with its decision to `candidates`. Equal mentions share a
+    /// span, so they sit in one run of that span. When `keep_nested` is
+    /// `false`, any candidate whose span lies strictly inside an earlier,
+    /// longer mention's span is dropped. `allow(kind, start, end,
+    /// normalized)` names the allow rule that suppresses a mention. Both
+    /// layers take this run's tables.
+    pub(crate) fn resolve(
         mut self,
         keep_nested: bool,
-        mut is_suppressed: impl FnMut(PiiKind, u32, u32, &str) -> bool,
+        mut allow: impl FnMut(PiiKind, u32, u32, &str) -> AllowDecision,
         out: &mut Pii,
-    ) -> Vec<(PiiKind, usize)> {
+        candidates: &mut PiiCandidates,
+    ) {
         self.hits.sort_by_key(|h| mention_order(h.start, h.end, h.kind));
+        out.detectors = self.detectors.clone();
+        candidates.detectors = self.detectors.clone();
         let mut run_start = 0;
-        let mut outer: Option<(u32, u32)> = None;
-        let mut suppressed: Vec<(PiiKind, usize)> = Vec::new();
+        let mut outer: Option<(u32, u32, Ix<Pii>)> = None;
+        let mut facts = Vec::new();
+        // The mention each admitted hit became, by hit index, for repeats.
+        let mut became: Vec<Option<Ix<Pii>>> = vec![None; self.hits.len()];
         for i in 0..self.hits.len() {
             let h = &self.hits[i];
-            if i > 0 {
-                let p = &self.hits[i - 1];
-                if (p.start, p.end) != (h.start, h.end) {
-                    run_start = i;
-                }
+            if i > 0 && (self.hits[i - 1].start, self.hits[i - 1].end) != (h.start, h.end) {
+                run_start = i;
             }
-            if !keep_nested
-                && outer.is_some_and(|(os, oe)| os <= h.start && h.end <= oe && (os < h.start || h.end < oe))
+            self.evidence(h, &mut facts);
+            let disposition = if let Some(reason) = h.rejected {
+                PiiDisposition::RejectedByRule { reason }
+            } else if let Some(mention) = outer
+                .filter(|&(os, oe, _)| !keep_nested && os <= h.start && h.end <= oe && (os < h.start || h.end < oe))
             {
-                continue;
-            }
-            let value = self.normalized(h);
-            let repeat = self.hits[run_start..i].iter().any(|e| e.kind == h.kind && self.normalized(e) == value);
-            if !repeat {
-                if is_suppressed(h.kind, h.start, h.end, value) {
-                    match suppressed.iter_mut().find(|(k, _)| *k == h.kind) {
-                        Some((_, count)) => *count += 1,
-                        None => suppressed.push((h.kind, 1)),
+                PiiDisposition::NestedIn { mention: mention.2 }
+            } else {
+                let value = self.normalized(h);
+                let repeat = (run_start..i)
+                    .find(|&j| self.hits[j].kind == h.kind && self.normalized(&self.hits[j]) == value)
+                    .and_then(|j| became[j]);
+                if let Some(mention) = repeat {
+                    PiiDisposition::Repeats { mention }
+                } else if let Some((scope, rule)) = allow(h.kind, h.start, h.end, value) {
+                    PiiDisposition::AllowedByRule { scope, rule }
+                } else {
+                    let mention = out.push(PiiMention {
+                        span: Span::new(h.start, h.end),
+                        kind: h.kind,
+                        detector: h.detector,
+                        evidence: &facts,
+                        score: h.score,
+                        normalized: value,
+                    });
+                    became[i] = Some(mention);
+                    if outer.is_none_or(|(_, oe, _)| h.end > oe) {
+                        outer = Some((h.start, h.end, mention));
                     }
-                    continue;
+                    PiiDisposition::Kept { mention }
                 }
-                if outer.is_none_or(|(_, oe)| h.end > oe) {
-                    outer = Some((h.start, h.end));
-                }
-                out.push(PiiMention {
-                    span: Span::new(h.start, h.end),
-                    kind: h.kind,
-                    confidence: h.confidence,
-                    normalized: value,
-                });
-            }
+            };
+            candidates.push(PiiCandidate {
+                span: Span::new(h.start, h.end),
+                kind: h.kind,
+                detector: h.detector,
+                evidence: &facts,
+                score: h.score,
+                disposition,
+            });
         }
-        suppressed.sort_by(|(a, _), (b, _)| out.kind_name(*a).cmp(&out.kind_name(*b)));
-        suppressed
     }
 
-    /// The resolved mentions as a layer over `view`.
+    /// The resolved mentions as a layer over `view`, every candidate
+    /// admitted.
     #[cfg(test)]
     pub(crate) fn into_layer(self, keep_nested: bool, view: turbo_analysis::ViewId) -> Pii {
         let mut out = Pii::new(view);
-        self.resolve(keep_nested, &mut out);
+        let mut candidates = PiiCandidates::new(view);
+        self.resolve(keep_nested, |_, _, _, _| None, &mut out, &mut candidates);
         out
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use turbo_analysis::{Layer, ViewId};
-
-    #[test]
-    fn order_is_start_then_longer_then_priority_and_repeats_go() {
-        let mut h = Hits::default();
-        let f = PiiConfidence::Format;
-        h.add(4, 6, PiiKind::Phone, f, |s| s.push('a'));
-        h.add(0, 3, PiiKind::Phone, f, |s| s.push('b'));
-        h.add(0, 5, PiiKind::Phone, f, |s| s.push('c'));
-        h.add(0, 5, PiiKind::Email, f, |s| s.push('d'));
-        h.add(0, 5, PiiKind::Email, f, |s| s.push('d'));
-        h.add(0, 5, PiiKind::Email, f, |s| s.push('e'));
-        let p = h.into_layer(true, ViewId::SOURCE);
-        assert_eq!(p.check(), Ok(()));
-        let rows: Vec<_> = p.mentions().map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned())).collect();
-        assert_eq!(
-            rows,
-            [
-                (0, 5, PiiKind::Email, "d".to_owned()),
-                (0, 5, PiiKind::Email, "e".to_owned()),
-                (0, 5, PiiKind::Phone, "c".to_owned()),
-                (0, 3, PiiKind::Phone, "b".to_owned()),
-                (4, 6, PiiKind::Phone, "a".to_owned()),
-            ]
-        );
-    }
-
-    fn resolved_with(keep_nested: bool, adds: &[(u32, u32, PiiKind, &str)]) -> Vec<(u32, u32, PiiKind, String)> {
-        let mut h = Hits::default();
-        for &(start, end, kind, value) in adds {
-            h.add(start as usize, end as usize, kind, PiiConfidence::Format, |s| s.push_str(value));
-        }
-        h.into_layer(keep_nested, ViewId::SOURCE)
-            .mentions()
-            .map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned()))
-            .collect()
-    }
-
-    fn resolved(adds: &[(u32, u32, PiiKind, &str)]) -> Vec<(u32, u32, PiiKind, String)> {
-        resolved_with(true, adds)
-    }
-
-    fn row(start: u32, end: u32, kind: PiiKind, value: &str) -> (u32, u32, PiiKind, String) {
-        (start, end, kind, value.to_owned())
-    }
-
-    #[test]
-    fn nested_candidates_drop_by_default_and_same_or_crossing_spans_stay() {
-        use PiiKind::*;
-        // Prefix, interior and suffix spans inside 2..10 drop; a second
-        // kind on 2..10 and a crossing span 8..14 stay.
-        let adds = [
-            (2, 10, Iban, "iban"),
-            (2, 10, Card, "same-span"),
-            (2, 6, Phone, "prefix"),
-            (4, 8, Phone, "interior"),
-            (4, 10, UkNhs, "suffix"),
-            (8, 14, Email, "crossing"),
-            (9, 12, Phone, "inside-crossing"),
-        ];
-        assert_eq!(
-            resolved_with(false, &adds),
-            [row(2, 10, Iban, "iban"), row(2, 10, Card, "same-span"), row(8, 14, Email, "crossing")]
-        );
-    }
-
-    #[test]
-    fn composite_orders() {
-        use PiiKind::*;
-        // Crossing candidates, in either order found.
-        for adds in [[(4, 12, Email, "e"), (0, 8, Card, "c")], [(0, 8, Card, "c"), (4, 12, Email, "e")]] {
-            assert_eq!(resolved(&adds), [row(0, 8, Card, "c"), row(4, 12, Email, "e")]);
-        }
-        assert_eq!(resolved(&[(2, 6, Phone, "p"), (2, 10, Card, "c")]), [row(2, 10, Card, "c"), row(2, 6, Phone, "p")]);
-        // The priority decides an exact span tie, in either order found.
-        for adds in [[(2, 10, Phone, "p"), (2, 10, Card, "c")], [(2, 10, Card, "c"), (2, 10, Phone, "p")]] {
-            assert_eq!(resolved(&adds), [row(2, 10, Card, "c"), row(2, 10, Phone, "p")]);
-        }
-        // Equal kinds keep the order found.
-        assert_eq!(resolved(&[(0, 5, Email, "b"), (0, 5, Email, "a")]), [row(0, 5, Email, "b"), row(0, 5, Email, "a")]);
-        assert_eq!(resolved(&[(0, 4, Card, "c"), (4, 8, Phone, "p")]), [row(0, 4, Card, "c"), row(4, 8, Phone, "p")]);
-        assert_eq!(
-            resolved(&[(0, 6, Card, "a"), (10, 16, Card, "b"), (4, 12, Phone, "p"), (5, 7, Ipv4, "i")]),
-            [row(0, 6, Card, "a"), row(4, 12, Phone, "p"), row(5, 7, Ipv4, "i"), row(10, 16, Card, "b")]
-        );
-        assert_eq!(resolved(&[(9, 25, Email, "x"), (9, 25, Email, "x")]), [row(9, 25, Email, "x")]);
-        // Every pair of kinds on one span: the smaller priority first.
-        let mut by_priority: Vec<PiiKind> = PiiKind::builtins().collect();
-        by_priority.sort_by_key(|k| k.priority());
-        for (i, &a) in by_priority.iter().enumerate() {
-            for &b in &by_priority[i + 1..] {
-                let want = [row(0, 5, a, "higher"), row(0, 5, b, "lower")];
-                assert_eq!(resolved(&[(0, 5, a, "higher"), (0, 5, b, "lower")]), want);
-                assert_eq!(resolved(&[(0, 5, b, "lower"), (0, 5, a, "higher")]), want);
-            }
-        }
-    }
-}
+mod tests;

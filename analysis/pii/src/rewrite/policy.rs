@@ -449,7 +449,7 @@ impl RewritePolicy {
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         let mut state = RewriteState::new(&pii.custom_kinds);
         if self.refuse_overlaps {
-            return PiiRewrite::try_replace(text, &pii.custom_kinds, pii.mentions(), |m, out| {
+            return PiiRewrite::try_replace(text, pii, pii.mentions(), |m, out| {
                 state.write_strategy(self.strategy_in(&pii.custom_kinds, m.kind), text, m, out)
             });
         }
@@ -462,7 +462,7 @@ impl RewritePolicy {
             }
         }
         let mut idx = 0;
-        PiiRewrite::try_replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |_, out| {
+        PiiRewrite::try_replace(text, pii, clusters.iter().map(|c| c.merged), |_, out| {
             let cluster = &clusters[idx];
             idx += 1;
             state.write_cluster(|k| self.strategy_in(&pii.custom_kinds, k), text, cluster, out)

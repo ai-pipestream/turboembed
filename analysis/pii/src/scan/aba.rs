@@ -2,7 +2,7 @@
 //! digits with an allocated prefix (00 to 12, 21 to 32, 61 to 72, 80) and
 //! a check digit under the weights 3, 7, 1. All zeros are refused.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind};
 
 use crate::hits::Hits;
 use crate::text::{on_end, on_number_start};
@@ -21,7 +21,13 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
             && allocated(b[i], b[i + 1])
             && check_digit(&b[i..end]);
         if found {
-            hits.add_text(text, i, end, PiiKind::AbaRouting, PiiConfidence::Checksum);
+            hits.add_text(
+                text,
+                i,
+                end,
+                PiiKind::AbaRouting,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::AbaWeights, passed: true },
+            );
             i = end;
         } else {
             i += 1;

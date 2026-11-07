@@ -1,13 +1,15 @@
 //! French INSEE national and business identifier scanners: NIR (`fr-nir`),
 //! SIREN (`fr-siren`), and SIRET (`fr-siret`).
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind};
 
 use super::national::{JOINERS, on_number_end};
 use crate::checksum::fr;
 use crate::hits::Hits;
 use crate::text::{before, on_number_start};
-use crate::window::has_any_label;
+use crate::window::find_any_label;
+
+const LUHN: PiiEvidence = PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true };
 
 const NIR_GROUPS: &[&[usize]] = &[&[1, 2, 2, 2, 3, 3, 2], &[1, 2, 2, 3, 2, 3, 2], &[1, 2, 2, 5, 3, 2], &[13, 2], &[15]];
 
@@ -32,9 +34,15 @@ pub(crate) fn scan_fr_nir(text: &str, hits: &mut Hits) {
         if let Some(end) = end
             && fr::nir(&norm)
         {
-            hits.add(i, end, PiiKind::FrNir, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::FrNir,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Mod97, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;
@@ -81,13 +89,25 @@ pub(crate) fn scan_fr_siren(text: &str, hits: &mut Hits) {
             i += 1;
             continue;
         }
+        // A bare nine-digit run is admitted only after a SIREN label, which
+        // is then part of the evidence.
+        let mut label = None;
         let end = read_digit_groups(text, i, &[3, 3, 3], &mut norm).or_else(|| {
-            has_any_label(text, i, &SIREN_LABELS, true).then(|| read_digit_groups(text, i, &[9], &mut norm)).flatten()
+            label = find_any_label(text, i, &SIREN_LABELS, true);
+            label.and_then(|_| read_digit_groups(text, i, &[9], &mut norm))
         });
         if let Some(end) = end
             && fr::siren(&norm)
         {
-            hits.add(i, end, PiiKind::FrSiren, PiiConfidence::Checksum, |s| {
+            let mut facts = [LUHN, LUHN];
+            let facts = match label {
+                Some(l) => {
+                    facts[1] = PiiEvidence::Label { span: l.span, phrase: l.phrase };
+                    &facts[..]
+                }
+                None => &facts[..1],
+            };
+            hits.add_candidate(i, end, PiiKind::FrSiren, facts, None, |s| {
                 s.extend(norm.iter().map(|&c| c as char));
             });
             i = end;
@@ -113,9 +133,15 @@ pub(crate) fn scan_fr_siret(text: &str, hits: &mut Hits) {
             && b.get(end) != Some(&b'/')
             && fr::siret(&norm)
         {
-            hits.add(i, end, PiiKind::FrSiret, PiiConfidence::Checksum, |s| {
-                s.extend(norm.iter().map(|&c| c as char));
-            });
+            hits.add(
+                i,
+                end,
+                PiiKind::FrSiret,
+                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
+                |s| {
+                    s.extend(norm.iter().map(|&c| c as char));
+                },
+            );
             i = end;
         } else {
             i += 1;

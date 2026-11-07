@@ -171,7 +171,7 @@ impl FormatRedactor {
         } else {
             PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+        PiiRewrite::replace(text, pii, mentions, |m, out| {
             let n = if self.uses_number {
                 *assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
                     let c = counters.entry(m.kind).or_insert(0);
@@ -252,7 +252,7 @@ impl StaticReplacer {
         } else {
             PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+        PiiRewrite::replace(text, pii, mentions, |m, out| {
             out.push_str(self.replacement(m.kind));
         })
     }
