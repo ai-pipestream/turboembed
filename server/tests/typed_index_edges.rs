@@ -214,6 +214,13 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
         let mut short = entities;
         short.instance = "short".into();
         short.annotations.truncate(1);
+        // The envelope wants one provenance entry per layer; give the
+        // probe layer the default instance's, renamed, so the refusal is
+        // the ambiguous target's, not the envelope's.
+        let mut short_provenance =
+            bad.provenance.iter().find(|p| p.layer == "turbo:entities" && p.instance.is_empty()).unwrap().clone();
+        short_provenance.instance = "short".into();
+        bad.provenance.push(short_provenance);
         bad.layers.push(short);
 
         let relation = bad
@@ -272,6 +279,10 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
                 .clone();
             short.instance = "short".into();
             short.annotations.truncate(1);
+            let mut short_provenance =
+                bad.provenance.iter().find(|p| p.layer == "turbo:tokens" && p.instance.is_empty()).unwrap().clone();
+            short_provenance.instance = "short".into();
+            bad.provenance.push(short_provenance);
             bad.layers.push(short);
 
             let words = bad.layers.iter_mut().find(|layer| layer.id == "turbo:words").unwrap();
