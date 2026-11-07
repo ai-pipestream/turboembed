@@ -27,7 +27,7 @@ use crate::proto::result::{
 
 /// The wire reference of `kind`: its stable built-in id (the `PiiKindId`
 /// value), or its index in the layer's `custom_pii_kinds`.
-fn pii_kind_ref(kind: PiiKind) -> PiiKindRef {
+pub(super) fn pii_kind_ref(kind: PiiKind) -> PiiKindRef {
     let kind = match kind {
         PiiKind::Custom(c) => pii_kind_ref::Kind::Custom(u32::from(c.index())),
         builtin => pii_kind_ref::Kind::Builtin(i32::from(builtin.builtin_id().unwrap_or(0))),

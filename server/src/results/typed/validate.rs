@@ -6,6 +6,7 @@
 mod annotation;
 mod evidence;
 mod pii;
+mod pii_edits;
 mod quality;
 mod quotations;
 mod shared;
