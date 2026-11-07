@@ -36,6 +36,7 @@ async fn project(c: &mut common::Analysis, doc: &Document, mode: OffsetMode) -> 
             offsets: mode as i32,
             pii_output: None,
             binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()

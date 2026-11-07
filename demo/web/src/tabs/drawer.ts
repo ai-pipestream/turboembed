@@ -3,7 +3,7 @@
 // annotations with their spans, text, probability and every set field of
 // the annotation, read through the generated descriptors.
 
-import { LayerWireStatus, OffsetMode, TypedAnnotationSchema, type TypedDocumentResult, type TypedLayer } from "../gen/turbo_typed_annotations_pb.js";
+import { LayerErrorKind, LayerWireStatus, OffsetMode, TypedAnnotationSchema, type TypedDocumentResult, type TypedLayer } from "../gen/turbo_typed_annotations_pb.js";
 import type { DescMessage } from "@bufbuild/protobuf";
 import { brief } from "../brief.js";
 import { $, el, lazy, options, table } from "../dom.js";
@@ -54,7 +54,7 @@ function draw(): void {
     const b = el("button", {
       type: "button",
       class: `chip${key(l) === picked ? " on" : ""}${bad ? " bad" : ""}`,
-      title: bad ? `${LayerWireStatus[l.status]}: ${l.statusDetail}` : "",
+      title: bad ? `${LayerWireStatus[l.status]}: ${l.error ? LayerErrorKind[l.error.kind] : ""}` : "",
       text: `${l.id}${l.instance ? `#${l.instance}` : ""} ${l.annotations.length}`,
     });
     b.addEventListener("click", () => {

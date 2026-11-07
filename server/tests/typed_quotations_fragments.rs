@@ -65,6 +65,7 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
                     offsets: mode as i32,
                     pii_output: None,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

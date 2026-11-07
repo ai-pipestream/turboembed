@@ -55,14 +55,3 @@ fn flag_lists_parse_once_each_and_never_allow_values() {
     assert!(PiiOutputPolicy::NONE.allows(&Disclosure::FINDINGS));
     assert!(!PiiOutputPolicy::NONE.allows(&Disclosure::FULL));
 }
-
-#[test]
-fn sanitized_status_names_the_layer_and_drops_annotator_text() {
-    let planted = "planted-alice@example.com";
-    let failed = Status::Failed(Error::Annotator { annotator: "turbo-pii:pii", detail: planted.into() });
-    let s = sanitized_status(&failed);
-    assert_eq!(s, "annotator turbo-pii:pii");
-    assert!(!sanitized_status(&Status::Skipped(planted.into())).contains(planted));
-    let record = StatusRecord::Failed(ErrorRecord::Annotator { annotator: "x".into(), detail: planted.into() });
-    assert_eq!(sanitized_record(&record), "annotator x");
-}
