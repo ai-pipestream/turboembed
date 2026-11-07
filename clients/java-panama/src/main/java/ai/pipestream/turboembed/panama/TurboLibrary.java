@@ -80,7 +80,9 @@ public final class TurboLibrary {
     /** Native PII classification: checksum evidence. */
     public static final int TURBO_PII_CONFIDENCE_CHECKSUM = 2;
     /** Native PII classification: labelled checksum evidence. */
-    public static final int TURBO_PII_CONFIDENCE_LABELLED = 3;
+    public static final int TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM = 3;
+    /** Native PII classification: label-only evidence. */
+    public static final int TURBO_PII_CONFIDENCE_LABELLED = 4;
     /** Status code for bundle not found. */
     public static final int TURBO_E_BUNDLE_NOT_FOUND = 1280;
     /** Status code for invalid bundle. */

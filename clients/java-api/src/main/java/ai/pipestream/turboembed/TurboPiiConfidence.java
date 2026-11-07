@@ -9,7 +9,9 @@ public enum TurboPiiConfidence {
     /** A checksum over the value passes. */
     CHECKSUM(2),
     /** A nearby label names the kind and a checksum passes. */
-    LABELLED_CHECKSUM(3);
+    LABELLED_CHECKSUM(3),
+    /** A nearby label names the kind. */
+    LABELLED(4);
 
     private final int nativeCode;
 

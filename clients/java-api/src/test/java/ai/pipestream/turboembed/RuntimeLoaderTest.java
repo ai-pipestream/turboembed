@@ -50,6 +50,12 @@ final class RuntimeLoaderTest {
         assertEquals(TurboLayerKind.MORPHOLOGY, TurboLayerKind.fromNative(8));
         assertThrows(IllegalStateException.class, () -> TurboLayerKind.fromNative(99));
         assertEquals(TurboPiiConfidence.CHECKSUM, TurboPiiConfidence.fromNative(2));
+        assertEquals(TurboPiiConfidence.LABELLED_CHECKSUM, TurboPiiConfidence.fromNative(3));
+        assertEquals(3, TurboPiiConfidence.LABELLED_CHECKSUM.nativeCode());
+        assertEquals(TurboPiiConfidence.LABELLED, TurboPiiConfidence.fromNative(4));
+        assertEquals(4, TurboPiiConfidence.LABELLED.nativeCode());
+        assertEquals(TurboPiiConfidence.LABELLED, TurboPiiConfidence.fromNative(TurboPiiConfidence.LABELLED.nativeCode()));
+        assertThrows(IllegalStateException.class, () -> TurboPiiConfidence.fromNative(5));
         TurboException failure = new TurboException(256, "TURBO_E_INVALID_ARGUMENT", 7, "bad bundle");
         assertEquals(7, failure.field());
         assertEquals(256, failure.code());

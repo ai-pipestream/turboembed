@@ -102,7 +102,8 @@ ranges and no text ranges. Dependency rows are aligned to tokens: the
 relation is the label and the head token is read through `dependencyHead()`,
 which is empty for the root of a sentence. PII rows carry their kind as the
 label, their normalized form as the value, and a `TurboPiiConfidence`
-evidence classification. PII classification is not represented as a
+evidence classification (`FORMAT(1)`, `CHECKSUM(2)`, `LABELLED_CHECKSUM(3)`,
+`LABELLED(4)`). PII classification is not represented as a
 probability.
 
 ## Bundles and explicit unknowns
