@@ -7,8 +7,9 @@ use crate::api::{self, Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM};
 use crate::config::{Device, ModelConfig};
 use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits, ServerLimits};
 use crate::results::{
-    MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, MAX_CHUNKS, MAX_FRAGMENTS, MAX_GRAPH_BYTES, MAX_LEVELS, MAX_RECORD_VALUES,
-    MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, over,
+    MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, MAX_CHUNKS, MAX_FRAGMENTS, MAX_GRAPH_BYTES, MAX_LEVELS, MAX_MAPPING_EDITS,
+    MAX_RECORD_VALUES, MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES,
+    MAX_WINDOWS, over,
 };
 use crate::state::{Loaded, MAX_LOADED_MODELS, MAX_SESSIONS_PER_MODEL};
 
@@ -31,6 +32,7 @@ pub(crate) fn result_limits() -> ResultLimits {
         max_fragments: MAX_FRAGMENTS,
         max_graph_bytes: MAX_GRAPH_BYTES,
         max_record_values: MAX_RECORD_VALUES,
+        max_mapping_edits: MAX_MAPPING_EDITS,
     }
 }
 
