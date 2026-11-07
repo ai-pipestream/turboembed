@@ -441,7 +441,7 @@ itself.
 
 A `turbo:pii` payload needs a kind, either a built-in kind name or a
 custom kind name of at most 64 bytes, and a confidence tier of `format`,
-`checksum` or `labelled-checksum`. A refusal names the layer, the row and
+`labelled`, `checksum` or `labelled-checksum`. A refusal names the layer, the row and
 its wire spans, never the mention's text, kind or tier. A mention whose
 text the requested view deletes keeps an empty span where it was.
 

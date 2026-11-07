@@ -45,7 +45,8 @@ fn resolvable(kind: &str) -> bool {
 }
 
 /// Every confidence tier the layer writes.
-const TIERS: [PiiConfidence; 3] = [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum];
+const TIERS: [PiiConfidence; 4] =
+    [PiiConfidence::Format, PiiConfidence::Labelled, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum];
 
 /// Whether `name` is the name of one of [`TIERS`], exactly.
 fn known_tier(name: &str) -> bool {
@@ -53,7 +54,10 @@ fn known_tier(name: &str) -> bool {
         // Exhaustive, so a tier added to `PiiConfidence` fails to compile
         // here until it is added to `TIERS` as well.
         match tier {
-            PiiConfidence::Format | PiiConfidence::Checksum | PiiConfidence::LabelledChecksum => tier.name() == name,
+            PiiConfidence::Format
+            | PiiConfidence::Labelled
+            | PiiConfidence::Checksum
+            | PiiConfidence::LabelledChecksum => tier.name() == name,
         }
     })
 }

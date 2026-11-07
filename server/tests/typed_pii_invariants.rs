@@ -143,7 +143,7 @@ fn pii_payloads_need_a_resolvable_kind_and_a_known_confidence_tier() {
     for ok in ["email", "phone", "acct-number", longest.as_str()] {
         validate_typed_document(&pii_message(|m| m.kind = ok.to_owned())).unwrap_or_else(|e| panic!("{ok:?}: {e:?}"));
     }
-    for tier in ["format", "checksum", "labelled-checksum"] {
+    for tier in ["format", "labelled", "checksum", "labelled-checksum"] {
         validate_typed_document(&pii_message(|m| m.confidence_tier = tier.to_owned())).unwrap();
     }
     let refusals: [(&str, Edit); 5] = [
