@@ -600,8 +600,8 @@ names, the input
 digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
 instance and index with their kind and form, the policy id and the
 SHA-256 of its rules, the time and the document id; never a value, token
-or text. Its id is the SHA-256 of what a retry keeps: the operation
-key, the input digest, the mention set, the forms in effect and the
+or text. Its id is the SHA-256 of what a retry keeps: the service
+fingerprint, the operation key, the input digest, the mention set, the forms in effect and the
 policy digest. The attempt is not part of it, so every attempt at one
 release has the same id and the audit service keeps one record. The sink drops items when its queue is full, so it
 never carries these events. A request that releases nothing records

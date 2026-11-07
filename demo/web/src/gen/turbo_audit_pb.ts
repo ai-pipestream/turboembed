@@ -141,9 +141,10 @@ export const PiiAccessKindGrantSchema: GenMessage<PiiAccessKindGrant> = /*@__PUR
 export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   /**
    * 64 lowercase hexadecimal digits: SHA-256 over what a retry keeps,
-   * the operation key, input_digest, the mention set, the forms in
-   * effect and policy_digest. The attempt is not part of it, so every
-   * attempt at one release has the same id.
+   * the service fingerprint, the operation key, input_digest, the
+   * mention set, the forms in effect and policy_digest. The attempt is
+   * not part of it, so every attempt at one release has the same id; two
+   * services never share one.
    *
    * @generated from field: string event_id = 1;
    */

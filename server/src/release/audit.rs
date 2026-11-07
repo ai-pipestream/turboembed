@@ -71,9 +71,12 @@ impl AuditClient {
 }
 
 /// What a retry of one release keeps, which the event id is a digest
-/// over. The attempt, the time, the service and the document id are not
-/// part of it, so every attempt at one release has one id.
+/// over. The attempt, the time and the document id are not part of it, so
+/// every attempt at one release has one id. The service is: one release
+/// to two services is two accesses, never one record.
 pub struct EventKey<'a> {
+    /// The verified client certificate's SHA-256.
+    pub service_fingerprint: &'a [u8],
     pub operation_key: &'a str,
     /// The SHA-256 of the source text the mentions index into.
     pub input_digest: &'a [u8],
@@ -96,6 +99,7 @@ pub fn event_id(key: &EventKey<'_>) -> String {
         h.update(&(b.len() as u64).to_be_bytes());
         h.update(b);
     };
+    bytes(&mut h, key.service_fingerprint);
     bytes(&mut h, key.operation_key.as_bytes());
     bytes(&mut h, key.input_digest);
     h.update(&(mentions.len() as u64).to_be_bytes());

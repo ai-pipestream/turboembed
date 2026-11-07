@@ -20,8 +20,8 @@ use turbo_kserve::proto::result::{
     DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, TypedDocumentResult,
     pii_value,
 };
-use turbo_kserve::release::POLICY_ID;
-use turbo_kserve::release::caps::{Form, Forms};
+use turbo_kserve::release::caps::{Fingerprint, Form, Forms};
+use turbo_kserve::release::{POLICY_ID, Release};
 use turbo_kserve::results::disclosure::PiiOutputPolicy;
 use turbo_pii::PiiKind;
 
@@ -230,4 +230,31 @@ async fn releases_are_refused_where_they_are_not_offered() {
     assert_eq!(e.code(), Code::Unimplemented, "{e:?}");
     assert!(audit.calls.lock().unwrap().is_empty());
     s.stop().await;
+}
+
+#[tokio::test]
+async fn two_services_released_one_operation_record_two_events() {
+    // Two verified services with identical grants send the same request:
+    // each access is its own record, and each service's retry keeps its
+    // own id. The release path is driven in process with the two
+    // fingerprints the mTLS handshake would have verified.
+    let files = Files::create("two-services");
+    let (audit, at) = audit(Answer::Ack).await;
+    let (one, two) = ("a1".repeat(32), "b2".repeat(32));
+    let grants = [format!("{one}:clear:email"), format!("{two}:clear:email")];
+    let config = release(&files, &grants, at, SECOND);
+    let rel = Release::start(Some(&config), Some(&files.tls)).unwrap().unwrap();
+    let policy = open_policy();
+    for fp in [&one, &two, &one, &two] {
+        let service = Some(Fingerprint::parse(fp).unwrap());
+        let typed =
+            rel.clone().inspect(service, ask(PiiValueForm::Clear, "op-shared"), Form::Clear, policy).await.unwrap();
+        assert_eq!(forms(&typed)[0], pii_value::Form::Clear(EMAIL.into()));
+    }
+    let events = audit.events.lock().unwrap().clone();
+    assert_eq!(events.len(), 2, "one record per service, retries folded");
+    let services: std::collections::BTreeSet<Vec<u8>> =
+        events.values().map(|e| e.service_fingerprint.clone()).collect();
+    assert_eq!(services.len(), 2, "each record names its own service");
+    assert_eq!(audit.calls.lock().unwrap().len(), 4);
 }

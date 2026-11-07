@@ -141,6 +141,7 @@ impl Release {
         let policy_digest = policy_digest(policy, &grant).to_vec();
         let input_digest = typed.input.as_ref().map(|i| i.source_text_digest.clone()).unwrap_or_default();
         let event_id = audit::event_id(&audit::EventKey {
+            service_fingerprint: &service.0,
             operation_key: &operation_key,
             input_digest: &input_digest,
             mentions: &mentions,

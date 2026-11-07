@@ -63,9 +63,10 @@ message PiiAccessKindGrant {
 // One access to PII values. It carries no value, token or text.
 message PiiAccessEvent {
   // 64 lowercase hexadecimal digits: SHA-256 over what a retry keeps,
-  // the operation key, input_digest, the mention set, the forms in
-  // effect and policy_digest. The attempt is not part of it, so every
-  // attempt at one release has the same id.
+  // the service fingerprint, the operation key, input_digest, the
+  // mention set, the forms in effect and policy_digest. The attempt is
+  // not part of it, so every attempt at one release has the same id; two
+  // services never share one.
   string event_id = 1;
   // The request's operation key, and the attempt id of the receipt of
   // the answer that carried the release (#1908).

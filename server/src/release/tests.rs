@@ -64,7 +64,25 @@ fn id(
     effective: &[PiiAccessKindGrant],
     policy: &[u8],
 ) -> String {
-    event_id(&EventKey { operation_key: op, input_digest: input, mentions, effective, policy_digest: policy })
+    with_service(&[9; 32], op, input, mentions, effective, policy)
+}
+
+fn with_service(
+    service: &[u8],
+    op: &str,
+    input: &[u8],
+    mentions: &[PiiAccessMention],
+    effective: &[PiiAccessKindGrant],
+    policy: &[u8],
+) -> String {
+    event_id(&EventKey {
+        service_fingerprint: service,
+        operation_key: op,
+        input_digest: input,
+        mentions,
+        effective,
+        policy_digest: policy,
+    })
 }
 
 fn kind(builtin: u32, forms: &[Form]) -> PiiAccessKindGrant {
@@ -92,6 +110,9 @@ fn the_event_id_is_fixed_by_what_a_retry_keeps() {
     assert_ne!(base, id("op-1", &input, &[mention("pii", 0, Form::Clear), a[1].clone()], &eff, &policy));
     assert_ne!(base, id("op-1", &input, &a, &eff[..1], &policy), "other forms in effect");
     assert_ne!(base, id("op-1", &input, &a, &eff, &[4; 32]), "another policy");
+    // Two services released the same values: two accesses, two ids.
+    assert_ne!(base, with_service(&[8; 32], "op-1", &input, &a, &eff, &policy), "another service");
+    assert_eq!(base, with_service(&[9; 32], "op-1", &input, &a, &eff, &policy), "the same service");
     // Length prefixes keep the fields apart.
     assert_ne!(
         id("op", &input, &[mention("1pii", 0, Form::Token)], &eff, &policy),
