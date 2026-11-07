@@ -117,7 +117,7 @@ normalized form and the confidence each gets:
 | `fr-siret` | 14 digits without separators | checksum (Luhn or La Poste mod 5) |
 | `br-cpf` | 11 digits without separators | checksum (double mod 11) |
 | `br-cnpj` | 14 characters without separators | checksum (double mod 11, numeric or compact/punctuated alphanumeric) |
-| `bic` | 8 or 11 uppercase characters after a `BIC`/`SWIFT` label | format (ISO 9362 + ISO 3166-1 alpha-2) |
+| `bic` | 8 or 11 uppercase characters after a `BIC`/`SWIFT` label | labelled (ISO 9362 + ISO 3166-1 alpha-2) |
 | `ca-sin` | the digits | labelled checksum (Luhn) |
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |
 | `phone` | `+` and digits, or the digits | format |
@@ -150,19 +150,20 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
 
 - **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
   label list for each of the 30 built-in kinds (`&[]` for
-  `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`
-  and `imei` and `window::DEFAULT_WINDOW_WORDS` (`4`) for every other
-  kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
-  `ca-sin` and `imei` and `LabelPolicy::None` for the other 28 built-in
-  kinds and custom kinds, so existing detector outputs stay unchanged
-  unless a caller opts in. When no caller override is configured on
-  `ca-sin` or `imei`, `PiiDetector` uses
+  `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`,
+  `imei`, and `bic`, and `window::DEFAULT_WINDOW_WORDS` (`4`) for every
+  other kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
+  `ca-sin`, `imei`, and `bic`, and `LabelPolicy::None` for the other 27
+  built-in kinds and custom kinds, so existing detector outputs stay
+  unchanged unless a caller opts in. When no caller override is configured
+  on `ca-sin`, `imei`, or `bic`, `PiiDetector` uses
   `window::has_strict_prefix_label` (the strict prefix rule: a label
   before `span.start` separated only by whitespace and `:`, `#`, or `=`,
-  plus `.` for `ca-sin`) so default `CaIdentity`, `Device`, and
-  `AllStructured` outputs remain identical; configuring `with_label_window`,
-  `with_extra_label`, or `with_label_policy` on `ca-sin` or `imei` switches
-  that kind onto the general bidirectional `N`-word UAX #29 window.
+  plus `.` for `ca-sin` and `bic`) so default `CaIdentity`, `Device`,
+  `EuIdentity`, and `AllStructured` outputs remain identical; configuring
+  `with_label_window`, `with_extra_label`, or `with_label_policy` on
+  `ca-sin`, `imei`, or `bic` switches that kind onto the general
+  bidirectional `N`-word UAX #29 window.
 - **Policies and caller overrides**: `PiiDetector::label_required(kind)`
   (`LabelPolicy::Required`) drops unlabelled candidates of `kind` and
   raises labelled ones with `PiiConfidence::with_label`;

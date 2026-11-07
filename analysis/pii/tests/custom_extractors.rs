@@ -471,4 +471,21 @@ fn hash_compat_scanners_custom_names_and_mask_policies() {
             15155714095827978077
         ]
     );
+    let mut b = MaskedView::by_kind('*').unwrap();
+    let mut d = MaskedView::all(star);
+    for &k in &PiiKind::ALL {
+        if k.hash_bit() < 20 {
+            b = b.with(k, star);
+            d = d.with(k, MaskPolicy::for_kind(k, '*').unwrap());
+        }
+    }
+    assert_ne!(MaskedView::all(star), b);
+    assert_ne!(MaskedView::all(star).config_hash(), b.config_hash());
+    assert_ne!(MaskedView::by_kind('*').unwrap(), d);
+    assert_ne!(MaskedView::by_kind('*').unwrap().config_hash(), d.config_hash());
+    for &k in &PiiKind::ALL[17..27] {
+        b = b.with(k, star);
+    }
+    assert_eq!(MaskedView::all(star), b);
+    assert_eq!(MaskedView::all(star).config_hash(), b.config_hash());
 }

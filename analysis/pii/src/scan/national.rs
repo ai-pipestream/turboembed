@@ -11,6 +11,7 @@ use turbo_analysis_layers::{PiiConfidence, PiiKind, PiiKinds};
 
 use crate::hits::Hits;
 use crate::text::{on_end, on_number_start};
+use crate::window::WindowConfig;
 
 /// No letter or digit after `end`, and none of `joiners` going on with a
 /// digit.
@@ -71,7 +72,7 @@ const STEUER_GROUPS: &[usize] = &[2, 3, 3, 3];
 pub(crate) const JOINERS: &[u8] = b".,- ";
 
 /// European national and business identifiers of `kinds`.
-pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, hits: &mut Hits) {
+pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, window: &WindowConfig, hits: &mut Hits) {
     if kinds.contains(PiiKind::DeSteuerId) {
         scan_grouped(text, STEUER_GROUPS, PiiKind::DeSteuerId, hits);
     }
@@ -100,7 +101,7 @@ pub(crate) fn scan_eu(text: &str, kinds: PiiKinds, hits: &mut Hits) {
         super::fr::scan_fr_siret(text, hits);
     }
     if kinds.contains(PiiKind::Bic) {
-        super::labelled::scan_bic(text, hits);
+        super::labelled::scan_bic(text, window, hits);
     }
 }
 

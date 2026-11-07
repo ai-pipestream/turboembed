@@ -9,6 +9,7 @@
 
 use turbo_analysis_layers::Pii;
 
+use super::mask::CharRetention;
 use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
 
@@ -115,44 +116,9 @@ impl Truncate {
 
     /// Appends `value` with this truncation/masking policy applied to `out`.
     pub fn write_truncated(&self, value: &str, out: &mut String) {
-        if self.keep_format {
-            let alpha = value.chars().filter(|&c| letter_or_digit(c)).count();
-            if self.count == 0 || alpha <= self.count {
-                for c in value.chars() {
-                    out.push(if letter_or_digit(c) { self.mask } else { c });
-                }
-                return;
-            }
-            let tail_start = alpha - self.count;
-            let mut seen = 0;
-            for c in value.chars() {
-                if letter_or_digit(c) {
-                    let keep = match self.side {
-                        KeepSide::Start => seen < self.count,
-                        KeepSide::End => seen >= tail_start,
-                    };
-                    seen += 1;
-                    out.push(if keep { c } else { self.mask });
-                } else {
-                    out.push(c);
-                }
-            }
-        } else {
-            let total = value.chars().count();
-            if self.count == 0 || total <= self.count {
-                for _ in 0..total {
-                    out.push(self.mask);
-                }
-                return;
-            }
-            let tail_start = total - self.count;
-            for (i, c) in value.chars().enumerate() {
-                let keep = match self.side {
-                    KeepSide::Start => i < self.count,
-                    KeepSide::End => i >= tail_start,
-                };
-                out.push(if keep { c } else { self.mask });
-            }
+        let ret = self.retention(value);
+        for (at, c) in value.char_indices() {
+            out.push(if ret.keeps(at, c) { c } else { self.mask });
         }
     }
 
@@ -163,47 +129,63 @@ impl Truncate {
         out
     }
 
-    /// Whether this truncation policy keeps the character at byte offset
-    /// `target_offset` inside `value`.
-    pub(crate) fn keeps_char_at(&self, value: &str, target_offset: usize) -> bool {
+    /// Precomputes byte-offset retention bounds for `value` in `O(|value|)`.
+    pub(super) fn retention(&self, value: &str) -> CharRetention {
         if self.keep_format {
             let alpha = value.chars().filter(|&c| letter_or_digit(c)).count();
             if self.count == 0 || alpha <= self.count {
-                return value[target_offset..].chars().next().is_some_and(|c| !letter_or_digit(c));
-            }
-            let tail_start = alpha - self.count;
-            let mut seen = 0;
-            for (at, c) in value.char_indices() {
-                let keep = if letter_or_digit(c) {
-                    let k = match self.side {
-                        KeepSide::Start => seen < self.count,
-                        KeepSide::End => seen >= tail_start,
-                    };
-                    seen += 1;
-                    k
-                } else {
-                    true
+                return CharRetention {
+                    keep_until: 0,
+                    keep_from: value.len(),
+                    keep_format: true,
+                    only_alnum_bounds: true,
                 };
-                if at == target_offset {
-                    return keep;
+            }
+            match self.side {
+                KeepSide::Start => {
+                    let mut keep_until = value.len();
+                    let mut seen = 0;
+                    for (at, c) in value.char_indices() {
+                        if letter_or_digit(c) {
+                            seen += 1;
+                            if seen == self.count {
+                                keep_until = at + c.len_utf8();
+                                break;
+                            }
+                        }
+                    }
+                    CharRetention { keep_until, keep_from: value.len(), keep_format: true, only_alnum_bounds: true }
+                }
+                KeepSide::End => {
+                    let mut keep_from = 0;
+                    let mut seen = 0;
+                    for (at, c) in value.char_indices().rev() {
+                        if letter_or_digit(c) {
+                            seen += 1;
+                            if seen == self.count {
+                                keep_from = at;
+                                break;
+                            }
+                        }
+                    }
+                    CharRetention { keep_until: 0, keep_from, keep_format: true, only_alnum_bounds: true }
                 }
             }
-            false
         } else {
             let total = value.chars().count();
             if self.count == 0 || total <= self.count {
-                return false;
+                return CharRetention::NONE;
             }
-            let tail_start = total - self.count;
-            for (i, (at, _)) in value.char_indices().enumerate() {
-                if at == target_offset {
-                    return match self.side {
-                        KeepSide::Start => i < self.count,
-                        KeepSide::End => i >= tail_start,
-                    };
+            match self.side {
+                KeepSide::Start => {
+                    let keep_until = value.char_indices().nth(self.count).map_or(value.len(), |(at, _)| at);
+                    CharRetention { keep_until, keep_from: value.len(), keep_format: false, only_alnum_bounds: false }
+                }
+                KeepSide::End => {
+                    let keep_from = value.char_indices().rev().nth(self.count - 1).map_or(0, |(at, _)| at);
+                    CharRetention { keep_until: 0, keep_from, keep_format: false, only_alnum_bounds: false }
                 }
             }
-            false
         }
     }
 
@@ -225,14 +207,16 @@ impl Truncate {
                 self.write_truncated(piece, out);
                 return;
             }
+            let winner_ret = self.retention(piece);
+            let member_rets: Vec<_> =
+                cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
             for (rel_at, c) in piece.char_indices() {
                 let abs_at = m.span.start + rel_at as u32;
-                let keep = self.keeps_char_at(piece, rel_at)
-                    && cluster
-                        .members
+                let keep = winner_ret.keeps(rel_at, c)
+                    && member_rets
                         .iter()
-                        .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
-                        .all(|mem| self.keeps_char_at(&text[mem.span.range()], (abs_at - mem.span.start) as usize));
+                        .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                        .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
                 out.push(if keep { c } else { self.mask });
             }
         })

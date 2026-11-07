@@ -12,12 +12,12 @@
 //! multi-word phrases (`social insurance number`, `social insurance no`).
 //!
 //! By default (when no caller override is set for the kind),
-//! [`PiiKind::CaSin`] and [`PiiKind::Imei`] use [`has_strict_prefix_label`] to
-//! preserve OpenNLP's `LabeledPiiExtractor` rule. Configuring
-//! [`crate::PiiDetector::with_label_window`],
+//! [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`] use
+//! [`has_strict_prefix_label`] to preserve OpenNLP's `LabeledPiiExtractor`
+//! rule. Configuring [`crate::PiiDetector::with_label_window`],
 //! [`crate::PiiDetector::with_extra_label`], or
-//! [`crate::PiiDetector::with_label_policy`] on `CaSin` or `Imei` switches
-//! that kind onto the general bidirectional `N`-word UAX #29 window.
+//! [`crate::PiiDetector::with_label_policy`] on `CaSin`, `Imei`, or `Bic`
+//! switches that kind onto the general bidirectional `N`-word UAX #29 window.
 //!
 //! # Known limitation
 //!
@@ -34,11 +34,12 @@ use turbo_unicode::word_break::{WordBreak, WordBreak::*, is_extended_pictographi
 use crate::text::{before, letter_or_digit, on_word_start, whitespace};
 
 /// Default context-word window width (`N` words on either side) for kinds
-/// other than [`PiiKind::CaSin`] and [`PiiKind::Imei`].
+/// other than [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`].
 pub const DEFAULT_WINDOW_WORDS: usize = 4;
 
 const SIN_STRICT_LABELS: [&[u8]; 3] = [b"social insurance number", b"social insurance no", b"sin"];
 const IMEI_STRICT_LABELS: [&[u8]; 1] = [b"imei"];
+const BIC_STRICT_LABELS: [&[u8]; 6] = [b"bic/swift", b"swift/bic", b"bic code", b"swift code", b"swift", b"bic"];
 
 /// How a [`PiiKind`] uses context labels within its word window.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -72,32 +73,32 @@ pub use labels::default_labels;
 /// Default context-word window width (`N` words on either side) for `kind`.
 pub const fn default_window(kind: PiiKind) -> usize {
     match kind {
-        PiiKind::CaSin | PiiKind::Imei => 1,
+        PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic => 1,
         _ => DEFAULT_WINDOW_WORDS,
     }
 }
 
 /// Default [`LabelPolicy`] for `kind`: [`LabelPolicy::Required`] for
-/// [`PiiKind::CaSin`] and [`PiiKind::Imei`], and [`LabelPolicy::None`] for
-/// all other kinds.
+/// [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`], and
+/// [`LabelPolicy::None`] for all other kinds.
 pub const fn default_policy(kind: PiiKind) -> LabelPolicy {
     match kind {
-        PiiKind::CaSin | PiiKind::Imei => LabelPolicy::Required,
+        PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic => LabelPolicy::Required,
         _ => LabelPolicy::None,
     }
 }
 
 /// OpenNLP `LabeledPiiExtractor` strict prefix check used by default for
-/// [`PiiKind::CaSin`] and [`PiiKind::Imei`] when no caller window override is
-/// configured on [`crate::PiiDetector`].
+/// [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`] when no caller
+/// window override is configured on [`crate::PiiDetector`].
 pub fn has_strict_prefix_label(text: &str, start: usize, kind: PiiKind) -> bool {
-    let sin = match kind {
-        PiiKind::CaSin => true,
-        PiiKind::Imei => false,
+    let (labels, allow_dot): (&[&[u8]], bool) = match kind {
+        PiiKind::CaSin => (&SIN_STRICT_LABELS, true),
+        PiiKind::Imei => (&IMEI_STRICT_LABELS, false),
+        PiiKind::Bic => (&BIC_STRICT_LABELS, true),
         _ => return false,
     };
-    let labels: &[&[u8]] = if sin { &SIN_STRICT_LABELS } else { &IMEI_STRICT_LABELS };
-    has_any_label(text, start, labels, sin)
+    has_any_label(text, start, labels, allow_dot)
 }
 
 pub(crate) fn has_any_label(text: &str, start: usize, labels: &[&[u8]], allow_dot: bool) -> bool {
@@ -228,7 +229,8 @@ impl WindowConfig {
     }
 
     pub(crate) fn set_window(&mut self, kind: PiiKind, window_words: usize) {
-        let is_non_default = matches!(kind, PiiKind::CaSin | PiiKind::Imei) || window_words != default_window(kind);
+        let is_non_default =
+            matches!(kind, PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic) || window_words != default_window(kind);
         self.entry_mut(kind).window_words = is_non_default.then_some(window_words);
         self.prune(kind);
     }
@@ -259,7 +261,7 @@ impl WindowConfig {
     }
 
     pub(crate) fn has_label(&self, text: &str, span: Span, kind: PiiKind) -> bool {
-        if matches!(kind, PiiKind::CaSin | PiiKind::Imei) && self.find(kind).is_none() {
+        if matches!(kind, PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic) && self.find(kind).is_none() {
             return has_strict_prefix_label(text, span.start as usize, kind);
         }
         let extras = self.find(kind).map_or(&[][..], |o| o.extra_phrases.as_slice());

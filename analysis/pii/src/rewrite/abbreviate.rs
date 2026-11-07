@@ -113,37 +113,22 @@ impl Abbreviator {
 
     /// Appends the abbreviated form of `value` to `out`.
     pub fn write_abbreviated(&self, value: &str, out: &mut String) {
-        self.write_abbreviated_filtered(value, |_| true, out);
+        self.write_abbreviated_filtered(value, |_, _| true, out);
     }
 
     /// Whether `target_offset` is the start byte of a word in `value`.
     pub(crate) fn is_initial_at(value: &str, target_offset: usize) -> bool {
-        let mut in_word = false;
-        for (at, c) in value.char_indices() {
-            if letter_or_digit(c) {
-                if !in_word {
-                    if at == target_offset {
-                        return true;
-                    }
-                    in_word = true;
-                }
-            } else {
-                in_word = false;
-            }
-            if at >= target_offset {
-                break;
-            }
-        }
-        false
+        value.get(target_offset..).and_then(|s| s.chars().next()).is_some_and(letter_or_digit)
+            && !crate::text::before(value, target_offset).is_some_and(letter_or_digit)
     }
 
     /// Appends the abbreviated form of `value` to `out`, masking any
-    /// initial at relative byte offset `rel_at` where `allow_at(rel_at)` is
+    /// initial at relative byte offset `rel_at` where `allow_at(rel_at, c)` is
     /// `false` with `'*'`.
     pub(crate) fn write_abbreviated_filtered(
         &self,
         value: &str,
-        mut allow_at: impl FnMut(usize) -> bool,
+        mut allow_at: impl FnMut(usize, char) -> bool,
         out: &mut String,
     ) {
         let mut in_word = false;
@@ -161,7 +146,7 @@ impl Abbreviator {
                             out.push_str(&self.separator);
                         }
                     }
-                    if !allow_at(rel_at) {
+                    if !allow_at(rel_at, c) {
                         out.push('*');
                     } else if self.uppercase {
                         out.extend(c.to_uppercase());
