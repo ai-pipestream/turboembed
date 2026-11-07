@@ -6,7 +6,7 @@
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Document, Key, Layer, Provenance, Span, ViewId};
 use turbo_analysis_layers::export::codecs;
-use turbo_pii::rewrite::{RewriteError, StaticReplacer};
+use turbo_pii::rewrite::{MaskError, RewriteError, StaticReplacer, mask_all, mask_by_kind};
 use turbo_pii::{
     CustomKindId, CustomKinds, KindError, Pii, PiiConfidence, PiiDetector, PiiKind, PiiMention, PiiSink, Scanner,
     SinkError,
@@ -95,6 +95,9 @@ fn unknown_kinds_are_refused_where_they_enter() {
         StaticReplacer::new("[X]").rewrite("BADGE-1", &stray).err(),
         Some(RewriteError::Kind(Span::new(0, 7), KindError::UnknownCustom(0)))
     );
+    let unknown = Err(MaskError::Kind(KindError::UnknownCustom(0)));
+    assert_eq!(mask_all("BADGE-1", &stray, '*'), unknown);
+    assert_eq!(mask_by_kind("BADGE-1", &stray, '*'), unknown);
 }
 
 /// The exported body of a one-mention layer of `kind` over "BADGE-1".

@@ -14,6 +14,7 @@ mod layers_structure;
 mod validate;
 
 use std::any::TypeId;
+use std::cell::Cell;
 use std::collections::HashMap;
 
 use turbo_analysis::export::{DocumentGraph, import};
@@ -67,6 +68,9 @@ pub(crate) struct ProjectionCx<'a> {
     model_map: HashMap<ProvenanceKey, String>,
     /// Status details cut to identities (#1904).
     sanitize: bool,
+    /// The first span the document refused to map onto the target view,
+    /// with its view: the projection fails with it rather than emit one.
+    unmapped: Cell<Option<(ViewId, Span)>>,
 }
 
 impl<'a> ProjectionCx<'a> {
@@ -79,6 +83,7 @@ impl<'a> ProjectionCx<'a> {
             offsetter: Offsetter::new(target_text, offsets),
             models: Vec::new(),
             model_map: HashMap::new(),
+            unmapped: Cell::new(None),
         }
     }
 
@@ -157,13 +162,22 @@ impl<'a> ProjectionCx<'a> {
         model_ref
     }
 
+    /// `span` of `layer_view` in the target view, mapped up to the two
+    /// views' lowest common ancestor and down again, as
+    /// [`Document::map_span`] maps it. A detour through the source would
+    /// widen the span to the whole of each lossy edit above that ancestor.
+    /// A span the document refuses to map is kept for
+    /// [`document_to_typed`] to fail with, and stands in as an empty span.
     pub(crate) fn project_span(&self, layer_view: ViewId, span: Span) -> Span {
         if layer_view == self.target_view {
-            span
-        } else {
-            let src = self.doc.to_source(layer_view, span);
-            self.doc.from_source(self.target_view, src)
+            return span;
         }
+        self.doc.map_span(layer_view, self.target_view, span).unwrap_or_else(|_| {
+            if self.unmapped.get().is_none() {
+                self.unmapped.set(Some((layer_view, span)));
+            }
+            Span::new(0, 0)
+        })
     }
 
     pub(crate) fn project_wire_span(&self, layer_view: ViewId, span: Span) -> SpanFragment {
@@ -346,7 +360,9 @@ fn collect_views(doc: &Document, sanitize: bool) -> (Vec<ViewInfo>, Vec<(ViewId,
 
 /// Projects all shared layers on `doc` into a strongly-typed [`TypedDocumentResult`]
 /// with spans mapped to `target_view` and converted into `offsets`, under
-/// [`Disclosure::FINDINGS`].
+/// [`Disclosure::FINDINGS`]. With debug assertions on, the result is also
+/// put through [`validate_typed_document`], and a message it refuses is an
+/// error.
 pub fn document_to_typed(
     doc_id: &str,
     doc: &Document,
@@ -408,9 +424,15 @@ pub fn document_to_typed_with(
             });
         }
     }
+    if let Some((view, span)) = cx.unmapped.get() {
+        return Err(bad(format!(
+            "a span {}..{} of view {} does not map onto target view {}",
+            span.start, span.end, view.0, target_view.0
+        )));
+    }
 
     let shown = disclosure.view_text(doc, target_view);
-    Ok(TypedDocumentResult {
+    let typed = TypedDocumentResult {
         doc_id: doc_id.to_owned(),
         raw_text: if shown { target_text.to_owned() } else { String::new() },
         withheld_text_len: (!shown)
@@ -420,7 +442,14 @@ pub fn document_to_typed_with(
         models: cx.models,
         views,
         layers,
-    })
+    };
+    // Debug builds and tests refuse to emit what `RoundTripTypedDocument`
+    // would refuse. Release builds skip it: on a 20 KB document the check
+    // costs half to three quarters as much as the projection (#1906).
+    if cfg!(debug_assertions) {
+        validate_typed_document(&typed)?;
+    }
+    Ok(typed)
 }
 
 /// Imports the binary `DocumentGraph` in `req` and projects it into a

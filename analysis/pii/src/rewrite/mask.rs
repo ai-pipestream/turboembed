@@ -9,13 +9,14 @@
 
 use std::fmt;
 
-use turbo_analysis::Span;
+use turbo_analysis::{Span, ViewId};
 use turbo_analysis_layers::{KindError, Pii, PiiKind, PiiMention};
 
 use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
 
-/// A mask the policy cannot take.
+/// Why a mask cannot be written: a mask the policy cannot take, a span
+/// the text does not have, or a layer over another view.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MaskError {
     /// The mask is not one ASCII byte, so writing it would change byte
@@ -25,6 +26,9 @@ pub enum MaskError {
     Span(Span),
     /// A mention's custom kind is outside its layer's table.
     Kind(KindError),
+    /// The pii layer is over view `layer`, not over `view`, the view being
+    /// masked, so its spans are offsets of another text.
+    ForeignView { layer: ViewId, view: ViewId },
 }
 
 impl fmt::Display for MaskError {
@@ -33,6 +37,9 @@ impl fmt::Display for MaskError {
             MaskError::NotAscii(c) => write!(f, "the mask {c:?} is not an ASCII character"),
             MaskError::Span(s) => write!(f, "the span {}..{} is not a range of the text", s.start, s.end),
             MaskError::Kind(e) => e.fmt(f),
+            MaskError::ForeignView { layer, view } => {
+                write!(f, "the pii layer is over view {}, not view {}", layer.0, view.0)
+            }
         }
     }
 }
@@ -299,6 +306,7 @@ pub fn mask(text: &str, spans: impl IntoIterator<Item = (Span, MaskPolicy)>) -> 
 /// `text`) with `mask`: `Masker.mask(document, layer, mask)`.
 pub fn mask_all(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskError> {
     let policy = MaskPolicy::new(mask_char)?;
+    check_kinds(pii)?;
     mask(text, pii.mentions().map(|m| (m.span, policy)))
 }
 
@@ -307,11 +315,17 @@ pub fn mask_all(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskEr
 /// `MaskPolicies.byType`.
 pub fn mask_by_kind(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskError> {
     let _ = MaskPolicy::new(mask_char)?;
+    check_kinds(pii)?;
     mask(
         text,
         pii.mentions()
             .map(|m: PiiMention<'_>| (m.span, MaskPolicy::for_kind(m.kind, mask_char).expect("validated ASCII mask"))),
     )
+}
+
+/// Refuses a mention whose custom kind is outside its layer's table.
+fn check_kinds(pii: &Pii) -> Result<(), MaskError> {
+    pii.mentions().try_for_each(|m| pii.custom_kinds.check(m.kind).map_err(MaskError::Kind))
 }
 
 #[cfg(test)]
