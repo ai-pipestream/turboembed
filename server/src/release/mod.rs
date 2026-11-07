@@ -96,8 +96,7 @@ impl Release {
         policy: PiiOutputPolicy,
     ) -> Result<TypedDocumentResult, Failure> {
         let options = req.pii_output.take().unwrap_or_default();
-        let operation_key = options.operation_key.clone();
-        let attempt_id = options.attempt.to_string();
+        let operation_key = req.operation_key.clone();
         if form == Form::Ciphertext {
             return Err(Failure::new(
                 crate::api::TURBO_E_UNSUPPORTED_OPTION,
@@ -127,6 +126,8 @@ impl Release {
         let Some(service) = service else {
             return Err(Failure::new(TURBO_E_INTERNAL, 0, "a release planned without a service".to_owned()));
         };
+        // The attempt is the one the answer's receipt names (#1908).
+        let attempt_id = typed.receipt.as_ref().map(|r| r.attempt_id.clone()).unwrap_or_default();
         let mentions: Vec<_> = plan.iter().map(|p| p.audit(&typed)).collect();
         let mut effective: Vec<PiiAccessKindGrant> = Vec::new();
         for p in &plan {

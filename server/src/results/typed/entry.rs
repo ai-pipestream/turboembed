@@ -25,7 +25,7 @@ pub fn document_to_typed(
     target_view: ViewId,
     offsets: OffsetMode,
 ) -> Result<TypedDocumentResult, Failure> {
-    document_to_typed_bound(doc_id, doc, target_view, offsets, None, &Disclosure::FINDINGS)
+    document_to_typed_bound(doc_id, doc, target_view, offsets, None, "", &Disclosure::FINDINGS)
 }
 
 /// [`document_to_typed`] under `disclosure`: on a document holding PII,
@@ -38,7 +38,7 @@ pub fn document_to_typed_with(
     offsets: OffsetMode,
     disclosure: &Disclosure,
 ) -> Result<TypedDocumentResult, Failure> {
-    document_to_typed_bound(doc_id, doc, target_view, offsets, None, disclosure)
+    document_to_typed_bound(doc_id, doc, target_view, offsets, None, "", disclosure)
 }
 
 /// Imports the binary `DocumentGraph` in `req` and projects it into a
@@ -62,7 +62,15 @@ pub fn inspect_document_graph_under(
     let view_u16 = u16::try_from(req.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", req.view)))?;
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    document_to_typed_bound(&req.doc_id, &doc, ViewId(view_u16), offsets, req.binding.as_ref(), &disclosure)
+    document_to_typed_bound(
+        &req.doc_id,
+        &doc,
+        ViewId(view_u16),
+        offsets,
+        req.binding.as_ref(),
+        &req.operation_key,
+        &disclosure,
+    )
 }
 
 /// Validates `msg` and returns a clone for `RoundTripTypedDocument`.

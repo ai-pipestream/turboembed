@@ -4,7 +4,7 @@
 // and FormatDocument (export). The finished graph goes to doc.ts for the
 // X-Ray, annotation drawer, projection and wire panels.
 
-import { LayerWireStatus, OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
+import { LayerErrorKind, LayerWireStatus, OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
 import { $, download, el, options, say, table } from "../dom.js";
@@ -28,7 +28,7 @@ function layerRows(layers: Map<string, LayerInfo>): HTMLTableElement {
     [...layers.values()].map((l) => [
       l.layer,
       l.instance,
-      el("span", { class: l.status === LayerWireStatus.OK ? "" : "error", text: statusName(l.status), title: l.statusDetail }),
+      el("span", { class: l.status === LayerWireStatus.OK ? "" : "error", text: statusName(l.status), title: l.error ? LayerErrorKind[l.error.kind] : "" }),
       String(l.items),
       `${l.annotator} ${l.version}`.trim(),
     ]),

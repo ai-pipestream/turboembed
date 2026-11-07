@@ -82,6 +82,7 @@ fn the_result_identity_is_the_sha256_of_the_tgrf_bytes() {
         offsets: 1,
         binding: None,
         pii_output: None,
+        operation_key: String::new(),
     };
     let inspected = inspect_document_graph(&req).unwrap();
     assert_eq!(inspected.result, typed.result);
@@ -143,7 +144,7 @@ fn the_callers_binding_is_copied_as_given_and_never_invented() {
         parse_artifact_digest: vec![9; 32],
     };
     let typed =
-        document_to_typed_bound("b", &doc, ViewId::SOURCE, OffsetMode::Utf8, Some(&binding), &Disclosure::FINDINGS)
+        document_to_typed_bound("b", &doc, ViewId::SOURCE, OffsetMode::Utf8, Some(&binding), "", &Disclosure::FINDINGS)
             .unwrap();
     assert_eq!(typed.input.as_ref().unwrap().binding.as_ref(), Some(&binding));
     let bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
@@ -154,6 +155,7 @@ fn the_callers_binding_is_copied_as_given_and_never_invented() {
         offsets: 0,
         binding: Some(binding.clone()),
         pii_output: None,
+        operation_key: String::new(),
     };
     assert_eq!(inspect_document_graph(&req).unwrap().input.unwrap().binding, Some(binding));
     let unbound = InspectDocumentGraphRequest {
@@ -163,6 +165,7 @@ fn the_callers_binding_is_copied_as_given_and_never_invented() {
         offsets: 0,
         binding: None,
         pii_output: None,
+        operation_key: String::new(),
     };
     assert_eq!(inspect_document_graph(&unbound).unwrap().input.unwrap().binding, None);
     let round = turbo_kserve::results::typed::round_trip_typed_document(&typed).unwrap();

@@ -153,6 +153,7 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
             initial_graph: Vec::new(),
             structure_seed: None,
             pii_output: None,
+            operation_key: String::new(),
         };
         let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
         let mut events = Vec::new();
@@ -161,12 +162,12 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
         }
 
         // Started + N steps + Complete.
-        assert_eq!(events.len(), spec.steps.len() + 2, "profile {}", spec.name);
+        assert_eq!(events.len(), spec.steps.len() + 3, "profile {}", spec.name);
         for (i, ev) in events.iter().enumerate() {
             assert_eq!(ev.sequence, (i + 1) as u64);
         }
 
-        let Some(Event::Complete(complete)) = &events.last().unwrap().event else {
+        let Some(Event::Complete(complete)) = &events[events.len() - 2].event else {
             panic!("expected Complete event for profile {}", spec.name);
         };
         let produced_layers: Vec<&str> = complete.layers.iter().map(|l| l.layer.as_str()).collect();
@@ -216,6 +217,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             initial_graph: Vec::new(),
             structure_seed: None,
             pii_output: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap_err();
@@ -237,6 +239,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             initial_graph: Vec::new(),
             structure_seed: None,
             pii_output: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap_err();
@@ -256,6 +259,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             initial_graph: Vec::new(),
             structure_seed: None,
             pii_output: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap_err();
@@ -311,6 +315,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
         initial_graph: Vec::new(),
         structure_seed: None,
         pii_output: None,
+        operation_key: String::new(),
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
@@ -319,7 +324,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
         events.push(ev.unwrap());
     }
 
-    let Some(Event::Complete(complete)) = &events.last().unwrap().event else {
+    let Some(Event::Complete(complete)) = &events[events.len() - 2].event else {
         panic!("expected Complete event");
     };
     assert_eq!(complete.views.len(), 2, "expected SOURCE view and normalized child view");
@@ -376,6 +381,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
                 offsets: mode as i32,
                 pii_output: None,
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()

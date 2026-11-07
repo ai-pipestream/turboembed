@@ -121,6 +121,7 @@ fn typed(complete: &DocumentGraphResponse, offsets: OffsetMode) -> TypedDocument
         offsets: offsets as i32,
         pii_output: None,
         binding: None,
+        operation_key: String::new(),
     })
     .unwrap()
 }

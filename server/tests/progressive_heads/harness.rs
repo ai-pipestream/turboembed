@@ -63,6 +63,7 @@ pub fn request(text: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineRequ
         initial_graph: Vec::new(),
         structure_seed: None,
         pii_output: None,
+        operation_key: String::new(),
     }
 }
 
@@ -84,9 +85,9 @@ pub fn started(events: &[AnalyzeProgressiveEvent]) -> Vec<String> {
 
 /// The Complete event, every layer of it written.
 pub fn complete(events: &[AnalyzeProgressiveEvent]) -> &DocumentGraphResponse {
-    let Some(Event::Complete(complete)) = &events.last().unwrap().event else { panic!("no Complete event") };
+    let Some(Event::Complete(complete)) = &events[events.len() - 2].event else { panic!("no Complete event") };
     for l in &complete.layers {
-        assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {}", l.layer, l.status_detail);
+        assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {:?}", l.layer, l.error);
     }
     complete
 }

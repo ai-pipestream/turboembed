@@ -67,7 +67,8 @@ message PiiAccessEvent {
   // effect and policy_digest. The attempt is not part of it, so every
   // attempt at one release has the same id.
   string event_id = 1;
-  // The caller's operation key, and the attempt that made this release.
+  // The request's operation key, and the attempt id of the receipt of
+  // the answer that carried the release (#1908).
   string operation_key = 2;
   string attempt_id = 3;
   // The calling service: the SHA-256 of its verified client

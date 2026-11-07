@@ -27,6 +27,7 @@ async fn optional_token_ranges_require_both_endpoints() {
                 offsets: mode as i32,
                 pii_output: full_text(),
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -98,6 +99,7 @@ async fn group_and_edge_indices_require_a_target_bound() {
                 offsets: mode as i32,
                 pii_output: full_text(),
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -150,6 +152,7 @@ async fn sentence_and_opinion_references_follow_the_declared_bounds() {
                 offsets: mode as i32,
                 pii_output: full_text(),
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -211,6 +214,7 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
                 offsets: mode as i32,
                 pii_output: full_text(),
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -275,6 +279,7 @@ async fn token_ranges_reject_ambiguous_targets_in_either_order() {
                 offsets: mode as i32,
                 pii_output: full_text(),
                 binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()

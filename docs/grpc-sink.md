@@ -103,7 +103,7 @@ An item about a document holding PII findings (a `turbo:pii` layer)
 follows `--sink-pii-output LIST` (`TURBO_KSERVE_SINK_PII_OUTPUT`), the
 same list `--pii-output-allow` takes and within it (docs/grpc-analysis.md,
 PII output). Unset, it is findings only: the item carries no graph bytes,
-its layers and views listed with status details cut to identities, and
+its layers and views listed with their typed errors, and
 the typed findings projection in the configured view, or on the source
 view in UTF-8 offsets when no projection is configured. Every value is
 withheld. `full-text` forwards the graph as for any other document.

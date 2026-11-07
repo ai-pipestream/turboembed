@@ -93,6 +93,7 @@ async fn projected_event_arguments_survive_text_deletion() {
                     offsets: mode as i32,
                     pii_output: None,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
@@ -142,6 +143,7 @@ async fn malformed_projected_arguments_and_anchors_are_refused() {
                     offsets: mode as i32,
                     pii_output: None,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

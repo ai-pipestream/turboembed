@@ -48,7 +48,7 @@ pub(crate) fn graph_item(
     disclosure: &Disclosure,
 ) -> Result<DocumentSinkItem, Failure> {
     let options = Some(disclosure.to_options());
-    let request = DocumentGraphRequest { graph: graph.into(), pii_output: options.clone() };
+    let request = DocumentGraphRequest { graph: graph.into(), pii_output: options };
     let mut listed = round_trip_document(&request)?;
     let source = if listed.graph.is_empty() { request.graph } else { listed.graph.clone() };
     let typed = match typed {
@@ -59,6 +59,7 @@ pub(crate) fn graph_item(
             offsets: t.offsets as i32,
             pii_output: options,
             binding: None,
+            operation_key: String::new(),
         })?),
         None => listed.findings.take().map(|f| TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }),
     };

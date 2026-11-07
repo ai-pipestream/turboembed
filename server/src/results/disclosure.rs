@@ -22,8 +22,7 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::export::{ErrorRecord, StatusRecord};
-use turbo_analysis::{Document, Error, Key, Layer, Status, View, ViewId};
+use turbo_analysis::{Document, Key, Layer, View, ViewId};
 use turbo_analysis_layers::Pii;
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
@@ -178,7 +177,6 @@ impl Disclosure {
             full_text: self.full_text,
             detail: self.detail,
             values: PiiValueForm::Unspecified as i32,
-            ..PiiOutputOptions::default()
         }
     }
 
@@ -190,12 +188,6 @@ impl Disclosure {
     /// Whether the text of `view` on `doc` may leave.
     pub fn view_text(&self, doc: &Document, view: ViewId) -> bool {
         self.graph(doc) || (self.rewritten_text && is_rewrite_view(doc, view))
-    }
-
-    /// Whether status details of `doc` must be cut to identities: free
-    /// text in an error may quote the document.
-    pub fn sanitize(&self, doc: &Document) -> bool {
-        !self.graph(doc)
     }
 }
 
@@ -228,51 +220,6 @@ pub(crate) fn withhold_annotations(layers: &mut [TypedLayer]) {
     for l in layers.iter_mut().filter(|l| l.id != Pii::ID) {
         l.annotations.clear();
         l.indexes_layer.clear();
-    }
-}
-
-/// A status detail cut to what kind of failure it is and which layer or
-/// annotator it names, without the free text an annotator wrote.
-pub fn sanitized_status(status: &Status) -> String {
-    match status {
-        Status::Complete => String::new(),
-        Status::Skipped(_) => "skipped".into(),
-        Status::Failed(e) => match e {
-            Error::Missing(k) => format!("missing {k}"),
-            Error::Duplicate(k) => format!("duplicate {k}"),
-            Error::Clash(k) => format!("clash {k}"),
-            Error::Bounds { layer, .. } => format!("bounds {layer}"),
-            Error::Misaligned { layer, .. } => format!("misaligned {layer}"),
-            Error::Unaligned { layer, .. } => format!("unaligned {layer}"),
-            Error::Invalid { layer, .. } => format!("invalid {layer}"),
-            Error::Pipeline(_) => "pipeline".into(),
-            Error::Annotator { annotator, .. } => format!("annotator {annotator}"),
-            Error::Skipped(_) => "skipped".into(),
-            Error::Offset { unit, at, .. } => format!("offset {unit} {at}"),
-            Error::Source(_) => "source".into(),
-        },
-    }
-}
-
-/// [`sanitized_status`] for an exported status record.
-pub fn sanitized_record(status: &StatusRecord) -> String {
-    match status {
-        StatusRecord::Complete => String::new(),
-        StatusRecord::Skipped(_) => "skipped".into(),
-        StatusRecord::Failed(e) => match e {
-            ErrorRecord::Missing(k) => format!("missing {k}"),
-            ErrorRecord::Duplicate(k) => format!("duplicate {k}"),
-            ErrorRecord::Clash(k) => format!("clash {k}"),
-            ErrorRecord::Bounds { layer, .. } => format!("bounds {layer}"),
-            ErrorRecord::Misaligned { layer, .. } => format!("misaligned {layer}"),
-            ErrorRecord::Unaligned { layer, .. } => format!("unaligned {layer}"),
-            ErrorRecord::Invalid { layer, .. } => format!("invalid {layer}"),
-            ErrorRecord::Pipeline(_) => "pipeline".into(),
-            ErrorRecord::Annotator { annotator, .. } => format!("annotator {annotator}"),
-            ErrorRecord::Skipped(_) => "skipped".into(),
-            ErrorRecord::Offset { unit, at, .. } => format!("offset {unit} {at}"),
-            ErrorRecord::Source(_) => "source".into(),
-        },
     }
 }
 

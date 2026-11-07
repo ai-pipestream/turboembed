@@ -150,7 +150,8 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   eventId: string;
 
   /**
-   * The caller's operation key, and the attempt that made this release.
+   * The request's operation key, and the attempt id of the receipt of
+   * the answer that carried the release (#1908).
    *
    * @generated from field: string operation_key = 2;
    */

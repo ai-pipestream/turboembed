@@ -114,6 +114,7 @@ async fn inspect(s: &Server, graph: &[u8], view: u32, pii_output: Option<PiiOutp
         offsets: OffsetMode::Utf8 as i32,
         pii_output,
         binding: None,
+        operation_key: String::new(),
     };
     client(s).await.inspect_document_graph(req).await.unwrap().into_inner()
 }
@@ -301,7 +302,16 @@ async fn detail_is_decided_and_capped_but_adds_nothing_yet() {
     let s = server(Serve::default()).await;
     let graph = pii_graph(&s).await;
     let detail = Some(PiiOutputOptions { detail: true, ..Default::default() });
-    assert_eq!(inspect(&s, &graph, 0, detail).await, inspect(&s, &graph, 0, None).await);
+    // Each answer carries its own attempt's receipt (#1908); the rest is
+    // the same.
+    let without_receipt = |mut t: TypedDocumentResult| {
+        t.receipt = None;
+        t
+    };
+    assert_eq!(
+        without_receipt(inspect(&s, &graph, 0, detail).await),
+        without_receipt(inspect(&s, &graph, 0, None).await)
+    );
     s.stop().await;
     let closed = server(Serve { pii_output: PiiOutputPolicy::NONE, ..Serve::default() }).await;
     let req = InspectDocumentGraphRequest {
@@ -339,7 +349,7 @@ async fn the_started_event_sanitizes_the_views_of_an_initial_graph_holding_pii()
     let mut stream = client(&s).await.analyze_document_progressive(req).await.unwrap().into_inner();
     let Some(Event::Started(started)) = stream.next().await.unwrap().unwrap().event else { panic!("started first") };
     let view = started.views.iter().find(|v| v.instance == "declined").expect("the declined view is listed");
-    assert!(!view.status_detail.contains(PLANTED), "{}", view.status_detail);
+    assert!(view.error.is_some(), "the declined view says why, as a typed error");
     assert!(!holds(&started.encode_to_vec(), PLANTED));
     while let Some(ev) = stream.next().await {
         let ev = ev.unwrap();

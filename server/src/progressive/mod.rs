@@ -35,8 +35,11 @@ use crate::proto::result::{
     AnalyzeProgressiveEvent, DocumentGraphResponse,
 };
 use crate::results::MAX_GRAPH_BYTES;
-use crate::results::disclosure::{Disclosure, PiiOutputPolicy, sanitized_status};
-use crate::results::document::{codecs, export_document_response, layer_info_with, view_info_with};
+use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
+use crate::results::document::{codecs, export_document_response, layer_info, view_info};
+use crate::results::receipt::error::{kind_name, of_error};
+use crate::results::receipt::{self, Operation, check_operation_key};
+use crate::results::typed::identity::{input_identity, result_identity};
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
@@ -112,10 +115,13 @@ pub(crate) async fn start_progressive(
     deadline.check()?;
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
+    check_operation_key(&req.operation_key).map_err(plain)?;
     let disclosure = Disclosure::decide(req.pii_output.as_ref(), pii_policy).map_err(plain)?;
 
     let doc = build_initial_document(&req, offsets)?;
     let analyzer = build_pipeline(state, &req, &doc)?;
+    let mut op = Operation::start(&req.operation_key);
+    op.requested_steps = analyzer.step_ids().into_iter().map(str::to_owned).collect();
 
     let cancel = Arc::clone(deadline.cancel_flag());
     let task_cancel = Arc::clone(&cancel);
@@ -130,14 +136,8 @@ pub(crate) async fn start_progressive(
     tokio::task::spawn_blocking(move || {
         // The task owns the stream's one sender, so the reply has ended
         // when it returns.
-        let delivered = run_progressive_task(
-            Answer { doc_id, offsets: proto_offsets, disclosure },
-            doc,
-            analyzer,
-            task_cancel,
-            task_deadline,
-            tx,
-        );
+        let answer = Answer { doc_id, offsets: proto_offsets, disclosure };
+        let delivered = run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
         if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
             // A refusal is counted in the forwarder's stats.
             let _ = sink.offer_exported(&sink_doc_id, exported, &doc);
@@ -227,6 +227,20 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
         .map_err(plain)
 }
 
+/// Sends the terminal receipt of `op` over `doc`: `result` is the
+/// identity of the complete graph the client was handed, absent when it
+/// was handed none. Returns whether the client took it.
+fn send_receipt(
+    tx: &mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
+    sequence: u64,
+    op: &Operation,
+    doc: &Document,
+    result: Option<crate::proto::result::ResultIdentity>,
+) -> bool {
+    let receipt = receipt::build(op, doc, input_identity(doc, None), result, &[]);
+    tx.blocking_send(Ok(AnalyzeProgressiveEvent { sequence, event: Some(Event::Receipt(receipt)) })).is_ok()
+}
+
 /// What the answer is about and how it is told: the client's document id
 /// and offset unit, and the PII disclosure its request asked for.
 struct Answer {
@@ -242,6 +256,7 @@ fn run_progressive_task(
     cancel: Arc<AtomicBool>,
     deadline: Deadline,
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
+    mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
     let Answer { doc_id, offsets: proto_offsets, disclosure } = answer;
     if deadline.is_expired() {
@@ -268,8 +283,7 @@ fn run_progressive_task(
             doc_id,
             offsets: proto_offsets,
             step_ids: analyzer.step_ids().into_iter().map(str::to_owned).collect(),
-            // An initial graph may already hold PII (#1904).
-            views: initial_export.views.iter().map(|r| view_info_with(r, disclosure.sanitize(&doc))).collect(),
+            views: initial_export.views.iter().map(|r| view_info(&initial_export, r)).collect(),
         })),
     };
     if tx.blocking_send(Ok(started)).is_err() {
@@ -283,6 +297,7 @@ fn run_progressive_task(
             return;
         }
         seq += 1;
+        op.executed_steps.push(ev.timing.step_id.to_owned());
         let current_doc = &ev.docs[0];
         let snap_graph = match export(current_doc, c) {
             Ok(g) => g,
@@ -297,10 +312,6 @@ fn run_progressive_task(
             }
         };
 
-        // Once the document holds PII, a snapshot follows the disclosure:
-        // no graph bytes without full_text, and identities in place of
-        // free-text status details (#1904).
-        let sanitize = disclosure.sanitize(current_doc);
         let written_names: HashSet<(String, String)> =
             ev.timing.written.iter().map(|k| (k.layer.to_string(), k.name.to_owned())).collect();
 
@@ -312,8 +323,10 @@ fn run_progressive_task(
                     written_names.contains(&(r.layer.clone(), r.instance.clone()))
                         || matches!(r.status, turbo_analysis::export::StatusRecord::Skipped(_))
                 })
-                .map(|r| layer_info_with(r, sanitize))
+                .map(|r| layer_info(&snap_graph, r))
                 .collect();
+            let error = of_error(&err);
+            let kind = crate::proto::result::LayerErrorKind::try_from(error.kind).unwrap_or_default();
             AnalyzeProgressiveEvent {
                 sequence: seq,
                 event: Some(Event::StepFailed(AnalysisStepFailure {
@@ -323,14 +336,13 @@ fn run_progressive_task(
                     failure: Some(AnalyzeFailure {
                         turbo_code: step_error_code(&err),
                         field: 0,
-                        message: if sanitize {
-                            sanitized_status(&turbo_analysis::Status::Failed(err.clone()))
-                        } else {
-                            err.to_string()
-                        },
+                        // A code name, never the error's text: an annotator's
+                        // detail can quote the document (issue #1908).
+                        message: format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
                     }),
                     skipped_dependents: ev.skipped_dependents.into_iter().map(str::to_owned).collect(),
                     layers: affected_layers,
+                    error: Some(error),
                 })),
             }
         } else {
@@ -338,9 +350,11 @@ fn run_progressive_task(
                 .layers
                 .iter()
                 .filter(|r| written_names.contains(&(r.layer.clone(), r.instance.clone())))
-                .map(|r| layer_info_with(r, sanitize))
+                .map(|r| layer_info(&snap_graph, r))
                 .collect();
-            let views = snap_graph.views.iter().map(|r| view_info_with(r, sanitize)).collect();
+            let views = snap_graph.views.iter().map(|r| view_info(&snap_graph, r)).collect();
+            // Once the document holds PII, a snapshot follows the
+            // disclosure: no graph bytes without full_text (#1904).
             let graph_bytes = if !disclosure.graph(current_doc) {
                 Vec::new()
             } else {
@@ -388,7 +402,12 @@ fn run_progressive_task(
         }
     });
 
+    doc = docs.pop().expect("single document");
     if deadline.is_expired() {
+        // The deadline cancelled the run: what ran is on the receipt, and
+        // no result was handed over.
+        op.cancelled = true;
+        let _ = send_receipt(&tx, seq + 1, &op, &doc, None);
         let _ = tx.blocking_send(Err(deadline_status()));
         return None;
     }
@@ -396,7 +415,6 @@ fn run_progressive_task(
         return None;
     }
 
-    doc = docs.pop().expect("single document");
     // The sink is offered the whole export and applies its own disclosure
     // (docs/grpc-sink.md); the client is answered under the request's.
     let full = export_document_response(&doc, &Disclosure::FULL);
@@ -404,6 +422,9 @@ fn run_progressive_task(
     match full.and_then(|full| answered.map(|complete| (full, complete))) {
         Ok((full, complete)) => {
             seq += 1;
+            // The result is the complete graph whether or not the client
+            // was handed its bytes.
+            let result = result_identity(&full.graph);
             // What the sink is offered: the bytes, layers and views of the
             // export, and the document they were exported from.
             let exported = DocumentGraphResponse {
@@ -414,7 +435,13 @@ fn run_progressive_task(
                 findings: None,
             };
             let event = AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) };
-            tx.blocking_send(Ok(event)).is_ok().then_some((exported, doc))
+            if tx.blocking_send(Ok(event)).is_err() {
+                return None;
+            }
+            // The terminal receipt; a client that left before it holds an
+            // incomplete stream, but it was handed the complete graph.
+            let _ = send_receipt(&tx, seq + 1, &op, &doc, Some(result));
+            Some((exported, doc))
         }
         Err(f) => {
             let _ = tx.blocking_send(Err(plain(f)));

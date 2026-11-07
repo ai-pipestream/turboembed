@@ -504,8 +504,8 @@ themselves), so a default answer about such a document has no graph
 bytes, no `source_text` and an empty `raw_text`. `DocumentGraphResponse`
 then carries `findings`, the typed projection onto the source view in
 UTF-8 offsets, in place of the graph; progressive step snapshots carry no
-graph once the PII step has run. Status details are cut to the failure
-kind and the layer or annotator it names, without free text. Other layers
+graph once the PII step has run. Layer and view errors are the typed
+`LayerError` of every answer (#1908), which never carries free text. Other layers
 carry the view's words (sentence text, token surfaces, lemmas), so while
 the text is withheld they are listed with their status and no
 annotations. A typed result is refused on validation when a mention's
@@ -532,9 +532,6 @@ wire compatibility, deprecated and never populated.
   says; `CIPHERTEXT` (#1885), and a value form on any other call or on a
   server without PII release, are refused with
   `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
-- `operation_key` and `attempt`: the caller's operation (idempotency) key
-  and attempt for a release. Without an operation key no value is
-  released and the answer carries the findings only.
 
 The server caps the options with `--pii-output-allow`
 (`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
@@ -596,7 +593,10 @@ Before any value leaves, the server records one `PiiAccessEvent` with
 at most `--pii-audit-timeout-ms` (`TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS`,
 5000 by default). A call that fails, times out or acknowledges another
 event id fails the request with `TURBO_E_BUSY` (`UNAVAILABLE`) and no
-value. The event carries the operation key and attempt, the input
+value. A release needs the request's `operation_key` (#1908); without
+one no value is released and the answer carries the findings only. The
+event carries the operation key and the attempt id the answer's receipt
+names, the input
 digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
 instance and index with their kind and form, the policy id and the
 SHA-256 of its rules, the time and the document id; never a value, token
@@ -696,6 +696,63 @@ never inherits old detections.
 
 Fragment projection outcomes (exact, widened, deleted, coalesced) are
 not part of this envelope yet; #1907 tracks them.
+
+## The processing receipt (issue #1908)
+
+A `ProcessingReceipt` says what one attempt at one operation did. It is
+kept apart from the result: `TypedDocumentResult.receipt` and the
+progressive stream's terminal `receipt` event reference the result by
+its `ResultIdentity`, and the result identity is the digest of the graph
+bytes, so a new attempt or receipt never changes it.
+
+| Field | What it holds |
+|---|---|
+| `operation_key` | The caller's key from `InspectDocumentGraphRequest.operation_key` or `AnalyzePipelineRequest.operation_key`, as given: at most 128 printable ASCII bytes, empty when the caller has none. Anything else is `TURBO_E_INVALID_ARGUMENT`, and the refusal does not quote it. |
+| `attempt_id` | 32 lowercase hexadecimal digits from the server, new on every attempt. |
+| `input` | The `InputIdentity` of the exact input. |
+| `result` | The `ResultIdentity` produced; absent when the attempt handed over none. |
+| `status` | `ProcessingStatus`: UNSPECIFIED (0, never written), COMPLETE, PARTIAL, NOT_ASSESSED, FAILED, CANCELLED. |
+| `layers` | One `LayerReceipt` per view and layer: status, item count, assessed source view byte ranges, requested and executed detectors (annotator and version), truncation reasons, sanitized error and the layer's provenance digest, its configuration identity. |
+| `config_digest` | SHA-256 of the processing configuration, rule `turbo.processing-config.v1` (`Document::processing_config_digest`): every view and layer entry sorted by (layer id, instance) with its annotator, version, config hash, model identity and read keys, and no text, view, source or content digest. The same configuration over other input has the same digest, so one operation key reused under another configuration is detectable; `input` carries the input digests. Per-layer provenance digests chain the text digests and stay in the envelope. |
+| `requested_steps`, `executed_steps` | The pipeline steps asked for and the ones that ran; empty for `InspectDocumentGraph`. |
+
+The document status is CANCELLED when a deadline cancelled the run,
+FAILED when any layer failed, NOT_ASSESSED when nothing past the source
+view was assessed, PARTIAL when a layer is partial or not assessed or a
+requested step did not run, and COMPLETE otherwise. A layer whose
+annotator declined the document (error kind DECLINED, such as a
+predicate that does not apply) makes the document PARTIAL by design, so
+a conditional pipeline often reads PARTIAL: the per-layer kind tells
+DECLINED from UPSTREAM and from damage. COMPLETE with an item count of 0
+is an explicit "assessed, nothing found". A complete layer assessed its
+whole source text unless its producer reports less
+(`receipt::Coverage`), which makes it PARTIAL with the truncation
+reasons.
+
+Retries keep the operation key and get a new attempt id. The server
+binds and echoes the key and keeps no state for it: rejecting a reused
+key with different input belongs to the caller, and nothing promises
+exactly-once execution.
+
+The progressive stream ends with the receipt: after `complete`, or, when
+a deadline cancels the run, as a CANCELLED receipt before the deadline
+status. A stream that ends without one (a dropped connection, an
+internal error) is incomplete whatever it delivered before;
+`turbo_kserve::results::receipt::stream::terminal_receipt` is the
+consumer check: the receipt must be whole and self-consistent, and
+bound to the caller's operation key, the source text it sent and the
+delivered graph; after no graph it must name no result and be CANCELLED
+or FAILED. `RoundTripTypedDocument` applies the same receipt checks and
+binds the receipt to its envelope: the same input and result, and one
+entry per view and layer with the envelope's provenance digest.
+
+`LayerWireStatus` starts at UNSPECIFIED = 0, so an absent status is never
+read as OK. `ViewInfo`, `TypedLayer` and `LayerInfo` say why they are not
+OK with a `LayerError` (kind, turbo code, the layer it names, the
+annotator's name) in place of the old free-text `status_detail`;
+`AnalysisStepFailure` carries one too, and its `failure.message` names
+the step and the kind only. No receipt or error carries document text,
+values, detail strings or debug renderings.
 
 ## Streaming bulk document analysis (issue #722)
 

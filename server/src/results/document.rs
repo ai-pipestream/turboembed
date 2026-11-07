@@ -7,15 +7,18 @@
 
 use std::sync::OnceLock;
 
-use turbo_analysis::ViewId;
-use turbo_analysis::export::{Codecs, DocumentGraph, LayerRecord, StatusRecord, ViewRecord, export, import};
+use turbo_analysis::export::{Codecs, DocumentGraph, LayerRecord, LayerRef, StatusRecord, ViewRecord, export, import};
+use turbo_analysis::{Layer, View, ViewId};
 
-use super::disclosure::{Disclosure, PiiOutputPolicy, sanitized_record};
+use super::disclosure::{Disclosure, PiiOutputPolicy};
+use super::receipt::error::record_status;
 use super::typed::document_to_typed_with;
 use super::{MAX_GRAPH_BYTES, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::OffsetMode;
-use crate::proto::result::{DocumentGraphRequest, DocumentGraphResponse, LayerInfo, LayerWireStatus, ViewInfo};
+use crate::proto::result::{
+    DocumentGraphRequest, DocumentGraphResponse, LayerError, LayerInfo, LayerWireStatus, ViewInfo,
+};
 
 /// Returns the cached workspace [`Codecs`] registry containing all
 /// first-party analysis layers.
@@ -46,63 +49,48 @@ fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-fn status(status: &StatusRecord) -> (LayerWireStatus, String) {
-    match status {
-        StatusRecord::Complete => (LayerWireStatus::Ok, String::new()),
-        StatusRecord::Skipped(why) => (LayerWireStatus::Skipped, why.clone()),
-        StatusRecord::Failed(error) => (LayerWireStatus::Failed, format!("{error:?}")),
-    }
+/// The wire status and sanitized error of `status`, a record in `graph`.
+fn status(graph: &DocumentGraph, status: &StatusRecord, reads: &[LayerRef]) -> (LayerWireStatus, Option<LayerError>) {
+    let done = |s: &StatusRecord| matches!(s, StatusRecord::Complete);
+    record_status(status, reads, |r| {
+        let layer = graph.layers.iter().any(|l| l.layer == r.layer && l.instance == r.instance && done(&l.status));
+        let view =
+            r.layer == <View as Layer>::ID && graph.views.iter().any(|v| v.instance == r.instance && done(&v.status));
+        layer || view
+    })
 }
 
-pub(crate) fn layer_info(record: &LayerRecord) -> LayerInfo {
-    layer_info_with(record, false)
-}
-
-/// [`layer_info`], with the status detail cut to identities when
-/// `sanitize` (#1904).
-pub(crate) fn layer_info_with(record: &LayerRecord, sanitize: bool) -> LayerInfo {
-    let (status, mut status_detail) = status(&record.status);
-    if sanitize {
-        status_detail = sanitized_record(&record.status);
-    }
+pub(crate) fn layer_info(graph: &DocumentGraph, record: &LayerRecord) -> LayerInfo {
+    let (status, error) = status(graph, &record.status, &record.provenance.reads);
     LayerInfo {
         layer: record.layer.clone(),
         instance: record.instance.clone(),
         status: status as i32,
-        status_detail,
         annotator: record.provenance.annotator.clone(),
         version: record.provenance.version.clone(),
         model: record.provenance.model.as_ref().map(model_to_proto),
         config_hash: record.provenance.config,
         items: record.len,
+        error,
     }
 }
 
-pub(crate) fn view_info(record: &ViewRecord) -> ViewInfo {
-    view_info_with(record, false)
-}
-
-/// [`view_info`], with the status detail cut to identities when
-/// `sanitize` (#1904).
-pub(crate) fn view_info_with(record: &ViewRecord, sanitize: bool) -> ViewInfo {
-    let (status, mut status_detail) = status(&record.status);
-    if sanitize {
-        status_detail = sanitized_record(&record.status);
-    }
+pub(crate) fn view_info(graph: &DocumentGraph, record: &ViewRecord) -> ViewInfo {
+    let (status, error) = status(graph, &record.status, &record.provenance.reads);
     ViewInfo {
         instance: record.instance.clone(),
         status: status as i32,
-        status_detail,
         annotator: record.provenance.annotator.clone(),
         parent: record.parent.clone().unwrap_or_default(),
+        error,
     }
 }
 
 /// Exports `doc` into a [`DocumentGraphResponse`] using the server's
 /// canonical [`Codecs`] registry, under `disclosure`: a document holding
 /// PII without `full_text` answers with no graph bytes and no source text,
-/// sanitized status details, and its findings projected onto the source
-/// view in UTF-8 offsets (`findings`).
+/// and its findings projected onto the source view in UTF-8 offsets
+/// (`findings`). Layer and view errors are typed and never carry text.
 pub fn export_document_response(
     doc: &turbo_analysis::Document,
     disclosure: &Disclosure,
@@ -122,9 +110,8 @@ fn response(
     bytes: Vec<u8>,
     disclosure: &Disclosure,
 ) -> Result<DocumentGraphResponse, Failure> {
-    let sanitize = disclosure.sanitize(doc);
-    let layers = out.layers.iter().map(|r| layer_info_with(r, sanitize)).collect();
-    let views = out.views.iter().map(|r| view_info_with(r, sanitize)).collect();
+    let layers = out.layers.iter().map(|r| layer_info(out, r)).collect();
+    let views = out.views.iter().map(|r| view_info(out, r)).collect();
     if disclosure.graph(doc) {
         return Ok(DocumentGraphResponse {
             graph: bytes.into(),

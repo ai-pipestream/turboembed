@@ -77,6 +77,7 @@ async fn assets_keep_payload_presence_when_its_text_is_deleted() {
                     offsets: mode as i32,
                     pii_output: None,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
@@ -134,6 +135,7 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     offsets: mode as i32,
                     pii_output: None,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

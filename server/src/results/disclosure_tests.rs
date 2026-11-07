@@ -2,7 +2,7 @@ use super::*;
 use crate::api::{TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 
 fn opts(rewritten_text: bool, full_text: bool, detail: bool, values: PiiValueForm) -> PiiOutputOptions {
-    PiiOutputOptions { rewritten_text, full_text, detail, values: values as i32, ..Default::default() }
+    PiiOutputOptions { rewritten_text, full_text, detail, values: values as i32 }
 }
 
 #[test]
@@ -54,15 +54,4 @@ fn flag_lists_parse_once_each_and_never_allow_values() {
     assert!(Disclosure::parse("").is_err());
     assert!(PiiOutputPolicy::NONE.allows(&Disclosure::FINDINGS));
     assert!(!PiiOutputPolicy::NONE.allows(&Disclosure::FULL));
-}
-
-#[test]
-fn sanitized_status_names_the_layer_and_drops_annotator_text() {
-    let planted = "planted-alice@example.com";
-    let failed = Status::Failed(Error::Annotator { annotator: "turbo-pii:pii", detail: planted.into() });
-    let s = sanitized_status(&failed);
-    assert_eq!(s, "annotator turbo-pii:pii");
-    assert!(!sanitized_status(&Status::Skipped(planted.into())).contains(planted));
-    let record = StatusRecord::Failed(ErrorRecord::Annotator { annotator: "x".into(), detail: planted.into() });
-    assert_eq!(sanitized_record(&record), "annotator x");
 }
