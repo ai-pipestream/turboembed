@@ -212,7 +212,11 @@ impl Annotator for MaskedView {
     }
 
     /// FNV-1a over each kind's mask byte and options, fixed so that stored
-    /// provenance stays comparable across builds.
+    /// provenance stays comparable across builds. The 10 kinds in
+    /// `PiiKind::ALL[17..27]` are compared against a baseline inferred from
+    /// `(default_policy, legacy_20_policies)`: `MaskPolicy::for_kind(k, mask)`
+    /// when `default_policy` is a whole mask and at least 10 of the 20 legacy
+    /// kinds match `for_kind`, otherwise `default_policy`.
     fn config_hash(&self) -> u64 {
         let fold_policy = |h: &mut turbo_analysis::Fnv1a, p: MaskPolicy| {
             let base = u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
