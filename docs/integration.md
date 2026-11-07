@@ -176,7 +176,10 @@ refuses; where a planted value appears in the bytes; and a Java port of the
 server's stepwise `map_span` held to Rust on the #1907 chained-view cases in
 `clients/java/src/test/resources/mapping-cases.txt`, which
 `server/tests/typed_java_cases.rs` writes with `TURBO_UPDATE_FIXTURE=1` and
-checks otherwise. A converter that
+checks otherwise; the server's projection of every layer of those cases
+into every view is held to the port, including each fragment's `outcome`
+derived by the consumer rule (exact, widened or deleted, see
+`docs/grpc-analysis.md`), and all three outcomes occur. A converter that
 already has a document's structure seeds the request with it instead of
 plain text, as the docling example below does.
 

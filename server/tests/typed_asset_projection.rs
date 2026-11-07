@@ -157,12 +157,12 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     let Some(Value::Asset(a)) = &mut row.value else { panic!("missing asset") };
                     match variant {
                         0 => a.payload_span = None,
-                        1 => a.payload_span = Some(SpanFragment { start: 1, end: 0 }),
-                        2 => a.payload_span = Some(SpanFragment { start: 0, end: len + 1 }),
-                        3 => a.payload_span = Some(SpanFragment { start: interior, end: interior }),
+                        1 => a.payload_span = Some(SpanFragment::exact(1, 0)),
+                        2 => a.payload_span = Some(SpanFragment::exact(0, len + 1)),
+                        3 => a.payload_span = Some(SpanFragment::exact(interior, interior)),
                         // In nonempty views this is an in-bounds empty span
                         // outside the asset, so emptiness alone cannot excuse it.
-                        4 => a.payload_span = Some(SpanFragment { start: 0, end: u32::from(view == 3) }),
+                        4 => a.payload_span = Some(SpanFragment::exact(0, u32::from(view == 3))),
                         5 => row.spans.clear(),
                         _ => unreachable!(),
                     }

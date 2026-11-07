@@ -1,6 +1,6 @@
 use turbo_analysis::{Document, Key, Provenance, Span, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{Quotation, Quotations, QuoteKind};
-use turbo_kserve::proto::result::{OffsetMode, SpanFragment};
+use turbo_kserve::proto::result::{OffsetMode, SpanFragment, SpanOutcome};
 
 pub fn span(text: &str, needle: &str) -> Span {
     let start = text.find(needle).unwrap();
@@ -60,13 +60,25 @@ pub fn document() -> Document {
     d.add(&Key::named("gold"), gold, Provenance::by("test:quotes-gold")).unwrap();
     d
 }
+/// `span` of `from` on `target` with what projection did to it (#1907),
+/// exact on its own view.
 pub fn projected(doc: &Document, from: ViewId, target: ViewId, span: Span, mode: OffsetMode) -> SpanFragment {
-    let mapped = if from == target { span } else { doc.from_source(target, doc.to_source(from, span)) };
+    let (mapped, outcome) = if from == target {
+        (span, SpanOutcome::Exact)
+    } else {
+        let p = doc.map_span_outcome(from, target, span).unwrap();
+        let outcome = match p.outcome {
+            turbo_analysis::SpanOutcome::Exact => SpanOutcome::Exact,
+            turbo_analysis::SpanOutcome::Widened => SpanOutcome::Widened,
+            turbo_analysis::SpanOutcome::Deleted => SpanOutcome::Deleted,
+        };
+        (p.span, outcome)
+    };
     let text = doc.text(target);
     let units = |at: u32| match mode {
         OffsetMode::Utf8 => at,
         OffsetMode::Utf16 => text[..at as usize].encode_utf16().count() as u32,
         OffsetMode::CodePoint => text[..at as usize].chars().count() as u32,
     };
-    SpanFragment { start: units(mapped.start), end: units(mapped.end) }
+    SpanFragment { start: units(mapped.start), end: units(mapped.end), outcome: outcome as i32, members: Vec::new() }
 }

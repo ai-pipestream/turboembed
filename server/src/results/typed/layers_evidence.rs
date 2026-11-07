@@ -5,7 +5,7 @@ use std::any::TypeId;
 use turbo_analysis::{Evidence, KeyId, View, ViewId};
 use turbo_analysis_layers::{Categories, CategoryScope, Chunks, Sentences, Structure};
 
-use super::{ProjectionCx, build_layer, coalesce_wire_spans};
+use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{EvidenceAnnotation, EvidenceSupport, TypedAnnotation, TypedLayer};
 
@@ -16,9 +16,7 @@ fn project<L: CategoryScope>(cx: &mut ProjectionCx<'_>, key: KeyId) -> TypedLaye
                 let producer = evidence.producer_of(i);
                 let model = cx.register_producer(&producer.annotator, producer.model.as_ref());
                 TypedAnnotation {
-                    spans: coalesce_wire_spans(
-                        evidence.spans_of(i).iter().map(|&s| cx.project_wire_span(ViewId::SOURCE, s)).collect(),
-                    ),
+                    spans: cx.project_fragments(ViewId::SOURCE, evidence.spans_of(i).iter().copied()),
                     probability: None,
                     model_ref: Some(model),
                     value: Some(Value::Evidence(EvidenceAnnotation {
