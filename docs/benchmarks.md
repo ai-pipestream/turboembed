@@ -663,12 +663,13 @@ Mac's GPU we know of, so it is the metal backend's kernel reference.
 The tool writes its runner, `bench/reference/mlx_reference.py`, and the
 measured rows (ids, mask and types) to a fresh directory under `--work`,
 and runs `python3 -E <mlx-reference> --model <mlx-model> --dtype <float16
-or float32> --rows <work>/rows.json --warmup <n> --iterations <n>
+or float32> --pooling <mean or cls> --rows <work>/rows.json --warmup <n> --iterations <n>
 --version 0.29.3 --out <work>/receipt.json`; the runner refuses an MLX
 of another version (`MLX_VERSION` in `bench/src/mlx.rs`). The runner is `bench/metal-peers/mlx_bench.py`'s
 encoder: every weight cast to the dtype it runs in (float16 at FASTEST,
 float32 otherwise), `mx.fast` LayerNorm and attention, `mx.compile`d,
-mean pooling over the mask and L2 normalization in F32. It runs the rows
+the bundle's pooling (the mean over the mask, or CLS, the first token's
+state) and L2 normalization in F32. It runs the rows
 as a padded batch, so `computed_tokens` is the padded pass. Its time is
 host wall time, each run waited for with `mx.eval`: the encoder and
 pooling, with the rows already on the device and the vectors not read
@@ -682,7 +683,8 @@ just before it ran, the SHA-256 of `mlx/lib/mlx.metallib` and of the
 `mlx.core` module, and the runner's. The Python is the machine's
 `python3`, with its user site packages, where pip puts MLX. `--mlx-model` must hold `config.json` and, as
 `model.safetensors`, the artifact the device loaded, checked by its
-hash; a bundle whose contract is not mean pooling with L2 is refused.
+hash; a bundle whose contract is not mean or CLS pooling with L2 is refused,
+and so is a receipt whose pooling is not the bundle's.
 MLX float16 is F16 throughout, LayerNorm included, a looser contract
 than FASTEST's F32 residual stream and sums (docs/metal.md).
 
@@ -1100,6 +1102,30 @@ ranges here, 7 and 10 percent in the earlier runs (0.929 and 0.901), as
 on CUDA at MODEL. The earlier records were not kept. A range over a whole row gave the row's vector
 to the bit, and the lowest cosine of a chunk's range vector to its
 chunk row's was 0.69.
+
+On the Hailo-8 (HailoRT 4.23.0) and the Hailo-10H (HailoRT 5.1.1), each
+on a Raspberry Pi 5, with all-MiniLM-L6-v2 (the bundles of the Hailo I8
+reference records, manifests `f4256cb3` and `e57c4f36`) at commit
+`89e6a6ae`, the HEFs' fixed sequence of 128 sets the shape: 32 rows of
+128 tokens and chunks of 64, two a row, 64 chunks, the chunk rows in
+one frame of 64:
+
+| Device | Precision | Rows p50 | Ranges p50 | One row per chunk p50 | Ranges over rows | One row per chunk over ranges |
+| --- | --- | --- | --- | --- | --- | --- |
+| Hailo-8 | FASTEST (I8) | 94.451 ms | 94.454 ms | 174.086 ms | 1.000 | 1.843 |
+| Hailo-8 | MODEL (I8) | 94.450 ms | 94.458 ms | 174.092 ms | 1.000 | 1.843 |
+| Hailo-10H | FASTEST (I8) | 42.265 ms | 42.267 ms | 68.456 ms | 1.000 | 1.620 |
+| Hailo-10H | MODEL (I8) | 42.160 ms | 42.104 ms | 68.287 ms | 0.999 | 1.622 |
+
+Both precisions run the same I8 HEF, so the two rows of each device
+are the same work measured twice. The ranges are pooled on the host as
+each frame comes back (docs/hailo.md) and cost the same as the rows to
+within 0.14 percent. Embedding each chunk as a row of its own takes 84
+percent (Hailo-8) and 62 percent (Hailo-10H) longer than the ranges:
+the device pays per padded frame, and the chunk rows are twice as many.
+A range over a whole row gave the row's vector to the bit, and the
+lowest cosine of a chunk's range vector to its chunk row's was 0.73
+(Hailo-8) and 0.76 (Hailo-10H).
 
 ## Part-of-speech records
 

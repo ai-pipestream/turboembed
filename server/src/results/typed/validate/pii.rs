@@ -1,4 +1,5 @@
-//! PII on the wire: the custom-kind table of a `turbo:pii` layer, and each
+//! PII on the wire: the custom-kind table of a `turbo:pii` layer (or of
+//! the `turbo:pii-edits` layer that covers one), and each
 //! mention's kind reference and confidence tier. A kind is a built-in id
 //! [`PiiKind::from_id`] knows or an index into the layer's
 //! `custom_pii_kinds`; a tier is one [`PiiConfidence::from_id`] knows.
@@ -10,24 +11,25 @@
 use std::fmt::Write as _;
 
 use turbo_analysis::Layer;
-use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiConfidence, PiiKind};
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiConfidence, PiiEdits, PiiKind};
 
 use super::*;
 use crate::proto::result::pii_kind_ref::Kind;
 use crate::proto::result::pii_value::Form;
 use crate::proto::result::{PiiMention, TypedLayer};
 
-/// The PII layer id: the one layer a findings-only result annotates.
-pub(super) const LAYER: &str = Pii::ID;
-
 /// The number of custom kinds `layer` names: its `custom_pii_kinds`, which
 /// only a `turbo:pii` layer may carry, held to [`CustomKinds::from_names`].
 pub(super) fn custom_kinds(layer: &TypedLayer) -> Result<usize, Failure> {
     let lid = layer.id.as_str();
     let names = &layer.custom_pii_kinds;
-    if lid != Pii::ID {
+    if lid != Pii::ID && lid != PiiEdits::ID {
         if !names.is_empty() {
-            return Err(bad(format!("layer {lid} carries custom_pii_kinds; only {} may", Pii::ID)));
+            return Err(bad(format!(
+                "layer {lid} carries custom_pii_kinds; only {} and {} may",
+                Pii::ID,
+                PiiEdits::ID
+            )));
         }
         return Ok(0);
     }

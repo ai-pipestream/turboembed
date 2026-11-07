@@ -8,6 +8,7 @@ mod annotation;
 mod envelope;
 mod evidence;
 mod pii;
+mod pii_edits;
 mod quality;
 mod quotations;
 mod receipt;
@@ -175,7 +176,7 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
 
     for layer in &msg.layers {
-        if msg.withheld_text_len.is_some() && layer.id != pii::LAYER {
+        if msg.withheld_text_len.is_some() && !crate::results::disclosure::is_findings_layer(&layer.id) {
             withheld_layer(&known_models, layer)?;
             continue;
         }
@@ -298,6 +299,7 @@ fn validate_layer(
     quality::layer(layer)?;
     quotations::layer(layer)?;
     evidence::layer(layer)?;
+    pii_edits::layer(msg, text, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }

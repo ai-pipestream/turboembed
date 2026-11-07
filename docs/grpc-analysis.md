@@ -450,6 +450,17 @@ names the layer, the row and its wire spans, never the mention's text, a
 custom kind name or the refused number. A mention whose
 text the requested view deletes keeps an empty span where it was.
 
+A `turbo:pii-edits` layer projects one `PiiEditAnnotation` (oneof arm 98)
+an edit: the annotation's spans are the replacement on the requested view;
+`source` is the replaced bytes on the parent of the layer's native view in
+canonical UTF-8 bytes, whatever the `OffsetMode`; `members` are rows of
+the covered `turbo:pii` layer, ascending; `rule` is `default_rule` or a
+`PiiKindRef` into the layer's `custom_pii_kinds`, which repeats the
+covered pii layer's table; `strategy` is a `PiiStrategy`; and
+`policy_revision` is the caller's number. No value is carried. Validation
+refuses an edit with no source span, no members, members out of order or
+past the covered layer, a missing rule, or an unknown strategy (#1902).
+
 Evidence producers record only annotator and optional model identity.
 Their model-table entries use version `"0"`, config hash `0`, and absent
 execution metadata for the unrecorded fields. They do not borrow those

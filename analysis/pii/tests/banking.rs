@@ -4,6 +4,7 @@
 mod support;
 
 use support::*;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{Pseudonymizer, mask_all};
 use turbo_pii::{Extractor, Pack, PiiDetector, Scanner};
 
@@ -128,7 +129,10 @@ fn government_routing_in_every_pack_that_has_it() {
         assert_found(&d, &text, &[(8, 17, "aba-routing", GOVERNMENT)]);
         let pii = layer(&d, &text);
         assert_eq!(mask_all(&text, &pii, '*').unwrap(), "Routing *********.");
-        assert_eq!(Pseudonymizer::new("", "").rewrite(&text, &pii).unwrap().text(), "Routing ABA-ROUTING-1.");
+        assert_eq!(
+            Pseudonymizer::new("", "").rewrite(&source_view(&text), &pii).unwrap().text(),
+            "Routing ABA-ROUTING-1."
+        );
     }
 }
 

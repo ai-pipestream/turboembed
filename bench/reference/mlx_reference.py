@@ -2,20 +2,21 @@
 backend's MLX reference (docs/benchmarks.md, Reference programs).
 
 The encoder is bench/metal-peers/mlx_bench.py's: every weight cast to the
-dtype it runs in, `mx.fast` LayerNorm and attention, `mx.compile`d, mean
-pooling over the mask and L2 normalization in F32. It runs on the rows as
+dtype it runs in, `mx.fast` LayerNorm and attention, `mx.compile`d, the
+bundle's pooling (the mean over the mask, or the first token's state, CLS)
+and L2 normalization in F32. It runs on the rows as
 turbo-bench wrote them (ids, mask and types, batch x seq), a padded batch,
 so it computes every position. Untimed runs, then timed ones, each waited
 for with `mx.eval`; the vectors of the last run are written back for the
 tool to hold against the bundle's reference.
 
 Arguments: --model <dir with config.json and model.safetensors> --dtype
-float16|float32 --rows <rows.json> --warmup N --iterations N --version V
+float16|float32 --pooling mean|cls --rows <rows.json> --warmup N --iterations N --version V
 --out <receipt.json>. Refuses an MLX whose version is not V. Writes one
 JSON object: the MLX version, the SHA-256 of the library that runs the
 kernels (lib/libmlx.dylib), of the kernels themselves (lib/mlx.metallib)
 and of the Python module (mlx.core), the host's load averages before the
-runs, the dtype, batch and seq, each timed run in ms (host wall time of
+runs, the dtype, the pooling, batch and seq, each timed run in ms (host wall time of
 the encoder and pooling, with the rows already on the device and the
 vectors not read back) and the vectors.
 """
@@ -42,7 +43,7 @@ def load(model_dir, dtype):
     return cfg, w
 
 
-def encoder(cfg, w):
+def encoder(cfg, w, pooling):
     layers, heads, hidden = cfg["num_hidden_layers"], cfg["num_attention_heads"], cfg["hidden_size"]
     eps, hd = cfg["layer_norm_eps"], hidden // heads
 
@@ -75,8 +76,11 @@ def encoder(cfg, w):
             x = ln(x + linear(a, p + "attention.output.dense"), p + "attention.output.LayerNorm")
             f = gelu(linear(x, p + "intermediate.dense"))
             x = ln(x + linear(f, p + "output.dense"), p + "output.LayerNorm")
-        m = mask.astype(mx.float32)[:, :, None]
-        pooled = (x.astype(mx.float32) * m).sum(axis=1) / m.sum(axis=1)
+        if pooling == "cls":
+            pooled = x[:, 0, :].astype(mx.float32)
+        else:
+            m = mask.astype(mx.float32)[:, :, None]
+            pooled = (x.astype(mx.float32) * m).sum(axis=1) / m.sum(axis=1)
         return pooled / mx.maximum(mx.linalg.norm(pooled, axis=1, keepdims=True), 1e-12)
 
     return mx.compile(forward)
@@ -86,6 +90,7 @@ def main():
     a = argparse.ArgumentParser()
     a.add_argument("--model", required=True)
     a.add_argument("--dtype", required=True, choices=["float16", "float32"])
+    a.add_argument("--pooling", required=True, choices=["mean", "cls"])
     a.add_argument("--rows", required=True)
     a.add_argument("--warmup", type=int, required=True)
     a.add_argument("--iterations", type=int, required=True)
@@ -101,7 +106,7 @@ def main():
     shape = lambda v: mx.array(v, dtype=mx.int32).reshape(b, s)
     ids, mask, types = shape(rows["ids"]), shape(rows["mask"]), shape(rows["types"])
     cfg, w = load(o.model, {"float32": mx.float32, "float16": mx.float16}[o.dtype])
-    run = encoder(cfg, w)
+    run = encoder(cfg, w, o.pooling)
     for _ in range(o.warmup):
         mx.eval(run(ids, mask, types))
     times = []
@@ -125,6 +130,7 @@ def main():
         "core_sha256": sha256(mx.__file__),
         "loadavg": loadavg,
         "dtype": o.dtype,
+        "pooling": o.pooling,
         "batch": b,
         "seq": s,
         "times_ms": times,

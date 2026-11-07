@@ -4,8 +4,9 @@
 
 use std::collections::BTreeMap;
 
-use turbo_analysis::ViewId;
+use turbo_analysis::{Layer, Span, ViewId};
 use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
+use turbo_pii::rewrite::PiiRewrite;
 use turbo_pii::{CustomKindId, CustomKinds, Extractor, Pack, Pii, PiiDetector, PiiKind, PiiKinds, Scanner};
 
 /// The custom kinds the tests name, in table order: entry `i` is
@@ -235,4 +236,47 @@ pub fn manual(mentions: &[(u32, u32, PiiKind, &str)]) -> Pii {
         });
     }
     pii
+}
+
+/// Reference offset mapping from `rewrite.rs`: where a rewrite puts
+/// `offset` of the source, given each replaced span and its label.
+pub fn expected_offset(offset: u32, end: bool, sources: &[Span], labels: &[Span]) -> u32 {
+    let mut shift: i64 = 0;
+    for (source, label) in sources.iter().zip(labels) {
+        if offset <= source.start {
+            return (i64::from(offset) + shift) as u32;
+        }
+        if offset < source.end {
+            return if end { label.end } else { label.start };
+        }
+        shift += i64::from(label.end - label.start) - i64::from(source.end - source.start);
+    }
+    (i64::from(offset) + shift) as u32
+}
+
+#[track_caller]
+pub fn assert_offset_and_span_maps(text: &str, sources: &[Span], rewrite: &PiiRewrite) {
+    assert_eq!(rewrite.labels().check(), Ok(()));
+    let labels: Vec<Span> = rewrite.labels().mentions().map(|m| m.span).collect();
+    assert_eq!(sources.len(), labels.len());
+    for m in rewrite.labels().mentions() {
+        assert_eq!(&rewrite.text()[m.span.range()], m.normalized);
+    }
+    let bounds: Vec<u32> = (0..=text.len()).filter(|&i| text.is_char_boundary(i)).map(|i| i as u32).collect();
+    for &s in &bounds {
+        let start = expected_offset(s, false, sources, &labels);
+        // An empty span strictly inside a replaced mention stands for that
+        // mention, so it takes in the whole label; any other empty span
+        // stays empty.
+        let inside = sources.iter().position(|m| m.start < s && s < m.end);
+        for &e in bounds.iter().filter(|&&e| e >= s) {
+            let want = match inside {
+                Some(k) if s == e => labels[k],
+                _ if s == e => Span::new(start, start),
+                _ => Span::new(start, expected_offset(e, true, sources, &labels)),
+            };
+            assert_eq!(rewrite.to_derived(Span::new(s, e)), Ok(want), "span {s}..{e} in {text:?}");
+            assert!(rewrite.to_original(want).unwrap().contains(Span::new(s, e)), "{s}..{e} in {text:?}");
+        }
+    }
 }

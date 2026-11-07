@@ -3,7 +3,7 @@
 //! to different kinds never share an override.
 
 use turbo_analysis::{Span, ViewId};
-use turbo_pii::rewrite::StaticReplacer;
+use turbo_pii::rewrite::{StaticReplacer, source_view};
 use turbo_pii::{CustomKinds, Pii, PiiConfidence, PiiKind, PiiMention};
 
 const TEXT: &str = "A-1 B-2";
@@ -28,8 +28,8 @@ fn an_override_follows_the_kind_name_not_the_custom_index() {
     let replacer =
         StaticReplacer::new("DEFAULT").with_custom_kinds(a.clone()).with(a.find("acct").unwrap(), "ACCT-REPLACED");
 
-    let on_a = replacer.rewrite(TEXT, &layer(&a)).unwrap().into_text();
-    let on_b = replacer.rewrite(TEXT, &layer(&b)).unwrap().into_text();
+    let on_a = replacer.rewrite(&source_view(TEXT), &layer(&a)).unwrap().into_text();
+    let on_b = replacer.rewrite(&source_view(TEXT), &layer(&b)).unwrap().into_text();
     assert_eq!(on_a, "ACCT-REPLACED DEFAULT");
     assert_eq!(on_b, "ACCT-REPLACED DEFAULT");
 
@@ -42,7 +42,7 @@ fn an_override_follows_the_kind_name_not_the_custom_index() {
         confidence: PiiConfidence::Format,
         normalized: "x",
     });
-    assert_eq!(replacer.rewrite(TEXT, &pii).unwrap().into_text(), "DEFAULT B-2");
+    assert_eq!(replacer.rewrite(&source_view(TEXT), &pii).unwrap().into_text(), "DEFAULT B-2");
 }
 
 #[test]

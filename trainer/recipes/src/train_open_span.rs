@@ -70,6 +70,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             remaining = remaining.saturating_sub(keep);
         }
     }
+    let train_periods: Vec<usize> = corpora.iter().map(|c| c.splits.train.len()).collect();
     if balance && corpora.len() > 1 {
         let target = corpora.iter().map(|c| c.splits.train.len()).max().unwrap_or(0);
         for c in &mut corpora {
@@ -107,8 +108,12 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         extracted.push(features(&mut enc, corpus, full, pooling, cache_dir.as_deref(), layer_arg, &encoder)?);
     }
     let (mut train_wf, mut dev_wf, mut test_wf) = (Vec::new(), Vec::new(), Vec::new());
-    for (corpus, f) in corpora.iter().zip(&extracted) {
-        train_wf.extend(f.train.iter().take(corpus.splits.train.len()).cloned());
+    for ((corpus, f), period) in corpora.iter().zip(&extracted).zip(&train_periods) {
+        train_wf.extend(turbo_trainer_recipes::open_span_mix::align_train_features(
+            &f.train,
+            corpus.splits.train.len(),
+            *period,
+        )?);
         dev_wf.extend(f.dev.clone());
         test_wf.extend(f.test.clone());
     }
