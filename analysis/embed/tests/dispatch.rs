@@ -25,7 +25,7 @@ use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 mod held_out;
 use held_out::held_out;
 mod paired;
-use paired::{ATTEMPTS, added, settle, window};
+use paired::{ATTEMPTS, added, pooled, settle, window};
 
 fn bert() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -315,8 +315,10 @@ fn the_shape_predicted_is_the_shape_run() {
 /// dispatched calls and the step they run on, back to back: what dispatch
 /// adds (see `paired::added`) is no more than the planning (timed on its
 /// own) and the board's own window, from six pairs of the step against
-/// itself timed at the start of each set (see `paired::window`). Pairs too noisy to read are timed again,
-/// up to ATTEMPTS sets, and then reported inconclusive; under
+/// itself timed at the start of each set (see `paired::window`). Pairs too
+/// noisy to read are timed again, up to ATTEMPTS sets; then all of them are
+/// read at once (see `paired::pooled`), and a submission still too noisy is
+/// reported inconclusive; under
 /// TURBO_TEST_REQUIRE_HAILO=1 an inconclusive submission fails the run.
 /// Prints each side's middle and spread, what dispatch adds, the window,
 /// every set of pairs, and the inconclusive submissions.
@@ -423,7 +425,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                 // middle of the quiet pairs' differences is what dispatch
                 // adds. Noisy pairs are timed again, up to ATTEMPTS sets.
                 let chosen = if chose_cpu { &on_cpu } else { &on_device };
-                let mut sets = Vec::new();
+                let (mut sets, mut owns) = (Vec::new(), Vec::new());
                 let (reading, w) = loop {
                     // Each set starts with the step against itself, six pairs:
                     // the window within which the board tells two of its runs
@@ -431,6 +433,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                     let own: Vec<(f64, f64)> =
                         (0..6).map(|_| (timed(chosen, sub, reps), timed(chosen, sub, reps))).collect();
                     let w = window(&own);
+                    owns.extend(own);
                     let pairs: Vec<(f64, f64)> = (0..6)
                         .map(|i| {
                             if i % 2 == 0 {
@@ -442,19 +445,22 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                             }
                         })
                         .collect();
-                    let got = w.and_then(|w| added(&pairs, w));
+                    let got = w.and_then(|w| added(&pairs, w).map(|(d, fixed)| (d, fixed, w * fixed, "quiet")));
                     sets.push(pairs);
                     if got.is_some() || sets.len() == ATTEMPTS {
                         break (got, w);
                     }
                 };
+                // No set quiet enough: every set's pairs at once (see
+                // `paired::pooled`).
+                let reading = reading.or_else(|| pooled(&sets.concat(), &owns).map(|(d, f, g)| (d, f, g, "pooled")));
                 let shown: Vec<String> = sets
                     .iter()
                     .map(|set| set.iter().map(|(x, y)| format!("{x:.3}/{y:.3}")).collect::<Vec<_>>().join(" "))
                     .collect();
                 let dispatched = middle(&sets.last().unwrap().iter().map(|p| p.0).collect::<Vec<_>>());
                 let reported = match reading {
-                    Some((d, fixed)) => format!("{d:+.3}\t{:+.3}%", 100.0 * d / fixed),
+                    Some((d, fixed, _, how)) => format!("{d:+.3}\t{:+.3}% {how}", 100.0 * d / fixed),
                     None => "inconclusive\t".to_string(),
                 };
                 let own = w.map_or("over 5%".to_string(), |w| format!("{:.3}%", 100.0 * w));
@@ -464,17 +470,17 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                     spread(&t[1]),
                 );
                 println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown.join(" | "));
-                let (Some((d, fixed)), Some(w)) = (reading, w) else {
+                let Some((d, fixed, allowed, how)) = reading else {
                     inconclusive.push(format!("{max_seq}x{cap} {what}"));
                     continue;
                 };
-                // What dispatch adds is no more than the planning and the
-                // board's window of the time, below which paired rounds do
-                // not tell two runs of the same step apart.
+                // What dispatch adds is no more than the planning and what
+                // the board allows, below which paired rounds do not tell two
+                // runs of the same step apart.
                 assert!(
-                    d <= plan + w * fixed,
-                    "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms (pairs {}), over planning {plan:.3} and \
-                     {w:.4} of {fixed:.3}",
+                    d <= plan + allowed,
+                    "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms ({how}, pairs {}), over planning {plan:.3} \
+                     and {allowed:.3} of {fixed:.3}",
                     shown.join(" | ")
                 );
             }

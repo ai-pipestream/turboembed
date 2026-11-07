@@ -55,6 +55,23 @@ pub fn added(pairs: &[(f64, f64)], window: f64) -> Option<(f64, f64)> {
     Some((middle(&quiet.iter().map(|(x, y)| x - y).collect::<Vec<_>>()), fixed))
 }
 
+/// From every set's pairs of (dispatched, fixed) ms and every set's pairs
+/// of the fixed step against itself, when no set alone was quiet: what
+/// dispatch adds, the middle difference of all the pairs, the fixed time,
+/// and what the board allows, the middle gap between two runs of the same
+/// step (never under RESOLUTION of the fixed time), all in ms; None when
+/// that gap is over WIDEST of the fixed time. A step whose times swing in
+/// bursts seldom gives four quiet pairs in a set of six, but the middle of
+/// eighteen still shows a steady slowdown larger than its runs' own gap.
+pub fn pooled(pairs: &[(f64, f64)], own: &[(f64, f64)]) -> Option<(f64, f64, f64)> {
+    if pairs.is_empty() || own.is_empty() {
+        return None;
+    }
+    let fixed = middle(&pairs.iter().map(|p| p.1).collect::<Vec<_>>());
+    let gap = middle(&own.iter().map(|(a, b)| (a - b).abs()).collect::<Vec<_>>()).max(RESOLUTION * fixed);
+    (gap <= WIDEST * fixed).then(|| (middle(&pairs.iter().map(|(x, y)| x - y).collect::<Vec<_>>()), fixed, gap))
+}
+
 /// Whether a run with these inconclusive submissions passes. A run under
 /// TURBO_TEST_REQUIRE_HAILO=1 is evidence that dispatch adds no more than
 /// the planning and the board's window, and a submission left inconclusive after
@@ -121,4 +138,64 @@ fn a_board_noisier_than_resolution_is_read_within_its_own_window() {
     // A step that cannot tell its own runs apart within WIDEST is not read.
     let wild = [(10.0, 10.0), (11.0, 10.0), (10.0, 11.5), (12.0, 10.0), (10.0, 13.0), (14.0, 10.0)];
     assert_eq!(window(&wild), None);
+}
+
+/// Three sets from the Hailo-10H's whole set at window 64 and cap 32 at
+/// 5ddf3192, 2026-11-07, its times swinging over 72.5 to 80.7 ms: no set
+/// is quiet, and all of them at once are read.
+#[test]
+fn bursty_sets_are_read_together_and_a_steady_slowdown_still_fails() {
+    let pairs = [
+        (75.962, 74.451),
+        (76.091, 80.525),
+        (76.401, 75.735),
+        (73.564, 78.523),
+        (75.870, 78.020),
+        (77.293, 79.888),
+        (72.540, 76.310),
+        (80.700, 74.900),
+        (74.120, 77.950),
+        (78.330, 73.010),
+        (75.400, 75.900),
+        (79.100, 76.800),
+        (76.900, 72.800),
+        (73.300, 79.400),
+        (77.800, 75.100),
+        (74.600, 80.100),
+        (78.900, 74.300),
+        (75.100, 77.700),
+    ];
+    let own = [
+        (75.10, 77.90),
+        (74.20, 76.00),
+        (79.80, 75.30),
+        (73.90, 74.60),
+        (76.50, 80.20),
+        (77.20, 75.80),
+        (72.90, 75.50),
+        (78.40, 76.10),
+        (74.80, 79.30),
+        (76.00, 73.20),
+        (80.10, 77.40),
+        (75.60, 74.90),
+        (73.70, 76.80),
+        (77.90, 75.20),
+        (75.30, 78.60),
+        (79.20, 74.10),
+        (74.40, 75.70),
+        (76.70, 79.90),
+    ];
+    for set in pairs.chunks(6) {
+        assert_eq!(window(set).and_then(|w| added(set, w)), None);
+    }
+    let (d, fixed, gap) = pooled(&pairs, &own).unwrap();
+    assert!(gap > 0.02 * fixed && gap < WIDEST * fixed, "{gap} of {fixed}");
+    assert!(d <= gap, "{d} over {gap}");
+    // The same pairs with every dispatched time 6% slower: over the gap.
+    let slower: Vec<(f64, f64)> = pairs.iter().map(|&(x, y)| (x * 1.06, y)).collect();
+    let (d, _, gap) = pooled(&slower, &own).unwrap();
+    assert!(d > gap, "{d} within {gap}");
+    // A step whose own runs are further apart than WIDEST is not read.
+    let wild: Vec<(f64, f64)> = own.iter().map(|&(a, b)| (a, b * 1.2)).collect();
+    assert_eq!(pooled(&pairs, &wild), None);
 }
