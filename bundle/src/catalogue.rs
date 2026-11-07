@@ -28,6 +28,7 @@ pub const MODELS: &[(&str, &str)] = &[
 /// The recipes under bundle/recipes made only by their path, and why.
 pub const BY_PATH: &[(&str, &str)] = &[
     ("all-minilm-l6-v2.json", "reads a calibration file beside the recipe"),
+    ("all-minilm-l6-v2-npu-s256.json", "NPU fixed_seq=256 variant of all-minilm-l6-v2 (#1480)"),
     ("all-minilm-l6-v2-static.json", "reads a quality file beside the recipe"),
     ("bge-base-en-v1.5-static.json", "reads a quality file beside the recipe"),
     ("bge-m3-8192.json", "a second build of BAAI/bge-m3, whose id the catalogue gives bge-m3.json"),

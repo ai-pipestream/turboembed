@@ -1,0 +1,19 @@
+date: 2026-11-05T18:22:10.9789753-08:00
+Intel(R) Core(TM) Ultra 7 265T
+Caption     : Microsoft Windows 11 Pro
+Version     : 10.0.26200
+BuildNumber : 26200
+
+FriendlyName      Status
+------------      ------
+Intel(R) AI Boost OK
+
+DeviceName    : Intel(R) AI Boost
+DriverVersion : 32.0.100.4778
+DriverDate    : 4/27/2026 5:00:00 PM
+
+ze_loader: 1.28.2
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+cargo 1.99.1 (5f94df478 2026-08-27)
+git version 2.55.0.windows.5
+minilm bundle: <bundle>/minilm-npu-token-ids-f16-s256-605aeb78e
