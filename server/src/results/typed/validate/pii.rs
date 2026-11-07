@@ -156,6 +156,8 @@ impl Row<'_> {
     }
 }
 
+// Reads the retired string fields only to refuse them.
+#[allow(deprecated)]
 pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &PiiMention) -> Result<(), Failure> {
     let row = Row { ctx, i, ann };
     if ctx.lid != Pii::ID {
@@ -164,17 +166,20 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     if ann.spans.is_empty() {
         return Err(row.refuse("pii mention has no span"));
     }
-    row.kind(m.kind.as_ref())?;
+    if !m.kind.is_empty() || !m.confidence_tier.is_empty() {
+        return Err(row.refuse("pii mention sets a retired string kind or confidence_tier"));
+    }
+    row.kind(m.kind_ref.as_ref())?;
     row.detector("detector", m.detector.as_ref())?;
     let facts = row.evidence(&m.evidence)?;
     row.score(m.score.as_ref())?;
-    let Some(tier) = u32::try_from(m.confidence_tier).ok().and_then(PiiConfidence::from_id) else {
-        return Err(row.refuse("pii confidence_tier is not a known tier"));
+    let Some(tier) = u32::try_from(m.confidence).ok().and_then(PiiConfidence::from_id) else {
+        return Err(row.refuse("pii confidence is not a known tier"));
     };
     let derived = PiiConfidence::derive(&facts);
     if tier != derived {
         return Err(bad(format!(
-            "{} pii confidence_tier is {} but its evidence derives to {}",
+            "{} pii confidence is {} but its evidence derives to {}",
             row.at(),
             tier.name(),
             derived.name()

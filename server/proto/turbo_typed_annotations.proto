@@ -681,12 +681,17 @@ message PiiScore
 // derives to is refused.
 message PiiMention
 {
-  PiiKindRef kind = 1;
-  PiiConfidenceTier confidence_tier = 2;
+  // Never populated; use kind_ref.
+  string kind = 1 [deprecated = true];
+  // Never populated; use confidence.
+  string confidence_tier = 2 [deprecated = true];
   string normalized = 3;
+  // Field 4 is held for the value work; 8 and 9 are spare.
   PiiDetectorRef detector = 5;
   repeated PiiEvidence evidence = 6;
   optional PiiScore score = 7;
+  PiiKindRef kind_ref = 10;
+  PiiConfidenceTier confidence = 11;
 }
 
 // Why a rule rejected a candidate. UNSPECIFIED is refused.
