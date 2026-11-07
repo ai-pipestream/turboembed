@@ -165,7 +165,7 @@ fn check_verifies_a_colocated_summary() {
     let row = |digest: String| {
         serde_json::json!({
             "label": "masc-pos-B", "kind": "head",
-            "dir": path(&h), "receipt": path(&h.join("receipt.json")),
+            "dir": ".", "receipt": "receipt.json",
             "receipt_sha256": digest, "commit": COMMIT,
             "model": 0.9581, "baseline": 0.8964, "wall_s": 1.0, "outputs": [],
         })
@@ -173,7 +173,7 @@ fn check_verifies_a_colocated_summary() {
     fs::write(
         h.join("summary.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
-            "schema": "turboembed.trainer.summary/1", "command": ["summarize"],
+            "schema": "turboembed.trainer.summary/1", "command": ["summarize", "."],
             "commit": COMMIT,
             "corpora": [{"corpus": "masc-pos", "task": "tags", "metric": "accuracy", "rows": [row("0".repeat(64))]}],
         }))
@@ -186,7 +186,7 @@ fn check_verifies_a_colocated_summary() {
     fs::write(
         h.join("summary.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
-            "schema": "turboembed.trainer.summary/1", "command": ["summarize"],
+            "schema": "turboembed.trainer.summary/1", "command": ["summarize", "."],
             "commit": COMMIT,
             "corpora": [{"corpus": "masc-pos", "task": "tags", "metric": "accuracy", "rows": [row(good)]}],
         }))
@@ -194,5 +194,96 @@ fn check_verifies_a_colocated_summary() {
     )
     .unwrap();
     let ok = summarize(&["--check", path(&h).as_str()]);
+    assert!(ok.status.success(), "stderr: {}", String::from_utf8_lossy(&ok.stderr));
+}
+
+/// Copies the files of one directory (no subdirectories) into `to`.
+fn copy_dir(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for e in fs::read_dir(from).unwrap() {
+        let e = e.unwrap();
+        fs::copy(e.path(), to.join(e.file_name())).unwrap();
+    }
+}
+
+#[test]
+fn check_verifies_the_copy_it_was_given() {
+    // A run directory with its own summary, written with absolute paths
+    // on the command line, as a trainer would run it.
+    let h = stage("copy", "masc-pos-B", ("masc-pos-1649", "head-B.json"), COMMIT);
+    stdout(&summarize(&[path(&h).as_str(), "--out", path(&h).as_str()]));
+    let written = fs::read_to_string(h.join("summary.json")).unwrap();
+    let tmp = std::env::temp_dir();
+    let tmp = tmp.to_str().unwrap().trim_end_matches(['/', '\\']);
+    assert!(!written.contains(tmp), "summary.json names a machine path:\n{written}");
+    let v: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert_eq!(v["command"], serde_json::json!(["summarize", "."]), "{written}");
+    let row = &v["corpora"][0]["rows"][0];
+    assert_eq!((row["dir"].as_str(), row["receipt"].as_str()), (Some("."), Some("receipt.json")), "{written}");
+
+    // Copy it to a models folder, then delete the original: the copy
+    // still checks, against itself.
+    let models = scratch("copy", "models").join("masc-pos-B");
+    copy_dir(&h, &models);
+    fs::remove_dir_all(&h).unwrap();
+    let ok = summarize(&["--check", path(&models).as_str()]);
+    assert!(ok.status.success(), "stderr: {}", String::from_utf8_lossy(&ok.stderr));
+
+    // A corrupted copied receipt fails through the summary.
+    let receipt = models.join("receipt.json");
+    let good = fs::read(&receipt).unwrap();
+    let mut bad = good.clone();
+    let digit = bad.iter().position(|b| b.is_ascii_digit()).unwrap();
+    bad[digit] = if bad[digit] == b'9' { b'8' } else { bad[digit] + 1 };
+    fs::write(&receipt, &bad).unwrap();
+    let err = stderr(&summarize(&["--check", path(&models).as_str()]));
+    assert!(err.contains("summary says"), "{err}");
+    assert!(err.contains(path(&receipt).as_str()), "the error names the copy's receipt: {err}");
+
+    // So does a corrupted copied output.
+    fs::write(&receipt, &good).unwrap();
+    fs::write(models.join("head.safetensors"), b"changed").unwrap();
+    let err = stderr(&summarize(&["--check", path(&models).as_str()]));
+    assert!(err.contains("head.safetensors"), "{err}");
+}
+
+#[test]
+fn check_refuses_a_summary_with_absolute_paths() {
+    let h = stage("absolute", "masc-pos-B", ("masc-pos-1649", "head-B.json"), COMMIT);
+    let digest = sha256_hex(&fs::read(h.join("receipt.json")).unwrap());
+    let row = serde_json::json!({
+        "label": "masc-pos-B", "kind": "head",
+        "dir": path(&h), "receipt": path(&h.join("receipt.json")),
+        "receipt_sha256": digest, "commit": COMMIT,
+        "model": 0.9581, "baseline": 0.8964, "wall_s": 1.0, "outputs": [],
+    });
+    let summary = serde_json::json!({
+        "schema": "turboembed.trainer.summary/1", "command": ["summarize", "."], "commit": COMMIT,
+        "corpora": [{"corpus": "masc-pos", "task": "tags", "metric": "accuracy", "rows": [row]}],
+    });
+    fs::write(h.join("summary.json"), serde_json::to_vec_pretty(&summary).unwrap()).unwrap();
+    let err = stderr(&summarize(&["--check", path(&h).as_str()]));
+    assert!(err.contains("absolute path"), "{err}");
+}
+
+#[test]
+fn summary_paths_are_relative_to_the_out_directory() {
+    let head = stage("relative", "masc-pos-B", ("masc-pos-1649", "head-B.json"), COMMIT);
+    let base = stage("relative", "majority", ("masc-pos-1649", "majority.json"), COMMIT);
+    let out = scratch("relative", "out");
+    let (h, b, o) = (path(&head), path(&base), path(&out));
+    stdout(&summarize(&[h.as_str(), "--peer", b.as_str(), "--out", o.as_str(), "--check"]));
+    let v: serde_json::Value = serde_json::from_slice(&fs::read(out.join("summary.json")).unwrap()).unwrap();
+    assert_eq!(v["command"], serde_json::json!(["summarize", "../masc-pos-B", "--peer", "../majority", "--check"]));
+    let rows = v["corpora"][0]["rows"].as_array().unwrap();
+    assert_eq!(rows[0]["dir"], serde_json::json!("../masc-pos-B"));
+    assert_eq!(rows[0]["receipt"], serde_json::json!("../masc-pos-B/receipt.json"));
+    // The out directory and the runs move together: the summary still checks.
+    let moved = scratch("relative-moved", "x");
+    for name in ["masc-pos-B", "majority", "out"] {
+        copy_dir(&out.parent().unwrap().join(name), &moved.join(name));
+    }
+    fs::remove_dir_all(out.parent().unwrap()).unwrap();
+    let ok = summarize(&["--check", path(&moved.join("masc-pos-B")).as_str(), path(&moved.join("majority")).as_str()]);
     assert!(ok.status.success(), "stderr: {}", String::from_utf8_lossy(&ok.stderr));
 }

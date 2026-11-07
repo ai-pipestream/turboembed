@@ -124,7 +124,12 @@ interval, epochs run and kept, wall time, and the output digests.
 directory is self-describing before anything is copied. `--check`
 fails when a receipt's `commit` differs from the others or a digest in
 `summary.json` or a `receipt.json` no longer matches the file on disk,
-which guards the copy to the models folder.
+which guards the copy to the models folder. `summary.json` records each
+row's `dir` and `receipt` (and the `command`) relative to the `--out`
+directory, and `--check` reads them relative to the summary's own
+directory, so a run directory copied with its summary is checked as
+copied, even once the original is gone; a summary that records an
+absolute path is refused. Rows of one corpus table must share a metric.
 
 `cache` (#1616) reads every split once and writes each word's features
 at the encoder's last N layers, so heads on any one layer, or on a

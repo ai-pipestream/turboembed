@@ -12,10 +12,16 @@
 //! `summary.json`, with any `host` field scrubbed (#1804): the summary
 //! never carries one. `--check` refuses receipts whose `commit`
 //! disagrees with the others, and digests in a receipt or a summary
-//! that no longer match the file on disk.
+//! that no longer match the file on disk. A summary records each row's
+//! `dir` and `receipt` relative to the directory it is written to, and
+//! `--check` reads them relative to the summary's own directory, so a
+//! copied run directory is checked as copied (summarize/check.rs).
+
+mod check;
 
 use std::path::{Path, PathBuf};
 
+use check::{relative, verify_summary};
 use serde::Serialize;
 use turbo::bundle::sha256_hex;
 
@@ -30,6 +36,8 @@ pub const SCHEMA: &str = "turboembed.trainer.summary/1";
 /// A run's receipt as read, with the digest of the file it came from.
 struct Loaded {
     dir: String,
+    /// `dir` relative to where the summary is written, as recorded.
+    shown: String,
     receipt: String,
     receipt_sha256: String,
     receipt_data: Receipt,
@@ -121,9 +129,13 @@ pub fn run(argv: &[String]) -> Result<()> {
     if dirs.is_empty() && peers.is_empty() {
         return Err(Error("a run <dir> is required".into()));
     }
+    if let Some(dir) = &out {
+        std::fs::create_dir_all(dir).map_err(|e| Error(format!("{}: {e}", dir.display())))?;
+    }
+    let base = out.clone().unwrap_or_else(|| PathBuf::from("."));
     let mut loaded: Vec<Loaded> = Vec::new();
     for dir in dirs.iter().chain(peers.iter()) {
-        loaded.push(load(dir)?);
+        loaded.push(load(dir, &base)?);
     }
     if check {
         for l in &loaded {
@@ -137,12 +149,11 @@ pub fn run(argv: &[String]) -> Result<()> {
             check_receipt(l)?;
         }
     }
-    let groups = group(&loaded);
+    let groups = group(&loaded)?;
     let md = render(&groups);
-    let summary = summarize(argv, &groups);
+    let summary = summarize(command(&loaded, dirs.len(), format, check), &groups);
     let json = serde_json::to_string_pretty(&summary).expect("a summary serializes");
     if let Some(dir) = &out {
-        std::fs::create_dir_all(dir).map_err(|e| Error(format!("{}: {e}", dir.display())))?;
         let (md_path, json_path) = (dir.join("summary.md"), dir.join("summary.json"));
         std::fs::write(&md_path, md.as_bytes()).map_err(|e| Error(format!("{}: {e}", md_path.display())))?;
         std::fs::write(&json_path, format!("{json}\n").as_bytes())
@@ -159,14 +170,17 @@ pub fn run(argv: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Reads `dir/receipt.json` with the digest of the file as read.
-fn load(dir: &str) -> Result<Loaded> {
+/// Reads `dir/receipt.json` with the digest of the file as read; the
+/// recorded paths are relative to `base`, where the summary goes.
+fn load(dir: &str, base: &Path) -> Result<Loaded> {
     let path = Path::new(dir).join("receipt.json");
     let bytes = std::fs::read(&path).map_err(|e| Error(format!("{}: {e}", path.display())))?;
     let receipt: Receipt = serde_json::from_slice(&bytes).map_err(|e| Error(format!("{}: {e}", path.display())))?;
+    let shown = relative(Path::new(dir), base)?;
     Ok(Loaded {
         dir: dir.into(),
-        receipt: path.to_string_lossy().into_owned(),
+        receipt: if shown == "." { "receipt.json".into() } else { format!("{shown}/receipt.json") },
+        shown,
         receipt_sha256: sha256_hex(&bytes),
         receipt_data: receipt,
     })
@@ -201,45 +215,29 @@ fn check_receipt(l: &Loaded) -> Result<()> {
     Ok(())
 }
 
-/// A written summary still matches its receipts and their outputs.
-fn verify_summary(path: &Path) -> Result<()> {
-    let at = |what: String| Error(format!("{}: {what}", path.display()));
-    let bytes = std::fs::read(path).map_err(|e| at(e.to_string()))?;
-    let summary: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| at(e.to_string()))?;
-    let corpora = summary.get("corpora").and_then(|c| c.as_array()).ok_or_else(|| at("no corpora table".into()))?;
-    for corpus in corpora {
-        let rows = corpus.get("rows").and_then(|r| r.as_array()).ok_or_else(|| at("a corpus has no rows".into()))?;
-        for row in rows {
-            let field =
-                |name: &str| row.get(name).and_then(|v| v.as_str()).ok_or_else(|| at(format!("a row has no {name}")));
-            let (dir, receipt, want) = (field("dir")?, field("receipt")?, field("receipt_sha256")?);
-            let bytes = std::fs::read(receipt).map_err(|e| at(e.to_string()))?;
-            let digest = sha256_hex(&bytes);
-            if digest != want {
-                return Err(at(format!("{receipt}: sha256 {digest} on disk, summary says {want}")));
-            }
-            let outputs =
-                row.get("outputs").and_then(|o| o.as_array()).ok_or_else(|| at("a row has no outputs".into()))?;
-            for o in outputs {
-                let (name, want) = (
-                    o.get("path").and_then(|v| v.as_str()).ok_or_else(|| at("an output has no path".into()))?,
-                    o.get("sha256").and_then(|v| v.as_str()).ok_or_else(|| at("an output has no sha256".into()))?,
-                );
-                let found = Path::new(dir).join(name);
-                let bytes = std::fs::read(&found).map_err(|e| at(e.to_string()))?;
-                let digest = sha256_hex(&bytes);
-                if digest != want {
-                    return Err(at(format!("{}: sha256 {digest} on disk, summary says {want}", found.display())));
-                }
-            }
+/// The command as recorded: `summarize`, the run and peer directories
+/// as the summary records them, and the flags that shape the output.
+/// `--out` is where the summary sits, so it is not repeated.
+fn command(loaded: &[Loaded], heads: usize, format: &str, check: bool) -> Vec<String> {
+    let mut c = vec!["summarize".to_owned()];
+    for (i, l) in loaded.iter().enumerate() {
+        if i >= heads {
+            c.push("--peer".into());
         }
+        c.push(l.shown.clone());
     }
-    Ok(())
+    if format == "json" {
+        c.extend(["--format".into(), "json".into()]);
+    }
+    if check {
+        c.push("--check".into());
+    }
+    c
 }
 
 /// Groups the receipts by corpus and task, heads first, then the
 /// baseline, then the peers.
-fn group(loaded: &[Loaded]) -> Vec<Group> {
+fn group(loaded: &[Loaded]) -> Result<Vec<Group>> {
     let mut groups: Vec<Group> = Vec::new();
     for l in loaded {
         let r = &l.receipt_data;
@@ -252,6 +250,12 @@ fn group(loaded: &[Loaded]) -> Vec<Group> {
         let metric = r.eval.model.as_ref().map_or_else(|| r.eval.baseline.metric_name(), |m| m.metric_name());
         let at = groups.iter().position(|g| g.corpus == r.corpus.id && g.task == task);
         let g = match at {
+            Some(i) if groups[i].metric != metric => {
+                return Err(Error(format!(
+                    "{}: metric {metric} differs from {} in the {} {task} table",
+                    l.dir, groups[i].metric, r.corpus.id
+                )));
+            }
             Some(i) => &mut groups[i],
             None => {
                 groups.push(Group {
@@ -274,7 +278,7 @@ fn group(loaded: &[Loaded]) -> Vec<Group> {
         g.rows.push(Row {
             label,
             kind,
-            dir: l.dir.clone(),
+            dir: l.shown.clone(),
             receipt: l.receipt.clone(),
             receipt_sha256: l.receipt_sha256.clone(),
             commit: r.commit.clone(),
@@ -299,12 +303,13 @@ fn group(loaded: &[Loaded]) -> Vec<Group> {
         let at = g.rows.iter().position(|r| head_at(r.kind) > head_at(row.kind)).unwrap_or(g.rows.len());
         g.rows.insert(at, row);
     }
-    groups
+    Ok(groups)
 }
 
 /// The run directory's name, for a head row.
 fn dir_name(dir: &str) -> String {
-    Path::new(dir).file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| dir.into())
+    let real = Path::new(dir).canonicalize().unwrap_or_else(|_| PathBuf::from(dir));
+    real.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| dir.into())
 }
 
 fn score(x: f64) -> String {
@@ -359,7 +364,7 @@ fn render(groups: &[Group]) -> String {
 }
 
 /// The `summary.json` value: the tables without any `host` field.
-fn summarize(argv: &[String], groups: &[Group]) -> Summary {
+fn summarize(command: Vec<String>, groups: &[Group]) -> Summary {
     let unanimous = groups
         .iter()
         .flat_map(|g| &g.rows)
@@ -367,7 +372,7 @@ fn summarize(argv: &[String], groups: &[Group]) -> Summary {
         .reduce(|a, b| if a == b { a } else { String::new() });
     Summary {
         schema: SCHEMA,
-        command: argv.to_vec(),
+        command,
         commit: unanimous.filter(|c| !c.is_empty()),
         corpora: groups
             .iter()
