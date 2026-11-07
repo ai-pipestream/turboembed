@@ -27,7 +27,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
 
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
@@ -39,8 +38,13 @@ use crate::{SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions};
 
 mod dispatch;
 mod kept;
+mod timing;
 
-pub use dispatch::{Cost, Dispatch, shape_of};
+use timing::{fastest, times};
+
+pub use dispatch::{
+    Cost, DEFAULT_MARGIN, Dispatch, MAX_MARGIN, OFFLOAD_BACKENDS, PREFER_VAR, Preference, PreferenceError, shape_of,
+};
 
 /// The cosine floor of an I8 device, the tier's (docs/hailo.md); the core
 /// gives I8 none of its own.
@@ -447,48 +451,4 @@ fn cosine(g: &[f32], w: &[f32]) -> f64 {
     let n = |v: &[f32]| turbo_analysis::math::sum_sq_f64(v).sqrt();
     let d = n(g) * n(w);
     if d == 0.0 { if n(g) == n(w) { 1.0 } else { 0.0 } } else { dot / d }
-}
-
-/// The fastest times of `reps` runs each of `a` and `b`, in ms: what
-/// another process on the machine cannot add to, since it only ever slows
-/// a run.
-fn fastest(
-    reps: usize,
-    a: impl FnMut() -> Result<(), CoreError>,
-    b: impl FnMut() -> Result<(), CoreError>,
-) -> Result<(f64, f64), CoreError> {
-    let (ta, tb) = times(reps, a, b)?;
-    Ok((ta[0], tb[0]))
-}
-
-/// The times of `reps` runs each of `a` and `b`, in ms, sorted, the two
-/// taking turns after one untimed run each, so drift falls on both.
-fn times(
-    reps: usize,
-    mut a: impl FnMut() -> Result<(), CoreError>,
-    mut b: impl FnMut() -> Result<(), CoreError>,
-) -> Result<(Vec<f64>, Vec<f64>), CoreError> {
-    if reps == 0 {
-        return Err(CoreError::new(INVALID_ARGUMENT, "calibration needs at least one timed run"));
-    }
-    a()?;
-    b()?;
-    let (mut ta, mut tb) = (Vec::with_capacity(reps), Vec::with_capacity(reps));
-    let time = |f: &mut dyn FnMut() -> Result<(), CoreError>| -> Result<f64, CoreError> {
-        let s = Instant::now();
-        f()?;
-        Ok(s.elapsed().as_secs_f64() * 1e3)
-    };
-    for i in 0..reps {
-        if i % 2 == 0 {
-            ta.push(time(&mut a)?);
-            tb.push(time(&mut b)?);
-        } else {
-            tb.push(time(&mut b)?);
-            ta.push(time(&mut a)?);
-        }
-    }
-    ta.sort_by(f64::total_cmp);
-    tb.sort_by(f64::total_cmp);
-    Ok((ta, tb))
 }

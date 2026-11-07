@@ -1,0 +1,116 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-11-06T02:46:41Z",
+  "machine": {
+    "arch": "hailo10h",
+    "host_cpu": "Raspberry Pi 5 Model B Rev 1.1",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "hailo",
+    "kind": "DEVICE_NPU",
+    "name": "Hailo-10H",
+    "vendor": "Hailo",
+    "driver_version": "hailo1x_pci 5.1.1, firmware 5.1.1",
+    "runtime_version": "5.1.1",
+    "memory_total": 0
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 hailo cpu",
+    "commit": "89e6a6ae0150730ad38e5d43a5333819e3769a24",
+    "pushed_to": [
+      "origin/main"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_I8",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "2",
+    "manifest_sha256": "e57c4f36615d3e5f3fdbf0439103247cb0e4a28cfd09c2fb5b1464e9e2a93305",
+    "artifact_sha256": "4032905b784d361a3fdf9311f188e29ab29899efe74cfeb3446d39fb9dcac264",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "shape": {
+    "batch": 32,
+    "seq": 128,
+    "chunk": 64,
+    "chunks_per_row": 2,
+    "chunk_batch": 64,
+    "chunk_frames": 1,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "d1f42abd4bb55c1c2b2f5d6ebb4638423a9b43b0a821a910d6f5c3bc1cec3175"
+  },
+  "rows": {
+    "vectors": 32,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 42.264719,
+    "p99_ms": 43.483971000000004,
+    "mean_ms": 42.26853147,
+    "min_ms": 40.743412,
+    "max_ms": 43.769119,
+    "vectors_per_second": 757.0643901530369
+  },
+  "ranges": {
+    "vectors": 64,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 42.267367,
+    "p99_ms": 43.57899,
+    "mean_ms": 42.26532021000003,
+    "min_ms": 39.594938000000006,
+    "max_ms": 44.240504,
+    "vectors_per_second": 1514.2438216961034
+  },
+  "chunk_rows": {
+    "vectors": 64,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 68.455561,
+    "p99_ms": 70.951361,
+    "mean_ms": 68.43933126999998,
+    "min_ms": 66.01109199999999,
+    "max_ms": 74.084827,
+    "vectors_per_second": 935.1347947500191
+  },
+  "whole_row_max_abs_diff": 0.0,
+  "chunk_min_cosine": 0.7635187481265527,
+  "ranges_over_rows": 1.0000626527293368,
+  "chunk_rows_over_ranges": 1.6195842291288218
+}
