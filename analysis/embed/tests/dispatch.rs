@@ -4,7 +4,8 @@
 //! measured batches, what it refuses before measuring, and that each
 //! document records the side its call ran on and gets that side's vectors.
 //! On a device the environment names, every submission size through one
-//! instance runs within the timing noise of the faster side.
+//! instance runs on the side the preference in force picks, within the
+//! timing noise.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -300,10 +301,12 @@ fn the_shape_predicted_is_the_shape_run() {
 /// TURBO_TEST_VECTORS_BUNDLE: the calibration of tests/calibrate.rs, then,
 /// at each window and cap, one sentence, one document and the whole set
 /// sent through one dispatched instance. Every document of a submission
-/// records one side, its vectors are that side's, and the side is the
-/// faster of the step fixed on the device and fixed on the CPU, each timed
-/// six times in turn: the one with the lower middle time, unless the two
-/// sides' times overlap, where neither is faster. Then six pairs of the
+/// records one side, its vectors are that side's, and the side is the one
+/// the dispatch's preference picks from the step fixed on the device and
+/// fixed on the CPU, each timed six times in turn: under `Latency` the one
+/// with the lower middle time, under `Offload` the device unless its middle
+/// time is at least 1 + margin times the CPU's, either unless the device's
+/// times and the CPU's so scaled overlap. Then six pairs of the
 /// dispatched calls and the step they run on, back to back: what dispatch
 /// adds (see `paired::added`) is no more than the planning (timed on its
 /// own) and RESOLUTION. Pairs too noisy to read are timed again, up to
@@ -312,7 +315,7 @@ fn the_shape_predicted_is_the_shape_run() {
 /// Prints each side's middle and spread, what dispatch adds, every set of
 /// pairs, and the inconclusive submissions.
 #[test]
-fn on_the_device_every_submission_runs_at_the_faster_side() {
+fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
     else {
         println!("skipped: TURBO_TEST_VECTORS_BUNDLE and TURBO_TEST_DEVICE are not both set");
@@ -369,18 +372,29 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                 }
                 let [dev_ms, cpu_ms] = [middle(&t[0]), middle(&t[1])];
                 let ((dl, dh), (cl, ch)) = (low_high(&t[0]), low_high(&t[1]));
-                let tie = dl <= ch && cl <= dh;
-                let faster = if tie {
+                let faster = if dl <= ch && cl <= dh {
                     "either"
                 } else if dev_ms < cpu_ms {
                     "device"
                 } else {
                     "cpu"
                 };
+                // What the preference picks: the CPU's times scaled by its
+                // margin against the device's.
+                let prefer = d.preference();
+                let k = 1.0 + prefer.margin();
+                let picks = if dl <= ch * k && cl * k <= dh {
+                    "either"
+                } else if prefer.device(dev_ms, cpu_ms) {
+                    "device"
+                } else {
+                    "cpu"
+                };
                 let chose_cpu = side.starts_with("cpu");
                 assert!(
-                    tie || chose_cpu == (faster == "cpu"),
-                    "{max_seq}x{cap} {what}: ran on {side}, the {faster} is faster"
+                    picks == "either" || chose_cpu == (picks == "cpu"),
+                    "{max_seq}x{cap} {what}: ran on {side}, {prefer:?} picks the {picks} (device {dev_ms:.3} ms, \
+                     cpu {cpu_ms:.3} ms, the {faster} is faster)"
                 );
                 // What dispatch adds to the step it chose, planning the call,
                 // timed on its own.
