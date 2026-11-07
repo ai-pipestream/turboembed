@@ -12,6 +12,7 @@ use std::fmt;
 use turbo_analysis::Span;
 use turbo_analysis_layers::{Pii, PiiKind, PiiMention};
 
+use super::{PiiRewrite, RewriteError};
 use crate::text::letter_or_digit;
 
 /// A mask the policy cannot take.
@@ -35,13 +36,38 @@ impl fmt::Display for MaskError {
 
 impl std::error::Error for MaskError {}
 
+/// Precomputed byte-offset retention bounds for linear-time per-character
+/// overlap checking across [`MaskPolicy`] and [`super::Truncate`].
+#[derive(Copy, Clone)]
+pub(super) struct CharRetention {
+    pub(super) keep_until: usize,
+    pub(super) keep_from: usize,
+    pub(super) keep_format: bool,
+    pub(super) only_alnum_bounds: bool,
+}
+
+impl CharRetention {
+    pub(super) const NONE: CharRetention =
+        CharRetention { keep_until: 0, keep_from: usize::MAX, keep_format: false, only_alnum_bounds: true };
+
+    #[inline]
+    pub(super) fn keeps(self, rel_at: usize, c: char) -> bool {
+        if letter_or_digit(c) || !self.only_alnum_bounds {
+            rel_at < self.keep_until || rel_at >= self.keep_from
+        } else {
+            self.keep_format
+        }
+    }
+}
+
 /// How the characters of a span are replaced: all of them, or the
-/// letters and digits only (`keeping_format`), leaving the last
-/// `keep_trailing` letters or digits readable.
+/// letters and digits only (`keeping_format`), leaving the first
+/// `keep_leading` and/or last `keep_trailing` letters or digits readable.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskPolicy {
     mask: u8,
     keep_format: bool,
+    keep_leading: usize,
     keep_trailing: usize,
 }
 
@@ -54,7 +80,27 @@ impl MaskPolicy {
         if !mask.is_ascii() {
             return Err(MaskError::NotAscii(mask));
         }
-        Ok(MaskPolicy { mask: mask as u8, keep_format: false, keep_trailing: 0 })
+        Ok(MaskPolicy { mask: mask as u8, keep_format: false, keep_leading: 0, keep_trailing: 0 })
+    }
+
+    /// A policy keeping the first `count` letters or digits readable and
+    /// masking the rest with `mask`.
+    ///
+    /// A span with `<= count` letters or digits stays unmasked (matching
+    /// [`MaskPolicy::keeping_trailing`]); use [`super::Truncate::keep_start`]
+    /// when spans of length `<= count` must be masked whole.
+    pub fn first_n(count: usize, mask: char) -> Result<MaskPolicy, MaskError> {
+        Ok(MaskPolicy::new(mask)?.keeping_leading(count))
+    }
+
+    /// A policy keeping the last `count` letters or digits readable and
+    /// masking the rest with `mask`.
+    ///
+    /// A span with `<= count` letters or digits stays unmasked (matching
+    /// OpenNLP's `lastFour`); use [`super::Truncate::last_n`] when spans of
+    /// length `<= count` must be masked whole.
+    pub fn last_n(count: usize, mask: char) -> Result<MaskPolicy, MaskError> {
+        Ok(MaskPolicy::new(mask)?.keeping_trailing(count))
     }
 
     /// This policy, leaving what is not a letter or digit readable.
@@ -62,8 +108,16 @@ impl MaskPolicy {
         MaskPolicy { keep_format: true, ..self }
     }
 
+    /// This policy, leaving the first `count` letters or digits of each
+    /// span readable. Spans with `<= count` letters or digits stay
+    /// unmasked; see [`super::Truncate::keep_start`] to mask short spans.
+    pub const fn keeping_leading(self, count: usize) -> MaskPolicy {
+        MaskPolicy { keep_leading: count, ..self }
+    }
+
     /// This policy, leaving the last `count` letters or digits of each
-    /// span readable.
+    /// span readable. Spans with `<= count` letters or digits stay
+    /// unmasked; see [`super::Truncate::last_n`] to mask short spans.
     pub const fn keeping_trailing(self, count: usize) -> MaskPolicy {
         MaskPolicy { keep_trailing: count, ..self }
     }
@@ -77,6 +131,11 @@ impl MaskPolicy {
         self.keep_format
     }
 
+    /// How many leading letters or digits stay readable.
+    pub const fn leading(self) -> usize {
+        self.keep_leading
+    }
+
     /// How many trailing letters or digits stay readable.
     pub const fn trailing(self) -> usize {
         self.keep_trailing
@@ -88,6 +147,73 @@ impl MaskPolicy {
         let mut out = value.as_bytes().to_vec();
         self.apply(value, Span::new(0, value.len() as u32), &mut out);
         String::from_utf8(out).expect("masking writes whole characters")
+    }
+
+    /// Replaces every mention of `pii`, a layer over `text`, with its
+    /// masked surface text, coalescing overlapping mentions.
+    pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
+        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let mut idx = 0;
+        PiiRewrite::replace(text, clusters.iter().map(|c| c.merged), |m, out| {
+            let cluster = &clusters[idx];
+            idx += 1;
+            let piece = &text[m.span.range()];
+            if cluster.members.len() == 1 {
+                out.push_str(&self.masked(piece));
+                return;
+            }
+            let winner_ret = self.retention(piece);
+            let member_rets: Vec<(Span, CharRetention)> =
+                cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
+            for (rel_at, c) in piece.char_indices() {
+                let abs_at = m.span.start + rel_at as u32;
+                let keep = winner_ret.keeps(rel_at, c)
+                    && member_rets
+                        .iter()
+                        .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                        .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
+                if keep {
+                    out.push(c);
+                } else {
+                    for _ in 0..c.len_utf8() {
+                        out.push(self.mask());
+                    }
+                }
+            }
+        })
+    }
+
+    /// Precomputes byte-offset retention bounds for `piece` in `O(|piece|)`.
+    pub(super) fn retention(self, piece: &str) -> CharRetention {
+        let mut keep_until = 0;
+        if self.keep_leading > 0 {
+            keep_until = piece.len();
+            let mut kept = 0;
+            for (at, c) in piece.char_indices() {
+                if letter_or_digit(c) {
+                    kept += 1;
+                    if kept == self.keep_leading {
+                        keep_until = at + c.len_utf8();
+                        break;
+                    }
+                }
+            }
+        }
+        let mut keep_from = piece.len();
+        if self.keep_trailing > 0 {
+            keep_from = 0;
+            let mut kept = 0;
+            for (at, c) in piece.char_indices().rev() {
+                if letter_or_digit(c) {
+                    kept += 1;
+                    if kept == self.keep_trailing {
+                        keep_from = at;
+                        break;
+                    }
+                }
+            }
+        }
+        CharRetention { keep_until, keep_from, keep_format: self.keep_format, only_alnum_bounds: true }
     }
 
     /// `MaskPolicies.forType`: cards and IBANs keep separators and their
@@ -107,6 +233,16 @@ impl MaskPolicy {
             | PiiKind::UsItin
             | PiiKind::UkNhs
             | PiiKind::DeSteuerId
+            | PiiKind::EsDni
+            | PiiKind::EsNie
+            | PiiKind::EsCif
+            | PiiKind::DePersonalausweis
+            | PiiKind::FrNir
+            | PiiKind::FrSiren
+            | PiiKind::FrSiret
+            | PiiKind::BrCpf
+            | PiiKind::BrCnpj
+            | PiiKind::Bic
             | PiiKind::Imei
             | PiiKind::CaSin
             | PiiKind::AbaRouting => whole.keeping_format(),
@@ -126,17 +262,9 @@ impl MaskPolicy {
     fn apply(self, original: &str, span: Span, out: &mut [u8]) {
         let (start, end) = (span.start as usize, span.end as usize);
         let piece = &original[start..end];
-        let alphanumeric = piece.chars().filter(|&c| letter_or_digit(c)).count();
-        let first_kept = alphanumeric.saturating_sub(self.keep_trailing);
-        let mut seen = 0;
+        let ret = self.retention(piece);
         for (at, c) in piece.char_indices() {
-            let redact = if letter_or_digit(c) {
-                seen += 1;
-                seen <= first_kept
-            } else {
-                !self.keep_format
-            };
-            if redact {
+            if !ret.keeps(at, c) {
                 let from = start + at;
                 out[from..from + c.len_utf8()].fill(self.mask);
             }

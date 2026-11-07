@@ -44,6 +44,7 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    binding: None,
                 })
                 .await
                 .unwrap()

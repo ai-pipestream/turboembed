@@ -650,6 +650,17 @@ long sweep, not the tile. At 4096 and 16384 tokens the 32 x 32 tile is
 the fastest by median in every row, 3% to 6% under `auto`'s 64 x 64,
 which `auto` picks past 1024 tokens (#849's per-bin tuning).
 
+On an idle M2 at main `89e6a6ae0150` (`docs/receipts/metal-812-idle/`:
+desktop apps closed, GPU 0% busy before all but one of 400 runs, 1-minute
+load 1.8 to 3.1), the ratios hold: MLX leads at 16384 tokens by 23% to
+31%. At 4096 and 16384 tokens the aligned 32 x 32 tile `h32n32a` is about
+10% under `auto`'s 64 x 64, and still about 14% over MLX. The same
+receipt repeats the end-to-end rounds of all-minilm-l6-v2 at FASTEST
+against MLX float16 over five rounds. They agree with #1598's within 1.5%,
+except at 1 x 32 (0.49 now). The x 512 sizes and bge-base were not
+run: the bundle has no 512-token reference case, and `mlx_bench.py` pools
+only by the mean.
+
 bge-base-en-v1.5 against MLX float16, at FASTEST over five rounds
 (`docs/receipts/metal-812-bge-idle/`, at main plus the MLX reference's CLS
 pooling): FASTEST trails by 5% to 9% up to 4 x 128 and by 8% to 35% from
@@ -786,6 +797,46 @@ with main, within the rounds' spread, and at bge-base-en-v1.5's 768 the
 layer, so the reads saved do not show, and the larger register file a
 lane needs costs more than they save. `core/tests/metal_ranges.rs`
 keeps a test at widths around 1024 for any later try.
+
+### On an idle M2 (#1598)
+
+all-minilm-l6-v2 (manifest `3c305237`) dense rows at `75b4af00`, on the
+M2 with the desktop's apps closed: the GPU read 0 to 1% busy before each
+record and the 1-minute load average was 1.6 to 2.6. Each size is three
+rounds of `turbo-bench record --device metal --warmup 5 --iterations 20
+--no-tei --mlx-model <upstream model>`, the precisions in alternating
+order by round. min / mean / p50 / p99 of the round with the median p50,
+in ms, with MLX 0.29.3 (float16 at FASTEST, float32 at MODEL) from the
+same record:
+
+| Precision | Rows | turbo | MLX (wall time) | turbo p50 / MLX p50 |
+|---|---|---|---|---|
+| FASTEST | 32 x 256 | 98.30 / 98.51 / 98.53 / 98.64 | 100.60 / 100.77 / 100.73 / 101.60 | 0.978 |
+| FASTEST | 32 x 128 | 45.02 / 45.08 / 45.07 / 45.14 | 44.51 / 44.71 / 44.72 / 44.86 | 1.008 |
+| FASTEST | 16 x 128 | 23.44 / 23.52 / 23.51 / 23.61 | 22.36 / 22.42 / 22.42 / 22.53 | 1.049 |
+| FASTEST | 8 x 128 | 10.72 / 10.79 / 10.78 / 10.87 | 11.47 / 11.57 / 11.56 / 11.66 | 0.932 |
+| FASTEST | 4 x 128 | 6.04 / 6.12 / 6.11 / 6.30 | 6.31 / 6.37 / 6.37 / 6.41 | 0.959 |
+| FASTEST | 2 x 128 | 3.45 / 3.55 / 3.55 / 3.63 | 3.66 / 3.82 / 3.79 / 4.32 | 0.937 |
+| FASTEST | 1 x 128 | 2.18 / 2.28 / 2.28 / 2.34 | 2.40 / 2.62 / 2.51 / 3.35 | 0.911 |
+| FASTEST | 1 x 32 | 1.65 / 1.74 / 1.70 / 2.10 | 2.19 / 2.72 / 2.63 / 4.93 | 0.644 |
+| MODEL | 32 x 256 | 149.93 / 150.45 / 150.30 / 151.36 | 144.89 / 145.39 / 145.51 / 145.91 | 1.033 |
+| MODEL | 8 x 128 | 17.63 / 17.75 / 17.76 / 17.80 | 15.63 / 15.72 / 15.72 / 15.77 | 1.130 |
+| MODEL | 1 x 128 | 3.19 / 3.45 / 3.29 / 4.02 | 2.80 / 2.95 / 2.86 / 3.72 | 1.150 |
+
+FASTEST leads MLX float16 at 32 x 256 and from 1 to 8 rows of 128, and
+trails it by 0.8% at 32 x 128 and 4.9% at 16 x 128, where #812 is still
+open. Every round, each record's command and the load before and after
+it are in `benchmarks/logs/1598-metal/` (`summary.tsv`, one log per
+record); the round-one records at 32 x 256 are in `benchmarks/records/`.
+The first FASTEST 1 x 128 round (p50 2.98) ran right after the 8 x 128
+one and is the slowest; the other two agree within 1%.
+
+Opening the model on the same machine, five cold processes each:
+`Runtime::create` and the Metal context take about 10 ms (366 ms the
+first time after boot), loading the bundle's weights 416 to 428 ms, the
+session 7 to 8 ms at FASTEST and 4 ms at MODEL, and the first embed at
+32 x 256 is 112 to 121 ms at FASTEST (98.7 the second) and 164 to 172 ms
+at MODEL (151 the second). The times are in `load-time.txt` there.
 
 ## Testing
 

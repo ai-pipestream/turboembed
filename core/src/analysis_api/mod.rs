@@ -44,7 +44,8 @@ const TURBO_SPAN_KNOWN_FLAGS: u32 = TURBO_SPAN_VIEW_RANGE
 
 pub const TURBO_PII_CONFIDENCE_FORMAT: u32 = 1;
 pub const TURBO_PII_CONFIDENCE_CHECKSUM: u32 = 2;
-pub const TURBO_PII_CONFIDENCE_LABELLED: u32 = 3;
+pub const TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM: u32 = 3;
+pub const TURBO_PII_CONFIDENCE_LABELLED: u32 = 4;
 
 /// C ABI configuration descriptor for `turbo_analyzer_create`. The five
 /// model path fields are retired: they keep their place so a program

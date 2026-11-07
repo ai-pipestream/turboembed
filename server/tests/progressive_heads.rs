@@ -155,6 +155,7 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
         graph: complete.graph.to_vec(),
         view: 0,
         offsets: OffsetMode::Utf8 as i32,
+        binding: None,
     })
     .unwrap();
     let count = |id: &str| typed.layers.iter().find(|l| l.id == id).map(|l| l.annotations.len());

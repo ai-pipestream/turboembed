@@ -70,6 +70,15 @@ define_digest!(
     SourceBytesDigest
 );
 
+impl ViewTextDigest {
+    /// The digest of `text` as a view's UTF-8 text: what [`View::text_digest`]
+    /// returns for a view holding `text`, so a consumer can check a received
+    /// digest against text it holds.
+    pub fn of_text(text: &str) -> ViewTextDigest {
+        ViewTextDigest(turbo_sha256::sha256(text.as_bytes()))
+    }
+}
+
 /// Inputs to the canonical chained provenance digest computation.
 pub(crate) struct ProvenanceDigestParts<'a> {
     pub(crate) annotator: &'a str,

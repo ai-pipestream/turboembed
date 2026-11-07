@@ -369,6 +369,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
                 graph: complete.graph.clone().into(),
                 view: 0,
                 offsets: mode as i32,
+                binding: None,
             })
             .await
             .unwrap()
