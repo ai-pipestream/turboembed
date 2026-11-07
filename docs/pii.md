@@ -14,7 +14,8 @@ checksum is validated with it:
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
 | `AllowList`, `DenyList`, `Pattern`, `PatternKind`, `Case`, `ListError` | Global and per-kind ignore lists, regex-free shape/glob patterns, and Aho-Corasick/fuzzy deny lists (`analysis/pii/src/lists/`) |
-| `PiiConfidence` | `Format`, `Checksum`, or `LabelledChecksum` |
+| `PiiConfidence` | `Format`, `Labelled`, `Checksum`, or `LabelledChecksum` |
+| `window`, `LabelPolicy`, `window::has_label` | UAX #29 context-word window helper, per-kind label policies, and caller overrides |
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
@@ -110,11 +111,66 @@ normalized form and the confidence each gets:
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |
 | `phone` | `+` and digits, or the digits | format |
 
-`PiiConfidence` is read from
-what the scanner checked, so it never changes which mentions are found:
-`Format` when only the shape backs the kind, `Checksum` when a check digit
-or checksum over the value passes, `LabelledChecksum` when a label names
-the kind as well.
+`PiiConfidence` is ordered `Format < Labelled < Checksum < LabelledChecksum`:
+`Format` (`"format"`, C ABI `TURBO_PII_CONFIDENCE_FORMAT = 1`, Java
+`TurboPiiConfidence.FORMAT(1)`) when only the shape backs the kind, `Labelled`
+(`"labelled"`, `TURBO_PII_CONFIDENCE_LABELLED = 4`, `LABELLED(4)`) when a
+context label within the kind's word window names a format-only mention,
+`Checksum` (`"checksum"`, `TURBO_PII_CONFIDENCE_CHECKSUM = 2`, `CHECKSUM(2)`)
+when a check digit or checksum over the value passes without a context label,
+and `LabelledChecksum` (`"labelled-checksum"`,
+`TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM = 3`, `LABELLED_CHECKSUM(3)`) when a
+context label names the kind and its check digit passes
+(`PiiConfidence::with_label` raises `Format -> Labelled` and
+`Checksum -> LabelledChecksum`).
+
+### Context-word window
+
+`turbo_pii::window` (`analysis/pii/src/window.rs`, tested in
+`analysis/pii/tests/window.rs`) checks whether any label term or
+multi-word label phrase for a `PiiKind` appears within `N` UAX #29 word
+tokens (`turbo_unicode::word_break`) before `span.start` or after
+`span.end`. Word tokens are compared with ASCII case folding (`sin`,
+`SIN`, `Sin`), non-word punctuation and whitespace segments (`:`, `#`,
+`=`, `.`, parentheses, line breaks) are skipped, and multi-word phrases
+(`"social insurance number"`, `"social insurance no"`,
+`"social security number"`) match when their near boundary lies within
+`N` words of the candidate span:
+
+- **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
+  label list for each of the 20 built-in kinds (`&[]` for
+  `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`
+  and `imei` and `window::DEFAULT_WINDOW_WORDS` (`4`) for every other
+  kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
+  `ca-sin` and `imei` and `LabelPolicy::None` for the other 18 built-in
+  kinds and custom kinds, so existing detector outputs stay unchanged
+  unless a caller opts in. When no caller override is configured on
+  `ca-sin` or `imei`, `PiiDetector` uses
+  `window::has_strict_prefix_label` (the strict prefix rule: a label
+  before `span.start` separated only by whitespace and `:`, `#`, or `=`,
+  plus `.` for `ca-sin`) so default `CaIdentity`, `Device`, and
+  `AllStructured` outputs remain identical; configuring `with_label_window`,
+  `with_extra_label`, or `with_label_policy` on `ca-sin` or `imei` switches
+  that kind onto the general bidirectional `N`-word UAX #29 window.
+- **Policies and caller overrides**: `PiiDetector::label_required(kind)`
+  (`LabelPolicy::Required`) drops unlabelled candidates of `kind` and
+  raises labelled ones with `PiiConfidence::with_label`;
+  `PiiDetector::label_boosts(kind)` (`LabelPolicy::Boosts`) keeps
+  unlabelled candidates at their scanner confidence and raises labelled
+  ones (`Format -> Labelled`, `Checksum -> LabelledChecksum`);
+  `PiiDetector::with_label_policy(kind, policy)` sets any `LabelPolicy`
+  (including relaxing `ca-sin` or `imei` to `Boosts` or `None`);
+  `PiiDetector::with_label_window(kind, n)` overrides the word window
+  width `N`; and `PiiDetector::with_extra_label(kind, label)` /
+  `with_extra_labels` append caller terms or multi-word phrases. Non-default
+  overrides fold deterministically into `PiiDetector::config_hash()`.
+- **Known limitation**: the context window checks word distance only and
+  does not parse clause or field structure. When a label inside the
+  `N`-word window belongs to a different nearby number (for example
+  `"Passport 123456789, order 987654321"` when `"987654321"` lies within
+  `N` words of `"Passport"`), the second number also matches the window.
+  Callers can narrow the window for that kind with
+  `PiiDetector::with_label_window(kind, 1)`.
 
 ## Masking and labels
 
@@ -731,8 +787,9 @@ What the false positives and misses are:
   hyphens and parentheses only.
 - **`ca-sin` (1) and `imei` (2) misses**: `SIN (ON) 046 454 286` and
   `IMEI (primary) 001970012345677` in `operational-memos.txt` place a
-  parenthesised qualifier between the keyword label and the digits,
-  outside the `:`, `=`, `#`, `-` and whitespace separators the labelled
-  scanners skip; and the second occurrence of `490154203237518` in
+  parenthesised qualifier word between the keyword label and the digits,
+  putting the label at word distance 2 outside `ca-sin` and `imei`'s
+  default 1-word window (`window::default_window`); and the second
+  occurrence of `490154203237518` in
   `"Note that 490154203237518 begins with..."` (`operational-memos.txt`)
-  has no immediately preceding `IMEI` keyword.
+  has no `IMEI` keyword in its window.

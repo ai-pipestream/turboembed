@@ -48,8 +48,12 @@ public abstract class AnalyzerConformance {
     protected static final int UNSUPPORTED_TASK = 514;
     protected static final int BUNDLE_NOT_FOUND = 1280;
 
-    /** Native {@code TURBO_PII_CONFIDENCE_FORMAT}. */
+    /** Native {@code TURBO_PII_CONFIDENCE_*} codes. */
     protected static final int PII_FORMAT = 1;
+
+    protected static final int PII_CHECKSUM = 2;
+    protected static final int PII_LABELLED_CHECKSUM = 3;
+    protected static final int PII_LABELLED = 4;
 
     static final String TEXT =
             "Ann met Bob in Paris, and the quiet old dog slept by the river. Bob walked the old dog.";
@@ -349,7 +353,7 @@ public abstract class AnalyzerConformance {
 
     @Test
     public void piiIsASeparateTypedLayerWithANormalizedValue() {
-        String text = "Email alice@example.com from 192.168.1.42.";
+        String text = "Email alice@example.com from 192.168.1.42. SIN: 046 454 286.";
         try (TurboAnalyzer analyzer = rules()) {
             List<Row> rows = Row.copy(analyzer.detectPii(text));
             assertFalse(rows.isEmpty());
@@ -362,6 +366,13 @@ public abstract class AnalyzerConformance {
             assertEquals("alice@example.com", email.value());
             assertEquals(PII_FORMAT, email.classification());
             assertNull(email.probability(), "PII evidence classification is not a probability");
+            Row sin = rows.stream()
+                    .filter(row -> "ca-sin".equals(row.label()))
+                    .findFirst()
+                    .orElseThrow(AssertionError::new);
+            assertEquals("046 454 286", sin.coveredSourceText(text));
+            assertEquals("046454286", sin.value());
+            assertEquals(PII_LABELLED_CHECKSUM, sin.classification());
         }
     }
 

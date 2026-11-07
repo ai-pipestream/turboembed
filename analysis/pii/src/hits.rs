@@ -10,6 +10,8 @@ use std::ops::Range;
 use turbo_analysis::Span;
 use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
 
+use crate::window::WindowConfig;
+
 /// Why a candidate handed to [`PiiSink`] was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SinkError {
@@ -215,6 +217,18 @@ impl Hits {
 
     fn normalized(&self, h: &Hit) -> &str {
         &self.buf[h.normalized.start as usize..h.normalized.end as usize]
+    }
+
+    /// Applies context label requirements before resolving candidate spans.
+    pub(crate) fn apply_label_policy(&mut self, text: &str, window: &WindowConfig) {
+        self.hits.retain_mut(|h| {
+            if let Some(conf) = window.check(text, Span::new(h.start, h.end), h.kind, h.confidence) {
+                h.confidence = conf;
+                true
+            } else {
+                false
+            }
+        });
     }
 
     /// Orders the candidates (a stable sort keeps the finding order of

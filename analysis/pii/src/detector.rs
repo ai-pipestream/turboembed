@@ -10,6 +10,9 @@ use crate::hits::{Hits, PiiSink};
 use crate::lists::{AllowList, DenyList, ListError, Pattern};
 use crate::rewrite::{HmacTokenizer, PiiAuditReport};
 use crate::scan::{CustomExtractor, Extractor, Scanner};
+use crate::window::WindowConfig;
+
+mod labels;
 
 /// The packs of `PiiPacks`, by kind of data.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -115,6 +118,7 @@ impl Pack {
 pub struct PiiDetector {
     scanners: Vec<Scanner>,
     keep_nested: bool,
+    window: WindowConfig,
     global_allow: AllowList,
     kind_allow: Vec<(PiiKind, AllowList)>,
     deny_lists: Vec<DenyList>,
@@ -126,6 +130,7 @@ impl PiiDetector {
         PiiDetector {
             scanners,
             keep_nested: false,
+            window: WindowConfig::default(),
             global_allow: AllowList::new(),
             kind_allow: Vec::new(),
             deny_lists: Vec::new(),
@@ -362,11 +367,12 @@ impl PiiDetector {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         let mut hits = Hits::default();
         for s in &self.scanners {
-            s.scan(text, &mut hits);
+            s.scan(text, &self.window, &mut hits);
         }
         for d in &self.deny_lists {
             d.scan(text, &mut hits);
         }
+        hits.apply_label_policy(text, &self.window);
         hits.resolve_with(
             self.keep_nested,
             |kind, start, end, normalized| self.is_suppressed(kind, &text[start as usize..end as usize], normalized),
@@ -465,6 +471,7 @@ impl Annotator for PiiDetector {
         if self.keep_nested {
             h.fold_u64(1);
         }
+        self.window.fold_hash(&mut h);
         if !self.global_allow.is_empty() {
             h.u8(0xa1);
             self.global_allow.fold_hash(&mut h);

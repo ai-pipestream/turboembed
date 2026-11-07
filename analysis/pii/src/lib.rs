@@ -26,9 +26,11 @@ pub mod rewrite;
 mod scan;
 mod tables;
 pub mod text;
+pub mod window;
 
 pub use detector::{Pack, PiiDetector};
 pub use hits::{PiiSink, SinkError};
 pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
 pub use scan::{CustomExtractor, Extractor, Scanner, ScannerError};
 pub use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
+pub use window::LabelPolicy;

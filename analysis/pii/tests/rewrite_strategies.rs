@@ -410,11 +410,11 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
             .map(|r| r.into_text()),
         expected_err.clone()
     );
+    let policy_override_refusing =
+        RewritePolicy::new(StaticReplacer::default()).with(PiiKind::Email, Truncate::keep_start(5).refusing_overlaps());
+    assert!(policy_override_refusing.refuses_overlaps());
     assert_eq!(
-        RewritePolicy::new(StaticReplacer::default())
-            .with(PiiKind::Email, Truncate::keep_start(5).refusing_overlaps())
-            .rewrite(overlap_text, &overlap_pii)
-            .map(|r| r.into_text()),
+        policy_override_refusing.rewrite(overlap_text, &overlap_pii).map(|r| r.into_text()),
         expected_err.clone()
     );
     let map_refusing_fallback = MapReplacer::new([("unmatched", "X")], false)
@@ -443,6 +443,17 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
         assert!(!out.text().contains("alice") && !out.text().contains("A."), "{email_strat:?} -> {}", out.text());
         assert_offset_and_span_maps(nested_text, &[Span::new(8, 25)], &out);
     }
+
+    // Long overlapping cluster rewrites in linear time.
+    let long_s = "a".repeat(8_000);
+    let long_pii = manual(&[(0, 8_000, PiiKind::Email, "e"), (0, 4_000, PERSON_KIND, "p")]);
+    let t0 = std::time::Instant::now();
+    let long_out = RewritePolicy::new(MaskPolicy::new('*').unwrap())
+        .with(PiiKind::Email, Truncate::keep_end(4))
+        .rewrite(&long_s, &long_pii)
+        .unwrap();
+    assert!(t0.elapsed().as_millis() < 500);
+    assert!(long_out.text().ends_with("aaaa") && long_out.text()[..7_996].chars().all(|c| c == '*'));
 
     // EmptyValue is propagated by RewritePolicy for HmacTokenizer and Sha256Tokenizer.
     let empty_pii = manual(&[(0, 4, PiiKind::Email, "")]);

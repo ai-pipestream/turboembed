@@ -36,6 +36,30 @@ impl fmt::Display for MaskError {
 
 impl std::error::Error for MaskError {}
 
+/// Precomputed byte-offset retention bounds for linear-time per-character
+/// overlap checking across [`MaskPolicy`] and [`super::Truncate`].
+#[derive(Copy, Clone)]
+pub(super) struct CharRetention {
+    pub(super) keep_until: usize,
+    pub(super) keep_from: usize,
+    pub(super) keep_format: bool,
+    pub(super) only_alnum_bounds: bool,
+}
+
+impl CharRetention {
+    pub(super) const NONE: CharRetention =
+        CharRetention { keep_until: 0, keep_from: usize::MAX, keep_format: false, only_alnum_bounds: true };
+
+    #[inline]
+    pub(super) fn keeps(self, rel_at: usize, c: char) -> bool {
+        if letter_or_digit(c) || !self.only_alnum_bounds {
+            rel_at < self.keep_until || rel_at >= self.keep_from
+        } else {
+            self.keep_format
+        }
+    }
+}
+
 /// How the characters of a span are replaced: all of them, or the
 /// letters and digits only (`keeping_format`), leaving the first
 /// `keep_leading` and/or last `keep_trailing` letters or digits readable.
@@ -134,14 +158,20 @@ impl MaskPolicy {
             let cluster = &clusters[idx];
             idx += 1;
             let piece = &text[m.span.range()];
+            if cluster.members.len() == 1 {
+                out.push_str(&self.masked(piece));
+                return;
+            }
+            let winner_ret = self.retention(piece);
+            let member_rets: Vec<(Span, CharRetention)> =
+                cluster.members.iter().map(|mem| (mem.span, self.retention(&text[mem.span.range()]))).collect();
             for (rel_at, c) in piece.char_indices() {
                 let abs_at = m.span.start + rel_at as u32;
-                let keep = self.keeps_char_at(piece, rel_at)
-                    && cluster
-                        .members
+                let keep = winner_ret.keeps(rel_at, c)
+                    && member_rets
                         .iter()
-                        .filter(|mem| mem.span.start <= abs_at && abs_at < mem.span.end)
-                        .all(|mem| self.keeps_char_at(&text[mem.span.range()], (abs_at - mem.span.start) as usize));
+                        .filter(|(span, _)| span.start <= abs_at && abs_at < span.end)
+                        .all(|(span, ret)| ret.keeps((abs_at - span.start) as usize, c));
                 if keep {
                     out.push(c);
                 } else {
@@ -153,24 +183,37 @@ impl MaskPolicy {
         })
     }
 
-    /// Whether this policy keeps the character at byte offset `target_offset`
-    /// inside `piece`.
-    pub(crate) fn keeps_char_at(self, piece: &str, target_offset: usize) -> bool {
-        let alphanumeric = piece.chars().filter(|&c| letter_or_digit(c)).count();
-        let first_kept = alphanumeric.saturating_sub(self.keep_trailing);
-        let mut seen = 0;
-        for (at, c) in piece.char_indices() {
-            let keep = if letter_or_digit(c) {
-                seen += 1;
-                seen <= self.keep_leading || seen > first_kept
-            } else {
-                self.keep_format
-            };
-            if at == target_offset {
-                return keep;
+    /// Precomputes byte-offset retention bounds for `piece` in `O(|piece|)`.
+    pub(super) fn retention(self, piece: &str) -> CharRetention {
+        let mut keep_until = 0;
+        if self.keep_leading > 0 {
+            keep_until = piece.len();
+            let mut kept = 0;
+            for (at, c) in piece.char_indices() {
+                if letter_or_digit(c) {
+                    kept += 1;
+                    if kept == self.keep_leading {
+                        keep_until = at + c.len_utf8();
+                        break;
+                    }
+                }
             }
         }
-        false
+        let mut keep_from = piece.len();
+        if self.keep_trailing > 0 {
+            keep_from = 0;
+            let mut kept = 0;
+            for (at, c) in piece.char_indices().rev() {
+                if letter_or_digit(c) {
+                    kept += 1;
+                    if kept == self.keep_trailing {
+                        keep_from = at;
+                        break;
+                    }
+                }
+            }
+        }
+        CharRetention { keep_until, keep_from, keep_format: self.keep_format, only_alnum_bounds: true }
     }
 
     /// `MaskPolicies.forType`: cards and IBANs keep separators and their
@@ -209,17 +252,9 @@ impl MaskPolicy {
     fn apply(self, original: &str, span: Span, out: &mut [u8]) {
         let (start, end) = (span.start as usize, span.end as usize);
         let piece = &original[start..end];
-        let alphanumeric = piece.chars().filter(|&c| letter_or_digit(c)).count();
-        let first_kept = alphanumeric.saturating_sub(self.keep_trailing);
-        let mut seen = 0;
+        let ret = self.retention(piece);
         for (at, c) in piece.char_indices() {
-            let redact = if letter_or_digit(c) {
-                seen += 1;
-                seen > self.keep_leading && seen <= first_kept
-            } else {
-                !self.keep_format
-            };
-            if redact {
+            if !ret.keeps(at, c) {
                 let from = start + at;
                 out[from..from + c.len_utf8()].fill(self.mask);
             }

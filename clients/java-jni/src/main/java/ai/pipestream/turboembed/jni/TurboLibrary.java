@@ -82,7 +82,9 @@ public final class TurboLibrary {
     /** Native PII classification: checksum evidence. */
     public static final int TURBO_PII_CONFIDENCE_CHECKSUM = 2;
     /** Native PII classification: labelled checksum evidence. */
-    public static final int TURBO_PII_CONFIDENCE_LABELLED = 3;
+    public static final int TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM = 3;
+    /** Native PII classification: label-only evidence. */
+    public static final int TURBO_PII_CONFIDENCE_LABELLED = 4;
 
     /**
      * The {@code uint32_t} fields of a native {@code turbo_span} before its probability, in the
