@@ -14,6 +14,8 @@ use super::HmacTokenizer;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KindReport {
     pub kind: PiiKind,
+    /// The kind's name in the reported layer.
+    pub name: Box<str>,
     pub mentions: usize,
     pub distinct: usize,
     /// Mentions of this kind suppressed by an allow rule (counted without
@@ -59,6 +61,7 @@ impl PiiAuditReport {
                 None => {
                     kinds.push(KindReport {
                         kind: m.kind,
+                        name: pii.kind_name(m.kind).unwrap_or("").into(),
                         mentions: 0,
                         distinct: 0,
                         suppressed: 0,
@@ -72,7 +75,7 @@ impl PiiAuditReport {
             if seen.insert((m.kind, m.normalized)) {
                 k.distinct += 1;
                 if k.samples.len() < samples
-                    && let Ok(token) = tokenizer.token(m.kind, m.normalized)
+                    && let Ok(token) = tokenizer.token(pii.kind_name(m.kind).unwrap_or(""), m.normalized)
                 {
                     k.samples.push(token);
                 }
@@ -84,12 +87,17 @@ impl PiiAuditReport {
             }
             match kinds.iter_mut().find(|k| k.kind == kind) {
                 Some(k) => k.suppressed += count,
-                None => {
-                    kinds.push(KindReport { kind, mentions: 0, distinct: 0, suppressed: count, samples: Vec::new() })
-                }
+                None => kinds.push(KindReport {
+                    kind,
+                    name: pii.kind_name(kind).unwrap_or("").into(),
+                    mentions: 0,
+                    distinct: 0,
+                    suppressed: count,
+                    samples: Vec::new(),
+                }),
             }
         }
-        kinds.sort_by_key(|k| k.kind.name());
+        kinds.sort_by(|a, b| a.name.cmp(&b.name));
         PiiAuditReport {
             total: kinds.iter().map(|k| k.mentions).sum(),
             total_suppressed: kinds.iter().map(|k| k.suppressed).sum(),
@@ -120,7 +128,7 @@ impl fmt::Display for PiiAuditReport {
             if i > 0 {
                 f.write_str("\n")?;
             }
-            write!(f, "{}: {} mentions, {} distinct", k.kind, k.mentions, k.distinct)?;
+            write!(f, "{}: {} mentions, {} distinct", k.name, k.mentions, k.distinct)?;
             if k.suppressed > 0 {
                 write!(f, ", {} suppressed", k.suppressed)?;
             }

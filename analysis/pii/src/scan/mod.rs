@@ -21,7 +21,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use turbo_analysis_layers::{PiiKind, PiiKinds};
+use turbo_analysis_layers::{CustomKinds, PiiKind, PiiKinds};
 
 use crate::hits::{Hits, PiiSink};
 use crate::window::WindowConfig;
@@ -248,9 +248,6 @@ impl Scanner {
 
     /// A scanner running a caller-defined [`CustomExtractor`].
     pub fn custom<E: CustomExtractor + 'static>(extractor: E) -> Scanner {
-        for &k in extractor.kinds() {
-            PiiKind::remember_custom(k);
-        }
         Scanner { inner: ScannerInner::Custom(Arc::new(extractor)) }
     }
 
@@ -294,10 +291,10 @@ impl Scanner {
 
     /// Appends this scanner's candidates in `text`, in the order the Java
     /// extractor's scans run.
-    pub(crate) fn scan(&self, text: &str, window: &WindowConfig, hits: &mut Hits) {
+    pub(crate) fn scan(&self, text: &str, window: &WindowConfig, kinds: &CustomKinds, hits: &mut Hits) {
         let ScannerInner::Builtin { extractor, kinds: k } = &self.inner else {
             if let ScannerInner::Custom(c) = &self.inner {
-                let mut sink = PiiSink::new(text, hits);
+                let mut sink = PiiSink::new(text, kinds, hits);
                 c.scan(text, &mut sink);
             }
             return;

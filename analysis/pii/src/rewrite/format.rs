@@ -18,9 +18,9 @@
 use std::collections::HashMap;
 use std::fmt::{self, Write};
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::{PiiRewrite, RewriteError, kind_name};
 
 /// A format template [`FormatRedactor`] cannot accept.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,12 +141,12 @@ impl FormatRedactor {
     }
 
     /// Appends the formatted label for `kind` and 1-based `number` to `out`.
-    pub fn write_label(&self, kind: PiiKind, number: u32, out: &mut String) {
+    pub fn write_label(&self, kind: &str, number: u32, out: &mut String) {
         for seg in &self.segments {
             match seg {
                 Segment::Literal(s) => out.push_str(s),
-                Segment::KindUpper => out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase())),
-                Segment::KindLower => out.push_str(kind.name()),
+                Segment::KindUpper => out.extend(kind.chars().map(|c| c.to_ascii_uppercase())),
+                Segment::KindLower => out.push_str(kind),
                 Segment::ValueNumber => {
                     let _ = write!(out, "{number}");
                 }
@@ -154,8 +154,8 @@ impl FormatRedactor {
         }
     }
 
-    /// Formats the label for `kind` and 1-based `number`.
-    pub fn format_label(&self, kind: PiiKind, number: u32) -> String {
+    /// Formats the label for the kind named `kind` and 1-based `number`.
+    pub fn format_label(&self, kind: &str, number: u32) -> String {
         let mut out = String::new();
         self.write_label(kind, number, &mut out);
         out
@@ -169,9 +169,9 @@ impl FormatRedactor {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
             let n = if self.uses_number {
                 *assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
                     let c = counters.entry(m.kind).or_insert(0);
@@ -181,7 +181,7 @@ impl FormatRedactor {
             } else {
                 1
             };
-            self.write_label(m.kind, n, out);
+            self.write_label(kind_name(&pii.custom_kinds, m.kind), n, out);
         })
     }
 }
@@ -189,9 +189,15 @@ impl FormatRedactor {
 /// Replaces mentions with a fixed string (such as `"[REDACTED]"`), with
 /// optional per-[`PiiKind`] overrides. Replacement is stateless and
 /// identical within a document and across documents.
+///
+/// The replacer owns a custom-kind table: a custom kind given to
+/// [`StaticReplacer::with`] indexes it, and a layer's custom kind is
+/// matched to it by name, so two tables that number their kinds in another
+/// order never share an override.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StaticReplacer {
     default_replacement: String,
+    custom_kinds: CustomKinds,
     overrides: Vec<(PiiKind, String)>,
     refuse_overlaps: bool,
 }
@@ -210,27 +216,60 @@ impl StaticReplacer {
     pub fn new(default_replacement: impl Into<String>) -> StaticReplacer {
         StaticReplacer {
             default_replacement: default_replacement.into(),
+            custom_kinds: CustomKinds::new(),
             overrides: Vec::new(),
             refuse_overlaps: false,
         }
     }
 
-    /// Overrides the static replacement text for `kind`.
-    pub fn with(mut self, kind: PiiKind, replacement: impl Into<String>) -> StaticReplacer {
-        let replacement = replacement.into();
-        PiiKind::remember_custom(kind);
-        match self.overrides.binary_search_by_key(&kind, |(k, _)| *k) {
-            Ok(at) => self.overrides[at].1 = replacement,
-            Err(at) => self.overrides.insert(at, (kind, replacement)),
-        }
+    /// This replacer with `kinds` as its custom-kind table, which every
+    /// custom kind given to [`StaticReplacer::with`] afterwards indexes.
+    /// Drops overrides of custom kinds made under an earlier table.
+    pub fn with_custom_kinds(mut self, kinds: CustomKinds) -> StaticReplacer {
+        self.overrides.retain(|(k, _)| !k.is_custom());
+        self.custom_kinds = kinds;
         self
     }
 
-    /// The replacement text configured for `kind`.
+    /// The table every custom kind of this replacer indexes.
+    pub fn custom_kinds(&self) -> &CustomKinds {
+        &self.custom_kinds
+    }
+
+    /// Overrides the static replacement text for `kind`.
+    ///
+    /// # Panics
+    ///
+    /// When `kind` is a custom kind outside the replacer's table; see
+    /// [`StaticReplacer::try_with`].
+    pub fn with(self, kind: PiiKind, replacement: impl Into<String>) -> StaticReplacer {
+        self.try_with(kind, replacement).expect("a kind of the replacer's custom-kind table")
+    }
+
+    /// Overrides the static replacement text for `kind`, refused when
+    /// `kind` is a custom kind outside [`StaticReplacer::custom_kinds`].
+    pub fn try_with(mut self, kind: PiiKind, replacement: impl Into<String>) -> Result<StaticReplacer, KindError> {
+        self.custom_kinds.check(kind)?;
+        let replacement = replacement.into();
+        match self.overrides.binary_search_by_key(&kind.code(), |(k, _)| k.code()) {
+            Ok(at) => self.overrides[at].1 = replacement,
+            Err(at) => self.overrides.insert(at, (kind, replacement)),
+        }
+        Ok(self)
+    }
+
+    /// The replacement text configured for `kind` of this replacer's table.
     pub fn replacement(&self, kind: PiiKind) -> &str {
         self.overrides
-            .binary_search_by_key(&kind, |(k, _)| *k)
+            .binary_search_by_key(&kind.code(), |(k, _)| k.code())
             .map_or(self.default_replacement.as_str(), |at| self.overrides[at].1.as_str())
+    }
+
+    /// The replacement text for `kind` of a layer whose custom kinds index
+    /// `kinds`: a custom kind is matched to this replacer's by name, and one
+    /// the replacer does not list takes the default replacement.
+    pub fn replacement_in(&self, kinds: &CustomKinds, kind: PiiKind) -> &str {
+        self.custom_kinds.translate(kinds, kind).map_or(self.default_replacement.as_str(), |k| self.replacement(k))
     }
 
     /// This replacer, refusing overlapping mentions with
@@ -251,10 +290,10 @@ impl StaticReplacer {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
-            out.push_str(self.replacement(m.kind));
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
+            out.push_str(self.replacement_in(&pii.custom_kinds, m.kind));
         })
     }
 }

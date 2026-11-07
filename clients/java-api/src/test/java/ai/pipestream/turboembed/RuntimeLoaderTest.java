@@ -56,6 +56,16 @@ final class RuntimeLoaderTest {
         assertEquals(4, TurboPiiConfidence.LABELLED.nativeCode());
         assertEquals(TurboPiiConfidence.LABELLED, TurboPiiConfidence.fromNative(TurboPiiConfidence.LABELLED.nativeCode()));
         assertThrows(IllegalStateException.class, () -> TurboPiiConfidence.fromNative(5));
+        assertEquals(TurboPiiKind.EMAIL, TurboPiiKind.fromNative(5));
+        assertEquals(30, TurboPiiKind.PHONE.nativeCode());
+        assertEquals("de-steuer-id", TurboPiiKind.DE_STEUER_ID.wireName());
+        assertEquals(TurboPiiKind.BR_CNPJ, TurboPiiKind.fromName("br-cnpj").orElseThrow());
+        assertTrue(TurboPiiKind.fromName("account-number").isEmpty());
+        assertThrows(IllegalStateException.class, () -> TurboPiiKind.fromNative(0));
+        for (TurboPiiKind kind : TurboPiiKind.values()) {
+            assertEquals(kind.ordinal() + 1, kind.nativeCode(), "ids are 1.. in declaration order");
+            assertEquals(kind, TurboPiiKind.fromNative(kind.nativeCode()));
+        }
         TurboException failure = new TurboException(256, "TURBO_E_INVALID_ARGUMENT", 7, "bad bundle");
         assertEquals(7, failure.field());
         assertEquals(256, failure.code());

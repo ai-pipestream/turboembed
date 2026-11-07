@@ -241,16 +241,16 @@ impl MapReplacer {
     /// Replaces every mention of `pii`, a layer over `text`, using the
     /// lookup table or the configured fallback strategy when unmapped.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
-        let mut state = RewriteState::default();
+        let mut state = RewriteState::new(&pii.custom_kinds);
         if self.refuses_overlaps() {
-            return PiiRewrite::try_replace(text, pii.mentions(), |m, out| {
+            return PiiRewrite::try_replace(text, &pii.custom_kinds, pii.mentions(), |m, out| {
                 self.write_mention(&mut state, text, m, out)
             });
         }
-        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
         let strategy = RewriteStrategy::Map(Box::new(self.clone()));
         let mut idx = 0;
-        PiiRewrite::try_replace(text, clusters.iter().map(|c| c.merged), |_, out| {
+        PiiRewrite::try_replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |_, out| {
             let cluster = &clusters[idx];
             idx += 1;
             state.write_cluster(|_| &strategy, text, cluster, out)

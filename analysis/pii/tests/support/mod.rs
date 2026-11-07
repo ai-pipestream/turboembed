@@ -6,7 +6,63 @@ use std::collections::BTreeMap;
 
 use turbo_analysis::ViewId;
 use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
-use turbo_pii::{Extractor, Pack, Pii, PiiDetector, PiiKind, PiiKinds, Scanner};
+use turbo_pii::{CustomKindId, CustomKinds, Extractor, Pack, Pii, PiiDetector, PiiKind, PiiKinds, Scanner};
+
+/// The custom kinds the tests name, in table order: entry `i` is
+/// [`test_kind`]`(i)` of [`test_kinds`].
+pub const TEST_KIND_NAMES: [&str; 12] = [
+    "person-name",
+    "account-number",
+    "se-personnummer",
+    "employee-badge",
+    "project-codename",
+    "internal-codename",
+    "codename-a",
+    "codename-b",
+    "codename",
+    "ticket",
+    "passport",
+    "fresh-acct-num",
+];
+
+/// Entry `i` of [`test_kinds`].
+pub const fn test_kind(i: u16) -> PiiKind {
+    PiiKind::Custom(CustomKindId::new(i))
+}
+
+/// The custom-kind table of [`TEST_KIND_NAMES`].
+pub fn test_kinds() -> CustomKinds {
+    CustomKinds::from_names(TEST_KIND_NAMES).expect("valid test kind names")
+}
+
+/// A detector over [`test_kinds`] with a deny list appended.
+pub trait Denying {
+    fn denying(self, deny: turbo_pii::DenyList) -> PiiDetector;
+}
+
+impl Denying for PiiDetector {
+    fn denying(self, deny: turbo_pii::DenyList) -> PiiDetector {
+        self.with_custom_kinds(test_kinds()).with_deny_list(deny).expect("a deny list of a test kind")
+    }
+}
+
+/// The test kind named `name`.
+pub fn custom(name: &str) -> PiiKind {
+    test_kinds().find(name).unwrap_or_else(|| panic!("{name} is a test kind"))
+}
+
+/// The table index of the custom `kind`.
+pub fn kind_index(kind: PiiKind) -> u16 {
+    match kind {
+        PiiKind::Custom(c) => c.index(),
+        _ => panic!("a custom kind"),
+    }
+}
+
+/// The name of `kind` in [`test_kinds`] (built-in kinds by their name).
+pub fn kind_name(kind: PiiKind) -> String {
+    test_kinds().name(kind).expect("a known kind").to_owned()
+}
 
 /// One mention as the tests compare it: start, end, kind name, normalized.
 pub type Row = (u32, u32, &'static str, String);
@@ -16,7 +72,10 @@ pub fn layer(d: &PiiDetector, text: &str) -> Pii {
 }
 
 pub fn rows(d: &PiiDetector, text: &str) -> Vec<Row> {
-    layer(d, text).mentions().map(|m| (m.span.start, m.span.end, m.kind.name(), m.normalized.to_owned())).collect()
+    layer(d, text)
+        .mentions()
+        .map(|m| (m.span.start, m.span.end, m.kind.builtin_name().unwrap(), m.normalized.to_owned()))
+        .collect()
 }
 
 /// Asserts the mentions of `text`, in order.
@@ -115,7 +174,7 @@ pub fn load_labelled(table: &[(&str, bool, &str, &str)], labels_file: &str, esca
         assert_eq!(f.len(), 5, "five columns in {labels_file}: {line:?}");
         let start: u32 = f[1].parse().expect("start offset");
         let end: u32 = f[2].parse().expect("end offset");
-        let kind = PiiKind::parse(f[3]).expect("a built-in kind").name();
+        let kind = PiiKind::parse(f[3]).expect("a built-in kind").builtin_name().unwrap();
         let (_, doc) = docs.iter_mut().find(|(id, _)| *id == f[0]).expect("known document id");
         let covered = if escaped_newlines { f[4].replace("\\n", "\n") } else { f[4].to_owned() };
         assert_eq!(&doc.text[start as usize..end as usize], covered, "{} {start}..{end}", f[0]);
@@ -164,9 +223,9 @@ pub fn base64url(bytes: &[u8]) -> String {
     out
 }
 
-/// A layer of the given mentions, in the order given.
+/// A layer of the given mentions, in the order given, over [`test_kinds`].
 pub fn manual(mentions: &[(u32, u32, PiiKind, &str)]) -> Pii {
-    let mut pii = Pii::new(ViewId::SOURCE);
+    let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, test_kinds());
     for &(start, end, kind, normalized) in mentions {
         pii.push(turbo_pii::PiiMention {
             span: turbo_analysis::Span::new(start, end),

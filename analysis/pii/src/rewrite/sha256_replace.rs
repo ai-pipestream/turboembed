@@ -17,9 +17,9 @@
 //! key of at least 32 bytes whenever unkeyed interoperability is not
 //! explicitly required.
 
-use turbo_analysis_layers::{Pii, PiiKind};
+use turbo_analysis_layers::Pii;
 
-use super::{PiiRewrite, RewriteError, TokenizerError};
+use super::{PiiRewrite, RewriteError, TokenizerError, kind_name};
 use crate::checksum::sha256;
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -112,15 +112,16 @@ impl Sha256Tokenizer {
         self.refuse_overlaps
     }
 
-    /// Appends the formatted SHA-256 digest of `value` of `kind` to `out`.
-    pub fn write_digest(&self, kind: PiiKind, value: &str, out: &mut String) -> Result<(), TokenizerError> {
+    /// Appends the formatted SHA-256 digest of `value` of the kind named
+    /// `kind` to `out`.
+    pub fn write_digest(&self, kind: &str, value: &str, out: &mut String) -> Result<(), TokenizerError> {
         if value.is_empty() {
             return Err(TokenizerError::EmptyValue);
         }
         let hash = sha256::digest(value.as_bytes());
         out.push_str(&self.prefix);
         if self.kind_prefix {
-            out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+            out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
             out.push('-');
         }
         out.extend(
@@ -132,8 +133,8 @@ impl Sha256Tokenizer {
         Ok(())
     }
 
-    /// The formatted SHA-256 digest of `value` of `kind`.
-    pub fn digest(&self, kind: PiiKind, value: &str) -> Result<String, TokenizerError> {
+    /// The formatted SHA-256 digest of `value` of the kind named `kind`.
+    pub fn digest(&self, kind: &str, value: &str) -> Result<String, TokenizerError> {
         let mut out = String::new();
         self.write_digest(kind, value, &mut out)?;
         Ok(out)
@@ -148,10 +149,11 @@ impl Sha256Tokenizer {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::try_replace(text, mentions, |m, out| {
-            self.write_digest(m.kind, m.normalized, out).map_err(|_| RewriteError::EmptyValue(m.span))
+        PiiRewrite::try_replace(text, &pii.custom_kinds, mentions, |m, out| {
+            self.write_digest(kind_name(&pii.custom_kinds, m.kind), m.normalized, out)
+                .map_err(|_| RewriteError::EmptyValue(m.span))
         })
     }
 }

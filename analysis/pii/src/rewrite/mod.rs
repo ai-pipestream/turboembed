@@ -44,3 +44,12 @@ pub use replace::{PiiRewrite, RewriteError};
 pub use sha256_replace::{Sha256Replacer, Sha256Tokenizer};
 pub use truncate::{KeepSide, Truncate};
 pub use view::{MASKED, MaskedView, mask_into, mask_view};
+
+use turbo_analysis_layers::{CustomKinds, PiiKind};
+
+/// The name of `kind` in `kinds`, the table of the layer it came from. Every
+/// rewrite checks its mentions' kinds against that table first, so an
+/// unknown kind never reaches a label writer; it writes no name there.
+pub(crate) fn kind_name(kinds: &CustomKinds, kind: PiiKind) -> &str {
+    kinds.name(kind).unwrap_or("")
+}

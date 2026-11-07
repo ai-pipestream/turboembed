@@ -9,7 +9,7 @@ use std::fmt::Write;
 
 use turbo_analysis_layers::{Pii, PiiKind};
 
-use super::{PiiRewrite, RewriteError};
+use super::{PiiRewrite, RewriteError, kind_name};
 
 /// Writes `prefix`, the kind's name in capitals, `-`, the number and
 /// `suffix` for each mention. By default, overlapping mentions are
@@ -40,10 +40,11 @@ impl Pseudonymizer {
         self.refuse_overlaps
     }
 
-    /// Appends the pseudonym label for `kind` and 1-based `number` to `out`.
-    pub(crate) fn write_label(&self, kind: PiiKind, number: u32, out: &mut String) {
+    /// Appends the pseudonym label for the kind named `kind` and 1-based
+    /// `number` to `out`.
+    pub(crate) fn write_label(&self, kind: &str, number: u32, out: &mut String) {
         out.push_str(&self.prefix);
-        out.extend(kind.name().chars().map(|c| c.to_ascii_uppercase()));
+        out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
         let _ = write!(out, "-{number}");
         out.push_str(&self.suffix);
     }
@@ -56,14 +57,14 @@ impl Pseudonymizer {
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
-            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+            PiiRewrite::coalesce_clusters(text, &pii.custom_kinds, pii.mentions())?
         };
-        PiiRewrite::replace(text, mentions, |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, mentions, |m, out| {
             let label = assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
                 let n = counters.entry(m.kind).or_insert(0);
                 *n += 1;
                 let mut l = String::new();
-                self.write_label(m.kind, *n, &mut l);
+                self.write_label(kind_name(&pii.custom_kinds, m.kind), *n, &mut l);
                 l
             });
             out.push_str(label);

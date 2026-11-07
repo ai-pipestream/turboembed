@@ -13,7 +13,7 @@ use turbo_analysis_layers::{
     Entities, EpistemicStatus, EventArgument, EventFrame, Events, ExpansionRow, KeyValuePair, KeyValuePairs,
     LanguageSpans, Levels, LexicalExpansions, Matches, Modality, ModalityPolarity, ModalityTag, Modifier, Money,
     MoneyMention, Multiplier, NumberMention, NumberNotation, Numbers, Opinion, Opinions, OrdinalBase, OrdinalMention,
-    Ordinals, Origin, PhraseChunks, Phrases, Pii, PiiConfidence, PiiKind, PiiMention, PlaceAncestor, PolarityScores,
+    Ordinals, Origin, PhraseChunks, Phrases, Pii, PiiConfidence, PiiMention, PlaceAncestor, PolarityScores,
     QualityFlags, QualityMetrics, Quantities, QuantityMention, Quotation, Quotations, QuoteKind, ScaleMarker, SenseRow,
     Sentences, SpanQuality, Structure, Subwords, TableCell, Tables, TemporalMention, TemporalValue, Temporals,
     TextQuality, TimeGrain, TimeKind, TimeMention, Times, TokenVectorWindows, Tokens, Unit, Vectors, WORDNET_POS,
@@ -260,10 +260,12 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let temporals_src = doc.project_layer(&temporals, ViewId::SOURCE).unwrap();
     assert_eq!(temporals_src.spans.get(Ix::new(0)), Span::new(27, 37));
     doc.add(&Key::DEFAULT, temporals_src, prov()).unwrap();
-    let mut pii = Pii::new(grand_id);
+    let date_kinds = turbo_analysis_layers::CustomKinds::from_names(["date_id"]).unwrap();
+    let date_id = date_kinds.find("date_id").unwrap();
+    let mut pii = Pii::with_custom_kinds(grand_id, date_kinds);
     pii.push(PiiMention {
         span: Span::new(23, 33),
-        kind: PiiKind::Custom("date_id"),
+        kind: date_id,
         confidence: PiiConfidence::Format,
         normalized: "2026-05-01",
     });

@@ -77,7 +77,7 @@ phone, IBAN and card.
 `Pii`, in `turbo-analysis-layers`, has one item per mention with the
 columns `spans` (UTF-8 byte offsets into the view, on character
 boundaries), `kind`, `confidence` and `normalized`. Mentions are ordered
-by start, then longer first, then by kind rank; equal mentions (span,
+by start, then longer first, then by kind priority; equal mentions (span,
 kind and normalized form) appear once, the first found kept. By default,
 a mention strictly nested inside a longer mention (such as a phone or
 card inside a grouped IBAN, or an NHS number inside an international
@@ -87,8 +87,14 @@ span or cross each other: an IMEI after its label is also a Luhn-valid
 card number, and `https://user:pass@example.com` has a URL credential
 crossing an e-mail address. `Pii::check` holds a layer to this order.
 
-The kinds, in rank order (`PiiKind::ALL`, `PiiKind::rank`), with the
-normalized form and the confidence each gets:
+The kinds, in id order (`PiiKind::TABLE`, `PiiKind::builtin_id`), with the
+normalized form and the confidence each gets. Each row of the table has a
+stable id (1 to 30), its name and a priority; the ids are the numbers of
+the proto `PiiKindId` enum, the C `TURBO_PII_KIND_*` defines, the Java
+`TurboPiiKind` enum and the binary codec, and never change. Priority
+alone decides ordering and cluster winners; `PiiKind` has no `Ord`.
+Confidence ids are format 1, checksum 2, labelled checksum 3 and
+labelled 4 everywhere; 0 is unspecified and refused.
 
 | Kind | Normalized form | Confidence |
 |---|---|---|
@@ -208,7 +214,7 @@ the normalized value, under a key of at least 32 bytes; the label is the
 same in every text for one key. Both return a `PiiRewrite` with the new
 text, the labels as a layer of it, and `map_offset` and `map_span` from
 the original to the new text; overlapping mentions are coalesced by
-default into their union span under the top-ranked kind, while
+default into their union span under the kind of highest priority, while
 `refusing_overlaps` and invalid or empty spans are refused
 (`RewriteError`). `PiiAuditReport` counts mentions by kind, with keyed
 tokens in place of values. `analysis/pii/tests/rewrite_audit.rs` checks,
@@ -343,18 +349,18 @@ spans over multi-byte texts, and that the text equals `mask`.
 - Caller-defined extractors implement `CustomExtractor` (with optional
   `config_hash` for stateful settings, or pass a scan function to
   `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and emit
-  mentions with `PiiKind::custom("...")`, their own `PiiConfidence`, and
-  `checksum` / `text` helpers via `PiiSink`
-  (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
-  `0..30` (`PiiKind::ALL`); `PiiKind::Custom` has rank `30` and orders
-  after built-in kinds on an exact span tie, then by kind name. A custom
-  kind name must be 1 to 64 UTF-8 bytes (`PiiKind::MAX_CUSTOM_NAME_BYTES`)
-  and not one of the reserved built-in names in `PiiKind::ALL`; the
-  process-wide custom kind registry holds up to 256 distinct custom
-  kind names (`PiiKind::MAX_CUSTOM_KINDS`). Once 256 distinct custom names
-  are registered, known names continue to succeed while a 257th new custom
-  name is refused by `PiiKind::remember_custom`, `PiiSink`, `Pii::check`,
-  `Pii::export` and `PiiKind::intern_custom`. Caller kinds flow
+  mentions of a `PiiKind::Custom(CustomKindId)`, their own
+  `PiiConfidence`, and `checksum` / `text` helpers via `PiiSink`
+  (`analysis/pii/tests/custom_extractors.rs`). A custom kind indexes the
+  `CustomKinds` table the detector is given with
+  `PiiDetector::with_custom_kinds`; every `Pii` layer carries its own
+  table, so there is no process-wide state. Custom kinds order after
+  built-in kinds on an exact span tie, then by table index. A custom
+  kind name must be 1 to 64 UTF-8 bytes (`CustomKinds::MAX_NAME_BYTES`)
+  and not a built-in name; a table holds up to 256 names
+  (`CustomKinds::MAX`), checked when the table is built. A kind outside
+  the table is refused (`KindError`) by the detector builder,
+  `PiiSink`, `Pii::check`, export, import and every rewrite. Caller kinds flow
   through `mask_all`, `mask_by_kind`, `MaskedView` (with
   `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
   `PiiAuditReport` and binary graph export/import.
@@ -405,7 +411,7 @@ values or flag domain-specific terms without writing a custom byte scanner:
     - `\x`: literal character `x` (such as `\*`, `\?`, `\\`)
     - any other character (including `d`, `a`, `w`): literal match
 - **Deny list (`DenyList`)**: terms that are always reported under a
-  caller-named `PiiKind::Custom` (`DenyList::new`, `DenyList::custom`,
+  custom kind of the detector's table (`DenyList::new`,
   `DenyList::from_terms`, `DenyList::from_file`, attached via
   `PiiDetector::with_deny_list`) with `PiiConfidence::Format`.
   - Exact terms are matched with `turbo-glossary`'s Aho-Corasick
