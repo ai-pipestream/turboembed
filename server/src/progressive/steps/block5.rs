@@ -69,7 +69,14 @@ pub(super) fn add_step(
         "turbo:structure-boundaries" | "turbo:boundaries" if has_weigh_layout => {
             builder.step(Bound::new(StructureBoundaries { costs: Costs::default() }).write(0, STRUCTURE))
         }
-        "turbo-pii:pii" | "turbo:pii" | "pii" => builder.add(PiiDetector::pack(Pack::AllStructured)),
+        "turbo-pii:pii" | "turbo:pii" | "pii" => match redaction {
+            None => builder.add(PiiDetector::pack(Pack::AllStructured)),
+            Some(r) => builder.add(
+                r.policy
+                    .detector(Pack::AllStructured)
+                    .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo-pii:pii: {e}")))?,
+            ),
+        },
         "turbo-pii:masked" | "turbo:pii-masked" | "pii-masked" => {
             let masked = MaskedView::by_kind('*')
                 .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo-pii:masked: {e}")))?;

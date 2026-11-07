@@ -18,6 +18,7 @@
 
 pub mod canonical;
 mod convert;
+mod detect;
 mod error;
 mod named;
 mod redact;
@@ -25,6 +26,7 @@ mod registry;
 mod resolve;
 mod strategy;
 
+pub use detect::IDENTIFIERS_DETECTOR;
 pub use error::{At, PolicyError};
 pub use named::{NamedPolicies, Redaction, SelectError, select};
 pub use redact::{REDACT_STEP, RedactPlanStep, RedactStep};
