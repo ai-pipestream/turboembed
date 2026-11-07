@@ -136,7 +136,6 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     for v in &msg.views {
         receipt::check_status(&format!("view {:?}", v.instance), v.status, v.error.as_ref())?;
     }
-    receipt::check_receipt(msg)?;
 
     let mut layer_lengths: HashMap<(&str, &str), usize> = HashMap::with_capacity(msg.layers.len());
     let mut total_fragments = 0usize;
@@ -162,8 +161,8 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     for layer in &msg.layers {
         validate_layer(msg, &offsetter, &known_models, &layer_lengths, layer)?;
     }
-
-    Ok(())
+    // Last: the receipt is checked against a message already known whole.
+    receipt::check_receipt(msg)
 }
 
 struct LayerCtx<'a> {

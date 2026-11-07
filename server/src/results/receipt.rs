@@ -9,6 +9,7 @@
 //! exactly-once execution; the caller rejects a reused key with
 //! different input.
 
+pub mod check;
 pub mod error;
 pub mod stream;
 

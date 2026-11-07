@@ -577,10 +577,15 @@ bytes, so a new attempt or receipt never changes it.
 The document status is CANCELLED when a deadline cancelled the run,
 FAILED when any layer failed, NOT_ASSESSED when nothing past the source
 view was assessed, PARTIAL when a layer is partial or not assessed or a
-requested step did not run, and COMPLETE otherwise. COMPLETE with an item
-count of 0 is an explicit "assessed, nothing found". A complete layer
-assessed its whole source text unless its producer reports less
-(`receipt::Coverage`), which makes it PARTIAL with the truncation reasons.
+requested step did not run, and COMPLETE otherwise. A layer whose
+annotator declined the document (error kind DECLINED, such as a
+predicate that does not apply) makes the document PARTIAL by design, so
+a conditional pipeline often reads PARTIAL: the per-layer kind tells
+DECLINED from UPSTREAM and from damage. COMPLETE with an item count of 0
+is an explicit "assessed, nothing found". A complete layer assessed its
+whole source text unless its producer reports less
+(`receipt::Coverage`), which makes it PARTIAL with the truncation
+reasons.
 
 Retries keep the operation key and get a new attempt id. The server
 binds and echoes the key and keeps no state for it: rejecting a reused
@@ -592,7 +597,12 @@ a deadline cancels the run, as a CANCELLED receipt before the deadline
 status. A stream that ends without one (a dropped connection, an
 internal error) is incomplete whatever it delivered before;
 `turbo_kserve::results::receipt::stream::terminal_receipt` is the
-consumer check, which also binds the receipt to the delivered graph.
+consumer check: the receipt must be whole and self-consistent, and
+bound to the caller's operation key, the source text it sent and the
+delivered graph; after no graph it must name no result and be CANCELLED
+or FAILED. `RoundTripTypedDocument` applies the same receipt checks and
+binds the receipt to its envelope: the same input and result, and one
+entry per view and layer with the envelope's provenance digest.
 
 `LayerWireStatus` starts at UNSPECIFIED = 0, so an absent status is never
 read as OK. `ViewInfo`, `TypedLayer` and `LayerInfo` say why they are not

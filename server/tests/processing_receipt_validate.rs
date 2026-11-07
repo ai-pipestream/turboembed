@@ -99,9 +99,50 @@ fn the_receipt_is_required_and_bound_to_the_envelope() {
     push("not assessed with ranges", &|t| {
         t.receipt.as_mut().unwrap().layers[1].status = ProcessingStatus::NotAssessed as i32
     });
+    // The envelope side mutated with its own fields kept consistent and
+    // the receipt as issued: the binding still refuses it.
+    push("envelope names another result", &|t| {
+        let r = t.result.as_mut().unwrap();
+        r.content_digest[0] ^= 1;
+        r.result_id = r.content_digest.iter().map(|b| format!("{b:02x}")).collect();
+    });
+    // The forged receipt of the review, field by field.
+    push("zeroed result", &|t| t.receipt.as_mut().unwrap().result.as_mut().unwrap().content_digest = vec![0; 32]);
+    push("junk input digest", &|t| {
+        t.receipt.as_mut().unwrap().input.as_mut().unwrap().source_text_digest = vec![7; 32]
+    });
+    push("overlong key with a newline", &|t| {
+        t.receipt.as_mut().unwrap().operation_key = format!("{}\n", "k".repeat(200))
+    });
+    push("empty attempt id", &|t| t.receipt.as_mut().unwrap().attempt_id.clear());
+    push("31 hex digits", &|t| {
+        t.receipt.as_mut().unwrap().attempt_id.pop();
+    });
+    push("3-byte config digest", &|t| t.receipt.as_mut().unwrap().config_digest = vec![1; 3]);
+    // Layer entries must be the message's own.
+    push("a layer the message lacks", &|t| t.receipt.as_mut().unwrap().layers[1].layer = "turbo:absent".into());
+    push("a listed layer twice", &|t| {
+        let r = t.receipt.as_mut().unwrap();
+        r.layers[2] = r.layers[1].clone();
+    });
+    push("a missing layer entry", &|t| {
+        t.receipt.as_mut().unwrap().layers.pop();
+    });
+    push("another provenance digest", &|t| {
+        t.receipt.as_mut().unwrap().layers[1].provenance_digest.as_mut().unwrap()[0] ^= 1
+    });
+    push("an error with another turbo code", &|t| {
+        let ix = t.layers.iter().position(|l| l.id == "turbo:pii").unwrap();
+        t.layers[ix].status = LayerWireStatus::Failed as i32;
+        t.layers[ix].error =
+            Some(LayerError { kind: LayerErrorKind::Annotator as i32, turbo_code: 0, ..LayerError::default() });
+    });
     for (what, t) in &cases {
         refused(t, what);
     }
+    let (_, envelope_side) = cases.iter().find(|(w, _)| *w == "envelope names another result").unwrap();
+    let err = round_trip_typed_document(envelope_side).unwrap_err();
+    assert!(err.message.contains("receipt.result"), "refused for the binding: {}", err.message);
 }
 
 #[test]
