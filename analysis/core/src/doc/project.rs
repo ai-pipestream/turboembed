@@ -12,6 +12,9 @@ use crate::text::{Alignment, Side, ViewId};
 use super::{Document, View, check_spans};
 
 mod monotonic;
+mod outcome;
+
+pub use outcome::{ProjectedFragment, ProjectedSpan, SpanOutcome};
 
 impl Document {
     fn view_checked(&self, v: ViewId, layer: KeyId) -> Result<&Arc<View>, Error> {
