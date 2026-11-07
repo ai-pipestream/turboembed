@@ -387,6 +387,17 @@ message ProcessingReceipt
   // an operation that runs no steps, such as InspectDocumentGraph.
   repeated string requested_steps = 9;
   repeated string executed_steps = 10;
+  // SHA-256 of the processing configuration, independent of the input
+  // text, rule turbo.processing-config.v1: the domain tag, then the entry
+  // count and, for every view and layer entry sorted by (layer id,
+  // instance), the layer id, instance, annotator and version (each a u64
+  // little-endian length then UTF-8), the config hash as u64
+  // little-endian, the model identity (byte 0 when absent, else byte 1 and
+  // its id, revision and sha256) and the read keys sorted by (layer id,
+  // instance), their count then each layer id and instance. No text, view,
+  // source or content digest takes part, so one operation key reused under
+  // another configuration is detectable; input carries the input digests.
+  bytes config_digest = 11;
 }
 
 // Runtime execution environment for a model-backed layer.

@@ -571,6 +571,7 @@ bytes, so a new attempt or receipt never changes it.
 | `result` | The `ResultIdentity` produced; absent when the attempt handed over none. |
 | `status` | `ProcessingStatus`: UNSPECIFIED (0, never written), COMPLETE, PARTIAL, NOT_ASSESSED, FAILED, CANCELLED. |
 | `layers` | One `LayerReceipt` per view and layer: status, item count, assessed source view byte ranges, requested and executed detectors (annotator and version), truncation reasons, sanitized error and the layer's provenance digest, its configuration identity. |
+| `config_digest` | SHA-256 of the processing configuration, rule `turbo.processing-config.v1` (`Document::processing_config_digest`): every view and layer entry sorted by (layer id, instance) with its annotator, version, config hash, model identity and read keys, and no text, view, source or content digest. The same configuration over other input has the same digest, so one operation key reused under another configuration is detectable; `input` carries the input digests. Per-layer provenance digests chain the text digests and stay in the envelope. |
 | `requested_steps`, `executed_steps` | The pipeline steps asked for and the ones that ran; empty for `InspectDocumentGraph`. |
 
 The document status is CANCELLED when a deadline cancelled the run,

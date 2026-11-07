@@ -188,5 +188,6 @@ pub fn build(
         layers,
         requested_steps: op.requested_steps.clone(),
         executed_steps: op.executed_steps.clone(),
+        config_digest: doc.processing_config_digest().as_bytes().to_vec(),
     }
 }
