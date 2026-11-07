@@ -193,13 +193,13 @@ impl Truncate {
     /// truncated/masked surface form.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         if self.refuse_overlaps {
-            return PiiRewrite::replace(text, pii.mentions(), |m, out| {
+            return PiiRewrite::replace(text, &pii.custom_kinds, pii.mentions(), |m, out| {
                 self.write_truncated(&text[m.span.range()], out);
             });
         }
-        let clusters = PiiRewrite::group_clusters(text, pii.mentions())?;
+        let clusters = PiiRewrite::group_clusters(text, &pii.custom_kinds, pii.mentions())?;
         let mut idx = 0;
-        PiiRewrite::replace(text, clusters.iter().map(|c| c.merged), |m, out| {
+        PiiRewrite::replace(text, &pii.custom_kinds, clusters.iter().map(|c| c.merged), |m, out| {
             let cluster = &clusters[idx];
             idx += 1;
             let piece = &text[m.span.range()];

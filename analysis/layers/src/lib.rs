@@ -38,7 +38,10 @@ pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
-pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
+pub use pii::{
+    CUSTOM_CODE_BASE, CustomKindId, CustomKinds, KindError, KindRow, Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention,
+    mention_order,
+};
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
     MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,

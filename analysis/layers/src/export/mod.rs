@@ -34,11 +34,11 @@ use crate::{
     Abbreviations, Aspects, Block, Boundaries, ChunkTags, Chunks, CodeKind, Confidence, Containment, Currency, Cut,
     Dependencies, Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, LayoutBoxes, Lemmas,
     Levels, Matches, Modifier, Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals,
-    PhraseChunks, Phrases, Pii, PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions,
-    Relation, ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times,
-    TokenVectorWindows, Tokens, Unit, Utf16Spans, VectorCodes, Vectors,
+    PhraseChunks, Phrases, Pii, PiiConfidence, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation,
+    ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows,
+    Tokens, Unit, Utf16Spans, VectorCodes, Vectors,
 };
-use crate::{LexicalExpansions, WordNetSenses};
+use crate::{CustomKinds, KindError, LexicalExpansions, WordNetSenses};
 
 mod boilerplate;
 mod calibrated;

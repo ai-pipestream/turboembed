@@ -312,6 +312,7 @@ pub(crate) fn build_layer<L: Layer>(
         anchor_layer,
         annotations,
         indexes_layer,
+        custom_pii_kinds: Vec::new(),
         native_view,
         error,
     }
@@ -415,6 +416,7 @@ pub fn document_to_typed_bound(
                 anchor_layer: None,
                 annotations: Vec::new(),
                 indexes_layer: Vec::new(),
+                custom_pii_kinds: Vec::new(),
                 native_view: None,
                 error,
             });

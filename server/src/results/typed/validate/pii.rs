@@ -1,65 +1,80 @@
-//! PII mention payloads: a kind the layer can name, built in or a custom
-//! kind name, and a confidence tier the layer writes. The normalized form
-//! is not judged here. An error names the layer, the row and its wire
-//! spans, never the mention's text, its normalized form, or the refused
-//! kind or tier, which are caller input.
+//! PII on the wire: the custom-kind table of a `turbo:pii` layer, and each
+//! mention's kind reference and confidence tier. A kind is a built-in id
+//! [`PiiKind::from_id`] knows or an index into the layer's
+//! `custom_pii_kinds`; a tier is one [`PiiConfidence::from_id`] knows.
+//! `UNSPECIFIED` (0) is neither. The normalized form is not judged here.
+//! An error names the layer, the row and its wire spans, never the
+//! mention's text, its normalized form, a custom kind name, or the refused
+//! number, which are caller input.
 
 use std::fmt::Write as _;
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis::Layer;
+use turbo_analysis_layers::{CustomKinds, KindError, Pii, PiiConfidence, PiiKind};
 
 use super::*;
-use crate::proto::result::PiiMention;
+use crate::proto::result::pii_kind_ref::Kind;
+use crate::proto::result::{PiiMention, TypedLayer};
 
+/// The number of custom kinds `layer` names: its `custom_pii_kinds`, which
+/// only a `turbo:pii` layer may carry, held to [`CustomKinds::from_names`].
+pub(super) fn custom_kinds(layer: &TypedLayer) -> Result<usize, Failure> {
+    let lid = layer.id.as_str();
+    let names = &layer.custom_pii_kinds;
+    if lid != Pii::ID {
+        if !names.is_empty() {
+            return Err(bad(format!("layer {lid} carries custom_pii_kinds; only {} may", Pii::ID)));
+        }
+        return Ok(0);
+    }
+    CustomKinds::from_names(names).map_err(|e| bad(format!("layer {lid} custom_pii_kinds: {}", table_error(e))))?;
+    Ok(names.len())
+}
+
+/// What is wrong with a custom-kind table, with no name in it.
+fn table_error(e: KindError) -> String {
+    match e {
+        // The reserved kind is a built-in, never caller text.
+        KindError::Reserved(_) => "a name is a built-in kind name".to_owned(),
+        // Duplicate, too long, empty and full carry an index or a length.
+        other => other.to_string(),
+    }
+}
+
+// Reads the retired string fields only to refuse them.
+#[allow(deprecated)]
 pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &PiiMention) -> Result<(), Failure> {
     let at = || format!("{}[{i}] at {}", ctx.lid, wire_spans(&ann.spans));
-    if m.kind.is_empty() {
-        return Err(bad(format!("{} pii kind is empty", at())));
+    if ctx.lid != Pii::ID {
+        return Err(bad(format!("{} is a pii mention outside a {} layer", at(), Pii::ID)));
     }
-    if !resolvable(&m.kind) {
-        return Err(bad(format!(
-            "{} pii kind of {} bytes is neither a built-in kind nor a custom kind name of at most {} bytes",
-            at(),
-            m.kind.len(),
-            PiiKind::MAX_CUSTOM_NAME_BYTES
-        )));
+    if ann.spans.is_empty() {
+        return Err(bad(format!("{} pii mention has no span", at())));
     }
-    if !known_tier(&m.confidence_tier) {
-        return Err(bad(format!(
-            "{} pii confidence_tier of {} bytes is not one of {}",
-            at(),
-            m.confidence_tier.len(),
-            TIERS.map(PiiConfidence::name).join(", ")
-        )));
+    if !m.kind.is_empty() || !m.confidence_tier.is_empty() {
+        return Err(bad(format!("{} pii mention sets a retired string kind or confidence_tier", at())));
+    }
+    match m.kind_ref.as_ref().and_then(|r| r.kind) {
+        None => return Err(bad(format!("{} pii kind is missing", at()))),
+        Some(Kind::Builtin(id)) => {
+            if u16::try_from(id).ok().and_then(PiiKind::from_id).is_none() {
+                return Err(bad(format!("{} pii kind id is not a built-in kind", at())));
+            }
+        }
+        Some(Kind::Custom(index)) => {
+            if usize::try_from(index).map_or(true, |n| n >= ctx.custom_pii_kinds) {
+                return Err(bad(format!(
+                    "{} pii custom kind index is outside the layer's {} custom_pii_kinds",
+                    at(),
+                    ctx.custom_pii_kinds
+                )));
+            }
+        }
+    }
+    if u32::try_from(m.confidence).ok().and_then(PiiConfidence::from_id).is_none() {
+        return Err(bad(format!("{} pii confidence is not a known tier", at())));
     }
     Ok(())
-}
-
-/// Whether a non-empty `kind` names a [`PiiKind`]: one of
-/// [`PiiKind::ALL`], or a custom kind name the layer takes, at most
-/// [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes. A custom name is judged by its
-/// form alone, never by the process's registry of custom kinds, so a
-/// message validates the same wherever it is checked.
-fn resolvable(kind: &str) -> bool {
-    PiiKind::parse(kind).is_some() || kind.len() <= PiiKind::MAX_CUSTOM_NAME_BYTES
-}
-
-/// Every confidence tier the layer writes.
-const TIERS: [PiiConfidence; 4] =
-    [PiiConfidence::Format, PiiConfidence::Labelled, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum];
-
-/// Whether `name` is the name of one of [`TIERS`], exactly.
-fn known_tier(name: &str) -> bool {
-    TIERS.iter().any(|&tier| {
-        // Exhaustive, so a tier added to `PiiConfidence` fails to compile
-        // here until it is added to `TIERS` as well.
-        match tier {
-            PiiConfidence::Format
-            | PiiConfidence::Labelled
-            | PiiConfidence::Checksum
-            | PiiConfidence::LabelledChecksum => tier.name() == name,
-        }
-    })
 }
 
 /// The wire spans as `start..end`, comma separated, or `no span`.

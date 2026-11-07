@@ -439,10 +439,15 @@ cannot project to a message that validation accepts. Release builds skip
 that check, which costs half to three quarters as much as the projection
 itself.
 
-A `turbo:pii` payload needs a kind, either a built-in kind name or a
-custom kind name of at most 64 bytes, and a confidence tier of `format`,
-`labelled`, `checksum` or `labelled-checksum`. A refusal names the layer, the row and
-its wire spans, never the mention's text, kind or tier. A mention whose
+A `turbo:pii` payload sits only on a `turbo:pii` layer, has at least one
+span, and needs a `PiiKindRef`: a built-in `PiiKindId` (1 to 30) or an
+index into the layer's `custom_pii_kinds`, and a `PiiConfidenceTier`
+(format 1, checksum 2, labelled checksum 3, labelled 4).
+`UNSPECIFIED` (0) and unknown numbers are refused. `custom_pii_kinds` is
+empty on every other layer; on `turbo:pii` it holds at most 256 distinct
+names of 1 to 64 bytes, none a built-in kind name (#1901). A refusal
+names the layer, the row and its wire spans, never the mention's text, a
+custom kind name or the refused number. A mention whose
 text the requested view deletes keeps an empty span where it was.
 
 Evidence producers record only annotator and optional model identity.

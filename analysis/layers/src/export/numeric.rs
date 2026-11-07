@@ -43,8 +43,6 @@ const RELATIONS: [Relation; 8] = [
 ];
 const PORTIONS: [Portion; 6] =
     [Portion::Whole, Portion::Start, Portion::Mid, Portion::End, Portion::Approx, Portion::Undefined];
-const PII_CONFIDENCES: [PiiConfidence; 4] =
-    [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum, PiiConfidence::Labelled];
 
 impl LayerCodec for Numbers {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
@@ -241,48 +239,63 @@ impl LayerCodec for Times {
     }
 }
 
+/// The pii layer: spans, the custom-kind table (count, then each name),
+/// one `u32` kind code a mention ([`PiiKind::code`]: the stable built-in
+/// id, or [`crate::CUSTOM_CODE_BASE`] plus a table index), one `u8`
+/// confidence id a mention ([`PiiConfidence::id`]), then the normalized
+/// values. An unknown kind code or confidence id is refused on import.
 impl LayerCodec for Pii {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        for &k in &self.kind {
+            self.custom_kinds.check(k).map_err(|e| malformed(e.to_string()))?;
+        }
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
+        w.usize(self.custom_kinds.len())?;
+        for name in self.custom_kinds.names() {
+            w.str(name)?;
+        }
         w.usize(self.kind.len())?;
         for &k in &self.kind {
-            if let PiiKind::Custom(name) = k {
-                if name.is_empty() || name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some() {
-                    return Err(malformed(format!("invalid custom pii kind {name:?}")));
-                }
-                if !PiiKind::remember_custom(k) {
-                    return Err(malformed(format!(
-                        "custom pii kind {name:?} exceeds registry capacity ({})",
-                        PiiKind::MAX_CUSTOM_KINDS
-                    )));
-                }
-            }
-            w.str(k.name())?;
+            w.u32(k.code());
         }
-        put_variants(&mut w, &PII_CONFIDENCES, &self.confidence)?;
+        w.usize(self.confidence.len())?;
+        for &c in &self.confidence {
+            w.u8(c.id());
+        }
         put_strs(&mut w, &self.normalized)?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
+        let n_custom = r.usize()?;
+        if n_custom > CustomKinds::MAX {
+            return Err(malformed(KindError::Full.to_string()));
+        }
+        let mut names = Vec::with_capacity(n_custom);
+        for _ in 0..n_custom {
+            names.push(r.str()?);
+        }
+        let custom_kinds = CustomKinds::from_names(names).map_err(|e| malformed(e.to_string()))?;
         let mut kind = Vec::new();
         for _ in 0..r.usize()? {
-            let name = r.string()?;
-            kind.push(
-                PiiKind::parse(&name)
-                    .or_else(|| PiiKind::intern_custom(&name))
-                    .ok_or_else(|| malformed(format!("an unknown pii kind {name:?}")))?,
+            kind.push(custom_kinds.from_code(r.u32()?).map_err(|e| malformed(e.to_string()))?);
+        }
+        let mut confidence = Vec::new();
+        for _ in 0..r.usize()? {
+            let id = r.u8()?;
+            confidence.push(
+                PiiConfidence::from_id(u32::from(id))
+                    .ok_or_else(|| malformed(KindError::UnknownConfidence(u32::from(id)).to_string()))?,
             );
         }
-        let confidence = get_variants(&mut r, &PII_CONFIDENCES, "pii confidence")?;
         let normalized = get_strs(&mut r)?;
         want_len(kind.len(), spans.len(), "kinds")?;
         want_len(confidence.len(), spans.len(), "confidences")?;
         want_len(normalized.len(), spans.len(), "normalized values")?;
         done(&r, "pii")?;
-        Ok(Pii { spans, kind, confidence, normalized })
+        Ok(Pii { spans, custom_kinds, kind, confidence, normalized })
     }
 }
 

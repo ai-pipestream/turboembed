@@ -2,15 +2,16 @@
 //! between views through their lowest common ancestor, as
 //! `Document::map_span` maps them; a mention whose text the target view
 //! deletes keeps an empty anchor; a PII payload needs a kind the layer can
-//! name and a known confidence tier; and `document_to_typed` refuses to
+//! reference the layer can resolve and a known confidence tier; and `document_to_typed` refuses to
 //! emit a message its own validator would refuse.
 
 use turbo_analysis::{Alignment, Analyzer, Document, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
+use turbo_kserve::proto::result::pii_kind_ref::Kind;
 use turbo_kserve::proto::result::typed_annotation::Value;
-use turbo_kserve::proto::result::{PiiMention as WirePii, TypedDocumentResult};
+use turbo_kserve::proto::result::{PiiKindRef, PiiMention as WirePii, TypedDocumentResult, TypedLayer};
 use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
 use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiKind, PiiMention};
 
@@ -136,32 +137,124 @@ fn pii_message(edit: impl FnOnce(&mut WirePii)) -> TypedDocumentResult {
     wire
 }
 
+/// A kind reference to built-in id `id`.
+fn builtin(id: i32) -> Option<PiiKindRef> {
+    Some(PiiKindRef { kind: Some(Kind::Builtin(id)) })
+}
+
+/// A kind reference to custom index `index`.
+fn custom(index: u32) -> Option<PiiKindRef> {
+    Some(PiiKindRef { kind: Some(Kind::Custom(index)) })
+}
+
+/// The pii layer of `wire`.
+fn pii_layer(wire: &mut TypedDocumentResult) -> &mut TypedLayer {
+    wire.layers.iter_mut().find(|l| l.id == "turbo:pii").expect("a pii layer")
+}
+
+/// The error of `wire`, held to carry no planted value.
+#[track_caller]
+fn refused(what: &str, wire: &TypedDocumentResult, secrets: &[&str]) -> String {
+    let err = validate_typed_document(wire).expect_err(what);
+    assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT, "{what}");
+    for secret in secrets.iter().chain(&["jane@example.com"]) {
+        assert!(!err.message.contains(secret), "{what}: the error echoes input: {}", err.message);
+    }
+    err.message
+}
+
+/// Sets the retired string kind, which is never populated.
+#[allow(deprecated)]
+fn retired_kind(m: &mut WirePii) {
+    m.kind = "email".to_owned();
+}
+
+/// Sets the retired string tier, which is never populated.
+#[allow(deprecated)]
+fn retired_tier(m: &mut WirePii) {
+    m.confidence_tier = "format".to_owned();
+}
+
 #[test]
-fn pii_payloads_need_a_resolvable_kind_and_a_known_confidence_tier() {
+fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
     validate_typed_document(&pii_message(|_| {})).unwrap();
-    let longest = "k".repeat(PiiKind::MAX_CUSTOM_NAME_BYTES);
-    for ok in ["email", "phone", "acct-number", longest.as_str()] {
-        validate_typed_document(&pii_message(|m| m.kind = ok.to_owned())).unwrap_or_else(|e| panic!("{ok:?}: {e:?}"));
+    for id in [1, 5, 30] {
+        validate_typed_document(&pii_message(|m| m.kind_ref = builtin(id))).unwrap_or_else(|e| panic!("{id}: {e:?}"));
     }
-    for tier in ["format", "labelled", "checksum", "labelled-checksum"] {
-        validate_typed_document(&pii_message(|m| m.confidence_tier = tier.to_owned())).unwrap();
+    for tier in PiiConfidence::ALL {
+        let tier = tier.id() as i32;
+        validate_typed_document(&pii_message(|m| m.confidence = tier)).unwrap();
     }
-    let refusals: [(&str, Edit); 5] = [
-        ("empty kind", |m| m.kind.clear()),
-        ("too long kind", |m| m.kind = "k".repeat(PiiKind::MAX_CUSTOM_NAME_BYTES + 1)),
-        ("invented tier", |m| m.confidence_tier = "certain-ish".to_owned()),
-        ("empty tier", |m| m.confidence_tier.clear()),
-        ("tier in another case", |m| m.confidence_tier = "Format".to_owned()),
+    let refusals: [(&str, Edit); 10] = [
+        ("no kind", |m| m.kind_ref = None),
+        ("an empty kind ref", |m| m.kind_ref = Some(PiiKindRef { kind: None })),
+        ("unspecified kind", |m| m.kind_ref = builtin(0)),
+        ("kind past the table", |m| m.kind_ref = builtin(31)),
+        ("negative kind", |m| m.kind_ref = builtin(-7)),
+        ("custom kind with no table", |m| m.kind_ref = custom(0)),
+        ("unspecified tier", |m| m.confidence = 0),
+        ("unknown tier", |m| m.confidence = 5),
+        ("a retired string kind", retired_kind),
+        ("a retired string tier", retired_tier),
     ];
     for (what, edit) in refusals {
-        let err = validate_typed_document(&pii_message(edit)).expect_err(what);
-        assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT, "{what}");
+        let message = refused(what, &pii_message(edit), &[]);
         // The error names the layer, the row and its span, never the value.
-        assert!(err.message.contains("turbo:pii[0]") && err.message.contains("5..21"), "{what}: {}", err.message);
-        for secret in ["jane@example.com", "certain-ish", "kkkk"] {
-            assert!(!err.message.contains(secret), "{what}: the error echoes input: {}", err.message);
-        }
+        assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
     }
+}
+
+#[test]
+fn custom_kind_refs_index_the_layers_own_table() {
+    let with_table = |names: &[&str], edit: Edit| {
+        let mut wire = pii_message(edit);
+        pii_layer(&mut wire).custom_pii_kinds = names.iter().map(|n| (*n).to_owned()).collect();
+        wire
+    };
+    validate_typed_document(&with_table(&["badge", "ticket"], |m| m.kind_ref = custom(1))).unwrap();
+    refused("index past the table", &with_table(&["badge", "ticket"], |m| m.kind_ref = custom(2)), &["badge"]);
+    let long = "q".repeat(65);
+    let tables: [(&str, Vec<&str>); 4] = [
+        ("an empty name", vec!["badge", ""]),
+        ("a name over 64 bytes", vec![long.as_str()]),
+        ("a built-in name", vec!["email"]),
+        ("a duplicate name", vec!["secret-badge", "secret-badge"]),
+    ];
+    for (what, names) in tables {
+        let message = refused(what, &with_table(&names, |_| {}), &["secret-badge", "qqqq"]);
+        assert!(message.contains("custom_pii_kinds"), "{what}: {message}");
+    }
+    let full: Vec<String> = (0..257).map(|i| format!("k{i}")).collect();
+    let mut wire = pii_message(|_| {});
+    pii_layer(&mut wire).custom_pii_kinds = full;
+    refused("257 names", &wire, &["k256"]);
+}
+
+#[test]
+fn pii_payloads_and_custom_tables_belong_to_the_pii_layer() {
+    // Another layer may neither carry a custom-kind table nor a pii mention.
+    let elsewhere = |table: bool| {
+        let mut wire = pii_message(|_| {});
+        let mut other = pii_layer(&mut wire).clone();
+        other.id = "turbo:entities".to_owned();
+        if table {
+            other.annotations.clear();
+            other.custom_pii_kinds = vec!["badge".to_owned()];
+        }
+        // The envelope (#1907) wants a provenance entry for every layer.
+        let mut prov = wire.provenance.iter().find(|p| p.layer == "turbo:pii").cloned().unwrap();
+        prov.layer = other.id.clone();
+        wire.provenance.push(prov);
+        wire.layers.push(other);
+        wire
+    };
+    assert!(refused("a table on another layer", &elsewhere(true), &["badge"]).contains("custom_pii_kinds"));
+    assert!(refused("a mention on another layer", &elsewhere(false), &[]).contains("outside a turbo:pii layer"));
+    // A pii mention needs a span.
+    let mut wire = pii_message(|_| {});
+    let ann = pii_layer(&mut wire).annotations.first_mut().unwrap();
+    ann.spans.clear();
+    assert!(refused("no span", &wire, &[]).contains("no span"));
 }
 
 #[test]

@@ -199,11 +199,11 @@ fn file_loading_for_allow_and_deny_lists() {
          Sunburst\n",
     );
 
-    let codename = PiiKind::custom("project-codename");
+    let codename = custom("project-codename");
     let allow = AllowList::from_file(&allow_path).unwrap().with_shapes_file(&shape_path).unwrap();
     let deny = DenyList::from_file(codename, &deny_path).unwrap();
 
-    let detector = PiiDetector::pack(Pack::AllStructured).with_allow_list(allow).with_deny_list(deny);
+    let detector = PiiDetector::pack(Pack::AllStructured).with_allow_list(allow).denying(deny);
 
     let text = "Write to desk@example.com or jane@example.com, call +44 20 7946 0958, \
                 card 4111 1111 1111 1111, regarding Project Hyperion and Sunburst.";
@@ -223,14 +223,14 @@ fn file_loading_for_allow_and_deny_lists() {
 
 #[test]
 fn deny_list_exact_and_fuzzy_edits_0_1_2_and_capitalised_only() {
-    let kind = PiiKind::custom("internal-codename");
+    let kind = custom("internal-codename");
     // Exact (0 edits), 1 edit ("Palantyr"), 2 edits ("Palxntyr"), 3 edits ("Pxlxntyr"),
     // plus lowercase exact ("palantir") and lowercase 1-edit ("palantyr").
     let text = "Found Palantir, Palantyr, Palxntyr, Pxlxntyr, palantir, and palantyr.";
 
     // Distance 0, case-sensitive: only exact "Palantir".
-    let d0 = PiiDetector::new(vec![])
-        .with_deny_list(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(0).unwrap());
+    let d0 =
+        PiiDetector::new(vec![]).denying(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(0).unwrap());
     assert_eq!(
         layer(&d0, text).mentions().map(|m| (m.kind, m.confidence, m.normalized)).collect::<Vec<_>>(),
         [(kind, PiiConfidence::Format, "Palantir")]
@@ -238,25 +238,23 @@ fn deny_list_exact_and_fuzzy_edits_0_1_2_and_capitalised_only() {
 
     // Distance 1, case-sensitive: "Palantir" (0 edits), "Palantyr" (1 sub),
     // and "palantir" (1 sub: 'P' -> 'p').
-    let d1 = PiiDetector::new(vec![])
-        .with_deny_list(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(1).unwrap());
+    let d1 =
+        PiiDetector::new(vec![]).denying(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(1).unwrap());
     assert_eq!(
         layer(&d1, text).mentions().map(|m| m.normalized).collect::<Vec<_>>(),
         ["Palantir", "Palantyr", "palantir"]
     );
 
     // Distance 1 with capitalised_only: drops lowercase "palantir".
-    let d1_cap = PiiDetector::new(vec![]).with_deny_list(
-        DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(1).unwrap().capitalised_only(),
-    );
+    let d1_cap = PiiDetector::new(vec![])
+        .denying(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(1).unwrap().capitalised_only());
     assert_eq!(layer(&d1_cap, text).mentions().map(|m| m.normalized).collect::<Vec<_>>(), ["Palantir", "Palantyr"]);
 
     // Distance 2 with capitalised_only: matches 0, 1, and 2 edits when
     // capitalised ("Palantir", "Palantyr", "Palxntyr"), rejects 3 edits
     // ("Pxlxntyr") and lowercase ("palantir", "palantyr").
-    let d2_cap = PiiDetector::new(vec![]).with_deny_list(
-        DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(2).unwrap().capitalized_only(),
-    );
+    let d2_cap = PiiDetector::new(vec![])
+        .denying(DenyList::from_terms(kind, ["Palantir"]).unwrap().with_max_edits(2).unwrap().capitalized_only());
     assert_eq!(
         layer(&d2_cap, text).mentions().map(|m| m.normalized).collect::<Vec<_>>(),
         ["Palantir", "Palantyr", "Palxntyr"]
@@ -264,17 +262,20 @@ fn deny_list_exact_and_fuzzy_edits_0_1_2_and_capitalised_only() {
 
     // Distance 2, case-insensitive without capitalised_only: matches all five
     // within 2 edits ("Palantir", "Palantyr", "Palxntyr", "palantir", "palantyr").
-    let d2_ci = PiiDetector::new(vec![]).with_deny_list(
-        DenyList::from_terms(kind, ["Palantir"]).unwrap().case_insensitive().with_max_edits(2).unwrap(),
-    );
+    let d2_ci = PiiDetector::new(vec![])
+        .denying(DenyList::from_terms(kind, ["Palantir"]).unwrap().case_insensitive().with_max_edits(2).unwrap());
     assert_eq!(
         layer(&d2_ci, text).mentions().map(|m| m.normalized).collect::<Vec<_>>(),
         ["Palantir", "Palantyr", "Palxntyr", "palantir", "palantyr"]
     );
 
     // Validation errors on DenyList.
-    assert_eq!(DenyList::new(PiiKind::Email), Err(ListError::ReservedKind("email")));
-    assert_eq!(DenyList::custom(""), Err(ListError::EmptyKind));
+    assert_eq!(DenyList::new(PiiKind::Email), Err(ListError::BuiltinKind(PiiKind::Email)));
+    assert_eq!(
+        PiiDetector::new(vec![]).with_deny_list(DenyList::new(kind).unwrap()).err(),
+        Some(ListError::Kind(turbo_pii::KindError::UnknownCustom(kind_index(kind)))),
+        "a deny list's kind must be in the detector's table"
+    );
     assert_eq!(DenyList::new(kind).unwrap().with_max_edits(3), Err(ListError::InvalidEditDistance(3)));
     assert_eq!(DenyList::new(kind).unwrap().with_term("   "), Err(ListError::EmptyTerm));
 }
@@ -282,8 +283,8 @@ fn deny_list_exact_and_fuzzy_edits_0_1_2_and_capitalised_only() {
 #[test]
 fn config_hash_changes_when_any_allow_or_deny_list_changes() {
     let base = PiiDetector::pack(Pack::Contact);
-    let kind_a = PiiKind::custom("codename-a");
-    let kind_b = PiiKind::custom("codename-b");
+    let kind_a = custom("codename-a");
+    let kind_b = custom("codename-b");
 
     let variants = [
         base.clone(),
@@ -294,13 +295,13 @@ fn config_hash_changes_when_any_allow_or_deny_list_changes() {
         base.clone().allow_glob("ddd-dd-dddd").unwrap(),
         base.clone().allow_kind_term(PiiKind::Email, "desk@example.com").unwrap(),
         base.clone().allow_kind_term(PiiKind::Phone, "desk@example.com").unwrap(),
-        base.clone().with_deny_list(DenyList::from_terms(kind_a, ["Apollo"]).unwrap()),
-        base.clone().with_deny_list(DenyList::from_terms(kind_a, ["Mercury"]).unwrap()),
-        base.clone().with_deny_list(DenyList::from_terms(kind_b, ["Apollo"]).unwrap()),
-        base.clone().with_deny_list(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().case_insensitive()),
-        base.clone().with_deny_list(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().with_max_edits(1).unwrap()),
-        base.clone().with_deny_list(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().with_max_edits(2).unwrap()),
-        base.clone().with_deny_list(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().capitalised_only()),
+        base.clone().denying(DenyList::from_terms(kind_a, ["Apollo"]).unwrap()),
+        base.clone().denying(DenyList::from_terms(kind_a, ["Mercury"]).unwrap()),
+        base.clone().denying(DenyList::from_terms(kind_b, ["Apollo"]).unwrap()),
+        base.clone().denying(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().case_insensitive()),
+        base.clone().denying(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().with_max_edits(1).unwrap()),
+        base.clone().denying(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().with_max_edits(2).unwrap()),
+        base.clone().denying(DenyList::from_terms(kind_a, ["Apollo"]).unwrap().capitalised_only()),
     ];
 
     let hashes: Vec<u64> = variants.iter().map(Annotator::config_hash).collect();
@@ -353,8 +354,8 @@ fn audit_report_counts_suppressed_mentions_without_values() {
     assert!(display.contains("phone: 0 mentions, 0 distinct, 1 suppressed"));
 
     // Neither active nor suppressed values nor suppressed tokens may appear.
-    let suppressed_email_token = tokenizer.token(PiiKind::Email, public_email).unwrap();
-    let suppressed_card_token = tokenizer.token(PiiKind::Card, "4111111111111111").unwrap();
+    let suppressed_email_token = tokenizer.token("email", public_email).unwrap();
+    let suppressed_card_token = tokenizer.token("card", "4111111111111111").unwrap();
     for forbidden in [
         secret_email,
         public_email,
@@ -374,16 +375,16 @@ fn audit_report_counts_suppressed_mentions_without_values() {
 
 #[test]
 fn failed_batch_leaves_allow_and_deny_lists_untouched() {
-    let kind = PiiKind::custom("codename");
+    let kind = custom("codename");
     let baseline_deny = DenyList::from_terms(kind, ["Apollo"]).unwrap();
     let mut deny = baseline_deny.clone();
     assert_eq!(deny.add_terms(["classified", "   "]), Err(ListError::EmptyTerm));
     assert_eq!(deny.terms(), ["Apollo"]);
     assert_eq!(
-        PiiDetector::new(vec![]).with_deny_list(deny.clone()).config_hash(),
-        PiiDetector::new(vec![]).with_deny_list(baseline_deny).config_hash()
+        PiiDetector::new(vec![]).denying(deny.clone()).config_hash(),
+        PiiDetector::new(vec![]).denying(baseline_deny).config_hash()
     );
-    let det = PiiDetector::new(vec![]).with_deny_list(deny);
+    let det = PiiDetector::new(vec![]).denying(deny);
     assert_eq!(layer(&det, "Apollo and classified").mentions().map(|m| m.normalized).collect::<Vec<_>>(), ["Apollo"]);
 
     let baseline_allow = AllowList::from_terms(["support@example.com"]).unwrap();
@@ -395,13 +396,16 @@ fn failed_batch_leaves_allow_and_deny_lists_untouched() {
 
 #[test]
 fn suppressed_outer_mention_does_not_drop_nested_other_kind() {
-    let ticket = PiiKind::custom("ticket");
+    let ticket = custom("ticket");
     let text = "TICKET alice@example.com";
-    let base = PiiDetector::pack(Pack::Contact).with_custom_fn("ticket", ticket, |text, sink| {
-        if let Some(pos) = text.find("TICKET ") {
-            sink.add_text(Span::new(pos as u32, text.len() as u32), PiiKind::custom("ticket"), PiiConfidence::Format);
-        }
-    });
+    let base = PiiDetector::pack(Pack::Contact)
+        .with_custom_kinds(test_kinds())
+        .with_custom_fn("ticket", ticket, |text, sink| {
+            if let Some(pos) = text.find("TICKET ") {
+                sink.add_text(Span::new(pos as u32, text.len() as u32), custom("ticket"), PiiConfidence::Format);
+            }
+        })
+        .unwrap();
     // Without suppression, default nesting drops the inner email inside ticket.
     assert_eq!(layer(&base, text).mentions().map(|m| (m.kind, m.normalized)).collect::<Vec<_>>(), [(ticket, text)]);
 
@@ -420,12 +424,11 @@ fn suppressed_outer_mention_does_not_drop_nested_other_kind() {
 
 #[test]
 fn short_fuzzy_terms_and_linear_long_token_banding() {
-    let kind = PiiKind::custom("codename");
+    let kind = custom("codename");
     // 2-char term "Ed" (< 4 chars) only matches at 0 edits even with max_edits(2);
     // 4-char term "Vera" (4..=5 chars) allows at most 1 edit ("Vero"), rejecting 2 edits ("Zero").
-    let short_det = PiiDetector::new(vec![]).with_deny_list(
-        DenyList::from_terms(kind, ["Ed", "Vera"]).unwrap().case_insensitive().with_max_edits(2).unwrap(),
-    );
+    let short_det = PiiDetector::new(vec![])
+        .denying(DenyList::from_terms(kind, ["Ed", "Vera"]).unwrap().case_insensitive().with_max_edits(2).unwrap());
     assert_eq!(
         layer(&short_det, "Ed went to a shop in it as we do with Vero and Zero")
             .mentions()
@@ -440,15 +443,15 @@ fn short_fuzzy_terms_and_linear_long_token_banding() {
     one_edit.replace_range(4095..4096, "B");
     let mut three_edits = long_term.clone();
     three_edits.replace_range(1000..1003, "XYZ");
-    let long_det = PiiDetector::new(vec![])
-        .with_deny_list(DenyList::from_terms(kind, [&long_term]).unwrap().with_max_edits(2).unwrap());
+    let long_det =
+        PiiDetector::new(vec![]).denying(DenyList::from_terms(kind, [&long_term]).unwrap().with_max_edits(2).unwrap());
     let input = format!("{one_edit} {three_edits}");
     assert_eq!(layer(&long_det, &input).mentions().map(|m| m.normalized).collect::<Vec<_>>(), [one_edit.as_str()]);
 }
 
 #[test]
 fn duplicate_terms_and_patterns_do_not_change_config_hash() {
-    let kind = PiiKind::custom("codename");
+    let kind = custom("codename");
     let a1 = AllowList::from_terms(["desk@example.com"])
         .unwrap()
         .with_shape("ddd-dd-dddd")
@@ -476,8 +479,5 @@ fn duplicate_terms_and_patterns_do_not_change_config_hash() {
     let d1 = DenyList::from_terms(kind, ["Apollo"]).unwrap().case_insensitive();
     let d2 = DenyList::from_terms(kind, ["Apollo", "apollo", "APOLLO"]).unwrap().case_insensitive();
     assert_eq!(d1, d2);
-    assert_eq!(
-        PiiDetector::new(vec![]).with_deny_list(d1).config_hash(),
-        PiiDetector::new(vec![]).with_deny_list(d2).config_hash()
-    );
+    assert_eq!(PiiDetector::new(vec![]).denying(d1).config_hash(), PiiDetector::new(vec![]).denying(d2).config_hash());
 }

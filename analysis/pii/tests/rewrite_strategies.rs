@@ -16,7 +16,7 @@ use turbo_pii::rewrite::{
 };
 use turbo_pii::{Pii, PiiDetector, PiiKind};
 
-const PERSON_KIND: PiiKind = PiiKind::custom("person-name");
+const PERSON_KIND: PiiKind = test_kind(0);
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
 
 fn cursor() -> PiiDetector {
@@ -80,8 +80,8 @@ fn format_redactor_expands_templates_reuses_numbers_and_rejects_bad_syntax() {
     assert_offset_and_span_maps(text, &sources, &r2);
 
     let lower_and_percent = FormatRedactor::new("<%k#%v:100%%>").unwrap();
-    assert_eq!(lower_and_percent.format_label(PiiKind::UsSsn, 3), "<us-ssn#3:100%>");
-    assert_eq!(lower_and_percent.format_label(PERSON_KIND, 2), "<person-name#2:100%>");
+    assert_eq!(lower_and_percent.format_label("us-ssn", 3), "<us-ssn#3:100%>");
+    assert_eq!(lower_and_percent.format_label("person-name", 2), "<person-name#2:100%>");
     let r3 = lower_and_percent.rewrite(text, &pii).unwrap();
     assert_eq!(
         r3.text(),
@@ -109,6 +109,7 @@ fn static_replacer_is_consistent_within_and_across_documents() {
     assert_offset_and_span_maps(text1, &s1, &r1);
 
     let by_kind = StaticReplacer::new("<PII>")
+        .with_custom_kinds(test_kinds())
         .with(PiiKind::Email, "<EMAIL>")
         .with(PiiKind::Card, "<CARD>")
         .with(PERSON_KIND, "<NAME>");
@@ -137,7 +138,7 @@ fn sha256_tokenizer_hashes_normalized_values_and_validates_lengths() {
 
     let expected_jane: String = sha256::digest(b"jane@example.com").iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(expected_jane.len(), 64);
-    assert_eq!(sha.digest(PiiKind::Email, "jane@example.com").unwrap(), expected_jane);
+    assert_eq!(sha.digest("email", "jane@example.com").unwrap(), expected_jane);
 
     let text = "Contact JANE@EXAMPLE.COM or jane@example.com.";
     let pii = layer(&cursor(), text);
@@ -151,15 +152,12 @@ fn sha256_tokenizer_hashes_normalized_values_and_validates_lengths() {
     assert_eq!(prefixed.length(), 12);
     assert!(prefixed.has_kind_prefix());
     assert_eq!(prefixed.prefix(), "sha256:");
-    assert_eq!(
-        prefixed.digest(PiiKind::Email, "jane@example.com").unwrap(),
-        format!("sha256:EMAIL-{}", &expected_jane[..12])
-    );
+    assert_eq!(prefixed.digest("email", "jane@example.com").unwrap(), format!("sha256:EMAIL-{}", &expected_jane[..12]));
 
     for bad_len in [0, 1, 3, 65, 100] {
         assert_eq!(Sha256Tokenizer::with_length(bad_len), Err(TokenizerError::Length(bad_len)));
     }
-    assert_eq!(sha.digest(PiiKind::Email, ""), Err(TokenizerError::EmptyValue));
+    assert_eq!(sha.digest("email", ""), Err(TokenizerError::EmptyValue));
     let empty_norm = manual(&[(0, 4, PiiKind::Email, "")]);
     assert_eq!(sha.rewrite("abcd", &empty_norm).map(|r| r.into_text()), Err(RewriteError::EmptyValue(Span::new(0, 4))));
 }
@@ -326,6 +324,7 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
         .unwrap()
         .with_fallback(FormatRedactor::new("[EMAIL-%v]").unwrap());
     let policy = RewritePolicy::new(StaticReplacer::new("[REDACTED]"))
+        .with_custom_kinds(test_kinds())
         .with(PiiKind::Email, map)
         .with(PiiKind::Phone, Truncate::last_n(4).keeping_format())
         .with(PiiKind::Card, Sha256Tokenizer::with_length(8).unwrap().with_kind_prefix())
@@ -340,13 +339,13 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     let mut rows: Vec<(u32, u32, PiiKind, String)> =
         pii.mentions().map(|m| (m.span.start, m.span.end, m.kind, m.normalized.to_owned())).collect();
     rows.push((5, 20, PERSON_KIND, "Jean-Luc Picard".to_owned()));
-    rows.sort_by_key(|r| (r.0, std::cmp::Reverse(r.1), r.2));
+    rows.sort_by_key(|r| turbo_analysis_layers::mention_order(r.0, r.1, r.2));
     let borrowed: Vec<(u32, u32, PiiKind, &str)> = rows.iter().map(|r| (r.0, r.1, r.2, r.3.as_str())).collect();
     pii = manual(&borrowed);
 
     let r = policy.rewrite(text, &pii).unwrap();
     let expected_card =
-        Sha256Tokenizer::with_length(8).unwrap().with_kind_prefix().digest(PiiKind::Card, "4111111111111111").unwrap();
+        Sha256Tokenizer::with_length(8).unwrap().with_kind_prefix().digest("card", "4111111111111111").unwrap();
     assert_eq!(
         r.text(),
         format!(

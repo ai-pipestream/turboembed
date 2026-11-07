@@ -178,6 +178,7 @@ struct LayerCtx<'a> {
     target_bounds: Vec<usize>,
     layer_len: usize,
     lid: &'a str,
+    custom_pii_kinds: usize,
 }
 
 fn check_nonneg(what: &str, layer: &str, index: usize, v: f64) -> Result<(), Failure> {
@@ -324,6 +325,7 @@ fn validate_layer(
     };
     let entity_len = TargetLen::of(&target_lengths, "turbo:entities");
 
+    let custom_pii_kinds = pii::custom_kinds(layer)?;
     let ctx = LayerCtx {
         text: &msg.raw_text,
         offsetter,
@@ -351,6 +353,7 @@ fn validate_layer(
         target_bounds,
         layer_len: layer.annotations.len(),
         lid,
+        custom_pii_kinds,
     };
     for (i, ann) in layer.annotations.iter().enumerate() {
         annotation::validate_annotation(&ctx, i, ann)?;

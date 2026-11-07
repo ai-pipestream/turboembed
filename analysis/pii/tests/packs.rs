@@ -39,6 +39,7 @@ fn kinds_found(d: &PiiDetector) -> PiiKinds {
 #[test]
 fn every_pack_is_in_order_and_finds_its_kinds_only() {
     use PiiKind::*;
+    let all_kinds: Vec<PiiKind> = PiiKind::builtins().collect();
     let expected: [(Pack, &[PiiKind]); 11] = [
         (Pack::Payment, &[Iban, Card, AbaRouting]),
         (Pack::Contact, &[Email, Phone]),
@@ -50,7 +51,7 @@ fn every_pack_is_in_order_and_finds_its_kinds_only() {
         (Pack::BrIdentity, &[BrCpf, BrCnpj]),
         (Pack::CaIdentity, &[CaSin]),
         (Pack::Device, &[Imei]),
-        (Pack::AllStructured, &PiiKind::ALL),
+        (Pack::AllStructured, &all_kinds),
     ];
     for (p, kinds) in expected {
         let d = pack(p);
@@ -185,8 +186,8 @@ fn crossing_mentions_are_kept_and_masked() {
 }
 
 #[test]
-fn kind_ranks() {
-    let names: Vec<&str> = PiiKind::ALL.iter().map(|k| k.name()).collect();
+fn kind_ids_and_priorities() {
+    let names: Vec<&str> = PiiKind::TABLE.iter().map(|r| r.name).collect();
     assert_eq!(
         names,
         [
@@ -222,9 +223,9 @@ fn kind_ranks() {
             "phone"
         ]
     );
-    for (i, k) in PiiKind::ALL.iter().enumerate() {
-        assert_eq!(k.rank() as usize, i);
-        assert_eq!(PiiKind::parse(k.name()), Some(*k));
+    for (i, r) in PiiKind::TABLE.iter().enumerate() {
+        assert_eq!(usize::from(r.id), i + 1);
+        assert_eq!(PiiKind::parse(r.name), Some(r.kind));
     }
     for (stronger, weaker) in [
         ("email", "phone"),
@@ -238,7 +239,7 @@ fn kind_ranks() {
         ("us-ssn", "phone"),
         ("de-steuer-id", "phone"),
     ] {
-        assert!(PiiKind::parse(stronger).unwrap() < PiiKind::parse(weaker).unwrap());
+        assert!(PiiKind::parse(stronger).unwrap().priority() < PiiKind::parse(weaker).unwrap().priority());
     }
     for name in ["custom", "person", "email ", "EMAIL", "", "  "] {
         assert_eq!(PiiKind::parse(name), None);
@@ -264,14 +265,14 @@ fn kind_selection() {
                 all.iter().enumerate().filter(|(i, _)| mask & 1 << i != 0).map(|(_, &k)| k).collect();
             let d = PiiDetector::new(vec![Scanner::with_kinds(extractor, PiiKinds::of(&chosen)).unwrap()]);
             let found = kinds(&d, sample);
-            if chosen.iter().any(|k| k.name() == first) {
+            if chosen.iter().any(|k| k.builtin_name() == Some(first)) {
                 assert_eq!(found, [first], "{} {chosen:?}", extractor.java_name());
             } else {
                 assert!(found.is_empty(), "{} {chosen:?}", extractor.java_name());
             }
         }
         assert_eq!(Scanner::with_kinds(extractor, PiiKinds::EMPTY), Err(ScannerError::NoKinds(extractor)));
-        let foreign = PiiKind::ALL.into_iter().find(|k| !extractor.kinds().contains(*k)).unwrap();
+        let foreign = PiiKind::builtins().find(|k| !extractor.kinds().contains(*k)).unwrap();
         assert_eq!(
             Scanner::with_kinds(extractor, PiiKinds::of(&[foreign])),
             Err(ScannerError::Foreign(extractor, foreign))
@@ -289,7 +290,8 @@ fn the_annotator_writes_the_layer() {
     for result in analyzer.run(&mut docs) {
         result.unwrap();
     }
-    let kinds = |d: &Document| d.get::<Pii>().map(|p| p.mentions().map(|m| m.kind.name()).collect::<Vec<_>>());
+    let kinds =
+        |d: &Document| d.get::<Pii>().map(|p| p.mentions().map(|m| m.kind.builtin_name().unwrap()).collect::<Vec<_>>());
     assert_eq!(kinds(&docs[0]), Some(vec!["email", "card"]));
     assert_eq!(kinds(&docs[1]), Some(vec![]));
     assert_eq!(Pii::ID, "turbo:pii");
@@ -371,4 +373,42 @@ fn layers_pass_their_check() {
     let pii = layer(&wide(), &everything());
     assert_eq!(pii.check(), Ok(()));
     assert!(pii.mentions().count() > 20);
+}
+
+/// Pinned under stable kind ids (#1901): a pack's configuration hash keys on
+/// kind ids, so adding a kind (or a pack) leaves every one of these unchanged.
+#[test]
+fn pack_config_hashes_are_pinned_on_kind_ids() {
+    let hashes: Vec<(&str, u64)> =
+        Pack::ALL.into_iter().map(|p| (p.name(), PiiDetector::pack(p).config_hash())).collect();
+    assert_eq!(
+        hashes,
+        [
+            ("payment", 8739323326071888652),
+            ("contact", 590719719270229581),
+            ("network", 576834619351109183),
+            ("secrets", 591634045867018468),
+            ("crypto", 588546617215948105),
+            ("us-identity", 567886793722052640),
+            ("eu-identity", 372598208369306011),
+            ("br-identity", 600249775195443079),
+            ("ca-identity", 587814459240793714),
+            ("device", 598477406239679157),
+            ("all-structured", 15331754987889619389),
+        ]
+    );
+}
+
+#[test]
+fn kind_allow_lists_are_ordered_by_kind_id_whatever_the_insertion_order() {
+    // Phone (id 30) is given first, Jwt (id 1) next, Email (id 5) last.
+    let d = PiiDetector::pack(Pack::AllStructured)
+        .allow_kind_term(PiiKind::Phone, "x")
+        .unwrap()
+        .allow_kind_term(PiiKind::Jwt, "x")
+        .unwrap()
+        .allow_kind_term(PiiKind::Email, "x")
+        .unwrap();
+    let kinds: Vec<PiiKind> = d.kind_allow_lists().iter().map(|(k, _)| *k).collect();
+    assert_eq!(kinds, [PiiKind::Jwt, PiiKind::Email, PiiKind::Phone]);
 }

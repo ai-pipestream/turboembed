@@ -276,6 +276,7 @@ impl ProjectableLayer for Pii {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
         let out = Pii {
             spans: doc.project_spans_monotonic(&self.spans, to)?,
+            custom_kinds: self.custom_kinds.clone(),
             kind: self.kind.clone(),
             confidence: self.confidence.clone(),
             normalized: self.normalized.clone(),
