@@ -45,6 +45,7 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
                     view,
                     offsets: mode as i32,
                     binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()

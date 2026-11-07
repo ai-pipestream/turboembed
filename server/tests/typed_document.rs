@@ -177,6 +177,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
             view: 0,
             offsets: ProtoOffsetMode::Utf16 as i32,
             binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -256,6 +257,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         view: 0,
         offsets: ProtoOffsetMode::Utf8 as i32,
         binding: None,
+        operation_key: String::new(),
     })
     .unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
@@ -404,7 +406,6 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         id: "turbo:pos".into(),
         instance: String::new(),
         status: LayerWireStatus::Ok as i32,
-        status_detail: String::new(),
         scope: AnchorKind::Aligned as i32,
         model_refs: Vec::new(),
         anchor_layer: Some("turbo:tokens@absent".into()),
@@ -412,6 +413,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         indexes_layer: Vec::new(),
         custom_pii_kinds: Vec::new(),
         native_view: None,
+        error: None,
     });
     let err = round_trip_typed_document(&missing_anchor).unwrap_err();
     assert!(err.message.contains("absent"), "{}", err.message);
@@ -423,7 +425,6 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         id: "turbo:pos".into(),
         instance: "gold".into(),
         status: LayerWireStatus::Ok as i32,
-        status_detail: String::new(),
         scope: AnchorKind::Aligned as i32,
         model_refs: Vec::new(),
         anchor_layer: Some("turbo:tokens@gold".into()),
@@ -442,6 +443,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         indexes_layer: Vec::new(),
         custom_pii_kinds: Vec::new(),
         native_view: None,
+        error: None,
     });
     assert!(round_trip_typed_document(&bad_aligned_idx).is_err());
 }
