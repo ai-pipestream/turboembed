@@ -131,17 +131,17 @@ pub(crate) fn scan_fr_siret(text: &str, hits: &mut Hits) {
         let end = SIRET_GROUPS.iter().find_map(|groups| read_digit_groups(text, i, groups, &mut norm));
         if let Some(end) = end
             && b.get(end) != Some(&b'/')
-            && fr::siret(&norm)
+            && let Some(rule) = fr::siret_rule(&norm)
         {
-            hits.add(
-                i,
-                end,
-                PiiKind::FrSiret,
-                PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
-                |s| {
-                    s.extend(norm.iter().map(|&c| c as char));
-                },
-            );
+            // The fact names the rule that validated the number: La Poste
+            // numbers do not pass Luhn.
+            let algorithm = match rule {
+                fr::SiretRule::Luhn => ChecksumAlgorithm::Luhn,
+                fr::SiretRule::LaPosteMod5 => ChecksumAlgorithm::LaPosteMod5,
+            };
+            hits.add(i, end, PiiKind::FrSiret, PiiEvidence::Checksum { algorithm, passed: true }, |s| {
+                s.extend(norm.iter().map(|&c| c as char));
+            });
             i = end;
         } else {
             i += 1;

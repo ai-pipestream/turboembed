@@ -102,7 +102,7 @@ fn tier_derives_from_evidence_by_table() {
         assert_eq!(ChecksumAlgorithm::from_id(u32::from(a.id())), Some(a));
     }
     assert_eq!(ChecksumAlgorithm::from_id(0), None);
-    assert_eq!(ChecksumAlgorithm::from_id(13), None);
+    assert_eq!(ChecksumAlgorithm::from_id(14), None);
     for k in PiiScoreKind::ALL {
         assert_eq!(PiiScoreKind::from_id(u32::from(k.id())), Some(k));
     }

@@ -605,6 +605,7 @@ enum PiiChecksumAlgorithm
   PII_CHECKSUM_ALGORITHM_EIP55 = 10;
   PII_CHECKSUM_ALGORITHM_ABA_WEIGHTS = 11;
   PII_CHECKSUM_ALGORITHM_OTHER = 12;
+  PII_CHECKSUM_ALGORITHM_LA_POSTE_MOD5 = 13;
 }
 
 // The text has the shape of the kind and nothing more was checked.

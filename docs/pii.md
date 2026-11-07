@@ -220,7 +220,7 @@ confidence tier, the audit report and every policy decision read them.
   `Shape` (the text has the kind's shape), `Checksum { algorithm, passed }`
   (`ChecksumAlgorithm`: Luhn 1, mod 97 2, mod 11 3, mod 23 4, Spanish CIF
   5, ISO 7064 mod 11,10 6, ICAO 9303 7, Base58Check 8, Bech32 9, EIP-55
-  10, ABA weights 11, other 12), `Label { span, phrase }` (the label
+  10, ABA weights 11, other 12, La Poste SIRET mod 5 13), `Label { span, phrase }` (the label
   phrase's span in the layer's view and its index in the kind's phrase
   table: built-in phrases first, then `with_extra_label` phrases in
   registration order), `DenyHit { list, term }` and `Rule { rule }`. Each

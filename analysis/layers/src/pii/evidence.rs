@@ -32,11 +32,14 @@ pub enum ChecksumAlgorithm {
     AbaWeights,
     /// A check the detector does not name here.
     Other,
+    /// The INSEE sum-of-digits modulus 5 rule for La Poste SIRET numbers
+    /// (SIREN 356000000), which do not pass Luhn.
+    LaPosteMod5,
 }
 
 impl ChecksumAlgorithm {
     /// Every algorithm, in id order.
-    pub const ALL: [ChecksumAlgorithm; 12] = [
+    pub const ALL: [ChecksumAlgorithm; 13] = [
         ChecksumAlgorithm::Luhn,
         ChecksumAlgorithm::Mod97,
         ChecksumAlgorithm::Mod11,
@@ -49,9 +52,10 @@ impl ChecksumAlgorithm {
         ChecksumAlgorithm::Eip55,
         ChecksumAlgorithm::AbaWeights,
         ChecksumAlgorithm::Other,
+        ChecksumAlgorithm::LaPosteMod5,
     ];
 
-    /// The stable id, 1 to 12. 0 is never an algorithm.
+    /// The stable id, 1 to 13. 0 is never an algorithm.
     pub const fn id(self) -> u8 {
         match self {
             ChecksumAlgorithm::Luhn => 1,
@@ -66,6 +70,7 @@ impl ChecksumAlgorithm {
             ChecksumAlgorithm::Eip55 => 10,
             ChecksumAlgorithm::AbaWeights => 11,
             ChecksumAlgorithm::Other => 12,
+            ChecksumAlgorithm::LaPosteMod5 => 13,
         }
     }
 
@@ -91,6 +96,7 @@ impl ChecksumAlgorithm {
             ChecksumAlgorithm::Eip55 => "eip55",
             ChecksumAlgorithm::AbaWeights => "aba-weights",
             ChecksumAlgorithm::Other => "other",
+            ChecksumAlgorithm::LaPosteMod5 => "la-poste-mod5",
         }
     }
 }
