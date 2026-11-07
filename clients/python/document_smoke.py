@@ -74,7 +74,7 @@ def main() -> None:
     entities = []
     for layer in doc.layers:
         assert layer.status == turbo_typed_annotations_pb2.LAYER_WIRE_STATUS_OK, (
-            f"{layer.id}: status {layer.status} {layer.status_detail}"
+            f"{layer.id}: status {layer.status} {layer.error.kind}"
         )
         assert not layer.id.startswith("opennlp:"), f"a layer id in the opennlp: namespace: {layer.id}"
         for a in layer.annotations:

@@ -7,11 +7,16 @@
 
 use std::sync::OnceLock;
 
-use turbo_analysis::export::{Codecs, DocumentGraph, LayerRecord, StatusRecord, ViewRecord, export, import};
+use turbo_analysis::export::{Codecs, DocumentGraph, LayerRecord, LayerRef, StatusRecord, ViewRecord, export, import};
 
 use super::{MAX_GRAPH_BYTES, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
-use crate::proto::result::{DocumentGraphRequest, DocumentGraphResponse, LayerInfo, LayerWireStatus, ViewInfo};
+use turbo_analysis::{Layer, View};
+
+use super::receipt::error::record_status;
+use crate::proto::result::{
+    DocumentGraphRequest, DocumentGraphResponse, LayerError, LayerInfo, LayerWireStatus, ViewInfo,
+};
 
 /// Returns the cached workspace [`Codecs`] registry containing all
 /// first-party analysis layers.
@@ -42,37 +47,40 @@ fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-fn status(status: &StatusRecord) -> (LayerWireStatus, String) {
-    match status {
-        StatusRecord::Complete => (LayerWireStatus::Ok, String::new()),
-        StatusRecord::Skipped(why) => (LayerWireStatus::Skipped, why.clone()),
-        StatusRecord::Failed(error) => (LayerWireStatus::Failed, format!("{error:?}")),
-    }
+/// The wire status and sanitized error of `status`, a record in `graph`.
+fn status(graph: &DocumentGraph, status: &StatusRecord, reads: &[LayerRef]) -> (LayerWireStatus, Option<LayerError>) {
+    let done = |s: &StatusRecord| matches!(s, StatusRecord::Complete);
+    record_status(status, reads, |r| {
+        let layer = graph.layers.iter().any(|l| l.layer == r.layer && l.instance == r.instance && done(&l.status));
+        let view =
+            r.layer == <View as Layer>::ID && graph.views.iter().any(|v| v.instance == r.instance && done(&v.status));
+        layer || view
+    })
 }
 
-pub(crate) fn layer_info(record: &LayerRecord) -> LayerInfo {
-    let (status, status_detail) = status(&record.status);
+pub(crate) fn layer_info(graph: &DocumentGraph, record: &LayerRecord) -> LayerInfo {
+    let (status, error) = status(graph, &record.status, &record.provenance.reads);
     LayerInfo {
         layer: record.layer.clone(),
         instance: record.instance.clone(),
         status: status as i32,
-        status_detail,
         annotator: record.provenance.annotator.clone(),
         version: record.provenance.version.clone(),
         model: record.provenance.model.as_ref().map(model_to_proto),
         config_hash: record.provenance.config,
         items: record.len,
+        error,
     }
 }
 
-pub(crate) fn view_info(record: &ViewRecord) -> ViewInfo {
-    let (status, status_detail) = status(&record.status);
+pub(crate) fn view_info(graph: &DocumentGraph, record: &ViewRecord) -> ViewInfo {
+    let (status, error) = status(graph, &record.status, &record.provenance.reads);
     ViewInfo {
         instance: record.instance.clone(),
         status: status as i32,
-        status_detail,
         annotator: record.provenance.annotator.clone(),
         parent: record.parent.clone().unwrap_or_default(),
+        error,
     }
 }
 
@@ -87,8 +95,8 @@ pub fn export_document_response(doc: &turbo_analysis::Document) -> Result<Docume
     }
     Ok(DocumentGraphResponse {
         graph: bytes.into(),
-        layers: out.layers.iter().map(layer_info).collect(),
-        views: out.views.iter().map(view_info).collect(),
+        layers: out.layers.iter().map(|r| layer_info(&out, r)).collect(),
+        views: out.views.iter().map(|r| view_info(&out, r)).collect(),
         source_text: out.source.text.clone(),
     })
 }
@@ -107,8 +115,8 @@ pub fn round_trip_document(req: &DocumentGraphRequest) -> Result<DocumentGraphRe
     let bytes = out.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
     Ok(DocumentGraphResponse {
         graph: bytes.into(),
-        layers: out.layers.iter().map(layer_info).collect(),
-        views: out.views.iter().map(view_info).collect(),
+        layers: out.layers.iter().map(|r| layer_info(&out, r)).collect(),
+        views: out.views.iter().map(|r| view_info(&out, r)).collect(),
         source_text: out.source.text.clone(),
     })
 }
