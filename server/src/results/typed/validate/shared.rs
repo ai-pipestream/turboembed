@@ -24,7 +24,7 @@ pub(super) fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usiz
 pub(super) fn key_value(ctx: &LayerCtx<'_>, i: usize, pair: &KeyValuePairAnnotation) -> Result<(), Failure> {
     for (field, span) in [("key", &pair.key_span), ("separator", &pair.separator_span), ("value", &pair.value_span)] {
         let span = span.as_ref().ok_or_else(|| bad(format!("{}[{i}] key/value {field} span is missing", ctx.lid)))?;
-        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+        ctx.fragment("span", span)?;
     }
     Ok(())
 }
@@ -36,7 +36,7 @@ pub(super) fn event(ctx: &LayerCtx<'_>, i: usize, event: &EventAnnotation) -> Re
         let span = argument.span.as_ref().ok_or_else(|| bad("event argument has no span"))?;
         // Native arguments are nonempty, but text deletion can project them
         // to an empty span. Presence, boundaries and anchors still apply.
-        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+        ctx.fragment("span", span)?;
         match (argument.anchored_layer.as_str(), argument.anchored_index) {
             ("none", None) => {}
             (layer @ ("turbo:temporal" | "turbo:money" | "turbo:quantities" | "turbo:entities"), Some(index)) => {
@@ -95,7 +95,7 @@ pub(super) fn table_header(ctx: &LayerCtx<'_>, i: usize, header: &ChunkTableHead
         return Err(bad(format!("{}[{i}] table_id has no selected table target", ctx.lid)));
     }
     for span in &header.header_cells {
-        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+        ctx.fragment("span", span)?;
     }
     Ok(())
 }
@@ -174,10 +174,10 @@ pub(super) fn sparse(ctx: &LayerCtx<'_>, i: usize, sparse: &SparseTermsAnnotatio
             return Err(bad(format!("{}[{i}] sparse weight must be positive and finite", ctx.lid)));
         }
         if let Some(span) = &entry.span {
-            ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+            ctx.fragment("span", span)?;
         }
         for occurrence in &entry.occurrences {
-            ctx.offsetter.from_wire(ctx.text, ctx.lid, occurrence.start, occurrence.end)?;
+            ctx.fragment("occurrence", occurrence)?;
         }
     }
     Ok(())
@@ -193,7 +193,7 @@ pub(super) fn document_entity(ctx: &LayerCtx<'_>, i: usize, entity: &DocumentEnt
     }
     for mention in &entity.mentions {
         let span = mention.span.as_ref().ok_or_else(|| bad(format!("{}[{i}] mention has no span", ctx.lid)))?;
-        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+        ctx.fragment("span", span)?;
         if let Some(index) = mention.entity_index {
             let len = ctx
                 .entity_len

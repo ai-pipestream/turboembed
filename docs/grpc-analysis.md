@@ -432,7 +432,8 @@ A layer over another view is projected through the lowest common
 ancestor of its view and the requested one, as `Document::map_span`
 maps spans, so a span outside the edits between the two keeps its exact
 bytes; a detour through the source would widen it to the whole of every
-lossy edit above that ancestor (#1906). In debug builds, and so in
+lossy edit above that ancestor (#1906). Every projected `SpanFragment`
+says what the projection did to it (#1907, below). In debug builds, and so in
 tests, the projection runs the `RoundTripTypedDocument` validation on its
 own message and refuses, with `TURBO_E_INVALID_ARGUMENT`, a document it
 cannot project to a message that validation accepts. Release builds skip
@@ -460,6 +461,12 @@ covered pii layer's table; `strategy` is a `PiiStrategy`; and
 `policy_revision` is the caller's number. No value is carried. Validation
 refuses an edit with no source span, no members, members out of order or
 past the covered layer, a missing rule, or an unknown strategy (#1902).
+The edits' view is the layer's `native_view` in the mapping, whatever
+other views the message has: projected onto that view, the unchanged
+stretches between edits are as long in the parent as in the view;
+projected onto the source when the source is the parent, every edit's
+span is its source span and its members are exactly the mentions under
+it; onto any other view only the layer-wide checks apply (#1907).
 
 Evidence producers record only annotator and optional model identity.
 Their model-table entries use version `"0"`, config hash `0`, and absent
@@ -707,8 +714,52 @@ and digest. `turbo_kserve::results::typed::identity::verify_input` and
 document or graph bytes that are not the ones it names, so changed input
 never inherits old detections.
 
-Fragment projection outcomes (exact, widened, deleted, coalesced) are
-not part of this envelope yet; #1907 tracks them.
+### Fragment outcomes
+
+Every `SpanFragment` carries a `SpanOutcome`, straight from the native
+projection (`Document::map_span_outcome`, `Document::project_fragments`)
+and never recomputed on the wire:
+
+- `SPAN_OUTCOME_EXACT`: mapped back along the chain, the fragment is the
+  native span, so it covers exactly the bytes the annotation stood for.
+  A fragment on the layer's own view (`TypedLayer.native_view` equal to
+  the result's `view`) is always exact, and so is a span the message
+  does not project, such as a pii edit's `source`.
+- `SPAN_OUTCOME_WIDENED`: a lossy edit on the chain widened it to the
+  edit's bounds, so it covers more than the native span stood for.
+- `SPAN_OUTCOME_DELETED`: a non-empty native span landed on text the
+  result's view deleted; the fragment is empty and anchors where the
+  text was. A deleted fragment is kept, not dropped: a standalone one
+  stays as an empty anchor of its own, so an item with two fragments on
+  deleted text has two empty anchors, and one that lands inside or
+  touching another projected fragment coalesces into it as a member
+  with outcome deleted. Before #1907 a deleted fragment was dropped from
+  a multi-fragment span.
+
+Coalescing is a separate fact. Onto another view, projected fragments
+that overlap, or an empty one inside or touching another, coalesce into
+one fragment whose `members` list the native fragments by ascending
+index in the annotation's native fragment list (for a span gathered from
+several items, such as a coreference chain or an entity's evidence, the
+items' fragments in order), each with its own outcome; the fragment's
+outcome is widened when any member is, else exact when any member is,
+else deleted. A fragment that is not coalesced carries no members.
+
+A consumer holding the mapping reproduces every outcome with `WireChain`
+alone: map the native span to the result's view and back, stepwise along
+the chain; it is exact when the round trip gives the native span back,
+deleted when a non-empty span lands empty, widened otherwise. The
+validator cannot tell exact from widened without the native span, so it
+checks what the message shows: an outcome on every fragment, deleted
+only on an empty fragment, every fragment exact on the layer's own
+view, members absent or at least two and ascending with the fragment's
+outcome merged from theirs, no native fragment a member of two
+fragments, and an empty fragment in a multi-fragment span only as a
+deletion anchor. Cost, release build, one core, 20 KB text, 7 layers,
+6,270 annotations, offsets in UTF-16: the outcome is one extra map back
+per projected span, 122 ns against 63 ns for the map alone, and 2 bytes
+per fragment on the wire (12.5 KB on 201 KB); projection onto the source
+1.34 ms, onto a lossy view 2.89 ms.
 
 ## The processing receipt (issue #1908)
 

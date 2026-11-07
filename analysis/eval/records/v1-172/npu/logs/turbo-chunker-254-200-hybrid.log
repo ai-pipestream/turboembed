@@ -1,0 +1,16 @@
+
+    Finished `release` profile [optimized] target(s) in 0.13s
+     Running `target/release/turbo-eval.exe run --bundle <bundle>/minilm-npu-token-ids-f16-s256-605aeb78e
+--sets scifact,nfcorpus,arguana,qasper --cache <cache> --device npu --retrieval hybrid --out
+<records>/scratch/turbo-chunker-254-200-hybrid --dump-cuts
+<records>/dumps/turbo-chunker-254-200-hybrid --chunker turbo-chunker --max 254 --target 200`
+set scifact: the cuts of 5183 documents in artifact scifact.cuts
+set nfcorpus: the cuts of 3633 documents in artifact nfcorpus.cuts
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set arguana: the cuts of 8674 documents in artifact arguana.cuts
+set qasper: 21 judgements could not be placed in their document and are left out
+set qasper: the cuts of 416 documents in artifact qasper.cuts
+<records>/scratch/turbo-chunker-254-200-hybrid/scifact.json
+<records>/scratch/turbo-chunker-254-200-hybrid/nfcorpus.json
+<records>/scratch/turbo-chunker-254-200-hybrid/arguana.json
+<records>/scratch/turbo-chunker-254-200-hybrid/qasper.json

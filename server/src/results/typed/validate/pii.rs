@@ -134,7 +134,11 @@ impl Row<'_> {
                 let Some(s) = &l.span else {
                     return Err(self.refuse(&format!("pii evidence[{n}] label has no span")));
                 };
-                let what = format!("{} pii evidence[{n}] label span", self.at());
+                // One projected span under the outcome rules, like every
+                // nested SpanFragment, before its offsets are read.
+                let what = format!("pii evidence[{n}] label span");
+                outcome::check_single(&self.at(), &what, s, self.ctx.own_view)?;
+                let what = format!("{} {what}", self.at());
                 let span = self.ctx.offsetter.from_wire(self.ctx.text, &what, s.start, s.end)?;
                 // A label the target view deleted keeps an empty anchor, as
                 // the mention does; the fact still counts toward the tier.

@@ -431,12 +431,52 @@ enum AnchorKind
   ANCHOR_KIND_DOCUMENT = 2;
 }
 
+// What projecting a span onto the result's view did to it (issue
+// #1907), straight from the native projection: never recomputed.
+enum SpanOutcome
+{
+  // Never served; a validator refuses it.
+  SPAN_OUTCOME_UNSPECIFIED = 0;
+  // Mapped back along the chain, the fragment is the native span: it
+  // covers exactly the bytes the annotation stood for. A span the
+  // result shows on its own view, and a span that is not projected at
+  // all (one the message says is in another view's bytes), is exact.
+  SPAN_OUTCOME_EXACT = 1;
+  // The fragment covers more than the native span stood for: a lossy
+  // edit on the chain widened it to the edit's bounds.
+  SPAN_OUTCOME_WIDENED = 2;
+  // A non-empty native span landed on text the result's view deleted:
+  // the fragment is empty and anchors where the text was. Only an
+  // empty fragment is deleted.
+  SPAN_OUTCOME_DELETED = 3;
+}
+
+// One native fragment that coalesced into a projected SpanFragment: its
+// index in the annotation's native fragment list and its own outcome.
+message FragmentMember
+{
+  uint32 index = 1;
+  SpanOutcome outcome = 2;
+}
+
 // One contiguous half-open span fragment [start, end) in the enclosing
-// message's view and OffsetMode.
+// message's view and OffsetMode, with what projection did to it.
+// Projected onto another view, native fragments that overlap, or an
+// empty one inside or touching another, coalesce into one fragment:
+// `members` then lists them by ascending native index, each with its
+// own outcome, and the fragment's outcome is widened when any member
+// is, else exact when any member is, else deleted. A fragment that is
+// not coalesced carries no members. A consumer holding the result's
+// mapping (InlineMapping) reproduces every outcome by mapping the
+// native span to this view and back along the chain, stepwise: it is
+// exact when the round trip gives the native span back, deleted when
+// a non-empty span lands empty, widened otherwise.
 message SpanFragment
 {
   uint32 start = 1;
   uint32 end = 2;
+  SpanOutcome outcome = 3;
+  repeated FragmentMember members = 4;
 }
 
 // A cross-layer index bound declared by a TypedLayer (`Layer::indexes`).

@@ -165,9 +165,9 @@ async fn malformed_projected_arguments_and_anchors_are_refused() {
                     let a = &mut event(&mut bad, name).arguments[0];
                     match variant {
                         0 => a.span = None,
-                        1 => a.span = Some(SpanFragment { start: 1, end: 0 }),
-                        2 => a.span = Some(SpanFragment { start: 0, end: len + 1 }),
-                        3 => a.span = Some(SpanFragment { start: interior, end: interior }),
+                        1 => a.span = Some(SpanFragment::exact(1, 0)),
+                        2 => a.span = Some(SpanFragment::exact(0, len + 1)),
+                        3 => a.span = Some(SpanFragment::exact(interior, interior)),
                         4 => a.anchored_index = Some(0),
                         5 => a.anchored_layer = "turbo:entities".into(),
                         6 => {
