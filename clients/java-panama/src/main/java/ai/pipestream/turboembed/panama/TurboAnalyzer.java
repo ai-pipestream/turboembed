@@ -51,7 +51,8 @@ public final class TurboAnalyzer implements ai.pipestream.turboembed.TurboAnalyz
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment desc = arena.allocate(TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT);
             desc.set(ValueLayout.JAVA_INT, descOffset("struct_size"), (int) TurboLibrary.TURBO_ANALYZER_DESC_LAYOUT.byteSize());
-            desc.set(ValueLayout.JAVA_INT, descOffset("flags"), config.piiValues() ? TurboLibrary.TURBO_ANALYZER_PII_VALUES : 0);
+            desc.set(ValueLayout.JAVA_INT, descOffset("flags"), (config.piiValues() ? TurboLibrary.TURBO_ANALYZER_PII_VALUES : 0)
+                        | TurboLibrary.TURBO_ANALYZER_PII_KIND_IDS);
             TurboLibrary.writeTextInPlace(arena, desc, descOffset("language"), config.language());
             // The retired model path fields stay zero: an empty text.
             TurboLibrary.writeTextInPlace(arena, desc, descOffset("bundle_path"), pathString(config.bundlePath()));

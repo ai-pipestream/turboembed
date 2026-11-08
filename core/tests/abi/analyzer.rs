@@ -139,13 +139,20 @@ int main(int argc, char **argv) {
     turbo_analyzer_desc desc;
     memset(&desc, 0, sizeof desc);
     desc.struct_size = sizeof desc;
-    desc.flags = 2;
+    desc.flags = 1u << 31;
     rc = turbo_analyzer_create(&desc, &heads, &err);
     printf("flags %s field %u out %s\n", turbo_status_name(rc), err.field, heads ? "set" : "NULL");
     desc.flags = TURBO_ANALYZER_PII_VALUES;
     if (turbo_analyzer_create(&desc, &heads, &err)) { printf("pii values %s\n", err.message); return 1; }
     rc = turbo_analyzer_detect_pii(heads, T("Mail alice@example.com today."), &r, &err);
     if (show("pii values detect_pii", rc, r)) return 1;
+    turbo_analysis_result_release(r);
+    turbo_analyzer_release(heads);
+    heads = NULL;
+    desc.flags = TURBO_ANALYZER_PII_KIND_IDS;
+    if (turbo_analyzer_create(&desc, &heads, &err)) { printf("pii kind ids %s\n", err.message); return 1; }
+    rc = turbo_analyzer_detect_pii(heads, T("Mail alice@example.com today."), &r, &err);
+    if (show("pii kind ids detect_pii", rc, r)) return 1;
     turbo_analysis_result_release(r);
     turbo_analyzer_release(heads);
     heads = NULL;
@@ -287,7 +294,7 @@ int main(int argc, char **argv) {
 "#;
 
 // Flags: 3 view and source range, 7 and a token range, 27 view, source,
-// label and value, 44 token range, label and probability, 12 token range
+// label and value, 75 view, source, label and PII kind (5, email), 44 token range, label and probability, 12 token range
 // and label, 47 every range, label and probability. The heads are seeded,
 // not trained: their tags are arbitrary, and their lemma trees keep the
 // word, drop a final s, or turn met into meet (tests/analysis_bundle.rs).
@@ -310,6 +317,7 @@ detect_pii TURBO_OK rows 1 [6 11 0-0 5-22 email c1 nan]
 pool holds the value 0
 flags TURBO_E_INVALID_ARGUMENT field 0 out NULL
 pii values detect_pii TURBO_OK rows 1 [6 27 0-0 5-22 email =alice@example.com c1 nan]
+pii kind ids detect_pii TURBO_OK rows 1 [6 75 5-0 5-22 email c1 nan]
 retired TURBO_E_INVALID_ARGUMENT field 4
 missing bundle TURBO_E_BUNDLE_NOT_FOUND field 7
 heads pos_tag TURBO_OK rows 6 [3 44 0-1 0-0 PUNCT p] [3 44 1-2 0-0 DET p] [3 44 2-3 0-0 ADJ p] \

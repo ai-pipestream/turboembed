@@ -820,6 +820,13 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_SPAN_LABEL        (1u << 3)
 #define TURBO_SPAN_VALUE        (1u << 4)
 #define TURBO_SPAN_PROBABILITY  (1u << 5)
+/* A PII row's numeric kind is in token_start, and token_end is 0: a
+ * TURBO_PII_KIND_* id for a built-in kind, or TURBO_PII_KIND_CUSTOM_BASE
+ * plus the index of a custom kind in its layer's custom-kind table. Set on
+ * every PII row of an analyzer created with TURBO_ANALYZER_PII_KIND_IDS and
+ * on no other row. TURBO_SPAN_TOKEN_RANGE is then clear: a PII row has no
+ * token range, so the two never share token_start. */
+#define TURBO_SPAN_PII_KIND     (1u << 6)
 
 /* turbo_analyzer_desc.flags. TURBO_ANALYZER_PII_VALUES: a PII row carries
  * the mention's normalized value (TURBO_SPAN_VALUE and the pool bytes it
@@ -832,6 +839,13 @@ void    turbo_result_release(turbo_result *r);
  * leaves the process unless the caller sends it. Any other bit is
  * TURBO_E_INVALID_ARGUMENT. */
 #define TURBO_ANALYZER_PII_VALUES (1u << 0)
+
+/* turbo_analyzer_desc.flags. TURBO_ANALYZER_PII_KIND_IDS: every PII row
+ * carries its numeric kind under TURBO_SPAN_PII_KIND, so a caller tells
+ * kinds apart without comparing label strings. Off by default, so a caller
+ * that does not know TURBO_SPAN_PII_KIND sees the rows it always saw. The
+ * label still holds the kind's name and classification its tier. */
+#define TURBO_ANALYZER_PII_KIND_IDS (1u << 1)
 
 /* Discrete PII evidence tier codes (not a monotonic numeric scale:
  * 3 = LABELLED_CHECKSUM is stronger than 4 = LABELLED). */
@@ -876,6 +890,11 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_KIND_ABA_ROUTING        29
 #define TURBO_PII_KIND_PHONE              30
 
+/* The numeric kind of a custom PII kind is TURBO_PII_KIND_CUSTOM_BASE + i
+ * for entry i of its layer's custom-kind table, the binary layer codec's
+ * own kind code. Every built-in id is below it, so the two never collide. */
+#define TURBO_PII_KIND_CUSTOM_BASE (1u << 16)
+
 /* Configuration of an in-process analysis pipeline. desc may be NULL for
  * English with the rule sentence splitter and rule tokenizer only. The
  * learned components come from a bundle (docs/bundle.md) named by
@@ -889,7 +908,8 @@ void    turbo_result_release(turbo_result *r);
  * tokenizer paths report no probability.
  *
  * Fields are numbered from 1 for turbo_error.field. flags holds
- * TURBO_ANALYZER_* bits (TURBO_ANALYZER_PII_VALUES, off by default); an
+ * TURBO_ANALYZER_* bits (TURBO_ANALYZER_PII_VALUES and
+ * TURBO_ANALYZER_PII_KIND_IDS, each off by default); an
  * unknown bit is TURBO_E_INVALID_ARGUMENT naming no field. A bundle_path
  * turbo_analyzer_create cannot open fails it with the status of what is
  * wrong (TURBO_E_BUNDLE_NOT_FOUND, say) naming field 7. The five model path
@@ -916,6 +936,8 @@ typedef struct turbo_analyzer_desc {
  * and Unicode scalar bounds. Fields are meaningful only under their
  * TURBO_SPAN_* flag: token-only rows have no text range, absent numeric
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
+ * token_start also carries a PII row's numeric kind under
+ * TURBO_SPAN_PII_KIND, which never comes with TURBO_SPAN_TOKEN_RANGE.
  * Discontinuous items emit one row per fragment. For a morphology row,
  * there is one row per token and label is the feature string as the
  * MorphFeatures layer writes it. classification is layer-specific:
@@ -1025,7 +1047,9 @@ int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
 
 /* Detect structured PII directly in UTF-8 text. This is a separate task
  * from named-entity recognition; its rows carry the kind as label, the
- * normalized value as value, and TURBO_PII_CONFIDENCE_* as classification. */
+ * normalized value as value (under TURBO_ANALYZER_PII_VALUES), the numeric
+ * kind in token_start (under TURBO_ANALYZER_PII_KIND_IDS), and
+ * TURBO_PII_CONFIDENCE_* as classification. */
 int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
                                   turbo_analysis_result **out, turbo_error *err);
 

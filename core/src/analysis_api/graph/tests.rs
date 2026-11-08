@@ -6,9 +6,12 @@ use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiMention,
 use super::*;
 use crate::analysis_api::{
     TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
-    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_SPAN_LABEL, TURBO_SPAN_PROBABILITY, TURBO_SPAN_SOURCE_RANGE,
-    TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE, turbo_span,
+    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_SPAN_LABEL, TURBO_SPAN_PII_KIND, TURBO_SPAN_PROBABILITY,
+    TURBO_SPAN_SOURCE_RANGE, TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE, turbo_span,
 };
+
+/// PII rows with their values and no numeric kind.
+const VALUES: PiiRows = PiiRows { values: true, kind_ids: false };
 
 fn pool(result: &AnalysisResultInner, offset: u32, len: u32) -> &str {
     let start = offset as usize;
@@ -127,7 +130,7 @@ fn fixture() -> (Document, ViewId) {
 #[test]
 fn normalized_view_rows_keep_view_and_source_coordinates_separate() {
     let (doc, lower_view) = fixture();
-    let result = extract_graph(&doc, b"graph".to_vec(), Origin::Analyzed, true).unwrap();
+    let result = extract_graph(&doc, b"graph".to_vec(), Origin::Analyzed, VALUES).unwrap();
     assert_eq!(result.graph, b"graph");
 
     let lower_tokens = rows(&result, TURBO_ANALYSIS_LAYER_TOKENS, "lower");
@@ -178,7 +181,7 @@ fn deleted_prefix_view_coordinates_project_to_the_source_word() {
     )
     .unwrap();
 
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, VALUES).unwrap();
     let token_rows = rows(&result, TURBO_ANALYSIS_LAYER_TOKENS, "trimmed");
     assert_eq!(token_rows.len(), 1);
     assert_eq!(token_rows[0].view_id, trimmed_view.0 as u32);
@@ -190,7 +193,7 @@ fn deleted_prefix_view_coordinates_project_to_the_source_word() {
 #[test]
 fn aligned_layers_use_the_named_token_instance_they_were_made_on() {
     let (doc, lower_view) = fixture();
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, VALUES).unwrap();
 
     let pos = rows(&result, TURBO_ANALYSIS_LAYER_POS, "lower");
     assert_eq!(pos.len(), 4);
@@ -216,13 +219,13 @@ fn discontinuous_entities_and_pii_preserve_items_and_normalized_values() {
     let (doc, _) = fixture();
     // Without TURBO_ANALYZER_PII_VALUES the row is there, the value is not,
     // and the pool holds no byte of it (#1904).
-    let withheld = extract_graph(&doc, Vec::new(), Origin::Analyzed, false).unwrap();
+    let withheld = extract_graph(&doc, Vec::new(), Origin::Analyzed, PiiRows::default()).unwrap();
     let row = rows(&withheld, TURBO_ANALYSIS_LAYER_PII, "lower");
     assert_eq!(row.len(), 1);
     assert_eq!(row[0].flags & TURBO_SPAN_VALUE, 0);
     assert_eq!((row[0].value_offset, row[0].value_len), (0, 0));
     assert!(!withheld.pool.windows(6).any(|w| w == b"a@b.co"), "the pool holds the value");
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, VALUES).unwrap();
 
     let entities = rows(&result, TURBO_ANALYSIS_LAYER_ENTITIES, "lower");
     assert_eq!(entities.len(), 2, "one entity with two fragments");
@@ -294,7 +297,7 @@ fn a_caller_graph_holding_a_probability_outside_0_to_1_is_an_invalid_argument() 
         assert!(e.message.contains("outside 0..=1"), "{}", e.message);
         // In the analyzer's own document the same row is the analyzer's
         // fault, as the row builder refuses it.
-        let own = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).err().unwrap();
+        let own = extract_graph(&doc, Vec::new(), Origin::Analyzed, VALUES).err().unwrap();
         assert_eq!(own.code, CAPACITY, "{pos} and {entity}: {}", own.message);
     }
 }
@@ -325,7 +328,7 @@ fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
     });
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
 
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, VALUES).unwrap();
     let pii_rows = rows(&result, TURBO_ANALYSIS_LAYER_PII, "");
     assert_eq!(pii_rows.len(), 2);
     assert_eq!(pool(&result, pii_rows[0].label_offset, pii_rows[0].label_len), "us-ssn");
@@ -334,4 +337,15 @@ fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
     assert_eq!(pool(&result, pii_rows[1].label_offset, pii_rows[1].label_len), "ca-sin");
     assert_eq!(pii_rows[1].classification, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM);
     assert_eq!(pii_rows[1].classification, 3);
+    // Without TURBO_ANALYZER_PII_KIND_IDS a row carries no numeric kind,
+    // as it never did (#1940).
+    assert!(pii_rows.iter().all(|row| row.flags & TURBO_SPAN_PII_KIND == 0 && row.token_start == 0));
+
+    let ids = extract_graph(&doc, Vec::new(), Origin::Analyzed, PiiRows { values: true, kind_ids: true }).unwrap();
+    let id_rows = rows(&ids, TURBO_ANALYSIS_LAYER_PII, "");
+    for (row, kind) in id_rows.iter().zip([PiiKind::UsSsn, PiiKind::CaSin]) {
+        assert_eq!(row.flags & (TURBO_SPAN_PII_KIND | TURBO_SPAN_TOKEN_RANGE), TURBO_SPAN_PII_KIND);
+        assert_eq!((row.token_start, row.token_end), (u32::from(kind.builtin_id().unwrap()), 0));
+    }
+    assert_eq!(ids.spans.iter().map(|r| r.classification).collect::<Vec<_>>(), [4, 3], "the tier is unchanged");
 }

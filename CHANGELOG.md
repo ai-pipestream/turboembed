@@ -48,6 +48,13 @@ stubs must be regenerated.
 - Stable PII kind ids (`PiiKindId`), `PiiConfidenceTier`,
   `PiiDetectorRef` and `TypedLayer.custom_pii_kinds` (field 12)
   (#1914).
+- C ABI PII rows carry their numeric kind: with
+  `turbo_analyzer_desc.flags` bit `TURBO_ANALYZER_PII_KIND_IDS` every
+  PII row sets `TURBO_SPAN_PII_KIND` and holds a `TURBO_PII_KIND_*` id,
+  or `TURBO_PII_KIND_CUSTOM_BASE` plus a custom-table index, in
+  `token_start`. Off by default, so existing callers see the same rows.
+  Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
+  `piiKind()` and `piiCustomKindIndex()` (#1940).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
