@@ -10,6 +10,7 @@ mod evidence;
 mod outcome;
 mod pii;
 mod pii_edits;
+mod pii_risk;
 mod quality;
 mod quotations;
 mod receipt;

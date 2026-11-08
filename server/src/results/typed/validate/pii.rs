@@ -17,7 +17,7 @@ use std::fmt::Write as _;
 use turbo_analysis::{Layer, Span};
 use turbo_analysis_layers::{
     ChecksumAlgorithm, CustomKinds, KindError, Pii, PiiCandidates, PiiConfidence, PiiEdits, PiiEvidence, PiiKind,
-    PiiScoreKind, RejectReason,
+    PiiRisk, PiiScoreKind, RejectReason,
 };
 
 use super::*;
@@ -28,9 +28,9 @@ use crate::proto::result::{
     TypedLayer, pii_disposition, pii_evidence,
 };
 
-/// Whether `lid` is one of the three layers that carry a PII kind table.
+/// Whether `lid` is one of the four layers that carry a PII kind table.
 fn is_pii_layer(lid: &str) -> bool {
-    lid == Pii::ID || lid == PiiCandidates::ID || lid == PiiEdits::ID
+    lid == Pii::ID || lid == PiiCandidates::ID || lid == PiiEdits::ID || lid == PiiRisk::ID
 }
 
 /// The number of custom kinds `layer` names: its `custom_pii_kinds`, which
@@ -41,10 +41,11 @@ pub(super) fn custom_kinds(layer: &TypedLayer) -> Result<usize, Failure> {
     if !is_pii_layer(lid) {
         if !names.is_empty() {
             return Err(bad(format!(
-                "layer {lid} carries custom_pii_kinds; only {}, {} and {} may",
+                "layer {lid} carries custom_pii_kinds; only {}, {}, {} and {} may",
                 Pii::ID,
                 PiiCandidates::ID,
-                PiiEdits::ID
+                PiiEdits::ID,
+                PiiRisk::ID
             )));
         }
         return Ok(0);
