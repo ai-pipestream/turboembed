@@ -83,7 +83,7 @@ fn map(
             let entries = resolver.map_entries(&d.artifact_id, &d.sha256).map_err(|e| PolicyError::Unresolved {
                 at,
                 field: "map.dictionary",
-                reason: e.reason(),
+                reason: format!("dictionary {}: {}", d.artifact_id, e.reason()),
             })?;
             MapReplacer::new(entries.iter().map(|(k, v)| (k.as_str(), v.as_str())), m.case_sensitive)
         }

@@ -75,7 +75,7 @@ fn terms(
             let list = resolver.terms(&d.artifact_id, &d.sha256).map_err(|e| PolicyError::Unresolved {
                 at,
                 field: "terms.dictionary",
-                reason: e.reason(),
+                reason: format!("dictionary {}: {}", d.artifact_id, e.reason()),
             })?;
             list.iter().try_for_each(|t| each(t))
         }

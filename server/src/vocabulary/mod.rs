@@ -5,7 +5,7 @@
 //! calls, refused before anything is read when the server runs without
 //! --admin or without a --vocabulary-dir.
 
-mod formats;
+pub(crate) mod formats;
 mod learn;
 mod store;
 
@@ -24,8 +24,7 @@ use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularySe
 use crate::proto::vocabulary::*;
 use crate::status::to_status;
 use learn::{Learner, Options};
-use store::Dictionary;
-pub(crate) use store::{Store, Stored};
+pub(crate) use store::{Dictionary, Store, Stored};
 
 /// The largest dictionary upload: 256 MiB.
 pub const MAX_DICTIONARY_UPLOAD_BYTES: u64 = 256 << 20;
