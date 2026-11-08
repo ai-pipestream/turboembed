@@ -29,8 +29,11 @@ pub trait StrategyChooser {
 
 /// Replaces every mention of `pii`, a layer over `src`, with the strategy
 /// `chooser` chooses, as a view derived from `src`. Overlapping mentions
-/// are coalesced as [`super::RewritePolicy::rewrite`] does; a cluster any
-/// of whose chosen strategies refuses overlaps is refused. Each edit
+/// are coalesced as [`super::RewritePolicy::rewrite`] does; the merged
+/// mention takes the winner's choice and each member keeps its own, so
+/// a member's stricter retention is never replaced by another member's
+/// of the same kind. A cluster any of whose chosen strategies refuses
+/// overlaps is refused. Each edit
 /// records its winner's rule and rule id, and `revision`.
 pub fn rewrite_chosen(
     src: &View,
@@ -42,9 +45,13 @@ pub fn rewrite_chosen(
     let mut state = RewriteState::new(&pii.custom_kinds);
     let refuses = |c: &MentionCluster<'_>| c.members.iter().any(|m| chooser.choose(pii, m).strategy.refuses_overlaps());
     PiiRewrite::derive(src, pii, refuses, revision, |cluster, out| {
+        // The winner's choice for the merged mention, and each member's own
+        // choice for its retention: two members of one kind can take
+        // different strategies, and the stricter one must hold.
+        // write_cluster asks for the merged mention's strategy, which is the
+        // winner's choice.
         let winner = chooser.choose(pii, &cluster.merged);
-        let strategy_for = |m: &PiiMention<'_>| chooser.choose(pii, m).strategy;
-        state.write_cluster(strategy_for, text, cluster, out)?;
+        state.write_cluster(|m| chooser.choose(pii, m).strategy, text, cluster, out)?;
         Ok(EditOrigin { rule: winner.rule, strategy: winner.strategy.kind(), rule_id: winner.rule_id })
     })
 }
