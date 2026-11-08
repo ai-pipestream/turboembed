@@ -1,0 +1,9 @@
+MASKED	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:desk@example.com, https://user:pass@example.com/x, www.example and sub.www.example.com.
+
+MASK_ALL	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:desk@example.com, https://user:pass@example.com/x, www.example and sub.www.example.com.
+
+REWRITE	pseudonymize	OK	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:desk@example.com, https://user:pass@example.com/x, www.example and sub.www.example.com.
+
+REWRITE	hmac	OK	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:desk@example.com, https://user:pass@example.com/x, www.example and sub.www.example.com.
+
+AUDIT_REPORT	no pii found

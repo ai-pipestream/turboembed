@@ -1,0 +1,15 @@
+MASKED	Bad checks: 1Z999AA10123456785, 841654653683, 121513302427145, 9400 2229 1175 **** **** **, and the Luhn-valid ***********0005.
+
+MASK_ALL	Bad checks: 1Z999AA10123456785, 841654653683, 121513302427145, 9400 2229 1175 ############, and the Luhn-valid ###############.
+
+REWRITE	pseudonymize	OK	Bad checks: 1Z999AA10123456785, 841654653683, 121513302427145, 9400 2229 1175 PHONE-1, and the Luhn-valid CARD-1.
+
+LABEL	pseudonymize	78	90	78	85	PHONE-1
+LABEL	pseudonymize	111	126	106	112	CARD-1
+REWRITE	hmac	OK	Bad checks: 1Z999AA10123456785, 841654653683, 121513302427145, 9400 2229 1175 PHONE-5df878f0b9d87ce5, and the Luhn-valid CARD-424d00cbff9beb2f.
+
+LABEL	hmac	78	90	78	100	PHONE-5df878f0b9d87ce5
+LABEL	hmac	111	126	121	142	CARD-424d00cbff9beb2f
+AUDIT	card	1	1	CARD-424d00cbff9beb2f
+AUDIT	phone	1	1	PHONE-5df878f0b9d87ce5
+AUDIT_REPORT	card: 1 mentions, 1 distinct [CARD-424d00cbff9beb2f]\nphone: 1 mentions, 1 distinct [PHONE-5df878f0b9d87ce5]

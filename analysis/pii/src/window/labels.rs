@@ -36,6 +36,12 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
         PiiKind::BrCpf => &["cpf"],
         PiiKind::BrCnpj => &["cnpj"],
         PiiKind::Bic => &["bic/swift", "swift/bic", "bic code", "swift code", "swift", "bic"],
+        PiiKind::Vin => &["vin", "vehicle identification number", "vehicle id", "chassis number"],
+        PiiKind::TrackingNumber => {
+            &["tracking number", "tracking no", "tracking", "ups", "fedex", "usps", "shipment", "waybill"]
+        }
+        PiiKind::UsEin => &["ein", "fein", "employer identification number", "employer id", "tax id"],
+        PiiKind::Url => &["url", "link", "website", "web site", "site"],
         PiiKind::Custom(_) => &[],
     }
 }
@@ -81,6 +87,23 @@ pub(super) const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [
         PiiKind::Bic => {
             &[&["bic", "swift"], &["swift", "bic"], &["bic", "code"], &["swift", "code"], &["swift"], &["bic"]]
         }
+        PiiKind::Vin => {
+            &[&["vin"], &["vehicle", "identification", "number"], &["vehicle", "id"], &["chassis", "number"]]
+        }
+        PiiKind::TrackingNumber => &[
+            &["tracking", "number"],
+            &["tracking", "no"],
+            &["tracking"],
+            &["ups"],
+            &["fedex"],
+            &["usps"],
+            &["shipment"],
+            &["waybill"],
+        ],
+        PiiKind::UsEin => {
+            &[&["ein"], &["fein"], &["employer", "identification", "number"], &["employer", "id"], &["tax", "id"]]
+        }
+        PiiKind::Url => &[&["url"], &["link"], &["website"], &["web", "site"], &["site"]],
         PiiKind::Custom(_) => &[],
     }
 }

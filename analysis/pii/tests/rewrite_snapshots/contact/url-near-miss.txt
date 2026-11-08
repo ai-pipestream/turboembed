@@ -1,0 +1,14 @@
+MASKED	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:****@*******.***, https://user:****@*******.***/x, www.example and sub.www.example.com.
+
+MASK_ALL	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:################, https://user:################/x, www.example and sub.www.example.com.
+
+REWRITE	pseudonymize	OK	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:EMAIL-1, https://user:EMAIL-2/x, www.example and sub.www.example.com.
+
+LABEL	pseudonymize	62	78	62	69	EMAIL-1
+LABEL	pseudonymize	93	109	84	91	EMAIL-2
+REWRITE	hmac	OK	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:EMAIL-06b0ac92120f3b97, https://user:EMAIL-bb4cadfda5bc8c5f/x, www.example and sub.www.example.com.
+
+LABEL	hmac	62	78	62	84	EMAIL-06b0ac92120f3b97
+LABEL	hmac	93	109	99	121	EMAIL-bb4cadfda5bc8c5f
+AUDIT	email	2	2	EMAIL-06b0ac92120f3b97, EMAIL-bb4cadfda5bc8c5f
+AUDIT_REPORT	email: 2 mentions, 2 distinct [EMAIL-06b0ac92120f3b97, EMAIL-bb4cadfda5bc8c5f]

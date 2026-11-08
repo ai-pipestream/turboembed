@@ -78,11 +78,14 @@ pub const fn default_window(kind: PiiKind) -> usize {
 }
 
 /// Default [`LabelPolicy`] for `kind`: [`LabelPolicy::Required`] for
-/// [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`], and
+/// [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`],
+/// [`LabelPolicy::Boosts`] for [`PiiKind::Vin`],
+/// [`PiiKind::TrackingNumber`] and [`PiiKind::UsEin`], and
 /// [`LabelPolicy::None`] for all other kinds.
 pub const fn default_policy(kind: PiiKind) -> LabelPolicy {
     match kind {
         PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic => LabelPolicy::Required,
+        PiiKind::Vin | PiiKind::TrackingNumber | PiiKind::UsEin => LabelPolicy::Boosts,
         _ => LabelPolicy::None,
     }
 }

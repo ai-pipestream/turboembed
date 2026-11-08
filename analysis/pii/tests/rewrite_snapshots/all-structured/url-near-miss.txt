@@ -1,0 +1,9 @@
+MASKED	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:****@*******.***, https://*********@*******.***/x, www.example and sub.www.example.com.
+
+MASK_ALL	Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:################, https://#####################/x, www.example and sub.www.example.com.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	email	2	2	EMAIL-06b0ac92120f3b97, EMAIL-bb4cadfda5bc8c5f
+AUDIT	url-credential	1	1	URL-CREDENTIAL-bfdec05f76cb019a
+AUDIT_REPORT	email: 2 mentions, 2 distinct [EMAIL-06b0ac92120f3b97, EMAIL-bb4cadfda5bc8c5f]\nurl-credential: 1 mentions, 1 distinct [URL-CREDENTIAL-bfdec05f76cb019a]

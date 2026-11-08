@@ -86,3 +86,29 @@ operational-memos	5611	5626	imei	004400152020002
 operational-memos	5638	5653	imei	490154203237518
 operational-memos	5665	5680	imei	490154203237518
 operational-memos	5942	5957	imei	001970012345677
+bip-173-350	183	245	url	https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+bip-173-350	254	316	url	https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki
+eip-55	181	218	url	https://eips.ethereum.org/EIPS/eip-55
+masc-att2	1147	1168	url	www.universalcard.com
+masc-nyt6	5158	5171	url	www.copia.org
+operational-memos	940	971	url	https://example.com:8443/health
+us-identifiers-memos	189	207	tracking-number	1Z999AA10123456784
+us-identifiers-memos	427	444	vin	1FTFW1E51NFA00001
+us-identifiers-memos	446	463	vin	3VWDB7AJ0HM000002
+us-identifiers-memos	472	489	vin	JN1AZ4EH9FM000003
+us-identifiers-memos	510	527	vin	2T1BURHE5JC000004
+us-identifiers-memos	858	876	tracking-number	1Z999AA10123456784
+us-identifiers-memos	907	931	tracking-number	1Z 999 AA1 01 2345 678 4
+us-identifiers-memos	976	988	tracking-number	841654653682
+us-identifiers-memos	1053	1068	tracking-number	121513302427144
+us-identifiers-memos	1128	1150	tracking-number	9611020508440894014924
+us-identifiers-memos	1179	1206	tracking-number	9400 2229 1175 1694 0803 50
+us-identifiers-memos	1214	1236	tracking-number	9205867800593239130527
+us-identifiers-memos	1270	1290	tracking-number	03074961150175938193
+us-identifiers-memos	1551	1561	us-ein	12-3456789
+us-identifiers-memos	1586	1596	us-ein	46-1234567
+us-identifiers-memos	1637	1647	us-ein	94-7654321
+us-identifiers-memos	1834	1874	url	https://portal.example.com/vendors?id=42
+us-identifiers-memos	1898	1935	url	http://status.example.org:8080/health
+us-identifiers-memos	1958	1978	url	www.example.net/help
+us-identifiers-memos	1983	2019	url	HTTPS://Docs.Example.com/Guide#intro
