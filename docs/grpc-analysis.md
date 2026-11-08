@@ -527,10 +527,10 @@ graph once the PII step has run. Layer and view errors are the typed
 carry the view's words (sentence text, token surfaces, lemmas), so while
 the text is withheld they are listed with their status and no
 annotations. A typed result is refused on validation when a mention's
-value is anything but `withheld` (missing, no form, clear, token or
-ciphertext) until keyed release lands (#1909). The result envelope
-(#1907) is kept: it carries digests and lengths of the texts and the
-edit chain's offsets, never a text.
+value is missing or has no form, is an empty clear value, a token that is
+not 32 bytes or names no key id and version, or a ciphertext (#1885).
+The result envelope (#1907) is kept: it carries digests and lengths of
+the texts and the edit chain's offsets, never a text.
 
 `FormatDocument` of such a document needs `full_text`, since every
 format carries the document text; no format (JSON-LD, markdown or any
@@ -545,17 +545,19 @@ wire compatibility, deprecated and never populated.
 - `full_text`: source and view texts and graph bytes, as for a document
   without PII.
 - `detail`: candidates and evidence detail (#1903).
-- `values`: `UNSPECIFIED` or `WITHHELD`. Token, ciphertext and clear
-  values need verified identities and grants (#1909); until then they are
-  refused with `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
-  `PiiValueToken` and `PiiValueCiphertext` keep field 2 for their key
-  reference, which #1909 adds: the one key reference type is
-  `PiiPolicyKeyRef`.
+- `values`: `UNSPECIFIED` or `WITHHELD` withholds them. `TOKEN` and
+  `CLEAR` are released by `InspectDocumentGraph` only, as the next section
+  says; `CIPHERTEXT` (#1885), and a value form on any other call or on a
+  server without PII release, are refused with
+  `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
+  A token or ciphertext names its key in `key_id` and `key_version`, the
+  identity (id, version) of a `PiiPolicyKeyRef`.
 
 The server caps the options with `--pii-output-allow`
 (`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
-`rewritten-text`, `full-text` and `detail`. Unset, all three are allowed,
-since a caller of these calls sent the text it asks back. A request for an
+`rewritten-text`, `full-text`, `detail`, and the value forms `token` and
+`clear`. Unset, the three text options are allowed, since a caller of
+these calls sent the text it asks back, and no value form is. A request for an
 option the server does not allow is refused with `TURBO_E_INVALID_STATE`
 (`FAILED_PRECONDITION`) naming it; nothing is dropped silently. Sink items
 follow `--sink-pii-output` (docs/grpc-sink.md), which must be within the
@@ -567,6 +569,63 @@ default, not protection from a caller who already holds the input. Native
 `PiiMention` and the `turbo:pii` value column (`Sensitive`) print
 `<withheld>` in place of a value in `Debug`, and Java `TurboSpanData`'s
 `toString` does the same.
+
+## PII value release (issue #1909)
+
+A calling service is identified by the client certificate its mTLS
+connection verified against `--tls-client-ca`, and by nothing else:
+request metadata, headers and fields confer nothing. TurboEmbed keeps no
+user model; which end user may see what stays with the calling platform,
+which decides what to ask for. The identity is the SHA-256 of the leaf
+certificate's DER bytes (its fingerprint), so no certificate parser is
+needed.
+
+`--pii-grant FINGERPRINT:FORMS:KINDS` (repeated, or
+`TURBO_KSERVE_PII_GRANTS` as a `;`-separated list) grants the service
+with that fingerprint the forms in `FORMS` (`token`, `clear`, or
+`token+clear`) for the built-in kinds in `KINDS` (comma-separated names,
+or `*` for every kind, caller-defined kinds included). Grants of one
+fingerprint add up. A grant needs `--tls-cert`, `--tls-key` and
+`--tls-client-ca`, and `--pii-audit-endpoint`; `ciphertext` is refused
+until #1885.
+
+For each mention the forms in effect are the request's form ∩ the forms
+`--pii-output-allow` lists ∩ the forms the service is granted for the
+mention's kind: a set intersection, never a ranking. A mention with none
+stays `withheld`; a service without a certificate or a grant gets the
+findings only, exactly as without release. A request for a form the
+policy does not list is refused with `TURBO_E_INVALID_STATE`
+(`FAILED_PRECONDITION`).
+
+Tokens are HMAC-SHA-256 under a registered key, `--pii-token-key
+ID:VERSION:PATH` (repeated, or `TURBO_KSERVE_PII_TOKEN_KEYS`), whose 32
+to 1024 bytes are read from `PATH` at start. With several keys,
+`--pii-token-key-active ID:VERSION` names the one tokens are issued
+under. `PiiValueToken` carries the 32-byte token and the key's id and
+version; key bytes never appear in a message, an error or a `Debug`
+string. Equal values under one key give equal tokens. `clear` carries the
+normalized value.
+
+Before any value leaves, the server records one `PiiAccessEvent` with
+`turbo.audit.v1.TurboAuditService.RecordPiiAccess`
+(`server/proto/turbo_audit.proto`) at `--pii-audit-endpoint`
+(`TURBO_KSERVE_PII_AUDIT_ENDPOINT`) and waits for the acknowledgement,
+at most `--pii-audit-timeout-ms` (`TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS`,
+5000 by default). A call that fails, times out or acknowledges another
+event id fails the request with `TURBO_E_BUSY` (`UNAVAILABLE`) and no
+value. A release needs the request's `operation_key` (#1908); without
+one no value is released and the answer carries the findings only. The
+event carries the operation key and the attempt id the answer's receipt
+names, the input
+digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
+instance and index with their kind and form, the policy id and the
+SHA-256 of its rules, the time and the document id; never a value, token
+or text. Its id is the SHA-256 of what a retry keeps: the service
+fingerprint, the operation key, the input digest, the mention set, the forms in effect and the
+policy digest. The attempt is not part of it, so every attempt at one
+release has the same id and the audit service keeps one record. The sink drops items when its queue is full, so it
+never carries these events. A request that releases nothing records
+nothing.
 
 ## The result envelope (issue #1907)
 

@@ -6,8 +6,9 @@
 //! layer's `custom_pii_kinds`; a fact is one of the kinds the layer knows
 //! (an unknown fact is refused, never skipped); the tier is the one the
 //! facts derive to. `UNSPECIFIED` (0) is never a tier, an algorithm, a
-//! score kind, a scope or a reason. A mention's value must be `withheld`
-//! and its retired normalized form unset (#1904). An error names the layer, the row and its wire spans, never the
+//! score kind, a scope or a reason. A mention's value is `withheld`, a
+//! keyed token or a clear value (#1904, #1909), and its retired
+//! normalized form is unset. An error names the layer, the row and its wire spans, never the
 //! mention's text, its normalized form, a custom kind name, a detector id,
 //! or the refused number, which are caller input.
 
@@ -181,20 +182,24 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     if !m.normalized.is_empty() {
         return Err(row.refuse("pii mention sets the retired normalized value; use value"));
     }
-    // Every mention says how its value was released. Only `withheld` is
-    // produced until keyed release lands (#1909), so a missing or empty
-    // value, a clear value, a token or a ciphertext is refused. The error
-    // names the form, never its contents.
+    // Every mention says how its value was released (#1909): withheld, a
+    // token of 32 bytes naming its key id and version, or a clear value
+    // that is not empty. A ciphertext waits for #1885. The error names the
+    // form, never its contents.
     let refused = match m.value.as_ref().map(|v| v.form.as_ref()) {
         Some(Some(Form::Withheld(_))) => None,
         None => Some("is missing"),
         Some(None) => Some("has no form"),
-        Some(Some(Form::Clear(_))) => Some("is clear"),
-        Some(Some(Form::Token(_))) => Some("is a token"),
-        Some(Some(Form::Ciphertext(_))) => Some("is a ciphertext"),
+        Some(Some(Form::Clear(v))) => v.is_empty().then_some("is an empty clear value"),
+        Some(Some(Form::Token(t))) if t.token.len() != 32 => Some("is a token that is not 32 bytes"),
+        Some(Some(Form::Token(t))) if t.key_id.is_empty() || t.key_version == 0 => {
+            Some("is a token without a key id and version")
+        }
+        Some(Some(Form::Token(_))) => None,
+        Some(Some(Form::Ciphertext(_))) => Some("is a ciphertext, which waits for #1885"),
     };
     if let Some(why) = refused {
-        return Err(row.refuse(&format!("pii mention value {why}; only withheld is supported")));
+        return Err(row.refuse(&format!("pii mention value {why}")));
     }
     row.kind(m.kind_ref.as_ref())?;
     row.detector("detector", m.detector.as_ref())?;

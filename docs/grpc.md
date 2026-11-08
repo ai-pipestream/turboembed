@@ -313,6 +313,7 @@ versioned `turbo.<name>.v1` packages:
 - `turbo.vocabulary.v1` (`server/proto/turbo_vocabulary.proto`): the vocabulary store and `TurboVocabularyService` (docs/grpc-vocabulary.md).
 - `turbo.training.v1` (`server/proto/turbo_training.proto`): the model catalog (`TurboCatalogService`, docs/grpc-catalog.md) and static model training (`TurboTrainingService`, docs/grpc-training.md).
 - `turbo.sink.v1` (`server/proto/turbo_sink.proto`): the document sink and `TurboSinkService` (docs/grpc-sink.md).
+- `turbo.audit.v1` (`server/proto/turbo_audit.proto`): the acknowledged PII access audit, `TurboAuditService` (docs/grpc-analysis.md, PII value release).
 
 Generate a client from any of them in any language with gRPC, or use the
 published release artifacts (`scripts/package-proto-stubs.sh`,

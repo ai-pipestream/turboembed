@@ -1111,10 +1111,11 @@ message PiiMention
 }
 
 // The form a PII mention's value is released in. A finding carries
-// `withheld` unless the request asked for values and the server's policy
-// allowed them; a caller that holds the text slices it with the spans.
-// Only `withheld` is produced today: the other forms need the verified
-// identity and grants of #1909, and a request for them is refused.
+// `withheld` unless the request asked for values, the server's policy
+// allows the form and the calling service is granted it for the
+// mention's kind (#1909); a caller that holds the text slices it with
+// the spans. `token` and `clear` are produced; `ciphertext` waits for
+// #1885.
 message PiiValue
 {
   oneof form
@@ -1130,23 +1131,28 @@ message PiiValue
 // The value is not in the response.
 message PiiValueWithheld {}
 
-// A keyed token standing for the value; equal values under one key give
-// equal tokens. Not produced until #1909. Field 2 is kept for the key
-// reference, which #1909 adds: there is one key reference type
-// (PiiPolicyKeyRef, turbo_pii_policy.proto), and that file imports this
-// one, so this file cannot name it yet.
+// A keyed token standing for the value: HMAC-SHA-256 under a registered
+// key (#1909). Equal values under one key give equal tokens.
 message PiiValueToken
 {
   bytes token = 1;
+  // The key the token was made under: the PiiPolicyKeyRef identity (id,
+  // version) of turbo_pii_policy.proto, carried as plain fields because
+  // that file imports this one.
+  string key_id = 2;
+  uint32 key_version = 3;
 }
 
 // The value encrypted under a registered key with a named scheme. Not
-// produced until #1909; field 2 is kept for the key reference, as in
-// PiiValueToken.
+// produced until #1885.
 message PiiValueCiphertext
 {
   bytes ciphertext = 1;
+  // The key, as in PiiValueToken: the PiiPolicyKeyRef identity (id,
+  // version).
+  string key_id = 2;
   string scheme = 3;
+  uint32 key_version = 4;
 }
 
 // The form a request asks PII values in. UNSPECIFIED means WITHHELD.
@@ -1179,9 +1185,16 @@ message PiiOutputOptions
   bool full_text = 2;
   // Candidates and evidence detail (#1903).
   bool detail = 3;
-  // Values in this form; UNSPECIFIED or WITHHELD withholds them. Any other
-  // form is refused with TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED) until
-  // #1909 lands.
+  // Values in this form; UNSPECIFIED or WITHHELD withholds them. TOKEN
+  // and CLEAR are released by InspectDocumentGraph only, on a server with
+  // PII release configured (#1909), and only for the kinds the calling
+  // service's verified client certificate is granted; every other mention
+  // stays withheld. A release needs the request's operation_key (#1908);
+  // without one the answer is the findings only. Each release is
+  // recorded with the audit service (turbo_audit.proto) before the
+  // answer leaves, and fails when the record does. CIPHERTEXT, and TOKEN or CLEAR on any other call or on a
+  // server without release, are refused with TURBO_E_UNSUPPORTED_OPTION
+  // (UNIMPLEMENTED).
   PiiValueForm values = 4;
 }
 
