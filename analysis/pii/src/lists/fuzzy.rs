@@ -118,9 +118,7 @@ impl FuzzyIndex {
         let mut useful = vec![false; INDEXED_LEN + g + 1];
         for &(len, budget) in &self.shapes {
             let r = usize::from(budget.min(max_edits));
-            for n in len.saturating_sub(r)..=len + r {
-                useful[n] = true;
-            }
+            useful[len.saturating_sub(r)..=len + r].fill(true);
         }
         let mut band = Band::default();
         let mut hashes = Vec::new();

@@ -91,7 +91,7 @@ fn prose(bytes: usize) -> String {
             text.push_str(word);
         }
         sentence += 1;
-        if sentence > 6 && rng.next() % 8 == 0 {
+        if sentence > 6 && rng.next().is_multiple_of(8) {
             text.push_str(". ");
             sentence = 0;
         } else {

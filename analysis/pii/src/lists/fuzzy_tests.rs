@@ -90,14 +90,14 @@ fn random_case(seed: u64) -> (Vec<String>, String) {
             if w > 0 {
                 t.push_str(rng.pick(&seps));
             }
-            let len = if rng.next() % 10 == 0 { 25 + rng.next() % 6 } else { 1 + rng.next() % 10 };
+            let len = if rng.next().is_multiple_of(10) { 25 + rng.next() % 6 } else { 1 + rng.next() % 10 };
             t.push_str(&word(&mut rng, len));
         }
         terms.push(t);
     }
     let mut text = String::new();
     for _ in 0..200 {
-        let piece = if rng.next() % 2 == 0 {
+        let piece = if rng.next().is_multiple_of(2) {
             let t = rng.next() % terms.len();
             mutate(&mut rng, &terms[t])
         } else {
