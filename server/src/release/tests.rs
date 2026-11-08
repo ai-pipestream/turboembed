@@ -15,6 +15,25 @@ use crate::proto::audit::{PiiAccessKindGrant, PiiAccessMention};
 const FP: &str = "aa00000000000000000000000000000000000000000000000000000000000001";
 const PLANTED: &str = "alice.planted@example.com";
 
+#[test]
+fn wire_key_references_follow_the_cli_id_contract() {
+    use crate::proto::result::{PiiPolicyKeyRef, PiiValueToken};
+    let too_long = "a".repeat(65);
+    for id in ["", "two words", "a:b", "a/b", "clé", "a\n", &too_long] {
+        assert!(KeyRef::parse(&format!("{id}:1")).is_err());
+        let policy = PiiPolicyKeyRef { id: id.into(), version: 1 };
+        assert!(KeyRef::of_policy(&policy).is_err(), "policy accepted {id:?}");
+        let token = PiiValueToken { key_id: id.into(), key_version: 1, token: vec![0; 32] };
+        assert!(KeyRef::of_token(&token).is_err(), "token accepted {id:?}");
+    }
+    for id in ["a-Z_9.", &"x".repeat(64)] {
+        let policy = PiiPolicyKeyRef { id: id.into(), version: u32::MAX };
+        let parsed = KeyRef::parse(&format!("{id}:{}", u32::MAX)).unwrap();
+        assert_eq!(KeyRef::of_policy(&policy).unwrap(), parsed);
+        assert_eq!(parsed.policy(), policy);
+    }
+}
+
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {
     let dir = std::env::temp_dir().join(format!("turbo-release-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
