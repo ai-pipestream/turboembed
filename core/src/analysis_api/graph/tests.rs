@@ -127,7 +127,7 @@ fn fixture() -> (Document, ViewId) {
 #[test]
 fn normalized_view_rows_keep_view_and_source_coordinates_separate() {
     let (doc, lower_view) = fixture();
-    let result = extract_graph(&doc, b"graph".to_vec(), Origin::Analyzed).unwrap();
+    let result = extract_graph(&doc, b"graph".to_vec(), Origin::Analyzed, true).unwrap();
     assert_eq!(result.graph, b"graph");
 
     let lower_tokens = rows(&result, TURBO_ANALYSIS_LAYER_TOKENS, "lower");
@@ -178,7 +178,7 @@ fn deleted_prefix_view_coordinates_project_to_the_source_word() {
     )
     .unwrap();
 
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
     let token_rows = rows(&result, TURBO_ANALYSIS_LAYER_TOKENS, "trimmed");
     assert_eq!(token_rows.len(), 1);
     assert_eq!(token_rows[0].view_id, trimmed_view.0 as u32);
@@ -190,7 +190,7 @@ fn deleted_prefix_view_coordinates_project_to_the_source_word() {
 #[test]
 fn aligned_layers_use_the_named_token_instance_they_were_made_on() {
     let (doc, lower_view) = fixture();
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
 
     let pos = rows(&result, TURBO_ANALYSIS_LAYER_POS, "lower");
     assert_eq!(pos.len(), 4);
@@ -214,7 +214,15 @@ fn aligned_layers_use_the_named_token_instance_they_were_made_on() {
 #[test]
 fn discontinuous_entities_and_pii_preserve_items_and_normalized_values() {
     let (doc, _) = fixture();
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
+    // Without TURBO_ANALYZER_PII_VALUES the row is there, the value is not,
+    // and the pool holds no byte of it (#1904).
+    let withheld = extract_graph(&doc, Vec::new(), Origin::Analyzed, false).unwrap();
+    let row = rows(&withheld, TURBO_ANALYSIS_LAYER_PII, "lower");
+    assert_eq!(row.len(), 1);
+    assert_eq!(row[0].flags & TURBO_SPAN_VALUE, 0);
+    assert_eq!((row[0].value_offset, row[0].value_len), (0, 0));
+    assert!(!withheld.pool.windows(6).any(|w| w == b"a@b.co"), "the pool holds the value");
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
 
     let entities = rows(&result, TURBO_ANALYSIS_LAYER_ENTITIES, "lower");
     assert_eq!(entities.len(), 2, "one entity with two fragments");
@@ -286,7 +294,7 @@ fn a_caller_graph_holding_a_probability_outside_0_to_1_is_an_invalid_argument() 
         assert!(e.message.contains("outside 0..=1"), "{}", e.message);
         // In the analyzer's own document the same row is the analyzer's
         // fault, as the row builder refuses it.
-        let own = extract_graph(&doc, Vec::new(), Origin::Analyzed).err().unwrap();
+        let own = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).err().unwrap();
         assert_eq!(own.code, CAPACITY, "{pos} and {entity}: {}", own.message);
     }
 }
@@ -317,7 +325,7 @@ fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
     });
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
 
-    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed, true).unwrap();
     let pii_rows = rows(&result, TURBO_ANALYSIS_LAYER_PII, "");
     assert_eq!(pii_rows.len(), 2);
     assert_eq!(pool(&result, pii_rows[0].label_offset, pii_rows[0].label_len), "us-ssn");

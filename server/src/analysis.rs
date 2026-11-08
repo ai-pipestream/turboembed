@@ -215,8 +215,10 @@ impl AnalysisService for Analysis {
 
     async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {
         let req = req.into_inner();
-        let out =
-            tokio::task::spawn_blocking(move || crate::inspect::inspect_document_window(&req)).await.map_err(|e| {
+        let policy = self.pii_policy;
+        let out = tokio::task::spawn_blocking(move || crate::inspect::inspect_document_window_under(&req, policy))
+            .await
+            .map_err(|e| {
                 plain(Failure::new(TURBO_E_INTERNAL, 0, format!("inspect_document_window task failed: {e}")))
             })?;
         Ok(Response::new(out.map_err(plain)?))
@@ -224,7 +226,8 @@ impl AnalysisService for Analysis {
 
     async fn project_chunks(&self, req: Request<ProjectChunksRequest>) -> Reply<ProjectChunksResponse> {
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::inspect::project_chunks(&req))
+        let policy = self.pii_policy;
+        let out = tokio::task::spawn_blocking(move || crate::inspect::project::project_chunks_under(&req, policy))
             .await
             .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_chunks task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))

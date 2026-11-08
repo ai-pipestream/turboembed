@@ -287,6 +287,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                 filter_layers: Vec::new(),
                 heatmap_buckets: 0,
                 xray_target_view: Some(1),
+                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
             })
             .await
             .expect("InspectDocumentWindow succeeds")
@@ -361,6 +362,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
             filter_layers: vec!["turbo:pii".into()],
             heatmap_buckets: 4,
             xray_target_view: None,
+            pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
         })
         .await
         .expect("binned InspectDocumentWindow succeeds")
@@ -383,10 +385,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
             view: 99,
             offsets: OffsetMode::Utf8 as i32,
             page_size: 16_000,
-            page: 0,
-            filter_layers: Vec::new(),
-            heatmap_buckets: 0,
-            xray_target_view: None,
+            ..Default::default()
         })
         .await
         .unwrap_err();
@@ -398,10 +397,9 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
             view: 0,
             offsets: OffsetMode::Utf8 as i32,
             page_size: 16_000,
-            page: 0,
-            filter_layers: Vec::new(),
             heatmap_buckets: (MAX_WINDOWS as u32) + 1,
-            xray_target_view: None,
+            pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
+            ..Default::default()
         })
         .await
         .unwrap_err();
@@ -433,6 +431,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                         overhead: 1,
                     },
                 ],
+                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
             })
             .await
             .expect("ProjectChunks succeeds")

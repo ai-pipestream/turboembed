@@ -21,6 +21,7 @@ use crate::proto::result::{
     BoundaryDriftCurveProto, BudgetSpec, DriftGapPointProto, ProjectChunksRequest, ProjectChunksResponse,
     StrategyComparisonEntryProto, StrategyMatrixProto, VectorProjectionProto,
 };
+use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
 use crate::results::document::codecs;
 use crate::results::{MAX_CHUNKS, MAX_GRAPH_BYTES, MAX_SPARSE_ENTRIES, over};
 
@@ -34,8 +35,20 @@ fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-/// Executes `ProjectChunks` on a binary [`DocumentGraph`].
+/// Executes `ProjectChunks` on a binary [`DocumentGraph`], under
+/// [`PiiOutputPolicy::ALL`].
 pub fn project_chunks(req: &ProjectChunksRequest) -> Result<ProjectChunksResponse, Failure> {
+    project_chunks_under(req, PiiOutputPolicy::ALL)
+}
+
+/// [`project_chunks`] under the server's `policy`: previews and term
+/// stacks carry the projected view's words, so a document holding PII
+/// needs that view's text disclosed (#1904).
+pub fn project_chunks_under(
+    req: &ProjectChunksRequest,
+    policy: PiiOutputPolicy,
+) -> Result<ProjectChunksResponse, Failure> {
+    let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
     }
@@ -60,6 +73,7 @@ pub fn project_chunks(req: &ProjectChunksRequest) -> Result<ProjectChunksRespons
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
 
     let view = active_view(&doc)?;
+    disclosure.require_view_text(&doc, view, "project_chunks")?;
     let text = doc.text(view);
     let offsetter = Offsetter::new(text, offset_mode);
 

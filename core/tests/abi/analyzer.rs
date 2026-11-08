@@ -51,6 +51,17 @@ static int show(const char *task, int32_t rc, const turbo_analysis_result *r) {
     return 0;
 }
 
+/* Whether the string pool of r holds needle anywhere. */
+static int pool_holds(const turbo_analysis_result *r, const char *needle) {
+    const char *pool = NULL;
+    uint64_t bytes = 0, n = strlen(needle);
+    if (turbo_analysis_result_strings(r, &pool, &bytes, &err)) return -1;
+    for (uint64_t i = 0; i + n <= bytes; i++) {
+        if (memcmp(pool + i, needle, n) == 0) return 1;
+    }
+    return 0;
+}
+
 /* How many rows of each layer kind a result has. */
 static int kinds(const char *what, const turbo_analysis_result *r) {
     const turbo_span *spans = NULL;
@@ -121,15 +132,23 @@ int main(int argc, char **argv) {
     turbo_analysis_result_release(r);
     rc = turbo_analyzer_detect_pii(plain, T("Mail alice@example.com today."), &r, &err);
     if (show("detect_pii", rc, r)) return 1;
+    printf("pool holds the value %d\n", pool_holds(r, "alice@example.com"));
     turbo_analysis_result_release(r);
 
     /* The descriptor's rules. */
     turbo_analyzer_desc desc;
     memset(&desc, 0, sizeof desc);
     desc.struct_size = sizeof desc;
-    desc.flags = 1;
+    desc.flags = 2;
     rc = turbo_analyzer_create(&desc, &heads, &err);
     printf("flags %s field %u out %s\n", turbo_status_name(rc), err.field, heads ? "set" : "NULL");
+    desc.flags = TURBO_ANALYZER_PII_VALUES;
+    if (turbo_analyzer_create(&desc, &heads, &err)) { printf("pii values %s\n", err.message); return 1; }
+    rc = turbo_analyzer_detect_pii(heads, T("Mail alice@example.com today."), &r, &err);
+    if (show("pii values detect_pii", rc, r)) return 1;
+    turbo_analysis_result_release(r);
+    turbo_analyzer_release(heads);
+    heads = NULL;
     desc.flags = 0;
     desc.pos_model_path = T("en-pos.bin");
     rc = turbo_analyzer_create(&desc, &heads, &err);
@@ -287,8 +306,10 @@ lemmatize of none TURBO_OK rows 0
 find_tokens TURBO_E_UNSUPPORTED_TASK out NULL
 find_text TURBO_E_UNSUPPORTED_TASK out NULL
 find_text of none TURBO_OK rows 0
-detect_pii TURBO_OK rows 1 [6 27 0-0 5-22 email =alice@example.com c1 nan]
+detect_pii TURBO_OK rows 1 [6 11 0-0 5-22 email c1 nan]
+pool holds the value 0
 flags TURBO_E_INVALID_ARGUMENT field 0 out NULL
+pii values detect_pii TURBO_OK rows 1 [6 27 0-0 5-22 email =alice@example.com c1 nan]
 retired TURBO_E_INVALID_ARGUMENT field 4
 missing bundle TURBO_E_BUNDLE_NOT_FOUND field 7
 heads pos_tag TURBO_OK rows 6 [3 44 0-1 0-0 PUNCT p] [3 44 1-2 0-0 DET p] [3 44 2-3 0-0 ADJ p] \

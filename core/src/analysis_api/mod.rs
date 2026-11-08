@@ -42,6 +42,11 @@ const TURBO_SPAN_KNOWN_FLAGS: u32 = TURBO_SPAN_VIEW_RANGE
     | TURBO_SPAN_VALUE
     | TURBO_SPAN_PROBABILITY;
 
+/// `turbo_analyzer_desc.flags`: PII rows carry their normalized value
+/// (`TURBO_SPAN_VALUE`). Off by default: the value is withheld (#1904).
+pub const TURBO_ANALYZER_PII_VALUES: u32 = 1 << 0;
+pub(crate) const TURBO_ANALYZER_KNOWN_FLAGS: u32 = TURBO_ANALYZER_PII_VALUES;
+
 pub const TURBO_PII_CONFIDENCE_FORMAT: u32 = 1;
 pub const TURBO_PII_CONFIDENCE_CHECKSUM: u32 = 2;
 pub const TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM: u32 = 3;
@@ -393,7 +398,7 @@ mod tests {
             (*raw).struct_size = TURBO_ANALYZER_DESC_SIZE_V1 as u32;
             (*raw).language = view("de");
             let cfg = decode_analyzer_desc(raw.cast::<turbo_analyzer_desc>()).unwrap();
-            assert_eq!(cfg, AnalyzerConfig { language: "de", bundle_path: "" });
+            assert_eq!(cfg, AnalyzerConfig { language: "de", bundle_path: "", pii_values: false });
 
             (*raw).language = view("");
             let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();

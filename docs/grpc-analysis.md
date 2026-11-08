@@ -537,6 +537,15 @@ format carries the document text; no format (JSON-LD, markdown or any
 other) writes a mention's value. `PiiMention.normalized` (3) is kept for
 wire compatibility, deprecated and never populated.
 
+`InspectDocumentWindow` (window text, x-ray `parent_text` and
+`child_text`, summary details, heatmaps) and `ProjectChunks` (previews,
+term stacks) carry view text too, so for such a document they are
+refused with `TURBO_E_INVALID_STATE` (`FAILED_PRECONDITION`) naming the
+option unless `pii_output` (`DocumentWindowRequest` 9,
+`ProjectChunksRequest` 8) discloses the text of every view the answer
+shows: `full_text`, or `rewritten_text` for a PII rewrite view. An x-ray
+target view follows the same rule as the main view.
+
 `PiiOutputOptions` on the request (`pii_output`) turns on more:
 
 - `rewritten_text`: the text of the requested view when that view is a
@@ -565,7 +574,13 @@ cap.
 
 In-process callers of the C ABI, JNI and Panama bindings hand the library
 their own text. The controls there govern what the library copies out by
-default, not protection from a caller who already holds the input. Native
+default, not protection from a caller who already holds the input. A PII
+row withholds the mention's normalized value unless the analyzer was
+created with `turbo_analyzer_desc.flags` bit `TURBO_ANALYZER_PII_VALUES`
+(Java `TurboAnalyzer.Config.withPiiValues(true)`): without it
+`TURBO_SPAN_VALUE` is clear and no byte of the value is in the string
+pool. The result's graph is the document as analyzed, the caller's own
+text included. Native
 `PiiMention` and the `turbo:pii` value column (`Sensitive`) print
 `<withheld>` in place of a value in `Debug`, and Java `TurboSpanData`'s
 `toString` does the same.

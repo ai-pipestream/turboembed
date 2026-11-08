@@ -101,7 +101,9 @@ Token-only POS, lemma, morphology, and token-sequence NER rows have token
 ranges and no text ranges. Dependency rows are aligned to tokens: the
 relation is the label and the head token is read through `dependencyHead()`,
 which is empty for the root of a sentence. PII rows carry their kind as the
-label, their normalized form as the value, and a `TurboPiiConfidence`
+label, their normalized form as the value only when the analyzer was
+created with `Config.withPiiValues(true)` (`TURBO_ANALYZER_PII_VALUES`; by
+default `value()` is empty, #1904), and a `TurboPiiConfidence`
 evidence classification (`FORMAT(1)`, `CHECKSUM(2)`, `LABELLED_CHECKSUM(3)`,
 `LABELLED(4)`). PII classification is not represented as a
 probability.

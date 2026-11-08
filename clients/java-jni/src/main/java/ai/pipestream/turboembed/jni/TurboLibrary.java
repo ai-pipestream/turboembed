@@ -64,6 +64,11 @@ public final class TurboLibrary {
     public static final int TURBO_SPAN_TOKEN_RANGE = 1 << 2;
     /** Native span flag: a label is present. */
     public static final int TURBO_SPAN_LABEL = 1 << 3;
+    /**
+     * Analyzer descriptor flag: PII rows carry their normalized value. Off by default, when a PII
+     * row withholds it (#1904); set through {@code Config.withPiiValues(true)}.
+     */
+    public static final int TURBO_ANALYZER_PII_VALUES = 1;
     /** Native span flag: a normalized value is present. */
     public static final int TURBO_SPAN_VALUE = 1 << 4;
     /** Native span flag: a probability is present. */

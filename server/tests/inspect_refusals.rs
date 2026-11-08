@@ -109,6 +109,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             filter_layers: vec!["turbo:tokens".into(), "turbo:subwords".into()],
             heatmap_buckets: 0,
             xray_target_view: None,
+            pii_output: None,
         })
         .await
         .unwrap()
@@ -123,6 +124,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             filter_layers: vec!["turbo:tokens".into(), "turbo:subwords".into()],
             heatmap_buckets: 0,
             xray_target_view: None,
+            pii_output: None,
         })
         .await
         .unwrap()
@@ -150,6 +152,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             filter_layers: Vec::new(),
             heatmap_buckets: 0,
             xray_target_view: None,
+            pii_output: None,
         })
         .await
         .unwrap_err();
@@ -165,6 +168,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             filter_layers: Vec::new(),
             heatmap_buckets: MAX_HEATMAP_BUCKETS + 1,
             xray_target_view: None,
+            pii_output: None,
         })
         .await
         .unwrap_err();
@@ -180,6 +184,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             include_drift_curve: true,
             include_strategy_matrix: true,
             strategy_budgets: Vec::new(),
+            pii_output: None,
         })
         .await
         .unwrap()
@@ -206,6 +211,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             include_drift_curve: false,
             include_strategy_matrix: true,
             strategy_budgets: too_many_budgets,
+            pii_output: None,
         })
         .await
         .unwrap_err();
@@ -249,6 +255,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             include_drift_curve: false,
             include_strategy_matrix: false,
             strategy_budgets: Vec::new(),
+            pii_output: None,
         })
         .await
         .unwrap_err();

@@ -17,6 +17,7 @@ use turbo_analysis::{Span, ViewId};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{DocumentShapeSummaryProto, DocumentWindowRequest, DocumentWindowResponse};
+use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
 use crate::results::document::{codecs, layer_info, view_info};
 use crate::results::{MAX_GRAPH_BYTES, over};
 
@@ -31,8 +32,20 @@ fn bad(message: impl Into<String>) -> Failure {
 /// Executes `InspectDocumentWindow` on a binary [`DocumentGraph`], returning
 /// the shape summary, paginated viewport window, sweep-line combined
 /// elementary segments, document-level chips, multi-lane heatmaps, and
-/// optional [`NormalizationXrayProto`] in the requested [`OffsetMode`].
+/// optional [`NormalizationXrayProto`] in the requested [`OffsetMode`],
+/// under [`PiiOutputPolicy::ALL`].
 pub fn inspect_document_window(req: &DocumentWindowRequest) -> Result<DocumentWindowResponse, Failure> {
+    inspect_document_window_under(req, PiiOutputPolicy::ALL)
+}
+
+/// [`inspect_document_window`] under the server's `policy`: a window of a
+/// document holding PII carries view text, so it needs that text disclosed
+/// for `view` and any x-ray target (#1904).
+pub fn inspect_document_window_under(
+    req: &DocumentWindowRequest,
+    policy: PiiOutputPolicy,
+) -> Result<DocumentWindowResponse, Failure> {
+    let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
     }
@@ -53,6 +66,17 @@ pub fn inspect_document_window(req: &DocumentWindowRequest) -> Result<DocumentWi
         return Err(bad(format!("view {} is out of range for document with {view_count} view(s)", req.view)));
     }
     let view_id = ViewId(req.view as u16);
+    // An out-of-range target is the caller's mistake, said as for `view`,
+    // before any disclosure check.
+    if let Some(target) = req.xray_target_view
+        && target >= view_count
+    {
+        return Err(bad(format!("xray_target_view {target} is out of range for document with {view_count} view(s)")));
+    }
+    disclosure.require_view_text(&doc, view_id, "inspect_document_window")?;
+    if let Some(target) = req.xray_target_view {
+        disclosure.require_view_text(&doc, ViewId(target as u16), "inspect_document_window xray")?;
+    }
     let text = doc.text(view_id);
     let offsetter = Offsetter::new(text, offset_mode);
 

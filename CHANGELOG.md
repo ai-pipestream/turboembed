@@ -242,6 +242,18 @@ stubs must be regenerated.
 
 ### Breaking
 
+- The in-process analyzer withholds PII values by default: a PII row from
+  `turbo_analyzer_detect_pii`, `turbo_analyzer_analyze_graph` or
+  `turbo_analyzer_inspect_graph` has its kind, tier and ranges, with
+  `TURBO_SPAN_VALUE` clear and no value bytes in the string pool.
+  `turbo_analyzer_desc.flags` bit `TURBO_ANALYZER_PII_VALUES` (Java
+  `TurboAnalyzer.Config.withPiiValues(true)`) opts in; any other bit is
+  still refused. `InspectDocumentWindow` and `ProjectChunks` refuse a
+  document holding PII with `TURBO_E_INVALID_STATE` unless
+  `pii_output` discloses the text of every view the answer shows
+  (`DocumentWindowRequest.pii_output` 9, `ProjectChunksRequest.pii_output`
+  8; #1929).
+
 - Java callers now import shared values, exceptions and interfaces from
   `ai.pipestream.turboembed`, and adapters from its `opennlp` package.
   Add `turboembed-api` alongside either matching-version bridge jar.
