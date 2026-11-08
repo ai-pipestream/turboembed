@@ -129,6 +129,9 @@ pub fn names_with(models: &[ModelConfig], empty_ok: bool) -> Result<Vec<String>,
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Args {
     pub listen: SocketAddr,
+    /// Binary `RedactionPolicy` files, each served by its id
+    /// (`--pii-policy PATH`, repeatable), loaded and converted at start.
+    pub pii_policies: Vec<PathBuf>,
     pub models: Vec<ModelConfig>,
     /// The largest request message gRPC reads.
     pub max_message_bytes: usize,
@@ -232,7 +235,7 @@ pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] \
 [--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
 [--pii-output-allow none|rewritten-text,full-text,detail] \
-[--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
+[--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT] [--pii-policy PATH ...]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
 TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
@@ -282,6 +285,7 @@ impl Args {
         let mut metrics_listen = None;
         let mut pii_output_allow = None;
         let mut models = Vec::new();
+        let mut pii_policies = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
             let (flag, inline) = match a.split_once('=') {
@@ -301,6 +305,7 @@ impl Args {
                     }
                 }
                 "--model" => models.push(ModelConfig::parse(&value()?)?),
+                "--pii-policy" => pii_policies.push(pii::policy_path(value()?)?),
                 "--bundle-dir" => {
                     let v = value()?;
                     if v.is_empty() {
@@ -469,6 +474,7 @@ impl Args {
             training_dir,
             tls,
             metrics_listen,
+            pii_policies,
         })
     }
 }

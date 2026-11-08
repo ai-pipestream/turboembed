@@ -248,7 +248,13 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let t = Instant::now();
     let (corpus, languages) = match column {
         Some(column) => {
-            let multi = turbo_trainer_recipes::ud_multi::read(corpus_id, column, dir, unrecorded, sample)?;
+            let multi = turbo_trainer_recipes::ud_multi::read(
+                corpus_id,
+                column,
+                dir.to_str().ok_or_else(|| Error("corpus directory is not UTF-8".into()))?,
+                unrecorded,
+                sample,
+            )?;
             (multi.corpus, Some((multi.languages, multi.train_languages, multi.dev_languages, multi.test_languages)))
         }
         None => (read_corpus(corpus_id, dir, unrecorded)?, None),

@@ -127,6 +127,12 @@ impl TokenKey {
         Ok(TokenKey { key: file.key.clone(), bytes: KeyBytes(bytes) })
     }
 
+    /// The key material, for a redaction policy's keyed-token strategy
+    /// (#1882); never logged or printed.
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes.0
+    }
+
     /// The token of `value` found as `kind`: HMAC-SHA-256 under this key
     /// over the domain, then the kind code and the value, each prefixed
     /// with its length as 4 big-endian bytes (#1930). Equal values of one

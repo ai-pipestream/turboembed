@@ -88,7 +88,13 @@ pub(super) fn train(
             (splits, record, None)
         }
         None => {
-            let multi = turbo_trainer_recipes::ud_multi::read_ud(bank_id, head, dir, unrecorded, sample)?;
+            let multi = turbo_trainer_recipes::ud_multi::read_ud(
+                bank_id,
+                head,
+                dir.to_str().ok_or_else(|| Error("corpus directory is not UTF-8".into()))?,
+                unrecorded,
+                sample,
+            )?;
             (
                 multi.splits,
                 multi.record,

@@ -387,3 +387,19 @@ message PiiCustomIdentifier
   string shape = 3;
   bool case_sensitive = 4;
 }
+
+// The redaction policy one AnalyzePipelineRequest runs turbo-pii:redact
+// with: a policy given inline, or the name of one the server loaded at
+// start. An unknown name is refused.
+message PiiRedactionSelection
+{
+  oneof policy
+  {
+    RedactionPolicy inline = 1;
+    string name = 2;
+  }
+  // Report what the policy would do and write no redacted view: kept
+  // candidates of turbo:pii-candidates carry PiiPlannedRewrite, and no
+  // turbo:pii-edits layer is written.
+  bool dry_run = 3;
+}

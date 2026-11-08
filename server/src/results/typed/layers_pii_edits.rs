@@ -1,7 +1,8 @@
 //! The typed projection of `turbo:pii-edits`: one `PiiEditAnnotation` an
 //! edit, its spans the replacement on the requested view, its source span
 //! in canonical UTF-8 bytes of the native view's parent, its covered
-//! mention rows, rule, strategy and policy revision. No value is carried.
+//! mention rows, rule, rule id, strategy, policy revision and digest. No
+//! value is carried.
 
 use std::any::TypeId;
 
@@ -13,7 +14,7 @@ use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{PiiEditAnnotation, PiiEditRule, SpanFragment, TypedAnnotation, TypedLayer, pii_edit_rule};
 
-fn rule(r: PiiRule) -> PiiEditRule {
+pub(super) fn rule(r: PiiRule) -> PiiEditRule {
     let rule = match r {
         PiiRule::Default => pii_edit_rule::Rule::DefaultRule(true),
         PiiRule::Kind(k) => pii_edit_rule::Rule::Kind(pii_kind_ref(k)),
@@ -39,6 +40,8 @@ pub(crate) fn project_pii_edits_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
                     rule: Some(rule(e.rule)),
                     strategy: i32::from(e.strategy.id()),
                     policy_revision: l.policy_revision,
+                    rule_id: e.rule_id.to_owned(),
+                    policy_digest: l.policy_digest.map(|d| d.as_bytes().to_vec()).unwrap_or_default(),
                 })),
             })
             .collect()
