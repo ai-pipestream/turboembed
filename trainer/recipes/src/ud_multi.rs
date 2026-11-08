@@ -76,18 +76,30 @@ fn language_names(ids: &[&str]) -> Result<Vec<String>> {
     Ok(languages)
 }
 
+fn bank_dirs(dir: &str, count: usize) -> Result<Vec<&str>> {
+    let dirs: Vec<&str> = dir.split(',').collect();
+    if dirs.len() != 1 && dirs.len() != count {
+        return Err(Error(format!("--dir needs one corpus directory or {count} comma-separated directories")));
+    }
+    if dirs.iter().any(|dir| dir.is_empty()) {
+        return Err(Error("--dir entries must not be empty".into()));
+    }
+    Ok(dirs)
+}
+
 /// Reads a comma-separated list of treebank ids as one tag corpus.
 /// `sample` is the temperature exponent: 1 keeps each split unchanged,
 /// 0 gives every treebank the same training sentence count, and values
 /// between interpolate by `count.powf(sample)`. Resampling repeats each
 /// bank's own training sentences cyclically and never touches dev or test.
-pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64) -> Result<MultiCorpus> {
+pub fn read(ids: &str, column: Column, dir: &str, unrecorded: bool, sample: f64) -> Result<MultiCorpus> {
     let ids: Vec<&str> = ids.split(',').collect();
     if ids.len() < 2 || ids.iter().any(|id| id.is_empty()) {
         return Err(Error("a multi-treebank corpus needs at least two comma-separated treebank ids".into()));
     }
+    let dirs = bank_dirs(dir, ids.len())?;
     let mut corpora = Vec::with_capacity(ids.len());
-    for id in ids.iter().copied() {
+    for (index, id) in ids.iter().copied().enumerate() {
         if corpora.iter().any(|c: &Corpus| c.record.id == format!("{id}-{}", column.suffix())) {
             return Err(Error(format!("treebank {id:?} is listed twice")));
         }
@@ -95,7 +107,8 @@ pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64
             .iter()
             .find(|bank| bank.id == id)
             .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
-        let mut corpus = crate::ud::read(bank, column, dir, unrecorded)?;
+        let mut corpus =
+            crate::ud::read(bank, column, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
         if column == Column::Xpos {
             for sentence in corpora_sentences_mut(&mut corpus.splits) {
                 for label in &mut sentence.labels {
@@ -165,13 +178,14 @@ pub fn read(ids: &str, column: Column, dir: &Path, unrecorded: bool, sample: f64
 }
 
 /// Reads syntactic words for a multi-treebank lemma or parser run.
-pub fn read_ud(ids: &str, head: UdHead, dir: &Path, unrecorded: bool, sample: f64) -> Result<MultiUdCorpus> {
+pub fn read_ud(ids: &str, head: UdHead, dir: &str, unrecorded: bool, sample: f64) -> Result<MultiUdCorpus> {
     let ids: Vec<&str> = ids.split(',').collect();
     if ids.len() < 2 || ids.iter().any(|id| id.is_empty()) {
         return Err(Error("a multi-treebank corpus needs at least two comma-separated treebank ids".into()));
     }
+    let dirs = bank_dirs(dir, ids.len())?;
     let mut corpora = Vec::with_capacity(ids.len());
-    for id in ids.iter().copied() {
+    for (index, id) in ids.iter().copied().enumerate() {
         if corpora.iter().any(|(_, record): &(UdSplits, CorpusRecord)| record.id == format!("{id}-{}", head.suffix())) {
             return Err(Error(format!("treebank {id:?} is listed twice")));
         }
@@ -179,7 +193,8 @@ pub fn read_ud(ids: &str, head: UdHead, dir: &Path, unrecorded: bool, sample: f6
             .iter()
             .find(|bank| bank.id == id)
             .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
-        let (splits, files, recorded) = crate::ud::read_treebank(bank, dir, unrecorded)?;
+        let (splits, files, recorded) =
+            crate::ud::read_treebank(bank, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
         let record = crate::ud_heads::record(bank, head, &splits, files, recorded);
         corpora.push((splits, record));
     }
@@ -245,13 +260,14 @@ pub fn read_ud(ids: &str, head: UdHead, dir: &Path, unrecorded: bool, sample: f6
 }
 
 /// Reads surface tokens for a multi-treebank token-split run.
-pub fn read_tokens(ids: &str, dir: &Path, unrecorded: bool, sample: f64) -> Result<MultiTokenCorpus> {
+pub fn read_tokens(ids: &str, dir: &str, unrecorded: bool, sample: f64) -> Result<MultiTokenCorpus> {
     let ids: Vec<&str> = ids.split(',').collect();
     if ids.len() < 2 || ids.iter().any(|id| id.is_empty()) {
         return Err(Error("a multi-treebank corpus needs at least two comma-separated treebank ids".into()));
     }
+    let dirs = bank_dirs(dir, ids.len())?;
     let mut corpora = Vec::with_capacity(ids.len());
-    for id in ids.iter().copied() {
+    for (index, id) in ids.iter().copied().enumerate() {
         if corpora.iter().any(|(_, record): &(TokenSplits, CorpusRecord)| record.id == format!("{id}-split")) {
             return Err(Error(format!("treebank {id:?} is listed twice")));
         }
@@ -259,7 +275,8 @@ pub fn read_tokens(ids: &str, dir: &Path, unrecorded: bool, sample: f64) -> Resu
             .iter()
             .find(|bank| bank.id == id)
             .ok_or_else(|| Error(format!("unknown treebank {id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
-        let (splits, files, recorded) = crate::ud_split::read_tokens(bank, dir, unrecorded)?;
+        let (splits, files, recorded) =
+            crate::ud_split::read_tokens(bank, Path::new(if dirs.len() == 1 { dir } else { dirs[index] }), unrecorded)?;
         let record = crate::ud_split::record(bank, &splits, files, recorded);
         corpora.push((splits, record));
     }

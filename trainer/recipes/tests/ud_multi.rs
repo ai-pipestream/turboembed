@@ -59,7 +59,14 @@ fn temperature_counts_preserve_the_total_and_balance_small_banks() {
 fn multi_treebank_read_prefixes_xpos_and_only_resamples_training() {
     let dir = scratch("read");
     corpora(&dir);
-    let multi = read("ud-es-ancora,ud-ca-ancora", Column::Xpos, &dir, true, 0.0).unwrap();
+    for (bank, subdir) in [(&ES_ANCORA, "es"), (&CA_ANCORA, "ca")] {
+        fs::create_dir(dir.join(subdir)).unwrap();
+        for pin in [bank.train, bank.dev, bank.test] {
+            fs::copy(dir.join(pin.path), dir.join(subdir).join(pin.path)).unwrap();
+        }
+    }
+    let dirs = format!("{}/es,{}/ca", dir.display(), dir.display());
+    let multi = read("ud-es-ancora,ud-ca-ancora", Column::Xpos, &dirs, true, 0.0).unwrap();
     assert_eq!(multi.languages, ["es", "ca"]);
     assert_eq!(multi.train_languages, [Some(0), Some(0), Some(1), Some(1)]);
     assert_eq!(multi.dev_languages, [Some(0), Some(1)]);
@@ -91,8 +98,10 @@ fn multi_treebank_read_prefixes_xpos_and_only_resamples_training() {
             "ud-es-ancora:NN"
         ]
     );
-    let error = read("ud-es-ancora,ud-es-ancora", Column::Upos, &dir, true, 1.0).unwrap_err();
+    let error = read("ud-es-ancora,ud-es-ancora", Column::Upos, dir.to_str().unwrap(), true, 1.0).unwrap_err();
     assert!(error.0.contains("listed twice"), "{error}");
+    let error = read("ud-es-ancora,ud-ca-ancora", Column::Upos, "es,ca,fi", true, 1.0).unwrap_err();
+    assert!(error.0.contains("comma-separated directories"), "{error}");
     fs::remove_dir_all(dir).unwrap();
 }
 
