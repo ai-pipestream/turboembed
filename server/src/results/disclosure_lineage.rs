@@ -98,12 +98,3 @@ fn projected_from(doc: &Document, pii: KeyId, out: &mut Vec<KeyId>) {
         }
     }
 }
-
-/// Whether `key` is a `turbo:pii` layer a rewrite step wrote beside its
-/// view (the replacement labels), not a finding over any text.
-pub(crate) fn is_rewrite_output(doc: &Document, key: KeyId) -> bool {
-    key.ty == TypeId::of::<Pii>()
-        && doc.provenance(key).is_some_and(|p| {
-            p.annotator.starts_with(REWRITE_ANNOTATOR_PREFIX) && p.reads.iter().any(|r| r.ty == TypeId::of::<View>())
-        })
-}

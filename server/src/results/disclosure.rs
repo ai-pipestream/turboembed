@@ -229,8 +229,8 @@ pub fn plans_pii(analyzer: &Analyzer) -> bool {
 /// (#1932). A `turbo:pii` instance with a mention, or without a layer to
 /// say it has none, that neither the view nor a rewrite view it was made
 /// from read (directly or as the source of a projected copy) may hold a
-/// value the view carries in clear, so that view is not one. The
-/// replacement labels a rewrite writes are not findings.
+/// value the view carries in clear, so that view is not one. Every
+/// `turbo:pii` layer counts, whoever wrote it: no rewrite step writes one.
 pub fn is_rewrite_view(doc: &Document, view: ViewId) -> bool {
     view != ViewId::SOURCE
         && doc.layers().any(|k| {
@@ -244,7 +244,7 @@ pub fn is_rewrite_view(doc: &Document, view: ViewId) -> bool {
 /// Whether every `turbo:pii` finding instance of `doc` is in `covered` or
 /// holds no mention.
 fn rewrote_every_finding(doc: &Document, covered: &[KeyId]) -> bool {
-    doc.layers().filter(|k| k.ty == TypeId::of::<Pii>() && !lineage::is_rewrite_output(doc, *k)).all(|k| {
+    doc.layers().filter(|k| k.ty == TypeId::of::<Pii>()).all(|k| {
         covered.contains(&k) || doc.get_key(&Key::<Pii>::named(k.name)).is_some_and(|p| p.mentions().next().is_none())
     })
 }
