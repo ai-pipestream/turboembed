@@ -343,15 +343,22 @@ fn rewrite_policy_composes_per_kind_strategies_and_maps_multibyte_offsets() {
     }
 
     // Long overlapping cluster rewrites in linear time.
-    let long_s = "a".repeat(8_000);
-    let long_pii = manual(&[(0, 8_000, PiiKind::Email, "e"), (0, 4_000, PERSON_KIND, "p")]);
-    let t0 = std::time::Instant::now();
-    let long_out = RewritePolicy::new(MaskPolicy::new('*').unwrap())
-        .with(PiiKind::Email, Truncate::keep_end(4))
-        .rewrite(&source_view(&long_s), &long_pii)
-        .unwrap();
-    assert!(t0.elapsed().as_millis() < 500);
-    assert!(long_out.text().ends_with("aaaa") && long_out.text()[..7_996].chars().all(|c| c == '*'));
+    let policy = RewritePolicy::new(MaskPolicy::new('*').unwrap()).with(PiiKind::Email, Truncate::keep_end(4));
+    let mut best = [std::time::Duration::MAX; 2];
+    for (idx, n) in [2_000usize, 8_000].into_iter().enumerate() {
+        let s = "a".repeat(n);
+        let pii = manual(&[(0, n as u32, PiiKind::Email, "e"), (0, (n / 2) as u32, PERSON_KIND, "p")]);
+        let view = source_view(&s);
+        let out = policy.rewrite(&view, &pii).unwrap();
+        assert!(out.text().ends_with("aaaa") && out.text()[..n - 4].chars().all(|c| c == '*'));
+        for _ in 0..5 {
+            let t0 = std::time::Instant::now();
+            let _ = policy.rewrite(&view, &pii).unwrap();
+            best[idx] = best[idx].min(t0.elapsed());
+        }
+    }
+    let [n1, n4] = best.map(|d| d.as_nanos().max(1));
+    assert!(n4 < n1.saturating_mul(8), "4N/N rewrite timing ratio too high: N={n1}ns, 4N={n4}ns");
 
     // EmptyValue is propagated by RewritePolicy for HmacTokenizer and Sha256Tokenizer.
     let empty_pii = manual(&[(0, 4, PiiKind::Email, "")]);
