@@ -1,0 +1,9 @@
+MASKED	ITIN 900-70-1234 recorded; 912-88-1234 too.
+
+MASK_ALL	ITIN 900-70-1234 recorded; 912-88-1234 too.
+
+REWRITE	pseudonymize	OK	ITIN 900-70-1234 recorded; 912-88-1234 too.
+
+REWRITE	hmac	OK	ITIN 900-70-1234 recorded; 912-88-1234 too.
+
+AUDIT_REPORT	no pii found

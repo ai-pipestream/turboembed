@@ -23,7 +23,8 @@ fn everything() -> String {
          github ghp_{} jwt eyJhbGciOiJIUzI1NiJ9.e30.YQ btc {LEGACY} eth 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed \
          ssn 123-45-6789 itin 900-70-1234 nhs 943 476 5919 idnr 65929970489 dni 12345678Z nie X1234567L cif A58818501 \
          npa T220001293 nir 2 94 03 2A 123 456 92 siren 732 829 320 siret 732 829 320 00074 BIC: DEUTDEFF500 \
-         cpf 529.982.247-25 cnpj 11.222.333/0001-81 SIN: 046 454 286 IMEI: 490154203237518",
+         cpf 529.982.247-25 cnpj 11.222.333/0001-81 SIN: 046 454 286 IMEI: 490154203237518 \
+         vin 1FTFW1E51NFA00001 ups 1Z999AA10123456784 ein 12-3456789 site www.example.net/help",
         "a".repeat(36)
     )
 }
@@ -40,17 +41,19 @@ fn kinds_found(d: &PiiDetector) -> PiiKinds {
 fn every_pack_is_in_order_and_finds_its_kinds_only() {
     use PiiKind::*;
     let all_kinds: Vec<PiiKind> = PiiKind::builtins().collect();
-    let expected: [(Pack, &[PiiKind]); 11] = [
+    let expected: [(Pack, &[PiiKind]); 13] = [
         (Pack::Payment, &[Iban, Card, AbaRouting]),
         (Pack::Contact, &[Email, Phone]),
         (Pack::Network, &[Ipv4, Ipv6, Mac]),
         (Pack::Secrets, &[AwsAccessKey, UrlCredential, GithubToken, Jwt]),
         (Pack::Crypto, &[BtcAddress, EthAddress]),
-        (Pack::UsIdentity, &[UsSsn, UsItin]),
+        (Pack::UsIdentity, &[UsSsn, UsItin, UsEin]),
         (Pack::EuIdentity, &[UkNhs, DeSteuerId, EsDni, EsNie, EsCif, DePersonalausweis, FrNir, FrSiren, FrSiret, Bic]),
         (Pack::BrIdentity, &[BrCpf, BrCnpj]),
         (Pack::CaIdentity, &[CaSin]),
         (Pack::Device, &[Imei]),
+        (Pack::Logistics, &[Vin, TrackingNumber]),
+        (Pack::Web, &[Url]),
         (Pack::AllStructured, &all_kinds),
     ];
     for (p, kinds) in expected {
@@ -220,7 +223,11 @@ fn kind_ids_and_priorities() {
             "bic",
             "ca-sin",
             "aba-routing",
-            "phone"
+            "phone",
+            "vin",
+            "tracking-number",
+            "us-ein",
+            "url"
         ]
     );
     for (i, r) in PiiKind::TABLE.iter().enumerate() {
@@ -238,6 +245,9 @@ fn kind_ids_and_priorities() {
         ("btc-address", "us-ssn"),
         ("us-ssn", "phone"),
         ("de-steuer-id", "phone"),
+        ("url-credential", "url"),
+        ("email", "url"),
+        ("card", "tracking-number"),
     ] {
         assert!(PiiKind::parse(stronger).unwrap().priority() < PiiKind::parse(weaker).unwrap().priority());
     }
@@ -248,7 +258,7 @@ fn kind_ids_and_priorities() {
 
 #[test]
 fn kind_selection() {
-    let samples: [(Extractor, &str); 7] = [
+    let samples: [(Extractor, &str); 9] = [
         (Extractor::Cursor, "jane@example.com"),
         (Extractor::Network, "10.1.2.3"),
         (Extractor::Secrets, "AKIAIOSFODNN7EXAMPLE"),
@@ -256,6 +266,8 @@ fn kind_selection() {
         (Extractor::UsIdentity, "123-45-6789"),
         (Extractor::EuIdentity, "943 476 5919"),
         (Extractor::BrIdentity, "529.982.247-25"),
+        (Extractor::UsIdentity, "12-3456789"),
+        (Extractor::Logistics, "1FTFW1E51NFA00001"),
     ];
     for (extractor, sample) in samples {
         let all: Vec<PiiKind> = extractor.kinds().iter().collect();
@@ -361,11 +373,24 @@ fn golden_true_positives() {
 fn golden_false_positives() {
     let lines = fixtures("golden-false-positives.txt");
     assert!(lines.len() >= 120, "{}", lines.len());
+    // The corpus predates the url kind: its URL credential near misses
+    // (`https://example.com:8443/path`) are real web addresses, which the
+    // web scanner reports as `url` and nothing else. Every other scanner
+    // of the widest pack still finds nothing.
+    let without_web = PiiDetector::new(
+        Pack::AllStructured.scanners().into_iter().filter(|s| s.extractor() != Extractor::Web).collect(),
+    );
+    let mut urls = 0;
     for line in &lines {
-        assert_none(&wide(), line);
+        assert_none(&without_web, line);
         assert_none(&PiiDetector::cursor(), line);
+        for row in rows(&wide(), line) {
+            assert_eq!(row.2, "url", "{line:?}");
+            urls += 1;
+        }
     }
-    assert_none(&wide(), &lines.join("\n"));
+    assert_eq!(urls, 3);
+    assert_none(&without_web, &lines.join("\n"));
 }
 
 #[test]
@@ -389,12 +414,14 @@ fn pack_config_hashes_are_pinned_on_kind_ids() {
             ("network", 576834619351109183),
             ("secrets", 591634045867018468),
             ("crypto", 588546617215948105),
-            ("us-identity", 567886793722052640),
+            ("us-identity", 567890530343600160),
             ("eu-identity", 372598208369306011),
             ("br-identity", 600249775195443079),
             ("ca-identity", 587814459240793714),
             ("device", 598477406239679157),
-            ("all-structured", 15331754987889619389),
+            ("logistics", 599294178023009374),
+            ("web", 594502895042755729),
+            ("all-structured", 10765832317272267962),
         ]
     );
 }

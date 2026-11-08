@@ -256,7 +256,7 @@ fn custom_kind_tables_validate_at_construction() {
     assert_eq!(t.from_code(a.code()), Ok(a));
     assert_eq!(t.from_code(5), Ok(PiiKind::Email));
     assert_eq!(t.from_code(0), Err(KindError::UnknownCode(0)));
-    assert_eq!(t.from_code(31), Err(KindError::UnknownCode(31)));
+    assert_eq!(t.from_code(35), Err(KindError::UnknownCode(35)));
     assert_eq!(t.from_code(CUSTOM_CODE_BASE + 9), Err(KindError::UnknownCode(CUSTOM_CODE_BASE + 9)));
     let other = CustomKinds::from_names(["other", "account-number"]).unwrap();
     assert_eq!(other.translate(&t, a), Some(PiiKind::Custom(CustomKindId::new(1))));

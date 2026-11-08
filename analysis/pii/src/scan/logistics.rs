@@ -6,15 +6,16 @@
 //!   character the ISO 3779 / 49 CFR 565 check character.
 //! - Tracking numbers (`tracking-number`), compact or in groups of four
 //!   split by single spaces: UPS `1Z` and 16 letters or digits (UPS mod
-//!   10); FedEx Express 12 digits (weights 3, 1, 7 mod 11); FedEx Ground 15
-//!   digits and USPS 20 digits (GS1 mod 10, a 20-digit number also with the
-//!   `91` prefix it implies); 22 digits starting `91` to `95` (USPS, GS1 mod
+//!   10); FedEx Express 12 digits (weights 3, 1, 7 mod 11) and FedEx Ground
+//!   15 digits, both only when they fail Luhn (a Luhn-valid one is a card
+//!   or an IMEI); USPS 20 digits starting `0` or `7` (GS1 mod 10, also with
+//!   the `91` prefix it implies); 22 digits starting `91` to `95` (USPS, GS1 mod
 //!   10 over 21 digits) or `96` (FedEx Ground, GS1 mod 10 over the 14-digit
 //!   serial).
 
 use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiKinds};
 
-use crate::checksum::{parcel, vin};
+use crate::checksum::{luhn, parcel, vin};
 use crate::hits::Hits;
 use crate::text::{on_end, on_number_start, on_word_start, starts_with};
 
@@ -64,10 +65,10 @@ fn vin_at(text: &str, i: usize) -> bool {
         && vin::valid(w)
 }
 
-/// No letter or digit at `end`, nor a space going on with one.
+/// No letter or digit at `end`, nor a space going on with a digit.
 fn on_group_end(text: &str, end: usize) -> bool {
     let b = text.as_bytes();
-    on_end(text, end) && !(b.get(end) == Some(&b' ') && b.get(end + 1).is_some_and(u8::is_ascii_alphanumeric))
+    on_end(text, end) && !(b.get(end) == Some(&b' ') && b.get(end + 1).is_some_and(u8::is_ascii_digit))
 }
 
 fn scan_ups(text: &str, hits: &mut Hits) {
@@ -172,10 +173,16 @@ fn read_digits(text: &str, start: usize, digits: &mut [u8; MAX_DIGITS]) -> Optio
 fn numeric_check(d: &[u8]) -> Option<ChecksumAlgorithm> {
     let last = d.last()? - b'0';
     let gs1 = |data: &[u8]| parcel::gs1_mod10(data) == Some(last);
+    // A Luhn-valid 12- or 15-digit number is read as a card or an IMEI,
+    // not as a FedEx number.
     let passed = match d.len() {
-        12 => return (parcel::fedex_mod11(&d[..11]) == Some(last)).then_some(ChecksumAlgorithm::FedexMod11),
-        15 => gs1(&d[..14]),
-        20 => gs1(&d[..19]) || {
+        12 if !luhn::valid(d) => {
+            return (parcel::fedex_mod11(&d[..11]) == Some(last)).then_some(ChecksumAlgorithm::FedexMod11);
+        }
+        15 => gs1(&d[..14]) && !luhn::valid(d),
+        // The USPS 20-digit numbers in use start `0` or `7` (certified
+        // mail); a dated build number such as `2024 0131 ...` does not.
+        20 if matches!(d[0], b'0' | b'7') => gs1(&d[..19]) || {
             let mut implied = [0u8; 21];
             implied[..2].copy_from_slice(b"91");
             implied[2..].copy_from_slice(&d[..19]);

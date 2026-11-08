@@ -1,0 +1,18 @@
+MASKED	Fleet VINs: *****************, ***************** and VIN ***************** (vehicle identification number *****************).
+
+MASK_ALL	Fleet VINs: #################, ################# and VIN ################# (vehicle identification number #################).
+
+REWRITE	pseudonymize	OK	Fleet VINs: VIN-1, VIN-2 and VIN VIN-3 (vehicle identification number VIN-4).
+
+LABEL	pseudonymize	12	29	12	17	VIN-1
+LABEL	pseudonymize	31	48	19	24	VIN-2
+LABEL	pseudonymize	57	74	33	38	VIN-3
+LABEL	pseudonymize	106	123	70	75	VIN-4
+REWRITE	hmac	OK	Fleet VINs: VIN-be885b982ee74078, VIN-573202261cb6ebe5 and VIN VIN-f88a913a7730089e (vehicle identification number VIN-a5e94fa8fd9feb59).
+
+LABEL	hmac	12	29	12	32	VIN-be885b982ee74078
+LABEL	hmac	31	48	34	54	VIN-573202261cb6ebe5
+LABEL	hmac	57	74	63	83	VIN-f88a913a7730089e
+LABEL	hmac	106	123	115	135	VIN-a5e94fa8fd9feb59
+AUDIT	vin	4	4	VIN-be885b982ee74078, VIN-573202261cb6ebe5, VIN-f88a913a7730089e
+AUDIT_REPORT	vin: 4 mentions, 4 distinct [VIN-be885b982ee74078, VIN-573202261cb6ebe5, VIN-f88a913a7730089e]

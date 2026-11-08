@@ -1,0 +1,22 @@
+MASKED	See ****************************************, ************************************* and (********************). Also ************************************, *********************** and **************************.
+
+MASK_ALL	See ########################################, ##################################### and (####################). Also ####################################, ####################### and ##########################.
+
+REWRITE	pseudonymize	OK	See URL-1, URL-2 and (URL-3). Also URL-4, URL-5 and URL-6.
+
+LABEL	pseudonymize	4	44	4	9	URL-1
+LABEL	pseudonymize	46	83	11	16	URL-2
+LABEL	pseudonymize	89	109	22	27	URL-3
+LABEL	pseudonymize	117	153	35	40	URL-4
+LABEL	pseudonymize	155	178	42	47	URL-5
+LABEL	pseudonymize	183	209	52	57	URL-6
+REWRITE	hmac	OK	See URL-c18a7c28f0f7215e, URL-97844d391ab07061 and (URL-6f312c874afd0ee3). Also URL-ad2bfbb25d2c3f42, URL-1fef8261db4885bd and URL-8480c41222aa5d96.
+
+LABEL	hmac	4	44	4	24	URL-c18a7c28f0f7215e
+LABEL	hmac	46	83	26	46	URL-97844d391ab07061
+LABEL	hmac	89	109	52	72	URL-6f312c874afd0ee3
+LABEL	hmac	117	153	80	100	URL-ad2bfbb25d2c3f42
+LABEL	hmac	155	178	102	122	URL-1fef8261db4885bd
+LABEL	hmac	183	209	127	147	URL-8480c41222aa5d96
+AUDIT	url	6	6	URL-c18a7c28f0f7215e, URL-97844d391ab07061, URL-6f312c874afd0ee3
+AUDIT_REPORT	url: 6 mentions, 6 distinct [URL-c18a7c28f0f7215e, URL-97844d391ab07061, URL-6f312c874afd0ee3]

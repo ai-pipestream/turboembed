@@ -1,0 +1,1 @@
+See https://portal.example.com/vendors?id=42, http://status.example.org:8080/health and (www.example.net/help). Also HTTPS://Docs.Example.com/Guide#intro, http://192.0.2.10/admin and ftp://ftp.example.org/pub/.

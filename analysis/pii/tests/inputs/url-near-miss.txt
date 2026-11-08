@@ -1,0 +1,1 @@
+Not URLs: example.com, http://mirror.corp.invalid/pkg, mailto:desk@example.com, https://user:pass@example.com/x, www.example and sub.www.example.com.

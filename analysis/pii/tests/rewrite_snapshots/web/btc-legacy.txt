@@ -1,0 +1,9 @@
+MASKED	Wallets 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdw and 3APADkvHwo6aV4ZRCY7H7RZTcdvMxbYyNR paid.
+
+MASK_ALL	Wallets 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdw and 3APADkvHwo6aV4ZRCY7H7RZTcdvMxbYyNR paid.
+
+REWRITE	pseudonymize	OK	Wallets 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdw and 3APADkvHwo6aV4ZRCY7H7RZTcdvMxbYyNR paid.
+
+REWRITE	hmac	OK	Wallets 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdw and 3APADkvHwo6aV4ZRCY7H7RZTcdvMxbYyNR paid.
+
+AUDIT_REPORT	no pii found

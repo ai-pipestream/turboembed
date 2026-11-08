@@ -1,0 +1,13 @@
+MASKED	email: a@example.com
+ip: 198.51.100.1
+
+MASK_ALL	email: a@example.com
+ip: 198.51.100.1
+
+REWRITE	pseudonymize	OK	email: a@example.com
+ip: 198.51.100.1
+
+REWRITE	hmac	OK	email: a@example.com
+ip: 198.51.100.1
+
+AUDIT_REPORT	no pii found
