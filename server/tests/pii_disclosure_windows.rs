@@ -7,7 +7,7 @@
 //! value.
 
 use turbo_analysis::{Analyzer, Document, ViewId};
-use turbo_kserve::api::{Failure, TURBO_E_INVALID_STATE};
+use turbo_kserve::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
 use turbo_kserve::inspect::inspect_document_window_under;
 use turbo_kserve::inspect::project::project_chunks_under;
 use turbo_kserve::proto::result::{DocumentWindowRequest, OffsetMode, PiiOutputOptions, ProjectChunksRequest};
@@ -105,6 +105,13 @@ fn an_xray_target_follows_the_same_rule_as_the_main_view() {
     refused(e, "x-ray onto the source");
     let e = inspect_document_window_under(&window(&g, 0, Some(MASKED), options(false, true)), all).unwrap_err();
     refused(e, "x-ray from the source");
+    // An out-of-range target is the caller's mistake, said as for `view`,
+    // whatever is disclosed.
+    for opts in [None, options(true, false)] {
+        let e = inspect_document_window_under(&window(&g, MASKED, Some(9), opts), all).unwrap_err();
+        assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT, "{}", e.message);
+        assert!(e.message.contains("xray_target_view 9 is out of range"), "{}", e.message);
+    }
     // With full_text both ends may leave.
     let out = inspect_document_window_under(&window(&g, MASKED, Some(0), options(true, false)), all).unwrap();
     // Positive control: the runs spell the source text out, one character

@@ -55,6 +55,9 @@ pub(crate) enum Origin {
 struct Mapper<'a> {
     doc: &'a Document,
     origin: Origin,
+    /// Whether a PII row carries its normalized value
+    /// (`TURBO_ANALYZER_PII_VALUES`, #1904); otherwise the value is withheld.
+    pii_values: bool,
 }
 
 impl Mapper<'_> {
@@ -381,7 +384,7 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
             Error::new(INVALID_ARGUMENT, format!("PII mention {item} has a custom kind outside its layer's table"))
         })?;
         let label = builder.string_ref(name)?;
-        let value = builder.string_ref(mention.normalized)?;
+        let value = if mapper.pii_values { Some(builder.string_ref(mention.normalized)?) } else { None };
         let classification = match mention.confidence() {
             PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
             PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
@@ -394,14 +397,21 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
             layer_ref,
             &layer.spans,
             item,
-            ItemFields { tokens: None, label: Some(label), value: Some(value), classification, prob: None },
+            ItemFields { tokens: None, label: Some(label), value, classification, prob: None },
         )?;
     }
     Ok(())
 }
 
-pub(crate) fn extract_graph(doc: &Document, graph: Vec<u8>, origin: Origin) -> Result<AnalysisResultInner> {
-    let mapper = Mapper { doc, origin };
+/// The rows of every layer of `doc` this ABI knows; a PII row's value only
+/// when `pii_values` (#1904).
+pub(crate) fn extract_graph(
+    doc: &Document,
+    graph: Vec<u8>,
+    origin: Origin,
+    pii_values: bool,
+) -> Result<AnalysisResultInner> {
+    let mapper = Mapper { doc, origin, pii_values };
     let mut builder = SpanPoolBuilder::default();
     for id in doc.layers() {
         if id.ty == TypeId::of::<Sentences>() {

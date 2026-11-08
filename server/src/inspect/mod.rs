@@ -66,9 +66,16 @@ pub fn inspect_document_window_under(
         return Err(bad(format!("view {} is out of range for document with {view_count} view(s)", req.view)));
     }
     let view_id = ViewId(req.view as u16);
+    // An out-of-range target is the caller's mistake, said as for `view`,
+    // before any disclosure check.
+    if let Some(target) = req.xray_target_view
+        && target >= view_count
+    {
+        return Err(bad(format!("xray_target_view {target} is out of range for document with {view_count} view(s)")));
+    }
     disclosure.require_view_text(&doc, view_id, "inspect_document_window")?;
-    if let Some(target) = req.xray_target_view.and_then(|t| u16::try_from(t).ok()) {
-        disclosure.require_view_text(&doc, ViewId(target), "inspect_document_window xray")?;
+    if let Some(target) = req.xray_target_view {
+        disclosure.require_view_text(&doc, ViewId(target as u16), "inspect_document_window xray")?;
     }
     let text = doc.text(view_id);
     let offsetter = Offsetter::new(text, offset_mode);
