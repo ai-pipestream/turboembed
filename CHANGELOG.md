@@ -15,6 +15,12 @@ for the release after it goes above it.
 
 ### Added
 
+- A per-document PII risk score and level for routing in the indexing
+  pipeline: the `turbo-pii:risk` step writes `turbo:pii-risk`
+  (`TypedAnnotation.pii_risk` = 100, `PiiRiskAnnotation`, `PiiRiskKind`,
+  enums `PiiRiskLevel`, `PiiSeverity`, `PiiSuggestedRewrite`), kept in
+  findings-only answers, with an overridable severity table and a
+  suggested `RedactionPolicy` (`pii_policy::suggested_policy`, #1956).
 - `RegisterModelSource.s3_keys` (field 5, `S3Keys`) and
   `SOURCE_SIGN_IN_S3_KEYS`: an `s3://` model source signs in with its
   own access key pair, region and endpoint instead of the server's
