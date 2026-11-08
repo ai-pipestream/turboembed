@@ -1,0 +1,290 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-sr-set-upos",
+    "--dir",
+    "ud-serbian-set-r2.16",
+    "--hash-embed",
+    "64",
+    "--bundle",
+    "xlm-roberta-base",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "sr-set-upos"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1794125418,
+  "corpus": {
+    "id": "ud-sr-set-upos",
+    "name": "Universal Dependencies Serbian SET r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Serbian-SET/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Serbian SET r2.16, published at https://github.com/UniversalDependencies/UD_Serbian-SET; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "sr_set-ud-train.conllu",
+        "size": 5637628,
+        "sha256": "bd4d41f7e807a46a92d1c0e61531809356582dd96d47eb38189f88ca1943cd1d"
+      },
+      {
+        "path": "sr_set-ud-dev.conllu",
+        "size": 910076,
+        "sha256": "a9ce898b53e5f7fa3d314fd703f08398cb2cf4045e1110b6542970c6a46508bd"
+      },
+      {
+        "path": "sr_set-ud-test.conllu",
+        "size": 867534,
+        "sha256": "83c62b07a9375fcc4d3d22f67446f40f0c25994c2322b6aba904e88df8f7d1d1"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (ce79bffd4ff94cd910099b2820f7b069af6c9d69)",
+    "train": {
+      "sentences": 3328,
+      "words": 74259
+    },
+    "dev": {
+      "sentences": 536,
+      "words": 11993
+    },
+    "test": {
+      "sentences": 520,
+      "words": 11421
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      1.667049403434995,
+      0.16827987234347774,
+      0.05209699535393699,
+      0.03121781458718348,
+      0.02314002851317355,
+      0.018288654368599343,
+      0.013906271212234575,
+      0.007716880015160537,
+      0.003712991522639396,
+      0.0022013835553301255,
+      0.001055282836929678,
+      0.0006777990800481259,
+      0.0005673655906430697,
+      0.000368878785083577,
+      0.0002763082009166597,
+      0.0002617230096259218,
+      0.0001995763928718535,
+      0.00014590704307014334,
+      0.00013308198499452554,
+      0.00011581879639231053,
+      0.00010745975545864894,
+      0.00023027546609071724,
+      0.008333960543458743,
+      0.015040684097083359,
+      0.0047147644034599805,
+      0.001875907944783302,
+      0.00046182517525229707,
+      0.00017575281650479874,
+      0.00016791615745407432,
+      9.928068151720274e-05
+    ],
+    "dev": [
+      0.8996914867005753,
+      0.9762361377470191,
+      0.9771533394480113,
+      0.9774034853664638,
+      0.9764862836654715,
+      0.9784040690402734,
+      0.9779871591761861,
+      0.9768198115567415,
+      0.9767364295839239,
+      0.9776536312849162,
+      0.9782373050946386,
+      0.9780705411490036,
+      0.9792378887684483,
+      0.9784040690402734,
+      0.9799049445509881,
+      0.978654214958726,
+      0.9793212707412657,
+      0.9794046527140832,
+      0.9784040690402734,
+      0.9794046527140832,
+      0.9793212707412657,
+      0.978654214958726,
+      0.9723171850245976,
+      0.9770699574751939,
+      0.9753189360460268,
+      0.9771533394480113,
+      0.9777370132577337,
+      0.9777370132577337,
+      0.9779037772033686,
+      0.978320687067456
+    ],
+    "best_epoch": 15,
+    "epoch_seconds": [
+      29.797585992,
+      30.748722378,
+      30.53339542,
+      31.259632503,
+      29.746963194,
+      31.017283862,
+      31.165414872,
+      30.357970093,
+      31.920366748,
+      29.738452054,
+      31.260834865,
+      30.640287411,
+      31.433649457,
+      31.33689483,
+      30.494055701,
+      31.170525032,
+      30.478096221,
+      31.193764315,
+      30.424647721,
+      29.067803404,
+      31.652079045,
+      29.79314738,
+      31.78067536,
+      29.865417973,
+      31.123245332,
+      30.870338342,
+      30.141694418,
+      31.288993725,
+      29.939117657,
+      31.727157415
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 11421,
+        "correct": 11212,
+        "accuracy": 0.9817003764994309,
+        "unseen_words": 1841,
+        "unseen_correct": 1713,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 11421,
+        "correct": 10055,
+        "accuracy": 0.8803957621924525,
+        "unseen_words": 1841,
+        "unseen_correct": 625,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9817003764994309,
+      "baseline": 0.8803957621924525,
+      "delta": 0.10130461430697835,
+      "low": 0.0943330729844658,
+      "high": 0.10794520547945208,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.084295203,
+    "features": 2.017471667,
+    "train": 922.392123941,
+    "eval": 0.859393199,
+    "feature_words": 86252
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13346004,
+      "sha256": "13dd971a03231fe0c6ca8663018ed123c6f05f598876061f828e5ca7b7c38c06"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

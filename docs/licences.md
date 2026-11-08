@@ -80,7 +80,11 @@ offered for download once a user accepts the treebank's licence, never
 in a default bundle. Kazakh KTB is the exception: its r2.16 release has
 31 training sentences and no dev split, too small to train a head on,
 so Kazakh keeps the no-model tier (rule sentences, UAX#29 tokens, SaT)
-and has no UPOS, feature or lemma model.
+and has no UPOS, feature or lemma model. Afrikaans AfriBooms has a UPOS head but
+no lemma head yet: the trained one does not clear its majority row
+(0.9460 against 0.9450, interval across zero;
+`trainer/recipes/records/ud-1651/README.md`), so Afrikaans lemmas stay on
+the no-model tier.
 
 Current acceptance tests do not download or read these models. The old model
 fetch steps and archive comparisons were removed under #1511. Retained licence
