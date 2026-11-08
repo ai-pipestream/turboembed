@@ -25,6 +25,8 @@ export const file_turbo_audit: GenFile = /*@__PURE__*/
  */
 export type RecordPiiAccessRequest = Message<"turbo.audit.v1.RecordPiiAccessRequest"> & {
   /**
+   * The event to record. Required.
+   *
    * @generated from field: turbo.audit.v1.PiiAccessEvent event = 1;
    */
   event?: PiiAccessEvent | undefined;
@@ -86,11 +88,16 @@ export type PiiAccessMention = Message<"turbo.audit.v1.PiiAccessMention"> & {
   builtinKind: number;
 
   /**
+   * The custom kind's name, as the pii layer's custom kind table names
+   * it; empty for a built-in kind.
+   *
    * @generated from field: string custom_kind = 4;
    */
   customKind: string;
 
   /**
+   * The form the value left in. Never UNSPECIFIED.
+   *
    * @generated from field: turbo.audit.v1.PiiAccessForm form = 5;
    */
   form: PiiAccessForm;
@@ -141,16 +148,22 @@ export const PiiAccessMentionSchema: GenMessage<PiiAccessMention> = /*@__PURE__*
  */
 export type PiiAccessKindGrant = Message<"turbo.audit.v1.PiiAccessKindGrant"> & {
   /**
+   * A built-in kind id (PiiKindId), or 0 with `custom_kind` set.
+   *
    * @generated from field: uint32 builtin_kind = 1;
    */
   builtinKind: number;
 
   /**
+   * The custom kind's name; empty for a built-in kind.
+   *
    * @generated from field: string custom_kind = 2;
    */
   customKind: string;
 
   /**
+   * The forms in effect for the kind, ascending; never UNSPECIFIED.
+   *
    * @generated from field: repeated turbo.audit.v1.PiiAccessForm forms = 3;
    */
   forms: PiiAccessForm[];
@@ -190,6 +203,8 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   operationKey: string;
 
   /**
+   * ProcessingReceipt.attempt_id of the answer that carried the release.
+   *
    * @generated from field: string attempt_id = 3;
    */
   attemptId: string;
@@ -211,6 +226,9 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   effective: PiiAccessKindGrant[];
 
   /**
+   * Every mention whose value the answer carries, in (layer, index)
+   * order; none is listed twice.
+   *
    * @generated from field: repeated turbo.audit.v1.PiiAccessMention mentions = 6;
    */
   mentions: PiiAccessMention[];
@@ -228,6 +246,8 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   policyId: string;
 
   /**
+   * SHA-256 of the ceiling and grant, 32 bytes.
+   *
    * @generated from field: bytes policy_digest = 8;
    */
   policyDigest: Uint8Array;

@@ -56,6 +56,8 @@ export const ModelRefSchema: GenMessage<ModelRef> = /*@__PURE__*/
  */
 export type LayerError = Message<"turbo.result.v1.LayerError"> & {
   /**
+   * What failed. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.LayerErrorKind kind = 1;
    */
   kind: LayerErrorKind;
@@ -214,6 +216,8 @@ export type InputBinding = Message<"turbo.result.v1.InputBinding"> & {
   parseArtifactId: string;
 
   /**
+   * The parse artifact's digest, opaque bytes as the caller gave them.
+   *
    * @generated from field: bytes parse_artifact_digest = 3;
    */
   parseArtifactDigest: Uint8Array;
@@ -233,6 +237,8 @@ export const InputBindingSchema: GenMessage<InputBinding> = /*@__PURE__*/
  */
 export type InputIdentity = Message<"turbo.result.v1.InputIdentity"> & {
   /**
+   * The caller's binding; absent when the caller gave none.
+   *
    * @generated from field: optional turbo.result.v1.InputBinding binding = 1;
    */
   binding?: InputBinding | undefined;
@@ -247,6 +253,8 @@ export type InputIdentity = Message<"turbo.result.v1.InputIdentity"> & {
   rawBytesDigest: Uint8Array;
 
   /**
+   * The length of those original bytes.
+   *
    * @generated from field: uint64 raw_bytes_len = 3;
    */
   rawBytesLen: bigint;
@@ -260,6 +268,8 @@ export type InputIdentity = Message<"turbo.result.v1.InputIdentity"> & {
   sourceTextDigest: Uint8Array;
 
   /**
+   * The source view's length in UTF-8 bytes.
+   *
    * @generated from field: uint32 source_text_len = 5;
    */
   sourceTextLen: number;
@@ -297,6 +307,8 @@ export type ResultIdentity = Message<"turbo.result.v1.ResultIdentity"> & {
   contentDigest: Uint8Array;
 
   /**
+   * The length of those graph bytes.
+   *
    * @generated from field: uint64 graph_bytes_len = 3;
    */
   graphBytesLen: bigint;
@@ -330,11 +342,15 @@ export const ResultIdentitySchema: GenMessage<ResultIdentity> = /*@__PURE__*/
  */
 export type LayerInstanceRef = Message<"turbo.result.v1.LayerInstanceRef"> & {
   /**
+   * The layer id, such as turbo:pii, or turbo:view for a view.
+   *
    * @generated from field: string layer = 1;
    */
   layer: string;
 
   /**
+   * The instance name; empty for the default instance.
+   *
    * @generated from field: string instance = 2;
    */
   instance: string;
@@ -358,11 +374,15 @@ export const LayerInstanceRefSchema: GenMessage<LayerInstanceRef> = /*@__PURE__*
  */
 export type LayerProvenance = Message<"turbo.result.v1.LayerProvenance"> & {
   /**
+   * The layer id, such as turbo:pii.
+   *
    * @generated from field: string layer = 1;
    */
   layer: string;
 
   /**
+   * The instance name; empty for the default instance.
+   *
    * @generated from field: string instance = 2;
    */
   instance: string;
@@ -425,6 +445,8 @@ export type LayerProvenance = Message<"turbo.result.v1.LayerProvenance"> & {
   reads: LayerInstanceRef[];
 
   /**
+   * The anchor and index instances the layer is on.
+   *
    * @generated from field: repeated turbo.result.v1.LayerInstanceRef on = 9;
    */
   on: LayerInstanceRef[];
@@ -448,31 +470,43 @@ export const LayerProvenanceSchema: GenMessage<LayerProvenance> = /*@__PURE__*/
  */
 export type ScopedRef = Message<"turbo.result.v1.ScopedRef"> & {
   /**
+   * ResultIdentity.result_id of the result the item is in.
+   *
    * @generated from field: string result_id = 1;
    */
   resultId: string;
 
   /**
+   * The layer id.
+   *
    * @generated from field: string layer = 2;
    */
   layer: string;
 
   /**
+   * The layer instance; empty for the default.
+   *
    * @generated from field: string instance = 3;
    */
   instance: string;
 
   /**
+   * The item's index in that layer.
+   *
    * @generated from field: uint32 index = 4;
    */
   index: number;
 
   /**
+   * The instance of the native view the item's spans are in.
+   *
    * @generated from field: string view_instance = 5;
    */
   viewInstance: string;
 
   /**
+   * SHA-256 of that view's UTF-8 text, 32 bytes.
+   *
    * @generated from field: bytes view_text_digest = 6;
    */
   viewTextDigest: Uint8Array;
@@ -499,26 +533,36 @@ export const ScopedRefSchema: GenMessage<ScopedRef> = /*@__PURE__*/
  */
 export type EditRun = Message<"turbo.result.v1.EditRun"> & {
   /**
+   * First edit's start in the parent view, UTF-8 bytes.
+   *
    * @generated from field: uint32 parent_start = 1;
    */
   parentStart: number;
 
   /**
+   * Each edit's width in the parent view, UTF-8 bytes.
+   *
    * @generated from field: uint32 parent_width = 2;
    */
   parentWidth: number;
 
   /**
+   * First edit's start in this view, UTF-8 bytes.
+   *
    * @generated from field: uint32 child_start = 3;
    */
   childStart: number;
 
   /**
+   * Each edit's width in this view, UTF-8 bytes.
+   *
    * @generated from field: uint32 child_width = 4;
    */
   childWidth: number;
 
   /**
+   * The edits in the run; at least 1.
+   *
    * @generated from field: uint32 count = 5;
    */
   count: number;
@@ -558,6 +602,8 @@ export type ViewChain = Message<"turbo.result.v1.ViewChain"> & {
   view: number;
 
   /**
+   * The view's instance name; empty for the source view.
+   *
    * @generated from field: string instance = 2;
    */
   instance: string;
@@ -577,6 +623,8 @@ export type ViewChain = Message<"turbo.result.v1.ViewChain"> & {
   textDigest: Uint8Array;
 
   /**
+   * The view's text length in UTF-8 bytes.
+   *
    * @generated from field: uint32 text_len = 5;
    */
   textLen: number;
@@ -589,6 +637,8 @@ export type ViewChain = Message<"turbo.result.v1.ViewChain"> & {
   editCount: number;
 
   /**
+   * The native edits as runs, in order; empty for the source view.
+   *
    * @generated from field: repeated turbo.result.v1.EditRun edits = 7;
    */
   edits: EditRun[];
@@ -616,6 +666,9 @@ export type InlineMapping = Message<"turbo.result.v1.InlineMapping"> & {
   mappingSchemaVersion: number;
 
   /**
+   * Every view of the result, the source view first and each after its
+   * parent.
+   *
    * @generated from field: repeated turbo.result.v1.ViewChain views = 2;
    */
   views: ViewChain[];
@@ -643,6 +696,8 @@ export type MappingPayload = Message<"turbo.result.v1.MappingPayload"> & {
    */
   payload: {
     /**
+     * The whole view tree in this message.
+     *
      * @generated from field: turbo.result.v1.InlineMapping inline = 1;
      */
     value: InlineMapping;
@@ -664,11 +719,15 @@ export const MappingPayloadSchema: GenMessage<MappingPayload> = /*@__PURE__*/
  */
 export type ByteRange = Message<"turbo.result.v1.ByteRange"> & {
   /**
+   * First byte, inclusive.
+   *
    * @generated from field: uint32 start = 1;
    */
   start: number;
 
   /**
+   * One past the last byte; at least `start`.
+   *
    * @generated from field: uint32 end = 2;
    */
   end: number;
@@ -688,11 +747,15 @@ export const ByteRangeSchema: GenMessage<ByteRange> = /*@__PURE__*/
  */
 export type DetectorRef = Message<"turbo.result.v1.DetectorRef"> & {
   /**
+   * The registered annotator name, such as turbo-pii:pii.
+   *
    * @generated from field: string id = 1;
    */
   id: string;
 
   /**
+   * The annotator's version string (Annotator::VERSION).
+   *
    * @generated from field: string version = 2;
    */
   version: string;
@@ -712,16 +775,22 @@ export const DetectorRefSchema: GenMessage<DetectorRef> = /*@__PURE__*/
  */
 export type LayerReceipt = Message<"turbo.result.v1.LayerReceipt"> & {
   /**
+   * The layer id, such as turbo:pii, or turbo:view for a view.
+   *
    * @generated from field: string layer = 1;
    */
   layer: string;
 
   /**
+   * The instance name; empty for the default instance.
+   *
    * @generated from field: string instance = 2;
    */
   instance: string;
 
   /**
+   * How far the layer was made. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.ProcessingStatus status = 3;
    */
   status: ProcessingStatus;
@@ -750,16 +819,23 @@ export type LayerReceipt = Message<"turbo.result.v1.LayerReceipt"> & {
   requested: DetectorRef[];
 
   /**
+   * The detectors that ran on the document.
+   *
    * @generated from field: repeated turbo.result.v1.DetectorRef executed = 7;
    */
   executed: DetectorRef[];
 
   /**
+   * Why the layer's input was cut short, each reason once; empty when it
+   * was not. UNSPECIFIED is refused.
+   *
    * @generated from field: repeated turbo.result.v1.TruncationReason truncations = 8;
    */
   truncations: TruncationReason[];
 
   /**
+   * Why the layer failed or was skipped; absent on a COMPLETE layer.
+   *
    * @generated from field: optional turbo.result.v1.LayerError error = 9;
    */
   error?: LayerError | undefined;
@@ -826,6 +902,8 @@ export type ProcessingReceipt = Message<"turbo.result.v1.ProcessingReceipt"> & {
   result?: ResultIdentity | undefined;
 
   /**
+   * The attempt's overall status. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.ProcessingStatus status = 6;
    */
   status: ProcessingStatus;
@@ -853,6 +931,8 @@ export type ProcessingReceipt = Message<"turbo.result.v1.ProcessingReceipt"> & {
   requestedSteps: string[];
 
   /**
+   * The steps that ran, in run order.
+   *
    * @generated from field: repeated string executed_steps = 10;
    */
   executedSteps: string[];
@@ -963,11 +1043,15 @@ export const ModelProvenanceSchema: GenMessage<ModelProvenance> = /*@__PURE__*/
  */
 export type FragmentMember = Message<"turbo.result.v1.FragmentMember"> & {
   /**
+   * The native fragment's index in the annotation's native fragment list.
+   *
    * @generated from field: uint32 index = 1;
    */
   index: number;
 
   /**
+   * That fragment's own outcome. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.SpanOutcome outcome = 2;
    */
   outcome: SpanOutcome;
@@ -1008,11 +1092,16 @@ export type SpanFragment = Message<"turbo.result.v1.SpanFragment"> & {
   end: number;
 
   /**
+   * What projection did to the fragment. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.SpanOutcome outcome = 3;
    */
   outcome: SpanOutcome;
 
   /**
+   * The native fragments coalesced here, by ascending index; empty when
+   * none were.
+   *
    * @generated from field: repeated turbo.result.v1.FragmentMember members = 4;
    */
   members: FragmentMember[];
@@ -1106,6 +1195,8 @@ export type TypedDocumentResult = Message<"turbo.result.v1.TypedDocumentResult">
   input?: InputIdentity | undefined;
 
   /**
+   * What the result is: its graph digest and schema versions.
+   *
    * @generated from field: turbo.result.v1.ResultIdentity result = 9;
    */
   result?: ResultIdentity | undefined;
@@ -1118,6 +1209,8 @@ export type TypedDocumentResult = Message<"turbo.result.v1.TypedDocumentResult">
   provenance: LayerProvenance[];
 
   /**
+   * The view edit chain every span maps through.
+   *
    * @generated from field: turbo.result.v1.MappingPayload mapping = 11;
    */
   mapping?: MappingPayload | undefined;
@@ -2820,12 +2913,16 @@ export type PiiKindRef = Message<"turbo.result.v1.PiiKindRef"> & {
    */
   kind: {
     /**
+     * A built-in kind. UNSPECIFIED is refused.
+     *
      * @generated from field: turbo.result.v1.PiiKindId builtin = 1;
      */
     value: PiiKindId;
     case: "builtin";
   } | {
     /**
+     * An index into the layer's custom_pii_kinds.
+     *
      * @generated from field: uint32 custom = 2;
      */
     value: number;
@@ -2849,11 +2946,15 @@ export const PiiKindRefSchema: GenMessage<PiiKindRef> = /*@__PURE__*/
  */
 export type PiiDetectorRef = Message<"turbo.result.v1.PiiDetectorRef"> & {
   /**
+   * The stable detector id. Non-empty.
+   *
    * @generated from field: string id = 1;
    */
   id: string;
 
   /**
+   * The detector's version string; part of its identity.
+   *
    * @generated from field: string version = 2;
    */
   version: string;
@@ -2888,11 +2989,15 @@ export const PiiShapeEvidenceSchema: GenMessage<PiiShapeEvidence> = /*@__PURE__*
  */
 export type PiiChecksumEvidence = Message<"turbo.result.v1.PiiChecksumEvidence"> & {
   /**
+   * The algorithm that ran. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiChecksumAlgorithm algorithm = 1;
    */
   algorithm: PiiChecksumAlgorithm;
 
   /**
+   * Whether the check digits matched.
+   *
    * @generated from field: bool passed = 2;
    */
   passed: boolean;
@@ -2913,11 +3018,15 @@ export const PiiChecksumEvidenceSchema: GenMessage<PiiChecksumEvidence> = /*@__P
  */
 export type PiiLabelEvidence = Message<"turbo.result.v1.PiiLabelEvidence"> & {
   /**
+   * The label phrase's span in this view and OffsetMode.
+   *
    * @generated from field: turbo.result.v1.SpanFragment span = 1;
    */
   span?: SpanFragment | undefined;
 
   /**
+   * The phrase's index in the detector's label phrase table.
+   *
    * @generated from field: uint32 phrase = 2;
    */
   phrase: number;
@@ -2938,11 +3047,15 @@ export const PiiLabelEvidenceSchema: GenMessage<PiiLabelEvidence> = /*@__PURE__*
  */
 export type PiiDenyHitEvidence = Message<"turbo.result.v1.PiiDenyHitEvidence"> & {
   /**
+   * The deny list's index in the detector's configuration.
+   *
    * @generated from field: uint32 list = 1;
    */
   list: number;
 
   /**
+   * The term's index in that list.
+   *
    * @generated from field: uint32 term = 2;
    */
   term: number;
@@ -2962,6 +3075,8 @@ export const PiiDenyHitEvidenceSchema: GenMessage<PiiDenyHitEvidence> = /*@__PUR
  */
 export type PiiRuleEvidence = Message<"turbo.result.v1.PiiRuleEvidence"> & {
   /**
+   * The custom rule's index in the detector's configuration.
+   *
    * @generated from field: uint32 rule = 1;
    */
   rule: number;
@@ -2987,30 +3102,40 @@ export type PiiEvidence = Message<"turbo.result.v1.PiiEvidence"> & {
    */
   fact: {
     /**
+     * The text has the kind's shape.
+     *
      * @generated from field: turbo.result.v1.PiiShapeEvidence shape = 1;
      */
     value: PiiShapeEvidence;
     case: "shape";
   } | {
     /**
+     * A check digit algorithm ran.
+     *
      * @generated from field: turbo.result.v1.PiiChecksumEvidence checksum = 2;
      */
     value: PiiChecksumEvidence;
     case: "checksum";
   } | {
     /**
+     * A context label stands near the mention.
+     *
      * @generated from field: turbo.result.v1.PiiLabelEvidence label = 3;
      */
     value: PiiLabelEvidence;
     case: "label";
   } | {
     /**
+     * A deny list term matched.
+     *
      * @generated from field: turbo.result.v1.PiiDenyHitEvidence deny_hit = 4;
      */
     value: PiiDenyHitEvidence;
     case: "denyHit";
   } | {
     /**
+     * A custom rule matched.
+     *
      * @generated from field: turbo.result.v1.PiiRuleEvidence rule = 5;
      */
     value: PiiRuleEvidence;
@@ -3033,21 +3158,30 @@ export const PiiEvidenceSchema: GenMessage<PiiEvidence> = /*@__PURE__*/
  */
 export type PiiScore = Message<"turbo.result.v1.PiiScore"> & {
   /**
+   * The score, finite: [0, 1] for probability and heuristic scores,
+   * unbounded for logits.
+   *
    * @generated from field: float value = 1;
    */
   value: number;
 
   /**
+   * What the score is. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiScoreKind kind = 2;
    */
   kind: PiiScoreKind;
 
   /**
+   * The model that scored.
+   *
    * @generated from field: turbo.result.v1.PiiDetectorRef model = 3;
    */
   model?: PiiDetectorRef | undefined;
 
   /**
+   * Whether the score was calibrated against held-out data.
+   *
    * @generated from field: bool calibrated = 4;
    */
   calibrated: boolean;
@@ -3096,6 +3230,9 @@ export type PiiMention = Message<"turbo.result.v1.PiiMention"> & {
   normalized: string;
 
   /**
+   * The value in the form released; `withheld` unless released (#1904,
+   * #1909). Required.
+   *
    * @generated from field: turbo.result.v1.PiiValue value = 4;
    */
   value?: PiiValue | undefined;
@@ -3108,21 +3245,29 @@ export type PiiMention = Message<"turbo.result.v1.PiiMention"> & {
   detector?: PiiDetectorRef | undefined;
 
   /**
+   * The facts recorded for the mention; at least one.
+   *
    * @generated from field: repeated turbo.result.v1.PiiEvidence evidence = 6;
    */
   evidence: PiiEvidence[];
 
   /**
+   * The model score, when the detector has one.
+   *
    * @generated from field: optional turbo.result.v1.PiiScore score = 7;
    */
   score?: PiiScore | undefined;
 
   /**
+   * The mention's kind. Required.
+   *
    * @generated from field: turbo.result.v1.PiiKindRef kind_ref = 10;
    */
   kindRef?: PiiKindRef | undefined;
 
   /**
+   * The tier the evidence derives to. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiConfidenceTier confidence = 11;
    */
   confidence: PiiConfidenceTier;
@@ -3151,18 +3296,24 @@ export type PiiValue = Message<"turbo.result.v1.PiiValue"> & {
    */
   form: {
     /**
+     * The value is not in the response.
+     *
      * @generated from field: turbo.result.v1.PiiValueWithheld withheld = 1;
      */
     value: PiiValueWithheld;
     case: "withheld";
   } | {
     /**
+     * A keyed token standing for the value.
+     *
      * @generated from field: turbo.result.v1.PiiValueToken token = 2;
      */
     value: PiiValueToken;
     case: "token";
   } | {
     /**
+     * The value encrypted; refused until #1885.
+     *
      * @generated from field: turbo.result.v1.PiiValueCiphertext ciphertext = 3;
      */
     value: PiiValueCiphertext;
@@ -3208,6 +3359,9 @@ export const PiiValueWithheldSchema: GenMessage<PiiValueWithheld> = /*@__PURE__*
  */
 export type PiiValueToken = Message<"turbo.result.v1.PiiValueToken"> & {
   /**
+   * The 32-byte HMAC-SHA-256, under the key, of a domain tag and the
+   * normalized value.
+   *
    * @generated from field: bytes token = 1;
    */
   token: Uint8Array;
@@ -3222,6 +3376,8 @@ export type PiiValueToken = Message<"turbo.result.v1.PiiValueToken"> & {
   keyId: string;
 
   /**
+   * The key's version, read unsigned.
+   *
    * @generated from field: uint32 key_version = 3;
    */
   keyVersion: number;
@@ -3242,6 +3398,8 @@ export const PiiValueTokenSchema: GenMessage<PiiValueToken> = /*@__PURE__*/
  */
 export type PiiValueCiphertext = Message<"turbo.result.v1.PiiValueCiphertext"> & {
   /**
+   * The encrypted bytes, in `scheme`'s encoding.
+   *
    * @generated from field: bytes ciphertext = 1;
    */
   ciphertext: Uint8Array;
@@ -3255,11 +3413,15 @@ export type PiiValueCiphertext = Message<"turbo.result.v1.PiiValueCiphertext"> &
   keyId: string;
 
   /**
+   * The encryption scheme's name.
+   *
    * @generated from field: string scheme = 3;
    */
   scheme: string;
 
   /**
+   * The key's version, read unsigned.
+   *
    * @generated from field: uint32 key_version = 4;
    */
   keyVersion: number;
@@ -3346,12 +3508,16 @@ export type PiiAllowRuleRef = Message<"turbo.result.v1.PiiAllowRuleRef"> & {
    */
   rule: {
     /**
+     * The term's index in the allow list.
+     *
      * @generated from field: uint32 term = 1;
      */
     value: number;
     case: "term";
   } | {
     /**
+     * The pattern's index in the allow list's patterns.
+     *
      * @generated from field: uint32 pattern = 2;
      */
     value: number;
@@ -3373,11 +3539,16 @@ export const PiiAllowRuleRefSchema: GenMessage<PiiAllowRuleRef> = /*@__PURE__*/
  */
 export type PiiAllowedByRule = Message<"turbo.result.v1.PiiAllowedByRule"> & {
   /**
+   * Whether the global or the kind's allow list matched. UNSPECIFIED is
+   * refused.
+   *
    * @generated from field: turbo.result.v1.PiiAllowScope scope = 1;
    */
   scope: PiiAllowScope;
 
   /**
+   * The term or pattern that matched.
+   *
    * @generated from field: turbo.result.v1.PiiAllowRuleRef rule = 2;
    */
   rule?: PiiAllowRuleRef | undefined;
@@ -3402,30 +3573,40 @@ export type PiiDisposition = Message<"turbo.result.v1.PiiDisposition"> & {
    */
   disposition: {
     /**
+     * Kept as this mention index of the turbo:pii layer.
+     *
      * @generated from field: uint32 kept = 1;
      */
     value: number;
     case: "kept";
   } | {
     /**
+     * Suppressed by an allow rule.
+     *
      * @generated from field: turbo.result.v1.PiiAllowedByRule allowed_by_rule = 2;
      */
     value: PiiAllowedByRule;
     case: "allowedByRule";
   } | {
     /**
+     * Dropped inside this kept mention index.
+     *
      * @generated from field: uint32 nested_in = 3;
      */
     value: number;
     case: "nestedIn";
   } | {
     /**
+     * Rejected for this reason. UNSPECIFIED is refused.
+     *
      * @generated from field: turbo.result.v1.PiiRejectReason rejected_by_rule = 4;
      */
     value: PiiRejectReason;
     case: "rejectedByRule";
   } | {
     /**
+     * A repeat of this kept mention index.
+     *
      * @generated from field: uint32 repeats = 5;
      */
     value: number;
@@ -3449,26 +3630,36 @@ export const PiiDispositionSchema: GenMessage<PiiDisposition> = /*@__PURE__*/
  */
 export type PiiCandidateAnnotation = Message<"turbo.result.v1.PiiCandidateAnnotation"> & {
   /**
+   * The kind the detector proposed.
+   *
    * @generated from field: turbo.result.v1.PiiKindRef kind = 1;
    */
   kind?: PiiKindRef | undefined;
 
   /**
+   * The detector that proposed it.
+   *
    * @generated from field: turbo.result.v1.PiiDetectorRef detector = 2;
    */
   detector?: PiiDetectorRef | undefined;
 
   /**
+   * The facts recorded for it; at least one.
+   *
    * @generated from field: repeated turbo.result.v1.PiiEvidence evidence = 3;
    */
   evidence: PiiEvidence[];
 
   /**
+   * The model score, when the detector has one.
+   *
    * @generated from field: optional turbo.result.v1.PiiScore score = 4;
    */
   score?: PiiScore | undefined;
 
   /**
+   * What became of the candidate. Required.
+   *
    * @generated from field: turbo.result.v1.PiiDisposition disposition = 5;
    */
   disposition?: PiiDisposition | undefined;
@@ -3500,21 +3691,29 @@ export const PiiCandidateAnnotationSchema: GenMessage<PiiCandidateAnnotation> = 
  */
 export type PiiPlannedRewrite = Message<"turbo.result.v1.PiiPlannedRewrite"> & {
   /**
+   * The rule that would choose the strategy. Required.
+   *
    * @generated from field: turbo.result.v1.PiiEditRule rule = 1;
    */
   rule?: PiiEditRule | undefined;
 
   /**
+   * That rule's RedactionPolicy rule_id; empty for the default.
+   *
    * @generated from field: string rule_id = 2;
    */
   ruleId: string;
 
   /**
+   * The strategy that would write it. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiStrategy strategy = 3;
    */
   strategy: PiiStrategy;
 
   /**
+   * The policy's revision (RedactionPolicy.revision).
+   *
    * @generated from field: uint64 policy_revision = 4;
    */
   policyRevision: bigint;
@@ -3548,12 +3747,16 @@ export type PiiEditRule = Message<"turbo.result.v1.PiiEditRule"> & {
    */
   rule: {
     /**
+     * The policy's default strategy; always true when set.
+     *
      * @generated from field: bool default_rule = 1;
      */
     value: boolean;
     case: "defaultRule";
   } | {
     /**
+     * The override for this kind.
+     *
      * @generated from field: turbo.result.v1.PiiKindRef kind = 2;
      */
     value: PiiKindRef;
@@ -3593,11 +3796,15 @@ export type PiiEditAnnotation = Message<"turbo.result.v1.PiiEditAnnotation"> & {
   members: number[];
 
   /**
+   * The rule that chose the strategy. Required.
+   *
    * @generated from field: turbo.result.v1.PiiEditRule rule = 3;
    */
   rule?: PiiEditRule | undefined;
 
   /**
+   * The strategy that wrote the replacement. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiStrategy strategy = 4;
    */
   strategy: PiiStrategy;
@@ -6065,12 +6272,16 @@ export type TypedAnnotation = Message<"turbo.result.v1.TypedAnnotation"> & {
     case: "grammarDiagnostic";
   } | {
     /**
+     * turbo:pii-edits (#1902).
+     *
      * @generated from field: turbo.result.v1.PiiEditAnnotation pii_edit = 98;
      */
     value: PiiEditAnnotation;
     case: "piiEdit";
   } | {
     /**
+     * turbo:pii-candidates (#1903).
+     *
      * @generated from field: turbo.result.v1.PiiCandidateAnnotation pii_candidate = 99;
      */
     value: PiiCandidateAnnotation;

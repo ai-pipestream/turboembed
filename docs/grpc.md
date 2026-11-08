@@ -360,6 +360,48 @@ Every pull request that touches `server/proto/` runs `buf lint` and
   release containing `v2`) before `v1` may be removed in a subsequent major
   release.
 
+#### PII and result envelope freeze (#1882)
+
+While the PII work (#1901 to #1909 and #1882) was in flight, and before any
+client existed, the 2026-11-07 ruling allowed the new PII and result envelope
+messages to be changed in place. That allowance ends with #1882 part C. From
+then on `turbo.result.v1` and `turbo.audit.v1` follow the policy above with
+no exceptions. `turbo.result.v1` covers the typed annotations, the analysis
+service and the redaction policy messages (`turbo_typed_annotations.proto`,
+`turbo_analysis.proto`, `turbo_pii_policy.proto`). A field is only ever
+added, a retired field is deprecated or reserved and never reused, and
+`server/proto/buf.yaml` ignores only the two third-party files
+(`open_inference_grpc.proto`, `health.proto`).
+
+Deprecated fields that are never populated. The validators refuse any of
+them when it is set:
+
+| Message | Field | Replaced by |
+| --- | --- | --- |
+| `PiiMention` | `string kind = 1` | `PiiKindRef kind_ref = 10` |
+| `PiiMention` | `string confidence_tier = 2` | `PiiConfidenceTier confidence = 11` |
+| `PiiMention` | `string normalized = 3` | `PiiValue value = 4` |
+
+Reserved numbers and names:
+
+| Message | Reserved | Why |
+| --- | --- | --- |
+| `TypedLayer` | 4, `status_detail` | the typed `LayerError error = 11` (#1908) |
+| `ViewInfo` | 3, `status_detail` | the typed `LayerError` (#1908) |
+| `LayerInfo` | 4, `status_detail` | the typed `LayerError` (#1908) |
+| `MappingPayload` | 2, `artifact` | an immutable artifact reference, not implemented |
+| `SchemaLimits` | 2 to 4, `max_label_sets`, `max_fields`, `max_depth` | the crate's own limits |
+
+`PiiMention` 8 and 9 were never used and are not reserved; a later field
+may take them.
+
+Every enum the PII work added has `UNSPECIFIED = 0`, and the validators
+refuse it wherever the server reads one: in a typed result, a redaction
+policy, a request option, or an audit event before it is sent. Every field
+the PII work added has a comment that says what it holds and its unit or
+encoding. The audit of these rules, message by message, is in the body of
+#1882 part C's pull request.
+
 ## A client call
 
 With [grpcurl](https://github.com/fullstorydev/grpcurl), against a

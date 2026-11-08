@@ -160,6 +160,30 @@ fn each_mention_s_redaction_policy_is_part_of_the_event_id() {
 }
 
 #[test]
+fn an_event_with_an_unspecified_form_is_never_sent() {
+    use crate::proto::audit::PiiAccessEvent;
+    use crate::release::audit::check_event;
+    let ok = PiiAccessEvent {
+        mentions: vec![mention("pii", 0, Form::Token)],
+        effective: vec![kind(1, &[Form::Token])],
+        ..Default::default()
+    };
+    check_event(&ok).unwrap();
+    let mut bad = ok.clone();
+    bad.mentions[0].form = 0;
+    assert!(check_event(&bad).unwrap_err().contains("mentions[0].form"));
+    let mut bad = ok.clone();
+    bad.mentions[0].form = 99;
+    assert!(check_event(&bad).is_err(), "an unknown number is refused, never downgraded");
+    let mut bad = ok.clone();
+    bad.effective[0].forms = vec![0];
+    assert!(check_event(&bad).unwrap_err().contains("effective[0].forms"));
+    let mut bad = ok;
+    bad.mentions[0].redaction_policy_digest = vec![1; 31];
+    assert!(check_event(&bad).unwrap_err().contains("not 32 bytes"));
+}
+
+#[test]
 fn tokens_are_keyed_deterministic_and_name_their_key() {
     let k = TokenKey::load(&key_file("k32", &[7; 32])).unwrap();
     let t = k.token(PLANTED);

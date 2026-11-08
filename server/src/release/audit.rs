@@ -11,7 +11,9 @@ use tonic::transport::{Channel, Endpoint};
 use turbo_pii::checksum::sha256::Sha256;
 
 use crate::proto::audit::turbo_audit_service_client::TurboAuditServiceClient;
-use crate::proto::audit::{PiiAccessEvent, PiiAccessKindGrant, PiiAccessMention, RecordPiiAccessRequest};
+use crate::proto::audit::{
+    PiiAccessEvent, PiiAccessForm, PiiAccessKindGrant, PiiAccessMention, RecordPiiAccessRequest,
+};
 
 /// `--pii-audit-timeout-ms` when not given.
 pub const DEFAULT_AUDIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -68,6 +70,27 @@ impl AuditClient {
             Ok(Ok(_)) => Err(AuditFailure::Mismatch),
         }
     }
+}
+
+/// Refuses an event this server must never send: a form that is
+/// UNSPECIFIED or unknown, or a redaction digest that is not 32 bytes.
+/// Names the field, never a value.
+pub fn check_event(e: &PiiAccessEvent) -> Result<(), String> {
+    let known = |f: i32| PiiAccessForm::try_from(f).is_ok_and(|f| f != PiiAccessForm::Unspecified);
+    for (i, m) in e.mentions.iter().enumerate() {
+        if !known(m.form) {
+            return Err(format!("audit event mentions[{i}].form is not a known form"));
+        }
+        if !matches!(m.redaction_policy_digest.len(), 0 | 32) {
+            return Err(format!("audit event mentions[{i}].redaction_policy_digest is not 32 bytes"));
+        }
+    }
+    for (i, k) in e.effective.iter().enumerate() {
+        if k.forms.iter().any(|&f| !known(f)) {
+            return Err(format!("audit event effective[{i}].forms holds an unknown form"));
+        }
+    }
+    Ok(())
 }
 
 /// What a retry of one release keeps, which the event id is a digest
