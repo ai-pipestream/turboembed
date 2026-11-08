@@ -543,7 +543,7 @@ per scanner; `analysis/pii/tests/us_identifiers_eval.rs` scores a seeded
 synthetic set of 200 valid values and 200 near misses per kind (800
 true, 0 missed; the 3 false mentions are near-miss digit runs that pass
 Luhn as cards). In the mixed set the project-authored
-`us-identifiers-memos.txt` adds 20 gold spans, and the six real web
+`us-identifiers-memos.txt` adds 20 gold spans for these kinds, and the six real web
 addresses already in the set are `url` gold: `vin` 4/0/0, `tracking-number`
 9/0/0, `us-ein` 3/0/0, `url` 10/0/0 (true, false, missed), plus one
 false `phone` on the grouped USPS near miss. The external partition was
@@ -810,8 +810,8 @@ text written by people.
 ### Mixed evaluation set (third-party MASC, adapted specifications, and project-authored memos)
 
 `precision_and_recall_on_human_written_text` scores the same pack on a
-mixed nine-document evaluation set (`47,544` UTF-8 bytes, `113` gold
-mentions across 24 of the 34 built-in kinds in
+mixed nine-document evaluation set (`48,036` UTF-8 bytes, `131` gold
+mentions across 28 of the 38 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
 `docs/licences.md`). On its own, this mixed set is partial work for
@@ -825,8 +825,8 @@ remaining 17 kinds are evaluated on project-authored operational memos
 (`operational-memos.txt`):
 
 - Five third-party documents from MASC 3.0.0 (`34,969` bytes, CC BY 3.0
-  US, `12` gold spans, all `phone`: `10` true, `1` false, `2` missed,
-  precision `0.909`, recall `0.833`): three corporate and non-profit
+  US, `19` gold spans: `12` `phone` with `10` true, `1` false, `2` missed,
+  precision `0.909`, recall `0.833`, and `7` `us-zip`, all found): three corporate and non-profit
   solicitation letters (`masc-att2.escaped`, `masc-hsus4.escaped`,
   `masc-united1.escaped`), one New York Times News Service travel
   dispatch (`masc-nyt6.escaped`), and one Legal Services Corporation
@@ -851,12 +851,14 @@ remaining 17 kinds are evaluated on project-authored operational memos
   Luhn-valid test IMEIs), paired with mistyped check digits, order and
   invoice numbers, timestamps, software versions and statutory citations.
 - Project-authored fleet, shipping and vendor memos
-  (`analysis/pii/tests/data/human-eval/us-identifiers-memos.txt`, `2,143`
-  bytes, Apache-2.0, `20` gold spans: `vin`, `tracking-number`, `us-ein`
-  and `url`) with check-digit-valid VINs, the UPS sample number,
+  (`analysis/pii/tests/data/human-eval/us-identifiers-memos.txt`, `2,635`
+  bytes, Apache-2.0, `31` gold spans: `vin`, `tracking-number`, `us-ein`,
+  `url`, `us-passport`, `us-drivers-licence`, `us-zip`, `phone` and
+  `phone-extension`) with check-digit-valid VINs, the UPS sample number,
   checksum-valid parcel numbers and documentation domains, next to
   near misses; the six web addresses already in the other documents
-  are `url` gold as well.
+  are `url` gold as well, and the seven ZIP codes in the MASC letters
+  are `us-zip` gold.
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
@@ -884,8 +886,12 @@ remaining 17 kinds are evaluated on project-authored operational memos
 | `tracking-number` | project-authored (`us-identifiers-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
 | `us-ein` | project-authored (`us-identifiers-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `url` | project-authored (`us-identifiers-memos.txt`, `4`) + existing documents (`6`) | 10 | 0 | 0 | 1.000 | 1.000 |
-| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 6 | 2 | 0.684 | 0.867 |
-| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` operational memos + `20` US identifier memos + `6` url in existing documents)** | **108** | **10** | **5** | **0.915** | **0.956** |
+| `us-passport` | project-authored (`us-identifiers-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `us-drivers-licence` | project-authored (`us-identifiers-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `us-zip` | third-party MASC (`7`) + project-authored (`3`) | 10 | 0 | 0 | 1.000 | 1.000 |
+| `phone-extension` | project-authored (`us-identifiers-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `phone` (all) | third-party MASC (`12`) + project-authored (`3` + `2`) | 15 | 6 | 2 | 0.714 | 0.882 |
+| **all kinds** | **mixed (`19` MASC + `18` adapted spec + `57` operational memos + `31` US identifier memos + `6` url in existing documents)** | **126** | **10** | **5** | **0.926** | **0.962** |
 
 ### External prose partition (whole third-party documents)
 

@@ -1,14 +1,14 @@
 # Mixed PII evaluation set (partial work for #968)
 
-Nine documents (`47,544` UTF-8 bytes) and their span-level annotations
-(`labels.tsv`, `113` gold mentions across 24 built-in `PiiKind`
+Nine documents (`48,036` UTF-8 bytes) and their span-level annotations
+(`labels.tsv`, `131` gold mentions across 28 built-in `PiiKind`
 variants), scored by `precision_and_recall_on_human_written_text` in
 `analysis/pii/tests/precision_recall.rs` (`docs/pii.md`,
 `docs/licences.md`).
 
 The evaluation set is a mixed corpus:
-- Five third-party MASC 3.0.0 documents (`34,969` bytes, `12` gold spans,
-  all `phone`, across `masc-att2`, `masc-hsus4`, `masc-united1`, and
+- Five third-party MASC 3.0.0 documents (`34,969` bytes, `19` gold spans,
+  `12` `phone` and `7` `us-zip`, across `masc-att2`, `masc-hsus4`, `masc-united1`, and
   `masc-nyt6`, plus `masc-lsc-access` with `0` gold spans as a statutory
   and CFR citation false-positive stress document).
 - Two project-adapted specification summaries (`4,360` bytes, `18` gold
