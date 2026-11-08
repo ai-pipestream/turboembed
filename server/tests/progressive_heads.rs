@@ -161,6 +161,7 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
         pii_output: None,
         binding: None,
         operation_key: String::new(),
+        pii_policy: None,
     })
     .unwrap();
     let count = |id: &str| typed.layers.iter().find(|l| l.id == id).map(|l| l.annotations.len());

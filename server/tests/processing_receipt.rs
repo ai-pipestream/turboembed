@@ -170,6 +170,7 @@ fn a_retry_keeps_the_key_and_gets_a_new_attempt_id() {
         binding: None,
         operation_key: "ingest/42".into(),
         pii_output: None,
+        pii_policy: None,
     };
     let (a, b) = (inspect_document_graph(&req).unwrap(), inspect_document_graph(&req).unwrap());
     let (ra, rb) = (receipt_of(&a), receipt_of(&b));

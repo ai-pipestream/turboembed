@@ -115,6 +115,7 @@ async fn inspect(s: &Server, graph: &[u8], view: u32, pii_output: Option<PiiOutp
         pii_output,
         binding: None,
         operation_key: String::new(),
+        pii_policy: None,
     };
     client(s).await.inspect_document_graph(req).await.unwrap().into_inner()
 }

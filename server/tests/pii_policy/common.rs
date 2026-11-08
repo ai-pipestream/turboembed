@@ -71,6 +71,7 @@ pub fn rule(rule_id: &str, kind: Option<pb::PiiKindRef>, strategies: Vec<pb::Pii
         strategies,
         allow: None,
         labels: None,
+        release_ceiling: None,
     }
 }
 
@@ -134,6 +135,7 @@ pub fn rich() -> pb::RedactionPolicy {
             window_words: 6,
             extra_labels: vec!["card no".to_owned()],
         }),
+        release_ceiling: None,
     };
     let email = rule(
         "email",
