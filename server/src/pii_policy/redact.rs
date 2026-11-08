@@ -119,7 +119,7 @@ pub struct RedactPlanStep {
 
 impl Annotator for RedactPlanStep {
     const ID: &'static str = REDACT_STEP;
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Pii);
     type Writes = (PiiPlan,);
 
@@ -141,7 +141,7 @@ impl Annotator for RedactPlanStep {
 
 impl Annotator for RedactStep {
     const ID: &'static str = REDACT_STEP;
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Pii);
     type Writes = (View, PiiEdits);
 
