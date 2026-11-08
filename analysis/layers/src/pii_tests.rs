@@ -24,7 +24,7 @@ fn layer(custom: CustomKinds) -> Pii {
 
 #[test]
 fn kinds_have_stable_ids_names_and_priorities() {
-    assert_eq!(PiiKind::TABLE.len(), 30);
+    assert_eq!(PiiKind::TABLE.len(), 34);
     for (i, row) in PiiKind::TABLE.iter().enumerate() {
         assert_eq!(usize::from(row.id), i + 1, "ids are 1.. in table order");
         assert_eq!(row.kind.builtin_id(), Some(row.id));
@@ -46,13 +46,17 @@ fn kinds_have_stable_ids_names_and_priorities() {
         (PiiKind::BrCnpj, 26),
         (PiiKind::Bic, 27),
         (PiiKind::Phone, 30),
+        (PiiKind::Vin, 31),
+        (PiiKind::TrackingNumber, 32),
+        (PiiKind::UsEin, 33),
+        (PiiKind::Url, 34),
     ];
     for (kind, id) in pinned {
         assert_eq!(kind.builtin_id(), Some(id), "{kind}");
         assert_eq!(kind.bit(), 1u128 << id, "{kind}");
     }
     assert_eq!(PiiKind::from_id(0), None);
-    assert_eq!(PiiKind::from_id(31), None);
+    assert_eq!(PiiKind::from_id(35), None);
     assert_eq!(PiiKind::parse("EMAIL"), None);
     assert!(PiiKind::Imei.priority() < PiiKind::Card.priority());
 }
@@ -102,7 +106,17 @@ fn tier_derives_from_evidence_by_table() {
         assert_eq!(ChecksumAlgorithm::from_id(u32::from(a.id())), Some(a));
     }
     assert_eq!(ChecksumAlgorithm::from_id(0), None);
-    assert_eq!(ChecksumAlgorithm::from_id(14), None);
+    let pinned = [
+        (ChecksumAlgorithm::LaPosteMod5, 13),
+        (ChecksumAlgorithm::Vin, 14),
+        (ChecksumAlgorithm::UpsMod10, 15),
+        (ChecksumAlgorithm::FedexMod11, 16),
+        (ChecksumAlgorithm::Gs1Mod10, 17),
+    ];
+    for (a, id) in pinned {
+        assert_eq!(a.id(), id, "{}", a.name());
+    }
+    assert_eq!(ChecksumAlgorithm::from_id(18), None);
     for k in PiiScoreKind::ALL {
         assert_eq!(PiiScoreKind::from_id(u32::from(k.id())), Some(k));
     }

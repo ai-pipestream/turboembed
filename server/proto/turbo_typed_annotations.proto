@@ -966,6 +966,10 @@ enum PiiKindId
   PII_KIND_ID_CA_SIN = 28;
   PII_KIND_ID_ABA_ROUTING = 29;
   PII_KIND_ID_PHONE = 30;
+  PII_KIND_ID_VIN = 31;
+  PII_KIND_ID_TRACKING_NUMBER = 32;
+  PII_KIND_ID_US_EIN = 33;
+  PII_KIND_ID_URL = 34;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C
@@ -1017,6 +1021,10 @@ enum PiiChecksumAlgorithm
   PII_CHECKSUM_ALGORITHM_ABA_WEIGHTS = 11;
   PII_CHECKSUM_ALGORITHM_OTHER = 12;
   PII_CHECKSUM_ALGORITHM_LA_POSTE_MOD5 = 13;
+  PII_CHECKSUM_ALGORITHM_VIN = 14;
+  PII_CHECKSUM_ALGORITHM_UPS_MOD10 = 15;
+  PII_CHECKSUM_ALGORITHM_FEDEX_MOD11 = 16;
+  PII_CHECKSUM_ALGORITHM_GS1_MOD10 = 17;
 }
 
 // The text has the shape of the kind and nothing more was checked.

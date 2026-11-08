@@ -32,7 +32,7 @@ pub enum Pack {
     Secrets,
     /// Bitcoin and Ethereum addresses.
     Crypto,
-    /// United States SSNs and ITINs.
+    /// United States SSNs, ITINs and EINs.
     UsIdentity,
     /// European national and business identifiers (UK, DE, ES, FR, BIC).
     EuIdentity,
@@ -42,12 +42,16 @@ pub enum Pack {
     CaIdentity,
     /// IMEIs after a label.
     Device,
+    /// Vehicle identification numbers and parcel tracking numbers.
+    Logistics,
+    /// Web addresses.
+    Web,
     /// Every detector: the default `CursorPiiExtractor` and every pack.
     AllStructured,
 }
 
 impl Pack {
-    pub const ALL: [Pack; 11] = [
+    pub const ALL: [Pack; 13] = [
         Pack::Payment,
         Pack::Contact,
         Pack::Network,
@@ -58,6 +62,8 @@ impl Pack {
         Pack::BrIdentity,
         Pack::CaIdentity,
         Pack::Device,
+        Pack::Logistics,
+        Pack::Web,
         Pack::AllStructured,
     ];
 
@@ -75,6 +81,8 @@ impl Pack {
             Pack::BrIdentity => "br-identity",
             Pack::CaIdentity => "ca-identity",
             Pack::Device => "device",
+            Pack::Logistics => "logistics",
+            Pack::Web => "web",
             Pack::AllStructured => "all-structured",
         }
     }
@@ -100,6 +108,8 @@ impl Pack {
             Pack::BrIdentity => vec![Scanner::all(Extractor::BrIdentity)],
             Pack::CaIdentity => vec![Scanner::all(Extractor::CaIdentity)],
             Pack::Device => vec![Scanner::all(Extractor::Device)],
+            Pack::Logistics => vec![Scanner::all(Extractor::Logistics)],
+            Pack::Web => vec![Scanner::all(Extractor::Web)],
             Pack::AllStructured => [
                 Extractor::Cursor,
                 Extractor::Secrets,
@@ -111,6 +121,8 @@ impl Pack {
                 Extractor::CaIdentity,
                 Extractor::Device,
                 Extractor::Banking,
+                Extractor::Logistics,
+                Extractor::Web,
             ]
             .into_iter()
             .map(Scanner::all)
