@@ -125,7 +125,9 @@ impl HeadLayer for Lemmas {
             &f,
             pf.as_deref(),
             &input.forms,
-            language_of(lemmatizer.spec(), input),
+            // Each of the lemma head and its POS head gates the selection by
+            // its own language input (#1867).
+            input.language,
         )
         .map_err(|e| e.to_string())?;
         lemma_layer(input.tokens, &input.seqs, lemmas)

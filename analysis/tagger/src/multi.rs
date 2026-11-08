@@ -219,12 +219,20 @@ impl<W: Outputs> MultiTask<W> {
             }
         }
         if let Some(selected) = language.as_deref() {
-            for head in heads.iter().filter(|head| head.spec().language.is_some()) {
-                let input = head.spec().language.as_ref().expect("filtered language input");
+            // A lemma head's POS dependency reads the selection too.
+            let specs = heads.iter().flat_map(|head| {
+                let pos = match head {
+                    Head::Lemma { pos: Some(t), .. } => Some(t.spec()),
+                    _ => None,
+                };
+                std::iter::once(head.spec()).chain(pos)
+            });
+            for spec in specs.filter(|spec| spec.language.is_some()) {
+                let input = spec.language.as_ref().expect("filtered language input");
                 if !input.languages.iter().any(|known| known == selected) {
                     return Err(refuse(format!(
                         "unknown language {selected:?} for head {:?}: one of {}",
-                        head.spec().name,
+                        spec.name,
                         input.languages.join(", ")
                     )));
                 }
