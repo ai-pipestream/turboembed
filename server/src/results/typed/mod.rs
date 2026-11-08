@@ -392,6 +392,8 @@ pub fn document_to_typed_bound(
     let shown = disclosure.view_text(doc, target_view);
     if !shown {
         disclosure::withhold_annotations(&mut layers, disclosure.detail);
+    } else if !disclosure.graph(doc) {
+        disclosure::withhold_other_views(&mut layers, doc, disclosure);
     }
     let graph = export(doc, codecs()).map_err(|e| bad(format!("document graph export: {e}")))?;
     let graph_bytes = graph.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;

@@ -30,6 +30,7 @@ pub struct LemmaExample {
     pub tags: Vec<u32>,
     pub forms: Vec<String>,
     pub lemmas: Vec<String>,
+    pub language: Option<u32>,
 }
 
 /// The trees of the training pairs that come up at least `min_freq`
@@ -119,13 +120,18 @@ pub fn accuracy(head: &EditTreeLemmatizer, examples: &[LemmaExample]) -> Result<
 fn accuracy_of<'a>(head: &EditTreeLemmatizer, examples: impl Iterator<Item = &'a LemmaExample> + Clone) -> Result<f64> {
     let hidden = head.hidden();
     check(examples.clone(), hidden, head.spec().pos_input.as_ref().map(|p| p.labels))?;
+    check_languages(examples.clone(), head.spec())?;
     let (mut right, mut total) = (0usize, 0usize);
     let (mut scores, mut trees, mut w) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
         let n = e.forms.len();
         let words: Vec<u32> = (0..n as u32).collect();
         let tags = head.spec().pos_input.as_ref().map(|_| e.tags.as_slice());
-        head.scores(&e.features, &words, tags, &mut scores, &mut w)?;
+        let language = match (&head.spec().language, e.language) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        head.scores_language(&e.features, &words, tags, language, &mut scores, &mut w)?;
         let forms: Vec<&str> = e.forms.iter().map(String::as_str).collect();
         head.decode(&scores, &forms, &mut trees)?;
         let lemmas = head.lemmas_tagged(&trees, &forms, tags)?;
@@ -156,6 +162,29 @@ fn check<'a>(examples: impl Iterator<Item = &'a LemmaExample>, hidden: usize, ta
     Ok(())
 }
 
+fn check_languages<'a>(examples: impl Iterator<Item = &'a LemmaExample>, spec: &HeadSpec) -> Result<()> {
+    for (i, example) in examples.enumerate() {
+        match (&spec.language, example.language) {
+            (None, None) => {}
+            (None, Some(_)) => {
+                return Err(invalid(format!("trainer: sentence {i} has a language the lemmatizer does not read")));
+            }
+            (Some(language), None) if language.languages.len() == 1 => {}
+            (Some(language), None) => {
+                return Err(invalid(format!(
+                    "trainer: sentence {i} needs a language, one of {:?}",
+                    language.languages
+                )));
+            }
+            (Some(language), Some(row)) if row as usize >= language.languages.len() => {
+                return Err(invalid(format!("trainer: sentence {i} language row {row} is out of range")));
+            }
+            (Some(_), Some(_)) => {}
+        }
+    }
+    Ok(())
+}
+
 impl Model for Lemmatizer<f32> {
     type Example = Prepared;
     type Work = Work<f32>;
@@ -176,7 +205,7 @@ impl Model for Lemmatizer<f32> {
     }
     fn loss(&self, p: &Prepared, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
         let words = p.gold.iter().filter(|g| g.is_some()).count();
-        Ok((Lemmatizer::loss(self, &p.e.features, &p.e.tags, &p.gold, grads, w)?, words))
+        Ok((Lemmatizer::loss_language(self, &p.e.features, &p.e.tags, p.e.language, &p.gold, grads, w)?, words))
     }
     fn score(&self, dev: &[Prepared]) -> Result<f64> {
         accuracy_of(&self.to_core()?, dev.iter().map(|p| &p.e))
@@ -211,6 +240,8 @@ pub fn fit_lemmatizer_with(
     let tags = spec.pos_input.as_ref().map(|p| p.labels);
     check(train_set.iter(), hidden, tags)?;
     check(dev.iter(), hidden, tags)?;
+    check_languages(train_set.iter(), spec)?;
+    check_languages(dev.iter(), spec)?;
     let index: HashMap<&str, u32> = spec.labels.iter().enumerate().map(|(i, l)| (l.as_str(), i as u32)).collect();
     let prepare = |e: LemmaExample| {
         let gold = e
@@ -385,6 +416,7 @@ impl Model for MixLemmatizer<f32> {
                     tags: p.e.tags.clone(),
                     forms: p.e.forms.clone(),
                     lemmas: p.e.lemmas.clone(),
+                    language: None,
                 })
             })
             .collect::<Result<_>>()?;

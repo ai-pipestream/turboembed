@@ -106,6 +106,7 @@ pub fn score_boundary(head: &SentenceBoundary, examples: &[Example]) -> Result<f
 pub fn score_split(head: &TokenSplitter, examples: &[Example]) -> Result<f64> {
     let hidden = head.hidden();
     check_examples(examples, hidden, head.spec().labels.len(), true)?;
+    check_languages(examples, head.spec())?;
     let (mut right, mut total) = (0usize, 0usize);
     let (mut scores, mut labels, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
@@ -113,7 +114,11 @@ pub fn score_split(head: &TokenSplitter, examples: &[Example]) -> Result<f64> {
         let words: Vec<u32> = (0..n as u32).collect();
         let forms: Vec<&str> = e.forms.iter().map(String::as_str).collect();
         let read = head.reads_forms().then_some(forms.as_slice());
-        head.scores(&e.features, &words, read, &mut scores, &mut work)?;
+        let language = match (&head.spec().language, e.language) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        head.scores_language(&e.features, &words, read, language, &mut scores, &mut work)?;
         head.decode(&scores, &forms, &mut labels)?;
         right += labels.iter().zip(&e.labels).filter(|(a, b)| a == b).count();
         total += n;
