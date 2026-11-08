@@ -1,7 +1,7 @@
 # Mixed PII evaluation set (partial work for #968)
 
-Eight documents (`45,401` UTF-8 bytes) and their span-level annotations
-(`labels.tsv`, `87` gold mentions across all 20 built-in `PiiKind`
+Nine documents (`47,544` UTF-8 bytes) and their span-level annotations
+(`labels.tsv`, `113` gold mentions across 24 built-in `PiiKind`
 variants), scored by `precision_and_recall_on_human_written_text` in
 `analysis/pii/tests/precision_recall.rs` (`docs/pii.md`,
 `docs/licences.md`).
