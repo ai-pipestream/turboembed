@@ -9,10 +9,11 @@ use super::super::pii::{CustomKinds, PiiKind};
 /// proto `PiiSeverity` enum; 0 is its `UNSPECIFIED`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PiiSeverity {
-    /// Public or business identifiers: a company number, a routing number.
+    /// Public or business identifiers: a company number, a routing number,
+    /// an EIN, a parcel tracking number, a URL.
     Low = 1,
-    /// Contact and device details: an e-mail address, a phone number, an
-    /// IP address, a wallet address.
+    /// Contact, device and vehicle details: an e-mail address, a phone
+    /// number, an IP address, a wallet address, a VIN.
     Medium = 2,
     /// Financial accounts: an IBAN.
     High = 3,
@@ -60,8 +61,8 @@ impl PiiSeverity {
             Jwt | AwsAccessKey | GithubToken | UrlCredential | Card | UsSsn | UsItin | UkNhs | DeSteuerId | EsDni
             | EsNie | DePersonalausweis | FrNir | BrCpf | CaSin => PiiSeverity::Critical,
             Iban => PiiSeverity::High,
-            Email | Phone | Imei | Mac | Ipv4 | Ipv6 | BtcAddress | EthAddress | Custom(_) => PiiSeverity::Medium,
-            EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting => PiiSeverity::Low,
+            Email | Phone | Imei | Mac | Ipv4 | Ipv6 | BtcAddress | EthAddress | Vin | Custom(_) => PiiSeverity::Medium,
+            EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting | UsEin | TrackingNumber | Url => PiiSeverity::Low,
         }
     }
 }
@@ -99,16 +100,19 @@ impl PiiSuggestedRewrite {
     }
 
     /// The built-in suggestion for `kind`: a label for credentials and
-    /// contact details, the last four for cards and IBANs, a
-    /// format-keeping mask for identity and business numbers.
+    /// contact details and URLs, the last four for cards and IBANs, a
+    /// format-keeping mask for identity, vehicle, parcel and business
+    /// numbers.
     pub const fn default_for(kind: PiiKind) -> PiiSuggestedRewrite {
         use PiiKind::*;
         match kind {
             Jwt | AwsAccessKey | GithubToken | UrlCredential | Email | Phone | Mac | Ipv4 | Ipv6 | BtcAddress
-            | EthAddress | Custom(_) => PiiSuggestedRewrite::Label,
+            | EthAddress | Url | Custom(_) => PiiSuggestedRewrite::Label,
             Card | Iban => PiiSuggestedRewrite::KeepLastFour,
             Imei | UsSsn | UsItin | UkNhs | DeSteuerId | EsDni | EsNie | EsCif | DePersonalausweis | FrNir
-            | FrSiren | FrSiret | BrCpf | BrCnpj | Bic | CaSin | AbaRouting => PiiSuggestedRewrite::MaskKeepFormat,
+            | FrSiren | FrSiret | BrCpf | BrCnpj | Bic | CaSin | AbaRouting | Vin | TrackingNumber | UsEin => {
+                PiiSuggestedRewrite::MaskKeepFormat
+            }
         }
     }
 }

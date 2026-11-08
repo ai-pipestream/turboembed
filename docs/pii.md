@@ -295,8 +295,8 @@ Each kind has a severity, and each severity a weight:
 | --- | --- | --- |
 | critical | 10 | jwt, aws-access-key, github-token, url-credential, card, us-ssn, us-itin, uk-nhs, de-steuer-id, es-dni, es-nie, de-personalausweis, fr-nir, br-cpf, ca-sin |
 | high | 5 | iban |
-| medium | 2 | email, phone, imei, mac, ipv4, ipv6, btc-address, eth-address, every custom kind |
-| low | 0.5 | es-cif, fr-siren, fr-siret, br-cnpj, bic, aba-routing |
+| medium | 2 | email, phone, imei, mac, ipv4, ipv6, btc-address, eth-address, vin, every custom kind |
+| low | 0.5 | es-cif, fr-siren, fr-siret, br-cnpj, bic, aba-routing, us-ein, tracking-number, url |
 
 `PiiSeverityTable` overrides any built-in kind (`with`), a custom kind by
 name (`with_custom`) and the custom default (`with_custom_default`). The
@@ -331,8 +331,9 @@ reports the mention count, the view's length in Unicode scalar values,
 and the density in mentions per 1,000 characters.
 
 Each kind also carries a suggested rewrite: a `[%t]` label for
-credentials, contact, network and custom kinds; the last four kept for
-cards and IBANs; a format-keeping mask for identity and business numbers.
+credentials, contact, network, URL and custom kinds; the last four kept
+for cards and IBANs; a format-keeping mask for identity, vehicle, parcel
+and business numbers.
 None needs a key, a dictionary or per-document numbering.
 `turbo_kserve::pii_policy::suggested_policy` turns a projected
 `turbo:pii-risk` layer into a `RedactionPolicy` message (id

@@ -129,7 +129,7 @@ impl Lcg {
 }
 
 fn random_mention(g: &mut Lcg, start: u32) -> (u32, PiiKind, &'static [PiiEvidence]) {
-    let kind = PiiKind::from_id(g.next(30) as u16 + 1).unwrap();
+    let kind = PiiKind::from_id(g.next(PiiKind::TABLE.len() as u32) as u16 + 1).unwrap();
     (start, kind, EVIDENCE[g.next(EVIDENCE.len() as u32) as usize])
 }
 
@@ -231,6 +231,11 @@ fn every_builtin_kind_has_a_severity_and_a_suggestion() {
     }
     assert_eq!(PiiSeverity::default_for(PiiKind::UsSsn), PiiSeverity::Critical);
     assert_eq!(PiiSeverity::default_for(PiiKind::Email), PiiSeverity::Medium);
+    assert_eq!(PiiSeverity::default_for(PiiKind::Vin), PiiSeverity::Medium);
+    for k in [PiiKind::UsEin, PiiKind::TrackingNumber, PiiKind::Url] {
+        assert_eq!(PiiSeverity::default_for(k), PiiSeverity::Low, "{k}");
+    }
+    assert_eq!(PiiSuggestedRewrite::default_for(PiiKind::Url), PiiSuggestedRewrite::Label);
     assert_eq!(PiiSeverity::from_id(0), None);
 }
 
