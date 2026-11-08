@@ -71,6 +71,9 @@ impl PiiRiskLevel {
     }
 }
 
+/// The lowest [`confidence_weight`]: the shape alone.
+const MIN_WEIGHT: f64 = 0.75;
+
 /// How much one mention's recorded facts support it, from 0.75 to 1: a
 /// documented heuristic over its evidence, never a probability. A deny
 /// list hit (the caller named the term) and a label with a passed checksum
@@ -81,7 +84,7 @@ pub fn confidence_weight(evidence: &[PiiEvidence]) -> f64 {
         return 1.0;
     }
     match PiiConfidence::derive(evidence) {
-        PiiConfidence::Format => 0.75,
+        PiiConfidence::Format => MIN_WEIGHT,
         PiiConfidence::Labelled => 0.85,
         PiiConfidence::Checksum => 0.9,
         PiiConfidence::LabelledChecksum => 1.0,
@@ -173,6 +176,28 @@ impl PiiRisk {
     }
 }
 
+/// Whether a stored `f32` is the `f64` it was rounded from, give or take
+/// the rounding of `compute` and of a sum of rounded terms.
+fn close(stored: f64, expected: f64) -> bool {
+    (stored - expected).abs() <= 1e-5 * expected.abs().max(1.0)
+}
+
+impl PiiRiskKind {
+    /// The kind's numbers hold together: each mention weighs from the
+    /// lowest to the highest [`confidence_weight`], and the contribution
+    /// is the severity weight times `log2(1 + weighted_count)`.
+    fn check_weights(&self) -> Result<(), String> {
+        let (n, w) = (f64::from(self.mentions), f64::from(self.weighted_count));
+        if w < n * MIN_WEIGHT * (1.0 - 1e-6) || w > n * (1.0 + 1e-6) {
+            return Err("weighted count is outside what its mentions can weigh".into());
+        }
+        if !close(f64::from(self.contribution), self.severity.weight() * (1.0 + w).log2()) {
+            return Err("contribution is not its severity weight times log2(1 + weighted count)".into());
+        }
+        Ok(())
+    }
+}
+
 fn finite(x: f32, what: &str) -> Result<(), String> {
     if x.is_finite() && x >= 0.0 { Ok(()) } else { Err(format!("pii risk {what} must be finite and not negative")) }
 }
@@ -195,7 +220,12 @@ impl Layer for PiiRisk {
             return Err(format!("pii risk level {} does not match score {}", self.level.name(), self.score));
         }
         let mut total = 0u64;
+        let mut sum = 0.0f64;
         let mut previous: Option<u32> = None;
+        // Every relation compute writes is held: counts sum, each kind's
+        // weight and contribution follow from its mentions and severity,
+        // the score is the sum of the contributions, and the density
+        // follows from the counts, within f32 rounding.
         for (i, k) in self.kinds.iter().enumerate() {
             self.custom_kinds.check(k.kind).map_err(|e| format!("pii risk kind {i}: {e}"))?;
             if previous.is_some_and(|p| p >= k.kind.code()) {
@@ -206,11 +236,23 @@ impl Layer for PiiRisk {
             }
             finite(k.weighted_count, "weighted count")?;
             finite(k.contribution, "contribution")?;
+            k.check_weights().map_err(|e| format!("pii risk kind {i}: {e}"))?;
             previous = Some(k.kind.code());
             total += u64::from(k.mentions);
+            sum += f64::from(k.contribution);
         }
         if total != u64::from(self.mentions) {
             return Err("pii risk mentions are not the sum over its kinds".into());
+        }
+        if !close(f64::from(self.score), sum) {
+            return Err(format!("pii risk score {} is not the sum of its contributions", self.score));
+        }
+        if self.mentions > 0 && self.chars == 0 {
+            return Err("pii risk has mentions in an empty view".into());
+        }
+        let density = if self.chars == 0 { 0.0 } else { f64::from(self.mentions) * 1000.0 / f64::from(self.chars) };
+        if !close(f64::from(self.density_per_1000_chars), density) {
+            return Err("pii risk density is not its mentions per 1,000 characters".into());
         }
         Ok(())
     }

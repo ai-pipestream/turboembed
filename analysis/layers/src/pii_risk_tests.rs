@@ -233,3 +233,46 @@ fn every_builtin_kind_has_a_severity_and_a_suggestion() {
     assert_eq!(PiiSeverity::default_for(PiiKind::Email), PiiSeverity::Medium);
     assert_eq!(PiiSeverity::from_id(0), None);
 }
+
+#[test]
+fn check_refuses_a_summary_its_kinds_contradict() {
+    let good = risk(&[(0, PiiKind::Card, LUHN), (10, PiiKind::Email, SHAPE), (20, PiiKind::Email, LABEL)]);
+    let refused = |f: &dyn Fn(&mut PiiRisk)| {
+        let mut r = good.clone();
+        f(&mut r);
+        r.check().is_err()
+    };
+    assert!(
+        refused(&|r| {
+            r.score = 0.0;
+            r.level = PiiRiskLevel::None;
+        }),
+        "a zero score over positive contributions"
+    );
+    assert!(
+        refused(&|r| {
+            r.score = 2.0;
+            r.level = PiiRiskLevel::Low;
+        }),
+        "a score that is not the sum of the contributions"
+    );
+    assert!(refused(&|r| r.kinds[0].weighted_count = 0.0), "no weight for a mention");
+    assert!(refused(&|r| r.kinds[1].weighted_count = 2.5), "more weight than two mentions can carry");
+    assert!(refused(&|r| r.kinds[1].weighted_count = 1.0), "less weight than two mentions carry");
+    assert!(refused(&|r| r.kinds[0].contribution *= 2.0), "a contribution its weight does not give");
+    assert!(refused(&|r| r.kinds[0].severity = PiiSeverity::Low), "a severity its contribution does not match");
+    assert!(refused(&|r| r.density_per_1000_chars = 0.0), "no density for mentions in a non-empty view");
+    assert!(refused(&|r| r.chars = 0), "mentions in an empty view");
+    // Within rounding, the computed summary is accepted as is.
+    good.check().unwrap();
+}
+
+#[test]
+fn every_computed_risk_passes_its_own_check() {
+    let mut g = Lcg(42);
+    for _ in 0..200 {
+        let n = g.next(60);
+        let mentions: Vec<_> = (0..n).map(|i| random_mention(&mut g, i * 10)).collect();
+        risk(&mentions);
+    }
+}

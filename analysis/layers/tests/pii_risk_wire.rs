@@ -62,3 +62,18 @@ fn a_bad_level_a_nonfinite_score_or_trailing_bytes_are_refused() {
     body(&mut graph).push(0);
     assert!(import(&graph, &codecs).is_err(), "trailing byte");
 }
+
+#[test]
+fn a_summary_its_kinds_contradict_is_refused_on_import() {
+    let codecs = turbo_analysis_layers::export::codecs();
+    // Score 0 with level NONE (byte 4 = 1) over positive contributions.
+    let mut graph = fixture_graph();
+    let b = body(&mut graph);
+    b[0..4].copy_from_slice(&0f32.to_bits().to_le_bytes());
+    b[4] = 1;
+    assert!(import(&graph, &codecs).is_err(), "a zero score over positive contributions");
+    // The density follows the score, level, mentions and chars: 4 + 1 + 4 + 4.
+    let mut graph = fixture_graph();
+    body(&mut graph)[13..17].copy_from_slice(&0f32.to_bits().to_le_bytes());
+    assert!(import(&graph, &codecs).is_err(), "no density for two mentions");
+}

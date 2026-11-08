@@ -102,6 +102,14 @@ fn a_tampered_risk_is_refused() {
     assert!(refused_with(|r| r.kinds[0].suggested = 0), "an unspecified suggestion");
     assert!(refused_with(|r| r.kinds.swap(0, 1)), "kinds out of order");
     assert!(refused_with(|r| r.score = f32::NAN), "a nan score");
+    let none = |r: &mut pb::PiiRiskAnnotation| {
+        r.score = 0.0;
+        r.level = pb::PiiRiskLevel::None as i32;
+    };
+    assert!(refused_with(none), "a zero score and NONE over positive contributions");
+    assert!(refused_with(|r| r.kinds[0].weighted_count = 0.0), "no weight for a mention");
+    assert!(refused_with(|r| r.kinds[0].contribution *= 2.0), "a contribution its weight does not give");
+    assert!(refused_with(|r| r.density_per_1000_chars = 0.0), "no density for mentions");
     let custom = Some(pb::PiiKindRef { kind: Some(pb::pii_kind_ref::Kind::Custom(0)) });
     assert!(refused_with(|r| r.kinds[0].kind = custom), "a custom index outside the table");
     assert!(refused_after(|l| l.annotations.push(l.annotations[0].clone())), "a second annotation");
