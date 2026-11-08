@@ -121,7 +121,8 @@ fn scan_numeric(text: &str, hits: &mut Hits) {
     let mut digits = [0u8; MAX_DIGITS];
     let mut i = 0;
     while i < b.len() {
-        if !b[i].is_ascii_digit() || !on_number_start(text, i) {
+        let joined = i >= 2 && b[i - 1] == b'-' && b[i - 2].is_ascii_digit();
+        if !b[i].is_ascii_digit() || !on_number_start(text, i) || joined {
             i += 1;
             continue;
         }
@@ -182,12 +183,14 @@ fn numeric_check(d: &[u8]) -> Option<ChecksumAlgorithm> {
         15 => gs1(&d[..14]) && !luhn::valid(d),
         // The USPS 20-digit numbers in use start `0` or `7` (certified
         // mail); a dated build number such as `2024 0131 ...` does not.
-        20 if matches!(d[0], b'0' | b'7') => gs1(&d[..19]) || {
-            let mut implied = [0u8; 21];
-            implied[..2].copy_from_slice(b"91");
-            implied[2..].copy_from_slice(&d[..19]);
-            gs1(&implied)
-        },
+        20 if matches!(d[0], b'0' | b'7') => {
+            gs1(&d[..19]) || {
+                let mut implied = [0u8; 21];
+                implied[..2].copy_from_slice(b"91");
+                implied[2..].copy_from_slice(&d[..19]);
+                gs1(&implied)
+            }
+        }
         22 if d[0] == b'9' && (b'1'..=b'5').contains(&d[1]) => gs1(&d[..21]),
         22 if d.starts_with(b"96") => gs1(&d[7..21]),
         _ => false,

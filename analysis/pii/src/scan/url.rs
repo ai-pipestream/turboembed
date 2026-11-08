@@ -23,7 +23,9 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i < b.len() {
-        if !matches!(b[i], b'h' | b'H' | b'f' | b'F' | b'w' | b'W') || !on_token_start(text, i, false) || after_joiner(b, i)
+        if !matches!(b[i], b'h' | b'H' | b'f' | b'F' | b'w' | b'W')
+            || !on_token_start(text, i, false)
+            || after_joiner(b, i)
         {
             i += 1;
             continue;
