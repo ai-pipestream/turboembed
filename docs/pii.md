@@ -555,7 +555,7 @@ values or flag domain-specific terms without writing a custom byte scanner:
     at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
     characters for `1` edit, `>= 6` characters for `2` edits; words
     shorter than `4` characters only match at `0` edits).
-    Fuzzy terms are indexed by their first word (`lists/fuzzy.rs`): a
+    Fuzzy terms are indexed by their first word (`analysis/pii/src/lists/fuzzy.rs`): a
     first word of up to 24 characters by the hashes of every string left
     after deleting up to its edit budget of characters, a longer one by
     length, so a text word is only checked against terms that share one of

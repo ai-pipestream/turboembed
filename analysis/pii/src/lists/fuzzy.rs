@@ -14,7 +14,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{BuildHasherDefault, Hasher};
 
-use turbo_analysis::Span;
+use turbo_analysis::{Fnv1a, Span};
 use turbo_glossary::{Candidate, Case, EntryIx};
 use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::java::to_lower_char;
@@ -40,9 +40,7 @@ impl Hasher for PassThrough {
         self.0
     }
     fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x100_0000_01b3);
-        }
+        self.0 = Fnv1a::with_seed(self.0).bytes(bytes).finish();
     }
     fn write_u64(&mut self, n: u64) {
         self.0 = n;
@@ -226,18 +224,18 @@ fn deletion_hashes(word: &[char], budget: u8, out: &mut Vec<u64>) {
 }
 
 /// FNV-1a over the characters of `word` except positions `a` and `b`
-/// (an index of `word.len()` skips nothing), then length mixed in.
+/// (an index of `word.len()` skips nothing), then the kept length.
 fn hash_skipping(word: &[char], a: usize, b: usize) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    let mut len = 0u64;
+    let mut h = Fnv1a::new();
+    let mut len = 0usize;
     for (j, &c) in word.iter().enumerate() {
         if j == a || j == b {
             continue;
         }
-        h = (h ^ u64::from(c as u32)).wrapping_mul(0x100_0000_01b3);
+        h.u32(c as u32);
         len += 1;
     }
-    (h ^ len.wrapping_mul(0x9e37_79b9_7f4a_7c15)).wrapping_mul(0x100_0000_01b3)
+    h.usize(len).finish()
 }
 
 pub(super) fn is_capitalised(text: &str) -> bool {
