@@ -970,6 +970,10 @@ enum PiiKindId
   PII_KIND_ID_TRACKING_NUMBER = 32;
   PII_KIND_ID_US_EIN = 33;
   PII_KIND_ID_URL = 34;
+  PII_KIND_ID_US_PASSPORT = 35;
+  PII_KIND_ID_US_DRIVERS_LICENCE = 36;
+  PII_KIND_ID_US_ZIP = 37;
+  PII_KIND_ID_PHONE_EXTENSION = 38;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C

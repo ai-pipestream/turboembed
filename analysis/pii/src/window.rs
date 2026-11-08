@@ -69,10 +69,14 @@ mod labels;
 use labels::default_label_phrases;
 pub use labels::default_labels;
 
-/// Default context-word window width (`N` words on either side) for `kind`.
+/// Default context-word window width (`N` words on either side) for `kind`:
+/// 1 for the strict-prefix kinds, 2 for passports and driver's licences
+/// (bare digit shapes, so a label further off more likely names another
+/// number), and [`DEFAULT_WINDOW_WORDS`] for the rest.
 pub const fn default_window(kind: PiiKind) -> usize {
     match kind {
         PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic => 1,
+        PiiKind::UsPassport | PiiKind::UsDriversLicence => 2,
         _ => DEFAULT_WINDOW_WORDS,
     }
 }
@@ -80,12 +84,15 @@ pub const fn default_window(kind: PiiKind) -> usize {
 /// Default [`LabelPolicy`] for `kind`: [`LabelPolicy::Required`] for
 /// [`PiiKind::CaSin`], [`PiiKind::Imei`], and [`PiiKind::Bic`],
 /// [`LabelPolicy::Boosts`] for [`PiiKind::Vin`],
-/// [`PiiKind::TrackingNumber`] and [`PiiKind::UsEin`], and
-/// [`LabelPolicy::None`] for all other kinds.
+/// [`PiiKind::TrackingNumber`], [`PiiKind::UsEin`] and [`PiiKind::UsZip`],
+/// [`LabelPolicy::Required`] also for [`PiiKind::UsPassport`] and
+/// [`PiiKind::UsDriversLicence`], and [`LabelPolicy::None`] for all other
+/// kinds.
 pub const fn default_policy(kind: PiiKind) -> LabelPolicy {
     match kind {
         PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic => LabelPolicy::Required,
-        PiiKind::Vin | PiiKind::TrackingNumber | PiiKind::UsEin => LabelPolicy::Boosts,
+        PiiKind::UsPassport | PiiKind::UsDriversLicence => LabelPolicy::Required,
+        PiiKind::Vin | PiiKind::TrackingNumber | PiiKind::UsEin | PiiKind::UsZip => LabelPolicy::Boosts,
         _ => LabelPolicy::None,
     }
 }

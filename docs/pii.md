@@ -5,7 +5,8 @@ a text view and writes them as the `turbo:pii` layer: e-mail addresses,
 phone numbers, payment cards, IBANs, ABA routing numbers, network
 addresses, credentials, Bitcoin and Ethereum addresses, national
 identifiers, device identifiers, vehicle identification numbers, parcel
-tracking numbers and web addresses. Each kind with a check digit or
+tracking numbers, web addresses, US passport, driver's licence and ZIP
+codes, and phone extensions. Each kind with a check digit or
 checksum is validated with it:
 
 | Type | Role |
@@ -63,18 +64,18 @@ not find (`ScannerError`).
 | `Pack` | `PiiPacks` method | Scanners | Kinds |
 |---|---|---|---|
 | `Payment` | `payment()` | the cursor scanner limited to IBANs and cards, then banking | `iban`, `card`, `aba-routing` |
-| `Contact` | `contact()` | the cursor scanner limited to e-mail and phone | `email`, `phone` |
+| `Contact` | `contact()` | the cursor scanner limited to e-mail and phone, then phone extension | `email`, `phone`, `phone-extension` |
 | `Network` | `network()` | network | `ipv4`, `ipv6`, `mac` |
 | `Secrets` | `secrets()` | secrets | `aws-access-key`, `github-token`, `jwt`, `url-credential` |
 | `Crypto` | `crypto()` | crypto | `btc-address`, `eth-address` |
-| `UsIdentity` | `usIdentity()` | US identity | `us-ssn`, `us-itin`, `us-ein` |
+| `UsIdentity` | `usIdentity()` | US identity | `us-ssn`, `us-itin`, `us-ein`, `us-passport`, `us-drivers-licence`, `us-zip` |
 | `EuIdentity` | `euIdentity()` | EU identity | `uk-nhs`, `de-steuer-id`, `es-dni`, `es-nie`, `es-cif`, `de-personalausweis`, `fr-nir`, `fr-siren`, `fr-siret`, `bic` |
 | `BrIdentity` | `brIdentity()` | BR identity | `br-cpf`, `br-cnpj` |
 | `CaIdentity` | `caIdentity()` | CA identity | `ca-sin` |
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension | every kind |
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -103,7 +104,7 @@ crossing an e-mail address. `Pii::check` holds a layer to this order.
 
 The kinds, in id order (`PiiKind::TABLE`, `PiiKind::builtin_id`), with the
 normalized form and the confidence each gets. Each row of the table has a
-stable id (1 to 34), its name and a priority; the ids are the numbers of
+stable id (1 to 38), its name and a priority; the ids are the numbers of
 the proto `PiiKindId` enum, the C `TURBO_PII_KIND_*` defines, the Java
 `TurboPiiKind` enum and the binary codec, and never change. Priority
 alone decides ordering and cluster winners; `PiiKind` has no `Ord`.
@@ -145,6 +146,10 @@ labelled 4 everywhere; 0 is unspecified and refused.
 | `tracking-number` | `1Z` and 16 characters, or the digits | checksum (UPS mod 10, FedEx Express mod 11, GS1 mod 10); labelled checksum near a carrier or tracking label |
 | `us-ein` | `dd-ddddddd` | format (assigned IRS prefix); labelled near an `EIN` label |
 | `url` | scheme and host in lower case, the rest as written | format |
+| `us-passport` | 9 characters | labelled |
+| `us-drivers-licence` | upper case, no separators | labelled |
+| `us-zip` | `ddddd` or `ddddd-dddd` | format after a state code, labelled after a ZIP label |
+| `phone-extension` | the digits | format |
 
 `PiiConfidence` is ordered `Format < Labelled < Checksum < LabelledChecksum`:
 `Format` (`"format"`, C ABI `TURBO_PII_CONFIDENCE_FORMAT = 1`, Java
@@ -182,14 +187,15 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
 `N` words of the candidate span:
 
 - **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
-  label list for each of the 34 built-in kinds (`&[]` for
+  label list for each of the 38 built-in kinds (`&[]` for
   `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`,
   `imei`, and `bic`, and `window::DEFAULT_WINDOW_WORDS` (`4`) for every
   other kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
-  `ca-sin`, `imei`, and `bic`, `LabelPolicy::Boosts` for `vin`,
-  `tracking-number` and `us-ein` (a label raises the tier and never
-  drops a candidate), and `LabelPolicy::None` for the other 28 built-in
-  kinds and custom kinds, so existing detector outputs stay unchanged
+  `ca-sin`, `imei`, `bic`, `us-passport` and `us-drivers-licence` (the
+  last two with a window of `2` words), `LabelPolicy::Boosts` for `vin`,
+  `tracking-number`, `us-ein` and `us-zip` (a label raises the tier and
+  never drops a candidate), and `LabelPolicy::None` for the other 29
+  built-in kinds and custom kinds, so existing detector outputs stay unchanged
   unless a caller opts in. When no caller override is configured
   on `ca-sin`, `imei`, or `bic`, `PiiDetector` uses
   `window::has_strict_prefix_label` (the strict prefix rule: a label
@@ -539,6 +545,47 @@ annotated before `url` existed: its 496 web addresses are counted and
 pinned but not scored, and it has one false `tracking-number` (a 12-digit
 test card that fails Luhn and passes the FedEx check).
 
+### Passports, driver's licences, ZIP codes and phone extensions
+
+The label-dependent kinds take ids 35 to 38: `us-passport`,
+`us-drivers-licence`, `us-zip` and `phone-extension`.
+
+- `us-passport` (`UsIdentity`, `analysis/pii/src/scan/us_labelled.rs`):
+  nine digits, or one capital letter and eight digits, with no separator.
+  `LabelPolicy::Required` with a two-word window (`passport`, `passport
+  number`, `passport no`, `passport card`).
+- `us-drivers-licence` (`UsIdentity`): the union of the shapes the states
+  issue: seven to thirteen digits, one or two capitals and four to
+  fourteen digits, or two digits, three capitals and five digits; a
+  hyphen may split two digits, and the normalized form drops it.
+  `LabelPolicy::Required` with a two-word window (`driver's license` in
+  its spellings, `driving licence`, `license number`, `DL`, `DLN`). The
+  two-word window keeps a passport label from naming a licence a few
+  words on, and the reverse.
+- `us-zip` (`UsIdentity`): five digits, or five, a hyphen and four, not
+  all zeros, read only one space after a state, territory or armed forces
+  code in capitals (`Springfield, IL 62704`, format) or after a `ZIP`,
+  `ZIP code`, `zipcode` or `postal code` label (labelled; the scanner
+  reads the label as part of the shape, like `1Z` for UPS, and the
+  `Boosts` policy records it). A bare five-digit number is not a ZIP code.
+- `phone-extension` (new `PhoneExtension` extractor, in `Contact` and
+  `AllStructured`): one to six digits after a phone the phone scan finds,
+  introduced by `ext`, `ext.`, `extn`, `extension`, `x` or `#`. The
+  mention is the digits alone, next to the phone mention. The extractor
+  runs the phone scan itself to find the phones.
+
+Every passport and licence shape is a candidate, so an unlabelled one is
+in `turbo:pii-candidates` as `RejectedByRule { LabelRequired }`, as for
+`ca-sin`. `PiiDetector::with_label_policy`, `with_label_window` and
+`with_extra_label` change the rules. Masking keeps separators. In the
+mixed evaluation set the memo document gains a travel and badging
+section, and the seven real ZIP codes in the MASC letters are gold:
+`us-passport` 2/0/0, `us-drivers-licence` 2/0/0, `us-zip` 10/0/0,
+`phone-extension` 2/0/0. The seeded synthetic set has 200 labelled
+values and 200 unlabelled ones per kind: all labelled ones found, no
+unlabelled one read as one of these kinds; the false mentions are other
+kinds on the same digits (Spanish CIFs, ABA numbers, cards).
+
 ## Custom extractors and scanner rules
 
 - Offsets are UTF-8 bytes on character boundaries.
@@ -691,7 +738,7 @@ synthetic specimens:
 The snapshots are reviewed outputs of this crate, checked in next to its
 tests. No other implementation produces or checks them.
 
-- Inputs: `analysis/pii/tests/inputs/`, 70 texts written for the packs
+- Inputs: `analysis/pii/tests/inputs/`, 74 texts written for the packs
   with only documented test values, example ranges and made up values.
 - Detection snapshots: `analysis/pii/tests/snapshots/<pack>/<id>.tsv`,
   one directory per pack (`payment`, `contact`, `network`, `secrets`,

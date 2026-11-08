@@ -42,7 +42,11 @@ public enum TurboPiiKind {
     VIN(31, "vin"),
     TRACKING_NUMBER(32, "tracking-number"),
     US_EIN(33, "us-ein"),
-    URL(34, "url");
+    URL(34, "url"),
+    US_PASSPORT(35, "us-passport"),
+    US_DRIVERS_LICENCE(36, "us-drivers-licence"),
+    US_ZIP(37, "us-zip"),
+    PHONE_EXTENSION(38, "phone-extension");
 
     private final int nativeCode;
     private final String wireName;
