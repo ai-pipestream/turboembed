@@ -9,7 +9,8 @@ use turbo_tagger::WordEncoder;
 use crate::corpus::{Corpus, CorpusRecord, Counts, Task};
 use crate::eval::{Seen, bootstrap, evaluate};
 use crate::open_span::{
-    dictionary_baseline, embed_label_names, filter_sentences, predict_from_features, read_open_span_corpus,
+    dictionary_baseline, embed_label_names, entity_types, filter_sentences, predict_from_features,
+    read_open_span_corpus,
 };
 use crate::receipt::OpenSpanDatasetEval;
 use crate::{Error, Result, coarse};
@@ -35,6 +36,23 @@ pub fn read_corpora(ids: &str, dir: &Path, unrecorded: bool) -> Result<Vec<Corpu
     Ok(out)
 }
 
+/// Captures each corpus's full schema before any training truncation, plus
+/// the union in deterministic first-seen order.
+pub fn type_schema(corpora: &[Corpus]) -> Result<(Vec<String>, Vec<Vec<String>>)> {
+    let mut all = Vec::new();
+    let mut declared = Vec::with_capacity(corpora.len());
+    for corpus in corpora {
+        let types = entity_types(corpus)?;
+        for kind in &types {
+            if !all.contains(kind) {
+                all.push(kind.clone());
+            }
+        }
+        declared.push(types);
+    }
+    Ok((all, declared))
+}
+
 /// Returns training feature rows in the same order as the transformed
 /// sentences. `period` is the sentence count after optional truncation and
 /// before optional balancing, so repeated sentences reuse their own rows.
@@ -49,6 +67,12 @@ pub fn align_train_features(features: &[Vec<f32>], sentences: usize, period: usi
         )));
     }
     Ok((0..sentences).map(|i| features[i % period].clone()).collect())
+}
+
+/// Keeps the global label order while restricting supervision to the types
+/// declared by one corpus. Types absent from that corpus are not outside.
+pub fn corpus_active_types(declared: &[String], active: &[String]) -> Vec<String> {
+    active.iter().filter(|kind| declared.contains(*kind)).cloned().collect()
 }
 
 pub fn combine(corpora: &[Corpus]) -> Result<Corpus> {
