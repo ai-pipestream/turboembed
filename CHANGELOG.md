@@ -13,6 +13,90 @@ for the release after it goes above it.
 
 ## v0.2.0 (not yet tagged)
 
+### Breaking: PII and the result envelope (#1879)
+
+These change `turbo.result.v1` in place; a client built against v0.1.0
+stubs must be regenerated.
+
+- `PiiMention` carries its kind as `kind_ref` (`PiiKindRef`: a stable
+  `PiiKindId` or a custom kind index) and its tier as the
+  `PiiConfidenceTier` enum `confidence`, and its value as `PiiValue`;
+  the string `kind`, `confidence_tier` and clear `normalized` fields
+  (1, 2, 3) are deprecated and a mention that sets any of them is
+  refused (#1914, #1918).
+- `LayerWireStatus` is renumbered with `LAYER_WIRE_STATUS_UNSPECIFIED = 0`,
+  and a layer that sends `UNSPECIFIED` is refused (#1912).
+- `TypedLayer.status_detail` is replaced by the typed `LayerError`
+  (`error`, field 11, with `LayerErrorKind`); the old field is reserved
+  (#1912).
+- Results are findings only by default: PII values, the source text
+  and rewritten text leave the server only when the request's
+  `PiiOutputOptions` asks and the server's `--pii-output-allow` allows
+  it (#1918).
+- `InspectDocumentGraph` refuses a graph whose layers name a view the
+  graph does not hold, and validates PII layers and view chains before
+  projecting (#1911).
+
+### Added: PII and the result envelope (#1879)
+
+- The result envelope: `InputIdentity`, `ResultIdentity`,
+  `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
+  `TypedDocumentResult`, so a result names what it was computed from
+  and how each view maps back to the source (#1912).
+- `ProcessingReceipt` and `LayerReceipt` with `ProcessingStatus`,
+  `TruncationReason` and the byte ranges each detector covered (#1913).
+- Stable PII kind ids (`PiiKindId`), `PiiConfidenceTier`,
+  `PiiDetectorRef` and `TypedLayer.custom_pii_kinds` (field 12)
+  (#1914).
+- Rewrites as derived views: the redacted text is a `ViewChain` over
+  the source view (`TypedLayer.native_view`, field 10) and every edit is
+  a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
+  field 98) (#1915).
+- Candidate decisions and evidence: `PiiCandidateAnnotation`
+  (`pii_candidate`, field 99), `PiiDisposition`, `PiiEvidence` (shape,
+  checksum, label, deny-list and rule hits) and `PiiScore` (#1916).
+- Disclosure options: `PiiOutputOptions` and `PiiValueForm` on
+  `InspectDocumentGraph` and on sink items; `--pii-output-allow`
+  (`TURBO_KSERVE_PII_OUTPUT_ALLOW`) sets the server ceiling and
+  `--sink-pii-output` (`TURBO_KSERVE_SINK_PII_OUTPUT`) what the sink
+  forwards (#1918).
+- Java conformance smoke for the typed result in `clients/java`
+  (`DocumentSmoke`), run in the proto lane (#1919).
+- PII value release: per-client grants over mTLS (`--pii-grant`,
+  `TURBO_KSERVE_PII_GRANTS`), keyed tokens (`PiiValueToken`,
+  `--pii-token-key`, `--pii-token-key-active`,
+  `TURBO_KSERVE_PII_TOKEN_KEYS`, `TURBO_KSERVE_PII_TOKEN_KEY_ACTIVE`),
+  clear values, and an audit call before any value leaves
+  (`turbo.audit.v1.TurboAuditService/RecordPiiAccess`, `--pii-audit-endpoint`,
+  `--pii-audit-timeout-ms`, `TURBO_KSERVE_PII_AUDIT_ENDPOINT`,
+  `TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS`) (#1920).
+- Fragment outcomes: `SpanFragment`, `FragmentMember` and `SpanOutcome`
+  say what happened to every piece of a mention a rewrite touched
+  (#1921).
+- `turbo.result.v1.RedactionPolicy` (`turbo_pii_policy.proto`): typed
+  per-kind rules, strategy entries with conditions, allow and deny
+  lists, custom identifiers and a canonical policy digest (#1925).
+- The `turbo-pii:redact` step and its dry run: a policy chosen per
+  request or by name (`--pii-policy`) writes the redacted view and the
+  edits layer, and a dry run writes only `PiiPlannedRewrite`
+  candidates (#1927).
+- `PiiDictionaryRef` resolves through the vocabulary store
+  (`--vocabulary-dir`) by artifact id and sha256, in the
+  `plain-word-list` and `headword-definition-tsv` formats, with typed
+  refusals for a digest mismatch, a wrong format or an unreadable
+  artifact (#1928).
+- `PiiAccessMention.rule_id` (6), `policy_revision` (7) and
+  `redaction_policy_digest` (8): each released mention names the
+  redaction policy rule that covered it, and these feed the audit
+  event id (#1928).
+
+### Changed: PII and the result envelope (#1879)
+
+- The release audit refuses to send an event whose value form is
+  `UNSPECIFIED` or unknown (#1928).
+- docs/grpc.md records the PII and result envelope freeze: what is
+  deprecated, what is reserved and which numbers stay unused (#1928).
+
 ### Added
 
 - `RegisterModelSource.s3_keys` (field 5, `S3Keys`) and
