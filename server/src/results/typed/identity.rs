@@ -38,6 +38,17 @@ pub fn input_identity(doc: &Document, binding: Option<&InputBinding>) -> InputId
     }
 }
 
+/// Refuses a caller's `binding` that names a parse artifact digest and no
+/// parse artifact id; `what` names the field. Absent is accepted.
+pub fn check_binding(binding: Option<&InputBinding>, what: &str) -> Result<(), Failure> {
+    match binding {
+        Some(b) if !b.parse_artifact_digest.is_empty() && b.parse_artifact_id.is_empty() => {
+            Err(bad(format!("{what} has a parse_artifact_digest and no parse_artifact_id")))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// The identity of the result whose TGRF bytes are `graph`.
 pub fn result_identity(graph: &[u8]) -> ResultIdentity {
     let digest = graph_content_digest(graph);

@@ -167,6 +167,7 @@ async fn send_typed(
         .tx
         .send(AnalyzeStreamRequest {
             kind: Some(Kind::Document(AnalyzeDocument {
+                binding: None,
                 id: id.into(),
                 model: model.into(),
                 text: text.to_vec(),

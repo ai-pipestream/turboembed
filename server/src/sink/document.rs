@@ -8,12 +8,14 @@ use turbo_analysis_layers::Pii;
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
 use crate::proto::result::{
-    DocumentGraphRequest, DocumentGraphResponse, InspectDocumentGraphRequest, OffsetMode, TypedDocumentResult,
+    DocumentGraphRequest, DocumentGraphResponse, InputBinding, InspectDocumentGraphRequest, OffsetMode,
+    TypedDocumentResult,
 };
 use crate::proto::sink::DocumentSinkItem;
 use crate::results::disclosure::Disclosure;
 use crate::results::document::{export_document_response, round_trip_document};
-use crate::results::typed::{document_to_typed_with, inspect_document_graph, round_trip_typed_document};
+use crate::results::typed::identity::check_binding;
+use crate::results::typed::{document_to_typed_bound, inspect_document_graph, round_trip_typed_document};
 
 /// The typed projection a forwarder adds to every item carrying a graph:
 /// `view` and `offsets` mean what they mean on InspectDocumentGraphRequest.
@@ -40,13 +42,16 @@ impl SinkTyped {
 /// A graph holding PII follows `disclosure` (#1904): without `full_text`
 /// the item carries no graph, and carries the findings projection in the
 /// configured view, or on the source view in UTF-8 offsets when no
-/// projection is configured.
+/// projection is configured. The caller's `binding` (#1939) is the item's
+/// and its projection's, copied as given.
 pub(crate) fn graph_item(
     doc_id: &str,
     graph: Vec<u8>,
     typed: Option<SinkTyped>,
     disclosure: &Disclosure,
+    binding: Option<&InputBinding>,
 ) -> Result<DocumentSinkItem, Failure> {
+    check_binding(binding, "binding")?;
     let options = Some(disclosure.to_options());
     let request = DocumentGraphRequest { graph: graph.into(), pii_output: options };
     let mut listed = round_trip_document(&request)?;
@@ -58,10 +63,10 @@ pub(crate) fn graph_item(
             view: t.view,
             offsets: t.offsets as i32,
             pii_output: options,
-            binding: None,
+            binding: binding.cloned(),
             operation_key: String::new(),
         })?),
-        None => listed.findings.take().map(|f| TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }),
+        None => listed.findings.take().map(|f| bound(TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }, binding)),
     };
     Ok(DocumentSinkItem {
         sequence: 0,
@@ -71,34 +76,48 @@ pub(crate) fn graph_item(
         views: listed.views,
         typed,
         analyzed: None,
+        binding: binding.cloned(),
     })
+}
+
+/// `typed` with the caller's `binding` on its input identity and on its
+/// receipt's, so the two still agree.
+fn bound(mut typed: TypedDocumentResult, binding: Option<&InputBinding>) -> TypedDocumentResult {
+    for input in [typed.input.as_mut(), typed.receipt.as_mut().and_then(|r| r.input.as_mut())].into_iter().flatten() {
+        input.binding = binding.cloned();
+    }
+    typed
 }
 
 /// The item for a graph this server exported from `doc`: `exported` is
 /// that whole export, so its bytes, layers and views are carried as they
 /// are when `disclosure` lets the graph leave, and the typed projection,
 /// when asked for, is built from `doc` itself. Otherwise the item is the
-/// one [`graph_item`] gives under `disclosure`.
+/// one [`graph_item`] gives under `disclosure`. `binding` is carried as
+/// [`graph_item`] carries it.
 pub(crate) fn exported_item(
     doc_id: &str,
     exported: DocumentGraphResponse,
     doc: &Document,
     typed: Option<SinkTyped>,
     disclosure: &Disclosure,
+    binding: Option<&InputBinding>,
 ) -> Result<DocumentSinkItem, Failure> {
+    check_binding(binding, "binding")?;
     let projected = match typed {
         Some(t) => {
             let view = u16::try_from(t.view)
                 .map_err(|_| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("view {} exceeds u16::MAX", t.view)))?;
             let offsets = crate::offsets::OffsetMode::from_proto(t.offsets as i32)?;
-            Some(document_to_typed_with(doc_id, doc, ViewId(view), offsets, disclosure)?)
+            Some(document_to_typed_bound(doc_id, doc, ViewId(view), offsets, binding, "", disclosure)?)
         }
         None => None,
     };
     if !disclosure.graph(doc) {
         let listed = export_document_response(doc, disclosure)?;
-        let typed =
-            projected.or_else(|| listed.findings.map(|f| TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }));
+        let typed = projected.or_else(|| {
+            listed.findings.map(|f| bound(TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }, binding))
+        });
         return Ok(DocumentSinkItem {
             sequence: 0,
             doc_id: doc_id.to_owned(),
@@ -107,6 +126,7 @@ pub(crate) fn exported_item(
             views: listed.views,
             typed,
             analyzed: None,
+            binding: binding.cloned(),
         });
     }
     Ok(DocumentSinkItem {
@@ -117,6 +137,7 @@ pub(crate) fn exported_item(
         views: exported.views,
         typed: projected,
         analyzed: None,
+        binding: binding.cloned(),
     })
 }
 
@@ -134,6 +155,19 @@ pub(crate) fn check_typed(item: &DocumentSinkItem, typed: &TypedDocumentResult) 
         return Err("carries a typed projection without a graph".into());
     }
     round_trip_typed_document(typed).map(|_| ()).map_err(|e| format!("typed document: {}", e.message))
+}
+
+/// Why the binding on `item` is not accepted, if it is not (#1939): a
+/// `parse_artifact_digest` without a `parse_artifact_id`, or a typed
+/// projection or AnalyzeStream answer that carries another binding.
+pub(crate) fn check_binding_agrees(item: &DocumentSinkItem) -> Result<(), String> {
+    check_binding(item.binding.as_ref(), "binding").map_err(|f| f.message)?;
+    let typed = item.typed.as_ref().and_then(|t| t.input.as_ref()).map(|i| (i.binding.as_ref(), "typed projection"));
+    let answer = item.analyzed.as_ref().map(|a| (a.binding.as_ref(), "answer"));
+    match [typed, answer].into_iter().flatten().find(|(b, _)| *b != item.binding.as_ref()) {
+        Some((_, what)) => Err(format!("the {what} carries another binding than the item")),
+        None => Ok(()),
+    }
 }
 
 /// The refusal for a graph forwarded to a server that has no sink.

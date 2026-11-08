@@ -17,23 +17,32 @@ use tonic::{Status, Streaming};
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8};
 use crate::proto::result::analyze_stream_request::Kind;
-use crate::proto::result::{AnalyzeDocument, AnalyzeOutput, AnalyzeStreamRequest};
+use crate::proto::result::{AnalyzeDocument, AnalyzeOutput, AnalyzeStreamRequest, InputBinding};
+use crate::results::typed::identity::check_binding;
 use crate::state::State;
 use crate::stream::handler;
 use crate::stream::run::Doc;
-use crate::stream::{Dead, Envelope, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap, over_bytes};
+use crate::stream::{
+    Dead, Envelope, MAX_QUEUED_BYTES_PER_STREAM, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap,
+    over_bytes,
+};
+
+/// A document refused before it ran: its id, its binding as given, why,
+/// and the room it holds.
+type Refused = (String, Option<InputBinding>, Failure, Room);
 
 /// Validates one document the way the single-document call validates
 /// its model and options, and builds the work the scheduler queues.
 /// The refusal is the document's own: it crosses as a failed answer,
 /// tagged with the document's id, holding the room it was admitted
 /// with, and the stream continues.
-fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<(String, Failure, Room)>> {
+fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<Refused>> {
     let id = d.id.clone();
     let checked: Result<_, Failure> = (|| {
         if d.id.is_empty() {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "id is empty"));
         }
+        check_binding(d.binding.as_ref(), "binding")?;
         if d.model.is_empty() {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "model is empty"));
         }
@@ -69,13 +78,14 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<(
     })();
     let (served, loaded, doc_opts) = match checked {
         Ok(v) => v,
-        Err(f) => return Err(Box::new((id, f, room))),
+        Err(f) => return Err(Box::new((id, d.binding, f, room))),
     };
     let batch_limit = loaded.slots[0].info.max_batch;
     let version = loaded.revision.clone();
     Ok(Doc {
         seq: 0,
         id: d.id,
+        binding: d.binding,
         text: d.text,
         opts: doc_opts.embed,
         int8_ranges: doc_opts.int8_ranges,
@@ -110,7 +120,7 @@ pub(crate) async fn run(
         if dead.is_set() {
             return;
         }
-        let document = match backlog.pop_front() {
+        let mut document = match backlog.pop_front() {
             Some(d) => d,
             None if input_closed => return,
             None => match inbound.message().await {
@@ -145,7 +155,8 @@ pub(crate) async fn run(
             },
         };
         let id = document.id.clone();
-        let bytes = document.text.len() + document.id.len() + document.model.len();
+        let binding_len = document.binding.as_ref().map_or(0, prost::Message::encoded_len);
+        let bytes = document.text.len() + document.id.len() + document.model.len() + binding_len;
         // A document over a byte cap refuses at once, naming the limit,
         // but its refusal is admitted like anything else: one item and
         // the id's bytes, held until the answer is sent. Without that
@@ -156,14 +167,16 @@ pub(crate) async fn run(
         if let Some((limit, _)) = over_byte_cap(bytes) {
             let failure = over_bytes(bytes, limit);
             let id = bound_retained_id(id);
+            // The binding is echoed only when it fits the room the id took.
+            let binding = document.binding.take().filter(|_| binding_len + id.len() <= MAX_QUEUED_BYTES_PER_STREAM);
             // The refused document is dropped before the refusal waits on
             // admission: while it waits, nothing here holds the document's
             // text or the id's original over-cap allocation.
             drop(document);
-            let mut admit =
-                Box::pin(admit_refusal(shared.clone(), stream_items.clone(), stream_bytes.clone(), id.len()));
+            let held = id.len() + binding.as_ref().map_or(0, |_| binding_len);
+            let mut admit = Box::pin(admit_refusal(shared.clone(), stream_items.clone(), stream_bytes.clone(), held));
             let Some(room) = wait_room(&mut admit, &dead).await else { return };
-            if work.send(Envelope::Failed { id, failure, room: Some(room) }).await.is_err() {
+            if work.send(Envelope::Failed { id, binding, failure, room: Some(room) }).await.is_err() {
                 return;
             }
             continue;
@@ -179,8 +192,8 @@ pub(crate) async fn run(
                 }
             }
             Err(failed) => {
-                let (id, failure, room) = *failed;
-                if work.send(Envelope::Failed { id, failure, room: Some(room) }).await.is_err() {
+                let (id, binding, failure, room) = *failed;
+                if work.send(Envelope::Failed { id, binding, failure, room: Some(room) }).await.is_err() {
                     return;
                 }
             }

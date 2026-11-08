@@ -32,14 +32,14 @@ use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
     AnalysisLayerBatch, AnalysisStarted, AnalysisStepFailure, AnalyzeFailure, AnalyzePipelineRequest,
-    AnalyzeProgressiveEvent, DocumentGraphResponse,
+    AnalyzeProgressiveEvent, DocumentGraphResponse, InputBinding,
 };
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
 use crate::results::receipt::error::{kind_name, of_error};
 use crate::results::receipt::{self, Operation, check_operation_key};
-use crate::results::typed::identity::{input_identity, result_identity};
+use crate::results::typed::identity::{check_binding, input_identity, result_identity};
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
@@ -117,6 +117,7 @@ pub(crate) async fn start_progressive(
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
     check_operation_key(&req.operation_key).map_err(plain)?;
+    check_binding(req.binding.as_ref(), "binding").map_err(plain)?;
     let disclosure = Disclosure::decide(req.pii_output.as_ref(), pii_policy).map_err(plain)?;
 
     let doc = build_initial_document(&req, offsets)?;
@@ -133,15 +134,15 @@ pub(crate) async fn start_progressive(
     let proto_offsets = offsets.to_proto();
     let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
-    let sink_doc_id = doc_id.clone();
+    let (sink_doc_id, binding) = (doc_id.clone(), req.binding.clone());
     tokio::task::spawn_blocking(move || {
         // The task owns the stream's one sender, so the reply has ended
         // when it returns.
-        let answer = Answer { doc_id, offsets: proto_offsets, disclosure };
+        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone() };
         let delivered = run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
         if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
             // A refusal is counted in the forwarder's stats.
-            let _ = sink.offer_exported(&sink_doc_id, exported, &doc);
+            let _ = sink.offer_exported(&sink_doc_id, exported, &doc, binding.as_ref());
         }
     });
 
@@ -245,24 +246,27 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
 
 /// Sends the terminal receipt of `op` over `doc`: `result` is the
 /// identity of the complete graph the client was handed, absent when it
-/// was handed none. Returns whether the client took it.
+/// was handed none, and `binding` the caller's, copied as given. Returns
+/// whether the client took it.
 fn send_receipt(
     tx: &mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     sequence: u64,
-    op: &Operation,
+    (op, binding): (&Operation, Option<&InputBinding>),
     doc: &Document,
     result: Option<crate::proto::result::ResultIdentity>,
 ) -> bool {
-    let receipt = receipt::build(op, doc, input_identity(doc, None), result, &[]);
+    let receipt = receipt::build(op, doc, input_identity(doc, binding), result, &[]);
     tx.blocking_send(Ok(AnalyzeProgressiveEvent { sequence, event: Some(Event::Receipt(receipt)) })).is_ok()
 }
 
 /// What the answer is about and how it is told: the client's document id
-/// and offset unit, and the PII disclosure its request asked for.
+/// and offset unit, the PII disclosure its request asked for, and its
+/// binding of the input.
 struct Answer {
     doc_id: String,
     offsets: i32,
     disclosure: Disclosure,
+    binding: Option<InputBinding>,
 }
 
 fn run_progressive_task(
@@ -274,7 +278,7 @@ fn run_progressive_task(
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
-    let Answer { doc_id, offsets: proto_offsets, disclosure } = answer;
+    let Answer { doc_id, offsets: proto_offsets, disclosure, binding } = answer;
     // Whether snapshots may carry graph bytes is decided for the request
     // before anything streams: a pipeline that will write PII findings
     // withholds them from the first snapshot on, since the text is the
@@ -426,7 +430,7 @@ fn run_progressive_task(
         // The deadline cancelled the run: what ran is on the receipt, and
         // no result was handed over.
         op.cancelled = true;
-        let _ = send_receipt(&tx, seq + 1, &op, &doc, None);
+        let _ = send_receipt(&tx, seq + 1, (&op, binding.as_ref()), &doc, None);
         let _ = tx.blocking_send(Err(deadline_status()));
         return None;
     }
@@ -459,7 +463,7 @@ fn run_progressive_task(
             }
             // The terminal receipt; a client that left before it holds an
             // incomplete stream, but it was handed the complete graph.
-            let _ = send_receipt(&tx, seq + 1, &op, &doc, Some(result));
+            let _ = send_receipt(&tx, seq + 1, (&op, binding.as_ref()), &doc, Some(result));
             Some((exported, doc))
         }
         Err(f) => {
