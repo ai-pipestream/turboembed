@@ -80,7 +80,7 @@ pub fn project_chunks_under(
     let projection = build_projection(&doc, text, &offsetter, pca_dims)?;
     let drift_curve = if req.include_drift_curve { build_drift_curve(&doc, text, &offsetter)? } else { None };
     let (chunk_term_stacks, document_term_stack) =
-        build_term_stacks(&doc, view, text, &offsetter, max_stack_segments as usize)?;
+        build_term_stacks(&doc, view, text, &offsetter, max_stack_segments as usize, disclosure.graph(&doc))?;
     let strategy_matrix = if req.include_strategy_matrix {
         build_strategy_matrix(&doc, text, &offsetter, &req.strategy_budgets)?
     } else {

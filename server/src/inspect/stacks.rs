@@ -140,15 +140,34 @@ fn assemble_stack(
     }
 }
 
+/// The view whose words the default vocabulary holds, as its provenance
+/// names it: the view its indexer read, else the view of the tokens it
+/// read. A vocabulary whose provenance names neither has no known view.
+fn vocabulary_view(doc: &Document) -> Option<ViewId> {
+    let p = doc.provenance(Key::<Vocabulary>::DEFAULT.id())?;
+    let inputs = || p.on.iter().chain(&p.reads);
+    if let Some(k) = inputs().find(|k| k.ty == TypeId::of::<View>()) {
+        return doc.get_key(&Key::<View>::named(k.name)).map(View::id);
+    }
+    let k = inputs().find(|k| k.ty == TypeId::of::<Tokens>())?;
+    doc.get_key(&Key::<Tokens>::named(k.name)).map(|t| t.spans.view())
+}
+
 /// Builds per-chunk and whole-document [`TermVectorStackProto`]s from `doc`.
+/// Unless `any_view` (the whole text may leave), the vocabulary's terms are
+/// read only when they are words of `view`, whose text is disclosed: a
+/// vocabulary of another view (the source of a masked view) holds that
+/// view's words, PII values included (#1904), and term statistics over it
+/// are left out with it; the token fallback reads `view` alone.
 pub(crate) fn build_term_stacks(
     doc: &Document,
     view: ViewId,
     text: &str,
     offsetter: &Offsetter,
     max_segments: usize,
+    any_view: bool,
 ) -> Result<(Vec<TermVectorStackProto>, Option<TermVectorStackProto>), Failure> {
-    let vocab = doc.get::<Vocabulary>();
+    let vocab = doc.get::<Vocabulary>().filter(|_| any_view || vocabulary_view(doc) == Some(view));
     let tokens = doc.get::<Tokens>().filter(|t| t.spans.view() == view).map(TokenIndex::new);
     let tokens = tokens.as_ref();
     let indexed = doc.get::<IndexedTerms>();

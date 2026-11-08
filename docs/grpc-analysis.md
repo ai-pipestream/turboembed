@@ -544,7 +544,11 @@ refused with `TURBO_E_INVALID_STATE` (`FAILED_PRECONDITION`) naming the
 option unless `pii_output` (`DocumentWindowRequest` 9,
 `ProjectChunksRequest` 8) discloses the text of every view the answer
 shows: `full_text`, or `rewritten_text` for a PII rewrite view. An x-ray
-target view follows the same rule as the main view.
+target view follows the same rule as the main view. Without `full_text`,
+`ProjectChunks` term stacks read the vocabulary and term statistics only
+when the vocabulary's provenance names the projected view (or tokens in
+it) as its input; a vocabulary of another view, or of no named view, is
+left out and the stacks are built from the projected view's tokens.
 
 `PiiOutputOptions` on the request (`pii_output`) turns on more:
 
