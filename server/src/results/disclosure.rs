@@ -237,6 +237,23 @@ pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
     }
 }
 
+/// A result shown on a PII rewrite view under `rewritten_text` alone: the
+/// view's own text may leave, but a layer native to another view (the
+/// source's lemmas, entity names, key-value strings) carries that view's
+/// words, so it is listed bare unless that view's text may leave too. A
+/// layer with no native view is document-wide, over the source. The
+/// findings layers are kept, the candidates only with `detail` (#1904).
+pub(crate) fn withhold_other_views(layers: &mut [TypedLayer], doc: &Document, disclosure: &Disclosure) {
+    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (disclosure.detail && id == PiiCandidates::ID);
+    for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
+        let native = l.native_view.and_then(|v| u16::try_from(v).ok()).map_or(ViewId::SOURCE, ViewId);
+        if l.id == PiiCandidates::ID || !disclosure.view_text(doc, native) {
+            l.annotations.clear();
+            l.indexes_layer.clear();
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "disclosure_tests.rs"]
 mod tests;

@@ -177,8 +177,16 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
         }
     }
 
+    // On a PII rewrite view a layer native to another view may be listed
+    // bare: that view's text was not disclosed with this one (#1904).
+    let on_rewrite = msg
+        .views
+        .get(msg.view as usize)
+        .is_some_and(|v| v.annotator.starts_with(crate::results::disclosure::REWRITE_ANNOTATOR_PREFIX));
     for layer in &msg.layers {
-        if msg.withheld_text_len.is_some() && !crate::results::disclosure::is_findings_layer(&layer.id) {
+        let withheld = msg.withheld_text_len.is_some() && !crate::results::disclosure::is_findings_layer(&layer.id);
+        let other_view = on_rewrite && layer.native_view != Some(msg.view) && layer.annotations.is_empty();
+        if withheld || other_view {
             withheld_layer(&known_models, layer)?;
             continue;
         }
