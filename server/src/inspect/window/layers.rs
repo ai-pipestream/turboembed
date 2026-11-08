@@ -120,7 +120,7 @@ pub(super) fn collect_fragments(
         {
             for i in 0..pii.spans.len() {
                 let label = pii.kind_name(pii.kind[i]).unwrap_or("").to_owned();
-                let score = match pii.confidence[i] {
+                let score = match pii.get(Ix::new(i as u32)).confidence() {
                     PiiConfidence::Format => 0.5,
                     PiiConfidence::Labelled => 0.75,
                     PiiConfidence::Checksum => 0.85,

@@ -3,7 +3,7 @@
 //! it, or 10 or 11 digits with a space, hyphen or parenthesis between
 //! digits. Separator-delimited prefixes are tried longest first.
 
-use turbo_analysis_layers::{PiiConfidence, PiiKind};
+use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
 use crate::hits::Hits;
 use crate::tables::phone_lengths::plausible_international;
@@ -91,7 +91,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
         });
         match found {
             Some(&cut) => {
-                hits.add(i, cut.end, PiiKind::Phone, PiiConfidence::Format, |s| {
+                hits.add(i, cut.end, PiiKind::Phone, PiiEvidence::Shape, |s| {
                     if plus {
                         s.push('+');
                     }

@@ -11,7 +11,7 @@ use turbo_analysis_layers::{
 };
 use turbo_coref::Mentions;
 
-use super::{ProjectionCx, build_layer, coalesce_wire_spans};
+use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     AnswerAnnotation, BoilerplateAnnotation, BoundaryAnnotation, CalibratedAnnotation, ChunkAnnotation,
@@ -227,17 +227,22 @@ fn project_groups<L: Layer>(cx: &mut ProjectionCx<'_>, key: KeyId, spans_of: fn(
         let target = cx.doc.get_key(&l.of_key);
         l.iter()
             .map(|(_, group)| {
+                // Every member's fragments in group order, projected
+                // together so overlaps coalesce and members keep their
+                // native index.
                 let mut spans = Vec::new();
+                let mut view = cx.target_view;
                 if let Some(t) = target {
                     let s = spans_of(t);
+                    view = s.view();
                     for &mix in group {
                         if mix.get() < s.len() {
-                            spans.extend(cx.project_spans(s, mix));
+                            spans.extend(s.fragments(mix));
                         }
                     }
                 }
                 TypedAnnotation {
-                    spans: coalesce_wire_spans(spans),
+                    spans: cx.project_fragments(view, spans.into_iter()),
                     probability: None,
                     model_ref: mref.clone(),
                     value: Some(Value::Group(GroupAnnotation {

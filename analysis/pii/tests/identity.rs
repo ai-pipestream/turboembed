@@ -459,3 +459,18 @@ fn brazilian_cpf_and_cnpj() {
         assert_none(&br, bad);
     }
 }
+
+#[test]
+fn siret_evidence_names_the_rule_that_validated_it() {
+    use turbo_pii::{ChecksumAlgorithm, PiiEvidence};
+    // A Luhn-valid SIRET records Luhn; a La Poste number fails Luhn and
+    // is validated by the INSEE modulus 5 rule, which its fact names.
+    for (text, algorithm) in
+        [("732 829 320 00074", ChecksumAlgorithm::Luhn), ("356 000 000 00010", ChecksumAlgorithm::LaPosteMod5)]
+    {
+        let pii = layer(&eu(), text);
+        let facts: Vec<_> =
+            pii.mentions().filter(|m| m.kind == PiiKind::FrSiret).map(|m| m.evidence.to_vec()).collect();
+        assert_eq!(facts, [vec![PiiEvidence::Checksum { algorithm, passed: true }]], "{text}");
+    }
+}

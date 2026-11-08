@@ -39,9 +39,11 @@ pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{
-    CUSTOM_CODE_BASE, CustomKindId, CustomKinds, KindError, KindRow, Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention,
-    mention_order,
+    CUSTOM_CODE_BASE, ChecksumAlgorithm, CustomKindId, CustomKinds, DetectorError, EvidenceList, KindError, KindRow,
+    Pii, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiScore,
+    PiiScoreKind, mention_order,
 };
+pub use pii_candidates::{AllowRule, AllowScope, PiiCandidate, PiiCandidates, PiiDisposition, RejectReason};
 pub use pii_edits::{PiiEdit, PiiEdits, PiiRule, PiiStrategyKind};
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
@@ -167,6 +169,7 @@ mod numbers;
 mod ordinals;
 mod payload_hash;
 mod pii;
+mod pii_candidates;
 mod pii_edits;
 mod predicate;
 mod project;

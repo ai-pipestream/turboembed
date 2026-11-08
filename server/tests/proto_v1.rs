@@ -36,6 +36,7 @@ fn all_turbo_protos_use_versioned_v1_packages_and_service_names() {
         ("health.proto", "grpc.health.v1"),
         ("open_inference_grpc.proto", "inference"),
         ("turbo_analysis.proto", "turbo.result.v1"),
+        ("turbo_pii_policy.proto", "turbo.result.v1"),
         ("turbo_search.proto", "turbo.search.v1"),
         ("turbo_sink.proto", "turbo.sink.v1"),
         ("turbo_training.proto", "turbo.training.v1"),

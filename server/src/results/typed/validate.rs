@@ -7,6 +7,7 @@
 mod annotation;
 mod envelope;
 mod evidence;
+mod outcome;
 mod pii;
 mod pii_edits;
 mod quality;
@@ -54,19 +55,21 @@ fn check_head_in_range(what: &str, layer: &str, index: usize, head: u32, start: 
     Ok(())
 }
 
+/// The fragments of one span: each in the text, in order, with its
+/// outcome (`own_view` when the layer's spans are natively on the
+/// result's view).
 fn check_spans(
     off: &Offsetter,
     text: &str,
     layer: &str,
     i: usize,
     frags: &[SpanFragment],
+    own_view: bool,
 ) -> Result<Vec<Span>, Failure> {
+    outcome::check_fragments(layer, i, frags, own_view)?;
     let mut out: Vec<Span> = Vec::with_capacity(frags.len());
     for (f_ix, frag) in frags.iter().enumerate() {
         let sp = off.from_wire(text, layer, frag.start, frag.end)?;
-        if frags.len() > 1 && sp.is_empty() {
-            return Err(bad(format!("{layer}[{i}] fragment {f_ix} is empty in a multi-fragment span")));
-        }
         if let Some(&prev) = out.last()
             && sp.start < prev.end
         {
@@ -153,8 +156,7 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
         if layer_lengths.insert((layer.id.as_str(), layer.instance.as_str()), layer.annotations.len()).is_some() {
             return Err(bad(format!("duplicate layer ({:?}, {:?})", layer.id, layer.instance)));
         }
-        total_fragments =
-            total_fragments.saturating_add(layer.annotations.iter().map(|a| a.spans.len().max(1)).sum::<usize>());
+        total_fragments = total_fragments.saturating_add(layer.annotations.iter().map(fragment_count).sum::<usize>());
         if total_fragments as u64 > MAX_FRAGMENTS {
             return Err(over("max_fragments", "typed document fragments", total_fragments as u64));
         }
@@ -165,6 +167,22 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
     // Last: the receipt is checked against a message already known whole.
     receipt::check_receipt(msg)
+}
+
+/// What one annotation costs against `MAX_FRAGMENTS` before any of it is
+/// read: its fragments and, since a coalesced fragment stands for the
+/// native fragments it lists, their members; entity votes carry
+/// fragments of their own. The budget is settled over the whole message
+/// first so no later check walks an unbounded list (issue #1907).
+fn fragment_count(a: &TypedAnnotation) -> usize {
+    fn frags(spans: &[SpanFragment]) -> usize {
+        spans.iter().map(|f| f.members.len()).sum::<usize>() + spans.len().max(1)
+    }
+    let votes = match &a.value {
+        Some(Value::Entity(ent)) => ent.votes.iter().map(|v| frags(&v.spans)).sum(),
+        _ => 0,
+    };
+    frags(&a.spans) + votes
 }
 
 struct LayerCtx<'a> {
@@ -179,7 +197,22 @@ struct LayerCtx<'a> {
     target_bounds: Vec<usize>,
     layer_len: usize,
     lid: &'a str,
+    instance: &'a str,
     custom_pii_kinds: usize,
+    /// The result's view.
+    view: u32,
+    /// Whether the layer's spans are natively on the result's view, so
+    /// every fragment of it is exact.
+    own_view: bool,
+}
+
+impl LayerCtx<'_> {
+    /// One nested fragment of the layer, in the text and with a valid
+    /// outcome, as a span.
+    fn fragment(&self, what: &str, frag: &SpanFragment) -> Result<Span, Failure> {
+        outcome::check_single(self.lid, what, frag, self.own_view)?;
+        self.offsetter.from_wire(self.text, self.lid, frag.start, frag.end)
+    }
 }
 
 fn check_nonneg(what: &str, layer: &str, index: usize, v: f64) -> Result<(), Failure> {
@@ -355,7 +388,10 @@ fn validate_layer(
         target_bounds,
         layer_len: layer.annotations.len(),
         lid,
+        instance: layer.instance.as_str(),
         custom_pii_kinds,
+        view: msg.view,
+        own_view: layer.native_view == Some(msg.view),
     };
     for (i, ann) in layer.annotations.iter().enumerate() {
         annotation::validate_annotation(&ctx, i, ann)?;

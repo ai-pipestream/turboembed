@@ -164,7 +164,22 @@ as an entity:
 
 Both run in CI on every change, against a server with the test bundle,
 compiled or installed from the packaged stubs only
-(`scripts/package-proto-stubs.sh`, the `proto` job). A converter that
+(`scripts/package-proto-stubs.sh`, the `proto` job). The Java client then
+runs the Rust to generated Java to Rust conformance cases (`Conformance`
+in the same file, issue #1910): a typed result with its envelope, receipt
+and a PII layer on a source and a masked view, parsed, re-encoded and read
+back through `RoundTripTypedDocument`; presence of absent against zero and
+absent against empty; scoped references across messages of one result;
+offsets above 2^31 read with `Integer.toUnsignedLong`; unknown fields and
+enum numbers, which generated Java keeps and the Rust consumer drops or
+refuses; where a planted value appears in the bytes; and a Java port of the
+server's stepwise `map_span` held to Rust on the #1907 chained-view cases in
+`clients/java/src/test/resources/mapping-cases.txt`, which
+`server/tests/typed_java_cases.rs` writes with `TURBO_UPDATE_FIXTURE=1` and
+checks otherwise; the server's projection of every layer of those cases
+into every view is held to the port, including each fragment's `outcome`
+derived by the consumer rule (exact, widened or deleted, see
+`docs/grpc-analysis.md`), and all three outcomes occur. A converter that
 already has a document's structure seeds the request with it instead of
 plain text, as the docling example below does.
 

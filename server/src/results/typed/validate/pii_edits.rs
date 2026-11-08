@@ -14,7 +14,7 @@ use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, PiiStrategyKind};
 use super::*;
 use crate::proto::result::pii_edit_rule::Rule;
 use crate::proto::result::pii_kind_ref::Kind;
-use crate::proto::result::{PiiEditAnnotation, PiiKindRef, TypedDocumentResult, TypedLayer};
+use crate::proto::result::{PiiEditAnnotation, PiiKindRef, TypedDocumentResult, TypedLayer, mapping_payload};
 
 /// The checks across a `turbo:pii-edits` layer; any other layer passes.
 pub(super) fn layer(
@@ -64,32 +64,36 @@ struct Pair {
     source: Span,
 }
 
-/// The checks against the chain the message can show. The message does
-/// not name the view a layer's native spans are in (#1907 adds that), and
-/// the instance names of a step's view and its edits are the caller's, so
-/// the edits' view is known only when the message has one derived view:
-/// the native layer is always over a derived view. With several, only the
-/// layer-wide checks and the graph check apply.
+/// The checks against the chain the message shows. The edits' view is
+/// the layer's `native_view` (#1907), a derived view of the mapping,
+/// whatever other views the message has.
 ///
 /// The edits are the alignment of their view one for one (the native
 /// layer refuses any other), so where the message is projected onto that
 /// view the unchanged stretches between edits must be as long in the
 /// parent as in the view; where it is projected onto the source and the
 /// source is the parent, every edit's span is its source span, inside the
-/// text, and its members are exactly the mentions under it.
+/// text, and its members are exactly the mentions under it. Onto any
+/// other view only the layer-wide checks and the graph check apply.
 fn chain(msg: &TypedDocumentResult, offsetter: &Offsetter, layer: &TypedLayer) -> Result<(), Failure> {
     let lid = layer.id.as_str();
     if layer.annotations.is_empty() {
         return Ok(());
     }
-    let mut derived = msg.views.iter().filter(|v| !v.instance.is_empty());
-    let view = match (derived.next(), derived.next()) {
-        (Some(v), None) => v,
-        (None, _) => return Err(bad(format!("{lid} needs a derived view in the message"))),
-        (Some(_), Some(_)) => return Ok(()),
+    let Some(native) = layer.native_view else {
+        return Err(bad(format!("{lid} has no native_view")));
+    };
+    let Some(mapping_payload::Payload::Inline(inline)) = msg.mapping.as_ref().and_then(|m| m.payload.as_ref()) else {
+        return Err(bad(format!("{lid} needs the inline mapping to name its view")));
+    };
+    let Some(view) = inline.views.get(native as usize) else {
+        return Err(bad(format!("{lid} native_view {native} is not in the mapping")));
+    };
+    let Some(parent) = view.parent else {
+        return Err(bad(format!("{lid} is on the source view; edits are over a derived view")));
     };
     let on_source = msg.view == u32::from(ViewId::SOURCE.0);
-    if on_source && !view.parent.is_empty() {
+    if (on_source && parent != u32::from(ViewId::SOURCE.0)) || (!on_source && msg.view != native) {
         return Ok(());
     }
     let mut pairs = Vec::with_capacity(layer.annotations.len());
@@ -174,6 +178,8 @@ pub(super) fn edit(ctx: &LayerCtx<'_>, i: usize, e: &PiiEditAnnotation) -> Resul
         return Err(bad(format!("{} is a pii edit outside a {} layer", at(), PiiEdits::ID)));
     }
     let source = e.source.as_ref().ok_or_else(|| bad(format!("{} pii edit has no source span", at())))?;
+    // The source span is never projected: it is exact by definition.
+    outcome::check_single(lid, &format!("[{i}] source"), source, true)?;
     if source.start >= source.end {
         return Err(bad(format!("{} pii edit source span is empty or inverted", at())));
     }

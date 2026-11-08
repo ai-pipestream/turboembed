@@ -6,9 +6,12 @@
 //! directory on one of our machines, no committed file holds a private
 //! key block (tree/secrets.rs), no committed file names an OpenNLP 1.5
 //! model or pins or addresses an OpenNLP 2.5 one (tree/retired_opennlp.rs),
-//! and the demo has no JSON front end (tree/front_end.rs).
+//! the demo has no JSON front end (tree/front_end.rs), and the v1-172 NPU
+//! README describes its committed cut reports (tree/cut_reports.rs).
 
 mod common;
+#[path = "tree/cut_reports.rs"]
+mod cut_reports;
 #[path = "tree/dependencies.rs"]
 mod dependencies;
 #[path = "tree/front_end.rs"]

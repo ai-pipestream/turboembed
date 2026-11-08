@@ -84,21 +84,36 @@ pub fn siren(digits: &[u8; 9]) -> bool {
 /// valid 14-digit Luhn checksum or the INSEE La Poste (`356000000`) sum-of-digits
 /// modulus-5 exception.
 pub fn siret(digits: &[u8; 14]) -> bool {
+    siret_rule(digits).is_some()
+}
+
+/// Which rule a SIRET number passes: Luhn, or the La Poste exception
+/// (`SiretRule::LaPosteMod5`), or none.
+pub fn siret_rule(digits: &[u8; 14]) -> Option<SiretRule> {
     let Ok(siren_part) = <&[u8; 9]>::try_from(&digits[..9]) else {
-        return false;
+        return None;
     };
     if !siren(siren_part) || !digits[9..].iter().all(|b| b.is_ascii_digit()) {
-        return false;
+        return None;
     }
     if &digits[9..13] == b"0000" {
-        return false;
+        return None;
     }
     if super::luhn::valid(digits) {
-        return true;
+        return Some(SiretRule::Luhn);
     }
     if &digits[..9] == b"356000000" {
         let sum: u32 = digits.iter().map(|&b| (b - b'0') as u32).sum();
-        return sum.is_multiple_of(5);
+        return sum.is_multiple_of(5).then_some(SiretRule::LaPosteMod5);
     }
-    false
+    None
+}
+
+/// The check a SIRET number passed.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SiretRule {
+    /// The 14-digit Luhn checksum.
+    Luhn,
+    /// The INSEE sum-of-digits modulus 5 rule for La Poste (356000000).
+    LaPosteMod5,
 }

@@ -1,11 +1,19 @@
 use super::*;
-use crate::{PiiConfidence, PiiMention};
+use crate::{PiiDetectorRef, PiiEvidence, PiiMention};
 use turbo_analysis::{Provenance, ViewBuilder};
 
 const TEXT: &str = "mail ann@x.io or 555-1234 now";
 
+/// A mention by the test detector, which [`doc_with`] registers at 0.
 fn mention(start: u32, end: u32, kind: PiiKind) -> PiiMention<'static> {
-    PiiMention { span: Span::new(start, end), kind, confidence: PiiConfidence::Format, normalized: "v" }
+    PiiMention {
+        span: Span::new(start, end),
+        kind,
+        detector: PiiDetectorRef::new(0),
+        evidence: &[PiiEvidence::Shape],
+        score: None,
+        normalized: "v",
+    }
 }
 
 /// The source with its pii layer and a derived view replacing 5..12 with
@@ -19,6 +27,7 @@ fn doc() -> (Document, ViewId) {
 fn doc_with(mentions: &[(u32, u32, PiiKind)], replace: bool) -> (Document, ViewId) {
     let mut doc = Document::new(TEXT);
     let mut pii = Pii::new(ViewId::SOURCE);
+    pii.detector("test", "1").unwrap();
     for &(start, end, kind) in mentions {
         pii.push(mention(start, end, kind));
     }
