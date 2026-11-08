@@ -415,7 +415,7 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 9] = [
         "us-identifiers-memos",
         false,
         "us-identifiers-memos.txt",
-        "11098b9985c68ad38d7e59f6fb848b317fbdec9584e7d9609cb8e7cdd0b9f1ba",
+        "248776341fb8d0d4759f319e758a5c42453ee9c80da5ac3d0628286301c02232",
     ),
 ];
 
@@ -461,7 +461,7 @@ fn precision_and_recall_on_human_written_text() {
         total.fp,
         total.fn_
     );
-    let want_by_kind: [(&str, usize, usize, usize); 24] = [
+    let want_by_kind: [(&str, usize, usize, usize); 28] = [
         ("jwt", 3, 0, 0),
         ("aws-access-key", 2, 0, 0),
         ("github-token", 3, 0, 0),
@@ -481,17 +481,19 @@ fn precision_and_recall_on_human_written_text() {
         ("de-steuer-id", 3, 0, 0),
         ("ca-sin", 3, 0, 1),
         ("aba-routing", 3, 0, 0),
-        // One more false phone: the grouped USPS near miss with a wrong
-        // check digit in us-identifiers-memos still has a phone shape.
-        ("phone", 13, 6, 2),
+        ("phone", 15, 6, 2),
         ("vin", 4, 0, 0),
         ("tracking-number", 9, 0, 0),
         ("us-ein", 3, 0, 0),
         ("url", 10, 0, 0),
+        ("us-passport", 2, 0, 0),
+        ("us-drivers-licence", 2, 0, 0),
+        ("us-zip", 10, 0, 0),
+        ("phone-extension", 2, 0, 0),
     ];
     for (kind, tp, fp, fn_) in want_by_kind {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (108, 10, 5));
+    assert_eq!((total.tp, total.fp, total.fn_), (126, 10, 5));
 }

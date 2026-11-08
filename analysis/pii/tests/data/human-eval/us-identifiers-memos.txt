@@ -40,3 +40,13 @@ the status page at http://status.example.org:8080/health. Staff can also
 reach www.example.net/help (or HTTPS://Docs.Example.com/Guide#intro) from
 the intranet. The internal mirror http://mirror.corp.invalid/pkg has no
 public top-level domain and is not reported.
+
+Section 5: Travel Desk and Badging
+
+The travel desk keeps Passport No. X38194027 for the regional manager and
+passport 538194027 for the new hire; the booking reference 538194028 is
+not a passport. Badging checks the driver's license D7302146 and the DL
+4813-2069-5527 from the Florida office. Mail the signed forms to 1 Main
+St, Springfield, IL 62704, or to Austin, TX 78701-4417 (ZIP code 30301
+for the Atlanta annex). Reach the desk at +1 202-555-0143 ext. 4417 or
+(312) 555-0199 x 2083.

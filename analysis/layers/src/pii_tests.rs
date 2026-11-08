@@ -24,7 +24,7 @@ fn layer(custom: CustomKinds) -> Pii {
 
 #[test]
 fn kinds_have_stable_ids_names_and_priorities() {
-    assert_eq!(PiiKind::TABLE.len(), 34);
+    assert_eq!(PiiKind::TABLE.len(), 38);
     for (i, row) in PiiKind::TABLE.iter().enumerate() {
         assert_eq!(usize::from(row.id), i + 1, "ids are 1.. in table order");
         assert_eq!(row.kind.builtin_id(), Some(row.id));
@@ -50,13 +50,17 @@ fn kinds_have_stable_ids_names_and_priorities() {
         (PiiKind::TrackingNumber, 32),
         (PiiKind::UsEin, 33),
         (PiiKind::Url, 34),
+        (PiiKind::UsPassport, 35),
+        (PiiKind::UsDriversLicence, 36),
+        (PiiKind::UsZip, 37),
+        (PiiKind::PhoneExtension, 38),
     ];
     for (kind, id) in pinned {
         assert_eq!(kind.builtin_id(), Some(id), "{kind}");
         assert_eq!(kind.bit(), 1u128 << id, "{kind}");
     }
     assert_eq!(PiiKind::from_id(0), None);
-    assert_eq!(PiiKind::from_id(35), None);
+    assert_eq!(PiiKind::from_id(39), None);
     assert_eq!(PiiKind::parse("EMAIL"), None);
     assert!(PiiKind::Imei.priority() < PiiKind::Card.priority());
 }
@@ -256,7 +260,7 @@ fn custom_kind_tables_validate_at_construction() {
     assert_eq!(t.from_code(a.code()), Ok(a));
     assert_eq!(t.from_code(5), Ok(PiiKind::Email));
     assert_eq!(t.from_code(0), Err(KindError::UnknownCode(0)));
-    assert_eq!(t.from_code(35), Err(KindError::UnknownCode(35)));
+    assert_eq!(t.from_code(39), Err(KindError::UnknownCode(39)));
     assert_eq!(t.from_code(CUSTOM_CODE_BASE + 9), Err(KindError::UnknownCode(CUSTOM_CODE_BASE + 9)));
     let other = CustomKinds::from_names(["other", "account-number"]).unwrap();
     assert_eq!(other.translate(&t, a), Some(PiiKind::Custom(CustomKindId::new(1))));
