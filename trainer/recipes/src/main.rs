@@ -15,14 +15,15 @@
 //! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
 //! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N] [--seen-lookup K])
+//!     [--min-tree-freq N] [--seen-lookup K]; multiple banks: --corpus <bank,bank,...> [--sample 0..1])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
 //! turbo-train-head train-parse --corpus <treebank> ...   (as train, no --crf or --hash-embed;
 //!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16] [--max-test N]])
+//!     Multiple banks: --corpus <bank,bank,...> [--sample 0..1]
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N] [--seen-lookup K])
+//!     [--min-tree-freq N] [--seen-lookup K]; multiple banks: --corpus <bank,bank,...> [--sample 0..1])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
@@ -45,14 +46,13 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
-use turbo::head::TokenTagger;
-use turbo::manifest::{HashEmbed, HeadKind, HeadSpec, WordPooling};
+use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
 use turbo_trainer_recipes::cache;
 use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
-use turbo_trainer_recipes::corpus::{FileRecord, Sentence, Task};
+use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::fit_cache::CacheTask;
 use turbo_trainer_recipes::prior;
@@ -63,6 +63,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod baseline_cmd;
 mod peer_cmd;
+mod summarize;
 mod train_coref;
 mod train_open_span;
 mod train_relation;
@@ -86,8 +87,10 @@ fn main() -> ExitCode {
 fn run(argv: Vec<String>) -> Result<()> {
     let command = argv.get(1).cloned().unwrap_or_default();
     let mut a = Args { rest: argv[2.min(argv.len())..].to_vec() };
-    if command == "assemble" {
-        return assemble_cmd(a);
+    match command.as_str() {
+        "assemble" => return assemble_cmd(a),
+        "summarize" => return summarize::run(&argv[2..]),
+        _ => {}
     }
     let corpus_id = a.required("--corpus")?;
     let dir = PathBuf::from(a.required("--dir")?);
@@ -123,7 +126,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
@@ -247,7 +250,13 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let t = Instant::now();
     let (corpus, languages) = match column {
         Some(column) => {
-            let multi = turbo_trainer_recipes::ud_multi::read(corpus_id, column, dir, unrecorded, sample)?;
+            let multi = turbo_trainer_recipes::ud_multi::read(
+                corpus_id,
+                column,
+                dir.to_str().ok_or_else(|| Error("corpus directory is not UTF-8".into()))?,
+                unrecorded,
+                sample,
+            )?;
             (multi.corpus, Some((multi.languages, multi.train_languages, multi.dev_languages, multi.test_languages)))
         }
         None => (read_corpus(corpus_id, dir, unrecorded)?, None),
@@ -263,13 +272,11 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let encoder = encoder_record(&bundle, &enc)?;
     // The head to score against, read before training so a bad one fails
     // first.
-    let prior = against.as_deref().map(|dir| prior_tagger(dir, &head, &encoder)).transpose()?;
+    let prior = against.as_deref().map(|dir| prior::tagger(dir, &head, &encoder)).transpose()?;
 
     let t = Instant::now();
-    let train_set = match max_train {
-        0 => &corpus.splits.train[..],
-        n => &corpus.splits.train[..n.min(corpus.splits.train.len())],
-    };
+    let capped = max_train.min(corpus.splits.train.len());
+    let train_set = if max_train == 0 { &corpus.splits.train[..] } else { &corpus.splits.train[..capped] };
     let train_languages = languages.as_ref().map(|(_, rows, _, _)| &rows[..train_set.len()]);
     let dev_languages = languages.as_ref().map(|(_, _, rows, _)| &rows[..]);
     let (train_ex, _) = turbo_trainer_recipes::run::examples_with_languages(
@@ -338,6 +345,28 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         }
         None => None,
     };
+    let by_language = match &languages {
+        Some((names, train_rows, _, test_rows)) => turbo_trainer_recipes::eval::language_evals(
+            train_set,
+            test,
+            &predicted,
+            &train_rows[..train_set.len()],
+            test_rows,
+            names,
+            turbo_trainer_recipes::eval::LanguageEvalOptions {
+                task,
+                baseline: |train_rows: &[usize], test_rows: &[usize]| {
+                    let train_part: Vec<Sentence> = train_rows.iter().map(|&i| train_set[i].clone()).collect();
+                    let test_part: Vec<Sentence> = test_rows.iter().map(|&i| test[i].clone()).collect();
+                    baseline(&train_part, &test_part)
+                },
+                resamples: RESAMPLES,
+                seed: c.seed,
+                attachment: None,
+            },
+        )?,
+        None => Vec::new(),
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
@@ -348,6 +377,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         uas: None,
         rules: None,
         against,
+        by_language,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
@@ -393,29 +423,6 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         outputs,
     };
     finish(out, receipt)
-}
-
-/// The tagger an earlier `train` wrote to `dir`, to score beside this
-/// run's `head`: its name with its decode, the tagger, and the files read.
-/// It must read the features `head` reads: the same labels, word pooling
-/// and language table, on the same encoder.
-fn prior_tagger(
-    dir: &Path,
-    head: &HeadSpec,
-    encoder: &EncoderRecord,
-) -> Result<(String, TokenTagger, Vec<FileRecord>)> {
-    let p = prior::read(dir, encoder)?;
-    if p.spec.kind != HeadKind::TokenTagger || p.spec.labels != head.labels {
-        return Err(prior::refused(dir, "the head's kind or labels"));
-    }
-    if p.spec.word_pooling != head.word_pooling {
-        return Err(prior::refused(dir, "word pooling (--pooling)"));
-    }
-    if p.spec.language.is_some() != head.language.is_some() {
-        return Err(prior::refused(dir, "the language table"));
-    }
-    let tagger = p.head(|get| TokenTagger::from_tensors(&p.spec, encoder.hidden, get))?;
-    Ok((format!("{} ({:?})", p.name, p.spec.decode), tagger, p.files))
 }
 
 /// The labels for `test` of the majority baseline learned from `train`,

@@ -40,12 +40,19 @@ async fn analyze_document_progressive_streams_the_servers_events() {
     assert!(got.len() >= 2);
     assert_eq!(got.len(), want.len());
     assert!(matches!(got[0].event, Some(Event::Started(_))));
-    let (Some(Event::Complete(g)), Some(Event::Complete(w))) =
-        (&got.last().unwrap().event, &want.last().unwrap().event)
+    // Complete, then the terminal receipt of each attempt (issue #1908).
+    let (Some(Event::Complete(g)), Some(Event::Complete(w))) = (&got[got.len() - 2].event, &want[want.len() - 2].event)
     else {
         panic!("no Complete event")
     };
     assert_eq!(g.graph, w.graph);
+    let (Some(Event::Receipt(gr)), Some(Event::Receipt(wr))) =
+        (&got.last().unwrap().event, &want.last().unwrap().event)
+    else {
+        panic!("no terminal receipt")
+    };
+    assert_eq!(gr.result, wr.result);
+    assert_ne!(gr.attempt_id, wr.attempt_id);
 
     // The server's refusal of the stream: a profile with no model to run.
     let req = AnalyzePipelineRequest { profile: "no-such-profile".into(), ..req_text() };

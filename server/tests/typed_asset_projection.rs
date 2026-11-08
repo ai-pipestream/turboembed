@@ -59,8 +59,12 @@ fn annotation<'a>(msg: &'a mut TypedDocumentResult, name: &str) -> &'a mut Typed
 async fn assets_keep_payload_presence_when_its_text_is_deleted() {
     let graph = export(&document(), codecs()).unwrap().to_bytes().unwrap();
     let (server, mut c) = common::serve_no_admin().await;
-    let graph =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: graph.into() }).await.unwrap().into_inner().graph;
+    let graph = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
+        .await
+        .unwrap()
+        .into_inner()
+        .graph;
     let mut failures = Vec::new();
     let mut passed = 0;
     for view in [0, 1, 2, 3] {
@@ -71,6 +75,9 @@ async fn assets_keep_payload_presence_when_its_text_is_deleted() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
@@ -126,6 +133,9 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     graph: graph.clone(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
@@ -147,12 +157,12 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     let Some(Value::Asset(a)) = &mut row.value else { panic!("missing asset") };
                     match variant {
                         0 => a.payload_span = None,
-                        1 => a.payload_span = Some(SpanFragment { start: 1, end: 0 }),
-                        2 => a.payload_span = Some(SpanFragment { start: 0, end: len + 1 }),
-                        3 => a.payload_span = Some(SpanFragment { start: interior, end: interior }),
+                        1 => a.payload_span = Some(SpanFragment::exact(1, 0)),
+                        2 => a.payload_span = Some(SpanFragment::exact(0, len + 1)),
+                        3 => a.payload_span = Some(SpanFragment::exact(interior, interior)),
                         // In nonempty views this is an in-bounds empty span
                         // outside the asset, so emptiness alone cannot excuse it.
-                        4 => a.payload_span = Some(SpanFragment { start: 0, end: u32::from(view == 3) }),
+                        4 => a.payload_span = Some(SpanFragment::exact(0, u32::from(view == 3))),
                         5 => row.spans.clear(),
                         _ => unreachable!(),
                     }

@@ -4,9 +4,66 @@
 
 use std::collections::BTreeMap;
 
-use turbo_analysis::ViewId;
+use turbo_analysis::{Layer, Span, ViewId};
 use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
-use turbo_pii::{Extractor, Pack, Pii, PiiDetector, PiiKind, PiiKinds, Scanner};
+use turbo_pii::rewrite::PiiRewrite;
+use turbo_pii::{CustomKindId, CustomKinds, Extractor, Pack, Pii, PiiDetector, PiiKind, PiiKinds, Scanner};
+
+/// The custom kinds the tests name, in table order: entry `i` is
+/// [`test_kind`]`(i)` of [`test_kinds`].
+pub const TEST_KIND_NAMES: [&str; 12] = [
+    "person-name",
+    "account-number",
+    "se-personnummer",
+    "employee-badge",
+    "project-codename",
+    "internal-codename",
+    "codename-a",
+    "codename-b",
+    "codename",
+    "ticket",
+    "passport",
+    "fresh-acct-num",
+];
+
+/// Entry `i` of [`test_kinds`].
+pub const fn test_kind(i: u16) -> PiiKind {
+    PiiKind::Custom(CustomKindId::new(i))
+}
+
+/// The custom-kind table of [`TEST_KIND_NAMES`].
+pub fn test_kinds() -> CustomKinds {
+    CustomKinds::from_names(TEST_KIND_NAMES).expect("valid test kind names")
+}
+
+/// A detector over [`test_kinds`] with a deny list appended.
+pub trait Denying {
+    fn denying(self, deny: turbo_pii::DenyList) -> PiiDetector;
+}
+
+impl Denying for PiiDetector {
+    fn denying(self, deny: turbo_pii::DenyList) -> PiiDetector {
+        self.with_custom_kinds(test_kinds()).with_deny_list(deny).expect("a deny list of a test kind")
+    }
+}
+
+/// The test kind named `name`.
+pub fn custom(name: &str) -> PiiKind {
+    test_kinds().find(name).unwrap_or_else(|| panic!("{name} is a test kind"))
+}
+
+/// The table index of the custom `kind`.
+pub fn kind_index(kind: PiiKind) -> u16 {
+    match kind {
+        PiiKind::Custom(c) => c.index(),
+        _ => panic!("a custom kind"),
+    }
+}
+
+/// The name of `kind` in [`test_kinds`] (built-in kinds by their name).
+pub fn kind_name(kind: PiiKind) -> String {
+    test_kinds().name(kind).expect("a known kind").to_owned()
+}
 
 /// One mention as the tests compare it: start, end, kind name, normalized.
 pub type Row = (u32, u32, &'static str, String);
@@ -16,7 +73,10 @@ pub fn layer(d: &PiiDetector, text: &str) -> Pii {
 }
 
 pub fn rows(d: &PiiDetector, text: &str) -> Vec<Row> {
-    layer(d, text).mentions().map(|m| (m.span.start, m.span.end, m.kind.name(), m.normalized.to_owned())).collect()
+    layer(d, text)
+        .mentions()
+        .map(|m| (m.span.start, m.span.end, m.kind.builtin_name().unwrap(), m.normalized.to_owned()))
+        .collect()
 }
 
 /// Asserts the mentions of `text`, in order.
@@ -115,7 +175,7 @@ pub fn load_labelled(table: &[(&str, bool, &str, &str)], labels_file: &str, esca
         assert_eq!(f.len(), 5, "five columns in {labels_file}: {line:?}");
         let start: u32 = f[1].parse().expect("start offset");
         let end: u32 = f[2].parse().expect("end offset");
-        let kind = PiiKind::parse(f[3]).expect("a built-in kind").name();
+        let kind = PiiKind::parse(f[3]).expect("a built-in kind").builtin_name().unwrap();
         let (_, doc) = docs.iter_mut().find(|(id, _)| *id == f[0]).expect("known document id");
         let covered = if escaped_newlines { f[4].replace("\\n", "\n") } else { f[4].to_owned() };
         assert_eq!(&doc.text[start as usize..end as usize], covered, "{} {start}..{end}", f[0]);
@@ -164,16 +224,62 @@ pub fn base64url(bytes: &[u8]) -> String {
     out
 }
 
-/// A layer of the given mentions, in the order given.
+/// A layer of the given mentions, in the order given, over [`test_kinds`].
 pub fn manual(mentions: &[(u32, u32, PiiKind, &str)]) -> Pii {
-    let mut pii = Pii::new(ViewId::SOURCE);
+    let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, test_kinds());
+    let detector = pii.detector("test", "1").unwrap();
     for &(start, end, kind, normalized) in mentions {
         pii.push(turbo_pii::PiiMention {
             span: turbo_analysis::Span::new(start, end),
             kind,
-            confidence: turbo_pii::PiiConfidence::Format,
+            detector,
+            evidence: &[turbo_pii::PiiEvidence::Shape],
+            score: None,
             normalized,
         });
     }
     pii
+}
+
+/// Reference offset mapping from `rewrite.rs`: where a rewrite puts
+/// `offset` of the source, given each replaced span and its label.
+pub fn expected_offset(offset: u32, end: bool, sources: &[Span], labels: &[Span]) -> u32 {
+    let mut shift: i64 = 0;
+    for (source, label) in sources.iter().zip(labels) {
+        if offset <= source.start {
+            return (i64::from(offset) + shift) as u32;
+        }
+        if offset < source.end {
+            return if end { label.end } else { label.start };
+        }
+        shift += i64::from(label.end - label.start) - i64::from(source.end - source.start);
+    }
+    (i64::from(offset) + shift) as u32
+}
+
+#[track_caller]
+pub fn assert_offset_and_span_maps(text: &str, sources: &[Span], rewrite: &PiiRewrite) {
+    assert_eq!(rewrite.labels().check(), Ok(()));
+    let labels: Vec<Span> = rewrite.labels().mentions().map(|m| m.span).collect();
+    assert_eq!(sources.len(), labels.len());
+    for m in rewrite.labels().mentions() {
+        assert_eq!(&rewrite.text()[m.span.range()], m.normalized);
+    }
+    let bounds: Vec<u32> = (0..=text.len()).filter(|&i| text.is_char_boundary(i)).map(|i| i as u32).collect();
+    for &s in &bounds {
+        let start = expected_offset(s, false, sources, &labels);
+        // An empty span strictly inside a replaced mention stands for that
+        // mention, so it takes in the whole label; any other empty span
+        // stays empty.
+        let inside = sources.iter().position(|m| m.start < s && s < m.end);
+        for &e in bounds.iter().filter(|&&e| e >= s) {
+            let want = match inside {
+                Some(k) if s == e => labels[k],
+                _ if s == e => Span::new(start, start),
+                _ => Span::new(start, expected_offset(e, true, sources, &labels)),
+            };
+            assert_eq!(rewrite.to_derived(Span::new(s, e)), Ok(want), "span {s}..{e} in {text:?}");
+            assert!(rewrite.to_original(want).unwrap().contains(Span::new(s, e)), "{s}..{e} in {text:?}");
+        }
+    }
 }

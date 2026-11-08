@@ -43,8 +43,6 @@ const RELATIONS: [Relation; 8] = [
 ];
 const PORTIONS: [Portion; 6] =
     [Portion::Whole, Portion::Start, Portion::Mid, Portion::End, Portion::Approx, Portion::Undefined];
-const PII_CONFIDENCES: [PiiConfidence; 3] =
-    [PiiConfidence::Format, PiiConfidence::Checksum, PiiConfidence::LabelledChecksum];
 
 impl LayerCodec for Numbers {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
@@ -238,51 +236,6 @@ impl LayerCodec for Times {
         want_len(timex.len(), n, "timex values")?;
         done(&r, "times")?;
         Ok(Times { spans, kind, grain, modifier, start, end, duration_ms, ambiguous, timex })
-    }
-}
-
-impl LayerCodec for Pii {
-    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
-        let mut w = Writer::new();
-        put_spans(&mut w, &self.spans, cx)?;
-        w.usize(self.kind.len())?;
-        for &k in &self.kind {
-            if let PiiKind::Custom(name) = k {
-                if name.is_empty() || name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some() {
-                    return Err(malformed(format!("invalid custom pii kind {name:?}")));
-                }
-                if !PiiKind::remember_custom(k) {
-                    return Err(malformed(format!(
-                        "custom pii kind {name:?} exceeds registry capacity ({})",
-                        PiiKind::MAX_CUSTOM_KINDS
-                    )));
-                }
-            }
-            w.str(k.name())?;
-        }
-        put_variants(&mut w, &PII_CONFIDENCES, &self.confidence)?;
-        put_strs(&mut w, &self.normalized)?;
-        Ok(w.finish())
-    }
-    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
-        let mut r = Reader::new(data);
-        let spans = get_spans(&mut r, cx)?;
-        let mut kind = Vec::new();
-        for _ in 0..r.usize()? {
-            let name = r.string()?;
-            kind.push(
-                PiiKind::parse(&name)
-                    .or_else(|| PiiKind::intern_custom(&name))
-                    .ok_or_else(|| malformed(format!("an unknown pii kind {name:?}")))?,
-            );
-        }
-        let confidence = get_variants(&mut r, &PII_CONFIDENCES, "pii confidence")?;
-        let normalized = get_strs(&mut r)?;
-        want_len(kind.len(), spans.len(), "kinds")?;
-        want_len(confidence.len(), spans.len(), "confidences")?;
-        want_len(normalized.len(), spans.len(), "normalized values")?;
-        done(&r, "pii")?;
-        Ok(Pii { spans, kind, confidence, normalized })
     }
 }
 

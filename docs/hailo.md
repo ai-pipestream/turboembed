@@ -220,7 +220,17 @@ calibrates and opens the step with a batch of 1.
 keyed by the bundle, the device, its runtime and driver, the library's
 build and what was asked, and `Calibration::annotator` opens the step on
 the chosen side. `TURBO_CALIBRATION_FORCE` set to `device` or `cpu`
-overrides the choice; any other value is an error.
+overrides the choice; any other value is an error. `Dispatch` (below)
+also reads `TURBO_CALIBRATION_PREFER`, its preference between the two
+sides, on any device: `offload` runs a call on the device unless the
+device's time is at least 1.25 times the CPU's, `offload=<margin>` sets
+that margin to a number from 0 to 1, and `latency` (or `offload=0`)
+runs it on the faster side. Any other value is an error naming the
+variable, before anything is measured. Unset, the default is per
+backend: `offload` on a Hailo (backend `hailo`), the one device whose
+load measurement (below) backs the margin, and `latency` on every other
+device, which therefore dispatches as it did before the preference.
+The device's cosine must clear the floor under every preference.
 
 Measured on the Hailo-8 (on a Raspberry Pi 5, HailoRT 4.23.0, firmware
 4.23.0) with the `"max"` HEF of the bundle above, against the Pi 5's CPU
@@ -260,11 +270,26 @@ the Hailo-8, spends about 6.5 ms more than the CPU would.
 `Dispatch` chooses per call instead of per configuration: it holds the
 step on the Hailo-8 and on the CPU at one window and cap, and runs each
 call whole on one side. A call the calibration timed (the whole set, its
-first sentence alone or its first text alone) goes to the side measured
-faster, over every cap it was timed at; any other goes to the side
-whose cost is lower, fitted to the calibration's times as a cost a run,
-a row and a token. The calibration keeps each side's fastest time, since
-another process on the machine can only slow a run, and a call's runs,
+first sentence alone or its first text alone) is judged by its median
+time on each side over every cap it was timed at; any other by each
+side's cost, fitted to the calibration's times as a cost a run, a row
+and a token. The preference in force picks the side from those two
+times: on a Hailo by default the device unless it is 25% or more slower
+than the CPU, under `latency` (the default elsewhere) the faster. The
+margin is there because a time
+taken on a quiet machine does not count what a call on the CPU takes
+from everything else: on the Hailo-8 on a Raspberry Pi 5 at commit
+89e6a6ae, with two or four busy processes beside it, a batch of one
+128-token row took 14.1 ms on the Hailo-8 throughout but 41.0, 82.2 and
+100.5 ms on the CPU, and 32 rows took 94.4, 94.5 and 106.6 ms on the
+Hailo-8 against 1307, 2208 and 2625 ms on the CPU; beside four busy
+processes, each kept 86% of its idle rate while the Hailo-8 ran the 32
+rows and 52% while the CPU did. The calibration keeps each side's fastest time, since
+another process on the machine can only slow a run, and times each side
+in blocks of its own runs (device, CPU, CPU, device, each after one
+untimed run), as the dispatch test times them: timed in turns of one
+run each, the calibration put a document's CPU time 7% or more above
+the test's at window 32 and cap 1 on the Hailo-8's host, and a call's runs,
 rows and tokens are planned the way it runs. Each document's layers
 record the side that made its vectors. Through one instance on the
 Hailo-8 on a Raspberry Pi 5 at commit 5f46f682, 2026-10-24, the middle
@@ -299,7 +324,22 @@ the two boards were within 0.23% of each other and the CPUs' within
 What dispatch adds is read from six pairs of the dispatched call and the
 step fixed on the side it chose, timed back to back: the middle
 difference of the quiet pairs, those whose two times are each within
-0.5% of the fastest on their side. Planning a call took 0.001 to
+the board's window of the fastest on their side. The window comes from
+six pairs of the fixed step timed against itself at the start of each
+set: the narrowest part of the fastest time that holds four of them,
+never under 0.5%, and a set whose window is over 5% gives no reading.
+When none of three sets is quiet, all eighteen pairs are read at once:
+their middle difference, held to the middle gap between two runs of the
+step against itself (never under 0.5% of the fixed time, and no
+reading over 5%).
+The receipt's final percentage is the allowance used by that reading,
+including the pooled allowance when the last individual set was noisy.
+The `pairs` line retains each dispatch/fixed pair in ms, and `self-pairs`
+retains every attempt's fixed/fixed pairs and its window as a fraction
+(for example, `0.005` means 0.5%). Pair values retain their full floating
+point precision so the reading can be checked from the log.
+On the Hailo-8 boards the window is 0.5%, the value the readings below
+were taken with. Planning a call took 0.001 to
 0.08 ms. The reading was -0.05 to +0.72 ms on the Raspberry Pi 5 and
 -0.02 to +3.90 ms on the Compute Module 5, and at most 0.35% of the
 fixed time in every cell (the Compute Module 5's one sentence at
@@ -309,17 +349,31 @@ One cell gave no reading: the Raspberry Pi 5's whole set at window 16
 and cap 1, which ran on the CPU (dispatched 1618.9 ms; CPU 1616.7 ms,
 1610.7 to 1620.5; Hailo-8 2998.7 ms, 2998.6 to 2998.7). Fewer than four
 of its six pairs were quiet in each of three sets, so the test reported
-it inconclusive. That cell is unverified: under
-`TURBO_TEST_REQUIRE_HAILO=1` the test now fails on an inconclusive
-submission, so it needs a quieter run to pass. Every other reading
+it inconclusive. At commit 931116bc, 2026-11-06, with the offload
+preference and the calibration timing each side in blocks, the run
+under `TURBO_TEST_REQUIRE_HAILO=1` on the same board passed with every
+cell read: that cell ran on the CPU (dispatched 1227.1 ms; CPU 1225.3
+ms, 1222.5 to 1230.1; Hailo-8 2998.6 ms, 2998.6 to 2998.7) and dispatch
+added +2.001 ms, 0.164% of the fixed time, on the second set of pairs.
+The next run passed too (+2.221 ms, 0.177%); a third left one cell, one
+sentence at window 64 and cap 8, inconclusive. Every other reading
 was within the planning time and 0.5% of the fixed time, which the test
-requires.
+then required.
 
 On the Hailo-10H (on a Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
 which has memory of its own, the same measurement at commit 67e1327b
 (the CPU then timed at `Precision::Model`, which computes this model in
 F32 as `Precision::Exact` does) chose the device at every configuration:
-its slowest, 16 tokens and one row a run, took 1025 ms.
+its slowest, 16 tokens and one row a run, took 1025 ms. At commit
+9edfef03, 2026-11-07, six runs under `TURBO_TEST_REQUIRE_HAILO=1` ran
+every cell on the device with no device error, and the whole set at
+window 16 and cap 1 read every time (device 1018 to 1027 ms, CPU 1253 to
+1277 ms, dispatch adding -0.21% to +0.29%). Each run still failed: 15 to
+22 of the smaller calls, whose own runs on the 10H spread 1% to 3%,
+never gave four pairs within 0.5%, and once one sentence read +0.524%.
+Turning PCIe link power saving off moved this little (15 and 17
+inconclusive against 16 to 22), so the spread is the 10H's own, which is
+why the window is measured per board.
 
 ## Testing on a Hailo machine
 

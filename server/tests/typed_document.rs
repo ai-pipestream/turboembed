@@ -14,14 +14,21 @@ use turbo_chunker::chunk_citations;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{
-    AnchorKind, InspectDocumentGraphRequest, LayerWireStatus, OffsetMode as ProtoOffsetMode, SpanFragment,
-    TypedAnnotation, TypedDocumentResult, TypedLayer, typed_annotation::Value,
+    AnchorKind, InspectDocumentGraphRequest, LayerProvenance, LayerWireStatus, OffsetMode as ProtoOffsetMode,
+    SpanFragment, TypedAnnotation, TypedDocumentResult, TypedLayer, typed_annotation::Value,
 };
 use turbo_kserve::results::Wire;
 use turbo_kserve::results::document::codecs;
-use turbo_kserve::results::typed::{document_to_typed, inspect_document_graph, round_trip_typed_document};
+use turbo_kserve::results::typed::{document_to_typed_with, inspect_document_graph, round_trip_typed_document};
 
 use fixture::*;
+
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+use turbo_kserve::results::disclosure::Disclosure;
 
 #[test]
 fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_offset_modes() {
@@ -33,7 +40,7 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
         (OffsetMode::Utf16, ProtoOffsetMode::Utf16),
         (OffsetMode::CodePoint, ProtoOffsetMode::CodePoint),
     ] {
-        let typed = document_to_typed("doc-1", &doc, ViewId::SOURCE, mode).unwrap();
+        let typed = document_to_typed_with("doc-1", &doc, ViewId::SOURCE, mode, &Disclosure::FULL).unwrap();
         assert_eq!(typed.doc_id, "doc-1");
         assert_eq!(typed.raw_text, TEXT);
         assert_eq!(typed.offsets, proto_mode as i32);
@@ -73,20 +80,17 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
 
         match mode {
             OffsetMode::Utf8 => {
-                assert_eq!(ent0.spans[0], SpanFragment { start: beijing.start, end: beijing.end });
-                assert_eq!(ent1.spans[0], SpanFragment { start: cafe.start, end: cafe.end });
-                assert_eq!(ent1.spans[1], SpanFragment { start: price.start, end: price.end });
+                assert_eq!(ent0.spans[0], SpanFragment::exact(beijing.start, beijing.end));
+                assert_eq!(ent1.spans[0], SpanFragment::exact(cafe.start, cafe.end));
+                assert_eq!(ent1.spans[1], SpanFragment::exact(price.start, price.end));
             }
             OffsetMode::Utf16 => {
-                assert_eq!(
-                    ent0.spans[0],
-                    SpanFragment { start: java_utf16(beijing.start), end: java_utf16(beijing.end) }
-                );
+                assert_eq!(ent0.spans[0], SpanFragment::exact(java_utf16(beijing.start), java_utf16(beijing.end)));
             }
             OffsetMode::CodePoint => {
                 let cp_start = TEXT[..beijing.start as usize].chars().count() as u32;
                 let cp_end = TEXT[..beijing.end as usize].chars().count() as u32;
-                assert_eq!(ent0.spans[0], SpanFragment { start: cp_start, end: cp_end });
+                assert_eq!(ent0.spans[0], SpanFragment::exact(cp_start, cp_end));
             }
         }
 
@@ -96,7 +100,8 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
         assert_eq!(via_wire.to_msg(), typed);
     }
 
-    let clean_typed = document_to_typed("doc-clean", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
+    let clean_typed =
+        document_to_typed_with("doc-clean", &doc, ViewId(1), OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     assert_eq!(clean_typed.view, 1);
     assert_eq!(round_trip_typed_document(&clean_typed).unwrap(), clean_typed);
 }
@@ -176,6 +181,9 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
             graph: graph_bytes,
             view: 0,
             offsets: ProtoOffsetMode::Utf16 as i32,
+            pii_output: full_text(),
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -204,7 +212,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
 
     let mut bad_inverted = inspected.clone();
     let tok_layer = bad_inverted.layers.iter_mut().find(|l| l.id == "turbo:tokens").unwrap();
-    tok_layer.annotations[0].spans[0] = SpanFragment { start: 4, end: 2 };
+    tok_layer.annotations[0].spans[0] = SpanFragment::exact(4, 2);
     let err = round_trip_typed_document(&bad_inverted).unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
 
@@ -254,6 +262,9 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         graph: vec![0xff, 0x00, 0x01],
         view: 0,
         offsets: ProtoOffsetMode::Utf8 as i32,
+        pii_output: full_text(),
+        binding: None,
+        operation_key: String::new(),
     })
     .unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
@@ -348,7 +359,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
     .unwrap();
 
     for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
-        let typed = document_to_typed("probe-doc", &doc, ViewId::SOURCE, mode).unwrap();
+        let typed = document_to_typed_with("probe-doc", &doc, ViewId::SOURCE, mode, &Disclosure::FULL).unwrap();
         let mod_layer = typed.layers.iter().find(|l| l.id == "turbo:modality").unwrap();
         assert_eq!(mod_layer.annotations.len(), 1);
         let Some(Value::Modality(m)) = &mod_layer.annotations[0].value else {
@@ -375,7 +386,7 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
         assert_eq!(round_trip_typed_document(&typed).unwrap(), typed);
     }
 
-    let base = document_to_typed("probe-doc", &doc, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let base = document_to_typed_with("probe-doc", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
 
     // Missing default index target is not replaced by named instance ("gold").
     let mut missing_default_tok = base.clone();
@@ -383,33 +394,50 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
     assert!(round_trip_typed_document(&missing_default_tok).is_err());
 
     // Missing aligned anchor (turbo:tokens@absent) is refused.
+    // The envelope needs a provenance entry per layer; give the probe
+    // layers one so the refusal is the anchor's, not the envelope's.
+    let probe_provenance = |instance: &str| LayerProvenance {
+        layer: "turbo:pos".into(),
+        instance: instance.into(),
+        model_ref: String::new(),
+        provenance_digest: vec![0; 32],
+        content_digest: None,
+        input_snapshot_digest: None,
+        codec_schema: 1,
+        reads: Vec::new(),
+        on: Vec::new(),
+    };
     let mut missing_anchor = base.clone();
+    missing_anchor.provenance.push(probe_provenance(""));
     missing_anchor.layers.push(TypedLayer {
         id: "turbo:pos".into(),
         instance: String::new(),
         status: LayerWireStatus::Ok as i32,
-        status_detail: String::new(),
         scope: AnchorKind::Aligned as i32,
         model_refs: Vec::new(),
         anchor_layer: Some("turbo:tokens@absent".into()),
         annotations: Vec::new(),
         indexes_layer: Vec::new(),
+        custom_pii_kinds: Vec::new(),
+        native_view: None,
+        error: None,
     });
-    assert!(round_trip_typed_document(&missing_anchor).is_err());
+    let err = round_trip_typed_document(&missing_anchor).unwrap_err();
+    assert!(err.message.contains("absent"), "{}", err.message);
 
     // Aligned POS annotation with out-of-range target_index (99) is refused.
     let mut bad_aligned_idx = base;
+    bad_aligned_idx.provenance.push(probe_provenance("gold"));
     bad_aligned_idx.layers.push(TypedLayer {
         id: "turbo:pos".into(),
         instance: "gold".into(),
         status: LayerWireStatus::Ok as i32,
-        status_detail: String::new(),
         scope: AnchorKind::Aligned as i32,
         model_refs: Vec::new(),
         anchor_layer: Some("turbo:tokens@gold".into()),
         annotations: (0..3)
             .map(|i| TypedAnnotation {
-                spans: vec![SpanFragment { start: i * 2, end: i * 2 + 1 }],
+                spans: vec![SpanFragment::exact(i * 2, i * 2 + 1)],
                 probability: Some(0.9),
                 model_ref: None,
                 value: Some(Value::PosTag(turbo_kserve::proto::result::PosTagAnnotation {
@@ -420,6 +448,9 @@ fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_gro
             })
             .collect(),
         indexes_layer: Vec::new(),
+        custom_pii_kinds: Vec::new(),
+        native_view: None,
+        error: None,
     });
     assert!(round_trip_typed_document(&bad_aligned_idx).is_err());
 }

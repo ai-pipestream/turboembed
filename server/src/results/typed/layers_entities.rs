@@ -16,7 +16,7 @@ use turbo_stopword_layers::Stopwords;
 use turbo_tokenize_layers::{Readings, WordTypes};
 
 use super::layers_core::token_spans;
-use super::{ProjectionCx, build_layer, coalesce_wire_spans, find_aligned_to};
+use super::{ProjectionCx, build_layer, find_aligned_to};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     AbbreviationAnnotation, CorefChainAnnotation, CorefMentionAnnotation, EntityAnnotation, EntityVote,
@@ -120,6 +120,9 @@ pub(crate) fn project_entity_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
             let mentions = cx.doc.get_key(&l.of_key);
             l.iter()
                 .map(|(_, group)| {
+                    // The chain's fragments are every member mention's, in
+                    // group order, projected together so that overlaps
+                    // coalesce and the members name their native index.
                     let mut spans = Vec::new();
                     let mut representative = String::new();
                     if let Some(m) = mentions {
@@ -127,11 +130,12 @@ pub(crate) fn project_entity_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
                             if pos == 0 {
                                 representative = cx.target_slice(m.spans.view(), m.spans.get(mix)).to_owned();
                             }
-                            spans.extend(cx.project_spans(&m.spans, mix));
+                            spans.extend(m.spans.fragments(mix));
                         }
                     }
+                    let view = mentions.map(|m| m.spans.view()).unwrap_or(cx.target_view);
                     TypedAnnotation {
-                        spans: coalesce_wire_spans(spans),
+                        spans: cx.project_fragments(view, spans.into_iter()),
                         probability: None,
                         model_ref: mref.clone(),
                         value: Some(Value::CorefChain(CorefChainAnnotation {
@@ -329,9 +333,7 @@ fn project_entities(cx: &mut ProjectionCx<'_>, key: KeyId) -> TypedLayer {
                     // Evidence is stored in source coordinates. A target view
                     // can delete or collapse its fragments just like the
                     // entity's own spans; nested votes obey the same contract.
-                    let vote_spans = coalesce_wire_spans(
-                        ev.spans_of(i).iter().map(|&s| cx.project_wire_span(ViewId::SOURCE, s)).collect(),
-                    );
+                    let vote_spans = cx.project_fragments(ViewId::SOURCE, ev.spans_of(i).iter().copied());
                     let raw = ev.raw_of(i).filter(|&v| v.is_finite() && (0.0..=1.0).contains(&v));
                     let cal = ev.calibrated_of(i);
                     if probability.is_none() {

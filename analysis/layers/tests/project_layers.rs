@@ -13,11 +13,11 @@ use turbo_analysis_layers::{
     Entities, EpistemicStatus, EventArgument, EventFrame, Events, ExpansionRow, KeyValuePair, KeyValuePairs,
     LanguageSpans, Levels, LexicalExpansions, Matches, Modality, ModalityPolarity, ModalityTag, Modifier, Money,
     MoneyMention, Multiplier, NumberMention, NumberNotation, Numbers, Opinion, Opinions, OrdinalBase, OrdinalMention,
-    Ordinals, Origin, PhraseChunks, Phrases, Pii, PiiConfidence, PiiKind, PiiMention, PlaceAncestor, PolarityScores,
-    QualityFlags, QualityMetrics, Quantities, QuantityMention, Quotation, Quotations, QuoteKind, ScaleMarker, SenseRow,
-    Sentences, SpanQuality, Structure, Subwords, TableCell, Tables, TemporalMention, TemporalValue, Temporals,
-    TextQuality, TimeGrain, TimeKind, TimeMention, Times, TokenVectorWindows, Tokens, Unit, Vectors, WORDNET_POS,
-    WordNetSenses, Words,
+    Ordinals, Origin, PhraseChunks, Phrases, Pii, PiiConfidence, PiiEvidence, PiiMention, PlaceAncestor,
+    PolarityScores, QualityFlags, QualityMetrics, Quantities, QuantityMention, Quotation, Quotations, QuoteKind,
+    ScaleMarker, SenseRow, Sentences, SpanQuality, Structure, Subwords, TableCell, Tables, TemporalMention,
+    TemporalValue, Temporals, TextQuality, TimeGrain, TimeKind, TimeMention, Times, TokenVectorWindows, Tokens, Unit,
+    Vectors, WORDNET_POS, WordNetSenses, Words,
 };
 use turbo_unicode::Script;
 
@@ -260,15 +260,18 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let temporals_src = doc.project_layer(&temporals, ViewId::SOURCE).unwrap();
     assert_eq!(temporals_src.spans.get(Ix::new(0)), Span::new(27, 37));
     doc.add(&Key::DEFAULT, temporals_src, prov()).unwrap();
-    let mut pii = Pii::new(grand_id);
-    pii.push(PiiMention {
-        span: Span::new(23, 33),
-        kind: PiiKind::Custom("date_id"),
-        confidence: PiiConfidence::Format,
-        normalized: "2026-05-01",
-    });
+    let date_kinds = turbo_analysis_layers::CustomKinds::from_names(["date_id"]).unwrap();
+    let date_id = date_kinds.find("date_id").unwrap();
+    let mut pii = Pii::with_custom_kinds(grand_id, date_kinds);
+    let detector = pii.detector("test", "1").unwrap();
+    // The label fact's span projects with the mention's.
+    let evidence = [PiiEvidence::Shape, PiiEvidence::Label { span: Span::new(11, 22), phrase: 0 }];
+    let (span, normalized) = (Span::new(23, 33), "2026-05-01");
+    pii.push(PiiMention { span, kind: date_id, detector, evidence: &evidence, score: None, normalized });
     let pii_src = doc.project_layer(&pii, ViewId::SOURCE).unwrap();
-    assert_eq!(pii_src.spans.get(Ix::new(0)), Span::new(27, 37));
+    let projected = pii_src.get(Ix::new(0));
+    assert_eq!((projected.span, projected.confidence()), (Span::new(27, 37), PiiConfidence::Labelled));
+    assert_eq!(projected.evidence[1], PiiEvidence::Label { span: Span::new(15, 26), phrase: 0 });
     doc.add(&Key::DEFAULT, pii_src, prov()).unwrap();
     let mut quotes = Quotations::new(grand_id);
     quotes.push(Quotation {

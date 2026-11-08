@@ -362,13 +362,28 @@ pub fn features(enc: &mut WordEncoder, part: &[TokenSentence], pooling: WordPool
 ///
 /// What the head fails on.
 pub fn predict(head: &TokenSplitter, part: &[TokenSentence], features: &[Vec<f32>]) -> Result<Vec<Vec<String>>> {
+    predict_with_languages(head, part, features, None)
+}
+
+/// As [`predict`], selecting each sentence's language row.
+pub fn predict_with_languages(
+    head: &TokenSplitter,
+    part: &[TokenSentence],
+    features: &[Vec<f32>],
+    languages: Option<&[Option<u32>]>,
+) -> Result<Vec<Vec<String>>> {
     let (mut scores, mut labels, mut w) = (Vec::new(), Vec::new(), Default::default());
     let mut out = Vec::with_capacity(part.len());
-    for (s, f) in part.iter().zip(features) {
+    for (i, (s, f)) in part.iter().zip(features).enumerate() {
         let words: Vec<u32> = (0..s.tokens.len() as u32).collect();
         let forms: Vec<&str> = s.tokens.iter().map(String::as_str).collect();
         let read = head.reads_forms().then_some(forms.as_slice());
-        head.scores(f, &words, read, &mut scores, &mut w).map_err(|e| Error(e.message))?;
+        let row = languages.and_then(|rows| rows[i]);
+        let language = match (&head.spec().language, row) {
+            (Some(language), Some(row)) => Some(language.languages[row as usize].as_str()),
+            _ => None,
+        };
+        head.scores_language(f, &words, read, language, &mut scores, &mut w).map_err(|e| Error(e.message))?;
         head.decode(&scores, &forms, &mut labels).map_err(|e| Error(e.message))?;
         let split = head.words(&labels, &forms).map_err(|e| Error(e.message))?;
         out.push(forms.iter().zip(&split).map(|(t, ws)| gold_label(t, ws)).collect());

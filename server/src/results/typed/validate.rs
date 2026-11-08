@@ -1,12 +1,18 @@
 //! Validation of `TypedDocumentResult` messages (`RoundTripTypedDocument`,
 //! issue #1219). Re-proves offset validity (`UTF8`, `UTF16`, `CODE_POINT`),
 //! span ordering, probability bounds (`[0.0, 1.0]`), `model_ref` resolution,
-//! aligned anchor integrity, and `indexes_layer` bounds.
+//! aligned anchor integrity, `indexes_layer` bounds, and the result
+//! envelope's identities, provenance and view chain (issue #1907).
 
 mod annotation;
+mod envelope;
 mod evidence;
+mod outcome;
+mod pii;
+mod pii_edits;
 mod quality;
 mod quotations;
+mod receipt;
 mod shared;
 
 use std::collections::{HashMap, HashSet};
@@ -49,19 +55,21 @@ fn check_head_in_range(what: &str, layer: &str, index: usize, head: u32, start: 
     Ok(())
 }
 
+/// The fragments of one span: each in the text, in order, with its
+/// outcome (`own_view` when the layer's spans are natively on the
+/// result's view).
 fn check_spans(
     off: &Offsetter,
     text: &str,
     layer: &str,
     i: usize,
     frags: &[SpanFragment],
+    own_view: bool,
 ) -> Result<Vec<Span>, Failure> {
+    outcome::check_fragments(layer, i, frags, own_view)?;
     let mut out: Vec<Span> = Vec::with_capacity(frags.len());
     for (f_ix, frag) in frags.iter().enumerate() {
         let sp = off.from_wire(text, layer, frag.start, frag.end)?;
-        if frags.len() > 1 && sp.is_empty() {
-            return Err(bad(format!("{layer}[{i}] fragment {f_ix} is empty in a multi-fragment span")));
-        }
         if let Some(&prev) = out.last()
             && sp.start < prev.end
         {
@@ -114,7 +122,22 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
     let _ = u16::try_from(msg.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", msg.view)))?;
     let offsets = OffsetMode::from_proto(msg.offsets)?;
-    let offsetter = Offsetter::new(&msg.raw_text, offsets);
+    // A view text withheld for PII (#1904) is stood in for by as many
+    // one-byte characters as it had units, so spans are checked against
+    // its length; every unit is then a boundary.
+    let stand_in;
+    let text = match msg.withheld_text_len {
+        None => msg.raw_text.as_str(),
+        Some(_) if !msg.raw_text.is_empty() => return Err(bad("withheld_text_len is set beside a raw_text")),
+        Some(n) if u64::from(n) > MAX_GRAPH_BYTES => {
+            return Err(over("max_graph_bytes", "typed document withheld text units", u64::from(n)));
+        }
+        Some(n) => {
+            stand_in = " ".repeat(n as usize);
+            stand_in.as_str()
+        }
+    };
+    let offsetter = Offsetter::new(text, offsets);
 
     let mut known_models: HashSet<&str> = HashSet::with_capacity(msg.models.len());
     for (i, m) in msg.models.iter().enumerate() {
@@ -129,6 +152,11 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
         }
     }
 
+    envelope::validate_envelope(msg, &known_models)?;
+    for v in &msg.views {
+        receipt::check_status(&format!("view {:?}", v.instance), v.status, v.error.as_ref())?;
+    }
+
     let mut layer_lengths: HashMap<(&str, &str), usize> = HashMap::with_capacity(msg.layers.len());
     let mut total_fragments = 0usize;
 
@@ -136,27 +164,44 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
         if layer.id.trim().is_empty() {
             return Err(bad(format!("layers[{l_ix}] has an empty id")));
         }
-        let Ok(_status) = LayerWireStatus::try_from(layer.status) else {
-            return Err(bad(format!("layer {:?} has unknown status {}", layer.id, layer.status)));
-        };
+        receipt::check_status(&format!("layer {:?}", layer.id), layer.status, layer.error.as_ref())?;
         let Ok(_scope) = AnchorKind::try_from(layer.scope) else {
             return Err(bad(format!("layer {:?} has unknown scope {}", layer.id, layer.scope)));
         };
         if layer_lengths.insert((layer.id.as_str(), layer.instance.as_str()), layer.annotations.len()).is_some() {
             return Err(bad(format!("duplicate layer ({:?}, {:?})", layer.id, layer.instance)));
         }
-        total_fragments =
-            total_fragments.saturating_add(layer.annotations.iter().map(|a| a.spans.len().max(1)).sum::<usize>());
+        total_fragments = total_fragments.saturating_add(layer.annotations.iter().map(fragment_count).sum::<usize>());
         if total_fragments as u64 > MAX_FRAGMENTS {
             return Err(over("max_fragments", "typed document fragments", total_fragments as u64));
         }
     }
 
     for layer in &msg.layers {
-        validate_layer(msg, &offsetter, &known_models, &layer_lengths, layer)?;
+        if msg.withheld_text_len.is_some() && !crate::results::disclosure::is_findings_layer(&layer.id) {
+            withheld_layer(&known_models, layer)?;
+            continue;
+        }
+        validate_layer(msg, text, &offsetter, &known_models, &layer_lengths, layer)?;
     }
+    // Last: the receipt is checked against a message already known whole.
+    receipt::check_receipt(msg)
+}
 
-    Ok(())
+/// What one annotation costs against `MAX_FRAGMENTS` before any of it is
+/// read: its fragments and, since a coalesced fragment stands for the
+/// native fragments it lists, their members; entity votes carry
+/// fragments of their own. The budget is settled over the whole message
+/// first so no later check walks an unbounded list (issue #1907).
+fn fragment_count(a: &TypedAnnotation) -> usize {
+    fn frags(spans: &[SpanFragment]) -> usize {
+        spans.iter().map(|f| f.members.len()).sum::<usize>() + spans.len().max(1)
+    }
+    let votes = match &a.value {
+        Some(Value::Entity(ent)) => ent.votes.iter().map(|v| frags(&v.spans)).sum(),
+        _ => 0,
+    };
+    frags(&a.spans) + votes
 }
 
 struct LayerCtx<'a> {
@@ -171,6 +216,22 @@ struct LayerCtx<'a> {
     target_bounds: Vec<usize>,
     layer_len: usize,
     lid: &'a str,
+    instance: &'a str,
+    custom_pii_kinds: usize,
+    /// The result's view.
+    view: u32,
+    /// Whether the layer's spans are natively on the result's view, so
+    /// every fragment of it is exact.
+    own_view: bool,
+}
+
+impl LayerCtx<'_> {
+    /// One nested fragment of the layer, in the text and with a valid
+    /// outcome, as a span.
+    fn fragment(&self, what: &str, frag: &SpanFragment) -> Result<Span, Failure> {
+        outcome::check_single(self.lid, what, frag, self.own_view)?;
+        self.offsetter.from_wire(self.text, self.lid, frag.start, frag.end)
+    }
 }
 
 fn check_nonneg(what: &str, layer: &str, index: usize, v: f64) -> Result<(), Failure> {
@@ -245,8 +306,23 @@ impl TargetLen {
     }
 }
 
+/// A layer of a findings-only result (#1904): its annotations carry the
+/// withheld text's words, so it is listed with its status and model refs
+/// and nothing else, and the count checks of its kind do not apply.
+fn withheld_layer(known_models: &HashSet<&str>, layer: &TypedLayer) -> Result<(), Failure> {
+    let lid = layer.id.as_str();
+    if !layer.annotations.is_empty() || !layer.indexes_layer.is_empty() {
+        return Err(bad(format!("layer {lid} carries annotations while the text is withheld")));
+    }
+    for mref in &layer.model_refs {
+        check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
+    }
+    Ok(())
+}
+
 fn validate_layer(
     msg: &TypedDocumentResult,
+    text: &str,
     offsetter: &Offsetter,
     known_models: &HashSet<&str>,
     layer_lengths: &HashMap<(&str, &str), usize>,
@@ -256,6 +332,7 @@ fn validate_layer(
     quality::layer(layer)?;
     quotations::layer(layer)?;
     evidence::layer(layer)?;
+    pii_edits::layer(msg, text, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }
@@ -317,8 +394,9 @@ fn validate_layer(
     };
     let entity_len = TargetLen::of(&target_lengths, "turbo:entities");
 
+    let custom_pii_kinds = pii::custom_kinds(layer)?;
     let ctx = LayerCtx {
-        text: &msg.raw_text,
+        text,
         offsetter,
         known_models,
         layer_lengths,
@@ -344,6 +422,10 @@ fn validate_layer(
         target_bounds,
         layer_len: layer.annotations.len(),
         lid,
+        instance: layer.instance.as_str(),
+        custom_pii_kinds,
+        view: msg.view,
+        own_view: layer.native_view == Some(msg.view),
     };
     for (i, ann) in layer.annotations.iter().enumerate() {
         annotation::validate_annotation(&ctx, i, ann)?;

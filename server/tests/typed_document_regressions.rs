@@ -18,6 +18,12 @@ use turbo_kserve::proto::result::{
 };
 use turbo_kserve::results::document::codecs;
 
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+
 fn spans<L>(view: ViewId, pairs: &[(u32, u32)]) -> Spans<L> {
     let mut out = Spans::new(view);
     for &(a, b) in pairs {
@@ -87,7 +93,7 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
     let graph = export(doc, codecs()).unwrap().to_bytes().unwrap();
     // Exercise the existing graph transport before the new typed transport.
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: full_text() })
         .await
         .unwrap()
         .into_inner()
@@ -98,6 +104,9 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            pii_output: full_text(),
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -289,13 +298,12 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
             assert_eq!(out.raw_text, text);
             let start = text.find("北京").unwrap();
             let expected = match mode {
-                OffsetMode::Utf8 => SpanFragment { start: start as u32, end: text.len() as u32 },
-                OffsetMode::Utf16 => SpanFragment {
-                    start: text[..start].encode_utf16().count() as u32,
-                    end: text.encode_utf16().count() as u32,
-                },
+                OffsetMode::Utf8 => SpanFragment::exact(start as u32, text.len() as u32),
+                OffsetMode::Utf16 => {
+                    SpanFragment::exact(text[..start].encode_utf16().count() as u32, text.encode_utf16().count() as u32)
+                }
                 OffsetMode::CodePoint => {
-                    SpanFragment { start: text[..start].chars().count() as u32, end: text.chars().count() as u32 }
+                    SpanFragment::exact(text[..start].chars().count() as u32, text.chars().count() as u32)
                 }
             };
             let tok = out.layers.iter().find(|l| l.id == Tokens::NAME.to_string()).unwrap();
@@ -310,9 +318,9 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
             let mut bad = out.clone();
             // UTF8 interior of é; UTF16 interior of 😀; code point outside the text.
             bad.layers[0].annotations[0].spans[0] = match mode {
-                OffsetMode::Utf8 => SpanFragment { start: if view == 0 { 4 } else { 6 }, end: 8 },
-                OffsetMode::Utf16 => SpanFragment { start: 6, end: 7 },
-                OffsetMode::CodePoint => SpanFragment { start: 100, end: 101 },
+                OffsetMode::Utf8 => SpanFragment::exact(if view == 0 { 4 } else { 6 }, 8),
+                OffsetMode::Utf16 => SpanFragment::exact(6, 7),
+                OffsetMode::CodePoint => SpanFragment::exact(100, 101),
             };
             invalid(&client.round_trip_typed_document(bad).await.unwrap_err());
             let mut bad = out;
@@ -327,7 +335,15 @@ async fn genuine_derived_views_offsets_provenance_and_structured_errors() {
     ] {
         invalid(
             &client
-                .inspect_document_graph(InspectDocumentGraphRequest { doc_id: "bad".into(), graph, view, offsets })
+                .inspect_document_graph(InspectDocumentGraphRequest {
+                    doc_id: "bad".into(),
+                    graph,
+                    view,
+                    offsets,
+                    pii_output: full_text(),
+                    binding: None,
+                    operation_key: String::new(),
+                })
                 .await
                 .unwrap_err(),
         );

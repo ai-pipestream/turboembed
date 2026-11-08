@@ -29,6 +29,6 @@ cargo run --release -p turbo-kserve -- \
 `proto/open_inference_grpc.proto` is vendored from the Open Inference
 Protocol specification (Apache-2.0); its first lines say where from.
 `proto/turbo_analysis.proto`, `proto/turbo_vocabulary.proto`,
-`proto/turbo_training.proto` and `proto/turbo_sink.proto` are this
+`proto/turbo_training.proto`, `proto/turbo_sink.proto` and `proto/turbo_audit.proto` are this
 crate's own. The build compiles them
 with a Rust protobuf compiler, so no `protoc` is needed.

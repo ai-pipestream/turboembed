@@ -8,6 +8,12 @@ use turbo_kserve::proto::result::{InspectDocumentGraphRequest, OffsetMode, typed
 use turbo_kserve::results::document::codecs;
 use turbo_relation::Relations;
 
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+
 #[tokio::test]
 async fn relations_mentions_and_levels_keep_native_reference_bounds() {
     let mut doc = fixture::build_rich_document();
@@ -38,6 +44,9 @@ async fn relations_mentions_and_levels_keep_native_reference_bounds() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: full_text(),
+                binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()

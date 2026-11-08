@@ -344,3 +344,45 @@ fn a_seen_lookup_decides_its_tokens_and_the_head_decides_the_rest() {
     let rest = |v: &[_]| -> Vec<_> { v.iter().filter(|(ts, _, _)| *ts != token).cloned().collect() };
     assert_eq!(rest(&a), rest(&b));
 }
+
+#[test]
+fn a_language_is_selected_for_every_head() {
+    let dir = bundle("multi-language", |m| {
+        for head in m["heads"].as_array_mut().unwrap() {
+            head["language"] = json!({"languages": ["es", "ca"], "dim": 2});
+        }
+    });
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let o = EncoderOptions::default();
+    let plain = MultiTask::<All>::open(&dir, &[None; 4], &o).unwrap();
+    let error = plain.annotate((view, &toks, None, None)).err().unwrap();
+    assert!(error.to_string().contains("needs a language"), "{error}");
+
+    let es = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "es").unwrap();
+    let (pos, _, _, _) = es.annotate((view, &toks, None, None)).unwrap();
+    let ca = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "ca").unwrap();
+    let (other, _, _, _) = ca.annotate((view, &toks, None, None)).unwrap();
+    assert_ne!(pos.prob, other.prob, "the selected language changes the scores");
+    let error = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "it").err().unwrap();
+    assert!(error.to_string().contains("unknown language"), "{error}");
+}
+
+#[test]
+fn a_lemma_head_without_a_language_passes_the_selection_to_its_pos_head() {
+    let dir = bundle("multi-language-pos-only", |m| {
+        let heads = m["heads"].as_array_mut().unwrap();
+        heads.iter_mut().find(|h| h["name"] == "pos").unwrap()["language"] =
+            json!({"languages": ["es", "ca"], "dim": 2});
+    });
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let o = EncoderOptions::default();
+    let es = MultiTask::<(Lemmas,)>::open_language(&dir, &[None], &o, "es").unwrap();
+    let (lemmas,) = es.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(lemmas.lemma.len(), toks.spans.len());
+    let error = MultiTask::<(Lemmas,)>::open_language(&dir, &[None], &o, "it").err().unwrap();
+    assert!(error.to_string().contains("unknown language") && error.to_string().contains("\"pos\""), "{error}");
+}

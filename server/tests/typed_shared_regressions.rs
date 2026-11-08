@@ -22,7 +22,7 @@ fn spans<L>(view: ViewId, pairs: &[(u32, u32)]) -> Spans<L> {
 async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode) -> TypedDocumentResult {
     let graph = export(doc, codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -33,6 +33,9 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             graph: graph.to_vec(),
             view: 0,
             offsets: mode as i32,
+            pii_output: None,
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -132,11 +135,7 @@ async fn nested_sparse_spans_and_occurrences_are_validated() {
             let mut bad = good.clone();
             let l = bad.layers.iter_mut().find(|l| l.id.starts_with("turbo:sparse")).unwrap();
             let Some(Value::SparseTerms(s)) = &mut l.annotations[0].value else { panic!("sparse") };
-            let invalid = if mode == OffsetMode::Utf8 {
-                SpanFragment { start: 1, end: 2 }
-            } else {
-                SpanFragment { start: 2, end: 3 }
-            };
+            let invalid = if mode == OffsetMode::Utf8 { SpanFragment::exact(1, 2) } else { SpanFragment::exact(2, 3) };
             if slot == "span" {
                 s.entries[0].span = Some(invalid);
             } else {
@@ -181,7 +180,7 @@ async fn nbest_spans_follow_named_pos_token_binding() {
     let nbest = out.layers.iter().find(|l| l.id.starts_with("turbo:nbest")).unwrap();
     assert_eq!(
         nbest.annotations[0].spans,
-        [SpanFragment { start: 2, end: 4 }],
+        [SpanFragment::exact(2, 4)],
         "NBest used default tokens instead of its named POS anchor's tokens"
     );
     server.stop().await;
@@ -270,7 +269,7 @@ async fn consolidated_entity_nested_fields_are_validated() {
         let Some(Value::DocumentEntity(e)) = &mut layer.annotations[0].value else { panic!("document entity") };
         match field {
             "confidence" => e.confidence = f32::NAN,
-            "mention" => e.mentions[0].span = Some(SpanFragment { start: 1, end: 2 }),
+            "mention" => e.mentions[0].span = Some(SpanFragment::exact(1, 2)),
             _ => e.relations.push(EntityRelationProto {
                 subject: 99,
                 object: 99,

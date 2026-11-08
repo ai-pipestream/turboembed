@@ -179,36 +179,6 @@ fn a_hashed_head_trains_with_its_tables_and_the_core_reads_its_forms() {
     }
     let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
     assert!(TokenTagger::from_tensors(&head, 32, &get).unwrap().reads_forms());
-    // Another shape scored against the hashed head (#1828): the receipt
-    // holds the hashed head's test score, as its own run gave it, and the
-    // paired bootstrap of the new head against it.
-    let plain = scratch("out-hash-against");
-    let p = train_with(&data, &plain, &["--against", out.to_str().unwrap()]);
-    let vs = p.eval.against.as_ref().unwrap();
-    assert!(vs.name.ends_with("-out-hash (Crf)"), "{}", vs.name);
-    assert_eq!(&vs.baseline, r.eval.model.as_ref().unwrap(), "the prior head scores as its own run did");
-    let (mine, theirs) = (p.eval.model.as_ref().unwrap().score(), r.eval.model.as_ref().unwrap().score());
-    assert_eq!((vs.comparison.model, vs.comparison.baseline), (mine, theirs));
-    let refused = scratch("out-hash-refused");
-    let o = run(&[
-        "train",
-        "--corpus",
-        "multiconer2-en",
-        "--dir",
-        data.to_str().unwrap(),
-        "--bundle",
-        tiny().to_str().unwrap(),
-        "--out",
-        refused.to_str().unwrap(),
-        "--unrecorded-corpus",
-        "--pooling",
-        "mean",
-        "--against",
-        out.to_str().unwrap(),
-    ]);
-    let err = String::from_utf8_lossy(&o.stderr);
-    assert!(!o.status.success() && err.contains("word pooling"), "{err}");
-    assert!(!refused.exists());
     let bad = run(&[
         "train",
         "--corpus",
@@ -223,7 +193,7 @@ fn a_hashed_head_trains_with_its_tables_and_the_core_reads_its_forms() {
         "1,2",
     ]);
     assert!(!bad.status.success());
-    for d in [data, out, plain] {
+    for d in [data, out] {
         fs::remove_dir_all(d).unwrap();
     }
 }

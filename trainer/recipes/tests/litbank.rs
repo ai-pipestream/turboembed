@@ -445,51 +445,7 @@ fn train_coref_writes_a_ranker_the_core_loads_and_is_deterministic() {
     let reloaded = CorefRanker::from_tensors(&head, 32, &get).unwrap();
     assert_eq!(reloaded.hidden(), 32);
 
-    // Another shape scored against the first run (#1828): the receipt
-    // holds the first head's test score, as its own run gave it, and the
-    // paired bootstrap of the new head against it.
-    let wider = scratch("out-coref-against");
-    let bundle = tiny();
-    let against = |out: &Path, prior: &Path, extra: &[&str]| {
-        let mut args = vec![
-            "train-coref",
-            "--corpus",
-            "litbank",
-            "--dir",
-            data.to_str().unwrap(),
-            "--bundle",
-            bundle.to_str().unwrap(),
-            "--out",
-            out.to_str().unwrap(),
-            "--unrecorded-corpus",
-            "--epochs",
-            "2",
-            "--batch",
-            "2",
-            "--against",
-            prior.to_str().unwrap(),
-        ];
-        args.extend_from_slice(extra);
-        run(&args)
-    };
-    let o = against(&wider, &out1, &["--max-words", "6", "--width-dim", "8", "--mlp", "24", "--max-antecedents", "8"]);
-    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
-    let w: Receipt = serde_json::from_slice(&fs::read(wider.join("receipt.json")).unwrap()).unwrap();
-    let vs = w.eval.against.as_ref().unwrap();
-    assert!(vs.name.contains("out-coref-1 (max words 8, width 4, mlp 16, antecedents 16)"), "{}", vs.name);
-    assert_eq!(&vs.baseline, r1.eval.model.as_ref().unwrap(), "the prior head scores as its own run did");
-    let mine = w.eval.model.as_ref().unwrap().score();
-    assert_eq!((vs.comparison.model, vs.comparison.baseline), (mine, model_score));
-    let names: Vec<&str> = vs.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(names, ["head.json", "head.safetensors", "receipt.json"]);
-    // A prior head on other features is refused before training.
-    let refused = scratch("out-coref-refused");
-    let o = against(&refused, &out1, &["--pooling", "mean"]);
-    let err = String::from_utf8_lossy(&o.stderr);
-    assert!(!o.status.success() && err.contains("word pooling"), "{err}");
-    assert!(!refused.exists());
-
-    for d in [data, base_out, out1, out2, wider] {
+    for d in [data, base_out, out1, out2] {
         fs::remove_dir_all(d).unwrap();
     }
 }

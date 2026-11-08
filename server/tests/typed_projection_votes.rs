@@ -49,7 +49,7 @@ fn fixture(name: &'static str, fragments: &[Span], collapse: bool) -> Document {
     doc
 }
 
-async fn verify(fragments: &[Span], collapse: bool, byte_expected: (u32, u32), unit_expected: (u32, u32)) {
+async fn verify(fragments: &[Span], collapse: bool, expected: [&[(u32, u32)]; 3]) {
     let (server, mut client) = common::serve_no_admin().await;
     let mut failures = Vec::new();
     for name in ["", "gold"] {
@@ -63,6 +63,9 @@ async fn verify(fragments: &[Span], collapse: bool, byte_expected: (u32, u32), u
                         graph: graph.clone(),
                         view,
                         offsets: mode as i32,
+                        pii_output: None,
+                        binding: None,
+                        operation_key: String::new(),
                     })
                     .await
                     .unwrap()
@@ -80,8 +83,12 @@ async fn verify(fragments: &[Span], collapse: bool, byte_expected: (u32, u32), u
                 assert_eq!(annotation.probability, Some(0.75));
                 assert!(out.models.iter().any(|m| Some(&m.model_ref) == vote.model_ref.as_ref()));
                 if view == 1 {
-                    let expected = if mode == OffsetMode::Utf8 { byte_expected } else { unit_expected };
-                    assert_eq!(annotation.spans.iter().map(|f| (f.start, f.end)).collect::<Vec<_>>(), [expected]);
+                    let expected = match mode {
+                        OffsetMode::Utf8 => expected[0],
+                        OffsetMode::Utf16 => expected[1],
+                        OffsetMode::CodePoint => expected[2],
+                    };
+                    assert_eq!(annotation.spans.iter().map(|f| (f.start, f.end)).collect::<Vec<_>>(), expected);
                 } else {
                     assert_eq!(annotation.spans.len(), fragments.len());
                     assert_eq!(annotation.spans, vote.spans);
@@ -106,16 +113,17 @@ async fn verify(fragments: &[Span], collapse: bool, byte_expected: (u32, u32), u
 }
 
 #[tokio::test]
-async fn entity_votes_drop_only_the_fragment_on_deleted_text() {
-    verify(&[Span::new(0, 2), Span::new(7, 8)], false, (0, 2), (0, 1)).await;
+async fn entity_votes_keep_a_deleted_anchor_for_the_fragment_on_deleted_text() {
+    // The second hyphen is deleted: its fragment anchors, empty, after the emoji (#1907).
+    verify(&[Span::new(0, 2), Span::new(7, 8)], false, [&[(0, 2), (6, 6)], &[(0, 1), (3, 3)], &[(0, 1), (2, 2)]]).await;
 }
 
 #[tokio::test]
-async fn entity_votes_preserve_one_location_when_all_fragments_are_deleted() {
-    verify(&[Span::new(2, 3), Span::new(7, 8)], false, (2, 2), (1, 1)).await;
+async fn entity_votes_keep_an_anchor_per_fragment_when_all_are_deleted() {
+    verify(&[Span::new(2, 3), Span::new(7, 8)], false, [&[(2, 2), (6, 6)], &[(1, 1), (3, 3)], &[(1, 1), (2, 2)]]).await;
 }
 
 #[tokio::test]
 async fn entity_votes_merge_fragments_that_project_onto_the_same_replacement() {
-    verify(&[Span::new(0, 2), Span::new(8, 9)], true, (0, 1), (0, 1)).await;
+    verify(&[Span::new(0, 2), Span::new(8, 9)], true, [&[(0, 1)], &[(0, 1)], &[(0, 1)]]).await;
 }

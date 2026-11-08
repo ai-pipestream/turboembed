@@ -5,7 +5,9 @@
 //! Refusals (versions, schemas, missing codecs, dangling endpoints,
 //! malformed bytes) are typed errors.
 
-use turbo_analysis::export::{Codecs, DocumentGraph, ExportError, NodeRef, export, import, layer_ref, node_ref};
+use turbo_analysis::export::{
+    Codecs, DocumentGraph, DocumentGraphRef, ExportError, NodeRef, export, import, layer_ref, node_ref,
+};
 use turbo_analysis::text::Edit;
 use turbo_analysis::{
     Alignment, Analyzer, Annotator, Document, Edge, Edges, Error, Groups, Ix, Key, Layer, ModelRef, Provenance, Refs,
@@ -161,8 +163,8 @@ fn round_trip_through_the_fixture_bytes() {
 #[test]
 fn unknown_versions_and_schemas_are_refused() {
     let mut graph = export(&document(), &codecs()).unwrap();
-    graph.version = 2;
-    assert_eq!(import(&graph, &codecs()).err(), Some(ExportError::UnsupportedVersion { found: 2, supported: 1 }));
+    graph.version = 3;
+    assert_eq!(import(&graph, &codecs()).err(), Some(ExportError::UnsupportedVersion { found: 3, supported: 2 }));
 
     let mut graph = export(&document(), &codecs()).unwrap();
     graph.layers[0].schema = 9;
@@ -172,9 +174,13 @@ fn unknown_versions_and_schemas_are_refused() {
     );
 
     let mut bytes = graph.to_bytes().unwrap();
-    bytes[4] = 2;
+    // A format 1 graph (before #1901's PII kind ids) is refused by name of
+    // both versions, never misparsed, by the owning and the borrowing reader.
+    bytes[4] = 1;
     bytes[5] = 0;
-    assert_eq!(DocumentGraph::from_bytes(&bytes), Err(ExportError::UnsupportedVersion { found: 2, supported: 1 }));
+    let v1 = Err(ExportError::UnsupportedVersion { found: 1, supported: 2 });
+    assert_eq!(DocumentGraph::from_bytes(&bytes), v1);
+    assert_eq!(DocumentGraphRef::parse(&bytes).map(|_| ()), v1.map(|_: DocumentGraph| ()));
 }
 
 #[test]

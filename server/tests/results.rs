@@ -487,7 +487,7 @@ async fn round_trip_document_graph_supports_all_registered_workspace_crates() {
 
     let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let resp = c
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.clone().into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.clone().into(), pii_output: None })
         .await
         .unwrap()
         .into_inner();

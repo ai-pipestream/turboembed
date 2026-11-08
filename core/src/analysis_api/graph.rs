@@ -19,7 +19,8 @@ use super::{
     AnalysisResultInner, CoordRange, LayerRef, PoolRef, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_DEPENDENCIES,
     TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_MORPHOLOGY,
     TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS,
-    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
+    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
+    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -376,12 +377,16 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
     let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_PII, id, layer.spans.view())?;
     for item in 0..layer.spans.len() {
         let mention = layer.get(Ix::new(index_u32(item, "graph PII count")?));
-        let label = builder.string_ref(mention.kind.name())?;
+        let name = layer.kind_name(mention.kind).ok_or_else(|| {
+            Error::new(INVALID_ARGUMENT, format!("PII mention {item} has a custom kind outside its layer's table"))
+        })?;
+        let label = builder.string_ref(name)?;
         let value = builder.string_ref(mention.normalized)?;
-        let classification = match mention.confidence {
+        let classification = match mention.confidence() {
             PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
             PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-            PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
+            PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
+            PiiConfidence::Labelled => TURBO_PII_CONFIDENCE_LABELLED,
         };
         push_fragments(
             builder,

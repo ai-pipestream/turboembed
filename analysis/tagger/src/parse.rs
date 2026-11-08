@@ -69,7 +69,7 @@ impl DependencyParser {
     pub fn parse(&self, sequences: &[Vec<&str>]) -> Result<Vec<Parse>, CoreError> {
         let pooling = self.parser.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
-        parse_with(&self.parser, &features)
+        parse_with(&self.parser, &features, None)
     }
 
     /// The dependency layer over every token of the view, the pieces
@@ -86,7 +86,7 @@ impl DependencyParser {
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features(view, tokens, &seqs, subwords, pooling)?;
         drop(words);
-        let parses = parse_with(&self.parser, &features).map_err(|e| e.to_string())?;
+        let parses = parse_with(&self.parser, &features, None).map_err(|e| e.to_string())?;
         dep_layer(tokens, &seqs, &parses, &self.relations)
     }
 }
@@ -115,7 +115,7 @@ impl Annotator for DependencyParser {
     }
 }
 
-pub(crate) use turbo::head::run::parse_sequences as parse_with;
+pub(crate) use turbo::head::run::parse_sequences_language as parse_with;
 
 /// The dependency layer from each sequence's parse.
 pub(crate) fn dep_layer(

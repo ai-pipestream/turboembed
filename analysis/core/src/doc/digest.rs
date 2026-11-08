@@ -69,6 +69,38 @@ define_digest!(
     /// Memoized 256-bit SHA-256 identity of a document's [`SourceBytes`].
     SourceBytesDigest
 );
+define_digest!(
+    /// 256-bit SHA-256 identity of a document's processing configuration,
+    /// independent of its text (`Document::processing_config_digest`).
+    ProcessingConfigDigest
+);
+
+define_digest!(
+    /// 256-bit SHA-256 identity of a PII redaction policy: the digest of the
+    /// policy's canonical encoding, which begins with
+    /// [`PolicyDigest::DOMAIN`] (issue #1882). Protobuf bytes are not
+    /// canonical and are never digested.
+    PolicyDigest
+);
+
+impl PolicyDigest {
+    /// The domain tag that opens every canonical policy encoding.
+    pub const DOMAIN: &'static str = "turbo.pii-policy.v1";
+
+    /// The digest of `encoding`, a policy's whole canonical encoding.
+    pub fn of_canonical(encoding: &[u8]) -> PolicyDigest {
+        PolicyDigest(turbo_sha256::sha256(encoding))
+    }
+}
+
+impl ViewTextDigest {
+    /// The digest of `text` as a view's UTF-8 text: what [`View::text_digest`]
+    /// returns for a view holding `text`, so a consumer can check a received
+    /// digest against text it holds.
+    pub fn of_text(text: &str) -> ViewTextDigest {
+        ViewTextDigest(turbo_sha256::sha256(text.as_bytes()))
+    }
+}
 
 /// Inputs to the canonical chained provenance digest computation.
 pub(crate) struct ProvenanceDigestParts<'a> {

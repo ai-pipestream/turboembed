@@ -12,6 +12,7 @@ syntax = "proto3";
 package turbo.result.v1;
 
 import public "turbo_typed_annotations.proto";
+import "turbo_pii_policy.proto";
 
 // Analysis results and the server's bundle capabilities.
 //
@@ -250,6 +251,9 @@ message ResultLimits
   uint64 max_fragments = 10;
   uint64 max_graph_bytes = 11;
   uint64 max_record_values = 12;
+  // Native edits in one TypedDocumentResult's inline mapping, over
+  // every view.
+  uint64 max_mapping_edits = 13;
 }
 
 message LoadBundleRequest
@@ -775,13 +779,15 @@ message LayerInfo
   string layer = 1;
   string instance = 2;
   LayerWireStatus status = 3;
-  // Why the layer was skipped, or its failure; empty when OK.
-  string status_detail = 4;
+  reserved 4;
+  reserved "status_detail";
   string annotator = 5;
   string version = 6;
   ModelRef model = 7;
   uint64 config_hash = 8;
   uint32 items = 9;
+  // Why the layer is not OK; absent when it is (issue #1908).
+  optional LayerError error = 10;
 }
 
 // A whole document as binary DocumentGraph bytes (turbo-analysis
@@ -790,14 +796,24 @@ message LayerInfo
 message DocumentGraphRequest
 {
   bytes graph = 1;
+  // What the answer carries for a document holding PII findings; see
+  // PiiOutputOptions. Without `full_text` such a document's answer has no
+  // graph bytes and no source text.
+  PiiOutputOptions pii_output = 2;
 }
 
 message DocumentGraphResponse
 {
+  // Empty for a document holding PII findings unless the request's
+  // PiiOutputOptions.full_text was asked for and allowed.
   bytes graph = 1;
   repeated LayerInfo layers = 2;
   repeated ViewInfo views = 3;
+  // Empty under the same rule as `graph`.
   string source_text = 4;
+  // The findings, projected onto the source view in UTF-8 offsets, when
+  // `graph` was withheld for PII; unset otherwise.
+  TypedDocumentResult findings = 5;
 }
 
 // turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
@@ -899,6 +915,18 @@ message AnalyzePipelineRequest
   // DocumentGraph writer on the client. Exclusive with `text`,
   // `source_bytes` and `initial_graph`.
   StructureSeed structure_seed = 9;
+
+  // The caller's operation (idempotency) key, echoed on the terminal
+  // receipt; empty when the caller has none. A retry sends the same key
+  // and gets a new attempt id. The server keeps no state for it.
+  string operation_key = 10;
+  // What the step snapshots and the final answer carry once the document
+  // holds PII findings; see PiiOutputOptions.
+  PiiOutputOptions pii_output = 11;
+
+  // The policy for the turbo-pii:redact step, which needs one; refused
+  // when the steps do not include turbo-pii:redact.
+  PiiRedactionSelection pii_redaction = 12;
 }
 
 // The kind of one structure block, the `turbo:structure` block kinds.
@@ -970,6 +998,10 @@ message AnalyzeProgressiveEvent
     AnalysisLayerBatch layers_ready = 3;
     AnalysisStepFailure step_failed = 4;
     DocumentGraphResponse complete = 5;
+    // The terminal event of every stream the server ends (issue #1908):
+    // after complete, or when a deadline cancels the run. A stream that
+    // ends without one is incomplete, whatever it delivered before.
+    ProcessingReceipt receipt = 6;
   }
 }
 
@@ -1004,6 +1036,9 @@ message AnalysisStepFailure
   AnalyzeFailure failure = 4;
   repeated string skipped_dependents = 5;
   repeated LayerInfo layers = 6;
+  // The step's error as a sanitized kind; failure.message names the
+  // step and that kind only, never document text (issue #1908).
+  LayerError error = 7;
 }
 
 // ============================================================================
@@ -1319,6 +1354,11 @@ message FormatDocumentRequest
   bytes graph = 2;
   string format_id = 3;
   OffsetMode offsets = 4;
+  // Every format carries the document text, so formatting a document
+  // holding PII findings (a turbo:pii layer) needs `full_text` here and in
+  // the server's policy; without it the call is refused with
+  // TURBO_E_INVALID_STATE. No format writes a mention's value (#1904).
+  PiiOutputOptions pii_output = 5;
 }
 
 message FormatDocumentResponse

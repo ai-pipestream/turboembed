@@ -11,6 +11,7 @@ name = "turbo_pii"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-glossary = { path = "../glossary" }
 # Character.isLetterOrDigit(int) and Character.isWhitespace(int), which
 # OpenNLP's boundary and label checks ask.
 turbo-unicode = { path = "../unicode" }

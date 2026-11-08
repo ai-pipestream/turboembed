@@ -43,8 +43,8 @@ fn render(layer: &Pii) -> String {
             "{}\t{}\t{}\t{}\t{}\n",
             m.span.start,
             m.span.end,
-            m.kind.name(),
-            m.confidence.name(),
+            m.kind.builtin_name().unwrap(),
+            m.confidence().name(),
             escape(m.normalized),
         ));
     }
@@ -57,7 +57,7 @@ fn check_invariants(text: &str, layer: &Pii) {
     for m in layer.mentions() {
         assert!(m.span.start < m.span.end && m.span.end <= len, "span out of bounds: {:?}", m.span);
         assert!(!m.normalized.is_empty());
-        assert_eq!(PiiKind::parse(m.kind.name()), Some(m.kind), "kind name round-trips");
+        assert_eq!(PiiKind::parse(m.kind.builtin_name().unwrap()), Some(m.kind), "kind name round-trips");
         assert!(text.is_char_boundary(m.span.start as usize));
         assert!(text.is_char_boundary(m.span.end as usize));
     }
@@ -110,7 +110,8 @@ pack_tests! {
     secrets_snapshots: Pack::Secrets, 4;
     crypto_snapshots: Pack::Crypto, 5;
     us_identity_snapshots: Pack::UsIdentity, 3;
-    eu_identity_snapshots: Pack::EuIdentity, 3;
+    eu_identity_snapshots: Pack::EuIdentity, 11;
+    br_identity_snapshots: Pack::BrIdentity, 2;
     ca_identity_snapshots: Pack::CaIdentity, 1;
     device_snapshots: Pack::Device, 1;
     all_structured_snapshots: Pack::AllStructured, 80;

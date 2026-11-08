@@ -5,7 +5,8 @@
 
 use std::path::Path;
 
-use turbo::manifest::HeadSpec;
+use turbo::head::TokenTagger;
+use turbo::manifest::{HeadKind, HeadSpec};
 use turbo::safetensors;
 
 use crate::corpus::FileRecord;
@@ -90,4 +91,27 @@ impl Prior {
         let get = |s: &str| file.tensor(&format!("{}.{s}", self.spec.tensor_prefix)).map(|t| t.f32s());
         build(&get).map_err(|e| Error(format!("{}: {}", self.name, e.message)))
     }
+}
+
+/// The tagger an earlier `train` wrote to `dir`, to score beside a run's
+/// `head`: its name with its decode, the tagger, and the files read. It
+/// must read the features `head` reads: the same labels, word pooling and
+/// language table, on the same encoder.
+///
+/// # Errors
+///
+/// As [`read`], or a head that reads other features.
+pub fn tagger(dir: &Path, head: &HeadSpec, encoder: &EncoderRecord) -> Result<(String, TokenTagger, Vec<FileRecord>)> {
+    let p = read(dir, encoder)?;
+    if p.spec.kind != HeadKind::TokenTagger || p.spec.labels != head.labels {
+        return Err(refused(dir, "the head's kind or labels"));
+    }
+    if p.spec.word_pooling != head.word_pooling {
+        return Err(refused(dir, "word pooling (--pooling)"));
+    }
+    if p.spec.language.is_some() != head.language.is_some() {
+        return Err(refused(dir, "the language table"));
+    }
+    let tagger = p.head(|get| TokenTagger::from_tensors(&p.spec, encoder.hidden, get))?;
+    Ok((format!("{} ({:?})", p.name, p.spec.decode), tagger, p.files))
 }

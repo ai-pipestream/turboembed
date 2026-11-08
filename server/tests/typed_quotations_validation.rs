@@ -23,7 +23,7 @@ fn interior(text: &str, mode: OffsetMode) -> SpanFragment {
         OffsetMode::Utf16 => text[..text.find('😀').unwrap()].encode_utf16().count() as u32 + 1,
         OffsetMode::CodePoint => text.chars().count() as u32 + 1,
     };
-    SpanFragment { start: at, end: at }
+    SpanFragment::exact(at, at)
 }
 fn refused(e: tonic::Status) {
     assert_eq!(e.code(), tonic::Code::InvalidArgument);
@@ -42,6 +42,9 @@ async fn malformed_quotation_payloads_and_nested_offsets_are_refused() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: None,
+                binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -58,8 +61,8 @@ async fn malformed_quotation_payloads_and_nested_offsets_are_refused() {
                 quote(&mut bad).kind = [None, Some(-1), Some(3), Some(255), Some(i32::MAX)][variant - 6];
             } else if (17..23).contains(&variant) {
                 let span = match (variant - 17) % 3 {
-                    0 => SpanFragment { start: 2, end: 1 },
-                    1 => SpanFragment { start: 0, end: u32::MAX },
+                    0 => SpanFragment::exact(2, 1),
+                    1 => SpanFragment::exact(0, u32::MAX),
                     _ => inside,
                 };
                 if variant < 20 {
@@ -75,7 +78,7 @@ async fn malformed_quotation_payloads_and_nested_offsets_are_refused() {
                     13 => layer.scope = AnchorKind::Document as i32,
                     14 => layer.annotations[0].value = Some(Value::Sentence(SentenceAnnotation::default())),
                     15 => layer.annotations[0].value = None,
-                    16 => layer.annotations[0].spans = vec![SpanFragment { start: 0, end: 0 }; 2],
+                    16 => layer.annotations[0].spans = vec![SpanFragment::exact(0, 0); 2],
                     23 => layer.annotations[0].spans = vec![inside],
                     _ => unreachable!(),
                 }
@@ -100,6 +103,9 @@ async fn confidence_bits_optional_presence_and_raw_chain_context_round_trip() {
                 graph: graph.clone(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: None,
+                binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()
@@ -111,8 +117,8 @@ async fn confidence_bits_optional_presence_and_raw_chain_context_round_trip() {
                     let q = quote(&mut valid);
                     q.confidence = Some(confidence);
                     q.speaker_chain = chain;
-                    q.speaker = present.then_some(SpanFragment { start: 0, end: 0 });
-                    q.cue_verb = q.speaker;
+                    q.speaker = present.then_some(SpanFragment::exact(0, 0));
+                    q.cue_verb = q.speaker.clone();
                     let mut echoed = c.round_trip_typed_document(valid.clone()).await.unwrap().into_inner();
                     assert_eq!(echoed, valid);
                     let q = quote(&mut echoed);

@@ -191,6 +191,8 @@ impl DocumentFormatter for MarkdownFormatter {
             buf.push('\n');
         }
 
+        // Findings only: a mention's value never leaves through an export
+        // (#1904); its span locates it in the document text.
         if let Some(pii) = doc.get::<Pii>()
             && !pii.spans.is_empty()
         {
@@ -201,10 +203,9 @@ impl DocumentFormatter for MarkdownFormatter {
                 let (s, e) = offsets.convert_source_span(doc, src_span)?;
                 let _ = writeln!(
                     buf,
-                    "- **{}** [{s}..{e}]: `{}` (confidence: `{}`)",
-                    escape_markdown(m.kind.name()),
-                    escape_markdown(&sanitize_single_line(m.normalized)),
-                    m.confidence.name(),
+                    "- **{}** [{s}..{e}] (confidence: `{}`)",
+                    escape_markdown(pii.kind_name(m.kind).unwrap_or("")),
+                    m.confidence().name(),
                 );
             }
             buf.push('\n');

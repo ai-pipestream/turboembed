@@ -8,7 +8,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
     if let Some(p) = ann.probability {
         check_prob("probability", lid, i, p)?;
     }
-    let spans = check_spans(offsetter, text, lid, i, &ann.spans)?;
+    let spans = check_spans(offsetter, text, lid, i, &ann.spans, ctx.own_view)?;
 
     let Some(val) = &ann.value else {
         return Err(bad(format!("{lid}[{i}] is missing its typed annotation value")));
@@ -46,7 +46,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::Word(w) => {
             check_token_range(token_len, "word", lid, i, w.token_start, w.token_end)?;
             if let Some(sub) = &w.subspan {
-                offsetter.from_wire(text, lid, sub.start, sub.end)?;
+                ctx.fragment("subspan", sub)?;
             }
         }
         Value::PhraseChunk(pc) => check_token_range(token_len, "phrase_chunk", lid, i, pc.token_start, pc.token_end)?,
@@ -67,7 +67,8 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                 if let Some(vc) = vote.calibrated_probability {
                     check_prob("vote.calibrated_probability", lid, i, vc)?;
                 }
-                check_spans(offsetter, text, lid, i, &vote.spans)?;
+                // Votes are evidence in source coordinates, whatever view the layer is on.
+                check_spans(offsetter, text, lid, i, &vote.spans, ctx.view == 0)?;
             }
         }
         Value::Dependency(dep) => {
@@ -110,7 +111,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::GlossaryTerm(gt) => check_token_range(token_len, "glossary_term", lid, i, gt.token_start, gt.token_end)?,
         Value::Number(num) => {
             if let Some(ns) = &num.numeral_span {
-                offsetter.from_wire(text, lid, ns.start, ns.end)?;
+                ctx.fragment("numeral_span", ns)?;
             }
         }
         Value::RegionVote(rv) => {
@@ -180,7 +181,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         }
         Value::Asset(asset) => {
             let ps = asset.payload_span.as_ref().ok_or_else(|| bad(format!("{lid}[{i}] asset has no payload_span")))?;
-            let p_span = offsetter.from_wire(text, lid, ps.start, ps.end)?;
+            let p_span = ctx.fragment("payload_span", ps)?;
             let outer = spans.first().ok_or_else(|| bad(format!("{lid}[{i}] asset has no outer span")))?;
             // A deleted payload retains presence as an empty span, including
             // at the outer boundary. Containment still applies after projection.
@@ -257,12 +258,15 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::Modality(m) => {
             check_f32_prob("confidence", lid, i, m.confidence)?;
             if let Some(cue) = &m.cue {
-                offsetter.from_wire(text, lid, cue.start, cue.end)?;
+                ctx.fragment("cue", cue)?;
             }
         }
         Value::Event(ev) => shared::event(ctx, i, ev)?,
         Value::LexicalExpansion(le) => check_prob("weight", lid, i, le.weight)?,
         Value::RecordValue(rv) => check_prob("score", lid, i, rv.score)?,
+        Value::Pii(m) => pii::mention(ctx, i, ann, m)?,
+        Value::PiiCandidate(c) => pii::candidate(ctx, i, ann, c)?,
+        Value::PiiEdit(e) => pii_edits::edit(ctx, i, e)?,
         _ => {}
     }
 

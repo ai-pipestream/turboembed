@@ -308,11 +308,12 @@ say where from, and `server/proto/health.proto` is the standard gRPC health
 protocol (`grpc.health.v1`). First-party TurboEmbed definitions live under
 versioned `turbo.<name>.v1` packages:
 
-- `turbo.result.v1` (`server/proto/turbo_analysis.proto`, `server/proto/turbo_typed_annotations.proto`): the analysis result layer's messages, typed document annotations, and `AnalysisService` (docs/grpc-analysis.md, docs/grpc-inspect.md).
+- `turbo.result.v1` (`server/proto/turbo_analysis.proto`, `server/proto/turbo_typed_annotations.proto`, `server/proto/turbo_pii_policy.proto`): the analysis result layer's messages, typed document annotations, the typed PII redaction policy, and `AnalysisService` (docs/grpc-analysis.md, docs/grpc-inspect.md).
 - `turbo.search.v1` (`server/proto/turbo_search.proto`): hybrid search, index lifecycle, aliases, and `TurboSearchService`.
 - `turbo.vocabulary.v1` (`server/proto/turbo_vocabulary.proto`): the vocabulary store and `TurboVocabularyService` (docs/grpc-vocabulary.md).
 - `turbo.training.v1` (`server/proto/turbo_training.proto`): the model catalog (`TurboCatalogService`, docs/grpc-catalog.md) and static model training (`TurboTrainingService`, docs/grpc-training.md).
 - `turbo.sink.v1` (`server/proto/turbo_sink.proto`): the document sink and `TurboSinkService` (docs/grpc-sink.md).
+- `turbo.audit.v1` (`server/proto/turbo_audit.proto`): the acknowledged PII access audit, `TurboAuditService` (docs/grpc-analysis.md, PII value release).
 
 Generate a client from any of them in any language with gRPC, or use the
 published release artifacts (`scripts/package-proto-stubs.sh`,

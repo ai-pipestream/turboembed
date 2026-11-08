@@ -52,7 +52,7 @@ async fn nested_event_references_and_spans_are_validated() {
     doc.add(&Key::<Events>::DEFAULT, events, Provenance::by("event:events")).unwrap();
     let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -65,6 +65,9 @@ async fn nested_event_references_and_spans_are_validated() {
                 graph: graph.to_vec(),
                 view: 0,
                 offsets: mode as i32,
+                pii_output: None,
+                binding: None,
+                operation_key: String::new(),
             })
             .await
             .unwrap()

@@ -711,3 +711,28 @@ abbreviation data and project-authored context classifications.
 
 The inventory README records normalization, deduplication, context
 classification and regeneration. English's existing inventory is unchanged.
+
+## National and banking identifier checksum specifications
+
+The validators in `analysis/pii/src/checksum/` (`es.rs`, `icao9303.rs`,
+`fr.rs`, `mod11.rs`, `bic.rs`) implement published statutory and standards
+algorithms using synthetic or official specimen test vectors only:
+
+- **Spain (`es-dni`, `es-nie`, `es-cif`)**: Ministerio del Interior modulus-23
+  control letter table (`TRWAGMYFPDXBNJZSQVHLCKE`) and Agencia Tributaria NIF
+  composition rules under Real Decreto 1065/2007 and Orden EHA/451/2008.
+- **Germany (`de-personalausweis`)**: ICAO Doc 9303 Part 3 (`7-3-1` modulus-10
+  check digit) and Bundesministerium des Innern Personalausweisgesetz
+  alphanumeric character set (`0123456789CFGHJKLMNPRTVWXY`), tested with the
+  published Erika Mustermann specimen numbers (`T220001293`, `L01X00T471`).
+- **France (`fr-nir`, `fr-siren`, `fr-siret`)**: INSEE NIR modulus-97 control
+  key (`97 - (n % 97)` with Corsica `2A -> 19` and `2B -> 18` substitution) and
+  Répertoire SIRENE Luhn check digits (including the La Poste `356000000`
+  sum-of-digits modulus-5 rule).
+- **Brazil (`br-cpf`, `br-cnpj`)**: Receita Federal do Brasil double modulus-11
+  check digit specifications for CPF (Instrução Normativa RFB 1.548/2015) and
+  numeric/alphanumeric CNPJ (Instrução Normativa RFB 2.229/2024, Nota Técnica
+  COCAD 2024.001).
+- **BIC / SWIFT (`bic`)**: ISO 9362 structure (4-letter institution code,
+  ISO 3166-1 alpha-2 country code, 2-character location code, optional
+  3-character branch code).

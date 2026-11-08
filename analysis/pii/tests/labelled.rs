@@ -194,7 +194,7 @@ fn checksums_and_zeros() {
 #[test]
 fn confidence_is_labelled_checksum() {
     let pii = layer(&imei(), "IMEI: 490154203237518");
-    assert_eq!(pii.mentions().next().unwrap().confidence.name(), "labelled-checksum");
+    assert_eq!(pii.mentions().next().unwrap().confidence().name(), "labelled-checksum");
 }
 
 #[test]
@@ -236,4 +236,35 @@ fn labelled_values_on_every_thread() {
             });
         }
     });
+}
+
+#[test]
+fn labelled_bics() {
+    let eu = pack(Pack::EuIdentity);
+    for (text, want) in [
+        ("BIC: DEUTDEFF", "DEUTDEFF"),
+        ("SWIFT: DEUTDEFF500", "DEUTDEFF500"),
+        ("BIC/SWIFT: BNPAFRPPXXX", "BNPAFRPPXXX"),
+        ("SWIFT/BIC = CHASUS33", "CHASUS33"),
+        ("BIC code:ITAUBRSP", "ITAUBRSP"),
+        ("swift code # BOFAUS3NXXX", "BOFAUS3NXXX"),
+    ] {
+        assert_eq!(normalized(&eu, text), [want], "{text}");
+        assert_eq!(kinds(&eu, text), ["bic"]);
+        let pii = layer(&eu, text);
+        assert_eq!(pii.mentions().next().unwrap().confidence().name(), "labelled");
+    }
+    for bad in [
+        "DEUTDEFF",
+        "DEUTDEFF500",
+        "BIC: DEUTZZFF",
+        "BIC: deutdeff",
+        "BIC: DEUTDEF",
+        "BIC: DEUTDEFF5",
+        "BIC: DEUTDEFF5000",
+        "xBIC: DEUTDEFF",
+        "a swift response to the memo",
+    ] {
+        assert_none(&eu, bad);
+    }
 }

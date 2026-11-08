@@ -4,7 +4,8 @@
 //! measured batches, what it refuses before measuring, and that each
 //! document records the side its call ran on and gets that side's vectors.
 //! On a device the environment names, every submission size through one
-//! instance runs within the timing noise of the faster side.
+//! instance runs on the side the preference in force picks, within the
+//! timing noise.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -24,7 +25,7 @@ use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 mod held_out;
 use held_out::held_out;
 mod paired;
-use paired::{ATTEMPTS, RESOLUTION, added, settle};
+use paired::{ATTEMPTS, added, pooled, settle, window};
 
 fn bert() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -65,7 +66,10 @@ fn documents(texts: &[Text]) -> Vec<Document> {
 /// layer records.
 fn run(a: &Analyzer, texts: &[Text]) -> Vec<(Vec<f32>, String)> {
     let mut docs = documents(texts);
-    assert!(a.run(&mut docs).iter().all(|r| r.is_ok()));
+    // Each document's error in full, so a device fault names its status.
+    for r in a.run(&mut docs) {
+        r.unwrap();
+    }
     let key = Key::<Vectors<Sentences>>::DEFAULT.id();
     docs.iter()
         .map(|d| {
@@ -234,7 +238,9 @@ fn worded(bundle: &Path, texts: &[Text]) -> Vec<Document> {
         .build()
         .unwrap();
     let mut docs = documents(texts);
-    assert!(words.run(&mut docs).iter().all(|r| r.is_ok()));
+    for r in words.run(&mut docs) {
+        r.unwrap();
+    }
     docs
 }
 
@@ -300,19 +306,24 @@ fn the_shape_predicted_is_the_shape_run() {
 /// TURBO_TEST_VECTORS_BUNDLE: the calibration of tests/calibrate.rs, then,
 /// at each window and cap, one sentence, one document and the whole set
 /// sent through one dispatched instance. Every document of a submission
-/// records one side, its vectors are that side's, and the side is the
-/// faster of the step fixed on the device and fixed on the CPU, each timed
-/// six times in turn: the one with the lower middle time, unless the two
-/// sides' times overlap, where neither is faster. Then six pairs of the
+/// records one side, its vectors are that side's, and the side is the one
+/// the dispatch's preference picks from the step fixed on the device and
+/// fixed on the CPU, each timed six times in turn: under `Latency` the one
+/// with the lower middle time, under `Offload` the device unless its middle
+/// time is at least 1 + margin times the CPU's, either unless the device's
+/// times and the CPU's so scaled overlap. Then six pairs of the
 /// dispatched calls and the step they run on, back to back: what dispatch
 /// adds (see `paired::added`) is no more than the planning (timed on its
-/// own) and RESOLUTION. Pairs too noisy to read are timed again, up to
-/// ATTEMPTS sets, and then reported inconclusive; under
+/// own) and the board's own window, from six pairs of the step against
+/// itself timed at the start of each set (see `paired::window`). Pairs too
+/// noisy to read are timed again, up to ATTEMPTS sets; then all of them are
+/// read at once (see `paired::pooled`), and a submission still too noisy is
+/// reported inconclusive; under
 /// TURBO_TEST_REQUIRE_HAILO=1 an inconclusive submission fails the run.
-/// Prints each side's middle and spread, what dispatch adds, every set of
-/// pairs, and the inconclusive submissions.
+/// Prints each side's middle and spread, what dispatch adds, the window,
+/// every set of pairs, and the inconclusive submissions.
 #[test]
-fn on_the_device_every_submission_runs_at_the_faster_side() {
+fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
     else {
         println!("skipped: TURBO_TEST_VECTORS_BUNDLE and TURBO_TEST_DEVICE are not both set");
@@ -340,7 +351,7 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
     let dir = std::env::temp_dir().join(format!("turbo-dispatch-device-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     println!(
-        "window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)\tplan ms\tadded ms\tadded"
+        "window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)\tplan ms\tadded ms\tadded\town window"
     );
     let mut inconclusive = Vec::new();
     for &max_seq in &o.windows {
@@ -369,18 +380,29 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                 }
                 let [dev_ms, cpu_ms] = [middle(&t[0]), middle(&t[1])];
                 let ((dl, dh), (cl, ch)) = (low_high(&t[0]), low_high(&t[1]));
-                let tie = dl <= ch && cl <= dh;
-                let faster = if tie {
+                let faster = if dl <= ch && cl <= dh {
                     "either"
                 } else if dev_ms < cpu_ms {
                     "device"
                 } else {
                     "cpu"
                 };
+                // What the preference picks: the CPU's times scaled by its
+                // margin against the device's.
+                let prefer = d.preference();
+                let k = 1.0 + prefer.margin();
+                let picks = if dl <= ch * k && cl * k <= dh {
+                    "either"
+                } else if prefer.device(dev_ms, cpu_ms) {
+                    "device"
+                } else {
+                    "cpu"
+                };
                 let chose_cpu = side.starts_with("cpu");
                 assert!(
-                    tie || chose_cpu == (faster == "cpu"),
-                    "{max_seq}x{cap} {what}: ran on {side}, the {faster} is faster"
+                    picks == "either" || chose_cpu == (picks == "cpu"),
+                    "{max_seq}x{cap} {what}: ran on {side}, {prefer:?} picks the {picks} (device {dev_ms:.3} ms, \
+                     cpu {cpu_ms:.3} ms, the {faster} is faster)"
                 );
                 // What dispatch adds to the step it chose, planning the call,
                 // timed on its own.
@@ -403,8 +425,15 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                 // middle of the quiet pairs' differences is what dispatch
                 // adds. Noisy pairs are timed again, up to ATTEMPTS sets.
                 let chosen = if chose_cpu { &on_cpu } else { &on_device };
-                let mut sets = Vec::new();
+                let (mut sets, mut owns) = (Vec::new(), Vec::new());
                 let reading = loop {
+                    // Each set starts with the step against itself, six pairs:
+                    // the window within which the board tells two of its runs
+                    // apart just then (see `paired::window`).
+                    let own: Vec<(f64, f64)> =
+                        (0..6).map(|_| (timed(chosen, sub, reps), timed(chosen, sub, reps))).collect();
+                    let w = window(&own);
+                    owns.push(own);
                     let pairs: Vec<(f64, f64)> = (0..6)
                         .map(|i| {
                             if i % 2 == 0 {
@@ -416,39 +445,42 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                             }
                         })
                         .collect();
-                    let got = added(&pairs);
+                    let got = w.and_then(|w| added(&pairs, w).map(|(d, fixed)| (d, fixed, w * fixed, "quiet")));
                     sets.push(pairs);
                     if got.is_some() || sets.len() == ATTEMPTS {
                         break got;
                     }
                 };
-                let shown: Vec<String> = sets
-                    .iter()
-                    .map(|set| set.iter().map(|(x, y)| format!("{x:.3}/{y:.3}")).collect::<Vec<_>>().join(" "))
-                    .collect();
+                // No set quiet enough: every set's pairs at once (see
+                // `paired::pooled`).
+                let reading =
+                    reading.or_else(|| pooled(&sets.concat(), &owns.concat()).map(|(d, f, g)| (d, f, g, "pooled")));
+                let shown = paired::receipt::pairs(&sets);
                 let dispatched = middle(&sets.last().unwrap().iter().map(|p| p.0).collect::<Vec<_>>());
                 let reported = match reading {
-                    Some((d, fixed)) => format!("{d:+.3}\t{:+.3}%", 100.0 * d / fixed),
+                    Some((d, fixed, _, how)) => format!("{d:+.3}\t{:+.3}% {how}", 100.0 * d / fixed),
                     None => "inconclusive\t".to_string(),
                 };
+                let own = paired::receipt::allowance(reading);
                 println!(
-                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}",
+                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}\t{own}",
                     spread(&t[0]),
                     spread(&t[1]),
                 );
-                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown.join(" | "));
-                let Some((d, fixed)) = reading else {
+                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown);
+                println!("self-pairs\t{max_seq}\t{cap}\t{what}\t{}", paired::receipt::own_sets(&owns));
+                let Some((d, fixed, allowed, how)) = reading else {
                     inconclusive.push(format!("{max_seq}x{cap} {what}"));
                     continue;
                 };
-                // What dispatch adds is no more than the planning and
-                // RESOLUTION of the time, below which paired rounds on these
-                // boards do not tell two runs of the same step apart.
+                // What dispatch adds is no more than the planning and what
+                // the board allows, below which paired rounds do not tell two
+                // runs of the same step apart.
                 assert!(
-                    d <= plan + RESOLUTION * fixed,
-                    "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms (pairs {}), over planning {plan:.3} and \
-                     {RESOLUTION} of {fixed:.3}",
-                    shown.join(" | ")
+                    d <= plan + allowed,
+                    "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms ({how}, pairs {}), over planning {plan:.3} \
+                     and {allowed:.3} of {fixed:.3}",
+                    shown
                 );
             }
         }

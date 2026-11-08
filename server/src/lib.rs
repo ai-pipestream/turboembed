@@ -17,8 +17,10 @@ pub mod inspect;
 mod kserve;
 pub mod metrics;
 pub mod offsets;
+pub mod pii_policy;
 pub mod probe;
 pub mod progressive;
+pub mod release;
 pub mod results;
 pub mod search;
 pub mod sink;
@@ -59,6 +61,14 @@ pub mod proto {
     pub mod sink {
         pub mod v1 {
             tonic::include_proto!("turbo.sink.v1");
+        }
+        pub use v1::*;
+    }
+    /// The acknowledged PII access audit (docs/grpc-analysis.md, PII value
+    /// release).
+    pub mod audit {
+        pub mod v1 {
+            tonic::include_proto!("turbo.audit.v1");
         }
         pub use v1::*;
     }
@@ -159,11 +169,22 @@ pub struct Serve {
     pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
+    /// What a request's PiiOutputOptions may turn on
+    /// (`--pii-output-allow`, docs/grpc-analysis.md, PII output).
+    pub pii_output: results::disclosure::PiiOutputPolicy,
+    /// PII value release to granted services (`--pii-grant`, #1909); none
+    /// withholds every value.
+    pub pii_release: Option<release::ReleaseConfig>,
     /// The most bytes one call's request may carry in all, frames
     /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
     pub max_stream_bytes: Option<u64>,
     pub tls: Option<TlsConfig>,
     pub metrics_listen: Option<SocketAddr>,
+    /// The redaction policies `turbo-pii:redact` serves by name, converted
+    /// at start.
+    pub pii_policies: pii_policy::NamedPolicies,
+    /// The registered keys inline policies resolve through.
+    pub pii_resolver: Arc<pii_policy::ServerResolver>,
 }
 
 impl Server {
@@ -192,7 +213,9 @@ impl Server {
         let builder = tls::configure_server(tonic::transport::Server::builder(), serve.tls.as_ref())?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
-        let state = Arc::new(State::new(names, models));
+        let state = Arc::new(
+            State::new(names, models).with_pii_policies(serve.pii_policies.clone(), Arc::clone(&serve.pii_resolver)),
+        );
         let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
         let max_reply_bytes = config::max_reply_bytes(max_message_bytes);
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
@@ -226,12 +249,20 @@ impl Server {
         };
         // The forwarder spawns its drain, so it starts after every step that
         // can refuse the start: a refused start leaves no task behind.
+        if let Some(s) = &serve.sink
+            && !serve.pii_output.allows(&s.pii_output)
+        {
+            return Err("the sink's PII output asks for more than the server's PII output policy allows".into());
+        }
+        let release = release::Release::start(serve.pii_release.as_ref(), serve.tls.as_ref())?;
         let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
             admin: serve.admin,
             sink: sink.clone(),
             catalog: serve.catalog.clone(),
+            pii_policy: serve.pii_output,
+            release,
         })
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);

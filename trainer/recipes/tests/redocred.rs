@@ -455,6 +455,13 @@ fn a_relation_run_writes_a_head_the_core_reads_and_a_receipt() {
         assert!(!o.status.success() && err.contains(says), "{says}: {err}");
         assert!(!dir.join("head.json").exists(), "refused before the first checkpoint: {says}");
     }
+    // A receipt written before #1804 still carries `host`; the prior's
+    // encoder is all a comparison reads, so it is accepted.
+    let legacy = copy("prior-legacy", &|d| edit_json(d, "receipt.json", &|v| v["host"] = json!("a-host")));
+    let dir = scratch("train-legacy");
+    let o = run(&data, &dir, &["--against", legacy.to_str().unwrap(), "--epochs", "1"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let _ = fs::remove_dir_all(dir);
     for d in [data, out, again, plain, single] {
         let _ = fs::remove_dir_all(d);
     }

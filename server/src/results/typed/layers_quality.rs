@@ -5,7 +5,7 @@ use std::any::TypeId;
 
 use turbo_analysis::{Ix, KeyId, Layer};
 use turbo_analysis_layers::{
-    ColumnAlign, GrammarDiagnostics, KeyValuePairs, LexicalExpansions, Pii, QualityMetrics, SpanQuality, Tables,
+    ColumnAlign, GrammarDiagnostics, KeyValuePairs, LexicalExpansions, QualityMetrics, SpanQuality, Tables,
     TextQuality, WordNetSenses,
 };
 use turbo_encoding_layers::{EncodingEvidence, SourceEncoding};
@@ -19,9 +19,9 @@ use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     EmbeddedAsset, EmojiAnnotation, GrammarDiagnosticAnnotation, KeyValuePairAnnotation, LexicalExpansionAnnotation,
-    NoiseSpan, PiiMention, PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation,
-    RecordValueAnnotation, SourceEncodingAnnotation, SpellingCorrection, TableCellAnnotation, TextArtifact,
-    TypedAnnotation, TypedLayer, WordNetSenseAnnotation,
+    NoiseSpan, PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation, RecordValueAnnotation,
+    SourceEncodingAnnotation, SpellingCorrection, TableCellAnnotation, TextArtifact, TypedAnnotation, TypedLayer,
+    WordNetSenseAnnotation,
 };
 
 fn placeholder_kind_name(k: PlaceholderKind) -> &'static str {
@@ -127,27 +127,6 @@ pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Op
                         replacements: d.replacements.iter().map(ToString::to_string).collect(),
                         confidence: d.confidence,
                     })),
-                })
-                .collect()
-        }));
-    }
-    if ty == TypeId::of::<Pii>() {
-        return Some(build_layer::<Pii>(cx, key, |cx, l, mref| {
-            let mref = mref.map(ToOwned::to_owned);
-            (0..l.len())
-                .map(|i| {
-                    let ix = Ix::new(i as u32);
-                    let m = l.get(ix);
-                    TypedAnnotation {
-                        spans: cx.project_spans(&l.spans, ix),
-                        probability: None,
-                        model_ref: mref.clone(),
-                        value: Some(Value::Pii(PiiMention {
-                            kind: m.kind.name().to_owned(),
-                            confidence_tier: m.confidence.name().to_owned(),
-                            normalized: m.normalized.to_owned(),
-                        })),
-                    }
                 })
                 .collect()
         }));

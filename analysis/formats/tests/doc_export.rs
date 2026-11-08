@@ -5,9 +5,8 @@ use turbo_analysis::{
 };
 use turbo_analysis_layers::{
     Aspect, AspectTarget, Aspects, Categories, Chunks, Cut, EmotionDimension, EmotionItem, EmotionLayer, EmotionScores,
-    EmotionTarget, Entities, Language, Lemmas, MorphFeatures, Opinion, Opinions, Pii, PiiConfidence, PiiKind,
-    PiiMention, PolarityScores, PosTags, Sentences, Stems, Strs, Tokens, WordDependencies, WordLemmas, WordPosTags,
-    Words,
+    EmotionTarget, Entities, Language, Lemmas, MorphFeatures, Opinion, Opinions, Pii, PiiEvidence, PiiKind, PiiMention,
+    PolarityScores, PosTags, Sentences, Stems, Strs, Tokens, WordDependencies, WordLemmas, WordPosTags, Words,
 };
 use turbo_formats::conllu::{ConlluStream, ConlluWordReader};
 use turbo_formats::doc_export::{
@@ -311,10 +310,13 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
     doc.add(&Key::DEFAULT, cats, Provenance::by("test")).unwrap();
 
     let mut pii = Pii::new(child_view);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(35, 52), // admin@example.com -> source 39..56
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "admin@example.com",
     });
     doc.add(&Key::DEFAULT, pii, Provenance::by("test")).unwrap();
@@ -401,7 +403,8 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
     assert!(md.contains("- **PER** [19..30]: \\*Dr.\\_Smith\\* (score: 0.9800)"));
     assert!(md.contains("## Sentiment & Emotion Summary"));
     assert!(md.contains("- **Emotion Target 1**: `joy` (0.9200)"));
-    assert!(md.contains("- **email** [39..56]: `admin@example.com` (confidence: `format`)"));
+    // Findings only: the summary locates the mention, never repeats its value (#1904).
+    assert!(md.contains("- **email** [39..56] (confidence: `format`)"));
     assert!(md.contains("- **Chunk 1** [4..58]"));
 
     // 4. JSON-LD: valid JSON containing projected spans in all three offset modes.
@@ -412,6 +415,7 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
         assert!(jsonld.contains("\"turbo:tokens\": ["));
         assert!(jsonld.contains("\"turbo:entities\": ["));
         assert!(jsonld.contains("\"turbo:pii\": ["));
+        assert!(!jsonld.contains("\"normalized\": \"admin@example.com\""), "a PII value in the export");
     }
 
     // 5. WARC/1.1: parses cleanly into warcinfo + resource records with exact Content-Length and CRLF trailer.

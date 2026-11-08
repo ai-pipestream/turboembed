@@ -42,6 +42,11 @@ pub(crate) struct Analysis {
     /// The model catalog, whose acceptance file LoadBundle checks a
     /// bundle's licence against (catalog/gate.rs); none without one.
     pub(crate) catalog: Option<crate::catalog::Catalog>,
+    /// What a request's PiiOutputOptions may turn on (#1904).
+    pub(crate) pii_policy: crate::results::disclosure::PiiOutputPolicy,
+    /// PII value release to granted services (#1909); none withholds
+    /// every value.
+    pub(crate) release: Option<Arc<crate::release::Release>>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -164,17 +169,27 @@ impl AnalysisService for Analysis {
         // Import and re-export can walk a whole document; keep the
         // async runtime free of it.
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::results::document::round_trip_document(&req))
-            .await
-            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the round trip's task failed: {e}"))))?;
+        let policy = self.pii_policy;
+        let out =
+            tokio::task::spawn_blocking(move || crate::results::document::round_trip_document_under(&req, policy))
+                .await
+                .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the round trip's task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))
     }
 
     async fn inspect_document_graph(&self, req: Request<InspectDocumentGraphRequest>) -> Reply<TypedDocumentResult> {
+        // The calling service is the connection's verified certificate,
+        // read before the request's own fields are (#1909).
+        let service = crate::release::identity::of(&req);
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::results::typed::inspect_document_graph(&req))
-            .await
-            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}"))))?;
+        let policy = self.pii_policy;
+        if let (Some(release), Some(form)) = (&self.release, crate::release::asked(&req)) {
+            return Ok(Response::new(release.clone().inspect(service, req, form, policy).await.map_err(plain)?));
+        }
+        let out =
+            tokio::task::spawn_blocking(move || crate::results::typed::inspect_document_graph_under(&req, policy))
+                .await
+                .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))
     }
 
@@ -195,7 +210,7 @@ impl AnalysisService for Analysis {
         req: Request<AnalyzePipelineRequest>,
     ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
         let sink = self.sink.clone().filter(|s| s.documents());
-        progressive::start_progressive(&self.state, req, sink).await
+        progressive::start_progressive(&self.state, req, sink, self.pii_policy).await
     }
 
     async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {
@@ -221,7 +236,8 @@ impl AnalysisService for Analysis {
 
     async fn format_document(&self, req: Request<FormatDocumentRequest>) -> Reply<FormatDocumentResponse> {
         let req = req.into_inner();
-        let out = tokio::task::spawn_blocking(move || crate::format::format_document(&req))
+        let policy = self.pii_policy;
+        let out = tokio::task::spawn_blocking(move || crate::format::format_document_under(&req, policy))
             .await
             .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("format_document task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))

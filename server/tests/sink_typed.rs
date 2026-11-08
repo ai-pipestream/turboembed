@@ -69,7 +69,14 @@ async fn sender(sink: &Server, typed: Option<SinkTyped>) -> Server {
 
 async fn sender_with(sink: &Server, documents: bool, typed: Option<SinkTyped>) -> Server {
     let endpoint = format!("http://{}", sink.local_addr());
-    let config = SinkConfig { endpoint, max_queue_items: 16, max_queue_bytes: 64 << 20, documents, typed };
+    let config = SinkConfig {
+        endpoint,
+        max_queue_items: 16,
+        max_queue_bytes: 64 << 20,
+        documents,
+        typed,
+        pii_output: Default::default(),
+    };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap()
 }
@@ -90,8 +97,25 @@ async fn forward(typed: Option<SinkTyped>) -> (Server, DocumentSinkItem) {
 
 async fn inspect(s: &Server, graph: Vec<u8>, offsets: OffsetMode) -> TypedDocumentResult {
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let req = InspectDocumentGraphRequest { doc_id: "doc-1".into(), graph, view: 0, offsets: offsets as i32 };
+    let req = InspectDocumentGraphRequest {
+        doc_id: "doc-1".into(),
+        graph,
+        view: 0,
+        offsets: offsets as i32,
+        pii_output: None,
+        binding: None,
+        operation_key: String::new(),
+    };
     c.inspect_document_graph(req).await.unwrap().into_inner()
+}
+
+/// `t` with its receipt's attempt id cleared: every projection is its own
+/// attempt with a fresh id (issue #1908), and the rest must agree.
+fn attemptless(mut t: TypedDocumentResult) -> TypedDocumentResult {
+    let receipt = t.receipt.as_mut().expect("every projection carries its receipt");
+    assert_eq!(receipt.attempt_id.len(), 32);
+    receipt.attempt_id.clear();
+    t
 }
 
 #[tokio::test]
@@ -99,9 +123,10 @@ async fn the_forwarded_projection_is_what_inspect_document_graph_answers() {
     let mut projections = Vec::new();
     for offsets in [OffsetMode::Utf8, OffsetMode::Utf16] {
         let (s, item) = forward(Some(SinkTyped { view: 0, offsets })).await;
-        let typed = item.typed.clone().expect("the item carries the typed projection");
-        assert_eq!(typed, inspect(&s, item.graph.clone(), offsets).await, "{offsets:?}");
-        assert_eq!(typed, inspect(&s, graph(), offsets).await, "the projection of the graph as given, {offsets:?}");
+        let typed = attemptless(item.typed.clone().expect("the item carries the typed projection"));
+        assert_eq!(typed, attemptless(inspect(&s, item.graph.clone(), offsets).await), "{offsets:?}");
+        let given = attemptless(inspect(&s, graph(), offsets).await);
+        assert_eq!(typed, given, "the projection of the graph as given, {offsets:?}");
         assert_eq!((typed.doc_id.as_str(), typed.raw_text.as_str(), typed.offsets), ("doc-1", TEXT, offsets as i32));
         assert!(typed.layers.iter().any(|l| l.annotations.len() == 2), "{typed:?}");
         s.stop().await;
@@ -120,8 +145,11 @@ async fn the_forwarded_projection_is_what_inspect_document_graph_answers() {
 async fn without_the_option_the_item_carries_no_projection() {
     let (s, item) = forward(None).await;
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let listed =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: graph().into() }).await.unwrap().into_inner();
+    let listed = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph().into(), pii_output: None })
+        .await
+        .unwrap()
+        .into_inner();
     let want = DocumentSinkItem {
         sequence: 1,
         doc_id: "doc-1".into(),
@@ -254,16 +282,19 @@ async fn a_progressive_call_forwards_its_graph_with_the_typed_projection() {
     assert_eq!((summary.accepted_count, summary.rejected_count), (1, 0), "{:?}", summary.errors);
     let item = got.lock().unwrap().pop().unwrap();
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let listed = c.round_trip_document_graph(DocumentGraphRequest { graph: complete.graph.clone() }).await;
+    let listed =
+        c.round_trip_document_graph(DocumentGraphRequest { graph: complete.graph.clone(), pii_output: None }).await;
     let listed = listed.unwrap().into_inner();
     assert_eq!(item.doc_id, "doc-p");
     assert_eq!(item.graph, listed.graph.to_vec());
     assert_eq!((&item.layers, &item.views), (&listed.layers, &listed.views));
     assert_eq!(item.layers, complete.layers, "the layers the call's Complete event listed");
     assert!(item.analyzed.is_none());
-    let typed = item.typed.clone().expect("the item carries the typed projection");
-    let want =
-        TypedDocumentResult { doc_id: "doc-p".into(), ..inspect(&s, complete.graph.to_vec(), OffsetMode::Utf16).await };
+    let typed = attemptless(item.typed.clone().expect("the item carries the typed projection"));
+    let want = attemptless(TypedDocumentResult {
+        doc_id: "doc-p".into(),
+        ..inspect(&s, complete.graph.to_vec(), OffsetMode::Utf16).await
+    });
     assert_eq!(typed, want);
     assert_eq!(typed.raw_text, TEXT);
     assert!(!typed.layers.is_empty());

@@ -10,7 +10,7 @@ use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::eval::{Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
-use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, examples, named, replace};
+use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, named, replace};
 use turbo_trainer_recipes::ud::TREEBANKS;
 use turbo_trainer_recipes::ud_split as split;
 use turbo_trainer_recipes::{Error, Result, safetensors};
@@ -32,10 +32,12 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
             a,
         );
     }
-    let bank = *TREEBANKS
-        .iter()
-        .find(|b| b.id == bank)
-        .ok_or_else(|| Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))))?;
+    let bank_id = bank;
+    let bank = TREEBANKS.iter().find(|b| b.id == bank_id);
+    if bank.is_none() && !bank_id.contains(',') {
+        return Err(Error(format!("unknown treebank {bank_id:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))));
+    }
+    let sample = if bank.is_none() { a.parsed("--sample", 1.0)? } else { 1.0 };
     let min_freq: usize = a.parsed("--min-tree-freq", MIN_TREE_FREQ)?;
     let seen_k: u32 = a.parsed("--seen-lookup", 0)?;
     let Opts { bundle, mut out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } =
@@ -46,20 +48,42 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     }
 
     let t = Instant::now();
-    let (mut splits, files, recorded) = split::read_tokens(&bank, dir, unrecorded)?;
+    let (mut splits, record, languages) = match bank {
+        Some(bank) => {
+            let (splits, files, recorded) = split::read_tokens(bank, dir, unrecorded)?;
+            let record = split::record(bank, &splits, files, recorded);
+            (splits, record, None)
+        }
+        None => {
+            let multi = turbo_trainer_recipes::ud_multi::read_tokens(
+                bank_id,
+                dir.to_str().ok_or_else(|| Error("corpus directory is not UTF-8".into()))?,
+                unrecorded,
+                sample,
+            )?;
+            (
+                multi.splits,
+                multi.record,
+                Some((multi.languages, multi.train_languages, multi.dev_languages, multi.test_languages)),
+            )
+        }
+    };
     if max_train > 0 {
         splits.train.truncate(max_train);
     }
-    let record = split::record(&bank, &splits, files, recorded);
     let read = t.elapsed().as_secs_f64();
     let chosen = turbo_trainer_recipes::split_labels::choose(&splits.train);
     let labels = split::mine_labels(&splits.train, &chosen, min_freq);
     if labels.len() < 2 {
-        return Err(Error(format!("{}: no multiword token's split comes up {min_freq} times in training", bank.id)));
+        return Err(Error(format!("{bank_id}: no multiword token's split comes up {min_freq} times in training")));
     }
     // Mined from the training split alone; the receipt's head carries it.
     let seen = (seen_k > 0).then(|| split::seen_lookup(&splits.train, &chosen, &labels, seen_k));
-    let spec = split::spec(labels, &record, pooling, bilstm, seen)?;
+    let mut spec = split::spec(labels, &record, pooling, bilstm, seen)?;
+    if let Some((names, _, _, _)) = &languages {
+        spec.language = Some(turbo::manifest::LanguageInput { languages: names.clone(), dim: 16 });
+        spec.validate("head").map_err(|e| Error(e.message))?;
+    }
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
@@ -68,8 +92,17 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     let t = Instant::now();
     let train_s = split::labelled(&splits.train, &chosen, &spec.labels);
     let dev_s = split::labelled(&splits.dev, &chosen, &spec.labels);
-    let (train_ex, _) = examples(&mut enc, &train_s, &spec.labels, pooling)?;
-    let (dev_ex, dev_left_out) = examples(&mut enc, &dev_s, &spec.labels, pooling)?;
+    let train_languages = languages.as_ref().map(|(_, rows, _, _)| &rows[..train_s.len()]);
+    let dev_languages = languages.as_ref().map(|(_, _, rows, _)| &rows[..]);
+    let (train_ex, _) = turbo_trainer_recipes::run::examples_with_languages(
+        &mut enc,
+        &train_s,
+        &spec.labels,
+        pooling,
+        train_languages,
+    )?;
+    let (dev_ex, dev_left_out) =
+        turbo_trainer_recipes::run::examples_with_languages(&mut enc, &dev_s, &spec.labels, pooling, dev_languages)?;
     let features_s = t.elapsed().as_secs_f64();
     let feature_words = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();
 
@@ -98,10 +131,36 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
     let t = Instant::now();
     let splitter = model.to_splitter().map_err(|e| Error(e.message))?;
     let test_f = split::features(&mut enc, &splits.test, pooling)?;
-    let predicted = split::predict(&splitter, &splits.test, &test_f)?;
+    let test_languages = languages.as_ref().map(|(_, _, _, rows)| &rows[..]);
+    let predicted = split::predict_with_languages(&splitter, &splits.test, &test_f, test_languages)?;
     let base = split::baseline(&splits.train, &splits.test);
     let test = split::sentences(&splits.test);
-    let seen = Seen::of(&split::sentences(&splits.train));
+    let train_s = split::sentences(&splits.train);
+    let seen = Seen::of(&train_s);
+    let by_language = match &languages {
+        Some((names, train_rows, _, test_rows)) => turbo_trainer_recipes::eval::language_evals(
+            &train_s,
+            &test,
+            &predicted,
+            &train_rows[..train_s.len()],
+            test_rows,
+            names,
+            turbo_trainer_recipes::eval::LanguageEvalOptions {
+                task: Task::Tags,
+                baseline: |train_rows: &[usize], test_rows: &[usize]| {
+                    let train_part: Vec<split::TokenSentence> =
+                        train_rows.iter().map(|&i| splits.train[i].clone()).collect();
+                    let test_part: Vec<split::TokenSentence> =
+                        test_rows.iter().map(|&i| splits.test[i].clone()).collect();
+                    split::baseline(&train_part, &test_part)
+                },
+                resamples: RESAMPLES,
+                seed: c.seed,
+                attachment: None,
+            },
+        )?,
+        None => Vec::new(),
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(Task::Tags, &test, &predicted, &seen, None)),
@@ -112,6 +171,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
         uas: None,
         rules: None,
         against: None,
+        by_language,
     };
     let eval_s = t.elapsed().as_secs_f64();
 
@@ -141,7 +201,7 @@ pub(super) fn train(argv: &[String], bank: &str, dir: &Path, unrecorded: bool, m
             threads: c.threads,
             max_train,
             dev_left_out,
-            sample: None,
+            sample: languages.map(|_| sample),
         }),
         training: Some(TrainingRecord {
             train_loss: report.train_loss,

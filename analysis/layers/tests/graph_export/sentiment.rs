@@ -133,17 +133,43 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         by.clone(),
     )
     .unwrap();
-    doc.add(
-        &Key::DEFAULT,
-        Pii {
-            spans: spans(&[(0, 5)]),
-            kind: vec![PiiKind::Email],
-            confidence: vec![PiiConfidence::Checksum],
-            normalized: strs(&["a@b.c"]),
-        },
-        by.clone(),
-    )
-    .unwrap();
+    let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("turbo-pii:test", "0.1").unwrap();
+    let evidence = [
+        PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
+        PiiEvidence::Label { span: Span::new(6, 11), phrase: 2 },
+        PiiEvidence::DenyHit { list: 1, term: 4 },
+        PiiEvidence::Rule { rule: 9 },
+        PiiEvidence::Shape,
+    ];
+    pii.push(PiiMention {
+        span: Span::new(0, 5),
+        kind: PiiKind::Email,
+        detector,
+        evidence: &evidence,
+        score: Some(PiiScore { value: 0.75, kind: PiiScoreKind::Probability, model: detector, calibrated: false }),
+        normalized: "a@b.c",
+    });
+    doc.add(&Key::DEFAULT, pii, by.clone()).unwrap();
+    let mut candidates = PiiCandidates::new(ViewId::SOURCE);
+    let detector = candidates.detectors.add("turbo-pii:test", "0.1").unwrap();
+    for (start, end, disposition) in [
+        (0, 5, PiiDisposition::Kept { mention: Ix::new(0) }),
+        (0, 5, PiiDisposition::Repeats { mention: Ix::new(0) }),
+        (1, 3, PiiDisposition::NestedIn { mention: Ix::new(0) }),
+        (6, 9, PiiDisposition::AllowedByRule { scope: AllowScope::Kind, rule: AllowRule::Pattern(1) }),
+        (6, 9, PiiDisposition::RejectedByRule { reason: RejectReason::Threshold }),
+    ] {
+        candidates.push(PiiCandidate {
+            span: Span::new(start, end),
+            kind: PiiKind::Email,
+            detector,
+            evidence: &evidence[..2],
+            score: None,
+            disposition,
+        });
+    }
+    doc.add(&Key::DEFAULT, candidates, by.clone()).unwrap();
     let mut regions = Regions::new();
     regions.push(turbo_analysis_layers::RegionVote::new(RegionCode::parse("US").unwrap(), 0.75).unwrap());
     regions.push(turbo_analysis_layers::RegionVote::new(RegionCode::parse("IE").unwrap(), 0.25).unwrap());
@@ -245,7 +271,27 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     assert_eq!(back.get::<Ordinals>().unwrap().offset, [-2]);
     assert_eq!(back.get::<Quantities>().unwrap().unit.get(0), "%");
     assert_eq!(back.get::<Times>().unwrap().timex.get(0), "2027-01-15");
-    assert_eq!(back.get::<Pii>().unwrap().kind, [PiiKind::Email]);
+    let pii = back.get::<Pii>().unwrap();
+    assert_eq!(pii.kind, [PiiKind::Email]);
+    assert_eq!(pii.detectors.get(pii.detector[0]), Some(("turbo-pii:test", "0.1")));
+    let m = pii.get(Ix::new(0));
+    assert_eq!(m.evidence.len(), 5);
+    assert_eq!(m.evidence[1], PiiEvidence::Label { span: Span::new(6, 11), phrase: 2 });
+    assert_eq!(m.evidence[2], PiiEvidence::DenyHit { list: 1, term: 4 });
+    assert_eq!(m.evidence[3], PiiEvidence::Rule { rule: 9 });
+    assert_eq!(m.score.map(|s| (s.value, s.kind, s.calibrated)), Some((0.75, PiiScoreKind::Probability, false)));
+    let candidates = back.get::<PiiCandidates>().unwrap();
+    assert_eq!(candidates.len(), 5);
+    assert_eq!(candidates.disposition[0], PiiDisposition::Kept { mention: Ix::new(0) });
+    assert_eq!(candidates.disposition[1], PiiDisposition::Repeats { mention: Ix::new(0) });
+    assert_eq!(candidates.disposition[2], PiiDisposition::NestedIn { mention: Ix::new(0) });
+    assert_eq!(
+        candidates.disposition[3],
+        PiiDisposition::AllowedByRule { scope: AllowScope::Kind, rule: AllowRule::Pattern(1) }
+    );
+    assert_eq!(candidates.disposition[4], PiiDisposition::RejectedByRule { reason: RejectReason::Threshold });
+    assert_eq!(candidates.get(Ix::new(4)).evidence, &evidence[..2]);
+    assert_eq!(candidates.content_hash(), doc.get::<PiiCandidates>().unwrap().content_hash());
     assert_eq!(back.get::<Regions>().unwrap().share, [0.75, 0.25]);
     assert_eq!(back.get::<Matches>().unwrap().rule, [7]);
     assert_eq!(back.get::<Levels>().unwrap().unit, [Unit::Document]);

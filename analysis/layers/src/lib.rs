@@ -38,7 +38,14 @@ pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
-pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
+pub use pii::{
+    CUSTOM_CODE_BASE, ChecksumAlgorithm, CustomKindId, CustomKinds, DetectorError, EvidenceList, KindError, KindRow,
+    Pii, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiScore,
+    PiiScoreKind, Sensitive, WITHHELD, mention_order,
+};
+pub use pii_candidates::{AllowRule, AllowScope, PiiCandidate, PiiCandidates, PiiDisposition, RejectReason};
+pub use pii_edits::{PiiEdit, PiiEdits, PiiRule, PiiStrategyKind};
+pub use pii_plan::PiiPlan;
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
     MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
@@ -163,6 +170,9 @@ mod numbers;
 mod ordinals;
 mod payload_hash;
 mod pii;
+mod pii_candidates;
+mod pii_edits;
+mod pii_plan;
 mod predicate;
 mod project;
 mod quality;

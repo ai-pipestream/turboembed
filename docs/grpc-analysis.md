@@ -358,7 +358,7 @@ The limits are the session's: what a request is actually held to, where a
 server started below the model's limits. The response's `limits` field
 names what one result message may carry (`max_sparse_entries`,
 `max_sparse_occurrences`, `max_token_vector_bytes`, `max_rerank_items`,
-`max_answers`, `max_record_values` and the rest); a larger message is `TURBO_E_CAPACITY` (771,
+`max_answers`, `max_record_values`, `max_mapping_edits` and the rest); a larger message is `TURBO_E_CAPACITY` (771,
 `OUT_OF_RANGE`, docs/kserve.md, Errors) naming that limit, and nothing is
 truncated.
 
@@ -428,6 +428,46 @@ reads one back with the message's own validation.
 for a requested view and offset mode. `RoundTripTypedDocument` validates
 and echoes the typed message; it does not reconstruct a native `Document`.
 
+A layer over another view is projected through the lowest common
+ancestor of its view and the requested one, as `Document::map_span`
+maps spans, so a span outside the edits between the two keeps its exact
+bytes; a detour through the source would widen it to the whole of every
+lossy edit above that ancestor (#1906). Every projected `SpanFragment`
+says what the projection did to it (#1907, below). In debug builds, and so in
+tests, the projection runs the `RoundTripTypedDocument` validation on its
+own message and refuses, with `TURBO_E_INVALID_ARGUMENT`, a document it
+cannot project to a message that validation accepts. Release builds skip
+that check, which costs half to three quarters as much as the projection
+itself.
+
+A `turbo:pii` payload sits only on a `turbo:pii` layer, has at least one
+span, and needs a `PiiKindRef`: a built-in `PiiKindId` (1 to 30) or an
+index into the layer's `custom_pii_kinds`, and a `PiiConfidenceTier`
+(format 1, checksum 2, labelled checksum 3, labelled 4).
+`UNSPECIFIED` (0) and unknown numbers are refused. `custom_pii_kinds` is
+empty on every other layer; on `turbo:pii` it holds at most 256 distinct
+names of 1 to 64 bytes, none a built-in kind name (#1901). A refusal
+names the layer, the row and its wire spans, never the mention's text, a
+custom kind name or the refused number. A mention whose
+text the requested view deletes keeps an empty span where it was.
+
+A `turbo:pii-edits` layer projects one `PiiEditAnnotation` (oneof arm 98)
+an edit: the annotation's spans are the replacement on the requested view;
+`source` is the replaced bytes on the parent of the layer's native view in
+canonical UTF-8 bytes, whatever the `OffsetMode`; `members` are rows of
+the covered `turbo:pii` layer, ascending; `rule` is `default_rule` or a
+`PiiKindRef` into the layer's `custom_pii_kinds`, which repeats the
+covered pii layer's table; `strategy` is a `PiiStrategy`; and
+`policy_revision` is the caller's number. No value is carried. Validation
+refuses an edit with no source span, no members, members out of order or
+past the covered layer, a missing rule, or an unknown strategy (#1902).
+The edits' view is the layer's `native_view` in the mapping, whatever
+other views the message has: projected onto that view, the unchanged
+stretches between edits are as long in the parent as in the view;
+projected onto the source when the source is the parent, every edit's
+span is its source span and its members are exactly the mentions under
+it; onto any other view only the layer-wide checks apply (#1907).
+
 Evidence producers record only annotator and optional model identity.
 Their model-table entries use version `"0"`, config hash `0`, and absent
 execution metadata for the unrecorded fields. They do not borrow those
@@ -464,6 +504,443 @@ source layers still require nonempty spans. Typed validation requires
 event argument spans and checks their offsets and anchor references;
 asset payload spans and outer spans are required, and the payload must
 remain inside its projected outer span, including at an empty boundary.
+
+## PII output (issue #1904)
+
+Detection identifies PII; what a response carries beyond the findings is
+an output option. A document holding PII findings is one with a
+`turbo:pii` layer instance. Its answers from `InspectDocumentGraph`,
+`RoundTripDocumentGraph` and `AnalyzeDocumentProgressive`, and the sink
+items about it, carry by default only the findings: each mention's kind,
+confidence tier and spans, with layer and view provenance. Every
+`PiiMention.value` is `PiiValue.withheld`; a caller that holds the text
+slices it with the spans. There is no value and no token.
+
+Graph bytes and source text hold every detected value in clear (the
+layer codec writes the normalized column, and the text holds the values
+themselves), so a default answer about such a document has no graph
+bytes, no `source_text` and an empty `raw_text`. `DocumentGraphResponse`
+then carries `findings`, the typed projection onto the source view in
+UTF-8 offsets, in place of the graph; progressive step snapshots carry no
+graph once the PII step has run. Layer and view errors are the typed
+`LayerError` of every answer (#1908), which never carries free text. Other layers
+carry the view's words (sentence text, token surfaces, lemmas), so while
+the text is withheld they are listed with their status and no
+annotations. A typed result is refused on validation when a mention's
+value is missing or has no form, is an empty clear value, a token that is
+not 32 bytes or names no key id and version, or a ciphertext (#1885).
+The result envelope (#1907) is kept: it carries digests and lengths of
+the texts and the edit chain's offsets, never a text.
+
+`FormatDocument` of such a document needs `full_text`, since every
+format carries the document text; no format (JSON-LD, markdown or any
+other) writes a mention's value. `PiiMention.normalized` (3) is kept for
+wire compatibility, deprecated and never populated.
+
+`PiiOutputOptions` on the request (`pii_output`) turns on more:
+
+- `rewritten_text`: the text of the requested view when that view is a
+  PII rewrite view, one a `turbo-pii:` annotator wrote, such as the masked
+  view. The text of any other view needs `full_text`.
+- `full_text`: source and view texts and graph bytes, as for a document
+  without PII.
+- `detail`: candidates and evidence detail (#1903).
+- `values`: `UNSPECIFIED` or `WITHHELD` withholds them. `TOKEN` and
+  `CLEAR` are released by `InspectDocumentGraph` only, as the next section
+  says; `CIPHERTEXT` (#1885), and a value form on any other call or on a
+  server without PII release, are refused with
+  `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
+  A token or ciphertext names its key in `key_id` and `key_version`, the
+  identity (id, version) of a `PiiPolicyKeyRef`.
+
+The server caps the options with `--pii-output-allow`
+(`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
+`rewritten-text`, `full-text`, `detail`, and the value forms `token` and
+`clear`. Unset, the three text options are allowed, since a caller of
+these calls sent the text it asks back, and no value form is. A request for an
+option the server does not allow is refused with `TURBO_E_INVALID_STATE`
+(`FAILED_PRECONDITION`) naming it; nothing is dropped silently. Sink items
+follow `--sink-pii-output` (docs/grpc-sink.md), which must be within the
+cap.
+
+In-process callers of the C ABI, JNI and Panama bindings hand the library
+their own text. The controls there govern what the library copies out by
+default, not protection from a caller who already holds the input. Native
+`PiiMention` and the `turbo:pii` value column (`Sensitive`) print
+`<withheld>` in place of a value in `Debug`, and Java `TurboSpanData`'s
+`toString` does the same.
+
+## PII value release (issue #1909)
+
+A calling service is identified by the client certificate its mTLS
+connection verified against `--tls-client-ca`, and by nothing else:
+request metadata, headers and fields confer nothing. TurboEmbed keeps no
+user model; which end user may see what stays with the calling platform,
+which decides what to ask for. The identity is the SHA-256 of the leaf
+certificate's DER bytes (its fingerprint), so no certificate parser is
+needed.
+
+`--pii-grant FINGERPRINT:FORMS:KINDS` (repeated, or
+`TURBO_KSERVE_PII_GRANTS` as a `;`-separated list) grants the service
+with that fingerprint the forms in `FORMS` (`token`, `clear`, or
+`token+clear`) for the built-in kinds in `KINDS` (comma-separated names,
+or `*` for every kind, caller-defined kinds included). Grants of one
+fingerprint add up. A grant needs `--tls-cert`, `--tls-key` and
+`--tls-client-ca`, and `--pii-audit-endpoint`; `ciphertext` is refused
+until #1885.
+
+For each mention the forms in effect are the request's form ∩ the forms
+`--pii-output-allow` lists ∩ the forms the service is granted for the
+mention's kind: a set intersection, never a ranking. A mention with none
+stays `withheld`; a service without a certificate or a grant gets the
+findings only, exactly as without release. A request for a form the
+policy does not list is refused with `TURBO_E_INVALID_STATE`
+(`FAILED_PRECONDITION`).
+
+Tokens are HMAC-SHA-256 under a registered key, `--pii-token-key
+ID:VERSION:PATH` (repeated, or `TURBO_KSERVE_PII_TOKEN_KEYS`), whose 32
+to 1024 bytes are read from `PATH` at start. With several keys,
+`--pii-token-key-active ID:VERSION` names the one tokens are issued
+under. `PiiValueToken` carries the 32-byte token and the key's id and
+version; key bytes never appear in a message, an error or a `Debug`
+string. Equal values under one key give equal tokens. `clear` carries the
+normalized value.
+
+Before any value leaves, the server records one `PiiAccessEvent` with
+`turbo.audit.v1.TurboAuditService.RecordPiiAccess`
+(`server/proto/turbo_audit.proto`) at `--pii-audit-endpoint`
+(`TURBO_KSERVE_PII_AUDIT_ENDPOINT`) and waits for the acknowledgement,
+at most `--pii-audit-timeout-ms` (`TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS`,
+5000 by default). A call that fails, times out or acknowledges another
+event id fails the request with `TURBO_E_BUSY` (`UNAVAILABLE`) and no
+value. A release needs the request's `operation_key` (#1908); without
+one no value is released and the answer carries the findings only. The
+event carries the operation key and the attempt id the answer's receipt
+names, the input
+digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
+instance and index with their kind and form, the policy id and the
+SHA-256 of its rules, the time and the document id; never a value, token
+or text. Its id is the SHA-256 of what a retry keeps: the service
+fingerprint, the operation key, the input digest, the mention set, the forms in effect and the
+policy digest. The attempt is not part of it, so every attempt at one
+release has the same id and the audit service keeps one record. The sink drops items when its queue is full, so it
+never carries these events. A request that releases nothing records
+nothing.
+
+## The result envelope (issue #1907)
+
+Every `TypedDocumentResult` carries, beside the projected layers, what
+it was computed from, what it is, how each layer was made, and the view
+edit chain, so a consumer can bind the result to its exact input, read
+an old result against its original parse, and map any span between any
+two views without the server. Every digest is the raw 32 bytes of a
+SHA-256 and the proto comment on each field says what it is over; a
+digest that is not available is absent, never zero-filled or invented.
+
+- `input` (`InputIdentity`): the SHA-256 and length of the document's
+  original bytes (the decoded file bytes, else the UTF-8 of the source
+  view) and of the source view's text, plus the caller's `InputBinding`
+  (source repository revision, parse artifact id and digest) copied from
+  `InspectDocumentGraphRequest.binding` exactly as given. The server
+  never invents repository provenance: no binding sent, none returned.
+- `result` (`ResultIdentity`): the SHA-256 of the exact TGRF bytes
+  `DocumentGraph::to_bytes` writes for the document, so `sha256sum` of
+  the graph bytes reproduces it, with the graph format version, the
+  envelope schema version (1) and `result_id`, the digest in lowercase
+  hexadecimal. Protobuf bytes are never digested: they are not canonical
+  across languages. The same bytes give the same identity whatever view
+  or offsets are asked for. On the `InspectDocumentGraph` path the
+  digest is of the server's canonical re-export of the imported graph,
+  not of the request bytes as sent: a graph serialised in another order
+  or with slack gets the identity of its canonical form, so one
+  document has one `result_id` whichever path produced it, and a
+  consumer that keeps non-canonical bytes of its own sees a
+  `verify_result` mismatch against them. The extra export costs less
+  than the import it follows: 6.5 ms for a 4.2 MB graph of 100,000
+  tokens (8.3 ms to import), 62 µs for 36 KB, release build, one core.
+- `provenance` (`LayerProvenance`, one per view and layer instance in
+  document order): the chained provenance digest
+  (`turbo:provenance-digest:v2`), the content digest
+  (`turbo:layer-content:v2`) where the layer type has one, the snapshot
+  of the read layers' content digests (`turbo:upstream-content:v2`), the
+  codec schema the layer's graph bytes are in, the layers read and the
+  anchor and index instances it is on, and the `model_ref` into
+  `models` for the annotator, version, bundle and execution. The FNV
+  `config_hash` on that entry stays a local cache key, never an
+  identity.
+- `mapping` (`MappingPayload`): the inline view tree, `ViewChain` per
+  view in id order with its instance, parent, text digest, text length
+  and its native alignment to its parent as `EditRun`s. A run is
+  `count` consecutive edits of one parent width and one child width,
+  each starting where the one before it ends on both sides, so a
+  masked view's one edit per character costs one run per stretch of
+  equal-width characters; decoding a run gives the native `Edit` list
+  byte for byte. Edit coordinates are UTF-8 bytes whatever the result's
+  `OffsetMode` is, which applies to annotation spans only. Mapping is
+  the stepwise walk from one view up to the lowest common ancestor and
+  down to the other, one alignment at a time, with the native
+  `Side::Start` and `Side::End` widening; a composed net alignment is
+  never substituted, because its empty-span behaviour differs.
+  `turbo_kserve::results::typed::chain::WireChain` is the consumer side
+  in Rust: it rebuilds the tree from the message and its `map_span`
+  reproduces `Document::map_span` exactly for every span it accepts.
+  It checks bounds only: the chain carries byte lengths, not every
+  view's text, so a span that splits a UTF-8 scalar, which
+  `Document::map_span` refuses, is mapped by the wire consumer, and a
+  port of it (#1910) need not promise that refusal. The mapping is inline only
+  and bounded by `max_mapping_edits` (4,194,304 native edits over every
+  view); a document over it is refused with `TURBO_E_CAPACITY`, never
+  truncated. Oneof arm 2, `artifact`, is reserved for an immutable
+  artifact reference and is not served: the server keeps no artifacts.
+- `TypedLayer.native_view`: the view a layer's spans are natively in,
+  before projection into `TypedDocumentResult.view`.
+- `ScopedRef`: a reference to one annotation that means the same thing
+  outside its message: result id, layer, instance, item index, and the
+  native view by instance and text digest. `view`, `native_view`,
+  annotation indexes and `model_ref` values are message-local.
+  `turbo_kserve::results::typed::scoped` builds and resolves them, and
+  refuses a reference into another result or a view whose text changed.
+
+`RoundTripTypedDocument` validates the envelope with the rest: both
+identities present and whole, `result_id` the hexadecimal of the
+content digest, one provenance entry per view and layer whose model
+reference resolves, the `views` list and the mapping naming the same
+instances with the same parents both ways, the mapping a view tree in
+id order whose runs
+decode to a valid alignment that turns the parent's length into the
+child's, and `raw_text` the text of the mapping's target view by length
+and digest. `turbo_kserve::results::typed::identity::verify_input` and
+`verify_result` are the consumer checks: a result is refused against a
+document or graph bytes that are not the ones it names, so changed input
+never inherits old detections.
+
+### Fragment outcomes
+
+Every `SpanFragment` carries a `SpanOutcome`, straight from the native
+projection (`Document::map_span_outcome`, `Document::project_fragments`)
+and never recomputed on the wire:
+
+- `SPAN_OUTCOME_EXACT`: mapped back along the chain, the fragment is the
+  native span, so it covers exactly the bytes the annotation stood for.
+  A fragment on the layer's own view (`TypedLayer.native_view` equal to
+  the result's `view`) is always exact, and so is a span the message
+  does not project, such as a pii edit's `source`.
+- `SPAN_OUTCOME_WIDENED`: a lossy edit on the chain widened it to the
+  edit's bounds, so it covers more than the native span stood for.
+- `SPAN_OUTCOME_DELETED`: a non-empty native span landed on text the
+  result's view deleted; the fragment is empty and anchors where the
+  text was. A deleted fragment is kept, not dropped: a standalone one
+  stays as an empty anchor of its own, so an item with two fragments on
+  deleted text has two empty anchors, and one that lands inside or
+  touching another projected fragment coalesces into it as a member
+  with outcome deleted. Before #1907 a deleted fragment was dropped from
+  a multi-fragment span.
+
+Coalescing is a separate fact. Onto another view, projected fragments
+that overlap, or an empty one inside or touching another, coalesce into
+one fragment whose `members` list the native fragments by ascending
+index in the annotation's native fragment list (for a span gathered from
+several items, such as a coreference chain or an entity's evidence, the
+items' fragments in order), each with its own outcome; the fragment's
+outcome is widened when any member is, else exact when any member is,
+else deleted. A fragment that is not coalesced carries no members.
+
+A consumer holding the mapping reproduces every outcome with `WireChain`
+alone: map the native span to the result's view and back, stepwise along
+the chain; it is exact when the round trip gives the native span back,
+deleted when a non-empty span lands empty, widened otherwise. The
+validator cannot tell exact from widened without the native span, so it
+checks what the message shows: an outcome on every fragment, deleted
+only on an empty fragment, every fragment exact on the layer's own
+view, members absent or at least two and ascending with the fragment's
+outcome merged from theirs, no native fragment a member of two
+fragments, and an empty fragment in a multi-fragment span only as a
+deletion anchor. Cost, release build, one core, 20 KB text, 7 layers,
+6,270 annotations, offsets in UTF-16: the outcome is one extra map back
+per projected span, 122 ns against 63 ns for the map alone, and 2 bytes
+per fragment on the wire (12.5 KB on 201 KB); projection onto the source
+1.34 ms, onto a lossy view 2.89 ms.
+
+## The processing receipt (issue #1908)
+
+A `ProcessingReceipt` says what one attempt at one operation did. It is
+kept apart from the result: `TypedDocumentResult.receipt` and the
+progressive stream's terminal `receipt` event reference the result by
+its `ResultIdentity`, and the result identity is the digest of the graph
+bytes, so a new attempt or receipt never changes it.
+
+| Field | What it holds |
+|---|---|
+| `operation_key` | The caller's key from `InspectDocumentGraphRequest.operation_key` or `AnalyzePipelineRequest.operation_key`, as given: at most 128 printable ASCII bytes, empty when the caller has none. Anything else is `TURBO_E_INVALID_ARGUMENT`, and the refusal does not quote it. |
+| `attempt_id` | 32 lowercase hexadecimal digits from the server, new on every attempt. |
+| `input` | The `InputIdentity` of the exact input. |
+| `result` | The `ResultIdentity` produced; absent when the attempt handed over none. |
+| `status` | `ProcessingStatus`: UNSPECIFIED (0, never written), COMPLETE, PARTIAL, NOT_ASSESSED, FAILED, CANCELLED. |
+| `layers` | One `LayerReceipt` per view and layer: status, item count, assessed source view byte ranges, requested and executed detectors (annotator and version), truncation reasons, sanitized error and the layer's provenance digest, its configuration identity. |
+| `config_digest` | SHA-256 of the processing configuration, rule `turbo.processing-config.v1` (`Document::processing_config_digest`): every view and layer entry sorted by (layer id, instance) with its annotator, version, config hash, model identity and read keys, and no text, view, source or content digest. The same configuration over other input has the same digest, so one operation key reused under another configuration is detectable; `input` carries the input digests. Per-layer provenance digests chain the text digests and stay in the envelope. |
+| `requested_steps`, `executed_steps` | The pipeline steps asked for and the ones that ran; empty for `InspectDocumentGraph`. |
+
+The document status is CANCELLED when a deadline cancelled the run,
+FAILED when any layer failed, NOT_ASSESSED when nothing past the source
+view was assessed, PARTIAL when a layer is partial or not assessed or a
+requested step did not run, and COMPLETE otherwise. A layer whose
+annotator declined the document (error kind DECLINED, such as a
+predicate that does not apply) makes the document PARTIAL by design, so
+a conditional pipeline often reads PARTIAL: the per-layer kind tells
+DECLINED from UPSTREAM and from damage. COMPLETE with an item count of 0
+is an explicit "assessed, nothing found". A complete layer assessed its
+whole source text unless its producer reports less
+(`receipt::Coverage`), which makes it PARTIAL with the truncation
+reasons.
+
+Retries keep the operation key and get a new attempt id. The server
+binds and echoes the key and keeps no state for it: rejecting a reused
+key with different input belongs to the caller, and nothing promises
+exactly-once execution.
+
+The progressive stream ends with the receipt: after `complete`, or, when
+a deadline cancels the run, as a CANCELLED receipt before the deadline
+status. A stream that ends without one (a dropped connection, an
+internal error) is incomplete whatever it delivered before;
+`turbo_kserve::results::receipt::stream::terminal_receipt` is the
+consumer check: the receipt must be whole and self-consistent, and
+bound to the caller's operation key, the source text it sent and the
+delivered graph; after no graph it must name no result and be CANCELLED
+or FAILED. `RoundTripTypedDocument` applies the same receipt checks and
+binds the receipt to its envelope: the same input and result, and one
+entry per view and layer with the envelope's provenance digest.
+
+`LayerWireStatus` starts at UNSPECIFIED = 0, so an absent status is never
+read as OK. `ViewInfo`, `TypedLayer` and `LayerInfo` say why they are not
+OK with a `LayerError` (kind, turbo code, the layer it names, the
+annotator's name) in place of the old free-text `status_detail`;
+`AnalysisStepFailure` carries one too, and its `failure.message` names
+the step and the kind only. No receipt or error carries document text,
+values, detail strings or debug renderings.
+
+## Redaction policy (issue #1882)
+
+`server/proto/turbo_pii_policy.proto` defines `RedactionPolicy`, the typed
+policy the `turbo-pii:redact` step runs under (see "The redact step"
+below); `turbo_kserve::pii_policy::RedactionPolicy::from_proto`
+converts it into the native rewrite strategies (`turbo_pii::rewrite`)
+and detector lists, with a typed `PolicyError` naming the field.
+
+- **Kind rules** (`PiiKindRule`): a `rule_id` (unique across the policy's
+  rules, deny lists and custom identifiers), a `PiiKindRef` (a built-in
+  `PiiKindId`, or an index into the policy's own `custom_kinds`), a
+  `PiiRuleState`, an ordered list of `PiiStrategyEntry`, a per-kind allow
+  list and an optional label override. At most one rule per kind.
+- **Strategy entries** are tried in order; the first whose conditions all
+  hold rewrites the mention. Conditions read #1903 evidence facts, never
+  the confidence tier: a passed checksum (optionally of named
+  algorithms), a label fact, the detector id and version, a score of a
+  kind at or above a threshold (optionally calibrated only).
+- **Strategies** (`PiiRewriteStrategy`) are a oneof of typed messages: mask,
+  format template, map (inline entries or a registered dictionary, with a
+  fallback that is never a map), truncate, last-N, abbreviate, keyed
+  token (HMAC under a registered key), SHA-256 (unkeyed, reversible by
+  guessing for low-entropy values, never a default), static text and
+  pseudonym (per-document numbers, never a default).
+- **Default**: a kind with no rule, or no entry that applies, gets
+  `default_strategy`, which is a mask or a keyed token only; unset, a
+  whole-value `*` mask. The native `RewriteStrategy::default()` is the
+  same mask.
+- **Lists**: a global allow list (terms, shape or glob patterns), deny
+  lists and shape-pattern custom identifiers, each for a custom kind.
+  Terms come inline or from a registered dictionary.
+- **No paths, no key bytes.** Keys are `PiiPolicyKeyRef` (id and version)
+  and dictionaries `PiiDictionaryRef` (vocabulary store artifact id and
+  the SHA-256 of its stored bytes), resolved by the server's registries
+  through `PolicyResolver`. A reference id is 1 to 128 ASCII letters,
+  digits, `.`, `_`, `-` or `:`; one with a path separator, `..` or a
+  leading `.` is refused, and a key id of 32 or more hexadecimal digits
+  is refused as key material.
+- **Refusals**: every enum's UNSPECIFIED (0) and unknown numbers, an
+  unknown built-in kind id, and a strategy or condition arm the server
+  does not know (or none set). With `redact_and_flag_unknown`, an unknown
+  kind's rule is dropped and an entry with an unknown strategy or
+  condition becomes an unconditional whole-value mask, each recorded as a
+  `PolicyFlag`; nothing is ever passed through.
+
+### Policy digest
+
+A policy's identity is its `id`, `revision` and `PolicyDigest`: the
+SHA-256 of its canonical encoding (`turbo_kserve::pii_policy::canonical`).
+Protobuf bytes are not canonical, so they are never digested. The
+encoding is:
+
+1. The domain tag `turbo.pii-policy.v1` as a string.
+2. The policy message. A message is its present fields in ascending
+   field-number order, each as the field number (`u32`) then the value.
+   A field is present when it is a scalar other than 0, `false` or the
+   empty string, a set message field (even an empty message), a non-empty
+   repeated or map field, or the set arm of a oneof whatever its value.
+   Unknown fields are not encoded.
+3. Values, all integers little-endian: `uint32` and enums (their `i32`
+   bits) as `u32`; `uint64` as `u64`; `bool` as the byte `1`; `float` as
+   the `u32` of its IEEE 754 bits with `-0.0` taken as `0.0`; a string as
+   its byte length (`u64`) and bytes; a nested message as its encoding's
+   byte length (`u64`) and that encoding.
+4. A repeated field is its count (`u64`) and each element in order; order
+   is part of the policy. A map field is its count (`u64`) and each
+   entry's key and value, sorted by the key's bytes.
+
+So wire field order and map order do not change the digest, a field
+added to the schema later leaves every older policy's digest as it was,
+and the revision does change it. `server/tests/pii_policy/golden.hex`
+pins the encoding of one policy and `server/tests/pii_policy_digest.rs`
+its digest, computed outside the crate with `sha256sum`. The FNV
+`config_hash` of a step stays a local cache hash; the policy digest is in
+the redact step's cache key and on every edit and decision.
+
+### The redact step
+
+`turbo-pii:redact` (aliases `turbo:pii-redact`, `pii-redact`) runs on
+`AnalyzeDocumentProgressive` beside `turbo-pii:pii`. Its policy is
+`AnalyzePipelineRequest.pii_redaction` (`PiiRedactionSelection`): either
+`inline`, a `RedactionPolicy` converted for this request, or `name`, the
+id of a policy the server loaded at start. The step refuses to build
+without one, and a selection on a pipeline without the step is refused.
+An unknown name is refused without echoing it.
+
+- **Named policies**: `--pii-policy PATH` (repeatable) names a file
+  holding one binary `RedactionPolicy` message; every file is read and
+  converted at start, served by its `id`, and a file that does not decode
+  or convert, or repeats an id, fails start-up. Errors name the flag's
+  position, never the path, a term or a key.
+- **References**: a keyed-token key (`PiiPolicyKeyRef`) resolves through
+  the token keys registered with `--pii-token-key` (PII value release);
+  an unregistered key refuses the policy. Dictionary references are
+  refused until the server has a dictionary registry.
+- **Detection**: with a policy, `turbo-pii:pii` drops disabled kinds,
+  applies the global and per-kind allow lists and label overrides, and
+  adds the deny lists and a custom identifier scanner
+  (`turbo-pii:policy-identifiers`, versioned by the policy digest) that
+  tests each whitespace-separated word, trimmed of surrounding
+  punctuation, against the identifier shapes.
+- **Output**: the `redacted` view and its `turbo:pii-edits` layer, as
+  #1902's `RedactedView` writes them. Each strategy is chosen per mention
+  by the policy's rules; overlapping mentions form one edit written by
+  the cluster winner's choice. Every `PiiEditAnnotation` carries the
+  choosing rule's `rule_id` (empty for the default), the
+  `policy_revision` and the 32-byte `policy_digest`. The step's
+  `ModelRef` is the policy id, revision and digest, so the digest enters
+  every provenance digest it writes and a new digest misses the cache.
+- **Disclosure**: the redacted view is a `turbo-pii:` rewrite view, so
+  its text leaves only with `PiiOutputOptions.rewritten_text` allowed by
+  the server (PII output); the findings-only default shows none. Mention
+  values stay withheld unless released through PII value release.
+- **Dry run** (`dry_run`): the same rewrite is run and checked, but the
+  step writes a `turbo:pii-plan` layer in place of the view and edits:
+  one item per mention with the rule, rule id and strategy its edit would
+  record. On the wire each kept candidate of `turbo:pii-candidates`
+  carries `PiiPlannedRewrite` (rule, rule id, strategy, revision, digest);
+  the candidates layer is detail, so a dry run's answer asks for
+  `PiiOutputOptions.detail`.
+- **Unknown kinds and strategies** are refused when the policy is
+  converted; with `redact_and_flag_unknown` they become whole-value masks
+  (a `PolicyFlag` each), never a pass-through.
 
 ## Streaming bulk document analysis (issue #722)
 

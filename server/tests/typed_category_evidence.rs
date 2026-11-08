@@ -14,6 +14,12 @@ use turbo_kserve::proto::result::{
 };
 use turbo_kserve::results::document::codecs;
 
+/// The fixture holds a `turbo:pii` layer, so its graph and texts leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn full_text() -> Option<turbo_kserve::proto::result::PiiOutputOptions> {
+    Some(turbo_kserve::proto::result::PiiOutputOptions { full_text: true, ..Default::default() })
+}
+
 fn add<S: CategoryScope>(doc: &mut Document) -> String
 where
     Categories<S>: Evidenced,
@@ -65,7 +71,7 @@ async fn category_evidence_keeps_payloads_producers_support_and_projected_spans(
     let ids = [add::<View>(&mut doc), add::<Sentences>(&mut doc), add::<Structure>(&mut doc), add::<Chunks>(&mut doc)];
     let bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let bytes = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into(), pii_output: full_text() })
         .await
         .unwrap()
         .into_inner()
@@ -86,6 +92,9 @@ async fn category_evidence_keeps_payloads_producers_support_and_projected_spans(
                     graph: bytes.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: full_text(),
+                    binding: None,
+                    operation_key: String::new(),
                 })
                 .await
                 .unwrap()
@@ -145,7 +154,7 @@ fn wire_span(doc: &Document, view: u32, mode: OffsetMode, span: Span) -> SpanFra
         OffsetMode::Utf16 => text[..n as usize].encode_utf16().count() as u32,
         OffsetMode::CodePoint => text[..n as usize].chars().count() as u32,
     };
-    SpanFragment { start: offset(mapped.start), end: offset(mapped.end) }
+    SpanFragment::exact(offset(mapped.start), offset(mapped.end))
 }
 
 fn malformed(good: &TypedDocumentResult, layer: usize) -> Vec<TypedDocumentResult> {

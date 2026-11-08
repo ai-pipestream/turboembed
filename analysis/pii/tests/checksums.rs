@@ -4,7 +4,7 @@
 mod support;
 
 use support::*;
-use turbo_pii::checksum::{keccak, luhn, sha256};
+use turbo_pii::checksum::{bic, es, fr, icao9303, keccak, luhn, mod11, sha256};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
 const DOUBLED: [u32; 10] = [0, 2, 4, 6, 8, 1, 3, 5, 7, 9];
@@ -86,12 +86,14 @@ fn next_digit(c: u8) -> u8 {
 
 #[track_caller]
 fn refused(d: &PiiDetector, kind: PiiKind, text: &str) {
-    assert!(!kinds(d, text).contains(&kind.name()), "{text}");
+    assert!(!kinds(d, text).contains(&kind.builtin_name().unwrap()), "{text}");
 }
 
 fn digit_mutations_refused(d: &PiiDetector, kind: PiiKind, value: &str, prefix: &str) {
-    for i in 0..value.len() {
-        refused(d, kind, &format!("{prefix}{}", replaced(value, i, next_digit(value.as_bytes()[i]))));
+    for (i, &b) in value.as_bytes().iter().enumerate() {
+        if b.is_ascii_digit() {
+            refused(d, kind, &format!("{prefix}{}", replaced(value, i, next_digit(b))));
+        }
     }
 }
 
@@ -170,4 +172,70 @@ fn every_national_and_labelled_digit_change_is_refused() {
     );
     digit_mutations_refused(&pack(Pack::Device), PiiKind::Imei, "490154203237518", "IMEI: ");
     digit_mutations_refused(&pack(Pack::CaIdentity), PiiKind::CaSin, "046454286", "SIN: ");
+    digit_mutations_refused(&only(Extractor::EuIdentity, &[PiiKind::FrSiren]), PiiKind::FrSiren, "732 829 320", "");
+    digit_mutations_refused(&only(Extractor::EuIdentity, &[PiiKind::FrSiret]), PiiKind::FrSiret, "73282932000074", "");
+    digit_mutations_refused(&only(Extractor::BrIdentity, &[PiiKind::BrCpf]), PiiKind::BrCpf, "52998224725", "");
+    digit_mutations_refused(&only(Extractor::BrIdentity, &[PiiKind::BrCnpj]), PiiKind::BrCnpj, "11222333000181", "");
+    let eu_d = pack(Pack::EuIdentity);
+    for i in 0..8 {
+        refused(&eu_d, PiiKind::EsDni, &replaced("12345678Z", i, next_digit(b"12345678Z"[i])));
+    }
+    for i in 1..8 {
+        refused(&eu_d, PiiKind::EsNie, &replaced("X1234567L", i, next_digit(b"X1234567L"[i])));
+    }
+    for i in 1..9 {
+        refused(&eu_d, PiiKind::EsCif, &replaced("A58818501", i, next_digit(b"A58818501"[i])));
+    }
+}
+
+#[test]
+fn spanish_german_french_brazilian_and_bic_validators() {
+    assert!(es::dni(b"12345678Z"));
+    assert!(!es::dni(b"12345678A"));
+    assert!(!es::dni(b"00000000T"));
+    assert!(es::nie(b"X1234567L"));
+    assert!(es::nie(b"Y1234567X"));
+    assert!(es::nie(b"Z1234567R"));
+    assert!(!es::nie(b"X0000000T"));
+    assert!(es::cif(b"A58818501"));
+    assert!(es::cif(b"Q2826000H"));
+    assert!(!es::cif(b"A5881850B"));
+    assert!(!es::cif(b"Q28260008"));
+
+    // BMI Personalausweis Mustermann specimen numbers (2010 and 2021 editions).
+    assert_eq!(icao9303::check_digit(b"T22000129"), Some(b'3'));
+    assert!(icao9303::de_personalausweis(b"T220001293"));
+    assert!(icao9303::de_personalausweis(b"L01X00T471"));
+    assert!(!icao9303::de_personalausweis(b"T220001294"));
+    assert!(!icao9303::de_personalausweis(b"A220001293"));
+    assert!(!icao9303::de_personalausweis(b"T000000004"));
+
+    // INSEE NIR (including Corsica 2A -> 19, 2B -> 18, and historical 20) and SIRET (including La Poste 356000000 mod-5).
+    assert!(fr::nir(b"185057800608491"));
+    assert!(fr::nir(b"294032A12345692"));
+    assert!(fr::nir(b"194032B12345672"));
+    assert!(fr::nir(b"269042012345645"));
+    assert!(!fr::nir(b"185057800608492"));
+    assert!(fr::siren(b"732829320"));
+    assert!(!fr::siren(b"000000000"));
+    assert!(fr::siret(b"73282932000074"));
+    assert!(fr::siret(b"35600000000048"));
+    assert!(fr::siret(b"35600000000010"));
+    assert!(!fr::siret(b"35600000000011"));
+    assert_eq!(fr::siret_rule(b"73282932000074"), Some(fr::SiretRule::Luhn));
+    assert_eq!(fr::siret_rule(b"35600000000010"), Some(fr::SiretRule::LaPosteMod5));
+    assert_eq!(fr::siret_rule(b"35600000000011"), None);
+
+    // Receita Federal CPF & CNPJ (numeric and 2026 alphanumeric IN RFB 2.229/2024).
+    assert!(mod11::uk_nhs(b"9434765919"));
+    assert!(mod11::br_cpf(b"52998224725"));
+    assert!(!mod11::br_cpf(b"11111111111"));
+    assert!(!mod11::br_cpf(b"01234567890"));
+    assert!(mod11::br_cnpj(b"11222333000181"));
+    assert!(mod11::br_cnpj(b"12ABC34501DE35"));
+    assert!(!mod11::br_cnpj(b"11222333000081"));
+
+    assert!(bic::check(b"DEUTDEFF"));
+    assert!(bic::check(b"DEUTDEFF500"));
+    assert!(!bic::check(b"DEUTZZFF"));
 }

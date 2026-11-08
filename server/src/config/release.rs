@@ -1,0 +1,102 @@
+//! The PII release flags and their variables (docs/grpc-analysis.md, PII
+//! value release, #1909): the grants per verified client certificate, the
+//! token keys and the audit service. Every one needs `--pii-grant`, and a
+//! grant needs mTLS and the audit endpoint.
+
+use std::time::Duration;
+
+use crate::release::ReleaseConfig;
+use crate::release::audit::DEFAULT_AUDIT_TIMEOUT;
+use crate::release::caps::Grants;
+use crate::release::keys::{KeyRef, TokenKeyFile};
+use crate::tls::TlsConfig;
+
+pub const ENV_PII_GRANTS: &str = "TURBO_KSERVE_PII_GRANTS";
+pub const ENV_PII_TOKEN_KEYS: &str = "TURBO_KSERVE_PII_TOKEN_KEYS";
+pub const ENV_PII_TOKEN_KEY_ACTIVE: &str = "TURBO_KSERVE_PII_TOKEN_KEY_ACTIVE";
+pub const ENV_PII_AUDIT_ENDPOINT: &str = "TURBO_KSERVE_PII_AUDIT_ENDPOINT";
+pub const ENV_PII_AUDIT_TIMEOUT_MS: &str = "TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS";
+
+/// The release flags as given on the command line, before their variables.
+#[derive(Default)]
+pub(super) struct ReleaseFlags {
+    grants: Vec<String>,
+    token_keys: Vec<String>,
+    active: Option<String>,
+    endpoint: Option<String>,
+    timeout_ms: Option<String>,
+}
+
+impl ReleaseFlags {
+    /// Takes `flag` if it is a release flag, reading its value with
+    /// `value`; answers false for any other flag. `--pii-grant` and
+    /// `--pii-token-key` repeat.
+    pub(super) fn take(&mut self, flag: &str, value: impl FnOnce() -> Result<String, String>) -> Result<bool, String> {
+        match flag {
+            "--pii-grant" => self.grants.push(value()?),
+            "--pii-token-key" => self.token_keys.push(value()?),
+            "--pii-token-key-active" => super::once(flag, value()?, &mut self.active)?,
+            "--pii-audit-endpoint" => super::once(flag, value()?, &mut self.endpoint)?,
+            "--pii-audit-timeout-ms" => super::once(flag, value()?, &mut self.timeout_ms)?,
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+
+    /// The release settings, with `env` filling in what the flags leave
+    /// out; a repeated flag's variable is a `;`-separated list, read only
+    /// when the flag is not given.
+    pub(super) fn resolve(
+        self,
+        env: impl Fn(&str) -> Option<String>,
+        tls: Option<&TlsConfig>,
+    ) -> Result<Option<ReleaseConfig>, String> {
+        let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
+        let list = |given: Vec<String>, k: &str| -> Vec<String> {
+            if !given.is_empty() {
+                return given;
+            }
+            env(k)
+                .map(|v| v.split(';').map(str::trim).filter(|s| !s.is_empty()).map(str::to_owned).collect())
+                .unwrap_or_default()
+        };
+        let grants = list(self.grants, ENV_PII_GRANTS);
+        let token_keys = list(self.token_keys, ENV_PII_TOKEN_KEYS);
+        let active = from_env(self.active, ENV_PII_TOKEN_KEY_ACTIVE);
+        let endpoint = from_env(self.endpoint, ENV_PII_AUDIT_ENDPOINT);
+        let timeout_ms = from_env(self.timeout_ms, ENV_PII_AUDIT_TIMEOUT_MS);
+        if grants.is_empty() {
+            if !token_keys.is_empty() || active.is_some() || endpoint.is_some() || timeout_ms.is_some() {
+                return Err("--pii-token-key, --pii-token-key-active, --pii-audit-endpoint and \
+                            --pii-audit-timeout-ms need --pii-grant"
+                    .into());
+            }
+            return Ok(None);
+        }
+        let mut parsed = Grants::default();
+        for g in &grants {
+            parsed.add(g).map_err(|e| format!("--pii-grant: {e}"))?;
+        }
+        let token_keys = token_keys
+            .iter()
+            .map(|k| TokenKeyFile::parse(k).map_err(|e| format!("--pii-token-key: {e}")))
+            .collect::<Result<Vec<_>, _>>()?;
+        let active_token_key =
+            active.map(|a| KeyRef::parse(&a).map_err(|e| format!("--pii-token-key-active: {e}"))).transpose()?;
+        let audit_endpoint = endpoint.ok_or("--pii-grant needs --pii-audit-endpoint: every release is audited")?;
+        let audit_timeout = match timeout_ms {
+            None => DEFAULT_AUDIT_TIMEOUT,
+            Some(v) => match v.parse::<u64>() {
+                Ok(n) if n > 0 => Duration::from_millis(n),
+                _ => return Err(format!("--pii-audit-timeout-ms {v}: not a count of milliseconds over 0")),
+            },
+        };
+        let config = ReleaseConfig { grants: parsed, token_keys, active_token_key, audit_endpoint, audit_timeout };
+        config.check(tls)?;
+        Ok(Some(config))
+    }
+}
+
+#[cfg(test)]
+#[path = "release_tests.rs"]
+mod tests;

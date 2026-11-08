@@ -10,9 +10,11 @@ use turbo_analysis::ModelRef;
 use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result as proto;
 
+pub mod disclosure;
 pub mod document;
 pub mod extraction;
 pub mod layers;
+pub mod receipt;
 pub mod records;
 pub mod rerank;
 pub mod sparse;
@@ -33,6 +35,9 @@ pub const MAX_CHUNKS: u64 = 1 << 20;
 pub const MAX_LEVELS: u64 = 1 << 20;
 pub const MAX_FRAGMENTS: u64 = 1 << 22;
 pub const MAX_GRAPH_BYTES: u64 = 64 << 20;
+/// Native edits in one TypedDocumentResult's inline mapping, over every
+/// view (issue #1907). A document over it is refused, never cut down.
+pub const MAX_MAPPING_EDITS: u64 = 1 << 22;
 /// Record values, records, closed-choice values or support rows in one
 /// RecordsResult, each counted on its own.
 pub const MAX_RECORD_VALUES: u64 = 1 << 20;

@@ -19,7 +19,7 @@ mod support;
 use support::{Counts, Labelled, layer, load_labelled, measure, ratio, ratio_text, wide};
 use turbo_analysis::Layer as _;
 use turbo_pii::PiiKind;
-use turbo_pii::checksum::{base58, keccak, luhn, mod97};
+use turbo_pii::checksum::{base58, es, icao9303, keccak, luhn, mod11, mod97};
 
 /// SplitMix64, so the set is the same on every run and platform.
 struct Rng(u64);
@@ -116,6 +116,87 @@ fn btc(r: &mut Rng) -> String {
     base58::encode_checked(&payload)
 }
 
+fn es_dni_pair(r: &mut Rng) -> (String, String) {
+    let n = 10_000_000 + r.below(89_000_000) as u32;
+    let c = es::NIF_LETTERS[(n % 23) as usize] as char;
+    let bad = es::NIF_LETTERS[((n + 1) % 23) as usize] as char;
+    (format!("{n:08}-{c}"), format!("{n:08}-{bad}"))
+}
+
+fn es_nie_pair(r: &mut Rng) -> (String, String) {
+    let p_idx = r.below(3) as u32;
+    let p = b"XYZ"[p_idx as usize] as char;
+    let body = 1_000_000 + r.below(8_000_000) as u32;
+    let n = p_idx * 10_000_000 + body;
+    let c = es::NIF_LETTERS[(n % 23) as usize] as char;
+    let bad = es::NIF_LETTERS[((n + 1) % 23) as usize] as char;
+    (format!("{p}{body:07}{c}"), format!("{p}{body:07}{bad}"))
+}
+
+fn es_cif_pair(r: &mut Rng) -> (String, String) {
+    let org = r.pick(&["A", "B", "P", "Q"]);
+    let body = format!("{:02}{}", 1 + r.below(50), r.digits(5));
+    let c = b"0123456789JABCDEFGHI"
+        .iter()
+        .copied()
+        .find(|&ch| {
+            let s = format!("{org}{body}{}", ch as char);
+            es::cif(s.as_bytes().try_into().unwrap())
+        })
+        .unwrap() as char;
+    let bad = if c.is_ascii_digit() { char::from(b'0' + ((c as u8 - b'0' + 1) % 10)) } else { 'Z' };
+    (format!("{org}-{body}-{c}"), format!("{org}-{body}-{bad}"))
+}
+
+fn de_npa_pair(r: &mut Rng) -> (String, String) {
+    let first = r.chars(b"LMNPRTVWXY", 1);
+    let mid = format!("{}{}", 1 + r.below(9), r.chars(b"0123456789CFGHJKLMNPRTVWXY", 7));
+    let body = format!("{first}{mid}");
+    let check = icao9303::check_digit(body.as_bytes()).unwrap() as char;
+    let good = format!("{body}{check}");
+    (good.clone(), bump_last_digit(&good))
+}
+
+fn fr_nir_pair(r: &mut Rng) -> (String, String) {
+    let sex = 1 + r.below(2);
+    let yy = r.below(100);
+    let mm = 1 + r.below(12);
+    let (dept, num_dept) = if r.below(2) == 0 { ("2A", 19u64) } else { ("2B", 18u64) };
+    let com = 1 + r.below(900);
+    let ord = 1 + r.below(900);
+    let n = format!("{sex}{yy:02}{mm:02}{num_dept:02}{com:03}{ord:03}").parse::<u64>().unwrap();
+    let key = 97 - (n % 97);
+    let bad = if key == 97 { 1 } else { key + 1 };
+    (
+        format!("{sex} {yy:02} {mm:02} {dept} {com:03} {ord:03} {key:02}"),
+        format!("{sex} {yy:02} {mm:02} {dept} {com:03} {ord:03} {bad:02}"),
+    )
+}
+
+fn fr_siren_siret(r: &mut Rng) -> (String, String, String, String) {
+    let s9 = with_luhn(&format!("{}{}", 90 + r.below(9), r.digits(6)));
+    let siren = format!("{} {} {}", &s9[..3], &s9[3..6], &s9[6..]);
+    let s14 = with_luhn(&format!("{s9}{:04}", 1 + r.below(900)));
+    let siret = format!("{}-{}", &s14[..9], &s14[9..]);
+    (siren.clone(), bump_last_digit(&siren), siret.clone(), bump_last_digit(&siret))
+}
+
+fn br_cpf_pair(r: &mut Rng) -> (String, String) {
+    let base = format!("{}{}", 1 + r.below(8), r.digits(8));
+    let cand =
+        (0..100).map(|k| format!("{base}{k:02}")).find(|s| mod11::br_cpf(s.as_bytes().try_into().unwrap())).unwrap();
+    let fmt = format!("{}.{}.{}-{}", &cand[..3], &cand[3..6], &cand[6..9], &cand[9..]);
+    (fmt.clone(), bump_last_digit(&fmt))
+}
+
+fn br_cnpj_pair(r: &mut Rng) -> (String, String) {
+    let base = format!("{}{}0001", 1 + r.below(8), r.digits(7));
+    let cand =
+        (0..100).map(|k| format!("{base}{k:02}")).find(|s| mod11::br_cnpj(s.as_bytes().try_into().unwrap())).unwrap();
+    let fmt = format!("{}.{}.{}/{}-{}", &cand[..2], &cand[2..5], &cand[5..8], &cand[8..12], &cand[12..]);
+    (fmt.clone(), bump_last_digit(&fmt))
+}
+
 /// The labelled texts and the near misses, from `seed`.
 fn synthetic(seed: u64, per_kind: usize) -> Vec<Labelled> {
     const UPPER_DIGITS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -183,6 +264,51 @@ fn synthetic(seed: u64, per_kind: usize) -> Vec<Labelled> {
         out.push(placed(r, "IMEI: ", &imei, &["imei"]));
         out.push(Labelled { text: format!("IMEI: {}", bump_last_digit(&imei)), labels: vec![] });
     }
+    for _ in 0..per_kind {
+        let (dni, dni_bad) = es_dni_pair(r);
+        out.push(placed(r, "DNI ", &dni, &["es-dni"]));
+        out.push(Labelled { text: format!("DNI {dni_bad}"), labels: vec![] });
+
+        let (nie, nie_bad) = es_nie_pair(r);
+        out.push(placed(r, "NIE ", &nie, &["es-nie"]));
+        out.push(Labelled { text: format!("NIE {nie_bad}"), labels: vec![] });
+
+        let (cif, cif_bad) = es_cif_pair(r);
+        out.push(placed(r, "CIF ", &cif, &["es-cif"]));
+        out.push(Labelled { text: format!("CIF {cif_bad}"), labels: vec![] });
+
+        let (npa, npa_bad) = de_npa_pair(r);
+        out.push(placed(r, "Ausweis ", &npa, &["de-personalausweis"]));
+        out.push(Labelled { text: format!("Ausweis {npa_bad}"), labels: vec![] });
+
+        let (nir, nir_bad) = fr_nir_pair(r);
+        out.push(placed(r, "NIR ", &nir, &["fr-nir"]));
+        out.push(Labelled { text: format!("NIR {nir_bad}"), labels: vec![] });
+
+        let (siren, siren_bad, siret, siret_bad) = fr_siren_siret(r);
+        out.push(placed(r, "SIREN ", &siren, &["fr-siren"]));
+        out.push(Labelled { text: format!("SIREN {siren_bad}"), labels: vec![] });
+        out.push(placed(r, "SIRET ", &siret, &["fr-siret"]));
+        out.push(Labelled { text: format!("SIRET {siret_bad}"), labels: vec![] });
+
+        let (cpf, cpf_bad) = br_cpf_pair(r);
+        out.push(placed(r, "CPF ", &cpf, &["br-cpf"]));
+        out.push(Labelled { text: format!("CPF {cpf_bad}"), labels: vec![] });
+
+        let (cnpj, cnpj_bad) = br_cnpj_pair(r);
+        out.push(placed(r, "CNPJ ", &cnpj, &["br-cnpj"]));
+        out.push(Labelled { text: format!("CNPJ {cnpj_bad}"), labels: vec![] });
+
+        let bic_code = format!(
+            "{}{}{}{}",
+            r.chars(b"ABCDEFGHJKLMNPQRSTUVWXYZ", 4),
+            r.pick(&["DE", "FR", "ES", "IT", "NL", "BR"]),
+            r.chars(b"ABCDEFGHJKLMNPQRSTUVWXYZ", 2),
+            r.digits(3)
+        );
+        out.push(placed(r, "BIC: ", &bic_code, &["bic"]));
+        out.push(Labelled { text: format!("BIC: {}ZZFF500", &bic_code[..4]), labels: vec![] });
+    }
     out
 }
 
@@ -205,7 +331,7 @@ fn corpora() -> Vec<Labelled> {
     let mut out: Vec<Labelled> = Vec::new();
     for line in fixtures("golden-true-positives.tsv") {
         let f: Vec<&str> = line.splitn(4, '\t').collect();
-        let kind = PiiKind::parse(f[0]).expect("a kind").name();
+        let kind = PiiKind::parse(f[0]).expect("a kind").builtin_name().unwrap();
         let start = f[3].find(f[1]).expect("covered text in the source") as u32;
         let label = (start, start + f[1].len() as u32, kind);
         match out.iter_mut().find(|l| l.text == f[3]) {
@@ -306,9 +432,7 @@ fn precision_and_recall_on_human_written_text() {
     let mut total = Counts::default();
     eprintln!("\nhuman-written evaluation set:");
     eprintln!("{:<16} {:>5} {:>5} {:>5} {:>9} {:>7}", "kind", "tp", "fp", "fn", "precision", "recall");
-    for &kind in &PiiKind::ALL {
-        let name = kind.name();
-        let c = by_kind.get(name).expect("every built-in kind is represented in the human-written set");
+    for (name, c) in &by_kind {
         assert!(c.tp > 0, "{name} has no true positive in the human-written set");
         eprintln!(
             "{name:<16} {:>5} {:>5} {:>5} {:>9} {:>7}",

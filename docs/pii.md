@@ -10,18 +10,26 @@ checksum is validated with it:
 | Type | Role |
 |---|---|
 | `PiiDetector` | Runs one or more `Scanner`s and orders mentions into `Pii` (`turbo:pii`) |
-| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
+| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `BrIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
-| `PiiConfidence` | `Format`, `Checksum`, or `LabelledChecksum` |
-| `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking |
+| `AllowList`, `DenyList`, `Pattern`, `PatternKind`, `Case`, `ListError` | Global and per-kind ignore lists, regex-free shape/glob patterns, and Aho-Corasick/fuzzy deny lists (`analysis/pii/src/lists/`) |
+| `PiiEvidence`, `ChecksumAlgorithm`, `EvidenceList` | The typed facts a detector records for each candidate: shape, checksum (algorithm and result), label (span and phrase id), deny hit (list and term), rule |
+| `PiiDetectors`, `PiiDetectorRef` | The per-layer table of detector ids and versions every mention refers to |
+| `PiiScore`, `PiiScoreKind` | An optional model score with its kind, model and calibration flag; absent is not zero |
+| `PiiConfidence` | `Format`, `Labelled`, `Checksum`, or `LabelledChecksum`, derived from the facts by `PiiConfidence::derive` |
+| `PiiCandidates`, `PiiCandidate`, `PiiDisposition`, `RejectReason`, `AllowScope`, `AllowRule` | The `turbo:pii-candidates` layer: every span a detector considered and what became of it, with no values |
+| `window`, `LabelPolicy`, `window::has_label` | UAX #29 context-word window helper, per-kind label policies, and caller overrides |
+| `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::PiiAuditReport` | Redacted mention counts and keyed token summaries |
-| `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | Checksum and cryptographic validators |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, and initials abbreviation |
+| `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
+| `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
+| `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
 
-The crate depends on `turbo-analysis`, `turbo-analysis-layers` and
-`turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
+The crate depends on `turbo-analysis`, `turbo-analysis-layers`,
+`turbo-glossary` and `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
 bech32 and bech32m, mod 97 and Luhn are written in the crate, and the
 scanners are hand-written byte scanners with no regular expressions.
 
@@ -38,7 +46,7 @@ for result in analyzer.run(&mut docs) {
 }
 let pii = docs[0].get::<Pii>().unwrap();
 for m in pii.mentions() {
-    println!("{}..{} {} {} {}", m.span.start, m.span.end, m.kind, m.confidence.name(), m.normalized);
+    println!("{}..{} {} {} {}", m.span.start, m.span.end, m.kind, m.confidence().name(), m.normalized);
 }
 ```
 
@@ -59,10 +67,11 @@ not find (`ScannerError`).
 | `Secrets` | `secrets()` | secrets | `aws-access-key`, `github-token`, `jwt`, `url-credential` |
 | `Crypto` | `crypto()` | crypto | `btc-address`, `eth-address` |
 | `UsIdentity` | `usIdentity()` | US identity | `us-ssn`, `us-itin` |
-| `EuIdentity` | `euIdentity()` | EU identity | `uk-nhs`, `de-steuer-id` |
+| `EuIdentity` | `euIdentity()` | EU identity | `uk-nhs`, `de-steuer-id`, `es-dni`, `es-nie`, `es-cif`, `de-personalausweis`, `fr-nir`, `fr-siren`, `fr-siret`, `bic` |
+| `BrIdentity` | `brIdentity()` | BR identity | `br-cpf`, `br-cnpj` |
 | `CaIdentity` | `caIdentity()` | CA identity | `ca-sin` |
 | `Device` | `device()` | device | `imei` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU and CA identity, device, banking | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking | every kind |
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -71,8 +80,15 @@ phone, IBAN and card.
 
 `Pii`, in `turbo-analysis-layers`, has one item per mention with the
 columns `spans` (UTF-8 byte offsets into the view, on character
-boundaries), `kind`, `confidence` and `normalized`. Mentions are ordered
-by start, then longer first, then by kind rank; equal mentions (span,
+boundaries), `kind`, `detector`, `evidence`, `score` and `normalized`,
+plus the `custom_kinds` and `detectors` tables those columns index
+(`PiiMention::confidence()` derives the tier from the facts). The
+`normalized` column is the detected value itself, so it is a
+`Sensitive<Strs>`: its `Debug`, like a `PiiMention`'s, prints
+`<withheld>`, and reading it is spelled `expose()`. Outputs copy it only
+where their disclosure decision allows values (docs/grpc-analysis.md, PII
+output). Mentions are ordered
+by start, then longer first, then by kind priority; equal mentions (span,
 kind and normalized form) appear once, the first found kept. By default,
 a mention strictly nested inside a longer mention (such as a phone or
 card inside a grouped IBAN, or an NHS number inside an international
@@ -82,8 +98,14 @@ span or cross each other: an IMEI after its label is also a Luhn-valid
 card number, and `https://user:pass@example.com` has a URL credential
 crossing an e-mail address. `Pii::check` holds a layer to this order.
 
-The kinds, in rank order (`PiiKind::ALL`, `PiiKind::rank`), with the
-normalized form and the confidence each gets:
+The kinds, in id order (`PiiKind::TABLE`, `PiiKind::builtin_id`), with the
+normalized form and the confidence each gets. Each row of the table has a
+stable id (1 to 30), its name and a priority; the ids are the numbers of
+the proto `PiiKindId` enum, the C `TURBO_PII_KIND_*` defines, the Java
+`TurboPiiKind` enum and the binary codec, and never change. Priority
+alone decides ordering and cluster winners; `PiiKind` has no `Ord`.
+Confidence ids are format 1, checksum 2, labelled checksum 3 and
+labelled 4 everywhere; 0 is unspecified and refused.
 
 | Kind | Normalized form | Confidence |
 |---|---|---|
@@ -103,15 +125,150 @@ normalized form and the confidence each gets:
 | `us-ssn`, `us-itin` | `ddd-dd-dddd` | format |
 | `uk-nhs` | the digits | checksum (mod 11) |
 | `de-steuer-id` | the digits | checksum (ISO 7064 MOD 11,10 and the repetition rules) |
+| `es-dni` | 8 digits and uppercase control letter | checksum (mod 23) |
+| `es-nie` | `X`/`Y`/`Z`, 7 digits, and uppercase control letter | checksum (mod 23) |
+| `es-cif` | organization letter, 7 digits, and control digit/letter | checksum (weighted digit/letter) |
+| `de-personalausweis` | 10-character alphanumeric Ausweisnummer | checksum (ICAO Doc 9303 7, 3, 1 weights) |
+| `fr-nir` | 15 characters without separators (`2A`/`2B` preserved) | checksum (mod 97 key `01..=97`) |
+| `fr-siren` | 9 digits without separators | checksum (Luhn) |
+| `fr-siret` | 14 digits without separators | checksum (Luhn or La Poste mod 5) |
+| `br-cpf` | 11 digits without separators | checksum (double mod 11) |
+| `br-cnpj` | 14 characters without separators | checksum (double mod 11, numeric or compact/punctuated alphanumeric) |
+| `bic` | 8 or 11 uppercase characters after a `BIC`/`SWIFT` label | labelled (ISO 9362 + ISO 3166-1 alpha-2) |
 | `ca-sin` | the digits | labelled checksum (Luhn) |
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |
 | `phone` | `+` and digits, or the digits | format |
 
-`PiiConfidence` is read from
-what the scanner checked, so it never changes which mentions are found:
-`Format` when only the shape backs the kind, `Checksum` when a check digit
-or checksum over the value passes, `LabelledChecksum` when a label names
-the kind as well.
+`PiiConfidence` is ordered `Format < Labelled < Checksum < LabelledChecksum`:
+`Format` (`"format"`, C ABI `TURBO_PII_CONFIDENCE_FORMAT = 1`, Java
+`TurboPiiConfidence.FORMAT(1)`) when only the shape backs the kind, `Labelled`
+(`"labelled"`, `TURBO_PII_CONFIDENCE_LABELLED = 4`, `LABELLED(4)`) when a
+context label within the kind's word window names a format-only mention,
+`Checksum` (`"checksum"`, `TURBO_PII_CONFIDENCE_CHECKSUM = 2`, `CHECKSUM(2)`)
+when a check digit or checksum over the value passes without a context label,
+and `LabelledChecksum` (`"labelled-checksum"`,
+`TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM = 3`, `LABELLED_CHECKSUM(3)`) when a
+context label names the kind and its check digit passes. The tier is
+never stored or set: `PiiConfidence::derive(facts)` reads it off the
+evidence, a passed `Checksum` fact and a `Label` fact being the two
+inputs of the table below, and nothing in detector policy reads the tier
+(see "Evidence, detectors, scores and candidates").
+
+| passed checksum fact | label fact | tier |
+|---|---|---|
+| no | no | `Format` |
+| yes | no | `Checksum` |
+| no | yes | `Labelled` |
+| yes | yes | `LabelledChecksum` |
+
+### Context-word window
+
+`turbo_pii::window` (`analysis/pii/src/window.rs`, tested in
+`analysis/pii/tests/window.rs`) checks whether any label term or
+multi-word label phrase for a `PiiKind` appears within `N` UAX #29 word
+tokens (`turbo_unicode::word_break`) before `span.start` or after
+`span.end`. Word tokens are compared with ASCII case folding (`sin`,
+`SIN`, `Sin`), non-word punctuation and whitespace segments (`:`, `#`,
+`=`, `.`, parentheses, line breaks) are skipped, and multi-word phrases
+(`"social insurance number"`, `"social insurance no"`,
+`"social security number"`) match when their near boundary lies within
+`N` words of the candidate span:
+
+- **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
+  label list for each of the 30 built-in kinds (`&[]` for
+  `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`,
+  `imei`, and `bic`, and `window::DEFAULT_WINDOW_WORDS` (`4`) for every
+  other kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
+  `ca-sin`, `imei`, and `bic`, and `LabelPolicy::None` for the other 27
+  built-in kinds and custom kinds, so existing detector outputs stay
+  unchanged unless a caller opts in. When no caller override is configured
+  on `ca-sin`, `imei`, or `bic`, `PiiDetector` uses
+  `window::has_strict_prefix_label` (the strict prefix rule: a label
+  before `span.start` separated only by whitespace and `:`, `#`, or `=`,
+  plus `.` for `ca-sin` and `bic`) so default `CaIdentity`, `Device`,
+  `EuIdentity`, and `AllStructured` outputs remain identical; configuring
+  `with_label_window`, `with_extra_label`, or `with_label_policy` on
+  `ca-sin`, `imei`, or `bic` switches that kind onto the general
+  bidirectional `N`-word UAX #29 window.
+- **Policies and caller overrides**: `PiiDetector::label_required(kind)`
+  (`LabelPolicy::Required`) rejects unlabelled candidates of `kind`
+  (recorded in `turbo:pii-candidates` as `RejectedByRule { LabelRequired }`)
+  and records a `Label` fact on labelled ones;
+  `PiiDetector::label_boosts(kind)` (`LabelPolicy::Boosts`) keeps
+  unlabelled candidates and records a `Label` fact on labelled ones (so
+  their tier derives to `Labelled` or `LabelledChecksum`). The label
+  search is the detector's alone: a scanner or custom extractor cannot
+  record a `Label` fact, so a candidate marked "labelled" by an extractor
+  never passes a `Required` policy (`analysis/pii/tests/window.rs`);
+  `PiiDetector::with_label_policy(kind, policy)` sets any `LabelPolicy`
+  (including relaxing `ca-sin` or `imei` to `Boosts` or `None`);
+  `PiiDetector::with_label_window(kind, n)` overrides the word window
+  width `N`; and `PiiDetector::with_extra_label(kind, label)` /
+  `with_extra_labels` append caller terms or multi-word phrases. Non-default
+  overrides fold deterministically into `PiiDetector::config_hash()`.
+- **Known limitation**: the context window checks word distance only and
+  does not parse clause or field structure. When a label inside the
+  `N`-word window belongs to a different nearby number (for example
+  `"Passport 123456789, order 987654321"` when `"987654321"` lies within
+  `N` words of `"Passport"`), the second number also matches the window.
+  Callers can narrow the window for that kind with
+  `PiiDetector::with_label_window(kind, 1)`.
+
+## Evidence, detectors, scores and candidates
+
+Every mention records why it was found, by whom, and (when a model
+scored it) how strongly, and every candidate a detector considered is
+kept with the decision taken on it (#1903). Facts are primary: the
+confidence tier, the audit report and every policy decision read them.
+
+- **Evidence** (`PiiEvidence`, packed per mention in `EvidenceList`):
+  `Shape` (the text has the kind's shape), `Checksum { algorithm, passed }`
+  (`ChecksumAlgorithm`: Luhn 1, mod 97 2, mod 11 3, mod 23 4, Spanish CIF
+  5, ISO 7064 mod 11,10 6, ICAO 9303 7, Base58Check 8, Bech32 9, EIP-55
+  10, ABA weights 11, other 12, La Poste SIRET mod 5 13), `Label { span, phrase }` (the label
+  phrase's span in the layer's view and its index in the kind's phrase
+  table: built-in phrases first, then `with_extra_label` phrases in
+  registration order), `DenyHit { list, term }` and `Rule { rule }`. Each
+  mention holds at least one fact; a failed checksum is recorded as a
+  fact too (`passed: false`). Label spans are projected with the layer
+  (`turbo:pii` on a derived view carries them in that view's offsets).
+  Fact kinds have stable tags (shape 1, checksum 2, label 3, deny hit 4,
+  rule 5) in the binary codec; an unknown tag, algorithm, score kind or
+  disposition on import is an error, never skipped.
+- **Detectors** (`PiiDetectors`): a per-layer table of
+  `(id, version)` pairs, at most 1024 entries of 128 bytes each. Built-in
+  scanners are `turbo-pii:<extractor>` (`turbo-pii:cursor`,
+  `turbo-pii:iban`, ...) at `BUILTIN_VERSION` (the crate version); deny
+  lists are `DENY_LIST_DETECTOR` (`turbo-pii:deny-list`); a
+  `CustomExtractor` names itself with `id()` and `version()` (default
+  `"0"`). Every mention's `detector` column refers to the table.
+- **Scores** (`PiiScore`): optional per mention; `value`, `kind`
+  (`Probability` 1 in `[0, 1]`, `Logit` 2, `Heuristic` 3 in `[0, 1]`),
+  `model` (a detector ref) and `calibrated`. A mention with no score is
+  `None`, which is not a score of zero.
+  `PiiDetector::with_score_threshold(min)` rejects scored candidates
+  below `min` (`RejectedByRule { Threshold }`) and leaves unscored ones
+  alone.
+- **Candidates** (`PiiCandidates`, `turbo:pii-candidates`, written next
+  to `turbo:pii` by the annotator): one item per candidate any detector
+  produced, with the same kind, detector, evidence and score columns and
+  a `PiiDisposition`: `Kept { mention }` (its row in `turbo:pii`),
+  `AllowedByRule { scope, rule }` (`AllowScope::Global` or `Kind`,
+  `AllowRule::Term(i)` or `Pattern(i)` by registration index),
+  `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`
+  or `Threshold`) or `Repeats { mention }`. The layer has no value or
+  normalized column by construction, so a suppressed candidate never
+  carries text. `PiiAuditReport::with_candidates` counts suppressed
+  candidates per kind from it, and `PiiCandidates::check_against` holds
+  mention references to the `turbo:pii` layer of the same run.
+- **On the wire**: `PiiMention` carries `detector` (5), `evidence` (6)
+  and `score` (7) next to its kind, tier and normalized form, and
+  `TypedAnnotation.pii_candidate` (99) carries a `PiiCandidateAnnotation`;
+  the typed validator refuses a mention whose tier is not the one its
+  evidence derives to, an unknown fact, algorithm, score kind, scope or
+  reason, a missing detector, and a candidate whose mention index lies
+  outside the `turbo:pii` layer of the same instance. The C ABI and the
+  Java binding carry the derived tier only.
 
 ## Masking and labels
 
@@ -134,10 +291,12 @@ the same label for the same kind and value within one text.
 `HmacTokenizer` replaces it with the kind in capitals, `-` and the first
 hexadecimal digits of the HMAC-SHA-256 of the kind name, a zero byte and
 the normalized value, under a key of at least 32 bytes; the label is the
-same in every text for one key. Both return a `PiiRewrite` with the new
-text, the labels as a layer of it, and `map_offset` and `map_span` from
-the original to the new text; overlapping mentions are coalesced by
-default into their union span under the top-ranked kind, while
+same in every text for one key. Both return a `PiiRewrite`: the new text
+as a `View` derived from the one read, written with `ViewBuilder` so its
+alignment maps both ways, the labels as a layer of it, and its
+`turbo:pii-edits` layer (see "The redacted view" below); `to_derived` and
+`to_original` map a span either way through the alignment; overlapping mentions are coalesced by
+default into their union span under the kind of highest priority, while
 `refusing_overlaps` and invalid or empty spans are refused
 (`RewriteError`). `PiiAuditReport` counts mentions by kind, with keyed
 tokens in place of values. `analysis/pii/tests/rewrite_audit.rs` checks,
@@ -149,6 +308,118 @@ The key comes from the caller and is at least 32 bytes. `HmacTokenizer`
 copies it and leaves it out of its `Debug` output. Tokens made with one
 key are linkable across texts, so they need the access control of the
 values they stand for.
+
+### Additional rewrite strategies and per-kind composition
+
+Every strategy below works standalone via `.rewrite(&view, &pii)` (with
+`rewrite::source_view(text)` for a text outside a document) and inside
+a composable per-`PiiKind` `RewritePolicy` (`RewritePolicy::new(default).with(kind, strategy)`),
+producing a `PiiRewrite` whose derived view maps UTF-8 byte spans from
+the source text into the rewritten text and back
+(`analysis/pii/tests/rewrite_strategies.rs` and
+`analysis/pii/tests/rewrite_audit.rs`):
+
+- **Format-string redaction (`FormatRedactor`, `FormatError`):** expands a
+  caller template supporting `%t` (uppercase kind name, such as `EMAIL` or
+  `US-SSN`, matching `Pseudonymizer`), `%k` (lowercase kind name, such as
+  `email` or `us-ssn`), `%v` (1-based per-kind pseudonym number, reusing
+  the same number for equal `(kind, normalized)` within one rewrite), and
+  `%%` (literal `%`), for example `{{{REDACTED-%t}}}` or `[%t-%v]`.
+- **Static replace (`StaticReplacer`):** replaces mentions with fixed text
+  (default `"[REDACTED]"`, or overridden per `PiiKind` via
+  `StaticReplacer::new(default).with(kind, text)`), producing identical
+  output within a document and across documents.
+- **Unkeyed SHA-256 (`Sha256Tokenizer`, `Sha256Replacer`):** replaces each
+  mention with the 64 lowercase hexadecimal digits of
+  `checksum::sha256::digest` over its normalized UTF-8 value (or a 4-to-64
+  hex digit prefix via `Sha256Tokenizer::with_length`, with optional
+  `with_kind_prefix` or `with_prefix`). **Security warning:** because
+  unkeyed SHA-256 uses no secret key, digests are linkable across all
+  documents and datasets and can be reversed by brute-force search or
+  precomputed tables for low-entropy or bounded-domain identifiers (such
+  as 9-digit US SSNs, phone numbers, or known e-mail lists). Use
+  `HmacTokenizer` whenever a secret key can be held.
+- **Map replace (`MapReplacer`, `MapTarget`, `MapError`):** replaces
+  mentions from a caller-provided lookup table (constructed inline with
+  `MapReplacer::new` or loaded from a caller TSV or delimited file with
+  `from_tsv`, `from_delimited`, `from_tsv_file` or `from_delimited_file`,
+  never bundled), with a `case_sensitive` flag, target selection
+  (`MapTarget::NormalizedOrSurface`, `Normalized`, or `Surface`), and a
+  configurable fallback `RewriteStrategy` (`with_fallback`) for values not
+  present in the table.
+- **Truncate / keep N (`Truncate`, `KeepSide`, and `MaskPolicy`):**
+  `Truncate::keep_start(n)` (`KeepSide::Start`) and
+  `Truncate::keep_end(n)` / `Truncate::last_n(n)` (`KeepSide::End`) keep
+  `n` Unicode scalar values (`char`, preserving multi-byte UTF-8
+  boundaries) at the start or end of a mention and replace the remaining
+  characters with a configurable mask character (`with_mask`, default
+  `'*'`), optionally preserving non-alphanumeric separators
+  (`keeping_format`). When a mention has `<= n` characters (or `<= n`
+  letters or digits with `keeping_format`), all of its characters are
+  masked so that a short secret is never left in the clear. For
+  byte-length-preserving in-place masking and `MaskedView`, `MaskPolicy`
+  also provides `keeping_leading(n)`, `keeping_trailing(n)`,
+  `MaskPolicy::first_n(n, mask)`, `MaskPolicy::last_n(n, mask)` and
+  `MaskPolicy::rewrite`; note that in-place `MaskPolicy` leaves spans with
+  `<= n` letters or digits unmasked (matching `MaskPolicy::last_four`), so
+  callers who need short values masked should use `Truncate::keep_start(n)`
+  or `Truncate::last_n(n)`.
+- **Abbreviate (`Abbreviator`):** reduces a mention to the initials of its
+  Unicode words (`"John Fitzgerald Kennedy"` to `"J.F.K."` with
+  `Abbreviator::dotted()` or `"JFK"` with `Abbreviator::compact()`, or
+  custom punctuation via `Abbreviator::with_punctuation`), with optional
+  hyphen preservation (`preserving_hyphens`, turning `"Jean-Luc Picard"`
+  into `"J.-L.P."` or `"J-LP"`) and case preservation (`preserving_case`).
+  `Abbreviator` is intended for name or multi-word phrase kinds and should
+  not be used as a default strategy on numeric kinds (for example,
+  `123-45-6789` would abbreviate to `1.4.6.`).
+- **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
+  `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
+  fallback strategy (`RewriteStrategy::default()`, and so
+  `RewritePolicy::default()`, is a whole-value `'*'` mask, never a
+  per-document pseudonym or an unkeyed SHA-256, issue #1882; a
+  `MapReplacer` built without `with_fallback` still falls back to a
+  pseudonym, and the typed redaction policy always sets that fallback), sharing per-document pseudonym counters across all
+  mentions in a single `rewrite` call. When mentions overlap in a cluster,
+  any strategy in the cluster configured with `refusing_overlaps` (including
+  via a `MapReplacer` fallback) causes `RewritePolicy::rewrite` to return
+  `RewriteError::Overlap`; when coalesced, a source character inside the
+  union span is kept only when every overlapping mention covering that byte
+  permits keeping it under its own strategy.
+
+### The redacted view
+
+The server's `turbo-pii:redact` step writes the same view and edits from
+a typed `RedactionPolicy` (docs/grpc-analysis.md, "The redact step"),
+choosing each mention's strategy with `rewrite::rewrite_chosen` and a
+`StrategyChooser`; its edits also carry the policy rule id and digest.
+
+`RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
+`View` and the `turbo:pii` layer over it and writes the rewritten text as
+a `View` derived from it, with the `turbo:pii-edits` layer over that view,
+both as the instance named `redacted` (`rewrite::REDACTED`). The step
+writes the view first and the edits second; the edits are made over
+`ViewId::PENDING` and moved onto the id the document gives the view as the
+two are stored (`Layer::bind_pending_view`).
+
+`turbo:pii-edits` (`PiiEdits`) has one item a replacement: its span in the
+redacted view, its source span in the parent view, the covered mentions
+of the pii layer as a list of rows (any subset, so overlapping members are
+listed one by one), the rule of the policy that chose the strategy
+(`PiiRule::Default` or `PiiRule::Kind`), the strategy kind
+(`PiiStrategyKind`), and the caller's policy revision
+(`RewritePolicy::with_revision`). It holds no original value. The
+document refuses an edits layer whose spans disagree with the view's
+alignment in either direction, or whose members are not exactly the
+mentions under each source span. Across the rewrite a span maps source to
+redacted to source as containment, not equality: a span touching a
+replacement comes back as the whole mention it replaced
+(`analysis/pii/tests/redacted_view.rs`, which builds view chains with
+`ViewBuilder` for combining marks, ZWJ emoji, a split ligature, overlaps,
+unequal lengths, and deletion and insertion anchors).
+`Document::map_span_outcome` says whether a projected span is exact,
+widened or deleted, and `Document::project_fragments` reports which of an
+item's fragments coalesced, as a separate fact.
 
 ### The masked view
 
@@ -199,18 +470,23 @@ spans over multi-byte texts, and that the text equals `mask`.
 - Caller-defined extractors implement `CustomExtractor` (with optional
   `config_hash` for stateful settings, or pass a scan function to
   `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and emit
-  mentions with `PiiKind::custom("...")`, their own `PiiConfidence`, and
-  `checksum` / `text` helpers via `PiiSink`
-  (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
-  `0..20` (`PiiKind::ALL`); `PiiKind::Custom` has rank `20` and orders
-  after built-in kinds on an exact span tie, then by kind name. A custom
-  kind name must be 1 to 64 UTF-8 bytes (`PiiKind::MAX_CUSTOM_NAME_BYTES`)
-  and not one of the reserved built-in names in `PiiKind::ALL`; the
-  process-wide custom kind registry holds up to 256 distinct custom
-  kind names (`PiiKind::MAX_CUSTOM_KINDS`). Once 256 distinct custom names
-  are registered, known names continue to succeed while a 257th new custom
-  name is refused by `PiiKind::remember_custom`, `PiiSink`, `Pii::check`,
-  `Pii::export` and `PiiKind::intern_custom`. Caller kinds flow
+  mentions of a `PiiKind::Custom(CustomKindId)` with their evidence
+  facts (`PiiEvidence::Shape`, `PiiEvidence::Checksum`,
+  `PiiEvidence::Rule`) and an optional `PiiScore` through `PiiSink`
+  (`PiiSink::model` names the detector and version every mention carries;
+  `try_add_candidate` takes a score). The sink refuses an empty fact list
+  and the detector-owned `Label` and `DenyHit` facts
+  (`SinkError::ForeignEvidence`), and a score it cannot hold
+  (`analysis/pii/tests/custom_extractors.rs`). A custom kind indexes the
+  `CustomKinds` table the detector is given with
+  `PiiDetector::with_custom_kinds`; every `Pii` layer carries its own
+  table, so there is no process-wide state. Custom kinds order after
+  built-in kinds on an exact span tie, then by table index. A custom
+  kind name must be 1 to 64 UTF-8 bytes (`CustomKinds::MAX_NAME_BYTES`)
+  and not a built-in name; a table holds up to 256 names
+  (`CustomKinds::MAX`), checked when the table is built. A kind outside
+  the table is refused (`KindError`) by the detector builder,
+  `PiiSink`, `Pii::check`, export, import and every rewrite. Caller kinds flow
   through `mask_all`, `mask_by_kind`, `MaskedView` (with
   `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
   `PiiAuditReport` and binary graph export/import.
@@ -219,6 +495,86 @@ spans over multi-byte texts, and that the text equals `mask`.
   also reported as a phone or card and ten digits inside an
   international phone number are not also reported as an NHS number.
   `PiiDetector::keeping_nested` retains strictly nested mentions.
+
+## Allow and deny lists
+
+`AllowList` and `DenyList` (`analysis/pii/src/lists/`, tested in
+`analysis/pii/tests/allow_deny.rs`) let a caller suppress known non-PII
+values or flag domain-specific terms without writing a custom byte scanner:
+
+- **Allow list (`AllowList`)**: applied after detection and nesting
+  resolution. A mention whose covered text (`&text[start..end]`) or
+  normalized form (`mention.normalized`) matches an active allow rule is
+  dropped.
+  - Scope is either global (`PiiDetector::with_allow_list`,
+    `allow_term`, `allow_terms`, `allow_file`, `allow_pattern`,
+    `allow_shape`, `allow_glob`) or scoped to a single `PiiKind`
+    (`PiiDetector::with_kind_allow_list`, `allow_kind_term`,
+    `allow_kind_terms`, `allow_kind_file`, `allow_kind_pattern`,
+    `allow_kind_shape`, `allow_kind_glob`), leaving mentions of other
+    kinds on the same or other spans untouched.
+  - Terms and patterns compare case-sensitively (`Case::Sensitive`) by
+    default, or case-insensitively (`Case::Insensitive`, via
+    `AllowList::case_insensitive` / `AllowList::with_case` /
+    `Pattern::case_insensitive`) using `turbo-unicode`'s per-scalar
+    lowercase mapping. Duplicate terms and patterns are deduplicated on
+    insertion and when changing case mode.
+- **Regex-free pattern language (`Pattern`, `PatternKind`)**: patterns
+  match a whole candidate value from start to end using a deterministic,
+  non-backtracking two-pointer wildcard pass with no regular expressions:
+  - `Pattern::shape(spec)` (`PatternKind::Shape`):
+    - `d`: any ASCII decimal digit (`0..=9`)
+    - `a`: any ASCII letter (`A..=Z`, `a..=z`)
+    - `w`: any ASCII letter or digit (`A..=Z`, `a..=z`, `0..=9`)
+    - `?`: any single Unicode scalar (`char`)
+    - `*`: any sequence of zero or more characters
+    - `\x`: literal character `x` (such as `\d`, `\a`, `\w`, `\?`, `\*`, `\\`)
+    - any other character (including uppercase letters `A..=Z`, digits,
+      and punctuation such as `-`, ` `, `@`, `.`): literal match
+  - `Pattern::glob(spec)` (`PatternKind::Glob`):
+    - `*`: any sequence of zero or more characters
+    - `?`: any single Unicode scalar (`char`)
+    - `\x`: literal character `x` (such as `\*`, `\?`, `\\`)
+    - any other character (including `d`, `a`, `w`): literal match
+- **Deny list (`DenyList`)**: terms that are always reported under a
+  custom kind of the detector's table (`DenyList::new`,
+  `DenyList::from_terms`, `DenyList::from_file`, attached via
+  `PiiDetector::with_deny_list`) under the detector `turbo-pii:deny-list`
+  with a `PiiEvidence::DenyHit { list, term }` fact naming the list's
+  registration index and the term's index in it.
+  - Exact terms are matched with `turbo-glossary`'s Aho-Corasick
+    `TextMatcher` (`Case::Sensitive` or `Case::Insensitive`) at word
+    boundaries (`text::on_word_start` and `text::on_end`), with overlaps
+    resolved leftmost-longest by `turbo_glossary::select`. Duplicate terms
+    are deduplicated on insertion and when changing case mode.
+  - Optional fuzzy matching (`DenyList::with_max_edits`) admits word-token
+    candidates within `0`, `1`, or `2` Levenshtein edits (insertions,
+    deletions, or substitutions of one Unicode scalar). Edit distances
+    above `2` are refused (`ListError::InvalidEditDistance`). To prevent
+    short terms from matching arbitrary short words, a term word must have
+    at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
+    characters for `1` edit, `>= 6` characters for `2` edits; words
+    shorter than `4` characters only match at `0` edits).
+  - `DenyList::capitalised_only` (`with_capitalised_only`,
+    `capitalized_only`) requires a candidate in the text to start with an
+    uppercase or titlecase letter (`Lu` or `Lt`), preventing fuzzy matches
+    against common lowercase words.
+- **File loading**: `AllowList::from_file`, `AllowList::with_file`,
+  `AllowList::with_shapes_file`, `AllowList::with_globs_file`,
+  `DenyList::from_file`, and `DenyList::with_file` read caller-supplied
+  UTF-8 files one entry per line, stripping an optional UTF-8 BOM and
+  ignoring blank lines and lines starting with `#`. Lists are loaded only
+  from caller paths and are never bundled.
+- **Configuration hash and audit reporting**:
+  - `PiiDetector::config_hash` folds all global allow rules, per-kind
+    allow rules, and deny lists (target kinds, terms, pattern syntax and
+    tokens, case mode, max edit distance, and `capitalised_only`).
+  - `PiiAuditReport` (`KindReport::suppressed`,
+    `PiiAuditReport::total_suppressed`, `PiiAuditReport::suppressed`,
+    `PiiAuditReport::with_suppressed`, `PiiDetector::audit`,
+    `PiiDetector::detect_and_audit`) counts suppressed mentions by
+    `PiiKind` without ever storing, tokenizing, or displaying the
+    suppressed values (`analysis/pii/tests/rewrite_audit.rs`).
 
 Scanner edge-case rules:
 
@@ -259,12 +615,12 @@ synthetic specimens:
 The snapshots are reviewed outputs of this crate, checked in next to its
 tests. No other implementation produces or checks them.
 
-- Inputs: `analysis/pii/tests/inputs/`, 61 texts written for the packs
+- Inputs: `analysis/pii/tests/inputs/`, 63 texts written for the packs
   with only documented test values, example ranges and made up values.
 - Detection snapshots: `analysis/pii/tests/snapshots/<pack>/<id>.tsv`,
   one directory per pack (`payment`, `contact`, `network`, `secrets`,
-  `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`,
-  `all-structured`), one row per `turbo:pii` mention with its `start`
+  `crypto`, `us-identity`, `eu-identity`, `br-identity`, `ca-identity`,
+  `device`, `all-structured`), one row per `turbo:pii` mention with its `start`
   and `end` (UTF-8 byte offsets), kind and TSV-escaped normalized form.
 - Rewrite snapshots: `analysis/pii/tests/rewrite_snapshots/<pack>/<id>.txt`,
   what `MaskedView`, `mask_all`, `Pseudonymizer`, `HmacTokenizer` and
@@ -307,13 +663,13 @@ each in a sentence, and near misses of the checksummed kinds with no
 label) together with the checked-in true and false positive corpora
 (`analysis/pii/tests/data/golden-true-positives.tsv` and
 `analysis/pii/tests/data/golden-false-positives.txt`):
-1112 texts, 720 labels made in the test.
+1912 texts, 1120 labels made in the test.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|
-| all kinds | 744 | 40 | 0 | 0.949 | 1.000 |
+| all kinds | 1144 | 40 | 0 | 0.966 | 1.000 |
 | `phone` | 122 | 40 | 0 | 0.753 | 1.000 |
-| every other kind | 622 | 0 | 0 | 1.000 | 1.000 |
+| every other kind | 1022 | 0 | 0 | 1.000 | 1.000 |
 
 The false mentions are a phone in each near miss NHS number (ten grouped
 digits are a phone shape); phones and cards nested inside grouped IBANs
@@ -326,7 +682,7 @@ text written by people.
 
 `precision_and_recall_on_human_written_text` scores the same pack on a
 mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
-mentions across all 20 built-in kinds in
+mentions across all 30 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
 `docs/licences.md`). On its own, this mixed set is partial work for
@@ -577,8 +933,9 @@ What the false positives and misses are:
   hyphens and parentheses only.
 - **`ca-sin` (1) and `imei` (2) misses**: `SIN (ON) 046 454 286` and
   `IMEI (primary) 001970012345677` in `operational-memos.txt` place a
-  parenthesised qualifier between the keyword label and the digits,
-  outside the `:`, `=`, `#`, `-` and whitespace separators the labelled
-  scanners skip; and the second occurrence of `490154203237518` in
+  parenthesised qualifier word between the keyword label and the digits,
+  putting the label at word distance 2 outside `ca-sin` and `imei`'s
+  default 1-word window (`window::default_window`); and the second
+  occurrence of `490154203237518` in
   `"Note that 490154203237518 begins with..."` (`operational-memos.txt`)
-  has no immediately preceding `IMEI` keyword.
+  has no `IMEI` keyword in its window.

@@ -11,8 +11,8 @@ use turbo_analysis::{
     ViewBuilder, ViewId,
 };
 use turbo_analysis_layers::{
-    Boundaries, Categories, Chunks, Cut, Entities, Language, Lemmas, Pii, PiiConfidence, PiiKind, PiiMention, PosTags,
-    Sentences, Strs, Subwords, Tokens, Vectors,
+    Boundaries, Categories, ChecksumAlgorithm, Chunks, Cut, Entities, Language, Lemmas, Pii, PiiEvidence, PiiKind,
+    PiiMention, PosTags, Sentences, Strs, Subwords, Tokens, Vectors,
 };
 use turbo_chunker::terms::{TermCounter, TermIndexer, Vocabulary};
 use turbo_chunker::{Budget, Chunker};
@@ -20,7 +20,7 @@ use turbo_kserve::api::{TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
 use turbo_kserve::config::{Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::{
-    BudgetSpec, DocumentWindowRequest, FormatDocumentRequest, ListOutputFormatsRequest, OffsetMode,
+    BudgetSpec, DocumentWindowRequest, FormatDocumentRequest, ListOutputFormatsRequest, OffsetMode, PiiOutputOptions,
     ProjectChunksRequest, XrayEditKindProto,
 };
 use turbo_kserve::results::MAX_WINDOWS;
@@ -146,10 +146,13 @@ fn build_rich_graph_bytes() -> (Document, Vec<u8>) {
 
     // PII on View 0: "alice@example.com" (19..36).
     let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(19, 36),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Checksum,
+        detector,
+        evidence: &[PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true }],
+        score: None,
         normalized: "alice@example.com",
     });
     doc.add(&Key::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
@@ -480,6 +483,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                 graph: graph_bytes.clone(),
                 format_id: fmt_id.into(),
                 offsets: OffsetMode::Utf16 as i32,
+                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }), // PII text (#1904)
             })
             .await
             .unwrap_or_else(|e| panic!("FormatDocument({fmt_id}) failed: {e:?}"))

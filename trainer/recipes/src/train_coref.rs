@@ -121,6 +121,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         uas: None,
         rules: None,
         against,
+        by_language: Vec::new(),
     };
     let eval_s = t.elapsed().as_secs_f64();
 

@@ -30,3 +30,11 @@ dc90c4a7f3d456cbff9215d35006b2fbf80248bb26b93438dbcd5f332787ba8e  33986170  meta
 30720d47916c9f4048c64a60c3836968cf925b158c96c06e97bcd8b2be7ce8e9  19665586  metal/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
 b6e9e04314c27fdf4200cfda319823a8a2e674cb10c886c20a360dc2a756e2c2  31613241  metal/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
 18549d73f992b22e24d8a338496a71da1a5913a0e05788b01a7b5b53ecdba08d  26426816  metal/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts
+991c2f5780ae874d6b77a3b93c0e84aff047ae2d7d55a8e3dc26cda2595fade7  34980020  npu/turbo-chunker-254-200-hybrid/arguana.cuts
+92d04cf0e32a6b9c80c26987a29772150ef62fd233c6246e63e91147b35ad2db  20082921  npu/turbo-chunker-254-200-hybrid/nfcorpus.cuts
+7ae90173efc5a98e0919f5a41a989b426342e802e415a6181f6305024484fb06  31587381  npu/turbo-chunker-254-200-hybrid/qasper.cuts
+559fe23fe633463361f046b2b7ee1f555122cbf363622610c6e5962002db23f1  27022441  npu/turbo-chunker-254-200-hybrid/scifact.cuts
+94cbdab607f7873da9702e6fb7cca8b03a9530cfa70af4f9648a8fa97f7563e2  35061753  npu/turbo-chunker-254-200-cohesion-1000-hybrid/arguana.cuts
+93179803c30089fa174feb487bb1cd2c8cb93cc384c093648a915fb8d596bc8a  20116085  npu/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
+5de33a29be92a13f5bd4f8d70b93b0b9bde14ca9ee101c653f122e3ad1c44639  31664872  npu/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
+fb3f73827b2682688cca2b5af9257395a657c5ebfc14ab39aa698420f3916701  27069515  npu/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts

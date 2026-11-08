@@ -5,9 +5,9 @@ mod support;
 
 use support::*;
 use turbo_analysis::text::{Alignment, Side};
-use turbo_analysis::{Analyzer, Annotator, Document, Span, View, ViewId};
+use turbo_analysis::{Analyzer, Annotator, Document, Key, Provenance, Span, View, ViewBuilder, ViewId};
 use turbo_pii::rewrite::{MASKED, MaskError, MaskPolicy, MaskedView, mask, mask_by_kind, mask_view};
-use turbo_pii::{Pii, PiiDetector, PiiKind};
+use turbo_pii::{Pii, PiiDetector, PiiEvidence, PiiKind, PiiMention};
 
 fn whole(c: char) -> MaskPolicy {
     MaskPolicy::new(c).unwrap()
@@ -230,4 +230,38 @@ fn a_layer_over_another_view_is_refused() {
     let pii = Pii::new(ViewId(3));
     let err = MaskedView::all(whole('*')).annotate((src, &pii)).map(|_| ()).unwrap_err();
     assert!(err.to_string().contains("view 3"), "{err}");
+}
+
+#[test]
+fn the_view_entry_point_refuses_a_layer_over_another_view() {
+    // A layer over a child view whose offsets are in bounds of the source
+    // too: masking the source with them would mask the wrong bytes.
+    let mut doc = source("ab-cd");
+    let src = doc.get::<View>().unwrap().clone();
+    let mut b = ViewBuilder::new(src.text());
+    b.keep(2);
+    b.replace(3, "");
+    let (text, alignment) = b.finish();
+    doc.add(&Key::<View>::named("plain"), View::derived(&src, text, alignment), Provenance::by("test:view")).unwrap();
+    let plain = doc.get_key(&Key::<View>::named("plain")).unwrap().clone();
+    assert_eq!(plain.text(), "abcd");
+    let mut pii = Pii::new(plain.id());
+    let detector = pii.detector("test", "1").unwrap();
+    pii.push(PiiMention {
+        span: Span::new(1, 3),
+        kind: PiiKind::Email,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
+        normalized: "bc",
+    });
+    let masker = MaskedView::all(whole('*'));
+    let err = masker.view(&src, &pii).map(|v| v.text().to_owned()).unwrap_err();
+    assert_eq!(err, MaskError::ForeignView { layer: plain.id(), view: ViewId::SOURCE });
+    assert!(err.to_string().contains("view 1, not view 0"), "{err}");
+    // The annotator goes through the same check and says the same.
+    let via_annotate = masker.annotate((&src, &pii)).map(|_| ()).unwrap_err();
+    assert!(via_annotate.to_string().contains(&err.to_string()), "{via_annotate}");
+    // Over its own view the same layer masks the bytes it names.
+    assert_eq!(masker.view(&plain, &pii).unwrap().text(), "a**d");
 }

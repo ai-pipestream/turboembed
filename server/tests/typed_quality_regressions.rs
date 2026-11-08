@@ -10,8 +10,8 @@ use turbo_analysis_layers::{
 };
 use turbo_kserve::proto::result::{
     AnchorKind, DocumentGraphRequest, GrammarDiagnosticAnnotation, InspectDocumentGraphRequest, LayerWireStatus,
-    OffsetMode, QualityMetricsAnnotation, SpanFragment, TypedDocumentResult, grammar_diagnostic_annotation,
-    typed_annotation::Value,
+    OffsetMode, QualityMetricsAnnotation, SpanFragment, SpanOutcome, TypedDocumentResult,
+    grammar_diagnostic_annotation, typed_annotation::Value,
 };
 use turbo_kserve::results::document::codecs;
 
@@ -63,6 +63,9 @@ async fn project(client: &mut common::Analysis, graph: &[u8], mode: OffsetMode, 
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            pii_output: None,
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -75,14 +78,14 @@ fn wire_span(text: &str, mode: OffsetMode, start: usize, end: usize) -> SpanFrag
         OffsetMode::Utf16 => text[..n].encode_utf16().count() as u32,
         OffsetMode::CodePoint => text[..n].chars().count() as u32,
     };
-    SpanFragment { start: offset(start), end: offset(end) }
+    SpanFragment::exact(offset(start), offset(end))
 }
 
 async fn quality_round_trip(layer_id: &str) {
     let (server, mut client) = common::serve_no_admin().await;
     let bytes = export(&fixture(), codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -111,7 +114,12 @@ async fn quality_round_trip(layer_id: &str) {
                     vec![(0, 6), (7, 8)]
                 };
                 for (i, (ann, (start, end))) in layer.annotations.iter().zip(pairs).enumerate() {
-                    assert_eq!(ann.spans, [wire_span(&out.raw_text, mode, start, end)]);
+                    let expected = wire_span(&out.raw_text, mode, start, end);
+                    assert_eq!((ann.spans[0].start, ann.spans[0].end), (expected.start, expected.end));
+                    // Onto the lossy view a span widens or stays exact; on the
+                    // source it is exact (#1907).
+                    let exact = ann.spans[0].outcome == SpanOutcome::Exact as i32;
+                    assert!(exact || (view == 1 && ann.spans[0].outcome == SpanOutcome::Widened as i32));
                     let actual = match &ann.value {
                         Some(Value::TextQuality(m)) if layer_id == TextQuality::ID => m,
                         Some(Value::SpanQuality(m)) if layer_id == SpanQuality::ID => m,
@@ -265,7 +273,7 @@ async fn typed_quality_refuses_malformed_metrics_payloads_and_spans() {
                             })
                         }
                         3 => l.annotations[0].spans[0].end = u32::MAX,
-                        4 => l.annotations[0].spans[0] = SpanFragment { start: 2, end: 1 },
+                        4 => l.annotations[0].spans[0] = SpanFragment::exact(2, 1),
                         5 if id == TextQuality::ID => l.annotations.clear(),
                         6 if id == TextQuality::ID => l.annotations.push(l.annotations[0].clone()),
                         7 if mode != OffsetMode::CodePoint => {
@@ -279,7 +287,7 @@ async fn typed_quality_refuses_malformed_metrics_payloads_and_spans() {
                         8 => l.id = "test:wrong-quality-layer".into(),
                         9 => {
                             let end = l.annotations[0].spans[0].end;
-                            l.annotations[0].spans.push(SpanFragment { start: end, end });
+                            l.annotations[0].spans.push(SpanFragment::exact(end, end));
                         }
                         _ => continue,
                     }
@@ -340,7 +348,9 @@ async fn quality_preserves_metric_endpoints_and_empty_projected_regions() {
                 let m = match ann.value.as_ref().unwrap() {
                     Value::TextQuality(m) => m,
                     Value::SpanQuality(m) => {
-                        assert_eq!(ann.spans, [SpanFragment { start: 0, end: 0 }]);
+                        // The removed prefix projects to an empty deleted anchor.
+                        assert_eq!((ann.spans[0].start, ann.spans[0].end), (0, 0));
+                        assert_eq!(ann.spans[0].outcome, SpanOutcome::Deleted as i32);
                         m
                     }
                     _ => unreachable!(),
@@ -377,7 +387,7 @@ async fn grammar_diagnostics_survive_views_offset_modes_and_refuse_malformed_pay
 
     let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let echoed_graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()

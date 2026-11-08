@@ -132,7 +132,7 @@ async fn run(
         match event.unwrap().event.unwrap() {
             Event::StepFailed(f) => panic!("step {} failed: {:?}", f.step_id, f.failure),
             Event::Complete(c) => complete = Some(c),
-            Event::Started(_) | Event::LayersReady(_) => {}
+            Event::Started(_) | Event::LayersReady(_) | Event::Receipt(_) => {}
         }
     }
     complete.expect("the stream ends with the document")

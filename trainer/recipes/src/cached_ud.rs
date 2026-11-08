@@ -212,6 +212,7 @@ fn fit_cached_lemma(
                     tags: e.tags,
                     forms: e.forms,
                     lemmas: e.lemmas,
+                    language: None,
                 })
                 .collect()
         };
@@ -241,6 +242,7 @@ fn fit_cached_lemma(
             baseline: evaluate(Task::Tags, &test_gold, &base, &seen, None),
             rules: None,
             against: None,
+            by_language: Vec::new(),
             dictionary: None,
             open_span: None,
             comparison: Some(bootstrap(Task::Tags, &test_gold, &predicted, &base, RESAMPLES, p.config.seed)),
@@ -287,7 +289,12 @@ fn fit_cached_parse(
     let (tensors, core, report, mix) = if p.layers.len() == 1 && !p.mixed {
         let one = |v: Vec<MixParseExample>| -> Vec<ParseExample> {
             v.into_iter()
-                .map(|mut e| ParseExample { features: e.layers.remove(0), heads: e.heads, rels: e.rels })
+                .map(|mut e| ParseExample {
+                    features: e.layers.remove(0),
+                    heads: e.heads,
+                    rels: e.rels,
+                    language: None,
+                })
                 .collect()
         };
         let (tr, dv) = (one(train_mix), one(dev_mix));
@@ -317,6 +324,7 @@ fn fit_cached_parse(
             baseline: evaluate(Task::Tags, &test_gold, &base, &seen, None),
             rules: None,
             against: None,
+            by_language: Vec::new(),
             dictionary: None,
             open_span: None,
             comparison: Some(bootstrap(Task::Tags, &test_gold, &predicted, &base, RESAMPLES, p.config.seed)),
@@ -401,6 +409,7 @@ pub fn run_split(p: &CachedParams, cache: CacheRecord) -> Result<CachedOutcome> 
             baseline: evaluate(Task::Tags, &test_gold, &base, &seen, None),
             rules: None,
             against: None,
+            by_language: Vec::new(),
             dictionary: None,
             open_span: None,
             comparison: Some(bootstrap(Task::Tags, &test_gold, &predicted, &base, RESAMPLES, p.config.seed)),
@@ -464,6 +473,7 @@ pub fn eval_cached_tagger(
         open_span: None,
         comparison: Some(bootstrap(task, test_sents, &predicted, &base, RESAMPLES, p.config.seed)),
         uas: None,
+        by_language: Vec::new(),
     };
     Ok(Some((eval, t_eval.elapsed().as_secs_f64(), test_sents.to_vec(), predicted)))
 }

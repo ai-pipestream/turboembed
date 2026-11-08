@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use turbo_analysis::{IxRange, Provenance, Tag, TagSet, View, ViewBuilder};
-use turbo_analysis_layers::{PiiKind, PiiMention, Strs};
+use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiMention, Strs};
 
 use super::*;
 use crate::analysis_api::{
-    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_FORMAT, TURBO_SPAN_LABEL,
-    TURBO_SPAN_PROBABILITY, TURBO_SPAN_SOURCE_RANGE, TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE,
-    turbo_span,
+    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
+    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_SPAN_LABEL, TURBO_SPAN_PROBABILITY, TURBO_SPAN_SOURCE_RANGE,
+    TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE, turbo_span,
 };
 
 fn pool(result: &AnalysisResultInner, offset: u32, len: u32) -> &str {
@@ -110,10 +110,13 @@ fn fixture() -> (Document, ViewId) {
     .unwrap();
 
     let mut pii = Pii::new(lower_view);
+    let detector = pii.detector("test", "1").unwrap();
     pii.push(PiiMention {
         span: Span::new(17, 23),
         kind: PiiKind::Email,
-        confidence: PiiConfidence::Format,
+        detector,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
         normalized: "a@b.co",
     });
     doc.add(&Key::<Pii>::named("lower"), pii, Provenance::by("test:pii")).unwrap();
@@ -286,4 +289,41 @@ fn a_caller_graph_holding_a_probability_outside_0_to_1_is_an_invalid_argument() 
         let own = extract_graph(&doc, Vec::new(), Origin::Analyzed).err().unwrap();
         assert_eq!(own.code, CAPACITY, "{pos} and {entity}: {}", own.message);
     }
+}
+
+#[test]
+fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
+    let mut doc = Document::new("SSN: 123-45-6789, SIN: 046 454 286.".to_owned());
+    let mut pii = Pii::new(ViewId::SOURCE);
+    let detector = pii.detector("test", "1").unwrap();
+    pii.push(PiiMention {
+        span: Span::new(5, 16),
+        kind: PiiKind::UsSsn,
+        detector,
+        evidence: &[PiiEvidence::Shape, PiiEvidence::Label { span: Span::new(0, 3), phrase: 0 }],
+        score: None,
+        normalized: "123-45-6789",
+    });
+    pii.push(PiiMention {
+        span: Span::new(23, 34),
+        kind: PiiKind::CaSin,
+        detector,
+        evidence: &[
+            PiiEvidence::Checksum { algorithm: ChecksumAlgorithm::Luhn, passed: true },
+            PiiEvidence::Label { span: Span::new(18, 21), phrase: 0 },
+        ],
+        score: None,
+        normalized: "046454286",
+    });
+    doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
+
+    let result = extract_graph(&doc, Vec::new(), Origin::Analyzed).unwrap();
+    let pii_rows = rows(&result, TURBO_ANALYSIS_LAYER_PII, "");
+    assert_eq!(pii_rows.len(), 2);
+    assert_eq!(pool(&result, pii_rows[0].label_offset, pii_rows[0].label_len), "us-ssn");
+    assert_eq!(pii_rows[0].classification, TURBO_PII_CONFIDENCE_LABELLED);
+    assert_eq!(pii_rows[0].classification, 4);
+    assert_eq!(pool(&result, pii_rows[1].label_offset, pii_rows[1].label_len), "ca-sin");
+    assert_eq!(pii_rows[1].classification, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM);
+    assert_eq!(pii_rows[1].classification, 3);
 }

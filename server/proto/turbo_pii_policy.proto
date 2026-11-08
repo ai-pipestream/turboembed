@@ -1,0 +1,405 @@
+// Typed PII redaction policy (issue #1882 part A).
+//
+// A RedactionPolicy says, per PII kind, whether the kind is detected and
+// how its mentions are rewritten. It carries no server file path and no
+// key bytes: keys and dictionaries are named by registered, versioned
+// references the server resolves. Every enum's UNSPECIFIED value is
+// refused. The policy's identity is its id, its revision and a SHA-256
+// PolicyDigest over the canonical encoding described in
+// docs/grpc-analysis.md ("Redaction policy"), never over protobuf bytes.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package turbo.result.v1;
+
+import "turbo_typed_annotations.proto";
+
+message RedactionPolicy
+{
+  // The caller's name for the policy. Required.
+  string id = 1;
+  // The caller's version of the policy; part of its digest.
+  uint64 revision = 2;
+  // The policy's own custom kind names: PiiKindRef.custom anywhere in the
+  // policy indexes this table. Names are unique and non-empty.
+  repeated string custom_kinds = 3;
+  // At most one rule per kind; a kind with no rule takes the default
+  // strategy.
+  repeated PiiKindRule kind_rules = 4;
+  // What a kind with no rule, or a rule none of whose strategies apply,
+  // is rewritten with. Unset: mask every character with '*'. It is a mask
+  // or a keyed token, never a per-document pseudonym (EMAIL-1 collides
+  // across a corpus) or an unkeyed SHA-256.
+  PiiDefaultStrategy default_strategy = 5;
+  // Terms and patterns that are never PII, for every kind.
+  PiiAllowList allow = 6;
+  // Terms that are always PII of a custom kind.
+  repeated PiiDenyList deny = 7;
+  // Shape patterns that find a custom kind.
+  repeated PiiCustomIdentifier custom_identifiers = 8;
+  // False (the default): a rule naming a kind id or a strategy this
+  // server does not know is refused. True: such a rule is kept as a
+  // whole-value '*' mask and flagged in the policy's conversion report.
+  // A policy never passes a mention through unrewritten.
+  bool redact_and_flag_unknown = 9;
+}
+
+// Whether a rule's kind is detected at all. UNSPECIFIED is refused.
+enum PiiRuleState
+{
+  PII_RULE_STATE_UNSPECIFIED = 0;
+  PII_RULE_STATE_ENABLED = 1;
+  PII_RULE_STATE_DISABLED = 2;
+}
+
+// What the policy does with one kind.
+message PiiKindRule
+{
+  // The caller's id for the rule, unique in the policy; every edit and
+  // decision the rule causes names it. Required.
+  string rule_id = 1;
+  PiiKindRef kind = 2;
+  PiiRuleState state = 3;
+  // Tried in order: the first entry whose conditions all hold rewrites the
+  // mention. None holds: the policy's default strategy.
+  repeated PiiStrategyEntry strategies = 4;
+  // Terms and patterns that are never PII of this kind.
+  PiiAllowList allow = 5;
+  // Unset: the detector's label settings for the kind.
+  PiiLabelOverride labels = 6;
+}
+
+// Whether a kind needs a context label. UNSPECIFIED is refused.
+enum PiiLabelRequirement
+{
+  PII_LABEL_REQUIREMENT_UNSPECIFIED = 0;
+  // The context window is not inspected.
+  PII_LABEL_REQUIREMENT_NONE = 1;
+  // A candidate is kept only with a label fact.
+  PII_LABEL_REQUIREMENT_REQUIRED = 2;
+  // Unlabelled candidates are kept; a label is recorded as a fact.
+  PII_LABEL_REQUIREMENT_BOOSTS = 3;
+}
+
+// A kind's context label settings.
+message PiiLabelOverride
+{
+  PiiLabelRequirement requirement = 1;
+  // Words either side of the mention searched for a label; 0 keeps the
+  // detector's window.
+  uint32 window_words = 2;
+  // Label phrases added to the kind's defaults, in order.
+  repeated string extra_labels = 3;
+}
+
+// One strategy of a rule and when it applies.
+message PiiStrategyEntry
+{
+  // Every condition must hold; none means always.
+  repeated PiiStrategyCondition when = 1;
+  PiiRewriteStrategy strategy = 2;
+}
+
+// A test over a mention's recorded evidence facts (#1903), never over its
+// confidence tier.
+message PiiStrategyCondition
+{
+  oneof test
+  {
+    PiiChecksumPassedCondition checksum_passed = 1;
+    PiiLabelPresentCondition label_present = 2;
+    PiiDetectorCondition detector = 3;
+    PiiScoreCondition score_at_least = 4;
+  }
+}
+
+// A checksum fact that passed, with one of `algorithms`; none listed means
+// any algorithm. UNSPECIFIED is refused.
+message PiiChecksumPassedCondition
+{
+  repeated PiiChecksumAlgorithm algorithms = 1;
+}
+
+// A label fact is recorded for the mention.
+message PiiLabelPresentCondition {}
+
+// The mention's detector has this id and, when `version` is not empty,
+// this version.
+message PiiDetectorCondition
+{
+  string id = 1;
+  string version = 2;
+}
+
+// The mention carries a score of `kind` at least `min`; with `calibrated`,
+// only a calibrated score counts. UNSPECIFIED is refused.
+message PiiScoreCondition
+{
+  PiiScoreKind kind = 1;
+  float min = 2;
+  bool calibrated = 3;
+}
+
+// How a mention is rewritten: one typed message per strategy. Each arm
+// maps to exactly one PiiStrategy value, the one a PiiEditAnnotation it
+// writes records (named on each arm).
+message PiiRewriteStrategy
+{
+  oneof strategy
+  {
+    // PII_STRATEGY_MASK
+    PiiMaskStrategy mask = 1;
+    // PII_STRATEGY_FORMAT
+    PiiFormatStrategy format = 2;
+    // PII_STRATEGY_MAP
+    PiiMapStrategy map = 3;
+    // PII_STRATEGY_TRUNCATE
+    PiiTruncateStrategy truncate = 4;
+    // PII_STRATEGY_TRUNCATE (a truncation keeping the end)
+    PiiLastNStrategy last_n = 5;
+    // PII_STRATEGY_ABBREVIATE
+    PiiAbbreviateStrategy abbreviate = 6;
+    // PII_STRATEGY_HMAC
+    PiiKeyedTokenStrategy keyed_token = 7;
+    // PII_STRATEGY_SHA256
+    PiiSha256Strategy sha256 = 8;
+    // PII_STRATEGY_STATIC
+    PiiStaticStrategy static_text = 9;
+    // PII_STRATEGY_PSEUDONYM
+    PiiPseudonymStrategy pseudonym = 10;
+  }
+}
+
+// What a policy falls back to: a mask or a keyed token only.
+message PiiDefaultStrategy
+{
+  oneof strategy
+  {
+    PiiMaskStrategy mask = 1;
+    PiiKeyedTokenStrategy keyed_token = 2;
+  }
+}
+
+// Every character becomes `mask_char`, keeping the text's length.
+message PiiMaskStrategy
+{
+  // One ASCII character; empty means '*'.
+  string mask_char = 1;
+  // Leave what is not a letter or digit readable.
+  bool keep_format = 2;
+}
+
+// The mention becomes a label from a template: %t the upper-case kind
+// name, %k the lower-case kind name, %v the mention's number in the
+// document, %% a percent sign.
+message PiiFormatStrategy
+{
+  string template = 1;
+}
+
+// Which side of a mention a truncation keeps. UNSPECIFIED is refused.
+enum PiiKeepSide
+{
+  PII_KEEP_SIDE_UNSPECIFIED = 0;
+  PII_KEEP_SIDE_START = 1;
+  PII_KEEP_SIDE_END = 2;
+}
+
+// Keep `count` characters on `side` and mask the rest; a mention of at
+// most `count` characters is masked whole.
+message PiiTruncateStrategy
+{
+  PiiKeepSide side = 1;
+  uint32 count = 2;
+  // One character; empty means '*'.
+  string mask_char = 3;
+  // Count letters and digits only and leave separators readable.
+  bool keep_format = 4;
+}
+
+// Keep the last `count` characters (a truncation keeping the end).
+message PiiLastNStrategy
+{
+  uint32 count = 1;
+  string mask_char = 2;
+  bool keep_format = 3;
+}
+
+// Initials: each word's first letter joined by `separator` and followed by
+// `trailing` (both empty: "JFK"; both ".": "J.F.K.").
+message PiiAbbreviateStrategy
+{
+  string separator = 1;
+  string trailing = 2;
+  bool preserve_hyphens = 3;
+  bool preserve_case = 4;
+}
+
+// A registered, versioned key: never key material.
+message PiiPolicyKeyRef
+{
+  string id = 1;
+  uint32 version = 2;
+}
+
+// HMAC-SHA-256 of the normalized value under a registered key, as
+// `length` hexadecimal digits (0 means 16; 4 to 64). Equal values under
+// one key give equal tokens across documents.
+message PiiKeyedTokenStrategy
+{
+  PiiPolicyKeyRef key = 1;
+  uint32 length = 2;
+}
+
+// Unkeyed SHA-256 of the normalized value. Anyone can recompute it, so a
+// low-entropy value (a phone number, an SSN) is reversible by guessing:
+// prefer PiiKeyedTokenStrategy. Never a default.
+message PiiSha256Strategy
+{
+  // Hexadecimal digits written, 4 to 64; 0 means 64.
+  uint32 length = 1;
+  // Write the upper-case kind name and '-' first.
+  bool kind_prefix = 2;
+  // Written before everything else.
+  string prefix = 3;
+}
+
+// A fixed replacement text.
+message PiiStaticStrategy
+{
+  string replacement = 1;
+}
+
+// Per-document numbered labels such as [EMAIL-1]. The numbers restart in
+// every document, so the same label names different values across a
+// corpus. Never a default.
+message PiiPseudonymStrategy
+{
+  string prefix = 1;
+  string suffix = 2;
+}
+
+// Which form of a mention a map looks up. UNSPECIFIED is refused.
+enum PiiMapTarget
+{
+  PII_MAP_TARGET_UNSPECIFIED = 0;
+  // The normalized value, then the surface text.
+  PII_MAP_TARGET_NORMALIZED_OR_SURFACE = 1;
+  PII_MAP_TARGET_NORMALIZED = 2;
+  PII_MAP_TARGET_SURFACE = 3;
+}
+
+// A lookup table from value to replacement.
+message PiiMapStrategy
+{
+  oneof table
+  {
+    PiiMapEntries entries = 1;
+    PiiDictionaryRef dictionary = 2;
+  }
+  bool case_sensitive = 3;
+  PiiMapTarget target = 4;
+  // What an unmapped value gets; unset means the policy's default
+  // strategy. A map is never the fallback of a map.
+  PiiRewriteStrategy fallback = 5;
+}
+
+// Inline map entries. Keys and replacements are non-empty.
+message PiiMapEntries
+{
+  map<string, string> entries = 1;
+}
+
+// A dictionary registered with the vocabulary store, pinned by content:
+// its artifact id and the lowercase hex SHA-256 of its stored bytes.
+message PiiDictionaryRef
+{
+  string artifact_id = 1;
+  string sha256 = 2;
+}
+
+// Terms, inline or from a registered dictionary.
+message PiiTermSource
+{
+  oneof source
+  {
+    PiiTerms terms = 1;
+    PiiDictionaryRef dictionary = 2;
+  }
+}
+
+message PiiTerms
+{
+  repeated string terms = 1;
+}
+
+// Which pattern syntax an allow pattern uses. UNSPECIFIED is refused.
+enum PiiPatternSyntax
+{
+  PII_PATTERN_SYNTAX_UNSPECIFIED = 0;
+  // d digit, a letter, w letter or digit, ? any character, * any run,
+  // \x the literal x.
+  PII_PATTERN_SYNTAX_SHAPE = 1;
+  // ? any character, * any run, \x the literal x.
+  PII_PATTERN_SYNTAX_GLOB = 2;
+}
+
+message PiiAllowPattern
+{
+  PiiPatternSyntax syntax = 1;
+  string pattern = 2;
+  bool case_sensitive = 3;
+}
+
+// Values that are never PII: exact terms (case-insensitive unless
+// `case_sensitive`) and patterns.
+message PiiAllowList
+{
+  repeated PiiTermSource terms = 1;
+  bool case_sensitive = 2;
+  repeated PiiAllowPattern patterns = 3;
+}
+
+// Terms that are always PII of a custom kind.
+message PiiDenyList
+{
+  string rule_id = 1;
+  // A custom kind of RedactionPolicy.custom_kinds; a built-in kind is
+  // refused.
+  PiiKindRef kind = 2;
+  PiiTermSource terms = 3;
+  bool case_sensitive = 4;
+  // Edits a match may differ by, 0 to 2.
+  uint32 max_edits = 5;
+  // Match only capitalized occurrences.
+  bool capitalized_only = 6;
+}
+
+// A shape pattern that finds a custom kind.
+message PiiCustomIdentifier
+{
+  string rule_id = 1;
+  // A custom kind of RedactionPolicy.custom_kinds; a built-in kind is
+  // refused.
+  PiiKindRef kind = 2;
+  // Shape syntax (PII_PATTERN_SYNTAX_SHAPE).
+  string shape = 3;
+  bool case_sensitive = 4;
+}
+
+// The redaction policy one AnalyzePipelineRequest runs turbo-pii:redact
+// with: a policy given inline, or the name of one the server loaded at
+// start. An unknown name is refused.
+message PiiRedactionSelection
+{
+  oneof policy
+  {
+    RedactionPolicy inline = 1;
+    string name = 2;
+  }
+  // Report what the policy would do and write no redacted view: kept
+  // candidates of turbo:pii-candidates carry PiiPlannedRewrite, and no
+  // turbo:pii-edits layer is written.
+  bool dry_run = 3;
+}

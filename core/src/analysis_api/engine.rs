@@ -21,7 +21,8 @@ use super::heads::{BundleHeads, Want, unsupported};
 use super::{
     AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
     TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM,
-    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, coordinate_range,
+    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
+    coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -296,12 +297,13 @@ impl AnalyzerEngine {
         let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_PII, Pii::ID, "", SOURCE_VIEW)?;
         for (idx, mention) in pii.mentions().enumerate() {
             let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
-            let label = builder.string_ref(mention.kind.name())?;
+            let label = builder.string_ref(pii.kind_name(mention.kind).unwrap_or(""))?;
             let value = builder.string_ref(mention.normalized)?;
-            let classification = match mention.confidence {
+            let classification = match mention.confidence() {
                 PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
                 PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-                PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
+                PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
+                PiiConfidence::Labelled => TURBO_PII_CONFIDENCE_LABELLED,
             };
             builder.push(
                 layer,
@@ -463,5 +465,34 @@ impl AnalyzerEngine {
         let doc = import(&graph, &self.codecs)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("DocumentGraph import failed: {e}")))?;
         extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis_layers::PiiKind;
+
+    use super::*;
+
+    #[test]
+    fn detect_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
+        let mut engine = AnalyzerEngine::from_desc(AnalyzerConfig::default()).unwrap();
+        engine.pii_detector = PiiDetector::pack(Pack::AllStructured).label_boosts(PiiKind::UsSsn);
+        let result = engine.detect_pii("SSN: 123-45-6789, SIN: 046 454 286.").unwrap();
+        let classes: Vec<(&str, u32)> = result
+            .spans
+            .iter()
+            .map(|row| {
+                let start = row.label_offset as usize;
+                let end = start + row.label_len as usize;
+                (std::str::from_utf8(&result.pool[start..end]).unwrap(), row.classification)
+            })
+            .collect();
+        assert_eq!(
+            classes,
+            [("us-ssn", TURBO_PII_CONFIDENCE_LABELLED), ("ca-sin", TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM)]
+        );
+        assert_eq!(TURBO_PII_CONFIDENCE_LABELLED, 4);
+        assert_eq!(TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, 3);
     }
 }

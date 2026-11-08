@@ -5,6 +5,7 @@ mod support;
 
 use support::*;
 use turbo_pii::checksum::mod97;
+use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{Pseudonymizer, mask_all};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
@@ -128,5 +129,8 @@ fn payment_pack_masks_and_replaces_the_iban() {
     let pii = layer(&pack(Pack::Payment), &text);
     assert_eq!(normalized(&pack(Pack::Payment), &text), [EXAMPLE]);
     assert_eq!(mask_all(&text, &pii, '*').unwrap(), format!("Wire {}; reference 1234.", "*".repeat(account.len())));
-    assert_eq!(Pseudonymizer::new("", "").rewrite(&text, &pii).unwrap().text(), "Wire IBAN-1; reference 1234.");
+    assert_eq!(
+        Pseudonymizer::new("", "").rewrite(&source_view(&text), &pii).unwrap().text(),
+        "Wire IBAN-1; reference 1234."
+    );
 }

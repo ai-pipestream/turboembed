@@ -283,6 +283,8 @@ impl DocumentFormatter for JsonLdFormatter {
             sections.push(s);
         }
 
+        // Findings only: a mention's value never leaves through an export
+        // (#1904); its span locates it in the document text.
         if let Some(pii) = doc.get::<Pii>() {
             let view = pii.spans.view();
             let mut s = String::from("    \"turbo:pii\": [");
@@ -294,10 +296,9 @@ impl DocumentFormatter for JsonLdFormatter {
                 let (start, end) = offsets.convert_source_span(doc, src)?;
                 let _ = write!(
                     s,
-                    "{{\"@type\": \"turbo:PiiMention\", \"kind\": {}, \"confidence\": {}, \"start\": {start}, \"end\": {end}, \"normalized\": {}}}",
-                    json_string(m.kind.name()),
-                    json_string(m.confidence.name()),
-                    json_string(m.normalized),
+                    "{{\"@type\": \"turbo:PiiMention\", \"kind\": {}, \"confidence\": {}, \"start\": {start}, \"end\": {end}}}",
+                    json_string(pii.kind_name(m.kind).unwrap_or("")),
+                    json_string(m.confidence().name()),
                 );
             }
             s.push(']');

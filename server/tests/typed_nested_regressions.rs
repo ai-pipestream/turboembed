@@ -31,7 +31,7 @@ fn spans<L>(view: ViewId, pairs: &[(u32, u32)]) -> Spans<L> {
 async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode, view: u32) -> TypedDocumentResult {
     let graph = export(doc, codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -42,6 +42,9 @@ async fn project(client: &mut common::Analysis, doc: &Document, mode: OffsetMode
             graph: graph.to_vec(),
             view,
             offsets: mode as i32,
+            pii_output: None,
+            binding: None,
+            operation_key: String::new(),
         })
         .await
         .unwrap()
@@ -118,7 +121,7 @@ async fn named_pos_and_chunk_nbest_keep_both_views_in_all_offset_modes() {
                 let end = start + if mode == OffsetMode::Utf8 { 2 } else { 1 };
                 let mut count = 0;
                 for layer in out.layers.iter().filter(|l| l.id.starts_with("turbo:nbest")) {
-                    assert_eq!(layer.annotations[0].spans, [SpanFragment { start, end }]);
+                    assert_eq!(layer.annotations[0].spans, [SpanFragment::exact(start, end)]);
                     let anchor = layer.anchor_layer.as_deref().unwrap();
                     assert!(anchor.ends_with("@pos-selected") || anchor.ends_with("@chunk-selected"));
                     count += 1;
@@ -292,9 +295,9 @@ async fn candidate_and_sparse_nested_values_return_structured_invalid_arguments(
                 let layer = bad.layers.iter_mut().find(|l| l.id.starts_with("turbo:sparse")).unwrap();
                 let Some(Value::SparseTerms(sparse)) = &mut layer.annotations[0].value else { panic!("sparse") };
                 let invalid = match mode {
-                    OffsetMode::Utf8 => SpanFragment { start: 1, end: 2 },
-                    OffsetMode::Utf16 => SpanFragment { start: 2, end: 3 },
-                    _ => SpanFragment { start: 2, end: 3 },
+                    OffsetMode::Utf8 => SpanFragment::exact(1, 2),
+                    OffsetMode::Utf16 => SpanFragment::exact(2, 3),
+                    _ => SpanFragment::exact(2, 3),
                 };
                 match field {
                     "weight" => sparse.entries[0].weight = f32::NAN,

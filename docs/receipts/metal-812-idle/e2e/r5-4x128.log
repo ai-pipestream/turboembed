@@ -1,0 +1,10 @@
+round 5 size 4x128 commit 89e6a6ae0150730ad38e5d43a5333819e3769a24
+command: target/release/turbo-bench record --bundle <bundles>/all-minilm-l6-v2 --device metal --precision fastest --batch 4 --seq 128 --rows dense --warmup 5 --iterations 20 --no-tei --mlx-model <upstream all-MiniLM-L6-v2> --out <out>
+before: load 1.84 2.29 2.47 gpu 0% at 2026-11-06T02:57:06Z
+metal Apple M2: p50 6.1218 ms, p99 6.2218 ms over 20 runs of [4, 128] ROWS_DENSE, 512 live tokens, 512 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 6.1218 ms, p99 6.2218 ms on [4, 128] ROWS_DENSE: 512 token positions computed of 512 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 6.4104 ms, p99 6.5149 ms on [4, 128] ROWS_DENSE: 512 token positions computed of 512 live
+<scratch>/e2e-out/r5/4x128/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.89e6a6ae0150.json
+exit: 0
+after: load 1.84 2.29 2.47 gpu 90% at 2026-11-06T02:57:07Z
