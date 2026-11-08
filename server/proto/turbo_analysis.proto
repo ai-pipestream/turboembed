@@ -1069,6 +1069,12 @@ message DocumentWindowRequest
   // When set, computes NormalizationXray diff runs from `view` to
   // `xray_target_view`.
   optional uint32 xray_target_view = 8;
+
+  // What may leave about a document holding PII findings (#1904). A window
+  // carries view text, so such a document needs the text of `view` (and of
+  // `xray_target_view`) disclosed: `full_text`, or `rewritten_text` for a
+  // PII rewrite view. Otherwise the call is refused, TURBO_E_INVALID_STATE.
+  PiiOutputOptions pii_output = 9;
 }
 
 message DocumentShapeSummaryProto
@@ -1232,6 +1238,10 @@ message ProjectChunksRequest
   bool include_drift_curve = 5;
   bool include_strategy_matrix = 6;
   repeated BudgetSpec strategy_budgets = 7;
+  // What may leave about a document holding PII findings (#1904). Previews
+  // and term stacks carry the projected view's words, so such a document
+  // needs that view's text disclosed, as for DocumentWindowRequest.
+  PiiOutputOptions pii_output = 8;
 }
 
 message ProjectedPointProto

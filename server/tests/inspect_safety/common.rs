@@ -3,7 +3,7 @@ use turbo_analysis::{Document, IxRange, Key, ModelRef, Provenance, Span, Spans, 
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_kserve::config::{Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
-use turbo_kserve::proto::result::{DocumentWindowRequest, OffsetMode, ProjectChunksRequest};
+use turbo_kserve::proto::result::{DocumentWindowRequest, OffsetMode, PiiOutputOptions, ProjectChunksRequest};
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::{Serve, Server};
 
@@ -73,6 +73,8 @@ pub fn window(bytes: Vec<u8>, mode: OffsetMode) -> DocumentWindowRequest {
         filter_layers: Vec::new(),
         heatmap_buckets: 0,
         xray_target_view: None,
+        // Some fixtures hold PII; these tests are about the window (#1904).
+        pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
     }
 }
 
@@ -85,6 +87,7 @@ pub fn project(bytes: Vec<u8>) -> ProjectChunksRequest {
         include_drift_curve: false,
         include_strategy_matrix: false,
         strategy_budgets: Vec::new(),
+        pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
     }
 }
 

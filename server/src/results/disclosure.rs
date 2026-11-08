@@ -168,6 +168,24 @@ impl Disclosure {
     pub fn view_text(&self, doc: &Document, view: ViewId) -> bool {
         self.graph(doc) || (self.rewritten_text && is_rewrite_view(doc, view))
     }
+
+    /// Refuses `rpc` on `doc` unless the text of `view` may leave: a
+    /// surface that answers with view text (a window, an x-ray, chunk
+    /// previews) has nothing to answer without it (#1904).
+    pub fn require_view_text(&self, doc: &Document, view: ViewId, rpc: &str) -> Result<(), Failure> {
+        if self.view_text(doc, view) {
+            return Ok(());
+        }
+        Err(Failure::new(
+            TURBO_E_INVALID_STATE,
+            0,
+            format!(
+                "{rpc}: the document holds PII and the answer carries the text of view {}; ask \
+                 pii_output.full_text, or pii_output.rewritten_text for a PII rewrite view",
+                view.0
+            ),
+        ))
+    }
 }
 
 /// Whether `doc` holds PII findings: a `turbo:pii` layer instance, in any
