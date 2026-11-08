@@ -219,7 +219,7 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
 
   /**
    * The forms in effect, per kind released: requested, allowed by the
-   * policy and granted.
+   * policy, within the kind's release ceiling and granted.
    *
    * @generated from field: repeated turbo.audit.v1.PiiAccessKindGrant effective = 5;
    */
@@ -237,16 +237,20 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
    * The server output ceiling and the calling service's grant that
    * allowed the release: `policy_id` names the ceiling's rules
    * ("turbo-kserve.pii-output-allow.v1"), and `policy_digest` is the
-   * SHA-256 (32 bytes) of that ceiling and the grant together. Neither is
-   * the redaction policy that rewrote the text: that is named per mention
-   * (PiiAccessMention.rule_id, policy_revision, redaction_policy_digest).
+   * SHA-256 (32 bytes) of that ceiling and the grant together, and of
+   * the digest of the redaction policy the request named for its per-kind
+   * release ceilings (InspectDocumentGraphRequest.pii_policy, #1943) when
+   * it named one. The redaction policy that rewrote the text is named per
+   * mention (PiiAccessMention.rule_id, policy_revision,
+   * redaction_policy_digest).
    *
    * @generated from field: string policy_id = 7;
    */
   policyId: string;
 
   /**
-   * SHA-256 of the ceiling and grant, 32 bytes.
+   * SHA-256 of the ceiling, the grant and any named policy's digest, 32
+   * bytes.
    *
    * @generated from field: bytes policy_digest = 8;
    */

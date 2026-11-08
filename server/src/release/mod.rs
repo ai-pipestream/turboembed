@@ -5,7 +5,9 @@
 //! ([`identity`]), and only that: TurboEmbed keeps no user model, and which
 //! end user may see what stays with the calling platform. A grant gives a
 //! service a set of forms per kind ([`caps`]). For each mention the forms
-//! in effect are requested ∩ policy ∩ granted ([`caps::effective`]);
+//! in effect are requested ∩ policy ∩ the request's redaction policy's
+//! release ceiling for the kind ([`policy`], #1943) ∩ granted
+//! ([`caps::effective`]);
 //! mentions with none stay withheld, each saying why (#1931). Before any value leaves, one access
 //! event is recorded with the audit service and acknowledged
 //! ([`audit`]); a failed record fails the call, with no value. Tokens are
@@ -18,6 +20,7 @@ pub mod caps;
 pub mod identity;
 pub mod keys;
 mod plan;
+pub mod policy;
 
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -25,6 +28,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use turbo_pii::checksum::sha256;
 
 use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
+use crate::pii_policy::{NamedPolicies, NoRegistry, PolicyDigest, PolicyResolver};
 use crate::proto::audit::{PiiAccessEvent, PiiAccessKindGrant};
 use crate::proto::result::{InspectDocumentGraphRequest, PiiOutputOptions, PiiValueForm, TypedDocumentResult};
 use crate::results::disclosure::PiiOutputPolicy;
@@ -69,30 +73,49 @@ impl ReleaseConfig {
     }
 }
 
-/// The running release: grants, the loaded token key and the audit
-/// client.
+/// What a release resolves a request's redaction policy with.
+pub type Resolver = Arc<dyn PolicyResolver + Send + Sync>;
+
+/// The running release: grants, the loaded token key, the audit client,
+/// and the redaction policies a request may name (#1943).
 pub struct Release {
     grants: Grants,
     token: Option<TokenKey>,
     audit: AuditClient,
+    policies: NamedPolicies,
+    resolver: Resolver,
 }
 
 impl Release {
     /// Checks `config` against `tls`, reads the active token key and makes
-    /// the audit client; `None` without a config.
+    /// the audit client; `None` without a config. A request may name only
+    /// an inline policy with no registered reference.
     pub fn start(config: Option<&ReleaseConfig>, tls: Option<&TlsConfig>) -> Result<Option<Arc<Release>>, String> {
+        Release::start_with(config, tls, NamedPolicies::default(), Arc::new(NoRegistry))
+    }
+
+    /// [`Release::start`], with the server's named `policies` and the
+    /// `resolver` of an inline policy's references.
+    pub fn start_with(
+        config: Option<&ReleaseConfig>,
+        tls: Option<&TlsConfig>,
+        policies: NamedPolicies,
+        resolver: Resolver,
+    ) -> Result<Option<Arc<Release>>, String> {
         let Some(config) = config else { return Ok(None) };
         let active = config.check(tls)?;
         let token = active.map(TokenKey::load).transpose()?;
         let audit = AuditClient::new(&config.audit_endpoint, config.audit_timeout)?;
-        Ok(Some(Arc::new(Release { grants: config.grants.clone(), token, audit })))
+        Ok(Some(Arc::new(Release { grants: config.grants.clone(), token, audit, policies, resolver })))
     }
 
     /// InspectDocumentGraph for a request that asks for values in `form`,
-    /// from `service`. A request without an operation key, or from a
-    /// service granted `form` for no kind, is refused before the graph is
-    /// read (#1931). Mentions the service is not granted stay withheld;
-    /// the rest receive their value only after the audit acknowledgement.
+    /// from `service`. A request without an operation key, from a service
+    /// granted `form` for no kind, or naming a redaction policy that does
+    /// not resolve, is refused before the graph is read (#1931, #1943).
+    /// Mentions the service is not granted, or the policy's ceiling
+    /// excludes, stay withheld; the rest receive their value only after
+    /// the audit acknowledgement.
     pub async fn inspect(
         self: Arc<Self>,
         service: Option<Fingerprint>,
@@ -133,12 +156,15 @@ impl Release {
                 format!("pii_output.values {}: this service is granted that form for no kind", form.name()),
             ));
         }
+        let redaction = policy::select(req.pii_policy.as_ref(), &self.policies, &*self.resolver)?;
         req.pii_output = Some(PiiOutputOptions { values: PiiValueForm::Unspecified as i32, ..options });
         let doc_id = req.doc_id.clone();
         let g = grant.clone();
-        let (mut typed, plan) = tokio::task::spawn_blocking(move || plan::project(&req, policy, Forms::of(form), &g))
-            .await
-            .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
+        let r = redaction.clone();
+        let (mut typed, plan) =
+            tokio::task::spawn_blocking(move || plan::project(&req, policy, Forms::of(form), &g, r.as_deref()))
+                .await
+                .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
         // Nothing granted in this document: the mentions carry their reasons.
         if plan.is_empty() {
             return Ok(typed);
@@ -153,12 +179,11 @@ impl Release {
         for p in &plan {
             let builtin = p.kind.builtin_id().map_or(0, u32::from);
             if !effective.iter().any(|e| e.builtin_kind == builtin && e.custom_kind == p.custom) {
-                let forms = caps::effective(Forms::of(form), policy.values, grant.forms(p.kind));
-                let forms = forms.iter().map(|f| f.audit() as i32).collect();
+                let forms = p.forms.iter().map(|f| f.audit() as i32).collect();
                 effective.push(PiiAccessKindGrant { builtin_kind: builtin, custom_kind: p.custom.clone(), forms });
             }
         }
-        let policy_digest = policy_digest(policy, &grant).to_vec();
+        let policy_digest = policy_digest(policy, &grant, redaction.as_ref().map(|r| &r.digest)).to_vec();
         let input_digest = typed.input.as_ref().map(|i| i.source_text_digest.clone()).unwrap_or_default();
         let event_id = audit::event_id(&audit::EventKey {
             service_fingerprint: &service.0,
@@ -201,9 +226,11 @@ pub fn asked(req: &InspectDocumentGraphRequest) -> Option<Form> {
 }
 
 /// The SHA-256 of the rules a release was decided under: the server's
-/// output policy and the calling service's grant.
-pub fn policy_digest(policy: PiiOutputPolicy, grant: &caps::Grant) -> [u8; 32] {
-    let rules = format!(
+/// output policy, the calling service's grant and, when the request named
+/// one, the digest of the redaction policy whose release ceilings applied
+/// (#1943). Without one the rules, and so the digest, are as before.
+pub fn policy_digest(policy: PiiOutputPolicy, grant: &caps::Grant, redaction: Option<&PolicyDigest>) -> [u8; 32] {
+    let mut rules = format!(
         "rewritten-text={};full-text={};detail={};values={:?};{}",
         policy.rewritten_text,
         policy.full_text,
@@ -211,6 +238,10 @@ pub fn policy_digest(policy: PiiOutputPolicy, grant: &caps::Grant) -> [u8; 32] {
         policy.values.iter().map(Form::name).collect::<Vec<_>>(),
         grant.canonical()
     );
+    if let Some(d) = redaction {
+        rules.push_str(";redaction-policy=");
+        rules.push_str(&d.to_hex());
+    }
     sha256::digest(rules.as_bytes())
 }
 

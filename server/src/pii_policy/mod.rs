@@ -35,6 +35,7 @@ pub use resolve::{KEY_MATERIAL_HEX_LEN, MAX_REF_ID_BYTES, NoRegistry, PolicyReso
 pub use strategy::{edit_strategy, strategy_to_proto, whole_mask};
 pub use turbo_analysis::PolicyDigest;
 
+use crate::release::caps::Forms;
 use turbo_pii::rewrite::RewriteStrategy;
 use turbo_pii::{AllowList, ChecksumAlgorithm, CustomKinds, DenyList, LabelPolicy, Pattern, PiiEvidence, PiiKind};
 use turbo_pii::{PiiScore, PiiScoreKind};
@@ -71,6 +72,9 @@ pub struct KindRule {
     pub strategies: Vec<StrategyEntry>,
     pub allow: AllowList,
     pub labels: Option<LabelOverride>,
+    /// The most a value release gives out for the kind (#1943): `None`
+    /// sets no limit beyond the grant, an empty set releases no form.
+    pub release_ceiling: Option<Forms>,
 }
 
 /// One strategy of a rule and the conditions under which it applies.
@@ -176,6 +180,13 @@ impl RedactionPolicy {
     /// The rule for `kind`, a kind of [`RedactionPolicy::custom_kinds`].
     pub fn rule(&self, kind: PiiKind) -> Option<&KindRule> {
         self.rules.iter().find(|r| r.kind == kind)
+    }
+
+    /// The release ceiling for a mention of `kind`, a kind of
+    /// [`RedactionPolicy::custom_kinds`]: [`Forms::ALL`] when its rule
+    /// sets none, or it has no rule.
+    pub fn release_ceiling(&self, kind: PiiKind) -> Forms {
+        self.rule(kind).and_then(|r| r.release_ceiling).unwrap_or(Forms::ALL)
     }
 
     /// The strategy a mention of `kind` with `facts` is rewritten with, and

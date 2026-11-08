@@ -68,6 +68,8 @@ pub struct Forms(u8);
 
 impl Forms {
     pub const NONE: Forms = Forms(0);
+    /// Every form: what an unset release ceiling allows.
+    pub const ALL: Forms = Forms(Form::Token.bit() | Form::Ciphertext.bit() | Form::Clear.bit());
 
     pub const fn of(form: Form) -> Forms {
         Forms(form.bit())
@@ -100,11 +102,12 @@ impl Forms {
 }
 
 /// The forms in effect for one mention: what the request asked for, what
-/// the server's policy allows and what the calling service is granted for
-/// the mention's kind. Every release decision goes through here; #1882's
-/// policy replaces the `policy` input, not this rule.
-pub const fn effective(requested: Forms, policy: Forms, granted: Forms) -> Forms {
-    requested.intersect(policy).intersect(granted)
+/// the server's policy allows, what the request's redaction policy's
+/// release ceiling allows for the mention's kind ([`Forms::ALL`] when the
+/// kind has none, #1943) and what the calling service is granted for the
+/// kind. Every release decision goes through here.
+pub const fn effective(requested: Forms, policy: Forms, ceiling: Forms, granted: Forms) -> Forms {
+    requested.intersect(policy).intersect(ceiling).intersect(granted)
 }
 
 /// The kinds one form is granted for: built-in kinds by id, and whether
