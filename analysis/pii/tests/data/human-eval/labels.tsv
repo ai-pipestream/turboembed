@@ -112,3 +112,21 @@ us-identifiers-memos	1834	1874	url	https://portal.example.com/vendors?id=42
 us-identifiers-memos	1898	1935	url	http://status.example.org:8080/health
 us-identifiers-memos	1958	1978	url	www.example.net/help
 us-identifiers-memos	1983	2019	url	HTTPS://Docs.Example.com/Guide#intro
+us-identifiers-memos	2215	2224	us-passport	X38194027
+us-identifiers-memos	2263	2272	us-passport	538194027
+us-identifiers-memos	2378	2386	us-drivers-licence	D7302146
+us-identifiers-memos	2398	2412	us-drivers-licence	4813-2069-5527
+us-identifiers-memos	2490	2495	us-zip	62704
+us-identifiers-memos	2514	2524	us-zip	78701-4417
+us-identifiers-memos	2535	2540	us-zip	30301
+us-identifiers-memos	2583	2598	phone	+1 202-555-0143
+us-identifiers-memos	2604	2608	phone-extension	4417
+us-identifiers-memos	2612	2626	phone	(312) 555-0199
+us-identifiers-memos	2629	2633	phone-extension	2083
+masc-united1	44	49	us-zip	10009
+masc-hsus4	4750	4755	us-zip	20037
+masc-hsus4	5144	5149	us-zip	21401
+masc-hsus4	5784	5789	us-zip	10271
+masc-hsus4	6521	6526	us-zip	23209
+masc-hsus4	6645	6655	us-zip	98504-0422
+masc-hsus4	6822	6827	us-zip	25305

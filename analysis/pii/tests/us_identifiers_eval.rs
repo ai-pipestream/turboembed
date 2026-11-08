@@ -1,9 +1,12 @@
 //! #1878: precision and recall of the widest pack for `vin`,
-//! `tracking-number`, `us-ein` and `url` on a synthetic labelled set
-//! made here from a fixed seed: made up values with valid check digits
-//! (or an assigned EIN prefix, or a documentation domain), each placed in
-//! a sentence, and near misses with one check digit changed, an
-//! unassigned prefix or an unregistered top-level domain, with no label.
+//! `tracking-number`, `us-ein`, `url`, `us-passport`, `us-drivers-licence`,
+//! `us-zip` and `phone-extension` on a synthetic labelled set made here
+//! from a fixed seed: made up values with valid check digits (or an
+//! assigned EIN prefix, or a documentation domain), each placed in a
+//! sentence, and near misses with one check digit changed, an unassigned
+//! prefix or an unregistered top-level domain, with no label; the
+//! label-dependent kinds after their label, and the same values after a
+//! word that is no label.
 //! Scored against the labels only; every other mention is false.
 
 mod support;
@@ -139,6 +142,36 @@ fn url_pair(r: &mut Rng) -> (String, String) {
     (format!("{scheme}{host}{path}"), format!("http://{}.invalid{path}", r.chars(b"klmnop", 5)))
 }
 
+/// A labelled value with its label as the sentence prefix, and the same
+/// value after a word that is no label.
+fn labelled_pair(r: &mut Rng, kind: &'static str) -> (Labelled, Labelled) {
+    let (label, value) = match kind {
+        "us-passport" => (r.pick(&["Passport No. ", "passport ", "US passport card "]), {
+            let lead = r.pick(&["", "A", "C", "X"]);
+            format!("{lead}{}", r.digits(9 - lead.len()))
+        }),
+        "us-drivers-licence" => (r.pick(&["driver's license ", "DL ", "drivers licence "]), {
+            let lead = r.pick(&["", "D", "S", "WA"]);
+            format!("{lead}{}", r.digits(8))
+        }),
+        "us-zip" => (r.pick(&["Springfield, IL ", "Austin, TX ", "ZIP: ", "zip code "]), {
+            format!("{}{}", r.below(9) + 1, r.digits(4))
+        }),
+        _ => (r.pick(&["call +1 202-555-0143 ext. ", "(312) 555-0199 x ", "+44 20 7946 0958 #"]), r.digits(4)),
+    };
+    let start = label.len() as u32;
+    let mut labels = vec![(start, start + value.len() as u32, kind)];
+    // The phone before an extension is gold too.
+    let phone = ["+1 202-555-0143", "(312) 555-0199", "+44 20 7946 0958"].into_iter().find(|p| label.contains(p));
+    if let Some(p) = phone.filter(|_| kind == "phone-extension") {
+        let at = label.find(p).unwrap() as u32;
+        labels.insert(0, (at, at + p.len() as u32, "phone"));
+    }
+    let good = Labelled { text: format!("{label}{value}."), labels };
+    let bad = Labelled { text: format!("order {value} shipped."), labels: vec![] };
+    (good, bad)
+}
+
 fn synthetic() -> Vec<Labelled> {
     let mut r = Rng(1878);
     let mut out = Vec::new();
@@ -151,6 +184,10 @@ fn synthetic() -> Vec<Labelled> {
         ] {
             out.push(placed(&mut r, &pair.0, Some(kind)));
             out.push(placed(&mut r, &pair.1, None));
+        }
+        for kind in ["us-passport", "us-drivers-licence", "us-zip", "phone-extension"] {
+            let (good, bad) = labelled_pair(&mut r, kind);
+            out.extend([good, bad]);
         }
     }
     out
@@ -167,15 +204,21 @@ fn precision_and_recall_on_the_synthetic_us_identifier_set() {
         total.fp += c.fp;
         total.fn_ += c.fn_;
     }
-    for kind in ["vin", "tracking-number", "us-ein", "url"] {
+    for kind in
+        ["vin", "tracking-number", "us-ein", "url", "us-passport", "us-drivers-licence", "us-zip", "phone-extension"]
+    {
         let c = &by_kind[kind];
         assert_eq!((c.tp, c.fn_), (200, 0), "{kind}: every valid value is found");
     }
     let precision = ratio(total.tp, total.tp + total.fp);
     eprintln!("all: tp {} fp {} fn {}, precision {precision:.4}", total.tp, total.fp, total.fn_);
-    // No near miss is read as one of the four kinds. The three false
-    // mentions are cards: near-miss digit runs that happen to pass Luhn.
-    assert_eq!(by_kind.keys().copied().collect::<Vec<_>>(), ["card", "tracking-number", "url", "us-ein", "vin"]);
-    assert_eq!((by_kind["card"].tp, by_kind["card"].fp), (0, 3));
-    assert_eq!((total.tp, total.fp, total.fn_), (800, 3, 0));
+    // No near miss and no unlabelled value is read as one of the eight
+    // kinds. The false mentions are other kinds on the same digits: near
+    // misses and licences that pass Luhn (cards), nine-digit passports
+    // that pass the ABA weights, `S` and eight digits that are a Spanish
+    // CIF with its control digit, and one French NIR.
+    let others: Vec<(&str, usize, usize)> =
+        by_kind.iter().filter(|(_, c)| c.tp == 0).map(|(k, c)| (*k, c.fp, c.fn_)).collect();
+    assert_eq!(others, [("aba-routing", 4, 0), ("card", 5, 0), ("es-cif", 22, 0), ("fr-nir", 1, 0)]);
+    assert_eq!((total.tp, total.fp, total.fn_), (1800, 32, 0));
 }

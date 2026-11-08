@@ -556,7 +556,18 @@ and the stacks are built from the projected view's tokens.
 
 - `rewritten_text`: the text of the requested view when that view is a
   PII rewrite view, one a `turbo-pii:` annotator wrote, such as the masked
-  view. The text of any other view needs `full_text`.
+  view. The text of any other view needs `full_text`. A rewrite view
+  counts only when it rewrote every finding: a `turbo:pii` instance it
+  did not read that holds a mention (a second detector run after the
+  rewrite) may sit in clear in its text, so that view also needs
+  `full_text` (#1932). Findings a parent rewrite view covered, or that a
+  rewrite read as a projected copy, count as covered. A layer is judged
+  by its lineage (its own view and every layer it read or was made on,
+  back to a view): one made from another view's text (the source's
+  lemmas, keyword phrases, a `ProjectView` copy of them on the rewrite
+  view, linked names joined into entities) is listed bare, and one made
+  from the rewrite view alone, such as lemmas aligned to its tokens, is
+  kept.
 - `full_text`: source and view texts and graph bytes, as for a document
   without PII.
 - `detail`: candidates and evidence detail (#1903).

@@ -24,7 +24,8 @@ fn everything() -> String {
          ssn 123-45-6789 itin 900-70-1234 nhs 943 476 5919 idnr 65929970489 dni 12345678Z nie X1234567L cif A58818501 \
          npa T220001293 nir 2 94 03 2A 123 456 92 siren 732 829 320 siret 732 829 320 00074 BIC: DEUTDEFF500 \
          cpf 529.982.247-25 cnpj 11.222.333/0001-81 SIN: 046 454 286 IMEI: 490154203237518 \
-         vin 1FTFW1E51NFA00001 ups 1Z999AA10123456784 ein 12-3456789 site www.example.net/help",
+         vin 1FTFW1E51NFA00001 ups 1Z999AA10123456784 ein 12-3456789 site www.example.net/help \
+         tel +1 202-555-0143 ext 12 passport X12345678 DL D1234567 Springfield, IL 62704",
         "a".repeat(36)
     )
 }
@@ -43,11 +44,11 @@ fn every_pack_is_in_order_and_finds_its_kinds_only() {
     let all_kinds: Vec<PiiKind> = PiiKind::builtins().collect();
     let expected: [(Pack, &[PiiKind]); 13] = [
         (Pack::Payment, &[Iban, Card, AbaRouting]),
-        (Pack::Contact, &[Email, Phone]),
+        (Pack::Contact, &[Email, Phone, PhoneExtension]),
         (Pack::Network, &[Ipv4, Ipv6, Mac]),
         (Pack::Secrets, &[AwsAccessKey, UrlCredential, GithubToken, Jwt]),
         (Pack::Crypto, &[BtcAddress, EthAddress]),
-        (Pack::UsIdentity, &[UsSsn, UsItin, UsEin]),
+        (Pack::UsIdentity, &[UsSsn, UsItin, UsEin, UsPassport, UsDriversLicence, UsZip]),
         (Pack::EuIdentity, &[UkNhs, DeSteuerId, EsDni, EsNie, EsCif, DePersonalausweis, FrNir, FrSiren, FrSiret, Bic]),
         (Pack::BrIdentity, &[BrCpf, BrCnpj]),
         (Pack::CaIdentity, &[CaSin]),
@@ -227,7 +228,11 @@ fn kind_ids_and_priorities() {
             "vin",
             "tracking-number",
             "us-ein",
-            "url"
+            "url",
+            "us-passport",
+            "us-drivers-licence",
+            "us-zip",
+            "phone-extension"
         ]
     );
     for (i, r) in PiiKind::TABLE.iter().enumerate() {
@@ -410,18 +415,18 @@ fn pack_config_hashes_are_pinned_on_kind_ids() {
         hashes,
         [
             ("payment", 8739323326071888652),
-            ("contact", 590719719270229581),
+            ("contact", 7161351688130420800),
             ("network", 576834619351109183),
             ("secrets", 591634045867018468),
             ("crypto", 588546617215948105),
-            ("us-identity", 567890530343600160),
+            ("us-identity", 567965262774550560),
             ("eu-identity", 372598208369306011),
             ("br-identity", 600249775195443079),
             ("ca-identity", 587814459240793714),
             ("device", 598477406239679157),
             ("logistics", 599294178023009374),
             ("web", 594502895042755729),
-            ("all-structured", 10765832317272267962),
+            ("all-structured", 6140244308993760847),
         ]
     );
 }

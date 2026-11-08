@@ -11,7 +11,6 @@ use std::path::Path;
 use turbo::head::RelationClassifier;
 use turbo::head::relation::RelationWork;
 use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, RelationShape, Scheme, WordPooling};
-use turbo::safetensors;
 use turbo_tagger::WordEncoder;
 use turbo_trainer::RelationExample;
 use turbo_trainer::relation::GoldRelation;
@@ -19,6 +18,7 @@ use turbo_trainer::rng::Rng;
 
 use crate::corpus::FileRecord;
 use crate::eval::{Comparison, Metrics, SpanScore};
+use crate::prior;
 use crate::receipt::EncoderRecord;
 use crate::redocred::{Document, ENTITY_TYPES, HEAD, LAYER, RelationCorpus, Triple};
 use crate::{Error, Result};
@@ -83,61 +83,19 @@ pub struct PriorHead {
 /// A file missing or malformed, another kind of head, any of the above
 /// differing, or what the core refuses of its tensors.
 pub fn load_head(dir: &Path, spec: &HeadSpec, encoder: &EncoderRecord) -> Result<PriorHead> {
-    let at = |name: &str| dir.join(name).display().to_string();
-    let read = |name: &str| std::fs::read(dir.join(name)).map_err(|e| Error(format!("{}: {e}", at(name))));
-    let (head_json, weights, receipt_json) = (read("head.json")?, read("head.safetensors")?, read("receipt.json")?);
-    let prior: HeadSpec = serde_json::from_slice(&head_json).map_err(|e| Error(format!("{}: {e}", at("head.json"))))?;
-    let receipt: PriorReceipt =
-        serde_json::from_slice(&receipt_json).map_err(|e| Error(format!("{}: {e}", at("receipt.json"))))?;
-    let refuse = |what: &str| Err(Error(format!("{}: {what} differs from this run's", dir.display())));
-    if prior.kind != HeadKind::RelationClassifier || prior.labels != spec.labels {
-        return refuse("the head's kind or labels");
+    let p = prior::read(dir, encoder)?;
+    if p.spec.kind != HeadKind::RelationClassifier || p.spec.labels != spec.labels {
+        return Err(prior::refused(dir, "the head's kind or labels"));
     }
-    if prior.word_pooling != spec.word_pooling {
-        return refuse("word pooling (--pooling)");
+    if p.spec.word_pooling != spec.word_pooling {
+        return Err(prior::refused(dir, "word pooling (--pooling)"));
     }
     let types = |s: &HeadSpec| s.relation.as_ref().map(|r| r.entity_labels.clone());
-    if types(&prior) != types(spec) {
-        return refuse("the entity type table");
+    if types(&p.spec) != types(spec) {
+        return Err(prior::refused(dir, "the entity type table"));
     }
-    let same = |e: &EncoderRecord| {
-        (&e.model, &e.revision, &e.manifest_sha256, e.hidden, e.layers, e.width)
-            == (
-                &encoder.model,
-                &encoder.revision,
-                &encoder.manifest_sha256,
-                encoder.hidden,
-                encoder.layers,
-                encoder.width,
-            )
-    };
-    if !receipt.encoder.as_ref().is_some_and(same) {
-        return refuse("the encoder");
-    }
-    let file = safetensors::File::parse("head.safetensors", &weights).map_err(|e| Error(e.message))?;
-    let get = |s: &str| file.tensor(&format!("{}.{s}", prior.tensor_prefix)).map(|t| t.f32s());
-    let head = RelationClassifier::from_tensors(&prior, encoder.hidden, &get)
-        .map_err(|e| Error(format!("{}: {}", dir.display(), e.message)))?;
-    let record = |path: &str, bytes: &[u8]| FileRecord {
-        path: path.into(),
-        size: bytes.len() as u64,
-        sha256: turbo::bundle::sha256_hex(bytes),
-    };
-    let files = vec![
-        record("head.json", &head_json),
-        record("head.safetensors", &weights),
-        record("receipt.json", &receipt_json),
-    ];
-    let dir_name = dir.file_name().map_or("head".into(), |n| n.to_string_lossy());
-    Ok(PriorHead { name: format!("{dir_name} ({:?})", prior.decode), head, files })
-}
-
-/// What a prior head's `receipt.json` must say for a comparison: only its
-/// encoder. Read leniently, so a receipt from an older commit (one with
-/// `host`, which #1804 dropped) still names its encoder.
-#[derive(serde::Deserialize)]
-struct PriorReceipt {
-    encoder: Option<EncoderRecord>,
+    let head = p.head(|get| RelationClassifier::from_tensors(&p.spec, encoder.hidden, get))?;
+    Ok(PriorHead { name: format!("{} ({:?})", p.name, p.spec.decode), head, files: p.files })
 }
 
 /// The `top` labels with the most gold relations in `m` (ties by name),

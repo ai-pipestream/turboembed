@@ -1,0 +1,21 @@
+MASKED	Passport No. ********* and passport ********* on file; driver license ********, DL: ****-****-****, licence number **********.
+
+MASK_ALL	Passport No. ######### and passport ######### on file; driver license ########, DL: ##############, licence number ##########.
+
+REWRITE	pseudonymize	OK	Passport No. US-PASSPORT-1 and passport US-PASSPORT-2 on file; driver license US-DRIVERS-LICENCE-1, DL: US-DRIVERS-LICENCE-2, licence number US-DRIVERS-LICENCE-3.
+
+LABEL	pseudonymize	13	22	13	26	US-PASSPORT-1
+LABEL	pseudonymize	36	45	40	53	US-PASSPORT-2
+LABEL	pseudonymize	70	78	78	98	US-DRIVERS-LICENCE-1
+LABEL	pseudonymize	84	98	104	124	US-DRIVERS-LICENCE-2
+LABEL	pseudonymize	115	125	141	161	US-DRIVERS-LICENCE-3
+REWRITE	hmac	OK	Passport No. US-PASSPORT-5ce76974cb7e2439 and passport US-PASSPORT-6d11769ad42a4450 on file; driver license US-DRIVERS-LICENCE-0998b2fe65bc06e7, DL: US-DRIVERS-LICENCE-fc7602552f8f248e, licence number US-DRIVERS-LICENCE-bbe14171a2547302.
+
+LABEL	hmac	13	22	13	41	US-PASSPORT-5ce76974cb7e2439
+LABEL	hmac	36	45	55	83	US-PASSPORT-6d11769ad42a4450
+LABEL	hmac	70	78	108	143	US-DRIVERS-LICENCE-0998b2fe65bc06e7
+LABEL	hmac	84	98	149	184	US-DRIVERS-LICENCE-fc7602552f8f248e
+LABEL	hmac	115	125	201	236	US-DRIVERS-LICENCE-bbe14171a2547302
+AUDIT	us-drivers-licence	3	3	US-DRIVERS-LICENCE-0998b2fe65bc06e7, US-DRIVERS-LICENCE-fc7602552f8f248e, US-DRIVERS-LICENCE-bbe14171a2547302
+AUDIT	us-passport	2	2	US-PASSPORT-5ce76974cb7e2439, US-PASSPORT-6d11769ad42a4450
+AUDIT_REPORT	us-drivers-licence: 3 mentions, 3 distinct [US-DRIVERS-LICENCE-0998b2fe65bc06e7, US-DRIVERS-LICENCE-fc7602552f8f248e, US-DRIVERS-LICENCE-bbe14171a2547302]\nus-passport: 2 mentions, 2 distinct [US-PASSPORT-5ce76974cb7e2439, US-PASSPORT-6d11769ad42a4450]
