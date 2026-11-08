@@ -87,12 +87,13 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
         } else {
             parsed_lic
         };
-        let terms: Url = c.terms.parse().map_err(Error)?;
+        let terms = data_lic.legal_url().map(str::to_owned).unwrap_or_else(|| c.terms.clone());
+        let terms: Url = terms.parse().map_err(Error)?;
         trained_on.push(TrainingData { name: c.name.clone(), license: data_lic, license_terms: terms });
         let ev = run.receipt.eval.model.as_ref().expect("checked in verify_run");
         let summary = format!(
             "{} ({}): {} {} {:.4} (baseline {:.4}, {})",
-            c.attribution.trim(),
+            c.attribution.split_whitespace().collect::<Vec<_>>().join(" "),
             run.spec.name,
             run.receipt.eval.split,
             ev.metric_name(),

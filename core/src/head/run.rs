@@ -62,6 +62,16 @@ pub fn tail_taps(features: &[Vec<f32>], have: usize, want: usize) -> Cow<'_, [Ve
 /// words * hidden]` and its words' text, which a head with a `hash_embed`
 /// reads.
 pub fn decode_tagger(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&str>]) -> Result<Vec<Decoded>> {
+    decode_tagger_language(tagger, features, forms, None)
+}
+
+/// As [`decode_tagger`], selecting a language embedding by name.
+pub fn decode_tagger_language(
+    tagger: &TokenTagger,
+    features: &[Vec<f32>],
+    forms: &[Vec<&str>],
+    language: Option<&str>,
+) -> Result<Vec<Decoded>> {
     let (mut scores, mut work) = (Vec::new(), tagger::Work::default());
     let labels = tagger.labels().len();
     let stride = tagger.taps() * tagger.hidden();
@@ -69,7 +79,7 @@ pub fn decode_tagger(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&
     for (f, forms) in features.iter().zip(forms) {
         let n = f.len() / stride;
         let words: Vec<u32> = (0..n as u32).collect();
-        tagger.scores_forms(f, &words, Some(forms), &mut scores, &mut work)?;
+        tagger.scores_language(f, &words, Some(forms), language, &mut scores, &mut work)?;
         let mut tags = Vec::new();
         tagger.decode(&scores, n, &mut tags)?;
         let prob = tags
@@ -89,12 +99,21 @@ pub fn decode_tagger(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&
 
 /// Each sequence parsed by `parser` from its word features.
 pub fn parse_sequences(parser: &BiaffineParser, features: &[Vec<f32>]) -> Result<Vec<Parse>> {
+    parse_sequences_language(parser, features, None)
+}
+
+/// As [`parse_sequences`], selecting a language embedding by name.
+pub fn parse_sequences_language(
+    parser: &BiaffineParser,
+    features: &[Vec<f32>],
+    language: Option<&str>,
+) -> Result<Vec<Parse>> {
     let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), parser::Work::default());
     let stride = parser.taps() * parser.hidden();
     let mut out = Vec::with_capacity(features.len());
     for f in features {
         let ids: Vec<u32> = (0..(f.len() / stride) as u32).collect();
-        let n = parser.arcs(f, &ids, &mut arcs, &mut work)?;
+        let n = parser.arcs_language(f, &ids, language, &mut arcs, &mut work)?;
         let mut heads = Vec::new();
         parser.decode(&arcs, n, &mut heads)?;
         parser.relations(&heads, &mut scores, &work)?;
@@ -124,6 +143,18 @@ pub fn lemmatize_sequences(
     head: &[Vec<f32>],
     forms: &[Vec<&str>],
 ) -> Result<Vec<Vec<String>>> {
+    lemmatize_sequences_language(lem, tags, dictionary, head, forms, None)
+}
+
+/// As [`lemmatize_sequences`], selecting a language embedding by name.
+pub fn lemmatize_sequences_language(
+    lem: &EditTreeLemmatizer,
+    tags: LemmaTags<'_>,
+    dictionary: Option<&dyn LemmaDictionary>,
+    head: &[Vec<f32>],
+    forms: &[Vec<&str>],
+    language: Option<&str>,
+) -> Result<Vec<Vec<String>>> {
     let stride = lem.taps() * lem.hidden();
     let (mut scores, mut decoded, mut trees) = (Vec::new(), Vec::new(), Vec::new());
     let (mut tw, mut lw) = (tagger::Work::default(), lemmatizer::Work::default());
@@ -140,13 +171,15 @@ pub fn lemmatize_sequences(
             (Some(t), None) => {
                 let pf = tags.pos.map_or(f, |p| &p[s]);
                 // A hashed tag head reads each word's text too.
-                t.scores_forms(pf, &ids, Some(words), &mut scores, &mut tw)?;
+                let language = t.spec().language.as_ref().and(language);
+                t.scores_language(pf, &ids, Some(words), language, &mut scores, &mut tw)?;
                 t.decode(&scores, n, &mut decoded)?;
                 Some(&decoded[..])
             }
             (None, _) => None,
         };
-        lem.scores(f, &ids, tagged, &mut scores, &mut lw)?;
+        let language = lem.spec().language.as_ref().and(language);
+        lem.scores_language(f, &ids, tagged, language, &mut scores, &mut lw)?;
         lem.decode(&scores, words, &mut trees)?;
         let mut lemmas = lem.lemmas_tagged(&trees, words, tagged)?;
         if let Some(d) = dictionary {

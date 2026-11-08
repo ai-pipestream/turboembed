@@ -336,7 +336,24 @@ impl<W: Outputs> MultiTask<W> {
         user: &UserId,
         acceptances: &Acceptances,
     ) -> Result<MultiTask<W>, TaggerZooError> {
+        let language = zoo.index().get(id)?.language.as_ref().map(|language| language.as_str().to_owned());
         let dir = ensure_bundle(zoo, id, user, acceptances)?;
-        Ok(MultiTask::open(&dir, names, o)?)
+        match language {
+            Some(language) => Ok(MultiTask::open_language(&dir, names, o, &language)?),
+            None => Ok(MultiTask::open(&dir, names, o)?),
+        }
+    }
+
+    /// Opens the preferred multi-task bundle for `language` from `zoo`.
+    pub fn from_zoo_language(
+        zoo: &Zoo<'_>,
+        language: &str,
+        names: &[Option<&str>],
+        o: &EncoderOptions,
+        user: &UserId,
+        acceptances: &Acceptances,
+    ) -> Result<MultiTask<W>, TaggerZooError> {
+        let dir = ensure_component(zoo, language, Component::DenseEncoder, user, acceptances)?;
+        Ok(MultiTask::open_language(&dir, names, o, language)?)
     }
 }
