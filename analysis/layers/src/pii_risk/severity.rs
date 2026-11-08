@@ -10,14 +10,16 @@ use super::super::pii::{CustomKinds, PiiKind};
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PiiSeverity {
     /// Public or business identifiers: a company number, a routing number,
-    /// an EIN, a parcel tracking number, a URL.
+    /// an EIN, a parcel tracking number, a URL, a ZIP code, a phone
+    /// extension.
     Low = 1,
     /// Contact, device and vehicle details: an e-mail address, a phone
     /// number, an IP address, a wallet address, a VIN.
     Medium = 2,
     /// Financial accounts: an IBAN.
     High = 3,
-    /// Credentials, payment cards and national identity numbers.
+    /// Credentials, payment cards, national identity numbers, passports
+    /// and driver's licences.
     Critical = 4,
 }
 
@@ -59,10 +61,13 @@ impl PiiSeverity {
         use PiiKind::*;
         match kind {
             Jwt | AwsAccessKey | GithubToken | UrlCredential | Card | UsSsn | UsItin | UkNhs | DeSteuerId | EsDni
-            | EsNie | DePersonalausweis | FrNir | BrCpf | CaSin => PiiSeverity::Critical,
+            | EsNie | DePersonalausweis | FrNir | BrCpf | CaSin | UsPassport | UsDriversLicence => {
+                PiiSeverity::Critical
+            }
             Iban => PiiSeverity::High,
             Email | Phone | Imei | Mac | Ipv4 | Ipv6 | BtcAddress | EthAddress | Vin | Custom(_) => PiiSeverity::Medium,
-            EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting | UsEin | TrackingNumber | Url => PiiSeverity::Low,
+            EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting | UsEin | TrackingNumber | Url | UsZip
+            | PhoneExtension => PiiSeverity::Low,
         }
     }
 }
@@ -110,9 +115,8 @@ impl PiiSuggestedRewrite {
             | EthAddress | Url | Custom(_) => PiiSuggestedRewrite::Label,
             Card | Iban => PiiSuggestedRewrite::KeepLastFour,
             Imei | UsSsn | UsItin | UkNhs | DeSteuerId | EsDni | EsNie | EsCif | DePersonalausweis | FrNir
-            | FrSiren | FrSiret | BrCpf | BrCnpj | Bic | CaSin | AbaRouting | Vin | TrackingNumber | UsEin => {
-                PiiSuggestedRewrite::MaskKeepFormat
-            }
+            | FrSiren | FrSiret | BrCpf | BrCnpj | Bic | CaSin | AbaRouting | Vin | TrackingNumber | UsEin
+            | UsPassport | UsDriversLicence | UsZip | PhoneExtension => PiiSuggestedRewrite::MaskKeepFormat,
         }
     }
 }

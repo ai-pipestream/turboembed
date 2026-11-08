@@ -232,7 +232,11 @@ fn every_builtin_kind_has_a_severity_and_a_suggestion() {
     assert_eq!(PiiSeverity::default_for(PiiKind::UsSsn), PiiSeverity::Critical);
     assert_eq!(PiiSeverity::default_for(PiiKind::Email), PiiSeverity::Medium);
     assert_eq!(PiiSeverity::default_for(PiiKind::Vin), PiiSeverity::Medium);
-    for k in [PiiKind::UsEin, PiiKind::TrackingNumber, PiiKind::Url] {
+    for k in [PiiKind::UsPassport, PiiKind::UsDriversLicence] {
+        assert_eq!(PiiSeverity::default_for(k), PiiSeverity::Critical, "{k}");
+        assert_eq!(PiiSuggestedRewrite::default_for(k), PiiSuggestedRewrite::MaskKeepFormat, "{k}");
+    }
+    for k in [PiiKind::UsEin, PiiKind::TrackingNumber, PiiKind::Url, PiiKind::UsZip, PiiKind::PhoneExtension] {
         assert_eq!(PiiSeverity::default_for(k), PiiSeverity::Low, "{k}");
     }
     assert_eq!(PiiSuggestedRewrite::default_for(PiiKind::Url), PiiSuggestedRewrite::Label);
