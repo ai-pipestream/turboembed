@@ -5,6 +5,7 @@
 //! (`chain`) and scoped references (`scoped`).
 
 pub mod chain;
+mod entry;
 pub mod identity;
 mod layers_context;
 mod layers_core;
@@ -26,23 +27,28 @@ use std::any::TypeId;
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use turbo_analysis::export::{DocumentGraph, export, import};
+use turbo_analysis::export::export;
 use turbo_analysis::{
     Anchor, Document, Evidence, Execution, Key, KeyId, Layer, ModelRef, Provenance, Span, View, ViewId,
 };
 use turbo_analysis_layers::{Categories, Entities, Opinions};
 
+use super::disclosure::{self, Disclosure};
 use super::document::codecs;
+use super::model_to_proto;
 use super::receipt::error::layer_status;
 use super::receipt::{self, Operation, check_operation_key};
-use super::{MAX_GRAPH_BYTES, Wire, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
-    AnchorKind, ExecutionInfo, InputBinding, InspectDocumentGraphRequest, LayerIndexBound, MappingPayload,
-    ModelProvenance, TypedAnnotation, TypedDocumentResult, TypedLayer, ViewInfo, mapping_payload,
+    AnchorKind, ExecutionInfo, InputBinding, LayerIndexBound, MappingPayload, ModelProvenance, TypedAnnotation,
+    TypedDocumentResult, TypedLayer, ViewInfo, mapping_payload,
 };
 
+pub use entry::{
+    document_to_typed, document_to_typed_with, inspect_document_graph, inspect_document_graph_under,
+    round_trip_typed_document,
+};
 pub use validate::validate_typed_document;
 
 pub(crate) fn bad(message: impl Into<String>) -> Failure {
@@ -317,23 +323,9 @@ fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
     (views, id_names)
 }
 
-/// Projects all shared layers on `doc` into a strongly-typed [`TypedDocumentResult`]
-/// with spans mapped to `target_view` and converted into `offsets`, with
-/// the envelope of a document the caller did not bind to a source. With
-/// debug assertions on, the result is also put through
-/// [`validate_typed_document`], and a message it refuses is an error.
-pub fn document_to_typed(
-    doc_id: &str,
-    doc: &Document,
-    target_view: ViewId,
-    offsets: OffsetMode,
-) -> Result<TypedDocumentResult, Failure> {
-    document_to_typed_bound(doc_id, doc, target_view, offsets, None, "")
-}
-
-/// [`document_to_typed`] with the caller's `binding` of the input copied
-/// into the result's input identity and its `operation_key` on the
-/// receipt of this attempt (issue #1908). The document is exported through
+/// [`document_to_typed`] under `disclosure` (#1904), with the caller's
+/// `binding` of the input copied into the result's input identity and its
+/// `operation_key` on the receipt of this attempt (issue #1908). The document is exported through
 /// the server's codecs for its result identity: the content digest is of
 /// those TGRF bytes, and a document a codec refuses is refused here.
 pub fn document_to_typed_bound(
@@ -343,6 +335,7 @@ pub fn document_to_typed_bound(
     offsets: OffsetMode,
     binding: Option<&InputBinding>,
     operation_key: &str,
+    disclosure: &Disclosure,
 ) -> Result<TypedDocumentResult, Failure> {
     check_operation_key(operation_key)?;
     let (views, view_ids) = collect_views(doc);
@@ -396,6 +389,10 @@ pub fn document_to_typed_bound(
         )));
     }
 
+    let shown = disclosure.view_text(doc, target_view);
+    if !shown {
+        disclosure::withhold_annotations(&mut layers, disclosure.detail);
+    }
     let graph = export(doc, codecs()).map_err(|e| bad(format!("document graph export: {e}")))?;
     let graph_bytes = graph.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
     let provenance = identity::layer_provenances(&mut cx, &graph);
@@ -405,7 +402,9 @@ pub fn document_to_typed_bound(
 
     let typed = TypedDocumentResult {
         doc_id: doc_id.to_owned(),
-        raw_text: target_text.to_owned(),
+        raw_text: if shown { target_text.to_owned() } else { String::new() },
+        withheld_text_len: (!shown)
+            .then(|| cx.offsetter.to_wire(target_text, Span::new(0, target_text.len() as u32)).1),
         view: u32::from(target_view.0),
         offsets: offsets.to_proto(),
         models: cx.models,
@@ -424,35 +423,4 @@ pub fn document_to_typed_bound(
         validate_typed_document(&typed)?;
     }
     Ok(typed)
-}
-
-/// Imports the binary `DocumentGraph` in `req` and projects it into a
-/// [`TypedDocumentResult`] in the requested view and [`OffsetMode`].
-pub fn inspect_document_graph(req: &InspectDocumentGraphRequest) -> Result<TypedDocumentResult, Failure> {
-    if req.graph.len() as u64 > MAX_GRAPH_BYTES {
-        return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
-    }
-    let offsets = OffsetMode::from_proto(req.offsets)?;
-    let view_u16 = u16::try_from(req.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", req.view)))?;
-    let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
-    let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    document_to_typed_bound(&req.doc_id, &doc, ViewId(view_u16), offsets, req.binding.as_ref(), &req.operation_key)
-}
-
-/// Validates `msg` and returns a clone for `RoundTripTypedDocument`.
-pub fn round_trip_typed_document(msg: &TypedDocumentResult) -> Result<TypedDocumentResult, Failure> {
-    validate_typed_document(msg)?;
-    Ok(msg.clone())
-}
-
-impl Wire for TypedDocumentResult {
-    type Msg = TypedDocumentResult;
-
-    fn to_msg(&self) -> Self::Msg {
-        self.clone()
-    }
-
-    fn from_msg(msg: &Self::Msg) -> Result<Self, Failure> {
-        round_trip_typed_document(msg)
-    }
 }

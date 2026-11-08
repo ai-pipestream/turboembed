@@ -69,7 +69,14 @@ async fn sender(sink: &Server, typed: Option<SinkTyped>) -> Server {
 
 async fn sender_with(sink: &Server, documents: bool, typed: Option<SinkTyped>) -> Server {
     let endpoint = format!("http://{}", sink.local_addr());
-    let config = SinkConfig { endpoint, max_queue_items: 16, max_queue_bytes: 64 << 20, documents, typed };
+    let config = SinkConfig {
+        endpoint,
+        max_queue_items: 16,
+        max_queue_bytes: 64 << 20,
+        documents,
+        typed,
+        pii_output: Default::default(),
+    };
     let serve = Serve { sink: Some(config), ..Serve::default() };
     Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap()
 }
@@ -95,6 +102,7 @@ async fn inspect(s: &Server, graph: Vec<u8>, offsets: OffsetMode) -> TypedDocume
         graph,
         view: 0,
         offsets: offsets as i32,
+        pii_output: None,
         binding: None,
         operation_key: String::new(),
     };
@@ -137,8 +145,11 @@ async fn the_forwarded_projection_is_what_inspect_document_graph_answers() {
 async fn without_the_option_the_item_carries_no_projection() {
     let (s, item) = forward(None).await;
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let listed =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: graph().into() }).await.unwrap().into_inner();
+    let listed = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph().into(), pii_output: None })
+        .await
+        .unwrap()
+        .into_inner();
     let want = DocumentSinkItem {
         sequence: 1,
         doc_id: "doc-1".into(),
@@ -271,7 +282,8 @@ async fn a_progressive_call_forwards_its_graph_with_the_typed_projection() {
     assert_eq!((summary.accepted_count, summary.rejected_count), (1, 0), "{:?}", summary.errors);
     let item = got.lock().unwrap().pop().unwrap();
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let listed = c.round_trip_document_graph(DocumentGraphRequest { graph: complete.graph.clone() }).await;
+    let listed =
+        c.round_trip_document_graph(DocumentGraphRequest { graph: complete.graph.clone(), pii_output: None }).await;
     let listed = listed.unwrap().into_inner();
     assert_eq!(item.doc_id, "doc-p");
     assert_eq!(item.graph, listed.graph.to_vec());

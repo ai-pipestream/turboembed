@@ -39,6 +39,7 @@ async fn project_and_round_trip(fragments: &[Span], expected: &[(u32, u32)], out
                 graph: graph.clone(),
                 view: 1,
                 offsets: mode as i32,
+                pii_output: None,
                 binding: None,
                 operation_key: String::new(),
             })
@@ -109,6 +110,7 @@ async fn token_ranges_without_a_tokens_layer_are_refused() {
             graph,
             view: 0,
             offsets: OffsetMode::Utf8 as i32,
+            pii_output: None,
             binding: None,
             operation_key: String::new(),
         })

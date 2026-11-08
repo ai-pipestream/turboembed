@@ -67,7 +67,7 @@ impl FilterableLayer for Pii {
     fn retain_indices(&self, kept: &[Ix<Self>]) -> Self {
         let mut normalized = Strs::default();
         for &ix in kept {
-            normalized.push(self.normalized.get(ix.get()));
+            normalized.push(self.normalized.expose().get(ix.get()));
         }
         Pii {
             spans: self.spans.retain_indices(kept),
@@ -77,7 +77,7 @@ impl FilterableLayer for Pii {
             detector: kept.iter().map(|&ix| self.detector[ix.get()]).collect(),
             evidence: self.evidence.retain(kept.iter().map(|ix| ix.get())),
             score: kept.iter().map(|&ix| self.score[ix.get()]).collect(),
-            normalized,
+            normalized: crate::Sensitive::new(normalized),
         }
     }
 }

@@ -7,12 +7,13 @@ use std::sync::OnceLock;
 use turbo_analysis::export::{DocumentGraph, import};
 use turbo_formats::doc_export::{ExportOffsetMode, FormatExportError, FormatterRegistry, OutputFormatDescriptor};
 
-use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
 use crate::offsets::OffsetMode;
 use crate::proto::result::{
     FormatDocumentRequest, FormatDocumentResponse, ListOutputFormatsRequest, ListOutputFormatsResponse,
     OutputFormatDescriptorProto,
 };
+use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
 use crate::results::document::codecs;
 use crate::results::{MAX_GRAPH_BYTES, over};
 
@@ -62,8 +63,19 @@ pub fn list_output_formats(_req: &ListOutputFormatsRequest) -> ListOutputFormats
 }
 
 /// Imports a binary [`DocumentGraph`] and formats it using the requested
-/// formatter and [`OffsetMode`].
+/// formatter and [`OffsetMode`], under [`PiiOutputPolicy::ALL`].
 pub fn format_document(req: &FormatDocumentRequest) -> Result<FormatDocumentResponse, Failure> {
+    format_document_under(req, PiiOutputPolicy::ALL)
+}
+
+/// [`format_document`] under the server's `policy`: every format carries
+/// the document text, so a document holding PII is formatted only when
+/// the request asks for `full_text` and the policy allows it (#1904).
+pub fn format_document_under(
+    req: &FormatDocumentRequest,
+    policy: PiiOutputPolicy,
+) -> Result<FormatDocumentResponse, Failure> {
+    let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
     }
@@ -80,6 +92,13 @@ pub fn format_document(req: &FormatDocumentRequest) -> Result<FormatDocumentResp
 
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
+    if !disclosure.graph(&doc) {
+        return Err(Failure::new(
+            TURBO_E_INVALID_STATE,
+            0,
+            "format_document: the document holds PII and every format carries its text; ask pii_output.full_text",
+        ));
+    }
 
     let trimmed_id = req.doc_id.trim();
     let doc_id = if trimmed_id.is_empty() { DEFAULT_DOC_ID } else { trimmed_id };

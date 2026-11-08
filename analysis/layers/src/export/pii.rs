@@ -190,7 +190,7 @@ impl LayerCodec for Pii {
         put_kinds(&mut w, &self.kind, &self.detector)?;
         put_evidence(&mut w, &self.evidence)?;
         put_scores(&mut w, &self.score)?;
-        put_strs(&mut w, &self.normalized)?;
+        put_strs(&mut w, self.normalized.expose())?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -207,7 +207,7 @@ impl LayerCodec for Pii {
         want_len(score.len(), spans.len(), "scores")?;
         want_len(normalized.len(), spans.len(), "normalized values")?;
         done(&r, "pii")?;
-        Ok(Pii { spans, custom_kinds, detectors, kind, detector, evidence, score, normalized })
+        Ok(Pii { spans, custom_kinds, detectors, kind, detector, evidence, score, normalized: normalized.into() })
     }
 }
 

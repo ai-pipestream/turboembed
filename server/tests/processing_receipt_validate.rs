@@ -11,6 +11,7 @@ use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{
     ByteRange, LayerError, LayerErrorKind, LayerWireStatus, ProcessingStatus, TruncationReason, TypedDocumentResult,
 };
+use turbo_kserve::results::disclosure::Disclosure;
 use turbo_kserve::results::receipt::{self, Coverage, Operation};
 use turbo_kserve::results::typed::identity::input_identity;
 use turbo_kserve::results::typed::{document_to_typed_bound, round_trip_typed_document};
@@ -27,7 +28,8 @@ fn doc() -> Document {
 }
 
 fn typed() -> TypedDocumentResult {
-    let t = document_to_typed_bound("d", &doc(), ViewId::SOURCE, OffsetMode::Utf8, None, "op-1").unwrap();
+    let t = document_to_typed_bound("d", &doc(), ViewId::SOURCE, OffsetMode::Utf8, None, "op-1", &Disclosure::FULL)
+        .unwrap();
     round_trip_typed_document(&t).expect("the server's own answer validates");
     t
 }

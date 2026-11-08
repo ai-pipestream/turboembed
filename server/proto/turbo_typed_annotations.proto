@@ -103,6 +103,9 @@ message InspectDocumentGraphRequest
   // The caller's operation (idempotency) key, echoed on the receipt;
   // empty when the caller has none (issue #1908).
   string operation_key = 6;
+
+  // What the result carries beyond PII findings; see PiiOutputOptions.
+  PiiOutputOptions pii_output = 7;
 }
 
 // ---- The result envelope (issue #1907) ----
@@ -506,6 +509,11 @@ message TypedDocumentResult
   // (issue #1908). It is not part of the result: the result identity is
   // the digest of the graph bytes, so a new receipt never changes it.
   ProcessingReceipt receipt = 12;
+
+  // Set when `raw_text` was withheld for PII (PiiOutputOptions, #1904):
+  // the target view text's length in `offsets` units, which the spans are
+  // bounded by.
+  optional uint32 withheld_text_len = 20;
 }
 
 // One typed layer instance on a TypedDocumentResult.
@@ -1079,7 +1087,8 @@ message PiiScore
   bool calibrated = 4;
 }
 
-// A kept mention. Field 4 is the value (#1904). The tier is derived from
+// A kept mention. Its detected value is not part of the finding:
+// `value` says in which form, if any, it was released (#1904). The tier is derived from
 // the evidence by PiiConfidence::derive and is carried for readers that
 // want one number; a message whose tier is not the one its evidence
 // derives to is refused.
@@ -1089,13 +1098,91 @@ message PiiMention
   string kind = 1 [deprecated = true];
   // Never populated; use confidence.
   string confidence_tier = 2 [deprecated = true];
-  string normalized = 3;
-  // Field 4 is held for the value work; 8 and 9 are spare.
+  // Never populated: was the normalized value in clear; read `value`
+  // instead (#1904).
+  string normalized = 3 [deprecated = true];
+  PiiValue value = 4;
+  // 8 and 9 are spare.
   PiiDetectorRef detector = 5;
   repeated PiiEvidence evidence = 6;
   optional PiiScore score = 7;
   PiiKindRef kind_ref = 10;
   PiiConfidenceTier confidence = 11;
+}
+
+// The form a PII mention's value is released in. A finding carries
+// `withheld` unless the request asked for values and the server's policy
+// allowed them; a caller that holds the text slices it with the spans.
+// Only `withheld` is produced today: the other forms need the verified
+// identity and grants of #1909, and a request for them is refused.
+message PiiValue
+{
+  oneof form
+  {
+    PiiValueWithheld withheld = 1;
+    PiiValueToken token = 2;
+    PiiValueCiphertext ciphertext = 3;
+    // The normalized value in clear.
+    string clear = 4;
+  }
+}
+
+// The value is not in the response.
+message PiiValueWithheld {}
+
+// A keyed token standing for the value; equal values under one key give
+// equal tokens. Not produced until #1909. Field 2 is kept for the key
+// reference, which #1909 adds: there is one key reference type
+// (PiiPolicyKeyRef, turbo_pii_policy.proto), and that file imports this
+// one, so this file cannot name it yet.
+message PiiValueToken
+{
+  bytes token = 1;
+}
+
+// The value encrypted under a registered key with a named scheme. Not
+// produced until #1909; field 2 is kept for the key reference, as in
+// PiiValueToken.
+message PiiValueCiphertext
+{
+  bytes ciphertext = 1;
+  string scheme = 3;
+}
+
+// The form a request asks PII values in. UNSPECIFIED means WITHHELD.
+enum PiiValueForm
+{
+  PII_VALUE_FORM_UNSPECIFIED = 0;
+  PII_VALUE_FORM_WITHHELD = 1;
+  PII_VALUE_FORM_TOKEN = 2;
+  PII_VALUE_FORM_CIPHERTEXT = 3;
+  PII_VALUE_FORM_CLEAR = 4;
+}
+
+// What a response about a document holding PII findings (a turbo:pii
+// layer) carries beyond the findings (#1904). Unset, every option is off:
+// the response holds the findings (kind, confidence, spans, layer
+// provenance) and no value, token, text or graph bytes. Each option the
+// request turns on must be allowed by the server's PII output policy
+// (--pii-output-allow), or the call is refused with TURBO_E_INVALID_STATE
+// (FAILED_PRECONDITION) naming the option; nothing is dropped silently. A document with
+// no turbo:pii layer is answered as before.
+message PiiOutputOptions
+{
+  // The text of the requested view when that view is a PII rewrite
+  // (masked or redacted) view: TypedDocumentResult.raw_text. The text of
+  // any other view needs `full_text`.
+  bool rewritten_text = 1;
+  // Source and view texts and binary DocumentGraph bytes: raw_text of any
+  // view, DocumentGraphResponse.source_text and graph, progressive
+  // snapshots and sink graphs. These hold every detected value in clear.
+  bool full_text = 2;
+  // Candidates and evidence detail (#1903).
+  bool detail = 3;
+  // Values in this form; UNSPECIFIED or WITHHELD withholds them. Any other
+  // form is refused with TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED) until
+  // #1909 lands.
+  PiiValueForm values = 4;
 }
 
 // Why a rule rejected a candidate. UNSPECIFIED is refused.

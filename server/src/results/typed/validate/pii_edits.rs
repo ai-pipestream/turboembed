@@ -14,11 +14,14 @@ use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, PiiStrategyKind};
 use super::*;
 use crate::proto::result::pii_edit_rule::Rule;
 use crate::proto::result::pii_kind_ref::Kind;
-use crate::proto::result::{PiiEditAnnotation, PiiKindRef, TypedDocumentResult, TypedLayer, mapping_payload};
+use crate::proto::result::{
+    OffsetMode, PiiEditAnnotation, PiiKindRef, TypedDocumentResult, TypedLayer, mapping_payload,
+};
 
 /// The checks across a `turbo:pii-edits` layer; any other layer passes.
 pub(super) fn layer(
     msg: &TypedDocumentResult,
+    text: &str,
     offsetter: &Offsetter,
     layer: &TypedLayer,
     layer_lengths: &HashMap<(&str, &str), usize>,
@@ -54,7 +57,13 @@ pub(super) fn layer(
             return Err(bad(format!("{lid}[{i}] pii edit member is outside the covered {} layer", Pii::ID)));
         }
     }
-    chain(msg, offsetter, layer)
+    // A text withheld for PII (#1904) stands in as one byte per unit, so
+    // the chain's byte spans can be checked against it only when the
+    // units are bytes.
+    if msg.withheld_text_len.is_some() && msg.offsets != OffsetMode::Utf8 as i32 {
+        return Ok(());
+    }
+    chain(msg, text, offsetter, layer)
 }
 
 /// Each edit's span in the projection and its source span, both in UTF-8
@@ -75,7 +84,7 @@ struct Pair {
 /// source is the parent, every edit's span is its source span, inside the
 /// text, and its members are exactly the mentions under it. Onto any
 /// other view only the layer-wide checks and the graph check apply.
-fn chain(msg: &TypedDocumentResult, offsetter: &Offsetter, layer: &TypedLayer) -> Result<(), Failure> {
+fn chain(msg: &TypedDocumentResult, text: &str, offsetter: &Offsetter, layer: &TypedLayer) -> Result<(), Failure> {
     let lid = layer.id.as_str();
     if layer.annotations.is_empty() {
         return Ok(());
@@ -101,7 +110,7 @@ fn chain(msg: &TypedDocumentResult, offsetter: &Offsetter, layer: &TypedLayer) -
         let (Some(Value::PiiEdit(e)), [frag]) = (&ann.value, ann.spans.as_slice()) else {
             return Err(bad(format!("{lid}[{i}] pii edit must carry one span")));
         };
-        let span = offsetter.from_wire(&msg.raw_text, &format!("{lid}[{i}] span"), frag.start, frag.end)?;
+        let span = offsetter.from_wire(text, &format!("{lid}[{i}] span"), frag.start, frag.end)?;
         let s = e.source.as_ref().ok_or_else(|| bad(format!("{lid}[{i}] pii edit has no source span")))?;
         pairs.push(Pair { span, source: Span::new(s.start, s.end) });
     }
@@ -111,7 +120,7 @@ fn chain(msg: &TypedDocumentResult, offsetter: &Offsetter, layer: &TypedLayer) -
                 return Err(bad(format!("{lid}[{i}] pii edit source span disagrees with its span on the source")));
             }
         }
-        return members_on_source(msg, offsetter, layer, &pairs);
+        return members_on_source(msg, text, offsetter, layer, &pairs);
     }
     let (mut parent_end, mut child_end) = (0u32, 0u32);
     for (i, p) in pairs.iter().enumerate() {
@@ -128,6 +137,7 @@ fn chain(msg: &TypedDocumentResult, offsetter: &Offsetter, layer: &TypedLayer) -
 /// under an edit.
 fn members_on_source(
     msg: &TypedDocumentResult,
+    text: &str,
     offsetter: &Offsetter,
     layer: &TypedLayer,
     pairs: &[Pair],
@@ -145,7 +155,7 @@ fn members_on_source(
     let mut under: Vec<Vec<u32>> = vec![Vec::new(); pairs.len()];
     for (m, ann) in pii.annotations.iter().enumerate() {
         let (Some(first), Some(last)) = (ann.spans.first(), ann.spans.last()) else { continue };
-        let span = offsetter.from_wire(&msg.raw_text, &format!("{}[{m}] span", Pii::ID), first.start, last.end)?;
+        let span = offsetter.from_wire(text, &format!("{}[{m}] span", Pii::ID), first.start, last.end)?;
         // The sources are ordered and disjoint (checked across the layer
         // first), so the edits a mention overlaps are one run.
         let first = pairs.partition_point(|p| p.source.end <= span.start);

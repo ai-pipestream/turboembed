@@ -76,6 +76,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         model: String::new(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        pii_output: None,
         operation_key: String::new(),
     }
 }
@@ -156,6 +157,7 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
         graph: complete.graph.to_vec(),
         view: 0,
         offsets: OffsetMode::Utf8 as i32,
+        pii_output: None,
         binding: None,
         operation_key: String::new(),
     })

@@ -35,6 +35,8 @@ import turbo.result.v1.TurboTypedAnnotations.PiiConfidenceTier;
 import turbo.result.v1.TurboTypedAnnotations.PiiKindId;
 import turbo.result.v1.TurboTypedAnnotations.PiiKindRef;
 import turbo.result.v1.TurboTypedAnnotations.PiiMention;
+import turbo.result.v1.TurboTypedAnnotations.PiiOutputOptions;
+import turbo.result.v1.TurboTypedAnnotations.PiiValue;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingReceipt;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingStatus;
 import turbo.result.v1.TurboTypedAnnotations.ScopedRef;
@@ -219,6 +221,9 @@ final class Conformance {
     /** Field 999, varint 7: the tag {@code (999 << 3) | 0} as a varint, then the value. */
     static final byte[] UNKNOWN_FIELD = {(byte) 0xb8, 0x3e, 0x07};
     static final int UNKNOWN_ENUM = 99;
+    /** The document holds PII: its text and graph only come back when asked for (#1904). */
+    static final PiiOutputOptions FULL_TEXT = PiiOutputOptions.newBuilder().setFullText(true).build();
+    static final PiiOutputOptions FINDINGS_ONLY = PiiOutputOptions.getDefaultInstance();
     static final Path CASES = Path.of("clients", "java", "src", "test", "resources", "mapping-cases.txt");
     /** Projected fragments seen per {@link SpanOutcome} number over the mapping cases. */
     static final int[] OUTCOMES = new int[4];
@@ -231,8 +236,8 @@ final class Conformance {
 
     static void run(AnalysisServiceBlockingStub stub) throws Exception {
         ByteString graph = analyze(stub, TEXT, List.of("turbo:pii", "turbo:pii-masked"));
-        TypedDocumentResult source = inspect(stub, graph, 0);
-        TypedDocumentResult masked = inspect(stub, graph, 1);
+        TypedDocumentResult source = inspect(stub, graph, 0, FULL_TEXT);
+        TypedDocumentResult masked = inspect(stub, graph, 1, FULL_TEXT);
         envelope(source, masked);
         TypedLayer pii = layer(source, "turbo:pii");
         roundTrip(stub, source);
@@ -243,7 +248,7 @@ final class Conformance {
         largeOffsets(stub, source);
         unknownFields(stub, source);
         unknownEnums(stub, source);
-        disclosure(source, masked, pii);
+        disclosure(stub, graph, source, masked, pii);
         int cases = mappingCases(stub);
         System.out.println("java conformance ok: mentions=" + pii.getAnnotationsCount() + " views="
                 + source.getViewsCount() + " mapping cases=" + cases);
@@ -257,6 +262,7 @@ final class Conformance {
                         .setOffsets(OffsetMode.OFFSET_MODE_UTF8)
                         .addAllSteps(steps)
                         .setOperationKey(OPERATION)
+                        .setPiiOutput(FULL_TEXT)
                         .build());
         ByteString graph = null;
         while (events.hasNext()) {
@@ -272,13 +278,15 @@ final class Conformance {
         return graph;
     }
 
-    static TypedDocumentResult inspect(AnalysisServiceBlockingStub stub, ByteString graph, int view) {
+    static TypedDocumentResult inspect(AnalysisServiceBlockingStub stub, ByteString graph, int view,
+            PiiOutputOptions piiOutput) {
         return stub.withDeadlineAfter(60, TimeUnit.SECONDS).inspectDocumentGraph(InspectDocumentGraphRequest.newBuilder()
                 .setDocId(DOC)
                 .setGraph(graph)
                 .setView(view)
                 .setOffsets(OffsetMode.OFFSET_MODE_UTF8)
                 .setOperationKey(OPERATION)
+                .setPiiOutput(piiOutput)
                 .build());
     }
 
@@ -668,22 +676,42 @@ final class Conformance {
         check(why.contains("99"), "unknown receipt status refused without naming it: " + why);
     }
 
-    // Disclosure: where the planted value is in the bytes. The source view
-    // shows it in raw_text and in PiiMention.normalized; the masked view's
-    // raw_text does not show it, and until values are withheld by default
-    // (#1904) PiiMention.normalized is the one place it may appear, once
-    // per mention of it. Searched in the bytes, not in toString().
-    static void disclosure(TypedDocumentResult source, TypedDocumentResult masked, TypedLayer pii) {
+    // Disclosure (#1904): where the planted value is in the bytes. The
+    // value of every mention is withheld and the retired normalized string
+    // is never populated, whatever is asked for. By default (findings only)
+    // no view carries its text and no answer holds the value at all; with
+    // full_text the source view holds it once, in raw_text; with
+    // rewritten_text the masked view shows its own text and not the value.
+    // Searched in the bytes, not in toString().
+    static void disclosure(AnalysisServiceBlockingStub stub, ByteString graph, TypedDocumentResult source,
+            TypedDocumentResult masked, TypedLayer pii) {
         byte[] value = utf8(VALUE);
-        long mentionsOfValue = pii.getAnnotationsList().stream().filter(a -> a.getPii().getNormalized().equals(VALUE)).count();
-        check(mentionsOfValue == 1, "the value is normalized " + mentionsOfValue + " times");
-        check(count(source.toByteArray(), value) == 2, "the source view bytes hold the value other than in raw_text and once normalized");
+        for (TypedAnnotation a : pii.getAnnotationsList()) {
+            check(a.getPii().getValue().getFormCase() == PiiValue.FormCase.WITHHELD, "a mention value is not withheld");
+            check(a.getPii().getNormalized().isEmpty(), "a mention populates the retired normalized string");
+        }
+        check(count(source.toByteArray(), value) == 1, "the full source view holds the value other than in raw_text");
         check(count(utf8(masked.getRawText()), value) == 0, "the masked raw_text holds the value");
-        check(count(masked.toByteArray(), value) == mentionsOfValue,
-                "the masked view bytes hold the value outside PiiMention.normalized");
+        check(count(masked.toByteArray(), value) == 0, "the masked view bytes hold the value");
         check(count(utf8(masked.getReceipt().toString()), value) == 0, "the receipt prints the value");
         check(count(masked.getInput().toByteArray(), value) == 0 && count(masked.getResult().toByteArray(), value) == 0,
                 "an identity holds the value");
+        for (int view = 0; view < 2; view++) {
+            TypedDocumentResult findings = inspect(stub, graph, view, FINDINGS_ONLY);
+            check(findings.getRawText().isEmpty() && findings.hasWithheldTextLen(), "view " + view + " carries its text");
+            check(count(findings.toByteArray(), value) == 0, "the findings-only view " + view + " holds the value");
+            TypedLayer found = layer(findings, "turbo:pii");
+            check(found.getAnnotationsList().equals(layer(view == 0 ? source : masked, "turbo:pii").getAnnotationsList()),
+                    "findings-only view " + view + " lists other mentions");
+            roundTrip(stub, findings);
+        }
+        check(inspect(stub, graph, 0, FINDINGS_ONLY).getWithheldTextLen() == utf8(TEXT).length,
+                "withheld_text_len is not the source text length");
+        PiiOutputOptions rewritten = PiiOutputOptions.newBuilder().setRewrittenText(true).build();
+        TypedDocumentResult maskedOnly = inspect(stub, graph, 1, rewritten);
+        check(maskedOnly.getRawText().equals(masked.getRawText()), "rewritten_text shows another masked text");
+        check(count(maskedOnly.toByteArray(), value) == 0, "the rewritten view holds the value");
+        check(inspect(stub, graph, 0, rewritten).getRawText().isEmpty(), "rewritten_text shows the source text");
     }
 
     // The mapping port against Rust on the #1907 chained-view cases.
@@ -706,7 +734,7 @@ final class Conformance {
             ByteString graph = ByteString.copyFrom(fromHex(graphLine.substring("graph ".length())));
             TypedDocumentResult[] shown = new TypedDocumentResult[views];
             for (int v = 0; v < views; v++) {
-                shown[v] = inspect(stub, graph, v);
+                shown[v] = inspect(stub, graph, v, FULL_TEXT);
                 check(mapping(shown[v]).equals(mapping(shown[0])), name + ": the mapping differs in view " + v);
             }
             WireChainPort port = WireChainPort.of(mapping(shown[0]));

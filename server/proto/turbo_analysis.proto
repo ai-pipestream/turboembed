@@ -795,14 +795,24 @@ message LayerInfo
 message DocumentGraphRequest
 {
   bytes graph = 1;
+  // What the answer carries for a document holding PII findings; see
+  // PiiOutputOptions. Without `full_text` such a document's answer has no
+  // graph bytes and no source text.
+  PiiOutputOptions pii_output = 2;
 }
 
 message DocumentGraphResponse
 {
+  // Empty for a document holding PII findings unless the request's
+  // PiiOutputOptions.full_text was asked for and allowed.
   bytes graph = 1;
   repeated LayerInfo layers = 2;
   repeated ViewInfo views = 3;
+  // Empty under the same rule as `graph`.
   string source_text = 4;
+  // The findings, projected onto the source view in UTF-8 offsets, when
+  // `graph` was withheld for PII; unset otherwise.
+  TypedDocumentResult findings = 5;
 }
 
 // turbo:chunks, turbo:levels and turbo:embeddings (over the chunks)
@@ -909,6 +919,9 @@ message AnalyzePipelineRequest
   // receipt; empty when the caller has none. A retry sends the same key
   // and gets a new attempt id. The server keeps no state for it.
   string operation_key = 10;
+  // What the step snapshots and the final answer carry once the document
+  // holds PII findings; see PiiOutputOptions.
+  PiiOutputOptions pii_output = 11;
 }
 
 // The kind of one structure block, the `turbo:structure` block kinds.
@@ -1336,6 +1349,11 @@ message FormatDocumentRequest
   bytes graph = 2;
   string format_id = 3;
   OffsetMode offsets = 4;
+  // Every format carries the document text, so formatting a document
+  // holding PII findings (a turbo:pii layer) needs `full_text` here and in
+  // the server's policy; without it the call is refused with
+  // TURBO_E_INVALID_STATE. No format writes a mention's value (#1904).
+  PiiOutputOptions pii_output = 5;
 }
 
 message FormatDocumentResponse

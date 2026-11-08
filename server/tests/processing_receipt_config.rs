@@ -5,6 +5,7 @@
 use turbo_analysis::{Document, Key, ModelRef, PROCESSING_CONFIG_DIGEST_RULE, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Pii, Sentences};
 use turbo_kserve::offsets::OffsetMode;
+use turbo_kserve::results::disclosure::Disclosure;
 use turbo_kserve::results::typed::document_to_typed_bound;
 
 const TEXT: &str = "One sentence here.";
@@ -76,8 +77,8 @@ fn config_and_version_change_it_and_text_and_order_do_not() {
 #[test]
 fn the_receipt_carries_the_config_digest_beside_the_input() {
     let (a, b) = (doc(TEXT, 7, "1", false), doc("Different text entirely.", 7, "1", false));
-    let ta = document_to_typed_bound("a", &a, ViewId::SOURCE, OffsetMode::Utf8, None, "k").unwrap();
-    let tb = document_to_typed_bound("b", &b, ViewId::SOURCE, OffsetMode::Utf8, None, "k").unwrap();
+    let ta = document_to_typed_bound("a", &a, ViewId::SOURCE, OffsetMode::Utf8, None, "k", &Disclosure::FULL).unwrap();
+    let tb = document_to_typed_bound("b", &b, ViewId::SOURCE, OffsetMode::Utf8, None, "k", &Disclosure::FULL).unwrap();
     let (ra, rb) = (ta.receipt.unwrap(), tb.receipt.unwrap());
     assert_eq!(ra.config_digest, a.processing_config_digest().as_bytes().to_vec());
     assert_eq!(ra.config_digest, rb.config_digest, "same configuration, different input");

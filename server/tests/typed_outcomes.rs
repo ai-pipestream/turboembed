@@ -18,10 +18,22 @@ use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{FragmentMember, SpanFragment, SpanOutcome as Wire, TypedDocumentResult};
 use turbo_kserve::results::MAX_FRAGMENTS;
+use turbo_kserve::results::disclosure::Disclosure;
 use turbo_kserve::results::typed::chain::WireChain;
-use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
+use turbo_kserve::results::typed::{document_to_typed_with, validate_typed_document};
 use turbo_pii::rewrite::{MASKED, MaskedView, Pseudonymizer, REDACTED, RedactedView, RewritePolicy};
 use turbo_pii::{PiiDetector, PiiEdits};
+
+/// Some documents here hold PII, whose text and annotations leave only
+/// with `full_text` (#1904); these tests are about the projection itself.
+fn typed(
+    id: &str,
+    doc: &Document,
+    view: ViewId,
+    mode: OffsetMode,
+) -> Result<TypedDocumentResult, turbo_kserve::api::Failure> {
+    document_to_typed_with(id, doc, view, mode, &Disclosure::FULL)
+}
 
 use fixtures::*;
 
@@ -169,7 +181,7 @@ fn every_fragment_outcome_is_the_native_projection_and_the_chain_reproduces_it()
         let views = views_of(&doc);
         for &target in &views {
             for mode in [OffsetMode::Utf8, OffsetMode::Utf16] {
-                let msg = document_to_typed(name, &doc, target, mode).unwrap();
+                let msg = typed(name, &doc, target, mode).unwrap();
                 validate_typed_document(&msg).unwrap();
                 for &v in &views {
                     let key = Key::<Tokens>::named(NAMES[v.0 as usize]);
@@ -197,7 +209,7 @@ fn coalesced_fragments_list_their_members_with_their_own_outcomes() {
     // two-fragment item of "a" and "b" on the source widens and joins.
     let mut doc = insertion_and_deletion();
     tokens_everywhere(&mut doc);
-    let msg = document_to_typed("ins", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
+    let msg = typed("ins", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
     let layer = msg.layers.iter().find(|l| l.instance == "o0").unwrap();
     let coalesced: Vec<&SpanFragment> =
         layer.annotations.iter().flat_map(|a| &a.spans).filter(|f| !f.members.is_empty()).collect();
@@ -246,7 +258,7 @@ fn two_derived_views_keep_their_outcomes_on_the_right_view() {
     assert_ne!(masked, redacted);
     let edits = doc.get_key(&Key::<PiiEdits>::named(REDACTED.name)).unwrap();
     for target in [ViewId::SOURCE, masked, redacted] {
-        let msg = document_to_typed("two", &doc, target, OffsetMode::Utf16).unwrap();
+        let msg = typed("two", &doc, target, OffsetMode::Utf16).unwrap();
         validate_typed_document(&msg).unwrap();
         for v in views_of(&doc) {
             let tokens = doc.get_key(&Key::<Tokens>::named(NAMES[v.0 as usize])).unwrap();
@@ -299,7 +311,7 @@ fn the_validator_refuses_an_outcome_that_lies() {
     tokens_everywhere(&mut doc);
     // Onto the spaced view: tokens on the source coalesce where a deleted
     // dash touches a kept letter; tokens on the spaced view are exact.
-    let msg = document_to_typed("v", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
+    let msg = typed("v", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
     validate_typed_document(&msg).unwrap();
     let own = msg.layers.iter().position(|l| l.instance == "o1").unwrap();
     let other = msg.layers.iter().position(|l| l.instance == "o0").unwrap();
@@ -355,7 +367,7 @@ fn the_validator_refuses_an_outcome_that_lies() {
     // Nested spans obey the same rules.
     let edits = masked_and_redacted();
     let redacted = edits.get_key(&REDACTED).unwrap().id();
-    let msg = document_to_typed("e", &edits, redacted, OffsetMode::Utf8).unwrap();
+    let msg = typed("e", &edits, redacted, OffsetMode::Utf8).unwrap();
     let unspecified = |m: &mut TypedDocumentResult| {
         let l = m.layers.iter_mut().find(|l| l.id == "turbo:pii-edits").unwrap();
         let Some(Value::PiiEdit(e)) = &mut l.annotations[0].value else { panic!("an edit") };
@@ -395,7 +407,7 @@ fn entity_votes_doc() -> Document {
 fn member_lists_are_budgeted_and_checked_in_linear_time() {
     let mut doc = insertion_and_deletion();
     tokens_everywhere(&mut doc);
-    let msg = document_to_typed("v", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
+    let msg = typed("v", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
     let other = msg.layers.iter().position(|l| l.instance == "o0").unwrap();
     let coalesced = msg.layers[other]
         .annotations
@@ -423,7 +435,7 @@ fn member_lists_are_budgeted_and_checked_in_linear_time() {
     assert!(elapsed < std::time::Duration::from_secs(5), "200k members took {elapsed:?}");
     // Votes carry fragments of their own and count too.
     let voted = entity_votes_doc();
-    let mut votes = document_to_typed("w", &voted, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let mut votes = typed("w", &voted, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
     validate_typed_document(&votes).unwrap();
     let l = votes.layers.iter_mut().find(|l| l.id == Entities::NAME.to_string()).expect("an entities layer");
     let Some(Value::Entity(ent)) = &mut l.annotations[0].value else { panic!("an entity") };
@@ -433,7 +445,7 @@ fn member_lists_are_budgeted_and_checked_in_linear_time() {
     // A single projected span never coalesces, so members on one are refused outright.
     let edits = masked_and_redacted();
     let redacted = edits.get_key(&REDACTED).unwrap().id();
-    let msg = document_to_typed("e", &edits, redacted, OffsetMode::Utf8).unwrap();
+    let msg = typed("e", &edits, redacted, OffsetMode::Utf8).unwrap();
     let listed = |m: &mut TypedDocumentResult| {
         let l = m.layers.iter_mut().find(|l| l.id == "turbo:pii-edits").unwrap();
         let Some(Value::PiiEdit(e)) = &mut l.annotations[0].value else { panic!("an edit") };

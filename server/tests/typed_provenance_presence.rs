@@ -22,7 +22,7 @@ fn empty_model() -> ModelRef {
 async fn project(c: &mut common::Analysis, doc: &Document, mode: OffsetMode) -> TypedDocumentResult {
     let bytes = export(doc, codecs()).unwrap().to_bytes().unwrap();
     let graph = c
-        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.clone().into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: bytes.clone().into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -34,6 +34,7 @@ async fn project(c: &mut common::Analysis, doc: &Document, mode: OffsetMode) -> 
             graph: graph.to_vec(),
             view: 0,
             offsets: mode as i32,
+            pii_output: None,
             binding: None,
             operation_key: String::new(),
         })

@@ -9,7 +9,8 @@ use turbo_kserve::proto::result::pii_edit_rule::Rule;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{PiiEditAnnotation, PiiStrategy, TypedDocumentResult, TypedLayer};
-use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
+use turbo_kserve::results::disclosure::Disclosure;
+use turbo_kserve::results::typed::{document_to_typed, document_to_typed_with, validate_typed_document};
 use turbo_pii::rewrite::{Pseudonymizer, REDACTED, RedactedView, RewritePolicy, StaticReplacer};
 use turbo_pii::{PiiDetector, PiiEdits, PiiKind};
 
@@ -155,7 +156,9 @@ fn tampered_source_spans_are_refused_against_the_chain() {
         (turbo_analysis::ViewId::SOURCE, OffsetMode::Utf8),
         (turbo_analysis::ViewId::SOURCE, OffsetMode::CodePoint),
     ] {
-        let wire = document_to_typed("edits", &doc, target, offsets).unwrap();
+        // The chain is checked against the text, so the text is asked for
+        // (#1904): a withheld text in UTF-16 or code points cannot stand in.
+        let wire = document_to_typed_with("edits", &doc, target, offsets, &Disclosure::FULL).unwrap();
         validate_typed_document(&wire).unwrap();
         let at = wire.layers.iter().position(|l| l.id == "turbo:pii-edits").unwrap();
         let tampered = |i: usize, start: u32, end: u32| {

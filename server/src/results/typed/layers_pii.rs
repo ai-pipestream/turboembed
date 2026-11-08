@@ -123,7 +123,7 @@ pub(crate) fn project_pii_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option
                         value: Some(Value::Pii(PiiMention {
                             kind_ref: Some(pii_kind_ref(m.kind)),
                             confidence: i32::from(m.confidence().id()),
-                            normalized: m.normalized.to_owned(),
+                            value: Some(crate::results::disclosure::withheld()),
                             detector: Some(wire_detector(&l.detectors, m.detector)),
                             evidence: wire_evidence(cx, view, m.evidence),
                             score: wire_score(&l.detectors, m.score),

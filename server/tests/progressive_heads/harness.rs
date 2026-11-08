@@ -62,6 +62,7 @@ pub fn request(text: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineRequ
         model: String::new(),
         initial_graph: Vec::new(),
         structure_seed: None,
+        pii_output: None,
         operation_key: String::new(),
     }
 }

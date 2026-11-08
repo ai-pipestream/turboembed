@@ -8,12 +8,14 @@
 use std::sync::OnceLock;
 
 use turbo_analysis::export::{Codecs, DocumentGraph, LayerRecord, LayerRef, StatusRecord, ViewRecord, export, import};
+use turbo_analysis::{Layer, View, ViewId};
 
+use super::disclosure::{Disclosure, PiiOutputPolicy};
+use super::receipt::error::record_status;
+use super::typed::document_to_typed_with;
 use super::{MAX_GRAPH_BYTES, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
-use turbo_analysis::{Layer, View};
-
-use super::receipt::error::record_status;
+use crate::offsets::OffsetMode;
 use crate::proto::result::{
     DocumentGraphRequest, DocumentGraphResponse, LayerError, LayerInfo, LayerWireStatus, ViewInfo,
 };
@@ -85,26 +87,65 @@ pub(crate) fn view_info(graph: &DocumentGraph, record: &ViewRecord) -> ViewInfo 
 }
 
 /// Exports `doc` into a [`DocumentGraphResponse`] using the server's
-/// canonical [`Codecs`] registry.
-pub fn export_document_response(doc: &turbo_analysis::Document) -> Result<DocumentGraphResponse, Failure> {
+/// canonical [`Codecs`] registry, under `disclosure`: a document holding
+/// PII without `full_text` answers with no graph bytes and no source text,
+/// and its findings projected onto the source view in UTF-8 offsets
+/// (`findings`). Layer and view errors are typed and never carry text.
+pub fn export_document_response(
+    doc: &turbo_analysis::Document,
+    disclosure: &Disclosure,
+) -> Result<DocumentGraphResponse, Failure> {
     let codecs = codecs();
     let out = export(doc, codecs).map_err(|e| bad(format!("document graph export: {e}")))?;
     let bytes = out.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
     if bytes.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", bytes.len() as u64));
     }
+    response(doc, &out, bytes, disclosure)
+}
+
+fn response(
+    doc: &turbo_analysis::Document,
+    out: &DocumentGraph,
+    bytes: Vec<u8>,
+    disclosure: &Disclosure,
+) -> Result<DocumentGraphResponse, Failure> {
+    let layers = out.layers.iter().map(|r| layer_info(out, r)).collect();
+    let views = out.views.iter().map(|r| view_info(out, r)).collect();
+    if disclosure.graph(doc) {
+        return Ok(DocumentGraphResponse {
+            graph: bytes.into(),
+            layers,
+            views,
+            source_text: out.source.text.clone(),
+            findings: None,
+        });
+    }
+    let findings = document_to_typed_with("", doc, ViewId::SOURCE, OffsetMode::Utf8, disclosure)?;
     Ok(DocumentGraphResponse {
-        graph: bytes.into(),
-        layers: out.layers.iter().map(|r| layer_info(&out, r)).collect(),
-        views: out.views.iter().map(|r| view_info(&out, r)).collect(),
-        source_text: out.source.text.clone(),
+        graph: Default::default(),
+        layers,
+        views,
+        source_text: String::new(),
+        findings: Some(findings),
     })
 }
 
 /// Imports the request's graph, re-exports it, and lists its
 /// layers and views from the re-exported records, so the listing
-/// always describes the bytes in the same answer.
+/// always describes the bytes in the same answer. The answer follows the
+/// disclosure the request's `pii_output` asks for and
+/// [`PiiOutputPolicy::ALL`] allows.
 pub fn round_trip_document(req: &DocumentGraphRequest) -> Result<DocumentGraphResponse, Failure> {
+    round_trip_document_under(req, PiiOutputPolicy::ALL)
+}
+
+/// [`round_trip_document`] under the server's `policy`.
+pub fn round_trip_document_under(
+    req: &DocumentGraphRequest,
+    policy: PiiOutputPolicy,
+) -> Result<DocumentGraphResponse, Failure> {
+    let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
     }
@@ -113,10 +154,5 @@ pub fn round_trip_document(req: &DocumentGraphRequest) -> Result<DocumentGraphRe
     let doc = import(&graph, codecs).map_err(|e| bad(format!("document graph import: {e}")))?;
     let out = export(&doc, codecs).map_err(|e| bad(format!("document graph export: {e}")))?;
     let bytes = out.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
-    Ok(DocumentGraphResponse {
-        graph: bytes.into(),
-        layers: out.layers.iter().map(|r| layer_info(&out, r)).collect(),
-        views: out.views.iter().map(|r| view_info(&out, r)).collect(),
-        source_text: out.source.text.clone(),
-    })
+    response(&doc, &out, bytes, &disclosure)
 }

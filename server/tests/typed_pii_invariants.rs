@@ -15,14 +15,18 @@ use turbo_kserve::proto::result::pii_allow_rule_ref::Rule;
 use turbo_kserve::proto::result::pii_disposition::Disposition;
 use turbo_kserve::proto::result::pii_evidence::Fact;
 use turbo_kserve::proto::result::pii_kind_ref::Kind;
+use turbo_kserve::proto::result::pii_value::Form;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
     FragmentMember, PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm,
     PiiChecksumEvidence, PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition,
     PiiEvidence as WireEvidence, PiiKindRef, PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore,
-    PiiShapeEvidence, SpanFragment, SpanOutcome, TypedDocumentResult, TypedLayer,
+    PiiShapeEvidence, PiiValue, PiiValueCiphertext, PiiValueToken, SpanFragment, SpanOutcome, TypedDocumentResult,
+    TypedLayer,
 };
-use turbo_kserve::results::typed::{document_to_typed, validate_typed_document};
+// The projection itself is under test, so the text is asked for (#1904).
+use turbo_kserve::results::disclosure::Disclosure;
+use turbo_kserve::results::typed::{document_to_typed, document_to_typed_with, validate_typed_document};
 use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiEvidence, PiiKind, PiiMention};
 
 /// The wire spans of every PII annotation, in layer order.
@@ -81,12 +85,12 @@ fn typed_projection_maps_sibling_views_through_their_lowest_common_ancestor() {
     doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("test:pii")).unwrap();
     assert_eq!(doc.map_span(v2, v3, Span::new(4, 5)).unwrap(), Span::new(3, 4));
 
-    let wire = document_to_typed("lca", &doc, v3, OffsetMode::Utf8).unwrap();
+    let wire = document_to_typed_with("lca", &doc, v3, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     assert_eq!(pii_spans(&wire), vec![vec![(3, 4)]], "the exact digit, not the whole source edit");
     assert_eq!(&wire.raw_text[3..4], "2");
     // Every offset mode agrees: the text before the digit is ASCII.
     for mode in [OffsetMode::Utf16, OffsetMode::CodePoint] {
-        let wire = document_to_typed("lca", &doc, v3, mode).unwrap();
+        let wire = document_to_typed_with("lca", &doc, v3, mode, &Disclosure::FULL).unwrap();
         assert_eq!(pii_spans(&wire), vec![vec![(3, 4)]], "{mode:?}");
     }
 }
@@ -102,7 +106,7 @@ fn a_layer_on_a_child_view_projects_onto_its_parent_without_a_source_detour() {
         spans.push(s);
     }
     doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test:tokens")).unwrap();
-    let wire = document_to_typed("parent", &doc, v1, OffsetMode::Utf8).unwrap();
+    let wire = document_to_typed_with("parent", &doc, v1, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     let tokens = wire.layers.iter().find(|l| l.id == "turbo:tokens").unwrap();
     let got: Vec<Vec<(u32, u32)>> =
         tokens.annotations.iter().map(|a| a.spans.iter().map(|s| (s.start, s.end)).collect()).collect();
@@ -130,7 +134,7 @@ fn deleted_mention() -> (Document, ViewId) {
 #[test]
 fn a_deleted_mention_projects_to_an_empty_anchor_that_validates() {
     let (doc, deleted) = deleted_mention();
-    let wire = document_to_typed("anchor", &doc, deleted, OffsetMode::Utf8).unwrap();
+    let wire = document_to_typed_with("anchor", &doc, deleted, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     assert_eq!(wire.raw_text, "mail  end");
     assert_eq!(pii_spans(&wire), vec![vec![(5, 5)]], "an empty anchor where the mention was");
     validate_typed_document(&wire).unwrap();
@@ -143,7 +147,7 @@ type Edit = fn(&mut WirePii);
 /// annotation's kind and tier set by `edit`.
 fn pii_message(edit: impl FnOnce(&mut WirePii)) -> TypedDocumentResult {
     let (doc, _) = deleted_mention();
-    let mut wire = document_to_typed("pii", &doc, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    let mut wire = document_to_typed_with("pii", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     let ann = wire.layers.iter_mut().flat_map(|l| &mut l.annotations).find(|a| matches!(a.value, Some(Value::Pii(_))));
     let Some(Value::Pii(m)) = &mut ann.expect("a pii annotation").value else { unreachable!() };
     edit(m);
@@ -280,6 +284,41 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
     }
 }
 
+/// A value of `form`, or `None` for a value with no form.
+fn value(form: Option<Form>) -> Option<PiiValue> {
+    Some(PiiValue { form })
+}
+
+#[test]
+fn a_pii_value_must_be_withheld_until_keyed_release_lands() {
+    // The projection writes `withheld`, which validates (#1904).
+    let wire = pii_message(|_| {});
+    let mut layer = wire.layers.iter().filter(|l| l.id == "turbo:pii").flat_map(|l| &l.annotations);
+    let Some(Value::Pii(m)) = &layer.next().expect("a pii annotation").value else { panic!("a pii annotation") };
+    assert!(matches!(m.value, Some(PiiValue { form: Some(Form::Withheld(_)) })), "{:?}", m.value);
+    validate_typed_document(&wire).unwrap();
+    // Every other form is refused before #1909, and the error names the
+    // form, never the clear value, the token or the ciphertext.
+    let secrets = ["planted.clear@example.com", "planted-token", "planted-cipher", "planted-scheme"];
+    let refusals: [(&str, Edit); 5] = [
+        ("no value", |m| m.value = None),
+        ("a value with no form", |m| m.value = value(None)),
+        ("a clear value", |m| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())))),
+        ("a token", |m| m.value = value(Some(Form::Token(PiiValueToken { token: b"planted-token".to_vec() })))),
+        ("a ciphertext", |m| {
+            m.value = value(Some(Form::Ciphertext(PiiValueCiphertext {
+                ciphertext: b"planted-cipher".to_vec(),
+                scheme: "planted-scheme".to_owned(),
+            })))
+        }),
+    ];
+    for (what, edit) in refusals {
+        let message = refused(what, &pii_message(edit), &secrets);
+        assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
+        assert!(message.contains("only withheld is supported"), "{what}: {message}");
+    }
+}
+
 #[test]
 fn custom_kind_refs_index_the_layers_own_table() {
     let with_table = |names: &[&str], edit: Edit| {
@@ -369,7 +408,14 @@ fn candidates(wire: &mut TypedDocumentResult) -> &mut TypedLayer {
 #[test]
 fn candidates_carry_their_disposition_and_validate_against_the_pii_layer() {
     let (doc, _) = deleted_mention();
-    let wire = document_to_typed("cand", &doc, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+    // The candidates are detail (#1904): a findings-only answer that asks
+    // for them carries them and validates; the checks below edit the full
+    // projection, so each refusal is the candidate's own.
+    let detail = Disclosure { detail: true, ..Disclosure::FINDINGS };
+    let findings = document_to_typed_with("cand", &doc, ViewId::SOURCE, OffsetMode::Utf8, &detail).unwrap();
+    validate_typed_document(&findings).unwrap();
+    assert_eq!(candidates(&mut findings.clone()).annotations.len(), 1);
+    let wire = document_to_typed_with("cand", &doc, ViewId::SOURCE, OffsetMode::Utf8, &Disclosure::FULL).unwrap();
     validate_typed_document(&wire).unwrap();
     let mut wire = wire;
     let layer = candidates(&mut wire);

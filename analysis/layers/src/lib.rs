@@ -41,7 +41,7 @@ pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{
     CUSTOM_CODE_BASE, ChecksumAlgorithm, CustomKindId, CustomKinds, DetectorError, EvidenceList, KindError, KindRow,
     Pii, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiScore,
-    PiiScoreKind, mention_order,
+    PiiScoreKind, Sensitive, WITHHELD, mention_order,
 };
 pub use pii_candidates::{AllowRule, AllowScope, PiiCandidate, PiiCandidates, PiiDisposition, RejectReason};
 pub use pii_edits::{PiiEdit, PiiEdits, PiiRule, PiiStrategyKind};

@@ -6,8 +6,8 @@
 //! layer's `custom_pii_kinds`; a fact is one of the kinds the layer knows
 //! (an unknown fact is refused, never skipped); the tier is the one the
 //! facts derive to. `UNSPECIFIED` (0) is never a tier, an algorithm, a
-//! score kind, a scope or a reason. The normalized form is not judged
-//! here. An error names the layer, the row and its wire spans, never the
+//! score kind, a scope or a reason. A mention's value must be `withheld`
+//! and its retired normalized form unset (#1904). An error names the layer, the row and its wire spans, never the
 //! mention's text, its normalized form, a custom kind name, a detector id,
 //! or the refused number, which are caller input.
 
@@ -21,6 +21,7 @@ use turbo_analysis_layers::{
 
 use super::*;
 use crate::proto::result::pii_kind_ref::Kind;
+use crate::proto::result::pii_value::Form;
 use crate::proto::result::{
     PiiCandidateAnnotation, PiiDetectorRef, PiiDisposition, PiiEvidence as WireEvidence, PiiMention, PiiScore,
     TypedLayer, pii_disposition, pii_evidence,
@@ -174,6 +175,26 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     }
     if !m.kind.is_empty() || !m.confidence_tier.is_empty() {
         return Err(row.refuse("pii mention sets a retired string kind or confidence_tier"));
+    }
+    // The clear value is never on the wire (#1904): `value` says how, if at
+    // all, it was released, and only `withheld` is produced.
+    if !m.normalized.is_empty() {
+        return Err(row.refuse("pii mention sets the retired normalized value; use value"));
+    }
+    // Every mention says how its value was released. Only `withheld` is
+    // produced until keyed release lands (#1909), so a missing or empty
+    // value, a clear value, a token or a ciphertext is refused. The error
+    // names the form, never its contents.
+    let refused = match m.value.as_ref().map(|v| v.form.as_ref()) {
+        Some(Some(Form::Withheld(_))) => None,
+        None => Some("is missing"),
+        Some(None) => Some("has no form"),
+        Some(Some(Form::Clear(_))) => Some("is clear"),
+        Some(Some(Form::Token(_))) => Some("is a token"),
+        Some(Some(Form::Ciphertext(_))) => Some("is a ciphertext"),
+    };
+    if let Some(why) = refused {
+        return Err(row.refuse(&format!("pii mention value {why}; only withheld is supported")));
     }
     row.kind(m.kind_ref.as_ref())?;
     row.detector("detector", m.detector.as_ref())?;

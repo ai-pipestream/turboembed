@@ -53,6 +53,31 @@ public record TurboSpanData(
     }
 
     /**
+     * Describes this row without its value: a PII row's value is the detected identifier itself,
+     * so {@code toString} never prints it, and no value of another layer kind is printed either.
+     * Read {@link #value()} to copy a value out deliberately.
+     *
+     * @return this row's fields, with the value shown as {@code <withheld>} when present
+     */
+    @Override
+    public String toString() {
+        return "TurboSpanData[layerKind=" + layerKind
+                + ", itemIndex=" + itemIndex
+                + ", fragmentIndex=" + fragmentIndex
+                + ", viewId=" + viewId
+                + ", classification=" + classification
+                + ", viewRange=" + viewRange
+                + ", sourceRange=" + sourceRange
+                + ", tokenRange=" + tokenRange
+                + ", layer=" + layer
+                + ", instance=" + instance
+                + ", label=" + label
+                + ", value=" + (value.isPresent() ? "Optional[<withheld>]" : "Optional.empty")
+                + ", probability=" + probability
+                + "]";
+    }
+
+    /**
      * Returns the PII evidence classification for a PII row.
      *
      * @return PII classification, or empty for another layer kind

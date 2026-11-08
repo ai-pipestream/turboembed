@@ -13,7 +13,7 @@ use super::super::chain::WireChain;
 use super::super::identity::{ENVELOPE_SCHEMA_VERSION, verify_view_text};
 use super::bad;
 use crate::api::Failure;
-use crate::proto::result::{InputIdentity, ResultIdentity, TypedDocumentResult};
+use crate::proto::result::{InputIdentity, LayerWireStatus, OffsetMode, ResultIdentity, TypedDocumentResult};
 
 fn check_digest(what: &str, digest: &[u8]) -> Result<(), Failure> {
     if digest.len() != 32 {
@@ -98,14 +98,24 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
     }
 
     let chain = WireChain::from_payload(msg.mapping.as_ref())?;
-    // The views list and the mapping name the same views, both ways.
+    // The views list and the mapping name the same views, both ways. A
+    // view that was skipped or failed has no text and no edits, so it is
+    // listed with its status and is not in the mapping.
+    let mut written = 0usize;
     for info in &msg.views {
-        if chain.by_instance(&info.instance).is_none() {
+        // Only a known not-complete status leaves a view out; any other
+        // number is judged, and named, where view statuses are checked.
+        let ok = info.status != LayerWireStatus::Skipped as i32 && info.status != LayerWireStatus::Failed as i32;
+        written += usize::from(ok);
+        if ok && chain.by_instance(&info.instance).is_none() {
             return Err(bad(format!("view {:?} is not in the mapping", info.instance)));
         }
+        if !ok && chain.by_instance(&info.instance).is_some() {
+            return Err(bad(format!("view {:?} is not complete and is in the mapping", info.instance)));
+        }
     }
-    if msg.views.len() != chain.views().len() {
-        return Err(bad(format!("{} views are listed and the mapping has {}", msg.views.len(), chain.views().len())));
+    if written != chain.views().len() {
+        return Err(bad(format!("{written} complete views are listed and the mapping has {}", chain.views().len())));
     }
     for v in chain.views() {
         let Some(info) = msg.views.iter().find(|i| i.instance == v.instance) else {
@@ -133,15 +143,29 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
     }
     let view_u16 = u16::try_from(msg.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", msg.view)))?;
     let target = chain.view(turbo_analysis::ViewId(view_u16))?;
-    if target.text_len as usize != msg.raw_text.len() {
-        return Err(bad(format!(
-            "raw_text is {} bytes and the mapping says view {} has {}",
-            msg.raw_text.len(),
-            msg.view,
-            target.text_len
-        )));
+    // A text withheld for PII (#1904) cannot be checked against its digest;
+    // its length can when the units are bytes.
+    match msg.withheld_text_len {
+        Some(n) => {
+            if msg.offsets == OffsetMode::Utf8 as i32 && n != target.text_len {
+                return Err(bad(format!(
+                    "withheld_text_len is {n} bytes and the mapping says view {} has {}",
+                    msg.view, target.text_len
+                )));
+            }
+        }
+        None => {
+            if target.text_len as usize != msg.raw_text.len() {
+                return Err(bad(format!(
+                    "raw_text is {} bytes and the mapping says view {} has {}",
+                    msg.raw_text.len(),
+                    msg.view,
+                    target.text_len
+                )));
+            }
+            verify_view_text(&format!("mapping view {} text_digest", msg.view), &target.text_digest, &msg.raw_text)?;
+        }
     }
-    verify_view_text(&format!("mapping view {} text_digest", msg.view), &target.text_digest, &msg.raw_text)?;
     for l in &msg.layers {
         if let Some(v) = l.native_view {
             let id = u16::try_from(v).map_err(|_| bad(format!("layer {:?} native_view {v} exceeds u16::MAX", l.id)))?;

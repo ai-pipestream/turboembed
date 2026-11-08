@@ -57,6 +57,12 @@ impl Analyzer {
         self.stages.iter().flat_map(|s| s.iter().map(|&i| self.steps[i].id())).collect()
     }
 
+    /// Every layer instance a planned step writes, in step order: what a
+    /// run can add to a document before it runs.
+    pub fn writes(&self) -> Vec<KeyId> {
+        self.steps.iter().flat_map(|s| s.writes()).collect()
+    }
+
     /// Each step's declared and effective locality, in step order: the
     /// two differ where the pipeline does not bear the declaration out
     /// (the step reads a document-wide layer), and the step then runs as

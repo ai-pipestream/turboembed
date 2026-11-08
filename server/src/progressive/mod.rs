@@ -35,6 +35,7 @@ use crate::proto::result::{
     AnalyzeProgressiveEvent, DocumentGraphResponse,
 };
 use crate::results::MAX_GRAPH_BYTES;
+use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
 use crate::results::receipt::error::{kind_name, of_error};
 use crate::results::receipt::{self, Operation, check_operation_key};
@@ -108,12 +109,14 @@ pub(crate) async fn start_progressive(
     state: &State,
     req: Request<AnalyzePipelineRequest>,
     sink: Option<Arc<SinkForwarder>>,
+    pii_policy: PiiOutputPolicy,
 ) -> Reply<ProgressiveStream> {
     let deadline = Deadline::from_request(&req)?;
     deadline.check()?;
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
     check_operation_key(&req.operation_key).map_err(plain)?;
+    let disclosure = Disclosure::decide(req.pii_output.as_ref(), pii_policy).map_err(plain)?;
 
     let doc = build_initial_document(&req, offsets)?;
     let analyzer = build_pipeline(state, &req, &doc)?;
@@ -133,7 +136,8 @@ pub(crate) async fn start_progressive(
     tokio::task::spawn_blocking(move || {
         // The task owns the stream's one sender, so the reply has ended
         // when it returns.
-        let delivered = run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, task_deadline, tx, op);
+        let answer = Answer { doc_id, offsets: proto_offsets, disclosure };
+        let delivered = run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
         if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
             // A refusal is counted in the forwarder's stats.
             let _ = sink.offer_exported(&sink_doc_id, exported, &doc);
@@ -237,10 +241,16 @@ fn send_receipt(
     tx.blocking_send(Ok(AnalyzeProgressiveEvent { sequence, event: Some(Event::Receipt(receipt)) })).is_ok()
 }
 
-#[allow(clippy::too_many_arguments)]
-fn run_progressive_task(
+/// What the answer is about and how it is told: the client's document id
+/// and offset unit, and the PII disclosure its request asked for.
+struct Answer {
     doc_id: String,
-    proto_offsets: i32,
+    offsets: i32,
+    disclosure: Disclosure,
+}
+
+fn run_progressive_task(
+    answer: Answer,
     mut doc: Document,
     analyzer: Analyzer,
     cancel: Arc<AtomicBool>,
@@ -248,6 +258,12 @@ fn run_progressive_task(
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
+    let Answer { doc_id, offsets: proto_offsets, disclosure } = answer;
+    // Whether snapshots may carry graph bytes is decided for the request
+    // before anything streams: a pipeline that will write PII findings
+    // withholds them from the first snapshot on, since the text is the
+    // same before the PII step runs as after (#1904).
+    let snapshot_graphs = disclosure.full_text || !(holds_pii(&doc) || plans_pii(&analyzer));
     if deadline.is_expired() {
         let _ = tx.blocking_send(Err(deadline_status()));
         return None;
@@ -342,16 +358,20 @@ fn run_progressive_task(
                 .map(|r| layer_info(&snap_graph, r))
                 .collect();
             let views = snap_graph.views.iter().map(|r| view_info(&snap_graph, r)).collect();
-            let graph_bytes = match snap_graph.to_bytes() {
-                Ok(b) => b,
-                Err(e) => {
-                    let _ = tx.blocking_send(Err(plain(Failure::new(
-                        TURBO_E_INTERNAL,
-                        0,
-                        format!("step '{}' encode failed: {e}", ev.timing.step_id),
-                    ))));
-                    cancel.store(true, Ordering::Relaxed);
-                    return;
+            let graph_bytes = if !snapshot_graphs {
+                Vec::new()
+            } else {
+                match snap_graph.to_bytes() {
+                    Ok(b) => b,
+                    Err(e) => {
+                        let _ = tx.blocking_send(Err(plain(Failure::new(
+                            TURBO_E_INTERNAL,
+                            0,
+                            format!("step '{}' encode failed: {e}", ev.timing.step_id),
+                        ))));
+                        cancel.store(true, Ordering::Relaxed);
+                        return;
+                    }
                 }
             };
             if graph_bytes.len() as u64 > MAX_GRAPH_BYTES {
@@ -398,18 +418,25 @@ fn run_progressive_task(
         return None;
     }
 
-    match export_document_response(&doc) {
-        Ok(complete) => {
+    // The sink is offered the whole export and applies its own disclosure
+    // (docs/grpc-sink.md); the client is answered under the request's.
+    let full = export_document_response(&doc, &Disclosure::FULL);
+    let answered = if disclosure.graph(&doc) { full.clone() } else { export_document_response(&doc, &disclosure) };
+    match full.and_then(|full| answered.map(|complete| (full, complete))) {
+        Ok((full, complete)) => {
             seq += 1;
-            // What the sink is offered: the bytes, layers and views the
-            // client is handed, and the document they were exported from.
+            // The result is the complete graph whether or not the client
+            // was handed its bytes.
+            let result = result_identity(&full.graph);
+            // What the sink is offered: the bytes, layers and views of the
+            // export, and the document they were exported from.
             let exported = DocumentGraphResponse {
-                graph: complete.graph.clone(),
-                layers: complete.layers.clone(),
-                views: complete.views.clone(),
+                graph: full.graph,
+                layers: full.layers,
+                views: full.views,
                 source_text: String::new(),
+                findings: None,
             };
-            let result = result_identity(&complete.graph);
             let event = AnalyzeProgressiveEvent { sequence: seq, event: Some(Event::Complete(complete)) };
             if tx.blocking_send(Ok(event)).is_err() {
                 return None;

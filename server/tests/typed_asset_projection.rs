@@ -59,8 +59,12 @@ fn annotation<'a>(msg: &'a mut TypedDocumentResult, name: &str) -> &'a mut Typed
 async fn assets_keep_payload_presence_when_its_text_is_deleted() {
     let graph = export(&document(), codecs()).unwrap().to_bytes().unwrap();
     let (server, mut c) = common::serve_no_admin().await;
-    let graph =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: graph.into() }).await.unwrap().into_inner().graph;
+    let graph = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
+        .await
+        .unwrap()
+        .into_inner()
+        .graph;
     let mut failures = Vec::new();
     let mut passed = 0;
     for view in [0, 1, 2, 3] {
@@ -71,6 +75,7 @@ async fn assets_keep_payload_presence_when_its_text_is_deleted() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                     binding: None,
                     operation_key: String::new(),
                 })
@@ -128,6 +133,7 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     graph: graph.clone(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                     binding: None,
                     operation_key: String::new(),
                 })

@@ -97,6 +97,17 @@ that document, which is counted `refused`. Without it, the default, items
 carry no projection and are what they were before it existed. Items
 carrying an `AnalyzeStream` answer never carry one: they have no graph.
 
+## PII output
+
+An item about a document holding PII findings (a `turbo:pii` layer)
+follows `--sink-pii-output LIST` (`TURBO_KSERVE_SINK_PII_OUTPUT`), the
+same list `--pii-output-allow` takes and within it (docs/grpc-analysis.md,
+PII output). Unset, it is findings only: the item carries no graph bytes,
+its layers and views listed with their typed errors, and
+the typed findings projection in the configured view, or on the source
+view in UTF-8 offsets when no projection is configured. Every value is
+withheld. `full-text` forwards the graph as for any other document.
+
 ## Serving the sink
 
 `Serve { sink_receiver: Some(SinkReceiver::new(on_item)), .. }` serves
@@ -105,10 +116,13 @@ accepted, handed to `on_item` in the order its stream sent it. An item is
 rejected when:
 
 - its sequence is not over the last accepted item's in the stream;
-- it carries neither a graph nor an answer;
+- it carries neither a graph nor an answer, and is not an item whose
+  graph was withheld for PII (no graph, a typed projection, and a
+  `turbo:pii` layer in its listing);
 - its graph is over `max_graph_bytes` (64 MiB), or does not decode and
   import with the server's codec registry;
-- it carries a typed projection without a graph, or one that
+- it carries a typed projection without a graph (other than such a PII
+  item), or one that
   `RoundTripTypedDocument` refuses (span bounds, UTF-16 surrogate halves,
   unknown offset modes, model references, index bounds).
 

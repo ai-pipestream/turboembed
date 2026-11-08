@@ -122,7 +122,22 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
     let _ = u16::try_from(msg.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", msg.view)))?;
     let offsets = OffsetMode::from_proto(msg.offsets)?;
-    let offsetter = Offsetter::new(&msg.raw_text, offsets);
+    // A view text withheld for PII (#1904) is stood in for by as many
+    // one-byte characters as it had units, so spans are checked against
+    // its length; every unit is then a boundary.
+    let stand_in;
+    let text = match msg.withheld_text_len {
+        None => msg.raw_text.as_str(),
+        Some(_) if !msg.raw_text.is_empty() => return Err(bad("withheld_text_len is set beside a raw_text")),
+        Some(n) if u64::from(n) > MAX_GRAPH_BYTES => {
+            return Err(over("max_graph_bytes", "typed document withheld text units", u64::from(n)));
+        }
+        Some(n) => {
+            stand_in = " ".repeat(n as usize);
+            stand_in.as_str()
+        }
+    };
+    let offsetter = Offsetter::new(text, offsets);
 
     let mut known_models: HashSet<&str> = HashSet::with_capacity(msg.models.len());
     for (i, m) in msg.models.iter().enumerate() {
@@ -163,7 +178,11 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
 
     for layer in &msg.layers {
-        validate_layer(msg, &offsetter, &known_models, &layer_lengths, layer)?;
+        if msg.withheld_text_len.is_some() && !crate::results::disclosure::is_findings_layer(&layer.id) {
+            withheld_layer(&known_models, layer)?;
+            continue;
+        }
+        validate_layer(msg, text, &offsetter, &known_models, &layer_lengths, layer)?;
     }
     // Last: the receipt is checked against a message already known whole.
     receipt::check_receipt(msg)
@@ -287,8 +306,23 @@ impl TargetLen {
     }
 }
 
+/// A layer of a findings-only result (#1904): its annotations carry the
+/// withheld text's words, so it is listed with its status and model refs
+/// and nothing else, and the count checks of its kind do not apply.
+fn withheld_layer(known_models: &HashSet<&str>, layer: &TypedLayer) -> Result<(), Failure> {
+    let lid = layer.id.as_str();
+    if !layer.annotations.is_empty() || !layer.indexes_layer.is_empty() {
+        return Err(bad(format!("layer {lid} carries annotations while the text is withheld")));
+    }
+    for mref in &layer.model_refs {
+        check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
+    }
+    Ok(())
+}
+
 fn validate_layer(
     msg: &TypedDocumentResult,
+    text: &str,
     offsetter: &Offsetter,
     known_models: &HashSet<&str>,
     layer_lengths: &HashMap<(&str, &str), usize>,
@@ -298,7 +332,7 @@ fn validate_layer(
     quality::layer(layer)?;
     quotations::layer(layer)?;
     evidence::layer(layer)?;
-    pii_edits::layer(msg, offsetter, layer, layer_lengths)?;
+    pii_edits::layer(msg, text, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }
@@ -362,7 +396,7 @@ fn validate_layer(
 
     let custom_pii_kinds = pii::custom_kinds(layer)?;
     let ctx = LayerCtx {
-        text: &msg.raw_text,
+        text,
         offsetter,
         known_models,
         layer_lengths,

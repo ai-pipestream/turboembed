@@ -25,7 +25,7 @@ async fn key_value_component_spans_obey_wire_boundaries_in_both_views() {
     doc.add(&Key::<KeyValuePairs>::DEFAULT, pairs, Provenance::by("pairs:source")).unwrap();
     let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
     let graph = client
-        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into() })
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph.into(), pii_output: None })
         .await
         .unwrap()
         .into_inner()
@@ -39,6 +39,7 @@ async fn key_value_component_spans_obey_wire_boundaries_in_both_views() {
                     graph: graph.to_vec(),
                     view,
                     offsets: mode as i32,
+                    pii_output: None,
                     binding: None,
                     operation_key: String::new(),
                 })

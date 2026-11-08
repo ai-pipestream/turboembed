@@ -12,6 +12,7 @@ use turbo_kserve::proto::result::{
     ByteRange, InspectDocumentGraphRequest, LayerErrorKind, LayerReceipt, LayerWireStatus, ProcessingReceipt,
     ProcessingStatus, TruncationReason, TypedDocumentResult,
 };
+use turbo_kserve::results::disclosure::Disclosure;
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::results::receipt::{self, Coverage, Operation};
 use turbo_kserve::results::typed::identity::input_identity;
@@ -23,7 +24,7 @@ const PLANTED: &str = "4111-1111-1111-1111";
 const TEXT: &str = "Card 4111-1111-1111-1111 was used. Nothing else.";
 
 fn typed(doc: &Document, key: &str) -> TypedDocumentResult {
-    document_to_typed_bound("doc", doc, ViewId::SOURCE, OffsetMode::Utf8, None, key).unwrap()
+    document_to_typed_bound("doc", doc, ViewId::SOURCE, OffsetMode::Utf8, None, key, &Disclosure::FULL).unwrap()
 }
 
 fn receipt_of(t: &TypedDocumentResult) -> &ProcessingReceipt {
@@ -168,6 +169,7 @@ fn a_retry_keeps_the_key_and_gets_a_new_attempt_id() {
         offsets: 0,
         binding: None,
         operation_key: "ingest/42".into(),
+        pii_output: None,
     };
     let (a, b) = (inspect_document_graph(&req).unwrap(), inspect_document_graph(&req).unwrap());
     let (ra, rb) = (receipt_of(&a), receipt_of(&b));
