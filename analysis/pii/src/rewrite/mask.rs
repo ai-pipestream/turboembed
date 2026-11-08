@@ -47,6 +47,11 @@ impl fmt::Display for MaskError {
 
 impl std::error::Error for MaskError {}
 
+#[cfg(test)]
+thread_local! {
+    pub(super) static RETENTION_WORK: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Precomputed byte-offset retention bounds for linear-time per-character
 /// overlap checking across [`MaskPolicy`] and [`super::Truncate`].
 #[derive(Copy, Clone)]
@@ -63,6 +68,8 @@ impl CharRetention {
 
     #[inline]
     pub(super) fn keeps(self, rel_at: usize, c: char) -> bool {
+        #[cfg(test)]
+        RETENTION_WORK.with(|n| n.set(n.get() + 1));
         if letter_or_digit(c) || !self.only_alnum_bounds {
             rel_at < self.keep_until || rel_at >= self.keep_from
         } else {
@@ -208,6 +215,8 @@ impl MaskPolicy {
 
     /// Precomputes byte-offset retention bounds for `piece` in `O(|piece|)`.
     pub(super) fn retention(self, piece: &str) -> CharRetention {
+        #[cfg(test)]
+        RETENTION_WORK.with(|n| n.set(n.get() + piece.len().max(1)));
         let mut keep_until = 0;
         if self.keep_leading > 0 {
             keep_until = piece.len();
