@@ -12,7 +12,7 @@ use turbo_trainer_recipes::cache::{CacheRecord, read_layer};
 use turbo_trainer_recipes::corpus::{Corpus, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, evaluate};
 use turbo_trainer_recipes::open_span::{
-    self, DEFAULT_MAX_WORDS, DEFAULT_WIDTH_DIM, dictionary_baseline, embed_label_names, encode_sentences, entity_types,
+    self, DEFAULT_MAX_WORDS, DEFAULT_WIDTH_DIM, dictionary_baseline, embed_label_names, encode_sentences,
     examples_from_features, filter_sentences, predict_from_features,
 };
 use turbo_trainer_recipes::open_span_mix::{combine, evaluate_dataset, read_corpora};
@@ -54,14 +54,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     }
     let full_train: Vec<Vec<turbo_trainer_recipes::corpus::Sentence>> =
         corpora.iter().map(|c| c.splits.train.clone()).collect();
-    let mut all_types = Vec::new();
-    for corpus in &corpora {
-        for kind in entity_types(corpus)? {
-            if !all_types.contains(&kind) {
-                all_types.push(kind);
-            }
-        }
-    }
+    let (all_types, declared_types) = turbo_trainer_recipes::open_span_mix::type_schema(&corpora)?;
     if max_train > 0 {
         let mut remaining = max_train;
         for c in &mut corpora {
@@ -107,38 +100,43 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     for (corpus, full) in corpora.iter().zip(&full_train) {
         extracted.push(features(&mut enc, corpus, full, pooling, cache_dir.as_deref(), layer_arg, &encoder)?);
     }
-    let (mut train_wf, mut dev_wf, mut test_wf) = (Vec::new(), Vec::new(), Vec::new());
-    for ((corpus, f), period) in corpora.iter().zip(&extracted).zip(&train_periods) {
-        train_wf.extend(turbo_trainer_recipes::open_span_mix::align_train_features(
-            &f.train,
-            corpus.splits.train.len(),
-            *period,
-        )?);
-        dev_wf.extend(f.dev.clone());
-        test_wf.extend(f.test.clone());
-    }
     let seen_lf = embed_label_names(&mut enc, &seen_types, pooling)?;
+    let (mut train_ex, mut dev_ex, mut test_wf) = (Vec::new(), Vec::new(), Vec::new());
+    let mut dev_left_out = 0;
+    for (((corpus, f), period), declared) in corpora.iter().zip(&extracted).zip(&train_periods).zip(&declared_types) {
+        test_wf.extend(f.test.clone());
+        let local_types = turbo_trainer_recipes::open_span_mix::corpus_active_types(declared, &seen_types);
+        if local_types.is_empty() {
+            continue;
+        }
+        let local_lf = embed_label_names(&mut enc, &local_types, pooling)?;
+        let train_wf =
+            turbo_trainer_recipes::open_span_mix::align_train_features(&f.train, corpus.splits.train.len(), *period)?;
+        let (train, _) = examples_from_features(
+            &corpus.splits.train,
+            &train_wf,
+            &local_lf,
+            &local_types,
+            &hold_out,
+            max_words,
+            hidden,
+            Some(c.seed),
+        )?;
+        let (dev, left) = examples_from_features(
+            &corpus.splits.dev,
+            &f.dev,
+            &local_lf,
+            &local_types,
+            &hold_out,
+            max_words,
+            hidden,
+            None,
+        )?;
+        train_ex.extend(train);
+        dev_ex.extend(dev);
+        dev_left_out += left;
+    }
     let all_lf = embed_label_names(&mut enc, &all_types, pooling)?;
-    let (train_ex, _) = examples_from_features(
-        &combined.splits.train,
-        &train_wf,
-        &seen_lf,
-        &seen_types,
-        &hold_out,
-        max_words,
-        hidden,
-        Some(c.seed),
-    )?;
-    let (dev_ex, dev_left_out) = examples_from_features(
-        &combined.splits.dev,
-        &dev_wf,
-        &seen_lf,
-        &seen_types,
-        &hold_out,
-        max_words,
-        hidden,
-        None,
-    )?;
     let features_s = t.elapsed().as_secs_f64();
     let feature_words: u64 =
         combined.splits.train.iter().chain(&combined.splits.dev).map(|s| s.words.len() as u64).sum();
@@ -156,9 +154,10 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         replace(&out_dir, "head.safetensors", &safetensors::write_with(&named(&spec, hidden, m.tensors()), &at))?;
         Ok(())
     };
-    let fitted = turbo_trainer::fit_open_spans_with(&spec, hidden, &train_ex, &dev_ex, &c, |m, e, d| {
-        save(m, e, d).map_err(|x| turbo::status::invalid(x.0))
-    });
+    let fitted =
+        turbo_trainer::fit_open_spans_with_label_center(&spec, hidden, &train_ex, &dev_ex, &c, &seen_lf, |m, e, d| {
+            save(m, e, d).map_err(|x| turbo::status::invalid(x.0))
+        });
     out.keep = out.keep || saved_any(&out_dir);
     let (model, report) = fitted.map_err(|e| Error(e.message))?;
     drop((train_ex, dev_ex));

@@ -99,12 +99,51 @@ pub fn fit_open_spans_with(
     train_set: &[OpenSpanExample],
     dev: &[OpenSpanExample],
     c: &Config,
+    each_epoch: impl FnMut(&OpenSpans<f32>, usize, f64) -> Result<()>,
+) -> Result<(OpenSpans<f32>, Report)> {
+    fit_with_center(spec, hidden, train_set, dev, c, None, each_epoch)
+}
+
+/// [`fit_open_spans_with`], with the label centroid computed from
+/// `center_labels` instead of the first example. Examples may then carry
+/// different caller label sets, such as each corpus's declared schema.
+pub fn fit_open_spans_with_label_center(
+    spec: &HeadSpec,
+    hidden: usize,
+    train_set: &[OpenSpanExample],
+    dev: &[OpenSpanExample],
+    c: &Config,
+    center_labels: &[f32],
+    each_epoch: impl FnMut(&OpenSpans<f32>, usize, f64) -> Result<()>,
+) -> Result<(OpenSpans<f32>, Report)> {
+    fit_with_center(spec, hidden, train_set, dev, c, Some(center_labels), each_epoch)
+}
+
+fn fit_with_center(
+    spec: &HeadSpec,
+    hidden: usize,
+    train_set: &[OpenSpanExample],
+    dev: &[OpenSpanExample],
+    c: &Config,
+    center_labels: Option<&[f32]>,
     mut each_epoch: impl FnMut(&OpenSpans<f32>, usize, f64) -> Result<()>,
 ) -> Result<(OpenSpans<f32>, Report)> {
     check_config(c, train_set.len())?;
+    // Malformed label rows are refused; a well-formed set whose mean has no
+    // dominant direction only skips the optional centering, as the
+    // first-example path does.
+    let cq = match center_labels {
+        Some(rows) => {
+            if !label_rows_ok(rows, hidden) {
+                return Err(invalid("trainer: invalid open-span label center"));
+            }
+            label_center(rows, hidden)
+        }
+        None => train_set.first().and_then(|e| label_center(&e.label_features, hidden)),
+    };
     let mut rng = Rng::new(c.seed);
     let mut model = OpenSpans::<f32>::new(spec, hidden, &mut rng)?;
-    if let Some((cx, cq)) = empirical_centers(train_set, hidden) {
+    if let (Some(cx), Some(cq)) = (token_center(train_set, hidden), cq) {
         model.set_centers(&cx, &cq);
     }
     let mut w = Work::default();
@@ -115,14 +154,12 @@ pub fn fit_open_spans_with(
     train(model, &mut rng, train_set, dev, c, &mut each_epoch)
 }
 
-fn empirical_centers(train_set: &[OpenSpanExample], hidden: usize) -> Option<(Vec<f32>, Vec<f32>)> {
+fn token_center(train_set: &[OpenSpanExample], hidden: usize) -> Option<Vec<f32>> {
     if hidden == 0 {
         return None;
     }
     let mut sum_x = vec![0.0f64; hidden];
     let mut count_x = 0usize;
-    let mut sum_q = vec![0.0f64; hidden];
-    let mut count_q = 0usize;
     for e in train_set {
         if !e.features.len().is_multiple_of(hidden) || !e.label_features.len().is_multiple_of(hidden) {
             continue;
@@ -142,23 +179,31 @@ fn empirical_centers(train_set: &[OpenSpanExample], hidden: usize) -> Option<(Ve
             }
         }
     }
-    if let Some(first_ex) = train_set.first()
-        && first_ex.label_features.len().is_multiple_of(hidden)
-    {
-        for row in first_ex.label_features.chunks_exact(hidden) {
-            let norm = row.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>().sqrt().max(1e-6);
-            for (s, &v) in sum_q.iter_mut().zip(row) {
-                *s += (v as f64) / norm;
-            }
-            count_q += 1;
-        }
-    }
-    if count_x == 0 || count_q == 0 {
+    if count_x == 0 {
         return None;
     }
     let cx: Vec<f32> = sum_x.iter().map(|&s| (s / count_x as f64) as f32).collect();
-    let cq: Vec<f32> = sum_q.iter().map(|&s| (s / count_q as f64) as f32).collect();
     let norm_x = cx.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>().sqrt();
-    let norm_q = cq.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>().sqrt();
-    (norm_x > 0.5 && norm_q > 0.5).then_some((cx, cq))
+    (norm_x > 0.5).then_some(cx)
+}
+
+fn label_rows_ok(rows: &[f32], hidden: usize) -> bool {
+    hidden != 0 && !rows.is_empty() && rows.len().is_multiple_of(hidden) && rows.iter().all(|v| v.is_finite())
+}
+
+fn label_center(rows: &[f32], hidden: usize) -> Option<Vec<f32>> {
+    if hidden == 0 || rows.is_empty() || !rows.len().is_multiple_of(hidden) {
+        return None;
+    }
+    let mut sum = vec![0.0f64; hidden];
+    for row in rows.chunks_exact(hidden) {
+        let norm = row.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>().sqrt().max(1e-6);
+        for (s, &v) in sum.iter_mut().zip(row) {
+            *s += (v as f64) / norm;
+        }
+    }
+    let count = rows.len() / hidden;
+    let center: Vec<f32> = sum.iter().map(|&s| (s / count as f64) as f32).collect();
+    let norm = center.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>().sqrt();
+    (norm > 0.5).then_some(center)
 }
