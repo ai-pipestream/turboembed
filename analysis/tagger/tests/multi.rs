@@ -368,3 +368,21 @@ fn a_language_is_selected_for_every_head() {
     let error = MultiTask::<All>::open_language(&dir, &[None; 4], &o, "it").err().unwrap();
     assert!(error.to_string().contains("unknown language"), "{error}");
 }
+
+#[test]
+fn a_lemma_head_without_a_language_passes_the_selection_to_its_pos_head() {
+    let dir = bundle("multi-language-pos-only", |m| {
+        let heads = m["heads"].as_array_mut().unwrap();
+        heads.iter_mut().find(|h| h["name"] == "pos").unwrap()["language"] =
+            json!({"languages": ["es", "ca"], "dim": 2});
+    });
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let o = EncoderOptions::default();
+    let es = MultiTask::<(Lemmas,)>::open_language(&dir, &[None], &o, "es").unwrap();
+    let (lemmas,) = es.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(lemmas.lemma.len(), toks.spans.len());
+    let error = MultiTask::<(Lemmas,)>::open_language(&dir, &[None], &o, "it").err().unwrap();
+    assert!(error.to_string().contains("unknown language") && error.to_string().contains("\"pos\""), "{error}");
+}
