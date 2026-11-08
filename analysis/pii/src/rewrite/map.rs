@@ -34,6 +34,10 @@ pub enum MapError {
     MissingDelimiter { line: usize },
     /// Reading a lookup table file failed.
     Io(String),
+    /// Two keys are equal once trimmed (and folded, unless case
+    /// sensitive), so which replacement applies would depend on order.
+    /// Refused by [`MapReplacer::new_unique`]; names no key.
+    DuplicateKey,
 }
 
 impl fmt::Display for MapError {
@@ -45,6 +49,7 @@ impl fmt::Display for MapError {
                 write!(f, "lookup table line {line} is missing the field delimiter")
             }
             MapError::Io(msg) => write!(f, "failed to read lookup table: {msg}"),
+            MapError::DuplicateKey => f.write_str("two lookup table keys are equal after trimming and case folding"),
         }
     }
 }
@@ -108,6 +113,28 @@ impl MapReplacer {
         K: Into<String>,
         V: Into<String>,
     {
+        MapReplacer::build(entries, case_sensitive, false)
+    }
+
+    /// As [`MapReplacer::new`], but two keys equal after trimming and
+    /// folding are refused with [`MapError::DuplicateKey`] instead of the
+    /// later one winning, so a table's meaning never depends on its order
+    /// (a redaction policy's inline and dictionary tables, #1882).
+    pub fn new_unique<I, K, V>(entries: I, case_sensitive: bool) -> Result<MapReplacer, MapError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
+        MapReplacer::build(entries, case_sensitive, true)
+    }
+
+    fn build<I, K, V>(entries: I, case_sensitive: bool, unique: bool) -> Result<MapReplacer, MapError>
+    where
+        I: IntoIterator<Item = (K, V)>,
+        K: Into<String>,
+        V: Into<String>,
+    {
         let mut table = HashMap::new();
         for (raw_k, raw_v) in entries {
             let k_owned = raw_k.into();
@@ -121,7 +148,9 @@ impl MapReplacer {
                 return Err(MapError::EmptyReplacement);
             }
             let norm_k = if case_sensitive { k.to_owned() } else { k.to_lowercase() };
-            table.insert(norm_k, v.to_owned());
+            if table.insert(norm_k, v.to_owned()).is_some() && unique {
+                return Err(MapError::DuplicateKey);
+            }
         }
         Ok(MapReplacer {
             table,

@@ -124,11 +124,16 @@ export type PiiKindRule = Message<"turbo.result.v1.PiiKindRule"> & {
   ruleId: string;
 
   /**
+   * The kind the rule applies to: a built-in PiiKindId, or an index into
+   * RedactionPolicy.custom_kinds. Required; one rule per kind.
+   *
    * @generated from field: turbo.result.v1.PiiKindRef kind = 2;
    */
   kind?: PiiKindRef | undefined;
 
   /**
+   * Whether the kind is detected at all. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiRuleState state = 3;
    */
   state: PiiRuleState;
@@ -170,6 +175,8 @@ export const PiiKindRuleSchema: GenMessage<PiiKindRule> = /*@__PURE__*/
  */
 export type PiiLabelOverride = Message<"turbo.result.v1.PiiLabelOverride"> & {
   /**
+   * Whether the kind needs a context label. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiLabelRequirement requirement = 1;
    */
   requirement: PiiLabelRequirement;
@@ -211,6 +218,9 @@ export type PiiStrategyEntry = Message<"turbo.result.v1.PiiStrategyEntry"> & {
   when: PiiStrategyCondition[];
 
   /**
+   * The rewrite the entry applies when every condition holds. Required; an
+   * unknown arm is refused unless the policy opts into redact-and-flag.
+   *
    * @generated from field: turbo.result.v1.PiiRewriteStrategy strategy = 2;
    */
   strategy?: PiiRewriteStrategy | undefined;
@@ -235,24 +245,32 @@ export type PiiStrategyCondition = Message<"turbo.result.v1.PiiStrategyCondition
    */
   test: {
     /**
+     * A checksum fact passed.
+     *
      * @generated from field: turbo.result.v1.PiiChecksumPassedCondition checksum_passed = 1;
      */
     value: PiiChecksumPassedCondition;
     case: "checksumPassed";
   } | {
     /**
+     * A label fact is recorded.
+     *
      * @generated from field: turbo.result.v1.PiiLabelPresentCondition label_present = 2;
      */
     value: PiiLabelPresentCondition;
     case: "labelPresent";
   } | {
     /**
+     * The detector that found the mention.
+     *
      * @generated from field: turbo.result.v1.PiiDetectorCondition detector = 3;
      */
     value: PiiDetectorCondition;
     case: "detector";
   } | {
     /**
+     * A score at least a threshold.
+     *
      * @generated from field: turbo.result.v1.PiiScoreCondition score_at_least = 4;
      */
     value: PiiScoreCondition;
@@ -275,6 +293,9 @@ export const PiiStrategyConditionSchema: GenMessage<PiiStrategyCondition> = /*@_
  */
 export type PiiChecksumPassedCondition = Message<"turbo.result.v1.PiiChecksumPassedCondition"> & {
   /**
+   * Checksum algorithms (PiiChecksumAlgorithm values) any one of which
+   * must have passed; empty means any algorithm.
+   *
    * @generated from field: repeated turbo.result.v1.PiiChecksumAlgorithm algorithms = 1;
    */
   algorithms: PiiChecksumAlgorithm[];
@@ -310,11 +331,15 @@ export const PiiLabelPresentConditionSchema: GenMessage<PiiLabelPresentCondition
  */
 export type PiiDetectorCondition = Message<"turbo.result.v1.PiiDetectorCondition"> & {
   /**
+   * The detector id (PiiDetectorRef.id). Required.
+   *
    * @generated from field: string id = 1;
    */
   id: string;
 
   /**
+   * The detector version (PiiDetectorRef.version); empty matches any.
+   *
    * @generated from field: string version = 2;
    */
   version: string;
@@ -335,16 +360,23 @@ export const PiiDetectorConditionSchema: GenMessage<PiiDetectorCondition> = /*@_
  */
 export type PiiScoreCondition = Message<"turbo.result.v1.PiiScoreCondition"> & {
   /**
+   * The score kind compared (PiiScore.kind). UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiScoreKind kind = 1;
    */
   kind: PiiScoreKind;
 
   /**
+   * The least score that holds, in the kind's own scale: [0, 1] for
+   * probability and heuristic, unbounded for logit. Finite.
+   *
    * @generated from field: float min = 2;
    */
   min: number;
 
   /**
+   * Only a score whose PiiScore.calibrated is true counts.
+   *
    * @generated from field: bool calibrated = 3;
    */
   calibrated: boolean;
@@ -469,12 +501,16 @@ export type PiiDefaultStrategy = Message<"turbo.result.v1.PiiDefaultStrategy"> &
    */
   strategy: {
     /**
+     * Mask every character.
+     *
      * @generated from field: turbo.result.v1.PiiMaskStrategy mask = 1;
      */
     value: PiiMaskStrategy;
     case: "mask";
   } | {
     /**
+     * A keyed HMAC-SHA-256 token under a registered key.
+     *
      * @generated from field: turbo.result.v1.PiiKeyedTokenStrategy keyed_token = 2;
      */
     value: PiiKeyedTokenStrategy;
@@ -526,6 +562,8 @@ export const PiiMaskStrategySchema: GenMessage<PiiMaskStrategy> = /*@__PURE__*/
  */
 export type PiiFormatStrategy = Message<"turbo.result.v1.PiiFormatStrategy"> & {
   /**
+   * The template, UTF-8; %t, %k, %v and %% as above. Non-empty.
+   *
    * @generated from field: string template = 1;
    */
   template: string;
@@ -546,11 +584,16 @@ export const PiiFormatStrategySchema: GenMessage<PiiFormatStrategy> = /*@__PURE_
  */
 export type PiiTruncateStrategy = Message<"turbo.result.v1.PiiTruncateStrategy"> & {
   /**
+   * The side kept. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiKeepSide side = 1;
    */
   side: PiiKeepSide;
 
   /**
+   * Characters kept (Unicode scalar values; letters and digits only with
+   * `keep_format`). 0 masks the whole mention.
+   *
    * @generated from field: uint32 count = 2;
    */
   count: number;
@@ -584,16 +627,23 @@ export const PiiTruncateStrategySchema: GenMessage<PiiTruncateStrategy> = /*@__P
  */
 export type PiiLastNStrategy = Message<"turbo.result.v1.PiiLastNStrategy"> & {
   /**
+   * Characters kept at the end (Unicode scalar values; letters and digits
+   * only with `keep_format`). 0 masks the whole mention.
+   *
    * @generated from field: uint32 count = 1;
    */
   count: number;
 
   /**
+   * One character; empty means '*'.
+   *
    * @generated from field: string mask_char = 2;
    */
   maskChar: string;
 
   /**
+   * Count letters and digits only and leave separators readable.
+   *
    * @generated from field: bool keep_format = 3;
    */
   keepFormat: boolean;
@@ -614,21 +664,29 @@ export const PiiLastNStrategySchema: GenMessage<PiiLastNStrategy> = /*@__PURE__*
  */
 export type PiiAbbreviateStrategy = Message<"turbo.result.v1.PiiAbbreviateStrategy"> & {
   /**
+   * Written between initials, UTF-8; may be empty.
+   *
    * @generated from field: string separator = 1;
    */
   separator: string;
 
   /**
+   * Written after the last initial, UTF-8; may be empty.
+   *
    * @generated from field: string trailing = 2;
    */
   trailing: string;
 
   /**
+   * A hyphenated word gives one initial per part, joined by '-'.
+   *
    * @generated from field: bool preserve_hyphens = 3;
    */
   preserveHyphens: boolean;
 
   /**
+   * Keep each initial's case; false writes initials upper-case.
+   *
    * @generated from field: bool preserve_case = 4;
    */
   preserveCase: boolean;
@@ -648,11 +706,16 @@ export const PiiAbbreviateStrategySchema: GenMessage<PiiAbbreviateStrategy> = /*
  */
 export type PiiPolicyKeyRef = Message<"turbo.result.v1.PiiPolicyKeyRef"> & {
   /**
+   * The registered key's id (`--pii-token-key ID:VERSION:PATH`): ASCII,
+   * at most 128 bytes, never key material. Required.
+   *
    * @generated from field: string id = 1;
    */
   id: string;
 
   /**
+   * The registered key's version, read unsigned. Required (not 0).
+   *
    * @generated from field: uint32 version = 2;
    */
   version: number;
@@ -674,11 +737,15 @@ export const PiiPolicyKeyRefSchema: GenMessage<PiiPolicyKeyRef> = /*@__PURE__*/
  */
 export type PiiKeyedTokenStrategy = Message<"turbo.result.v1.PiiKeyedTokenStrategy"> & {
   /**
+   * The registered key. Required; an unregistered reference is refused.
+   *
    * @generated from field: turbo.result.v1.PiiPolicyKeyRef key = 1;
    */
   key?: PiiPolicyKeyRef | undefined;
 
   /**
+   * Hexadecimal digits written, 4 to 64; 0 means 16.
+   *
    * @generated from field: uint32 length = 2;
    */
   length: number;
@@ -735,6 +802,8 @@ export const PiiSha256StrategySchema: GenMessage<PiiSha256Strategy> = /*@__PURE_
  */
 export type PiiStaticStrategy = Message<"turbo.result.v1.PiiStaticStrategy"> & {
   /**
+   * The text written for every mention, UTF-8. Non-empty.
+   *
    * @generated from field: string replacement = 1;
    */
   replacement: string;
@@ -756,11 +825,16 @@ export const PiiStaticStrategySchema: GenMessage<PiiStaticStrategy> = /*@__PURE_
  */
 export type PiiPseudonymStrategy = Message<"turbo.result.v1.PiiPseudonymStrategy"> & {
   /**
+   * Written before the upper-case kind name, '-' and number, UTF-8, such
+   * as '['; may be empty.
+   *
    * @generated from field: string prefix = 1;
    */
   prefix: string;
 
   /**
+   * Written after the number, UTF-8, such as ']'; may be empty.
+   *
    * @generated from field: string suffix = 2;
    */
   suffix: string;
@@ -784,12 +858,17 @@ export type PiiMapStrategy = Message<"turbo.result.v1.PiiMapStrategy"> & {
    */
   table: {
     /**
+     * The table inline.
+     *
      * @generated from field: turbo.result.v1.PiiMapEntries entries = 1;
      */
     value: PiiMapEntries;
     case: "entries";
   } | {
     /**
+     * A `headword-definition-tsv` dictionary of the vocabulary store: a
+     * key, a tab and its replacement a line (#1882 part C).
+     *
      * @generated from field: turbo.result.v1.PiiDictionaryRef dictionary = 2;
      */
     value: PiiDictionaryRef;
@@ -797,11 +876,15 @@ export type PiiMapStrategy = Message<"turbo.result.v1.PiiMapStrategy"> & {
   } | { case: undefined; value?: undefined };
 
   /**
+   * Look keys up case-sensitively; false folds both sides to lower case.
+   *
    * @generated from field: bool case_sensitive = 3;
    */
   caseSensitive: boolean;
 
   /**
+   * Which form of the mention is looked up. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiMapTarget target = 4;
    */
   target: PiiMapTarget;
@@ -829,6 +912,9 @@ export const PiiMapStrategySchema: GenMessage<PiiMapStrategy> = /*@__PURE__*/
  */
 export type PiiMapEntries = Message<"turbo.result.v1.PiiMapEntries"> & {
   /**
+   * Value to replacement, both UTF-8 and trimmed of surrounding
+   * whitespace before use.
+   *
    * @generated from field: map<string, string> entries = 1;
    */
   entries: { [key: string]: string };
@@ -849,11 +935,18 @@ export const PiiMapEntriesSchema: GenMessage<PiiMapEntries> = /*@__PURE__*/
  */
 export type PiiDictionaryRef = Message<"turbo.result.v1.PiiDictionaryRef"> & {
   /**
+   * The vocabulary store artifact id (DictionaryArtifactDescriptor.artifact_id).
+   * Required; at most 128 bytes, never a path.
+   *
    * @generated from field: string artifact_id = 1;
    */
   artifactId: string;
 
   /**
+   * 64 lowercase hexadecimal digits: the SHA-256 of the stored bytes
+   * (DictionaryArtifactDescriptor.sha256). A stored artifact with another
+   * digest does not resolve.
+   *
    * @generated from field: string sha256 = 2;
    */
   sha256: string;
@@ -877,12 +970,17 @@ export type PiiTermSource = Message<"turbo.result.v1.PiiTermSource"> & {
    */
   source: {
     /**
+     * The terms inline.
+     *
      * @generated from field: turbo.result.v1.PiiTerms terms = 1;
      */
     value: PiiTerms;
     case: "terms";
   } | {
     /**
+     * A `plain-word-list` dictionary of the vocabulary store: one term a
+     * line (#1882 part C).
+     *
      * @generated from field: turbo.result.v1.PiiDictionaryRef dictionary = 2;
      */
     value: PiiDictionaryRef;
@@ -902,6 +1000,8 @@ export const PiiTermSourceSchema: GenMessage<PiiTermSource> = /*@__PURE__*/
  */
 export type PiiTerms = Message<"turbo.result.v1.PiiTerms"> & {
   /**
+   * Each term, UTF-8; non-empty.
+   *
    * @generated from field: repeated string terms = 1;
    */
   terms: string[];
@@ -919,16 +1019,22 @@ export const PiiTermsSchema: GenMessage<PiiTerms> = /*@__PURE__*/
  */
 export type PiiAllowPattern = Message<"turbo.result.v1.PiiAllowPattern"> & {
   /**
+   * The pattern syntax. UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiPatternSyntax syntax = 1;
    */
   syntax: PiiPatternSyntax;
 
   /**
+   * The pattern in `syntax`, UTF-8. Non-empty.
+   *
    * @generated from field: string pattern = 2;
    */
   pattern: string;
 
   /**
+   * Match case-sensitively; false folds both sides to lower case.
+   *
    * @generated from field: bool case_sensitive = 3;
    */
   caseSensitive: boolean;
@@ -949,16 +1055,22 @@ export const PiiAllowPatternSchema: GenMessage<PiiAllowPattern> = /*@__PURE__*/
  */
 export type PiiAllowList = Message<"turbo.result.v1.PiiAllowList"> & {
   /**
+   * Term sources; each term is matched against the whole mention.
+   *
    * @generated from field: repeated turbo.result.v1.PiiTermSource terms = 1;
    */
   terms: PiiTermSource[];
 
   /**
+   * Match the terms case-sensitively.
+   *
    * @generated from field: bool case_sensitive = 2;
    */
   caseSensitive: boolean;
 
   /**
+   * Patterns matched against the whole mention.
+   *
    * @generated from field: repeated turbo.result.v1.PiiAllowPattern patterns = 3;
    */
   patterns: PiiAllowPattern[];
@@ -978,6 +1090,8 @@ export const PiiAllowListSchema: GenMessage<PiiAllowList> = /*@__PURE__*/
  */
 export type PiiDenyList = Message<"turbo.result.v1.PiiDenyList"> & {
   /**
+   * The caller's id for the list, unique in the policy. Required.
+   *
    * @generated from field: string rule_id = 1;
    */
   ruleId: string;
@@ -991,11 +1105,15 @@ export type PiiDenyList = Message<"turbo.result.v1.PiiDenyList"> & {
   kind?: PiiKindRef | undefined;
 
   /**
+   * The terms found. Required.
+   *
    * @generated from field: turbo.result.v1.PiiTermSource terms = 3;
    */
   terms?: PiiTermSource | undefined;
 
   /**
+   * Match the terms case-sensitively.
+   *
    * @generated from field: bool case_sensitive = 4;
    */
   caseSensitive: boolean;
@@ -1029,6 +1147,8 @@ export const PiiDenyListSchema: GenMessage<PiiDenyList> = /*@__PURE__*/
  */
 export type PiiCustomIdentifier = Message<"turbo.result.v1.PiiCustomIdentifier"> & {
   /**
+   * The caller's id for the identifier, unique in the policy. Required.
+   *
    * @generated from field: string rule_id = 1;
    */
   ruleId: string;
@@ -1049,6 +1169,8 @@ export type PiiCustomIdentifier = Message<"turbo.result.v1.PiiCustomIdentifier">
   shape: string;
 
   /**
+   * Match the shape's letters case-sensitively.
+   *
    * @generated from field: bool case_sensitive = 4;
    */
   caseSensitive: boolean;
@@ -1074,12 +1196,16 @@ export type PiiRedactionSelection = Message<"turbo.result.v1.PiiRedactionSelecti
    */
   policy: {
     /**
+     * A policy given in the request; resolved and digested per request.
+     *
      * @generated from field: turbo.result.v1.RedactionPolicy inline = 1;
      */
     value: RedactionPolicy;
     case: "inline";
   } | {
     /**
+     * The id of a policy the server loaded with `--pii-policy`.
+     *
      * @generated from field: string name = 2;
      */
     value: string;

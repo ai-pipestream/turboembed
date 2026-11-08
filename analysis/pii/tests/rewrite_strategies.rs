@@ -189,6 +189,12 @@ fn map_replacer_supports_inline_tsv_files_case_sensitivity_targets_and_fallbacks
 
     assert_eq!(MapReplacer::new([("  ", "VAL")], true), Err(MapError::EmptyKey));
     assert_eq!(MapReplacer::new([("KEY", "  ")], true), Err(MapError::EmptyReplacement));
+    // new keeps the later of two keys equal once trimmed and folded;
+    // new_unique refuses them, unless case sensitivity keeps them apart.
+    assert!(MapReplacer::new([(" k ", "B"), ("K", "A")], false).is_ok());
+    assert_eq!(MapReplacer::new_unique([(" k ", "B"), ("K", "A")], false), Err(MapError::DuplicateKey));
+    assert_eq!(MapReplacer::new_unique([(" k ", "B"), ("k", "A")], true), Err(MapError::DuplicateKey));
+    assert!(MapReplacer::new_unique([("k", "B"), ("K", "A")], true).is_ok());
     assert_eq!(
         MapReplacer::from_tsv("ok\tval\nbad_line_without_tab\n", true),
         Err(MapError::MissingDelimiter { line: 2 })

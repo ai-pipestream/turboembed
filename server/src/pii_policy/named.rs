@@ -40,6 +40,11 @@ impl NamedPolicies {
         Ok(NamedPolicies { by_id })
     }
 
+    /// Decodes and converts `files`, the server's `--pii-policy` files.
+    pub fn from_files(files: &PolicyFiles, resolver: &dyn PolicyResolver) -> Result<NamedPolicies, String> {
+        NamedPolicies::from_encoded(&files.0, resolver)
+    }
+
     /// Decodes each binary `RedactionPolicy` message, then
     /// [`NamedPolicies::from_messages`].
     pub fn from_encoded(files: &[Vec<u8>], resolver: &dyn PolicyResolver) -> Result<NamedPolicies, String> {
@@ -113,4 +118,16 @@ pub fn select(
         }
     };
     Ok(Redaction { policy, dry_run: sel.dry_run })
+}
+
+/// The encoded `RedactionPolicy` files a server serves by name, converted
+/// at start once the vocabulary store is open. `Debug` shows how many,
+/// never their bytes, which may hold terms.
+#[derive(Clone, Default)]
+pub struct PolicyFiles(pub Vec<Vec<u8>>);
+
+impl std::fmt::Debug for PolicyFiles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PolicyFiles({})", self.0.len())
+    }
 }

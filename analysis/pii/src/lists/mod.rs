@@ -19,6 +19,7 @@
 
 mod allow;
 mod deny;
+mod fuzzy;
 mod pattern;
 
 use std::fmt;

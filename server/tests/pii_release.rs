@@ -294,3 +294,34 @@ async fn a_values_request_says_why_nothing_was_released() {
     assert_eq!(audit.events.lock().unwrap().len(), 1, "only the release is recorded");
     s.stop().await;
 }
+
+#[tokio::test]
+async fn nothing_produces_not_allowed_by_policy_yet() {
+    // NOT_ALLOWED_BY_POLICY waits for a per-kind policy ceiling (#1943).
+    // Over the wire a form the server-wide policy excludes refuses the
+    // whole request, and in process a policy that excludes the form
+    // withholds every mention as not granted.
+    let files = Files::create("no-policy-reason");
+    let (_audit, at) = audit(Answer::Ack).await;
+    let grant = format!("{}:token+clear:email", client_fingerprint());
+    let config = release(&files, &[grant], at, SECOND);
+    let token_only = PiiOutputPolicy { values: Forms::of(Form::Token), ..PiiOutputPolicy::ALL };
+    let s = server(&files, config.clone(), token_only).await;
+    let mut c = connect(&s, true).await.unwrap();
+    let never = |typed: &TypedDocumentResult| {
+        assert!(forms(typed).iter().all(|f| reason(f) != Some(PiiWithheldReason::NotAllowedByPolicy)), "{typed:?}");
+    };
+    for form in [PiiValueForm::Unspecified, PiiValueForm::Token, PiiValueForm::Clear, PiiValueForm::Ciphertext] {
+        if let Ok(typed) = c.inspect_document_graph(ask(form, "op-no-policy")).await {
+            never(&typed.into_inner());
+        }
+    }
+    let typed = c.inspect_document_graph(ask(PiiValueForm::Token, "op-no-policy")).await.unwrap().into_inner();
+    assert_eq!(reason(&forms(&typed)[1]), Some(PiiWithheldReason::NotGranted), "the phone kind is not granted");
+    s.stop().await;
+    let rel = Release::start(Some(&config), Some(&files.tls)).unwrap().unwrap();
+    let service = Some(Fingerprint::parse(&client_fingerprint()).unwrap());
+    if let Ok(typed) = rel.inspect(service, ask(PiiValueForm::Clear, "op-in-process"), Form::Clear, token_only).await {
+        never(&typed);
+    }
+}

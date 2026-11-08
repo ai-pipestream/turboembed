@@ -629,10 +629,10 @@ caller nothing about it:
 Outcomes that depend on the document are on the answer, per mention.
 `PiiValueWithheld.reason` (field 1) says why a value is withheld:
 `NOT_REQUESTED` when the request asked for no value, `NOT_GRANTED` when
-the service is not granted the form for the mention's kind, and
-`NOT_ALLOWED_BY_POLICY` when the policy does not allow it for that kind
-(a per-kind policy, #1882; today's server-wide `--pii-output-allow`
-refuses the whole request instead, as above).
+the service is not granted the form for the mention's kind.
+`NOT_ALLOWED_BY_POLICY` is defined for a per-kind policy ceiling
+(#1943) and nothing produces it yet: today's server-wide
+`--pii-output-allow` refuses the whole request instead, as above.
 `UNSPECIFIED` is never produced and the validator refuses it. A released
 mention carries its token or clear arm, and a document with no mentions
 has an empty list. A reason names nothing beyond the mention's own kind,
@@ -664,10 +664,17 @@ event carries the operation key and the attempt id the answer's receipt
 names, the input
 digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
 instance and index with their kind and form, the policy id and the
-SHA-256 of its rules, the time and the document id; never a value, token
-or text. Its id is the SHA-256 of what a retry keeps: the service
-fingerprint, the operation key, the input digest, the mention set, the forms in effect and the
-policy digest. The attempt is not part of it, so every attempt at one
+SHA-256 of its rules (the server output ceiling and the grant that
+allowed the release), the time and the document id; never a value, token
+or text. Each released mention also names the redaction policy that
+covers it (#1882 part C): `rule_id`, `policy_revision` and
+`redaction_policy_digest` copied from the `turbo:pii-edits` edit of a
+named `RedactionPolicy` in the same graph whose members include it, and
+empty when no such edit covers it. Its id is the SHA-256 of what a retry
+keeps: the service fingerprint, the operation key, the input digest, the
+mention set (each mention's redaction policy fields included, or an
+explicit absent marker), the forms in effect and the policy digest, so
+two releases that differ only in redaction policy have different ids. The attempt is not part of it, so every attempt at one
 release has the same id and the audit service keeps one record. The sink drops items when its queue is full, so it
 never carries these events. A request that releases nothing records
 nothing.
@@ -956,8 +963,22 @@ An unknown name is refused without echoing it.
   position, never the path, a term or a key.
 - **References**: a keyed-token key (`PiiPolicyKeyRef`) resolves through
   the token keys registered with `--pii-token-key` (PII value release);
-  an unregistered key refuses the policy. Dictionary references are
-  refused until the server has a dictionary registry.
+  an unregistered key refuses the policy. A dictionary reference
+  (`PiiDictionaryRef`) resolves through the vocabulary store
+  (`--vocabulary-dir`, docs/grpc-vocabulary.md), pinned by content: the
+  stored dictionary must have exactly the reference's SHA-256 and the
+  format its use takes, `plain-word-list` for term sources and
+  `headword-definition-tsv` (a key, a tab and the replacement) for map
+  tables. A digest mismatch, an unknown artifact, another format or a
+  server without a store refuses the policy with an error that names the
+  reference and never the content. Entries go through the same
+  normalization as inline ones (trimmed, and folded unless
+  `case_sensitive`), so a dictionary and the same entries inline redact
+  alike; in either, two keys that are equal once normalized refuse the
+  policy, since which replacement applies would depend on order. Named policies resolve their dictionaries at start
+  (a bad reference fails start-up); inline policies resolve per request,
+  and resolved dictionaries are cached by artifact id and digest.
+  Uploads stay the vocabulary service's admin calls.
 - **Detection**: with a policy, `turbo-pii:pii` drops disabled kinds,
   applies the global and per-kind allow lists and label overrides, and
   adds the deny lists and a custom identifier scanner

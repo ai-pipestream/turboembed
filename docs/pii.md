@@ -393,6 +393,11 @@ The server's `turbo-pii:redact` step writes the same view and edits from
 a typed `RedactionPolicy` (docs/grpc-analysis.md, "The redact step"),
 choosing each mention's strategy with `rewrite::rewrite_chosen` and a
 `StrategyChooser`; its edits also carry the policy rule id and digest.
+Policy dictionaries (`PiiDictionaryRef`) resolve through the vocabulary
+store, pinned by content, and release audit events name each released
+mention's covering rule, revision and digest (#1882 part C). The PII wire
+messages are frozen under the proto compatibility policy from #1882 on:
+see docs/grpc.md, "PII and result envelope freeze (#1882)".
 
 `RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
 `View` and the `turbo:pii` layer over it and writes the rewritten text as
@@ -555,6 +560,14 @@ values or flag domain-specific terms without writing a custom byte scanner:
     at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
     characters for `1` edit, `>= 6` characters for `2` edits; words
     shorter than `4` characters only match at `0` edits).
+    Fuzzy terms are indexed by their first word (`analysis/pii/src/lists/fuzzy.rs`): a
+    first word of up to 24 characters by the hashes of every string left
+    after deleting up to its edit budget of characters, a longer one by
+    length, so a text word is only checked against terms that share one of
+    its own deletion hashes. Two words within `k` edits always share one,
+    so the index never drops a match (#1935).
+    `cargo run --release -p turbo-pii --example fuzzy_deny_bench` times the
+    fuzzy scan against the exact scan.
   - `DenyList::capitalised_only` (`with_capitalised_only`,
     `capitalized_only`) requires a candidate in the text to start with an
     uppercase or titlecase letter (`Lu` or `Lt`), preventing fuzzy matches
