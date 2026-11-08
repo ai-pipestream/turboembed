@@ -26,6 +26,10 @@ pub struct KeyRef {
 }
 
 impl KeyRef {
+    fn valid_id(id: &str) -> bool {
+        !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    }
+
     /// `ID:VERSION`; the id is ASCII letters, digits, `-`, `_` and `.`,
     /// and the version a number from 1.
     pub fn parse(s: &str) -> Result<KeyRef, String> {
@@ -34,7 +38,7 @@ impl KeyRef {
     }
 
     fn new(id: &str, version: &str) -> Result<KeyRef, String> {
-        if id.is_empty() || id.len() > 64 || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b)) {
+        if !Self::valid_id(id) {
             return Err(format!("key id `{id}` is not 1 to 64 of A-Z, a-z, 0-9, -, _ and ."));
         }
         match version.parse::<u32>() {
@@ -48,10 +52,10 @@ impl KeyRef {
         PiiPolicyKeyRef { id: self.id.clone(), version: self.version }
     }
 
-    /// A policy's key reference, refused without an id or a version.
+    /// A policy's key reference, with the same ID contract as the CLI.
     pub fn of_policy(r: &PiiPolicyKeyRef) -> Result<KeyRef, String> {
-        if r.id.is_empty() || r.version == 0 {
-            return Err("a key reference needs an id and a version from 1".into());
+        if !Self::valid_id(&r.id) || r.version == 0 {
+            return Err("a key reference needs a valid ID and a version from 1".into());
         }
         Ok(KeyRef { id: r.id.clone(), version: r.version })
     }
