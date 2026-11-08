@@ -222,14 +222,27 @@ pub fn plans_pii(analyzer: &Analyzer) -> bool {
 }
 
 /// Whether `view` is a PII rewrite view: not the source, written by a
-/// `turbo-pii:` annotator.
+/// `turbo-pii:` annotator, that rewrote every finding the document holds
+/// (#1932). A `turbo:pii` instance the view did not read, with a mention
+/// or without a layer to say it has none, may hold a value the view
+/// carries in clear, so that view is not one.
 pub fn is_rewrite_view(doc: &Document, view: ViewId) -> bool {
     view != ViewId::SOURCE
         && doc.layers().any(|k| {
             k.ty == TypeId::of::<View>()
                 && doc.get_key(&Key::<View>::named(k.name)).is_some_and(|v| v.id() == view)
-                && doc.provenance(k).is_some_and(|p| p.annotator.starts_with(REWRITE_ANNOTATOR_PREFIX))
+                && doc.provenance(k).is_some_and(|p| {
+                    p.annotator.starts_with(REWRITE_ANNOTATOR_PREFIX) && rewrote_every_finding(doc, &p.reads)
+                })
         })
+}
+
+/// Whether every `turbo:pii` instance of `doc` is in `reads` or holds no
+/// mention.
+fn rewrote_every_finding(doc: &Document, reads: &[turbo_analysis::KeyId]) -> bool {
+    doc.layers().filter(|k| k.ty == TypeId::of::<Pii>()).all(|k| {
+        reads.contains(&k) || doc.get_key(&Key::<Pii>::named(k.name)).is_some_and(|p| p.mentions().next().is_none())
+    })
 }
 
 /// The value every finding carries today.
