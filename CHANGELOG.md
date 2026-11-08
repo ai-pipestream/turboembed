@@ -84,7 +84,8 @@ stubs must be regenerated.
   (`--vocabulary-dir`) by artifact id and sha256, in the
   `plain-word-list` and `headword-definition-tsv` formats, with typed
   refusals for a digest mismatch, a wrong format or an unreadable
-  artifact (#1928).
+  artifact. In a dictionary or inline map table, two keys equal once
+  trimmed and folded refuse the policy (#1928).
 - `PiiValueWithheld.reason` (field 1, `PiiWithheldReason`): each
   withheld mention says why, `NOT_REQUESTED` or `NOT_GRANTED`;
   `UNSPECIFIED` is refused, and `NOT_ALLOWED_BY_POLICY` is defined for a

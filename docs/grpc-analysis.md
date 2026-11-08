@@ -972,8 +972,10 @@ An unknown name is refused without echoing it.
   tables. A digest mismatch, an unknown artifact, another format or a
   server without a store refuses the policy with an error that names the
   reference and never the content. Entries go through the same
-  normalization as inline ones, so a dictionary and the same entries
-  inline redact alike. Named policies resolve their dictionaries at start
+  normalization as inline ones (trimmed, and folded unless
+  `case_sensitive`), so a dictionary and the same entries inline redact
+  alike; in either, two keys that are equal once normalized refuse the
+  policy, since which replacement applies would depend on order. Named policies resolve their dictionaries at start
   (a bad reference fails start-up); inline policies resolve per request,
   and resolved dictionaries are cached by artifact id and digest.
   Uploads stay the vocabulary service's admin calls.

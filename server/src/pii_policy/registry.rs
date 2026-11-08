@@ -127,7 +127,8 @@ impl PolicyResolver for ServerResolver {
     fn map_entries(&self, id: &str, sha256: &str) -> Result<Arc<[(String, String)]>, ResolveError> {
         let parse = |b: &[u8]| {
             let mut rows = formats::map_table(b)?;
-            // Sorted as inline entries are, so the same rows give the same table.
+            // Sorted so the cached rows do not depend on file order; keys equal
+            // once normalized are refused when the table is built.
             rows.sort_unstable();
             Ok(Resolved::Map(rows.into()))
         };

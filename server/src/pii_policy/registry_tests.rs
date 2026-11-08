@@ -121,3 +121,66 @@ fn a_refused_reference_names_the_ref_and_never_the_content() {
         assert!(!err.contains(SECRET) && !err.contains("J. Doe"), "{err}");
     }
 }
+
+fn map_policy(table: pb::pii_map_strategy::Table) -> pb::RedactionPolicy {
+    let map = pb::PiiMapStrategy {
+        table: Some(table),
+        target: pb::PiiMapTarget::NormalizedOrSurface as i32,
+        ..Default::default()
+    };
+    pb::RedactionPolicy {
+        id: "p".into(),
+        revision: 1,
+        kind_rules: vec![pb::PiiKindRule {
+            rule_id: "email".into(),
+            kind: Some(pb::PiiKindRef { kind: Some(pb::pii_kind_ref::Kind::Builtin(pb::PiiKindId::Email as i32)) }),
+            state: pb::PiiRuleState::Enabled as i32,
+            strategies: vec![pb::PiiStrategyEntry {
+                when: Vec::new(),
+                strategy: Some(pb::PiiRewriteStrategy {
+                    strategy: Some(pb::pii_rewrite_strategy::Strategy::Map(Box::new(map))),
+                }),
+            }],
+            ..Default::default()
+        }],
+        default_strategy: Some(pb::PiiDefaultStrategy {
+            strategy: Some(pb::pii_default_strategy::Strategy::Mask(pb::PiiMaskStrategy::default())),
+        }),
+        ..Default::default()
+    }
+}
+
+/// Review 6726099150: keys equal once trimmed (or folded) used to pick the
+/// last row by file order in a dictionary and by sorted order inline, so
+/// the same entries redacted differently. Both now refuse the policy.
+#[test]
+fn map_keys_equal_once_normalized_are_refused_inline_and_from_a_dictionary() {
+    let store = Arc::new(Store::open(&dir("collide")).unwrap());
+    let rows = format!(" {SECRET} \tB\n{SECRET}\tA\n");
+    let map = put(&store, "dict-collide", MAP_FORMAT, rows.as_bytes());
+    let r = ServerResolver::load(&[], Some(store)).unwrap();
+    let inline = pb::PiiMapEntries {
+        entries: [(format!(" {SECRET} "), "B".to_owned()), (SECRET.to_owned(), "A".to_owned())].into(),
+    };
+    let folded = pb::PiiMapEntries {
+        entries: [(SECRET.to_uppercase(), "B".to_owned()), (SECRET.to_owned(), "A".to_owned())].into(),
+    };
+    let dict = pb::PiiDictionaryRef { artifact_id: "dict-collide".into(), sha256: map };
+    use pb::pii_map_strategy::Table;
+    for table in [Table::Entries(inline), Table::Entries(folded), Table::Dictionary(dict)] {
+        let err = RedactionPolicy::from_proto(&map_policy(table), &r).unwrap_err().to_string();
+        assert!(err.contains("equal after trimming and case folding"), "{err}");
+        assert!(!err.contains(SECRET), "{err}");
+    }
+    // Distinct keys, or equal keys under case_sensitive, still convert.
+    let ok = pb::PiiMapEntries {
+        entries: [(SECRET.to_uppercase(), "B".to_owned()), (SECRET.to_owned(), "A".to_owned())].into(),
+    };
+    let mut policy = map_policy(Table::Entries(ok));
+    if let Some(pb::pii_rewrite_strategy::Strategy::Map(m)) =
+        &mut policy.kind_rules[0].strategies[0].strategy.as_mut().unwrap().strategy
+    {
+        m.case_sensitive = true;
+    }
+    RedactionPolicy::from_proto(&policy, &r).unwrap();
+}

@@ -74,9 +74,9 @@ fn map(
     let replacer = match &m.table {
         None => return Err(PolicyError::UnknownArm { at, field: "map.table" }),
         Some(Table::Entries(e)) => {
-            let mut entries: Vec<(&str, &str)> = e.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-            entries.sort_unstable();
-            MapReplacer::new(entries, m.case_sensitive)
+            // Keys equal once trimmed and folded are refused in both
+            // tables, so inline and dictionary entries mean the same.
+            MapReplacer::new_unique(e.entries.iter().map(|(k, v)| (k.as_str(), v.as_str())), m.case_sensitive)
         }
         Some(Table::Dictionary(d)) => {
             check_dictionary(at, &d.artifact_id, &d.sha256)?;
@@ -85,7 +85,7 @@ fn map(
                 field: "map.dictionary",
                 reason: format!("dictionary {}: {}", d.artifact_id, e.reason()),
             })?;
-            MapReplacer::new(entries.iter().map(|(k, v)| (k.as_str(), v.as_str())), m.case_sensitive)
+            MapReplacer::new_unique(entries.iter().map(|(k, v)| (k.as_str(), v.as_str())), m.case_sensitive)
         }
     }
     .map_err(|e| invalid(at, e))?;
