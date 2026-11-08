@@ -25,7 +25,7 @@ use crate::proto::result::pii_kind_ref::Kind;
 use crate::proto::result::pii_value::Form;
 use crate::proto::result::{
     PiiCandidateAnnotation, PiiDetectorRef, PiiDisposition, PiiEvidence as WireEvidence, PiiMention, PiiScore,
-    TypedLayer, pii_disposition, pii_evidence,
+    PiiWithheldReason, TypedLayer, pii_disposition, pii_evidence,
 };
 
 /// Whether `lid` is one of the three layers that carry a PII kind table.
@@ -182,12 +182,16 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
     if !m.normalized.is_empty() {
         return Err(row.refuse("pii mention sets the retired normalized value; use value"));
     }
-    // Every mention says how its value was released (#1909): withheld, a
+    // Every mention says how its value was released (#1909): withheld
+    // with a known reason (#1931), a
     // token of 32 bytes naming its key id and version, or a clear value
     // that is not empty. A ciphertext waits for #1885. The error names the
     // form, never its contents.
     let refused = match m.value.as_ref().map(|v| v.form.as_ref()) {
-        Some(Some(Form::Withheld(_))) => None,
+        Some(Some(Form::Withheld(w))) => match PiiWithheldReason::try_from(w.reason) {
+            Ok(PiiWithheldReason::Unspecified) | Err(_) => Some("is withheld without a known reason"),
+            Ok(_) => None,
+        },
         None => Some("is missing"),
         Some(None) => Some("has no form"),
         Some(Some(Form::Clear(v))) => v.is_empty().then_some("is an empty clear value"),
