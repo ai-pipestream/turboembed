@@ -1750,12 +1750,12 @@
       ]
     },
     {
-      "id": "turbo-en-litbank-modernbert-base-coref-1",
+      "id": "turbo-en-litbank-modernbert-base-coref-2",
       "kind": "KIND_HEAD",
       "component": "COMPONENT_COREFERENCE_RESOLVER",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
-      "version": "1",
+      "version": "2",
       "license": "Apache-2.0",
       "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
       "trained_on": [
@@ -1766,47 +1766,47 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on LitBank (Bamman, Popat and Shen, NAACL 2019; Bamman, Lewke and Mansoor, LREC 2020), published at https://github.com/dbamman/litbank under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/) over public-domain texts from Project Gutenberg. (coref): test conll_f1 0.7094 (baseline 0.3009, litbank)",
+      "attribution": "Trained on LitBank (Bamman, Popat and Shen, NAACL 2019; Bamman, Lewke and Mansoor, LREC 2020), published at https://github.com/dbamman/litbank under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/) over public-domain texts from Project Gutenberg. (coref): test conll_f1 0.7348 (baseline 0.3009, litbank)",
       "files": [
         {
           "path": "manifest.json",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-manifest.json",
-          "size": 97342,
-          "sha256": "1dd27b20ef858d4492fb6f1fb73833893efb236fd30d49036c885d3138a51301",
-          "sha512": "d3be51cd1a7bceb9ed072c94d58ed52bbd2a0480f09c810d8b9aeaf4ec5b5f03b0d2fe7da8fe23e52639a3d61b60de34199cdf477384c8db9fde3cb5ed76fa68"
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-manifest.json",
+          "size": 97343,
+          "sha256": "7c8d02e4a91a58969dba37008f2559d935a0924ead4a8b1a47b914d6a1764f7a",
+          "sha512": "4333fc66ae7b67900ad7970f7b88637e71ae9334052ef3f0270e8c65d25274d84d9b36346057eab1abd3f611911821ee23e504dae2e7a15ba42f50c08d3eba74"
         },
         {
           "path": "reference/reference.safetensors",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-reference-reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-reference-reference.safetensors",
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
           "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
         },
         {
           "path": "tokenizer.json",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-tokenizer.json",
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
           "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
         },
         {
           "path": "weights/model.safetensors",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1/turbo-en-litbank-modernbert-base-coref-1-weights-model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-weights-model.safetensors",
           "size": 599500288,
-          "sha256": "ed7edc19a86c26e778505337e3a6549729b4321ad097a6632168007a7f26325f",
-          "sha512": "28104b80224d1b2e10fc7edb9c4d315b510f9c8db0ff32c316a62c4643960523b2dbf4c26cd41f860d0659c3b70aa4018d9bd6830150c37cff32def05759c977"
+          "sha256": "1926080cb8050685b01d830d5ff9f70e2df77600f053f880238f52b5465e6cd4",
+          "sha512": "6e2a59e4ccea848a4d46a46c93219022700dbd01409a5655860ca0490febedfd4e5e38fe9f69d456710cd9195ebf8c74bd6c3a24e9fc87bc9e3bc1bd25f9f8ea"
         }
       ]
     },
     {
-      "id": "turbo-en-masc-pos-modernbert-base-1",
+      "id": "turbo-en-masc-pos-modernbert-base-2",
       "kind": "KIND_HEAD",
       "component": "COMPONENT_POS",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
-      "version": "1",
+      "version": "2",
       "license": "Apache-2.0",
-      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
       "trained_on": [
         {
           "name": "MASC 3.0.0",
@@ -1815,35 +1815,84 @@
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/). (pos): test accuracy 0.9581 (baseline 0.8964, masc-pos)",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/). (pos): test accuracy 0.9617 (baseline 0.8964, masc-pos)",
       "files": [
         {
           "path": "manifest.json",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/manifest.json",
-          "size": 98166,
-          "sha256": "593959a881e9f744118191a4a1f1498a235b3132ea7afc365cc723f94eca5359",
-          "sha512": "2ae919c27435839a8ec18439c363ce379cb79c30f78ce73d43966746cab571ae022f0ac5f6b2f92ee53605bae1c3945d322439d955c4d0e75600631a3da34faf"
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/manifest.json",
+          "size": 98165,
+          "sha256": "068a2664cd0b968425cf85bd98ad5d40122e9c4b1645fd4ddcab6a5dfac32200",
+          "sha512": "0ad64dd61cb00f52693785c4db6ff37f86df4b4db8c7cac24b2556d8b51fb0f8e091fed0b5ac49f1624d2c1271d972d71737b7bac2655fb2458a0564f798d32d"
         },
         {
           "path": "reference/reference.safetensors",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/reference.safetensors",
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
           "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
         },
         {
           "path": "tokenizer.json",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/tokenizer.json",
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
           "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
         },
         {
           "path": "weights/model.safetensors",
-          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-1/model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/model.safetensors",
           "size": 612061000,
-          "sha256": "3b11d52c296aa465cfebaaba55873d3df820b380674738c4bec71025eade1210",
-          "sha512": "53e30960d9d65630240d60183af43a7fd99d36f8b7acd772116e8f1398e5144a1c7fb41f6da1250b1491e0fa2c803f7e2b3ccd7244cb490c0c2689ba5cbc68b0"
+          "sha256": "d1e925ab465de45d37b7b5fa0f0cbb2814f1ce37bd46e4b8d956a205007b9be9",
+          "sha512": "d30437d352bce70765b2f306a032870e5a3e853393e04d9137fd613e454bf409ddee560b3b25f91745b22d9e017d36120920b96f0863d647782f6aa8037729ca"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-pos-modernbert-base-bilstm256x2-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_POS",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/). (pos): test accuracy 0.9640 (baseline 0.8964, masc-pos)",
+      "files": [
+        {
+          "path": "manifest.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/manifest.json",
+          "size": 98166,
+          "sha256": "66db65ee286b91274b12dba3963ad78780ef7e0ef589ca2dbed01343c449565d",
+          "sha512": "f81ca0a26c80715e2fc4080389659bc360da5314864a7eeaaa9c9d26ff3a818628de1a7e2c8c05b1be7ec1289d2688970dd925a7196929ad87cb15437cd2b3aa"
+        },
+        {
+          "path": "reference/reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/reference.safetensors",
+          "size": 430352,
+          "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
+          "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/tokenizer.json",
+          "size": 2132967,
+          "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
+          "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
+        },
+        {
+          "path": "weights/model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/model.safetensors",
+          "size": 618361224,
+          "sha256": "6eb7de0197ccfe5f4f2ab6fb85fe41b17137d24834f149047c0c21a8eda2ad09",
+          "sha512": "194a4e2226bef8a6638608e87996bd49ca53a1696292fb5cbd46eb250b5ab80eb9806d6005509697761e929ba784fbae3908ff793aa7d85f7889a63a2d1b780e"
         }
       ]
     }
