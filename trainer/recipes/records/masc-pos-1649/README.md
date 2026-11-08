@@ -69,6 +69,10 @@ turbo-train-head train --corpus masc-pos --dir MASC-3.0.0 --commit e352cf36 \
 
 ## In the zoo
 
+Since #1828 the zoo lists head B's command retrained (0.9617,
+`turbo-en-masc-pos-modernbert-base-2`) in place of the bundle below; see
+`trainer/recipes/records/1828/README.md`. The record of `-1` follows.
+
 `turbo-train-head assemble` (#1726) put head B into the ModernBERT-base
 bundle it was trained on: one bundle, `turbo-en-masc-pos-modernbert-base-1`
 in `analysis/zoo/index/zoo.json` (`KIND_HEAD`, `COMPONENT_POS`, `en`,

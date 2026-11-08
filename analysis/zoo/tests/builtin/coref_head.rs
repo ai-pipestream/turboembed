@@ -1,10 +1,10 @@
-//! The LitBank coreference head in the built-in index (#1813).
+//! The LitBank coreference head in the built-in index (#1813, #1828).
 
 use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy};
 
 use super::COREF_HEAD;
 
-const RELEASE: &str = "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-1";
+const RELEASE: &str = "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2";
 
 #[test]
 fn the_litbank_coreference_head_is_a_permissive_default_tier_bundle() {
@@ -21,7 +21,7 @@ fn the_litbank_coreference_head_is_a_permissive_default_tier_bundle() {
         )
     );
     assert_eq!(a.language.as_ref().map(|l| l.as_str()), Some("en"));
-    assert_eq!(a.version, "1");
+    assert_eq!(a.version, "2");
     assert!(a.origin.is_none());
     let data: Vec<(&str, Licence)> = a.trained_on.iter().map(|t| (t.name.as_str(), t.license)).collect();
     assert_eq!(data, [("LitBank", Licence::CcBy40)]);
