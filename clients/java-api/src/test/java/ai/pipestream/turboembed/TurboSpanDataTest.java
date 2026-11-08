@@ -68,7 +68,9 @@ final class TurboSpanDataTest {
         }
 
         assertThrows(IllegalStateException.class, () -> pii(TurboLayerKind.PII, "x", OptionalLong.of(0)));
-        assertThrows(IllegalStateException.class, () -> pii(TurboLayerKind.PII, "x", OptionalLong.of(31)));
+        // One above the largest built-in id: ids are append-only, so this tracks the registry.
+        long unknown = TurboPiiKind.values()[TurboPiiKind.values().length - 1].nativeCode() + 1L;
+        assertThrows(IllegalStateException.class, () -> pii(TurboLayerKind.PII, "x", OptionalLong.of(unknown)));
         assertThrows(
                 IllegalStateException.class,
                 () -> pii(TurboLayerKind.PII, "x", OptionalLong.of(TurboPiiKind.CUSTOM_CODE_BASE + 0x10000)));
