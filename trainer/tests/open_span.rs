@@ -25,6 +25,22 @@ fn an_explicit_label_center_preserves_single_schema_training() {
     assert!(fit_open_spans_with_label_center(&s, HIDDEN, &train, &dev, &c, &[], |_, _, _| Ok(())).is_err());
 }
 
+#[test]
+fn a_label_set_with_no_dominant_direction_trains_uncentered_and_bad_rows_are_refused() {
+    let s = spec(Decode::SpansFlat, 4);
+    let dirs: [[f32; HIDDEN]; 2] = [[0.0, 1.0, 0.0, 0.0], [0.0, -1.0, 0.0, 0.0]];
+    let train = data(8, 8, &dirs);
+    let dev = data(9, 4, &dirs);
+    let c = Config { epochs: 2, batch: 4, patience: 0, threads: 1, ..Config::default() };
+    let (old, _) = fit_open_spans(&s, HIDDEN, &train, &dev, &c).unwrap();
+    let labels = train[0].label_features.clone();
+    let (new, _) = fit_open_spans_with_label_center(&s, HIDDEN, &train, &dev, &c, &labels, |_, _, _| Ok(())).unwrap();
+    assert_eq!(new.params(), old.params());
+    let fit = |rows: &[f32]| fit_open_spans_with_label_center(&s, HIDDEN, &train, &dev, &c, rows, |_, _, _| Ok(()));
+    assert!(fit(&labels[..HIDDEN + 1]).is_err());
+    assert!(fit(&[0.0, f32::NAN, 0.0, 0.0]).is_err());
+}
+
 const HIDDEN: usize = 4;
 
 fn spec(decode: Decode, adapter: u32) -> HeadSpec {

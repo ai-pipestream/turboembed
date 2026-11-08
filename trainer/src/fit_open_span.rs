@@ -129,14 +129,22 @@ fn fit_with_center(
     mut each_epoch: impl FnMut(&OpenSpans<f32>, usize, f64) -> Result<()>,
 ) -> Result<(OpenSpans<f32>, Report)> {
     check_config(c, train_set.len())?;
-    let cq = center_labels
-        .map(|rows| label_center(rows, hidden).ok_or_else(|| invalid("trainer: invalid open-span label center")))
-        .transpose()?;
-    let centers = empirical_centers(train_set, hidden);
+    // Malformed label rows are refused; a well-formed set whose mean has no
+    // dominant direction only skips the optional centering, as the
+    // first-example path does.
+    let cq = match center_labels {
+        Some(rows) => {
+            if !label_rows_ok(rows, hidden) {
+                return Err(invalid("trainer: invalid open-span label center"));
+            }
+            label_center(rows, hidden)
+        }
+        None => train_set.first().and_then(|e| label_center(&e.label_features, hidden)),
+    };
     let mut rng = Rng::new(c.seed);
     let mut model = OpenSpans::<f32>::new(spec, hidden, &mut rng)?;
-    if let Some((cx, empirical_cq)) = centers {
-        model.set_centers(&cx, cq.as_ref().unwrap_or(&empirical_cq));
+    if let (Some(cx), Some(cq)) = (token_center(train_set, hidden), cq) {
+        model.set_centers(&cx, &cq);
     }
     let mut w = Work::default();
     let mut grads = model.zero_grads();
@@ -146,7 +154,7 @@ fn fit_with_center(
     train(model, &mut rng, train_set, dev, c, &mut each_epoch)
 }
 
-fn empirical_centers(train_set: &[OpenSpanExample], hidden: usize) -> Option<(Vec<f32>, Vec<f32>)> {
+fn token_center(train_set: &[OpenSpanExample], hidden: usize) -> Option<Vec<f32>> {
     if hidden == 0 {
         return None;
     }
@@ -174,10 +182,13 @@ fn empirical_centers(train_set: &[OpenSpanExample], hidden: usize) -> Option<(Ve
     if count_x == 0 {
         return None;
     }
-    let cq = label_center(&train_set.first()?.label_features, hidden)?;
     let cx: Vec<f32> = sum_x.iter().map(|&s| (s / count_x as f64) as f32).collect();
     let norm_x = cx.iter().map(|&v| (v as f64) * (v as f64)).sum::<f64>().sqrt();
-    (norm_x > 0.5).then_some((cx, cq))
+    (norm_x > 0.5).then_some(cx)
+}
+
+fn label_rows_ok(rows: &[f32], hidden: usize) -> bool {
+    hidden != 0 && !rows.is_empty() && rows.len().is_multiple_of(hidden) && rows.iter().all(|v| v.is_finite())
 }
 
 fn label_center(rows: &[f32], hidden: usize) -> Option<Vec<f32>> {
