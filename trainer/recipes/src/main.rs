@@ -15,7 +15,7 @@
 //! turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <dir>
 //!     (--layer N | --mix [--from-layer N]) [head and training settings as train] [--commit <sha>]
 //! turbo-train-head train-lemma --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N] [--seen-lookup K])
+//!     [--min-tree-freq N] [--seen-lookup K]; multiple banks: --corpus <bank,bank,...> [--sample 0..1])
 //! turbo-train-head export   --corpus <id> --dir <corpus dir> --out <test.conllu>
 //! turbo-train-head peer     --corpus <id> --dir <corpus dir> --peer <name> --predictions <peer.conllu>
 //!     --out <dir> [--column upos|xpos|feats|lemma|deps|bio] [--map FROM=TO,...] [--commit <sha>]
@@ -23,7 +23,7 @@
 //!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16] [--max-test N]])
 //!     Multiple banks: --corpus <bank,bank,...> [--sample 0..1]
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N] [--seen-lookup K])
+//!     [--min-tree-freq N] [--seen-lookup K]; multiple banks: --corpus <bank,bank,...> [--sample 0..1])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
@@ -322,6 +322,28 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let base = baseline(train_set, test);
     let seen = Seen::of(train_set);
     let task: Task = corpus.record.task;
+    let by_language = match &languages {
+        Some((names, train_rows, _, test_rows)) => turbo_trainer_recipes::eval::language_evals(
+            train_set,
+            test,
+            &predicted,
+            &train_rows[..train_set.len()],
+            test_rows,
+            names,
+            turbo_trainer_recipes::eval::LanguageEvalOptions {
+                task,
+                baseline: |train_rows: &[usize], test_rows: &[usize]| {
+                    let train_part: Vec<Sentence> = train_rows.iter().map(|&i| train_set[i].clone()).collect();
+                    let test_part: Vec<Sentence> = test_rows.iter().map(|&i| test[i].clone()).collect();
+                    baseline(&train_part, &test_part)
+                },
+                resamples: RESAMPLES,
+                seed: c.seed,
+                attachment: None,
+            },
+        )?,
+        None => Vec::new(),
+    };
     let eval = EvalRecord {
         split: "test".into(),
         model: Some(evaluate(task, test, &predicted, &seen, coarse(corpus_id))),
@@ -332,6 +354,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         uas: None,
         rules: None,
         against: None,
+        by_language,
     };
     let eval_s = t.elapsed().as_secs_f64();
 

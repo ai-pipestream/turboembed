@@ -130,6 +130,7 @@ pub(super) fn peer(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: boo
         uas: (column == Column::Deps).then(|| Uas { model: uas(test, &predicted), baseline: uas(test, &base) }),
         rules: None,
         against: None,
+        by_language: Vec::new(),
     };
     let receipt = Receipt {
         schema: SCHEMA.into(),
@@ -245,6 +246,7 @@ fn peer_coref(
         uas: None,
         rules: None,
         against: None,
+        by_language: Vec::new(),
     };
     let receipt = Receipt {
         schema: SCHEMA.into(),

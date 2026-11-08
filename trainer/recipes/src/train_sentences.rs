@@ -107,6 +107,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         comparison: Some(bootstrap_spans(&corpus.test, &predicted, &nl, RESAMPLES, c.seed)),
         uas: None,
         against: None,
+        by_language: Vec::new(),
         rules: Some(BaselineEval {
             name: format!("sentdetect-rules-{}", corpus.language),
             baseline: evaluate_spans(&corpus.test, &rules),

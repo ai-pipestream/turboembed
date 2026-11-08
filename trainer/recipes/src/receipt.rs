@@ -137,6 +137,22 @@ pub struct EvalRecord {
     /// it, for a run given `--against`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub against: Option<BaselineEval>,
+    /// Per-language scores for a multi-treebank run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub by_language: Vec<LanguageEval>,
+}
+
+/// One language's model, baseline and paired bootstrap evidence.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LanguageEval {
+    pub language: String,
+    pub model: Option<Metrics>,
+    pub baseline: Metrics,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comparison: Option<Comparison>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uas: Option<Uas>,
 }
 
 impl EvalRecord {
@@ -153,6 +169,7 @@ impl EvalRecord {
             uas: None,
             rules: None,
             against: None,
+            by_language: Vec::new(),
         }
     }
 }

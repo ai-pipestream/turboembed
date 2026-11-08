@@ -146,8 +146,21 @@ impl EditTreeLemmatizer {
         out: &mut Vec<f32>,
         w: &mut Work,
     ) -> Result<usize> {
+        self.scores_language(states, words, tags, None, out, w)
+    }
+
+    /// As [`scores`](Self::scores), selecting a language embedding by name.
+    pub fn scores_language(
+        &self,
+        states: &[f32],
+        words: &[u32],
+        tags: Option<&[u32]>,
+        language: Option<&str>,
+        out: &mut Vec<f32>,
+        w: &mut Work,
+    ) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, None, w)?;
+        let n = self.reader.read_language(states, words, None, language, w)?;
         let width = self.reader.width();
         let joined: std::borrow::Cow<'_, [f32]> = match (&self.pos, tags) {
             (None, None) => (&w.pooled[..n * width]).into(),
