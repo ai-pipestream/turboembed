@@ -180,11 +180,11 @@ pub struct Serve {
     pub max_stream_bytes: Option<u64>,
     pub tls: Option<TlsConfig>,
     pub metrics_listen: Option<SocketAddr>,
-    /// The redaction policies `turbo-pii:redact` serves by name, converted
-    /// at start.
-    pub pii_policies: pii_policy::NamedPolicies,
-    /// The registered keys inline policies resolve through.
-    pub pii_resolver: Arc<pii_policy::ServerResolver>,
+    /// The encoded redaction policies `turbo-pii:redact` serves by name
+    /// (`--pii-policy`), converted at start: their key references resolve
+    /// through `pii_release`'s token keys and their dictionary references
+    /// through the vocabulary store, and a bad reference fails start.
+    pub pii_policies: pii_policy::PolicyFiles,
 }
 
 impl Server {
@@ -213,9 +213,14 @@ impl Server {
         let builder = tls::configure_server(tonic::transport::Server::builder(), serve.tls.as_ref())?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
-        let state = Arc::new(
-            State::new(names, models).with_pii_policies(serve.pii_policies.clone(), Arc::clone(&serve.pii_resolver)),
-        );
+        let store = match &serve.vocabulary {
+            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
+            None => None,
+        };
+        let token_keys = serve.pii_release.as_ref().map_or(&[][..], |r| &r.token_keys[..]);
+        let resolver = pii_policy::ServerResolver::load(token_keys, store.clone())?;
+        let policies = pii_policy::NamedPolicies::from_files(&serve.pii_policies, &resolver)?;
+        let state = Arc::new(State::new(names, models).with_pii_policies(policies, resolver.shared()));
         let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
         let max_reply_bytes = config::max_reply_bytes(max_message_bytes);
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
@@ -232,10 +237,6 @@ impl Server {
         let health = HealthServer::new(health::HealthService { state: state.clone() })
             .max_decoding_message_size(max_message_bytes)
             .max_encoding_message_size(max_reply_bytes);
-        let store = match &serve.vocabulary {
-            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
-            None => None,
-        };
         let training = match &serve.training {
             Some(dir) => Some(training::open(dir).map_err(|e| format!("training directory: {e}"))?),
             None => None,

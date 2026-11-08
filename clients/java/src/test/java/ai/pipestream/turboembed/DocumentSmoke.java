@@ -22,6 +22,27 @@ import turbo.result.v1.TurboAnalysis.AnalyzeProgressiveEvent;
 import turbo.result.v1.TurboAnalysis.CapabilitiesRequest;
 import turbo.result.v1.TurboAnalysis.CapabilitiesResponse;
 import turbo.result.v1.TurboAnalysis.ProfileCapabilities;
+import turbo.result.v1.TurboPiiPolicy.PiiAbbreviateStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiDefaultStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiFormatStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiKeepSide;
+import turbo.result.v1.TurboPiiPolicy.PiiKeyedTokenStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiKindRule;
+import turbo.result.v1.TurboPiiPolicy.PiiLastNStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiMapEntries;
+import turbo.result.v1.TurboPiiPolicy.PiiMapStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiMapTarget;
+import turbo.result.v1.TurboPiiPolicy.PiiMaskStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiPolicyKeyRef;
+import turbo.result.v1.TurboPiiPolicy.PiiPseudonymStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiRedactionSelection;
+import turbo.result.v1.TurboPiiPolicy.PiiRewriteStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiRuleState;
+import turbo.result.v1.TurboPiiPolicy.PiiSha256Strategy;
+import turbo.result.v1.TurboPiiPolicy.PiiStaticStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiStrategyEntry;
+import turbo.result.v1.TurboPiiPolicy.PiiTruncateStrategy;
+import turbo.result.v1.TurboPiiPolicy.RedactionPolicy;
 import turbo.result.v1.TurboTypedAnnotations.AnchorKind;
 import turbo.result.v1.TurboTypedAnnotations.EditRun;
 import turbo.result.v1.TurboTypedAnnotations.InlineMapping;
@@ -31,11 +52,15 @@ import turbo.result.v1.TurboTypedAnnotations.LayerReceipt;
 import turbo.result.v1.TurboTypedAnnotations.LayerWireStatus;
 import turbo.result.v1.TurboTypedAnnotations.MappingPayload;
 import turbo.result.v1.TurboTypedAnnotations.OffsetMode;
+import turbo.result.v1.TurboTypedAnnotations.PiiCandidateAnnotation;
 import turbo.result.v1.TurboTypedAnnotations.PiiConfidenceTier;
+import turbo.result.v1.TurboTypedAnnotations.PiiEditAnnotation;
 import turbo.result.v1.TurboTypedAnnotations.PiiKindId;
 import turbo.result.v1.TurboTypedAnnotations.PiiKindRef;
 import turbo.result.v1.TurboTypedAnnotations.PiiMention;
 import turbo.result.v1.TurboTypedAnnotations.PiiOutputOptions;
+import turbo.result.v1.TurboTypedAnnotations.PiiPlannedRewrite;
+import turbo.result.v1.TurboTypedAnnotations.PiiStrategy;
 import turbo.result.v1.TurboTypedAnnotations.PiiValue;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingReceipt;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingStatus;
@@ -56,7 +81,8 @@ import turbo.result.v1.TurboTypedAnnotations.ViewInfo;
  * slice must equal the text the annotation carries, and the profile's layers
  * must come back under the ids {@code Capabilities} lists. Then the Rust to
  * generated Java to Rust conformance cases of {@link Conformance} run on
- * the same server (issue #1910).
+ * the same server (issue #1910), then the redaction policy cases of
+ * {@link Redaction} (issue #1882 part C).
  *
  * <pre>java DocumentSmoke HOST:PORT</pre>
  */
@@ -192,6 +218,7 @@ public final class DocumentSmoke {
             System.out.println("java document client ok: layers=" + doc.getLayersCount() + " spans=" + spans
                     + " tokens=" + tokens + " sentences=" + sentences + " entities=" + entities);
             Conformance.run(stub);
+            Redaction.run(stub);
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
         }
@@ -979,5 +1006,199 @@ final class WireChainPort {
         long fromEnd = toChild ? prev.pe() : prev.ce();
         long toEnd = toChild ? prev.ce() : prev.pe();
         return toEnd + (x - fromEnd);
+    }
+}
+
+/**
+ * The redaction policy from generated Java (issue #1882 part C), on the same
+ * live server: a {@code RedactionPolicy} built with every strategy arm runs
+ * the {@code turbo-pii:redact} step and a dry run; each redacted view maps
+ * back to the source through the exported chain, the result re-encodes and
+ * the server accepts it, and an unknown strategy arm or enum number sent by
+ * Java is refused, never downgraded. {@code uint32} fields are read
+ * unsigned. Test-side code only.
+ */
+final class Redaction {
+    static final String REDACT = "turbo-pii:redact";
+    static final List<String> STEPS = List.of("turbo-pii:pii", REDACT);
+    static final PiiOutputOptions REWRITTEN = PiiOutputOptions.newBuilder()
+            .setFullText(true).setRewrittenText(true).setDetail(true).build();
+
+    private Redaction() {}
+
+    static void check(boolean ok, String what) {
+        DocumentSmoke.check(ok, what);
+    }
+
+    static PiiRewriteStrategy arm(UnaryOperator<PiiRewriteStrategy.Builder> set) {
+        return set.apply(PiiRewriteStrategy.newBuilder()).build();
+    }
+
+    /** Every arm the server knows but the keyed token, which needs a registered key. */
+    static List<PiiRewriteStrategy> everyArm() {
+        return List.of(
+                arm(b -> b.setMask(PiiMaskStrategy.newBuilder().setMaskChar("#"))),
+                arm(b -> b.setFormat(PiiFormatStrategy.newBuilder().setTemplate("[%t]"))),
+                arm(b -> b.setMap(PiiMapStrategy.newBuilder()
+                        .setEntries(PiiMapEntries.newBuilder().putEntries(Conformance.VALUE, "J. Doe"))
+                        .setTarget(PiiMapTarget.PII_MAP_TARGET_NORMALIZED_OR_SURFACE))),
+                arm(b -> b.setTruncate(PiiTruncateStrategy.newBuilder()
+                        .setSide(PiiKeepSide.PII_KEEP_SIDE_START).setCount(2))),
+                arm(b -> b.setLastN(PiiLastNStrategy.newBuilder().setCount(4).setKeepFormat(true))),
+                arm(b -> b.setAbbreviate(PiiAbbreviateStrategy.newBuilder().setSeparator(".").setTrailing("."))),
+                arm(b -> b.setSha256(PiiSha256Strategy.newBuilder().setKindPrefix(true))),
+                arm(b -> b.setStaticText(PiiStaticStrategy.newBuilder().setReplacement("[E]"))),
+                arm(b -> b.setPseudonym(PiiPseudonymStrategy.newBuilder().setPrefix("[").setSuffix("]"))));
+    }
+
+    static RedactionPolicy policy(long revision, PiiRewriteStrategy email) {
+        return RedactionPolicy.newBuilder()
+                .setId("java-redaction")
+                .setRevision(revision)
+                .addKindRules(PiiKindRule.newBuilder()
+                        .setRuleId("email")
+                        .setKind(PiiKindRef.newBuilder().setBuiltin(PiiKindId.PII_KIND_ID_EMAIL))
+                        .setState(PiiRuleState.PII_RULE_STATE_ENABLED)
+                        .addStrategies(PiiStrategyEntry.newBuilder().setStrategy(email)))
+                .setDefaultStrategy(PiiDefaultStrategy.newBuilder().setMask(PiiMaskStrategy.getDefaultInstance()))
+                .build();
+    }
+
+    /** The graph of {@code TEXT} redacted by {@code policy}. */
+    static ByteString redact(AnalysisServiceBlockingStub stub, RedactionPolicy policy, boolean dryRun) {
+        Iterator<AnalyzeProgressiveEvent> events = stub.withDeadlineAfter(60, TimeUnit.SECONDS)
+                .analyzeDocumentProgressive(AnalyzePipelineRequest.newBuilder()
+                        .setDocId(Conformance.DOC)
+                        .setText(Conformance.TEXT)
+                        .setOffsets(OffsetMode.OFFSET_MODE_UTF8)
+                        .addAllSteps(STEPS)
+                        .setPiiOutput(REWRITTEN)
+                        .setPiiRedaction(PiiRedactionSelection.newBuilder().setInline(policy).setDryRun(dryRun))
+                        .build());
+        ByteString graph = null;
+        while (events.hasNext()) {
+            AnalyzeProgressiveEvent event = events.next();
+            switch (event.getEventCase()) {
+                case STEP_FAILED -> throw new AssertionError("step " + event.getStepFailed().getStepId()
+                        + " failed: " + event.getStepFailed().getFailure().getMessage());
+                case COMPLETE -> graph = event.getComplete().getGraph();
+                default -> {}
+            }
+        }
+        check(graph != null, "the redact stream ended without the document");
+        return graph;
+    }
+
+    /** The refusal of a redaction by {@code policy}: INVALID_ARGUMENT and its message. */
+    static String refusedPolicy(AnalysisServiceBlockingStub stub, RedactionPolicy policy, String what) {
+        try {
+            redact(stub, policy, false);
+        } catch (StatusRuntimeException e) {
+            check(e.getStatus().getCode() == Status.Code.INVALID_ARGUMENT,
+                    what + ": refused with " + e.getStatus().getCode() + ", not INVALID_ARGUMENT");
+            return String.valueOf(e.getStatus().getDescription());
+        }
+        throw new AssertionError(what + ": accepted, not refused");
+    }
+
+    static int viewOf(TypedDocumentResult m, String instance) {
+        for (ViewChain v : Conformance.mapping(m).getViewsList()) {
+            if (v.getInstance().equals(instance)) {
+                return v.getView();
+            }
+        }
+        return -1;
+    }
+
+    static void run(AnalysisServiceBlockingStub stub) throws Exception {
+        byte[] value = Conformance.utf8(Conformance.VALUE);
+        int arms = 0;
+        for (PiiRewriteStrategy s : everyArm()) {
+            String name = s.getStrategyCase().name();
+            ByteString graph = redact(stub, policy(1, s), false);
+            TypedDocumentResult source = Conformance.inspect(stub, graph, 0, REWRITTEN);
+            int view = viewOf(source, "redacted");
+            check(view > 0, name + ": no redacted view");
+            TypedDocumentResult redacted = Conformance.inspect(stub, graph, view, REWRITTEN);
+            check(Conformance.count(Conformance.utf8(redacted.getRawText()), value) == 0,
+                    name + ": the redacted text holds the value");
+            WireChainPort port = WireChainPort.of(Conformance.mapping(redacted));
+            TypedLayer edits = Conformance.layer(redacted, "turbo:pii-edits");
+            check(edits.getAnnotationsCount() >= 1, name + ": no edits");
+            ByteString digest = null;
+            boolean named = false;
+            for (TypedAnnotation a : edits.getAnnotationsList()) {
+                PiiEditAnnotation e = a.getPiiEdit();
+                check(e.getPolicyDigest().size() == 32, name + ": a digest of " + e.getPolicyDigest().size() + " bytes");
+                check(digest == null || digest.equals(e.getPolicyDigest()), name + ": two digests in one layer");
+                digest = e.getPolicyDigest();
+                check(e.getPolicyRevision() == 1, name + ": revision " + e.getPolicyRevision());
+                check(e.getStrategy() != PiiStrategy.PII_STRATEGY_UNSPECIFIED, name + ": an unspecified strategy");
+                named |= e.getRuleId().equals("email");
+                long mentions = Conformance.layer(redacted, "turbo:pii").getAnnotationsCount();
+                for (int m : e.getMembersList()) {
+                    check(Integer.toUnsignedLong(m) < mentions, name + ": member " + Integer.toUnsignedLong(m));
+                }
+                SpanFragment span = a.getSpans(0);
+                long[] back = port.mapSpan(view, 0, Integer.toUnsignedLong(span.getStart()),
+                        Integer.toUnsignedLong(span.getEnd()));
+                long ss = Integer.toUnsignedLong(e.getSource().getStart());
+                long se = Integer.toUnsignedLong(e.getSource().getEnd());
+                check(back[0] == ss && back[1] == se, name + ": the edit maps back to " + back[0] + ".." + back[1]
+                        + ", not its source " + ss + ".." + se);
+            }
+            check(named, name + ": no edit names the email rule");
+            // Java re-encodes the result and the server accepts it unchanged.
+            TypedDocumentResult again = TypedDocumentResult.parseFrom(redacted.toByteArray());
+            Conformance.roundTrip(stub, again);
+            Conformance.roundTrip(stub, source);
+            arms++;
+        }
+
+        // A dry run: no redacted view, each kept candidate planned.
+        RedactionPolicy dry = policy(2, everyArm().get(7));
+        TypedDocumentResult planned = Conformance.inspect(stub, redact(stub, dry, true), 0, REWRITTEN);
+        check(viewOf(planned, "redacted") < 0, "a dry run wrote the redacted view");
+        int plans = 0;
+        for (TypedAnnotation a : Conformance.layer(planned, "turbo:pii-candidates").getAnnotationsList()) {
+            PiiCandidateAnnotation c = a.getPiiCandidate();
+            if (c.hasPlanned()) {
+                PiiPlannedRewrite p = c.getPlanned();
+                check(p.getPolicyDigest().size() == 32 && p.getPolicyRevision() == 2, "a plan without its policy");
+                check(p.getStrategy() != PiiStrategy.PII_STRATEGY_UNSPECIFIED, "a plan with no strategy");
+                plans++;
+            }
+        }
+        check(plans >= 2, "a dry run planned " + plans + " candidates");
+        Conformance.roundTrip(stub, planned);
+
+        // Refused, never downgraded: a keyed token with no registered key,
+        // a strategy arm this build does not know (field 999 on the oneof's
+        // message), and enum numbers it does not know.
+        PiiRewriteStrategy keyed = arm(b -> b.setKeyedToken(PiiKeyedTokenStrategy.newBuilder()
+                .setKey(PiiPolicyKeyRef.newBuilder().setId("java-key").setVersion(1))));
+        String why = refusedPolicy(stub, policy(1, keyed), "an unregistered key");
+        check(why.contains("not registered"), "an unregistered key refused for another reason: " + why);
+        PiiRewriteStrategy unknownArm = PiiRewriteStrategy.parseFrom(Conformance.UNKNOWN_FIELD);
+        check(unknownArm.getStrategyCase() == PiiRewriteStrategy.StrategyCase.STRATEGY_NOT_SET
+                && unknownArm.getUnknownFields().hasField(999), "Java keeps the unknown arm as field 999");
+        why = refusedPolicy(stub, policy(1, unknownArm), "an unknown strategy arm");
+        check(why.contains("strategy"), "an unknown arm refused for another reason: " + why);
+        PiiRewriteStrategy target = arm(b -> b.setMap(PiiMapStrategy.newBuilder()
+                .setEntries(PiiMapEntries.newBuilder().putEntries("a", "b")).setTargetValue(Conformance.UNKNOWN_ENUM)));
+        check(target.getMap().getTarget() == PiiMapTarget.UNRECOGNIZED, "map target 99 in Java");
+        why = refusedPolicy(stub, policy(1, target), "an unknown map target");
+        check(why.contains("map.target") && why.contains("99"), "an unknown map target refused for another reason: " + why);
+        PiiRewriteStrategy side = arm(b -> b.setTruncate(PiiTruncateStrategy.newBuilder()
+                .setSideValue(Conformance.UNKNOWN_ENUM).setCount(2)));
+        why = refusedPolicy(stub, policy(1, side), "an unknown keep side");
+        check(why.contains("99"), "an unknown keep side refused for another reason: " + why);
+        RedactionPolicy state = policy(1, everyArm().get(0)).toBuilder()
+                .setKindRules(0, policy(1, everyArm().get(0)).getKindRules(0).toBuilder()
+                        .setStateValue(Conformance.UNKNOWN_ENUM))
+                .build();
+        why = refusedPolicy(stub, state, "an unknown rule state");
+        check(why.contains("state") && why.contains("99"), "an unknown rule state refused for another reason: " + why);
+        System.out.println("java redaction ok: arms=" + arms + " planned=" + plans);
     }
 }

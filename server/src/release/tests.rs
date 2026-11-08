@@ -50,6 +50,7 @@ fn mention(layer: &str, index: u32, form: Form) -> PiiAccessMention {
         builtin_kind: 1,
         custom_kind: String::new(),
         form: form.audit() as i32,
+        ..PiiAccessMention::default()
     }
 }
 
@@ -138,6 +139,49 @@ fn the_event_id_is_fixed_by_what_a_retry_keeps() {
         id("op", &input, &[mention("1pii", 0, Form::Token)], &eff, &policy),
         id("op1", &input, &[mention("pii", 0, Form::Token)], &eff, &policy)
     );
+}
+
+#[test]
+fn each_mention_s_redaction_policy_is_part_of_the_event_id() {
+    let eff = [kind(1, &[Form::Token])];
+    let (input, policy) = ([1u8; 32], [2u8; 32]);
+    let covered = |rule_id: &str, revision: u64, digest: u8| PiiAccessMention {
+        rule_id: rule_id.into(),
+        policy_revision: revision,
+        redaction_policy_digest: vec![digest; 32],
+        ..mention("pii", 0, Form::Token)
+    };
+    let plain = id("op", &input, &[mention("pii", 0, Form::Token)], &eff, &policy);
+    let base = id("op", &input, &[covered("email", 1, 5)], &eff, &policy);
+    assert_ne!(plain, base, "a covering policy is not the absent marker");
+    assert_eq!(base, id("op", &input, &[covered("email", 1, 5)], &eff, &policy), "a retry keeps it");
+    assert_ne!(base, id("op", &input, &[covered("email", 1, 6)], &eff, &policy), "another digest");
+    assert_ne!(base, id("op", &input, &[covered("email", 2, 5)], &eff, &policy), "another revision");
+    assert_ne!(base, id("op", &input, &[covered("", 1, 5)], &eff, &policy), "the default rule");
+}
+
+#[test]
+fn an_event_with_an_unspecified_form_is_never_sent() {
+    use crate::proto::audit::PiiAccessEvent;
+    use crate::release::audit::check_event;
+    let ok = PiiAccessEvent {
+        mentions: vec![mention("pii", 0, Form::Token)],
+        effective: vec![kind(1, &[Form::Token])],
+        ..Default::default()
+    };
+    check_event(&ok).unwrap();
+    let mut bad = ok.clone();
+    bad.mentions[0].form = 0;
+    assert!(check_event(&bad).unwrap_err().contains("mentions[0].form"));
+    let mut bad = ok.clone();
+    bad.mentions[0].form = 99;
+    assert!(check_event(&bad).is_err(), "an unknown number is refused, never downgraded");
+    let mut bad = ok.clone();
+    bad.effective[0].forms = vec![0];
+    assert!(check_event(&bad).unwrap_err().contains("effective[0].forms"));
+    let mut bad = ok;
+    bad.mentions[0].redaction_policy_digest = vec![1; 31];
+    assert!(check_event(&bad).unwrap_err().contains("not 32 bytes"));
 }
 
 #[test]

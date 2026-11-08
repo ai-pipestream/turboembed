@@ -393,6 +393,11 @@ The server's `turbo-pii:redact` step writes the same view and edits from
 a typed `RedactionPolicy` (docs/grpc-analysis.md, "The redact step"),
 choosing each mention's strategy with `rewrite::rewrite_chosen` and a
 `StrategyChooser`; its edits also carry the policy rule id and digest.
+Policy dictionaries (`PiiDictionaryRef`) resolve through the vocabulary
+store, pinned by content, and release audit events name each released
+mention's covering rule, revision and digest (#1882 part C). The PII wire
+messages are frozen under the proto compatibility policy from #1882 on:
+see docs/grpc.md, "PII and result envelope freeze (#1882)".
 
 `RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
 `View` and the `turbo:pii` layer over it and writes the rewritten text as

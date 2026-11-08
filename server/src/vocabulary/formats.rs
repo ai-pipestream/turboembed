@@ -76,6 +76,29 @@ fn headword_tsv(text: &str) -> Result<u64, String> {
     Ok(n)
 }
 
+/// The terms of a `plain-word-list` dictionary, one a line, trimmed, in
+/// file order, as a redaction policy's term source takes them (#1882 part
+/// C). Errors name a byte offset only, never a term.
+pub(crate) fn word_list(bytes: &[u8]) -> Result<Vec<String>, String> {
+    Ok(lines(utf8(bytes)?).map(|(_, l)| l.trim().to_owned()).collect())
+}
+
+/// The `(key, replacement)` rows of a `headword-definition-tsv` dictionary:
+/// the headword, a tab, and the rest of the line, both trimmed, as a
+/// redaction policy's map table takes them. Errors name a line number only.
+pub(crate) fn map_table(bytes: &[u8]) -> Result<Vec<(String, String)>, String> {
+    let mut out = Vec::new();
+    for (line, l) in lines(utf8(bytes)?) {
+        match l.split_once('\t') {
+            Some((k, v)) if !k.trim().is_empty() && !v.trim().is_empty() => {
+                out.push((k.trim().to_owned(), v.trim().to_owned()));
+            }
+            _ => return Err(format!("line {line}: not a key, a tab and a replacement")),
+        }
+    }
+    Ok(out)
+}
+
 /// Reads `bytes` as `format`: the entries found, or why the file is
 /// refused. An empty dictionary is refused.
 pub(crate) fn read(format: &Format, bytes: &[u8], language: &str, has_header_row: bool) -> Result<Read, String> {
