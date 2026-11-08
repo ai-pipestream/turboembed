@@ -25,7 +25,7 @@ use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 mod held_out;
 use held_out::held_out;
 mod paired;
-use paired::{ATTEMPTS, RESOLUTION, added, settle};
+use paired::{ATTEMPTS, added, pooled, settle, window};
 
 fn bert() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -314,11 +314,14 @@ fn the_shape_predicted_is_the_shape_run() {
 /// times and the CPU's so scaled overlap. Then six pairs of the
 /// dispatched calls and the step they run on, back to back: what dispatch
 /// adds (see `paired::added`) is no more than the planning (timed on its
-/// own) and RESOLUTION. Pairs too noisy to read are timed again, up to
-/// ATTEMPTS sets, and then reported inconclusive; under
+/// own) and the board's own window, from six pairs of the step against
+/// itself timed at the start of each set (see `paired::window`). Pairs too
+/// noisy to read are timed again, up to ATTEMPTS sets; then all of them are
+/// read at once (see `paired::pooled`), and a submission still too noisy is
+/// reported inconclusive; under
 /// TURBO_TEST_REQUIRE_HAILO=1 an inconclusive submission fails the run.
-/// Prints each side's middle and spread, what dispatch adds, every set of
-/// pairs, and the inconclusive submissions.
+/// Prints each side's middle and spread, what dispatch adds, the window,
+/// every set of pairs, and the inconclusive submissions.
 #[test]
 fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
@@ -348,7 +351,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     let dir = std::env::temp_dir().join(format!("turbo-dispatch-device-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     println!(
-        "window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)\tplan ms\tadded ms\tadded"
+        "window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)\tplan ms\tadded ms\tadded\town window"
     );
     let mut inconclusive = Vec::new();
     for &max_seq in &o.windows {
@@ -422,8 +425,15 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                 // middle of the quiet pairs' differences is what dispatch
                 // adds. Noisy pairs are timed again, up to ATTEMPTS sets.
                 let chosen = if chose_cpu { &on_cpu } else { &on_device };
-                let mut sets = Vec::new();
+                let (mut sets, mut owns) = (Vec::new(), Vec::new());
                 let reading = loop {
+                    // Each set starts with the step against itself, six pairs:
+                    // the window within which the board tells two of its runs
+                    // apart just then (see `paired::window`).
+                    let own: Vec<(f64, f64)> =
+                        (0..6).map(|_| (timed(chosen, sub, reps), timed(chosen, sub, reps))).collect();
+                    let w = window(&own);
+                    owns.push(own);
                     let pairs: Vec<(f64, f64)> = (0..6)
                         .map(|i| {
                             if i % 2 == 0 {
@@ -435,39 +445,42 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                             }
                         })
                         .collect();
-                    let got = added(&pairs);
+                    let got = w.and_then(|w| added(&pairs, w).map(|(d, fixed)| (d, fixed, w * fixed, "quiet")));
                     sets.push(pairs);
                     if got.is_some() || sets.len() == ATTEMPTS {
                         break got;
                     }
                 };
-                let shown: Vec<String> = sets
-                    .iter()
-                    .map(|set| set.iter().map(|(x, y)| format!("{x:.3}/{y:.3}")).collect::<Vec<_>>().join(" "))
-                    .collect();
+                // No set quiet enough: every set's pairs at once (see
+                // `paired::pooled`).
+                let reading =
+                    reading.or_else(|| pooled(&sets.concat(), &owns.concat()).map(|(d, f, g)| (d, f, g, "pooled")));
+                let shown = paired::receipt::pairs(&sets);
                 let dispatched = middle(&sets.last().unwrap().iter().map(|p| p.0).collect::<Vec<_>>());
                 let reported = match reading {
-                    Some((d, fixed)) => format!("{d:+.3}\t{:+.3}%", 100.0 * d / fixed),
+                    Some((d, fixed, _, how)) => format!("{d:+.3}\t{:+.3}% {how}", 100.0 * d / fixed),
                     None => "inconclusive\t".to_string(),
                 };
+                let own = paired::receipt::allowance(reading);
                 println!(
-                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}",
+                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}\t{own}",
                     spread(&t[0]),
                     spread(&t[1]),
                 );
-                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown.join(" | "));
-                let Some((d, fixed)) = reading else {
+                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown);
+                println!("self-pairs\t{max_seq}\t{cap}\t{what}\t{}", paired::receipt::own_sets(&owns));
+                let Some((d, fixed, allowed, how)) = reading else {
                     inconclusive.push(format!("{max_seq}x{cap} {what}"));
                     continue;
                 };
-                // What dispatch adds is no more than the planning and
-                // RESOLUTION of the time, below which paired rounds on these
-                // boards do not tell two runs of the same step apart.
+                // What dispatch adds is no more than the planning and what
+                // the board allows, below which paired rounds do not tell two
+                // runs of the same step apart.
                 assert!(
-                    d <= plan + RESOLUTION * fixed,
-                    "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms (pairs {}), over planning {plan:.3} and \
-                     {RESOLUTION} of {fixed:.3}",
-                    shown.join(" | ")
+                    d <= plan + allowed,
+                    "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms ({how}, pairs {}), over planning {plan:.3} \
+                     and {allowed:.3} of {fixed:.3}",
+                    shown
                 );
             }
         }

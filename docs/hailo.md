@@ -324,7 +324,22 @@ the two boards were within 0.23% of each other and the CPUs' within
 What dispatch adds is read from six pairs of the dispatched call and the
 step fixed on the side it chose, timed back to back: the middle
 difference of the quiet pairs, those whose two times are each within
-0.5% of the fastest on their side. Planning a call took 0.001 to
+the board's window of the fastest on their side. The window comes from
+six pairs of the fixed step timed against itself at the start of each
+set: the narrowest part of the fastest time that holds four of them,
+never under 0.5%, and a set whose window is over 5% gives no reading.
+When none of three sets is quiet, all eighteen pairs are read at once:
+their middle difference, held to the middle gap between two runs of the
+step against itself (never under 0.5% of the fixed time, and no
+reading over 5%).
+The receipt's final percentage is the allowance used by that reading,
+including the pooled allowance when the last individual set was noisy.
+The `pairs` line retains each dispatch/fixed pair in ms, and `self-pairs`
+retains every attempt's fixed/fixed pairs and its window as a fraction
+(for example, `0.005` means 0.5%). Pair values retain their full floating
+point precision so the reading can be checked from the log.
+On the Hailo-8 boards the window is 0.5%, the value the readings below
+were taken with. Planning a call took 0.001 to
 0.08 ms. The reading was -0.05 to +0.72 ms on the Raspberry Pi 5 and
 -0.02 to +3.90 ms on the Compute Module 5, and at most 0.35% of the
 fixed time in every cell (the Compute Module 5's one sentence at
@@ -343,13 +358,22 @@ added +2.001 ms, 0.164% of the fixed time, on the second set of pairs.
 The next run passed too (+2.221 ms, 0.177%); a third left one cell, one
 sentence at window 64 and cap 8, inconclusive. Every other reading
 was within the planning time and 0.5% of the fixed time, which the test
-requires.
+then required.
 
 On the Hailo-10H (on a Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
 which has memory of its own, the same measurement at commit 67e1327b
 (the CPU then timed at `Precision::Model`, which computes this model in
 F32 as `Precision::Exact` does) chose the device at every configuration:
-its slowest, 16 tokens and one row a run, took 1025 ms.
+its slowest, 16 tokens and one row a run, took 1025 ms. At commit
+9edfef03, 2026-11-07, six runs under `TURBO_TEST_REQUIRE_HAILO=1` ran
+every cell on the device with no device error, and the whole set at
+window 16 and cap 1 read every time (device 1018 to 1027 ms, CPU 1253 to
+1277 ms, dispatch adding -0.21% to +0.29%). Each run still failed: 15 to
+22 of the smaller calls, whose own runs on the 10H spread 1% to 3%,
+never gave four pairs within 0.5%, and once one sentence read +0.524%.
+Turning PCIe link power saving off moved this little (15 and 17
+inconclusive against 16 to 22), so the spread is the 10H's own, which is
+why the window is measured per board.
 
 ## Testing on a Hailo machine
 
