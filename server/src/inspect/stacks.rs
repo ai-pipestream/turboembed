@@ -5,9 +5,9 @@
 use std::any::TypeId;
 use std::collections::BTreeMap;
 
-use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Span, View, ViewId};
+use turbo_analysis::{Annotator, Document, Ix, Key, KeyId, Layer, Span, View, ViewId};
 use turbo_analysis_layers::{Chunks, SparseTerms, Tokens};
-use turbo_chunker::terms::{IndexedTerms, TermStats, Vocabulary};
+use turbo_chunker::terms::{IndexedTerms, TermIndexer, TermStats, Vocabulary};
 
 use super::bad;
 use crate::api::Failure;
@@ -158,6 +158,7 @@ fn vocabulary_view(doc: &Document) -> Option<ViewId> {
 /// (whatever it is aligned to), an input missing
 /// from the document, inputs from two views, or a chain deeper than
 /// [`MAX_INPUT_DEPTH`] is `None`: its strings may be any view's words.
+/// The one mix of views accepted is [`term_indexer_child_view`]'s.
 fn layer_view(doc: &Document, key: KeyId, depth: usize) -> Option<ViewId> {
     if key.ty == TypeId::of::<View>() {
         return doc.get_key(&Key::<View>::named(key.name)).map(View::id);
@@ -171,6 +172,11 @@ fn layer_view(doc: &Document, key: KeyId, depth: usize) -> Option<ViewId> {
     if p.on.is_empty() && p.reads.is_empty() {
         return None;
     }
+    if p.annotator == <TermIndexer as Annotator>::ID
+        && let Some(child) = term_indexer_child_view(doc, key)
+    {
+        return Some(child);
+    }
     let mut view = None;
     for &input in p.on.iter().chain(&p.reads).chain(doc.made_on(key)) {
         let v = layer_view(doc, input, depth - 1)?;
@@ -180,6 +186,30 @@ fn layer_view(doc: &Document, key: KeyId, depth: usize) -> Option<ViewId> {
         view = Some(v);
     }
     view
+}
+
+/// The view a [`TermIndexer`] layer is of when it read a [`View`] and
+/// [`Tokens`] in that view's parent (#1944): the indexer maps each token
+/// span into the view it reads, so its words are that view's. The inputs
+/// must be exactly that one view and those tokens, both in the document;
+/// any other mix is `None`, left to [`layer_view`]'s general rule.
+fn term_indexer_child_view(doc: &Document, key: KeyId) -> Option<ViewId> {
+    let p = doc.provenance(key)?;
+    let mut inputs: Vec<KeyId> = Vec::new();
+    for &k in p.on.iter().chain(&p.reads).chain(doc.made_on(key)) {
+        if !inputs.contains(&k) {
+            inputs.push(k);
+        }
+    }
+    let is = |k: &KeyId, ty: TypeId| k.ty == ty;
+    let (v, t) = match inputs[..] {
+        [a, b] if is(&a, TypeId::of::<View>()) && is(&b, TypeId::of::<Tokens>()) => (a, b),
+        [a, b] if is(&b, TypeId::of::<View>()) && is(&a, TypeId::of::<Tokens>()) => (b, a),
+        _ => return None,
+    };
+    let view = doc.get_key(&Key::<View>::named(v.name))?;
+    let tokens = doc.get_key(&Key::<Tokens>::named(t.name))?;
+    (view.parent() == Some(tokens.spans.view())).then(|| view.id())
 }
 
 /// Builds per-chunk and whole-document [`TermVectorStackProto`]s from `doc`.
