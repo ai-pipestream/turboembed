@@ -168,6 +168,11 @@ impl Hits {
         self.add(start, end, kind, fact, |s| s.push_str(&text[start..end]));
     }
 
+    /// The end of every candidate added so far.
+    pub(crate) fn ends(&self) -> impl Iterator<Item = usize> + '_ {
+        self.hits.iter().map(|h| h.end as usize)
+    }
+
     fn normalized(&self, h: &Hit) -> &str {
         &self.buf[h.normalized.start as usize..h.normalized.end as usize]
     }

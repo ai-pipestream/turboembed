@@ -46,6 +46,7 @@ pub mod ner_predict;
 pub mod open_span;
 pub mod open_span_mix;
 pub mod peer;
+pub mod prior;
 pub mod receipt;
 pub mod redocred;
 pub mod redocred_eval;

@@ -338,6 +338,7 @@ pub fn document_to_typed_bound(
     disclosure: &Disclosure,
 ) -> Result<TypedDocumentResult, Failure> {
     check_operation_key(operation_key)?;
+    identity::check_binding(binding, "binding")?;
     let (views, view_ids) = collect_views(doc);
     if !view_ids.iter().any(|(id, _)| *id == target_view) {
         return Err(bad(format!("target view {} is outside the document's {} views", target_view.0, view_ids.len())));

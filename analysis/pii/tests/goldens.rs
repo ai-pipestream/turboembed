@@ -114,5 +114,7 @@ pack_tests! {
     br_identity_snapshots: Pack::BrIdentity, 2;
     ca_identity_snapshots: Pack::CaIdentity, 1;
     device_snapshots: Pack::Device, 1;
+    logistics_snapshots: Pack::Logistics, 12;
+    web_snapshots: Pack::Web, 6;
     all_structured_snapshots: Pack::AllStructured, 80;
 }

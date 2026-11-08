@@ -142,6 +142,9 @@ pub fn mask_view(src: &View, spans: impl IntoIterator<Item = (Span, MaskPolicy)>
 /// Built-in policies are indexed by stable kind id. The view owns a
 /// custom-kind table: a custom kind given to [`MaskedView::with`] indexes
 /// it, and a layer's custom kind is matched to it by name.
+///
+/// `PartialEq` and `Hash` equality is configuration identity (including how
+/// the view was constructed), not masking equivalence.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskedView {
     policies: [MaskPolicy; BUILTIN_SLOTS],

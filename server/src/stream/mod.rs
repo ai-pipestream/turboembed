@@ -21,7 +21,7 @@ use tonic::Status;
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::metrics::{DocGuard, Metrics};
-use crate::proto::result::StreamLimits;
+use crate::proto::result::{InputBinding, StreamLimits};
 use crate::status::to_status;
 use crate::stream::run::Doc;
 
@@ -78,7 +78,7 @@ pub(crate) type BatchKey = ((usize, i32, i32, u32, u32, u32, u32, u32, u32, u32,
 /// for a misplaced header or a reset.
 pub(crate) enum Envelope {
     Doc(Doc),
-    Failed { id: String, failure: Failure, room: Option<Room> },
+    Failed { id: String, binding: Option<InputBinding>, failure: Failure, room: Option<Room> },
     Abort(Status),
 }
 

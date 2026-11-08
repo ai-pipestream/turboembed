@@ -40,7 +40,15 @@ public enum TurboPiiKind {
     BIC(27, "bic"),
     CA_SIN(28, "ca-sin"),
     ABA_ROUTING(29, "aba-routing"),
-    PHONE(30, "phone");
+    PHONE(30, "phone"),
+    VIN(31, "vin"),
+    TRACKING_NUMBER(32, "tracking-number"),
+    US_EIN(33, "us-ein"),
+    URL(34, "url"),
+    US_PASSPORT(35, "us-passport"),
+    US_DRIVERS_LICENCE(36, "us-drivers-licence"),
+    US_ZIP(37, "us-zip"),
+    PHONE_EXTENSION(38, "phone-extension");
 
     /**
      * The numeric kind code of the first custom kind: code {@code CUSTOM_CODE_BASE + i} is entry

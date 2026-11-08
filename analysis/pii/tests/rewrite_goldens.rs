@@ -171,5 +171,7 @@ pack_tests! {
     br_identity_rewrite_snapshots: Pack::BrIdentity, 4, 0;
     ca_identity_rewrite_snapshots: Pack::CaIdentity, 4, 0;
     device_rewrite_snapshots: Pack::Device, 4, 0;
-    all_structured_rewrite_snapshots: Pack::AllStructured, 126, 16;
+    logistics_rewrite_snapshots: Pack::Logistics, 24, 0;
+    web_rewrite_snapshots: Pack::Web, 12, 0;
+    all_structured_rewrite_snapshots: Pack::AllStructured, 126, 22;
 }

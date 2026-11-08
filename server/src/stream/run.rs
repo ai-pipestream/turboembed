@@ -16,8 +16,8 @@ use turbo::{
 
 use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
-use crate::proto::result::AnalyzeOutput;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
+use crate::proto::result::{AnalyzeOutput, InputBinding};
 use crate::state::{Held, Loaded};
 use crate::stream::{BatchKey, Room, Shared};
 
@@ -28,6 +28,8 @@ use crate::stream::{BatchKey, Room, Shared};
 pub(crate) struct Doc {
     pub(crate) seq: u64,
     pub(crate) id: String,
+    /// The caller's binding of the input, echoed on the answer (#1939).
+    pub(crate) binding: Option<InputBinding>,
     pub(crate) text: Vec<u8>,
     pub(crate) opts: turbo_embed_options,
     /// The caller's int8 table, checked against the width; the run points
@@ -58,6 +60,7 @@ pub(crate) enum RowPayload {
 pub(crate) struct Row {
     pub(crate) seq: u64,
     pub(crate) id: String,
+    pub(crate) binding: Option<InputBinding>,
     pub(crate) payload: RowPayload,
     pub(crate) room: Room,
     pub(crate) window: OwnedSemaphorePermit,
@@ -180,6 +183,7 @@ pub(crate) fn run(
         .map(|(c, d)| Row {
             seq: d.seq,
             id: d.id,
+            binding: d.binding,
             payload: if output == AnalyzeOutput::VectorCodes { RowPayload::Codes(c) } else { RowPayload::Vector(c) },
             room: d.room,
             window: permits.next().expect("one window permit per document"),
@@ -247,6 +251,7 @@ fn run_structured(
         .map(|(out, d)| Row {
             seq: d.seq,
             id: d.id,
+            binding: d.binding,
             payload: RowPayload::Outcome(Box::new(out)),
             room: d.room,
             window: permits.next().expect("one window permit per document"),

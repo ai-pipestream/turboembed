@@ -26,6 +26,18 @@ before the projection existed, and a reserved number is never reused, so
 the projection is field 9; 7 is reserved for the document's analysis
 time.
 
+`binding` (field 10, issue #1939) is the caller's `InputBinding` of the
+input the item was computed from, as given: the `AnalyzeStream`
+document's `binding` for an answer, the `AnalyzePipelineRequest.binding`
+for a progressive call's graph, and the one handed to
+`Server::forward_bound_document`. It is absent when the caller sent
+none, and the server never invents one. The item's typed projection
+carries the same binding in its `input` identity and its receipt's, and
+an answer carries it on `AnalyzeStreamResponse.binding`. The sink
+rejects an item whose binding has a `parse_artifact_digest` and no
+`parse_artifact_id`, or whose projection or answer carries another
+binding than the item.
+
 ## Forwarding
 
 With `--sink-endpoint URI`, every answer an `AnalyzeStream` call
@@ -71,7 +83,8 @@ forward nothing.
 A program embedding the server forwards a document graph itself with
 `Server::forward_document(doc_id, graph)`, which answers whether the queue
 took it, and refuses, with nothing offered, a graph for a server without
-a sink.
+a sink. `Server::forward_bound_document(doc_id, graph, binding)` does the
+same with the caller's `InputBinding` on the item and its projection.
 
 Either way, the graph is imported and re-exported, and the item carries
 the re-exported bytes with their layers and views listed, as

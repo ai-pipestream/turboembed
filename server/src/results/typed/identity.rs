@@ -16,7 +16,9 @@ use turbo_analysis::{Document, Key, KeyId, Layer, View, ViewTextDigest};
 
 use super::{ProjectionCx, bad};
 use crate::api::Failure;
-use crate::proto::result::{InputBinding, InputIdentity, LayerInstanceRef, LayerProvenance, ResultIdentity};
+use crate::proto::result::{
+    InputBinding, InputIdentity, LayerInstanceRef, LayerProvenance, ResultIdentity, TypedDocumentResult,
+};
 
 /// The version of the envelope's messages and rules.
 pub const ENVELOPE_SCHEMA_VERSION: u32 = 1;
@@ -36,6 +38,27 @@ pub fn input_identity(doc: &Document, binding: Option<&InputBinding>) -> InputId
         source_text_digest: source.text_digest().as_bytes().to_vec(),
         source_text_len: source.text().len() as u32,
     }
+}
+
+/// Refuses a caller's `binding` that names a parse artifact digest and no
+/// parse artifact id; `what` names the field. Absent is accepted.
+pub fn check_binding(binding: Option<&InputBinding>, what: &str) -> Result<(), Failure> {
+    match binding {
+        Some(b) if !b.parse_artifact_digest.is_empty() && b.parse_artifact_id.is_empty() => {
+            Err(bad(format!("{what} has a parse_artifact_digest and no parse_artifact_id")))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// `typed` with the caller's `binding` on its input identity and on its
+/// receipt's, so the two still agree: for a projection built without it,
+/// such as the findings of a withheld graph.
+pub fn bound(mut typed: TypedDocumentResult, binding: Option<&InputBinding>) -> TypedDocumentResult {
+    for input in [typed.input.as_mut(), typed.receipt.as_mut().and_then(|r| r.input.as_mut())].into_iter().flatten() {
+        input.binding = binding.cloned();
+    }
+    typed
 }
 
 /// The identity of the result whose TGRF bytes are `graph`.

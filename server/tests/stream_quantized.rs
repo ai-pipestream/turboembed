@@ -87,6 +87,7 @@ async fn a_wrong_table_or_a_quantized_non_vector_output_is_the_documents_refusal
     stream.send("missing", NAME, "a", Some(missing)).await;
     let tokens = AnalyzeStreamRequest {
         kind: Some(Kind::Document(turbo_kserve::proto::result::AnalyzeDocument {
+            binding: None,
             id: "tokens".into(),
             model: NAME.into(),
             text: "a".into(),

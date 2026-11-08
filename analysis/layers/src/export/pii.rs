@@ -347,9 +347,9 @@ mod tests {
         let mut w = Writer::new();
         w.usize(1).unwrap();
         w.u8(2);
-        w.u8(14);
+        w.u8(18);
         w.u8(1);
-        assert!(matches!(evidence_of(&w.finish()), Err(ExportError::Malformed(d)) if d.contains("algorithm 14")));
+        assert!(matches!(evidence_of(&w.finish()), Err(ExportError::Malformed(d)) if d.contains("algorithm 18")));
         let mut w = Writer::new();
         w.usize(1).unwrap();
         w.u8(1);

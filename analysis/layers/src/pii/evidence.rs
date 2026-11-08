@@ -35,11 +35,21 @@ pub enum ChecksumAlgorithm {
     /// The INSEE sum-of-digits modulus 5 rule for La Poste SIRET numbers
     /// (SIREN 356000000), which do not pass Luhn.
     LaPosteMod5,
+    /// The ISO 3779 / 49 CFR 565 vehicle identification number check digit:
+    /// transliterated values, weights `8..2, 10, 0, 9..2`, modulus 11.
+    Vin,
+    /// The UPS `1Z` check digit: odd and doubled even positions, modulus 10.
+    UpsMod10,
+    /// The FedEx Express 12-digit check digit: weights 1, 3, 7, modulus 11.
+    FedexMod11,
+    /// The GS1 modulus 10 check digit, weights 3 and 1 (USPS and FedEx
+    /// Ground 15-digit tracking numbers).
+    Gs1Mod10,
 }
 
 impl ChecksumAlgorithm {
     /// Every algorithm, in id order.
-    pub const ALL: [ChecksumAlgorithm; 13] = [
+    pub const ALL: [ChecksumAlgorithm; 17] = [
         ChecksumAlgorithm::Luhn,
         ChecksumAlgorithm::Mod97,
         ChecksumAlgorithm::Mod11,
@@ -53,9 +63,13 @@ impl ChecksumAlgorithm {
         ChecksumAlgorithm::AbaWeights,
         ChecksumAlgorithm::Other,
         ChecksumAlgorithm::LaPosteMod5,
+        ChecksumAlgorithm::Vin,
+        ChecksumAlgorithm::UpsMod10,
+        ChecksumAlgorithm::FedexMod11,
+        ChecksumAlgorithm::Gs1Mod10,
     ];
 
-    /// The stable id, 1 to 13. 0 is never an algorithm.
+    /// The stable id, 1 to 17. 0 is never an algorithm.
     pub const fn id(self) -> u8 {
         match self {
             ChecksumAlgorithm::Luhn => 1,
@@ -71,6 +85,10 @@ impl ChecksumAlgorithm {
             ChecksumAlgorithm::AbaWeights => 11,
             ChecksumAlgorithm::Other => 12,
             ChecksumAlgorithm::LaPosteMod5 => 13,
+            ChecksumAlgorithm::Vin => 14,
+            ChecksumAlgorithm::UpsMod10 => 15,
+            ChecksumAlgorithm::FedexMod11 => 16,
+            ChecksumAlgorithm::Gs1Mod10 => 17,
         }
     }
 
@@ -97,6 +115,10 @@ impl ChecksumAlgorithm {
             ChecksumAlgorithm::AbaWeights => "aba-weights",
             ChecksumAlgorithm::Other => "other",
             ChecksumAlgorithm::LaPosteMod5 => "la-poste-mod5",
+            ChecksumAlgorithm::Vin => "vin",
+            ChecksumAlgorithm::UpsMod10 => "ups-mod10",
+            ChecksumAlgorithm::FedexMod11 => "fedex-mod11",
+            ChecksumAlgorithm::Gs1Mod10 => "gs1-mod10",
         }
     }
 }

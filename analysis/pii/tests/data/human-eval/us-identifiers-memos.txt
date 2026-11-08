@@ -1,0 +1,52 @@
+# Fleet, shipping, vendor and web-portal memos
+# Licence: Apache-2.0 (repository licence)
+# Identifiers are synthetic specimens with valid check digits made for
+# this file, the UPS sample 1Z999AA10123456784, documentation domains
+# (RFC 2606) and made up employer numbers; near misses are marked.
+
+Section 1: Fleet Intake
+
+The fleet office registered three leased trucks this quarter. Their
+vehicle identification numbers are 1FTFW1E51NFA00001, 3VWDB7AJ0HM000002
+and VIN JN1AZ4EH9FM000003; the fourth record, 2T1BURHE5JC000004, came from
+the dealer feed. The clerk's typo 1FTFW1E52NFA00001 fails the check
+character, and the letter O in 3VWDB7AJ0HMO00002 is never used in a VIN.
+Part numbers such as 7L5Z-1104-AB and the 17-digit order reference
+40012345678901234 are not vehicle numbers.
+
+Section 2: Returns and Shipping
+
+Customer returns go out under UPS 1Z999AA10123456784, and the replacement
+ships as 1Z 999 AA1 01 2345 678 4 on the same account. FedEx Express
+tracking 841654653682 covers the overnight envelope; the Ground carton is
+tracking no 121513302427144, and the oversized pallet uses the FedEx
+Ground 96 barcode 9611020508440894014924. USPS confirmed delivery of
+9400 2229 1175 1694 0803 50 and of 9205867800593239130527, and the legacy
+certified letter 03074961150175938193 was signed for on Monday. A scanner
+misread, 9400 2229 1175 1694 0803 51, fails the check digit.
+
+Section 3: Vendor Onboarding
+
+Accounts payable collects the employer identification number of every
+vendor before the first payment. Acme Freight files under EIN 12-3456789,
+Harbor Logistics under 46-1234567, and the payroll processor reports FEIN
+94-7654321. The form that listed 07-1234567 was returned, since no campus
+assigns the prefix 07, and the placeholder 20-0000000 was rejected too.
+
+Section 4: Web Portal
+
+The vendor portal lives at https://portal.example.com/vendors?id=42 and
+the status page at http://status.example.org:8080/health. Staff can also
+reach www.example.net/help (or HTTPS://Docs.Example.com/Guide#intro) from
+the intranet. The internal mirror http://mirror.corp.invalid/pkg has no
+public top-level domain and is not reported.
+
+Section 5: Travel Desk and Badging
+
+The travel desk keeps Passport No. X38194027 for the regional manager and
+passport 538194027 for the new hire; the booking reference 538194028 is
+not a passport. Badging checks the driver's license D7302146 and the DL
+4813-2069-5527 from the Florida office. Mail the signed forms to 1 Main
+St, Springfield, IL 62704, or to Austin, TX 78701-4417 (ZIP code 30301
+for the Atlanta annex). Reach the desk at +1 202-555-0143 ext. 4417 or
+(312) 555-0199 x 2083.

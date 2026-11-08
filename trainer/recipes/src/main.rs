@@ -7,7 +7,7 @@
 //!     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean] [--crf]
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
-//!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus] [--against <run dir>]
 //!     Multiple UD treebanks: --corpus <bank,bank,...> [--column upos|xpos|feats] [--sample 0..1]
 //! turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir> --layers N
 //!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--splits train,dev,test]
@@ -29,7 +29,7 @@
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
 //!     [--balance] to repeat smaller training corpora to the largest split)
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
-//!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N])
+//!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N] [--against <run dir>])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
 //! turbo-train-head distill-head --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir>
 //!     [--student-bundle <student bundle>] [--teacher <teacher dir>] [--temperature T] [--alpha A]
@@ -55,6 +55,7 @@ use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, h
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::fit_cache::CacheTask;
+use turbo_trainer_recipes::prior;
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::{CHECKPOINT_DEV, CHECKPOINT_EPOCH, HeadOptions, named, replace, spec, write};
 use turbo_trainer_recipes::ud_heads::UdHead;
@@ -242,6 +243,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         None
     };
     let sample = if column.is_some() { a.parsed("--sample", 1.0)? } else { 1.0 };
+    let against = a.value("--against")?.map(PathBuf::from);
     let Opts { bundle, out, device, precision, pooling, crf, bilstm, hash, c, max_train, commit } = options(&mut a)?;
     a.done()?;
 
@@ -268,6 +270,9 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let mut enc = WordEncoder::open(&bundle, &EncoderOptions { device, precision, ..EncoderOptions::default() })
         .map_err(|e| Error(e.message))?;
     let encoder = encoder_record(&bundle, &enc)?;
+    // The head to score against, read before training so a bad one fails
+    // first.
+    let prior = against.as_deref().map(|dir| prior::tagger(dir, &head, &encoder)).transpose()?;
 
     let t = Instant::now();
     let capped = max_train.min(corpus.splits.train.len());
@@ -328,6 +333,18 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let base = baseline(train_set, test);
     let seen = Seen::of(train_set);
     let task: Task = corpus.record.task;
+    let against = match prior {
+        Some((name, prior, files)) => {
+            let theirs = turbo_trainer_recipes::run::predict_with_languages(&mut enc, &prior, test, test_languages)?;
+            Some(BaselineEval {
+                name,
+                baseline: evaluate(task, test, &theirs, &seen, coarse(corpus_id)),
+                comparison: bootstrap(task, test, &predicted, &theirs, RESAMPLES, c.seed),
+                files,
+            })
+        }
+        None => None,
+    };
     let by_language = match &languages {
         Some((names, train_rows, _, test_rows)) => turbo_trainer_recipes::eval::language_evals(
             train_set,
@@ -359,7 +376,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         comparison: Some(bootstrap(task, test, &predicted, &base, RESAMPLES, c.seed)),
         uas: None,
         rules: None,
-        against: None,
+        against,
         by_language,
     };
     let eval_s = t.elapsed().as_secs_f64();
