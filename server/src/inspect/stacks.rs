@@ -5,7 +5,7 @@
 use std::any::TypeId;
 use std::collections::BTreeMap;
 
-use turbo_analysis::{Document, Ix, Key, Layer, Span, View, ViewId};
+use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Span, View, ViewId};
 use turbo_analysis_layers::{Chunks, SparseTerms, Tokens};
 use turbo_chunker::terms::{IndexedTerms, TermStats, Vocabulary};
 
@@ -140,17 +140,46 @@ fn assemble_stack(
     }
 }
 
-/// The view whose words the default vocabulary holds, as its provenance
-/// names it: the view its indexer read, else the view of the tokens it
-/// read. A vocabulary whose provenance names neither has no known view.
+/// How deep [`layer_view`] follows inputs' inputs: a vocabulary over
+/// terms over lemmas over tokens is three steps.
+const MAX_INPUT_DEPTH: usize = 6;
+
+/// The one view the default vocabulary's words come from, as provenance
+/// says, or `None` when that is not known (#1904).
 fn vocabulary_view(doc: &Document) -> Option<ViewId> {
-    let p = doc.provenance(Key::<Vocabulary>::DEFAULT.id())?;
-    let inputs = || p.on.iter().chain(&p.reads);
-    if let Some(k) = inputs().find(|k| k.ty == TypeId::of::<View>()) {
-        return doc.get_key(&Key::<View>::named(k.name)).map(View::id);
+    layer_view(doc, Key::<Vocabulary>::DEFAULT.id(), MAX_INPUT_DEPTH)
+}
+
+/// The one view the layer `key` was made from. A [`View`] is its own view
+/// and [`Tokens`] are in theirs. Any other layer (terms, lemmas, the
+/// vocabulary) is of the view of its inputs (provenance `on` and `reads`,
+/// and the layer it is aligned to), each followed in turn: every input must
+/// resolve, all to the same view. A layer that names no input it read
+/// (whatever it is aligned to), an input missing
+/// from the document, inputs from two views, or a chain deeper than
+/// [`MAX_INPUT_DEPTH`] is `None`: its strings may be any view's words.
+fn layer_view(doc: &Document, key: KeyId, depth: usize) -> Option<ViewId> {
+    if key.ty == TypeId::of::<View>() {
+        return doc.get_key(&Key::<View>::named(key.name)).map(View::id);
     }
-    let k = inputs().find(|k| k.ty == TypeId::of::<Tokens>())?;
-    doc.get_key(&Key::<Tokens>::named(k.name)).map(|t| t.spans.view())
+    if key.ty == TypeId::of::<Tokens>() {
+        return doc.get_key(&Key::<Tokens>::named(key.name)).map(|t| t.spans.view());
+    }
+    let p = doc.provenance(key).filter(|_| depth > 0 && doc.present(key))?;
+    // What it read says where its strings come from; the layer it is
+    // aligned to must agree, but alone says nothing about them.
+    if p.on.is_empty() && p.reads.is_empty() {
+        return None;
+    }
+    let mut view = None;
+    for &input in p.on.iter().chain(&p.reads).chain(doc.made_on(key)) {
+        let v = layer_view(doc, input, depth - 1)?;
+        if view.is_some_and(|w| w != v) {
+            return None;
+        }
+        view = Some(v);
+    }
+    view
 }
 
 /// Builds per-chunk and whole-document [`TermVectorStackProto`]s from `doc`.
