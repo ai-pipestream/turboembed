@@ -240,7 +240,8 @@ confidence tier, the audit report and every policy decision read them.
   `Shape` (the text has the kind's shape), `Checksum { algorithm, passed }`
   (`ChecksumAlgorithm`: Luhn 1, mod 97 2, mod 11 3, mod 23 4, Spanish CIF
   5, ISO 7064 mod 11,10 6, ICAO 9303 7, Base58Check 8, Bech32 9, EIP-55
-  10, ABA weights 11, other 12, La Poste SIRET mod 5 13), `Label { span, phrase }` (the label
+  10, ABA weights 11, other 12, La Poste SIRET mod 5 13, VIN 14,
+  UPS mod 10 15, FedEx mod 11 16, GS1 mod 10 17), `Label { span, phrase }` (the label
   phrase's span in the layer's view and its index in the kind's phrase
   table: built-in phrases first, then `with_extra_label` phrases in
   registration order), `DenyHit { list, term }` and `Rule { rule }`. Each
@@ -408,6 +409,11 @@ The server's `turbo-pii:redact` step writes the same view and edits from
 a typed `RedactionPolicy` (docs/grpc-analysis.md, "The redact step"),
 choosing each mention's strategy with `rewrite::rewrite_chosen` and a
 `StrategyChooser`; its edits also carry the policy rule id and digest.
+Policy dictionaries (`PiiDictionaryRef`) resolve through the vocabulary
+store, pinned by content, and release audit events name each released
+mention's covering rule, revision and digest (#1882 part C). The PII wire
+messages are frozen under the proto compatibility policy from #1882 on:
+see docs/grpc.md, "PII and result envelope freeze (#1882)".
 
 `RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
 `View` and the `turbo:pii` layer over it and writes the rewritten text as
@@ -537,7 +543,7 @@ per scanner; `analysis/pii/tests/us_identifiers_eval.rs` scores a seeded
 synthetic set of 200 valid values and 200 near misses per kind (800
 true, 0 missed; the 3 false mentions are near-miss digit runs that pass
 Luhn as cards). In the mixed set the project-authored
-`us-identifiers-memos.txt` adds 22 gold spans, and the six real web
+`us-identifiers-memos.txt` adds 20 gold spans, and the six real web
 addresses already in the set are `url` gold: `vin` 4/0/0, `tracking-number`
 9/0/0, `us-ein` 3/0/0, `url` 10/0/0 (true, false, missed), plus one
 false `phone` on the grouped USPS near miss. The external partition was
@@ -804,8 +810,8 @@ text written by people.
 ### Mixed evaluation set (third-party MASC, adapted specifications, and project-authored memos)
 
 `precision_and_recall_on_human_written_text` scores the same pack on a
-mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
-mentions across all 30 built-in kinds in
+mixed nine-document evaluation set (`47,544` UTF-8 bytes, `113` gold
+mentions across 24 of the 34 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
 `docs/licences.md`). On its own, this mixed set is partial work for
@@ -844,6 +850,13 @@ remaining 17 kinds are evaluated on project-authored operational memos
   NHS test numbers, ISO 7064 test Steuer-IDs, SIN `046 454 286`, and
   Luhn-valid test IMEIs), paired with mistyped check digits, order and
   invoice numbers, timestamps, software versions and statutory citations.
+- Project-authored fleet, shipping and vendor memos
+  (`analysis/pii/tests/data/human-eval/us-identifiers-memos.txt`, `2,143`
+  bytes, Apache-2.0, `20` gold spans: `vin`, `tracking-number`, `us-ein`
+  and `url`) with check-digit-valid VINs, the UPS sample number,
+  checksum-valid parcel numbers and documentation domains, next to
+  near misses; the six web addresses already in the other documents
+  are `url` gold as well.
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
@@ -867,8 +880,12 @@ remaining 17 kinds are evaluated on project-authored operational memos
 | `ca-sin` | project-authored (`operational-memos.txt`) | 3 | 0 | 1 | 1.000 | 0.750 |
 | `aba-routing` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `phone` (MASC only) | third-party human-written (`masc-*.escaped`, CC BY 3.0 US) | 10 | 1 | 2 | 0.909 | 0.833 |
-| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 5 | 2 | 0.722 | 0.867 |
-| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` project-authored)** | **82** | **9** | **5** | **0.901** | **0.943** |
+| `vin` | project-authored (`us-identifiers-memos.txt`) | 4 | 0 | 0 | 1.000 | 1.000 |
+| `tracking-number` | project-authored (`us-identifiers-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
+| `us-ein` | project-authored (`us-identifiers-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `url` | project-authored (`us-identifiers-memos.txt`, `4`) + existing documents (`6`) | 10 | 0 | 0 | 1.000 | 1.000 |
+| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 6 | 2 | 0.684 | 0.867 |
+| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` operational memos + `20` US identifier memos + `6` url in existing documents)** | **108** | **10** | **5** | **0.915** | **0.956** |
 
 ### External prose partition (whole third-party documents)
 
@@ -938,16 +955,14 @@ What the external false positives and misses are:
   `url-credential` gold; the tail is not an address occurrence and
   is not labelled.
 
-- **`phone` false positives (16)**: six five-group prefixes of EUI-64
+- **`phone` false positives (15)**: six five-group prefixes of EUI-64
   identifiers and SNAP header patterns in RFC 7042; the three NHS-shaped
   values in the NHS article the `uk-nhs` scanner rejects (below) plus
   the checksum example `943 476 5919` on the same span as its `uk-nhs`
   mention, and the Scottish CHI range endpoints `010 100 0000` and
   `311 299 9999`; the multiplier row `0 8 6 8 5 8 2 16 6` of the SIN
   checksum walkthrough; `5698 7654 32` inside the markup-split
-  British IBAN example; `2101-153765`, a news article identifier
-  at the end of a citation URL slug in the Steuer-ID article; and
-  the digit run of an inline SVG icon path in the GitHub Docs
+  British IBAN example; and the digit run of an inline SVG icon path in the GitHub Docs
   credentials data.
 - **`card` false positives (4) and misses (41)**: the false
   positives are the 15-digit grouped IMEI examples and a contiguous
@@ -963,10 +978,17 @@ What the external false positives and misses are:
 - **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
   in RFC 7519's references and the section number `2.3.2.1` twice in
   RFC 7042.
-- **`uk-nhs` false positives (2)**: `0110201035` in the SSN article's
-  citations, a 10-digit string that passes the NHS checksum, and
-  `0123456789` in ERC-55's hexadecimal digit alphabet, which also
-  satisfies the modulus-11 check.
+- **`uk-nhs` false positive (1)**: `0123456789` in ERC-55's hexadecimal
+  digit alphabet, which satisfies the modulus-11 check. The NHS-valid
+  `0110201035` in the SSN article's citations, and the article
+  identifier `2101-153765` that was a `phone` false positive in the
+  Steuer-ID article, are both inside citation URLs, and the `url`
+  mention now holds them.
+- **`tracking-number` false positive (1)**: `491748000000` in the Test
+  Payment Cards list, a 12-digit expiry-driven test number that fails
+  Luhn and passes the FedEx Express check by coincidence (about one
+  12-digit run in eleven does). `label_required(PiiKind::TrackingNumber)`
+  removes it.
 - **`btc-address` misses (3)**: the witness version 1, 2 and 16
   addresses of BIP-173's own valid list. BIP-173 encodes every
   version with the original bech32 checksum; BIP-350 replaced it

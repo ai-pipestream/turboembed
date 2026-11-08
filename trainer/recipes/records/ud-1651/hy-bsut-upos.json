@@ -1,0 +1,275 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-hy-bsut-upos",
+    "--dir",
+    "ud-armenian-bsut-r2.16",
+    "--hash-embed",
+    "64",
+    "--bundle",
+    "xlm-roberta-base",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "hy-bsut-upos"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1794093869,
+  "corpus": {
+    "id": "ud-hy-bsut-upos",
+    "name": "Universal Dependencies Armenian BSUT r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Armenian-BSUT/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Armenian BSUT r2.16, published at https://github.com/UniversalDependencies/UD_Armenian-BSUT; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "hy_bsut-ud-train.conllu",
+        "size": 2782681,
+        "sha256": "12b89363338f2524125c9403ffce1492391ac3fe771fd41359d6c56bc39feab5"
+      },
+      {
+        "path": "hy_bsut-ud-dev.conllu",
+        "size": 1399249,
+        "sha256": "b77b0dba2cc7be98c7a20112c30c0b7abccc901f6dcae6dd88270da4f446566d"
+      },
+      {
+        "path": "hy_bsut-ud-test.conllu",
+        "size": 1365203,
+        "sha256": "ec8f65ec06a1c6de3d74857c0daf3dd1607c39dd942453caaad3df4064f77132"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (05013586bd6e7d45a86d3d9cd13f5956f465d460)",
+    "train": {
+      "sentences": 1226,
+      "words": 21246
+    },
+    "dev": {
+      "sentences": 479,
+      "words": 10312
+    },
+    "test": {
+      "sentences": 595,
+      "words": 10247
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      2.2479104990390564,
+      0.8855352663381318,
+      0.21163656331321906,
+      0.08118442350497523,
+      0.04246914380443195,
+      0.023991382005213384,
+      0.015500115868071207,
+      0.00813064535058493,
+      0.004613354325024909,
+      0.002541187003827965,
+      0.001319274730568107,
+      0.0007490773880375305,
+      0.0005929877916793152,
+      0.0005044517358643441,
+      0.00044147321676479124,
+      0.00039115089300484514,
+      0.0003521424169736827,
+      0.00031926504339235584,
+      0.00029077586589265966,
+      0.00026796746799206364,
+      0.00024578331864070406,
+      0.00022886979116322934,
+      0.00021339000071244574,
+      0.00019899891551940154,
+      0.00018726378637991755
+    ],
+    "dev": [
+      0.508533747090768,
+      0.9008921644685803,
+      0.9392940263770365,
+      0.9472459270752521,
+      0.9474398758727696,
+      0.944821567106284,
+      0.945500387897595,
+      0.944821567106284,
+      0.9461792086889061,
+      0.9483126454615981,
+      0.9479247478665632,
+      0.9485065942591155,
+      0.9483126454615981,
+      0.9482156710628394,
+      0.948021722265322,
+      0.9479247478665632,
+      0.9477307990690458,
+      0.9472459270752521,
+      0.9474398758727696,
+      0.947633824670287,
+      0.9473429014740109,
+      0.9471489526764935,
+      0.9467610550814585,
+      0.946567106283941,
+      0.9468580294802172
+    ],
+    "best_epoch": 12,
+    "epoch_seconds": [
+      10.908913387,
+      11.039186933,
+      10.968128596,
+      10.642487756,
+      10.680768589,
+      10.670643822,
+      11.170440894,
+      10.838015454,
+      11.075086783,
+      10.841971424,
+      10.918913447,
+      10.523656177,
+      10.955487251,
+      10.416293367,
+      11.088896808,
+      10.901442659,
+      10.286159995,
+      10.613079333,
+      10.573469107,
+      10.998364906,
+      10.844253781,
+      8.408140214,
+      7.967316374,
+      9.739114192,
+      9.734342789
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 10247,
+        "correct": 9670,
+        "accuracy": 0.9436908363423441,
+        "unseen_words": 3287,
+        "unseen_correct": 2860,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 10247,
+        "correct": 8360,
+        "accuracy": 0.8158485410364009,
+        "unseen_words": 3287,
+        "unseen_correct": 1687,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9436908363423441,
+      "baseline": 0.8158485410364009,
+      "delta": 0.12784229530594315,
+      "low": 0.12085284447544087,
+      "high": 0.1346652579002977,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.047504795,
+    "features": 0.901219361,
+    "train": 263.114840402,
+    "eval": 1.080615693,
+    "feature_words": 31558
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13346004,
+      "sha256": "c4de994e313fcbc587842ac7cd10dc94306e5347391303966488c65bab324a19"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

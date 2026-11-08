@@ -65,17 +65,12 @@ fn vin_at(text: &str, i: usize) -> bool {
         && vin::valid(w)
 }
 
-/// No letter or digit at `end`, nor a space going on with a digit.
-fn on_group_end(text: &str, end: usize) -> bool {
-    let b = text.as_bytes();
-    on_end(text, end) && !(b.get(end) == Some(&b' ') && b.get(end + 1).is_some_and(u8::is_ascii_digit))
-}
-
 fn scan_ups(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i + UPS_LENGTH <= b.len() {
-        if !starts_with(b, i, b"1Z") || !on_word_start(text, i) {
+        let joined = matches!(i.checked_sub(1).map(|p| b[p]), Some(b'-' | b'_' | b'/'));
+        if !starts_with(b, i, b"1Z") || !on_word_start(text, i) || joined {
             i += 1;
             continue;
         }
@@ -93,7 +88,10 @@ fn scan_ups(text: &str, hits: &mut Hits) {
 }
 
 /// `1Z` and 16 uppercase letters or digits, the last a digit, with at most
-/// one space between two characters, and the UPS check digit.
+/// one space between two characters, and the UPS check digit. A compact
+/// number ends at a word end that is not `-` or `_`; a spaced one also is
+/// not followed by a space and a digit, which would make it part of a
+/// longer spaced run.
 fn read_ups(text: &str, start: usize, chars: &mut [u8; UPS_LENGTH]) -> Option<usize> {
     let b = text.as_bytes();
     let mut p = start;
@@ -108,8 +106,10 @@ fn read_ups(text: &str, start: usize, chars: &mut [u8; UPS_LENGTH]) -> Option<us
         p += 1;
     }
     let check = chars[UPS_LENGTH - 1];
-    (check.is_ascii_digit() && on_group_end(text, p) && parcel::ups(&chars[2..UPS_LENGTH - 1]) == Some(check - b'0'))
-        .then_some(p)
+    let spaced = p - start > UPS_LENGTH;
+    let continues = spaced && b.get(p) == Some(&b' ') && b.get(p + 1).is_some_and(u8::is_ascii_digit);
+    let ends = on_end(text, p) && !matches!(b.get(p), Some(b'-' | b'_')) && !continues;
+    (check.is_ascii_digit() && ends && parcel::ups(&chars[2..UPS_LENGTH - 1]) == Some(check - b'0')).then_some(p)
 }
 
 fn checksum(algorithm: ChecksumAlgorithm) -> PiiEvidence {
@@ -118,7 +118,6 @@ fn checksum(algorithm: ChecksumAlgorithm) -> PiiEvidence {
 
 fn scan_numeric(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
-    let mut digits = [0u8; MAX_DIGITS];
     let mut i = 0;
     while i < b.len() {
         let joined = i >= 2 && b[i - 1] == b'-' && b[i - 2].is_ascii_digit();
@@ -126,48 +125,91 @@ fn scan_numeric(text: &str, hits: &mut Hits) {
             i += 1;
             continue;
         }
-        let Some((end, n)) = read_digits(text, i, &mut digits) else {
-            i += 1;
-            continue;
-        };
-        if let Some(algorithm) = numeric_check(&digits[..n]) {
-            hits.add(i, end, PiiKind::TrackingNumber, checksum(algorithm), |s| {
-                s.extend(digits[..n].iter().map(|&d| d as char));
+        let run = read_run(text, i);
+        if let Some((start, end, digits)) = run.candidate() {
+            let algorithm = numeric_check(&digits).expect("candidate passed");
+            hits.add(start, end, PiiKind::TrackingNumber, checksum(algorithm), |s| {
+                s.extend(digits.iter().map(|&d| d as char));
             });
         }
-        i = end;
+        // Never read a number from inside the run: a suffix of a longer
+        // grouped number is not a tracking number.
+        i = run.end;
     }
 }
 
-/// A run of digits, compact or in groups of four split by single spaces
-/// (the last group may be shorter), of at most 22 digits, at a number end.
-fn read_digits(text: &str, start: usize, digits: &mut [u8; MAX_DIGITS]) -> Option<(usize, usize)> {
+const MAX_GROUPS: usize = 8;
+
+/// A run of digits, compact or in groups split by single spaces where
+/// every group but the last has four digits.
+struct Run {
+    /// Start and end of each group.
+    groups: [(usize, usize); MAX_GROUPS],
+    count: usize,
+    /// End of the whole run, past any digits it refused.
+    end: usize,
+    /// The run has a usable shape and ends at a number end.
+    ok: bool,
+    digits: [u8; MAX_DIGITS],
+    len: usize,
+}
+
+fn read_run(text: &str, start: usize) -> Run {
     let b = text.as_bytes();
+    let mut run = Run { groups: [(0, 0); MAX_GROUPS], count: 0, end: start, ok: true, digits: [0; MAX_DIGITS], len: 0 };
     let mut p = start;
-    let mut n = 0;
-    let mut grouped = false;
-    let mut group = 0;
     loop {
-        match b.get(p) {
-            Some(c) if c.is_ascii_digit() => {
-                if n == MAX_DIGITS || (grouped && group == 4) {
-                    return None;
-                }
-                digits[n] = *c;
-                n += 1;
-                group += 1;
-                p += 1;
+        let g = p;
+        while p < b.len() && b[p].is_ascii_digit() {
+            if run.len < run.digits.len() {
+                run.digits[run.len] = b[p];
             }
-            Some(b' ') if b.get(p + 1).is_some_and(u8::is_ascii_digit) && group == 4 && (grouped || n == 4) => {
-                grouped = true;
-                group = 0;
-                p += 1;
-            }
-            _ => break,
+            run.len += 1;
+            p += 1;
         }
+        if run.count == MAX_GROUPS {
+            run.ok = false;
+        } else {
+            run.groups[run.count] = (g, p);
+            run.count += 1;
+        }
+        let four = p - g == 4;
+        if !(four && b.get(p) == Some(&b' ') && b.get(p + 1).is_some_and(u8::is_ascii_digit)) {
+            break;
+        }
+        p += 1;
     }
-    (on_end(text, p) && !matches!(b.get(p), Some(b'-' | b'.' | b',') if b.get(p + 1).is_some_and(u8::is_ascii_digit)))
-        .then_some((p, n))
+    run.end = p;
+    let grouped_long = run.count > 1 && run.groups[..run.count].iter().any(|(s, e)| e - s > 4);
+    let ends = on_end(text, p)
+        && !matches!(b.get(p), Some(b'-' | b'.' | b',') if b.get(p + 1).is_some_and(u8::is_ascii_digit));
+    run.ok &= ends && !grouped_long && run.len <= MAX_DIGITS;
+    run
+}
+
+impl Run {
+    /// The tracking number in the run: the whole run, or, for a grouped
+    /// run, the run without a leading year (`2026 8416 ...`) or without a
+    /// trailing short group (`... 3682 2 boxes`), or both.
+    fn candidate(&self) -> Option<(usize, usize, Vec<u8>)> {
+        if !self.ok {
+            return None;
+        }
+        let n = self.count;
+        let groups = &self.groups[..n];
+        let year = n > 1 && {
+            let (s, e) = groups[0];
+            e - s == 4 && matches!(&self.digits[..2], b"19" | b"20")
+        };
+        let short_tail = n > 1 && groups[n - 1].1 - groups[n - 1].0 < 4;
+        let options = [(0, n, true), (1, n, year), (0, n - 1, short_tail), (1, n - 1, year && short_tail)];
+        options.into_iter().filter(|&(a, z, allowed)| allowed && a < z).find_map(|(a, z, _)| {
+            let from = 4 * a;
+            let to = groups[..z].iter().map(|(s, e)| e - s).sum::<usize>();
+            let digits = self.digits[from..to].to_vec();
+            numeric_check(&digits).map(|_| (groups[a].0, groups[z - 1].1, digits))
+        })
+    }
 }
 
 /// The check that a run of `digits` passes as a tracking number.

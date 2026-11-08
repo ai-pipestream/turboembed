@@ -130,6 +130,48 @@ fn tracking_number_near_misses_are_refused() {
 }
 
 #[test]
+fn grouped_tracking_numbers_next_to_other_numbers() {
+    let d = logistics();
+    // A year before, or a short count after, a grouped number is not part
+    // of it.
+    for text in [
+        "In 2026 8416 5465 3682 arrived.",
+        "Sent 8416 5465 3682 2 boxes.",
+        "In 2026 8416 5465 3682 2 boxes.",
+        "UPS 1Z999AA10123456784 2 boxes.",
+    ] {
+        let want = if text.contains("1Z") { "1Z999AA10123456784" } else { "841654653682" };
+        assert_eq!(found(&d, text), [("tracking-number", want.to_owned())], "{text}");
+    }
+    // No tracking number is sliced out of a longer grouped run.
+    for not in [
+        "1111 2222 3333 8416 5465 3682",
+        "1111 7012 3456 7890 1234 5676",
+        "1111 2222 8416 5465 3682",
+        "8416 5465 3682 1042",
+        "ref-1Z999AA10123456784-1",
+        "id_1Z999AA10123456784_x",
+        "ref-1Z999AA10123456784",
+        "1Z999AA10123456784-1",
+    ] {
+        assert!(covered_by(&d, not, "tracking-number").is_empty(), "{not}");
+    }
+}
+
+#[test]
+fn tracking_number_label_is_the_longest_phrase() {
+    let d = wide();
+    let text = "tracking no 121513302427144";
+    let pii = layer(&d, text);
+    let m = pii.mentions().next().expect("mention");
+    let label = m.evidence.iter().find_map(|e| match e {
+        turbo_pii::PiiEvidence::Label { span, .. } => Some(&text[span.start as usize..span.end as usize]),
+        _ => None,
+    });
+    assert_eq!(label, Some("tracking no"));
+}
+
+#[test]
 fn eins_with_an_assigned_prefix() {
     let d = only(Extractor::UsIdentity, &[PiiKind::UsEin]);
     for v in ["12-3456789", "46-1234567", "94-7654321", "01-0000001", "99-9999999"] {

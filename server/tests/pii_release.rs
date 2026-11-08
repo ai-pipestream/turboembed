@@ -17,8 +17,8 @@ use tonic::Code;
 use turbo_kserve::proto::audit::{PiiAccessForm, RecordPiiAccessRequest};
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
-    DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, TypedDocumentResult,
-    pii_value,
+    DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, PiiWithheldReason,
+    TypedDocumentResult, pii_value,
 };
 use turbo_kserve::release::caps::{Fingerprint, Form, Forms};
 use turbo_kserve::release::{POLICY_ID, Release};
@@ -58,6 +58,14 @@ fn withheld(f: &pii_value::Form) -> bool {
     matches!(f, pii_value::Form::Withheld(_))
 }
 
+/// Why a withheld value was withheld; `None` for a released one.
+fn reason(f: &pii_value::Form) -> Option<PiiWithheldReason> {
+    match f {
+        pii_value::Form::Withheld(w) => Some(PiiWithheldReason::try_from(w.reason).expect("a known reason")),
+        _ => None,
+    }
+}
+
 #[tokio::test]
 async fn a_grant_for_one_kind_releases_that_kind_only_after_the_audit_ack() {
     let files = Files::create("kind");
@@ -70,7 +78,7 @@ async fn a_grant_for_one_kind_releases_that_kind_only_after_the_audit_ack() {
     let instance = typed.layers.iter().find(|l| l.id == "turbo:pii").unwrap().instance.clone();
     let got = forms(&typed);
     assert_eq!(got[0], pii_value::Form::Clear(EMAIL.into()), "the granted kind is released");
-    assert!(withheld(&got[1]), "the phone kind is not granted");
+    assert_eq!(reason(&got[1]), Some(PiiWithheldReason::NotGranted), "the phone kind is not granted");
     assert!(!holds(&typed.encode_to_vec(), PHONE.as_bytes()));
     assert!(typed.raw_text.is_empty(), "values do not turn on the text");
 
@@ -149,9 +157,9 @@ async fn spoofed_identity_metadata_has_no_effect() {
     for header in ["x-client-cert-sha256", "x-forwarded-client-cert", "x-ssl-client-fingerprint", "x-turbo-service"] {
         req.metadata_mut().insert(header, granted.parse().unwrap());
     }
-    let typed = c.inspect_document_graph(req).await.unwrap().into_inner();
-    assert!(forms(&typed).iter().all(withheld), "metadata confers nothing");
-    assert!(!holds(&typed.encode_to_vec(), EMAIL.as_bytes()));
+    let e = c.inspect_document_graph(req).await.unwrap_err();
+    assert_eq!(e.code(), Code::FailedPrecondition, "metadata confers nothing: {e:?}");
+    assert!(!holds(format!("{e:?}").as_bytes(), EMAIL.as_bytes()));
     assert!(audit.calls.lock().unwrap().is_empty(), "nothing released, nothing recorded");
     // A connection without a client certificate does not reach the call.
     let refused = match connect(&s, false).await {
@@ -211,15 +219,12 @@ async fn releases_are_refused_where_they_are_not_offered() {
     let code = |r: Result<tonic::Response<TypedDocumentResult>, tonic::Status>| r.unwrap_err().code();
     assert_eq!(code(c.inspect_document_graph(ask(PiiValueForm::Ciphertext, "op")).await), Code::Unimplemented);
     assert_eq!(code(c.inspect_document_graph(ask(PiiValueForm::Clear, "op")).await), Code::FailedPrecondition);
-    // Without an operation key the release is refused and the findings
-    // are served; nothing is recorded.
-    let typed = c.inspect_document_graph(ask(PiiValueForm::Token, "")).await.unwrap().into_inner();
-    assert!(forms(&typed).iter().all(withheld));
-    // The default path on a release server withholds every value.
+    // The default path on a release server withholds every value, not
+    // requested.
     let mut plain = ask(PiiValueForm::Unspecified, "op");
     plain.pii_output = None;
     let typed = c.inspect_document_graph(plain).await.unwrap().into_inner();
-    assert!(forms(&typed).iter().all(withheld));
+    assert!(forms(&typed).iter().all(|f| reason(f) == Some(PiiWithheldReason::NotRequested)));
     // Only InspectDocumentGraph releases values.
     let options = Some(PiiOutputOptions { values: PiiValueForm::Token as i32, ..Default::default() });
     let e = c
@@ -256,4 +261,67 @@ async fn two_services_released_one_operation_record_two_events() {
         events.values().map(|e| e.service_fingerprint.clone()).collect();
     assert_eq!(services.len(), 2, "each record names its own service");
     assert_eq!(audit.calls.lock().unwrap().len(), 4);
+}
+
+#[tokio::test]
+async fn a_values_request_says_why_nothing_was_released() {
+    // #1931: causes that do not depend on the document are refused before
+    // the graph is read; per-mention outcomes are on the answer.
+    let files = Files::create("why");
+    let (audit, at) = audit(Answer::Ack).await;
+    let grant = format!("{}:clear:email", client_fingerprint());
+    let s = server(&files, release(&files, &[grant], at, SECOND), open_policy()).await;
+    let mut c = connect(&s, true).await.unwrap();
+    // Unreadable graph bytes prove the refusals come first.
+    let unread = |form, key: &str| InspectDocumentGraphRequest { graph: b"not a graph".to_vec(), ..ask(form, key) };
+    let e = c.inspect_document_graph(unread(PiiValueForm::Clear, "")).await.unwrap_err();
+    assert_eq!((e.code(), e.message().contains("operation_key")), (Code::InvalidArgument, true), "{e:?}");
+    let e = c.inspect_document_graph(unread(PiiValueForm::Token, "op-why")).await.unwrap_err();
+    assert_eq!(e.code(), Code::FailedPrecondition, "granted token for no kind: {e:?}");
+    assert!(e.message().contains("TOKEN") || e.message().contains("token"), "{e:?}");
+    for kind in ["email", "phone", "EMAIL", "PHONE"] {
+        assert!(!e.message().contains(kind), "the refusal names no kind: {e:?}");
+    }
+    // A partial grant: released, and the rest withheld as not granted.
+    let typed = c.inspect_document_graph(ask(PiiValueForm::Clear, "op-why")).await.unwrap().into_inner();
+    let got = forms(&typed);
+    assert_eq!((reason(&got[0]), reason(&got[1])), (None, Some(PiiWithheldReason::NotGranted)));
+    // No mentions: an empty list, nothing recorded for it.
+    let empty = InspectDocumentGraphRequest { graph: graph_without_mentions(), ..ask(PiiValueForm::Clear, "op-none") };
+    let typed = c.inspect_document_graph(empty).await.unwrap().into_inner();
+    let pii = typed.layers.iter().find(|l| l.id == "turbo:pii").expect("the pii layer");
+    assert!(pii.annotations.is_empty());
+    assert_eq!(audit.events.lock().unwrap().len(), 1, "only the release is recorded");
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn nothing_produces_not_allowed_by_policy_yet() {
+    // NOT_ALLOWED_BY_POLICY waits for a per-kind policy ceiling (#1943).
+    // Over the wire a form the server-wide policy excludes refuses the
+    // whole request, and in process a policy that excludes the form
+    // withholds every mention as not granted.
+    let files = Files::create("no-policy-reason");
+    let (_audit, at) = audit(Answer::Ack).await;
+    let grant = format!("{}:token+clear:email", client_fingerprint());
+    let config = release(&files, &[grant], at, SECOND);
+    let token_only = PiiOutputPolicy { values: Forms::of(Form::Token), ..PiiOutputPolicy::ALL };
+    let s = server(&files, config.clone(), token_only).await;
+    let mut c = connect(&s, true).await.unwrap();
+    let never = |typed: &TypedDocumentResult| {
+        assert!(forms(typed).iter().all(|f| reason(f) != Some(PiiWithheldReason::NotAllowedByPolicy)), "{typed:?}");
+    };
+    for form in [PiiValueForm::Unspecified, PiiValueForm::Token, PiiValueForm::Clear, PiiValueForm::Ciphertext] {
+        if let Ok(typed) = c.inspect_document_graph(ask(form, "op-no-policy")).await {
+            never(&typed.into_inner());
+        }
+    }
+    let typed = c.inspect_document_graph(ask(PiiValueForm::Token, "op-no-policy")).await.unwrap().into_inner();
+    assert_eq!(reason(&forms(&typed)[1]), Some(PiiWithheldReason::NotGranted), "the phone kind is not granted");
+    s.stop().await;
+    let rel = Release::start(Some(&config), Some(&files.tls)).unwrap().unwrap();
+    let service = Some(Fingerprint::parse(&client_fingerprint()).unwrap());
+    if let Ok(typed) = rel.inspect(service, ask(PiiValueForm::Clear, "op-in-process"), Form::Clear, token_only).await {
+        never(&typed);
+    }
 }

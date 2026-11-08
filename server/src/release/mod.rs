@@ -6,7 +6,7 @@
 //! end user may see what stays with the calling platform. A grant gives a
 //! service a set of forms per kind ([`caps`]). For each mention the forms
 //! in effect are requested ∩ policy ∩ granted ([`caps::effective`]);
-//! mentions with none stay withheld. Before any value leaves, one access
+//! mentions with none stay withheld, each saying why (#1931). Before any value leaves, one access
 //! event is recorded with the audit service and acknowledged
 //! ([`audit`]); a failed record fails the call, with no value. Tokens are
 //! HMAC-SHA-256 under the active registered key ([`keys`]). Ciphertext
@@ -24,7 +24,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use turbo_pii::checksum::sha256;
 
-use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE};
+use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
 use crate::proto::audit::{PiiAccessEvent, PiiAccessKindGrant};
 use crate::proto::result::{InspectDocumentGraphRequest, PiiOutputOptions, PiiValueForm, TypedDocumentResult};
 use crate::results::disclosure::PiiOutputPolicy;
@@ -36,6 +36,9 @@ use keys::{KeyRef, TokenKey, TokenKeyFile};
 /// The policy id every event names until #1882's policies replace the
 /// server flag.
 pub const POLICY_ID: &str = "turbo-kserve.pii-output-allow.v1";
+
+/// `InspectDocumentGraphRequest.operation_key`.
+const OPERATION_KEY_FIELD: u32 = 6;
 
 /// The release settings: the grants, the token keys and the audit service.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,7 +89,9 @@ impl Release {
     }
 
     /// InspectDocumentGraph for a request that asks for values in `form`,
-    /// from `service`. Mentions the service is not granted stay withheld;
+    /// from `service`. A request without an operation key, or from a
+    /// service granted `form` for no kind, is refused before the graph is
+    /// read (#1931). Mentions the service is not granted stay withheld;
     /// the rest receive their value only after the audit acknowledgement.
     pub async fn inspect(
         self: Arc<Self>,
@@ -111,16 +116,31 @@ impl Release {
                 format!("pii_output.values {} is not allowed by this server's PII output policy", form.name()),
             ));
         }
-        req.pii_output = Some(PiiOutputOptions { values: PiiValueForm::Unspecified as i32, ..options });
+        // Causes that do not depend on the document are refused before the
+        // graph is read, so they tell the caller nothing about it (#1931).
+        if operation_key.is_empty() {
+            return Err(Failure::new(
+                TURBO_E_INVALID_ARGUMENT,
+                OPERATION_KEY_FIELD,
+                "pii_output.values needs operation_key: a release is recorded under it".to_owned(),
+            ));
+        }
         let grant = self.grants.of(service.as_ref());
+        if !grant.allows_any(form) {
+            return Err(Failure::new(
+                TURBO_E_INVALID_STATE,
+                0,
+                format!("pii_output.values {}: this service is granted that form for no kind", form.name()),
+            ));
+        }
+        req.pii_output = Some(PiiOutputOptions { values: PiiValueForm::Unspecified as i32, ..options });
         let doc_id = req.doc_id.clone();
         let g = grant.clone();
         let (mut typed, plan) = tokio::task::spawn_blocking(move || plan::project(&req, policy, Forms::of(form), &g))
             .await
             .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
-        // A release needs the caller's operation key, so its retries share
-        // one audit event; without one the answer is the findings only.
-        if plan.is_empty() || operation_key.is_empty() {
+        // Nothing granted in this document: the mentions carry their reasons.
+        if plan.is_empty() {
             return Ok(typed);
         }
         let Some(service) = service else {
@@ -161,6 +181,7 @@ impl Release {
             time_unix_nanos: SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64),
             doc_id,
         };
+        audit::check_event(&event).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e))?;
         self.audit.record(event).await.map_err(|why| {
             Failure::new(TURBO_E_BUSY, 0, format!("PII value release refused, no value released: {why}"))
         })?;

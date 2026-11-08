@@ -1,0 +1,263 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-ga-idt-upos",
+    "--dir",
+    "ud-irish-idt-r2.16",
+    "--hash-embed",
+    "64",
+    "--bundle",
+    "xlm-roberta-base",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "ga-idt-upos"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1794106578,
+  "corpus": {
+    "id": "ud-ga-idt-upos",
+    "name": "Universal Dependencies Irish IDT r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 3.0",
+    "spdx": "CC-BY-SA-3.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Irish-IDT/blob/r2.16/README.txt",
+    "attribution": "Trained on Universal Dependencies Irish IDT r2.16, published at https://github.com/UniversalDependencies/UD_Irish-IDT; used under the Creative Commons Attribution-ShareAlike 3.0 Unported licence (https://creativecommons.org/licenses/by-sa/3.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "ga_idt-ud-train.conllu",
+        "size": 6631088,
+        "sha256": "105d5a054adea2371313ae3448f06381eb4ba250a2493a242918069384fb6a71"
+      },
+      {
+        "path": "ga_idt-ud-dev.conllu",
+        "size": 682411,
+        "sha256": "153da60e0283f426b9334e654a23651272c1c7ace1d9a64c9d255554442ee5bd"
+      },
+      {
+        "path": "ga_idt-ud-test.conllu",
+        "size": 687169,
+        "sha256": "cb9aa443f1a9a227a4e398e4542c60e06a8faa465b0979213786953f3eee426d"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (f5092f976ab3836676f1685b48597f267f738aa5)",
+    "train": {
+      "sentences": 4005,
+      "words": 95881
+    },
+    "dev": {
+      "sentences": 451,
+      "words": 10000
+    },
+    "test": {
+      "sentences": 454,
+      "words": 10109
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      1.4741352799881298,
+      0.18456648512689425,
+      0.09088333751017845,
+      0.06269340541467185,
+      0.04755491994224744,
+      0.03762025531946417,
+      0.028329053083386336,
+      0.01895313288771192,
+      0.011194911711848663,
+      0.007326694855087472,
+      0.005384279225347449,
+      0.003720158038265959,
+      0.002291772751122035,
+      0.0021895428394367103,
+      0.0014320482442038624,
+      0.0009251897497042149,
+      0.0010076829825723566,
+      0.001275421757390087,
+      0.0012423871767013688,
+      0.018342943931518675,
+      0.01288682324210922
+    ],
+    "dev": [
+      0.8743,
+      0.9404,
+      0.9514,
+      0.9526,
+      0.948,
+      0.9527,
+      0.9513,
+      0.9489,
+      0.9495,
+      0.9518,
+      0.9528,
+      0.9524,
+      0.9507,
+      0.9518,
+      0.953,
+      0.9519,
+      0.95,
+      0.9521,
+      0.9447,
+      0.9456,
+      0.9487
+    ],
+    "best_epoch": 15,
+    "epoch_seconds": [
+      36.966350706,
+      35.284712008,
+      36.823180235,
+      35.610361411,
+      36.729440295,
+      36.407742416,
+      36.03105448,
+      35.670886625,
+      36.395657801,
+      36.749867016,
+      36.673522495,
+      35.854824426,
+      36.83721656,
+      36.922715494,
+      35.908334603,
+      36.571444997,
+      36.407689656,
+      35.280228889,
+      35.990156594,
+      36.142693201,
+      36.929055694
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 10109,
+        "correct": 9599,
+        "accuracy": 0.9495499060243348,
+        "unseen_words": 1313,
+        "unseen_correct": 1061,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 10109,
+        "correct": 8903,
+        "accuracy": 0.8807003660104857,
+        "unseen_words": 1313,
+        "unseen_correct": 666,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9495499060243348,
+      "baseline": 0.8807003660104857,
+      "delta": 0.06884954001384902,
+      "low": 0.06124497991967881,
+      "high": 0.07682915375223065,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.180697943,
+    "features": 2.604317514,
+    "train": 762.548039099,
+    "eval": 1.077417609,
+    "feature_words": 105881
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13345996,
+      "sha256": "d80a19ca1d06dee5ba95608e05107caed2d4561b4ff7a1a888f07139885a75a1"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

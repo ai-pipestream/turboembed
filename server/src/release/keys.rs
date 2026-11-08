@@ -14,8 +14,8 @@ use crate::proto::result::{PiiPolicyKeyRef, PiiValueToken};
 pub const MIN_KEY_BYTES: usize = 32;
 pub const MAX_KEY_BYTES: usize = 1024;
 
-/// What a token is a MAC over, before the value: tokens of this scheme
-/// never equal a MAC of the bare value under the same key.
+/// What a token is a MAC over, before the kind and the value: tokens of
+/// this scheme never equal a MAC of the bare value under the same key.
 const TOKEN_DOMAIN: &[u8] = b"turbo-pii-token-v1\0";
 
 /// A registered key: its id and version.
@@ -133,12 +133,18 @@ impl TokenKey {
         &self.bytes.0
     }
 
-    /// The token of `value`: HMAC-SHA-256 under this key, equal for equal
-    /// values, with the key's reference beside it.
-    pub fn token(&self, value: &str) -> PiiValueToken {
-        let mut msg = Vec::with_capacity(TOKEN_DOMAIN.len() + value.len());
+    /// The token of `value` found as `kind`: HMAC-SHA-256 under this key
+    /// over the domain, then the kind code and the value, each prefixed
+    /// with its length as 4 big-endian bytes (#1930). Equal values of one
+    /// kind give equal tokens; one value under two kinds gives two. The
+    /// key's reference is beside it.
+    pub fn token(&self, kind: &str, value: &str) -> PiiValueToken {
+        let mut msg = Vec::with_capacity(TOKEN_DOMAIN.len() + 8 + kind.len() + value.len());
         msg.extend_from_slice(TOKEN_DOMAIN);
-        msg.extend_from_slice(value.as_bytes());
+        for field in [kind.as_bytes(), value.as_bytes()] {
+            msg.extend_from_slice(&(field.len() as u32).to_be_bytes());
+            msg.extend_from_slice(field);
+        }
         PiiValueToken {
             token: sha256::hmac(&self.bytes.0, &msg).to_vec(),
             key_id: self.key.id.clone(),
