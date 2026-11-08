@@ -14,7 +14,7 @@ use crate::proto::result::{
 use crate::proto::sink::DocumentSinkItem;
 use crate::results::disclosure::Disclosure;
 use crate::results::document::{export_document_response, round_trip_document};
-use crate::results::typed::identity::check_binding;
+use crate::results::typed::identity::{bound, check_binding};
 use crate::results::typed::{document_to_typed_bound, inspect_document_graph, round_trip_typed_document};
 
 /// The typed projection a forwarder adds to every item carrying a graph:
@@ -78,15 +78,6 @@ pub(crate) fn graph_item(
         analyzed: None,
         binding: binding.cloned(),
     })
-}
-
-/// `typed` with the caller's `binding` on its input identity and on its
-/// receipt's, so the two still agree.
-fn bound(mut typed: TypedDocumentResult, binding: Option<&InputBinding>) -> TypedDocumentResult {
-    for input in [typed.input.as_mut(), typed.receipt.as_mut().and_then(|r| r.input.as_mut())].into_iter().flatten() {
-        input.binding = binding.cloned();
-    }
-    typed
 }
 
 /// The item for a graph this server exported from `doc`: `exported` is

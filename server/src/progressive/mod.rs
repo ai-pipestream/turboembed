@@ -39,7 +39,7 @@ use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_p
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
 use crate::results::receipt::error::{kind_name, of_error};
 use crate::results::receipt::{self, Operation, check_operation_key};
-use crate::results::typed::identity::{check_binding, input_identity, result_identity};
+use crate::results::typed::identity::{bound, check_binding, input_identity, result_identity};
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
@@ -443,7 +443,9 @@ fn run_progressive_task(
     let full = export_document_response(&doc, &Disclosure::FULL);
     let answered = if disclosure.graph(&doc) { full.clone() } else { export_document_response(&doc, &disclosure) };
     match full.and_then(|full| answered.map(|complete| (full, complete))) {
-        Ok((full, complete)) => {
+        Ok((full, mut complete)) => {
+            // The client's findings projection carries the request's binding.
+            complete.findings = complete.findings.map(|f| bound(f, binding.as_ref()));
             seq += 1;
             // The result is the complete graph whether or not the client
             // was handed its bytes.

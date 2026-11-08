@@ -16,7 +16,9 @@ use turbo_analysis::{Document, Key, KeyId, Layer, View, ViewTextDigest};
 
 use super::{ProjectionCx, bad};
 use crate::api::Failure;
-use crate::proto::result::{InputBinding, InputIdentity, LayerInstanceRef, LayerProvenance, ResultIdentity};
+use crate::proto::result::{
+    InputBinding, InputIdentity, LayerInstanceRef, LayerProvenance, ResultIdentity, TypedDocumentResult,
+};
 
 /// The version of the envelope's messages and rules.
 pub const ENVELOPE_SCHEMA_VERSION: u32 = 1;
@@ -47,6 +49,16 @@ pub fn check_binding(binding: Option<&InputBinding>, what: &str) -> Result<(), F
         }
         _ => Ok(()),
     }
+}
+
+/// `typed` with the caller's `binding` on its input identity and on its
+/// receipt's, so the two still agree: for a projection built without it,
+/// such as the findings of a withheld graph.
+pub fn bound(mut typed: TypedDocumentResult, binding: Option<&InputBinding>) -> TypedDocumentResult {
+    for input in [typed.input.as_mut(), typed.receipt.as_mut().and_then(|r| r.input.as_mut())].into_iter().flatten() {
+        input.binding = binding.cloned();
+    }
+    typed
 }
 
 /// The identity of the result whose TGRF bytes are `graph`.

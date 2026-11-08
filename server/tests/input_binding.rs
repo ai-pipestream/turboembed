@@ -241,6 +241,35 @@ async fn a_withheld_graph_carries_the_binding_on_its_findings_projection() {
     sink.stop().await;
 }
 
+/// The client's own findings-only Complete answer carries the binding on
+/// its projection and that projection's receipt, as the terminal receipt does.
+#[tokio::test]
+async fn a_findings_only_complete_answer_carries_the_binding() {
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, Serve::default()).await.unwrap();
+    let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let req = AnalyzePipelineRequest {
+        text: PII_TEXT.into(),
+        steps: vec!["turbo-pii:pii".into()],
+        pii_output: Some(PiiOutputOptions::default()),
+        ..pipeline("pii", Some(binding()))
+    };
+    let mut stream = c.analyze_document_progressive(req).await.unwrap().into_inner();
+    let (mut complete, mut receipt) = (None, None);
+    while let Some(ev) = stream.next().await {
+        match ev.unwrap().event {
+            Some(Event::Complete(done)) => complete = Some(done),
+            Some(Event::Receipt(r)) => receipt = Some(r),
+            _ => {}
+        }
+    }
+    let complete = complete.expect("the call ends with its complete answer");
+    assert!(complete.graph.is_empty(), "findings only: the graph is withheld");
+    let findings = complete.findings.expect("the findings projection");
+    assert_eq!(typed_binding(&findings), Some(binding()));
+    assert_eq!(receipt.unwrap().input.unwrap().binding, Some(binding()));
+    s.stop().await;
+}
+
 #[tokio::test]
 async fn the_sink_rejects_a_malformed_or_disagreeing_binding() {
     let (sink, got) = sink_server().await;
