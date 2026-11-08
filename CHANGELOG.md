@@ -54,7 +54,7 @@ stubs must be regenerated.
   or `TURBO_PII_KIND_CUSTOM_BASE` plus a custom-table index, in
   `token_start`. Off by default, so existing callers see the same rows.
   Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
-  `piiKind()` and `piiCustomKindIndex()` (#1940).
+  `piiKind()` and `piiCustomKindIndex()` (#1964).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
