@@ -92,21 +92,21 @@ impl<'a> RewriteState<'a> {
 
     pub(crate) fn write_cluster<'b>(
         &mut self,
-        strategy_for: impl Fn(PiiKind) -> &'b RewriteStrategy,
+        strategy_for: impl Fn(&PiiMention<'a>) -> &'b RewriteStrategy,
         text: &str,
         cluster: &MentionCluster<'a>,
         out: &mut String,
     ) -> Result<(), RewriteError> {
         for mem in &cluster.members {
-            if mem.normalized.is_empty() && strategy_for(mem.kind).requires_normalized(text, mem) {
+            if mem.normalized.is_empty() && strategy_for(mem).requires_normalized(text, mem) {
                 return Err(RewriteError::EmptyValue(mem.span));
             }
         }
         let winner = &cluster.merged;
         if cluster.members.len() == 1 {
-            return self.write_strategy(strategy_for(winner.kind), text, winner, out);
+            return self.write_strategy(strategy_for(winner), text, winner, out);
         }
-        let mut strategy = strategy_for(winner.kind);
+        let mut strategy = strategy_for(winner);
         while let RewriteStrategy::Map(map) = strategy {
             if let Some(rep) = map.lookup_mention(text, winner) {
                 out.push_str(rep);
@@ -119,7 +119,7 @@ impl<'a> RewriteState<'a> {
             RewriteStrategy::Truncate(trunc) => {
                 let winner_ret = trunc.retention(piece);
                 let member_rets: Vec<_> =
-                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem.kind).retention(text, mem))).collect();
+                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem).retention(text, mem))).collect();
                 for (rel_at, c) in piece.char_indices() {
                     let abs_at = absolute(winner.span, rel_at);
                     let keep = winner_ret.keeps(rel_at, c)
@@ -134,7 +134,7 @@ impl<'a> RewriteState<'a> {
             RewriteStrategy::Mask(policy) => {
                 let winner_ret = policy.retention(piece);
                 let member_rets: Vec<_> =
-                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem.kind).retention(text, mem))).collect();
+                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem).retention(text, mem))).collect();
                 for (rel_at, c) in piece.char_indices() {
                     let abs_at = absolute(winner.span, rel_at);
                     let keep = winner_ret.keeps(rel_at, c)
@@ -153,11 +153,8 @@ impl<'a> RewriteState<'a> {
                 Ok(())
             }
             RewriteStrategy::Abbreviate(abbr) => {
-                let member_inits: Vec<_> = cluster
-                    .members
-                    .iter()
-                    .map(|mem| (mem.span, strategy_for(mem.kind).member_initial(text, mem)))
-                    .collect();
+                let member_inits: Vec<_> =
+                    cluster.members.iter().map(|mem| (mem.span, strategy_for(mem).member_initial(text, mem))).collect();
                 abbr.write_abbreviated_filtered(
                     piece,
                     |rel_at, c| {

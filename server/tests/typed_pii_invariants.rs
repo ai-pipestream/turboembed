@@ -290,24 +290,48 @@ fn value(form: Option<Form>) -> Option<PiiValue> {
 }
 
 #[test]
-fn a_pii_value_must_be_withheld_until_keyed_release_lands() {
+fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     // The projection writes `withheld`, which validates (#1904).
     let wire = pii_message(|_| {});
     let mut layer = wire.layers.iter().filter(|l| l.id == "turbo:pii").flat_map(|l| &l.annotations);
     let Some(Value::Pii(m)) = &layer.next().expect("a pii annotation").value else { panic!("a pii annotation") };
     assert!(matches!(m.value, Some(PiiValue { form: Some(Form::Withheld(_)) })), "{:?}", m.value);
     validate_typed_document(&wire).unwrap();
-    // Every other form is refused before #1909, and the error names the
-    // form, never the clear value, the token or the ciphertext.
-    let secrets = ["planted.clear@example.com", "planted-token", "planted-cipher", "planted-scheme"];
-    let refusals: [(&str, Edit); 5] = [
+    // A release (#1909) writes a 32-byte token naming its key, or the
+    // value in clear; both validate.
+    let token = |m: &mut WirePii| {
+        m.value = value(Some(Form::Token(PiiValueToken {
+            token: vec![7; 32],
+            key_id: "planted-key-id".to_owned(),
+            key_version: 3,
+        })))
+    };
+    validate_typed_document(&pii_message(token)).unwrap();
+    let clear = |m: &mut WirePii| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())));
+    validate_typed_document(&pii_message(clear)).unwrap();
+    // Everything else is refused, and the error names the form, never the
+    // token, the ciphertext or the key.
+    let secrets = ["planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];
+    let refusals: [(&str, Edit); 6] = [
         ("no value", |m| m.value = None),
         ("a value with no form", |m| m.value = value(None)),
-        ("a clear value", |m| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())))),
-        ("a token", |m| m.value = value(Some(Form::Token(PiiValueToken { token: b"planted-token".to_vec() })))),
+        ("an empty clear value", |m| m.value = value(Some(Form::Clear(String::new())))),
+        ("a short token", |m| {
+            m.value = value(Some(Form::Token(PiiValueToken {
+                token: b"planted-token".to_vec(),
+                key_id: "planted-key-id".to_owned(),
+                key_version: 3,
+            })))
+        }),
+        ("a token without a key", |m| {
+            m.value =
+                value(Some(Form::Token(PiiValueToken { token: vec![7; 32], key_id: String::new(), key_version: 0 })))
+        }),
         ("a ciphertext", |m| {
             m.value = value(Some(Form::Ciphertext(PiiValueCiphertext {
                 ciphertext: b"planted-cipher".to_vec(),
+                key_id: "planted-key-id".to_owned(),
+                key_version: 3,
                 scheme: "planted-scheme".to_owned(),
             })))
         }),
@@ -315,7 +339,7 @@ fn a_pii_value_must_be_withheld_until_keyed_release_lands() {
     for (what, edit) in refusals {
         let message = refused(what, &pii_message(edit), &secrets);
         assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
-        assert!(message.contains("only withheld is supported"), "{what}: {message}");
+        assert!(message.contains("pii mention value"), "{what}: {message}");
     }
 }
 

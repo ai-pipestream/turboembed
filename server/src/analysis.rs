@@ -44,6 +44,9 @@ pub(crate) struct Analysis {
     pub(crate) catalog: Option<crate::catalog::Catalog>,
     /// What a request's PiiOutputOptions may turn on (#1904).
     pub(crate) pii_policy: crate::results::disclosure::PiiOutputPolicy,
+    /// PII value release to granted services (#1909); none withholds
+    /// every value.
+    pub(crate) release: Option<Arc<crate::release::Release>>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -175,8 +178,14 @@ impl AnalysisService for Analysis {
     }
 
     async fn inspect_document_graph(&self, req: Request<InspectDocumentGraphRequest>) -> Reply<TypedDocumentResult> {
+        // The calling service is the connection's verified certificate,
+        // read before the request's own fields are (#1909).
+        let service = crate::release::identity::of(&req);
         let req = req.into_inner();
         let policy = self.pii_policy;
+        if let (Some(release), Some(form)) = (&self.release, crate::release::asked(&req)) {
+            return Ok(Response::new(release.clone().inspect(service, req, form, policy).await.map_err(plain)?));
+        }
         let out =
             tokio::task::spawn_blocking(move || crate::results::typed::inspect_document_graph_under(&req, policy))
                 .await

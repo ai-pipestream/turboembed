@@ -14,9 +14,9 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Span, Spans, View, ViewId};
+use turbo_analysis::{Document, Ix, Key, KeyId, Layer, PolicyDigest, Span, Spans, View, ViewId};
 
-use crate::{Pii, PiiKind};
+use crate::{Pii, PiiKind, Strs};
 
 /// How a replacement was written. The ids are stable wire numbers; 0 is
 /// never a kind.
@@ -122,6 +122,10 @@ pub struct PiiEdit<'a> {
     pub members: &'a [Ix<Pii>],
     pub rule: PiiRule,
     pub strategy: PiiStrategyKind,
+    /// The id of the policy rule that chose the strategy, as the policy
+    /// names it; empty for the policy default and for a rewrite with no
+    /// named policy.
+    pub rule_id: &'a str,
 }
 
 /// Every replacement one rewrite made, in text order.
@@ -135,9 +139,14 @@ pub struct PiiEdits {
     pub members: Vec<Ix<Pii>>,
     pub rule: Vec<PiiRule>,
     pub strategy: Vec<PiiStrategyKind>,
+    /// Each edit's [`PiiEdit::rule_id`].
+    pub rule_id: Strs,
     /// The revision of the policy that made every edit, as its caller
     /// numbers it; 0 when the caller gave none.
     pub policy_revision: u64,
+    /// The digest of the redaction policy that made every edit; `None`
+    /// for a rewrite with no named policy.
+    pub policy_digest: Option<PolicyDigest>,
 }
 
 impl PiiEdits {
@@ -151,7 +160,9 @@ impl PiiEdits {
             members: Vec::new(),
             rule: Vec::new(),
             strategy: Vec::new(),
+            rule_id: Strs::default(),
             policy_revision,
+            policy_digest: None,
         }
     }
 
@@ -162,6 +173,7 @@ impl PiiEdits {
         self.member_end.push(u32::try_from(self.members.len()).expect("fewer than 2^32 members"));
         self.rule.push(e.rule);
         self.strategy.push(e.strategy);
+        self.rule_id.push(e.rule_id);
         self.spans.push(e.span)
     }
 
@@ -180,6 +192,7 @@ impl PiiEdits {
             members: self.members_of(i),
             rule: self.rule[i.get()],
             strategy: self.strategy[i.get()],
+            rule_id: self.rule_id.get(i.get()),
         }
     }
 
@@ -224,8 +237,12 @@ impl Layer for PiiEdits {
     fn content_hash(&self) -> Option<u64> {
         let mut h = turbo_analysis::Fnv1a::new();
         h.usize(self.source.len()).u64(self.policy_revision);
+        match &self.policy_digest {
+            Some(d) => h.u8(1).bytes(d.as_bytes()),
+            None => h.u8(0),
+        };
         for (i, e) in self.edits().enumerate() {
-            h.usize(i).u32(e.source.start).u32(e.source.end).u32(e.rule.code()).u8(e.strategy.id());
+            h.usize(i).u32(e.source.start).u32(e.source.end).u32(e.rule.code()).u8(e.strategy.id()).str(e.rule_id);
             h.usize(e.members.len());
             for m in e.members {
                 h.usize(m.get());
@@ -236,7 +253,12 @@ impl Layer for PiiEdits {
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        if self.source.len() != n || self.member_end.len() != n || self.rule.len() != n || self.strategy.len() != n {
+        if self.source.len() != n
+            || self.member_end.len() != n
+            || self.rule.len() != n
+            || self.strategy.len() != n
+            || self.rule_id.len() != n
+        {
             return Err("every column as long as the spans".into());
         }
         if self.member_end.last().map_or(0, |&e| e as usize) != self.members.len() {

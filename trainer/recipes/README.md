@@ -231,9 +231,12 @@ all types, seen types, and held-out (zero-shot unseen) types alongside
 the majority baseline and the case-insensitive label-name dictionary
 matcher. Comma-separated corpus ids and directories train one shared head,
 with per-dataset and combined metrics plus paired bootstrap against both
-baselines. `--balance` repeats each smaller training corpus to the largest
-split, without changing dev or test. Single-corpus cache input is supported;
-mixed-corpus cache input is refused.
+baselines. Each corpus supervises only its declared entity types, so a type
+absent from one corpus is not learned as outside there; the shared label
+center covers all seen types. `--balance` repeats each smaller training
+corpus and its feature rows to the largest split, without changing dev or
+test. Single-corpus cache input is supported; mixed-corpus cache input is
+refused.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,

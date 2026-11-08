@@ -227,7 +227,7 @@ impl WordTagger {
         let seqs = HeadRunner::sequences(view, tokens, sentences)?;
         let features = self.read.features(view, tokens, &seqs, subwords, self.head.spec())?;
         let forms = forms_of(view, tokens, &seqs);
-        let split = split_with(&self.head, &features, &forms).map_err(|e| e.to_string())?;
+        let split = split_with(&self.head, &features, &forms, None).map_err(|e| e.to_string())?;
         word_layer(view, tokens, &seqs, split)
     }
 }
@@ -261,6 +261,7 @@ pub(crate) fn split_with(
     splitter: &TokenSplitter,
     features: &[Vec<f32>],
     forms: &[Vec<&str>],
+    language: Option<&str>,
 ) -> Result<Vec<Vec<Vec<String>>>, CoreError> {
     let taps = splitter.taps();
     let h = splitter.hidden();
@@ -276,7 +277,7 @@ pub(crate) fn split_with(
         let f = if have > taps && ws > 0 { &f[(have - taps) * ws..] } else { f.as_slice() };
         let ids: Vec<u32> = (0..n as u32).collect();
         let reads = splitter.reads_forms().then_some(words.as_slice());
-        splitter.scores(f, &ids, reads, &mut scores, &mut work)?;
+        splitter.scores_language(f, &ids, reads, language, &mut scores, &mut work)?;
         splitter.decode(&scores, words, &mut labels)?;
         out.push(splitter.words(&labels, words)?);
     }

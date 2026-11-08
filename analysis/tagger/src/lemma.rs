@@ -14,7 +14,7 @@ use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
-use turbo::head::run::{LemmaTags, lemmatize_sequences};
+use turbo::head::run::{LemmaTags, lemmatize_sequences_language};
 use turbo::head::{EditTreeLemmatizer, TokenTagger};
 use turbo::manifest::{HeadKind, WordPooling};
 use turbo::status::Error as CoreError;
@@ -142,7 +142,7 @@ impl Lemmatizer {
             (Some(t), None) if t.taps() != self.head.taps() => Some(tail_taps(&head, self.head.taps(), t.taps())),
             _ => None,
         };
-        lemmas_with(&self.head, self.pos.as_ref(), dictionary, &head, pos.as_deref(), forms)
+        lemmas_with(&self.head, self.pos.as_ref(), dictionary, &head, pos.as_deref(), forms, None)
     }
 
     /// The lemma layer over every token of the view, the pieces from
@@ -205,8 +205,9 @@ pub(crate) fn lemmas_with(
     head: &[Vec<f32>],
     pos: Option<&[Vec<f32>]>,
     forms: &[Vec<&str>],
+    language: Option<&str>,
 ) -> Result<Vec<Vec<String>>, CoreError> {
-    lemmatize_sequences(lem, LemmaTags { pos_tagger, pos, given: None }, dictionary, head, forms)
+    lemmatize_sequences_language(lem, LemmaTags { pos_tagger, pos, given: None }, dictionary, head, forms, language)
 }
 
 /// The lemma layer from each sequence's lemmas.

@@ -2,10 +2,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use turbo_analysis_embed::EncoderOptions;
+use turbo_analysis_layers::PosTags;
+use turbo_tagger::MultiTaskTagger;
+use turbo_trainer_recipes::assemble::assemble_bundle;
+use turbo_trainer_recipes::assemble_zoo::{ZooEntryOptions, zoo_artifact};
 use turbo_trainer_recipes::receipt::Receipt;
 use turbo_trainer_recipes::run::{HeadOptions, spec};
 use turbo_trainer_recipes::ud::{CA_ANCORA, Column, ES_ANCORA, Treebank};
 use turbo_trainer_recipes::ud_multi::{find_column, read, sample_counts};
+use turbo_zoo::{Acceptances, Component, Directory, Index, Kind, Policy, UserId, Zoo};
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("turbo-ud-multi-{}-{name}", std::process::id()));
@@ -53,7 +59,14 @@ fn temperature_counts_preserve_the_total_and_balance_small_banks() {
 fn multi_treebank_read_prefixes_xpos_and_only_resamples_training() {
     let dir = scratch("read");
     corpora(&dir);
-    let multi = read("ud-es-ancora,ud-ca-ancora", Column::Xpos, &dir, true, 0.0).unwrap();
+    for (bank, subdir) in [(&ES_ANCORA, "es"), (&CA_ANCORA, "ca")] {
+        fs::create_dir(dir.join(subdir)).unwrap();
+        for pin in [bank.train, bank.dev, bank.test] {
+            fs::copy(dir.join(pin.path), dir.join(subdir).join(pin.path)).unwrap();
+        }
+    }
+    let dirs = format!("{}/es,{}/ca", dir.display(), dir.display());
+    let multi = read("ud-es-ancora,ud-ca-ancora", Column::Xpos, &dirs, true, 0.0).unwrap();
     assert_eq!(multi.languages, ["es", "ca"]);
     assert_eq!(multi.train_languages, [Some(0), Some(0), Some(1), Some(1)]);
     assert_eq!(multi.dev_languages, [Some(0), Some(1)]);
@@ -85,8 +98,10 @@ fn multi_treebank_read_prefixes_xpos_and_only_resamples_training() {
             "ud-es-ancora:NN"
         ]
     );
-    let error = read("ud-es-ancora,ud-es-ancora", Column::Upos, &dir, true, 1.0).unwrap_err();
+    let error = read("ud-es-ancora,ud-es-ancora", Column::Upos, dir.to_str().unwrap(), true, 1.0).unwrap_err();
     assert!(error.0.contains("listed twice"), "{error}");
+    let error = read("ud-es-ancora,ud-ca-ancora", Column::Upos, "es,ca,fi", true, 1.0).unwrap_err();
+    assert!(error.0.contains("comma-separated directories"), "{error}");
     fs::remove_dir_all(dir).unwrap();
 }
 
@@ -109,7 +124,7 @@ fn the_cli_trains_a_multi_treebank_head_and_records_sampling() {
             out.to_str().unwrap(),
             "--unrecorded-corpus",
             "--column",
-            "xpos",
+            "upos",
             "--sample",
             "0",
             "--max-train",
@@ -134,19 +149,43 @@ fn the_cli_trains_a_multi_treebank_head_and_records_sampling() {
     assert_eq!(receipt.eval.by_language.len(), 2);
     assert_eq!(receipt.eval.by_language[0].language, "es");
     assert_eq!(receipt.eval.by_language[1].language, "ca");
+    let mut released: Receipt = serde_json::from_slice(&fs::read(out.join("receipt.json")).unwrap()).unwrap();
+    released.corpus.recorded = true;
+    fs::write(out.join("receipt.json"), serde_json::to_vec_pretty(&released).unwrap()).unwrap();
+    let bundle_dir = scratch("cli-bundle");
+    let assembled = assemble_bundle(&bundle, &[&out], &bundle_dir).unwrap();
+    let artifact = zoo_artifact(
+        &assembled,
+        &ZooEntryOptions {
+            id: "turbo-multilingual-test-1".into(),
+            kind: Kind::Model,
+            component: Some(Component::DenseEncoder),
+            language: Some("es".into()),
+            version: "1".into(),
+            license_terms: "https://www.apache.org/licenses/LICENSE-2.0".into(),
+            url_prefix: "https://models.turboembed.org/zoo".into(),
+            origin: None,
+        },
+    )
+    .unwrap();
+    let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();
+    let transport = Directory::new(&bundle_dir);
+    let zoo = Zoo::new(index, scratch("cli-zoo"), Policy::default(), &transport);
+    let user: UserId = "alice".parse().unwrap();
+    let _: MultiTaskTagger<(PosTags,)> = MultiTaskTagger::from_zoo(
+        &zoo,
+        "turbo-multilingual-test-1",
+        &[None],
+        &EncoderOptions::default(),
+        &user,
+        &Acceptances::default(),
+    )
+    .unwrap();
+    fs::remove_dir_all(&bundle_dir).unwrap();
+
     let head = receipt.head.unwrap();
-    assert_eq!(head.name, "xpos");
-    assert_eq!(
-        head.labels,
-        [
-            "ud-ca-ancora:DT",
-            "ud-ca-ancora:IN",
-            "ud-ca-ancora:NN",
-            "ud-es-ancora:DT",
-            "ud-es-ancora:IN",
-            "ud-es-ancora:NN"
-        ]
-    );
+    assert_eq!(head.name, "upos");
+    assert_eq!(head.labels, ["ADP", "DET", "NOUN"]);
     let language = head.language.unwrap();
     assert_eq!(language.languages, ["es", "ca"]);
     assert_eq!(language.dim, 16);

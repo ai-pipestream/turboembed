@@ -1,7 +1,8 @@
 //! The demo's method table against the server's protos: every unary,
 //! server-streaming and client-streaming method of every service is listed
 //! once, with the right kind, and nothing else is: no bidi method. The
-//! gRPC health service is not the page's to call.
+//! gRPC health service is not the page's to call, and neither is the PII
+//! access audit service, which turbo-kserve calls and never serves (#1909).
 
 use std::path::Path;
 
@@ -21,7 +22,7 @@ fn the_table_is_every_method_of_the_protos_but_bidi() {
     for file in &fds.file {
         for service in &file.service {
             let full = format!("{}.{}", file.package(), service.name());
-            if full == "grpc.health.v1.Health" {
+            if full == "grpc.health.v1.Health" || full == "turbo.audit.v1.TurboAuditService" {
                 continue;
             }
             for m in &service.method {

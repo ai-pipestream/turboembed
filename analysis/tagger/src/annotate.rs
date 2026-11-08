@@ -110,7 +110,7 @@ impl HeadRunner {
     pub fn decode(&self, sequences: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
         let pooling = self.tagger.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
-        decode_with(&self.tagger, &features, sequences)
+        decode_with(&self.tagger, &features, sequences, None)
     }
 
     /// Each sequence of `tokens` decoded, its pieces from `subwords` when
@@ -127,7 +127,7 @@ impl HeadRunner {
         let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
         drop(words);
         let forms = forms_of(view, tokens, seqs);
-        decode_with(&self.tagger, &features, &forms).map_err(|e| e.to_string())
+        decode_with(&self.tagger, &features, &forms, None).map_err(|e| e.to_string())
     }
 
     /// The token indices of each sequence of `tokens`, in order: by the
@@ -229,7 +229,7 @@ impl HeadRunner {
     }
 }
 
-pub(crate) use turbo::head::run::decode_tagger as decode_with;
+pub(crate) use turbo::head::run::decode_tagger_language as decode_with;
 
 /// The part-of-speech layer from each sequence's decoded tags.
 pub(crate) fn pos_layer(
