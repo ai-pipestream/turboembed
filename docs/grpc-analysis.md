@@ -617,11 +617,31 @@ until #1885.
 
 For each mention the forms in effect are the request's form ∩ the forms
 `--pii-output-allow` lists ∩ the forms the service is granted for the
-mention's kind: a set intersection, never a ranking. A mention with none
-stays `withheld`; a service without a certificate or a grant gets the
-findings only, exactly as without release. A request for a form the
-policy does not list is refused with `TURBO_E_INVALID_STATE`
+mention's kind: a set intersection, never a ranking. A request for a
+form the policy does not list is refused with `TURBO_E_INVALID_STATE`
 (`FAILED_PRECONDITION`).
+
+Why a values request released nothing (#1931). Causes that do not depend
+on the document are refused before the graph is read, so they tell the
+caller nothing about it:
+
+- No `operation_key`: `TURBO_E_INVALID_ARGUMENT`, naming
+  `operation_key` (field 6).
+- A service granted the requested form for no kind at all, or a
+  connection whose certificate has no grant: `TURBO_E_INVALID_STATE`
+  (`FAILED_PRECONDITION`), naming the form and never a kind.
+
+Outcomes that depend on the document are on the answer, per mention.
+`PiiValueWithheld.reason` (field 1) says why a value is withheld:
+`NOT_REQUESTED` when the request asked for no value, `NOT_GRANTED` when
+the service is not granted the form for the mention's kind, and
+`NOT_ALLOWED_BY_POLICY` when the policy does not allow it for that kind
+(a per-kind policy, #1882; today's server-wide `--pii-output-allow`
+refuses the whole request instead, as above).
+`UNSPECIFIED` is never produced and the validator refuses it. A released
+mention carries its token or clear arm, and a document with no mentions
+has an empty list. A reason names nothing beyond the mention's own kind,
+which its findings already show.
 
 Tokens are HMAC-SHA-256 under a registered key, `--pii-token-key
 ID:VERSION:PATH` (repeated, or `TURBO_KSERVE_PII_TOKEN_KEYS`), whose 32
@@ -629,8 +649,12 @@ to 1024 bytes are read from `PATH` at start. With several keys,
 `--pii-token-key-active ID:VERSION` names the one tokens are issued
 under. `PiiValueToken` carries the 32-byte token and the key's id and
 version; key bytes never appear in a message, an error or a `Debug`
-string. Equal values under one key give equal tokens. `clear` carries the
-normalized value.
+string. The MAC is over the domain `turbo-pii-token-v1`, then the
+mention's kind code (`builtin:ID`, or `custom:NAME`) and the value, each
+prefixed with its length as 4 big-endian bytes (#1930). Equal values of
+one kind under one key give equal tokens; one value under two kinds
+gives two, so tokens never show that two kinds share a value. `clear`
+carries the normalized value.
 
 Before any value leaves, the server records one `PiiAccessEvent` with
 `turbo.audit.v1.TurboAuditService.RecordPiiAccess`
@@ -639,8 +663,8 @@ Before any value leaves, the server records one `PiiAccessEvent` with
 at most `--pii-audit-timeout-ms` (`TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS`,
 5000 by default). A call that fails, times out or acknowledges another
 event id fails the request with `TURBO_E_BUSY` (`UNAVAILABLE`) and no
-value. A release needs the request's `operation_key` (#1908); without
-one no value is released and the answer carries the findings only. The
+value. A release needs the request's `operation_key` (#1908), as above.
+The
 event carries the operation key and the attempt id the answer's receipt
 names, the input
 digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer

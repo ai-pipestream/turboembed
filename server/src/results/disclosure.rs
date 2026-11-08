@@ -26,7 +26,9 @@ use turbo_analysis::{Analyzer, Document, Key, Layer, View, ViewId};
 use turbo_analysis_layers::{Pii, PiiCandidates, PiiEdits};
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
-use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, TypedLayer, pii_value};
+use crate::proto::result::{
+    PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, PiiWithheldReason, TypedLayer, pii_value,
+};
 use crate::release::caps::{Form, Forms};
 
 /// The annotator id prefix of the views a PII rewrite writes.
@@ -245,9 +247,15 @@ fn rewrote_every_finding(doc: &Document, reads: &[turbo_analysis::KeyId]) -> boo
     })
 }
 
-/// The value every finding carries today.
+/// The value of a finding when the request asks for none: withheld,
+/// `NOT_REQUESTED`.
 pub fn withheld() -> PiiValue {
-    PiiValue { form: Some(pii_value::Form::Withheld(PiiValueWithheld {})) }
+    withheld_because(PiiWithheldReason::NotRequested)
+}
+
+/// A withheld value with its `reason` (#1931).
+pub fn withheld_because(reason: PiiWithheldReason) -> PiiValue {
+    PiiValue { form: Some(pii_value::Form::Withheld(PiiValueWithheld { reason: reason as i32 })) }
 }
 
 /// Whether layer `id` may carry annotations in a findings-only result:
