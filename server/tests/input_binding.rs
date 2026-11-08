@@ -293,3 +293,39 @@ async fn the_sink_rejects_a_projection_bound_to_another_input() {
     sink.stop().await;
     sink2.stop().await;
 }
+
+fn inspect_req(binding: Option<InputBinding>) -> turbo_kserve::proto::result::InspectDocumentGraphRequest {
+    turbo_kserve::proto::result::InspectDocumentGraphRequest {
+        doc_id: "doc-1".into(),
+        graph: graph(),
+        offsets: OffsetMode::Utf8 as i32,
+        binding,
+        ..Default::default()
+    }
+}
+
+/// The refusal is the producer's own, not the debug-only result validator's:
+/// a release build that skips validate_typed_document refuses it too.
+#[test]
+fn inspect_and_the_bound_projection_refuse_an_orphan_digest() {
+    use turbo_kserve::results::typed::{document_to_typed_bound, inspect_document_graph};
+    let e = inspect_document_graph(&inspect_req(Some(orphan_digest()))).unwrap_err();
+    assert!(e.message.starts_with("binding has a parse_artifact_digest and no parse_artifact_id"), "{e:?}");
+    let typed = inspect_document_graph(&inspect_req(Some(binding()))).unwrap();
+    assert_eq!(typed_binding(&typed), Some(binding()));
+    let doc = Document::new(TEXT);
+    let (view, offsets) = (ViewId::SOURCE, turbo_kserve::offsets::OffsetMode::Utf8);
+    let e = document_to_typed_bound("d", &doc, view, offsets, Some(&orphan_digest()), "", &Disclosure::FULL);
+    assert!(e.unwrap_err().message.starts_with("binding has a parse_artifact_digest"));
+}
+
+#[test]
+fn a_receipt_naming_an_orphan_digest_is_refused() {
+    use turbo_kserve::results::receipt::check::check_receipt_shape;
+    let typed = turbo_kserve::results::typed::inspect_document_graph(&inspect_req(Some(binding()))).unwrap();
+    let mut receipt = typed.receipt.unwrap();
+    assert!(check_receipt_shape(&receipt).is_ok());
+    receipt.input.as_mut().unwrap().binding = Some(orphan_digest());
+    let e = check_receipt_shape(&receipt).unwrap_err();
+    assert!(e.message.starts_with("receipt.input.binding has a parse_artifact_digest"), "{e:?}");
+}

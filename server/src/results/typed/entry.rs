@@ -55,6 +55,8 @@ pub fn inspect_document_graph_under(
     policy: PiiOutputPolicy,
 ) -> Result<TypedDocumentResult, Failure> {
     let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
+    // Refused before the graph is imported; the projection refuses it too.
+    super::identity::check_binding(req.binding.as_ref(), "binding")?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
     }
