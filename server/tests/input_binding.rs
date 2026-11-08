@@ -124,7 +124,7 @@ async fn analyze_stream_echoes_the_binding_on_the_answer_and_the_sink_item() {
     let s = sender(&sink, TYPED, Disclosure::FULL).await;
     s.load().await.unwrap();
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
-    let mut stream = open_stream(&mut c, 0, 0, 0).await;
+    let stream = open_stream(&mut c, 0, 0, 0).await;
     stream.tx.send(doc_msg("bound", TEXT, Some(binding()))).await.unwrap();
     stream.tx.send(doc_msg("plain", TEXT, None)).await.unwrap();
     stream.tx.send(doc_msg("orphan", TEXT, Some(orphan_digest()))).await.unwrap();
