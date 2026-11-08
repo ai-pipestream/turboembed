@@ -43,15 +43,16 @@ fn task(f: impl FnOnce(*mut *mut turbo_analysis_result, *mut crate::turbo_error)
     Ok(out as usize as jlong)
 }
 
-/// `static native long analyzerCreate(byte[] language, byte[] bundlePath)`:
-/// `turbo_analyzer_create` with a full-size descriptor naming the language
-/// and the bundle, the retired fields empty.
+/// `static native long analyzerCreate(byte[] language, byte[] bundlePath, int flags)`:
+/// `turbo_analyzer_create` with a full-size descriptor naming the language,
+/// the bundle and the `TURBO_ANALYZER_*` flags, the retired fields empty.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_analyzerCreate(
     env: *mut JNIEnv,
     _class: jclass,
     language: jbyteArray,
     bundle_path: jbyteArray,
+    flags: jint,
 ) -> jlong {
     run(env, 0, |env| {
         let language = env.byte_array(language);
@@ -59,7 +60,7 @@ pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_analyzerCreate
         let empty = text(&[]);
         let desc = turbo_analyzer_desc {
             struct_size: size_of::<turbo_analyzer_desc>() as u32,
-            flags: 0,
+            flags: flags as u32,
             language: text(&language),
             sent_model_path: empty,
             tok_model_path: empty,

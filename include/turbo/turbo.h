@@ -821,6 +821,18 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_SPAN_VALUE        (1u << 4)
 #define TURBO_SPAN_PROBABILITY  (1u << 5)
 
+/* turbo_analyzer_desc.flags. TURBO_ANALYZER_PII_VALUES: a PII row carries
+ * the mention's normalized value (TURBO_SPAN_VALUE and the pool bytes it
+ * names). Off by default: detection identifies PII, and its value is an
+ * output the caller asks for (#1904). Without the bit a PII row has its
+ * kind (label), tier (classification) and ranges, TURBO_SPAN_VALUE is
+ * clear, value_offset and value_len are zero, and no byte of the value is
+ * in the string pool. The result's graph is the document as analyzed: it
+ * holds the caller's own text and the PII layer in full, so it never
+ * leaves the process unless the caller sends it. Any other bit is
+ * TURBO_E_INVALID_ARGUMENT. */
+#define TURBO_ANALYZER_PII_VALUES (1u << 0)
+
 /* Discrete PII evidence tier codes (not a monotonic numeric scale:
  * 3 = LABELLED_CHECKSUM is stronger than 4 = LABELLED). */
 #define TURBO_PII_CONFIDENCE_FORMAT            1
@@ -876,8 +888,9 @@ void    turbo_result_release(turbo_result *r);
  * and a result of no rows, whatever the bundle. The rule sentence and
  * tokenizer paths report no probability.
  *
- * Fields are numbered from 1 for turbo_error.field. flags must be 0;
- * another value is TURBO_E_INVALID_ARGUMENT naming no field. A bundle_path
+ * Fields are numbered from 1 for turbo_error.field. flags holds
+ * TURBO_ANALYZER_* bits (TURBO_ANALYZER_PII_VALUES, off by default); an
+ * unknown bit is TURBO_E_INVALID_ARGUMENT naming no field. A bundle_path
  * turbo_analyzer_create cannot open fails it with the status of what is
  * wrong (TURBO_E_BUNDLE_NOT_FOUND, say) naming field 7. The five model path
  * fields are retired: they keep their place so a program built against an
@@ -885,7 +898,7 @@ void    turbo_result_release(turbo_result *r);
  * TURBO_E_INVALID_ARGUMENT naming its field. */
 typedef struct turbo_analyzer_desc {
     uint32_t   struct_size;
-    uint32_t   flags;             /* must be 0 */
+    uint32_t   flags;             /* TURBO_ANALYZER_* bits; 0 by default */
     turbo_text language;          /*1: BCP-47 language tag; empty defaults to "en" */
     turbo_text sent_model_path;   /*2: retired; must be empty */
     turbo_text tok_model_path;    /*3: retired; must be empty */

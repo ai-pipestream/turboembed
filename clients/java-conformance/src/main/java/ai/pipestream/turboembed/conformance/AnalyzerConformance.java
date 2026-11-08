@@ -352,9 +352,22 @@ public abstract class AnalyzerConformance {
     }
 
     @Test
-    public void piiIsASeparateTypedLayerWithANormalizedValue() {
+    public void piiRowsWithholdTheirValuesByDefault() {
         String text = "Email alice@example.com from 192.168.1.42. SIN: 046 454 286.";
         try (TurboAnalyzer analyzer = rules()) {
+            List<Row> rows = Row.copy(analyzer.detectPii(text));
+            assertTrue(rows.stream().anyMatch(row -> "email".equals(row.label())), "the mention is found");
+            assertTrue(rows.stream().allMatch(row -> row.value() == null), "a PII row carries its value (#1904)");
+            assertTrue(Row.copy(analyzer.analyzeGraph(text)).stream()
+                    .filter(row -> row.layerKind() == PII)
+                    .allMatch(row -> row.value() == null), "an analyzed PII row carries its value");
+        }
+    }
+
+    @Test
+    public void piiIsASeparateTypedLayerWithANormalizedValueWhenAskedFor() {
+        String text = "Email alice@example.com from 192.168.1.42. SIN: 046 454 286.";
+        try (TurboAnalyzer analyzer = binding().createAnalyzer(new TurboAnalyzer.Config("en", null).withPiiValues(true))) {
             List<Row> rows = Row.copy(analyzer.detectPii(text));
             assertFalse(rows.isEmpty());
             assertTrue(rows.stream().allMatch(row -> row.layerKind() == PII));

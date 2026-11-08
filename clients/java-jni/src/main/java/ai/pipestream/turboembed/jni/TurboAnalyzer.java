@@ -47,7 +47,9 @@ public final class TurboAnalyzer implements ai.pipestream.turboembed.TurboAnalyz
     public static TurboAnalyzer create(Config config) {
         Objects.requireNonNull(config, "config");
         long created = TurboJni.analyzerCreate(
-                Utf8.bytes(config.language()), Utf8.bytes(config.bundlePath() == null ? "" : config.bundlePath().toString()));
+                Utf8.bytes(config.language()),
+                Utf8.bytes(config.bundlePath() == null ? "" : config.bundlePath().toString()),
+                config.piiValues() ? TurboLibrary.TURBO_ANALYZER_PII_VALUES : 0);
         return new TurboAnalyzer(requireHandle(created, "turbo_analyzer_create"), new ReentrantLock(true));
     }
 

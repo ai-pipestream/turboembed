@@ -34,11 +34,13 @@ mod direct;
 pub(crate) struct AnalyzerConfig<'a> {
     pub(crate) language: &'a str,
     pub(crate) bundle_path: &'a str,
+    /// `TURBO_ANALYZER_PII_VALUES`: PII rows carry their value (#1904).
+    pub(crate) pii_values: bool,
 }
 
 impl Default for AnalyzerConfig<'_> {
     fn default() -> Self {
-        Self { language: "en", bundle_path: "" }
+        Self { language: "en", bundle_path: "", pii_values: false }
     }
 }
 
@@ -47,6 +49,7 @@ pub struct AnalyzerEngine {
     heads: Option<BundleHeads>,
     pii_detector: PiiDetector,
     codecs: Codecs,
+    pii_values: bool,
 }
 
 fn index_u32(index: usize, what: &str) -> Result<u32> {
@@ -113,6 +116,7 @@ impl AnalyzerEngine {
             heads,
             pii_detector: PiiDetector::pack(Pack::AllStructured),
             codecs,
+            pii_values: cfg.pii_values,
         })
     }
 
@@ -298,7 +302,7 @@ impl AnalyzerEngine {
         for (idx, mention) in pii.mentions().enumerate() {
             let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
             let label = builder.string_ref(pii.kind_name(mention.kind).unwrap_or(""))?;
-            let value = builder.string_ref(mention.normalized)?;
+            let value = if self.pii_values { Some(builder.string_ref(mention.normalized)?) } else { None };
             let classification = match mention.confidence() {
                 PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
                 PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
@@ -313,7 +317,7 @@ impl AnalyzerEngine {
                     view: Some(coords),
                     source: Some(coords),
                     label: Some(label),
-                    value: Some(value),
+                    value,
                     ..SpanDraft::default()
                 },
             )?;
@@ -456,7 +460,7 @@ impl AnalyzerEngine {
 
         let graph = export(&doc, &self.codecs).map_err(|e| Error::new(BUNDLE_INVALID, format!("export graph: {e}")))?;
         let wire = graph.to_bytes().map_err(|e| Error::new(BUNDLE_INVALID, format!("encode graph: {e}")))?;
-        extract_graph(&doc, wire, Origin::Analyzed)
+        extract_graph(&doc, wire, Origin::Analyzed, self.pii_values)
     }
 
     pub fn inspect_graph(&self, graph_bytes: &[u8]) -> Result<AnalysisResultInner> {
@@ -464,35 +468,9 @@ impl AnalyzerEngine {
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("invalid DocumentGraph wire bytes: {e}")))?;
         let doc = import(&graph, &self.codecs)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("DocumentGraph import failed: {e}")))?;
-        extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller)
+        extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller, self.pii_values)
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use turbo_analysis_layers::PiiKind;
-
-    use super::*;
-
-    #[test]
-    fn detect_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
-        let mut engine = AnalyzerEngine::from_desc(AnalyzerConfig::default()).unwrap();
-        engine.pii_detector = PiiDetector::pack(Pack::AllStructured).label_boosts(PiiKind::UsSsn);
-        let result = engine.detect_pii("SSN: 123-45-6789, SIN: 046 454 286.").unwrap();
-        let classes: Vec<(&str, u32)> = result
-            .spans
-            .iter()
-            .map(|row| {
-                let start = row.label_offset as usize;
-                let end = start + row.label_len as usize;
-                (std::str::from_utf8(&result.pool[start..end]).unwrap(), row.classification)
-            })
-            .collect();
-        assert_eq!(
-            classes,
-            [("us-ssn", TURBO_PII_CONFIDENCE_LABELLED), ("ca-sin", TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM)]
-        );
-        assert_eq!(TURBO_PII_CONFIDENCE_LABELLED, 4);
-        assert_eq!(TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, 3);
-    }
-}
+mod tests;

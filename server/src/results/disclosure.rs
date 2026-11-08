@@ -189,6 +189,24 @@ impl Disclosure {
     pub fn view_text(&self, doc: &Document, view: ViewId) -> bool {
         self.graph(doc) || (self.rewritten_text && is_rewrite_view(doc, view))
     }
+
+    /// Refuses `rpc` on `doc` unless the text of `view` may leave: a
+    /// surface that answers with view text (a window, an x-ray, chunk
+    /// previews) has nothing to answer without it (#1904).
+    pub fn require_view_text(&self, doc: &Document, view: ViewId, rpc: &str) -> Result<(), Failure> {
+        if self.view_text(doc, view) {
+            return Ok(());
+        }
+        Err(Failure::new(
+            TURBO_E_INVALID_STATE,
+            0,
+            format!(
+                "{rpc}: the document holds PII and the answer carries the text of view {}; ask \
+                 pii_output.full_text, or pii_output.rewritten_text for a PII rewrite view",
+                view.0
+            ),
+        ))
+    }
 }
 
 /// Whether `doc` holds PII findings: a `turbo:pii` layer instance, in any
@@ -237,6 +255,23 @@ pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
     for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
         l.annotations.clear();
         l.indexes_layer.clear();
+    }
+}
+
+/// A result shown on a PII rewrite view under `rewritten_text` alone: the
+/// view's own text may leave, but a layer native to another view (the
+/// source's lemmas, entity names, key-value strings) carries that view's
+/// words, so it is listed bare unless that view's text may leave too. A
+/// layer with no native view is document-wide, over the source. The
+/// findings layers are kept, the candidates only with `detail` (#1904).
+pub(crate) fn withhold_other_views(layers: &mut [TypedLayer], doc: &Document, disclosure: &Disclosure) {
+    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (disclosure.detail && id == PiiCandidates::ID);
+    for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
+        let native = l.native_view.and_then(|v| u16::try_from(v).ok()).map_or(ViewId::SOURCE, ViewId);
+        if l.id == PiiCandidates::ID || !disclosure.view_text(doc, native) {
+            l.annotations.clear();
+            l.indexes_layer.clear();
+        }
     }
 }
 

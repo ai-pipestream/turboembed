@@ -22,7 +22,7 @@ final class TurboJni {
 
     static native String lastErrorMessage();
 
-    static native long analyzerCreate(byte[] language, byte[] bundlePath);
+    static native long analyzerCreate(byte[] language, byte[] bundlePath, int flags);
 
     static native long analyzerRetain(long analyzer);
 

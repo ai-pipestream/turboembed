@@ -284,12 +284,12 @@ fn retired_model_paths_are_refused_by_field_and_the_earlier_size_names_no_bundle
         assert!(msg.contains("bundle_path"), "got: {msg}");
         turbo_analyzer_release(analyzer);
 
-        // Any other size, and a flag, are refused.
+        // Any other size, and an unknown flag, are refused.
         desc.struct_size = 112;
         assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_STRUCT_SIZE);
         desc.struct_size = size_of::<turbo_analyzer_desc>() as u32;
         desc.bundle_path = t("");
-        desc.flags = 1;
+        desc.flags = 2;
         assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_ARGUMENT);
     }
 }

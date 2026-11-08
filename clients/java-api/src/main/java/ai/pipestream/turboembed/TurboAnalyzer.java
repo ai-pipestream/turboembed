@@ -13,12 +13,25 @@ public interface TurboAnalyzer extends AutoCloseable {
      * @param language   BCP-47 language tag (null or blank defaults to {@code "en"})
      * @param bundlePath optional bundle directory whose heads write the learned layers; null
      *                   configures the rule sentence splitter and tokenizer alone
+     * @param piiValues  whether PII rows carry the mention's normalized value
+     *                   ({@code TURBO_ANALYZER_PII_VALUES}); false by default, when a PII row
+     *                   has its kind, tier and ranges and {@code value()} is empty (#1904)
      */
-    public record Config(String language, Path bundlePath) {
+    public record Config(String language, Path bundlePath, boolean piiValues) {
 
         /** Normalizes an absent language to English. */
         public Config {
             language = language == null || isBlank(language) ? "en" : language;
+        }
+
+        /** A configuration whose PII rows withhold their values. */
+        public Config(String language, Path bundlePath) {
+            this(language, bundlePath, false);
+        }
+
+        /** This configuration with PII values carried, or withheld, as {@code piiValues} says. */
+        public Config withPiiValues(boolean piiValues) {
+            return new Config(language, bundlePath, piiValues);
         }
 
         /** Returns the rule sentence/tokenizer configuration with no bundle. */

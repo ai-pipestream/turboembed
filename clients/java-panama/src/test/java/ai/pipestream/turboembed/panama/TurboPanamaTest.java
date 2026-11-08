@@ -335,9 +335,19 @@ final class TurboPanamaTest {
     }
 
     @Test
-    void piiIsSeparateTypedLayerWithNormalizedValue() {
+    void piiValuesAreWithheldUnlessAskedFor() {
         String text = "Email alice@example.com from 192.168.1.42.";
         try (TurboAnalyzer analyzer = TurboAnalyzer.create();
+                TurboAnalysisResult result = analyzer.detectPii(text)) {
+            assertFalse(result.spans().isEmpty());
+            assertTrue(result.spans().stream().allMatch(row -> row.value().isEmpty()), "a PII row carries its value");
+        }
+    }
+
+    @Test
+    void piiIsSeparateTypedLayerWithNormalizedValue() {
+        String text = "Email alice@example.com from 192.168.1.42.";
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create(TurboAnalyzer.Config.defaults().withPiiValues(true));
                 TurboAnalysisResult result = analyzer.detectPii(text)) {
             List<TurboSpanView> rows = result.spans();
             assertFalse(rows.isEmpty());

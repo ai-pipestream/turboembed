@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use super::{
     ANALYSIS_RESULT_MAGIC, ANALYZER_MAGIC, AnalysisResultInner, AnalyzerConfig, AnalyzerEngine,
-    TURBO_ANALYZER_DESC_SIZE_V1, analysis_result_handle, analyzer_handle, turbo_analysis_result, turbo_analyzer,
-    turbo_analyzer_desc, turbo_span,
+    TURBO_ANALYZER_DESC_SIZE_V1, TURBO_ANALYZER_KNOWN_FLAGS, TURBO_ANALYZER_PII_VALUES, analysis_result_handle,
+    analyzer_handle, turbo_analysis_result, turbo_analyzer, turbo_analyzer_desc, turbo_span,
 };
 use crate::ffi::{array_len, call, out_ptr, text};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_STRUCT_SIZE, Result};
@@ -45,8 +45,11 @@ pub(crate) unsafe fn decode_analyzer_desc<'a>(desc: *const turbo_analyzer_desc) 
         ));
     }
     let flags = unsafe { std::ptr::addr_of!((*desc).flags).read() };
-    if flags != 0 {
-        return Err(Error::new(INVALID_ARGUMENT, "turbo_analyzer_desc.flags must be 0"));
+    if flags & !TURBO_ANALYZER_KNOWN_FLAGS != 0 {
+        return Err(Error::new(
+            INVALID_ARGUMENT,
+            format!("turbo_analyzer_desc.flags has unknown bits {:#x}", flags & !TURBO_ANALYZER_KNOWN_FLAGS),
+        ));
     }
     let language = unsafe { text(std::ptr::addr_of!((*desc).language).read(), "language") }?;
     let retired = unsafe {
@@ -72,7 +75,11 @@ pub(crate) unsafe fn decode_analyzer_desc<'a>(desc: *const turbo_analyzer_desc) 
     } else {
         ""
     };
-    Ok(AnalyzerConfig { language: if language.is_empty() { "en" } else { language }, bundle_path })
+    Ok(AnalyzerConfig {
+        language: if language.is_empty() { "en" } else { language },
+        bundle_path,
+        pii_values: flags & TURBO_ANALYZER_PII_VALUES != 0,
+    })
 }
 
 unsafe fn text_slice<'a>(items: *const turbo_text, count: u32, what: &str) -> Result<Vec<&'a str>> {
