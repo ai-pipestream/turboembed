@@ -23,7 +23,7 @@
 use std::any::TypeId;
 
 use turbo_analysis::{Analyzer, Document, Key, Layer, View, ViewId};
-use turbo_analysis_layers::{Pii, PiiCandidates, PiiEdits};
+use turbo_analysis_layers::{Pii, PiiCandidates, PiiEdits, PiiRisk};
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 use crate::proto::result::{PiiOutputOptions, PiiValue, PiiValueForm, PiiValueWithheld, TypedLayer, pii_value};
@@ -241,9 +241,10 @@ pub fn withheld() -> PiiValue {
 /// `turbo:pii`; the `turbo:pii-edits` of a rewrite (spans, covered
 /// mentions, rule and strategy); and, when the request asks for `detail`,
 /// `turbo:pii-candidates` (every span a detector considered, with its
-/// facts and the decision taken). None of them carries a value.
+/// facts and the decision taken); and `turbo:pii-risk`, the document's
+/// score, kinds and counts (#1889). None of them carries a value.
 pub fn is_findings_layer(id: &str) -> bool {
-    id == Pii::ID || id == PiiEdits::ID || id == PiiCandidates::ID
+    id == Pii::ID || id == PiiEdits::ID || id == PiiCandidates::ID || id == PiiRisk::ID
 }
 
 /// Findings only: every other layer carries the view's words (sentence
@@ -251,7 +252,8 @@ pub fn is_findings_layer(id: &str) -> bool {
 /// those layers are listed with their status and no annotations. The
 /// candidates are detail (#1903): listed bare unless `detail` is asked.
 pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
-    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (detail && id == PiiCandidates::ID);
+    let kept =
+        |id: &str| id == Pii::ID || id == PiiEdits::ID || id == PiiRisk::ID || (detail && id == PiiCandidates::ID);
     for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
         l.annotations.clear();
         l.indexes_layer.clear();
@@ -265,7 +267,9 @@ pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
 /// layer with no native view is document-wide, over the source. The
 /// findings layers are kept, the candidates only with `detail` (#1904).
 pub(crate) fn withhold_other_views(layers: &mut [TypedLayer], doc: &Document, disclosure: &Disclosure) {
-    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (disclosure.detail && id == PiiCandidates::ID);
+    let kept = |id: &str| {
+        id == Pii::ID || id == PiiEdits::ID || id == PiiRisk::ID || (disclosure.detail && id == PiiCandidates::ID)
+    };
     for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
         let native = l.native_view.and_then(|v| u16::try_from(v).ok()).map_or(ViewId::SOURCE, ViewId);
         if l.id == PiiCandidates::ID || !disclosure.view_text(doc, native) {
