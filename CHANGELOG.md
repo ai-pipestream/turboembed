@@ -86,8 +86,9 @@ stubs must be regenerated.
   refusals for a digest mismatch, a wrong format or an unreadable
   artifact (#1928).
 - `PiiValueWithheld.reason` (field 1, `PiiWithheldReason`): each
-  withheld mention says why, `NOT_REQUESTED`, `NOT_GRANTED` or
-  `NOT_ALLOWED_BY_POLICY`; `UNSPECIFIED` is refused. Release tokens are
+  withheld mention says why, `NOT_REQUESTED` or `NOT_GRANTED`;
+  `UNSPECIFIED` is refused, and `NOT_ALLOWED_BY_POLICY` is defined for a
+  per-kind policy ceiling (#1943) but not produced yet. Release tokens are
   bound to the mention's kind, so one value under two kinds gives two
   tokens. Before the graph is read, a values request with no
   `operation_key` is refused with `TURBO_E_INVALID_ARGUMENT`, and one

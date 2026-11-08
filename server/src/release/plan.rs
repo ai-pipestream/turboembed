@@ -116,13 +116,12 @@ pub fn project(
         for i in 0..pii.len() {
             let m = pii.get(Ix::new(i as u32));
             let Some(form) = effective(asked, policy.values, grant.forms(m.kind)).iter().next() else {
-                // Withheld, saying why: the policy refuses the form, or the
-                // service is not granted it for this mention's kind.
-                let reason = if effective(asked, policy.values, asked).is_empty() {
-                    PiiWithheldReason::NotAllowedByPolicy
-                } else {
-                    PiiWithheldReason::NotGranted
-                };
+                // Withheld because the service is not granted the form for
+                // this mention's kind. A form the server-wide output policy
+                // excludes refused the request before the graph was read,
+                // so NOT_ALLOWED_BY_POLICY waits for a per-kind policy
+                // ceiling (#1943).
+                let reason = PiiWithheldReason::NotGranted;
                 if let Some(Value::Pii(w)) = &mut typed.layers[li].annotations[i].value {
                     w.value = Some(withheld_because(reason));
                 }

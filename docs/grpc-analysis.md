@@ -627,10 +627,10 @@ caller nothing about it:
 Outcomes that depend on the document are on the answer, per mention.
 `PiiValueWithheld.reason` (field 1) says why a value is withheld:
 `NOT_REQUESTED` when the request asked for no value, `NOT_GRANTED` when
-the service is not granted the form for the mention's kind, and
-`NOT_ALLOWED_BY_POLICY` when the policy does not allow it for that kind
-(a per-kind policy, #1882; today's server-wide `--pii-output-allow`
-refuses the whole request instead, as above).
+the service is not granted the form for the mention's kind.
+`NOT_ALLOWED_BY_POLICY` is defined for a per-kind policy ceiling
+(#1943) and nothing produces it yet: today's server-wide
+`--pii-output-allow` refuses the whole request instead, as above.
 `UNSPECIFIED` is never produced and the validator refuses it. A released
 mention carries its token or clear arm, and a document with no mentions
 has an empty list. A reason names nothing beyond the mention's own kind,

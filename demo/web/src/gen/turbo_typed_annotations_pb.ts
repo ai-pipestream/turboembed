@@ -6960,10 +6960,9 @@ export const PiiScoreKindSchema: GenEnum<PiiScoreKind> = /*@__PURE__*/
  * Why one mention's value was withheld. A request that asks for no value
  * gives NOT_REQUESTED on every mention. A values request answers per
  * mention: a mention whose kind the calling service is not granted the
- * requested form for is NOT_GRANTED; one whose kind the server's policy
- * does not allow the form for is NOT_ALLOWED_BY_POLICY. A reason never
- * names a kind beyond the mention's own kind_ref. UNSPECIFIED is never
- * produced and is refused.
+ * requested form for is NOT_GRANTED. A reason never names a kind beyond
+ * the mention's own kind_ref. UNSPECIFIED is never produced and is
+ * refused.
  *
  * @generated from enum turbo.result.v1.PiiWithheldReason
  */
@@ -6984,6 +6983,10 @@ export enum PiiWithheldReason {
   NOT_GRANTED = 2,
 
   /**
+   * Produced only by a per-kind policy ceiling (#1943), which does not
+   * exist yet: nothing produces this value today. A form the server-wide
+   * output policy excludes refuses the whole request instead.
+   *
    * @generated from enum value: PII_WITHHELD_REASON_NOT_ALLOWED_BY_POLICY = 3;
    */
   NOT_ALLOWED_BY_POLICY = 3,
