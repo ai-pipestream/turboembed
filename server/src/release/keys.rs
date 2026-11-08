@@ -127,6 +127,12 @@ impl TokenKey {
         Ok(TokenKey { key: file.key.clone(), bytes: KeyBytes(bytes) })
     }
 
+    /// The key material, for a redaction policy's keyed-token strategy
+    /// (#1882); never logged or printed.
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes.0
+    }
+
     /// The token of `value`: HMAC-SHA-256 under this key, equal for equal
     /// values, with the key's reference beside it.
     pub fn token(&self, value: &str) -> PiiValueToken {

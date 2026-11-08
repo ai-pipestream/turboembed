@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-use turbo_analysis::{Alignment, Ix, Span, View, ViewBuilder, ViewId};
+use turbo_analysis::{Alignment, Ix, PolicyDigest, Span, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{
     CustomKinds, DetectorError, KindError, Pii, PiiEdit, PiiEdits, PiiMention, PiiRule, PiiStrategyKind, mention_order,
 };
@@ -60,17 +60,19 @@ pub(crate) struct MentionCluster<'a> {
     pub(crate) refs: Vec<Ix<Pii>>,
 }
 
-/// Which rule chose the strategy of one replacement, and the strategy.
+/// Which rule chose the strategy of one replacement, the id its policy
+/// gives that rule (empty for none), and the strategy.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct EditOrigin {
+pub(crate) struct EditOrigin<'r> {
     pub(crate) rule: PiiRule,
     pub(crate) strategy: PiiStrategyKind,
+    pub(crate) rule_id: &'r str,
 }
 
-impl EditOrigin {
+impl EditOrigin<'static> {
     /// A replacement by the only strategy of a single-strategy rewrite.
-    pub(crate) const fn only(strategy: PiiStrategyKind) -> EditOrigin {
-        EditOrigin { rule: PiiRule::Default, strategy }
+    pub(crate) const fn only(strategy: PiiStrategyKind) -> EditOrigin<'static> {
+        EditOrigin { rule: PiiRule::Default, strategy, rule_id: "" }
     }
 }
 
@@ -147,12 +149,12 @@ impl PiiRewrite {
     /// a [`ViewBuilder`] over `src`: one edit per cluster. A cluster of
     /// more than one mention that `refuses` is refused, before any label
     /// is written. `write` names the rule and strategy of each label.
-    pub(crate) fn derive<'a>(
+    pub(crate) fn derive<'a, 'r>(
         src: &View,
         pii: &'a Pii,
         refuses: impl Fn(&MentionCluster<'a>) -> bool,
         policy_revision: u64,
-        mut write: impl FnMut(&MentionCluster<'a>, &mut String) -> Result<EditOrigin, RewriteError>,
+        mut write: impl FnMut(&MentionCluster<'a>, &mut String) -> Result<EditOrigin<'r>, RewriteError>,
     ) -> Result<PiiRewrite, RewriteError> {
         let layer = pii.spans.view();
         if layer != src.id() {
@@ -205,6 +207,7 @@ impl PiiRewrite {
                 members: &c.refs,
                 rule: origin.rule,
                 strategy: origin.strategy,
+                rule_id: origin.rule_id,
             });
         }
         Ok(PiiRewrite { view: View::derived(src, new_text, alignment), labels, edits, parent_len: text.len() })
@@ -239,6 +242,13 @@ impl PiiRewrite {
     /// One edit per replacement, over [`ViewId::PENDING`].
     pub fn edits(&self) -> &PiiEdits {
         &self.edits
+    }
+
+    /// This rewrite as made by the redaction policy with digest `digest`,
+    /// which every edit then names.
+    pub fn with_policy_digest(mut self, digest: PolicyDigest) -> PiiRewrite {
+        self.edits.policy_digest = Some(digest);
+        self
     }
 
     /// The derived view and its edits, for a step to store together.
@@ -300,7 +310,9 @@ mod tests {
         }
     }
 
-    fn label(text: &'static str) -> impl FnMut(&MentionCluster<'_>, &mut String) -> Result<EditOrigin, RewriteError> {
+    fn label(
+        text: &'static str,
+    ) -> impl FnMut(&MentionCluster<'_>, &mut String) -> Result<EditOrigin<'static>, RewriteError> {
         move |_, buf| {
             buf.push_str(text);
             Ok(EditOrigin::only(PiiStrategyKind::Static))

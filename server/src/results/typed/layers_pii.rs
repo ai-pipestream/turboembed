@@ -8,7 +8,7 @@ use std::any::TypeId;
 use turbo_analysis::{Ix, KeyId, Layer, Span, ViewId};
 use turbo_analysis_layers::{
     AllowRule, AllowScope, ChecksumAlgorithm, Pii, PiiCandidates, PiiDetectorRef, PiiDetectors, PiiDisposition,
-    PiiEvidence, PiiKind, PiiScore, PiiScoreKind,
+    PiiEvidence, PiiKind, PiiPlan, PiiScore, PiiScoreKind,
 };
 
 use super::{ProjectionCx, build_layer};
@@ -16,8 +16,8 @@ use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumEvidence, PiiDenyHitEvidence,
     PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKindRef,
-    PiiLabelEvidence, PiiMention, PiiRuleEvidence, PiiScore as WireScore, PiiShapeEvidence, TypedAnnotation,
-    TypedLayer, pii_allow_rule_ref, pii_disposition, pii_evidence, pii_kind_ref,
+    PiiLabelEvidence, PiiMention, PiiPlannedRewrite, PiiRuleEvidence, PiiScore as WireScore, PiiShapeEvidence,
+    TypedAnnotation, TypedLayer, pii_allow_rule_ref, pii_disposition, pii_evidence, pii_kind_ref,
 };
 
 /// The wire reference of `kind`: its stable built-in id (the `PiiKindId`
@@ -106,6 +106,19 @@ fn wire_disposition(d: PiiDisposition) -> WireDisposition {
     WireDisposition { disposition: Some(disposition) }
 }
 
+/// What a dry run planned for a kept candidate's mention.
+fn planned(plan: Option<&PiiPlan>, d: PiiDisposition) -> Option<PiiPlannedRewrite> {
+    let (plan, PiiDisposition::Kept { mention }) = (plan?, d) else { return None };
+    let i = mention.get();
+    (i < plan.spans.len()).then(|| PiiPlannedRewrite {
+        rule: Some(super::layers_pii_edits::rule(plan.rule[i])),
+        rule_id: plan.rule_id.get(i).to_owned(),
+        strategy: i32::from(plan.strategy[i].id()),
+        policy_revision: plan.policy_revision,
+        policy_digest: plan.policy_digest.map(|d| d.as_bytes().to_vec()).unwrap_or_default(),
+    })
+}
+
 pub(crate) fn project_pii_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option<TypedLayer> {
     let ty = key.ty;
     if ty == TypeId::of::<Pii>() {
@@ -139,6 +152,8 @@ pub(crate) fn project_pii_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option
         return Some(layer);
     }
     if ty == TypeId::of::<PiiCandidates>() {
+        let doc = cx.doc;
+        let plan = doc.get::<PiiPlan>();
         let mut layer = build_layer::<PiiCandidates>(cx, key, |cx, l, mref| {
             let mref = mref.map(ToOwned::to_owned);
             let view = l.spans.view();
@@ -156,6 +171,7 @@ pub(crate) fn project_pii_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option
                             evidence: wire_evidence(cx, view, c.evidence),
                             score: wire_score(&l.detectors, c.score),
                             disposition: Some(wire_disposition(c.disposition)),
+                            planned: planned(plan, c.disposition),
                         })),
                     }
                 })

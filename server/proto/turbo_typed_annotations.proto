@@ -1256,6 +1256,24 @@ message PiiCandidateAnnotation
   repeated PiiEvidence evidence = 3;
   optional PiiScore score = 4;
   PiiDisposition disposition = 5;
+  // What a turbo-pii:redact dry run would do with a kept candidate; unset
+  // for every other disposition and outside a dry run.
+  PiiPlannedRewrite planned = 6;
+}
+
+// The rewrite a RedactionPolicy would give one kept mention, as a
+// turbo-pii:redact dry run reports it: the same rule, rule id, strategy,
+// revision and digest the edit covering it would record. A cluster of
+// overlapping mentions is written by its winner's strategy, so a kept
+// mention that loses its cluster is replaced by another's strategy.
+message PiiPlannedRewrite
+{
+  PiiEditRule rule = 1;
+  string rule_id = 2;
+  PiiStrategy strategy = 3;
+  uint64 policy_revision = 4;
+  // The raw 32 bytes of the policy digest.
+  bytes policy_digest = 5;
 }
 
 // How a PII rewrite wrote a replacement: the same numbers as the native
@@ -1302,6 +1320,13 @@ message PiiEditAnnotation
   PiiStrategy strategy = 4;
   // The caller's revision of the policy; 0 when none was given.
   uint64 policy_revision = 5;
+  // The rule_id of the RedactionPolicy rule that chose the strategy;
+  // empty for the policy default and for a rewrite by no RedactionPolicy.
+  string rule_id = 6;
+  // The raw 32 bytes of the RedactionPolicy's digest: the SHA-256 of its
+  // canonical encoding (docs/grpc-analysis.md, "Redaction policy"). Empty
+  // for a rewrite by no RedactionPolicy.
+  bytes policy_digest = 7;
 }
 
 message NoiseSpan

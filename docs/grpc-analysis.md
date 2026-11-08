@@ -821,8 +821,8 @@ values, detail strings or debug renderings.
 ## Redaction policy (issue #1882)
 
 `server/proto/turbo_pii_policy.proto` defines `RedactionPolicy`, the typed
-policy a PII redaction step runs under. No RPC takes it yet (that is
-#1882 part B); `turbo_kserve::pii_policy::RedactionPolicy::from_proto`
+policy the `turbo-pii:redact` step runs under (see "The redact step"
+below); `turbo_kserve::pii_policy::RedactionPolicy::from_proto`
 converts it into the native rewrite strategies (`turbo_pii::rewrite`)
 and detector lists, with a typed `PolicyError` naming the field.
 
@@ -891,8 +891,56 @@ added to the schema later leaves every older policy's digest as it was,
 and the revision does change it. `server/tests/pii_policy/golden.hex`
 pins the encoding of one policy and `server/tests/pii_policy_digest.rs`
 its digest, computed outside the crate with `sha256sum`. The FNV
-`config_hash` of a step stays a local cache hash; part B puts the policy
-digest in the step's cache key and on every edit and decision.
+`config_hash` of a step stays a local cache hash; the policy digest is in
+the redact step's cache key and on every edit and decision.
+
+### The redact step
+
+`turbo-pii:redact` (aliases `turbo:pii-redact`, `pii-redact`) runs on
+`AnalyzeDocumentProgressive` beside `turbo-pii:pii`. Its policy is
+`AnalyzePipelineRequest.pii_redaction` (`PiiRedactionSelection`): either
+`inline`, a `RedactionPolicy` converted for this request, or `name`, the
+id of a policy the server loaded at start. The step refuses to build
+without one, and a selection on a pipeline without the step is refused.
+An unknown name is refused without echoing it.
+
+- **Named policies**: `--pii-policy PATH` (repeatable) names a file
+  holding one binary `RedactionPolicy` message; every file is read and
+  converted at start, served by its `id`, and a file that does not decode
+  or convert, or repeats an id, fails start-up. Errors name the flag's
+  position, never the path, a term or a key.
+- **References**: a keyed-token key (`PiiPolicyKeyRef`) resolves through
+  the token keys registered with `--pii-token-key` (PII value release);
+  an unregistered key refuses the policy. Dictionary references are
+  refused until the server has a dictionary registry.
+- **Detection**: with a policy, `turbo-pii:pii` drops disabled kinds,
+  applies the global and per-kind allow lists and label overrides, and
+  adds the deny lists and a custom identifier scanner
+  (`turbo-pii:policy-identifiers`, versioned by the policy digest) that
+  tests each whitespace-separated word, trimmed of surrounding
+  punctuation, against the identifier shapes.
+- **Output**: the `redacted` view and its `turbo:pii-edits` layer, as
+  #1902's `RedactedView` writes them. Each strategy is chosen per mention
+  by the policy's rules; overlapping mentions form one edit written by
+  the cluster winner's choice. Every `PiiEditAnnotation` carries the
+  choosing rule's `rule_id` (empty for the default), the
+  `policy_revision` and the 32-byte `policy_digest`. The step's
+  `ModelRef` is the policy id, revision and digest, so the digest enters
+  every provenance digest it writes and a new digest misses the cache.
+- **Disclosure**: the redacted view is a `turbo-pii:` rewrite view, so
+  its text leaves only with `PiiOutputOptions.rewritten_text` allowed by
+  the server (PII output); the findings-only default shows none. Mention
+  values stay withheld unless released through PII value release.
+- **Dry run** (`dry_run`): the same rewrite is run and checked, but the
+  step writes a `turbo:pii-plan` layer in place of the view and edits:
+  one item per mention with the rule, rule id and strategy its edit would
+  record. On the wire each kept candidate of `turbo:pii-candidates`
+  carries `PiiPlannedRewrite` (rule, rule id, strategy, revision, digest);
+  the candidates layer is detail, so a dry run's answer asks for
+  `PiiOutputOptions.detail`.
+- **Unknown kinds and strategies** are refused when the policy is
+  converted; with `redact_and_flag_unknown` they become whole-value masks
+  (a `PolicyFlag` each), never a pass-through.
 
 ## Streaming bulk document analysis (issue #722)
 

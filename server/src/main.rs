@@ -3,9 +3,11 @@
 
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use turbo_kserve::catalog::Catalog;
 use turbo_kserve::config::{Args, USAGE};
+use turbo_kserve::pii_policy::{NamedPolicies, ServerResolver};
 use turbo_kserve::probe::{self, HEALTH_USAGE, Probe};
 use turbo_kserve::proto::health::health_check_response::ServingStatus;
 use turbo_kserve::{Serve, Server};
@@ -72,6 +74,21 @@ async fn health(args: impl Iterator<Item = String>) -> ExitCode {
     }
 }
 
+/// Reads and converts every `--pii-policy` file; an error names the file
+/// by its position among the flags, never by its path or contents.
+fn load_pii_policies(
+    paths: &[PathBuf],
+    token_keys: &[turbo_kserve::release::keys::TokenKeyFile],
+) -> Result<(NamedPolicies, Arc<ServerResolver>), String> {
+    let resolver = ServerResolver::load(token_keys)?;
+    let files = paths
+        .iter()
+        .enumerate()
+        .map(|(i, p)| std::fs::read(p).map_err(|e| format!("--pii-policy {i}: cannot be read ({})", e.kind())))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((NamedPolicies::from_encoded(&files, &resolver)?, resolver.shared()))
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let mut argv = std::env::args().skip(1).peekable();
@@ -103,7 +120,17 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    let token_keys = args.pii_release.as_ref().map_or(&[][..], |r| &r.token_keys[..]);
+    let (pii_policies, pii_resolver) = match load_pii_policies(&args.pii_policies, token_keys) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     let serve = Serve {
+        pii_policies,
+        pii_resolver,
         admin: args.admin,
         drive,
         zoo: args.zoo,

@@ -237,7 +237,29 @@ pub(super) fn candidate(
     row.detector("detector", c.detector.as_ref())?;
     row.evidence(&c.evidence)?;
     row.score(c.score.as_ref())?;
-    disposition(&row, c.disposition.as_ref())
+    disposition(&row, c.disposition.as_ref())?;
+    planned(&row, c)
+}
+
+/// A dry run's planned rewrite: only on a kept candidate, with a known
+/// rule and strategy and the policy's digest.
+fn planned(row: &Row<'_>, c: &PiiCandidateAnnotation) -> Result<(), Failure> {
+    let Some(p) = &c.planned else { return Ok(()) };
+    let kept = matches!(
+        c.disposition.as_ref().and_then(|d| d.disposition.as_ref()),
+        Some(pii_disposition::Disposition::Kept(_))
+    );
+    if !kept {
+        return Err(row.refuse("pii candidate is planned but not kept"));
+    }
+    if p.rule.as_ref().and_then(|r| r.rule.as_ref()).is_none() {
+        return Err(row.refuse("pii candidate planned rule is missing"));
+    }
+    if u8::try_from(p.strategy).ok().and_then(turbo_analysis_layers::PiiStrategyKind::from_id).is_none() {
+        return Err(row.refuse("pii candidate planned strategy is not a known strategy"));
+    }
+    super::pii_edits::policy_ref(&p.rule_id, &p.policy_digest, true)
+        .map_err(|what| bad(format!("{} pii candidate planned {what}", row.at())))
 }
 
 /// A disposition that is set and known; a mention index is a row of the

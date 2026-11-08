@@ -38,6 +38,7 @@ pub use scan::{BUILTIN_VERSION, CustomExtractor, Extractor, Scanner, ScannerErro
 pub use turbo_analysis_layers::{
     AllowRule, AllowScope, ChecksumAlgorithm, CustomKindId, CustomKinds, DetectorError, EvidenceList, KindError, Pii,
     PiiCandidate, PiiCandidates, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiDisposition, PiiEdit, PiiEdits,
-    PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiRule, PiiScore, PiiScoreKind, PiiStrategyKind, RejectReason,
+    PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiPlan, PiiRule, PiiScore, PiiScoreKind, PiiStrategyKind,
+    RejectReason,
 };
 pub use window::LabelPolicy;

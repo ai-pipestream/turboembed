@@ -13,3 +13,11 @@ pub(super) fn resolve(flag: Option<String>, env: impl Fn(&str) -> Option<String>
         Some(v) => PiiOutputPolicy::parse(&v).map_err(|e| format!("--pii-output-allow {v}: {e}")),
     }
 }
+
+/// One `--pii-policy` path: a binary `RedactionPolicy` file (#1882).
+pub(super) fn policy_path(v: String) -> Result<std::path::PathBuf, String> {
+    if v.is_empty() {
+        return Err("--pii-policy needs a path".into());
+    }
+    Ok(v.into())
+}

@@ -370,9 +370,9 @@ impl RewritePolicy {
             if self.refuse_overlaps {
                 state.write_strategy(strategy, text, &cluster.merged, out)?;
             } else {
-                state.write_cluster(|k| self.strategy_in(kinds, k), text, cluster, out)?;
+                state.write_cluster(|m| self.strategy_in(kinds, m.kind), text, cluster, out)?;
             }
-            Ok(EditOrigin { rule: self.rule_in(kinds, winner), strategy: strategy.kind() })
+            Ok(EditOrigin { rule: self.rule_in(kinds, winner), strategy: strategy.kind(), rule_id: "" })
         })
     }
 }

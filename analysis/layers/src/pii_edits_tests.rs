@@ -54,6 +54,7 @@ fn edits(view: ViewId, second_members: &[Ix<Pii>]) -> PiiEdits {
         members: &[Ix::new(0)],
         rule: PiiRule::Default,
         strategy: PiiStrategyKind::Static,
+        rule_id: "",
     });
     e.push(PiiEdit {
         span: Span::new(12, 15),
@@ -61,6 +62,7 @@ fn edits(view: ViewId, second_members: &[Ix<Pii>]) -> PiiEdits {
         members: second_members,
         rule: PiiRule::Kind(PiiKind::Phone),
         strategy: PiiStrategyKind::Static,
+        rule_id: "",
     });
     e
 }
@@ -186,4 +188,56 @@ fn an_empty_layer_is_checked_against_its_view_and_pii() {
     // No pii layer at all: refused before the edits are looked at.
     let mut bare = Document::new(TEXT);
     assert!(add(&mut bare, PiiEdits::new(ViewId::SOURCE, 0)).is_err());
+}
+
+/// The edits of [`edits`] as made by a named policy: a rule id on the
+/// second edit and the policy's digest.
+fn policy_edits(view: ViewId) -> PiiEdits {
+    let base = edits(view, &[Ix::new(1), Ix::new(2)]);
+    let mut e = PiiEdits::new(view, 7);
+    e.push(base.get(Ix::new(0)));
+    e.push(PiiEdit { rule_id: "phones", ..base.get(Ix::new(1)) });
+    e.policy_digest = Some(PolicyDigest::from_bytes([9; 32]));
+    e
+}
+
+#[test]
+fn rule_ids_and_the_policy_digest_round_trip_and_enter_the_hash() {
+    use turbo_analysis::export::{DocumentGraph, export, import};
+    let (mut doc, view) = doc();
+    let named = policy_edits(view);
+    assert_eq!((named.get(Ix::new(0)).rule_id, named.get(Ix::new(1)).rule_id), ("", "phones"));
+    let plain = edits(view, &[Ix::new(1), Ix::new(2)]);
+    assert_ne!(named.content_hash(), plain.content_hash());
+    let mut other = policy_edits(view);
+    other.policy_digest = Some(PolicyDigest::from_bytes([8; 32]));
+    assert_ne!(named.content_hash(), other.content_hash());
+    add(&mut doc, named).unwrap();
+    let codecs = crate::export::codecs();
+    let bytes = export(&doc, &codecs).unwrap().to_bytes().unwrap();
+    let back = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs).unwrap();
+    let e = back.get::<PiiEdits>().unwrap();
+    assert_eq!(e.rule_id.iter().collect::<Vec<_>>(), ["", "phones"]);
+    assert_eq!(e.policy_digest, Some(PolicyDigest::from_bytes([9; 32])));
+    assert_eq!(export(&back, &codecs).unwrap().to_bytes().unwrap(), bytes);
+}
+
+#[test]
+fn edits_naming_no_policy_round_trip_without_one() {
+    use turbo_analysis::export::{DocumentGraph, export, import};
+    let (mut doc, view) = doc();
+    add(&mut doc, edits(view, &[Ix::new(1), Ix::new(2)])).unwrap();
+    let codecs = crate::export::codecs();
+    let bytes = export(&doc, &codecs).unwrap().to_bytes().unwrap();
+    let back = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs).unwrap();
+    let e = back.get::<PiiEdits>().unwrap();
+    assert_eq!((e.policy_digest, e.rule_id.iter().all(str::is_empty)), (None, true));
+}
+
+#[test]
+fn a_rule_id_column_of_the_wrong_length_is_refused() {
+    let (_, view) = doc();
+    let mut e = policy_edits(view);
+    e.rule_id.push("extra");
+    assert_eq!(e.check(), Err("every column as long as the spans".into()));
 }

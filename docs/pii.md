@@ -389,6 +389,11 @@ the source text into the rewritten text and back
 
 ### The redacted view
 
+The server's `turbo-pii:redact` step writes the same view and edits from
+a typed `RedactionPolicy` (docs/grpc-analysis.md, "The redact step"),
+choosing each mention's strategy with `rewrite::rewrite_chosen` and a
+`StrategyChooser`; its edits also carry the policy rule id and digest.
+
 `RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
 `View` and the `turbo:pii` layer over it and writes the rewritten text as
 a `View` derived from it, with the `turbo:pii-edits` layer over that view,

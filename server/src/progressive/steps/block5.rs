@@ -9,6 +9,7 @@
 
 use std::any::Any;
 use std::path::Path;
+use std::sync::Arc;
 
 use turbo_analysis::analyzer::Builder;
 use turbo_analysis::annotate::{AnchorUse, Step};
@@ -29,10 +30,16 @@ use turbo_structure::LayoutProjector;
 use super::super::normalize::{check_required_inputs, store_single};
 use super::EmbedContext;
 use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
+use crate::pii_policy::{REDACT_STEP, RedactStep, Redaction};
 
 /// Whether `name` selects the SaT sentence tier.
 pub(super) fn is_sat_step(name: &str) -> bool {
     matches!(name, "turbo-sat:sat" | "turbo:sat" | "sat")
+}
+
+/// Whether `name` selects the redact step.
+pub(super) fn is_redact_step(name: &str) -> bool {
+    matches!(name, REDACT_STEP | "turbo:pii-redact" | "pii-redact")
 }
 
 /// Adds one block 5 step to `builder` when `name` names one.
@@ -44,6 +51,7 @@ pub(super) fn add_step(
     embed_cx: Option<&EmbedContext>,
     norm_chain: &[&'static str],
     step_names: &[&str],
+    redaction: Option<&Redaction>,
 ) -> Result<(Builder, bool), Failure> {
     let has_weigh_layout =
         step_names.iter().any(|&s| matches!(s, "turbo:weigh-layout-boundaries" | "weigh_layout_boundaries"));
@@ -61,11 +69,25 @@ pub(super) fn add_step(
         "turbo:structure-boundaries" | "turbo:boundaries" if has_weigh_layout => {
             builder.step(Bound::new(StructureBoundaries { costs: Costs::default() }).write(0, STRUCTURE))
         }
-        "turbo-pii:pii" | "turbo:pii" | "pii" => builder.add(PiiDetector::pack(Pack::AllStructured)),
+        "turbo-pii:pii" | "turbo:pii" | "pii" => match redaction {
+            None => builder.add(PiiDetector::pack(Pack::AllStructured)),
+            Some(r) => builder.add(
+                r.policy
+                    .detector(Pack::AllStructured)
+                    .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo-pii:pii: {e}")))?,
+            ),
+        },
         "turbo-pii:masked" | "turbo:pii-masked" | "pii-masked" => {
             let masked = MaskedView::by_kind('*')
                 .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo-pii:masked: {e}")))?;
             builder.step(masked.bound())
+        }
+        REDACT_STEP | "turbo:pii-redact" | "pii-redact" => {
+            let r = redaction.ok_or_else(|| {
+                Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "turbo-pii:redact needs a policy: set pii_redaction")
+            })?;
+            let step = RedactStep::new(Arc::clone(&r.policy));
+            if r.dry_run { builder.add(step.dry_run()) } else { builder.step(step.bound()) }
         }
         "turbo-numeric:numbers" | "turbo:numbers" | "numbers" => builder.add(NumberScanner::default()),
         "turbo-numeric:money" | "turbo:money" | "money" => builder.add(MoneyExtractor::default()),
