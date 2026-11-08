@@ -1209,6 +1209,8 @@ message PiiValue
 // The value is not in the response, and why (#1931).
 message PiiValueWithheld
 {
+  // Why this mention's value is not in the response. Required;
+  // UNSPECIFIED is refused.
   PiiWithheldReason reason = 1;
 }
 

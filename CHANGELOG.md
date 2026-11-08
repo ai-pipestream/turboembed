@@ -85,6 +85,14 @@ stubs must be regenerated.
   `plain-word-list` and `headword-definition-tsv` formats, with typed
   refusals for a digest mismatch, a wrong format or an unreadable
   artifact (#1928).
+- `PiiValueWithheld.reason` (field 1, `PiiWithheldReason`): each
+  withheld mention says why, `NOT_REQUESTED`, `NOT_GRANTED` or
+  `NOT_ALLOWED_BY_POLICY`; `UNSPECIFIED` is refused. Release tokens are
+  bound to the mention's kind, so one value under two kinds gives two
+  tokens. Before the graph is read, a values request with no
+  `operation_key` is refused with `TURBO_E_INVALID_ARGUMENT`, and one
+  from a service granted the form for no kind with
+  `TURBO_E_INVALID_STATE` (#1933).
 - `PiiAccessMention.rule_id` (6), `policy_revision` (7) and
   `redaction_policy_digest` (8): each released mention names the
   redaction policy rule that covered it, and these feed the audit

@@ -3343,6 +3343,9 @@ export const PiiValueSchema: GenMessage<PiiValue> = /*@__PURE__*/
  */
 export type PiiValueWithheld = Message<"turbo.result.v1.PiiValueWithheld"> & {
   /**
+   * Why this mention's value is not in the response. Required;
+   * UNSPECIFIED is refused.
+   *
    * @generated from field: turbo.result.v1.PiiWithheldReason reason = 1;
    */
   reason: PiiWithheldReason;
