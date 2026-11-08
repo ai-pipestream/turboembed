@@ -50,6 +50,21 @@ message PiiAccessMention {
   uint32 builtin_kind = 3;
   string custom_kind = 4;
   PiiAccessForm form = 5;
+  // The redaction policy that covers this mention, copied from the
+  // turbo:pii-edits edit in the same graph whose members include it
+  // (#1882 part C). All three are empty, and 0, when no edit of a named
+  // redaction policy covers the mention; they are never filled in from
+  // anywhere else.
+  // The policy rule id that chose the edit's strategy, as the policy names
+  // it; empty for the policy's default strategy.
+  string rule_id = 6;
+  // The redaction policy's revision, as its author numbers it
+  // (RedactionPolicy.revision).
+  uint64 policy_revision = 7;
+  // The redaction policy's canonical SHA-256 digest, 32 bytes
+  // (PiiEditAnnotation.policy_digest); empty when no edit covers the
+  // mention.
+  bytes redaction_policy_digest = 8;
 }
 
 // The forms the calling service was granted, effective for this release,
@@ -64,7 +79,8 @@ message PiiAccessKindGrant {
 message PiiAccessEvent {
   // 64 lowercase hexadecimal digits: SHA-256 over what a retry keeps,
   // the service fingerprint, the operation key, input_digest, the
-  // mention set, the forms in effect and policy_digest. The attempt is
+  // mention set (each mention's redaction policy fields included, with an
+  // explicit marker when absent), the forms in effect and policy_digest. The attempt is
   // not part of it, so every attempt at one release has the same id; two
   // services never share one.
   string event_id = 1;
@@ -79,7 +95,12 @@ message PiiAccessEvent {
   // policy and granted.
   repeated PiiAccessKindGrant effective = 5;
   repeated PiiAccessMention mentions = 6;
-  // The policy that allowed the release and the SHA-256 of its rules.
+  // The server output ceiling and the calling service's grant that
+  // allowed the release: `policy_id` names the ceiling's rules
+  // ("turbo-kserve.pii-output-allow.v1"), and `policy_digest` is the
+  // SHA-256 (32 bytes) of that ceiling and the grant together. Neither is
+  // the redaction policy that rewrote the text: that is named per mention
+  // (PiiAccessMention.rule_id, policy_revision, redaction_policy_digest).
   string policy_id = 7;
   bytes policy_digest = 8;
   // When the release was decided: nanoseconds since the Unix epoch.

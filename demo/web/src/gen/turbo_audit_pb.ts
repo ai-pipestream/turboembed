@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file turbo_audit.proto.
  */
 export const file_turbo_audit: GenFile = /*@__PURE__*/
-  fileDesc("ChF0dXJib19hdWRpdC5wcm90bxIOdHVyYm8uYXVkaXQudjEiRwoWUmVjb3JkUGlpQWNjZXNzUmVxdWVzdBItCgVldmVudBgBIAEoCzIeLnR1cmJvLmF1ZGl0LnYxLlBpaUFjY2Vzc0V2ZW50IisKF1JlY29yZFBpaUFjY2Vzc1Jlc3BvbnNlEhAKCGV2ZW50X2lkGAEgASgJIpEBChBQaWlBY2Nlc3NNZW50aW9uEhYKDmxheWVyX2luc3RhbmNlGAEgASgJEg0KBWluZGV4GAIgASgNEhQKDGJ1aWx0aW5fa2luZBgDIAEoDRITCgtjdXN0b21fa2luZBgEIAEoCRIrCgRmb3JtGAUgASgOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSJtChJQaWlBY2Nlc3NLaW5kR3JhbnQSFAoMYnVpbHRpbl9raW5kGAEgASgNEhMKC2N1c3RvbV9raW5kGAIgASgJEiwKBWZvcm1zGAMgAygOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSK+AgoOUGlpQWNjZXNzRXZlbnQSEAoIZXZlbnRfaWQYASABKAkSFQoNb3BlcmF0aW9uX2tleRgCIAEoCRISCgphdHRlbXB0X2lkGAMgASgJEhsKE3NlcnZpY2VfZmluZ2VycHJpbnQYBCABKAwSNQoJZWZmZWN0aXZlGAUgAygLMiIudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzS2luZEdyYW50EjIKCG1lbnRpb25zGAYgAygLMiAudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzTWVudGlvbhIRCglwb2xpY3lfaWQYByABKAkSFQoNcG9saWN5X2RpZ2VzdBgIIAEoDBIXCg90aW1lX3VuaXhfbmFub3MYCSABKAQSDgoGZG9jX2lkGAogASgJEhQKDGlucHV0X2RpZ2VzdBgLIAEoDCqGAQoNUGlpQWNjZXNzRm9ybRIfChtQSUlfQUNDRVNTX0ZPUk1fVU5TUEVDSUZJRUQQABIZChVQSUlfQUNDRVNTX0ZPUk1fVE9LRU4QARIeChpQSUlfQUNDRVNTX0ZPUk1fQ0lQSEVSVEVYVBACEhkKFVBJSV9BQ0NFU1NfRk9STV9DTEVBUhADMnkKEVR1cmJvQXVkaXRTZXJ2aWNlEmQKD1JlY29yZFBpaUFjY2VzcxImLnR1cmJvLmF1ZGl0LnYxLlJlY29yZFBpaUFjY2Vzc1JlcXVlc3QaJy50dXJiby5hdWRpdC52MS5SZWNvcmRQaWlBY2Nlc3NSZXNwb25zZSIAYgZwcm90bzM");
+  fileDesc("ChF0dXJib19hdWRpdC5wcm90bxIOdHVyYm8uYXVkaXQudjEiRwoWUmVjb3JkUGlpQWNjZXNzUmVxdWVzdBItCgVldmVudBgBIAEoCzIeLnR1cmJvLmF1ZGl0LnYxLlBpaUFjY2Vzc0V2ZW50IisKF1JlY29yZFBpaUFjY2Vzc1Jlc3BvbnNlEhAKCGV2ZW50X2lkGAEgASgJItwBChBQaWlBY2Nlc3NNZW50aW9uEhYKDmxheWVyX2luc3RhbmNlGAEgASgJEg0KBWluZGV4GAIgASgNEhQKDGJ1aWx0aW5fa2luZBgDIAEoDRITCgtjdXN0b21fa2luZBgEIAEoCRIrCgRmb3JtGAUgASgOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybRIPCgdydWxlX2lkGAYgASgJEhcKD3BvbGljeV9yZXZpc2lvbhgHIAEoBBIfChdyZWRhY3Rpb25fcG9saWN5X2RpZ2VzdBgIIAEoDCJtChJQaWlBY2Nlc3NLaW5kR3JhbnQSFAoMYnVpbHRpbl9raW5kGAEgASgNEhMKC2N1c3RvbV9raW5kGAIgASgJEiwKBWZvcm1zGAMgAygOMh0udHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzRm9ybSK+AgoOUGlpQWNjZXNzRXZlbnQSEAoIZXZlbnRfaWQYASABKAkSFQoNb3BlcmF0aW9uX2tleRgCIAEoCRISCgphdHRlbXB0X2lkGAMgASgJEhsKE3NlcnZpY2VfZmluZ2VycHJpbnQYBCABKAwSNQoJZWZmZWN0aXZlGAUgAygLMiIudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzS2luZEdyYW50EjIKCG1lbnRpb25zGAYgAygLMiAudHVyYm8uYXVkaXQudjEuUGlpQWNjZXNzTWVudGlvbhIRCglwb2xpY3lfaWQYByABKAkSFQoNcG9saWN5X2RpZ2VzdBgIIAEoDBIXCg90aW1lX3VuaXhfbmFub3MYCSABKAQSDgoGZG9jX2lkGAogASgJEhQKDGlucHV0X2RpZ2VzdBgLIAEoDCqGAQoNUGlpQWNjZXNzRm9ybRIfChtQSUlfQUNDRVNTX0ZPUk1fVU5TUEVDSUZJRUQQABIZChVQSUlfQUNDRVNTX0ZPUk1fVE9LRU4QARIeChpQSUlfQUNDRVNTX0ZPUk1fQ0lQSEVSVEVYVBACEhkKFVBJSV9BQ0NFU1NfRk9STV9DTEVBUhADMnkKEVR1cmJvQXVkaXRTZXJ2aWNlEmQKD1JlY29yZFBpaUFjY2VzcxImLnR1cmJvLmF1ZGl0LnYxLlJlY29yZFBpaUFjY2Vzc1JlcXVlc3QaJy50dXJiby5hdWRpdC52MS5SZWNvcmRQaWlBY2Nlc3NSZXNwb25zZSIAYgZwcm90bzM");
 
 /**
  * @generated from message turbo.audit.v1.RecordPiiAccessRequest
@@ -94,6 +94,36 @@ export type PiiAccessMention = Message<"turbo.audit.v1.PiiAccessMention"> & {
    * @generated from field: turbo.audit.v1.PiiAccessForm form = 5;
    */
   form: PiiAccessForm;
+
+  /**
+   * The redaction policy that covers this mention, copied from the
+   * turbo:pii-edits edit in the same graph whose members include it
+   * (#1882 part C). All three are empty, and 0, when no edit of a named
+   * redaction policy covers the mention; they are never filled in from
+   * anywhere else.
+   * The policy rule id that chose the edit's strategy, as the policy names
+   * it; empty for the policy's default strategy.
+   *
+   * @generated from field: string rule_id = 6;
+   */
+  ruleId: string;
+
+  /**
+   * The redaction policy's revision, as its author numbers it
+   * (RedactionPolicy.revision).
+   *
+   * @generated from field: uint64 policy_revision = 7;
+   */
+  policyRevision: bigint;
+
+  /**
+   * The redaction policy's canonical SHA-256 digest, 32 bytes
+   * (PiiEditAnnotation.policy_digest); empty when no edit covers the
+   * mention.
+   *
+   * @generated from field: bytes redaction_policy_digest = 8;
+   */
+  redactionPolicyDigest: Uint8Array;
 };
 
 /**
@@ -142,7 +172,8 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   /**
    * 64 lowercase hexadecimal digits: SHA-256 over what a retry keeps,
    * the service fingerprint, the operation key, input_digest, the
-   * mention set, the forms in effect and policy_digest. The attempt is
+   * mention set (each mention's redaction policy fields included, with an
+   * explicit marker when absent), the forms in effect and policy_digest. The attempt is
    * not part of it, so every attempt at one release has the same id; two
    * services never share one.
    *
@@ -185,7 +216,12 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   mentions: PiiAccessMention[];
 
   /**
-   * The policy that allowed the release and the SHA-256 of its rules.
+   * The server output ceiling and the calling service's grant that
+   * allowed the release: `policy_id` names the ceiling's rules
+   * ("turbo-kserve.pii-output-allow.v1"), and `policy_digest` is the
+   * SHA-256 (32 bytes) of that ceiling and the grant together. Neither is
+   * the redaction policy that rewrote the text: that is named per mention
+   * (PiiAccessMention.rule_id, policy_revision, redaction_policy_digest).
    *
    * @generated from field: string policy_id = 7;
    */

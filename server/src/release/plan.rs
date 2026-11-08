@@ -6,9 +6,10 @@
 
 use std::any::TypeId;
 
+use turbo_analysis::Document;
 use turbo_analysis::export::{DocumentGraph, import};
 use turbo_analysis::{Ix, Key, Layer};
-use turbo_analysis_layers::{Pii, PiiKind, Sensitive};
+use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, Sensitive};
 
 use super::caps::{Form, Forms, Grant, effective};
 use super::keys::TokenKey;
@@ -33,6 +34,18 @@ pub struct Planned {
     pub form: Form,
     /// The normalized value. Its `Debug` prints `<withheld>`.
     pub value: Sensitive<String>,
+    /// The redaction policy of the edit that covers the mention, if any.
+    pub cover: Option<Cover>,
+}
+
+/// The redaction policy fields of the `turbo:pii-edits` edit whose
+/// members include a mention (#1882 part C), copied as the edit names
+/// them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Cover {
+    pub rule_id: String,
+    pub policy_revision: u64,
+    pub policy_digest: [u8; 32],
 }
 
 impl Planned {
@@ -43,6 +56,9 @@ impl Planned {
             builtin_kind: self.kind.builtin_id().map_or(0, u32::from),
             custom_kind: self.custom.clone(),
             form: self.form.audit() as i32,
+            rule_id: self.cover.as_ref().map(|c| c.rule_id.clone()).unwrap_or_default(),
+            policy_revision: self.cover.as_ref().map_or(0, |c| c.policy_revision),
+            redaction_policy_digest: self.cover.as_ref().map(|c| c.policy_digest.to_vec()).unwrap_or_default(),
         }
     }
 }
@@ -65,12 +81,15 @@ pub fn project(
     let bad = |e: String| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e);
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
+    let covers = covers(&doc)?;
     for (li, layer) in typed.layers.iter().enumerate().filter(|(_, l)| l.id == Pii::ID) {
         let Some(name) = doc.layers().find(|k| k.ty == TypeId::of::<Pii>() && k.name == layer.instance).map(|k| k.name)
         else {
             continue;
         };
         let Some(pii) = doc.get_key(&Key::<Pii>::named(name)) else { continue };
+        // Edits cover the default pii layer's mentions only.
+        let covers = if name == Key::<Pii>::DEFAULT.name { covers.as_slice() } else { &[] };
         if pii.len() != layer.annotations.len() {
             return Err(Failure::new(
                 TURBO_E_INTERNAL,
@@ -90,10 +109,40 @@ pub fn project(
                 custom,
                 form,
                 value: Sensitive::new(m.normalized.to_owned()),
+                cover: covers.get(i).cloned().flatten(),
             });
         }
     }
     Ok((typed, plan))
+}
+
+/// Each default pii mention's covering edit of a named redaction policy,
+/// by mention index: the first edits layer, in the graph's layer order,
+/// whose edit lists the mention among its members. Edits of no named
+/// policy cover nothing. An edit that names a rule with no policy digest
+/// never gets here: the projection's validator refuses the graph first,
+/// before any audit call.
+fn covers(doc: &Document) -> Result<Vec<Option<Cover>>, Failure> {
+    let mut out: Vec<Option<Cover>> = Vec::new();
+    let ty = TypeId::of::<PiiEdits>();
+    for k in doc.layers().filter(|k| k.ty == ty) {
+        let Some(edits) = doc.get_key(&Key::<PiiEdits>::named(k.name)) else { continue };
+        let Some(digest) = edits.policy_digest else { continue };
+        for e in edits.edits() {
+            for m in e.members {
+                let i = m.get();
+                if out.len() <= i {
+                    out.resize(i + 1, None);
+                }
+                out[i].get_or_insert_with(|| Cover {
+                    rule_id: e.rule_id.to_owned(),
+                    policy_revision: edits.policy_revision,
+                    policy_digest: *digest.as_bytes(),
+                });
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Writes each planned value into its mention: a token under `key`, or

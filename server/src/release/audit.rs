@@ -109,6 +109,16 @@ pub fn event_id(key: &EventKey<'_>) -> String {
         h.update(&m.builtin_kind.to_be_bytes());
         bytes(&mut h, m.custom_kind.as_bytes());
         h.update(&m.form.to_be_bytes());
+        // The covering redaction policy, or an explicit absent marker, so
+        // two releases that differ only in policy differ in id.
+        if m.redaction_policy_digest.is_empty() {
+            h.update(&[0]);
+        } else {
+            h.update(&[1]);
+            bytes(&mut h, m.redaction_policy_digest.as_slice());
+            h.update(&m.policy_revision.to_be_bytes());
+            bytes(&mut h, m.rule_id.as_bytes());
+        }
     }
     h.update(&(effective.len() as u64).to_be_bytes());
     for e in effective {
