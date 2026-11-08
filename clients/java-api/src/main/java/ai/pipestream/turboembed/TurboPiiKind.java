@@ -38,7 +38,11 @@ public enum TurboPiiKind {
     BIC(27, "bic"),
     CA_SIN(28, "ca-sin"),
     ABA_ROUTING(29, "aba-routing"),
-    PHONE(30, "phone");
+    PHONE(30, "phone"),
+    VIN(31, "vin"),
+    TRACKING_NUMBER(32, "tracking-number"),
+    US_EIN(33, "us-ein"),
+    URL(34, "url");
 
     private final int nativeCode;
     private final String wireName;

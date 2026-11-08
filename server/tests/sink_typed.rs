@@ -151,6 +151,7 @@ async fn without_the_option_the_item_carries_no_projection() {
         .unwrap()
         .into_inner();
     let want = DocumentSinkItem {
+        binding: None,
         sequence: 1,
         doc_id: "doc-1".into(),
         graph: listed.graph.to_vec(),
@@ -176,7 +177,7 @@ async fn analyze_stream_answers_carry_no_projection_with_the_option_set() {
     assert_eq!(stats.last_summary.unwrap().accepted_count, 1);
     let item = got.lock().unwrap().pop().unwrap();
     let (id, outcome) = answers.into_iter().next().unwrap();
-    let analyzed = Some(AnalyzeStreamResponse { id: id.clone(), outcome: Some(outcome) });
+    let analyzed = Some(AnalyzeStreamResponse { binding: None, id: id.clone(), outcome: Some(outcome) });
     let want = DocumentSinkItem { sequence: 1, doc_id: id, analyzed, ..Default::default() };
     assert_eq!(item, want);
     s.stop().await;
@@ -213,7 +214,7 @@ async fn the_sink_refuses_a_projection_round_trip_typed_document_refuses() {
     // Spans past the end of a shortened text, and an unknown offset mode.
     let short = TypedDocumentResult { raw_text: "Größe".into(), ..typed.clone() };
     let unknown_mode = TypedDocumentResult { offsets: 99, ..typed.clone() };
-    let answer = AnalyzeStreamResponse { id: "doc-1".into(), outcome: None };
+    let answer = AnalyzeStreamResponse { binding: None, id: "doc-1".into(), outcome: None };
     let without_graph = DocumentSinkItem { analyzed: Some(answer), ..item(4, Vec::new(), typed.clone()) };
     let items =
         vec![item(1, graph(), typed.clone()), item(2, graph(), short), item(3, graph(), unknown_mode), without_graph];

@@ -53,6 +53,7 @@ pub async fn serve_models(models: Vec<ModelConfig>) -> (Server, Analysis) {
 
 pub fn request(text: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineRequest {
     AnalyzePipelineRequest {
+        binding: None,
         doc_id: "heads".into(),
         text: text.into(),
         source_bytes: Vec::new(),

@@ -181,6 +181,7 @@ impl Release {
             time_unix_nanos: SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64),
             doc_id,
         };
+        audit::check_event(&event).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e))?;
         self.audit.record(event).await.map_err(|why| {
             Failure::new(TURBO_E_BUSY, 0, format!("PII value release refused, no value released: {why}"))
         })?;

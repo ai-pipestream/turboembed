@@ -103,6 +103,7 @@ pub fn check_receipt_shape(r: &ProcessingReceipt) -> Result<ProcessingStatus, Fa
     if input.raw_bytes_digest.len() != 32 || input.source_text_digest.len() != 32 {
         return Err(bad("the receipt's input digests are not 32 bytes"));
     }
+    crate::results::typed::identity::check_binding(input.binding.as_ref(), "receipt.input.binding")?;
     if status == ProcessingStatus::Cancelled && r.result.is_some() {
         return Err(bad("a cancelled receipt names a result"));
     }

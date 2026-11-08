@@ -20,7 +20,7 @@ use tonic::Status;
 
 use crate::api::Failure;
 use crate::deadline::{Deadline, deadline_status};
-use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse};
+use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse, InputBinding};
 use crate::stream::run::{self, Doc, Outcome, RowPayload, Whole};
 use crate::stream::{BatchKey, Dead, Envelope, Room, Shared};
 
@@ -131,10 +131,10 @@ impl Engine {
                         self.next_seq += 1;
                         self.pending.push_back((doc, Instant::now()));
                     }
-                    Some(Envelope::Failed { id, failure, room }) => {
+                    Some(Envelope::Failed { id, binding, failure, room }) => {
                         let seq = self.next_seq;
                         self.next_seq += 1;
-                        let pending = Pending { response: failure_response(id, failure), room, window: None };
+                        let pending = Pending { response: failure_response(id, binding, failure), room, window: None };
                         if self.enqueue(seq, pending, &answers).await.is_err() {
                             break;
                         }
@@ -341,7 +341,7 @@ impl Engine {
         match rows {
             Ok(rows) => {
                 for row in rows {
-                    let response = match row.payload {
+                    let mut response = match row.payload {
                         RowPayload::Vector(data) => {
                             let vectors = crate::proto::result::AnalyzeVectors {
                                 model: model.clone(),
@@ -360,15 +360,14 @@ impl Engine {
                                 data,
                                 quantization,
                             };
-                            AnalyzeStreamResponse {
-                                id: row.id,
-                                outcome: Some(crate::proto::result::analyze_stream_response::Outcome::VectorCodes(
-                                    codes,
-                                )),
-                            }
+                            let outcome = crate::proto::result::analyze_stream_response::Outcome::VectorCodes(codes);
+                            AnalyzeStreamResponse { id: row.id, outcome: Some(outcome), binding: None }
                         }
-                        RowPayload::Outcome(outcome) => AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome) },
+                        RowPayload::Outcome(outcome) => {
+                            AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome), binding: None }
+                        }
                     };
+                    response.binding = row.binding;
                     let pending = Pending { response, room: Some(row.room), window: Some(row.window) };
                     if self.enqueue(row.seq, pending, answers).await.is_err() {
                         return Err(());
@@ -379,7 +378,7 @@ impl Engine {
             Err(Whole { failure, docs, mut permits }) if docs.len() == 1 => {
                 let doc = docs.into_iter().next().expect("one document");
                 let pending = Pending {
-                    response: failure_response(doc.id, failure),
+                    response: failure_response(doc.id, doc.binding, failure),
                     room: Some(doc.room),
                     window: permits.pop(),
                 };
@@ -448,14 +447,17 @@ fn ok_response(id: String, vectors: crate::proto::result::AnalyzeVectors) -> Ana
     AnalyzeStreamResponse {
         id,
         outcome: Some(crate::proto::result::analyze_stream_response::Outcome::Vectors(vectors)),
+        binding: None,
     }
 }
 
 /// The response for one document's failure: the turbo status, field and
-/// refusal the single-document call would carry.
-fn failure_response(id: String, failure: Failure) -> AnalyzeStreamResponse {
+/// refusal the single-document call would carry, with the document's
+/// `binding` as given.
+fn failure_response(id: String, binding: Option<InputBinding>, failure: Failure) -> AnalyzeStreamResponse {
     AnalyzeStreamResponse {
         id,
+        binding,
         outcome: Some(crate::proto::result::analyze_stream_response::Outcome::Failure(
             crate::proto::result::AnalyzeFailure {
                 turbo_code: failure.code,

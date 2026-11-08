@@ -12,13 +12,13 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
 import type { AnalyzeStreamResponse, LayerInfo } from "./turbo_analysis_pb.js";
 import { file_turbo_analysis } from "./turbo_analysis_pb.js";
 import type { Message } from "@bufbuild/protobuf";
-import type { TypedDocumentResult, ViewInfo } from "./turbo_typed_annotations_pb.js";
+import type { InputBinding, TypedDocumentResult, ViewInfo } from "./turbo_typed_annotations_pb.js";
 
 /**
  * Describes the file turbo_sink.proto.
  */
 export const file_turbo_sink: GenFile = /*@__PURE__*/
-  fileDesc("ChB0dXJib19zaW5rLnByb3RvEg10dXJiby5zaW5rLnYxIpQCChBEb2N1bWVudFNpbmtJdGVtEhAKCHNlcXVlbmNlGAEgASgEEg4KBmRvY19pZBgCIAEoCRINCgVncmFwaBgDIAEoDBIqCgZsYXllcnMYBCADKAsyGi50dXJiby5yZXN1bHQudjEuTGF5ZXJJbmZvEigKBXZpZXdzGAUgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvEjMKBXR5cGVkGAkgASgLMiQudHVyYm8ucmVzdWx0LnYxLlR5cGVkRG9jdW1lbnRSZXN1bHQSOAoIYW5hbHl6ZWQYCCABKAsyJi50dXJiby5yZXN1bHQudjEuQW5hbHl6ZVN0cmVhbVJlc3BvbnNlSgQIBhAHSgQIBxAIIm0KE0RvY3VtZW50U2lua1N1bW1hcnkSFgoOcmVjZWl2ZWRfY291bnQYASABKAQSFgoOYWNjZXB0ZWRfY291bnQYAiABKAQSFgoOcmVqZWN0ZWRfY291bnQYAyABKAQSDgoGZXJyb3JzGAQgAygJMm4KEFR1cmJvU2lua1NlcnZpY2USWgoPU3RyZWFtRG9jdW1lbnRzEh8udHVyYm8uc2luay52MS5Eb2N1bWVudFNpbmtJdGVtGiIudHVyYm8uc2luay52MS5Eb2N1bWVudFNpbmtTdW1tYXJ5IgAoAWIGcHJvdG8z", [file_turbo_analysis]);
+  fileDesc("ChB0dXJib19zaW5rLnByb3RvEg10dXJiby5zaW5rLnYxItUCChBEb2N1bWVudFNpbmtJdGVtEhAKCHNlcXVlbmNlGAEgASgEEg4KBmRvY19pZBgCIAEoCRINCgVncmFwaBgDIAEoDBIqCgZsYXllcnMYBCADKAsyGi50dXJiby5yZXN1bHQudjEuTGF5ZXJJbmZvEigKBXZpZXdzGAUgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvEjMKBXR5cGVkGAkgASgLMiQudHVyYm8ucmVzdWx0LnYxLlR5cGVkRG9jdW1lbnRSZXN1bHQSOAoIYW5hbHl6ZWQYCCABKAsyJi50dXJiby5yZXN1bHQudjEuQW5hbHl6ZVN0cmVhbVJlc3BvbnNlEjMKB2JpbmRpbmcYCiABKAsyHS50dXJiby5yZXN1bHQudjEuSW5wdXRCaW5kaW5nSACIAQFCCgoIX2JpbmRpbmdKBAgGEAdKBAgHEAgibQoTRG9jdW1lbnRTaW5rU3VtbWFyeRIWCg5yZWNlaXZlZF9jb3VudBgBIAEoBBIWCg5hY2NlcHRlZF9jb3VudBgCIAEoBBIWCg5yZWplY3RlZF9jb3VudBgDIAEoBBIOCgZlcnJvcnMYBCADKAkybgoQVHVyYm9TaW5rU2VydmljZRJaCg9TdHJlYW1Eb2N1bWVudHMSHy50dXJiby5zaW5rLnYxLkRvY3VtZW50U2lua0l0ZW0aIi50dXJiby5zaW5rLnYxLkRvY3VtZW50U2lua1N1bW1hcnkiACgBYgZwcm90bzM", [file_turbo_analysis]);
 
 /**
  * One analyzed document. It carries a document graph, or one
@@ -77,6 +77,18 @@ export type DocumentSinkItem = Message<"turbo.sink.v1.DocumentSinkItem"> & {
    * @generated from field: turbo.result.v1.AnalyzeStreamResponse analyzed = 8;
    */
   analyzed?: AnalyzeStreamResponse | undefined;
+
+  /**
+   * The caller's identity of the input the item was computed from
+   * (issue #1939): the AnalyzeStream document's or the pipeline request's
+   * binding, as given; absent when the caller sent none, never invented.
+   * When the item carries a typed projection or an answer, their bindings
+   * are this one. A parse_artifact_digest without a parse_artifact_id is
+   * rejected.
+   *
+   * @generated from field: optional turbo.result.v1.InputBinding binding = 10;
+   */
+  binding?: InputBinding | undefined;
 };
 
 /**

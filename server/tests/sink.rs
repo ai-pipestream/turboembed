@@ -91,7 +91,7 @@ fn answer(id: &str) -> AnalyzeStreamResponse {
         data: vec![0, 0, 128, 63].into(),
         quantization: 0,
     };
-    AnalyzeStreamResponse { id: id.into(), outcome: Some(Outcome::Vectors(vectors)) }
+    AnalyzeStreamResponse { binding: None, id: id.into(), outcome: Some(Outcome::Vectors(vectors)) }
 }
 
 fn graph() -> Vec<u8> {

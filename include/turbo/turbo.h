@@ -875,6 +875,10 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_KIND_CA_SIN             28
 #define TURBO_PII_KIND_ABA_ROUTING        29
 #define TURBO_PII_KIND_PHONE              30
+#define TURBO_PII_KIND_VIN                31
+#define TURBO_PII_KIND_TRACKING_NUMBER    32
+#define TURBO_PII_KIND_US_EIN             33
+#define TURBO_PII_KIND_URL                34
 
 /* Configuration of an in-process analysis pipeline. desc may be NULL for
  * English with the rule sentence splitter and rule tokenizer only. The

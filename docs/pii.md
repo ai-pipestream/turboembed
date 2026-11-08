@@ -4,13 +4,14 @@
 a text view and writes them as the `turbo:pii` layer: e-mail addresses,
 phone numbers, payment cards, IBANs, ABA routing numbers, network
 addresses, credentials, Bitcoin and Ethereum addresses, national
-identifiers and device identifiers. Each kind with a check digit or
+identifiers, device identifiers, vehicle identification numbers, parcel
+tracking numbers and web addresses. Each kind with a check digit or
 checksum is validated with it:
 
 | Type | Role |
 |---|---|
 | `PiiDetector` | Runs one or more `Scanner`s and orders mentions into `Pii` (`turbo:pii`) |
-| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `BrIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
+| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `BrIdentity`, `CaIdentity`, `Device`, `Logistics`, `Web`, `AllStructured`) |
 | `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
 | `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
 | `AllowList`, `DenyList`, `Pattern`, `PatternKind`, `Case`, `ListError` | Global and per-kind ignore lists, regex-free shape/glob patterns, and Aho-Corasick/fuzzy deny lists (`analysis/pii/src/lists/`) |
@@ -26,7 +27,7 @@ checksum is validated with it:
 | `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, and initials abbreviation |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
-| `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
+| `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
 
 The crate depends on `turbo-analysis`, `turbo-analysis-layers`,
 `turbo-glossary` and `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
@@ -66,12 +67,14 @@ not find (`ScannerError`).
 | `Network` | `network()` | network | `ipv4`, `ipv6`, `mac` |
 | `Secrets` | `secrets()` | secrets | `aws-access-key`, `github-token`, `jwt`, `url-credential` |
 | `Crypto` | `crypto()` | crypto | `btc-address`, `eth-address` |
-| `UsIdentity` | `usIdentity()` | US identity | `us-ssn`, `us-itin` |
+| `UsIdentity` | `usIdentity()` | US identity | `us-ssn`, `us-itin`, `us-ein` |
 | `EuIdentity` | `euIdentity()` | EU identity | `uk-nhs`, `de-steuer-id`, `es-dni`, `es-nie`, `es-cif`, `de-personalausweis`, `fr-nir`, `fr-siren`, `fr-siret`, `bic` |
 | `BrIdentity` | `brIdentity()` | BR identity | `br-cpf`, `br-cnpj` |
 | `CaIdentity` | `caIdentity()` | CA identity | `ca-sin` |
 | `Device` | `device()` | device | `imei` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking | every kind |
+| `Logistics` | (none) | logistics | `vin`, `tracking-number` |
+| `Web` | (none) | web | `url` |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web | every kind |
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -100,7 +103,7 @@ crossing an e-mail address. `Pii::check` holds a layer to this order.
 
 The kinds, in id order (`PiiKind::TABLE`, `PiiKind::builtin_id`), with the
 normalized form and the confidence each gets. Each row of the table has a
-stable id (1 to 30), its name and a priority; the ids are the numbers of
+stable id (1 to 34), its name and a priority; the ids are the numbers of
 the proto `PiiKindId` enum, the C `TURBO_PII_KIND_*` defines, the Java
 `TurboPiiKind` enum and the binary codec, and never change. Priority
 alone decides ordering and cluster winners; `PiiKind` has no `Ord`.
@@ -138,6 +141,10 @@ labelled 4 everywhere; 0 is unspecified and refused.
 | `ca-sin` | the digits | labelled checksum (Luhn) |
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |
 | `phone` | `+` and digits, or the digits | format |
+| `vin` | 17 uppercase characters | checksum (ISO 3779 / 49 CFR 565 check character); labelled checksum near a `VIN` label |
+| `tracking-number` | `1Z` and 16 characters, or the digits | checksum (UPS mod 10, FedEx Express mod 11, GS1 mod 10); labelled checksum near a carrier or tracking label |
+| `us-ein` | `dd-ddddddd` | format (assigned IRS prefix); labelled near an `EIN` label |
+| `url` | scheme and host in lower case, the rest as written | format |
 
 `PiiConfidence` is ordered `Format < Labelled < Checksum < LabelledChecksum`:
 `Format` (`"format"`, C ABI `TURBO_PII_CONFIDENCE_FORMAT = 1`, Java
@@ -175,13 +182,15 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
 `N` words of the candidate span:
 
 - **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
-  label list for each of the 30 built-in kinds (`&[]` for
+  label list for each of the 34 built-in kinds (`&[]` for
   `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`,
   `imei`, and `bic`, and `window::DEFAULT_WINDOW_WORDS` (`4`) for every
   other kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
-  `ca-sin`, `imei`, and `bic`, and `LabelPolicy::None` for the other 27
-  built-in kinds and custom kinds, so existing detector outputs stay
-  unchanged unless a caller opts in. When no caller override is configured
+  `ca-sin`, `imei`, and `bic`, `LabelPolicy::Boosts` for `vin`,
+  `tracking-number` and `us-ein` (a label raises the tier and never
+  drops a candidate), and `LabelPolicy::None` for the other 28 built-in
+  kinds and custom kinds, so existing detector outputs stay unchanged
+  unless a caller opts in. When no caller override is configured
   on `ca-sin`, `imei`, or `bic`, `PiiDetector` uses
   `window::has_strict_prefix_label` (the strict prefix rule: a label
   before `span.start` separated only by whitespace and `:`, `#`, or `=`,
@@ -225,7 +234,8 @@ confidence tier, the audit report and every policy decision read them.
   `Shape` (the text has the kind's shape), `Checksum { algorithm, passed }`
   (`ChecksumAlgorithm`: Luhn 1, mod 97 2, mod 11 3, mod 23 4, Spanish CIF
   5, ISO 7064 mod 11,10 6, ICAO 9303 7, Base58Check 8, Bech32 9, EIP-55
-  10, ABA weights 11, other 12, La Poste SIRET mod 5 13), `Label { span, phrase }` (the label
+  10, ABA weights 11, other 12, La Poste SIRET mod 5 13, VIN 14,
+  UPS mod 10 15, FedEx mod 11 16, GS1 mod 10 17), `Label { span, phrase }` (the label
   phrase's span in the layer's view and its index in the kind's phrase
   table: built-in phrases first, then `with_extra_label` phrases in
   registration order), `DenyHit { list, term }` and `Rule { rule }`. Each
@@ -462,6 +472,11 @@ The server's `turbo-pii:redact` step writes the same view and edits from
 a typed `RedactionPolicy` (docs/grpc-analysis.md, "The redact step"),
 choosing each mention's strategy with `rewrite::rewrite_chosen` and a
 `StrategyChooser`; its edits also carry the policy rule id and digest.
+Policy dictionaries (`PiiDictionaryRef`) resolve through the vocabulary
+store, pinned by content, and release audit events name each released
+mention's covering rule, revision and digest (#1882 part C). The PII wire
+messages are frozen under the proto compatibility policy from #1882 on:
+see docs/grpc.md, "PII and result envelope freeze (#1882)".
 
 `RedactedView` is the pipeline step for a `RewritePolicy`: it reads a
 `View` and the `turbo:pii` layer over it and writes the rewritten text as
@@ -531,6 +546,73 @@ keep the boundary between them. A character whose bytes already are the
 mask (a `*` masked with `*`) is not an edit.
 `analysis/pii/tests/masked_view.rs` checks every offset of every pair of
 spans over multi-byte texts, and that the text equals `mask`.
+
+## Vehicles, parcels, EINs and web addresses (#1878)
+
+Four kinds added after the kind registry (#1901) take the next ids,
+appended: `vin` 31, `tracking-number` 32, `us-ein` 33 and `url` 34. Their
+checks record the checksum ids `vin` 14, `ups-mod10` 15, `fedex-mod11` 16
+and `gs1-mod10` 17. The scanners are byte scanners with no regular
+expressions:
+
+- `vin` (`Logistics`, `analysis/pii/src/scan/logistics.rs`): 17 uppercase
+  letters and digits at a word start, no `I`, `O` or `Q`, at least one
+  letter and one digit, a tenth (model year) character that is not `U`,
+  `Z` or `0`, and the ninth character the check character of
+  `checksum::vin` (49 CFR 565.15 transliteration and weights, modulus 11,
+  `X` for 10). VINs outside North America need not carry a check
+  character, so they are not found.
+- `tracking-number` (`Logistics`): compact, or in groups of four split by
+  single spaces. UPS: `1Z` and 16 uppercase letters or digits, single
+  spaces allowed, with the UPS check digit. FedEx Express 12 digits
+  (weights 3, 1, 7, modulus 11, modulus 10) and FedEx Ground 15 digits
+  (GS1 modulus 10), both only when the digits fail Luhn, since a
+  Luhn-valid run is read as a card or an IMEI. USPS 20 digits starting
+  `0` or `7` (GS1 over the digits as written, or with the `91` prefix the
+  legacy numbers imply). 22 digits starting `91` to `95` (USPS, GS1 over
+  21 digits) or `96` (FedEx Ground, GS1 over the 14-digit serial). A
+  12-digit number passes the FedEx check about one time in ten, so an
+  unlabelled 12-digit reference can be read as a tracking number;
+  `PiiDetector::label_required(PiiKind::TrackingNumber)` admits only
+  labelled ones.
+- `us-ein` (`UsIdentity`, `analysis/pii/src/scan/us.rs`): `dd-ddddddd`
+  at a number start and end whose prefix the IRS assigns (every prefix
+  but 00, 07 to 09, 17 to 19, 28, 29, 49, 69, 70, 78, 79, 89, 96 and 97)
+  and whose serial is not all zeros. A bare nine-digit run is not read
+  as an EIN.
+- `url` (`Web`, `analysis/pii/src/scan/url.rs`): `http://`, `https://`,
+  `ftp://` or `ftps://` in any case, or `www.`, at a token start; a host
+  of two or more labels ending in a registered top-level domain (the
+  e-mail scanner's IANA table), or after a scheme a dotted IPv4 address;
+  an optional port; RFC 3986 path, query and fragment characters.
+  Trailing sentence punctuation, quotes and an unbalanced closing bracket
+  are left out. A URL with userinfo is left to `url-credential`, so a
+  credential is never hidden inside a longer `url` mention. Bare domains
+  (`example.com`) are not URLs. A `url` mention holds any address,
+  number or e-mail address inside it, which the default detector drops
+  as nested (`keeping_nested` keeps them).
+
+`vin`, `tracking-number` and `us-ein` default to `LabelPolicy::Boosts`:
+a label in the word window (`VIN`, `vehicle identification number`;
+`tracking`, `UPS`, `FedEx`, `USPS`, `shipment`, `waybill`; `EIN`,
+`FEIN`, `employer identification number`, `tax id`) raises the tier and
+an unlabelled mention is kept. Masking keeps separators of the three
+number kinds and masks a `url` whole. `checksum::verhoeff` and
+`checksum::damm` are reusable validators for kinds to come.
+
+Evaluation: `analysis/pii/tests/us_identifiers.rs` has positive,
+negative and check digit failure cases and single-digit mutation sweeps
+per scanner; `analysis/pii/tests/us_identifiers_eval.rs` scores a seeded
+synthetic set of 200 valid values and 200 near misses per kind (800
+true, 0 missed; the 3 false mentions are near-miss digit runs that pass
+Luhn as cards). In the mixed set the project-authored
+`us-identifiers-memos.txt` adds 20 gold spans, and the six real web
+addresses already in the set are `url` gold: `vin` 4/0/0, `tracking-number`
+9/0/0, `us-ein` 3/0/0, `url` 10/0/0 (true, false, missed), plus one
+false `phone` on the grouped USPS near miss. The external partition was
+annotated before `url` existed: its 496 web addresses are counted and
+pinned but not scored, and it has one false `tracking-number` (a 12-digit
+test card that fails Luhn and passes the FedEx check).
 
 ## Custom extractors and scanner rules
 
@@ -624,6 +706,14 @@ values or flag domain-specific terms without writing a custom byte scanner:
     at least `2 * k + 2` characters to allow `k >= 1` edits (`>= 4`
     characters for `1` edit, `>= 6` characters for `2` edits; words
     shorter than `4` characters only match at `0` edits).
+    Fuzzy terms are indexed by their first word (`analysis/pii/src/lists/fuzzy.rs`): a
+    first word of up to 24 characters by the hashes of every string left
+    after deleting up to its edit budget of characters, a longer one by
+    length, so a text word is only checked against terms that share one of
+    its own deletion hashes. Two words within `k` edits always share one,
+    so the index never drops a match (#1935).
+    `cargo run --release -p turbo-pii --example fuzzy_deny_bench` times the
+    fuzzy scan against the exact scan.
   - `DenyList::capitalised_only` (`with_capitalised_only`,
     `capitalized_only`) requires a candidate in the text to start with an
     uppercase or titlecase letter (`Lu` or `Lt`), preventing fuzzy matches
@@ -684,12 +774,12 @@ synthetic specimens:
 The snapshots are reviewed outputs of this crate, checked in next to its
 tests. No other implementation produces or checks them.
 
-- Inputs: `analysis/pii/tests/inputs/`, 63 texts written for the packs
+- Inputs: `analysis/pii/tests/inputs/`, 70 texts written for the packs
   with only documented test values, example ranges and made up values.
 - Detection snapshots: `analysis/pii/tests/snapshots/<pack>/<id>.tsv`,
   one directory per pack (`payment`, `contact`, `network`, `secrets`,
   `crypto`, `us-identity`, `eu-identity`, `br-identity`, `ca-identity`,
-  `device`, `all-structured`), one row per `turbo:pii` mention with its `start`
+  `device`, `logistics`, `web`, `all-structured`), one row per `turbo:pii` mention with its `start`
   and `end` (UTF-8 byte offsets), kind and TSV-escaped normalized form.
 - Rewrite snapshots: `analysis/pii/tests/rewrite_snapshots/<pack>/<id>.txt`,
   what `MaskedView`, `mask_all`, `Pseudonymizer`, `HmacTokenizer` and
@@ -750,8 +840,8 @@ text written by people.
 ### Mixed evaluation set (third-party MASC, adapted specifications, and project-authored memos)
 
 `precision_and_recall_on_human_written_text` scores the same pack on a
-mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
-mentions across all 30 built-in kinds in
+mixed nine-document evaluation set (`47,544` UTF-8 bytes, `113` gold
+mentions across 24 of the 34 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
 `docs/licences.md`). On its own, this mixed set is partial work for
@@ -790,6 +880,13 @@ remaining 17 kinds are evaluated on project-authored operational memos
   NHS test numbers, ISO 7064 test Steuer-IDs, SIN `046 454 286`, and
   Luhn-valid test IMEIs), paired with mistyped check digits, order and
   invoice numbers, timestamps, software versions and statutory citations.
+- Project-authored fleet, shipping and vendor memos
+  (`analysis/pii/tests/data/human-eval/us-identifiers-memos.txt`, `2,143`
+  bytes, Apache-2.0, `20` gold spans: `vin`, `tracking-number`, `us-ein`
+  and `url`) with check-digit-valid VINs, the UPS sample number,
+  checksum-valid parcel numbers and documentation domains, next to
+  near misses; the six web addresses already in the other documents
+  are `url` gold as well.
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
@@ -813,8 +910,12 @@ remaining 17 kinds are evaluated on project-authored operational memos
 | `ca-sin` | project-authored (`operational-memos.txt`) | 3 | 0 | 1 | 1.000 | 0.750 |
 | `aba-routing` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `phone` (MASC only) | third-party human-written (`masc-*.escaped`, CC BY 3.0 US) | 10 | 1 | 2 | 0.909 | 0.833 |
-| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 5 | 2 | 0.722 | 0.867 |
-| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` project-authored)** | **82** | **9** | **5** | **0.901** | **0.943** |
+| `vin` | project-authored (`us-identifiers-memos.txt`) | 4 | 0 | 0 | 1.000 | 1.000 |
+| `tracking-number` | project-authored (`us-identifiers-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
+| `us-ein` | project-authored (`us-identifiers-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `url` | project-authored (`us-identifiers-memos.txt`, `4`) + existing documents (`6`) | 10 | 0 | 0 | 1.000 | 1.000 |
+| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 6 | 2 | 0.684 | 0.867 |
+| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` operational memos + `20` US identifier memos + `6` url in existing documents)** | **108** | **10** | **5** | **0.915** | **0.956** |
 
 ### External prose partition (whole third-party documents)
 
@@ -849,7 +950,7 @@ These rows never pool with the mixed set above.
 | `aws-access-key` | external (AWS EKS and Rekognition documentation chapters) | 4 | 0 | 0 | 1.000 | 1.000 |
 | `btc-address` | external (BIP-173, BIP-350 mediawiki) | 8 | 0 | 3 | 1.000 | 0.727 |
 | `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | N/A | 0.000 |
-| `card` | external (Test Payment Cards gateway list) | 314 | 11 | 41 | 0.966 | 0.885 |
+| `card` | external (Test Payment Cards gateway list) | 314 | 4 | 41 | 0.987 | 0.885 |
 | `de-steuer-id` | external (Kontist validate-steuerid README) | 2 | 0 | 0 | 1.000 | 1.000 |
 | `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 2 | 1 | 0.917 | 0.957 |
 | `eth-address` | external (ERC-55 markdown) | 14 | 0 | 0 | 1.000 | 1.000 |
@@ -860,12 +961,13 @@ These rows never pool with the mixed set above.
 | `ipv6` | external (RFC 3849) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `jwt` | external (RFC 7519) | 0 | 0 | 2 | N/A | 0.000 |
 | `mac` | external (RFC 7042) | 29 | 0 | 0 | 1.000 | 1.000 |
-| `phone` | external (RFC 5737, RFC 7042) | 5 | 16 | 0 | 0.238 | 1.000 |
+| `phone` | external (RFC 5737, RFC 7042) | 5 | 15 | 0 | 0.250 | 1.000 |
 | `url-credential` | external (Everything curl URL authentication chapter) | 1 | 0 | 0 | 1.000 | 1.000 |
-| `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 2 | 3 | 0.333 | 0.250 |
+| `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 1 | 3 | 0.500 | 0.250 |
+| `tracking-number` | external (Test Payment Cards gateway list) | 0 | 1 | 0 | 0.000 | n/a |
 | `us-itin` | external (Uphold itin-validator README) | 2 | 0 | 2 | 1.000 | 0.500 |
 | `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
-| **all kinds** | **external (`491` gold; false mentions of kinds without gold included)** | **431** | **34** | **60** | **0.927** | **0.878** |
+| **all kinds** | **external (`491` gold; false mentions of kinds without gold included, `url` not annotated and not scored)** | **431** | **26** | **60** | **0.943** | **0.878** |
 
 Zero prediction or gold support makes the corresponding precision or
 recall **N/A**, including the card recall when no card is gold-labelled.
@@ -883,24 +985,21 @@ What the external false positives and misses are:
   `url-credential` gold; the tail is not an address occurrence and
   is not labelled.
 
-- **`phone` false positives (16)**: six five-group prefixes of EUI-64
+- **`phone` false positives (15)**: six five-group prefixes of EUI-64
   identifiers and SNAP header patterns in RFC 7042; the three NHS-shaped
   values in the NHS article the `uk-nhs` scanner rejects (below) plus
   the checksum example `943 476 5919` on the same span as its `uk-nhs`
   mention, and the Scottish CHI range endpoints `010 100 0000` and
   `311 299 9999`; the multiplier row `0 8 6 8 5 8 2 16 6` of the SIN
   checksum walkthrough; `5698 7654 32` inside the markup-split
-  British IBAN example; `2101-153765`, a news article identifier
-  at the end of a citation URL slug in the Steuer-ID article; and
-  the digit run of an inline SVG icon path in the GitHub Docs
+  British IBAN example; and the digit run of an inline SVG icon path in the GitHub Docs
   credentials data.
-- **`card` false positives (11) and misses (41)**: the false
+- **`card` false positives (4) and misses (41)**: the false
   positives are the 15-digit grouped IMEI examples and a contiguous
   14-digit walkthrough prefix in the IMEI article (only complete
-  IMEIs carry `imei` gold), and 14-digit archive timestamps in
-  Wikipedia citation templates (two in the Payment card number
-  article and one in the Steuer-ID article among them, Luhn-valid
-  by coincidence); the Test Payment Cards list itself draws no
+  IMEIs carry `imei` gold); the 14-digit archive timestamps in
+  Wikipedia citation templates that were Luhn-valid by coincidence
+  sit inside archive URLs, and the `url` mention now holds them; the Test Payment Cards list itself draws no
   false card mention. The misses are all in that list: 34 Pay360
   test numbers in the 9905 and 9900 ranges and two 1-series UATP
   numbers, whose first digit is outside the scanner's 2-to-6 or 81
@@ -909,10 +1008,17 @@ What the external false positives and misses are:
 - **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
   in RFC 7519's references and the section number `2.3.2.1` twice in
   RFC 7042.
-- **`uk-nhs` false positives (2)**: `0110201035` in the SSN article's
-  citations, a 10-digit string that passes the NHS checksum, and
-  `0123456789` in ERC-55's hexadecimal digit alphabet, which also
-  satisfies the modulus-11 check.
+- **`uk-nhs` false positive (1)**: `0123456789` in ERC-55's hexadecimal
+  digit alphabet, which satisfies the modulus-11 check. The NHS-valid
+  `0110201035` in the SSN article's citations, and the article
+  identifier `2101-153765` that was a `phone` false positive in the
+  Steuer-ID article, are both inside citation URLs, and the `url`
+  mention now holds them.
+- **`tracking-number` false positive (1)**: `491748000000` in the Test
+  Payment Cards list, a 12-digit expiry-driven test number that fails
+  Luhn and passes the FedEx Express check by coincidence (about one
+  12-digit run in eleven does). `label_required(PiiKind::TrackingNumber)`
+  removes it.
 - **`btc-address` misses (3)**: the witness version 1, 2 and 16
   addresses of BIP-173's own valid list. BIP-173 encodes every
   version with the original bech32 checksum; BIP-350 replaced it

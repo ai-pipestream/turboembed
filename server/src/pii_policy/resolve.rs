@@ -11,8 +11,18 @@ use super::error::{At, PolicyError};
 pub enum ResolveError {
     /// No key or dictionary is registered under the reference.
     NotRegistered,
-    /// The server has no registry of this kind.
+    /// The server has no registry of this kind (a dictionary reference on
+    /// a server without `--vocabulary-dir`).
     NoRegistry,
+    /// The stored dictionary's bytes do not hash to the reference's
+    /// SHA-256: the reference pins other content.
+    DigestMismatch,
+    /// The stored dictionary is in a format this use does not take; the
+    /// format id is the store's, never the file's content.
+    WrongFormat { format: String },
+    /// The stored dictionary could not be read or parsed. The store's own
+    /// message is dropped: it may name a path or a line of the file.
+    Unreadable,
 }
 
 impl ResolveError {
@@ -20,20 +30,26 @@ impl ResolveError {
         match self {
             ResolveError::NotRegistered => "not registered".to_owned(),
             ResolveError::NoRegistry => "the server has no registry for it".to_owned(),
+            ResolveError::DigestMismatch => "the stored dictionary does not have this sha256".to_owned(),
+            ResolveError::WrongFormat { format } => {
+                format!("the stored dictionary's format {format} is not taken here")
+            }
+            ResolveError::Unreadable => "the stored dictionary cannot be read".to_owned(),
         }
     }
 }
 
 /// Resolves the keys and dictionaries a policy references. The server's
-/// key and dictionary registries implement it (#1882 part B).
+/// key registry and its vocabulary store implement it (#1882 parts B
+/// and C).
 pub trait PolicyResolver {
     /// The bytes of the HMAC key registered as `id` at `version`.
     fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError>;
-    /// The terms of the dictionary `artifact_id` whose stored bytes hash to
-    /// `sha256`.
+    /// The terms of the `plain-word-list` dictionary `artifact_id` whose
+    /// stored bytes hash to `sha256`.
     fn terms(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[String]>, ResolveError>;
-    /// The `(value, replacement)` entries of the map dictionary
-    /// `artifact_id` whose stored bytes hash to `sha256`.
+    /// The `(value, replacement)` entries of the `headword-definition-tsv`
+    /// dictionary `artifact_id` whose stored bytes hash to `sha256`.
     fn map_entries(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[(String, String)]>, ResolveError>;
 }
 

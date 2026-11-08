@@ -392,7 +392,7 @@ const RECALL_FLOOR: f64 = 1.0;
 /// One document of the human-written evaluation set (`tests/data/human-eval/`):
 /// id, whether the file is `turbo_goldens::escape`-encoded, file name, and
 /// expected UTF-8 SHA-256 digest.
-const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
+const HUMAN_DOCS: [(&str, bool, &str, &str); 9] = [
     ("masc-att2", true, "masc-att2.escaped", "f8f2cfd3ca288dcb9728092365b5c6d315de7b8b399f9f34bfc1da15302750ee"),
     ("masc-hsus4", true, "masc-hsus4.escaped", "88f06a9dc3c1338f01959b2599c0a3b6b10058c77a1c5e5811c5ff9f0aa0d700"),
     ("masc-united1", true, "masc-united1.escaped", "f9f0a966371aadd4ea29166109700d0ff77cc9e6d2899da90b204d945756ffaf"),
@@ -410,6 +410,12 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
         false,
         "operational-memos.txt",
         "260fc461b579030279741b25a1b1c7f03c4fa5c3929fb5585bf12ee38dc3fe9c",
+    ),
+    (
+        "us-identifiers-memos",
+        false,
+        "us-identifiers-memos.txt",
+        "11098b9985c68ad38d7e59f6fb848b317fbdec9584e7d9609cb8e7cdd0b9f1ba",
     ),
 ];
 
@@ -455,7 +461,7 @@ fn precision_and_recall_on_human_written_text() {
         total.fp,
         total.fn_
     );
-    let want_by_kind: [(&str, usize, usize, usize); 20] = [
+    let want_by_kind: [(&str, usize, usize, usize); 24] = [
         ("jwt", 3, 0, 0),
         ("aws-access-key", 2, 0, 0),
         ("github-token", 3, 0, 0),
@@ -475,11 +481,17 @@ fn precision_and_recall_on_human_written_text() {
         ("de-steuer-id", 3, 0, 0),
         ("ca-sin", 3, 0, 1),
         ("aba-routing", 3, 0, 0),
-        ("phone", 13, 5, 2),
+        // One more false phone: the grouped USPS near miss with a wrong
+        // check digit in us-identifiers-memos still has a phone shape.
+        ("phone", 13, 6, 2),
+        ("vin", 4, 0, 0),
+        ("tracking-number", 9, 0, 0),
+        ("us-ein", 3, 0, 0),
+        ("url", 10, 0, 0),
     ];
     for (kind, tp, fp, fn_) in want_by_kind {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (82, 9, 5));
+    assert_eq!((total.tp, total.fp, total.fn_), (108, 10, 5));
 }

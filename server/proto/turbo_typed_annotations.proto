@@ -66,6 +66,7 @@ enum LayerErrorKind
 // text, PII values, annotator detail strings or a debug rendering.
 message LayerError
 {
+  // What failed. UNSPECIFIED is refused.
   LayerErrorKind kind = 1;
   // TURBO_E_* as decimal; 0 for DECLINED and UPSTREAM, which are skips.
   int32 turbo_code = 2;
@@ -126,21 +127,25 @@ message InputBinding
   // The parse artifact the input text is, and its digest, both opaque
   // to the server.
   string parse_artifact_id = 2;
+  // The parse artifact's digest, opaque bytes as the caller gave them.
   bytes parse_artifact_digest = 3;
 }
 
 // What the result was computed from, bound to the exact bytes.
 message InputIdentity
 {
+  // The caller's binding; absent when the caller gave none.
   optional InputBinding binding = 1;
   // SHA-256 of the document's original bytes: the decoded file bytes
   // for a document decoded from bytes, else the UTF-8 of the source
   // view. raw_bytes_len is the length of those bytes.
   bytes raw_bytes_digest = 2;
+  // The length of those original bytes.
   uint64 raw_bytes_len = 3;
   // SHA-256 of the source view's UTF-8 text (view 0), and that text's
   // length in UTF-8 bytes.
   bytes source_text_digest = 4;
+  // The source view's length in UTF-8 bytes.
   uint32 source_text_len = 5;
 }
 
@@ -155,6 +160,7 @@ message ResultIdentity
   // bytes reproduces it. Protobuf bytes are not canonical across
   // languages and are never digested.
   bytes content_digest = 2;
+  // The length of those graph bytes.
   uint64 graph_bytes_len = 3;
   // The TGRF FORMAT_VERSION the digested bytes are in.
   uint32 graph_format_version = 4;
@@ -165,7 +171,9 @@ message ResultIdentity
 // One layer or view instance, named as the graph names it.
 message LayerInstanceRef
 {
+  // The layer id, such as turbo:pii, or turbo:view for a view.
   string layer = 1;
+  // The instance name; empty for the default instance.
   string instance = 2;
 }
 
@@ -176,7 +184,9 @@ message LayerInstanceRef
 // an identity. The digests here are the identities.
 message LayerProvenance
 {
+  // The layer id, such as turbo:pii.
   string layer = 1;
+  // The instance name; empty for the default instance.
   string instance = 2;
   // Message-local, into TypedDocumentResult.models.
   string model_ref = 3;
@@ -205,6 +215,7 @@ message LayerProvenance
   // The layer instances this one read, and the anchor and index
   // instances it is on, in the order the annotator declared them.
   repeated LayerInstanceRef reads = 8;
+  // The anchor and index instances the layer is on.
   repeated LayerInstanceRef on = 9;
 }
 
@@ -215,11 +226,17 @@ message LayerProvenance
 // model_ref values are message-local and mean nothing elsewhere.
 message ScopedRef
 {
+  // ResultIdentity.result_id of the result the item is in.
   string result_id = 1;
+  // The layer id.
   string layer = 2;
+  // The layer instance; empty for the default.
   string instance = 3;
+  // The item's index in that layer.
   uint32 index = 4;
+  // The instance of the native view the item's spans are in.
   string view_instance = 5;
+  // SHA-256 of that view's UTF-8 text, 32 bytes.
   bytes view_text_digest = 6;
 }
 
@@ -233,10 +250,15 @@ message ScopedRef
 // child [child_start + k * child_width, + child_width).
 message EditRun
 {
+  // First edit's start in the parent view, UTF-8 bytes.
   uint32 parent_start = 1;
+  // Each edit's width in the parent view, UTF-8 bytes.
   uint32 parent_width = 2;
+  // First edit's start in this view, UTF-8 bytes.
   uint32 child_start = 3;
+  // Each edit's width in this view, UTF-8 bytes.
   uint32 child_width = 4;
+  // The edits in the run; at least 1.
   uint32 count = 5;
 }
 
@@ -258,14 +280,17 @@ message ViewChain
 {
   // Message-local ViewId; the source view is 0.
   uint32 view = 1;
+  // The view's instance name; empty for the source view.
   string instance = 2;
   // The parent's view; absent for the source view, which has no edits.
   optional uint32 parent = 3;
   // SHA-256 of this view's UTF-8 text, and its length in UTF-8 bytes.
   bytes text_digest = 4;
+  // The view's text length in UTF-8 bytes.
   uint32 text_len = 5;
   // The number of native edits: the sum of the runs' counts.
   uint32 edit_count = 6;
+  // The native edits as runs, in order; empty for the source view.
   repeated EditRun edits = 7;
 }
 
@@ -275,6 +300,8 @@ message InlineMapping
 {
   // The version of the chain encoding and mapping rules above: 1.
   uint32 mapping_schema_version = 1;
+  // Every view of the result, the source view first and each after its
+  // parent.
   repeated ViewChain views = 2;
 }
 
@@ -287,6 +314,7 @@ message MappingPayload
 {
   oneof payload
   {
+    // The whole view tree in this message.
     InlineMapping inline = 1;
   }
   reserved 2;
@@ -331,22 +359,29 @@ enum TruncationReason
 // A half-open range [start, end) of source view (view 0) UTF-8 bytes.
 message ByteRange
 {
+  // First byte, inclusive.
   uint32 start = 1;
+  // One past the last byte; at least `start`.
   uint32 end = 2;
 }
 
 // A detector (annotator) by its registered name and version.
 message DetectorRef
 {
+  // The registered annotator name, such as turbo-pii:pii.
   string id = 1;
+  // The annotator's version string (Annotator::VERSION).
   string version = 2;
 }
 
 // One layer or view instance in a receipt.
 message LayerReceipt
 {
+  // The layer id, such as turbo:pii, or turbo:view for a view.
   string layer = 1;
+  // The instance name; empty for the default instance.
   string instance = 2;
+  // How far the layer was made. UNSPECIFIED is refused.
   ProcessingStatus status = 3;
   // The layer's item count: 0 on a COMPLETE layer means nothing found.
   uint32 item_count = 4;
@@ -356,8 +391,12 @@ message LayerReceipt
   // The detector asked to make the layer, and the ones that ran on the
   // document (empty when it declined or was skipped upstream).
   repeated DetectorRef requested = 6;
+  // The detectors that ran on the document.
   repeated DetectorRef executed = 7;
+  // Why the layer's input was cut short, each reason once; empty when it
+  // was not. UNSPECIFIED is refused.
   repeated TruncationReason truncations = 8;
+  // Why the layer failed or was skipped; absent on a COMPLETE layer.
   optional LayerError error = 9;
   // The layer's configuration identity: its LayerProvenance
   // provenance_digest (rule turbo:provenance-digest:v2, over the
@@ -381,6 +420,7 @@ message ProcessingReceipt
   // The result it produced; absent when it produced none (cancelled, or
   // failed before a result existed).
   optional ResultIdentity result = 5;
+  // The attempt's overall status. UNSPECIFIED is refused.
   ProcessingStatus status = 6;
   // The sum of the layers' item counts.
   uint64 item_count = 7;
@@ -389,6 +429,7 @@ message ProcessingReceipt
   // The pipeline steps asked for and the ones that ran; both empty for
   // an operation that runs no steps, such as InspectDocumentGraph.
   repeated string requested_steps = 9;
+  // The steps that ran, in run order.
   repeated string executed_steps = 10;
   // SHA-256 of the processing configuration, independent of the input
   // text, rule turbo.processing-config.v1: the domain tag, then the entry
@@ -455,7 +496,9 @@ enum SpanOutcome
 // index in the annotation's native fragment list and its own outcome.
 message FragmentMember
 {
+  // The native fragment's index in the annotation's native fragment list.
   uint32 index = 1;
+  // That fragment's own outcome. UNSPECIFIED is refused.
   SpanOutcome outcome = 2;
 }
 
@@ -475,7 +518,10 @@ message SpanFragment
 {
   uint32 start = 1;
   uint32 end = 2;
+  // What projection did to the fragment. UNSPECIFIED is refused.
   SpanOutcome outcome = 3;
+  // The native fragments coalesced here, by ascending index; empty when
+  // none were.
   repeated FragmentMember members = 4;
 }
 
@@ -501,9 +547,11 @@ message TypedDocumentResult
   // The envelope (issue #1907): what the result was computed from,
   // what it is, how each layer was made, and the view edit chain.
   InputIdentity input = 8;
+  // What the result is: its graph digest and schema versions.
   ResultIdentity result = 9;
   // One entry per view and layer instance, in document order.
   repeated LayerProvenance provenance = 10;
+  // The view edit chain every span maps through.
   MappingPayload mapping = 11;
   // The processing receipt of the operation that produced this answer
   // (issue #1908). It is not part of the result: the result identity is
@@ -967,6 +1015,10 @@ enum PiiKindId
   PII_KIND_ID_CA_SIN = 28;
   PII_KIND_ID_ABA_ROUTING = 29;
   PII_KIND_ID_PHONE = 30;
+  PII_KIND_ID_VIN = 31;
+  PII_KIND_ID_TRACKING_NUMBER = 32;
+  PII_KIND_ID_US_EIN = 33;
+  PII_KIND_ID_URL = 34;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C
@@ -987,7 +1039,9 @@ message PiiKindRef
 {
   oneof kind
   {
+    // A built-in kind. UNSPECIFIED is refused.
     PiiKindId builtin = 1;
+    // An index into the layer's custom_pii_kinds.
     uint32 custom = 2;
   }
 }
@@ -997,7 +1051,9 @@ message PiiKindRef
 // the version of that detector.
 message PiiDetectorRef
 {
+  // The stable detector id. Non-empty.
   string id = 1;
+  // The detector's version string; part of its identity.
   string version = 2;
 }
 
@@ -1018,6 +1074,10 @@ enum PiiChecksumAlgorithm
   PII_CHECKSUM_ALGORITHM_ABA_WEIGHTS = 11;
   PII_CHECKSUM_ALGORITHM_OTHER = 12;
   PII_CHECKSUM_ALGORITHM_LA_POSTE_MOD5 = 13;
+  PII_CHECKSUM_ALGORITHM_VIN = 14;
+  PII_CHECKSUM_ALGORITHM_UPS_MOD10 = 15;
+  PII_CHECKSUM_ALGORITHM_FEDEX_MOD11 = 16;
+  PII_CHECKSUM_ALGORITHM_GS1_MOD10 = 17;
 }
 
 // The text has the shape of the kind and nothing more was checked.
@@ -1028,7 +1088,9 @@ message PiiShapeEvidence
 // A check digit algorithm ran over the mention and passed or failed.
 message PiiChecksumEvidence
 {
+  // The algorithm that ran. UNSPECIFIED is refused.
   PiiChecksumAlgorithm algorithm = 1;
+  // Whether the check digits matched.
   bool passed = 2;
 }
 
@@ -1036,7 +1098,9 @@ message PiiChecksumEvidence
 // span in this view, and its index in the detector's label phrase table.
 message PiiLabelEvidence
 {
+  // The label phrase's span in this view and OffsetMode.
   SpanFragment span = 1;
+  // The phrase's index in the detector's label phrase table.
   uint32 phrase = 2;
 }
 
@@ -1044,13 +1108,16 @@ message PiiLabelEvidence
 // configuration and the term's index in that list.
 message PiiDenyHitEvidence
 {
+  // The deny list's index in the detector's configuration.
   uint32 list = 1;
+  // The term's index in that list.
   uint32 term = 2;
 }
 
 // A custom rule matched, by its index in the detector's configuration.
 message PiiRuleEvidence
 {
+  // The custom rule's index in the detector's configuration.
   uint32 rule = 1;
 }
 
@@ -1061,10 +1128,15 @@ message PiiEvidence
 {
   oneof fact
   {
+    // The text has the kind's shape.
     PiiShapeEvidence shape = 1;
+    // A check digit algorithm ran.
     PiiChecksumEvidence checksum = 2;
+    // A context label stands near the mention.
     PiiLabelEvidence label = 3;
+    // A deny list term matched.
     PiiDenyHitEvidence deny_hit = 4;
+    // A custom rule matched.
     PiiRuleEvidence rule = 5;
   }
 }
@@ -1082,9 +1154,14 @@ enum PiiScoreKind
 // PiiScore at all, which is not a score of zero.
 message PiiScore
 {
+  // The score, finite: [0, 1] for probability and heuristic scores,
+  // unbounded for logits.
   float value = 1;
+  // What the score is. UNSPECIFIED is refused.
   PiiScoreKind kind = 2;
+  // The model that scored.
   PiiDetectorRef model = 3;
+  // Whether the score was calibrated against held-out data.
   bool calibrated = 4;
 }
 
@@ -1102,12 +1179,18 @@ message PiiMention
   // Never populated: was the normalized value in clear; read `value`
   // instead (#1904).
   string normalized = 3 [deprecated = true];
+  // The value in the form released; `withheld` unless released (#1904,
+  // #1909). Required.
   PiiValue value = 4;
   // 8 and 9 are spare.
   PiiDetectorRef detector = 5;
+  // The facts recorded for the mention; at least one.
   repeated PiiEvidence evidence = 6;
+  // The model score, when the detector has one.
   optional PiiScore score = 7;
+  // The mention's kind. Required.
   PiiKindRef kind_ref = 10;
+  // The tier the evidence derives to. UNSPECIFIED is refused.
   PiiConfidenceTier confidence = 11;
 }
 
@@ -1121,8 +1204,11 @@ message PiiValue
 {
   oneof form
   {
+    // The value is not in the response.
     PiiValueWithheld withheld = 1;
+    // A keyed token standing for the value.
     PiiValueToken token = 2;
+    // The value encrypted; refused until #1885.
     PiiValueCiphertext ciphertext = 3;
     // The normalized value in clear.
     string clear = 4;
@@ -1132,21 +1218,25 @@ message PiiValue
 // The value is not in the response, and why (#1931).
 message PiiValueWithheld
 {
+  // Why this mention's value is not in the response. Required;
+  // UNSPECIFIED is refused.
   PiiWithheldReason reason = 1;
 }
 
 // Why one mention's value was withheld. A request that asks for no value
 // gives NOT_REQUESTED on every mention. A values request answers per
 // mention: a mention whose kind the calling service is not granted the
-// requested form for is NOT_GRANTED; one whose kind the server's policy
-// does not allow the form for is NOT_ALLOWED_BY_POLICY. A reason never
-// names a kind beyond the mention's own kind_ref. UNSPECIFIED is never
-// produced and is refused.
+// requested form for is NOT_GRANTED. A reason never names a kind beyond
+// the mention's own kind_ref. UNSPECIFIED is never produced and is
+// refused.
 enum PiiWithheldReason
 {
   PII_WITHHELD_REASON_UNSPECIFIED = 0;
   PII_WITHHELD_REASON_NOT_REQUESTED = 1;
   PII_WITHHELD_REASON_NOT_GRANTED = 2;
+  // Produced only by a per-kind policy ceiling (#1943), which does not
+  // exist yet: nothing produces this value today. A form the server-wide
+  // output policy excludes refuses the whole request instead.
   PII_WITHHELD_REASON_NOT_ALLOWED_BY_POLICY = 3;
 }
 
@@ -1154,11 +1244,14 @@ enum PiiWithheldReason
 // key (#1909). Equal values under one key give equal tokens.
 message PiiValueToken
 {
+  // The 32-byte HMAC-SHA-256, under the key, of a domain tag and the
+  // normalized value.
   bytes token = 1;
   // The key the token was made under: the PiiPolicyKeyRef identity (id,
   // version) of turbo_pii_policy.proto, carried as plain fields because
   // that file imports this one.
   string key_id = 2;
+  // The key's version, read unsigned.
   uint32 key_version = 3;
 }
 
@@ -1166,11 +1259,14 @@ message PiiValueToken
 // produced until #1885.
 message PiiValueCiphertext
 {
+  // The encrypted bytes, in `scheme`'s encoding.
   bytes ciphertext = 1;
   // The key, as in PiiValueToken: the PiiPolicyKeyRef identity (id,
   // version).
   string key_id = 2;
+  // The encryption scheme's name.
   string scheme = 3;
+  // The key's version, read unsigned.
   uint32 key_version = 4;
 }
 
@@ -1242,7 +1338,9 @@ message PiiAllowRuleRef
 {
   oneof rule
   {
+    // The term's index in the allow list.
     uint32 term = 1;
+    // The pattern's index in the allow list's patterns.
     uint32 pattern = 2;
   }
 }
@@ -1250,7 +1348,10 @@ message PiiAllowRuleRef
 // A candidate an allow rule suppressed.
 message PiiAllowedByRule
 {
+  // Whether the global or the kind's allow list matched. UNSPECIFIED is
+  // refused.
   PiiAllowScope scope = 1;
+  // The term or pattern that matched.
   PiiAllowRuleRef rule = 2;
 }
 
@@ -1260,10 +1361,15 @@ message PiiDisposition
 {
   oneof disposition
   {
+    // Kept as this mention index of the turbo:pii layer.
     uint32 kept = 1;
+    // Suppressed by an allow rule.
     PiiAllowedByRule allowed_by_rule = 2;
+    // Dropped inside this kept mention index.
     uint32 nested_in = 3;
+    // Rejected for this reason. UNSPECIFIED is refused.
     PiiRejectReason rejected_by_rule = 4;
+    // A repeat of this kept mention index.
     uint32 repeats = 5;
   }
 }
@@ -1273,10 +1379,15 @@ message PiiDisposition
 // never carries a value or a normalized form.
 message PiiCandidateAnnotation
 {
+  // The kind the detector proposed.
   PiiKindRef kind = 1;
+  // The detector that proposed it.
   PiiDetectorRef detector = 2;
+  // The facts recorded for it; at least one.
   repeated PiiEvidence evidence = 3;
+  // The model score, when the detector has one.
   optional PiiScore score = 4;
+  // What became of the candidate. Required.
   PiiDisposition disposition = 5;
   // What a turbo-pii:redact dry run would do with a kept candidate; unset
   // for every other disposition and outside a dry run.
@@ -1290,9 +1401,13 @@ message PiiCandidateAnnotation
 // mention that loses its cluster is replaced by another's strategy.
 message PiiPlannedRewrite
 {
+  // The rule that would choose the strategy. Required.
   PiiEditRule rule = 1;
+  // That rule's RedactionPolicy rule_id; empty for the default.
   string rule_id = 2;
+  // The strategy that would write it. UNSPECIFIED is refused.
   PiiStrategy strategy = 3;
+  // The policy's revision (RedactionPolicy.revision).
   uint64 policy_revision = 4;
   // The raw 32 bytes of the policy digest.
   bytes policy_digest = 5;
@@ -1322,7 +1437,9 @@ message PiiEditRule
 {
   oneof rule
   {
+    // The policy's default strategy; always true when set.
     bool default_rule = 1;
+    // The override for this kind.
     PiiKindRef kind = 2;
   }
 }
@@ -1338,7 +1455,9 @@ message PiiEditAnnotation
   // The covered mentions: row indexes of the covered turbo:pii layer,
   // ascending. Any subset, so not a range.
   repeated uint32 members = 2;
+  // The rule that chose the strategy. Required.
   PiiEditRule rule = 3;
+  // The strategy that wrote the replacement. UNSPECIFIED is refused.
   PiiStrategy strategy = 4;
   // The caller's revision of the policy; 0 when none was given.
   uint64 policy_revision = 5;
@@ -2002,7 +2121,9 @@ message TypedAnnotation
     LayoutBoxAnnotation layout_box = 95;
     ChunkCitationAnnotation chunk_citation = 96;
     GrammarDiagnosticAnnotation grammar_diagnostic = 97;
+    // turbo:pii-edits (#1902).
     PiiEditAnnotation pii_edit = 98;
+    // turbo:pii-candidates (#1903).
     PiiCandidateAnnotation pii_candidate = 99;
     PiiRiskAnnotation pii_risk = 100;
   }

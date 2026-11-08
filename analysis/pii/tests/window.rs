@@ -143,6 +143,9 @@ fn kind_defaults_match_specification() {
         if matches!(kind, PiiKind::CaSin | PiiKind::Imei | PiiKind::Bic) {
             assert_eq!(default_window(kind), 1, "{kind}");
             assert_eq!(default_policy(kind), LabelPolicy::Required, "{kind}");
+        } else if matches!(kind, PiiKind::Vin | PiiKind::TrackingNumber | PiiKind::UsEin) {
+            assert_eq!(default_window(kind), DEFAULT_WINDOW_WORDS, "{kind}");
+            assert_eq!(default_policy(kind), LabelPolicy::Boosts, "{kind}");
         } else {
             assert_eq!(default_window(kind), DEFAULT_WINDOW_WORDS, "{kind}");
             assert_eq!(default_policy(kind), LabelPolicy::None, "{kind}");

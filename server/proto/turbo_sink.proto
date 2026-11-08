@@ -44,6 +44,14 @@ message DocumentSinkItem {
 
   // The AnalyzeStream answer, when the item is one.
   turbo.result.v1.AnalyzeStreamResponse analyzed = 8;
+
+  // The caller's identity of the input the item was computed from
+  // (issue #1939): the AnalyzeStream document's or the pipeline request's
+  // binding, as given; absent when the caller sent none, never invented.
+  // When the item carries a typed projection or an answer, their bindings
+  // are this one. A parse_artifact_digest without a parse_artifact_id is
+  // rejected.
+  optional turbo.result.v1.InputBinding binding = 10;
 }
 
 message DocumentSinkSummary {
