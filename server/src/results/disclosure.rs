@@ -22,8 +22,9 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Analyzer, Document, Key, Layer, View, ViewId};
-use turbo_analysis_layers::{Pii, PiiCandidates, PiiEdits};
+use turbo_analysis::{Analyzer, Document, Evidence, Key, KeyId, Layer, View, ViewId};
+use turbo_analysis_layers::{Entities, Pii, PiiCandidates, PiiEdits};
+use turbo_entity_linker::LinkedEntities;
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
 use crate::proto::result::{
@@ -225,25 +226,26 @@ pub fn plans_pii(analyzer: &Analyzer) -> bool {
 
 /// Whether `view` is a PII rewrite view: not the source, written by a
 /// `turbo-pii:` annotator, that rewrote every finding the document holds
-/// (#1932). A `turbo:pii` instance the view did not read, with a mention
-/// or without a layer to say it has none, may hold a value the view
-/// carries in clear, so that view is not one.
+/// (#1932). A `turbo:pii` instance with a mention, or without a layer to
+/// say it has none, that neither the view nor a rewrite view it was made
+/// from read (directly or as the source of a projected copy) may hold a
+/// value the view carries in clear, so that view is not one. The
+/// replacement labels a rewrite writes are not findings.
 pub fn is_rewrite_view(doc: &Document, view: ViewId) -> bool {
     view != ViewId::SOURCE
         && doc.layers().any(|k| {
             k.ty == TypeId::of::<View>()
                 && doc.get_key(&Key::<View>::named(k.name)).is_some_and(|v| v.id() == view)
-                && doc.provenance(k).is_some_and(|p| {
-                    p.annotator.starts_with(REWRITE_ANNOTATOR_PREFIX) && rewrote_every_finding(doc, &p.reads)
-                })
+                && doc.provenance(k).is_some_and(|p| p.annotator.starts_with(REWRITE_ANNOTATOR_PREFIX))
+                && rewrote_every_finding(doc, &lineage::rewritten_findings(doc, k))
         })
 }
 
-/// Whether every `turbo:pii` instance of `doc` is in `reads` or holds no
-/// mention.
-fn rewrote_every_finding(doc: &Document, reads: &[turbo_analysis::KeyId]) -> bool {
-    doc.layers().filter(|k| k.ty == TypeId::of::<Pii>()).all(|k| {
-        reads.contains(&k) || doc.get_key(&Key::<Pii>::named(k.name)).is_some_and(|p| p.mentions().next().is_none())
+/// Whether every `turbo:pii` finding instance of `doc` is in `covered` or
+/// holds no mention.
+fn rewrote_every_finding(doc: &Document, covered: &[KeyId]) -> bool {
+    doc.layers().filter(|k| k.ty == TypeId::of::<Pii>() && !lineage::is_rewrite_output(doc, *k)).all(|k| {
+        covered.contains(&k) || doc.get_key(&Key::<Pii>::named(k.name)).is_some_and(|p| p.mentions().next().is_none())
     })
 }
 
@@ -280,21 +282,41 @@ pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
 }
 
 /// A result shown on a PII rewrite view under `rewritten_text` alone: the
-/// view's own text may leave, but a layer native to another view (the
-/// source's lemmas, entity names, key-value strings) carries that view's
-/// words, so it is listed bare unless that view's text may leave too. A
-/// layer with no native view is document-wide, over the source. The
-/// findings layers are kept, the candidates only with `detail` (#1904).
+/// view's own text may leave, but a layer made from another view's text
+/// (the source's lemmas, entity names, key-value strings, or a projected
+/// copy of them that sits on the rewrite view) carries that view's words,
+/// so it is listed bare unless its whole lineage may leave
+/// ([`lineage::Lineage`]). An entity layer is judged with the linked
+/// names and evidence joined into it. The findings layers are kept, the
+/// candidates only with `detail` (#1904, #1932).
 pub(crate) fn withhold_other_views(layers: &mut [TypedLayer], doc: &Document, disclosure: &Disclosure) {
+    let key_of = |l: &TypedLayer| doc.layers().find(|k| k.layer.to_string() == l.id && k.name == l.instance);
+    let own: Vec<(KeyId, Option<ViewId>)> = layers
+        .iter()
+        .filter_map(|l| key_of(l).map(|k| (k, l.native_view.and_then(|v| u16::try_from(v).ok()).map(ViewId))))
+        .collect();
+    let mut lineage =
+        lineage::Lineage::new(doc, disclosure, |k| own.iter().find(|(o, _)| *o == k).and_then(|(_, v)| *v));
     let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (disclosure.detail && id == PiiCandidates::ID);
     for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
-        let native = l.native_view.and_then(|v| u16::try_from(v).ok()).map_or(ViewId::SOURCE, ViewId);
-        if l.id == PiiCandidates::ID || !disclosure.view_text(doc, native) {
+        let withheld = l.id == PiiCandidates::ID
+            || key_of(l).is_none_or(|k| lineage.withheld(k) || joined(doc, k).any(|j| lineage.withheld(j)));
+        if withheld {
             l.annotations.clear();
             l.indexes_layer.clear();
         }
     }
 }
+
+/// The side tables the typed projection joins into the layer `key`: the
+/// linked names and evidence aligned to an entity layer.
+fn joined(doc: &Document, key: KeyId) -> impl Iterator<Item = KeyId> + '_ {
+    let side = [TypeId::of::<LinkedEntities>(), TypeId::of::<Evidence<Entities>>()];
+    doc.layers().filter(move |k| side.contains(&k.ty) && doc.made_on(*k).first() == Some(&key))
+}
+
+#[path = "disclosure_lineage.rs"]
+mod lineage;
 
 #[cfg(test)]
 #[path = "disclosure_tests.rs"]

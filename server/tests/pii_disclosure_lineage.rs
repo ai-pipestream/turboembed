@@ -8,7 +8,9 @@
 //! late finding (directly, or as a projected copy) is releasable.
 
 use prost::Message;
-use turbo_analysis::{Analyzer, Document, IxRange, Key, ProjectView, Provenance, Span, Spans, Tag, TagSet, View, ViewId};
+use turbo_analysis::{
+    Analyzer, Document, IxRange, Key, ProjectView, Provenance, Span, Spans, Tag, TagSet, View, ViewId,
+};
 use turbo_analysis_layers::{Entities, Lemmas, Pii, PiiEvidence, PiiKind, PiiMention, Strs, Tokens};
 use turbo_entity_linker::LinkedEntities;
 use turbo_keywords::Keywords;
@@ -152,7 +154,7 @@ fn layers_made_from_the_masked_view_are_kept_and_source_links_are_not_joined() {
     assert_eq!(annotations(&shown, "turbo:entities", "masked"), 1, "masked entities are kept");
     // A linker that read the source names the entity by the source value.
     let links = LinkedEntities {
-        kb_id: vec![None],
+        kb_id: vec![Some("kb0".into())],
         provider_id: vec!["fixture".into()],
         canonical_name: vec![EMAIL.into()],
         matched_alias: vec![EMAIL.into()],
