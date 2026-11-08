@@ -186,6 +186,13 @@ pub fn graph() -> Vec<u8> {
     export(&doc, codecs()).unwrap().to_bytes().unwrap()
 }
 
+/// The graph of TEXT with an empty pii layer.
+pub fn graph_without_mentions() -> Vec<u8> {
+    let mut doc = Document::new(TEXT);
+    doc.add(&Key::DEFAULT, Pii::new(ViewId::SOURCE), Provenance::by("turbo-pii:pii")).unwrap();
+    export(&doc, codecs()).unwrap().to_bytes().unwrap()
+}
+
 /// Whether `bytes` hold `needle` anywhere.
 pub fn holds(bytes: &[u8], needle: &[u8]) -> bool {
     bytes.windows(needle.len()).any(|w| w == needle)

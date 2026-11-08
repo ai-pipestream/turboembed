@@ -21,8 +21,8 @@ use turbo_kserve::proto::result::{
     FragmentMember, PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumAlgorithm,
     PiiChecksumEvidence, PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition,
     PiiEvidence as WireEvidence, PiiKindRef, PiiLabelEvidence, PiiMention as WirePii, PiiScore as WirePiiScore,
-    PiiShapeEvidence, PiiValue, PiiValueCiphertext, PiiValueToken, SpanFragment, SpanOutcome, TypedDocumentResult,
-    TypedLayer,
+    PiiShapeEvidence, PiiValue, PiiValueCiphertext, PiiValueToken, PiiValueWithheld, PiiWithheldReason, SpanFragment,
+    SpanOutcome, TypedDocumentResult, TypedLayer,
 };
 // The projection itself is under test, so the text is asked for (#1904).
 use turbo_kserve::results::disclosure::Disclosure;
@@ -295,7 +295,8 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     let wire = pii_message(|_| {});
     let mut layer = wire.layers.iter().filter(|l| l.id == "turbo:pii").flat_map(|l| &l.annotations);
     let Some(Value::Pii(m)) = &layer.next().expect("a pii annotation").value else { panic!("a pii annotation") };
-    assert!(matches!(m.value, Some(PiiValue { form: Some(Form::Withheld(_)) })), "{:?}", m.value);
+    let not_requested = PiiValueWithheld { reason: PiiWithheldReason::NotRequested as i32 };
+    assert_eq!(m.value, value(Some(Form::Withheld(not_requested))), "withheld, not requested (#1931)");
     validate_typed_document(&wire).unwrap();
     // A release (#1909) writes a 32-byte token naming its key, or the
     // value in clear; both validate.
@@ -312,8 +313,10 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     // Everything else is refused, and the error names the form, never the
     // token, the ciphertext or the key.
     let secrets = ["planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];
-    let refusals: [(&str, Edit); 6] = [
+    let refusals: [(&str, Edit); 8] = [
         ("no value", |m| m.value = None),
+        ("a withheld value without a reason", |m| m.value = value(Some(Form::Withheld(PiiValueWithheld::default())))),
+        ("an unknown reason", |m| m.value = value(Some(Form::Withheld(PiiValueWithheld { reason: 99 })))),
         ("a value with no form", |m| m.value = value(None)),
         ("an empty clear value", |m| m.value = value(Some(Form::Clear(String::new())))),
         ("a short token", |m| {

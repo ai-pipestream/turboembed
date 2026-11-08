@@ -1,0 +1,272 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-no-bokmaal-upos",
+    "--dir",
+    "ud-norwegian-bokmaal-r2.16",
+    "--hash-embed",
+    "64",
+    "--bundle",
+    "xlm-roberta-base",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "no-bokmaal-upos"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1794118182,
+  "corpus": {
+    "id": "ud-no-bokmaal-upos",
+    "name": "Universal Dependencies Norwegian Bokmaal r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Norwegian Bokmaal r2.16, published at https://github.com/UniversalDependencies/UD_Norwegian-Bokmaal; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "no_bokmaal-ud-train.conllu",
+        "size": 15882804,
+        "sha256": "caa990b444d11030df842d39f2b4bda271beb90a93deda0a56406fa061535b03"
+      },
+      {
+        "path": "no_bokmaal-ud-dev.conllu",
+        "size": 2371164,
+        "sha256": "1c803c3f90e510ce995c5f9108e240f283c34025333a61281cb90fdf2e82c83a"
+      },
+      {
+        "path": "no_bokmaal-ud-test.conllu",
+        "size": 1949600,
+        "sha256": "b45e4809d38ea560f0b164023b0f4c6d8f0d7731f66c4df129917bb06d1676f8"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (9cac023138b2fc1ee8a6e28a25b2f7d308fb3aea)",
+    "train": {
+      "sentences": 15696,
+      "words": 243886
+    },
+    "dev": {
+      "sentences": 2409,
+      "words": 36369
+    },
+    "test": {
+      "sentences": 1939,
+      "words": 29966
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      0.9126769814377865,
+      0.0675567803617611,
+      0.044621849189746744,
+      0.034480124466276484,
+      0.02841460056271646,
+      0.02394436415176997,
+      0.018995455084421634,
+      0.01361974639190429,
+      0.009991428780222774,
+      0.00831060205503764,
+      0.008156786642070807,
+      0.006014965771658599,
+      0.005339622318039518,
+      0.00470486884333097,
+      0.0039157434408188955,
+      0.003630310149666991,
+      0.0037860538570247885,
+      0.0032585530016598046,
+      0.003188633275879879,
+      0.002709042452218316,
+      0.0020574309474488805,
+      0.0024478484506685106,
+      0.0022377689132769218,
+      0.0018511754093899467
+    ],
+    "dev": [
+      0.9726415353735324,
+      0.9812752618988699,
+      0.9756385933074871,
+      0.9808628227336468,
+      0.9819351645632269,
+      0.9821001402293161,
+      0.9817151970084412,
+      0.9817426929527895,
+      0.9825125793945393,
+      0.9818251807858341,
+      0.980890318677995,
+      0.9813577497319146,
+      0.9821826280623608,
+      0.9819626605075751,
+      0.9822376199510572,
+      0.9817976848414859,
+      0.9818526767301823,
+      0.9813302537875663,
+      0.9814952294536556,
+      0.9816052132310484,
+      0.9814952294536556,
+      0.9820176523962716,
+      0.9818251807858341,
+      0.9817976848414859
+    ],
+    "best_epoch": 9,
+    "epoch_seconds": [
+      122.89725658,
+      123.717366614,
+      128.433633136,
+      155.311450631,
+      123.167971771,
+      126.881219399,
+      123.880038527,
+      147.088659833,
+      160.695252991,
+      220.967659531,
+      205.007680157,
+      167.093653447,
+      190.255787073,
+      119.679588637,
+      157.623597584,
+      133.278067582,
+      120.438039868,
+      124.317213971,
+      123.888808443,
+      123.7550009,
+      125.428713774,
+      123.957289803,
+      125.062271999,
+      123.290093311
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 29966,
+        "correct": 29354,
+        "accuracy": 0.9795768537676033,
+        "unseen_words": 3374,
+        "unseen_correct": 3206,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 29966,
+        "correct": 26797,
+        "accuracy": 0.8942468130547955,
+        "unseen_words": 3374,
+        "unseen_correct": 1816,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9795768537676033,
+      "baseline": 0.8942468130547955,
+      "delta": 0.08533004071280781,
+      "low": 0.08180724961346852,
+      "high": 0.08912728131430692,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.262945733,
+    "features": 6.602719434,
+    "train": 3396.38669557,
+    "eval": 3.29745088,
+    "feature_words": 280255
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13346004,
+      "sha256": "085dcd240744742baf1f5ab7bbc4e1937cdaa37ab171e827df42b8e3cdaca4e9"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

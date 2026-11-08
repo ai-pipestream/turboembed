@@ -59,7 +59,10 @@ message PiiKindRule
   // The caller's id for the rule, unique in the policy; every edit and
   // decision the rule causes names it. Required.
   string rule_id = 1;
+  // The kind the rule applies to: a built-in PiiKindId, or an index into
+  // RedactionPolicy.custom_kinds. Required; one rule per kind.
   PiiKindRef kind = 2;
+  // Whether the kind is detected at all. UNSPECIFIED is refused.
   PiiRuleState state = 3;
   // Tried in order: the first entry whose conditions all hold rewrites the
   // mention. None holds: the policy's default strategy.
@@ -85,6 +88,7 @@ enum PiiLabelRequirement
 // A kind's context label settings.
 message PiiLabelOverride
 {
+  // Whether the kind needs a context label. UNSPECIFIED is refused.
   PiiLabelRequirement requirement = 1;
   // Words either side of the mention searched for a label; 0 keeps the
   // detector's window.
@@ -98,6 +102,8 @@ message PiiStrategyEntry
 {
   // Every condition must hold; none means always.
   repeated PiiStrategyCondition when = 1;
+  // The rewrite the entry applies when every condition holds. Required; an
+  // unknown arm is refused unless the policy opts into redact-and-flag.
   PiiRewriteStrategy strategy = 2;
 }
 
@@ -107,9 +113,13 @@ message PiiStrategyCondition
 {
   oneof test
   {
+    // A checksum fact passed.
     PiiChecksumPassedCondition checksum_passed = 1;
+    // A label fact is recorded.
     PiiLabelPresentCondition label_present = 2;
+    // The detector that found the mention.
     PiiDetectorCondition detector = 3;
+    // A score at least a threshold.
     PiiScoreCondition score_at_least = 4;
   }
 }
@@ -118,6 +128,8 @@ message PiiStrategyCondition
 // any algorithm. UNSPECIFIED is refused.
 message PiiChecksumPassedCondition
 {
+  // Checksum algorithms (PiiChecksumAlgorithm values) any one of which
+  // must have passed; empty means any algorithm.
   repeated PiiChecksumAlgorithm algorithms = 1;
 }
 
@@ -128,7 +140,9 @@ message PiiLabelPresentCondition {}
 // this version.
 message PiiDetectorCondition
 {
+  // The detector id (PiiDetectorRef.id). Required.
   string id = 1;
+  // The detector version (PiiDetectorRef.version); empty matches any.
   string version = 2;
 }
 
@@ -136,8 +150,12 @@ message PiiDetectorCondition
 // only a calibrated score counts. UNSPECIFIED is refused.
 message PiiScoreCondition
 {
+  // The score kind compared (PiiScore.kind). UNSPECIFIED is refused.
   PiiScoreKind kind = 1;
+  // The least score that holds, in the kind's own scale: [0, 1] for
+  // probability and heuristic, unbounded for logit. Finite.
   float min = 2;
+  // Only a score whose PiiScore.calibrated is true counts.
   bool calibrated = 3;
 }
 
@@ -176,7 +194,9 @@ message PiiDefaultStrategy
 {
   oneof strategy
   {
+    // Mask every character.
     PiiMaskStrategy mask = 1;
+    // A keyed HMAC-SHA-256 token under a registered key.
     PiiKeyedTokenStrategy keyed_token = 2;
   }
 }
@@ -195,6 +215,7 @@ message PiiMaskStrategy
 // document, %% a percent sign.
 message PiiFormatStrategy
 {
+  // The template, UTF-8; %t, %k, %v and %% as above. Non-empty.
   string template = 1;
 }
 
@@ -210,7 +231,10 @@ enum PiiKeepSide
 // most `count` characters is masked whole.
 message PiiTruncateStrategy
 {
+  // The side kept. UNSPECIFIED is refused.
   PiiKeepSide side = 1;
+  // Characters kept (Unicode scalar values; letters and digits only with
+  // `keep_format`). 0 masks the whole mention.
   uint32 count = 2;
   // One character; empty means '*'.
   string mask_char = 3;
@@ -221,8 +245,12 @@ message PiiTruncateStrategy
 // Keep the last `count` characters (a truncation keeping the end).
 message PiiLastNStrategy
 {
+  // Characters kept at the end (Unicode scalar values; letters and digits
+  // only with `keep_format`). 0 masks the whole mention.
   uint32 count = 1;
+  // One character; empty means '*'.
   string mask_char = 2;
+  // Count letters and digits only and leave separators readable.
   bool keep_format = 3;
 }
 
@@ -230,16 +258,23 @@ message PiiLastNStrategy
 // `trailing` (both empty: "JFK"; both ".": "J.F.K.").
 message PiiAbbreviateStrategy
 {
+  // Written between initials, UTF-8; may be empty.
   string separator = 1;
+  // Written after the last initial, UTF-8; may be empty.
   string trailing = 2;
+  // A hyphenated word gives one initial per part, joined by '-'.
   bool preserve_hyphens = 3;
+  // Keep each initial's case; false writes initials upper-case.
   bool preserve_case = 4;
 }
 
 // A registered, versioned key: never key material.
 message PiiPolicyKeyRef
 {
+  // The registered key's id (`--pii-token-key ID:VERSION:PATH`): ASCII,
+  // at most 128 bytes, never key material. Required.
   string id = 1;
+  // The registered key's version, read unsigned. Required (not 0).
   uint32 version = 2;
 }
 
@@ -248,7 +283,9 @@ message PiiPolicyKeyRef
 // one key give equal tokens across documents.
 message PiiKeyedTokenStrategy
 {
+  // The registered key. Required; an unregistered reference is refused.
   PiiPolicyKeyRef key = 1;
+  // Hexadecimal digits written, 4 to 64; 0 means 16.
   uint32 length = 2;
 }
 
@@ -268,6 +305,7 @@ message PiiSha256Strategy
 // A fixed replacement text.
 message PiiStaticStrategy
 {
+  // The text written for every mention, UTF-8. Non-empty.
   string replacement = 1;
 }
 
@@ -276,7 +314,10 @@ message PiiStaticStrategy
 // corpus. Never a default.
 message PiiPseudonymStrategy
 {
+  // Written before the upper-case kind name, '-' and number, UTF-8, such
+  // as '['; may be empty.
   string prefix = 1;
+  // Written after the number, UTF-8, such as ']'; may be empty.
   string suffix = 2;
 }
 
@@ -295,10 +336,15 @@ message PiiMapStrategy
 {
   oneof table
   {
+    // The table inline.
     PiiMapEntries entries = 1;
+    // A `headword-definition-tsv` dictionary of the vocabulary store: a
+    // key, a tab and its replacement a line (#1882 part C).
     PiiDictionaryRef dictionary = 2;
   }
+  // Look keys up case-sensitively; false folds both sides to lower case.
   bool case_sensitive = 3;
+  // Which form of the mention is looked up. UNSPECIFIED is refused.
   PiiMapTarget target = 4;
   // What an unmapped value gets; unset means the policy's default
   // strategy. A map is never the fallback of a map.
@@ -308,6 +354,8 @@ message PiiMapStrategy
 // Inline map entries. Keys and replacements are non-empty.
 message PiiMapEntries
 {
+  // Value to replacement, both UTF-8 and trimmed of surrounding
+  // whitespace before use.
   map<string, string> entries = 1;
 }
 
@@ -315,7 +363,12 @@ message PiiMapEntries
 // its artifact id and the lowercase hex SHA-256 of its stored bytes.
 message PiiDictionaryRef
 {
+  // The vocabulary store artifact id (DictionaryArtifactDescriptor.artifact_id).
+  // Required; at most 128 bytes, never a path.
   string artifact_id = 1;
+  // 64 lowercase hexadecimal digits: the SHA-256 of the stored bytes
+  // (DictionaryArtifactDescriptor.sha256). A stored artifact with another
+  // digest does not resolve.
   string sha256 = 2;
 }
 
@@ -324,13 +377,17 @@ message PiiTermSource
 {
   oneof source
   {
+    // The terms inline.
     PiiTerms terms = 1;
+    // A `plain-word-list` dictionary of the vocabulary store: one term a
+    // line (#1882 part C).
     PiiDictionaryRef dictionary = 2;
   }
 }
 
 message PiiTerms
 {
+  // Each term, UTF-8; non-empty.
   repeated string terms = 1;
 }
 
@@ -347,8 +404,11 @@ enum PiiPatternSyntax
 
 message PiiAllowPattern
 {
+  // The pattern syntax. UNSPECIFIED is refused.
   PiiPatternSyntax syntax = 1;
+  // The pattern in `syntax`, UTF-8. Non-empty.
   string pattern = 2;
+  // Match case-sensitively; false folds both sides to lower case.
   bool case_sensitive = 3;
 }
 
@@ -356,19 +416,25 @@ message PiiAllowPattern
 // `case_sensitive`) and patterns.
 message PiiAllowList
 {
+  // Term sources; each term is matched against the whole mention.
   repeated PiiTermSource terms = 1;
+  // Match the terms case-sensitively.
   bool case_sensitive = 2;
+  // Patterns matched against the whole mention.
   repeated PiiAllowPattern patterns = 3;
 }
 
 // Terms that are always PII of a custom kind.
 message PiiDenyList
 {
+  // The caller's id for the list, unique in the policy. Required.
   string rule_id = 1;
   // A custom kind of RedactionPolicy.custom_kinds; a built-in kind is
   // refused.
   PiiKindRef kind = 2;
+  // The terms found. Required.
   PiiTermSource terms = 3;
+  // Match the terms case-sensitively.
   bool case_sensitive = 4;
   // Edits a match may differ by, 0 to 2.
   uint32 max_edits = 5;
@@ -379,12 +445,14 @@ message PiiDenyList
 // A shape pattern that finds a custom kind.
 message PiiCustomIdentifier
 {
+  // The caller's id for the identifier, unique in the policy. Required.
   string rule_id = 1;
   // A custom kind of RedactionPolicy.custom_kinds; a built-in kind is
   // refused.
   PiiKindRef kind = 2;
   // Shape syntax (PII_PATTERN_SYNTAX_SHAPE).
   string shape = 3;
+  // Match the shape's letters case-sensitively.
   bool case_sensitive = 4;
 }
 
@@ -395,7 +463,9 @@ message PiiRedactionSelection
 {
   oneof policy
   {
+    // A policy given in the request; resolved and digested per request.
     RedactionPolicy inline = 1;
+    // The id of a policy the server loaded with `--pii-policy`.
     string name = 2;
   }
   // Report what the policy would do and write no redacted view: kept

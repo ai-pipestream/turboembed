@@ -28,9 +28,9 @@ mod strategy;
 
 pub use detect::IDENTIFIERS_DETECTOR;
 pub use error::{At, PolicyError};
-pub use named::{NamedPolicies, Redaction, SelectError, select};
+pub use named::{NamedPolicies, PolicyFiles, Redaction, SelectError, select};
 pub use redact::{REDACT_STEP, RedactPlanStep, RedactStep};
-pub use registry::ServerResolver;
+pub use registry::{MAP_FORMAT, ServerResolver, TERMS_FORMAT};
 pub use resolve::{KEY_MATERIAL_HEX_LEN, MAX_REF_ID_BYTES, NoRegistry, PolicyResolver, ResolveError};
 pub use strategy::{edit_strategy, strategy_to_proto, whole_mask};
 pub use turbo_analysis::PolicyDigest;
