@@ -426,14 +426,14 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                 // adds. Noisy pairs are timed again, up to ATTEMPTS sets.
                 let chosen = if chose_cpu { &on_cpu } else { &on_device };
                 let (mut sets, mut owns) = (Vec::new(), Vec::new());
-                let (reading, w) = loop {
+                let reading = loop {
                     // Each set starts with the step against itself, six pairs:
                     // the window within which the board tells two of its runs
                     // apart just then (see `paired::window`).
                     let own: Vec<(f64, f64)> =
                         (0..6).map(|_| (timed(chosen, sub, reps), timed(chosen, sub, reps))).collect();
                     let w = window(&own);
-                    owns.extend(own);
+                    owns.push(own);
                     let pairs: Vec<(f64, f64)> = (0..6)
                         .map(|i| {
                             if i % 2 == 0 {
@@ -448,28 +448,27 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                     let got = w.and_then(|w| added(&pairs, w).map(|(d, fixed)| (d, fixed, w * fixed, "quiet")));
                     sets.push(pairs);
                     if got.is_some() || sets.len() == ATTEMPTS {
-                        break (got, w);
+                        break got;
                     }
                 };
                 // No set quiet enough: every set's pairs at once (see
                 // `paired::pooled`).
-                let reading = reading.or_else(|| pooled(&sets.concat(), &owns).map(|(d, f, g)| (d, f, g, "pooled")));
-                let shown: Vec<String> = sets
-                    .iter()
-                    .map(|set| set.iter().map(|(x, y)| format!("{x:.3}/{y:.3}")).collect::<Vec<_>>().join(" "))
-                    .collect();
+                let reading =
+                    reading.or_else(|| pooled(&sets.concat(), &owns.concat()).map(|(d, f, g)| (d, f, g, "pooled")));
+                let shown = paired::receipt::pairs(&sets);
                 let dispatched = middle(&sets.last().unwrap().iter().map(|p| p.0).collect::<Vec<_>>());
                 let reported = match reading {
                     Some((d, fixed, _, how)) => format!("{d:+.3}\t{:+.3}% {how}", 100.0 * d / fixed),
                     None => "inconclusive\t".to_string(),
                 };
-                let own = w.map_or("over 5%".to_string(), |w| format!("{:.3}%", 100.0 * w));
+                let own = paired::receipt::allowance(reading);
                 println!(
                     "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{reported}\t{own}",
                     spread(&t[0]),
                     spread(&t[1]),
                 );
-                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown.join(" | "));
+                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown);
+                println!("self-pairs\t{max_seq}\t{cap}\t{what}\t{}", paired::receipt::own_sets(&owns));
                 let Some((d, fixed, allowed, how)) = reading else {
                     inconclusive.push(format!("{max_seq}x{cap} {what}"));
                     continue;
@@ -481,7 +480,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
                     d <= plan + allowed,
                     "{max_seq}x{cap} {what}: dispatch adds {d:.3} ms ({how}, pairs {}), over planning {plan:.3} \
                      and {allowed:.3} of {fixed:.3}",
-                    shown.join(" | ")
+                    shown
                 );
             }
         }

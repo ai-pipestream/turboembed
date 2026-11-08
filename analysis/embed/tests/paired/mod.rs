@@ -1,6 +1,16 @@
 //! Reading paired timings of the dispatched step and the step it runs on.
 
 use super::middle;
+pub mod receipt;
+
+#[test]
+fn the_exact_five_percent_window_is_inclusive() {
+    let own: [(f64, f64); 6] =
+        [(100.0, 100.0), (105.0, 105.0), (105.0, 105.0), (105.0, 105.0), (106.0, 106.0), (106.0, 106.0)];
+    assert_eq!(window(&own), Some(WIDEST));
+    let over: Vec<_> = own.iter().map(|&(x, y)| if x == 105.0 { (x.next_up(), y.next_up()) } else { (x, y) }).collect();
+    assert_eq!(window(&over), None);
+}
 
 /// The part of a time below which paired rounds on the Hailo-8 boards do
 /// not tell two runs of the same step apart.
@@ -22,7 +32,7 @@ pub const WIDEST: f64 = 0.05;
 fn above(pairs: &[(f64, f64)]) -> Vec<f64> {
     let floor = |side: fn(&(f64, f64)) -> f64| pairs.iter().map(side).fold(f64::INFINITY, f64::min);
     let (low_x, low_y) = (floor(|p| p.0), floor(|p| p.1));
-    pairs.iter().map(|(x, y)| (x / low_x - 1.0).max(y / low_y - 1.0)).collect()
+    pairs.iter().map(|(x, y)| ((x - low_x) / low_x).max((y - low_y) / low_y)).collect()
 }
 
 /// From pairs of the fixed step timed against itself, in ms, the window
@@ -199,4 +209,16 @@ fn bursty_sets_are_read_together_and_a_steady_slowdown_still_fails() {
     // A step whose own runs are further apart than WIDEST is not read.
     let wild: Vec<(f64, f64)> = own.iter().map(|&(a, b)| (a, b * 1.2)).collect();
     assert_eq!(pooled(&pairs, &wild), None);
+}
+
+#[test]
+fn pooled_cap_accepts_its_boundary_but_not_an_excess() {
+    let own = [(100.0, 105.0); 18];
+    let pairs = [(104.9, 100.0); 18];
+    let (delta, fixed, allowance) = pooled(&pairs, &own).unwrap();
+    assert_eq!(allowance, WIDEST * fixed);
+    assert!(delta < allowance, "the approved window permits a sub-window difference");
+    let (delta, _, allowance) = pooled(&[(105.1, 100.0); 18], &own).unwrap();
+    assert!(delta > allowance, "a steady excess must fail the gate");
+    assert_eq!(pooled(&pairs, &[(100.0, 105.0_f64.next_up()); 18]), None);
 }

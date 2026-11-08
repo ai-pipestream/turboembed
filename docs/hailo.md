@@ -332,6 +332,12 @@ When none of three sets is quiet, all eighteen pairs are read at once:
 their middle difference, held to the middle gap between two runs of the
 step against itself (never under 0.5% of the fixed time, and no
 reading over 5%).
+The receipt's final percentage is the allowance used by that reading,
+including the pooled allowance when the last individual set was noisy.
+The `pairs` line retains each dispatch/fixed pair in ms, and `self-pairs`
+retains every attempt's fixed/fixed pairs and its window as a fraction
+(for example, `0.005` means 0.5%). Pair values retain their full floating
+point precision so the reading can be checked from the log.
 On the Hailo-8 boards the window is 0.5%, the value the readings below
 were taken with. Planning a call took 0.001 to
 0.08 ms. The reading was -0.05 to +0.72 ms on the Raspberry Pi 5 and
