@@ -4,7 +4,7 @@
 
 use turbo_analysis::{Document, Ix, Layer, PolicyDigest, Span, View, ViewId};
 use turbo_pii::rewrite::{
-    Choice, MaskPolicy, RewriteError, RewriteStrategy, StaticReplacer, StrategyChooser, rewrite_chosen,
+    Choice, MaskPolicy, RewriteError, RewriteStrategy, StaticReplacer, StrategyChooser, Truncate, rewrite_chosen,
 };
 use turbo_pii::{Pii, PiiDetectorRef, PiiEvidence, PiiKind, PiiMention, PiiRule, PiiScore, PiiScoreKind};
 
@@ -94,4 +94,27 @@ fn overlapping_mentions_keep_each_kind_s_choice_and_a_refusing_choice_refuses() 
     // Without the phone scoring high enough, nothing refuses.
     let low = layer(&[(17, 25, PiiKind::Phone, 0.1), (21, 25, PiiKind::Email, 0.9)]);
     assert!(rewrite_chosen(&src(), &low, &refusing, 0).is_ok());
+}
+
+/// Phones scoring at least 0.5 keep their last two characters; every
+/// other mention is masked whole.
+fn lenient_or_strict() -> ByScore {
+    ByScore { sure: RewriteStrategy::Truncate(Truncate::keep_end(2)), default: MaskPolicy::new('*').unwrap().into() }
+}
+
+#[test]
+fn overlapping_mentions_of_one_kind_keep_each_member_s_own_retention() {
+    // Two phones over 17..25 ("555-1234"): the winner keeps its last two,
+    // but the member 21..25 scores low and is masked whole, so nothing it
+    // covers may survive. Choosing by kind alone gave every phone the
+    // winner's retention and leaked "34".
+    let pii = layer(&[(17, 25, PiiKind::Phone, 0.9), (21, 25, PiiKind::Phone, 0.1)]);
+    let r = rewrite_chosen(&src(), &pii, &lenient_or_strict(), 0).unwrap();
+    assert_eq!(r.text(), "mail ann@x.io or ******** now");
+    // The member order does not matter: the strict member first.
+    let pii = layer(&[(21, 25, PiiKind::Phone, 0.1), (17, 25, PiiKind::Phone, 0.9)]);
+    assert_eq!(rewrite_chosen(&src(), &pii, &lenient_or_strict(), 0).unwrap().text(), "mail ann@x.io or ******** now");
+    // With both lenient, the last two stay.
+    let pii = layer(&[(17, 25, PiiKind::Phone, 0.9), (21, 25, PiiKind::Phone, 0.9)]);
+    assert_eq!(rewrite_chosen(&src(), &pii, &lenient_or_strict(), 0).unwrap().text(), "mail ann@x.io or ******34 now");
 }
