@@ -53,9 +53,13 @@ enum Vocab {
     /// The masked view and its tokens, named in its provenance.
     Masked,
     /// The masked view's words from the source tokens, mapped into it, the
-    /// provenance reading the masked view and the source tokens and naming
-    /// the annotator given.
-    MaskedFromSource(&'static str),
+    /// provenance naming the annotator given and reading the inputs given.
+    MaskedFromSource(&'static str, Vec<KeyId>),
+}
+
+/// What the term indexer reads to make `Vocab::MaskedFromSource`.
+fn masked_from_source() -> Vec<KeyId> {
+    vec![MASKED.id(), SOURCE_TOKENS.id()]
 }
 
 /// "Write to <PLANTED> before noon.", scanned and masked, with tokens on
@@ -97,11 +101,10 @@ fn graph(vocab: Vocab) -> Vec<u8> {
             let (v, i) = TermIndexer.annotate((&masked, &masked_tokens)).unwrap();
             (v, i, vec![MASKED.id(), MASKED_TOKENS.id()], masked_tokens, masked)
         }
-        Vocab::MaskedFromSource(by) => {
+        Vocab::MaskedFromSource(by, reads) => {
             let (v, i) = TermIndexer.annotate((&masked, &source_tokens)).unwrap();
             assert!(v.text.iter().all(|w| w != PLANTED), "the vocabulary holds the masked view's words");
             let (stats,) = TermCounter::<View>::new().annotate((&source_tokens, &i, &v, &masked)).unwrap();
-            let reads = vec![MASKED.id(), SOURCE_TOKENS.id()];
             doc.add(&Key::DEFAULT, v, Provenance { reads: reads.clone(), ..Provenance::by(by) }).unwrap();
             doc.add(&Key::DEFAULT, stats, Provenance { reads, ..Provenance::by("test:term-stats") }).unwrap();
             return turbo_analysis::export::export(&doc, codecs()).unwrap().to_bytes().unwrap();
@@ -214,21 +217,34 @@ fn a_vocabulary_over_terms_needs_the_terms_from_the_disclosed_view() {
 /// masked view's words alone and is kept (#1944).
 #[test]
 fn a_term_indexer_vocabulary_over_source_tokens_is_of_the_masked_view() {
-    let out = project(graph(Vocab::MaskedFromSource(<TermIndexer as Annotator>::ID)), false);
-    assert!(!holds(&out), "the rewritten-only projection holds the value: {:?}", terms(&out));
-    // The vocabulary keeps case ("Write"), where the token fallback folds
-    // it ("write").
-    assert_eq!(id_of(&out, "Write"), Some(0), "{:?}", terms(&out));
-    assert_eq!(id_of(&out, "write"), None, "{:?}", terms(&out));
+    for reads in [masked_from_source(), vec![SOURCE_TOKENS.id(), MASKED.id()]] {
+        let out = project(graph(Vocab::MaskedFromSource(<TermIndexer as Annotator>::ID, reads)), false);
+        assert!(!holds(&out), "the rewritten-only projection holds the value: {:?}", terms(&out));
+        // The vocabulary keeps case ("Write"), where the token fallback
+        // folds it ("write").
+        assert_eq!(id_of(&out, "Write"), Some(0), "{:?}", terms(&out));
+        assert_eq!(id_of(&out, "write"), None, "{:?}", terms(&out));
+    }
 }
 
 /// The same inputs from any other annotator say nothing about how its
 /// strings were read: they may be the source's words, so the stack falls
-/// back to the masked view's tokens.
+/// back to the masked view's tokens. So does any other mix of views from
+/// the term indexer: two views, an input more, or tokens in the child of
+/// the view read.
 #[test]
-fn the_same_mixed_inputs_from_another_annotator_fall_back() {
-    for by in ["test:vocabulary", "turbo:normalized-term-indexer"] {
-        let out = project(graph(Vocab::MaskedFromSource(by)), false);
+fn other_mixed_inputs_fall_back() {
+    let mut cases: Vec<(&'static str, Vec<KeyId>)> =
+        ["test:vocabulary", "turbo:normalized-term-indexer"].map(|by| (by, masked_from_source())).into();
+    for reads in [
+        vec![MASKED.id(), Key::<View>::DEFAULT.id()],
+        vec![MASKED.id(), SOURCE_TOKENS.id(), Key::<View>::DEFAULT.id()],
+        vec![Key::<View>::DEFAULT.id(), MASKED_TOKENS.id()],
+    ] {
+        cases.push((<TermIndexer as Annotator>::ID, reads));
+    }
+    for (by, reads) in cases {
+        let out = project(graph(Vocab::MaskedFromSource(by, reads)), false);
         assert!(!holds(&out), "the rewritten-only projection holds the value: {:?}", terms(&out));
         assert_eq!(id_of(&out, "write"), Some(3), "{by}: {:?}", terms(&out));
         assert_eq!(id_of(&out, "Write"), None, "{by}: {:?}", terms(&out));
