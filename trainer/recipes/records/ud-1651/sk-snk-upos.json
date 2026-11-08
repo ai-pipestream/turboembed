@@ -1,0 +1,263 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-sk-snk-upos",
+    "--dir",
+    "ud-slovak-snk-r2.16",
+    "--hash-embed",
+    "64",
+    "--bundle",
+    "xlm-roberta-base",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "sk-snk-upos"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1794128382,
+  "corpus": {
+    "id": "ud-sk-snk-upos",
+    "name": "Universal Dependencies Slovak SNK r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Slovak-SNK/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Slovak SNK r2.16, published at https://github.com/UniversalDependencies/UD_Slovak-SNK; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "sk_snk-ud-train.conllu",
+        "size": 7608348,
+        "sha256": "e1a92cc7e39e7fd2791fa5a3f30e024278e94640b631bbc1d966ca22acd49844"
+      },
+      {
+        "path": "sk_snk-ud-dev.conllu",
+        "size": 1201051,
+        "sha256": "2c10cd4b9b6e64d1ddb2c35d09994ac99da29340ebafbf6598c497a74cc270c7"
+      },
+      {
+        "path": "sk_snk-ud-test.conllu",
+        "size": 1214078,
+        "sha256": "5e0f9155c62422778586aa819e0dea13e4f4cf8ed1894019f87ab751ac2de4d0"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (98dc19ff85e2aeff28468f2ec6397399c6156242)",
+    "train": {
+      "sentences": 8483,
+      "words": 80628
+    },
+    "dev": {
+      "sentences": 1060,
+      "words": 12733
+    },
+    "test": {
+      "sentences": 1061,
+      "words": 12736
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "DET",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      1.2410945927274109,
+      0.11834644086057697,
+      0.058587870539098294,
+      0.03844120190837191,
+      0.030669175841898218,
+      0.026135123516706826,
+      0.01915567639631443,
+      0.010510853330707462,
+      0.0076801655609686804,
+      0.006773432580106676,
+      0.006244081668834571,
+      0.003967370613451271,
+      0.004174793258211432,
+      0.004398005534041121,
+      0.007178430824438115,
+      0.0054960608539644995,
+      0.002984453655485306,
+      0.001040798356826497,
+      0.0009559789630301812,
+      0.0004693734846062596,
+      0.0009555132263365199
+    ],
+    "dev": [
+      0.925783397471138,
+      0.9615958532945889,
+      0.9573549045786539,
+      0.9582973376266395,
+      0.9538993167360402,
+      0.9563339354433362,
+      0.955548574570015,
+      0.9556271106573471,
+      0.9535066362993796,
+      0.9524856671640619,
+      0.9559412550066756,
+      0.9524856671640619,
+      0.9560983271813398,
+      0.9560197910940077,
+      0.9558627189193435,
+      0.9511505536794157,
+      0.9533495641247153,
+      0.9561768632686719,
+      0.9560983271813398,
+      0.955548574570015,
+      0.9515432341160763
+    ],
+    "best_epoch": 2,
+    "epoch_seconds": [
+      53.949383291,
+      53.683260675,
+      55.818507588,
+      55.06048546,
+      53.707765809,
+      55.003037301,
+      55.58521263,
+      53.163257877,
+      54.305475966,
+      56.423523697,
+      53.947882585,
+      53.691127046,
+      55.675072861,
+      54.176348424,
+      53.651394176,
+      56.059353312,
+      54.892434168,
+      53.835079182,
+      56.181636659,
+      54.06803651,
+      53.606405519
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 12736,
+        "correct": 12263,
+        "accuracy": 0.9628611809045227,
+        "unseen_words": 4659,
+        "unseen_correct": 4360,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 12736,
+        "correct": 7889,
+        "accuracy": 0.6194252512562815,
+        "unseen_words": 4659,
+        "unseen_correct": 5,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9628611809045227,
+      "baseline": 0.6194252512562815,
+      "delta": 0.3434359296482412,
+      "low": 0.33510763209393346,
+      "high": 0.35275133128933345,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.111041482,
+    "features": 2.871618334,
+    "train": 1146.608093105,
+    "eval": 1.438524237,
+    "feature_words": 93361
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13346004,
+      "sha256": "ec5ae843e6bb6a0c89661e95437501af158871b3631e6cba018fc5d98f18d4f9"
+    },
+    {
+      "path": "head.json",
+      "size": 680,
+      "sha256": "8b85806dd83a0a1b5d310764489cfdfdb9d7af1829d242acc3c22736757b82af"
+    }
+  ]
+}

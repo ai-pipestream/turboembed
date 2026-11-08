@@ -1,0 +1,262 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train",
+    "--corpus",
+    "ud-ka-glc-upos",
+    "--dir",
+    "ud-georgian-glc-r2.16",
+    "--hash-embed",
+    "64",
+    "--bundle",
+    "xlm-roberta-base",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--device",
+    "cuda",
+    "--pooling",
+    "first",
+    "--bilstm",
+    "256x1",
+    "--threads",
+    "16",
+    "--out",
+    "ka-glc-upos"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1794096749,
+  "corpus": {
+    "id": "ud-ka-glc-upos",
+    "name": "Universal Dependencies Georgian GLC r2.16, UPOS",
+    "task": "tags",
+    "licence": "CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/UniversalDependencies/UD_Georgian-GLC/blob/r2.16/README.md",
+    "attribution": "Trained on Universal Dependencies Georgian GLC r2.16, published at https://github.com/UniversalDependencies/UD_Georgian-GLC; used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "ka_glc-ud-train.conllu",
+        "size": 5741477,
+        "sha256": "883bc81efdf955c0519dd97d1d4c8695ba7193fa6d37b6be61d60ad537ddd27e"
+      },
+      {
+        "path": "ka_glc-ud-dev.conllu",
+        "size": 1361686,
+        "sha256": "3c4de8864ec5b54da6a46ff34b1739da8697d8e74c571aef54a6153d097467ef"
+      },
+      {
+        "path": "ka_glc-ud-test.conllu",
+        "size": 1422174,
+        "sha256": "04084d74d6b72f86b4dc276c8c32dce6a3671ef0ed1510260f51e0c3ac0a9ab1"
+      }
+    ],
+    "split": "the release's own train, dev and test files at r2.16 (30df1e56030073d2a1760692b8f0a24b4303e027)",
+    "train": {
+      "sentences": 2214,
+      "words": 40525
+    },
+    "dev": {
+      "sentences": 469,
+      "words": 9609
+    },
+    "test": {
+      "sentences": 481,
+      "words": 10039
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "FacebookAI/xlm-roberta-base",
+    "revision": "1",
+    "manifest_sha256": "4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52",
+    "hidden": 768,
+    "layers": 12,
+    "width": 510,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "upos",
+    "layer": "turboembed:pos",
+    "kind": "HEAD_TOKEN_TAGGER",
+    "labels": [
+      "ADJ",
+      "ADP",
+      "ADV",
+      "AUX",
+      "CCONJ",
+      "INTJ",
+      "NOUN",
+      "NUM",
+      "PART",
+      "PRON",
+      "PROPN",
+      "PUNCT",
+      "SCONJ",
+      "SYM",
+      "VERB",
+      "X"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "adapter": {
+      "bilstm": {
+        "hidden": 256,
+        "layers": 1
+      }
+    },
+    "decode": "DECODE_ARGMAX",
+    "hash_embed": {
+      "dim": 64,
+      "rows": [
+        5000,
+        1000,
+        2500,
+        2500
+      ]
+    },
+    "license_class": "CLASS_SHARE_ALIKE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.upos"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 15,
+    "tolerance": 0.001,
+    "threads": 16,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      1.7678675495350862,
+      0.33276169330395006,
+      0.09986380293043394,
+      0.04970651982558401,
+      0.02750184992933055,
+      0.023175247383189948,
+      0.01731717766157194,
+      0.009366876439721093,
+      0.0056114388916524574,
+      0.003014865369582806,
+      0.0015170469143576564,
+      0.0011828637048430794,
+      0.0009620058965248969,
+      0.0008834517288844378,
+      0.0007729745005292465,
+      0.0007291322129344308,
+      0.0006334833664953781,
+      0.0006404010794040001,
+      0.0007206176759674371,
+      0.0006798729403158696,
+      0.0005407401775127495
+    ],
+    "dev": [
+      0.7900926215006765,
+      0.952648558642939,
+      0.9611822249973982,
+      0.9594130502653762,
+      0.9607659485898636,
+      0.9581642210427724,
+      0.9563950463107503,
+      0.9569153918201686,
+      0.9584764283484234,
+      0.9582682901446561,
+      0.9581642210427724,
+      0.9598293266729108,
+      0.9589967738578417,
+      0.9586845665521907,
+      0.9578520137371215,
+      0.9577479446352378,
+      0.9578520137371215,
+      0.9573316682277032,
+      0.9584764283484234,
+      0.9583723592465397,
+      0.9581642210427724
+    ],
+    "best_epoch": 3,
+    "epoch_seconds": [
+      11.596908561,
+      17.538911335999998,
+      19.613113497,
+      18.684211018,
+      18.300217729,
+      20.728084726,
+      19.459385031,
+      24.718418696,
+      19.18559352,
+      18.600031574,
+      18.769709926,
+      19.048445051,
+      18.606053256,
+      18.856375358,
+      18.493790663,
+      18.644761076,
+      10.919133938,
+      17.680505507,
+      18.853092144,
+      18.676400426,
+      18.645633444
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "tags": {
+        "words": 10039,
+        "correct": 9565,
+        "accuracy": 0.9527841418467975,
+        "unseen_words": 2660,
+        "unseen_correct": 2331,
+        "unseen_labels": 0
+      }
+    },
+    "baseline": {
+      "tags": {
+        "words": 10039,
+        "correct": 8676,
+        "accuracy": 0.86422950493077,
+        "unseen_words": 2660,
+        "unseen_correct": 1406,
+        "unseen_labels": 0
+      }
+    },
+    "comparison": {
+      "model": 0.9527841418467975,
+      "baseline": 0.86422950493077,
+      "delta": 0.0885546369160275,
+      "low": 0.08056445156124892,
+      "high": 0.0968242474397435,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.117500333,
+    "features": 0.89471879,
+    "train": 385.787587399,
+    "eval": 1.1847981459999999,
+    "feature_words": 50134
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 13343952,
+      "sha256": "cadf10c442a4641ec59b58b854bcf26b95c5861639420937960a38e5d615f20c"
+    },
+    {
+      "path": "head.json",
+      "size": 669,
+      "sha256": "30d270c031dca5fb214d19eb2562db1684c5c198bacf0b40b71a4ec39349ba4e"
+    }
+  ]
+}
