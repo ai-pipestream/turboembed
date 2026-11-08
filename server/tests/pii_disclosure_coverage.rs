@@ -116,3 +116,32 @@ fn inspect_refuses_to_restore_a_missed_finding_from_graph_bytes() {
     assert!(!holds(&shown, LATE), "the imported graph's rewrite releases the missed value");
     assert!(!holds(&shown, EMAIL));
 }
+
+/// From review 6726971395 on #1955: a second real detector (its id is
+/// `turbo-pii:pii` and it reads a view) is a finding, never a rewrite's
+/// own output, so the masked view that never read it stays withheld.
+#[test]
+fn late_real_detector_must_prevent_rewritten_text_release() {
+    use turbo_analysis::Bound;
+    use turbo_analysis_layers::CustomKinds;
+    use turbo_pii::DenyList;
+    let doc = masked();
+    let kinds = CustomKinds::from_names(["secret"]).unwrap();
+    let kind = kinds.find("secret").unwrap();
+    let detector = PiiDetector::new(vec![])
+        .with_custom_kinds(kinds)
+        .with_deny_list(DenyList::from_terms(kind, [LATE]).unwrap())
+        .unwrap();
+    let analyzer =
+        Analyzer::builder().step(Bound::new(detector).write(0, "late").write(1, "late_candidates")).build().unwrap();
+    let mut docs = vec![doc];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    let doc = docs.pop().unwrap();
+    assert_eq!(doc.get_key(&Key::<Pii>::named("late")).unwrap().mentions().count(), 1);
+    assert!(doc.text(MASKED).contains(LATE));
+    assert!(!REWRITTEN.view_text(&doc, MASKED), "a real detector's findings are taken for rewrite labels");
+    let shown = typed(&doc, &REWRITTEN);
+    assert!(!holds(&shown, LATE), "the late real detector's value leaves in the rewritten text");
+}
