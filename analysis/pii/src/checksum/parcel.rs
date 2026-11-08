@@ -50,13 +50,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn published_examples() {
+    fn known_values() {
+        // The UPS sample number, then made up numbers with valid checks.
         assert_eq!(ups(b"999AA1012345678"), Some(4));
         assert_eq!(ups(b"99-AA1012345678"), None);
-        assert_eq!(fedex_mod11(b"98657878885"), Some(5));
-        assert_eq!(fedex_mod11(b"99657878885"), Some(6));
-        assert_eq!(gs1_mod10(b"04144176022896"), Some(4));
-        assert_eq!(gs1_mod10(b"940011120620640626078"), Some(7));
-        assert_eq!(gs1_mod10(b"0307179000052348374"), Some(1));
+        assert_eq!(fedex_mod11(b"84165465368"), Some(2));
+        assert_eq!(fedex_mod11(b"84165465368x"), None);
+        assert_eq!(gs1_mod10(b"12151330242714"), Some(4));
+        assert_eq!(gs1_mod10(b"940022291175169408035"), Some(0));
+        assert_eq!(gs1_mod10(b"0307496115017593819"), Some(3));
     }
 }
