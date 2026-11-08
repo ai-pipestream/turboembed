@@ -55,7 +55,7 @@ pub(super) fn train(
     }
     let bank_id = bank;
     let bank = TREEBANKS.iter().find(|b| b.id == bank_id);
-    if bank.is_none() && (head != UdHead::Deps || !bank_id.contains(',')) {
+    if bank.is_none() && !bank_id.contains(',') {
         return Err(Error(format!("unknown treebank {bank:?}: one of {}", TREEBANKS.map(|b| b.id).join(", "))));
     }
     let sample = if bank.is_none() { a.parsed("--sample", 1.0)? } else { 1.0 };
@@ -143,7 +143,10 @@ pub(super) fn train(
     let err = |e: turbo::status::Error| Error(e.message);
     let fitted = match head {
         UdHead::Lemma => {
-            let (tr, dv) = (lemma_examples(&splits.train, train_f), lemma_examples(&splits.dev, dev_f));
+            let train_languages = languages.as_ref().map(|(_, rows, _, _)| &rows[..splits.train.len()]);
+            let dev_languages = languages.as_ref().map(|(_, _, rows, _)| &rows[..]);
+            let tr = lemma_examples_with_languages(&splits.train, train_f, train_languages);
+            let dv = lemma_examples_with_languages(&splits.dev, dev_f, dev_languages);
             fit_lemmatizer_with(&spec, hidden, tr, dv, &c, &mut |m, e, d| {
                 save(m.tensors(), e, d).map_err(|x| turbo::status::invalid(x.0))
             })
@@ -167,7 +170,13 @@ pub(super) fn train(
     let t = Instant::now();
     let test_f = features(&mut enc, &splits.test, pooling)?;
     let (predicted, base) = match &model {
-        Model::Lemma(m) => (predict_lemmas(m, &splits.test, &test_f)?, lemma_baseline(&splits.train, &splits.test)),
+        Model::Lemma(m) => {
+            let test_languages = languages.as_ref().map(|(_, _, _, rows)| &rows[..]);
+            (
+                predict_lemmas_with_languages(m, &splits.test, &test_f, test_languages)?,
+                lemma_baseline(&splits.train, &splits.test),
+            )
+        }
         Model::Parser(m) => {
             let test_languages = languages.as_ref().map(|(_, _, _, rows)| &rows[..]);
             (

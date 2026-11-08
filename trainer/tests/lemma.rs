@@ -144,7 +144,13 @@ fn data_with(seed: u64, n: usize, hidden: usize, cased: bool) -> Vec<LemmaExampl
     (0..n)
         .map(|_| {
             let len = 2 + rng.below(6);
-            let mut e = LemmaExample { features: Vec::new(), tags: Vec::new(), forms: Vec::new(), lemmas: Vec::new() };
+            let mut e = LemmaExample {
+                features: Vec::new(),
+                tags: Vec::new(),
+                forms: Vec::new(),
+                lemmas: Vec::new(),
+                language: None,
+            };
             for k in 0..len {
                 let (c, stem) = (rng.below(4), STEMS[rng.below(STEMS.len())]);
                 let tag = rng.below(2) as u32;
@@ -350,6 +356,7 @@ fn mine_seen_lookup_keeps_unambiguous_forms_and_tag_specific_entries() {
         tags: Vec::new(),
         forms: vec!["walked".into(), "went".into()],
         lemmas: vec!["walk".into(), "go".into()],
+        language: None,
     };
     let train_pairs = [("walked", "walk"), ("walked", "walk"), ("walked", "walk"), ("went", "go")];
     let labels = mine_trees(train_pairs.iter().copied(), 3);

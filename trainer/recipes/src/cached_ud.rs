@@ -212,6 +212,7 @@ fn fit_cached_lemma(
                     tags: e.tags,
                     forms: e.forms,
                     lemmas: e.lemmas,
+                    language: None,
                 })
                 .collect()
         };
