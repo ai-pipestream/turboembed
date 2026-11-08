@@ -143,6 +143,7 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
 
     for spec in [MINIMAL_V1, DEFAULT_V1, RETRIEVAL_V1] {
         let req = AnalyzePipelineRequest {
+            binding: None,
             doc_id: format!("doc-{}", spec.name),
             text: text.into(),
             source_bytes: Vec::new(),
@@ -208,6 +209,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
     let (empty_server, mut empty_client) = serve_models(Vec::new()).await;
     let err = empty_client
         .analyze_document_progressive(AnalyzePipelineRequest {
+            binding: None,
             doc_id: "no-embed".into(),
             text: "Hello world.".into(),
             source_bytes: Vec::new(),
@@ -231,6 +233,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
     let (dense_server, mut dense_client) = serve().await;
     let err = dense_client
         .analyze_document_progressive(AnalyzePipelineRequest {
+            binding: None,
             doc_id: "no-sparse".into(),
             text: "Hello world.".into(),
             source_bytes: Vec::new(),
@@ -252,6 +255,7 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
     // 3. Requesting an unloaded model name with `default-v1` names both the model and `TASK_EMBED`.
     let err = dense_client
         .analyze_document_progressive(AnalyzePipelineRequest {
+            binding: None,
             doc_id: "missing-named-model".into(),
             text: "Hello world.".into(),
             source_bytes: Vec::new(),
@@ -309,6 +313,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
     ];
 
     let req = AnalyzePipelineRequest {
+        binding: None,
         doc_id: "doc-norm-e2e".into(),
         text: source_text.into(),
         source_bytes: Vec::new(),

@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use turbo_analysis::export::FORMAT_VERSION;
 
 use super::super::chain::WireChain;
-use super::super::identity::{ENVELOPE_SCHEMA_VERSION, verify_view_text};
+use super::super::identity::{ENVELOPE_SCHEMA_VERSION, check_binding, verify_view_text};
 use super::bad;
 use crate::api::Failure;
 use crate::proto::result::{InputIdentity, LayerWireStatus, OffsetMode, ResultIdentity, TypedDocumentResult};
@@ -28,13 +28,7 @@ fn check_input(input: Option<&InputIdentity>) -> Result<(), Failure> {
     };
     check_digest("input.raw_bytes_digest", &input.raw_bytes_digest)?;
     check_digest("input.source_text_digest", &input.source_text_digest)?;
-    if let Some(b) = &input.binding
-        && !b.parse_artifact_digest.is_empty()
-        && b.parse_artifact_id.is_empty()
-    {
-        return Err(bad("input.binding has a parse_artifact_digest and no parse_artifact_id"));
-    }
-    Ok(())
+    check_binding(input.binding.as_ref(), "input.binding")
 }
 
 fn check_result(result: Option<&ResultIdentity>) -> Result<(), Failure> {

@@ -648,6 +648,12 @@ message AnalyzeDocument
   // Wire unit for span offsets on SparseTermsResult and
   // TokenVectorsResult; 0 is OFFSET_MODE_UTF8.
   OffsetMode offsets = 6;
+
+  // The caller's own identity of the input (issue #1939), echoed on the
+  // document's answer and on its sink item as given, never invented;
+  // absent when the caller has none. A parse_artifact_digest without a
+  // parse_artifact_id fails the document.
+  optional InputBinding binding = 7;
 }
 
 // One document's answer, tagged with its correlation id: its vectors,
@@ -675,6 +681,12 @@ message AnalyzeStreamResponse
     // The document's pooled vector as quantized codes (#1492).
     VectorCodesResult vector_codes = 6;
   }
+
+  // The document's AnalyzeDocument.binding as given, on every answer,
+  // failures included; absent when the document carried none (#1939),
+  // and on the refusal of a document over the stream's byte cap when its
+  // id and binding together are over that cap too.
+  optional InputBinding binding = 7;
 }
 
 // The vectors of one document: the model identity and the row the
@@ -927,6 +939,12 @@ message AnalyzePipelineRequest
   // The policy for the turbo-pii:redact step, which needs one; refused
   // when the steps do not include turbo-pii:redact.
   PiiRedactionSelection pii_redaction = 12;
+
+  // The caller's own identity of the input (issue #1939), copied as given
+  // into the receipt's InputIdentity.binding and onto the sink item and
+  // its typed projection; absent when the caller has none. A
+  // parse_artifact_digest without a parse_artifact_id is refused.
+  optional InputBinding binding = 13;
 }
 
 // The kind of one structure block, the `turbo:structure` block kinds.

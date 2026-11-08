@@ -44,6 +44,7 @@ async fn progressive_stream_emits_strict_1_based_sequence_and_matches_analyzer_r
         "# Heading\n\nWorld Health Organization (WHO) streams DAG branches progressively. Fast stages arrive first!";
 
     let req = AnalyzePipelineRequest {
+        binding: None,
         doc_id: "doc-prog-1".into(),
         text: source_text.into(),
         source_bytes: Vec::new(),
@@ -173,6 +174,7 @@ async fn progressive_stream_isolates_real_annotator_failure_and_completes_siblin
     ];
 
     let req = AnalyzePipelineRequest {
+        binding: None,
         doc_id: "doc-branch-fail".into(),
         text: String::new(),
         source_bytes: Vec::new(),
@@ -251,6 +253,7 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
     let (server, mut client) = serve().await;
 
     let req = AnalyzePipelineRequest {
+        binding: None,
         doc_id: "doc-cancel".into(),
         text: "Cancel this progressive stream right after started. Second sentence here.".into(),
         source_bytes: Vec::new(),
@@ -272,6 +275,7 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
 
     // Unknown step is refused with INVALID_ARGUMENT.
     let bad_step_req = AnalyzePipelineRequest {
+        binding: None,
         doc_id: "doc-bad".into(),
         text: "Hello.".into(),
         source_bytes: Vec::new(),
@@ -291,6 +295,7 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
 
     // Non-empty model is refused on built-in progressive profiles.
     let bad_model_req = AnalyzePipelineRequest {
+        binding: None,
         doc_id: "doc-bad-model".into(),
         text: "Hello.".into(),
         source_bytes: Vec::new(),
