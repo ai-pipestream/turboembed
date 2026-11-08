@@ -6,6 +6,7 @@
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
+use super::national::on_number_end;
 use super::phone;
 use crate::hits::Hits;
 use crate::text::on_end;
@@ -57,5 +58,6 @@ fn extension_after(text: &str, end: usize) -> Option<(usize, usize)> {
     let start = skip_gap(b, p, 2);
     let digits = b[start..].iter().take(MAX_DIGITS + 1).take_while(|c| c.is_ascii_digit()).count();
     let stop = start + digits;
-    ((1..=MAX_DIGITS).contains(&digits) && on_end(text, stop) && b.get(stop) != Some(&b'-')).then_some((start, stop))
+    let ends = on_end(text, stop) && on_number_end(text, stop, b".,-") && !matches!(b.get(stop), Some(b'-' | b'_'));
+    ((1..=MAX_DIGITS).contains(&digits) && ends).then_some((start, stop))
 }

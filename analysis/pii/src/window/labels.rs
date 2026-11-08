@@ -42,7 +42,7 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
         }
         PiiKind::UsEin => &["ein", "fein", "employer identification number", "employer id", "tax id"],
         PiiKind::Url => &["url", "link", "website", "web site", "site"],
-        PiiKind::UsPassport => &["passport", "passport number", "passport no", "passport card"],
+        PiiKind::UsPassport => &["passport number", "passport no", "passport card", "passport"],
         PiiKind::UsDriversLicence => &[
             "driver's license",
             "driver\u{2019}s license",
@@ -59,8 +59,8 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
             "dl",
             "dln",
         ],
-        PiiKind::UsZip => &["zip", "zip code", "zipcode", "postal code"],
-        PiiKind::PhoneExtension => &["ext", "extension"],
+        PiiKind::UsZip => &["zip code", "zip", "zipcode", "postal code"],
+        PiiKind::PhoneExtension => &["ext", "extn", "extension"],
         PiiKind::Custom(_) => &[],
     }
 }
@@ -123,7 +123,7 @@ pub(super) const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [
             &[&["ein"], &["fein"], &["employer", "identification", "number"], &["employer", "id"], &["tax", "id"]]
         }
         PiiKind::Url => &[&["url"], &["link"], &["website"], &["web", "site"], &["site"]],
-        PiiKind::UsPassport => &[&["passport"], &["passport", "number"], &["passport", "no"], &["passport", "card"]],
+        PiiKind::UsPassport => &[&["passport", "number"], &["passport", "no"], &["passport", "card"], &["passport"]],
         PiiKind::UsDriversLicence => &[
             &["driver's", "license"],
             &["driver\u{2019}s", "license"],
@@ -140,8 +140,8 @@ pub(super) const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [
             &["dl"],
             &["dln"],
         ],
-        PiiKind::UsZip => &[&["zip"], &["zip", "code"], &["zipcode"], &["postal", "code"]],
-        PiiKind::PhoneExtension => &[&["ext"], &["extension"]],
+        PiiKind::UsZip => &[&["zip", "code"], &["zip"], &["zipcode"], &["postal", "code"]],
+        PiiKind::PhoneExtension => &[&["ext"], &["extn"], &["extension"]],
         PiiKind::Custom(_) => &[],
     }
 }

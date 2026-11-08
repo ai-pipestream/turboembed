@@ -44,12 +44,19 @@ pub(crate) fn scan(text: &str, kinds: PiiKinds, hits: &mut Hits) {
     let mut i = 0;
     while i < b.len() {
         let c = b[i];
-        if !(c.is_ascii_digit() || c.is_ascii_uppercase()) || !on_word_start(text, i) || !on_number_start(text, i) {
+        let joined = i > 0 && matches!(b[i - 1], b'-' | b'_');
+        if !(c.is_ascii_digit() || c.is_ascii_uppercase())
+            || !on_word_start(text, i)
+            || !on_number_start(text, i)
+            || joined
+        {
             i += 1;
             continue;
         }
         let Some((end, letters, digits)) = read_token(text, i, &mut value) else {
-            i += 1;
+            // Never read a value from inside a longer or joined token
+            // (`1234-5678-9012-3456-7`, `X-538194027`).
+            i = token_end(b, i);
             continue;
         };
         if want_passport && end - i == value.len() && passport_shape(&value, letters) {
@@ -91,7 +98,19 @@ fn read_token(text: &str, start: usize, value: &mut String) -> Option<(usize, us
             return None;
         }
     }
-    (digits > 0 && on_end(text, p) && on_number_end(text, p, b".,-")).then_some((p, letters, digits))
+    (digits > 0 && on_end(text, p) && on_number_end(text, p, b".,-") && !joined_at(b, p))
+        .then_some((p, letters, digits))
+}
+
+/// A `-` or `_` at `p` joins what follows to the token (`538194027-A`).
+fn joined_at(b: &[u8], p: usize) -> bool {
+    matches!(b.get(p), Some(b'-' | b'_'))
+}
+
+/// The end of the run of letters, digits, `-` and `_` from `i`.
+fn token_end(b: &[u8], i: usize) -> usize {
+    let n = b[i..].iter().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_')).count();
+    i + n.max(1)
 }
 
 fn passport_shape(v: &str, letters: usize) -> bool {
@@ -126,7 +145,7 @@ fn zip_at(text: &str, i: usize) -> Option<usize> {
     if b.get(end) == Some(&b'-') && b.get(end + 1..end + 5).is_some_and(|d| d.iter().all(u8::is_ascii_digit)) {
         end += 5;
     }
-    if !on_end(text, end) || !on_number_end(text, end, b".,-") {
+    if !on_end(text, end) || !on_number_end(text, end, b".,-") || joined_at(b, end) {
         return None;
     }
     (after_state(b, i) || find_any_label(text, i, &ZIP_LABELS, false).is_some()).then_some(end)

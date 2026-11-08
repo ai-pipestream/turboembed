@@ -146,3 +146,48 @@ fn masking_keeps_the_shape() {
     let masked = mask_by_kind(text, &layer(&d, text), '*').unwrap();
     assert_eq!(masked, "Passport No. *********, DL ****-****-****, Austin, TX *****-****, +* ***-***-**** ext. ****");
 }
+
+/// The label text recorded on the first mention of `text`.
+fn label_of(d: &PiiDetector, text: &str) -> Option<String> {
+    let pii = layer(d, text);
+    let m = pii.mentions().next()?;
+    m.evidence.iter().find_map(|e| match e {
+        turbo_pii::PiiEvidence::Label { span, .. } => Some(text[span.start as usize..span.end as usize].to_owned()),
+        _ => None,
+    })
+}
+
+#[test]
+fn the_longest_label_phrase_is_recorded() {
+    let d = us();
+    assert_eq!(label_of(&d, "Passport No. X38194027").as_deref(), Some("Passport No"));
+    assert_eq!(label_of(&d, "US passport card C03005988").as_deref(), Some("passport card"));
+    assert_eq!(label_of(&d, "X38194027 (passport number)").as_deref(), Some("passport number"));
+    assert_eq!(label_of(&d, "ZIP code 30301").as_deref(), Some("ZIP code"));
+    assert!(turbo_pii::window::default_labels(PiiKind::PhoneExtension).contains(&"extn"));
+}
+
+#[test]
+fn values_joined_by_hyphens_or_underscores_are_refused() {
+    let d = us();
+    for (not, kind) in [
+        ("DL 1234-5678-9012-3456-7", "us-drivers-licence"), // no suffix of a longer run
+        ("passport X-538194027", "us-passport"),
+        ("passport REF-538194027", "us-passport"),
+        ("DL AB-1234567", "us-drivers-licence"),
+        ("DL D-7302146", "us-drivers-licence"),
+        ("passport 538194027-A", "us-passport"),
+        ("DL D7302146-A", "us-drivers-licence"),
+        ("DL D7302146_x", "us-drivers-licence"),
+        ("passport ref_538194027", "us-passport"),
+        ("Springfield, IL 62704-A", "us-zip"),
+        ("ZIP: 62704-A", "us-zip"),
+        ("ZIP: 62704_A", "us-zip"),
+    ] {
+        assert!(of_kind(&d, not, kind).is_empty(), "{not}: {:?}", rows(&d, not));
+    }
+    let ext = PiiDetector::new(vec![Scanner::all(Extractor::PhoneExtension)]);
+    for not in ["+1 202-555-0143, x 1,000", "+1 202-555-0143, x 2.5", "+1 202-555-0143 ext 12_3"] {
+        assert!(of_kind(&ext, not, "phone-extension").is_empty(), "{not}");
+    }
+}

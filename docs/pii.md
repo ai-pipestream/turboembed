@@ -189,7 +189,7 @@ tokens (`turbo_unicode::word_break`) before `span.start` or after
 - **Per-kind defaults**: `window::default_labels(kind)` returns the built-in
   label list for each of the 38 built-in kinds (`&[]` for
   `PiiKind::Custom`). `window::default_window(kind)` is `1` for `ca-sin`,
-  `imei`, and `bic`, and `window::DEFAULT_WINDOW_WORDS` (`4`) for every
+  `imei`, and `bic`, `2` for `us-passport` and `us-drivers-licence`, and `window::DEFAULT_WINDOW_WORDS` (`4`) for every
   other kind. `window::default_policy(kind)` is `LabelPolicy::Required` for
   `ca-sin`, `imei`, `bic`, `us-passport` and `us-drivers-licence` (the
   last two with a window of `2` words), `LabelPolicy::Boosts` for `vin`,
