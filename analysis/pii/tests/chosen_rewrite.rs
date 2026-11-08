@@ -1,10 +1,11 @@
 //! A rewrite whose strategy is chosen mention by mention: each edit names
-//! the winner's rule and rule id, overlapping mentions keep each kind's
+//! the winner's rule and rule id, overlapping mentions keep each member's
 //! chosen strategy, and a refusing strategy refuses its cluster.
 
 use turbo_analysis::{Document, Ix, Layer, PolicyDigest, Span, View, ViewId};
 use turbo_pii::rewrite::{
-    Choice, MaskPolicy, RewriteError, RewriteStrategy, StaticReplacer, StrategyChooser, Truncate, rewrite_chosen,
+    Abbreviator, Choice, MaskPolicy, RewriteError, RewriteStrategy, StaticReplacer, StrategyChooser, Truncate,
+    rewrite_chosen,
 };
 use turbo_pii::{Pii, PiiDetectorRef, PiiEvidence, PiiKind, PiiMention, PiiRule, PiiScore, PiiScoreKind};
 
@@ -74,6 +75,50 @@ fn the_same_kind_takes_another_strategy_when_its_facts_differ() {
     let r = rewrite_chosen(&src(), &pii, &chooser(), 0).unwrap();
     assert_eq!(r.text(), "mail ann@x.io or ******** now");
     assert_eq!(r.edits().get(Ix::new(0)).rule_id, "");
+}
+
+#[test]
+fn same_kind_overlap_keeps_the_stricter_members_mask() {
+    // The outer phone wins and may retain its final four digits; the
+    // inner phone's lower score selects a full mask for those digits.
+    let pii = layer(&[(17, 25, PiiKind::Phone, 0.9), (21, 25, PiiKind::Phone, 0.1)]);
+    let by_score =
+        ByScore { sure: MaskPolicy::last_n(4, '*').unwrap().into(), default: MaskPolicy::new('*').unwrap().into() };
+    let r = rewrite_chosen(&src(), &pii, &by_score, 0).unwrap();
+    assert_eq!(r.text(), "mail ann@x.io or ******** now");
+    let edit = r.edits().get(Ix::new(0));
+    assert_eq!(edit.members, &[Ix::new(0), Ix::new(1)]);
+    assert_eq!(edit.rule_id, "sure-phones");
+    assert_eq!(r.edits().check(), Ok(()));
+}
+
+#[test]
+fn same_kind_overlap_protects_truncation_and_initials_too() {
+    let pii = layer(&[(17, 25, PiiKind::Phone, 0.9), (21, 25, PiiKind::Phone, 0.1)]);
+    for (sure, expected) in [
+        (Truncate::keep_end(4).into(), "mail ann@x.io or ******** now"),
+        (Abbreviator::compact().into(), "mail ann@x.io or 5* now"),
+    ] {
+        let by_score = ByScore { sure, default: MaskPolicy::new('*').unwrap().into() };
+        assert_eq!(rewrite_chosen(&src(), &pii, &by_score, 0).unwrap().text(), expected);
+    }
+}
+
+#[test]
+fn unicode_overlap_masks_all_member_bytes_and_preserves_mapping() {
+    let text = "☎ １２３４-５６７８";
+    let source = Document::new(text).get::<View>().unwrap().clone();
+    let pii = layer(&[(4, 29, PiiKind::Phone, 0.9), (17, 29, PiiKind::Phone, 0.1)]);
+    let by_score =
+        ByScore { sure: MaskPolicy::last_n(4, '*').unwrap().into(), default: MaskPolicy::new('*').unwrap().into() };
+    let r = rewrite_chosen(&source, &pii, &by_score, 0).unwrap();
+    assert_eq!(r.text(), format!("☎ {}", "*".repeat(25)));
+    assert_eq!(r.text().len(), text.len());
+    for (_, span) in pii.spans.iter() {
+        let derived = r.to_derived(span).unwrap();
+        assert!(r.to_original(derived).unwrap().contains(span));
+    }
+    assert_eq!(r.to_derived(Span::new(0, 4)).unwrap(), Span::new(0, 4));
 }
 
 #[test]
