@@ -23,7 +23,7 @@
 //!     [--arc N] [--rel N] [--tune-encoder [--lora N] [--bf16] [--max-test N]])
 //!     Multiple banks: --corpus <bank,bank,...> [--sample 0..1]
 //! turbo-train-head train-split --corpus <treebank> ...   (as train, no --crf or --hash-embed;
-//!     [--min-tree-freq N] [--seen-lookup K])
+//!     [--min-tree-freq N] [--seen-lookup K]; multiple banks: --corpus <bank,bank,...> [--sample 0..1])
 //! turbo-train-head train-relation --corpus re-docred ...   (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
