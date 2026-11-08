@@ -14,6 +14,7 @@ use crate::proto::audit::{PiiAccessKindGrant, PiiAccessMention};
 
 const FP: &str = "aa00000000000000000000000000000000000000000000000000000000000001";
 const PLANTED: &str = "alice.planted@example.com";
+const KIND: &str = "builtin:1";
 
 #[test]
 fn wire_key_references_follow_the_cli_id_contract() {
@@ -142,13 +143,13 @@ fn the_event_id_is_fixed_by_what_a_retry_keeps() {
 #[test]
 fn tokens_are_keyed_deterministic_and_name_their_key() {
     let k = TokenKey::load(&key_file("k32", &[7; 32])).unwrap();
-    let t = k.token(PLANTED);
+    let t = k.token(KIND, PLANTED);
     assert_eq!(t.token.len(), 32);
-    assert_eq!(t, k.token(PLANTED), "equal values give equal tokens under one key");
-    assert_ne!(t.token, k.token("bob@example.com").token);
+    assert_eq!(t, k.token(KIND, PLANTED), "equal values give equal tokens under one key");
+    assert_ne!(t.token, k.token(KIND, "bob@example.com").token);
     assert_eq!((t.key_id.as_str(), t.key_version), ("tok", 3));
     let other = TokenKey::load(&key_file("k33", &[8; 32])).unwrap();
-    assert_ne!(t.token, other.token(PLANTED).token, "another key gives another token");
+    assert_ne!(t.token, other.token(KIND, PLANTED).token, "another key gives another token");
     // The token is a MAC over a domain prefix, not over the bare value.
     assert_ne!(t.token, turbo_pii::checksum::sha256::hmac(&[7; 32], PLANTED.as_bytes()).to_vec());
 }
@@ -203,10 +204,22 @@ fn a_policy_key_ref_and_a_token_key_round_trip_losslessly() {
     let policy = PiiPolicyKeyRef { id: "tok".into(), version: 3 };
     let key = KeyRef::of_policy(&policy).unwrap();
     assert_eq!(key, KeyRef { id: "tok".into(), version: 3 });
-    let token = TokenKey::load(&key_file("k32-ref", &[7; 32])).unwrap().token(PLANTED);
+    let token = TokenKey::load(&key_file("k32-ref", &[7; 32])).unwrap().token(KIND, PLANTED);
     assert_eq!(KeyRef::of_token(&token).unwrap(), key);
     assert_eq!(KeyRef::of_token(&token).unwrap().policy(), policy);
     for bad in [PiiPolicyKeyRef { id: String::new(), version: 3 }, PiiPolicyKeyRef { id: "tok".into(), version: 0 }] {
         assert!(KeyRef::of_policy(&bad).is_err());
     }
+}
+
+#[test]
+fn a_token_is_bound_to_the_kind_it_was_found_as() {
+    let k = TokenKey::load(&key_file("k32-kind", &[7; 32])).unwrap();
+    let email = k.token(KIND, PLANTED);
+    assert_eq!(email, k.token(KIND, PLANTED), "one kind, one key: deterministic");
+    assert_ne!(email.token, k.token("custom:contact", PLANTED).token, "one value under two kinds: two tokens");
+    assert_ne!(email.token, k.token("builtin:30", PLANTED).token);
+    // Length prefixes keep the kind and the value apart.
+    assert_ne!(k.token("ab", "c").token, k.token("a", "bc").token);
+    assert_ne!(k.token("", "ab").token, k.token("a", "b").token);
 }

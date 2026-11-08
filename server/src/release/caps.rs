@@ -152,6 +152,16 @@ impl Grant {
         f
     }
 
+    /// Whether this grant allows `form` for any kind at all.
+    pub fn allows_any(&self, form: Form) -> bool {
+        let set = |s: &KindSet| s.custom || !s.builtin.is_empty();
+        match form {
+            Form::Token => set(&self.token),
+            Form::Clear => set(&self.clear),
+            Form::Ciphertext => false,
+        }
+    }
+
     /// The rules as one canonical line, for the policy digest.
     pub fn canonical(&self) -> String {
         let set = |s: &KindSet| format!("{:032x}{}", s.builtin.bits(), if s.custom { "+custom" } else { "" });
