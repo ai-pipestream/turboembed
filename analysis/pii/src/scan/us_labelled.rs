@@ -23,11 +23,11 @@ use crate::window::find_any_label;
 
 /// The USPS codes of the states, the District of Columbia, the
 /// territories and the armed forces.
-const STATES: [&[u8; 2]; 62] = [
+const STATES: [&[u8; 2]; 63] = [
     b"AL", b"AK", b"AZ", b"AR", b"CA", b"CO", b"CT", b"DE", b"FL", b"GA", b"HI", b"ID", b"IL", b"IN", b"IA", b"KS",
     b"KY", b"LA", b"ME", b"MD", b"MA", b"MI", b"MN", b"MS", b"MO", b"MT", b"NE", b"NV", b"NH", b"NJ", b"NM", b"NY",
     b"NC", b"ND", b"OH", b"OK", b"OR", b"PA", b"RI", b"SC", b"SD", b"TN", b"TX", b"UT", b"VT", b"VA", b"WA", b"WV",
-    b"WI", b"WY", b"DC", b"AS", b"GU", b"MP", b"PR", b"VI", b"UM", b"FM", b"MH", b"PW", b"AA", b"AE",
+    b"WI", b"WY", b"DC", b"AS", b"GU", b"MP", b"PR", b"VI", b"UM", b"FM", b"MH", b"PW", b"AA", b"AE", b"AP",
 ];
 
 const ZIP_LABELS: [&[u8]; 4] = [b"zip code", b"postal code", b"zipcode", b"zip"];
