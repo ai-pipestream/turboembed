@@ -5,23 +5,16 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use turbo_analysis::{Fnv1a, Span};
+use turbo_analysis::Fnv1a;
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 use turbo_glossary::{Candidate, Case, EntryIx, Glossary, GlossaryMatch, TextMatcher, select};
-use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::java::to_lower_char;
 
 use crate::hits::Hits;
 use crate::text::{letter_or_digit, on_end, on_word_start};
 
+use super::fuzzy::{FuzzyIndex, build_fuzzy_term, is_capitalised};
 use super::{ListError, case_tag, read_file_lines};
-
-#[derive(Clone, Debug)]
-struct FuzzyTerm {
-    entry: EntryIx,
-    words: Vec<Vec<char>>,
-    separators: Vec<String>,
-}
 
 /// Terms always reported as a caller-named [`PiiKind::Custom`], matched with
 /// [`turbo_glossary::TextMatcher`] (Aho-Corasick) and optional bounded
@@ -34,7 +27,7 @@ pub struct DenyList {
     max_edits: u8,
     capitalised_only: bool,
     matcher: Option<TextMatcher>,
-    fuzzy_terms: Vec<FuzzyTerm>,
+    fuzzy: FuzzyIndex,
 }
 
 impl PartialEq for DenyList {
@@ -64,7 +57,7 @@ impl DenyList {
             max_edits: 0,
             capitalised_only: false,
             matcher: None,
-            fuzzy_terms: Vec::new(),
+            fuzzy: FuzzyIndex::default(),
         })
     }
 
@@ -258,7 +251,7 @@ impl DenyList {
         });
         if self.terms.is_empty() {
             self.matcher = None;
-            self.fuzzy_terms.clear();
+            self.fuzzy = FuzzyIndex::default();
             return;
         }
         let mut glossary = Glossary::new();
@@ -266,12 +259,13 @@ impl DenyList {
             glossary.push("deny", term).expect("validated non-blank kind and term");
         }
         self.matcher = Some(TextMatcher::new(&glossary, self.case).expect("non-empty glossary"));
-        self.fuzzy_terms = self
+        let terms = self
             .terms
             .iter()
             .enumerate()
             .filter_map(|(i, term)| build_fuzzy_term(EntryIx(i as u32), term, self.case))
             .collect();
+        self.fuzzy = FuzzyIndex::new(terms);
     }
 
     /// Scans `text` and appends non-overlapping matches for this deny list
@@ -297,8 +291,8 @@ impl DenyList {
             candidates.push(Candidate { span, tokens: 0, entry });
         });
 
-        if self.max_edits > 0 && !self.fuzzy_terms.is_empty() {
-            self.scan_fuzzy(text, &mut candidates);
+        if self.max_edits > 0 && !self.fuzzy.is_empty() {
+            self.fuzzy.scan(text, self.case, self.max_edits, self.capitalised_only, &mut candidates);
         }
 
         if candidates.is_empty() {
@@ -309,53 +303,6 @@ impl DenyList {
         for m in selected {
             let fact = PiiEvidence::DenyHit { list, term: m.entry.0 };
             hits.add_text(text, m.span.start as usize, m.span.end as usize, self.kind, fact);
-        }
-    }
-
-    fn scan_fuzzy(&self, text: &str, candidates: &mut Vec<Candidate>) {
-        let words = word_spans(text);
-        if words.is_empty() {
-            return;
-        }
-        let folded_words: Vec<Vec<char>> = words.iter().map(|&(s, e)| fold_chars(&text[s..e], self.case)).collect();
-        let mut prev = Vec::new();
-        let mut curr = Vec::new();
-
-        for ft in &self.fuzzy_terms {
-            let k = ft.words.len();
-            if words.len() < k {
-                continue;
-            }
-            for i in 0..=words.len() - k {
-                let start = words[i].0;
-                let end = words[i + k - 1].1;
-                let covered = &text[start..end];
-                if self.capitalised_only && !is_capitalised(covered) {
-                    continue;
-                }
-                if !separators_match(text, &words[i..i + k], &ft.separators) {
-                    continue;
-                }
-                let mut total_edits = 0u8;
-                let mut ok = true;
-                for m in 0..k {
-                    let rem = (self.max_edits - total_edits).min(max_word_edits(ft.words[m].len()));
-                    match levenshtein_within(&folded_words[i + m], &ft.words[m], rem, &mut prev, &mut curr) {
-                        Some(d) => total_edits += d,
-                        None => {
-                            ok = false;
-                            break;
-                        }
-                    }
-                }
-                if ok {
-                    candidates.push(Candidate {
-                        span: Span::new(start as u32, end as u32),
-                        tokens: k as u32,
-                        entry: ft.entry,
-                    });
-                }
-            }
         }
     }
 
@@ -371,111 +318,6 @@ impl DenyList {
     }
 }
 
-fn is_capitalised(text: &str) -> bool {
-    text.chars()
-        .next()
-        .is_some_and(|c| c.is_uppercase() || matches!(general_category(c), GeneralCategory::Lu | GeneralCategory::Lt))
-}
-
 fn fold_lower(text: &str) -> String {
     text.chars().map(to_lower_char).collect()
-}
-
-fn fold_chars(text: &str, case: Case) -> Vec<char> {
-    match case {
-        Case::Sensitive => text.chars().collect(),
-        Case::Insensitive => text.chars().map(to_lower_char).collect(),
-    }
-}
-
-fn max_word_edits(word_len: usize) -> u8 {
-    ((word_len.saturating_sub(2)) / 2).min(2) as u8
-}
-
-fn word_spans(text: &str) -> Vec<(usize, usize)> {
-    let mut out = Vec::new();
-    let mut start: Option<usize> = None;
-    for (i, c) in text.char_indices() {
-        if letter_or_digit(c) {
-            if start.is_none() {
-                start = Some(i);
-            }
-        } else if let Some(s) = start.take() {
-            out.push((s, i));
-        }
-    }
-    if let Some(s) = start {
-        out.push((s, text.len()));
-    }
-    out
-}
-
-fn build_fuzzy_term(entry: EntryIx, term: &str, case: Case) -> Option<FuzzyTerm> {
-    let spans = word_spans(term);
-    if spans.is_empty() {
-        return None;
-    }
-    let words: Vec<Vec<char>> = spans.iter().map(|&(s, e)| fold_chars(&term[s..e], case)).collect();
-    if words.iter().all(|w| max_word_edits(w.len()) == 0) {
-        return None;
-    }
-    let separators: Vec<String> = spans.windows(2).map(|w| term[w[0].1..w[1].0].to_owned()).collect();
-    Some(FuzzyTerm { entry, words, separators })
-}
-
-fn separators_match(text: &str, window: &[(usize, usize)], term_seps: &[String]) -> bool {
-    for (w, want) in window.windows(2).zip(term_seps) {
-        let gap = &text[w[0].1..w[1].0];
-        if want.chars().all(char::is_whitespace) {
-            if gap.is_empty() || !gap.chars().all(char::is_whitespace) {
-                return false;
-            }
-        } else if gap != want {
-            return false;
-        }
-    }
-    true
-}
-
-fn levenshtein_within(a: &[char], b: &[char], max: u8, prev: &mut Vec<usize>, curr: &mut Vec<usize>) -> Option<u8> {
-    let max_usize = usize::from(max);
-    if a.len().abs_diff(b.len()) > max_usize {
-        return None;
-    }
-    if max == 0 {
-        return (a == b).then_some(0);
-    }
-    let blen = b.len();
-    if blen == 0 {
-        return Some(a.len() as u8);
-    }
-    let inf = max_usize + 1;
-    if prev.len() <= blen {
-        prev.resize(blen + 1, inf);
-        curr.resize(blen + 1, inf);
-    }
-    for (j, slot) in prev.iter_mut().enumerate().take((max_usize + 1).min(blen) + 1) {
-        *slot = j;
-    }
-    for (i, &ca) in a.iter().enumerate() {
-        let r = i + 1;
-        let lo = r.saturating_sub(max_usize).max(1);
-        let hi = (r + max_usize).min(blen);
-        curr[lo - 1] = if lo == 1 { r } else { inf };
-        if hi < blen {
-            curr[hi + 1] = inf;
-        }
-        let mut row_min = curr[lo - 1];
-        for j in lo..=hi {
-            let cost = usize::from(ca != b[j - 1]);
-            let v = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
-            curr[j] = v;
-            row_min = row_min.min(v);
-        }
-        if row_min > max_usize {
-            return None;
-        }
-        std::mem::swap(prev, curr);
-    }
-    (prev[blen] <= max_usize).then_some(prev[blen] as u8)
 }
