@@ -191,6 +191,13 @@ stubs must be regenerated.
   word-level heads, one row per token with the feature string as the
   label, and `turbo_analyzer_morphology` (`TurboAnalyzer.morphology`,
   `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1812).
+- The Java session (JNI and Panama) opens on any device:
+  `TurboSessionOptions` names a device index or the task
+  `turbo_runtime_select` picks a device for, with the precision,
+  batch, sequence length and CPU threads of the session.
+  `TurboEmbedOptions` and `TurboRerankOptions` carry the per-call
+  options, `TurboSession.embedCodes` reads int8 codes and packed sign
+  bits, and `TurboSession.modelInfo` reads `turbo_model_get_info` (#2005).
 - `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
