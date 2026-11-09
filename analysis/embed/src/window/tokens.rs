@@ -13,6 +13,20 @@
 
 use super::{PastTheText, Plan, Window};
 
+#[cfg(test)]
+thread_local! {
+    /// Windows looked at by `place_tokens_in_windows` (skipped past or
+    /// compared), so a test can hold the sweep linear without a clock.
+    pub(super) static PLACEMENT_WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// One window looked at by the placement sweep.
+#[inline]
+fn visit() {
+    #[cfg(test)]
+    PLACEMENT_WORK.with(|n| n.set(n.get() + 1));
+}
+
 /// Where one subword piece is extracted: the window of its document where
 /// it is most interior (greatest distance to the window's edges, ties to
 /// the earlier window).
@@ -101,10 +115,12 @@ pub fn place_tokens_in_windows(doc: u32, pieces: u32, windows: &[Window]) -> Vec
         let mut first_win = 0usize;
         for piece in 0..pieces {
             while first_win < windows.len() && windows[first_win].end <= piece {
+                visit();
                 first_win += 1;
             }
             let mut best: Option<(u32, u32)> = None;
             for (offset_idx, &win) in windows[first_win..].iter().enumerate() {
+                visit();
                 if win.start > piece {
                     break;
                 }
@@ -128,10 +144,12 @@ pub fn place_tokens_in_windows(doc: u32, pieces: u32, windows: &[Window]) -> Vec
     let mut first_win = 0usize;
     for piece in 0..pieces {
         while first_win < doc_windows.len() && doc_windows[first_win].1.end <= piece {
+            visit();
             first_win += 1;
         }
         let mut best: Option<(u32, u32)> = None;
         for &(orig_idx, win) in &doc_windows[first_win..] {
+            visit();
             if win.start > piece {
                 break;
             }
