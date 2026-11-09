@@ -255,7 +255,12 @@ impl Server {
         {
             return Err("the sink's PII output asks for more than the server's PII output policy allows".into());
         }
-        let release = release::Release::start(serve.pii_release.as_ref(), serve.tls.as_ref())?;
+        let release = release::Release::start_with(
+            serve.pii_release.as_ref(),
+            serve.tls.as_ref(),
+            state.pii_policies.clone(),
+            state.pii_resolver.clone(),
+        )?;
         let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),

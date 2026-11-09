@@ -45,6 +45,7 @@ async fn malformed_quotation_payloads_and_nested_offsets_are_refused() {
                 pii_output: None,
                 binding: None,
                 operation_key: String::new(),
+                pii_policy: None,
             })
             .await
             .unwrap()
@@ -106,6 +107,7 @@ async fn confidence_bits_optional_presence_and_raw_chain_context_round_trip() {
                 pii_output: None,
                 binding: None,
                 operation_key: String::new(),
+                pii_policy: None,
             })
             .await
             .unwrap()

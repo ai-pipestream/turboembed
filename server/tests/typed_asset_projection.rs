@@ -78,6 +78,7 @@ async fn assets_keep_payload_presence_when_its_text_is_deleted() {
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()
@@ -136,6 +137,7 @@ async fn missing_malformed_or_uncontained_asset_payloads_are_refused() {
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()

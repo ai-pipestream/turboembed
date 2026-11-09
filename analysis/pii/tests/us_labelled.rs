@@ -77,6 +77,11 @@ fn zip_codes_follow_a_state_code_or_a_zip_label() {
         ("ZIP: 30301", "30301", PiiConfidence::Labelled),
         ("zip code 10001", "10001", PiiConfidence::Labelled),
         ("San Juan, PR 00901", "00901", PiiConfidence::Format),
+        // The armed forces codes: Americas, Europe and Pacific.
+        ("APO AA 34002", "34002", PiiConfidence::Format),
+        ("APO AE 09012", "09012", PiiConfidence::Format),
+        ("APO AP 96534", "96534", PiiConfidence::Format),
+        ("FPO AP 96349-1100", "96349-1100", PiiConfidence::Format),
     ] {
         let pii = layer(&d, text);
         let zips: Vec<_> = pii.mentions().filter(|m| m.kind == PiiKind::UsZip).collect();

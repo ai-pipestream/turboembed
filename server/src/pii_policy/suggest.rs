@@ -66,6 +66,7 @@ pub fn suggested_policy(layer: &pb::TypedLayer) -> Option<pb::RedactionPolicy> {
                 }],
                 allow: None,
                 labels: None,
+                release_ceiling: None,
             })
         })
         .collect();

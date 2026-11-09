@@ -94,6 +94,7 @@ async fn projected_event_arguments_survive_text_deletion() {
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()
@@ -144,6 +145,7 @@ async fn malformed_projected_arguments_and_anchors_are_refused() {
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()

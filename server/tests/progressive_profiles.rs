@@ -392,6 +392,7 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
                 pii_output: None,
                 binding: None,
                 operation_key: String::new(),
+                pii_policy: None,
             })
             .await
             .unwrap()
