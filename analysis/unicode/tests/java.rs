@@ -408,44 +408,45 @@ fn sigma_dense_property_suite_matches_per_character_oracle() {
 
 #[test]
 fn ten_thousand_sigma_words_scale_linearly() {
-    use std::time::{Duration, Instant};
-
-    const N: usize = 10_000;
-    let budget = Duration::from_secs(1);
-
-    // 1. Contiguous 10,000-sigma word: first 9,999 become small sigma, last becomes final sigma.
-    let contiguous = "\u{3A3}".repeat(N);
-    let expected_contiguous = format!("{}\u{3C2}", "\u{3C3}".repeat(N - 1));
-    let start = Instant::now();
-    let got = java::lowercase_cow(&contiguous);
-    let elapsed = start.elapsed();
-    assert!(elapsed < budget, "contiguous 10k-sigma word took {elapsed:?}");
-    assert_eq!(got.as_ref(), expected_contiguous);
-
-    // 2. Cased mark U+0345 (not in fixes_tail) interleaved with 10,000 sigmas.
-    let mark_interleaved = format!("\u{391}{}", "\u{345}\u{3A3}".repeat(N));
-    let expected_marks = format!("\u{3B1}{}\u{345}\u{3C2}", "\u{345}\u{3C3}".repeat(N - 1));
-    let start = Instant::now();
-    let got = java::lowercase_cow(&mark_interleaved);
-    let elapsed = start.elapsed();
-    assert!(elapsed < budget, "mark-interleaved 10k-sigma word took {elapsed:?}");
-    assert_eq!(got.as_ref(), expected_marks);
-
-    // 3. Uncased mark + MidWord joiner interleaved with 10,000 sigmas.
-    let joiner_interleaved = format!("{}\u{3A3}", "\u{3A3}\u{301}-".repeat(N - 1));
-    let expected_joiners = format!("{}\u{3C2}", "\u{3C3}\u{301}-".repeat(N - 1));
-    let start = Instant::now();
-    let got = java::lowercase_cow(&joiner_interleaved);
-    let elapsed = start.elapsed();
-    assert!(elapsed < budget, "joiner-interleaved 10k-sigma word took {elapsed:?}");
-    assert_eq!(got.as_ref(), expected_joiners);
-
-    // 4. Joiner followed by a long run of Transparent format characters before the final sigma.
-    let sigma_transparent = format!("\u{391}-{}\u{3A3}", "\u{200B}".repeat(N));
-    let expected_sigma_transparent = format!("\u{3B1}-{}\u{3C2}", "\u{200B}".repeat(N));
-    let start = Instant::now();
-    let got = java::lowercase_cow(&sigma_transparent);
-    let elapsed = start.elapsed();
-    assert!(elapsed < budget, "transparent-run sigma word took {elapsed:?}");
-    assert_eq!(got.as_ref(), expected_sigma_transparent);
+    // Each case at N and 4N sigmas: the output is checked at both sizes,
+    // and the best of five timings at 4N stays under eight times the one
+    // at N, which a linear pass meets and a quadratic one (sixteen) does not.
+    type Case = fn(usize) -> (String, String);
+    let cases: [(&str, Case); 4] = [
+        // 1. Contiguous sigmas: all small sigma, the last a final sigma.
+        ("contiguous", |n| ("\u{3A3}".repeat(n), format!("{}\u{3C2}", "\u{3C3}".repeat(n - 1)))),
+        // 2. Cased mark U+0345 (not in fixes_tail) interleaved with the sigmas.
+        ("mark-interleaved", |n| {
+            (
+                format!("\u{391}{}", "\u{345}\u{3A3}".repeat(n)),
+                format!("\u{3B1}{}\u{345}\u{3C2}", "\u{345}\u{3C3}".repeat(n - 1)),
+            )
+        }),
+        // 3. Uncased mark + MidWord joiner interleaved with the sigmas.
+        ("joiner-interleaved", |n| {
+            (
+                format!("{}\u{3A3}", "\u{3A3}\u{301}-".repeat(n - 1)),
+                format!("{}\u{3C2}", "\u{3C3}\u{301}-".repeat(n - 1)),
+            )
+        }),
+        // 4. Joiner followed by a long run of Transparent format characters before the final sigma.
+        ("transparent-run", |n| {
+            (format!("\u{391}-{}\u{3A3}", "\u{200B}".repeat(n)), format!("\u{3B1}-{}\u{3C2}", "\u{200B}".repeat(n)))
+        }),
+    ];
+    for (what, case) in cases {
+        let [n1, n4] = [2_500usize, 10_000].map(|n| {
+            let (text, expected) = case(n);
+            assert_eq!(java::lowercase_cow(&text).as_ref(), expected, "{what} at {n}");
+            (0..5)
+                .map(|_| {
+                    let start = std::time::Instant::now();
+                    std::hint::black_box(java::lowercase_cow(&text));
+                    start.elapsed().as_nanos().max(1)
+                })
+                .min()
+                .unwrap()
+        });
+        assert!(n4 < n1.saturating_mul(8), "{what}: 4N/N lowercasing time ratio too high: N={n1}ns, 4N={n4}ns");
+    }
 }

@@ -426,13 +426,23 @@ fn member_lists_are_budgeted_and_checked_in_linear_time() {
     let over = u32::try_from(MAX_FRAGMENTS + 1).unwrap();
     let message = refused(&msg, |m| with(m, over));
     assert!(message.contains("max_fragments"), "{message}");
-    // Within it: a long well-formed list validates in time linear in its length.
-    let mut big = msg.clone();
-    with(&mut big, 200_000);
-    let started = std::time::Instant::now();
-    validate_typed_document(&big).unwrap();
-    let elapsed = started.elapsed();
-    assert!(elapsed < std::time::Duration::from_secs(5), "200k members took {elapsed:?}");
+    // Within it: a long well-formed list validates in time linear in its
+    // length. N and 4N members, best of five each: a linear check takes
+    // about four times as long on the longer list, a quadratic one sixteen.
+    let [n1, n4] = [50_000u32, 200_000].map(|n| {
+        let mut big = msg.clone();
+        with(&mut big, n);
+        validate_typed_document(&big).unwrap();
+        (0..5)
+            .map(|_| {
+                let started = std::time::Instant::now();
+                validate_typed_document(std::hint::black_box(&big)).unwrap();
+                started.elapsed().as_nanos().max(1)
+            })
+            .min()
+            .unwrap()
+    });
+    assert!(n4 < n1.saturating_mul(8), "4N/N member validation time ratio too high: N={n1}ns, 4N={n4}ns");
     // Votes carry fragments of their own and count too.
     let voted = entity_votes_doc();
     let mut votes = typed("w", &voted, ViewId::SOURCE, OffsetMode::Utf8).unwrap();

@@ -1,7 +1,7 @@
 //! Conformance with NormalizationTest.txt and checks of the run splitting.
 
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use turbo_unicode::hf;
 use turbo_unicode::normalize::{
@@ -265,25 +265,33 @@ fn quick_check_values() {
 /// keeping the order within a class.
 #[test]
 fn a_long_run_of_combining_marks_orders_in_linear_time() {
-    const MARKS: usize = 400_000;
-    let text: String = (0..MARKS).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect();
-    let budget = Duration::from_secs(3);
-    let check = |what: String, out: Vec<char>, took: Duration| {
-        assert!(took < budget, "{what} took {took:?} on {MARKS} marks");
-        assert_eq!(out.len(), MARKS, "{what}");
+    let run = |marks: usize| -> String { (0..marks).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect() };
+    let check = |what: &str, marks: usize, out: Vec<char>| {
+        assert_eq!(out.len(), marks, "{what}");
         let above = out.iter().position(|&c| c == '\u{301}').expect("the higher class is kept");
-        assert_eq!(above, MARKS / 2, "{what}: every lower mark first");
+        assert_eq!(above, marks / 2, "{what}: every lower mark first");
         assert!(out[above..].iter().all(|&c| c == '\u{301}'), "{what}: the higher marks after");
     };
+    // N and 4N marks, best of three each: ordering by insertion takes
+    // sixteen times as long on the longer run, a linear order about four.
+    let ratio = |what: &str, f: &dyn Fn(&str) -> Vec<char>| {
+        let [n1, n4] = [100_000usize, 400_000].map(|marks| {
+            let text = run(marks);
+            check(what, marks, f(&text));
+            (0..3)
+                .map(|_| {
+                    let start = Instant::now();
+                    std::hint::black_box(f(&text));
+                    start.elapsed().as_nanos().max(1)
+                })
+                .min()
+                .unwrap()
+        });
+        assert!(n4 < n1.saturating_mul(8), "{what}: 4N/N ordering time ratio too high: N={n1}ns, 4N={n4}ns");
+    };
     for form in [Form::Nfd, Form::Nfc] {
-        let start = Instant::now();
-        let out = norm(form, &text);
-        check(format!("normalize {form:?}"), out.chars().collect(), start.elapsed());
-        let start = Instant::now();
-        let out: Vec<char> = aligned(form, &text).map(|(c, _)| c).collect();
-        check(format!("aligned {form:?}"), out, start.elapsed());
-        let start = Instant::now();
-        let out: Vec<char> = hf::aligned(form, &text).map(|(c, _)| c).collect();
-        check(format!("hf::aligned {form:?}"), out, start.elapsed());
+        ratio(&format!("normalize {form:?}"), &|t| norm(form, t).chars().collect());
+        ratio(&format!("aligned {form:?}"), &|t| aligned(form, t).map(|(c, _)| c).collect());
+        ratio(&format!("hf::aligned {form:?}"), &|t| hf::aligned(form, t).map(|(c, _)| c).collect());
     }
 }

@@ -182,10 +182,14 @@ fn comment_stripping_scales_linearly() {
     // comment: at 100k comments that is hundreds of gigabytes
     // of scanning, far past any ceiling, while the linear
     // scan is milliseconds even unoptimized.
-    let text = "<!-- c -->word ".repeat(100_000);
-    let start = std::time::Instant::now();
-    assert_eq!(stripped(&text), "word ".repeat(100_000));
-    assert!(start.elapsed() < std::time::Duration::from_secs(10), "took {:?}", start.elapsed());
+    // N and 4N comments, best of five each: a linear scan takes about
+    // four times as long on the larger text, a quadratic one sixteen.
+    let [n1, n4] = [25_000usize, 100_000].map(|n| {
+        let text = "<!-- c -->word ".repeat(n);
+        assert_eq!(stripped(&text), "word ".repeat(n));
+        best_of_five(|| drop(std::hint::black_box(stripped(&text))))
+    });
+    assert!(n4 < n1.saturating_mul(8), "4N/N stripping time ratio too high: N={n1}ns, 4N={n4}ns");
 }
 
 #[test]
@@ -201,10 +205,26 @@ fn entity_decoding_scales_linearly() {
     // ~4 MB of mixed valid, unknown, and numeric references:
     // per-'&' work is one run scan and at most seven dispatched
     // lookups, never 32 lengths times six binary searches.
-    let text = unit.repeat(128_000);
-    let start = std::time::Instant::now();
-    assert_eq!(decoded(&text), unit_out.repeat(128_000));
-    assert!(start.elapsed() < std::time::Duration::from_secs(10), "took {:?}", start.elapsed());
+    // N and 4N units, best of five each, as for comments above.
+    let [n1, n4] = [8_000usize, 32_000].map(|n| {
+        let text = unit.repeat(n);
+        assert_eq!(decoded(&text), unit_out.repeat(n));
+        best_of_five(|| drop(std::hint::black_box(decoded(&text))))
+    });
+    assert!(n4 < n1.saturating_mul(8), "4N/N decoding time ratio too high: N={n1}ns, 4N={n4}ns");
+}
+
+/// The fastest of five runs of `f`, in nanoseconds, at least 1: one run
+/// can be preempted on a loaded runner, a superlinear one is slow on all.
+fn best_of_five(mut f: impl FnMut()) -> u128 {
+    (0..5)
+        .map(|_| {
+            let start = std::time::Instant::now();
+            f();
+            start.elapsed().as_nanos().max(1)
+        })
+        .min()
+        .unwrap()
 }
 
 #[test]

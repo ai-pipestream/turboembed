@@ -74,14 +74,21 @@ fn bouvier_decodes_single_and_double_curly_quotes() {
 
 #[test]
 fn bouvier_scans_a_large_page_in_linear_time() {
-    let mut source = String::new();
-    for _ in 0..4_000 {
-        source.push_str("<P><B>T</B>. x</P>\n");
-    }
-    let start = std::time::Instant::now();
-    let entries = BouvierReader::new(&source).unwrap().count();
-    assert_eq!(entries, 4_000);
-    assert!(start.elapsed() < std::time::Duration::from_secs(2), "reading took {:?}", start.elapsed());
+    // N and 4N entries, best of five each: a linear reader takes about
+    // four times as long on the larger page, a quadratic one sixteen.
+    let [n1, n4] = [4_000usize, 16_000].map(|n| {
+        let source = "<P><B>T</B>. x</P>\n".repeat(n);
+        assert_eq!(BouvierReader::new(&source).unwrap().count(), n);
+        (0..5)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                std::hint::black_box(BouvierReader::new(&source).unwrap().count());
+                start.elapsed().as_nanos().max(1)
+            })
+            .min()
+            .unwrap()
+    });
+    assert!(n4 < n1.saturating_mul(8), "4N/N reading time ratio too high: N={n1}ns, 4N={n4}ns");
 }
 
 fn document(tokens: &[&str]) -> DocumentSample<'static> {
