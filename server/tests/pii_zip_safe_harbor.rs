@@ -74,6 +74,9 @@ fn the_digest_covers_the_table_as_a_set() {
     assert_ne!(a, digest(zip("", &["036"])));
     assert_ne!(a, digest(zip("#", &["627", "036"])));
     assert_ne!(digest(zip("", &[])), digest(zip("*", &["036"])));
+    let mut hhs: Vec<&str> = turbo_pii::rewrite::HHS_2000_RESTRICTED_PREFIXES.to_vec();
+    hhs.reverse();
+    assert_eq!(digest(zip("", &[])), digest(zip("", &hhs)), "the bundled table spelled out is the same policy");
 }
 
 #[test]

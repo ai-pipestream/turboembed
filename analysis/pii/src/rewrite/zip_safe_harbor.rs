@@ -31,7 +31,7 @@ use super::{PiiRewrite, RewriteError};
 
 /// The three-digit ZIP areas of 20,000 people or fewer that the HHS
 /// Office for Civil Rights lists from the 2000 Census in its guidance on
-/// the HIPAA Privacy Rule's de-identification standard (section 3.6).
+/// the HIPAA Privacy Rule's de-identification standard (section 3.1).
 pub const HHS_2000_RESTRICTED_PREFIXES: [&str; 17] = [
     "036", "059", "063", "102", "203", "556", "692", "790", "821", "823", "830", "831", "878", "879", "884", "890",
     "893",

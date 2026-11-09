@@ -749,7 +749,7 @@ the 17 three-digit ZIP areas of 20,000 or fewer people (036, 059, 063,
 Source: U.S. Department of Health and Human Services, Office for Civil
 Rights, "Guidance Regarding Methods for De-identification of Protected
 Health Information in Accordance with the Health Insurance Portability
-and Accountability Act (HIPAA) Privacy Rule" (2012), section 3.6, derived
+and Accountability Act (HIPAA) Privacy Rule" (2012), section 3.1, derived
 from the 2000 U.S. Census. A work of the United States government, in the
 public domain. Callers needing a table from a later Census pass their own
 prefixes (`ZipSafeHarbor::with_restricted`, or
