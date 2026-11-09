@@ -83,6 +83,7 @@ fn the_result_identity_is_the_sha256_of_the_tgrf_bytes() {
         binding: None,
         pii_output: None,
         operation_key: String::new(),
+        pii_policy: None,
     };
     let inspected = inspect_document_graph(&req).unwrap();
     assert_eq!(inspected.result, typed.result);
@@ -156,6 +157,7 @@ fn the_callers_binding_is_copied_as_given_and_never_invented() {
         binding: Some(binding.clone()),
         pii_output: None,
         operation_key: String::new(),
+        pii_policy: None,
     };
     assert_eq!(inspect_document_graph(&req).unwrap().input.unwrap().binding, Some(binding));
     let unbound = InspectDocumentGraphRequest {
@@ -166,6 +168,7 @@ fn the_callers_binding_is_copied_as_given_and_never_invented() {
         binding: None,
         pii_output: None,
         operation_key: String::new(),
+        pii_policy: None,
     };
     assert_eq!(inspect_document_graph(&unbound).unwrap().input.unwrap().binding, None);
     let round = turbo_kserve::results::typed::round_trip_typed_document(&typed).unwrap();

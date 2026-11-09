@@ -402,9 +402,11 @@ the PII work added has a comment that says what it holds and its unit or
 encoding. The audit of these rules, message by message, is in the body of
 #1882 part C's pull request.
 
-`PII_WITHHELD_REASON_NOT_ALLOWED_BY_POLICY` is defined but not produced:
-it waits for a per-kind release ceiling in the redaction policy (#1943),
-which is additive after the freeze, as ciphertext values wait for #1885.
+`PII_WITHHELD_REASON_NOT_ALLOWED_BY_POLICY` is produced by the per-kind
+release ceiling in the redaction policy (#1943), added after the freeze
+as new fields only: `PiiKindRule.release_ceiling` (7, `PiiReleaseCeiling`)
+and `InspectDocumentGraphRequest.pii_policy` (8, `PiiReleasePolicy`).
+Ciphertext values still wait for #1885.
 
 The audit event id keeps its `turbo-pii-access-v1` domain while its
 inputs grew with the per-mention redaction policy fields. A release

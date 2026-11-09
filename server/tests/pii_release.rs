@@ -4,11 +4,17 @@
 //! retry has one event. Metadata confers nothing, and no planted value or
 //! key byte reaches an event, an error or a `Debug` string.
 
+#[path = "pii_release/ceiling.rs"]
+mod ceiling;
 #[path = "pii_release/certs.rs"]
 mod certs;
 mod common;
 #[path = "pii_release/fixture.rs"]
 mod fixture;
+#[path = "pii_policy/common.rs"]
+mod policy;
+#[path = "pii_release/recorded.rs"]
+mod recorded;
 
 use std::time::Duration;
 
@@ -296,11 +302,12 @@ async fn a_values_request_says_why_nothing_was_released() {
 }
 
 #[tokio::test]
-async fn nothing_produces_not_allowed_by_policy_yet() {
-    // NOT_ALLOWED_BY_POLICY waits for a per-kind policy ceiling (#1943).
-    // Over the wire a form the server-wide policy excludes refuses the
-    // whole request, and in process a policy that excludes the form
-    // withholds every mention as not granted.
+async fn the_server_wide_policy_never_gives_not_allowed_by_policy() {
+    // Only a redaction policy's per-kind release ceiling gives
+    // NOT_ALLOWED_BY_POLICY (#1943, `ceiling`). Over the wire a form the
+    // server-wide policy excludes refuses the whole request, and in
+    // process a policy that excludes the form withholds every mention as
+    // not granted.
     let files = Files::create("no-policy-reason");
     let (_audit, at) = audit(Answer::Ack).await;
     let grant = format!("{}:token+clear:email", client_fingerprint());

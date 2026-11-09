@@ -71,6 +71,23 @@ message PiiKindRule
   PiiAllowList allow = 5;
   // Unset: the detector's label settings for the kind.
   PiiLabelOverride labels = 6;
+  // The most a value release (#1909) gives out for the kind's mentions,
+  // whatever the calling service is granted (#1943). Unset: no limit
+  // beyond the grant. Set with no form: no form is released for the kind,
+  // and its mentions are withheld with NOT_ALLOWED_BY_POLICY.
+  PiiReleaseCeiling release_ceiling = 7;
+}
+
+// The value forms a release may give out for one kind: a capability set,
+// never a ranking, intersected with the request, the server's output
+// policy and the calling service's grant. Being a message, unset and
+// empty differ.
+message PiiReleaseCeiling
+{
+  // PII_VALUE_FORM_TOKEN, PII_VALUE_FORM_CIPHERTEXT or
+  // PII_VALUE_FORM_CLEAR, each at most once; empty releases no form.
+  // UNSPECIFIED, WITHHELD and unknown numbers are refused.
+  repeated PiiValueForm forms = 1;
 }
 
 // Whether a kind needs a context label. UNSPECIFIED is refused.

@@ -47,6 +47,7 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()

@@ -58,11 +58,16 @@ fn mention(layer: &str, index: u32, form: Form) -> PiiAccessMention {
 fn effective_forms_are_the_intersection_of_request_policy_and_grant() {
     let (t, c) = (Forms::of(Form::Token), Forms::of(Form::Clear));
     let both = t.union(c);
-    assert_eq!(effective(t, both, both), t);
-    assert_eq!(effective(c, t, both), Forms::NONE, "the policy does not allow clear");
-    assert_eq!(effective(c, both, t), Forms::NONE, "a token grant is not a clear grant");
-    assert_eq!(effective(t, both, c), Forms::NONE, "a clear grant is not a token grant");
-    assert_eq!(effective(both, both, Forms::NONE), Forms::NONE);
+    let all = Forms::ALL;
+    assert_eq!(effective(t, both, all, both), t);
+    assert_eq!(effective(c, t, all, both), Forms::NONE, "the policy does not allow clear");
+    assert_eq!(effective(c, both, all, t), Forms::NONE, "a token grant is not a clear grant");
+    assert_eq!(effective(t, both, all, c), Forms::NONE, "a clear grant is not a token grant");
+    assert_eq!(effective(both, both, all, Forms::NONE), Forms::NONE);
+    // A release ceiling (#1943) is one more set, never a ranking.
+    assert_eq!(effective(both, both, t, both), t, "a token ceiling leaves token only");
+    assert_eq!(effective(c, both, t, both), Forms::NONE, "a token ceiling is not a clear ceiling");
+    assert_eq!(effective(both, both, Forms::NONE, both), Forms::NONE, "an empty ceiling releases nothing");
 }
 
 #[test]
@@ -236,10 +241,14 @@ fn the_policy_digest_follows_the_policy_and_the_grant() {
     let fp = Fingerprint::parse(FP).unwrap();
     let g = grants.of(Some(&fp));
     let p = PiiOutputPolicy { values: Forms::of(Form::Clear), ..PiiOutputPolicy::ALL };
-    let d = policy_digest(p, &g);
-    assert_eq!(d, policy_digest(p, &g));
-    assert_ne!(d, policy_digest(PiiOutputPolicy::ALL, &g));
-    assert_ne!(d, policy_digest(p, &Grant::default()));
+    let d = policy_digest(p, &g, None);
+    assert_eq!(d, policy_digest(p, &g, None));
+    assert_ne!(d, policy_digest(PiiOutputPolicy::ALL, &g, None));
+    assert_ne!(d, policy_digest(p, &Grant::default(), None));
+    // A named redaction policy (#1943) is part of the rules.
+    let (one, two) = (PolicyDigest::of_canonical(b"one"), PolicyDigest::of_canonical(b"two"));
+    assert_ne!(d, policy_digest(p, &g, Some(&one)));
+    assert_ne!(policy_digest(p, &g, Some(&one)), policy_digest(p, &g, Some(&two)));
 }
 
 #[test]

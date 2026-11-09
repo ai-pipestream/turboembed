@@ -66,6 +66,7 @@ async fn verify(fragments: &[Span], collapse: bool, expected: [&[(u32, u32)]; 3]
                         pii_output: None,
                         binding: None,
                         operation_key: String::new(),
+                        pii_policy: None,
                     })
                     .await
                     .unwrap()

@@ -952,7 +952,7 @@ is read.
   least 1,000 to train on) is left out of training and of the gate, and
   listed in the card with its count. 500 sentences per language keep
   the interval of the gate narrow beside its half-point margin over up
-  to 50,000 units; the cap of 5,000 keeps the events of 100 languages in
+  to 50,000 units; the cap of 5,000 keeps the events of 107 languages in
   memory on one machine.
 - Training: `langid` uses the deterministic softmax trainer on hashed
   Unicode scalar character n-grams with script priors. The same checked
@@ -1235,7 +1235,7 @@ less tidy, and with it those 29 languages.
   files listed are exactly the 218 the recipe reads, that the ranges
   listed are exactly the ones those files give, and every range it reads
   against its SHA-256; a changed byte, a missing range or one not listed
-  is refused. The binary checks ranges, not files (only for 16 small
+  is refused. The binary checks ranges, not files (only for 22 small
   files do the three ranges cover the whole file), so a file's SHA-256
   is not checked by it; the workflow checks the files list against the
   hub's API on every run (below). Fetched ranges are kept under their

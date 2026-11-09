@@ -66,6 +66,7 @@ async fn project(client: &mut common::Analysis, graph: &[u8], mode: OffsetMode, 
             pii_output: None,
             binding: None,
             operation_key: String::new(),
+            pii_policy: None,
         })
         .await
         .unwrap()

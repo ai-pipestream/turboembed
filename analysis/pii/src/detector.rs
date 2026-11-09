@@ -24,7 +24,8 @@ mod labels;
 pub enum Pack {
     /// Cards, IBANs and ABA routing numbers.
     Payment,
-    /// E-mail addresses, phone numbers and their extensions.
+    /// E-mail addresses, phone numbers and their extensions, and United
+    /// States street addresses.
     Contact,
     /// IPv4, IPv6 and MAC addresses.
     Network,
@@ -99,7 +100,11 @@ impl Pack {
         };
         match self {
             Pack::Payment => vec![only(Extractor::Cursor, &[Iban, Card]), Scanner::all(Extractor::Banking)],
-            Pack::Contact => vec![only(Extractor::Cursor, &[Email, Phone]), Scanner::all(Extractor::PhoneExtension)],
+            Pack::Contact => vec![
+                only(Extractor::Cursor, &[Email, Phone]),
+                Scanner::all(Extractor::PhoneExtension),
+                Scanner::all(Extractor::UsAddress),
+            ],
             Pack::Network => vec![Scanner::all(Extractor::Network)],
             Pack::Secrets => vec![Scanner::all(Extractor::Secrets)],
             Pack::Crypto => vec![Scanner::all(Extractor::Crypto)],
@@ -124,6 +129,8 @@ impl Pack {
                 Extractor::Logistics,
                 Extractor::Web,
                 Extractor::PhoneExtension,
+                Extractor::UsAddress,
+                Extractor::Age,
             ]
             .into_iter()
             .map(Scanner::all)

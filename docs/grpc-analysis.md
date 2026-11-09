@@ -637,10 +637,44 @@ fingerprint add up. A grant needs `--tls-cert`, `--tls-key` and
 until #1885.
 
 For each mention the forms in effect are the request's form ∩ the forms
-`--pii-output-allow` lists ∩ the forms the service is granted for the
-mention's kind: a set intersection, never a ranking. A request for a
-form the policy does not list is refused with `TURBO_E_INVALID_STATE`
+`--pii-output-allow` lists ∩ the release ceiling of the request's
+redaction policy for the mention's kind ∩ the forms the service is
+granted for the mention's kind: a set intersection, never a ranking, in
+the one function `release::caps::effective`. A request for a form the
+policy does not list is refused with `TURBO_E_INVALID_STATE`
 (`FAILED_PRECONDITION`).
+
+Per-kind release ceiling (#1943). `PiiKindRule.release_ceiling` is a
+`PiiReleaseCeiling`, a set of `PiiValueForm` values (token, ciphertext,
+clear), in a message so that unset and empty differ: unset sets no limit
+beyond the grant, and an empty set releases no form for the kind. A
+values request names the policy in `InspectDocumentGraphRequest.pii_policy`
+(`PiiReleasePolicy`, field 8), as the redact step takes it: `inline`, the
+binary `RedactionPolicy` (carried as bytes because
+`turbo_pii_policy.proto` imports `turbo_typed_annotations.proto`), or
+`name`, a policy loaded with `--pii-policy`. Unset, no ceiling applies and
+the release is as before. A selection that does not resolve (no arm, an
+unknown name, bytes that are not a `RedactionPolicy`, a policy that does
+not convert) is refused with `TURBO_E_INVALID_ARGUMENT` naming field 8
+before the graph is read. The policy's digest must then equal the
+`policy_digest` of every `turbo:pii-edits` layer of the graph that
+records one, and at least one must; otherwise the call is refused with
+`TURBO_E_INVALID_ARGUMENT` naming field 8, and the error names no kind
+and no value. A custom kind's ceiling is found by the kind's name in the
+policy's `custom_kinds`. The caller supplies the graph, so the ceiling
+holds a caller to its own policy; it is not a control against a caller
+that strips the edits or names no policy, which the grant is.
+
+`--pii-require-recorded-policy` (`TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY`,
+`1`, `true` or `yes`; off by default; needs `--pii-grant`) makes a
+recorded ceiling apply to every values request (#1977). With it on, a
+values request that names no `pii_policy` is refused with
+`TURBO_E_INVALID_ARGUMENT` naming field 8 when any `turbo:pii-edits`
+layer of the graph records a policy digest; the error names no kind and
+no value, as the digest mismatch does. A graph whose edits record no
+digest, or that has none, is released as without the setting. It still
+does not hold a caller that strips the edits from the graph: the grant
+does.
 
 Why a values request released nothing (#1931). Causes that do not depend
 on the document are refused before the graph is read, so they tell the
@@ -655,10 +689,11 @@ caller nothing about it:
 Outcomes that depend on the document are on the answer, per mention.
 `PiiValueWithheld.reason` (field 1) says why a value is withheld:
 `NOT_REQUESTED` when the request asked for no value, `NOT_GRANTED` when
-the service is not granted the form for the mention's kind.
-`NOT_ALLOWED_BY_POLICY` is defined for a per-kind policy ceiling
-(#1943) and nothing produces it yet: today's server-wide
-`--pii-output-allow` refuses the whole request instead, as above.
+the service is not granted the form for the mention's kind, and
+`NOT_ALLOWED_BY_POLICY` when it is but the release ceiling of the
+request's policy for the kind excludes the form (#1943). The server-wide
+`--pii-output-allow` never gives a per-mention reason: it refuses the
+whole request instead, as above.
 `UNSPECIFIED` is never produced and the validator refuses it. A released
 mention carries its token or clear arm, and a document with no mentions
 has an empty list. A reason names nothing beyond the mention's own kind,
@@ -691,7 +726,8 @@ names, the input
 digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
 instance and index with their kind and form, the policy id and the
 SHA-256 of its rules (the server output ceiling and the grant that
-allowed the release), the time and the document id; never a value, token
+allowed the release, and the digest of the redaction policy the request
+named for its release ceilings, when it named one), the time and the document id; never a value, token
 or text. Each released mention also names the redaction policy that
 covers it (#1882 part C): `rule_id`, `policy_revision` and
 `redaction_policy_digest` copied from the `turbo:pii-edits` edit of a
@@ -970,9 +1006,13 @@ encoding is:
 
 So wire field order and map order do not change the digest, a field
 added to the schema later leaves every older policy's digest as it was,
-and the revision does change it. `server/tests/pii_policy/golden.hex`
-pins the encoding of one policy and `server/tests/pii_policy_digest.rs`
-its digest, computed outside the crate with `sha256sum`. The FNV
+and the revision does change it. A kind rule's `release_ceiling` (field
+7) is encoded like any message field: unset is absent, and an empty
+ceiling is present with no forms, so the two digest differently.
+`server/tests/pii_policy/golden.hex` pins the encoding of one policy,
+`server/tests/pii_policy/golden_ceiling.hex` that policy with release
+ceilings, and `server/tests/pii_policy_digest.rs` their digests,
+computed outside the crate with `sha256sum`. The FNV
 `config_hash` of a step stays a local cache hash; the policy digest is in
 the redact step's cache key and on every edit and decision.
 

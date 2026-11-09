@@ -116,7 +116,7 @@ pub struct Split {
 /// The recipe's split: 500 held-out sentences per language, enough for the
 /// gate's interval over about 50,000 units to be narrow beside its
 /// half-point margin; at most 5,000 training sentences per language,
-/// which keeps the events of 100 languages within a few gigabytes; and
+/// which keeps the events of 107 languages within a few gigabytes; and
 /// at least 1,000 to train on.
 pub const SPLIT: Split = Split { seed: 429, held_out: 500, max_training: 5_000, min_sentences: 1_500 };
 

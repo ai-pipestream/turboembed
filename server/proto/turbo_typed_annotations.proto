@@ -107,6 +107,31 @@ message InspectDocumentGraphRequest
 
   // What the result carries beyond PII findings; see PiiOutputOptions.
   PiiOutputOptions pii_output = 7;
+  // The redaction policy a values request is released under (#1943):
+  // the one the graph's turbo:pii-edits were written with. Read only by a
+  // request whose pii_output.values asks for a form; see PiiReleasePolicy.
+  PiiReleasePolicy pii_policy = 8;
+}
+
+// The redaction policy a value release decides its per-kind ceilings
+// (PiiKindRule.release_ceiling) under, given as the redact step takes
+// it: inline, or by the name of a policy the server loaded with
+// `--pii-policy`. It mirrors PiiRedactionSelection of
+// turbo_pii_policy.proto, and carries an inline policy as its encoded
+// bytes because that file imports this one. The policy's digest must be
+// the one every turbo:pii-edits layer of the graph recorded, or the call
+// is refused with TURBO_E_INVALID_ARGUMENT naming field 8 and no kind or
+// value. Unset: no ceiling applies.
+message PiiReleasePolicy
+{
+  oneof policy
+  {
+    // A binary turbo.result.v1.RedactionPolicy message; the digest is
+    // over its canonical encoding, never over these bytes.
+    bytes inline = 1;
+    // The id of a policy the server loaded with `--pii-policy`.
+    string name = 2;
+  }
 }
 
 // ---- The result envelope (issue #1907) ----
@@ -1023,6 +1048,8 @@ enum PiiKindId
   PII_KIND_ID_US_DRIVERS_LICENCE = 36;
   PII_KIND_ID_US_ZIP = 37;
   PII_KIND_ID_PHONE_EXTENSION = 38;
+  PII_KIND_ID_AGE = 39;
+  PII_KIND_ID_STREET_ADDRESS = 40;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C
@@ -1200,8 +1227,9 @@ message PiiMention
 
 // The form a PII mention's value is released in. A finding carries
 // `withheld` unless the request asked for values, the server's policy
-// allows the form and the calling service is granted it for the
-// mention's kind (#1909); a caller that holds the text slices it with
+// allows the form, the calling service is granted it for the mention's
+// kind (#1909) and the request's redaction policy's release ceiling for
+// the kind, when set, includes it (#1943); a caller that holds the text slices it with
 // the spans. `token` and `clear` are produced; `ciphertext` waits for
 // #1885.
 message PiiValue
@@ -1230,7 +1258,9 @@ message PiiValueWithheld
 // Why one mention's value was withheld. A request that asks for no value
 // gives NOT_REQUESTED on every mention. A values request answers per
 // mention: a mention whose kind the calling service is not granted the
-// requested form for is NOT_GRANTED. A reason never names a kind beyond
+// requested form for is NOT_GRANTED, and one the request's policy's
+// release ceiling for its kind excludes is NOT_ALLOWED_BY_POLICY (#1943);
+// a mention both exclude is NOT_GRANTED. A reason never names a kind beyond
 // the mention's own kind_ref. UNSPECIFIED is never produced and is
 // refused.
 enum PiiWithheldReason
@@ -1238,9 +1268,10 @@ enum PiiWithheldReason
   PII_WITHHELD_REASON_UNSPECIFIED = 0;
   PII_WITHHELD_REASON_NOT_REQUESTED = 1;
   PII_WITHHELD_REASON_NOT_GRANTED = 2;
-  // Produced only by a per-kind policy ceiling (#1943), which does not
-  // exist yet: nothing produces this value today. A form the server-wide
-  // output policy excludes refuses the whole request instead.
+  // The service is granted the requested form for the mention's kind,
+  // but the release ceiling of the policy the request names
+  // (PiiKindRule.release_ceiling, #1943) excludes it. A form the
+  // server-wide output policy excludes refuses the whole request instead.
   PII_WITHHELD_REASON_NOT_ALLOWED_BY_POLICY = 3;
 }
 
@@ -1431,6 +1462,10 @@ enum PiiStrategy
   PII_STRATEGY_MAP = 7;
   PII_STRATEGY_TRUNCATE = 8;
   PII_STRATEGY_ABBREVIATE = 9;
+  // An AES-256-GCM token a holder of the key decrypts.
+  PII_STRATEGY_AES_256_GCM = 10;
+  // FF1 format-preserving encryption a holder of the key decrypts.
+  PII_STRATEGY_FF1 = 11;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

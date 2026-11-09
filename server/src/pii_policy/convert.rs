@@ -14,6 +14,7 @@ use super::{
     StrategyEntry, canonical,
 };
 use crate::proto::result as pb;
+use crate::release::caps::{Form, Forms};
 use pb::{pii_default_strategy, pii_kind_ref, pii_strategy_condition::Test, pii_term_source::Source};
 
 const fn case(sensitive: bool) -> Case {
@@ -157,6 +158,26 @@ fn labels(at: At, l: &pb::PiiLabelOverride) -> Result<LabelOverride, PolicyError
     Ok(LabelOverride { policy, window_words, extra_labels: l.extra_labels.clone() })
 }
 
+/// A release ceiling's forms: each a form a value leaves in, at most once.
+fn ceiling(at: At, c: &pb::PiiReleaseCeiling) -> Result<Forms, PolicyError> {
+    let mut forms = Forms::NONE;
+    for &f in &c.forms {
+        let form = match pb::PiiValueForm::try_from(f) {
+            Ok(pb::PiiValueForm::Withheld) => {
+                return Err(invalid(at, "release_ceiling.forms lists WITHHELD, which is not a form a value leaves in"));
+            }
+            Ok(v) => Form::of_request(v),
+            Err(_) => None,
+        };
+        let form = form.ok_or(PolicyError::Unspecified { at, field: "release_ceiling.forms", value: f })?;
+        if forms.contains(form) {
+            return Err(invalid(at, "release_ceiling.forms repeats a form"));
+        }
+        forms = forms.with(form);
+    }
+    Ok(forms)
+}
+
 fn default_strategy(
     d: Option<&pb::PiiDefaultStrategy>,
     r: &dyn PolicyResolver,
@@ -254,7 +275,8 @@ impl RedactionPolicy {
             }
             let allow = allow(at, r.allow.as_ref(), resolver)?;
             let labels = r.labels.as_ref().map(|l| labels(at, l)).transpose()?;
-            rules.push(KindRule { rule_id: id, kind: k, enabled, strategies, allow, labels });
+            let release_ceiling = r.release_ceiling.as_ref().map(|c| ceiling(at, c)).transpose()?;
+            rules.push(KindRule { rule_id: id, kind: k, enabled, strategies, allow, labels, release_ceiling });
         }
         let flags = std::mem::take(&mut cx.flags);
         let global_allow = allow(At::field("allow"), msg.allow.as_ref(), resolver)?;

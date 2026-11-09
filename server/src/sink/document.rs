@@ -65,6 +65,7 @@ pub(crate) fn graph_item(
             pii_output: options,
             binding: binding.cloned(),
             operation_key: String::new(),
+            pii_policy: None,
         })?),
         None => listed.findings.take().map(|f| bound(TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }, binding)),
     };
