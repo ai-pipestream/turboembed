@@ -6,7 +6,6 @@ use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
 use turbo::{TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST, TURBO_TASK_EMBED};
-use turbo_abbrev::AbbreviationAnnotator;
 use turbo_analysis::analyzer::Builder;
 use turbo_analysis::{Analyzer, Bound, Document, Key};
 use turbo_analysis_embed::{
@@ -16,15 +15,10 @@ use turbo_analysis_embed::{
 use turbo_analysis_layers::{
     Boundaries, Chunks, Entities, Levels, Sentences, Stems, Structure, Subwords, Terms, Tokens,
 };
-use turbo_chunker::levels::LevelBuilder;
-use turbo_chunker::terms::TermIndexer;
-use turbo_chunker::{Budget, Chunker, Costs, LexicalBoundaries, StructureBoundaries};
+use turbo_chunker::{Budget, Chunker};
 use turbo_geo::{BundledGazetteer, NameAnnotator, NameFinder};
-use turbo_keywords::{Stopwords as KeywordStopwords, YakeAnnotator};
 use turbo_normalize::{Chain, Invisible, NormalizeStep, Normalizer, UnicodeForm, Whitespace};
 use turbo_sentdetect::RuleSentenceDetector;
-use turbo_stem::{Algorithm, StemAnnotator, TermAnnotator};
-use turbo_stopword::{ListChoice, StopwordAnnotator, StopwordLanguage};
 use turbo_stopword_layers::Stopwords;
 use turbo_structure::{StructureAnnotator, Syntax};
 use turbo_tokenize::uax29::UntypedWordTokenizer;
@@ -39,9 +33,11 @@ pub mod heads;
 
 use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
 use crate::pii_policy::Redaction;
+use crate::proto::result::VocabularyBinding;
 use crate::state::{Loaded, State};
+use crate::vocabulary::ResolvedVocabulary;
 
-pub(super) const DEFAULT_STEPS: &[&str] = &[
+pub(crate) const DEFAULT_STEPS: &[&str] = &[
     "turbo-structure:blocks",
     "turbo-sentdetect:rules",
     "turbo-tokenize:uax29-untyped",
@@ -54,9 +50,9 @@ pub(super) const DEFAULT_STEPS: &[&str] = &[
     "turbo:lexical-boundaries",
 ];
 
-pub(super) const MINIMAL_STEPS: &[&str] = &["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"];
+pub(crate) const MINIMAL_STEPS: &[&str] = &["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"];
 
-pub(super) const CHUNKING_STEPS: &[&str] = &[
+pub(crate) const CHUNKING_STEPS: &[&str] = &[
     "turbo-structure:blocks",
     "turbo-sentdetect:rules",
     "turbo-tokenize:uax29-untyped",
@@ -201,11 +197,16 @@ fn resolve_embed_context(
         needs_sparse || required_bundles.contains(&"TASK_EMBED") || step_names.iter().copied().any(step_needs_embed);
 
     if !needs_embed {
-        if !model_name.trim().is_empty() {
-            return Err(bad(format!(
-                "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",
-                model_name
-            )));
+        let trimmed = model_name.trim();
+        if !trimmed.is_empty() {
+            let has_vocab =
+                state.and_then(|st| st.ready(trimmed, "").ok()).is_some_and(|(_, l)| !l.vocabulary.is_empty());
+            if !has_vocab {
+                return Err(bad(format!(
+                    "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",
+                    model_name
+                )));
+            }
         }
         return Ok(None);
     }
@@ -287,7 +288,7 @@ fn add_norm<N: Normalizer>(builder: Builder, n: N, read_view: &'static str, writ
 /// Builds an [`Analyzer`] from `initial_doc` and the requested `step_names`
 /// without model state.
 pub fn compile_analyzer(initial_doc: &Document, step_names: &[&str]) -> Result<Analyzer, Failure> {
-    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], None)
+    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], None, None)
 }
 
 /// [`compile_analyzer`] with the redaction policy `turbo-pii:redact` runs.
@@ -296,11 +297,12 @@ pub fn compile_analyzer_with_redaction(
     step_names: &[&str],
     redaction: &Redaction,
 ) -> Result<Analyzer, Failure> {
-    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], Some(redaction))
+    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], Some(redaction), None)
 }
 
 /// Builds an [`Analyzer`] from `initial_doc`, resolving model-backed steps and
 /// required profile bundles against `state`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn compile_analyzer_with_state(
     initial_doc: &Document,
     step_names: &[&str],
@@ -309,6 +311,22 @@ pub(crate) fn compile_analyzer_with_state(
     profile_name: &str,
     required_bundles: &[&str],
     redaction: Option<&Redaction>,
+    vocabulary: Option<&VocabularyBinding>,
+) -> Result<Analyzer, Failure> {
+    let vocab = block5::resolve_vocabulary(state, model_name, vocabulary)?;
+    compile_pipeline(initial_doc, step_names, state, model_name, profile_name, required_bundles, redaction, &vocab)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn compile_pipeline(
+    initial_doc: &Document,
+    step_names: &[&str],
+    state: Option<&State>,
+    model_name: &str,
+    profile_name: &str,
+    required_bundles: &[&str],
+    redaction: Option<&Redaction>,
+    vocabulary: &ResolvedVocabulary,
 ) -> Result<Analyzer, Failure> {
     let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
     if redaction.is_some() && !redacts {
@@ -316,8 +334,9 @@ pub(crate) fn compile_analyzer_with_state(
     }
     // A step named by a legacy layer id runs as the step its current id names.
     let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
-    let step_names: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
-    let step_names = step_names.as_slice();
+    let mut step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    block5::append_bound_glossary(&mut step_vec, vocabulary);
+    let step_names = step_vec.as_slice();
     let mut embed_cx = resolve_embed_context(state, model_name, profile_name, required_bundles, step_names)?;
     let step_names = &heads::expand(step_names, embed_cx.as_ref())?[..];
     let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
@@ -364,7 +383,7 @@ pub(crate) fn compile_analyzer_with_state(
         }
 
         let (next_builder, handled) =
-            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction)?;
+            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction, vocabulary)?;
         let (next_builder, handled) = match handled {
             true => (next_builder, true),
             false => heads::add_step(next_builder, name, head_plan.as_ref()),
@@ -432,22 +451,6 @@ pub(crate) fn compile_analyzer_with_state(
                     builder.add(ann)
                 }
             }
-            "turbo-abbrev:schwartz-hearst" | "turbo-abbrev:abbreviations" | "turbo:abbreviations" => {
-                builder.add(AbbreviationAnnotator)
-            }
-            "turbo-stem:terms" | "turbo:terms" => builder.add(TermAnnotator::default()),
-            "turbo-stem:stemmer" | "turbo:stems" => builder.add(StemAnnotator::new(Algorithm::Porter)),
-            "turbo-stopword:bundled" | "turbo-stopword:stopwords" | "turbo:stopwords" => {
-                builder.add(StopwordAnnotator::new(ListChoice::Fixed(StopwordLanguage::English)))
-            }
-            "turbo-keywords:yake" | "turbo:keywords" => {
-                builder.add(YakeAnnotator::new(KeywordStopwords::bundled(StopwordLanguage::English)))
-            }
-            "turbo:structure-boundaries" | "turbo:boundaries" => {
-                builder.add(StructureBoundaries { costs: Costs::default() })
-            }
-            "turbo:lexical-boundaries" => builder.step(LexicalBoundaries::default().bound()),
-            "turbo:term-indexer" | "turbo:term-index" => builder.add(TermIndexer),
             "turbo:chunker" | "turbo:chunks" => {
                 let budget = if let Some(cx) = embed_cx.as_mut() {
                     let va = cx.vector_annotator()?;
@@ -459,7 +462,6 @@ pub(crate) fn compile_analyzer_with_state(
                 };
                 builder.add(Chunker { budget })
             }
-            "turbo:level-builder" | "turbo:levels" => builder.add(LevelBuilder),
             "turbo:sentence-vectors" | "sentence_vectors" => {
                 let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
                 builder.add(SentenceVectors(va))

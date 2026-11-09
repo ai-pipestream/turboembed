@@ -188,6 +188,17 @@ impl Store {
         self.index().dictionaries.get(id).cloned()
     }
 
+    /// Checks whether `id` is in the store's index and whether its stored
+    /// descriptor has `sha256`.
+    pub(crate) fn check_digest(&self, id: &str, sha256: &str) -> Option<bool> {
+        let index = self.index();
+        if let Some(d) = index.dictionaries.get(id) {
+            Some(d.descriptor.sha256 == sha256)
+        } else {
+            index.vocabularies.get(id).map(|v| v.sha256 == sha256)
+        }
+    }
+
     /// Writes `bytes` to `dir/name` through a synced temporary file.
     fn write(&self, dir: &str, name: &str, bytes: &[u8]) -> Result<(), String> {
         let n = self.seq.fetch_add(1, Ordering::Relaxed);

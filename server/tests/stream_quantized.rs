@@ -94,6 +94,7 @@ async fn a_wrong_table_or_a_quantized_non_vector_output_is_the_documents_refusal
             options: Some(AnalyzeOptions { quantization: TURBO_QUANTIZE_UBINARY, ..Default::default() }),
             output: 2,
             offsets: 0,
+            vocabulary: None,
         })),
     };
     stream.tx.send(tokens).await.unwrap();

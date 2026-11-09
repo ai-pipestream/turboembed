@@ -308,7 +308,13 @@ impl Engine {
             self.stalled.push_back((docs, permits));
             return;
         }
-        let Some(loaded) = docs.first().map(|d| d.loaded.clone()) else { return };
+        if docs.first().is_some_and(|d| d.output == crate::proto::result::AnalyzeOutput::DocumentGraph) {
+            let shared = self.shared.clone();
+            let dead = dead.clone();
+            self.inflight.spawn_blocking(move || run::run_document_graph(&shared, dead.flag(), docs, permits));
+            return;
+        }
+        let Some(loaded) = docs.first().and_then(|d| d.loaded.clone()) else { return };
         match loaded.take() {
             Ok(held) => {
                 let opts = docs[0].opts;
@@ -389,7 +395,16 @@ impl Engine {
                     return Err(());
                 }
                 for (doc, permit) in docs.into_iter().zip(permits) {
-                    match doc.loaded.take() {
+                    if doc.output == crate::proto::result::AnalyzeOutput::DocumentGraph {
+                        let shared = self.shared.clone();
+                        let dead = dead.clone();
+                        self.inflight.spawn_blocking(move || {
+                            run::run_document_graph(&shared, dead.flag(), vec![doc], vec![permit])
+                        });
+                        continue;
+                    }
+                    let Some(loaded) = doc.loaded.clone() else { continue };
+                    match loaded.take() {
                         Ok(held) => {
                             let opts = doc.opts;
                             let shared = self.shared.clone();

@@ -82,6 +82,7 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
         // schema-extraction bundle fills this with `records::schema_limits`.
         schema: None,
         head_steps: loaded.head_steps.clone(),
+        vocabulary: loaded.vocabulary.to_proto(),
     })
 }
 
@@ -155,6 +156,7 @@ mod tests {
             max_seq: 0,
             select_device: false,
             user: String::new(),
+            vocabulary: None,
         }
     }
 

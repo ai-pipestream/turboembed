@@ -5,6 +5,7 @@
 //! calls, refused before anything is read when the server runs without
 //! --admin or without a --vocabulary-dir.
 
+pub(crate) mod bind;
 pub(crate) mod formats;
 mod learn;
 mod store;
@@ -23,6 +24,7 @@ use crate::kserve::Reply;
 use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyService;
 use crate::proto::vocabulary::*;
 use crate::status::to_status;
+pub(crate) use bind::{ResolvedVocabulary, VocabularyResolver};
 use learn::{Learner, Options};
 pub(crate) use store::{Dictionary, Store, Stored};
 

@@ -57,6 +57,8 @@ pub(crate) struct Loaded {
     pub(crate) revision: String,
     /// The head steps the bundle provides (`progressive::heads::available`).
     pub(crate) head_steps: Vec<String>,
+    /// Stored vocabulary artifacts bound to this bundle at LoadBundle (#2013).
+    pub(crate) vocabulary: crate::vocabulary::ResolvedVocabulary,
     pub(crate) idle: Mutex<Vec<usize>>,
     pub(crate) metrics: Arc<Metrics>,
 }
@@ -94,6 +96,7 @@ impl Loaded {
 pub(crate) struct Served {
     pub(crate) name: String,
     pub(crate) config: ModelConfig,
+    pub(crate) vocabulary: crate::vocabulary::ResolvedVocabulary,
     pub(crate) loaded: OnceLock<Arc<Loaded>>,
 }
 
@@ -122,6 +125,8 @@ pub(crate) struct State {
     pub(crate) pii_policies: crate::pii_policy::NamedPolicies,
     /// What an inline policy's key references resolve through.
     pub(crate) pii_resolver: Arc<crate::pii_policy::ServerResolver>,
+    /// Digest-pinned resolver and cache over the vocabulary store (#2013).
+    pub(crate) vocabulary_resolver: Arc<crate::vocabulary::VocabularyResolver>,
 }
 
 fn not_found(name: &str) -> Failure {
@@ -144,7 +149,9 @@ impl State {
                 names
                     .into_iter()
                     .zip(models)
-                    .map(|(name, config)| Arc::new(Served { name, config, loaded: OnceLock::new() }))
+                    .map(|(name, config)| {
+                        Arc::new(Served { name, config, vocabulary: Default::default(), loaded: OnceLock::new() })
+                    })
                     .collect(),
             ),
             runtime: OnceLock::new(),
@@ -157,7 +164,14 @@ impl State {
             loading: Mutex::new(()),
             pii_policies: crate::pii_policy::NamedPolicies::default(),
             pii_resolver: Arc::default(),
+            vocabulary_resolver: Arc::default(),
         }
+    }
+
+    /// This state resolving vocabulary artifacts against `store`.
+    pub(crate) fn with_vocabulary(mut self, store: Option<Arc<crate::vocabulary::Store>>) -> Self {
+        self.vocabulary_resolver = Arc::new(crate::vocabulary::VocabularyResolver::new(store));
+        self
     }
 
     /// This state serving `policies` by name.
@@ -249,6 +263,15 @@ impl State {
     /// the caller's identity for loading and for rolling back: the same
     /// name re-registered is a different registration.
     pub(crate) fn add(&self, name: String, config: ModelConfig) -> api::Result<Arc<Served>> {
+        self.add_with_vocabulary(name, config, Default::default())
+    }
+
+    pub(crate) fn add_with_vocabulary(
+        &self,
+        name: String,
+        config: ModelConfig,
+        vocabulary: crate::vocabulary::ResolvedVocabulary,
+    ) -> api::Result<Arc<Served>> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         if models.iter().any(|m| m.name == name) {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("a model named {name} is already served")));
@@ -256,7 +279,7 @@ impl State {
         if models.len() >= MAX_LOADED_MODELS {
             return Err(over("max_loaded_models", "served models", models.len() as u64 + 1));
         }
-        let m = Arc::new(Served { name, config, loaded: OnceLock::new() });
+        let m = Arc::new(Served { name, config, vocabulary, loaded: OnceLock::new() });
         models.push(m.clone());
         drop(models);
         self.notify_health();
@@ -418,6 +441,7 @@ impl State {
             device,
             revision: api::field(&info.revision),
             head_steps: crate::progressive::heads::available(&c.bundle),
+            vocabulary: m.vocabulary.clone(),
             idle,
             metrics: Arc::clone(&self.metrics),
         };

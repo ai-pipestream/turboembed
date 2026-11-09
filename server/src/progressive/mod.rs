@@ -49,7 +49,7 @@ pub use profiles::{
     ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
     profile_capabilities,
 };
-use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state};
+pub(crate) use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state, compile_pipeline};
 pub use steps::{compile_analyzer, compile_analyzer_with_redaction, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
@@ -240,6 +240,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
         profile_name,
         required_bundles,
         redaction.as_ref(),
+        req.vocabulary.as_ref(),
     )
     .map_err(plain)
 }

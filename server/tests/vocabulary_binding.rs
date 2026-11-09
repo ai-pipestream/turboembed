@@ -1,0 +1,451 @@
+//! Binding stored glossary and stopword artifacts from the vocabulary store
+//! into `AnalyzeStream`, `AnalyzeDocumentProgressive`, and `LoadBundle`
+//! without a restart (issue `#2013`).
+
+mod vocab;
+
+use tokio_stream::StreamExt;
+use tonic::Code;
+use turbo_analysis::export::{DocumentGraph, import};
+use turbo_analysis::{Document, Key, Layer, ViewId};
+use turbo_analysis_layers::Tokens;
+use turbo_glossary_layers::GlossaryTerms;
+use turbo_keywords::Keywords;
+use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
+use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
+use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+use turbo_kserve::proto::result::analyze_progressive_event::Event;
+use turbo_kserve::proto::result::analyze_stream_request::Kind;
+use turbo_kserve::proto::result::analyze_stream_response::Outcome;
+use turbo_kserve::proto::result::{
+    AnalyzeDocument, AnalyzeOutput, AnalyzePipelineRequest, AnalyzeStreamHeader, AnalyzeStreamRequest,
+    CapabilitiesRequest, DocumentGraphResponse, InspectDocumentGraphRequest, LoadBundleRequest, ModelRef, OffsetMode,
+    ProcessingReceipt, VocabularyArtifactRef, VocabularyBinding,
+};
+use turbo_kserve::proto::vocabulary::LearnVocabularyHeader;
+use turbo_kserve::results::document::codecs;
+use turbo_kserve::{Serve, Server};
+use turbo_stopword::Stopwords;
+use vocab::{Client as VocabClient, dir, import as upload, learn, refusal};
+
+type AnalysisClient = AnalysisServiceClient<tonic::transport::Channel>;
+
+const TEXT: &str = "Quixotl and Zebulon build Zephyr engines.";
+
+fn tiny_bundle_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle")
+}
+
+fn model_cfg(name: &str) -> ModelConfig {
+    ModelConfig {
+        bundle: tiny_bundle_path().to_str().unwrap().into(),
+        name: Some(name.into()),
+        device: Device::Index(0),
+        precision: 0,
+        max_batch: 0,
+        max_seq: 0,
+        sessions: 1,
+    }
+}
+
+async fn start_server(vocabulary: Option<std::path::PathBuf>, preload: bool) -> (Server, AnalysisClient, VocabClient) {
+    let models = if preload { vec![model_cfg("base")] } else { Vec::new() };
+    let s = Server::start(
+        "127.0.0.1:0".parse().unwrap(),
+        models,
+        MAX,
+        Serve { admin: true, vocabulary, ..Serve::default() },
+    )
+    .await
+    .unwrap();
+    if preload {
+        s.load().await.unwrap();
+    }
+    let addr = format!("http://{}", s.local_addr());
+    let ac = AnalysisServiceClient::connect(addr.clone()).await.unwrap().max_decoding_message_size(MAX);
+    let vc = VocabClient::connect(addr).await.unwrap().max_decoding_message_size(MAX);
+    (s, ac, vc)
+}
+
+fn art_ref(id: &str, sha256: &str) -> VocabularyArtifactRef {
+    VocabularyArtifactRef { artifact_id: id.into(), sha256: sha256.into() }
+}
+
+async fn run_progressive(
+    ac: &mut AnalysisClient,
+    model: &str,
+    text: &str,
+    vocabulary: Option<VocabularyBinding>,
+) -> (DocumentGraphResponse, ProcessingReceipt, Document) {
+    let req = AnalyzePipelineRequest {
+        doc_id: "doc-vocab".into(),
+        text: text.into(),
+        offsets: OffsetMode::Utf8 as i32,
+        profile: "default".into(),
+        model: model.into(),
+        vocabulary,
+        ..Default::default()
+    };
+    let mut stream = ac.analyze_document_progressive(req).await.unwrap().into_inner();
+    let mut complete = None;
+    let mut receipt = None;
+    while let Some(ev) = stream.next().await {
+        match ev.unwrap().event {
+            Some(Event::Complete(c)) => complete = Some(c),
+            Some(Event::Receipt(r)) => receipt = Some(r),
+            _ => {}
+        }
+    }
+    let complete = complete.expect("Complete event");
+    let receipt = receipt.expect("Receipt event");
+    let graph = DocumentGraph::from_bytes(&complete.graph).unwrap();
+    let doc = import(&graph, codecs()).unwrap();
+    (complete, receipt, doc)
+}
+
+async fn run_stream_graph(
+    ac: &mut AnalysisClient,
+    model: &str,
+    text: &str,
+    vocabulary: Option<VocabularyBinding>,
+) -> (DocumentGraphResponse, Document) {
+    let requests = vec![
+        AnalyzeStreamRequest {
+            kind: Some(Kind::Header(AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 0 })),
+        },
+        AnalyzeStreamRequest {
+            kind: Some(Kind::Document(AnalyzeDocument {
+                id: "stream-doc-1".into(),
+                model: model.into(),
+                text: text.as_bytes().to_vec(),
+                output: AnalyzeOutput::DocumentGraph as i32,
+                offsets: OffsetMode::Utf8 as i32,
+                vocabulary,
+                ..Default::default()
+            })),
+        },
+    ];
+    let mut stream = ac.analyze_stream(tokio_stream::iter(requests)).await.unwrap().into_inner();
+    let resp = stream.next().await.unwrap().unwrap();
+    assert_eq!(resp.id, "stream-doc-1");
+    let Some(Outcome::DocumentGraph(dg)) = resp.outcome else {
+        panic!("expected DocumentGraph outcome, got {:?}", resp.outcome);
+    };
+    let graph = DocumentGraph::from_bytes(&dg.graph).unwrap();
+    let doc = import(&graph, codecs()).unwrap();
+    (dg, doc)
+}
+
+fn flagged_tokens(doc: &Document) -> Vec<String> {
+    let tokens = doc.get::<Tokens>().expect("turbo:tokens");
+    let stop = doc.get::<Stopwords>().expect("turbo:stopwords");
+    let text = doc.text(ViewId::SOURCE);
+    tokens
+        .spans
+        .iter()
+        .zip(&stop.stop)
+        .filter(|&(_, &is_stop)| is_stop)
+        .map(|((_, sp), _)| text[sp.start as usize..sp.end as usize].to_owned())
+        .collect()
+}
+
+fn matched_glossary(doc: &Document) -> Vec<(String, String)> {
+    let terms = doc.get::<GlossaryTerms>().expect("turbo:glossary-terms");
+    let text = doc.text(ViewId::SOURCE);
+    terms
+        .spans
+        .iter()
+        .zip(&terms.entry)
+        .map(|((_, sp), &ix)| {
+            let entry = terms.glossary.get(ix);
+            (entry.id.to_owned(), text[sp.start as usize..sp.end as usize].to_owned())
+        })
+        .collect()
+}
+
+async fn assert_prov(
+    ac: &mut AnalysisClient,
+    (resp, doc, receipt): (&DocumentGraphResponse, &Document, Option<&ProcessingReceipt>),
+    (layer_id, step_id): (&str, &str),
+    want: &ModelRef,
+) {
+    let info = resp.layers.iter().find(|l| l.layer == layer_id).unwrap_or_else(|| panic!("missing layer {layer_id}"));
+    assert_eq!(info.model.as_ref(), Some(want), "LayerInfo.model mismatch for {layer_id}");
+
+    let typed = ac
+        .inspect_document_graph(InspectDocumentGraphRequest { graph: resp.graph.to_vec(), ..Default::default() })
+        .await
+        .unwrap()
+        .into_inner();
+    let typed_layer =
+        typed.layers.iter().find(|l| l.id == layer_id).unwrap_or_else(|| panic!("missing typed layer {layer_id}"));
+    let model_ref_id = typed_layer.model_refs.first().expect("typed layer model_ref");
+    let model_prov = typed
+        .models
+        .iter()
+        .find(|m| &m.model_ref == model_ref_id)
+        .unwrap_or_else(|| panic!("missing ModelProvenance {model_ref_id}"));
+    assert_eq!(model_prov.bundle.as_ref(), Some(want), "TypedDocumentResult ModelProvenance.bundle mismatch");
+
+    let doc_model = match layer_id {
+        "turbo:stopwords" => doc.provenance(Key::<Stopwords>::DEFAULT.id()).unwrap().model.as_ref(),
+        "turbo:keywords" => doc.provenance(Key::<Keywords>::DEFAULT.id()).unwrap().model.as_ref(),
+        "turbo:glossary-terms" => doc.provenance(Key::<GlossaryTerms>::DEFAULT.id()).unwrap().model.as_ref(),
+        other => panic!("unexpected layer {other}"),
+    };
+    let doc_model = doc_model.expect("Document layer Provenance.model");
+    assert_eq!((&doc_model.id, &doc_model.revision, &doc_model.sha256), (&want.id, &want.revision, &want.sha256));
+
+    if let Some(r) = receipt {
+        let lr = r.layers.iter().find(|l| l.layer == layer_id).unwrap_or_else(|| panic!("missing receipt {layer_id}"));
+        assert!(lr.executed.iter().any(|d| d.id == step_id), "missing detector {step_id} in receipt");
+        assert!(!lr.provenance_digest.as_ref().expect("provenance_digest").is_empty());
+    }
+}
+
+#[tokio::test]
+async fn imported_stopword_list_changes_next_request_without_restart_and_records_provenance() {
+    let store_dir = dir("bind-stopwords");
+    let (server, mut ac, mut vc) = start_server(Some(store_dir), true).await;
+
+    let (base_prog, _, base_doc) = run_progressive(&mut ac, "", TEXT, None).await;
+    assert_eq!(flagged_tokens(&base_doc), vec!["and".to_owned()]);
+    let base_sw_info = base_prog.layers.iter().find(|l| l.layer == "turbo:stopwords").unwrap();
+    assert!(base_sw_info.model.is_none());
+
+    let (_, base_stream_doc) = run_stream_graph(&mut ac, "base", TEXT, None).await;
+    assert_eq!(flagged_tokens(&base_stream_doc), vec!["and".to_owned()]);
+
+    let custom_words = b"quixotl\nzebulon\n";
+    let desc = upload(&mut vc, "plain-word-list", "en", custom_words).await.unwrap();
+    let binding = VocabularyBinding { stopwords: Some(art_ref(&desc.artifact_id, &desc.sha256)), glossary: None };
+    let want_model =
+        ModelRef { id: desc.artifact_id.clone(), revision: "plain-word-list".into(), sha256: desc.sha256.clone() };
+
+    let (bound_prog, bound_receipt, bound_doc) = run_progressive(&mut ac, "", TEXT, Some(binding.clone())).await;
+    assert_eq!(flagged_tokens(&bound_doc), vec!["Quixotl".to_owned(), "Zebulon".to_owned()]);
+    let bound_sw_info = bound_prog.layers.iter().find(|l| l.layer == "turbo:stopwords").unwrap();
+    assert_ne!(bound_sw_info.config_hash, base_sw_info.config_hash);
+    let p_ctx = (&bound_prog, &bound_doc, Some(&bound_receipt));
+    assert_prov(&mut ac, p_ctx, ("turbo:stopwords", "turbo-stopword:bundled"), &want_model).await;
+    assert_prov(&mut ac, p_ctx, ("turbo:keywords", "turbo-keywords:yake"), &want_model).await;
+    let kws = bound_doc.get::<Keywords>().expect("turbo:keywords");
+    for i in 0..kws.len() {
+        let phrase = kws.phrase.get(i);
+        assert!(phrase != "quixotl" && phrase != "zebulon", "stopword leaked into keywords: {phrase}");
+    }
+
+    let (stream_resp, stream_doc) = run_stream_graph(&mut ac, "base", TEXT, Some(binding)).await;
+    assert_eq!(flagged_tokens(&stream_doc), vec!["Quixotl".to_owned(), "Zebulon".to_owned()]);
+    let s_ctx = (&stream_resp, &stream_doc, None);
+    assert_prov(&mut ac, s_ctx, ("turbo:stopwords", "turbo-stopword:bundled"), &want_model).await;
+    assert_prov(&mut ac, s_ctx, ("turbo:keywords", "turbo-keywords:yake"), &want_model).await;
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn imported_glossary_and_learned_vocabulary_bind_with_provenance() {
+    let store_dir = dir("bind-glossary-learned");
+    let (server, mut ac, mut vc) = start_server(Some(store_dir), true).await;
+
+    let csv_bytes = b"CONCEPT_ZEB,Zebulon\nCONCEPT_ZEP,Zephyr engines\n";
+    let gloss_desc = upload(&mut vc, "glossary-csv", "en", csv_bytes).await.unwrap();
+    let learned_desc = learn(
+        &mut vc,
+        LearnVocabularyHeader { language: "en".into(), min_term_frequency: 1, lowercase: true, ..Default::default() },
+        &["quixotl build", "quixotl build"],
+    )
+    .await
+    .unwrap();
+
+    let binding = VocabularyBinding {
+        stopwords: Some(art_ref(&learned_desc.artifact_id, &learned_desc.sha256)),
+        glossary: Some(art_ref(&gloss_desc.artifact_id, &gloss_desc.sha256)),
+    };
+    let want_sw_model = ModelRef {
+        id: learned_desc.artifact_id.clone(),
+        revision: "turbo-vocabulary-1".into(),
+        sha256: learned_desc.sha256.clone(),
+    };
+    let want_gloss_model = ModelRef {
+        id: gloss_desc.artifact_id.clone(),
+        revision: "glossary-csv".into(),
+        sha256: gloss_desc.sha256.clone(),
+    };
+    let want_glossary_matches =
+        vec![("CONCEPT_ZEB".to_owned(), "Zebulon".to_owned()), ("CONCEPT_ZEP".to_owned(), "Zephyr engines".to_owned())];
+
+    let (prog_resp, prog_receipt, prog_doc) = run_progressive(&mut ac, "", TEXT, Some(binding.clone())).await;
+    assert_eq!(flagged_tokens(&prog_doc), vec!["Quixotl".to_owned(), "build".to_owned()]);
+    assert_eq!(matched_glossary(&prog_doc), want_glossary_matches);
+    let p_ctx = (&prog_resp, &prog_doc, Some(&prog_receipt));
+    assert_prov(&mut ac, p_ctx, ("turbo:stopwords", "turbo-stopword:bundled"), &want_sw_model).await;
+    assert_prov(&mut ac, p_ctx, ("turbo:glossary-terms", "turbo-glossary:annotator"), &want_gloss_model).await;
+
+    let (stream_resp, stream_doc) = run_stream_graph(&mut ac, "base", TEXT, Some(binding)).await;
+    assert_eq!(flagged_tokens(&stream_doc), vec!["Quixotl".to_owned(), "build".to_owned()]);
+    assert_eq!(matched_glossary(&stream_doc), want_glossary_matches);
+    let s_ctx = (&stream_resp, &stream_doc, None);
+    assert_prov(&mut ac, s_ctx, ("turbo:glossary-terms", "turbo-glossary:annotator"), &want_gloss_model).await;
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
+    let store_dir = dir("bind-load-bundle");
+    let (server, mut ac, mut vc) = start_server(Some(store_dir), false).await;
+
+    let sw_a = upload(&mut vc, "plain-word-list", "en", b"quixotl\n").await.unwrap();
+    let sw_b = upload(&mut vc, "plain-word-list", "en", b"zebulon\n").await.unwrap();
+    let gloss_a = upload(&mut vc, "glossary-csv", "en", b"G_ZEP,Zephyr\n").await.unwrap();
+
+    let bundle_vocab = VocabularyBinding {
+        stopwords: Some(art_ref(&sw_a.artifact_id, &sw_a.sha256)),
+        glossary: Some(art_ref(&gloss_a.artifact_id, &gloss_a.sha256)),
+    };
+    let loaded = ac
+        .load_bundle(LoadBundleRequest {
+            name: "bound-model".into(),
+            bundle: tiny_bundle_path().to_str().unwrap().into(),
+            device: 0,
+            sessions: 1,
+            vocabulary: Some(bundle_vocab.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(loaded.capabilities.as_ref().unwrap().vocabulary, Some(bundle_vocab.clone()));
+    let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert_eq!(caps.bundles[0].vocabulary, Some(bundle_vocab));
+
+    let (_, default_doc) = run_stream_graph(&mut ac, "bound-model", TEXT, None).await;
+    assert_eq!(flagged_tokens(&default_doc), vec!["Quixotl".to_owned()]);
+    assert_eq!(matched_glossary(&default_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
+
+    let override_vocab =
+        VocabularyBinding { stopwords: Some(art_ref(&sw_b.artifact_id, &sw_b.sha256)), glossary: None };
+    let (_, over_doc) = run_stream_graph(&mut ac, "bound-model", TEXT, Some(override_vocab)).await;
+    assert_eq!(flagged_tokens(&over_doc), vec!["Zebulon".to_owned()]);
+    assert_eq!(matched_glossary(&over_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn wrong_digest_unknown_id_wrong_format_and_no_store_are_refused_with_typed_status() {
+    let store_dir = dir("bind-refusals");
+    let (server, mut ac, mut vc) = start_server(Some(store_dir), true).await;
+
+    let secret_word = "UltraSecretStopwordToken";
+    let sw = upload(&mut vc, "plain-word-list", "en", format!("{secret_word}\n").as_bytes()).await.unwrap();
+    let map = upload(&mut vc, "headword-definition-tsv", "en", b"k\tv\n").await.unwrap();
+    let wrong_sha = format!("{}{}", if sw.sha256.starts_with('0') { "1" } else { "0" }, &sw.sha256[1..]);
+
+    let cases: Vec<(&str, VocabularyBinding, &str)> = vec![
+        (
+            "wrong digest",
+            VocabularyBinding { stopwords: Some(art_ref(&sw.artifact_id, &wrong_sha)), glossary: None },
+            "does not have this sha256",
+        ),
+        (
+            "bad hex digest",
+            VocabularyBinding { stopwords: Some(art_ref(&sw.artifact_id, "not-a-sha256")), glossary: None },
+            "64 lowercase hexadecimal digits",
+        ),
+        (
+            "unknown artifact",
+            VocabularyBinding { stopwords: Some(art_ref("missing-artifact", &sw.sha256)), glossary: None },
+            "not registered",
+        ),
+        (
+            "path traversal id",
+            VocabularyBinding { stopwords: Some(art_ref("../etc/passwd", &sw.sha256)), glossary: None },
+            "looks like a file path",
+        ),
+        (
+            "wrong format for stopwords",
+            VocabularyBinding { stopwords: Some(art_ref(&map.artifact_id, &map.sha256)), glossary: None },
+            "headword-definition-tsv is not taken here",
+        ),
+        (
+            "wrong format for glossary",
+            VocabularyBinding { stopwords: None, glossary: Some(art_ref(&sw.artifact_id, &sw.sha256)) },
+            "plain-word-list is not taken here",
+        ),
+    ];
+
+    for (label, vocab, want_msg) in cases {
+        let prog_err = ac
+            .analyze_document_progressive(AnalyzePipelineRequest {
+                doc_id: "bad".into(),
+                text: TEXT.into(),
+                profile: "default".into(),
+                vocabulary: Some(vocab.clone()),
+                ..Default::default()
+            })
+            .await
+            .err()
+            .unwrap_or_else(|| panic!("{label}: expected progressive refusal"));
+        assert_eq!(refusal(&prog_err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT), "{label}");
+        assert!(prog_err.message().contains(want_msg), "{label}: got {:?}", prog_err.message());
+        assert!(!prog_err.message().contains(secret_word), "{label}: leaked secret word");
+
+        let stream_reqs = vec![
+            AnalyzeStreamRequest { kind: Some(Kind::Header(AnalyzeStreamHeader::default())) },
+            AnalyzeStreamRequest {
+                kind: Some(Kind::Document(AnalyzeDocument {
+                    id: "bad-stream".into(),
+                    model: "base".into(),
+                    text: TEXT.as_bytes().to_vec(),
+                    output: AnalyzeOutput::DocumentGraph as i32,
+                    vocabulary: Some(vocab.clone()),
+                    ..Default::default()
+                })),
+            },
+        ];
+        let mut st = ac.analyze_stream(tokio_stream::iter(stream_reqs)).await.unwrap().into_inner();
+        let ans = st.next().await.unwrap().unwrap();
+        let Some(Outcome::Failure(fail)) = ans.outcome else {
+            panic!("{label}: expected AnalyzeFailure on stream, got {:?}", ans.outcome);
+        };
+        assert_eq!(fail.turbo_code, TURBO_E_INVALID_ARGUMENT, "{label}");
+        assert!(fail.message.contains(want_msg), "{label}: got {:?}", fail.message);
+        assert!(!fail.message.contains(secret_word), "{label}: leaked secret word");
+
+        let load_err = ac
+            .load_bundle(LoadBundleRequest {
+                name: "bad-bundle".into(),
+                bundle: tiny_bundle_path().to_str().unwrap().into(),
+                device: 0,
+                sessions: 1,
+                vocabulary: Some(vocab),
+                ..Default::default()
+            })
+            .await
+            .err()
+            .unwrap_or_else(|| panic!("{label}: expected LoadBundle refusal"));
+        assert_eq!(refusal(&load_err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT), "{label}");
+        assert!(load_err.message().contains(want_msg), "{label}: got {:?}", load_err.message());
+        assert!(!load_err.message().contains(secret_word), "{label}: leaked secret word");
+    }
+
+    server.stop().await;
+
+    let (no_vocab_server, mut no_vocab_ac, _) = start_server(None, false).await;
+    let err = no_vocab_ac
+        .analyze_document_progressive(AnalyzePipelineRequest {
+            doc_id: "no-store".into(),
+            text: TEXT.into(),
+            profile: "default".into(),
+            vocabulary: Some(VocabularyBinding {
+                stopwords: Some(art_ref(&sw.artifact_id, &sw.sha256)),
+                glossary: None,
+            }),
+            ..Default::default()
+        })
+        .await
+        .expect_err("expected refusal without vocabulary store");
+    assert_eq!(refusal(&err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT));
+    assert!(err.message().contains("the server has no registry for it"), "got: {}", err.message());
+    no_vocab_server.stop().await;
+}

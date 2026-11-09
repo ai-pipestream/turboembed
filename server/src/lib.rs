@@ -220,7 +220,9 @@ impl Server {
         let token_keys = serve.pii_release.as_ref().map_or(&[][..], |r| &r.token_keys[..]);
         let resolver = pii_policy::ServerResolver::load(token_keys, store.clone())?;
         let policies = pii_policy::NamedPolicies::from_files(&serve.pii_policies, &resolver)?;
-        let state = Arc::new(State::new(names, models).with_pii_policies(policies, resolver.shared()));
+        let state = Arc::new(
+            State::new(names, models).with_pii_policies(policies, resolver.shared()).with_vocabulary(store.clone()),
+        );
         let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
         let max_reply_bytes = config::max_reply_bytes(max_message_bytes);
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })

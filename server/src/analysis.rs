@@ -106,10 +106,20 @@ impl AnalysisService for Analysis {
                 .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the licence check failed: {e}"))))?
                 .map_err(plain)?;
         }
+        let vocabulary = match req.vocabulary.clone() {
+            Some(v) => {
+                let resolver = self.state.vocabulary_resolver.clone();
+                tokio::task::spawn_blocking(move || resolver.resolve_binding(&v))
+                    .await
+                    .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the vocabulary check failed: {e}"))))?
+                    .map_err(plain)?
+            }
+            None => Default::default(),
+        };
         // The registration this request owns, by identity, through
         // loading, the answer, and rollback: a same-named replacement is
         // a different Arc and is never touched.
-        let registered = self.state.add(name, config).map_err(plain)?;
+        let registered = self.state.add_with_vocabulary(name, config, vocabulary).map_err(plain)?;
         let state = self.state.clone();
         let loading = registered.clone();
         let loaded = tokio::task::spawn_blocking(move || state.load_one(&loading)).await;

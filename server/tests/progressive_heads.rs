@@ -80,6 +80,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        vocabulary: None,
     }
 }
 

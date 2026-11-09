@@ -18,8 +18,11 @@ use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STAT
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
 use crate::proto::result::{AnalyzeOutput, InputBinding};
+use crate::results::disclosure::Disclosure;
+use crate::results::document::export_document_response;
 use crate::state::{Held, Loaded};
 use crate::stream::{BatchKey, Room, Shared};
+use crate::vocabulary::ResolvedVocabulary;
 
 /// One admitted, queued document: everything a batch run needs, the
 /// model load held alive by its Arc from admission through the run, so
@@ -40,7 +43,8 @@ pub(crate) struct Doc {
     pub(crate) sparse_top_k: u32,
     pub(crate) sparse_floor: f32,
     pub(crate) token_stride: u32,
-    pub(crate) loaded: Arc<Loaded>,
+    pub(crate) vocabulary: ResolvedVocabulary,
+    pub(crate) loaded: Option<Arc<Loaded>>,
     pub(crate) model: String,
     pub(crate) version: String,
     pub(crate) batch_limit: u32,
@@ -94,11 +98,14 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
         AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => (0, 0, 0, 0),
         AnalyzeOutput::SparseTerms => (d.offsets.to_proto(), d.sparse_top_k, d.sparse_floor.to_bits(), 0),
         AnalyzeOutput::TokenVectors => (d.offsets.to_proto(), 0, 0, d.token_stride),
+        AnalyzeOutput::DocumentGraph => (d.offsets.to_proto(), 0, 0, 0),
     };
     let ranges = d.int8_ranges.as_ref().map(|r| r.iter().map(|v| v.to_bits()).collect()).unwrap_or_default();
+    let (stop_digest, gloss_digest) = d.vocabulary.batch_digests();
+    let load_ptr = d.loaded.as_ref().map_or(0, |l| Arc::as_ptr(l) as usize);
     (
         (
-            Arc::as_ptr(&d.loaded) as usize,
+            load_ptr,
             d.output as i32,
             offsets,
             o.truncate,
@@ -111,7 +118,7 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
             floor,
             stride,
         ),
-        (o.quantization, ranges),
+        (o.quantization, ranges, stop_digest, gloss_digest),
     )
 }
 
@@ -210,7 +217,7 @@ fn run_structured(
         quantization: 0,
         rows: Err(Whole { failure, docs, permits }),
     };
-    let loaded = docs[0].loaded.clone();
+    let loaded = docs[0].loaded.clone().expect("model required for structured embed outputs");
     let embed = match loaded.embed() {
         Ok(e) => e,
         Err(f) => return fail(f, docs, permits),
@@ -237,7 +244,7 @@ fn run_structured(
         AnalyzeOutput::TokenVectors => {
             embed.run_token_vectors_batch(shared, dead, slot, &texts, opts, offsets, docs[0].token_stride)
         }
-        AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => unreachable!(),
+        AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes | AnalyzeOutput::DocumentGraph => unreachable!(),
     };
     drop(texts);
     let outcomes = match computed {
@@ -257,6 +264,82 @@ fn run_structured(
             window: permits.next().expect("one window permit per document"),
         })
         .collect();
+    Outcome { model, version, dim: 0, quantization: 0, rows: Ok(rows) }
+}
+
+/// Runs one batch of `ANALYZE_OUTPUT_DOCUMENT_GRAPH` documents through the
+/// CPU progressive analysis pipeline, applying the batch's resolved
+/// vocabulary bindings (`#2013`).
+pub(crate) fn run_document_graph(
+    shared: &Shared,
+    dead: &AtomicBool,
+    docs: Vec<Doc>,
+    permits: Vec<OwnedSemaphorePermit>,
+) -> Outcome {
+    let (model, version) = (docs[0].model.clone(), docs[0].version.clone());
+    let fail = |failure, docs, permits| Outcome {
+        model: model.clone(),
+        version: version.clone(),
+        dim: 0,
+        quantization: 0,
+        rows: Err(Whole { failure, docs, permits }),
+    };
+    if dead.load(Ordering::Acquire) {
+        return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
+    }
+    let mut graph_docs = Vec::with_capacity(docs.len());
+    for d in &docs {
+        let Ok(text) = std::str::from_utf8(&d.text) else {
+            return fail(Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"), docs, permits);
+        };
+        graph_docs.push(turbo_analysis::Document::new(text));
+    }
+    let analyzer = match crate::progressive::compile_pipeline(
+        &graph_docs[0],
+        crate::progressive::DEFAULT_STEPS,
+        None,
+        "",
+        "",
+        &[],
+        None,
+        &docs[0].vocabulary,
+    ) {
+        Ok(a) => a,
+        Err(failure) => return fail(failure, docs, permits),
+    };
+    shared.metrics.record_batch_size(docs.len());
+    shared.runs.fetch_add(1, Ordering::Relaxed);
+    for res in analyzer.run(&mut graph_docs) {
+        if let Err(e) = res {
+            return fail(Failure::new(TURBO_E_INTERNAL, 0, e.to_string()), docs, permits);
+        }
+    }
+    let mut permits = permits.into_iter();
+    let mut rows = Vec::with_capacity(docs.len());
+    let mut docs_iter = docs.into_iter();
+    for gdoc in graph_docs {
+        let d = docs_iter.next().expect("one document per graph");
+        let permit = permits.next().expect("one window permit per document");
+        let mut resp = match export_document_response(&gdoc, &Disclosure::FULL) {
+            Ok(r) => r,
+            Err(f) => {
+                let mut rem_docs = vec![d];
+                rem_docs.extend(docs_iter);
+                let mut rem_permits = vec![permit];
+                rem_permits.extend(permits);
+                return fail(f, rem_docs, rem_permits);
+            }
+        };
+        resp.findings = resp.findings.map(|f| crate::results::typed::identity::bound(f, d.binding.as_ref()));
+        rows.push(Row {
+            seq: d.seq,
+            id: d.id,
+            binding: d.binding,
+            payload: RowPayload::Outcome(Box::new(ProtoOutcome::DocumentGraph(resp))),
+            room: d.room,
+            window: permit,
+        });
+    }
     Outcome { model, version, dim: 0, quantization: 0, rows: Ok(rows) }
 }
 
