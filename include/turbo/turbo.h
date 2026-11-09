@@ -287,7 +287,7 @@ typedef struct turbo_device_info {
                                   * filed under arch and name together */
     char     name[128];          /* what the driver calls it */
     char     vendor[64];
-    char     backend[32];        /* cuda, openvino, metal, hailo, ggml */
+    char     backend[32];        /* cuda, levelzero, metal, hailo, npu or cpu */
     char     runtime_version[64];   /* the vendor runtime this build linked */
     char     driver_version[64];    /* empty where there is none */
 } turbo_device_info;
@@ -318,7 +318,7 @@ int32_t turbo_runtime_create(const turbo_runtime_desc *desc, turbo_runtime **out
 void    turbo_runtime_release(turbo_runtime *rt);
 
 /* The library version and the backends compiled into this build, as a
- * static string: "0.1.0 cuda openvino". */
+ * static string, accelerators first and the CPU last: "0.1.0 cuda cpu". */
 const char *turbo_version(void);
 /* The status constant's name as this file spells it: "TURBO_OK" for 0,
  * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
@@ -709,7 +709,8 @@ int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch
  * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
-/* Cross-encoder reranking, on the CPU or through CUDA's embedding encoder. Output is [pair_count, 1] F32 raw relevance
+/* Cross-encoder reranking, on the CPU or through the CUDA, Level Zero or
+ * Metal embedding encoder. Output is [pair_count, 1] F32 raw relevance
  * logits, max-pooled over passage windows. Model and artifact identity are
  * in turbo_result_info. No sigmoid is applied. */
 typedef struct turbo_rerank_options {
