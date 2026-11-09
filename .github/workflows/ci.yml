@@ -108,11 +108,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: bufbuild/buf-setup-action@v1
+      # Cached install: buf-setup-action downloads from GitHub Releases on
+      # every run and failed merge-queue run 42580497484 three times with
+      # HTTP 504. The composite action hits the Actions cache for the same
+      # OS/arch/version and only downloads with curl retries on a miss.
+      - uses: ./.github/actions/setup-buf
         with:
           version: 1.70.0
-          # Authenticated, so the version lookup is not rate limited.
-          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: buf lint
         run: buf lint server/proto
       - name: buf breaking against main
