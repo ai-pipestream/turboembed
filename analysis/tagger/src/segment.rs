@@ -18,7 +18,7 @@ use turbo::head::tagger::Work;
 use turbo::head::{SentenceBoundary, TokenSplitter};
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo::status::Error as CoreError;
-use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, IxRange, Layer as _, ModelRef, Refs, Span, Spans, View};
+use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer as _, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Sentences, Subwords, Tokens, Words};
 
@@ -284,25 +284,6 @@ pub(crate) fn split_with(
     Ok(out)
 }
 
-/// Byte sub-spans when `ws` is two or more non-empty pieces that tile
-/// `surface` from start to end.
-fn subspans_of(surface: &str, span: Span, ws: &[String]) -> Option<Vec<Span>> {
-    if ws.len() < 2 {
-        return None;
-    }
-    let mut out = Vec::with_capacity(ws.len());
-    let mut off = 0usize;
-    for w in ws {
-        if w.is_empty() || !surface[off..].starts_with(w.as_str()) {
-            return None;
-        }
-        let next = off + w.len();
-        out.push(Span::new(span.start + off as u32, span.start + next as u32));
-        off = next;
-    }
-    (off == surface.len()).then_some(out)
-}
-
 /// The syntactic words layer from each sequence's decoded words.
 pub(crate) fn word_layer(
     view: &View,
@@ -316,26 +297,6 @@ pub(crate) fn word_layer(
             of[i] = Some(ws);
         }
     }
-    let text = view.text();
-    let mut out = Words::new();
-    for (i, entry) in of.into_iter().enumerate() {
-        let ws = entry.ok_or("a token lies outside every sentence")?;
-        let t = Ix::<Tokens>::new(i as u32);
-        let span = tokens.spans.get(t);
-        let surface = &text[span.range()];
-        let range = IxRange::new(i as u32, i as u32 + 1);
-        if ws.len() == 1 && ws[0] == surface {
-            out.push_token(t);
-        } else if let Some(subs) = subspans_of(surface, span, &ws) {
-            for sub in subs {
-                out.push_word(range, None, Some(sub));
-            }
-        } else {
-            for w in &ws {
-                out.push_word(range, Some(w), None);
-            }
-        }
-    }
-    out.check_against(text, tokens)?;
-    Ok(out)
+    let split = of.into_iter().collect::<Option<Vec<_>>>().ok_or("a token lies outside every sentence")?;
+    Words::from_splits(view.text(), tokens, &split)
 }
