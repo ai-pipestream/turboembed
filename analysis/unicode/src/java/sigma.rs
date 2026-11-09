@@ -115,6 +115,7 @@ impl<'a> SigmaCursor<'a> {
         let mut jump_start = None;
         let mut cased_seen = false;
         for (offset, c) in self.text[self.cursor..at].char_indices().rev() {
+            visited();
             let i = self.cursor + offset;
             cased_seen |= java_cased(c);
             let class = word_class(c);
@@ -198,6 +199,7 @@ impl<'a> SigmaCursor<'a> {
     /// Steps the word-boundary state machine across character `c` at byte `i`
     /// and returns whether a word boundary precedes `c`.
     fn step_char(&mut self, i: usize, c: char, force_boundary: bool) -> bool {
+        visited();
         let class = word_class(c);
         let after = i + c.len_utf8();
         let text = self.text;
@@ -215,6 +217,24 @@ impl<'a> SigmaCursor<'a> {
         boundary
     }
 }
+
+#[cfg(test)]
+thread_local! {
+    /// Characters the final-sigma machine has looked at (backward, stepped or
+    /// scanned ahead), so a test can hold it linear without a clock.
+    static VISITED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// One character looked at.
+#[inline]
+fn visited() {
+    #[cfg(test)]
+    VISITED.with(|n| n.set(n.get() + 1));
+}
+
+#[cfg(test)]
+#[path = "sigma_tests.rs"]
+mod tests;
 
 /// Returns the `WordClass` of the first character at or after `after` that is
 /// not `WordClass::Transparent`, advancing `nt_scanned` monotonically so a run
@@ -239,6 +259,7 @@ fn next_non_transparent(
     let scan_start = if *nt_from <= after && *nt_scanned > after { *nt_scanned } else { after };
     *nt_from = after;
     for (offset, c) in text[scan_start..].char_indices() {
+        visited();
         let pos = scan_start + offset;
         let class = word_class(c);
         *nt_scanned = pos + c.len_utf8();

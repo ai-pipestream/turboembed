@@ -336,6 +336,8 @@ fn find_comment_close(text: &str, from: usize) -> Option<(usize, usize)> {
     let bytes = text.as_bytes();
     let mut at = from;
     while let Some(off) = text[at..].find("--") {
+        #[cfg(test)]
+        COMMENT_SCAN.with(|n| n.set(n.get() + off as u64 + 2));
         let dashes = at + off;
         match bytes.get(dashes + 2) {
             Some(b'>') => return Some((dashes, 3)),
@@ -343,7 +345,16 @@ fn find_comment_close(text: &str, from: usize) -> Option<(usize, usize)> {
             _ => at = dashes + 1,
         }
     }
+    #[cfg(test)]
+    COMMENT_SCAN.with(|n| n.set(n.get() + (text.len() - at) as u64));
     None
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Bytes `find_comment_close` has looked at, so a test can hold the
+    /// comment scan linear without a clock.
+    static COMMENT_SCAN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// The offset of the `</name` closing a raw-text element:
@@ -415,4 +426,27 @@ fn is_block(name: &str) -> bool {
         "ul",
     ];
     BLOCK.iter().any(|b| name.eq_ignore_ascii_case(b))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn comment_scan(comments: usize) -> u64 {
+        let text = "<!-- c -->word ".repeat(comments);
+        COMMENT_SCAN.with(|n| n.set(0));
+        assert_eq!(crate::apply(&HtmlTagStripNormalizer::new(), &text), "word ".repeat(comments));
+        COMMENT_SCAN.with(std::cell::Cell::get)
+    }
+
+    #[test]
+    fn each_comment_close_search_stops_at_its_own_closer() {
+        let (n1, n4) = (comment_scan(25_000), comment_scan(100_000));
+        // One forward scan from each opener to its closer: a few bytes a
+        // comment, four times as many for four times the comments. A search
+        // that rescanned to the end of input would grow sixteen times.
+        assert!(n1 > 0 && n4 <= 4 * n1, "comment scanning grew faster than the text: N={n1}, 4N={n4}");
+        let len = "<!-- c -->word ".len() as u64 * 100_000;
+        assert!(n4 <= len, "{n4} bytes looked at for {len} bytes of text");
+    }
 }

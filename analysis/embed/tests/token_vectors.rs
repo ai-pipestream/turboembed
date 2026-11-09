@@ -438,29 +438,19 @@ fn subword_vectors_annotator_and_provider_populate_document_layer() {
 fn token_placement_scales_linearly_and_batch_matches_single_doc() {
     use turbo_analysis_embed::window::{Plan, Target, Which};
 
-    // 1. Scaling check on 20k and 80k pieces with width=64, stride=32:
-    // each piece is covered by at most 2 windows, so the active-window
-    // sweep is linear. Best of five runs each, since one run can be
-    // preempted on a loaded runner while a quadratic sweep is slow on
-    // every run: 4N stays under eight times N, which a quadratic sweep
-    // (sixteen) does not.
-    let [n1, n4] = [20_000u32, 80_000].map(|pieces| {
+    // 1. Placement at 20k and 80k pieces with width=64, stride=32 is the
+    // most interior window of every sampled piece. That the sweep is linear
+    // is held by counting the windows it looks at, in the crate's own tests
+    // (window::tests), not by a clock.
+    for pieces in [20_000u32, 80_000] {
         let wins = plan_sliding_windows(0, pieces, 64, 32);
-        let mut elapsed = u128::MAX;
-        let mut placed = Vec::new();
-        for _ in 0..5 {
-            let t0 = std::time::Instant::now();
-            placed = place_tokens_in_windows(0, pieces, &wins);
-            elapsed = elapsed.min(t0.elapsed().as_nanos().max(1));
-        }
+        let placed = place_tokens_in_windows(0, pieces, &wins);
         assert_eq!(placed.len(), pieces as usize);
         for sample in [0u32, 31, 32, 47, 48, 63, 64, pieces / 2, pieces - 1] {
             let want = most_interior_window(0, sample, &wins).unwrap();
             assert_eq!((placed[sample as usize].window, placed[sample as usize].interior_distance), want);
         }
-        elapsed
-    });
-    assert!(n4 < n1.saturating_mul(8), "4N/N token placement time ratio too high: N={n1}ns, 4N={n4}ns");
+    }
 
     // 2. Multi-document Plan::place_tokens and embed_subword_tokens_batch equivalence:
     let mut batch_plan = Plan::new(10);

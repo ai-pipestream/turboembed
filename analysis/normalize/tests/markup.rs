@@ -177,23 +177,17 @@ fn named_reference_lookahead_never_panics_on_multibyte_text() {
 }
 
 #[test]
-fn comment_stripping_scales_linearly() {
-    // A quadratic close search rescans to end of input per
-    // comment: at 100k comments that is hundreds of gigabytes
-    // of scanning, far past any ceiling, while the linear
-    // scan is milliseconds even unoptimized.
-    // N and 4N comments, best of five each: a linear scan takes about
-    // four times as long on the larger text, a quadratic one sixteen.
-    let [n1, n4] = [25_000usize, 100_000].map(|n| {
-        let text = "<!-- c -->word ".repeat(n);
-        assert_eq!(stripped(&text), "word ".repeat(n));
-        best_of_five(|| drop(std::hint::black_box(stripped(&text))))
-    });
-    assert!(n4 < n1.saturating_mul(8), "4N/N stripping time ratio too high: N={n1}ns, 4N={n4}ns");
+fn many_comments_strip_to_their_words() {
+    // That the closer search is one forward scan, never a rescan to the end
+    // of input per comment, is held by counting the bytes it looks at in the
+    // crate's own tests (markup::tests), not by a clock.
+    for n in [25_000usize, 100_000] {
+        assert_eq!(stripped(&"<!-- c -->word ".repeat(n)), "word ".repeat(n));
+    }
 }
 
 #[test]
-fn entity_decoding_scales_linearly() {
+fn entity_decoding_of_mixed_references() {
     let unit = "&amp; x &zzzzzzzzzzzz y &#169; ";
     let unit_out = "& x &zzzzzzzzzzzz y \u{a9} ";
     assert_eq!(decoded(unit), unit_out);
@@ -202,29 +196,12 @@ fn entity_decoding_scales_linearly() {
     assert_eq!(decoded("&"), "&");
     assert_eq!(decoded("&;"), "&;");
     assert_eq!(decoded("&9lives;"), "&9lives;");
-    // ~4 MB of mixed valid, unknown, and numeric references:
-    // per-'&' work is one run scan and at most seven dispatched
-    // lookups, never 32 lengths times six binary searches.
-    // N and 4N units, best of five each, as for comments above.
-    let [n1, n4] = [8_000usize, 32_000].map(|n| {
-        let text = unit.repeat(n);
-        assert_eq!(decoded(&text), unit_out.repeat(n));
-        best_of_five(|| drop(std::hint::black_box(decoded(&text))))
-    });
-    assert!(n4 < n1.saturating_mul(8), "4N/N decoding time ratio too high: N={n1}ns, 4N={n4}ns");
-}
-
-/// The fastest of five runs of `f`, in nanoseconds, at least 1: one run
-/// can be preempted on a loaded runner, a superlinear one is slow on all.
-fn best_of_five(mut f: impl FnMut()) -> u128 {
-    (0..5)
-        .map(|_| {
-            let start = std::time::Instant::now();
-            f();
-            start.elapsed().as_nanos().max(1)
-        })
-        .min()
-        .unwrap()
+    // Valid, unknown and numeric references repeated. The work a reference
+    // costs (one name scan, at most seven table lookups) is counted in the
+    // crate's own tests (entities::tests), not timed.
+    for n in [8_000usize, 32_000] {
+        assert_eq!(decoded(&unit.repeat(n)), unit_out.repeat(n));
+    }
 }
 
 #[test]

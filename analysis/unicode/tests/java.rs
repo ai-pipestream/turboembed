@@ -407,10 +407,10 @@ fn sigma_dense_property_suite_matches_per_character_oracle() {
 }
 
 #[test]
-fn ten_thousand_sigma_words_scale_linearly() {
-    // Each case at N and 4N sigmas: the output is checked at both sizes,
-    // and the best of five timings at 4N stays under eight times the one
-    // at N, which a linear pass meets and a quadratic one (sixteen) does not.
+fn ten_thousand_sigma_words_lowercase_whole() {
+    // Each case at N and 4N sigmas lowercases to the expected text at both
+    // sizes. How much work the pass does is counted in the unit test next to
+    // the sigma code, so nothing here depends on the clock.
     type Case = fn(usize) -> (String, String);
     let cases: [(&str, Case); 4] = [
         // 1. Contiguous sigmas: all small sigma, the last a final sigma.
@@ -435,18 +435,9 @@ fn ten_thousand_sigma_words_scale_linearly() {
         }),
     ];
     for (what, case) in cases {
-        let [n1, n4] = [2_500usize, 10_000].map(|n| {
+        for n in [2_500usize, 10_000] {
             let (text, expected) = case(n);
             assert_eq!(java::lowercase_cow(&text).as_ref(), expected, "{what} at {n}");
-            (0..5)
-                .map(|_| {
-                    let start = std::time::Instant::now();
-                    std::hint::black_box(java::lowercase_cow(&text));
-                    start.elapsed().as_nanos().max(1)
-                })
-                .min()
-                .unwrap()
-        });
-        assert!(n4 < n1.saturating_mul(8), "{what}: 4N/N lowercasing time ratio too high: N={n1}ns, 4N={n4}ns");
+        }
     }
 }

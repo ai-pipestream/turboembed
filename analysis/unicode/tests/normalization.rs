@@ -1,7 +1,6 @@
 //! Conformance with NormalizationTest.txt and checks of the run splitting.
 
 use std::collections::HashSet;
-use std::time::Instant;
 
 use turbo_unicode::hf;
 use turbo_unicode::normalize::{
@@ -258,13 +257,12 @@ fn quick_check_values() {
 
 /// One run of combining marks whose classes alternate (U+0301 is class
 /// 230, U+0323 class 220): canonical ordering moves each lower mark
-/// before every higher mark ahead of it. Ordering by insertion was
-/// quadratic in the run, so a text of a few hundred kilobytes of marks
-/// alone held a thread for seconds. Each of the three normalizers
-/// orders a run in close to linear time and puts the lower class first,
-/// keeping the order within a class.
+/// before every higher mark ahead of it, keeping the order within a
+/// class. Each of the three normalizers orders runs of 100k and 400k
+/// marks; the unit test next to the ordering counts its class lookups,
+/// so nothing here depends on the clock.
 #[test]
-fn a_long_run_of_combining_marks_orders_in_linear_time() {
+fn a_long_run_of_combining_marks_puts_the_lower_class_first() {
     let run = |marks: usize| -> String { (0..marks).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect() };
     let check = |what: &str, marks: usize, out: Vec<char>| {
         assert_eq!(out.len(), marks, "{what}");
@@ -272,26 +270,12 @@ fn a_long_run_of_combining_marks_orders_in_linear_time() {
         assert_eq!(above, marks / 2, "{what}: every lower mark first");
         assert!(out[above..].iter().all(|&c| c == '\u{301}'), "{what}: the higher marks after");
     };
-    // N and 4N marks, best of three each: ordering by insertion takes
-    // sixteen times as long on the longer run, a linear order about four.
-    let ratio = |what: &str, f: &dyn Fn(&str) -> Vec<char>| {
-        let [n1, n4] = [100_000usize, 400_000].map(|marks| {
-            let text = run(marks);
-            check(what, marks, f(&text));
-            (0..3)
-                .map(|_| {
-                    let start = Instant::now();
-                    std::hint::black_box(f(&text));
-                    start.elapsed().as_nanos().max(1)
-                })
-                .min()
-                .unwrap()
-        });
-        assert!(n4 < n1.saturating_mul(8), "{what}: 4N/N ordering time ratio too high: N={n1}ns, 4N={n4}ns");
-    };
-    for form in [Form::Nfd, Form::Nfc] {
-        ratio(&format!("normalize {form:?}"), &|t| norm(form, t).chars().collect());
-        ratio(&format!("aligned {form:?}"), &|t| aligned(form, t).map(|(c, _)| c).collect());
-        ratio(&format!("hf::aligned {form:?}"), &|t| hf::aligned(form, t).map(|(c, _)| c).collect());
+    for marks in [100_000usize, 400_000] {
+        let text = run(marks);
+        for form in [Form::Nfd, Form::Nfc] {
+            check(&format!("normalize {form:?}"), marks, norm(form, &text).chars().collect());
+            check(&format!("aligned {form:?}"), marks, aligned(form, &text).map(|(c, _)| c).collect());
+            check(&format!("hf::aligned {form:?}"), marks, hf::aligned(form, &text).map(|(c, _)| c).collect());
+        }
     }
 }
