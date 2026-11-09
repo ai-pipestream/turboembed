@@ -45,6 +45,7 @@ import turbo.result.v1.TurboPiiPolicy.PiiTruncateStrategy;
 import turbo.result.v1.TurboPiiPolicy.RedactionPolicy;
 import turbo.result.v1.TurboTypedAnnotations.AnchorKind;
 import turbo.result.v1.TurboTypedAnnotations.EditRun;
+import turbo.result.v1.TurboTypedAnnotations.FragmentMember;
 import turbo.result.v1.TurboTypedAnnotations.InlineMapping;
 import turbo.result.v1.TurboTypedAnnotations.InspectDocumentGraphRequest;
 import turbo.result.v1.TurboTypedAnnotations.LayerProvenance;
@@ -54,7 +55,9 @@ import turbo.result.v1.TurboTypedAnnotations.MappingPayload;
 import turbo.result.v1.TurboTypedAnnotations.OffsetMode;
 import turbo.result.v1.TurboTypedAnnotations.PiiCandidateAnnotation;
 import turbo.result.v1.TurboTypedAnnotations.PiiConfidenceTier;
+import turbo.result.v1.TurboTypedAnnotations.PiiDisposition;
 import turbo.result.v1.TurboTypedAnnotations.PiiEditAnnotation;
+import turbo.result.v1.TurboTypedAnnotations.PiiEvidence;
 import turbo.result.v1.TurboTypedAnnotations.PiiKindId;
 import turbo.result.v1.TurboTypedAnnotations.PiiKindRef;
 import turbo.result.v1.TurboTypedAnnotations.PiiMention;
@@ -62,6 +65,11 @@ import turbo.result.v1.TurboTypedAnnotations.PiiOutputOptions;
 import turbo.result.v1.TurboTypedAnnotations.PiiPlannedRewrite;
 import turbo.result.v1.TurboTypedAnnotations.PiiStrategy;
 import turbo.result.v1.TurboTypedAnnotations.PiiValue;
+import turbo.result.v1.TurboTypedAnnotations.PiiValueCiphertext;
+import turbo.result.v1.TurboTypedAnnotations.PiiValueForm;
+import turbo.result.v1.TurboTypedAnnotations.PiiValueToken;
+import turbo.result.v1.TurboTypedAnnotations.PiiValueWithheld;
+import turbo.result.v1.TurboTypedAnnotations.PiiWithheldReason;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingReceipt;
 import turbo.result.v1.TurboTypedAnnotations.ProcessingStatus;
 import turbo.result.v1.TurboTypedAnnotations.ScopedRef;
@@ -251,9 +259,12 @@ final class Conformance {
     /** The document holds PII: its text and graph only come back when asked for (#1904). */
     static final PiiOutputOptions FULL_TEXT = PiiOutputOptions.newBuilder().setFullText(true).build();
     static final PiiOutputOptions FINDINGS_ONLY = PiiOutputOptions.getDefaultInstance();
+    static final String CASES_PROPERTY = "turbo.mapping.cases";
     static final Path CASES = Path.of("clients", "java", "src", "test", "resources", "mapping-cases.txt");
     /** Projected fragments seen per {@link SpanOutcome} number over the mapping cases. */
     static final int[] OUTCOMES = new int[4];
+    /** Coalesced {@link FragmentMember} outcomes seen per {@link SpanOutcome} number over the mapping cases. */
+    static final int[] MEMBER_OUTCOMES = new int[4];
 
     private Conformance() {}
 
@@ -276,6 +287,8 @@ final class Conformance {
         unknownFields(stub, source);
         unknownEnums(stub, source);
         disclosure(stub, graph, source, masked, pii);
+        releasedValues(stub, graph, source, pii);
+        editsAndCandidates(stub);
         int cases = mappingCases(stub);
         System.out.println("java conformance ok: mentions=" + pii.getAnnotationsCount() + " views="
                 + source.getViewsCount() + " mapping cases=" + cases);
@@ -406,6 +419,7 @@ final class Conformance {
     }
 
     // Envelope: identities, views, provenance and the PII layer as produced.
+    @SuppressWarnings("deprecation")
     static void envelope(TypedDocumentResult source, TypedDocumentResult masked) {
         check(source.getRawText().equals(TEXT), "source raw_text is not the text sent");
         check(!masked.getRawText().equals(TEXT) && !masked.getRawText().contains(VALUE),
@@ -710,6 +724,7 @@ final class Conformance {
     // full_text the source view holds it once, in raw_text; with
     // rewritten_text the masked view shows its own text and not the value.
     // Searched in the bytes, not in toString().
+    @SuppressWarnings("deprecation")
     static void disclosure(AnalysisServiceBlockingStub stub, ByteString graph, TypedDocumentResult source,
             TypedDocumentResult masked, TypedLayer pii) {
         byte[] value = utf8(VALUE);
@@ -741,10 +756,351 @@ final class Conformance {
         check(inspect(stub, graph, 0, rewritten).getRawText().isEmpty(), "rewritten_text shows the source text");
     }
 
+    /**
+     * Released value forms (#1909, #1938): a {@link PiiValue} other than
+     * {@code withheld} is produced by {@code InspectDocumentGraph} only under a
+     * grant.
+     *
+     * <ul>
+     *   <li>The default answer keeps {@code withheld} with
+     *       {@code PII_WITHHELD_REASON_NOT_REQUESTED}; missing, unspecified or
+     *       unknown withheld reasons are refused by {@code RoundTripTypedDocument}.
+     *   <li>An unknown {@link PiiValue} oneof arm is an unknown field to Java
+     *       ({@code FORM_NOT_SET}, {@code getClear().isEmpty()}, never shown as
+     *       clear text) and is refused by Rust as a value with no form.
+     *   <li>A 32-byte {@link PiiValueToken} naming its key id and version
+     *       round-trips through Java and {@code RoundTripTypedDocument}, and its
+     *       bytes do not contain the planted value; malformed tokens and
+     *       ciphertext values (waiting for #1885) are refused without echoing
+     *       their contents.
+     *   <li>Live {@code InspectDocumentGraph} release of {@code PII_VALUE_FORM_TOKEN}
+     *       requires mTLS ({@code --tls-cert}, {@code --tls-key},
+     *       {@code --tls-client-ca}) with a verified client certificate granted
+     *       {@code token} in {@code --pii-release-config} and an audit service
+     *       acknowledgment. Where the test server has that grant configured, the
+     *       live token response is checked to carry 32-byte tokens and never the
+     *       planted value; on the plaintext {@code proto} lane server started by
+     *       {@code scripts/package-proto-stubs.sh} without mTLS or release
+     *       config, the request is refused with {@code UNIMPLEMENTED} and no
+     *       planted value in the status.
+     * </ul>
+     */
+    static void releasedValues(AnalysisServiceBlockingStub stub, ByteString graph, TypedDocumentResult source,
+            TypedLayer pii) throws Exception {
+        byte[] value = utf8(VALUE);
+        for (TypedAnnotation a : pii.getAnnotationsList()) {
+            PiiValue v = a.getPii().getValue();
+            check(v.getFormCase() == PiiValue.FormCase.WITHHELD, "default answer form " + v.getFormCase());
+            check(v.getWithheld().getReason() == PiiWithheldReason.PII_WITHHELD_REASON_NOT_REQUESTED,
+                    "default withheld reason " + v.getWithheld().getReason());
+        }
+        TypedDocumentResult findings = inspect(stub, graph, 0, FINDINGS_ONLY);
+        for (TypedAnnotation a : layer(findings, "turbo:pii").getAnnotationsList()) {
+            PiiValue v = a.getPii().getValue();
+            check(v.getFormCase() == PiiValue.FormCase.WITHHELD
+                    && v.getWithheld().getReason() == PiiWithheldReason.PII_WITHHELD_REASON_NOT_REQUESTED,
+                    "findings-only mention value is not withheld(NOT_REQUESTED)");
+        }
+
+        // An unknown PiiValue oneof arm (field 999) is an unknown field to Java,
+        // never shown as clear text, and refused by Rust on RoundTripTypedDocument.
+        PiiValue unknownArm = PiiValue.parseFrom(UNKNOWN_FIELD);
+        check(unknownArm.getFormCase() == PiiValue.FormCase.FORM_NOT_SET
+                && unknownArm.getUnknownFields().hasField(999)
+                && unknownArm.getClear().isEmpty(),
+                "Java read the unknown PiiValue arm as a known form or clear text");
+        TypedDocumentResult withUnknownValue = withAnnotation(findings, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setValue(unknownArm)));
+        check(layer(TypedDocumentResult.parseFrom(withUnknownValue.toByteArray()), "turbo:pii")
+                .getAnnotations(0).getPii().getValue().getUnknownFields().hasField(999),
+                "Java dropped the unknown PiiValue field on re-encode");
+        String why = refused(stub, withUnknownValue, "unknown PiiValue arm");
+        check(why.contains("pii mention value has no form"), "unknown PiiValue arm refused for another reason: " + why);
+
+        // Missing or unrecognized withheld reasons and ciphertext (#1885) are refused.
+        TypedDocumentResult unspecifiedReason = withAnnotation(findings, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setValue(PiiValue.newBuilder()
+                        .setWithheld(PiiValueWithheld.newBuilder()
+                                .setReason(PiiWithheldReason.PII_WITHHELD_REASON_UNSPECIFIED)))));
+        why = refused(stub, unspecifiedReason, "unspecified withheld reason");
+        check(why.contains("without a known reason"), "unspecified withheld reason: " + why);
+
+        TypedDocumentResult unknownReason = withAnnotation(findings, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setValue(PiiValue.newBuilder()
+                        .setWithheld(PiiValueWithheld.newBuilder().setReasonValue(UNKNOWN_ENUM)))));
+        check(layer(unknownReason, "turbo:pii").getAnnotations(0).getPii().getValue().getWithheld().getReason()
+                == PiiWithheldReason.UNRECOGNIZED, "withheld reason 99 in Java");
+        why = refused(stub, unknownReason, "unknown withheld reason");
+        check(why.contains("without a known reason"), "unknown withheld reason: " + why);
+
+        TypedDocumentResult ciphertext = withAnnotation(findings, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setValue(PiiValue.newBuilder()
+                        .setCiphertext(PiiValueCiphertext.newBuilder()
+                                .setCiphertext(ByteString.copyFromUtf8("planted-cipher"))
+                                .setKeyId("planted-key")
+                                .setKeyVersion(1)
+                                .setScheme("aes-gcm")))));
+        why = refused(stub, ciphertext, "ciphertext PiiValue");
+        check(why.contains("ciphertext") && !why.contains("planted-cipher") && !why.contains("planted-key"),
+                "ciphertext refusal: " + why);
+
+        // A 32-byte keyed token carries no planted value and survives the round trip.
+        byte[] hmacBytes = new byte[32];
+        Arrays.fill(hmacBytes, (byte) 0x5a);
+        PiiValueToken token = PiiValueToken.newBuilder()
+                .setToken(ByteString.copyFrom(hmacBytes))
+                .setKeyId("conformance-hmac")
+                .setKeyVersion(3)
+                .build();
+        check(count(token.getToken().toByteArray(), value) == 0 && count(token.toByteArray(), value) == 0,
+                "token bytes hold the planted value");
+        TypedDocumentResult withToken = withAnnotation(findings, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setValue(PiiValue.newBuilder().setToken(token))));
+        check(count(withToken.toByteArray(), value) == 0, "the token-bearing findings message holds the planted value");
+        TypedDocumentResult tokenBack = roundTrip(stub, withToken);
+        PiiValue tokenValueBack = layer(tokenBack, "turbo:pii").getAnnotations(0).getPii().getValue();
+        check(tokenValueBack.getFormCase() == PiiValue.FormCase.TOKEN
+                && tokenValueBack.getToken().equals(token), "token did not survive RoundTripTypedDocument");
+
+        TypedDocumentResult shortToken = withAnnotation(findings, "turbo:pii", 0,
+                b -> b.setPii(b.getPii().toBuilder().setValue(PiiValue.newBuilder()
+                        .setToken(token.toBuilder().setToken(ByteString.copyFrom(new byte[16]))))));
+        why = refused(stub, shortToken, "short token");
+        check(why.contains("not 32 bytes"), "short token refusal: " + why);
+
+        // Live token grant over InspectDocumentGraph: succeeds only when the
+        // server has mTLS and --pii-release-config granting token access;
+        // refused with UNIMPLEMENTED on the plaintext proto lane server.
+        PiiOutputOptions askToken = PiiOutputOptions.newBuilder()
+                .setValues(PiiValueForm.PII_VALUE_FORM_TOKEN)
+                .build();
+        try {
+            TypedDocumentResult granted = inspect(stub, graph, 0, askToken);
+            check(count(granted.toByteArray(), value) == 0, "granted token response holds the planted value");
+            int tokensSeen = 0;
+            for (TypedAnnotation a : layer(granted, "turbo:pii").getAnnotationsList()) {
+                PiiValue gv = a.getPii().getValue();
+                if (gv.getFormCase() == PiiValue.FormCase.TOKEN) {
+                    PiiValueToken gt = gv.getToken();
+                    check(gt.getToken().size() == 32 && !gt.getKeyId().isEmpty() && gt.getKeyVersion() > 0,
+                            "granted token shape");
+                    check(count(gt.getToken().toByteArray(), value) == 0, "granted token bytes hold the planted value");
+                    tokensSeen++;
+                }
+            }
+            check(tokensSeen > 0, "token request succeeded without a granted token");
+            roundTrip(stub, granted);
+        } catch (StatusRuntimeException e) {
+            check(e.getStatus().getCode() == Status.Code.UNIMPLEMENTED,
+                    "plaintext server without release config answered " + e.getStatus().getCode());
+            check(count(utf8(String.valueOf(e.getStatus().getDescription())), value) == 0,
+                    "refusal status holds the planted value");
+        }
+    }
+
+    /**
+     * Edits ({@code turbo:pii-edits}, arm 98) and candidates
+     * ({@code turbo:pii-candidates}, arm 99) layers through the round trip on a
+     * document with two derived views ({@code masked} and {@code redacted},
+     * #1902, #1903, #1921, #1938).
+     */
+    static void editsAndCandidates(AnalysisServiceBlockingStub stub) throws Exception {
+        String labelText = "social insurance number";
+        String sin = "046-454-286";
+        String sinDigits = "046454286";
+        String unlabelledImei = "490154203237518";
+        String text = "Contact " + VALUE + " or " + labelText + " " + sin
+                + " (device " + unlabelledImei + ") by Friday.";
+        byte[] emailBytes = utf8(VALUE);
+        byte[] sinBytes = utf8(sin);
+        byte[] sinDigitBytes = utf8(sinDigits);
+        byte[] imeiBytes = utf8(unlabelledImei);
+        byte[] labelBytes = utf8(labelText);
+
+        RedactionPolicy policy = Redaction.policy(7, Redaction.everyArm().get(7));
+        Iterator<AnalyzeProgressiveEvent> events = stub.withDeadlineAfter(60, TimeUnit.SECONDS)
+                .analyzeDocumentProgressive(AnalyzePipelineRequest.newBuilder()
+                        .setDocId(DOC)
+                        .setText(text)
+                        .setOffsets(OffsetMode.OFFSET_MODE_UTF8)
+                        .addAllSteps(List.of("turbo:pii", "turbo:pii-masked", Redaction.REDACT))
+                        .setOperationKey(OPERATION)
+                        .setPiiOutput(Redaction.REWRITTEN)
+                        .setPiiRedaction(PiiRedactionSelection.newBuilder().setInline(policy))
+                        .build());
+        ByteString graph = null;
+        while (events.hasNext()) {
+            AnalyzeProgressiveEvent event = events.next();
+            switch (event.getEventCase()) {
+                case STEP_FAILED -> throw new AssertionError("step " + event.getStepFailed().getStepId()
+                        + " failed: " + event.getStepFailed().getFailure().getMessage());
+                case COMPLETE -> graph = event.getComplete().getGraph();
+                default -> {}
+            }
+        }
+        check(graph != null, "two-view stream ended without the document");
+
+        // 1. With detail requested across all three views (source=0, masked=1, redacted=2).
+        for (int v = 0; v < 3; v++) {
+            TypedDocumentResult m = inspect(stub, graph, v, Redaction.REWRITTEN);
+            check(m.getViewsCount() == 3, "expected source, masked and redacted views, got " + m.getViewsCount());
+            check(chainView(m, 1).getInstance().equals("masked") && chainView(m, 2).getInstance().equals("redacted"),
+                    "views 1 and 2 are not masked and redacted");
+
+            TypedLayer piiLayer = layer(m, "turbo:pii");
+            TypedLayer editsLayer = layer(m, "turbo:pii-edits");
+            TypedLayer candidatesLayer = layer(m, "turbo:pii-candidates");
+            // The edits' view resolves through TypedLayer.native_view (#1921),
+            // which is the redacted view (2), not the first derived view (1).
+            check(editsLayer.hasNativeView() && editsLayer.getNativeView() == 2,
+                    "turbo:pii-edits native_view is not the redacted view (2): " + editsLayer.getNativeView());
+            check(chainView(m, editsLayer.getNativeView()).getInstance().equals("redacted"),
+                    "turbo:pii-edits native_view does not resolve to redacted");
+            check(editsLayer.getAnnotationsCount() >= 2, "expected at least two edits");
+            for (TypedAnnotation a : editsLayer.getAnnotationsList()) {
+                check(a.getValueCase() == TypedAnnotation.ValueCase.PII_EDIT
+                        && a.getValueCase().getNumber() == 98, "edit annotation arm is not 98");
+                PiiEditAnnotation e = a.getPiiEdit();
+                check(e.hasSource()
+                        && e.getSource().getOutcome() == SpanOutcome.SPAN_OUTCOME_EXACT
+                        && e.getSource().getMembersCount() == 0,
+                        "edit source is not EXACT with no members on view " + v);
+                if (v == editsLayer.getNativeView()) {
+                    check(a.getSpans(0).getOutcome() == SpanOutcome.SPAN_OUTCOME_EXACT,
+                            "edit span on its own redacted view is not EXACT");
+                }
+            }
+
+            check(candidatesLayer.getAnnotationsCount() >= 3,
+                    "expected kept and rejected candidates, got " + candidatesLayer.getAnnotationsCount());
+            boolean hasKept = false;
+            boolean hasRejected = false;
+            boolean hasLabelFact = false;
+            for (TypedAnnotation a : candidatesLayer.getAnnotationsList()) {
+                check(a.getValueCase() == TypedAnnotation.ValueCase.PII_CANDIDATE
+                        && a.getValueCase().getNumber() == 99, "candidate annotation arm is not 99");
+                PiiCandidateAnnotation c = a.getPiiCandidate();
+                if (c.getDisposition().getDispositionCase() == PiiDisposition.DispositionCase.KEPT) {
+                    hasKept = true;
+                } else if (c.getDisposition().getDispositionCase() == PiiDisposition.DispositionCase.REJECTED_BY_RULE) {
+                    hasRejected = true;
+                }
+                for (PiiEvidence ev : c.getEvidenceList()) {
+                    if (ev.getFactCase() == PiiEvidence.FactCase.LABEL) {
+                        hasLabelFact = true;
+                        SpanFragment ls = ev.getLabel().getSpan();
+                        if (v == 0) {
+                            String sliced = slice(m.getRawText(), Integer.toUnsignedLong(ls.getStart()),
+                                    Integer.toUnsignedLong(ls.getEnd()));
+                            check(sliced.equals(labelText), "label evidence span slices to " + sliced);
+                        }
+                    }
+                }
+            }
+            check(hasKept && hasRejected && hasLabelFact,
+                    "candidates missing kept, rejected or label fact on view " + v);
+
+            // Neither planted values nor evidence label text appear in the PII layers' bytes.
+            for (TypedLayer l : List.of(piiLayer, editsLayer, candidatesLayer)) {
+                byte[] lb = l.toByteArray();
+                for (byte[] secret : List.of(emailBytes, sinBytes, sinDigitBytes, imeiBytes, labelBytes)) {
+                    check(count(lb, secret) == 0, l.getId() + " on view " + v + " carries secret or evidence text");
+                }
+            }
+
+            // Re-encode in Java and validate through RoundTripTypedDocument.
+            TypedDocumentResult reencoded = TypedDocumentResult.parseFrom(m.toByteArray());
+            roundTrip(stub, reencoded);
+
+            // Tampering an edit's source span is refused against the chain on both
+            // the source view and the redacted native_view (#1921).
+            if (v == 0 || v == editsLayer.getNativeView()) {
+                TypedDocumentResult tampered = withAnnotation(m, "turbo:pii-edits", 0, b -> {
+                    PiiEditAnnotation.Builder eb = b.getPiiEdit().toBuilder();
+                    eb.setSource(eb.getSource().toBuilder().setStart(eb.getSource().getStart() + 1));
+                    return b.setPiiEdit(eb);
+                });
+                String why = refused(stub, tampered, "tampered edit source on view " + v);
+                check(why.contains("disagrees with"), "tampered edit source on view " + v + ": " + why);
+            }
+        }
+
+        // Detail without full_text: candidates and edits are present, and no
+        // planted value or evidence label text appears anywhere in the bytes.
+        PiiOutputOptions detailOnly = PiiOutputOptions.newBuilder().setDetail(true).build();
+        for (int v = 0; v < 3; v++) {
+            TypedDocumentResult det = inspect(stub, graph, v, detailOnly);
+            check(layer(det, "turbo:pii-edits").getAnnotationsCount() >= 2, "detail-only edits on view " + v);
+            check(layer(det, "turbo:pii-candidates").getAnnotationsCount() >= 3, "detail-only candidates on view " + v);
+            byte[] bytes = det.toByteArray();
+            for (byte[] secret : List.of(emailBytes, sinBytes, sinDigitBytes, imeiBytes, labelBytes)) {
+                check(count(bytes, secret) == 0, "detail-only view " + v + " holds a planted value or evidence text");
+            }
+            roundTrip(stub, TypedDocumentResult.parseFrom(bytes));
+        }
+
+        // 2. Without detail: the candidates layer has no annotations, and no
+        // planted value or evidence text appears in the bytes.
+        for (int v = 0; v < 3; v++) {
+            TypedDocumentResult bare = inspect(stub, graph, v, FINDINGS_ONLY);
+            check(layer(bare, "turbo:pii-candidates").getAnnotationsCount() == 0,
+                    "candidates present without detail on view " + v);
+            check(layer(bare, "turbo:pii-edits").getAnnotationsCount() >= 2,
+                    "edits absent on findings-only view " + v);
+            byte[] bytes = bare.toByteArray();
+            for (byte[] secret : List.of(emailBytes, sinBytes, sinDigitBytes, imeiBytes, labelBytes)) {
+                check(count(bytes, secret) == 0, "findings-only view " + v + " holds a planted value or evidence text");
+            }
+            roundTrip(stub, TypedDocumentResult.parseFrom(bytes));
+        }
+        PiiOutputOptions rewrittenOnly = PiiOutputOptions.newBuilder().setRewrittenText(true).build();
+        for (int v : List.of(1, 2)) {
+            TypedDocumentResult rw = inspect(stub, graph, v, rewrittenOnly);
+            check(layer(rw, "turbo:pii-candidates").getAnnotationsCount() == 0,
+                    "candidates present on rewritten_text without detail on view " + v);
+            byte[] bytes = rw.toByteArray();
+            for (byte[] secret : List.of(emailBytes, sinBytes, sinDigitBytes)) {
+                check(count(bytes, secret) == 0, "rewritten view " + v + " holds a planted value");
+            }
+            for (String lid : List.of("turbo:pii", "turbo:pii-edits", "turbo:pii-candidates")) {
+                check(count(layer(rw, lid).toByteArray(), labelBytes) == 0,
+                        lid + " on rewritten view " + v + " holds evidence label text");
+            }
+            roundTrip(stub, TypedDocumentResult.parseFrom(bytes));
+        }
+    }
+
+    static Path casesPath() {
+        String override = System.getProperty(CASES_PROPERTY);
+        if (override != null && !override.isBlank()) {
+            return Path.of(override.trim());
+        }
+        return CASES;
+    }
+
+    static Path requireCasesFile(Path path) {
+        check(Files.isRegularFile(path), "no mapping cases file at " + path + " (resolved to "
+                + path.toAbsolutePath() + "; run from the repository root or set -D" + CASES_PROPERTY + "=<path>)");
+        return path;
+    }
+
     // The mapping port against Rust on the #1907 chained-view cases.
     static int mappingCases(AnalysisServiceBlockingStub stub) throws Exception {
-        check(Files.isRegularFile(CASES), "no " + CASES + " under the working directory (run from the repository root)");
-        List<String> lines = Files.readAllLines(CASES, StandardCharsets.UTF_8);
+        String previousProp = System.getProperty(CASES_PROPERTY);
+        try {
+            Path missing = Path.of("nonexistent", "mapping-cases.txt");
+            System.setProperty(CASES_PROPERTY, missing.toString());
+            check(casesPath().equals(missing), "system property override " + CASES_PROPERTY + " was not read");
+            expectRefused(() -> requireCasesFile(casesPath()), missing.toString());
+        } finally {
+            if (previousProp == null) {
+                System.clearProperty(CASES_PROPERTY);
+            } else {
+                System.setProperty(CASES_PROPERTY, previousProp);
+            }
+        }
+        Path casesFile = requireCasesFile(casesPath());
+        List<String> lines = Files.readAllLines(casesFile, StandardCharsets.UTF_8);
         int cases = 0;
         int projected = 0;
         int i = 0;
@@ -788,18 +1144,42 @@ final class Conformance {
             }
             i++;
             check(pairs == views * views, name + ": " + pairs + " view pairs");
-            projected += projections(name, shown, port);
+            projected += projections(stub, name, shown, port);
             cases++;
         }
         check(projected > 0, "no layer projection was held to the port");
         check(OUTCOMES[SpanOutcome.SPAN_OUTCOME_EXACT_VALUE] > 0 && OUTCOMES[SpanOutcome.SPAN_OUTCOME_WIDENED_VALUE] > 0
                 && OUTCOMES[SpanOutcome.SPAN_OUTCOME_DELETED_VALUE] > 0, "the cases show " + Arrays.toString(OUTCOMES)
                 + " fragments by outcome number; exact, widened and deleted must all occur");
+        check(MEMBER_OUTCOMES[SpanOutcome.SPAN_OUTCOME_EXACT_VALUE] > 0
+                && MEMBER_OUTCOMES[SpanOutcome.SPAN_OUTCOME_WIDENED_VALUE] > 0
+                && MEMBER_OUTCOMES[SpanOutcome.SPAN_OUTCOME_DELETED_VALUE] > 0,
+                "coalesced members show " + Arrays.toString(MEMBER_OUTCOMES)
+                        + " by outcome number; exact, widened and deleted must all occur");
         return cases;
     }
 
+    static SpanOutcome outcomeFromChain(WireChainPort port, int from, int to, long start, long end) {
+        long[] mapped = port.mapSpan(from, to, start, end);
+        long[] back = port.mapSpan(to, from, mapped[0], mapped[1]);
+        return start != end && mapped[0] == mapped[1] ? SpanOutcome.SPAN_OUTCOME_DELETED
+                : back[0] == start && back[1] == end ? SpanOutcome.SPAN_OUTCOME_EXACT
+                : SpanOutcome.SPAN_OUTCOME_WIDENED;
+    }
+
+    static SpanOutcome mergeOutcomes(List<SpanOutcome> outcomes) {
+        if (outcomes.contains(SpanOutcome.SPAN_OUTCOME_WIDENED)) {
+            return SpanOutcome.SPAN_OUTCOME_WIDENED;
+        }
+        if (outcomes.contains(SpanOutcome.SPAN_OUTCOME_EXACT)) {
+            return SpanOutcome.SPAN_OUTCOME_EXACT;
+        }
+        return SpanOutcome.SPAN_OUTCOME_DELETED;
+    }
+
     /** The server's own projections of every layer into every view are the port's; how many were checked. */
-    static int projections(String name, TypedDocumentResult[] shown, WireChainPort port) {
+    static int projections(AnalysisServiceBlockingStub stub, String name, TypedDocumentResult[] shown,
+            WireChainPort port) {
         int checked = 0;
         for (TypedLayer layer : shown[0].getLayersList()) {
             if (!layer.hasNativeView() || layer.getAnnotationsCount() == 0) {
@@ -810,27 +1190,87 @@ final class Conformance {
             for (int v = 0; v < shown.length; v++) {
                 TypedLayer there = layer(shown[v], layer.getId());
                 for (int a = 0; a < nativeLayer.getAnnotationsCount(); a++) {
-                    SpanFragment n = nativeLayer.getAnnotations(a).getSpans(0);
-                    long nStart = Integer.toUnsignedLong(n.getStart());
-                    long nEnd = Integer.toUnsignedLong(n.getEnd());
-                    long[] got = port.mapSpan(home, v, nStart, nEnd);
-                    SpanFragment s = there.getAnnotations(a).getSpans(0);
-                    String where = name + ": " + layer.getId() + "[" + a + "] in view " + v;
-                    check(there.getAnnotations(a).getSpansCount() == 1 && Integer.toUnsignedLong(s.getStart()) == got[0]
-                            && Integer.toUnsignedLong(s.getEnd()) == got[1], where + " is " + s.getStart() + ".."
-                            + s.getEnd() + ", the port maps it to " + got[0] + ".." + got[1]);
-                    // The outcome is the consumer rule over the chain (#1907 part 2): deleted when a
-                    // non-empty span lands empty, exact when mapping back gives the native span,
-                    // widened otherwise. One native span never coalesces, so it lists no members.
-                    long[] back = port.mapSpan(v, home, got[0], got[1]);
-                    SpanOutcome want = nStart != nEnd && got[0] == got[1] ? SpanOutcome.SPAN_OUTCOME_DELETED
-                            : back[0] == nStart && back[1] == nEnd ? SpanOutcome.SPAN_OUTCOME_EXACT
-                            : SpanOutcome.SPAN_OUTCOME_WIDENED;
-                    check(s.getOutcome() == want, where + " says " + s.getOutcome() + ", the chain says " + want);
-                    check(s.getMembersCount() == 0, where + " lists " + s.getMembersCount() + " members on one native span");
-                    check(v != home || want == SpanOutcome.SPAN_OUTCOME_EXACT, where + " is not exact on its own view");
-                    OUTCOMES[want.getNumber()]++;
-                    checked++;
+                    List<SpanFragment> nativeFrags = nativeLayer.getAnnotations(a).getSpansList();
+                    List<SpanFragment> targetFrags = there.getAnnotations(a).getSpansList();
+                    check(!nativeFrags.isEmpty() && !targetFrags.isEmpty(),
+                            name + ": " + layer.getId() + "[" + a + "] has no spans");
+                    if (v == home) {
+                        check(targetFrags.equals(nativeFrags),
+                                name + ": " + layer.getId() + "[" + a + "] differs on its own view");
+                    }
+                    for (int f = 0; f < targetFrags.size(); f++) {
+                        SpanFragment s = targetFrags.get(f);
+                        long sStart = Integer.toUnsignedLong(s.getStart());
+                        long sEnd = Integer.toUnsignedLong(s.getEnd());
+                        String where = name + ": " + layer.getId() + "[" + a + "] fragment " + f + " in view " + v;
+                        if (s.getMembersCount() == 0) {
+                            if (nativeFrags.size() == 1) {
+                                check(targetFrags.size() == 1, where + " split one native span");
+                            }
+                            boolean matched = false;
+                            for (SpanFragment n : nativeFrags) {
+                                long nStart = Integer.toUnsignedLong(n.getStart());
+                                long nEnd = Integer.toUnsignedLong(n.getEnd());
+                                long[] got = port.mapSpan(home, v, nStart, nEnd);
+                                if (got[0] == sStart && got[1] == sEnd
+                                        && outcomeFromChain(port, home, v, nStart, nEnd) == s.getOutcome()) {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                            check(matched, where + " is " + sStart + ".." + sEnd + " (" + s.getOutcome()
+                                    + "), which no native fragment maps to");
+                        } else {
+                            // Coalesced fragment (#1921, #1938): re-derive each FragmentMember's
+                            // position and outcome from the chain member by member, as
+                            // server/tests/typed_outcomes.rs does.
+                            check(s.getMembersCount() > 1, where + " lists one member");
+                            check(v != home, where + " coalesced on its own view");
+                            long unionStart = Long.MAX_VALUE;
+                            long unionEnd = Long.MIN_VALUE;
+                            int prevIndex = -1;
+                            List<SpanOutcome> memberOutcomes = new ArrayList<>();
+                            for (FragmentMember m : s.getMembersList()) {
+                                int idx = m.getIndex();
+                                check(idx > prevIndex && idx < nativeFrags.size(),
+                                        where + " member index " + idx + " out of order or bounds");
+                                prevIndex = idx;
+                                SpanFragment n = nativeFrags.get(idx);
+                                long nStart = Integer.toUnsignedLong(n.getStart());
+                                long nEnd = Integer.toUnsignedLong(n.getEnd());
+                                long[] mapped = port.mapSpan(home, v, nStart, nEnd);
+                                SpanOutcome memberWant = outcomeFromChain(port, home, v, nStart, nEnd);
+                                check(m.getOutcome() == memberWant,
+                                        where + " member " + idx + " says " + m.getOutcome()
+                                                + ", the chain says " + memberWant);
+                                unionStart = Math.min(unionStart, mapped[0]);
+                                unionEnd = Math.max(unionEnd, mapped[1]);
+                                memberOutcomes.add(memberWant);
+                                MEMBER_OUTCOMES[memberWant.getNumber()]++;
+                            }
+                            check(sStart == unionStart && sEnd == unionEnd,
+                                    where + " coalesced span is " + sStart + ".." + sEnd
+                                            + ", members unite to " + unionStart + ".." + unionEnd);
+                            SpanOutcome mergedWant = mergeOutcomes(memberOutcomes);
+                            check(s.getOutcome() == mergedWant,
+                                    where + " coalesced outcome is " + s.getOutcome()
+                                            + ", members merge to " + mergedWant);
+                            final int fragIndex = f;
+                            TypedDocumentResult reversed = withAnnotation(shown[v], layer.getId(), a, b -> {
+                                SpanFragment.Builder fb = b.getSpans(fragIndex).toBuilder().clearMembers();
+                                for (int k = s.getMembersCount() - 1; k >= 0; k--) {
+                                    fb.addMembers(s.getMembers(k));
+                                }
+                                return b.setSpans(fragIndex, fb);
+                            });
+                            String why = refused(stub, reversed, where + " reversed members");
+                            check(why.contains("ascending native order"), where + " reversed members: " + why);
+                        }
+                        check(v != home || (s.getOutcome() == SpanOutcome.SPAN_OUTCOME_EXACT && s.getMembersCount() == 0),
+                                where + " is not exact on its own view");
+                        OUTCOMES[s.getOutcome().getNumber()]++;
+                        checked++;
+                    }
                 }
             }
         }
