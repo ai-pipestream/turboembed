@@ -42,6 +42,7 @@ import turbo.result.v1.TurboPiiPolicy.PiiSha256Strategy;
 import turbo.result.v1.TurboPiiPolicy.PiiStaticStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiStrategyEntry;
 import turbo.result.v1.TurboPiiPolicy.PiiTruncateStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiZipSafeHarborStrategy;
 import turbo.result.v1.TurboPiiPolicy.RedactionPolicy;
 import turbo.result.v1.TurboTypedAnnotations.AnchorKind;
 import turbo.result.v1.TurboTypedAnnotations.EditRun;
@@ -1048,7 +1049,8 @@ final class Redaction {
                 arm(b -> b.setAbbreviate(PiiAbbreviateStrategy.newBuilder().setSeparator(".").setTrailing("."))),
                 arm(b -> b.setSha256(PiiSha256Strategy.newBuilder().setKindPrefix(true))),
                 arm(b -> b.setStaticText(PiiStaticStrategy.newBuilder().setReplacement("[E]"))),
-                arm(b -> b.setPseudonym(PiiPseudonymStrategy.newBuilder().setPrefix("[").setSuffix("]"))));
+                arm(b -> b.setPseudonym(PiiPseudonymStrategy.newBuilder().setPrefix("[").setSuffix("]"))),
+                arm(b -> b.setZipSafeHarbor(PiiZipSafeHarborStrategy.newBuilder().setMaskChar("#"))));
     }
 
     static RedactionPolicy policy(long revision, PiiRewriteStrategy email) {

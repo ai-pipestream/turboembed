@@ -136,6 +136,11 @@ stubs must be regenerated.
   (`turbo-pii:age`, `turbo-pii:us-address`): an age in years before
   `years old` or `y/o` or after `age` or `aged`, and a US street
   address with its unit, or a post office box (#1886).
+- HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
+  arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
+  `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
+  digits, or `000` for a restricted area, and mask the rest; the HHS 2000
+  Census table is bundled and a caller may pass its own (#1966).
 
 ### Changed: PII and the result envelope (#1879)
 

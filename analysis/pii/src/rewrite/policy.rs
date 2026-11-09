@@ -13,7 +13,7 @@ use super::state::MemberInitial;
 pub(crate) use super::state::RewriteState;
 use super::{
     Abbreviator, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, PiiRewrite, Pseudonymizer, RewriteError,
-    Sha256Tokenizer, StaticReplacer, Truncate,
+    Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
 };
 
 /// Any mention replacement strategy supported by [`PiiRewrite`].
@@ -37,6 +37,8 @@ pub enum RewriteStrategy {
     Truncate(Truncate),
     /// Initials abbreviation ([`Abbreviator`]).
     Abbreviate(Abbreviator),
+    /// HIPAA Safe Harbor ZIP generalization ([`ZipSafeHarbor`]).
+    ZipSafeHarbor(ZipSafeHarbor),
 }
 
 /// A whole-value `'*'` mask. Never a per-document pseudonym (`EMAIL-1`
@@ -102,6 +104,12 @@ impl From<Abbreviator> for RewriteStrategy {
     }
 }
 
+impl From<ZipSafeHarbor> for RewriteStrategy {
+    fn from(v: ZipSafeHarbor) -> RewriteStrategy {
+        RewriteStrategy::ZipSafeHarbor(v)
+    }
+}
+
 impl RewriteStrategy {
     /// Folds the strategy's kind and every parameter that changes what it
     /// writes into `h`.
@@ -117,6 +125,7 @@ impl RewriteStrategy {
             RewriteStrategy::Map(s) => s.fold_config(h),
             RewriteStrategy::Truncate(s) => s.fold_config(h),
             RewriteStrategy::Abbreviate(s) => s.fold_config(h),
+            RewriteStrategy::ZipSafeHarbor(s) => s.fold_config(h),
         }
     }
 
@@ -133,6 +142,7 @@ impl RewriteStrategy {
             RewriteStrategy::Map(s) => s.refuses_overlaps(),
             RewriteStrategy::Truncate(s) => s.refuses_overlaps(),
             RewriteStrategy::Abbreviate(s) => s.refuses_overlaps(),
+            RewriteStrategy::ZipSafeHarbor(s) => s.refuses_overlaps(),
         }
     }
 
@@ -149,6 +159,7 @@ impl RewriteStrategy {
             RewriteStrategy::Map(s) => s.rewrite(src, pii),
             RewriteStrategy::Truncate(s) => s.rewrite(src, pii),
             RewriteStrategy::Abbreviate(s) => s.rewrite(src, pii),
+            RewriteStrategy::ZipSafeHarbor(s) => s.rewrite(src, pii),
         }
     }
 
@@ -164,6 +175,7 @@ impl RewriteStrategy {
             RewriteStrategy::Map(_) => PiiStrategyKind::Map,
             RewriteStrategy::Truncate(_) => PiiStrategyKind::Truncate,
             RewriteStrategy::Abbreviate(_) => PiiStrategyKind::Abbreviate,
+            RewriteStrategy::ZipSafeHarbor(_) => PiiStrategyKind::ZipSafeHarbor,
         }
     }
 
@@ -193,7 +205,8 @@ impl RewriteStrategy {
             | RewriteStrategy::Format(_)
             | RewriteStrategy::Static(_)
             | RewriteStrategy::Sha256(_)
-            | RewriteStrategy::Abbreviate(_) => CharRetention::NONE,
+            | RewriteStrategy::Abbreviate(_)
+            | RewriteStrategy::ZipSafeHarbor(_) => CharRetention::NONE,
         }
     }
 

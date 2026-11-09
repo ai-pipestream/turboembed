@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, and initials abbreviation |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, and HIPAA Safe Harbor ZIP generalization |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -468,6 +468,20 @@ the source text into the rewritten text and back
   `Abbreviator` is intended for name or multi-word phrase kinds and should
   not be used as a default strategy on numeric kinds (for example,
   `123-45-6789` would abbreviate to `1.4.6.`).
+- **ZIP Safe Harbor (`ZipSafeHarbor`):** HIPAA Safe Harbor
+  (45 CFR 164.514(b)(2)(i)(B)) for `us-zip`: keeps the first three digits
+  of a ZIP code, writes `000` when that three-digit area holds 20,000
+  people or fewer, and masks every other digit (`62704-1234` becomes
+  `627**-****`, `03601` becomes `000**`). The restricted areas are the
+  17 prefixes HHS published from the 2000 Census
+  (`HHS_2000_RESTRICTED_PREFIXES`, `ZipSafeHarbor::hhs_2000()`) or a
+  caller's own three-digit list (`ZipSafeHarbor::with_restricted`, for a
+  later Census). A mention that is not five ASCII digits, optionally
+  followed by `-` and four more, is masked whole, and so is a cluster of
+  overlapping mentions, so the strategy never leaves another kind's value
+  readable. Edits record `PiiStrategyKind::ZipSafeHarbor`
+  (`PII_STRATEGY_ZIP_SAFE_HARBOR`); the gRPC arm is
+  `PiiZipSafeHarborStrategy` (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so

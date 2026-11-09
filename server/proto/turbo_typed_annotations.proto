@@ -1466,6 +1466,8 @@ enum PiiStrategy
   PII_STRATEGY_AES_256_GCM = 10;
   // FF1 format-preserving encryption a holder of the key decrypts.
   PII_STRATEGY_FF1 = 11;
+  // HIPAA Safe Harbor ZIP generalization (PiiZipSafeHarborStrategy).
+  PII_STRATEGY_ZIP_SAFE_HARBOR = 12;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,
