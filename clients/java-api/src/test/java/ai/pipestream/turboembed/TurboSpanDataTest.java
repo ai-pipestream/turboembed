@@ -2,6 +2,7 @@ package ai.pipestream.turboembed;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
@@ -80,5 +81,86 @@ final class TurboSpanDataTest {
                 Optional.of("email"), Optional.empty(), OptionalDouble.empty());
         assertEquals(OptionalLong.empty(), legacy.piiKindCode(), "the earlier constructor carries no code");
         assertEquals(Optional.empty(), legacy.piiKind());
+        assertEquals(Optional.empty(), legacy.piiDetector());
+        assertEquals(List.of(), legacy.piiEvidence());
+        assertEquals(Optional.empty(), legacy.piiScore());
+    }
+
+    @Test
+    void piiEvidenceDetectorScoreAndCandidateDecodeNativeCodesAndKeepValueWithheld() {
+        String planted = "4532-0151-1283-0366";
+        TurboPiiDetector detector = new TurboPiiDetector("acme:emp-id", "2.1.0");
+        List<TurboPiiEvidence> evidence = List.of(
+                TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.CHECKSUM.nativeCode(), 1, 1, 0),
+                TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.LABEL.nativeCode(), 0, 3, 3),
+                TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.RULE.nativeCode(), 7, 0, 0),
+                TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.DENY_HIT.nativeCode(), 4, 9, 0),
+                TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.SHAPE.nativeCode(), 0, 0, 0));
+        assertEquals(new TurboPiiEvidence.Checksum(TurboPiiEvidence.ChecksumAlgorithm.LUHN, true), evidence.get(0));
+        assertEquals(new TurboPiiEvidence.Label(0, 3, 3), evidence.get(1));
+        assertEquals(new TurboPiiEvidence.Rule(7), evidence.get(2));
+        assertEquals(new TurboPiiEvidence.DenyHit(4, 9), evidence.get(3));
+        assertEquals(new TurboPiiEvidence.Shape(), evidence.get(4));
+
+        TurboPiiScore score = new TurboPiiScore(
+                0.9375f, TurboPiiScore.Kind.PROBABILITY, new TurboPiiDetector("acme:scorer", "1.0"), true);
+        TurboSpanData row = new TurboSpanData(
+                TurboLayerKind.PII,
+                0,
+                4,
+                0,
+                4,
+                Optional.of(new TurboSpanData.CoordinateRange(4, 23, 4, 23, 4, 23)),
+                Optional.empty(),
+                Optional.empty(),
+                "turbo:pii",
+                "default",
+                Optional.of("card"),
+                Optional.of(planted),
+                OptionalDouble.empty(),
+                OptionalLong.of(TurboPiiKind.CARD.nativeCode()),
+                Optional.of(detector),
+                evidence,
+                Optional.of(score));
+        assertFalse(row.toString().contains(planted));
+        assertTrue(row.toString().contains("value=Optional[<withheld>]"));
+        assertEquals(Optional.of(detector), row.piiDetector());
+        assertEquals(evidence, row.piiEvidence());
+        assertEquals(Optional.of(score), row.piiScore());
+
+        TurboPiiDisposition kept = TurboPiiDisposition.fromNative(TurboPiiDisposition.Kind.KEPT.nativeCode(), 0, 0, 0);
+        assertEquals(new TurboPiiDisposition.Kept(0), kept);
+        TurboPiiDisposition rejected = TurboPiiDisposition.fromNative(
+                TurboPiiDisposition.Kind.REJECTED_BY_RULE.nativeCode(),
+                TurboPiiDisposition.RejectReason.LABEL_REQUIRED.nativeCode(),
+                0,
+                0);
+        assertEquals(new TurboPiiDisposition.RejectedByRule(TurboPiiDisposition.RejectReason.LABEL_REQUIRED), rejected);
+        TurboPiiDisposition allowed = TurboPiiDisposition.fromNative(
+                TurboPiiDisposition.Kind.ALLOWED_BY_RULE.nativeCode(),
+                TurboPiiDisposition.AllowScope.KIND.nativeCode(),
+                TurboPiiDisposition.AllowRuleKind.PATTERN.nativeCode(),
+                3);
+        assertEquals(
+                new TurboPiiDisposition.AllowedByRule(
+                        TurboPiiDisposition.AllowScope.KIND, TurboPiiDisposition.AllowRuleKind.PATTERN, 3),
+                allowed);
+
+        TurboSpanData.CoordinateRange range = new TurboSpanData.CoordinateRange(4, 23, 4, 23, 4, 23);
+        TurboPiiCandidate candidate = new TurboPiiCandidate(
+                "default",
+                0,
+                0,
+                0,
+                range,
+                range,
+                TurboPiiKind.CARD.nativeCode(),
+                "card",
+                detector,
+                evidence.subList(0, 2),
+                Optional.of(score),
+                kept);
+        assertEquals(Optional.of(TurboPiiKind.CARD), candidate.piiKind());
+        assertEquals(OptionalInt.empty(), candidate.piiCustomKindIndex());
     }
 }

@@ -5,13 +5,14 @@ use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiMention,
 
 use super::*;
 use crate::analysis_api::{
-    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
-    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_SPAN_LABEL, TURBO_SPAN_PII_KIND, TURBO_SPAN_PROBABILITY,
-    TURBO_SPAN_SOURCE_RANGE, TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE, turbo_span,
+    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_FORMAT,
+    TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_SPAN_LABEL, TURBO_SPAN_PII_KIND,
+    TURBO_SPAN_PROBABILITY, TURBO_SPAN_SOURCE_RANGE, TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE,
+    turbo_span,
 };
 
 /// PII rows with their values and no numeric kind.
-const VALUES: PiiRows = PiiRows { values: true, kind_ids: false };
+const VALUES: PiiRows = PiiRows { values: true, kind_ids: false, detail: false };
 
 fn pool(result: &AnalysisResultInner, offset: u32, len: u32) -> &str {
     let start = offset as usize;
@@ -341,7 +342,9 @@ fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
     // as it never did (#1940).
     assert!(pii_rows.iter().all(|row| row.flags & TURBO_SPAN_PII_KIND == 0 && row.token_start == 0));
 
-    let ids = extract_graph(&doc, Vec::new(), Origin::Analyzed, PiiRows { values: true, kind_ids: true }).unwrap();
+    let ids =
+        extract_graph(&doc, Vec::new(), Origin::Analyzed, PiiRows { values: true, kind_ids: true, detail: false })
+            .unwrap();
     let id_rows = rows(&ids, TURBO_ANALYSIS_LAYER_PII, "");
     for (row, kind) in id_rows.iter().zip([PiiKind::UsSsn, PiiKind::CaSin]) {
         assert_eq!(row.flags & (TURBO_SPAN_PII_KIND | TURBO_SPAN_TOKEN_RANGE), TURBO_SPAN_PII_KIND);

@@ -12,7 +12,12 @@ import ai.pipestream.turboembed.TurboAnalysisResult;
 import ai.pipestream.turboembed.TurboAnalyzer;
 import ai.pipestream.turboembed.TurboException;
 import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiCandidate;
+import ai.pipestream.turboembed.TurboPiiDetector;
+import ai.pipestream.turboembed.TurboPiiDisposition;
+import ai.pipestream.turboembed.TurboPiiEvidence;
 import ai.pipestream.turboembed.TurboPiiKind;
+import ai.pipestream.turboembed.TurboPiiScore;
 import ai.pipestream.turboembed.TurboRuntime;
 import ai.pipestream.turboembed.TurboSession;
 import ai.pipestream.turboembed.TurboSpanData;
@@ -20,7 +25,10 @@ import ai.pipestream.turboembed.TurboSpanView;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -430,6 +438,124 @@ public abstract class AnalyzerConformance {
             seen.add(kind);
         }
         assertEquals(Set.of(TurboPiiKind.EMAIL, TurboPiiKind.IPV4, TurboPiiKind.CA_SIN), seen);
+    }
+
+    /**
+     * Same TGRF fixture as {@code core/tests/analysis_pii_evidence.rs}: a Luhn-passed card with a
+     * label fact, a custom extractor mention with detector identity and score, and a
+     * {@code turbo:pii-candidates} layer with kept and label-rejected candidates.
+     */
+    private static final String PII_EVIDENCE_GRAPH_HEX =
+            "5447524602004300000050414e20343533322d303135312d313238332d303336362c20656d706c6f79656520452d34322c20616e6420756e"
+                    + "6c6162656c6c65642030343620343534203238362e4300000050414e20343533322d303135312d313238332d303336362c20656d706c6f79"
+                    + "656520452d34322c20616e6420756e6c6162656c6c65642030343620343534203238362e000100000000000000000c000000747572626f3a"
+                    + "736f75726365010000003000000000000000000000000000000000000000014300000050414e20343533322d303135312d313238332d3033"
+                    + "36362c20656d706c6f79656520452d34322c20616e6420756e6c6162656c6c65642030343620343534203238362e00000000020000000900"
+                    + "0000747572626f3a706969000000000100020000000009000000747572626f3a706969010000003000000000000000000000000000000000"
+                    + "000001650200000000000002000000010000000400000017000000010000002200000026000000010000000b000000656d706c6f7965652d"
+                    + "69640f00000010000000747572626f2d7069693a637572736f7205000000302e312e3011000000747572626f2d7069693a73656372657473"
+                    + "05000000302e312e3010000000747572626f2d7069693a63727970746f05000000302e312e3011000000747572626f2d7069693a6e657477"
+                    + "6f726b05000000302e312e3015000000747572626f2d7069693a75732d6964656e7469747905000000302e312e3015000000747572626f2d"
+                    + "7069693a65752d6964656e7469747905000000302e312e3015000000747572626f2d7069693a62722d6964656e7469747905000000302e31"
+                    + "2e3015000000747572626f2d7069693a63612d6964656e7469747905000000302e312e3010000000747572626f2d7069693a646576696365"
+                    + "05000000302e312e3011000000747572626f2d7069693a62616e6b696e6705000000302e312e3013000000747572626f2d7069693a6c6f67"
+                    + "69737469637305000000302e312e300d000000747572626f2d7069693a77656205000000302e312e3019000000747572626f2d7069693a70"
+                    + "686f6e652d657874656e73696f6e05000000302e312e300b00000061636d653a656d702d696405000000322e312e300b00000061636d653a"
+                    + "73636f72657203000000312e300200000008000000000001000200000000000d000300000002010103000000000300000003000000050700"
+                    + "00000200000002000000030000000200000000010000703f010e000102000000100000003435333230313531313238333033363604000000"
+                    + "452d343214000000747572626f3a7069692d63616e64696461746573000000000100030000000009000000747572626f3a70696901000000"
+                    + "3000000000000000000000000000000100000009000000747572626f3a70696900000000016f020000000000000300000001000000040000"
+                    + "0017000000010000002200000026000000010000003700000042000000010000000b000000656d706c6f7965652d69640f00000010000000"
+                    + "747572626f2d7069693a637572736f7205000000302e312e3011000000747572626f2d7069693a7365637265747305000000302e312e3010"
+                    + "000000747572626f2d7069693a63727970746f05000000302e312e3011000000747572626f2d7069693a6e6574776f726b05000000302e31"
+                    + "2e3015000000747572626f2d7069693a75732d6964656e7469747905000000302e312e3015000000747572626f2d7069693a65752d696465"
+                    + "6e7469747905000000302e312e3015000000747572626f2d7069693a62722d6964656e7469747905000000302e312e301500000074757262"
+                    + "6f2d7069693a63612d6964656e7469747905000000302e312e3010000000747572626f2d7069693a64657669636505000000302e312e3011"
+                    + "000000747572626f2d7069693a62616e6b696e6705000000302e312e3013000000747572626f2d7069693a6c6f6769737469637305000000"
+                    + "302e312e300d000000747572626f2d7069693a77656205000000302e312e3019000000747572626f2d7069693a70686f6e652d657874656e"
+                    + "73696f6e05000000302e312e300b00000061636d653a656d702d696405000000322e312e300b00000061636d653a73636f72657203000000"
+                    + "312e300300000008000000000001001c0000000300000000000d000700040000000201010300000000030000000300000005070000000201"
+                    + "01030000000200000003000000040000000300000000010000703f010e00010003000000010000000001010000000401";
+
+    @Test
+    public void piiRowsCarryEvidenceFactsDetectorScoreAndDetailGatedCandidates() {
+        byte[] fixture = HexFormat.of().parseHex(PII_EVIDENCE_GRAPH_HEX);
+        List<TurboPiiEvidence> expectedCardEvidence = List.of(
+                new TurboPiiEvidence.Checksum(TurboPiiEvidence.ChecksumAlgorithm.LUHN, true),
+                new TurboPiiEvidence.Label(0, 3, 3));
+        List<TurboPiiEvidence> expectedEmpEvidence = List.of(new TurboPiiEvidence.Rule(7));
+        TurboPiiDetector expectedEmpDetector = new TurboPiiDetector("acme:emp-id", "2.1.0");
+        TurboPiiScore expectedEmpScore = new TurboPiiScore(
+                0.9375f, TurboPiiScore.Kind.PROBABILITY, new TurboPiiDetector("acme:scorer", "1.0"), true);
+
+        try (TurboAnalyzer defaultAnalyzer = rules();
+                TurboAnalysisResult inspected = defaultAnalyzer.inspectGraph(fixture)) {
+            assertTrue(inspected.piiCandidates().isEmpty(), "candidates are withheld without withPiiDetail(true)");
+            List<? extends TurboSpanView> spans = inspected.spans();
+            assertEquals(2, spans.size());
+
+            TurboSpanView card = spans.get(0);
+            assertEquals(Optional.of(TurboPiiKind.CARD), card.piiKind());
+            assertEquals(PII_LABELLED_CHECKSUM, card.classification());
+            assertEquals(Optional.of(new TurboPiiDetector("turbo-pii:cursor", "0.1.0")), card.piiDetector());
+            assertEquals(expectedCardEvidence, card.piiEvidence());
+            assertEquals(Optional.empty(), card.piiScore());
+            assertEquals(Optional.empty(), card.value());
+
+            TurboSpanView emp = spans.get(1);
+            assertEquals(Optional.empty(), emp.piiKind());
+            assertEquals(OptionalInt.of(0), emp.piiCustomKindIndex());
+            assertEquals(Optional.of("employee-id"), emp.label());
+            assertEquals(Optional.of(expectedEmpDetector), emp.piiDetector());
+            assertEquals(expectedEmpEvidence, emp.piiEvidence());
+            assertEquals(Optional.of(expectedEmpScore), emp.piiScore());
+            assertEquals(Optional.empty(), emp.value());
+
+            for (TurboSpanData copy : inspected.copySpans()) {
+                String rendered = copy.toString();
+                for (String forbidden : List.of("4532", "E-42", "046 454 286", "046454286", "PAN")) {
+                    assertFalse(rendered.contains(forbidden), "default span leaked " + forbidden + ": " + rendered);
+                }
+            }
+            assertEquals(expectedCardEvidence, inspected.copySpan(0).piiEvidence());
+            assertEquals(Optional.of(expectedEmpDetector), inspected.copySpan(1).piiDetector());
+            assertEquals(Optional.of(expectedEmpScore), inspected.copySpan(1).piiScore());
+        }
+
+        TurboAnalyzer.Config detailConfig = new TurboAnalyzer.Config("en", null).withPiiDetail(true);
+        try (TurboAnalyzer detailAnalyzer = binding().createAnalyzer(detailConfig);
+                TurboAnalysisResult detailed = detailAnalyzer.inspectGraph(fixture)) {
+            List<TurboPiiCandidate> cands = detailed.piiCandidates();
+            assertEquals(3, cands.size());
+
+            TurboPiiCandidate c0 = cands.get(0);
+            assertEquals(Optional.of(TurboPiiKind.CARD), c0.piiKind());
+            assertEquals(new TurboPiiDisposition.Kept(0), c0.disposition());
+            assertEquals(expectedCardEvidence, c0.evidence());
+
+            TurboPiiCandidate c1 = cands.get(1);
+            assertEquals(OptionalInt.of(0), c1.piiCustomKindIndex());
+            assertEquals("employee-id", c1.label());
+            assertEquals(expectedEmpDetector, c1.detector());
+            assertEquals(expectedEmpEvidence, c1.evidence());
+            assertEquals(Optional.of(expectedEmpScore), c1.score());
+            assertEquals(new TurboPiiDisposition.Kept(1), c1.disposition());
+
+            TurboPiiCandidate c2 = cands.get(2);
+            assertEquals(Optional.of(TurboPiiKind.CA_SIN), c2.piiKind());
+            assertEquals(
+                    new TurboPiiDisposition.RejectedByRule(TurboPiiDisposition.RejectReason.LABEL_REQUIRED),
+                    c2.disposition());
+
+            String directText = "IMEI: 490154203237518 and unlabelled 046 454 286.";
+            try (TurboAnalysisResult detected = detailAnalyzer.detectPii(directText);
+                    TurboAnalysisResult analyzed = detailAnalyzer.analyzeGraph(directText)) {
+                assertTrue(detected.piiCandidates().stream().anyMatch(c -> c.disposition()
+                        .equals(new TurboPiiDisposition.RejectedByRule(
+                                TurboPiiDisposition.RejectReason.LABEL_REQUIRED))));
+                assertFalse(analyzed.piiCandidates().isEmpty());
+            }
+        }
     }
 
     @Test

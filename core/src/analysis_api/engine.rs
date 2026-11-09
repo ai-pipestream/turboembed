@@ -10,7 +10,7 @@ use turbo_analysis::{
 };
 use turbo_analysis_layers::export::register_codecs;
 use turbo_analysis_layers::{
-    Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens,
+    Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiCandidates, PosTags, Sentences, Strs, Tokens,
 };
 use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::RuleSplitter;
@@ -18,11 +18,10 @@ use turbo_tokenize::{TokenizerOptions, simple_spans};
 
 use super::graph::{Origin, extract_graph};
 use super::heads::{BundleHeads, Want, unsupported};
+use super::pii::{extract_pii_candidates_layer, extract_pii_layer};
 use super::{
     AnalysisResultInner, PiiRows, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES,
-    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS,
-    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
-    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, coordinate_range,
+    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_POS, coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -297,34 +296,23 @@ impl AnalyzerEngine {
 
     pub fn detect_pii(&self, text: &str) -> Result<AnalysisResultInner> {
         let offsets = OffsetTable::build(text);
-        let pii = self.pii_detector.layer(text, ViewId::SOURCE);
-        let mut builder = SpanPoolBuilder::with_capacity(pii.spans.len(), pii.spans.len().saturating_mul(16));
-        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_PII, Pii::ID, "", SOURCE_VIEW)?;
-        for (idx, mention) in pii.mentions().enumerate() {
-            let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
-            let label = builder.string_ref(pii.kind_name(mention.kind).unwrap_or(""))?;
-            let value = if self.pii.values { Some(builder.string_ref(mention.normalized)?) } else { None };
-            let classification = match mention.confidence() {
-                PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
-                PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-                PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
-                PiiConfidence::Labelled => TURBO_PII_CONFIDENCE_LABELLED,
-            };
-            builder.push(
-                layer,
-                SpanDraft {
-                    item_index: index_u32(idx, "PII mention count")?,
-                    classification,
-                    view: Some(coords),
-                    source: Some(coords),
-                    label: Some(label),
-                    value,
-                    pii_kind: self.pii.kind_ids.then(|| mention.kind.code()),
-                    ..SpanDraft::default()
-                },
-            )?;
+        let coords = |span: Span| -> Result<_> {
+            let r = coordinate_range(text, &offsets, (span.start, span.end))?;
+            Ok((r, r))
+        };
+        let invalid = |msg: String| Error::new(BUNDLE_INVALID, msg);
+        if self.pii.detail {
+            let (pii, candidates) = self.pii_detector.layer_with_candidates(text, ViewId::SOURCE);
+            let mut builder = SpanPoolBuilder::with_capacity(pii.spans.len(), pii.spans.len().saturating_mul(16));
+            extract_pii_layer(&mut builder, &pii, "", SOURCE_VIEW, self.pii, invalid, coords)?;
+            extract_pii_candidates_layer(&mut builder, &candidates, "", SOURCE_VIEW, invalid, coords)?;
+            Ok(builder.finish(Vec::new()))
+        } else {
+            let pii = self.pii_detector.layer(text, ViewId::SOURCE);
+            let mut builder = SpanPoolBuilder::with_capacity(pii.spans.len(), pii.spans.len().saturating_mul(16));
+            extract_pii_layer(&mut builder, &pii, "", SOURCE_VIEW, self.pii, invalid, coords)?;
+            Ok(builder.finish(Vec::new()))
         }
-        Ok(builder.finish(Vec::new()))
     }
 
     /// The provenance of a layer the bundle's heads wrote.
@@ -457,8 +445,16 @@ impl AnalyzerEngine {
         doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("turbo:tokenize"))
             .map_err(added)?;
         self.add_head_layers(&mut doc, text, &tok_vec, &sent_vec)?;
-        let pii = self.pii_detector.layer(text, ViewId::SOURCE);
-        doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("turbo:pii")).map_err(added)?;
+        if self.pii.detail {
+            let (pii, candidates) = self.pii_detector.layer_with_candidates(text, ViewId::SOURCE);
+            doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("turbo:pii")).map_err(added)?;
+            let mut cand_prov = Provenance::by("turbo:pii");
+            cand_prov.on.push(Key::<Pii>::DEFAULT.id());
+            doc.add(&Key::<PiiCandidates>::DEFAULT, candidates, cand_prov).map_err(added)?;
+        } else {
+            let pii = self.pii_detector.layer(text, ViewId::SOURCE);
+            doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("turbo:pii")).map_err(added)?;
+        }
 
         let graph = export(&doc, &self.codecs).map_err(|e| Error::new(BUNDLE_INVALID, format!("export graph: {e}")))?;
         let wire = graph.to_bytes().map_err(|e| Error::new(BUNDLE_INVALID, format!("encode graph: {e}")))?;
