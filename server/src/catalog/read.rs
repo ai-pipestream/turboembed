@@ -12,7 +12,6 @@ use std::fs;
 use std::io::Read;
 use std::pin::Pin;
 
-use sha2::Digest as _;
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
@@ -158,7 +157,7 @@ fn send(o: Opened, tx: mpsc::Sender<Result<ModelFileChunk, Status>>) {
         return;
     }
     let what = format!("{}/{}", o.id, o.file.path.as_str());
-    let mut hash = sha2::Sha256::new();
+    let mut hash = turbo_sha256::Sha256::new();
     let mut sent = 0u64;
     // One byte past the recorded size is enough to know the file grew.
     let mut reader = o.handle.take(o.file.size.saturating_add(1));
@@ -182,7 +181,7 @@ fn send(o: Opened, tx: mpsc::Sender<Result<ModelFileChunk, Status>>) {
             return;
         }
     }
-    let got: Sha256 = turbo_zoo::digest::Hex(hash.finalize().into());
+    let got: Sha256 = turbo_zoo::digest::Hex(hash.finish().0);
     let fail = if sent > o.file.size {
         Some(format!("{what}: the cache holds more than {} bytes, the index {0}", o.file.size))
     } else if sent < o.file.size {

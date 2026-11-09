@@ -1,26 +1,23 @@
-//! SHA-256 (FIPS 180-4), for the model identity recorded in provenance.
+//! SHA-256 and SHA-512 (FIPS 180-4) and HMAC-SHA-256 (RFC 2104), the one
+//! implementation every crate hashes with.
 //!
 //! A layer's provenance names the model that made it by the SHA-256 of
 //! the model file, the same value `sha256sum` prints and the golden files
-//! record. Hashing a model happens once, when it is loaded, so this is a
-//! plain implementation of the standard with no platform intrinsics.
+//! record; the zoo checks every file it fetches and serves by its SHA-256
+//! and SHA-512; the S3 signer and the PII tokenizers use the HMAC. Models
+//! are hundreds of megabytes, so SHA-256 runs on the CPU's SHA
+//! instructions where it has them (see `compress`).
+
+mod compress;
+mod hmac;
+mod sha512;
+
+pub use hmac::hmac_sha256;
+pub use sha512::{Sha512, sha512};
 
 /// The initial hash value: the first 32 bits of the fractional parts of
 /// the square roots of the first eight primes.
 const H0: [u32; 8] = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
-
-/// The round constants: the first 32 bits of the fractional parts of the
-/// cube roots of the first 64 primes.
-const K: [u32; 64] = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98,
-    0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8,
-    0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819,
-    0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
-    0xc67178f2,
-];
 
 /// A SHA-256 digest.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -32,17 +29,29 @@ impl Digest {
 
     /// The digest as 64 lower case hex digits, as `sha256sum` prints it.
     pub fn to_hex(&self) -> String {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut s = String::with_capacity(64);
-        for &b in &self.0 {
-            s.push(HEX[usize::from(b >> 4)] as char);
-            s.push(HEX[usize::from(b & 0x0F)] as char);
-        }
-        s
+        to_hex(self.0)
     }
 
     /// Raw 32-byte digest array.
     pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// `bytes` as lower case hex, two digits a byte, as `sha256sum` prints a digest.
+pub fn to_hex(bytes: impl AsRef<[u8]>) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let bytes = bytes.as_ref();
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for &b in bytes {
+        s.push(HEX[usize::from(b >> 4)] as char);
+        s.push(HEX[usize::from(b & 0x0F)] as char);
+    }
+    s
+}
+
+impl AsRef<[u8]> for Digest {
+    fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
@@ -78,14 +87,12 @@ impl Sha256 {
             self.buf_len += take;
             data = &data[take..];
             if self.buf_len == 64 {
-                compress(&mut self.state, &self.buf);
+                compress::blocks(&mut self.state, &[self.buf]);
                 self.buf_len = 0;
             }
         }
         let (blocks, rest) = data.as_chunks::<64>();
-        for block in blocks {
-            compress(&mut self.state, block);
-        }
+        compress::blocks(&mut self.state, blocks);
         if !rest.is_empty() {
             self.buf[..rest.len()].copy_from_slice(rest);
             self.buf_len = rest.len();
@@ -132,9 +139,7 @@ impl Sha256 {
         let bits = self.total_len.wrapping_mul(8);
         tail[tail_len - 8..tail_len].copy_from_slice(&bits.to_be_bytes());
         let (tail_blocks, _) = tail[..tail_len].as_chunks::<64>();
-        for block in tail_blocks {
-            compress(&mut self.state, block);
-        }
+        compress::blocks(&mut self.state, tail_blocks);
         let mut out = [0u8; 32];
         for (word, bytes) in self.state.iter().zip(out.as_chunks_mut::<4>().0) {
             *bytes = word.to_be_bytes();
@@ -148,39 +153,6 @@ pub fn sha256(data: &[u8]) -> Digest {
     let mut h = Sha256::new();
     h.update(data);
     h.finish()
-}
-
-/// Processes one 64-byte block.
-fn compress(state: &mut [u32; 8], block: &[u8; 64]) {
-    let mut w = [0u32; 64];
-    for (wi, bytes) in w.iter_mut().zip(block.as_chunks::<4>().0) {
-        *wi = u32::from_be_bytes(*bytes);
-    }
-    for i in 16..64 {
-        let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
-        let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
-    }
-    let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
-    for i in 0..64 {
-        let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-        let ch = (e & f) ^ (!e & g);
-        let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
-        let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-        let maj = (a & b) ^ (a & c) ^ (b & c);
-        let t2 = s0.wrapping_add(maj);
-        h = g;
-        g = f;
-        f = e;
-        e = d.wrapping_add(t1);
-        d = c;
-        c = b;
-        b = a;
-        a = t1.wrapping_add(t2);
-    }
-    for (s, v) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
-        *s = s.wrapping_add(v);
-    }
 }
 
 #[cfg(test)]

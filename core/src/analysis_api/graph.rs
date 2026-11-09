@@ -456,6 +456,8 @@ pub(crate) fn extract_graph(
             extract_pii(&mut builder, &mapper, doc, id)?;
         } else if pii.detail && id.ty == TypeId::of::<PiiCandidates>() {
             extract_pii_candidates(&mut builder, &mapper, doc, id)?;
+        } else if id.ty == TypeId::of::<turbo_analysis_layers::Words>() {
+            words::extract_words(&mut builder, &mapper, doc, id)?;
         }
     }
     Ok(builder.finish(graph))
@@ -463,3 +465,4 @@ pub(crate) fn extract_graph(
 
 #[cfg(test)]
 mod tests;
+pub(crate) mod words;

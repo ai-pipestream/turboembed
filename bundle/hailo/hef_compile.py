@@ -168,8 +168,14 @@ def check_cut(export, cut_path, tok, texts, rows, bias, masks):
 
     Both graphs are compared on their first output: the export's
     last_hidden_state and the cut graph's only output."""
-    full = ort.InferenceSession(export)
-    part = ort.InferenceSession(cut_path)
+    if not texts or not (len(texts) == len(rows) == len(bias) == len(masks)):
+        sys.exit("hef_compile: calibration texts, rows, bias and masks must have equal nonzero counts")
+    # Validation is CPU-only; do not create a host-sized pool per graph.
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 2
+    options.inter_op_num_threads = 1
+    full = ort.InferenceSession(export, sess_options=options, providers=["CPUExecutionProvider"])
+    part = ort.InferenceSession(cut_path, sess_options=options, providers=["CPUExecutionProvider"])
     typed = any(i.name == "token_type_ids" for i in full.get_inputs())
     worst = 0.0
     for i, t in enumerate(texts):
@@ -178,10 +184,20 @@ def check_cut(export, cut_path, tok, texts, rows, bias, masks):
         feed = {"input_ids": ids, "attention_mask": np.array([e.attention_mask], np.int64)}
         if typed:
             feed["token_type_ids"] = np.zeros_like(ids)
-        a = full.run(None, feed)[0][0]
-        b = part.run(None, {"word_rows": rows[i], "attn_bias": bias[i][None]})[0][0]
+        a = full.run(None, feed)[0]
+        b = part.run(None, {"word_rows": rows[i], "attn_bias": bias[i][None]})[0]
+        expected = rows[i].shape
+        if len(expected) != 3 or expected[0] != 1 or a.shape != expected or b.shape != expected:
+            sys.exit(f"hef_compile: hidden-state shape must be {expected}, got export {a.shape}, cut {b.shape}")
+        if masks[i].shape != (expected[1],):
+            sys.exit("hef_compile: calibration mask shape does not match the hidden states")
         live = masks[i] == 1
-        worst = max(worst, float(np.abs(a[live] - b[live]).max()))
+        if not np.any(live):
+            sys.exit("hef_compile: calibration text has no kept positions")
+        a, b = a[0][live], b[0][live]
+        if not np.isfinite(a).all() or not np.isfinite(b).all():
+            sys.exit("hef_compile: nonfinite hidden states on a kept position")
+        worst = max(worst, float(np.abs(a.astype(np.float64) - b.astype(np.float64)).max()))
     if worst > CUT_TOLERANCE:
         sys.exit(f"hef_compile: the cut graph is {worst} from the export on a kept position, over {CUT_TOLERANCE}")
     return worst

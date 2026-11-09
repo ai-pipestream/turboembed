@@ -340,8 +340,9 @@ different machine from the 4-core rows above.
   bundle with `architecture.lookahead` on every backend but the CPU
   (`turbo::model::runs_band`), so `sat-3l` runs on the CPU only.
 - A bundle task for token classification. The bundle carries a SaT
-  model as `TASK_EMBED` with the classifier in its raw weights, read by
-  name; the manifest has no place to say what the head is.
+  model as `TASK_EMBED`; its `classifier` block (`CLASSIFIER_TOKEN`,
+  docs/bundle.md) says what the head is, and `turbo-sat` reads the
+  head's weights from the raw weights by name.
 
 ## GLiNER
 

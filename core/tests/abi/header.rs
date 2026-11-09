@@ -74,6 +74,10 @@ fn struct_layouts_match_the_header() {
         ("turbo_model_info", "prefix_document", offset_of!(turbo_model_info, prefix_document)),
         ("turbo_model_info", "output_dims_count", offset_of!(turbo_model_info, output_dims_count)),
         ("turbo_model_info", "output_dims", offset_of!(turbo_model_info, output_dims)),
+        ("turbo_model_info", "rerank_query_tokens", offset_of!(turbo_model_info, rerank_query_tokens)),
+        ("turbo_model_info", "rerank_pair_template", offset_of!(turbo_model_info, rerank_pair_template)),
+        ("turbo_model_info", "license", offset_of!(turbo_model_info, license)),
+        ("turbo_model_info", "license_class", offset_of!(turbo_model_info, license_class)),
     ];
     use turbo::backend::{turbo_backend_model, turbo_backend_tensor};
     let model_fields: &[(&str, &str, usize)] = &[
@@ -445,4 +449,15 @@ fn the_token_head_layout_is_the_one_proposed() {
     // struct has no padding.
     assert_eq!(offset_of!(turbo_backend_embed_rows, taps), 56);
     assert_eq!(size_of::<turbo_backend_embed_rows>(), 64);
+}
+
+/// The layout the licence was added with: its two fields after
+/// rerank_pair_template, and the size before them still accepted.
+#[test]
+fn the_licence_layout_is_the_one_proposed() {
+    assert_eq!(offset_of!(turbo_model_info, rerank_pair_template), 768);
+    assert_eq!(offset_of!(turbo_model_info, license), 772);
+    assert_eq!(offset_of!(turbo_model_info, license_class), 900);
+    assert_eq!(size_of::<turbo_model_info>(), 904);
+    assert_eq!(TURBO_MODEL_INFO_SIZE_V3, 772);
 }

@@ -151,6 +151,11 @@ stubs must be regenerated.
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
   digits, or `000` for a restricted area, and mask the rest; the HHS 2000
   Census table is bundled and a caller may pass its own (#1966).
+- HIPAA Safe Harbor age aggregation: the `PiiAgeSafeHarborStrategy` arm
+  of `PiiRewriteStrategy` (`age_safe_harbor`, field 12) and
+  `PII_STRATEGY_AGE_SAFE_HARBOR` (13) keep an age of 89 or under and write
+  every older age as `90+`; a mention that is not an age is masked
+  (#1884).
 
 ### Changed: PII and the result envelope (#1879)
 
@@ -196,6 +201,13 @@ stubs must be regenerated.
   word-level heads, one row per token with the feature string as the
   label, and `turbo_analyzer_morphology` (`TurboAnalyzer.morphology`,
   `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1812).
+- The in-process analyzer reads a bundle's segmenting heads: a
+  sentence boundary head finds the sentences of every task in place of
+  the rule splitter, a token split head writes each token's syntactic
+  words as `TURBO_ANALYSIS_LAYER_WORDS` rows (`TurboLayerKind.WORDS`)
+  in `turbo_analyzer_tokenize` and the graph, and a span classifier is
+  an entity head beside a BIO or BILOU tagger. The graph's provenance
+  names the head that wrote each layer (#2001).
 - `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
@@ -271,6 +283,11 @@ stubs must be regenerated.
   `turbo:structure` layer an `initial_graph` carries, so a Java or
   Python client seeds the chunker without a DocumentGraph writer; a
   malformed block is refused naming it (#1777).
+- `turbo_model_info` reports the manifest's `model.license` (`license`)
+  and the bundle's licence tier (`license_class`, a
+  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
+  or redistribute the model. The 772-byte struct is still accepted, and
+  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
 
 ### Changed
 
@@ -292,6 +309,13 @@ stubs must be regenerated.
 
 ### Fixed
 
+- levelzero: a context on an Intel GPU under the `xe` driver no longer
+  loses its device (`0x70000001`) when a desktop client draws while the
+  device pages an evicted buffer back in. The backend sets
+  `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0` in the process's
+  environment before it opens the Level Zero loader, unless the caller set
+  `EnableRecoverablePageFaults` itself (docs/levelzero.md, A lost device)
+  (#1765).
 - The cpu backend's embed cells set field 9's bit (`layers`) in
   `turbo_capability.options_honored`, which reads `0b1_1111_1111` there,
   and a layer count of 0 or over an encoder's layers is

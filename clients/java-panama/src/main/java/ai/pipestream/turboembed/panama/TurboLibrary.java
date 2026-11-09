@@ -53,6 +53,8 @@ public final class TurboLibrary {
     public static final int TURBO_ANALYSIS_LAYER_DEPENDENCIES = 7;
     /** Native {@code TURBO_ANALYSIS_LAYER_MORPHOLOGY}. */
     public static final int TURBO_ANALYSIS_LAYER_MORPHOLOGY = 8;
+    /** Native {@code TURBO_ANALYSIS_LAYER_WORDS}. */
+    public static final int TURBO_ANALYSIS_LAYER_WORDS = 9;
 
     /** Native span flag: a view range is present. */
     public static final int TURBO_SPAN_VIEW_RANGE = 1;

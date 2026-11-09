@@ -48,6 +48,7 @@ impl Manifest {
         required("model.source.repository", &self.model.source.repository)?;
         required("model.source.commit", &self.model.source.commit)?;
         required("model.license", &self.model.license)?;
+        fits("model.license", &self.model.license, 128)?;
         if let Some(p) = &self.model.license_file {
             listed_path("model.license_file", p)?;
         }
