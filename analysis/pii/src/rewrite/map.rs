@@ -96,7 +96,7 @@ impl MapReplacer {
                 flat.extend_from_slice(s.as_bytes());
             }
         }
-        h.bytes(&crate::checksum::sha256::digest(&flat));
+        h.bytes(&turbo_sha256::sha256(&flat).0);
         h.u8(u8::from(self.case_sensitive)).u8(self.target as u8).u8(u8::from(self.refuse_overlaps));
         self.fallback.fold_config(h);
     }

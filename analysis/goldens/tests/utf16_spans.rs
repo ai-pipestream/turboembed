@@ -163,7 +163,7 @@ fn a_cut_inside_the_text_shows_as_the_next_span() {
          layer\tturbo:tokens\ttext\t4\tstart:u32\tend:u32\n0\t1\n1\t5\n1\t5\n5\t6\nend\tturbo:tokens\n\
          layer\tturbo:utf16<turbo:tokens>\taligned:turbo:tokens\t4\tstart16:u32\tend16:u32\tcut:u32\n\
          0\t1\t0\n1\t2\t1\n2\t3\t1\n3\t4\t0\nend\tturbo:utf16<turbo:tokens>\n",
-        hex::to_hex(&sha256(text.as_bytes()))
+        sha256(text.as_bytes()).to_hex()
     );
     let g = Golden::parse(&golden_text).unwrap();
     let mut d = Document::new(text);

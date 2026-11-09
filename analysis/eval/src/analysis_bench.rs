@@ -41,13 +41,13 @@ mod ner;
 mod tokenize;
 use crate::model_gate::{Counts, Measure};
 use crate::random::JavaRandom;
-use crate::sha::{sha256, to_hex};
 use crate::significance::percentile;
 pub use conllu::{ConlluSentence, ConlluToken, parse_conllu};
 pub use language::{LangGold, parse_lang_gold, parse_lang_pred, score_language, script_fallback_predictions};
 pub use masc::{MASC_CORPUS_SHA256, MascGold, corpus_digest, masc_documents, masc_test_documents};
 pub use ner::{parse_ner_gold, parse_ner_pred, score_ner};
 pub use tokenize::{TokenDocument, TokenizerTier, score_tokenizer, score_tokenizer_documents};
+use turbo_sha256::{sha256, to_hex};
 
 /// The fixed bootstrap seed of every analysis record.
 pub const BOOTSTRAP_SEED: i64 = 42;
@@ -380,7 +380,7 @@ pub fn command(args: &[String]) -> Result<()> {
         return Err(format!("{out} exists; refusing to overwrite a record"));
     }
     let gold_bytes = std::fs::read(&gold_path).map_err(|e| format!("{gold_path}: {e}"))?;
-    let digest = to_hex(&sha256(&gold_bytes));
+    let digest = to_hex(sha256(&gold_bytes));
     if digest != want_sha.to_ascii_lowercase() {
         return Err(format!("{gold_path}: sha256 {digest}, pinned {want_sha}"));
     }

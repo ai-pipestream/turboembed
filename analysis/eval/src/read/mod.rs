@@ -27,8 +27,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::sha::{Sha256, sha256, to_hex};
 use serde::de::DeserializeOwned;
+use turbo_sha256::{Sha256, sha256, to_hex};
 
 use crate::Result;
 
@@ -63,12 +63,12 @@ impl SetDir {
         if let Some((set, recorded)) = &self.recorded
             && let Some(want) = recorded.get(rel)
         {
-            let have = to_hex(&digest);
+            let have = to_hex(digest);
             if &have != want {
                 return Err(format!("{}: SHA-256 is {have}, set {set} records {want}", path.display()));
             }
         }
-        self.digests.insert(rel.to_owned(), digest);
+        self.digests.insert(rel.to_owned(), digest.0);
         Ok(bytes)
     }
 
@@ -105,7 +105,7 @@ impl SetDir {
             h.update(path.as_bytes());
             h.update(b"\n");
         }
-        to_hex(&h.finish())
+        to_hex(h.finish())
     }
 }
 

@@ -106,6 +106,6 @@ fn variants_match_the_library() {
         }
         let (count, sha) = &want[name];
         assert_eq!(*count, texts.len(), "{name}");
-        assert_eq!(&hex(&h.finish()), sha, "{name}");
+        assert_eq!(&h.finish().to_hex(), sha, "{name}");
     }
 }
