@@ -278,18 +278,57 @@ async fn format_document_needs_full_text_and_no_format_writes_a_value() {
         offsets: OffsetMode::Utf8 as i32,
         pii_output,
     };
-    let e = c.format_document(req("jsonld", None)).await.unwrap_err();
-    assert_eq!(e.code(), tonic::Code::FailedPrecondition, "{e:?}");
-    assert!(e.message().contains("full_text") && !holds(e.message().as_bytes(), PLANTED), "{e:?}");
-    // With the text asked for, the text holds the value, but no PII
-    // finding repeats it.
+    for fmt in ["jsonld", "markdown"] {
+        let e = c.format_document(req(fmt, None)).await.unwrap_err();
+        assert_eq!(e.code(), tonic::Code::FailedPrecondition, "{fmt}: {e:?}");
+        assert!(e.message().contains("full_text") && !holds(e.message().as_bytes(), PLANTED), "{fmt}: {e:?}");
+    }
+    // With the text asked for and `detail` off, the text holds the value,
+    // the mention carries its detector and evidence facts, and neither a PII
+    // value nor `turbo:pii-candidates` leaves.
     let jsonld = c.format_document(req("jsonld", options(true, false))).await.unwrap().into_inner().content;
     let jsonld = String::from_utf8(jsonld).unwrap();
-    assert!(jsonld.contains("turbo:PiiMention") && !jsonld.contains("\"normalized\""), "{jsonld}");
+    let jsonld_pii = jsonld.split("\"turbo:pii\": ").nth(1).expect("the pii layer");
+    assert!(
+        jsonld_pii.contains("turbo:PiiMention")
+            && jsonld_pii.contains("\"detector\":")
+            && jsonld_pii.contains("\"evidence\":")
+            && !jsonld_pii.contains(PLANTED)
+            && !jsonld.contains("turbo:pii-candidates")
+            && !jsonld.contains("\"normalized\""),
+        "{jsonld}"
+    );
     let md = c.format_document(req("markdown", options(true, false))).await.unwrap().into_inner().content;
     let md = String::from_utf8(md).unwrap();
     let summary = md.split("## PII Summary").nth(1).expect("the PII summary").split("\n## ").next().unwrap();
-    assert!(summary.contains("**email**") && !summary.contains(PLANTED), "{summary}");
+    assert!(
+        summary.contains("**email**")
+            && summary.contains("detector:")
+            && summary.contains("evidence:")
+            && !summary.contains(PLANTED)
+            && !md.contains("## PII Candidates"),
+        "{md}"
+    );
+
+    // With `detail` on, the candidates section/array is written with
+    // dispositions and no values.
+    let with_detail = Some(PiiOutputOptions { full_text: true, detail: true, ..Default::default() });
+    let jsonld_det = c.format_document(req("jsonld", with_detail)).await.unwrap().into_inner().content;
+    let jsonld_det = String::from_utf8(jsonld_det).unwrap();
+    let jsonld_cands = jsonld_det.split("\"turbo:pii-candidates\": ").nth(1).expect("the candidates layer");
+    assert!(
+        jsonld_cands.contains("turbo:PiiCandidate")
+            && jsonld_cands.contains("\"disposition\":")
+            && !jsonld_cands.contains(PLANTED),
+        "{jsonld_det}"
+    );
+    let md_det = c.format_document(req("markdown", with_detail)).await.unwrap().into_inner().content;
+    let md_det = String::from_utf8(md_det).unwrap();
+    let cands_md = md_det.split("## PII Candidates").nth(1).expect("the PII candidates").split("\n## ").next().unwrap();
+    assert!(
+        cands_md.contains("**email**") && cands_md.contains("disposition: `kept 0`") && !cands_md.contains(PLANTED),
+        "{cands_md}"
+    );
     s.stop().await;
 }
 
