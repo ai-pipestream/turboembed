@@ -182,7 +182,7 @@ async fn converted_package_hot_loads_and_produces_a_deterministic_evidence_graph
             view: 0,
             offsets: OffsetMode::Utf8 as i32,
             pii_output: None,
-            pii_policy: String::new(),
+            pii_policy: None,
             binding: None,
             operation_key: String::new(),
         })
