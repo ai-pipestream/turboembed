@@ -4,6 +4,7 @@
 //! streams [`AnalyzeProgressiveEvent`] messages with strictly increasing 1-based
 //! sequence numbers as each branch completes.
 
+mod config;
 mod normalize;
 pub mod profiles;
 pub mod seed;
@@ -21,8 +22,6 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Analyzer, Document};
-use turbo_gliner::{Decode, ExtractionSchema};
-use turbo_relation::{RelationLabel, ZeroShotRelationConfig};
 
 use crate::api::{
     Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
@@ -234,36 +233,8 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
                 .map_err(|e| plain(bad(e.to_string())))?,
         ),
     };
-    let open_span = req
-        .open_span
-        .as_ref()
-        .map(|schema| {
-            ExtractionSchema::new(
-                schema.labels.clone(),
-                schema.threshold.unwrap_or(0.5),
-                if schema.nested { Decode::Nested } else { Decode::Flat },
-            )
-            .map_err(|e| plain(bad(format!("open_span: {e}"))))
-        })
-        .transpose()?;
-    let relations = req.relations.as_ref().map(|schema| {
-        let labels = schema
-            .labels
-            .iter()
-            .map(|label| RelationLabel {
-                name: label.name.clone(),
-                threshold: label.threshold.map(f64::from),
-                symmetric: label.symmetric,
-                domain: (!label.domain.is_empty()).then(|| label.domain.clone()),
-                range: (!label.range.is_empty()).then(|| label.range.clone()),
-            })
-            .collect();
-        ZeroShotRelationConfig {
-            threshold: schema.threshold.unwrap_or(0.5).into(),
-            within_sentence: schema.within_sentence,
-            ..ZeroShotRelationConfig::new(labels)
-        }
-    });
+    let open_span = config::open_span(req.open_span.as_ref()).map_err(plain)?;
+    let relations = config::relations(req.relations.as_ref());
     compile_analyzer_with_state(
         initial_doc,
         &step_names,

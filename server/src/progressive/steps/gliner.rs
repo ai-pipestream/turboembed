@@ -6,6 +6,7 @@ use turbo_analysis::{Annotator, Document, Error, Evidence, Execution, Key, KeyId
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_gliner::{Decisions, ExtractionSchema, GlinerAnnotator, Model};
 
+use super::super::normalize::check_required_inputs;
 use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
 use crate::state::State;
 
@@ -80,9 +81,13 @@ impl Step for GlinerStep {
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
+        let req_keys = [Key::<View>::DEFAULT.id(), Key::<Tokens>::DEFAULT.id()];
         let out: Vec<Option<Result<(Entities, Decisions), Error>>> = docs
             .iter()
             .map(|doc| {
+                if let Some(why) = check_required_inputs(doc, &req_keys) {
+                    return Some(Err(Error::Skipped(why)));
+                }
                 let result = (|| {
                     let view = doc.require(&Key::<View>::DEFAULT)?;
                     let tokens = doc.require(&Key::<Tokens>::DEFAULT)?;
@@ -109,10 +114,15 @@ impl Step for GlinerStep {
                         let evidence = GlinerAnnotator::evidence(doc, Key::DEFAULT, Key::DEFAULT)?;
                         doc.add(&Key::<Evidence<Entities>>::DEFAULT, evidence, provenance.clone())
                     })();
-                    if let Err(error) = stored
-                        && status[i].is_ok()
-                    {
-                        status[i] = Err(error);
+                    if let Err(error) = stored {
+                        for key in Self::keys() {
+                            if !doc.has(key) {
+                                let _ = doc.fail(key, error.clone(), provenance.clone());
+                            }
+                        }
+                        if status[i].is_ok() {
+                            status[i] = Err(error);
+                        }
                     }
                 }
                 Err(Error::Skipped(why)) => {

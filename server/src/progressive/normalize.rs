@@ -10,7 +10,9 @@ use std::any::Any;
 use std::marker::PhantomData;
 
 use turbo_analysis::annotate::{AnchorUse, Step};
-use turbo_analysis::{Annotator, Document, Error, Key, KeyId, ProjectableLayer, Provenance, Status, View, ViewId};
+use turbo_analysis::{
+    Annotator, Document, Error, Execution, Key, KeyId, ModelRef, ProjectableLayer, Provenance, Status, View, ViewId,
+};
 use turbo_analysis_embed::{SubwordAnnotator, align};
 use turbo_analysis_layers::{Entities, Sentences, Structure, Subwords, Tokens};
 use turbo_geo::NameAnnotator;
@@ -231,6 +233,18 @@ pub(super) struct NormalizedSubwordsStep<A: SubwordPieces> {
 impl<A: SubwordPieces> Step for NormalizedSubwordsStep<A> {
     fn id(&self) -> &'static str {
         A::ID
+    }
+
+    fn version(&self) -> &'static str {
+        A::VERSION
+    }
+
+    fn model(&self) -> Option<ModelRef> {
+        self.annotator.model()
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        self.annotator.execution()
     }
 
     fn reads(&self) -> Vec<KeyId> {
