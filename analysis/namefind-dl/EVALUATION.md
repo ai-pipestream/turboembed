@@ -131,3 +131,22 @@ cargo test -p turbo-namefind-dl --example conll_eval
 They exercise the real reader, span projection, exact scorer and actual CPU
 inference with the repository's generated tiny BERT fixture. That fixture is
 for deterministic software tests, not a trained NER checkpoint or peer result.
+
+## Device against the CPU
+
+`tests/device.rs` runs the finder on a device and on the CPU with the same
+dslim/bert-base-NER bundle, at both decodings, and requires the same names
+with the same types from every text, each name's probability within 1e-4 of
+the CPU's at f32 and within 1e-2 at f16 and bf16. `TURBO_TEST_DEVICE` names
+the device (a backend name or a device index) and `TURBO_TEST_PRECISION`
+its tier (`model` by default); the test fails when the finder runs on the
+CPU instead:
+
+```sh
+TURBO_NER_BUNDLE=local-input/dslim-bundle TURBO_TEST_DEVICE=levelzero \
+cargo test --release -p turbo-namefind-dl --features turbo/levelzero --test device \
+  -- --ignored --nocapture
+```
+
+Build with the feature of the backend named (`turbo/levelzero`,
+`turbo/cuda`, `turbo/metal`).
