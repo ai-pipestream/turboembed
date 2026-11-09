@@ -6,6 +6,9 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.grpc.netty.shaded.io.grpc.netty.GrpcSslContexts;
+import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -148,9 +151,19 @@ public final class DocumentSmoke {
         if (target == null || target.isEmpty()) {
             throw new IllegalArgumentException("Expected server address as argv[0] or TURBO_KSERVE_SMOKE_ADDR");
         }
-        ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+        boolean mtls = args.length == 4;
+        ManagedChannel channel = mtls
+                ? NettyChannelBuilder.forTarget(target)
+                        .sslContext(GrpcSslContexts.forClient().trustManager(new File(args[1]))
+                                .keyManager(new File(args[2]), new File(args[3])).build())
+                        .build()
+                : ManagedChannelBuilder.forTarget(target).usePlaintext().build();
         try {
             AnalysisServiceBlockingStub stub = AnalysisServiceGrpc.newBlockingStub(channel);
+            if (mtls) {
+                Conformance.run(stub, true);
+                return;
+            }
             CapabilitiesResponse caps =
                     stub.withDeadlineAfter(15, TimeUnit.SECONDS).capabilities(CapabilitiesRequest.getDefaultInstance());
             ProfileCapabilities profile = caps.getProfilesList().stream()
@@ -225,7 +238,7 @@ public final class DocumentSmoke {
             check(entities.contains(PLACE), "no entity slices to " + PLACE + "; entities " + entities);
             System.out.println("java document client ok: layers=" + doc.getLayersCount() + " spans=" + spans
                     + " tokens=" + tokens + " sentences=" + sentences + " entities=" + entities);
-            Conformance.run(stub);
+            Conformance.run(stub, false);
             Redaction.run(stub);
         } finally {
             channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
@@ -272,7 +285,7 @@ final class Conformance {
         DocumentSmoke.check(ok, what);
     }
 
-    static void run(AnalysisServiceBlockingStub stub) throws Exception {
+    static void run(AnalysisServiceBlockingStub stub, boolean requireRelease) throws Exception {
         ByteString graph = analyze(stub, TEXT, List.of("turbo:pii", "turbo:pii-masked"));
         TypedDocumentResult source = inspect(stub, graph, 0, FULL_TEXT);
         TypedDocumentResult masked = inspect(stub, graph, 1, FULL_TEXT);
@@ -287,7 +300,7 @@ final class Conformance {
         unknownFields(stub, source);
         unknownEnums(stub, source);
         disclosure(stub, graph, source, masked, pii);
-        releasedValues(stub, graph, source, pii);
+        releasedValues(stub, graph, source, pii, requireRelease);
         editsAndCandidates(stub);
         int cases = mappingCases(stub);
         System.out.println("java conformance ok: mentions=" + pii.getAnnotationsCount() + " views="
@@ -786,7 +799,7 @@ final class Conformance {
      * </ul>
      */
     static void releasedValues(AnalysisServiceBlockingStub stub, ByteString graph, TypedDocumentResult source,
-            TypedLayer pii) throws Exception {
+            TypedLayer pii, boolean requireRelease) throws Exception {
         byte[] value = utf8(VALUE);
         for (TypedAnnotation a : pii.getAnnotationsList()) {
             PiiValue v = a.getPii().getValue();
@@ -891,6 +904,9 @@ final class Conformance {
             check(tokensSeen > 0, "token request succeeded without a granted token");
             roundTrip(stub, granted);
         } catch (StatusRuntimeException e) {
+            if (requireRelease) {
+                throw e;
+            }
             check(e.getStatus().getCode() == Status.Code.UNIMPLEMENTED,
                     "plaintext server without release config answered " + e.getStatus().getCode());
             check(count(utf8(String.valueOf(e.getStatus().getDescription())), value) == 0,
