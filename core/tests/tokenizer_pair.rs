@@ -1,7 +1,8 @@
 //! `turbo_tokenizer_encode_pair` through the C interface: the ids and
-//! segment types the Rust pair encoder gives, the checks the C call makes
-//! of its own (stride, capacity, NULL outputs, the bundle's rerank
-//! `max_seq`), and one tokenizer used from many threads at once.
+//! segment types the Rust pair encoder gives for a BERT and a RoBERTa
+//! pair, the checks the C call makes of its own (stride, capacity, NULL
+//! outputs, the bundle's rerank `max_seq`), and one tokenizer used from
+//! many threads at once.
 
 mod common;
 #[path = "rerank/common.rs"]
@@ -85,6 +86,29 @@ fn pair_ids_and_types_match_the_rust_pair_encoder() {
     assert_eq!(ids.len(), 32);
     assert_eq!((ids[0], *ids.last().unwrap()), (101, 102));
     assert!(types.iter().skip_while(|&&t| t == 0).all(|&t| t == 1));
+}
+
+/// A RoBERTa bundle takes the RoBERTa pair template its family implies:
+/// `<s> query </s></s> passage </s>`, four special tokens and every
+/// segment type 0, as the Rust pair encoder gives.
+#[test]
+fn a_roberta_pair_matches_the_rust_pair_encoder() {
+    let dir = root().join("testdata/tiny-sat-bundle");
+    let tok = Tok::create(&dir).unwrap();
+    let rust = Tokenizer::load(&Bundle::open(&dir).unwrap()).unwrap();
+    let (bos, eos) = (0, 2);
+    for (q, p) in [("a query", "a passage"), ("which one", "the long passage that follows it"), ("é", "ü")] {
+        for (query_tokens, max_tokens) in [(0, 0), (4, 16), (1, 12)] {
+            let o = opts(query_tokens, max_tokens, 0);
+            let want = &rust.encode_pair(q, p, query_tokens, max_tokens, 0).unwrap()[0];
+            let (ids, types) = encode_pair(tok.t, q, p, Some(&o), 512).unwrap();
+            assert_eq!((&ids, &types), (&want.ids, &want.types), "{q:?} / {p:?} at ({query_tokens}, {max_tokens})");
+            assert_eq!((ids[0], *ids.last().unwrap()), (bos, eos), "{q:?} / {p:?}");
+            assert_eq!(ids.iter().filter(|&&i| i == bos || i == eos).count(), 4, "{q:?} / {p:?}: {ids:?}");
+            assert!(ids.windows(2).any(|w| w == [eos, eos]), "{q:?} / {p:?}: no </s></s> between the two: {ids:?}");
+            assert!(types.iter().all(|&t| t == 0), "{q:?} / {p:?}: {types:?}");
+        }
+    }
 }
 
 #[test]
