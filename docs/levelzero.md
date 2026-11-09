@@ -514,8 +514,11 @@ cannot pass.
 ```
 export TURBO_TEST_REQUIRE_LEVELZERO=1
 
-# Everything, with the levelzero-only tests in core/tests/levelzero.rs:
-cargo test -p turbo --features levelzero
+# Everything, with the levelzero-only tests in core/tests/levelzero.rs.
+# The device tests shared with other backends (DeBERTa, rotary, quantize)
+# pick their device from TURBO_TEST_DEVICE, and fail under
+# TURBO_TEST_REQUIRE_LEVELZERO without it:
+TURBO_TEST_DEVICE=levelzero cargo test -p turbo --features levelzero
 
 # The levelzero-only tests, with what they print (the device, the largest
 # difference from the f64 encoder and the CPU):
