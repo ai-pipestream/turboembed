@@ -9,7 +9,7 @@
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
@@ -44,6 +44,11 @@ pub(crate) const MAX_SAMPLE_BYTES: usize = 256 << 20;
 
 /// The model file is sent in chunks of at most this many bytes.
 pub(crate) const MODEL_CHUNK_BYTES: usize = 1 << 20;
+
+/// How long an upload may go without a message, by default. A client that
+/// drops the answer but keeps its upload open looks to the server like one
+/// that is slow to send, so the gap between messages is what is bounded.
+pub(crate) const UPLOAD_IDLE: Duration = Duration::from_secs(60);
 
 /// The longest language code a start may name, in bytes.
 const MAX_LANGUAGE: usize = 64;
@@ -94,14 +99,50 @@ fn plan(s: TrainComponentStart) -> Result<Plan, Status> {
             params.put_if_absent(k, v.clone());
         }
     }
+    check_trainer(kind, &params)?;
     let name_type = (!s.name_type.is_empty()).then_some(s.name_type);
     Ok(Plan { kind, language: s.language, params, name_type })
+}
+
+/// The parameters' algorithm, `MAXENT` when they name none.
+fn algorithm(params: &TrainingParameters) -> Result<Algorithm, Status> {
+    let bad = |e: turbo_train::Error| invalid(3, format!("parameters: {e}"));
+    match params.get_str(Key::ALGORITHM).map_err(bad)? {
+        None => Ok(Algorithm::Maxent),
+        Some(name) => Algorithm::from_name(name).map_err(bad),
+    }
+}
+
+/// Refuses a trainer the component would not run as asked. The sentence
+/// detector, tokenizer, POS tagger and lemmatizer train GIS only, so any
+/// other algorithm would be swapped for it silently. An iterative
+/// trainer given no iterations has learned nothing: the perceptron's
+/// averaged weights are then not numbers.
+fn check_trainer(kind: ComponentKind, params: &TrainingParameters) -> Result<(), Status> {
+    let algorithm = algorithm(params)?;
+    let gis_only = matches!(
+        kind,
+        ComponentKind::SentenceDetector
+            | ComponentKind::Tokenizer
+            | ComponentKind::PosTagger
+            | ComponentKind::Lemmatizer
+    );
+    if gis_only && algorithm != Algorithm::Maxent {
+        let (kind, name) = (kind.as_str_name(), algorithm.name());
+        return Err(invalid(3, format!("parameters: {kind} trains MAXENT only, not {name}")));
+    }
+    let iterations = params.get_int(Key::ITERATIONS).map_err(|e| invalid(3, format!("parameters: {e}")))?;
+    if algorithm != Algorithm::NaiveBayes && iterations.is_some_and(|n| n < 1) {
+        return Err(invalid(3, "parameters: Iterations must be at least 1"));
+    }
+    Ok(())
 }
 
 /// Checks the start, takes the slot, then reads and trains.
 pub(super) async fn start(
     mut requests: Streaming<TrainComponentRequest>,
     training: Arc<AtomicBool>,
+    idle: Duration,
 ) -> Result<ComponentStream, Status> {
     let first = requests.message().await?.ok_or_else(|| invalid(0, "the stream ended before its start"))?;
     let Some(Part::Start(s)) = first.part else {
@@ -115,7 +156,7 @@ pub(super) async fn start(
     let (tx, rx) = mpsc::channel(16);
     let _ = tx.send(Ok(update(Update::Progress(progress(ComponentStage::Admitted))))).await;
     tokio::spawn(async move {
-        let out = match receive(&mut requests).await {
+        let out = match receive(&mut requests, &tx, idle).await {
             Ok(samples) => {
                 let t = tx.clone();
                 match tokio::task::spawn_blocking(move || train(&plan, samples, &t)).await {
@@ -145,10 +186,21 @@ pub(super) async fn start(
     Ok(Box::pin(ReceiverStream::new(rx)))
 }
 
-/// Every sample byte after the start, up to [`MAX_SAMPLE_BYTES`].
-async fn receive(requests: &mut Streaming<TrainComponentRequest>) -> Result<Vec<u8>, Status> {
+/// Every sample byte after the start, up to [`MAX_SAMPLE_BYTES`]. The
+/// read ends when the answer is gone or when `idle` passes with no
+/// message: a client that drops the answer while it holds its upload
+/// open is not seen by the server, so the slot is held at most that long.
+async fn receive(requests: &mut Streaming<TrainComponentRequest>, tx: &Tx, idle: Duration) -> Result<Vec<u8>, Status> {
     let mut samples = Vec::new();
-    while let Some(m) = requests.message().await? {
+    loop {
+        let m = tokio::select! {
+            m = tokio::time::timeout(idle, requests.message()) => m.map_err(|_| {
+                let secs = idle.as_secs_f64();
+                plain(Failure::new(TURBO_E_CAPACITY, 2, format!("samples: none came for {secs} s; the upload is dropped")))
+            })??,
+            () = tx.closed() => return Err(runtime("the client cancelled the training")),
+        };
+        let Some(m) = m else { break };
         match m.part {
             Some(Part::Samples(b)) => {
                 if samples.len() + b.len() > MAX_SAMPLE_BYTES {
@@ -220,11 +272,7 @@ impl StopCriteria for Cancel {
 /// GIS's log likelihood threshold, the perceptron's accuracy tolerance.
 fn default_stop(params: &TrainingParameters) -> Result<Option<Box<dyn StopCriteria>>, Status> {
     let bad = |e: turbo_train::Error| invalid(3, format!("parameters: {e}"));
-    let algorithm = match params.get_str(Key::ALGORITHM).map_err(bad)? {
-        None => Algorithm::Maxent,
-        Some(name) => Algorithm::from_name(name).map_err(bad)?,
-    };
-    Ok(match algorithm {
+    Ok(match algorithm(params)? {
         Algorithm::Maxent => Some(Box::new(LogLikelihoodThresholdBreached::from_parameters(params).map_err(bad)?)),
         Algorithm::Perceptron => Some(Box::new(IterDeltaAccuracyUnderTolerance::from_parameters(params).map_err(bad)?)),
         _ => None,
@@ -276,8 +324,8 @@ fn train(plan: &Plan, samples: Vec<u8>, tx: &Tx) -> Result<(Vec<u8>, TrainedComp
         ComponentKind::Lemmatizer => {
             let s = read(LemmaReader::new(text))?;
             let f = tc::LemmatizerFactory::new(lang);
-            let trained = tc::train_lemmatizer_model(&s, &f, params, config, stamp);
-            (read_progress(s.len()), trained.map_err(failed)?.package)
+            let n = read_progress(s.len());
+            (n, tc::train_lemmatizer_model(&s, &f, params, config, stamp).map_err(failed)?.package)
         }
         ComponentKind::Chunker => {
             let s = read(ChunkReader::new(text))?;
@@ -287,9 +335,8 @@ fn train(plan: &Plan, samples: Vec<u8>, tx: &Tx) -> Result<(Vec<u8>, TrainedComp
         ComponentKind::NameFinder => {
             let s = read(NameReader::new(text))?;
             let f = tc::TokenNameFinderFactory::new(lang, None, NameCodec::Bio).map_err(failed)?;
-            let kind = plan.name_type.as_deref();
-            let trained = tc::train_name_model(&s, &f, kind, params, config, stamp);
-            (read_progress(s.len()), trained.map_err(failed)?.package)
+            let (kind, n) = (plan.name_type.as_deref(), read_progress(s.len()));
+            (n, tc::train_name_model(&s, &f, kind, params, config, stamp).map_err(failed)?.package)
         }
         ComponentKind::DocumentCategorizer => {
             let s = read(DocumentReader::new(text))?;

@@ -146,7 +146,10 @@ but the language detector, which learns its languages from the
 samples. `parameters` are the training parameters a parameters file
 names (`Algorithm`, `Iterations`, `Cutoff`, `Tolerance`, ...), each
 value a string; unset keys take the trainer's defaults (`MAXENT`, 100
-iterations, cutoff 5; the name finder's own). `name_type` gives the
+iterations, cutoff 5; the name finder's own). The sentence detector,
+tokenizer, POS tagger and lemmatizer train `MAXENT` (GIS) only and
+refuse any other `Algorithm`; every trainer but `NAIVEBAYES` needs
+`Iterations` of at least 1. `name_type` gives the
 name finder's untyped names a type (`default` when empty).
 
 The answer streams `TrainComponentProgress`: `ADMITTED`, `READ` with the
@@ -157,18 +160,21 @@ then `PACKAGED`. The model file follows as `model` chunks of at most
 1 MiB, and `TrainedComponent` ends the stream with the component, the
 sample count and the file's size and SHA-256 so the client can check
 what it put together. The file loads where a trained model of that
-component does: `turbo_analyzer_desc`'s model paths and the annotators'
-`from_trained_archive`.
+component does: the annotators' `from_trained_archive` (and
+`from_trained_archive_with_format`).
 
 Refusals: a first message that is not the start, a second start, an
 unnamed component, a missing or longer than 64 byte language,
 parameters the trainer refuses, samples that are not UTF-8 (naming the
 byte), a refused sample line, or no samples are `INVALID_ARGUMENT`;
-more than 256 MiB of samples is `OUT_OF_RANGE` (`TURBO_E_CAPACITY`);
+more than 256 MiB of samples, or an upload that sends no message for a
+minute (`Serve::upload_idle`), is `OUT_OF_RANGE` (`TURBO_E_CAPACITY`);
 a call while another training runs is `UNAVAILABLE` (`TURBO_E_BUSY`).
 A client that goes away stops the training at its next iteration (a
 trainer that tests no stop criterion each iteration, such as the
-quasi-Newton one, stops when it finishes) and frees the slot.
+quasi-Newton one, stops when it finishes) and frees the slot. A client
+that drops the answer but keeps its upload open looks to the server
+like a slow one, so the upload idle limit is what frees the slot then.
 
 ## Not yet served
 

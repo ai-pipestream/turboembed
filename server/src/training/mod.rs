@@ -6,7 +6,7 @@
 //! a training directory every call but ListTeachers and TrainComponent
 //! refuses UNIMPLEMENTED.
 
-mod component;
+pub(crate) mod component;
 mod describe;
 mod train;
 
@@ -14,6 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use tonic::{Request, Response, Status, Streaming};
 use turbo::bundle::Bundle;
@@ -46,6 +47,8 @@ pub(crate) struct TrainingService {
     pub(crate) admin: bool,
     /// Held by the one training that may run.
     training: Arc<AtomicBool>,
+    /// How long a component upload may go without a message.
+    upload_idle: Duration,
     /// Held across a name's check, rename and registration, and across a
     /// delete, so a model is published or removed whole.
     publishing: Arc<Mutex<()>>,
@@ -73,12 +76,14 @@ impl TrainingService {
         vocabulary: Option<Arc<Store>>,
         dir: Option<PathBuf>,
         admin: bool,
+        upload_idle: Duration,
     ) -> TrainingService {
         TrainingService {
             state,
             vocabulary,
             dir,
             admin,
+            upload_idle,
             training: Arc::new(AtomicBool::new(false)),
             publishing: Arc::new(Mutex::new(())),
         }
@@ -235,6 +240,6 @@ impl TurboTrainingService for TrainingService {
     ) -> Reply<Self::TrainComponentStream> {
         // Nothing is kept, so no training directory is needed.
         self.admin("TrainComponent")?;
-        Ok(Response::new(component::start(req.into_inner(), self.training.clone()).await?))
+        Ok(Response::new(component::start(req.into_inner(), self.training.clone(), self.upload_idle).await?))
     }
 }

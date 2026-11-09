@@ -1,8 +1,10 @@
 //! TrainComponent end to end: a POS tagger trained from samples streamed
 //! in chunks cut through a character, its model sent back whole and
-//! tagging as trained; the admin opt-in and the start's checks; one
-//! training at a time; and a training whose client goes away stopping
-//! and freeing its slot.
+//! tagging as trained; the admin opt-in and the start's checks, a
+//! trainer the component would not run as asked among them; progress in
+//! its documented order; a perceptron categorizer that categorizes; one
+//! training at a time; and a training whose client goes away, during the
+//! upload or the training, stopping and freeing its slot.
 
 mod common;
 
@@ -27,7 +29,8 @@ type Client = TurboTrainingServiceClient<Channel>;
 const POS: &str = "The_DT cats_NNS barked_VBD ._.\nThe_DT dogs_NNS ran_VBD ._.\nZoë_NNP ran_VBD ._.\n";
 
 async fn server(admin: bool) -> (Server, Client) {
-    let serve = Serve { admin, ..Serve::default() };
+    // A short upload idle limit, so the abandoned upload frees the slot soon.
+    let serve = Serve { admin, upload_idle: Some(Duration::from_secs(2)), ..Serve::default() };
     // A server that cannot add models needs one to start with.
     let tiny = ModelConfig {
         bundle: common::tiny().to_str().unwrap().into(),
@@ -59,6 +62,16 @@ fn start(component: ComponentKind, language: &str, parameters: &[(&str, &str)]) 
 fn samples(b: &[u8]) -> TrainComponentRequest {
     TrainComponentRequest { part: Some(Part::Samples(b.to_vec())) }
 }
+
+/// Category samples: two categories, three documents each.
+const DOCS: &str = "good fine nice day\ngood nice warm sun\ngood fine sun day\n\
+    bad cold rain day\nbad wet cold wind\nbad rain wind night\n";
+
+/// Word, tag and lemma samples.
+const LEMMAS: &str = "The\tDT\tthe\ncats\tNNS\tcat\nran\tVBD\trun\n\nDogs\tNNS\tdog\nbarked\tVBD\tbark\n";
+
+/// Name samples.
+const NAMES: &str = "<START:person> Ann <END> ran .\nThe dog saw <START:person> Bob <END> .\nIt rained .\n";
 
 fn pos_start() -> TrainComponentRequest {
     start(ComponentKind::PosTagger, "en", &[("Iterations", "20"), ("Cutoff", "0")])
@@ -153,6 +166,17 @@ async fn training_needs_admin_and_a_good_start() {
         (vec![start(ComponentKind::Unspecified, "en", &[]), samples(pos)], "component"),
         (vec![start(ComponentKind::PosTagger, "", &[]), samples(pos)], "language"),
         (vec![start(ComponentKind::PosTagger, "en", &[("Algorithm", "NOPE")]), samples(pos)], "parameters"),
+        // The POS tagger trains GIS only: a perceptron is refused, not swapped for GIS.
+        (vec![start(ComponentKind::PosTagger, "en", &[("Algorithm", "PERCEPTRON")]), samples(pos)], "MAXENT only"),
+        (vec![start(ComponentKind::Lemmatizer, "en", &[("Algorithm", "MAXENT_QN")]), samples(pos)], "MAXENT only"),
+        // A perceptron of no iterations categorizes as NaN: refused before training.
+        (
+            vec![
+                start(ComponentKind::DocumentCategorizer, "en", &[("Algorithm", "PERCEPTRON"), ("Iterations", "0")]),
+                samples(DOCS.as_bytes()),
+            ],
+            "Iterations must be at least 1",
+        ),
         (vec![pos_start()], "samples: none were read"),
         (vec![pos_start(), samples(b"The_DT \xff_NN\n")], "samples: not UTF-8 at byte 7"),
         (vec![pos_start(), samples(pos), pos_start()], "a second start"),
@@ -162,6 +186,52 @@ async fn training_needs_admin_and_a_good_start() {
         let e = train(&mut c, requests).await.unwrap_err();
         assert!(invalid(&e) && e.message().contains(says), "{says}: {e:?}");
     }
+    s.stop().await;
+}
+
+/// The stages a training streams, in order, its iterations as one.
+fn stages(updates: &[Update]) -> Vec<ComponentStage> {
+    let mut out: Vec<ComponentStage> = updates.iter().filter_map(stage).collect();
+    out.dedup();
+    out
+}
+
+#[tokio::test]
+async fn progress_comes_in_its_documented_order() {
+    use ComponentStage::*;
+    let (s, mut c) = server(true).await;
+    let cases =
+        [(ComponentKind::Lemmatizer, LEMMAS), (ComponentKind::NameFinder, NAMES), (ComponentKind::PosTagger, POS)];
+    for (kind, text) in cases {
+        let go = start(kind, "en", &[("Iterations", "5"), ("Cutoff", "0")]);
+        let updates = train(&mut c, vec![go, samples(text.as_bytes())]).await.unwrap();
+        assert_eq!(stages(&updates), [Admitted, Read, Iteration, Packaged], "{kind:?}");
+    }
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn a_perceptron_categorizer_is_a_perceptron_and_categorizes() {
+    let (s, mut c) = server(true).await;
+    let params = [("Algorithm", "PERCEPTRON"), ("Iterations", "5"), ("Cutoff", "0")];
+    let go = start(ComponentKind::DocumentCategorizer, "en", &params);
+    let updates = train(&mut c, vec![go, samples(DOCS.as_bytes())]).await.unwrap();
+    let measures: Vec<&str> = updates
+        .iter()
+        .filter_map(|u| match u {
+            Update::Progress(p) if p.stage() == ComponentStage::Iteration => Some(p.measure.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(!measures.is_empty() && measures.iter().all(|m| *m == "Training Accuracy"), "{measures:?}");
+    let model: Vec<u8> = updates
+        .iter()
+        .filter_map(|u| if let Update::Model(b) = u { Some(b.clone()) } else { None })
+        .flatten()
+        .collect();
+    let model = turbo_doccat::DoccatModel::from_trained_archive(model).unwrap();
+    let scores = turbo_doccat::DocumentCategorizerME::new(model).categorize(&["nice", "warm", "sun"]);
+    assert!(scores.len() == 2 && scores.iter().all(|p| p.is_finite()), "{scores:?}");
     s.stop().await;
 }
 
@@ -200,13 +270,10 @@ async fn one_training_runs_at_a_time() {
 #[tokio::test]
 async fn a_training_whose_client_goes_away_stops_and_frees_its_slot() {
     let (s, mut c) = server(true).await;
-    // A perceptron with no stop of its own and no end: only the client
-    // going away ends it.
-    let endless = start(
-        ComponentKind::PosTagger,
-        "en",
-        &[("Algorithm", "PERCEPTRON"), ("Iterations", "2147483647"), ("Tolerance", "-1"), ("Cutoff", "0")],
-    );
+    // GIS with a log likelihood threshold it never meets and no end: only
+    // the client going away ends it.
+    let endless =
+        start(ComponentKind::PosTagger, "en", &[("Iterations", "2147483647"), ("LLThreshold", "-1"), ("Cutoff", "0")]);
     let (tx, mut stream) = open(&mut c, vec![endless, samples(POS.as_bytes())]).await;
     drop(tx);
     loop {
@@ -223,5 +290,29 @@ async fn a_training_whose_client_goes_away_stops_and_frees_its_slot() {
         }
     };
     assert!(matches!(updates.last(), Some(Update::Trained(_))), "{updates:?}");
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn a_client_that_drops_the_answer_mid_upload_frees_the_slot() {
+    let (s, mut c) = server(true).await;
+    // Admitted and reading; the upload stays open while the answer goes.
+    // The server cannot see that, so the idle limit (two seconds here)
+    // ends the read and frees the slot.
+    let (tx, mut stream) = open(&mut c, vec![pos_start(), samples(POS.as_bytes())]).await;
+    assert_eq!(stage(&stream.message().await.unwrap().unwrap().update.unwrap()), Some(ComponentStage::Admitted));
+    drop(stream);
+    let updates = tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            match train(&mut c, vec![pos_start(), samples(POS.as_bytes())]).await {
+                Err(e) if e.code() == Code::Unavailable => tokio::time::sleep(Duration::from_millis(50)).await,
+                other => break other.unwrap(),
+            }
+        }
+    })
+    .await
+    .expect("the slot is freed while the upload is still open");
+    assert!(matches!(updates.last(), Some(Update::Trained(_))), "{updates:?}");
+    drop(tx);
     s.stop().await;
 }
