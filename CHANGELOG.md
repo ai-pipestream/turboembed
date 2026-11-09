@@ -268,9 +268,11 @@ stubs must be regenerated.
   malformed block is refused naming it (#1777).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
-  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
-  or redistribute the model. The 772-byte struct is still accepted, and
-  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
+  `TURBO_LICENSE_CLASS_*`), and `ModelMetadata` serves them as
+  `model_info.license` and `model_info.license_class`, so a caller can
+  check whether it may serve or redistribute the model. The 772-byte
+  struct is still accepted, and a `model.license` of 128 bytes or more
+  is `BUNDLE_INVALID` (#2019, #2041).
 
 ### Changed
 
