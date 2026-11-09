@@ -251,7 +251,12 @@ fn street(text: &str, start: usize) -> Option<usize> {
     if let Some(e) = unit(text, end) {
         end = e;
     } else if end < words[words.len() - 1].1 {
-        return None;
+        // A city may follow a street suffix without a comma. Keep rejecting
+        // noun suffixes and article-led phrases such as the Wall Street Journal.
+        let article = text[..start].split_whitespace().next_back().is_some_and(|w| w.eq_ignore_ascii_case("the"));
+        if !is_street_only_suffix(suffix_word) || article {
+            return None;
+        }
     }
     let year = p == start + 4 && matches!(b[start..start + 2], [b'1', b'9'] | [b'2', b'0']);
     if year && end == words[suffix].1 && !is_street_only_suffix(suffix_word) && !comma_city(text, end) {
