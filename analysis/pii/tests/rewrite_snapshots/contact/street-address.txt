@@ -1,0 +1,18 @@
+MASKED	Ship to **** ************ ****** **, Washington, or *** ***** ***, ***** ****; mail ** *** **** or *.*. *** **. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+MASK_ALL	Ship to ###########################, Washington, or #########################; mail ########### or ###########. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+REWRITE	pseudonymize	OK	Ship to STREET-ADDRESS-1, Washington, or STREET-ADDRESS-2; mail STREET-ADDRESS-3 or STREET-ADDRESS-4. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+LABEL	pseudonymize	8	35	8	24	STREET-ADDRESS-1
+LABEL	pseudonymize	52	77	41	57	STREET-ADDRESS-2
+LABEL	pseudonymize	84	95	64	80	STREET-ADDRESS-3
+LABEL	pseudonymize	99	110	84	100	STREET-ADDRESS-4
+REWRITE	hmac	OK	Ship to STREET-ADDRESS-d10105da3d74b35b, Washington, or STREET-ADDRESS-3a13f1ec38e95b55; mail STREET-ADDRESS-891af17a2335b464 or STREET-ADDRESS-8b93978a2fd3f0bf. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+LABEL	hmac	8	35	8	39	STREET-ADDRESS-d10105da3d74b35b
+LABEL	hmac	52	77	56	87	STREET-ADDRESS-3a13f1ec38e95b55
+LABEL	hmac	84	95	94	125	STREET-ADDRESS-891af17a2335b464
+LABEL	hmac	99	110	129	160	STREET-ADDRESS-8b93978a2fd3f0bf
+AUDIT	street-address	4	4	STREET-ADDRESS-d10105da3d74b35b, STREET-ADDRESS-3a13f1ec38e95b55, STREET-ADDRESS-891af17a2335b464
+AUDIT_REPORT	street-address: 4 mentions, 4 distinct [STREET-ADDRESS-d10105da3d74b35b, STREET-ADDRESS-3a13f1ec38e95b55, STREET-ADDRESS-891af17a2335b464]

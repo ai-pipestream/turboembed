@@ -1,14 +1,14 @@
 # Mixed PII evaluation set (partial work for #968)
 
-Nine documents (`48,036` UTF-8 bytes) and their span-level annotations
-(`labels.tsv`, `131` gold mentions across 28 built-in `PiiKind`
+Ten documents (`49,093` UTF-8 bytes) and their span-level annotations
+(`labels.tsv`, `147` gold mentions across 30 built-in `PiiKind`
 variants), scored by `precision_and_recall_on_human_written_text` in
 `analysis/pii/tests/precision_recall.rs` (`docs/pii.md`,
 `docs/licences.md`).
 
 The evaluation set is a mixed corpus:
-- Five third-party MASC 3.0.0 documents (`34,969` bytes, `19` gold spans,
-  `12` `phone` and `7` `us-zip`, across `masc-att2`, `masc-hsus4`, `masc-united1`, and
+- Five third-party MASC 3.0.0 documents (`34,969` bytes, `21` gold spans,
+  `12` `phone`, `7` `us-zip` and `2` `street-address`, across `masc-att2`, `masc-hsus4`, `masc-united1`, and
   `masc-nyt6`, plus `masc-lsc-access` with `0` gold spans as a statutory
   and CFR citation false-positive stress document).
 - Two project-adapted specification summaries (`4,360` bytes, `18` gold
@@ -19,6 +19,9 @@ The evaluation set is a mixed corpus:
   `2,635` bytes, `31` gold spans, #1878) and one project-authored operational memo collection (`operational-memos.txt`,
   `6,072` bytes, `57` gold spans: `3` `phone` spans and every gold
   mention of the remaining 17 built-in kinds).
+- One project-authored clinic intake memo file (`intake-memos.txt`,
+  `1,057` bytes, `14` gold spans: `7` `age` and `7` `street-address`,
+  #1886).
 
 On its own, this mixed corpus does not complete #968's requirement
 for licensed human-written text with labelled spans per kind; the
@@ -55,6 +58,7 @@ text and gold byte offsets.
 | `bip-173-350` | `bip-173-350.txt` | 2,196 | `a8d1e9b7621ff57df9a51e67fe636cd08cd7bd14ed1ef7014473a0402a9d14ae` | Project-adapted summary (Apache-2.0) embedding the canonical test vectors from [BIP-173](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki) and [BIP-350](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki) by Pieter Wuille and Greg Maxwell (BSD-2-Clause), plus synthetic Base58Check vectors and invalid Bech32/Bech32m near misses. |
 | `operational-memos` | `operational-memos.txt` | 6,072 | `260fc461b579030279741b25a1b1c7f03c4fa5c3929fb5585bf12ee38dc3fe9c` | Project-authored incident, treasury, network, tax/payroll, clinical and mobile fleet memos (Apache-2.0) using documentation, test, and synthetic checksum-valid specimen identifiers (RFC 2606, RFC 5737, RFC 3849, RFC 7042, RFC 7519, AWS documentation example keys, ISO 13616 / Bundesbank specimen IBANs, Federal Reserve routing numbers, NHS test numbers, ISO 7064 test Steuer-IDs, SIN `046 454 286`, and Luhn-valid test IMEIs). |
 | `us-identifiers-memos` | `us-identifiers-memos.txt` | 2,635 | `248776341fb8d0d4759f319e758a5c42453ee9c80da5ac3d0628286301c02232` | Project-authored fleet, shipping, vendor and web-portal memos (Apache-2.0, #1878) with synthetic VINs and tracking numbers carrying valid check digits, the UPS sample number `1Z999AA10123456784`, made up EINs with assigned prefixes and RFC 2606 domains, plus marked near misses. Gold: `4` `vin`, `9` `tracking-number`, `3` `us-ein`, `4` `url`, `2` `us-passport`, `2` `us-drivers-licence`, `3` `us-zip`, `2` `phone`, `2` `phone-extension`. |
+| `intake-memos` | `intake-memos.txt` | 1,057 | `5fdc30947b05300e1d392a941232cfb2718f72e318f2c92481111000646297c0` | Project-authored clinic intake memos (Apache-2.0, #1886) with made up ages, street addresses and post office boxes, plus marked near misses. Gold: `7` `age`, `7` `street-address`. |
 
 The five MASC documents are stored in `turbo_goldens::escape` encoding
 (`.escaped`, identical to their files in `analysis/goldens/data/inputs/masc/`)

@@ -156,6 +156,12 @@ pii_kinds! {
     UsZip = 37, "us-zip", 370;
     /// The extension digits after a telephone number (`ext.`, `x`, `#`).
     PhoneExtension = 38, "phone-extension", 380;
+    /// A person's age in years, after `age` or `aged` or before `years
+    /// old` or `y/o`: the number alone.
+    Age = 39, "age", 390;
+    /// A United States street address (house number, street name and
+    /// suffix, unit) or post office box.
+    StreetAddress = 40, "street-address", 400;
 }
 
 /// The first codec kind code of a custom kind: code `CUSTOM_CODE_BASE + i`
@@ -164,7 +170,7 @@ pub const CUSTOM_CODE_BASE: u32 = 1 << 16;
 
 impl PiiKind {
     /// The largest built-in id; a [`PiiKinds`] bit set holds ids up to 127.
-    pub const MAX_BUILTIN_ID: u16 = 38;
+    pub const MAX_BUILTIN_ID: u16 = 40;
 
     /// Every built-in kind, in id order.
     pub fn builtins() -> impl Iterator<Item = PiiKind> {

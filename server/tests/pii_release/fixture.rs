@@ -130,6 +130,7 @@ pub fn release(files: &Files, grants: &[String], audit: SocketAddr, timeout: Dur
         active_token_key: None,
         audit_endpoint: format!("http://{audit}"),
         audit_timeout: timeout,
+        require_recorded_policy: false,
     }
 }
 

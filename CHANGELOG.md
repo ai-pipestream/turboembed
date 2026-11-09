@@ -114,6 +114,10 @@ stubs must be regenerated.
   `turbo:pii-edits`. A mention the ceiling excludes is withheld with
   `NOT_ALLOWED_BY_POLICY`, and the named policy's digest is part of the
   audit event's `policy_digest` (#1943).
+- `--pii-require-recorded-policy`
+  (`TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY`), off by default: a values
+  request that names no `pii_policy` is refused when the graph's
+  `turbo:pii-edits` recorded a policy digest (#1977).
 - US identifier kinds, appended to `PiiKindId`: `vin` 31,
   `tracking-number` 32, `us-ein` 33, `url` 34 (#1959), `us-passport` 35,
   `us-drivers-licence` 36, `us-zip` 37 and `phone-extension` 38 (#1960),
@@ -121,6 +125,12 @@ stubs must be regenerated.
   mod 10 17 in `PiiChecksumAlgorithm`, the `Logistics`, `Web` and
   `PhoneExtension` extractors, and the `Logistics` and `Web` packs
   (#1878).
+- `age` 39 and `street-address` 40, appended to `PiiKindId`
+  (`TURBO_PII_KIND_AGE`, `TURBO_PII_KIND_STREET_ADDRESS`, Java `AGE`,
+  `STREET_ADDRESS`), with the `Age` and `UsAddress` extractors
+  (`turbo-pii:age`, `turbo-pii:us-address`): an age in years before
+  `years old` or `y/o` or after `age` or `aged`, and a US street
+  address with its unit, or a post office box (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (10) keep a ZIP code's first three
@@ -138,6 +148,8 @@ stubs must be regenerated.
   any digit run inside it, which drops some earlier `card`, `phone` and
   `uk-nhs` mentions inside web addresses. `us-passport` and
   `us-drivers-licence` need a label next to the value (#1959, #1960).
+- `AllStructured` also reports `age` and `street-address`, and `Contact`
+  reports `street-address` (#1886).
 - The release audit refuses to send an event whose value form is
   `UNSPECIFIED` or unknown (#1928).
 - docs/grpc.md records the PII and result envelope freeze: what is

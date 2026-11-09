@@ -44,7 +44,8 @@ pub const POLICY_ID: &str = "turbo-kserve.pii-output-allow.v1";
 /// `InspectDocumentGraphRequest.operation_key`.
 const OPERATION_KEY_FIELD: u32 = 6;
 
-/// The release settings: the grants, the token keys and the audit service.
+/// The release settings: the grants, the token keys, the audit service,
+/// and whether a values request must name the policy the graph recorded.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReleaseConfig {
     pub grants: Grants,
@@ -52,6 +53,10 @@ pub struct ReleaseConfig {
     pub active_token_key: Option<KeyRef>,
     pub audit_endpoint: String,
     pub audit_timeout: Duration,
+    /// `--pii-require-recorded-policy` (#1977): refuse a values request
+    /// that names no redaction policy when the graph's `turbo:pii-edits`
+    /// recorded one. Off by default.
+    pub require_recorded_policy: bool,
 }
 
 impl ReleaseConfig {
@@ -77,13 +82,15 @@ impl ReleaseConfig {
 pub type Resolver = Arc<dyn PolicyResolver + Send + Sync>;
 
 /// The running release: grants, the loaded token key, the audit client,
-/// and the redaction policies a request may name (#1943).
+/// the redaction policies a request may name (#1943), and whether it must
+/// name the one the graph recorded (#1977).
 pub struct Release {
     grants: Grants,
     token: Option<TokenKey>,
     audit: AuditClient,
     policies: NamedPolicies,
     resolver: Resolver,
+    require_recorded: bool,
 }
 
 impl Release {
@@ -106,13 +113,22 @@ impl Release {
         let active = config.check(tls)?;
         let token = active.map(TokenKey::load).transpose()?;
         let audit = AuditClient::new(&config.audit_endpoint, config.audit_timeout)?;
-        Ok(Some(Arc::new(Release { grants: config.grants.clone(), token, audit, policies, resolver })))
+        Ok(Some(Arc::new(Release {
+            grants: config.grants.clone(),
+            token,
+            audit,
+            policies,
+            resolver,
+            require_recorded: config.require_recorded_policy,
+        })))
     }
 
     /// InspectDocumentGraph for a request that asks for values in `form`,
     /// from `service`. A request without an operation key, from a service
     /// granted `form` for no kind, or naming a redaction policy that does
     /// not resolve, is refused before the graph is read (#1931, #1943).
+    /// Naming none under `--pii-require-recorded-policy` is refused when
+    /// the graph's edits recorded a policy (#1977).
     /// Mentions the service is not granted, or the policy's ceiling
     /// excludes, stay withheld; the rest receive their value only after
     /// the audit acknowledgement.
@@ -161,10 +177,12 @@ impl Release {
         let doc_id = req.doc_id.clone();
         let g = grant.clone();
         let r = redaction.clone();
-        let (mut typed, plan) =
-            tokio::task::spawn_blocking(move || plan::project(&req, policy, Forms::of(form), &g, r.as_deref()))
-                .await
-                .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
+        let require = self.require_recorded;
+        let (mut typed, plan) = tokio::task::spawn_blocking(move || {
+            plan::project(&req, policy, Forms::of(form), &g, r.as_deref(), require)
+        })
+        .await
+        .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
         // Nothing granted in this document: the mentions carry their reasons.
         if plan.is_empty() {
             return Ok(typed);

@@ -650,6 +650,17 @@ policy's `custom_kinds`. The caller supplies the graph, so the ceiling
 holds a caller to its own policy; it is not a control against a caller
 that strips the edits or names no policy, which the grant is.
 
+`--pii-require-recorded-policy` (`TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY`,
+`1`, `true` or `yes`; off by default; needs `--pii-grant`) makes a
+recorded ceiling apply to every values request (#1977). With it on, a
+values request that names no `pii_policy` is refused with
+`TURBO_E_INVALID_ARGUMENT` naming field 8 when any `turbo:pii-edits`
+layer of the graph records a policy digest; the error names no kind and
+no value, as the digest mismatch does. A graph whose edits record no
+digest, or that has none, is released as without the setting. It still
+does not hold a caller that strips the edits from the graph: the grant
+does.
+
 Why a values request released nothing (#1931). Causes that do not depend
 on the document are refused before the graph is read, so they tell the
 caller nothing about it:

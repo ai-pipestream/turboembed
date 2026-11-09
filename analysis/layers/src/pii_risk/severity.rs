@@ -11,10 +11,10 @@ use super::super::pii::{CustomKinds, PiiKind};
 pub enum PiiSeverity {
     /// Public or business identifiers: a company number, a routing number,
     /// an EIN, a parcel tracking number, a URL, a ZIP code, a phone
-    /// extension.
+    /// extension, an age.
     Low = 1,
     /// Contact, device and vehicle details: an e-mail address, a phone
-    /// number, an IP address, a wallet address, a VIN.
+    /// number, a street address, an IP address, a wallet address, a VIN.
     Medium = 2,
     /// Financial accounts: an IBAN.
     High = 3,
@@ -65,9 +65,11 @@ impl PiiSeverity {
                 PiiSeverity::Critical
             }
             Iban => PiiSeverity::High,
-            Email | Phone | Imei | Mac | Ipv4 | Ipv6 | BtcAddress | EthAddress | Vin | Custom(_) => PiiSeverity::Medium,
+            Email | Phone | StreetAddress | Imei | Mac | Ipv4 | Ipv6 | BtcAddress | EthAddress | Vin | Custom(_) => {
+                PiiSeverity::Medium
+            }
             EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting | UsEin | TrackingNumber | Url | UsZip
-            | PhoneExtension => PiiSeverity::Low,
+            | PhoneExtension | Age => PiiSeverity::Low,
         }
     }
 }
@@ -104,15 +106,15 @@ impl PiiSuggestedRewrite {
         PiiSuggestedRewrite::ALL.into_iter().find(|s| u32::from(s.id()) == id)
     }
 
-    /// The built-in suggestion for `kind`: a label for credentials and
-    /// contact details and URLs, the last four for cards and IBANs, a
+    /// The built-in suggestion for `kind`: a label for credentials,
+    /// contact details, street addresses, ages and URLs, the last four for cards and IBANs, a
     /// format-keeping mask for identity, vehicle, parcel and business
     /// numbers.
     pub const fn default_for(kind: PiiKind) -> PiiSuggestedRewrite {
         use PiiKind::*;
         match kind {
             Jwt | AwsAccessKey | GithubToken | UrlCredential | Email | Phone | Mac | Ipv4 | Ipv6 | BtcAddress
-            | EthAddress | Url | Custom(_) => PiiSuggestedRewrite::Label,
+            | EthAddress | Url | StreetAddress | Age | Custom(_) => PiiSuggestedRewrite::Label,
             Card | Iban => PiiSuggestedRewrite::KeepLastFour,
             Imei | UsSsn | UsItin | UkNhs | DeSteuerId | EsDni | EsNie | EsCif | DePersonalausweis | FrNir
             | FrSiren | FrSiret | BrCpf | BrCnpj | Bic | CaSin | AbaRouting | Vin | TrackingNumber | UsEin

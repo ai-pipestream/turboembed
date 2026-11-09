@@ -1888,6 +1888,34 @@ __kernel void rotary_narrow(__global const float *src, ulong n, __global half *d
     }
 }
 
+/* a / b rounded to nearest, as the host's f32 division is. OpenCL C lets
+ * a plain f32 divide be off by 2.5 ulp, and the driver builds it that way,
+ * which moves a value on a bucket edge into the next bucket. The driver's
+ * quotient is moved one ulp at a time while that makes the residual
+ * a - q * b, exact under fma, smaller; a quotient of two floats is never a
+ * midpoint between two, so the smallest residual is the rounded quotient. */
+float divide_rn(float a, float b) {
+    float q = a / b;
+    if (!isfinite(q)) return q;
+    float r = fabs(fma(-q, b, a));
+    for (int i = 0; i < 4; i++) {
+        const float up = nextafter(q, INFINITY);
+        const float down = nextafter(q, -INFINITY);
+        const float ru = fabs(fma(-up, b, a));
+        const float rd = fabs(fma(-down, b, a));
+        if (ru < r) {
+            q = up;
+            r = ru;
+        } else if (rd < r) {
+            q = down;
+            r = rd;
+        } else {
+            break;
+        }
+    }
+    return q;
+}
+
 /* int8 and ubinary codes, bit for bit with core/src/quantize.rs. out is a
  * separate buffer so the write never races the read of x. */
 __kernel void quantize_int8(__global const float *x, __global const float *ranges, __global char *out, int rows,
@@ -1897,9 +1925,9 @@ __kernel void quantize_int8(__global const float *x, __global const float *range
         const int d = (int)(i % (size_t)dim);
         const float lo = ranges[d];
         const float hi = ranges[(size_t)dim + (size_t)d];
-        float step = (hi - lo) / 255.0f;
+        float step = divide_rn(hi - lo, 255.0f);
         if (step == 0.0f) step = 1.0f;
-        float q = floor((x[i] - lo) / step);
+        float q = floor(divide_rn(x[i] - lo, step));
         q = clamp(q, 0.0f, 255.0f);
         const int qi = isnan(q) ? 0 : (int)q;
         out[i] = (char)(qi - 128);

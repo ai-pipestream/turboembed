@@ -25,7 +25,8 @@ fn everything() -> String {
          npa T220001293 nir 2 94 03 2A 123 456 92 siren 732 829 320 siret 732 829 320 00074 BIC: DEUTDEFF500 \
          cpf 529.982.247-25 cnpj 11.222.333/0001-81 SIN: 046 454 286 IMEI: 490154203237518 \
          vin 1FTFW1E51NFA00001 ups 1Z999AA10123456784 ein 12-3456789 site www.example.net/help \
-         tel +1 202-555-0143 ext 12 passport X12345678 DL D1234567 Springfield, IL 62704",
+         tel +1 202-555-0143 ext 12 passport X12345678 DL D1234567 Springfield, IL 62704 \
+         aged 41 at 8 Oak Lane",
         "a".repeat(36)
     )
 }
@@ -44,7 +45,7 @@ fn every_pack_is_in_order_and_finds_its_kinds_only() {
     let all_kinds: Vec<PiiKind> = PiiKind::builtins().collect();
     let expected: [(Pack, &[PiiKind]); 13] = [
         (Pack::Payment, &[Iban, Card, AbaRouting]),
-        (Pack::Contact, &[Email, Phone, PhoneExtension]),
+        (Pack::Contact, &[Email, Phone, PhoneExtension, StreetAddress]),
         (Pack::Network, &[Ipv4, Ipv6, Mac]),
         (Pack::Secrets, &[AwsAccessKey, UrlCredential, GithubToken, Jwt]),
         (Pack::Crypto, &[BtcAddress, EthAddress]),
@@ -232,7 +233,9 @@ fn kind_ids_and_priorities() {
             "us-passport",
             "us-drivers-licence",
             "us-zip",
-            "phone-extension"
+            "phone-extension",
+            "age",
+            "street-address"
         ]
     );
     for (i, r) in PiiKind::TABLE.iter().enumerate() {
@@ -415,7 +418,7 @@ fn pack_config_hashes_are_pinned_on_kind_ids() {
         hashes,
         [
             ("payment", 8739323326071888652),
-            ("contact", 7161351688130420800),
+            ("contact", 12937747398393370238),
             ("network", 576834619351109183),
             ("secrets", 591634045867018468),
             ("crypto", 588546617215948105),
@@ -426,7 +429,7 @@ fn pack_config_hashes_are_pinned_on_kind_ids() {
             ("device", 598477406239679157),
             ("logistics", 599294178023009374),
             ("web", 594502895042755729),
-            ("all-structured", 6140244308993760847),
+            ("all-structured", 11777157568047150422),
         ]
     );
 }
