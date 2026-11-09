@@ -638,7 +638,13 @@ values request names the policy in `InspectDocumentGraphRequest.pii_policy`
 binary `RedactionPolicy` (carried as bytes because
 `turbo_pii_policy.proto` imports `turbo_typed_annotations.proto`), or
 `name`, a policy loaded with `--pii-policy`. Unset, no ceiling applies and
-the release is as before. A selection that does not resolve (no arm, an
+the release is as before, unless `--pii-require-recorded-policy`
+(`TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY`, off by default) is set: with
+it on, a values request that names no policy is refused with
+`TURBO_E_INVALID_ARGUMENT` naming field 8, and naming no kind and no
+value, whenever a `turbo:pii-edits` layer of the graph records a
+`policy_digest` (#1977); a graph whose edits record no digest, or that has
+no `turbo:pii-edits` layer, is unaffected. A selection that does not resolve (no arm, an
 unknown name, bytes that are not a `RedactionPolicy`, a policy that does
 not convert) is refused with `TURBO_E_INVALID_ARGUMENT` naming field 8
 before the graph is read. The policy's digest must then equal the
@@ -647,8 +653,10 @@ records one, and at least one must; otherwise the call is refused with
 `TURBO_E_INVALID_ARGUMENT` naming field 8, and the error names no kind
 and no value. A custom kind's ceiling is found by the kind's name in the
 policy's `custom_kinds`. The caller supplies the graph, so the ceiling
-holds a caller to its own policy; it is not a control against a caller
-that strips the edits or names no policy, which the grant is.
+holds a caller to its own policy (and `--pii-require-recorded-policy`
+refuses a graph that carries recorded edits without the policy); it is not
+a control against a caller that strips the edits before sending the graph,
+which the grant is.
 
 Why a values request released nothing (#1931). Causes that do not depend
 on the document are refused before the graph is read, so they tell the

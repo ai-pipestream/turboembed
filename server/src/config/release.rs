@@ -16,6 +16,7 @@ pub const ENV_PII_TOKEN_KEYS: &str = "TURBO_KSERVE_PII_TOKEN_KEYS";
 pub const ENV_PII_TOKEN_KEY_ACTIVE: &str = "TURBO_KSERVE_PII_TOKEN_KEY_ACTIVE";
 pub const ENV_PII_AUDIT_ENDPOINT: &str = "TURBO_KSERVE_PII_AUDIT_ENDPOINT";
 pub const ENV_PII_AUDIT_TIMEOUT_MS: &str = "TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS";
+pub const ENV_PII_REQUIRE_RECORDED_POLICY: &str = "TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY";
 
 /// The release flags as given on the command line, before their variables.
 #[derive(Default)]
@@ -25,14 +26,26 @@ pub(super) struct ReleaseFlags {
     active: Option<String>,
     endpoint: Option<String>,
     timeout_ms: Option<String>,
+    require_recorded_policy: Option<bool>,
 }
 
 impl ReleaseFlags {
-    /// Takes `flag` if it is a release flag, reading its value with
-    /// `value`; answers false for any other flag. `--pii-grant` and
-    /// `--pii-token-key` repeat.
-    pub(super) fn take(&mut self, flag: &str, value: impl FnOnce() -> Result<String, String>) -> Result<bool, String> {
+    /// Takes `flag` if it is a release flag: `inline` is its `=value`, and
+    /// `value` reads the value the flag needs. Answers false for any other
+    /// flag. `--pii-grant` and `--pii-token-key` repeat.
+    pub(super) fn take(
+        &mut self,
+        flag: &str,
+        inline: bool,
+        value: impl FnOnce() -> Result<String, String>,
+    ) -> Result<bool, String> {
         match flag {
+            "--pii-require-recorded-policy" => {
+                if inline || self.require_recorded_policy.replace(true).is_some() {
+                    return Err("--pii-require-recorded-policy takes no value and may be given once".into());
+                }
+                return Ok(true);
+            }
             "--pii-grant" => self.grants.push(value()?),
             "--pii-token-key" => self.token_keys.push(value()?),
             "--pii-token-key-active" => super::once(flag, value()?, &mut self.active)?,
@@ -65,10 +78,29 @@ impl ReleaseFlags {
         let active = from_env(self.active, ENV_PII_TOKEN_KEY_ACTIVE);
         let endpoint = from_env(self.endpoint, ENV_PII_AUDIT_ENDPOINT);
         let timeout_ms = from_env(self.timeout_ms, ENV_PII_AUDIT_TIMEOUT_MS);
+        let require_recorded_policy =
+            match (self.require_recorded_policy, env(ENV_PII_REQUIRE_RECORDED_POLICY).filter(|v| !v.is_empty())) {
+                (Some(on), _) => on,
+                (None, None) => false,
+                (None, Some(v)) => match v.as_str() {
+                    "1" | "true" | "yes" => true,
+                    "0" | "false" | "no" => false,
+                    _ => {
+                        return Err(format!(
+                            "{ENV_PII_REQUIRE_RECORDED_POLICY}={v}: not one of 1, true, yes, 0, false, no"
+                        ));
+                    }
+                },
+            };
         if grants.is_empty() {
-            if !token_keys.is_empty() || active.is_some() || endpoint.is_some() || timeout_ms.is_some() {
-                return Err("--pii-token-key, --pii-token-key-active, --pii-audit-endpoint and \
-                            --pii-audit-timeout-ms need --pii-grant"
+            if !token_keys.is_empty()
+                || active.is_some()
+                || endpoint.is_some()
+                || timeout_ms.is_some()
+                || require_recorded_policy
+            {
+                return Err("--pii-token-key, --pii-token-key-active, --pii-audit-endpoint, \
+                            --pii-audit-timeout-ms and --pii-require-recorded-policy need --pii-grant"
                     .into());
             }
             return Ok(None);
@@ -91,7 +123,14 @@ impl ReleaseFlags {
                 _ => return Err(format!("--pii-audit-timeout-ms {v}: not a count of milliseconds over 0")),
             },
         };
-        let config = ReleaseConfig { grants: parsed, token_keys, active_token_key, audit_endpoint, audit_timeout };
+        let config = ReleaseConfig {
+            grants: parsed,
+            token_keys,
+            active_token_key,
+            audit_endpoint,
+            audit_timeout,
+            require_recorded_policy,
+        };
         config.check(tls)?;
         Ok(Some(config))
     }

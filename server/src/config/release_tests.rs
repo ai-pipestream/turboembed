@@ -43,6 +43,12 @@ fn grants_keys_and_the_audit_endpoint_parse_from_flags() {
     assert_eq!(r.token_keys[1].path, std::path::PathBuf::from("/k/two:with-colon"));
     assert_eq!(r.active_token_key, Some(KeyRef { id: "tok".into(), version: 2 }));
     assert_eq!((r.audit_endpoint.as_str(), r.audit_timeout), ("http://audit:9", Duration::from_millis(250)));
+    assert!(!r.require_recorded_policy, "off by default (#1977)");
+    let a = args(&format!(
+        "{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9 --pii-require-recorded-policy"
+    ))
+    .unwrap();
+    assert!(a.pii_release.unwrap().require_recorded_policy);
     // No grant: no release and no other flag.
     assert_eq!(args(MTLS).unwrap().pii_release, None);
 }
@@ -54,6 +60,7 @@ fn the_variables_fill_in_what_the_flags_leave_out() {
         ENV_PII_TOKEN_KEYS => Some("tok:7:/k/seven".into()),
         ENV_PII_AUDIT_ENDPOINT => Some("http://audit:9".into()),
         ENV_PII_AUDIT_TIMEOUT_MS => Some("40".into()),
+        ENV_PII_REQUIRE_RECORDED_POLICY => Some("true".into()),
         _ => None,
     };
     let r = args_env(MTLS, env).unwrap().pii_release.unwrap();
@@ -62,11 +69,21 @@ fn the_variables_fill_in_what_the_flags_leave_out() {
     assert_eq!(g.forms(PiiKind::Phone), Forms::of(Form::Clear));
     assert_eq!(r.active_token_key, None, "one key is the active one");
     assert_eq!(r.audit_timeout, Duration::from_millis(40));
+    assert!(r.require_recorded_policy);
     // A flag wins over its variable.
     let a = args_env(&format!("{MTLS} --pii-grant {FP}:clear:email"), env).unwrap();
     assert!(!a.pii_release.unwrap().grants.of(Some(&fp())).clear.custom);
     let env = |k: &str| (k == ENV_PII_TOKEN_KEY_ACTIVE).then(|| "tok:1".to_owned());
     assert!(args_env(MTLS, env).unwrap_err().contains("need --pii-grant"));
+    let env = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| "1".to_owned());
+    assert!(args_env(MTLS, env).unwrap_err().contains("need --pii-grant"));
+    let env = |k: &str| match k {
+        ENV_PII_GRANTS => Some(format!("{FP}:clear:email")),
+        ENV_PII_AUDIT_ENDPOINT => Some("http://audit:9".into()),
+        ENV_PII_REQUIRE_RECORDED_POLICY => Some("maybe".into()),
+        _ => None,
+    };
+    assert!(args_env(MTLS, env).unwrap_err().contains(ENV_PII_REQUIRE_RECORDED_POLICY));
 }
 
 #[test]
@@ -78,6 +95,12 @@ fn every_inconsistent_release_setting_is_refused() {
         (format!("{MTLS} --pii-grant {FP}:clear:email"), "needs --pii-audit-endpoint"),
         (format!("{MTLS} --pii-audit-endpoint http://audit:9"), "need --pii-grant"),
         (format!("{MTLS} --pii-token-key tok:1:/k"), "need --pii-grant"),
+        (format!("{MTLS} --pii-require-recorded-policy"), "need --pii-grant"),
+        (
+            format!("{MTLS} {grant} --pii-require-recorded-policy --pii-require-recorded-policy"),
+            "takes no value and may be given once",
+        ),
+        (format!("{MTLS} {grant} --pii-require-recorded-policy=yes"), "takes no value and may be given once"),
         (format!("{MTLS} --pii-grant {FP}:token:email --pii-audit-endpoint http://a:9"), "needs --pii-token-key"),
         (format!("{MTLS} {grant} --pii-token-key a:1:/k --pii-token-key b:1:/k"), "--pii-token-key-active"),
         (format!("{MTLS} {grant} --pii-token-key a:1:/k --pii-token-key a:1:/j"), "given twice"),

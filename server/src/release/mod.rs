@@ -44,7 +44,9 @@ pub const POLICY_ID: &str = "turbo-kserve.pii-output-allow.v1";
 /// `InspectDocumentGraphRequest.operation_key`.
 const OPERATION_KEY_FIELD: u32 = 6;
 
-/// The release settings: the grants, the token keys and the audit service.
+/// The release settings: the grants, the token keys, the audit service,
+/// and whether a values request must name the redaction policy the
+/// graph's `turbo:pii-edits` recorded (#1977).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReleaseConfig {
     pub grants: Grants,
@@ -52,6 +54,7 @@ pub struct ReleaseConfig {
     pub active_token_key: Option<KeyRef>,
     pub audit_endpoint: String,
     pub audit_timeout: Duration,
+    pub require_recorded_policy: bool,
 }
 
 impl ReleaseConfig {
@@ -77,13 +80,15 @@ impl ReleaseConfig {
 pub type Resolver = Arc<dyn PolicyResolver + Send + Sync>;
 
 /// The running release: grants, the loaded token key, the audit client,
-/// and the redaction policies a request may name (#1943).
+/// the redaction policies a request may name (#1943), and whether a
+/// recorded policy is required (#1977).
 pub struct Release {
     grants: Grants,
     token: Option<TokenKey>,
     audit: AuditClient,
     policies: NamedPolicies,
     resolver: Resolver,
+    require_recorded_policy: bool,
 }
 
 impl Release {
@@ -106,7 +111,14 @@ impl Release {
         let active = config.check(tls)?;
         let token = active.map(TokenKey::load).transpose()?;
         let audit = AuditClient::new(&config.audit_endpoint, config.audit_timeout)?;
-        Ok(Some(Arc::new(Release { grants: config.grants.clone(), token, audit, policies, resolver })))
+        Ok(Some(Arc::new(Release {
+            grants: config.grants.clone(),
+            token,
+            audit,
+            policies,
+            resolver,
+            require_recorded_policy: config.require_recorded_policy,
+        })))
     }
 
     /// InspectDocumentGraph for a request that asks for values in `form`,
@@ -161,10 +173,12 @@ impl Release {
         let doc_id = req.doc_id.clone();
         let g = grant.clone();
         let r = redaction.clone();
-        let (mut typed, plan) =
-            tokio::task::spawn_blocking(move || plan::project(&req, policy, Forms::of(form), &g, r.as_deref()))
-                .await
-                .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
+        let require_recorded_policy = self.require_recorded_policy;
+        let (mut typed, plan) = tokio::task::spawn_blocking(move || {
+            plan::project(&req, policy, Forms::of(form), &g, r.as_deref(), require_recorded_policy)
+        })
+        .await
+        .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}")))??;
         // Nothing granted in this document: the mentions carry their reasons.
         if plan.is_empty() {
             return Ok(typed);

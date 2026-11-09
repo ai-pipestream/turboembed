@@ -13,7 +13,7 @@ use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, Sensitive};
 
 use super::caps::{Form, Forms, Grant, effective};
 use super::keys::TokenKey;
-use super::policy::{ceiling, check_digest};
+use super::policy::{ceiling, check_digest, check_unrecorded};
 use crate::api::{Failure, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
 use crate::pii_policy::RedactionPolicy;
 use crate::proto::audit::PiiAccessMention;
@@ -80,26 +80,30 @@ impl Planned {
 /// value `asked` may release under `policy`, the release ceilings of
 /// `redaction` and `grant`. `req` asks for values withheld; its other
 /// options are decided as #1904 decides them. With `redaction`, a graph
-/// whose `turbo:pii-edits` did not record its digest is refused.
+/// whose `turbo:pii-edits` did not record its digest is refused; with
+/// `require_recorded_policy` and no `redaction`, a graph whose
+/// `turbo:pii-edits` records a policy digest is refused (#1977).
 pub fn project(
     req: &InspectDocumentGraphRequest,
     policy: PiiOutputPolicy,
     asked: Forms,
     grant: &Grant,
     redaction: Option<&RedactionPolicy>,
+    require_recorded_policy: bool,
 ) -> Result<(TypedDocumentResult, Vec<Planned>), Failure> {
     let mut typed = inspect_document_graph_under(req, policy)?;
     let mut plan = Vec::new();
     let has_pii = typed.layers.iter().any(|l| l.id == Pii::ID);
-    if !has_pii && redaction.is_none() {
+    if !has_pii && redaction.is_none() && !require_recorded_policy {
         return Ok((typed, plan));
     }
     // The projection imported the same bytes and accepted them.
     let bad = |e: String| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e);
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
-    if let Some(r) = redaction {
-        check_digest(&doc, r)?;
+    match redaction {
+        Some(r) => check_digest(&doc, r)?,
+        None => check_unrecorded(&doc, require_recorded_policy)?,
     }
     if !has_pii {
         return Ok((typed, plan));

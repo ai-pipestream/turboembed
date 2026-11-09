@@ -1,8 +1,10 @@
-//! A redaction policy's per-kind release ceiling (#1943) over real mTLS:
-//! a values request that names the policy the graph's `turbo:pii-edits`
-//! were written with releases at most the forms the kind's ceiling lists,
-//! withholds the rest as not allowed by policy, and is refused, naming no
-//! kind and no value, when the policy is not the graph's.
+//! A redaction policy's per-kind release ceiling (#1943, #1977) over real
+//! mTLS: a values request that names the policy the graph's
+//! `turbo:pii-edits` were written with releases at most the forms the
+//! kind's ceiling lists, withholds the rest as not allowed by policy, and
+//! is refused, naming no kind and no value, when the policy is not the
+//! graph's or when the server requires the recorded policy and the request
+//! names none.
 
 use std::sync::Arc;
 
@@ -55,6 +57,21 @@ fn redacted(policy: &pb::RedactionPolicy) -> Vec<u8> {
     export(&doc, codecs()).unwrap().to_bytes().unwrap()
 }
 
+/// `graph()` with a `turbo:pii-edits` layer that records no policy digest.
+fn unrecorded() -> Vec<u8> {
+    let policy = Arc::new(RedactionPolicy::from_proto(&crate::policy::policy(vec![]), &NoRegistry).unwrap());
+    let mut doc: Document = import(&DocumentGraph::from_bytes(&graph()).unwrap(), codecs()).unwrap();
+    let (view, mut edits) = {
+        let src = doc.get_key(&Key::<View>::DEFAULT).unwrap();
+        RedactStep::new(policy).rewrite(src, doc.get::<Pii>().unwrap()).unwrap()
+    };
+    edits.policy_digest = None;
+    doc.add(&REDACTED, view, Provenance::by(REDACT_STEP)).unwrap();
+    edits.bind_pending_view(doc.get_key(&REDACTED).unwrap().id());
+    doc.add(&Key::<PiiEdits>::named(REDACTED.name), edits, Provenance::by(REDACT_STEP)).unwrap();
+    export(&doc, codecs()).unwrap().to_bytes().unwrap()
+}
+
 fn inline(p: &pb::RedactionPolicy) -> Option<PiiReleasePolicy> {
     Some(PiiReleasePolicy { policy: Some(pii_release_policy::Policy::Inline(p.encode_to_vec())) })
 }
@@ -81,10 +98,19 @@ fn sent(audit: &Audit) -> Vec<PiiAccessEvent> {
 /// An mTLS server granting the client token and clear for every kind and
 /// serving `served` by name.
 async fn granted(tag: &str, served: &[pb::RedactionPolicy]) -> (Files, Audit, Server) {
+    granted_with(tag, served, false).await
+}
+
+async fn granted_with(
+    tag: &str,
+    served: &[pb::RedactionPolicy],
+    require_recorded_policy: bool,
+) -> (Files, Audit, Server) {
     let files = Files::create(tag);
     let (audit, at) = audit(Answer::Ack).await;
     let grant = format!("{}:token+clear:*", client_fingerprint());
-    let config = release(&files, &[grant], at, SECOND);
+    let mut config = release(&files, &[grant], at, SECOND);
+    config.require_recorded_policy = require_recorded_policy;
     let served = PolicyFiles(served.iter().map(Message::encode_to_vec).collect());
     let s = server_with(&files, config, open_policy(), served).await;
     (files, audit, s)
@@ -194,4 +220,68 @@ async fn a_policy_that_is_not_the_graphs_is_refused_naming_no_kind_and_no_value(
     }
     assert!(audit.calls.lock().unwrap().is_empty(), "nothing released, nothing recorded");
     s.stop().await;
+}
+
+#[tokio::test]
+async fn requiring_the_recorded_policy_refuses_an_unnamed_policy_and_leaves_unrecorded_graphs_alone() {
+    let p = wire(Some(&[PiiValueForm::Token]), 1);
+    let (_files_on, audit_on, s_on) = granted_with("require-on", std::slice::from_ref(&p), true).await;
+    let mut c_on = connect(&s_on, true).await.unwrap();
+    // Setting on: a graph whose turbo:pii-edits recorded a digest refuses a
+    // values request naming no policy, naming no kind and no value.
+    for form in [PiiValueForm::Clear, PiiValueForm::Token] {
+        let e = c_on.inspect_document_graph(under(form, "op-req", redacted(&p), None)).await.unwrap_err();
+        assert_eq!(e.code(), Code::InvalidArgument, "{form:?}: {e:?}");
+        assert!(e.message().contains("pii_policy"), "{form:?}: {e:?}");
+        for named in ["email", "EMAIL", "phone", "PHONE", EMAIL, PHONE, "[E]"] {
+            assert!(!e.message().contains(named) && !format!("{e:?}").contains(named), "{form:?} names {named}: {e:?}");
+        }
+    }
+    assert!(audit_on.calls.lock().unwrap().is_empty(), "nothing released, nothing recorded");
+    // Naming the recorded policy still releases under its ceiling.
+    let typed = c_on
+        .inspect_document_graph(under(PiiValueForm::Clear, "op-named", redacted(&p), named("test-policy")))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(reason(&forms(&typed)[0]), Some(PiiWithheldReason::NotAllowedByPolicy));
+    assert_eq!(forms(&typed)[1], pii_value::Form::Clear(PHONE.into()));
+
+    // Setting off (default): a values request naming no policy releases as today,
+    // even when the graph's edits recorded a policy digest.
+    let (_files_off, audit_off, s_off) = granted_with("require-off", std::slice::from_ref(&p), false).await;
+    let mut c_off = connect(&s_off, true).await.unwrap();
+    let typed_off = c_off
+        .inspect_document_graph(under(PiiValueForm::Clear, "op-off", redacted(&p), None))
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        forms(&typed_off),
+        vec![pii_value::Form::Clear(EMAIL.into()), pii_value::Form::Clear(PHONE.into())],
+        "with the setting off, both mentions are released under the grant"
+    );
+    assert_eq!(sent(&audit_off).len(), 1);
+
+    // A graph with no recorded digest (either no turbo:pii-edits layer or an
+    // edits layer with policy_digest == None) is unaffected either way.
+    for (tag, g) in [("no-edits", graph()), ("unrecorded-edits", unrecorded())] {
+        let on = c_on
+            .inspect_document_graph(under(PiiValueForm::Clear, &format!("op-{tag}"), g.clone(), None))
+            .await
+            .unwrap()
+            .into_inner();
+        let off = c_off
+            .inspect_document_graph(under(PiiValueForm::Clear, &format!("op-{tag}"), g, None))
+            .await
+            .unwrap()
+            .into_inner();
+        let expected = vec![pii_value::Form::Clear(EMAIL.into()), pii_value::Form::Clear(PHONE.into())];
+        assert_eq!(forms(&on), expected, "{tag} on");
+        assert_eq!(forms(&off), expected, "{tag} off");
+    }
+    assert_eq!(sent(&audit_on).len(), 3, "the named-policy release and the two unrecorded graphs");
+    assert_eq!(sent(&audit_off).len(), 3);
+    s_on.stop().await;
+    s_off.stop().await;
 }
