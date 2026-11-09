@@ -286,6 +286,76 @@ confidence tier, the audit report and every policy decision read them.
   outside the `turbo:pii` layer of the same instance. The C ABI and the
   Java binding carry the derived tier only.
 
+## Per-document risk
+
+The `turbo-pii:risk` step (aliases `turbo:pii-risk`, `pii-risk`;
+`turbo_pii::PiiRiskScorer`) reads the view and its `turbo:pii` layer and
+writes `turbo:pii-risk` (`PiiRisk`): one score and level per document, so
+the indexing pipeline can index a document as is, redact it, or
+quarantine it. It is computed from the layer alone and holds kinds,
+counts and weights, never a value, so it stays in a findings-only answer.
+
+Each kind has a severity, and each severity a weight:
+
+| Severity | Weight | Built-in kinds |
+| --- | --- | --- |
+| critical | 10 | jwt, aws-access-key, github-token, url-credential, card, us-ssn, us-itin, uk-nhs, de-steuer-id, es-dni, es-nie, de-personalausweis, fr-nir, br-cpf, ca-sin, us-passport, us-drivers-licence |
+| high | 5 | iban |
+| medium | 2 | email, phone, imei, mac, ipv4, ipv6, btc-address, eth-address, vin, every custom kind |
+| low | 0.5 | es-cif, fr-siren, fr-siret, br-cnpj, bic, aba-routing, us-ein, tracking-number, url, us-zip, phone-extension |
+
+`PiiSeverityTable` overrides any built-in kind (`with`), a custom kind by
+name (`with_custom`) and the custom default (`with_custom_default`). The
+table's digest is the step's configuration hash and is recorded on the
+layer, so a cached risk is never reused under another table.
+
+Each mention has a confidence weight, a documented heuristic over its
+evidence facts and never a probability: 1 for a deny list hit or a label
+with a passed checksum, 0.9 for a passed checksum, 0.85 for a label, and
+0.75 for the shape alone or a rule. A failed checksum counts for nothing.
+
+A kind's weighted count `c` is the sum of its mentions' confidence
+weights, and its contribution is `severity weight x log2(1 + c)`: one
+fully supported mention scores its weight, three score twice it, seven
+three times, so no kind dominates by volume. The score is the sum of the
+contributions in kind order. Every contribution is positive and grows
+with its count, so adding a mention never lowers the score, and the same
+layer and table always give the same bits.
+
+| Level | Score |
+| --- | --- |
+| NONE | 0 (no mention) |
+| LOW | above 0, below 3 |
+| MEDIUM | from 3, below 6 |
+| HIGH | from 6, below 9 |
+| CRITICAL | from 9 |
+
+So one Luhn-checked card is critical (9.26), one unlabelled SSN high
+(8.07) and two critical (13.2), one e-mail address low (1.61), ten high
+(6.17), and fifty Luhn-checked company numbers stay low (2.76). The layer also
+reports the mention count, the view's length in Unicode scalar values,
+and the density in mentions per 1,000 characters.
+
+Each kind also carries a suggested rewrite: a `[%t]` label for
+credentials, contact, network, URL and custom kinds; the last four kept
+for cards and IBANs; a format-keeping mask for identity, licence, vehicle,
+parcel, postal and business numbers and phone extensions.
+None needs a key, a dictionary or per-document numbering.
+`turbo_kserve::pii_policy::suggested_policy` turns a projected
+`turbo:pii-risk` layer into a `RedactionPolicy` message (id
+`turbo-pii:risk-suggested`, one enabled rule per kind found, rule ids
+`suggested:<kind>`, a `*` mask by default) that a caller can review,
+change and send back as `pii_redaction`.
+
+On the wire, `TypedAnnotation.pii_risk` (100) carries a
+`PiiRiskAnnotation` with `PiiRiskLevel`, and one `PiiRiskKind` per kind
+with its `PiiSeverity` and `PiiSuggestedRewrite`; custom kinds index the
+layer's `custom_pii_kinds`. The layer is document-scoped: its one
+annotation has no span. The typed validator refuses a level its score
+does not give, an unknown or unspecified enum, kinds out of order or
+outside the table, a mention count that is not their sum, a non-finite
+number, a span and a second annotation.
+
 ## Masking and labels
 
 `rewrite::mask` overwrites the characters of each span with a policy;

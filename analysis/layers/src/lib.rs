@@ -46,6 +46,9 @@ pub use pii::{
 pub use pii_candidates::{AllowRule, AllowScope, PiiCandidate, PiiCandidates, PiiDisposition, RejectReason};
 pub use pii_edits::{PiiEdit, PiiEdits, PiiRule, PiiStrategyKind};
 pub use pii_plan::PiiPlan;
+pub use pii_risk::{
+    PiiRisk, PiiRiskKind, PiiRiskLevel, PiiSeverity, PiiSeverityTable, PiiSuggestedRewrite, confidence_weight,
+};
 pub use quality::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
     MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
@@ -173,6 +176,7 @@ mod pii;
 mod pii_candidates;
 mod pii_edits;
 mod pii_plan;
+mod pii_risk;
 mod predicate;
 mod project;
 mod quality;
