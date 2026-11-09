@@ -182,6 +182,7 @@ fn kind_rule(e: &mut Enc, r: &pb::PiiKindRule) {
         e.u32(2, l.window_words);
         e.rep_str(3, &l.extra_labels);
     });
+    e.msg(7, r.release_ceiling.as_ref(), |e, c: &pb::PiiReleaseCeiling| e.rep_enum(1, &c.forms));
 }
 
 fn strategy_entry(e: &mut Enc, s: &pb::PiiStrategyEntry) {
@@ -259,6 +260,18 @@ fn strategy(e: &mut Enc, s: &pb::PiiRewriteStrategy) {
         Some(S::Pseudonym(p)) => e.arm(10, p, |e, p| {
             e.str(1, &p.prefix);
             e.str(2, &p.suffix);
+        }),
+        Some(S::ZipSafeHarbor(z)) => e.arm(11, z, |e, z| {
+            e.str(1, &z.mask_char);
+            // A set: the strategy sorts and folds it, so the digest does,
+            // and the bundled table spelled out digests as empty.
+            let mut prefixes = z.restricted_prefixes.clone();
+            prefixes.sort_unstable();
+            prefixes.dedup();
+            if prefixes.iter().map(String::as_str).eq(turbo_pii::rewrite::HHS_2000_RESTRICTED_PREFIXES) {
+                prefixes.clear();
+            }
+            e.rep_str(2, &prefixes);
         }),
     }
 }

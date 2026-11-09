@@ -1,0 +1,20 @@
+MASKED	A **-year-old woman, aged **, age: **, at the age of ** and ** y/o. Not ages: page 34, 34 years ago, aged 3 months, aged 200, 34 years older.
+
+MASK_ALL	A ##-year-old woman, aged ##, age: ##, at the age of ## and ## y/o. Not ages: page 34, 34 years ago, aged 3 months, aged 200, 34 years older.
+
+REWRITE	pseudonymize	OK	A AGE-1-year-old woman, aged AGE-2, age: AGE-3, at the age of AGE-4 and AGE-5 y/o. Not ages: page 34, 34 years ago, aged 3 months, aged 200, 34 years older.
+
+LABEL	pseudonymize	2	4	2	7	AGE-1
+LABEL	pseudonymize	26	28	29	34	AGE-2
+LABEL	pseudonymize	35	37	41	46	AGE-3
+LABEL	pseudonymize	53	55	62	67	AGE-4
+LABEL	pseudonymize	60	62	72	77	AGE-5
+REWRITE	hmac	OK	A AGE-47a735f8eee5a1d4-year-old woman, aged AGE-0cf374f1362b9834, age: AGE-f4e33083d4b85257, at the age of AGE-50c4cb1cb23bff22 and AGE-a81d4e985ccac322 y/o. Not ages: page 34, 34 years ago, aged 3 months, aged 200, 34 years older.
+
+LABEL	hmac	2	4	2	22	AGE-47a735f8eee5a1d4
+LABEL	hmac	26	28	44	64	AGE-0cf374f1362b9834
+LABEL	hmac	35	37	71	91	AGE-f4e33083d4b85257
+LABEL	hmac	53	55	107	127	AGE-50c4cb1cb23bff22
+LABEL	hmac	60	62	132	152	AGE-a81d4e985ccac322
+AUDIT	age	5	5	AGE-47a735f8eee5a1d4, AGE-0cf374f1362b9834, AGE-f4e33083d4b85257
+AUDIT_REPORT	age: 5 mentions, 5 distinct [AGE-47a735f8eee5a1d4, AGE-0cf374f1362b9834, AGE-f4e33083d4b85257]

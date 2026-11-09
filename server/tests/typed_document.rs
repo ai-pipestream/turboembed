@@ -184,6 +184,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
             pii_output: full_text(),
             binding: None,
             operation_key: String::new(),
+            pii_policy: None,
         })
         .await
         .unwrap()
@@ -265,6 +266,7 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
         pii_output: full_text(),
         binding: None,
         operation_key: String::new(),
+        pii_policy: None,
     })
     .unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);

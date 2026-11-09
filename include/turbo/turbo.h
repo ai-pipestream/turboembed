@@ -957,6 +957,8 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_KIND_US_DRIVERS_LICENCE 36
 #define TURBO_PII_KIND_US_ZIP             37
 #define TURBO_PII_KIND_PHONE_EXTENSION    38
+#define TURBO_PII_KIND_AGE                39
+#define TURBO_PII_KIND_STREET_ADDRESS     40
 
 /* The numeric kind of a custom PII kind is TURBO_PII_KIND_CUSTOM_BASE + i
  * for entry i of its layer's custom-kind table, the binary layer codec's

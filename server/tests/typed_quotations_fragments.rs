@@ -68,6 +68,7 @@ async fn discontinuous_content_survives_partial_total_and_overlapping_projection
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()

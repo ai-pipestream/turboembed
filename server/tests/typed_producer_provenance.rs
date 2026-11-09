@@ -100,6 +100,7 @@ async fn check(entities: bool) {
                     pii_output: None,
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()

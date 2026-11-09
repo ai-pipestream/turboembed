@@ -80,7 +80,9 @@ fn strategy_ids_are_stable_and_round_trip() {
         assert_eq!(PiiStrategyKind::from_id(k.id()), Some(*k));
     }
     assert_eq!(PiiStrategyKind::from_id(0), None);
-    assert_eq!(PiiStrategyKind::from_id(10), None);
+    assert_eq!(PiiStrategyKind::from_id(12), Some(PiiStrategyKind::ZipSafeHarbor));
+    assert_eq!(PiiStrategyKind::ZipSafeHarbor.name(), "zip-safe-harbor");
+    assert_eq!(PiiStrategyKind::from_id(13), None);
     assert_eq!(PiiRule::Default.code(), 0);
     assert_eq!(PiiRule::Kind(PiiKind::Phone).code(), PiiKind::Phone.code());
 }

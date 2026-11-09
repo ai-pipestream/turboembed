@@ -123,6 +123,10 @@ fn the_suggested_policy_converts_and_redacts_every_mention() {
     let msg = suggested_policy(risk_layer(&t)).expect("a suggested policy");
     assert_eq!(msg.id, SUGGESTED_POLICY_ID);
     assert_eq!(msg.kind_rules.len(), 2);
+    assert!(
+        msg.kind_rules.iter().all(|r| r.release_ceiling.is_none()),
+        "a suggested policy caps no release form (#1943)"
+    );
     let pii = t.layers.iter().find(|l| l.id == "turbo:pii").unwrap();
     assert!(suggested_policy(pii).is_none(), "only a risk layer suggests a policy");
     let policy = RedactionPolicy::from_proto(&msg, &NoRegistry).expect("the suggestion is a valid policy");

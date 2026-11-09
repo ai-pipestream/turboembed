@@ -71,6 +71,23 @@ message PiiKindRule
   PiiAllowList allow = 5;
   // Unset: the detector's label settings for the kind.
   PiiLabelOverride labels = 6;
+  // The most a value release (#1909) gives out for the kind's mentions,
+  // whatever the calling service is granted (#1943). Unset: no limit
+  // beyond the grant. Set with no form: no form is released for the kind,
+  // and its mentions are withheld with NOT_ALLOWED_BY_POLICY.
+  PiiReleaseCeiling release_ceiling = 7;
+}
+
+// The value forms a release may give out for one kind: a capability set,
+// never a ranking, intersected with the request, the server's output
+// policy and the calling service's grant. Being a message, unset and
+// empty differ.
+message PiiReleaseCeiling
+{
+  // PII_VALUE_FORM_TOKEN, PII_VALUE_FORM_CIPHERTEXT or
+  // PII_VALUE_FORM_CLEAR, each at most once; empty releases no form.
+  // UNSPECIFIED, WITHHELD and unknown numbers are refused.
+  repeated PiiValueForm forms = 1;
 }
 
 // Whether a kind needs a context label. UNSPECIFIED is refused.
@@ -186,6 +203,8 @@ message PiiRewriteStrategy
     PiiStaticStrategy static_text = 9;
     // PII_STRATEGY_PSEUDONYM
     PiiPseudonymStrategy pseudonym = 10;
+    // PII_STRATEGY_ZIP_SAFE_HARBOR
+    PiiZipSafeHarborStrategy zip_safe_harbor = 11;
   }
 }
 
@@ -266,6 +285,23 @@ message PiiAbbreviateStrategy
   bool preserve_hyphens = 3;
   // Keep each initial's case; false writes initials upper-case.
   bool preserve_case = 4;
+}
+
+// HIPAA Safe Harbor for a United States ZIP code (45 CFR
+// 164.514(b)(2)(i)(B)): keep the first three digits, written as 000 when
+// that three-digit area is restricted (20,000 people or fewer), and mask
+// every other digit; the ZIP+4 hyphen stays ("62704-1234" becomes
+// "627**-****"). A mention that is not five ASCII digits, optionally
+// followed by '-' and four more, is masked whole, and so is a cluster of
+// overlapping mentions.
+message PiiZipSafeHarborStrategy
+{
+  // One character; empty means '*'.
+  string mask_char = 1;
+  // The restricted three-digit areas, each exactly three ASCII digits, at
+  // most 1000. Empty means the 17 prefixes HHS published from the 2000
+  // Census in its de-identification guidance.
+  repeated string restricted_prefixes = 2;
 }
 
 // A registered, versioned key: never key material.

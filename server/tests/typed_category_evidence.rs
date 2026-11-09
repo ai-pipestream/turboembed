@@ -95,6 +95,7 @@ async fn category_evidence_keeps_payloads_producers_support_and_projected_spans(
                     pii_output: full_text(),
                     binding: None,
                     operation_key: String::new(),
+                    pii_policy: None,
                 })
                 .await
                 .unwrap()

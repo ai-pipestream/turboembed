@@ -48,7 +48,9 @@ public enum TurboPiiKind {
     US_PASSPORT(35, "us-passport"),
     US_DRIVERS_LICENCE(36, "us-drivers-licence"),
     US_ZIP(37, "us-zip"),
-    PHONE_EXTENSION(38, "phone-extension");
+    PHONE_EXTENSION(38, "phone-extension"),
+    AGE(39, "age"),
+    STREET_ADDRESS(40, "street-address");
 
     /**
      * The numeric kind code of the first custom kind: code {@code CUSTOM_CODE_BASE + i} is entry

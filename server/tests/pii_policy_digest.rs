@@ -7,7 +7,10 @@
 //! `tr -d '\n' < server/tests/pii_policy/golden.hex | perl -pe 's/(..)/chr hex $1/ge' | sha256sum`
 //! and is [`GOLDEN_SHA256`]. `TURBO_UPDATE_FIXTURE=1` rewrites the hex file;
 //! the digest constant is only ever changed by hand, after recomputing it
-//! with that command.
+//! with that command. `pii_policy/golden_ceiling.hex` and
+//! [`GOLDEN_CEILING_SHA256`] are the same for [`with_ceilings`], which
+//! adds per-kind release ceilings (#1943) and leaves the first golden as
+//! it was.
 
 #[path = "pii_policy/common.rs"]
 mod common;
@@ -19,8 +22,10 @@ use pb::pii_rewrite_strategy::Strategy;
 use prost::Message;
 use turbo_kserve::pii_policy::{PolicyDigest, RedactionPolicy, canonical};
 use turbo_kserve::proto::result as pb;
+use turbo_kserve::release::caps::{Form, Forms};
 
 const GOLDEN_SHA256: &str = "8120dd99f91719043aa0d97c762ddc340859a0b582500cefe9fd7dced48b868f";
+const GOLDEN_CEILING_SHA256: &str = "4c827aa2641c6db2495cf69b815834ae68bf3d0c5eb01b8927363bf209e14724";
 
 fn digest(p: &pb::RedactionPolicy) -> PolicyDigest {
     RedactionPolicy::from_proto(p, &TestRegistry).expect("the policy converts").digest
@@ -37,10 +42,11 @@ fn hex(bytes: &[u8]) -> String {
     out
 }
 
-#[test]
-fn the_golden_policy_has_the_recorded_encoding_and_digest() {
-    let bytes = canonical::encode(&rich());
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/pii_policy/golden.hex");
+/// Checks `p`'s canonical encoding against the hex file `name` and its
+/// digest against `sha256`.
+fn golden(p: &pb::RedactionPolicy, name: &str, sha256: &str) {
+    let bytes = canonical::encode(p);
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/pii_policy").join(name);
     if std::env::var_os("TURBO_UPDATE_FIXTURE").is_some() {
         std::fs::write(&path, hex(&bytes)).unwrap();
     }
@@ -48,8 +54,63 @@ fn the_golden_policy_has_the_recorded_encoding_and_digest() {
     assert_eq!(hex(&bytes), want, "the canonical encoding changed");
     assert!(bytes.starts_with(&(PolicyDigest::DOMAIN.len() as u64).to_le_bytes()));
     assert_eq!(&bytes[8..8 + PolicyDigest::DOMAIN.len()], PolicyDigest::DOMAIN.as_bytes());
-    assert_eq!(digest(&rich()).to_hex(), GOLDEN_SHA256);
-    assert_eq!(PolicyDigest::of_canonical(&bytes).to_hex(), GOLDEN_SHA256);
+    assert_eq!(digest(p).to_hex(), sha256);
+    assert_eq!(PolicyDigest::of_canonical(&bytes).to_hex(), sha256);
+}
+
+#[test]
+fn the_golden_policy_has_the_recorded_encoding_and_digest() {
+    golden(&rich(), "golden.hex", GOLDEN_SHA256);
+}
+
+/// [`rich`] with a token and clear ceiling on its card rule and an empty
+/// one on its email rule; its employee rule sets none.
+fn with_ceilings() -> pb::RedactionPolicy {
+    let mut p = rich();
+    let forms = [pb::PiiValueForm::Token as i32, pb::PiiValueForm::Clear as i32];
+    p.kind_rules[0].release_ceiling = Some(pb::PiiReleaseCeiling { forms: forms.to_vec() });
+    p.kind_rules[1].release_ceiling = Some(pb::PiiReleaseCeiling::default());
+    p
+}
+
+#[test]
+fn the_golden_policy_with_release_ceilings_has_the_recorded_encoding_and_digest() {
+    golden(&with_ceilings(), "golden_ceiling.hex", GOLDEN_CEILING_SHA256);
+    assert_ne!(digest(&with_ceilings()), digest(&rich()));
+    // Unset and empty ceilings are two policies; forms are digested in order.
+    let mut p = rich();
+    p.kind_rules[1].release_ceiling = Some(pb::PiiReleaseCeiling::default());
+    assert_ne!(digest(&p), digest(&rich()), "an empty ceiling is not an unset one");
+    let mut q = with_ceilings();
+    q.kind_rules[0].release_ceiling.as_mut().unwrap().forms.reverse();
+    assert_ne!(digest(&q), digest(&with_ceilings()));
+}
+
+#[test]
+fn a_release_ceiling_lists_each_form_a_value_leaves_in_at_most_once() {
+    let converted = |forms: &[i32]| {
+        let mut p = rich();
+        p.kind_rules[0].release_ceiling = Some(pb::PiiReleaseCeiling { forms: forms.to_vec() });
+        RedactionPolicy::from_proto(&p, &TestRegistry).map(|c| c.rules[0].release_ceiling)
+    };
+    let (token, ciphertext, clear) =
+        (pb::PiiValueForm::Token as i32, pb::PiiValueForm::Ciphertext as i32, pb::PiiValueForm::Clear as i32);
+    let all = converted(&[clear, ciphertext, token]).unwrap().unwrap();
+    assert!(all.contains(Form::Token) && all.contains(Form::Ciphertext) && all.contains(Form::Clear));
+    assert_eq!(converted(&[]).unwrap(), Some(Forms::NONE), "empty is a ceiling releasing nothing");
+    assert_eq!(converted(&[token]).unwrap(), Some(Forms::of(Form::Token)));
+    let unset = RedactionPolicy::from_proto(&rich(), &TestRegistry).unwrap();
+    assert_eq!(unset.rules[0].release_ceiling, None, "unset is no ceiling");
+    assert_eq!(unset.release_ceiling(unset.rules[0].kind), Forms::ALL);
+    for (bad, why) in [
+        (vec![pb::PiiValueForm::Unspecified as i32], "UNSPECIFIED"),
+        (vec![pb::PiiValueForm::Withheld as i32], "WITHHELD"),
+        (vec![99], "UNSPECIFIED or unknown"),
+        (vec![token, token], "repeats a form"),
+    ] {
+        let e = converted(&bad).unwrap_err().to_string();
+        assert!(e.contains("kind_rules[0]") && e.contains(why), "{bad:?}: {e}");
+    }
 }
 
 /// The message's fields, each encoded on its own and concatenated in

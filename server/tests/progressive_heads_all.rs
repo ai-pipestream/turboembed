@@ -122,6 +122,7 @@ fn typed(complete: &DocumentGraphResponse, offsets: OffsetMode) -> TypedDocument
         pii_output: None,
         binding: None,
         operation_key: String::new(),
+        pii_policy: None,
     })
     .unwrap()
 }

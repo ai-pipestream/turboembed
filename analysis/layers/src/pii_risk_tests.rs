@@ -239,6 +239,11 @@ fn every_builtin_kind_has_a_severity_and_a_suggestion() {
     for k in [PiiKind::UsEin, PiiKind::TrackingNumber, PiiKind::Url, PiiKind::UsZip, PiiKind::PhoneExtension] {
         assert_eq!(PiiSeverity::default_for(k), PiiSeverity::Low, "{k}");
     }
+    assert_eq!(PiiSeverity::default_for(PiiKind::Age), PiiSeverity::Low);
+    assert_eq!(PiiSeverity::default_for(PiiKind::StreetAddress), PiiSeverity::Medium);
+    for k in [PiiKind::Age, PiiKind::StreetAddress] {
+        assert_eq!(PiiSuggestedRewrite::default_for(k), PiiSuggestedRewrite::Label, "{k}");
+    }
     assert_eq!(PiiSuggestedRewrite::default_for(PiiKind::Url), PiiSuggestedRewrite::Label);
     assert_eq!(PiiSeverity::from_id(0), None);
 }

@@ -249,7 +249,7 @@ pub struct WebSplit {
 
 /// The recipe's web split: per language at most 1,000 training windows
 /// of at most 300 characters, a fifth of the Tatoeba sentences' count and
-/// about twice their text, which keeps the events of 100 languages within
+/// about twice their text, which keeps the events of 107 languages within
 /// the runner's memory beside Tatoeba's; at most 500 held out, as many as
 /// Tatoeba's. 64 KiB of a footer holds its schema and the leading row
 /// groups the recipe reads of each of its files; a file whose footer's

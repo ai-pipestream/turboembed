@@ -218,7 +218,8 @@ pub const ENV_CATALOG_STORE: &str = "TURBO_KSERVE_CATALOG_STORE";
 pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub use pii::ENV_PII_OUTPUT_ALLOW;
 pub use release::{
-    ENV_PII_AUDIT_ENDPOINT, ENV_PII_AUDIT_TIMEOUT_MS, ENV_PII_GRANTS, ENV_PII_TOKEN_KEY_ACTIVE, ENV_PII_TOKEN_KEYS,
+    ENV_PII_AUDIT_ENDPOINT, ENV_PII_AUDIT_TIMEOUT_MS, ENV_PII_GRANTS, ENV_PII_REQUIRE_RECORDED_POLICY,
+    ENV_PII_TOKEN_KEY_ACTIVE, ENV_PII_TOKEN_KEYS,
 };
 pub use sink::{
     ENV_SINK_DOCUMENTS, ENV_SINK_ENDPOINT, ENV_SINK_PII_OUTPUT, ENV_SINK_QUEUE_BYTES, ENV_SINK_QUEUE_ITEMS,
@@ -293,7 +294,9 @@ impl Args {
                 _ => (a.clone(), None),
             };
             let mut value = || inline.clone().or_else(|| it.next()).ok_or_else(|| format!("{flag} needs a value"));
-            if sink_flags.take(&flag, inline.is_some(), &mut value)? || release_flags.take(&flag, &mut value)? {
+            if sink_flags.take(&flag, inline.is_some(), &mut value)?
+                || release_flags.take(&flag, inline.is_some(), &mut value)?
+            {
                 continue;
             }
             match flag.as_str() {
