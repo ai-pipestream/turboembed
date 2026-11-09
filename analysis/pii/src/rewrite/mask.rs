@@ -250,7 +250,8 @@ impl MaskPolicy {
 
     /// `MaskPolicies.forType`: cards and IBANs keep separators and their
     /// last four letters or digits; contact, network, national and device
-    /// identifiers and routing numbers keep separators; credentials and
+    /// identifiers, routing numbers, ages and street addresses keep
+    /// separators; credentials and
     /// wallet addresses are masked whole.
     pub fn for_kind(kind: PiiKind, mask: char) -> Result<MaskPolicy, MaskError> {
         let whole = MaskPolicy::new(mask)?;
@@ -284,7 +285,9 @@ impl MaskPolicy {
             | PiiKind::UsPassport
             | PiiKind::UsDriversLicence
             | PiiKind::UsZip
-            | PiiKind::PhoneExtension => whole.keeping_format(),
+            | PiiKind::PhoneExtension
+            | PiiKind::Age
+            | PiiKind::StreetAddress => whole.keeping_format(),
             PiiKind::Jwt
             | PiiKind::AwsAccessKey
             | PiiKind::GithubToken

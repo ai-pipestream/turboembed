@@ -381,18 +381,15 @@ fn precision_and_recall_on_the_synthetic_set() {
     assert!(recall >= RECALL_FLOOR, "recall {recall:.4}");
 }
 
-/// The measured totals are precision 0.9490 and recall 1.0. The false
-/// mentions are a phone in each near miss NHS number (ten grouped digits
-/// are a phone shape); phones and cards nested inside grouped IBANs and
-/// NHS numbers nested inside US phones are dropped by default.
-/// docs/pii.md has the table.
+/// The measured totals are precision 0.9490 and recall 1.0. The false mentions are a phone in each near miss
+/// NHS number (ten grouped digits are a phone shape); phones and cards nested inside grouped IBANs and NHS
+/// numbers nested inside US phones are dropped by default. docs/pii.md has the table.
 const PRECISION_FLOOR: f64 = 0.94;
 const RECALL_FLOOR: f64 = 1.0;
 
-/// One document of the human-written evaluation set (`tests/data/human-eval/`):
-/// id, whether the file is `turbo_goldens::escape`-encoded, file name, and
-/// expected UTF-8 SHA-256 digest.
-const HUMAN_DOCS: [(&str, bool, &str, &str); 9] = [
+/// One document of the human-written evaluation set (`tests/data/human-eval/`): id, whether the file is
+/// `turbo_goldens::escape`-encoded, file name, and expected UTF-8 SHA-256 digest.
+const HUMAN_DOCS: [(&str, bool, &str, &str); 10] = [
     ("masc-att2", true, "masc-att2.escaped", "f8f2cfd3ca288dcb9728092365b5c6d315de7b8b399f9f34bfc1da15302750ee"),
     ("masc-hsus4", true, "masc-hsus4.escaped", "88f06a9dc3c1338f01959b2599c0a3b6b10058c77a1c5e5811c5ff9f0aa0d700"),
     ("masc-united1", true, "masc-united1.escaped", "f9f0a966371aadd4ea29166109700d0ff77cc9e6d2899da90b204d945756ffaf"),
@@ -417,6 +414,7 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 9] = [
         "us-identifiers-memos.txt",
         "248776341fb8d0d4759f319e758a5c42453ee9c80da5ac3d0628286301c02232",
     ),
+    ("intake-memos", false, "intake-memos.txt", "5fdc30947b05300e1d392a941232cfb2718f72e318f2c92481111000646297c0"),
 ];
 
 fn human_written_set() -> Vec<Labelled> {
@@ -461,7 +459,7 @@ fn precision_and_recall_on_human_written_text() {
         total.fp,
         total.fn_
     );
-    let want_by_kind: [(&str, usize, usize, usize); 28] = [
+    let want_by_kind: [(&str, usize, usize, usize); 30] = [
         ("jwt", 3, 0, 0),
         ("aws-access-key", 2, 0, 0),
         ("github-token", 3, 0, 0),
@@ -490,10 +488,12 @@ fn precision_and_recall_on_human_written_text() {
         ("us-drivers-licence", 2, 0, 0),
         ("us-zip", 10, 0, 0),
         ("phone-extension", 2, 0, 0),
+        ("age", 7, 0, 0),
+        ("street-address", 8, 0, 1), // missed: `P0 Box 1163` (a zero) in masc-hsus4
     ];
     for (kind, tp, fp, fn_) in want_by_kind {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (126, 10, 5));
+    assert_eq!((total.tp, total.fp, total.fn_), (141, 10, 6));
 }

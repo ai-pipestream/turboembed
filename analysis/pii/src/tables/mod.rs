@@ -3,4 +3,5 @@
 
 pub(crate) mod iban_lengths;
 pub(crate) mod phone_lengths;
+pub(crate) mod street_suffixes;
 pub(crate) mod tlds;

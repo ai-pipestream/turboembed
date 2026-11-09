@@ -64,7 +64,7 @@ not find (`ScannerError`).
 | `Pack` | `PiiPacks` method | Scanners | Kinds |
 |---|---|---|---|
 | `Payment` | `payment()` | the cursor scanner limited to IBANs and cards, then banking | `iban`, `card`, `aba-routing` |
-| `Contact` | `contact()` | the cursor scanner limited to e-mail and phone, then phone extension | `email`, `phone`, `phone-extension` |
+| `Contact` | `contact()` | the cursor scanner limited to e-mail and phone, then phone extension, then US address | `email`, `phone`, `phone-extension`, `street-address` |
 | `Network` | `network()` | network | `ipv4`, `ipv6`, `mac` |
 | `Secrets` | `secrets()` | secrets | `aws-access-key`, `github-token`, `jwt`, `url-credential` |
 | `Crypto` | `crypto()` | crypto | `btc-address`, `eth-address` |
@@ -75,7 +75,7 @@ not find (`ScannerError`).
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind |
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -157,6 +157,8 @@ labelled 4 everywhere; 0 is unspecified and refused.
 | `us-drivers-licence` | upper case, no separators | labelled |
 | `us-zip` | `ddddd` or `ddddd-dddd` | format after a state code, labelled after a ZIP label |
 | `phone-extension` | the digits | format |
+| `age` | the number, no leading zeros | format |
+| `street-address` | as written | format |
 
 `PiiConfidence` is ordered `Format < Labelled < Checksum < LabelledChecksum`:
 `Format` (`"format"`, C ABI `TURBO_PII_CONFIDENCE_FORMAT = 1`, Java
@@ -308,8 +310,8 @@ Each kind has a severity, and each severity a weight:
 | --- | --- | --- |
 | critical | 10 | jwt, aws-access-key, github-token, url-credential, card, us-ssn, us-itin, uk-nhs, de-steuer-id, es-dni, es-nie, de-personalausweis, fr-nir, br-cpf, ca-sin, us-passport, us-drivers-licence |
 | high | 5 | iban |
-| medium | 2 | email, phone, imei, mac, ipv4, ipv6, btc-address, eth-address, vin, every custom kind |
-| low | 0.5 | es-cif, fr-siren, fr-siret, br-cnpj, bic, aba-routing, us-ein, tracking-number, url, us-zip, phone-extension |
+| medium | 2 | email, phone, street-address, imei, mac, ipv4, ipv6, btc-address, eth-address, vin, every custom kind |
+| low | 0.5 | es-cif, fr-siren, fr-siret, br-cnpj, bic, aba-routing, us-ein, tracking-number, url, us-zip, phone-extension, age |
 
 `PiiSeverityTable` overrides any built-in kind (`with`), a custom kind by
 name (`with_custom`) and the custom default (`with_custom_default`). The
@@ -669,6 +671,57 @@ values and 200 unlabelled ones per kind: all labelled ones found, no
 unlabelled one read as one of these kinds; the false mentions are other
 kinds on the same digits (Spanish CIFs, ABA numbers, cards).
 
+### Ages and street addresses
+
+`age` and `street-address` take ids 39 and 40. Both are rule scanners;
+names, free-form addresses and other kinds with no fixed shape are left
+to a trained head.
+
+- `age` (new `Age` extractor, `AgePiiExtractor`, `turbo-pii:age`, in
+  `AllStructured`; `analysis/pii/src/scan/age.rs`): a number from 0 to
+  125 before `years old`, `year old`, `yrs old` or `yr old`, the pieces
+  joined by spaces or hyphens (`34-year-old`), before `y/o` or `y.o.`,
+  or after `age`, `age:`, `age of` or `aged`, in any case. The mention is
+  the number alone and its normalized form has no leading zeros, so a
+  rewrite acts on the number and keeps the words (`a **-year-old`). Not
+  ages: a number inside a decimal or a grouped number, `aged` or `age`
+  before a number of months, weeks, days or hours or a percentage,
+  `years ago`, `years older`, `page 34`, `usage 34`, `ages 5 to 10`.
+- `street-address` (new `UsAddress` extractor, `UsAddressPiiExtractor`,
+  `turbo-pii:us-address`, in `Contact` and `AllStructured`;
+  `analysis/pii/src/scan/address.rs`): a house number of one to six
+  digits not starting with 0 (one capital letter may follow it, `221B`),
+  an optional direction (`N`, `NW`, `North`), one to four capitalized
+  words or ordinals (`42nd`), and a street suffix, every primary name and
+  standard abbreviation of USPS Publication 28 Appendix C1
+  (`analysis/pii/src/tables/street_suffixes.rs`, in any case once the
+  word is capitalized); the last suffix in the run ends the street
+  (`18 Mill Creek Road`). A direction may follow the suffix (`Main St
+  NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
+  an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
+  `Building`, `Lot` and the like with an optional `.`, or `#`, then one
+  to six letters, digits and hyphens. Post office boxes are the same
+  kind: `PO`, `P.O.`, `P. O.`, `P O` or `Post Office`, then `Box` and one
+  to ten digits, in any case. Every piece is on one line and joined by
+  one space, so a city, state and ZIP code after a comma, or the next
+  line of a letter, stay outside the mention. Lower case street words,
+  a house number inside a decimal, an ordinal alone (`5th Avenue`) and
+  a number with no suffix after its words (`Table 4 Summary`, `Route
+  66`) are not addresses.
+
+`age` is low severity and `street-address` medium; both are suggested a
+label rewrite and are masked keeping separators. Neither needs a label
+(`LabelPolicy::None`); `age`, `aged`, `address`, `street address`,
+`mailing address` and `home address` are their label phrases for the
+context window. In the mixed evaluation set, project-authored clinic
+intake memos (`intake-memos.txt`) carry seven ages and six addresses
+with near misses, and the two addresses in the MASC letters are gold:
+`age` 7/0/0, `street-address` 8/0/1 (the missed one is `P0 Box 1163`,
+written with a zero). The external partition was annotated before
+these kinds existed: its five postal addresses (RFC author and registry
+blocks and one example) and one age are counted and pinned but not
+scored.
+
 ## Custom extractors and scanner rules
 
 - Offsets are UTF-8 bytes on character boundaries.
@@ -910,8 +963,9 @@ remaining 17 kinds are evaluated on project-authored operational memos
 (`operational-memos.txt`):
 
 - Five third-party documents from MASC 3.0.0 (`34,969` bytes, CC BY 3.0
-  US, `19` gold spans: `12` `phone` with `10` true, `1` false, `2` missed,
-  precision `0.909`, recall `0.833`, and `7` `us-zip`, all found): three corporate and non-profit
+  US, `21` gold spans: `12` `phone` with `10` true, `1` false, `2` missed,
+  precision `0.909`, recall `0.833`, `7` `us-zip`, all found, and `2`
+  `street-address`, one found): three corporate and non-profit
   solicitation letters (`masc-att2.escaped`, `masc-hsus4.escaped`,
   `masc-united1.escaped`), one New York Times News Service travel
   dispatch (`masc-nyt6.escaped`), and one Legal Services Corporation
@@ -944,6 +998,12 @@ remaining 17 kinds are evaluated on project-authored operational memos
   near misses; the six web addresses already in the other documents
   are `url` gold as well, and the seven ZIP codes in the MASC letters
   are `us-zip` gold.
+- Project-authored clinic intake memos
+  (`analysis/pii/tests/data/human-eval/intake-memos.txt`, `1,057` bytes,
+  Apache-2.0, `14` gold spans: `7` `age` and `7` `street-address`) with
+  made up ages, street addresses and post office boxes, next to near
+  misses (`page 34`, `11 years ago`, `aged 3 months`, `Table 4 Summary`,
+  `the 5th Avenue satellite`, `Route 9`).
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
@@ -975,8 +1035,10 @@ remaining 17 kinds are evaluated on project-authored operational memos
 | `us-drivers-licence` | project-authored (`us-identifiers-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
 | `us-zip` | third-party MASC (`7`) + project-authored (`3`) | 10 | 0 | 0 | 1.000 | 1.000 |
 | `phone-extension` | project-authored (`us-identifiers-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `age` | project-authored (`intake-memos.txt`) | 7 | 0 | 0 | 1.000 | 1.000 |
+| `street-address` | third-party MASC (`2`) + project-authored (`7`) | 8 | 0 | 1 | 1.000 | 0.889 |
 | `phone` (all) | third-party MASC (`12`) + project-authored (`3` + `2`) | 15 | 6 | 2 | 0.714 | 0.882 |
-| **all kinds** | **mixed (`19` MASC + `18` adapted spec + `57` operational memos + `31` US identifier memos + `6` url in existing documents)** | **126** | **10** | **5** | **0.926** | **0.962** |
+| **all kinds** | **mixed (`21` MASC + `18` adapted spec + `57` operational memos + `31` US identifier memos + `14` intake memos + `6` url in existing documents)** | **141** | **10** | **6** | **0.934** | **0.959** |
 
 ### External prose partition (whole third-party documents)
 

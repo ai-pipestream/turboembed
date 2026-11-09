@@ -1,18 +1,21 @@
-MASKED	Mail to 1 Main St, Springfield, IL ***** or Austin, TX *****-****; ZIP: ***** and zip code *****. Not ZIPs: room 62704, il 62704, IL 00000.
+MASKED	Mail to * **** **, Springfield, IL ***** or Austin, TX *****-****; ZIP: ***** and zip code *****. Not ZIPs: room 62704, il 62704, IL 00000.
 
-MASK_ALL	Mail to 1 Main St, Springfield, IL ##### or Austin, TX ##########; ZIP: ##### and zip code #####. Not ZIPs: room 62704, il 62704, IL 00000.
+MASK_ALL	Mail to #########, Springfield, IL ##### or Austin, TX ##########; ZIP: ##### and zip code #####. Not ZIPs: room 62704, il 62704, IL 00000.
 
-REWRITE	pseudonymize	OK	Mail to 1 Main St, Springfield, IL US-ZIP-1 or Austin, TX US-ZIP-2; ZIP: US-ZIP-3 and zip code US-ZIP-4. Not ZIPs: room 62704, il 62704, IL 00000.
+REWRITE	pseudonymize	OK	Mail to STREET-ADDRESS-1, Springfield, IL US-ZIP-1 or Austin, TX US-ZIP-2; ZIP: US-ZIP-3 and zip code US-ZIP-4. Not ZIPs: room 62704, il 62704, IL 00000.
 
-LABEL	pseudonymize	35	40	35	43	US-ZIP-1
-LABEL	pseudonymize	55	65	58	66	US-ZIP-2
-LABEL	pseudonymize	72	77	73	81	US-ZIP-3
-LABEL	pseudonymize	91	96	95	103	US-ZIP-4
-REWRITE	hmac	OK	Mail to 1 Main St, Springfield, IL US-ZIP-53e6cdd0fa6559c3 or Austin, TX US-ZIP-81f699cc5c8c504c; ZIP: US-ZIP-42883046dae598c1 and zip code US-ZIP-94d8203da7b108e7. Not ZIPs: room 62704, il 62704, IL 00000.
+LABEL	pseudonymize	8	17	8	24	STREET-ADDRESS-1
+LABEL	pseudonymize	35	40	42	50	US-ZIP-1
+LABEL	pseudonymize	55	65	65	73	US-ZIP-2
+LABEL	pseudonymize	72	77	80	88	US-ZIP-3
+LABEL	pseudonymize	91	96	102	110	US-ZIP-4
+REWRITE	hmac	OK	Mail to STREET-ADDRESS-6a57cb580a411c8c, Springfield, IL US-ZIP-53e6cdd0fa6559c3 or Austin, TX US-ZIP-81f699cc5c8c504c; ZIP: US-ZIP-42883046dae598c1 and zip code US-ZIP-94d8203da7b108e7. Not ZIPs: room 62704, il 62704, IL 00000.
 
-LABEL	hmac	35	40	35	58	US-ZIP-53e6cdd0fa6559c3
-LABEL	hmac	55	65	73	96	US-ZIP-81f699cc5c8c504c
-LABEL	hmac	72	77	103	126	US-ZIP-42883046dae598c1
-LABEL	hmac	91	96	140	163	US-ZIP-94d8203da7b108e7
+LABEL	hmac	8	17	8	39	STREET-ADDRESS-6a57cb580a411c8c
+LABEL	hmac	35	40	57	80	US-ZIP-53e6cdd0fa6559c3
+LABEL	hmac	55	65	95	118	US-ZIP-81f699cc5c8c504c
+LABEL	hmac	72	77	125	148	US-ZIP-42883046dae598c1
+LABEL	hmac	91	96	162	185	US-ZIP-94d8203da7b108e7
+AUDIT	street-address	1	1	STREET-ADDRESS-6a57cb580a411c8c
 AUDIT	us-zip	4	4	US-ZIP-53e6cdd0fa6559c3, US-ZIP-81f699cc5c8c504c, US-ZIP-42883046dae598c1
-AUDIT_REPORT	us-zip: 4 mentions, 4 distinct [US-ZIP-53e6cdd0fa6559c3, US-ZIP-81f699cc5c8c504c, US-ZIP-42883046dae598c1]
+AUDIT_REPORT	street-address: 1 mentions, 1 distinct [STREET-ADDRESS-6a57cb580a411c8c]\nus-zip: 4 mentions, 4 distinct [US-ZIP-53e6cdd0fa6559c3, US-ZIP-81f699cc5c8c504c, US-ZIP-42883046dae598c1]

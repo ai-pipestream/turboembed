@@ -278,18 +278,18 @@ fn no_value_of_any_pack_appears_in_the_audit_and_every_default_pack_rewrites() {
                 let covered = &text[m.span.start as usize..m.span.end as usize];
                 for value in [covered, m.normalized] {
                     for out in &shown {
-                        assert!(!out.contains(value), "{} on {id}: {value:?} is in the audit:\n{out}", p.name());
+                        assert!(!shows(out, value), "{} on {id}: {value:?} is in the audit:\n{out}", p.name());
                     }
                     for (name, r) in &rewrites {
                         let mapped = &r.text()[r.to_derived(m.span).unwrap().range()];
                         assert!(
-                            !mapped.contains(value),
+                            !shows(mapped, value),
                             "{} ({name}) on {id}: {value:?} leaked in rewritten span {mapped:?}",
                             p.name(),
                         );
                         for l in r.labels().mentions() {
                             assert!(
-                                !l.normalized.contains(value),
+                                !shows(l.normalized, value),
                                 "{} ({name}) on {id}: {value:?} leaked in label {:?}",
                                 p.name(),
                                 l.normalized
@@ -329,10 +329,23 @@ fn suppressed_mentions_are_counted_by_kind_and_never_leak_values_in_audit() {
             let covered = &text[m.span.start as usize..m.span.end as usize];
             for value in [covered, m.normalized, first_covered, first.normalized] {
                 for out in &shown {
-                    assert!(!out.contains(value), "on {id}: {value:?} leaked in suppressed audit:\n{out}");
+                    assert!(!shows(out, value), "on {id}: {value:?} leaked in suppressed audit:\n{out}");
                 }
             }
         }
     }
     assert!(total_suppressed_seen > 20, "only {total_suppressed_seen} suppressed mentions checked");
+}
+
+/// Whether `out` shows `value`. A value of three or more bytes is shown
+/// wherever it occurs. A shorter one (a two-digit age) occurs by chance in
+/// most 16- or 64-digit hexadecimal tokens and digests, so it is shown
+/// only as a whole run, with no letter or digit on either side.
+fn shows(out: &str, value: &str) -> bool {
+    if value.len() >= 3 {
+        return out.contains(value);
+    }
+    let alnum = |c: Option<char>| c.is_some_and(char::is_alphanumeric);
+    out.match_indices(value)
+        .any(|(at, v)| !alnum(out[..at].chars().next_back()) && !alnum(out[at + v.len()..].chars().next()))
 }
