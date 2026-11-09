@@ -534,6 +534,9 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=levelzero \
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features levelzero --test levelzero -- --include-ignored --nocapture
 
+# One run longer than the compute engine's job timeout (A lost device, below):
+TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_long_run -- --nocapture
+
 # DeBERTa-v2 against the CPU, and its speed (DeBERTa-v2, above):
 TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_deberta -- --nocapture
 TURBO_TEST_DEVICE=levelzero TURBO_SPEED_RUNS=7 \
@@ -557,19 +560,44 @@ context, release its resources and the context, and create a new one only
 once the device is available again. Device removal or an ongoing driver
 problem may prevent recreation; it is not a guaranteed recovery.
 
-On the Arc Pro B70 under `xe`, each one seen
-(#1433) was a compute job that had not finished within the engine's job
-timeout (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
-5000 ms), and the kernel log says so: `Timedout job ... in <process>`,
-then `Engine reset: engine_class=ccs`. These logs identify a timeout/reset
-for those observations, not for every possible device-loss error.
+On the Arc Pro B70 under `xe`, the kernel log names each one seen
+(#1433, #1765): `Engine reset: engine_class=ccs, ... state=0x29`, then
+`Timedout job ... in <process>`. Neither line says a run was too long:
 
-On that machine all nine such resets on 2026-10-26, six of them in
+- The compute runtime does not submit a kernel job per launch or per run.
+  It keeps one job open and feeds it, and starts another after two seconds
+  of use or once the queue has gone idle: a whole `train-relation` on
+  Re-DocRED, some hundred thousand launches, was 75 jobs. The `seqno` in
+  the log counts those, from 4294967169 for a queue's first.
+- Its queues are long-running ones, to which the driver applies no job
+  timeout, so the engine's `job_timeout_ms`
+  (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
+  5000 ms) does not bound a run. `core/tests/levelzero_long_run.rs` holds
+  one run of over twice that, and the driver prints `Timedout job` for
+  such a queue only after the engine reset.
+- State `0x29` is a queue the kernel was suspending (registered, disable
+  pending, suspended). The firmware resets the engine when a context does
+  not leave it within `preempt_timeout_us` (640 ms) of being asked to.
+  The kernel suspends the runtime's queues when it rebinds their memory,
+  and whenever another client's job needs the render and compute engines,
+  which are one group: each frame a desktop client draws is one such
+  suspend.
+
+What kept a context on the engine is not known, and no loss has been
+reproduced on purpose. On a B70 (2026-11-09) none of these lost the device:
+single runs of 12 s, 31 s and 77 s; launches of several seconds each; two
+and three processes computing at once, with launches of 20 ms and of over
+640 ms; a render client drawing 60 frames a second during runs with such
+launches; a process stopped for 13 s in the middle of a pass; 4,200 reads
+of 48 MB into memory unmapped after every second read, 1,200 of them with
+the render client drawing; and the whole `train-relation` on Re-DocRED.
+
+All nine resets on that machine on 2026-10-26, six of them in
 `levelzero_loads`, fell within the four days a desktop client (snap-store)
 was running; one sample, minutes before it stopped, had it at 61% of the
-render engine, and render and compute share the card's execution units.
-After it stopped, 1,400 runs of the loads at once passed
-(`docs/receipts/levelzero-1433/`). That client is the likely cause, not a
-reproduced one: no load was recorded at the reset times and no run was made
-with it up. Check the kernel log and the other clients on the card before
+render engine. After it stopped, 1,400 runs of the loads at once passed
+(`docs/receipts/levelzero-1433/`). A render client is what the suspends
+above need, so it is the likely trigger, not a reproduced one: no load was
+recorded at the reset times and no run was made with it up.
+Check the kernel log and the other clients on the card before
 reading a lost device as a defect here.

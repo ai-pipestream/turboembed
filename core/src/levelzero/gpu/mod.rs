@@ -58,13 +58,14 @@ pub(crate) fn ze(what: &str, rc: ze::Status) -> Res<()> {
 }
 
 /// DEVICE_LOST covers hangs, resets, removal and driver updates. The
-/// timeout/reset observations in #1433 do not identify every loss's cause,
-/// and a new context cannot recover a device that is still unavailable.
+/// engine resets seen in #1433 and #1765 do not identify every loss's
+/// cause, and a new context cannot recover a device that is still
+/// unavailable.
 fn device_lost(what: &str) -> String {
     format!(
         "levelzero: {what} failed with 0x70000001 (device lost): possible device hang, reset, removal \
          or driver update; this status alone does not identify the cause. Check driver/kernel logs \
-         (a job timeout is one possibility). Stop using any affected context, release its resources \
+         (an engine reset is one possibility). Stop using any affected context, release its resources \
          and the context, and create a new one once the device is available"
     )
 }
@@ -393,7 +394,7 @@ mod tests {
     fn a_lost_device_says_the_context_is_gone() {
         let lost = ze("zeCommandListHostSynchronize", ze::RESULT_ERROR_DEVICE_LOST).unwrap_err();
         assert_eq!(lost.code, RUNTIME);
-        for part in ["zeCommandListHostSynchronize failed with 0x70000001 (device lost)", "job timeout", "new one"] {
+        for part in ["zeCommandListHostSynchronize failed with 0x70000001 (device lost)", "engine reset", "new one"] {
             assert!(lost.message.contains(part), "{part:?} not in {:?}", lost.message);
         }
         let other = ze("zeEventHostSynchronize", 0x7800_0004).unwrap_err();
