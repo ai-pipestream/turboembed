@@ -69,6 +69,13 @@ fn a_device_finds_the_names_the_cpu_finds() {
         assert_ne!(execution.backend, "cpu", "{execution:?}");
         let bound = if execution.precision.starts_with("f32") { F32_BOUND } else { F16_BOUND };
         let (want, got) = (cpu.find(&inputs).unwrap(), dev.find(&inputs).unwrap());
+        // The comparison means nothing if the CPU finds nothing: every text
+        // but the last has names, and the last has none.
+        let (last, named) = want.split_last().unwrap();
+        for (text, w) in TEXTS.iter().zip(named) {
+            assert!(!w.is_empty(), "{decoding:?}: the CPU finds no names in {text:?}");
+        }
+        assert!(last.is_empty(), "{decoding:?}: the CPU finds names in {:?}: {last:?}", TEXTS[5]);
         let mut largest = 0f64;
         for ((text, w), g) in TEXTS.iter().zip(&want).zip(&got) {
             let names = |c: &[turbo_namefind_dl::decode::Candidate]| {
