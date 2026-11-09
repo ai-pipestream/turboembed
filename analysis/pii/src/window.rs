@@ -374,11 +374,24 @@ fn mid_num(w: WordBreak) -> bool {
     matches!(w, MidNum | MidNumLet | SingleQuote)
 }
 
+#[cfg(test)]
+thread_local! {
+    static BOUNDARY_CHARS_VISITED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// Reads at most two non-ignorable characters before the position. Regional
 /// indicator parity (WB15/WB16) is omitted because regional indicators have
 /// `letter_or_digit == false` and never join with word tokens (`O(1)`).
 fn context_before(before: &str) -> (WordBreak, WordBreak) {
-    let mut significant = before.chars().rev().map(word_class).filter(|&w| !ignorable(w));
+    let mut significant = before
+        .chars()
+        .rev()
+        .inspect(|_| {
+            #[cfg(test)]
+            BOUNDARY_CHARS_VISITED.with(|n| n.set(n.get() + 1));
+        })
+        .map(word_class)
+        .filter(|&w| !ignorable(w));
     (significant.next().unwrap_or(Other), significant.next().unwrap_or(Other))
 }
 
@@ -479,3 +492,7 @@ fn words_after(after: &str, limit: usize) -> Vec<&str> {
     }
     words
 }
+
+#[cfg(test)]
+#[path = "window_tests.rs"]
+mod tests;
