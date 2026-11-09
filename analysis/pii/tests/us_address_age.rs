@@ -68,6 +68,7 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         "2018 Apple Park",                            // year before a noun suffix
         "2024 Annual Bay Summit",                     // year before a noun suffix
         "The 2024 Supreme Court ruled on the issue.", // year before Court without address tail
+        "the 2023 Feedback Loop report",              // year before Loop without address tail
         "2016 Central Park, where we met",            // comma before a lower case word, not a city
         "the 3 Point Plan",                           // suffix word with no street name before it
         "the 3 Five Point Plan",                      // suffix word inside a capitalized phrase

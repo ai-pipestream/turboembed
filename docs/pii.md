@@ -764,11 +764,12 @@ to a trained head.
   `Point`, `Summit`, `Center`, `Plan`) may not be followed by unconsumed
   capitalized words (`3 Point Lane`, not `the 3 Five Point Plan` or
   `2020 Vision Center Plan`). When the house number is a four-digit year
-  (`1900` to `2099`) and the suffix is a general noun (or `Court`, as in
-  `2024 Supreme Court`) rather than an unambiguous street-only suffix, a
-  post-direction, a unit or a comma and capitalized city word must follow
-  (`2016 Central Park West`, `2016 Central Park, New York`, not `2016
-  Central Park`, `2024 Supreme Court` or `2024 Annual Bay Summit`). A direction may
+  (`1900` to `2099`) and the suffix is a general noun (or `Court` or
+  `Loop`, as in `2024 Supreme Court` or `2023 Feedback Loop`) rather than
+  an unambiguous street-only suffix, a post-direction, a unit or a comma
+  and capitalized city word must follow (`2016 Central Park West`, `2016
+  Central Park, New York`, not `2016 Central Park`, `2024 Supreme Court`,
+  `2023 Feedback Loop` or `2024 Annual Bay Summit`). A direction may
   follow the suffix (`Main St
   NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
   an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
