@@ -122,6 +122,10 @@ fn take(r: Outcome) -> (turbo_result_info, Vec<u8>) {
 
 /// One write's three results on the device, held to each other.
 fn check(backend: &str, what: &str, mut write: impl FnMut(&turbo_embed_options) -> Outcome, w: u32, staged: &mut bool) {
+    // A first run at a bin of tokens may build backend state (oneDNN's
+    // primitives) and count it in host_allocs; this run does that, so the
+    // runs held to each other below build nothing.
+    drop(write(&with(w, TURBO_QUANTIZE_NONE, None)));
     let (fi, fbytes) = take(write(&with(w, TURBO_QUANTIZE_NONE, None)));
     assert_eq!(field(&fi.backend), backend, "{what}: the run's backend");
     // cuda and levelzero leave the vectors in device memory, so their
