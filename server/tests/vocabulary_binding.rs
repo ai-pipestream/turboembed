@@ -26,7 +26,7 @@ use turbo_kserve::proto::vocabulary::LearnVocabularyHeader;
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::{Serve, Server};
 use turbo_stopword::Stopwords;
-use vocab::{Client as VocabClient, dir, import as upload, learn, refusal};
+use vocab::{Client as VocabClient, dir, header, import as upload, import_with, learn, refusal};
 
 type AnalysisClient = AnalysisServiceClient<tonic::transport::Channel>;
 
@@ -69,6 +69,14 @@ async fn start_server(vocabulary: Option<std::path::PathBuf>, preload: bool) -> 
 
 fn art_ref(id: &str, sha256: &str) -> VocabularyArtifactRef {
     VocabularyArtifactRef { artifact_id: id.into(), sha256: sha256.into() }
+}
+
+fn sw_bind(id: &str, sha256: &str) -> VocabularyBinding {
+    VocabularyBinding { stopwords: Some(art_ref(id, sha256)), glossary: None }
+}
+
+fn gloss_bind(id: &str, sha256: &str) -> VocabularyBinding {
+    VocabularyBinding { stopwords: None, glossary: Some(art_ref(id, sha256)) }
 }
 
 async fn run_progressive(
@@ -287,6 +295,49 @@ async fn imported_glossary_and_learned_vocabulary_bind_with_provenance() {
     assert_eq!(matched_glossary(&stream_doc), want_glossary_matches);
     let s_ctx = (&stream_resp, &stream_doc, None);
     assert_prov(&mut ac, s_ctx, ("turbo:glossary-terms", "turbo-glossary:annotator"), &want_gloss_model).await;
+
+    // Identical CSV bytes imported with has_header_row=false and has_header_row=true
+    // in one AnalyzeStream batch keep distinct matches and provenance (#2036).
+    let same_csv = b"id,term\nz,Zebulon\n";
+    let no_hdr = import_with(&mut vc, header("glossary-csv", "en", same_csv), same_csv).await.unwrap();
+    let mut hdr_meta = header("glossary-csv", "en", same_csv);
+    hdr_meta.has_header_row = true;
+    let with_hdr = import_with(&mut vc, hdr_meta, same_csv).await.unwrap();
+    assert_eq!(no_hdr.sha256, with_hdr.sha256);
+    assert_ne!(no_hdr.artifact_id, with_hdr.artifact_id);
+    let doc_req = |id: &str, v: VocabularyBinding| AnalyzeStreamRequest {
+        kind: Some(Kind::Document(AnalyzeDocument {
+            id: id.into(),
+            model: "base".into(),
+            text: b"term and Zebulon".to_vec(),
+            output: AnalyzeOutput::DocumentGraph as i32,
+            vocabulary: Some(v),
+            ..Default::default()
+        })),
+    };
+    let batch_reqs = vec![
+        AnalyzeStreamRequest {
+            kind: Some(Kind::Header(AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 50 })),
+        },
+        doc_req("b1", gloss_bind(&no_hdr.artifact_id, &no_hdr.sha256)),
+        doc_req("b2", gloss_bind(&with_hdr.artifact_id, &with_hdr.sha256)),
+    ];
+    let mut b_stream = ac.analyze_stream(tokio_stream::iter(batch_reqs)).await.unwrap().into_inner();
+    let (r1, r2) = (b_stream.next().await.unwrap().unwrap(), b_stream.next().await.unwrap().unwrap());
+    let (Some(Outcome::DocumentGraph(dg1)), Some(Outcome::DocumentGraph(dg2))) = (r1.outcome, r2.outcome) else {
+        panic!("expected two DocumentGraph outcomes");
+    };
+    let doc1 = import(&DocumentGraph::from_bytes(&dg1.graph).unwrap(), codecs()).unwrap();
+    let doc2 = import(&DocumentGraph::from_bytes(&dg2.graph).unwrap(), codecs()).unwrap();
+    assert_eq!(
+        matched_glossary(&doc1),
+        vec![("id".to_owned(), "term".to_owned()), ("z".to_owned(), "Zebulon".to_owned())]
+    );
+    assert_eq!(matched_glossary(&doc2), vec![("z".to_owned(), "Zebulon".to_owned())]);
+    let l1 = dg1.layers.iter().find(|l| l.layer == "turbo:glossary-terms").unwrap();
+    let l2 = dg2.layers.iter().find(|l| l.layer == "turbo:glossary-terms").unwrap();
+    assert_eq!(l1.model.as_ref().unwrap().id, no_hdr.artifact_id);
+    assert_eq!(l2.model.as_ref().unwrap().id, with_hdr.artifact_id);
     server.stop().await;
 }
 
@@ -319,6 +370,15 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
     let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
     assert_eq!(caps.bundles[0].vocabulary, Some(bundle_vocab));
 
+    // Model-free progressive request does not inherit from an unrelated named bundle (#2036).
+    let (_, _, free_doc) = run_progressive(&mut ac, "", TEXT, None).await;
+    assert_eq!(flagged_tokens(&free_doc), vec!["and".to_owned()]);
+    assert!(free_doc.get::<GlossaryTerms>().is_none());
+
+    let (_, _, named_prog_doc) = run_progressive(&mut ac, "bound-model", TEXT, None).await;
+    assert_eq!(flagged_tokens(&named_prog_doc), vec!["Quixotl".to_owned()]);
+    assert_eq!(matched_glossary(&named_prog_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
+
     let (_, default_doc) = run_stream_graph(&mut ac, "bound-model", TEXT, None).await;
     assert_eq!(flagged_tokens(&default_doc), vec!["Quixotl".to_owned()]);
     assert_eq!(matched_glossary(&default_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
@@ -342,36 +402,16 @@ async fn wrong_digest_unknown_id_wrong_format_and_no_store_are_refused_with_type
     let wrong_sha = format!("{}{}", if sw.sha256.starts_with('0') { "1" } else { "0" }, &sw.sha256[1..]);
 
     let cases: Vec<(&str, VocabularyBinding, &str)> = vec![
-        (
-            "wrong digest",
-            VocabularyBinding { stopwords: Some(art_ref(&sw.artifact_id, &wrong_sha)), glossary: None },
-            "does not have this sha256",
-        ),
-        (
-            "bad hex digest",
-            VocabularyBinding { stopwords: Some(art_ref(&sw.artifact_id, "not-a-sha256")), glossary: None },
-            "64 lowercase hexadecimal digits",
-        ),
-        (
-            "unknown artifact",
-            VocabularyBinding { stopwords: Some(art_ref("missing-artifact", &sw.sha256)), glossary: None },
-            "not registered",
-        ),
-        (
-            "path traversal id",
-            VocabularyBinding { stopwords: Some(art_ref("../etc/passwd", &sw.sha256)), glossary: None },
-            "looks like a file path",
-        ),
+        ("wrong digest", sw_bind(&sw.artifact_id, &wrong_sha), "does not have this sha256"),
+        ("bad hex digest", sw_bind(&sw.artifact_id, "not-a-sha256"), "64 lowercase hexadecimal digits"),
+        ("unknown artifact", sw_bind("missing-artifact", &sw.sha256), "not registered"),
+        ("path traversal id", sw_bind("../etc/passwd", &sw.sha256), "looks like a file path"),
         (
             "wrong format for stopwords",
-            VocabularyBinding { stopwords: Some(art_ref(&map.artifact_id, &map.sha256)), glossary: None },
+            sw_bind(&map.artifact_id, &map.sha256),
             "headword-definition-tsv is not taken here",
         ),
-        (
-            "wrong format for glossary",
-            VocabularyBinding { stopwords: None, glossary: Some(art_ref(&sw.artifact_id, &sw.sha256)) },
-            "plain-word-list is not taken here",
-        ),
+        ("wrong format for glossary", gloss_bind(&sw.artifact_id, &sw.sha256), "plain-word-list is not taken here"),
     ];
 
     for (label, vocab, want_msg) in cases {

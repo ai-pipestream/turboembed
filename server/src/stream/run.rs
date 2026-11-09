@@ -101,7 +101,7 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
         AnalyzeOutput::DocumentGraph => (d.offsets.to_proto(), 0, 0, 0),
     };
     let ranges = d.int8_ranges.as_ref().map(|r| r.iter().map(|v| v.to_bits()).collect()).unwrap_or_default();
-    let (stop_digest, gloss_digest) = d.vocabulary.batch_digests();
+    let vocab_key = d.vocabulary.batch_key();
     let load_ptr = d.loaded.as_ref().map_or(0, |l| Arc::as_ptr(l) as usize);
     (
         (
@@ -118,7 +118,7 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
             floor,
             stride,
         ),
-        (o.quantization, ranges, stop_digest, gloss_digest),
+        (o.quantization, ranges, vocab_key),
     )
 }
 
@@ -299,8 +299,6 @@ pub(crate) fn run_document_graph(
         crate::progressive::DEFAULT_STEPS,
         None,
         "",
-        "",
-        &[],
         None,
         &docs[0].vocabulary,
     ) {
@@ -314,32 +312,29 @@ pub(crate) fn run_document_graph(
             return fail(Failure::new(TURBO_E_INTERNAL, 0, e.to_string()), docs, permits);
         }
     }
-    let mut permits = permits.into_iter();
-    let mut rows = Vec::with_capacity(docs.len());
-    let mut docs_iter = docs.into_iter();
-    for gdoc in graph_docs {
-        let d = docs_iter.next().expect("one document per graph");
-        let permit = permits.next().expect("one window permit per document");
-        let mut resp = match export_document_response(&gdoc, &Disclosure::FULL) {
-            Ok(r) => r,
-            Err(f) => {
-                let mut rem_docs = vec![d];
-                rem_docs.extend(docs_iter);
-                let mut rem_permits = vec![permit];
-                rem_permits.extend(permits);
-                return fail(f, rem_docs, rem_permits);
-            }
-        };
-        resp.findings = resp.findings.map(|f| crate::results::typed::identity::bound(f, d.binding.as_ref()));
-        rows.push(Row {
-            seq: d.seq,
-            id: d.id,
-            binding: d.binding,
-            payload: RowPayload::Outcome(Box::new(ProtoOutcome::DocumentGraph(resp))),
-            room: d.room,
-            window: permit,
-        });
+    let mut exported = Vec::with_capacity(graph_docs.len());
+    for gdoc in &graph_docs {
+        match export_document_response(gdoc, &Disclosure::FULL) {
+            Ok(r) => exported.push(r),
+            Err(f) => return fail(f, docs, permits),
+        }
     }
+    let rows = exported
+        .into_iter()
+        .zip(docs)
+        .zip(permits)
+        .map(|((mut resp, d), permit)| {
+            resp.findings = resp.findings.map(|f| crate::results::typed::identity::bound(f, d.binding.as_ref()));
+            Row {
+                seq: d.seq,
+                id: d.id,
+                binding: d.binding,
+                payload: RowPayload::Outcome(Box::new(ProtoOutcome::DocumentGraph(resp))),
+                room: d.room,
+                window: permit,
+            }
+        })
+        .collect();
     Outcome { model, version, dim: 0, quantization: 0, rows: Ok(rows) }
 }
 

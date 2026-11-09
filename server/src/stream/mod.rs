@@ -68,10 +68,12 @@ impl Dead {
 
 /// The batching key: the load's identity, output kind, offset mode, and
 /// options. Documents batch together only under one key.
-/// The second half is the quantization, the int8 table's bits, and any
-/// bound vocabulary artifact digests.
-pub(crate) type BatchKey =
-    ((usize, i32, i32, u32, u32, u32, u32, u32, u32, u32, u32, u32), (u32, Vec<u32>, String, String));
+/// The second half is the quantization, the int8 table's bits, and the
+/// effective bound vocabulary identity.
+pub(crate) type BatchKey = (
+    (usize, i32, i32, u32, u32, u32, u32, u32, u32, u32, u32, u32),
+    (u32, Vec<u32>, (String, String, u64, String, String, u64)),
+);
 
 /// What the reader hands the engine for one stream message: an
 /// admitted document holding its queue room, a document that failed

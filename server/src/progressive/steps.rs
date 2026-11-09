@@ -138,7 +138,7 @@ pub(super) fn register_given_layers(mut builder: Builder, initial_doc: &Document
     builder
 }
 
-struct EmbedContext {
+pub(crate) struct EmbedContext {
     loaded: Arc<Loaded>,
     vectors: Option<Arc<VectorAnnotator>>,
 }
@@ -313,18 +313,18 @@ pub(crate) fn compile_analyzer_with_state(
     redaction: Option<&Redaction>,
     vocabulary: Option<&VocabularyBinding>,
 ) -> Result<Analyzer, Failure> {
-    let vocab = block5::resolve_vocabulary(state, model_name, vocabulary)?;
-    compile_pipeline(initial_doc, step_names, state, model_name, profile_name, required_bundles, redaction, &vocab)
+    let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
+    let step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    let embed_cx = resolve_embed_context(state, model_name, profile_name, required_bundles, &step_vec)?;
+    let vocab = block5::resolve_vocabulary(state, model_name, embed_cx.as_ref().map(|cx| &*cx.loaded), vocabulary)?;
+    compile_pipeline(initial_doc, step_names, embed_cx, profile_name, redaction, &vocab)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn compile_pipeline(
     initial_doc: &Document,
     step_names: &[&str],
-    state: Option<&State>,
-    model_name: &str,
+    mut embed_cx: Option<EmbedContext>,
     profile_name: &str,
-    required_bundles: &[&str],
     redaction: Option<&Redaction>,
     vocabulary: &ResolvedVocabulary,
 ) -> Result<Analyzer, Failure> {
@@ -337,7 +337,6 @@ pub(crate) fn compile_pipeline(
     let mut step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
     block5::append_bound_glossary(&mut step_vec, vocabulary);
     let step_names = step_vec.as_slice();
-    let mut embed_cx = resolve_embed_context(state, model_name, profile_name, required_bundles, step_names)?;
     let step_names = &heads::expand(step_names, embed_cx.as_ref())?[..];
     let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
     let head_plan = heads::plan(embed_cx.as_ref(), step_names, &who)?;

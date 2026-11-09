@@ -68,24 +68,19 @@ pub(super) fn append_bound_glossary(steps: &mut Vec<&str>, vocabulary: &Resolved
 }
 
 /// Resolves the request's `vocabulary` binding over any vocabulary bound to the
-/// selected or default bundle in `state`.
+/// bundle actually selected for this request (`model_name` or `selected`).
 pub(super) fn resolve_vocabulary(
     state: Option<&State>,
     model_name: &str,
+    selected: Option<&crate::state::Loaded>,
     req_vocab: Option<&VocabularyBinding>,
 ) -> Result<ResolvedVocabulary, Failure> {
     let trimmed = model_name.trim();
     let base = match state {
         None => ResolvedVocabulary::default(),
+        Some(_) if selected.is_some() => selected.unwrap().vocabulary.clone(),
         Some(st) if !trimmed.is_empty() => st.ready(trimmed, "").map(|(_, l)| l.vocabulary.clone()).unwrap_or_default(),
-        Some(st) => st
-            .listing()
-            .into_iter()
-            .rev()
-            .filter_map(|m| m.loaded.get().cloned())
-            .find(|l| !l.vocabulary.is_empty())
-            .map(|l| l.vocabulary.clone())
-            .unwrap_or_default(),
+        Some(_) => ResolvedVocabulary::default(),
     };
     match state {
         Some(st) => st.vocabulary_resolver.resolve_merged(&base, req_vocab),

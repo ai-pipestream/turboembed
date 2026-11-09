@@ -200,12 +200,20 @@ impl ResolvedVocabulary {
         })
     }
 
-    /// Pair of `(stopwords_sha256, glossary_sha256)` digests for batch grouping.
-    pub(crate) fn batch_digests(&self) -> (String, String) {
-        (
-            self.stopwords.as_ref().map(|s| s.reference.sha256.clone()).unwrap_or_default(),
-            self.glossary.as_ref().map(|g| g.reference.sha256.clone()).unwrap_or_default(),
-        )
+    /// Complete effective binding identity for `AnalyzeStream` batch grouping:
+    /// artifact ID, SHA-256, and compiled config hash for stopwords and glossary.
+    pub(crate) fn batch_key(&self) -> (String, String, u64, String, String, u64) {
+        let (s_id, s_sha, s_cfg) = self
+            .stopwords
+            .as_ref()
+            .map(|s| (s.model.id.clone(), s.model.sha256.clone(), s.stopword_annotator.config_hash()))
+            .unwrap_or_default();
+        let (g_id, g_sha, g_cfg) = self
+            .glossary
+            .as_ref()
+            .map(|g| (g.model.id.clone(), g.model.sha256.clone(), g.annotator.config_hash()))
+            .unwrap_or_default();
+        (s_id, s_sha, s_cfg, g_id, g_sha, g_cfg)
     }
 }
 
@@ -318,15 +326,7 @@ impl VocabularyResolver {
     }
 
     pub(crate) fn resolve_binding(&self, binding: &VocabularyBinding) -> Result<ResolvedVocabulary, Failure> {
-        let stopwords = match &binding.stopwords {
-            Some(r) => Some(self.resolve_stopwords("vocabulary.stopwords", r)?),
-            None => None,
-        };
-        let glossary = match &binding.glossary {
-            Some(r) => Some(self.resolve_glossary("vocabulary.glossary", r)?),
-            None => None,
-        };
-        Ok(ResolvedVocabulary { stopwords, glossary })
+        self.resolve_merged(&ResolvedVocabulary::default(), Some(binding))
     }
 
     pub(crate) fn resolve_merged(
