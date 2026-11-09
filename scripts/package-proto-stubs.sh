@@ -114,6 +114,11 @@ if [[ -n "$SMOKE_ADDR" ]]; then
   # span checked in UTF-16 units against the Java string.
   java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
     ai.pipestream.turboembed.DocumentSmoke "$SMOKE_ADDR"
+  # Run the same conformance client with a verified certificate and a live audit service.
+  TURBO_JAVA_CONFORMANCE_CP="$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
+    cargo test --locked --manifest-path "$ROOT/Cargo.toml" -p turbo-kserve \
+      --test java_result_conformance -- --ignored
+
   # The docling example's Java client, held to the summary the Rust and
   # Python clients print (examples/docling, docs/integration.md).
   java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
