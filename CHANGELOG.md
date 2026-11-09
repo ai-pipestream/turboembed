@@ -110,7 +110,8 @@ stubs must be regenerated.
 ### Changed: PII and the result envelope (#1879)
 
 - The default structured pack (`AllStructured`) now also reports
-  `vin`, `tracking-number`, `url` and `phone-extension` mentions,
+  all eight new kinds: `vin`, `tracking-number`, `us-ein`, `url`,
+  `us-passport`, `us-drivers-licence`, `us-zip` and `phone-extension`.
   `Contact` reports `phone-extension`, and `UsIdentity` reports
   `us-ein`, `us-passport`, `us-drivers-licence` and `us-zip`, so a caller
   of those packs gets more mentions than before. A `url` mention holds
