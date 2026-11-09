@@ -24,10 +24,11 @@ function Problem([string]$Name, [string]$Why) {
   "$Name,$Why," | Add-Content "$Out\summary.csv"
 }
 function Finish {
-  try { Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -ErrorAction Stop }
-  catch { Problem "archive" "could not write the evidence archive: $_" }
+  try {
+    Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -ErrorAction Stop
+    Write-Host "Send back: $Out.zip"
+  } catch { Problem "archive" "could not write the evidence archive: $_" }
   Get-Content "$Out\summary.csv"
-  Write-Host "Send back: $Out.zip"
   if ($global:Problems.Count -gt 0) {
     [Console]::Error.WriteLine("INCOMPLETE: $($global:Problems.Count) required step(s) failed or were skipped:")
     foreach ($m in $global:Problems) { [Console]::Error.WriteLine("  $m") }
@@ -39,7 +40,6 @@ function Step([string]$Name, [scriptblock]$Body) {
   Write-Host "=== $Name" -ForegroundColor Cyan
   $t = Get-Date; $global:LASTEXITCODE = 0
   try {
-    $ErrorActionPreference = "Stop"
     & $Body *>&1 | Tee-Object -FilePath "$Out\$Name.log" | Out-Host
     $code = $global:LASTEXITCODE
   } catch {
@@ -62,6 +62,10 @@ function RefreshPath {
   }
 }
 RefreshPath
+foreach ($tool in @("git", "cargo")) {
+  if (-not (Have $tool)) { Problem "prerequisites" "$tool is unavailable" }
+}
+if ($global:Problems.Count -gt 0) { Finish }
 Get-ChildItem Env: | Where-Object { $_.Name -like "TURBO_*" } | ForEach-Object { Remove-Item "Env:$($_.Name)" }
 
 # Machine facts
