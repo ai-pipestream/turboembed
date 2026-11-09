@@ -1,10 +1,12 @@
 //! The TurboTrainingService rpcs (proto/turbo_training.proto,
 //! docs/grpc-training.md): the served encoders a static model can be
-//! distilled from, the distillation itself, and the static models the
-//! training directory holds. Training and deleting are admin calls, served
-//! only with the admin flag. Without a training directory every call but
-//! ListTeachers refuses UNIMPLEMENTED.
+//! distilled from, the distillation itself, the static models the
+//! training directory holds, and classical component training. Training
+//! and deleting are admin calls, served only with the admin flag. Without
+//! a training directory every call but ListTeachers and TrainComponent
+//! refuses UNIMPLEMENTED.
 
+mod component;
 mod describe;
 mod train;
 
@@ -13,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, Streaming};
 use turbo::bundle::Bundle;
 
 use crate::api::{
@@ -23,7 +25,7 @@ use crate::kserve::Reply;
 use crate::proto::training::turbo_training_service_server::TurboTrainingService;
 use crate::proto::training::{
     DeleteStaticModelRequest, DeleteStaticModelResponse, ListStaticModelsRequest, ListStaticModelsResponse,
-    ListTeachersRequest, ListTeachersResponse, Teacher, TrainStaticModelRequest,
+    ListTeachersRequest, ListTeachersResponse, Teacher, TrainComponentRequest, TrainStaticModelRequest,
 };
 use crate::state::{Served, State};
 use crate::status::to_status;
@@ -168,6 +170,7 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Sen
 #[tonic::async_trait]
 impl TurboTrainingService for TrainingService {
     type TrainStaticModelStream = train::UpdateStream;
+    type TrainComponentStream = component::ComponentStream;
 
     async fn list_teachers(&self, _: Request<ListTeachersRequest>) -> Reply<ListTeachersResponse> {
         let state = self.state.clone();
@@ -224,5 +227,14 @@ impl TurboTrainingService for TrainingService {
         })
         .await?;
         Ok(Response::new(DeleteStaticModelResponse { unloaded }))
+    }
+
+    async fn train_component(
+        &self,
+        req: Request<Streaming<TrainComponentRequest>>,
+    ) -> Reply<Self::TrainComponentStream> {
+        // Nothing is kept, so no training directory is needed.
+        self.admin("TrainComponent")?;
+        Ok(Response::new(component::start(req.into_inner(), self.training.clone()).await?))
     }
 }

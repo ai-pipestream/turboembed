@@ -11,7 +11,8 @@ and index management, `turbo.training.v1.TurboCatalogService`, the
 model catalog: the zoo's artifacts, licence acceptances and verified
 installs (docs/grpc-catalog.md), and `turbo.training.v1.TurboTrainingService`,
 static models distilled from a served encoder and served as soon as they
-are sealed (docs/grpc-training.md). It can forward what its analysis streams
+are sealed, and classical components trained from streamed samples
+(docs/grpc-training.md). It can forward what its analysis streams
 complete to a downstream `turbo.sink.v1.TurboSinkService`, and serve that
 service itself (docs/grpc-sink.md). This page says how to run it. What every RPC,
 tensor, parameter and status of the Open Inference Protocol means, call
@@ -81,14 +82,14 @@ no way to stop a load part way.
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
 | `--max-stream-bytes N` | The most bytes one call's request carries in all, every frame and its five-byte prefix counted; the frame that passes it ends the call with `RESOURCE_EXHAUSTED`. At least `--max-message-bytes`. | 2 GiB. |
-| `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), the vocabulary store's writes (docs/grpc-vocabulary.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), the training service's `TrainStaticModel` and `DeleteStaticModel` (docs/grpc-training.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), the vocabulary store's writes (docs/grpc-vocabulary.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), the training service's `TrainStaticModel`, `DeleteStaticModel` and `TrainComponent` (docs/grpc-training.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
 | `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
 | `--catalog-store URL` | The store installs read first and fill: `file:///dir` or `s3://bucket/prefix` (docs/grpc-catalog.md). Needs `--catalog-dir`. | No store: each file is fetched from its address. |
 | `--zoo` | Zoo mode (docs/grpc-catalog.md, Zoo mode): any caller records an acceptance and installs, a `ReadModelFile` of a permitted artifact not yet installed fetches it first, and the server may start with zero models. Needs `--catalog-dir`. | Off. |
 | `--catalog-prefetch permissive` | Install every permissive artifact in the background at start (docs/grpc-catalog.md, Prefetch). Needs `--catalog-dir`. | Off. |
-| `--training-dir PATH` | The directory static models are trained into, one sealed bundle per child, made when it does not exist (docs/grpc-training.md). | No training directory: every training call but `ListTeachers` refuses with `UNIMPLEMENTED`. |
+| `--training-dir PATH` | The directory static models are trained into, one sealed bundle per child, made when it does not exist (docs/grpc-training.md). | No training directory: every training call but `ListTeachers` and `TrainComponent` refuses with `UNIMPLEMENTED`. |
 | `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
 | `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
 | `--sink-queue-bytes N` | The most encoded bytes waiting for the sink. Needs `--sink-endpoint`. | 64 MiB. |
@@ -311,7 +312,7 @@ versioned `turbo.<name>.v1` packages:
 - `turbo.result.v1` (`server/proto/turbo_analysis.proto`, `server/proto/turbo_typed_annotations.proto`, `server/proto/turbo_pii_policy.proto`): the analysis result layer's messages, typed document annotations, the typed PII redaction policy, and `AnalysisService` (docs/grpc-analysis.md, docs/grpc-inspect.md).
 - `turbo.search.v1` (`server/proto/turbo_search.proto`): hybrid search, index lifecycle, aliases, and `TurboSearchService`.
 - `turbo.vocabulary.v1` (`server/proto/turbo_vocabulary.proto`): the vocabulary store and `TurboVocabularyService` (docs/grpc-vocabulary.md).
-- `turbo.training.v1` (`server/proto/turbo_training.proto`): the model catalog (`TurboCatalogService`, docs/grpc-catalog.md) and static model training (`TurboTrainingService`, docs/grpc-training.md).
+- `turbo.training.v1` (`server/proto/turbo_training.proto`): the model catalog (`TurboCatalogService`, docs/grpc-catalog.md) and static model and component training (`TurboTrainingService`, docs/grpc-training.md).
 - `turbo.sink.v1` (`server/proto/turbo_sink.proto`): the document sink and `TurboSinkService` (docs/grpc-sink.md).
 - `turbo.audit.v1` (`server/proto/turbo_audit.proto`): the acknowledged PII access audit, `TurboAuditService` (docs/grpc-analysis.md, PII value release).
 
