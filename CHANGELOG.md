@@ -39,6 +39,11 @@ stubs must be regenerated.
 
 ### Added: PII and the result envelope (#1879)
 
+- Reversible PII protection behind the `turbo-pii` feature `reversible`:
+  `AesGcmEncryptor` (AES-256-GCM tokens bound to kind and context) and
+  `Ff1Encryptor` (FF1 format-preserving encryption, NIST SP 800-38G).
+  `PiiStrategy` gains `PII_STRATEGY_AES_256_GCM = 10` and
+  `PII_STRATEGY_FF1 = 11` for the edits they write (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from

@@ -1462,6 +1462,10 @@ enum PiiStrategy
   PII_STRATEGY_MAP = 7;
   PII_STRATEGY_TRUNCATE = 8;
   PII_STRATEGY_ABBREVIATE = 9;
+  // An AES-256-GCM token a holder of the key decrypts.
+  PII_STRATEGY_AES_256_GCM = 10;
+  // FF1 format-preserving encryption a holder of the key decrypts.
+  PII_STRATEGY_FF1 = 11;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

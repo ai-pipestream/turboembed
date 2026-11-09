@@ -77,6 +77,8 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      - name: clippy (pii reversible)
+        run: cargo clippy -p turbo-pii --features reversible --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
       # through ureq or rustls, whose build script needs an aarch64 C
@@ -274,6 +276,10 @@ jobs:
       # TurboQuant storage is behind a feature that brings in turbovec.
       - name: test (turboquant)
         run: cargo test -p turbo-vector-index --features turboquant
+      # Reversible PII protection is behind a feature that brings in the
+      # RustCrypto AES-GCM and FF1 crates.
+      - name: test (pii reversible)
+        run: cargo test -p turbo-pii --features reversible --lib --test reversible
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host

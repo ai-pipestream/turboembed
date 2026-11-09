@@ -29,6 +29,9 @@ pub enum RewriteError {
     /// The pii layer is over view `layer`, not over `view`, the view being
     /// rewritten, so its spans are offsets of another text.
     ForeignView { layer: ViewId, view: ViewId },
+    /// A reversible strategy could not encrypt the mention, for the reason
+    /// given.
+    Encrypt(Span, String),
 }
 
 impl fmt::Display for RewriteError {
@@ -43,6 +46,7 @@ impl fmt::Display for RewriteError {
             }
             RewriteError::Kind(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
             RewriteError::Detector(s, e) => write!(f, "mention at {}..{}: {e}", s.start, s.end),
+            RewriteError::Encrypt(s, e) => write!(f, "mention at {}..{} cannot be encrypted: {e}", s.start, s.end),
             RewriteError::ForeignView { layer, view } => {
                 write!(f, "the pii layer is over view {}, not view {}", layer.0, view.0)
             }
