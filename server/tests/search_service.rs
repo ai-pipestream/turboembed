@@ -436,3 +436,52 @@ async fn turbo_search_service_end_to_end() {
     srv.stop().await;
     let _ = std::fs::remove_dir_all(&snap_dir);
 }
+
+#[tokio::test]
+async fn create_index_validates_quant_bits_before_u8_narrowing() {
+    let srv = Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve::default())
+        .await
+        .expect("start server");
+    let mut client = TurboSearchServiceClient::connect(format!("http://{}", srv.local_addr())).await.unwrap();
+
+    for (bits, want_bits) in [(0u32, 4u32), (2, 2), (3, 3), (4, 4)] {
+        let summary = client
+            .create_index(CreateIndexRequest {
+                spec: Some(IndexSpec {
+                    index_name: format!("valid-bits-{bits}"),
+                    space: Some(test_space(16)),
+                    metric: DistanceMetric::Cosine as i32,
+                    storage: VectorStorageKind::TurboQuant as i32,
+                    quant_bits: bits,
+                    ..Default::default()
+                }),
+                load_from_path: String::new(),
+            })
+            .await
+            .unwrap()
+            .into_inner()
+            .summary
+            .unwrap();
+        assert_eq!(summary.quant_bits, want_bits, "quant_bits={bits}");
+    }
+
+    for bad_bits in [1u32, 5, 8, 256, 258, 259, 260, 65_538] {
+        let err = client
+            .create_index(CreateIndexRequest {
+                spec: Some(IndexSpec {
+                    index_name: format!("bad-bits-{bad_bits}"),
+                    space: Some(test_space(16)),
+                    metric: DistanceMetric::Cosine as i32,
+                    storage: VectorStorageKind::TurboQuant as i32,
+                    quant_bits: bad_bits,
+                    ..Default::default()
+                }),
+                load_from_path: String::new(),
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), Code::InvalidArgument, "expected InvalidArgument for quant_bits={bad_bits}");
+    }
+
+    srv.stop().await;
+}
