@@ -260,6 +260,8 @@ fn a_bad_manifest_is_invalid() {
 fn a_string_longer_than_its_info_field_is_invalid() {
     let e = with("long-id", |m| m["model"]["id"] = json!("m".repeat(128)));
     assert!(e.is(BUNDLE_INVALID, "model.id: 128 bytes is over the header's 127"), "{e:?}");
+    let e = with("long-license", |m| m["model"]["license"] = json!("l".repeat(128)));
+    assert!(e.is(BUNDLE_INVALID, "model.license: 128 bytes is over the header's 127"), "{e:?}");
     let e = with("long-revision", |m| m["model"]["revision"] = json!("r".repeat(64)));
     assert!(e.is(BUNDLE_INVALID, "model.revision"), "{e:?}");
     let e = with("long-prefix", |m| m["embed"]["prefix_document"] = json!("p".repeat(128)));
@@ -295,4 +297,29 @@ fn the_pre_rerank_model_info_keeps_its_tail_untouched() {
     assert_eq!(unsafe { turbo_model_get_info(loaded.m, &mut info, &mut err) }, OK);
     assert_eq!(info.dim, 8);
     assert_eq!((info.rerank_query_tokens, info.rerank_pair_template), (123, 456));
+}
+
+#[test]
+fn the_licence_and_its_class_are_reported() {
+    let info = Fixture::model("licence-unstated").load().unwrap().info();
+    assert_eq!((field(&info.license).as_str(), info.license_class), ("Apache-2.0", TURBO_LICENSE_CLASS_UNSTATED));
+    let mut f = Fixture::model("licence-class");
+    f.manifest["model"]["license"] = json!("CC-BY-SA-4.0");
+    f.manifest["model"]["license_class"] = json!("CLASS_SHARE_ALIKE");
+    let info = f.load().unwrap().info();
+    assert_eq!((field(&info.license).as_str(), info.license_class), ("CC-BY-SA-4.0", TURBO_LICENSE_CLASS_SHARE_ALIKE));
+}
+
+#[test]
+fn the_pre_licence_model_info_keeps_its_tail_untouched() {
+    let loaded = Fixture::model("pre-licence-info").load().unwrap();
+    assert_eq!(TURBO_MODEL_INFO_SIZE_V3, 772);
+    let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
+    info.struct_size = TURBO_MODEL_INFO_SIZE_V3 as u32;
+    info.license = [b'x' as std::ffi::c_char; 128];
+    info.license_class = 99;
+    let mut err = new_error();
+    assert_eq!(unsafe { turbo_model_get_info(loaded.m, &mut info, &mut err) }, OK);
+    assert_eq!(info.dim, 8);
+    assert_eq!((info.license, info.license_class), ([b'x' as std::ffi::c_char; 128], 99));
 }
