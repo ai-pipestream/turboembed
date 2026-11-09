@@ -48,6 +48,13 @@ stubs must be regenerated.
 - Stable PII kind ids (`PiiKindId`), `PiiConfidenceTier`,
   `PiiDetectorRef` and `TypedLayer.custom_pii_kinds` (field 12)
   (#1914).
+- C ABI PII rows carry their numeric kind: with
+  `turbo_analyzer_desc.flags` bit `TURBO_ANALYZER_PII_KIND_IDS` every
+  PII row sets `TURBO_SPAN_PII_KIND` and holds a `TURBO_PII_KIND_*` id,
+  or `TURBO_PII_KIND_CUSTOM_BASE` plus a custom-table index, in
+  `token_start`. Off by default, so existing callers see the same rows.
+  Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
+  `piiKind()` and `piiCustomKindIndex()` (#1964).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
@@ -109,6 +116,12 @@ stubs must be regenerated.
 
 ### Added
 
+- A per-document PII risk score and level for routing in the indexing
+  pipeline: the `turbo-pii:risk` step writes `turbo:pii-risk`
+  (`TypedAnnotation.pii_risk` = 100, `PiiRiskAnnotation`, `PiiRiskKind`,
+  enums `PiiRiskLevel`, `PiiSeverity`, `PiiSuggestedRewrite`), kept in
+  findings-only answers, with an overridable severity table and a
+  suggested `RedactionPolicy` (`pii_policy::suggested_policy`, #1956).
 - `RegisterModelSource.s3_keys` (field 5, `S3Keys`) and
   `SOURCE_SIGN_IN_S3_KEYS`: an `s3://` model source signs in with its
   own access key pair, region and endpoint instead of the server's

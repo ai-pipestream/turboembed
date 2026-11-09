@@ -74,6 +74,16 @@ public final class TurboSpanView implements ai.pipestream.turboembed.TurboSpanVi
         return Optional.of(TurboPiiConfidence.fromNative(classification()));
     }
 
+    /**
+     * Returns a PII row's numeric kind code, read from the native row with no label parse: a
+     * {@link ai.pipestream.turboembed.TurboPiiKind} id, or its {@code CUSTOM_CODE_BASE} plus a
+     * custom-table index. Empty for another layer kind.
+     */
+    @Override
+    public OptionalLong piiKindCode() {
+        return owner.piiKindCode(index);
+    }
+
     /** Returns the range in {@link #viewId()}'s coordinate space, when present. */
     public Optional<TurboSpanData.CoordinateRange> viewRange() {
         return owner.viewRange(index);

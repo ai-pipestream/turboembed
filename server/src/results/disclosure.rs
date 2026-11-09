@@ -23,7 +23,7 @@
 use std::any::TypeId;
 
 use turbo_analysis::{Analyzer, Document, Evidence, Key, KeyId, Layer, View, ViewId};
-use turbo_analysis_layers::{Entities, Pii, PiiCandidates, PiiEdits};
+use turbo_analysis_layers::{Entities, Pii, PiiCandidates, PiiEdits, PiiRisk};
 use turbo_entity_linker::LinkedEntities;
 
 use crate::api::{Failure, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED_OPTION};
@@ -264,9 +264,10 @@ pub fn withheld_because(reason: PiiWithheldReason) -> PiiValue {
 /// `turbo:pii`; the `turbo:pii-edits` of a rewrite (spans, covered
 /// mentions, rule and strategy); and, when the request asks for `detail`,
 /// `turbo:pii-candidates` (every span a detector considered, with its
-/// facts and the decision taken). None of them carries a value.
+/// facts and the decision taken); and `turbo:pii-risk`, the document's
+/// score, kinds and counts (#1889). None of them carries a value.
 pub fn is_findings_layer(id: &str) -> bool {
-    id == Pii::ID || id == PiiEdits::ID || id == PiiCandidates::ID
+    id == Pii::ID || id == PiiEdits::ID || id == PiiCandidates::ID || id == PiiRisk::ID
 }
 
 /// Findings only: every other layer carries the view's words (sentence
@@ -274,7 +275,8 @@ pub fn is_findings_layer(id: &str) -> bool {
 /// those layers are listed with their status and no annotations. The
 /// candidates are detail (#1903): listed bare unless `detail` is asked.
 pub(crate) fn withhold_annotations(layers: &mut [TypedLayer], detail: bool) {
-    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (detail && id == PiiCandidates::ID);
+    let kept =
+        |id: &str| id == Pii::ID || id == PiiEdits::ID || id == PiiRisk::ID || (detail && id == PiiCandidates::ID);
     for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
         l.annotations.clear();
         l.indexes_layer.clear();
@@ -297,7 +299,9 @@ pub(crate) fn withhold_other_views(layers: &mut [TypedLayer], doc: &Document, di
         .collect();
     let mut lineage =
         lineage::Lineage::new(doc, disclosure, |k| own.iter().find(|(o, _)| *o == k).and_then(|(_, v)| *v));
-    let kept = |id: &str| id == Pii::ID || id == PiiEdits::ID || (disclosure.detail && id == PiiCandidates::ID);
+    let kept = |id: &str| {
+        id == Pii::ID || id == PiiEdits::ID || id == PiiRisk::ID || (disclosure.detail && id == PiiCandidates::ID)
+    };
     for l in layers.iter_mut().filter(|l| !kept(&l.id)) {
         let withheld = l.id == PiiCandidates::ID
             || key_of(l).is_none_or(|k| lineage.withheld(k) || joined(doc, k).any(|j| lineage.withheld(j)));

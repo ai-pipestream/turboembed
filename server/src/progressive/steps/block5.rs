@@ -1,5 +1,5 @@
-//! Block 5 opt-in progressive steps: SaT sentences, PII scanning and
-//! masking, and the numeric annotators.
+//! Block 5 opt-in progressive steps: SaT sentences, PII scanning,
+//! per-document risk and masking, and the numeric annotators.
 //!
 //! These steps are never part of the default profile. A request names
 //! them explicitly beside the existing steps. SaT writes the same
@@ -23,7 +23,7 @@ use turbo_numeric::quantity::QuantityExtractor;
 use turbo_numeric::temporal::TemporalExtractor;
 use turbo_numeric::{DocumentDateSelector, NumberScanner};
 use turbo_pii::rewrite::MaskedView;
-use turbo_pii::{Pack, PiiDetector};
+use turbo_pii::{Pack, PiiDetector, PiiRiskScorer};
 use turbo_sat::{SatAnnotator, SatOptions};
 use turbo_structure::LayoutProjector;
 
@@ -77,6 +77,7 @@ pub(super) fn add_step(
                     .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo-pii:pii: {e}")))?,
             ),
         },
+        "turbo-pii:risk" | "turbo:pii-risk" | "pii-risk" => builder.add(PiiRiskScorer::new()),
         "turbo-pii:masked" | "turbo:pii-masked" | "pii-masked" => {
             let masked = MaskedView::by_kind('*')
                 .map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("turbo-pii:masked: {e}")))?;

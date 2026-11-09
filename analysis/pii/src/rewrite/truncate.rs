@@ -140,6 +140,8 @@ impl Truncate {
 
     /// Precomputes byte-offset retention bounds for `value` in `O(|value|)`.
     pub(super) fn retention(&self, value: &str) -> CharRetention {
+        #[cfg(test)]
+        super::mask::RETENTION_WORK.with(|n| n.set(n.get() + value.len().max(1)));
         if self.keep_format {
             let alpha = value.chars().filter(|&c| letter_or_digit(c)).count();
             if self.count == 0 || alpha <= self.count {

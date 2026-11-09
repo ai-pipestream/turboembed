@@ -55,6 +55,7 @@ mod numeric;
 mod pii;
 mod pii_edits;
 mod pii_plan;
+mod pii_risk;
 mod quality;
 mod relations;
 mod rhetoric;
@@ -146,6 +147,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<crate::PiiCandidates>()
         .register::<crate::PiiEdits>()
         .register::<crate::PiiPlan>()
+        .register::<crate::PiiRisk>()
         .register::<Regions>()
         .register::<Matches>()
         .register::<Levels>()
