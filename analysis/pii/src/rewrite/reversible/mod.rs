@@ -17,8 +17,6 @@ pub use ff1::{Ff1Alphabet, Ff1Encryptor};
 
 use std::fmt;
 
-use crate::checksum::sha256;
-
 /// The key length both encryptors take: an AES-256 key.
 pub const KEY_BYTES: usize = 32;
 
@@ -124,7 +122,7 @@ fn random_seed() -> [u8; 32] {
         }
     }
     use std::hash::{BuildHasher, Hasher};
-    let mut seed = sha256::Sha256::default();
+    let mut seed = turbo_sha256::Sha256::new();
     for i in 0..8u64 {
         let mut h = std::collections::hash_map::RandomState::new().build_hasher();
         h.write_u64(i);
@@ -132,7 +130,7 @@ fn random_seed() -> [u8; 32] {
     }
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     seed.update(&now.to_le_bytes());
-    out.copy_from_slice(&seed.finish());
+    out.copy_from_slice(&seed.finish().0);
     out
 }
 

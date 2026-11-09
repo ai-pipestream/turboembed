@@ -1,7 +1,6 @@
 use super::{Dump, Header, codecs, cuts_path, graph, key};
 use crate::Result;
 use crate::artifact::{ArtifactKey, EvaluationArtifactStore, PendingArtifact, Publication, TemporaryFileStore};
-use crate::sha::Sha256;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use turbo_analysis::{
@@ -9,6 +8,7 @@ use turbo_analysis::{
     export::{Codecs, DocumentGraph, import},
 };
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences};
+use turbo_sha256::Sha256;
 #[path = "wire.rs"]
 mod wire;
 
@@ -100,7 +100,7 @@ impl Writer {
         self.write(&[0])?;
         self.write(&self.docs.to_le_bytes())?;
         let digest = self.hash.finish();
-        self.out.write_all(&digest).map_err(|e| e.to_string())?;
+        self.out.write_all(&digest.0).map_err(|e| e.to_string())?;
         let receipt = self.out.finalize().map_err(|e| e.to_string())?;
         Ok((receipt, self.docs))
     }
@@ -163,7 +163,7 @@ impl Dump {
                     let hash = std::mem::take(&mut input.hash).finish();
                     let mut digest = [0; 32];
                     input.source.read_exact(&mut digest).map_err(|e| format!("cut dump: incomplete digest: {e}"))?;
-                    if digest != hash {
+                    if digest != hash.0 {
                         return Err("cut dump: digest mismatch".into());
                     }
                     input.end()?;

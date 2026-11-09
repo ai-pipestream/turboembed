@@ -25,8 +25,6 @@ pub mod policy;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use turbo_pii::checksum::sha256;
-
 use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
 use crate::pii_policy::{NamedPolicies, NoRegistry, PolicyDigest, PolicyResolver};
 use crate::proto::audit::{PiiAccessEvent, PiiAccessKindGrant};
@@ -260,7 +258,7 @@ pub fn policy_digest(policy: PiiOutputPolicy, grant: &caps::Grant, redaction: Op
         rules.push_str(";redaction-policy=");
         rules.push_str(&d.to_hex());
     }
-    sha256::digest(rules.as_bytes())
+    turbo_sha256::sha256(rules.as_bytes()).0
 }
 
 #[cfg(test)]

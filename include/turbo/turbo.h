@@ -139,6 +139,16 @@ typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans an
 #define TURBO_PAIR_ROBERTA 2
 #define TURBO_TASK_EXTRACTIVE_QA 3
 
+/* turbo_model_info.license_class: the model zoo's licence classes, least
+ * to most restrictive (docs/zoo.md). LOCAL_ONLY is fetched only after the
+ * user accepts the licence and is never redistributed. */
+#define TURBO_LICENSE_CLASS_UNSTATED    0   /* the manifest names no class */
+#define TURBO_LICENSE_CLASS_PERMISSIVE  1
+#define TURBO_LICENSE_CLASS_LGPL        2
+#define TURBO_LICENSE_CLASS_SHARE_ALIKE 3
+#define TURBO_LICENSE_CLASS_GPL         4
+#define TURBO_LICENSE_CLASS_LOCAL_ONLY  5
+
 /* What a (device, task) cell may say. There is no "planned": a thing that
  * does not run is unsupported. */
 #define TURBO_CAP_UNSUPPORTED  0
@@ -287,7 +297,7 @@ typedef struct turbo_device_info {
                                   * filed under arch and name together */
     char     name[128];          /* what the driver calls it */
     char     vendor[64];
-    char     backend[32];        /* cuda, openvino, metal, hailo, ggml */
+    char     backend[32];        /* cuda, levelzero, metal, hailo, npu or cpu */
     char     runtime_version[64];   /* the vendor runtime this build linked */
     char     driver_version[64];    /* empty where there is none */
 } turbo_device_info;
@@ -318,7 +328,7 @@ int32_t turbo_runtime_create(const turbo_runtime_desc *desc, turbo_runtime **out
 void    turbo_runtime_release(turbo_runtime *rt);
 
 /* The library version and the backends compiled into this build, as a
- * static string: "0.1.0 cuda openvino". */
+ * static string, accelerators first and the CPU last: "0.1.0 cuda cpu". */
 const char *turbo_version(void);
 /* The status constant's name as this file spells it: "TURBO_OK" for 0,
  * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
@@ -413,9 +423,13 @@ typedef struct turbo_model_info {
                                                       name, ascending; 0 past the count */
     uint32_t rerank_query_tokens;    /* rerank: default query truncation budget */
     uint32_t rerank_pair_template;   /* rerank: TURBO_PAIR_BERT or TURBO_PAIR_ROBERTA */
+    char     license[128];           /* manifest model.license, an SPDX expression */
+    uint32_t license_class;          /* TURBO_LICENSE_CLASS_*: the most restrictive of
+                                        model.license_class and every head's corpora */
     /* Fields marked embed are 0 or empty for a model of another task. The
-     * library also accepts a struct_size that ends before output_dims_count
-     * or before rerank_query_tokens, writing only the caller's prefix. */
+     * library also accepts a struct_size that ends before output_dims_count,
+     * before rerank_query_tokens or before license, writing only the
+     * caller's prefix. */
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
@@ -709,7 +723,8 @@ int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch
  * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
-/* Cross-encoder reranking, on the CPU or through CUDA's embedding encoder. Output is [pair_count, 1] F32 raw relevance
+/* Cross-encoder reranking, on the CPU or through the CUDA, Level Zero or
+ * Metal embedding encoder. Output is [pair_count, 1] F32 raw relevance
  * logits, max-pooled over passage windows. Model and artifact identity are
  * in turbo_result_info. No sigmoid is applied. */
 typedef struct turbo_rerank_options {
@@ -813,6 +828,7 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_ANALYSIS_LAYER_PII       6
 #define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
 #define TURBO_ANALYSIS_LAYER_MORPHOLOGY 8
+#define TURBO_ANALYSIS_LAYER_WORDS     9
 
 #define TURBO_SPAN_VIEW_RANGE   (1u << 0)
 #define TURBO_SPAN_SOURCE_RANGE (1u << 1)
@@ -909,8 +925,16 @@ void    turbo_result_release(turbo_result *r);
  * English with the rule sentence splitter and rule tokenizer only. The
  * learned components come from a bundle (docs/bundle.md) named by
  * bundle_path: its heads write the part-of-speech, morphology, lemma,
- * dependency and entity layers, each from the one head of the bundle whose
- * layer it is, in one encoder pass a sentence on the cpu backend. Without a
+ * dependency, entity and syntactic word layers, each from the one head of
+ * the bundle whose layer it is, in one encoder pass a sentence on the cpu
+ * backend. An entity head is a token tagger over BIO or BILOU labels or a
+ * span classifier (HEAD_SPAN_CLASSIFIER); the word layer's is a token
+ * split head (HEAD_TOKEN_SPLIT). A bundle with a sentence boundary head
+ * (HEAD_SENTENCE_BOUNDARY) finds the sentences of every task with it, over
+ * the rule tokenizer's tokens of the whole text, in place of the rule
+ * splitter; a head of another kind on the sentence layer fails
+ * turbo_analyzer_create with TURBO_E_UNSUPPORTED_TASK naming field 7, so
+ * no rule splitter stands in for it. Without a
  * bundle, or with a bundle lacking a layer's head, that layer's tasks fail
  * with TURBO_E_UNSUPPORTED_TASK naming what is missing, except on no
  * input: a task given empty text or a token count of 0 returns TURBO_OK
@@ -948,7 +972,12 @@ typedef struct turbo_analyzer_desc {
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
  * token_start also carries a PII row's numeric kind under
  * TURBO_SPAN_PII_KIND, which never comes with TURBO_SPAN_TOKEN_RANGE.
- * Discontinuous items emit one row per fragment. For a morphology row,
+ * Discontinuous items emit one row per fragment. A word row
+ * (TURBO_ANALYSIS_LAYER_WORDS) is one syntactic word: its token range is
+ * the tokens it belongs to, its text range the bytes of its token it is
+ * (a "ca" of "can't") or else the whole token, and it has a label, its
+ * form, only when that form is not the text of its range (a "del" read as
+ * "de" and "el"). For a morphology row,
  * there is one row per token and label is the feature string as the
  * MorphFeatures layer writes it. classification is layer-specific:
  * TURBO_PII_CONFIDENCE_* for PII; for a dependency row, whose label is the
@@ -1004,13 +1033,19 @@ int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **
 turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
 void    turbo_analyzer_release(turbo_analyzer *a);
 
-/* Detect sentence spans in UTF-8 text. Sentence text is read from the
- * row's source range; no covered-text copy is put in the string pool. */
+/* Detect sentence spans in UTF-8 text, with the bundle's sentence
+ * boundary head when it has one and the rule splitter otherwise. A head's
+ * sentence runs from its first token's start to its last token's end.
+ * Sentence text is read from the row's source range; no covered-text copy
+ * is put in the string pool. */
 int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
                                         turbo_analysis_result **out, turbo_error *err);
 
-/* Tokenize UTF-8 text. Token text is read from each row's source range;
- * its token range is the one-token range at its item index. */
+/* Tokenize UTF-8 text with the rule tokenizer. Token text is read from
+ * each row's source range; its token range is the one-token range at its
+ * item index. With a bundle's token split head the result also holds a
+ * word row (TURBO_ANALYSIS_LAYER_WORDS) for each syntactic word of the
+ * tokens, read a sentence at a time. */
 int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
                                 turbo_analysis_result **out, turbo_error *err);
 
@@ -1042,13 +1077,15 @@ int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
  * the bundle's entity head only. No dictionary, pattern or other
  * recognizer is merged in, and nothing is kept between calls. Rows are
  * token-only: one row per entity, with its token range, its kind as the
- * label, and the mean of its tokens' probabilities. Without an entity head
- * this is unsupported. */
+ * label, and its probability: the mean of its tokens' for a tagger head,
+ * its kind's softmax among the span's own scores for a span classifier.
+ * Without an entity head this is unsupported. */
 int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                    turbo_analysis_result **out, turbo_error *err);
 
 /* Find named entities directly in UTF-8 text with the bundle's entity
- * head, over the rule tokenizer's tokens a sentence at a time. Rows are as
+ * head, over the rule tokenizer's tokens a sentence at a time (the
+ * sentences turbo_analyzer_detect_sentences finds). Rows are as
  * turbo_analyzer_find_tokens writes them, with the entity's view and
  * source ranges, and a token range into the tokens of the whole text.
  * Without an entity head this is unsupported. */
@@ -1063,13 +1100,17 @@ int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
 int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
                                   turbo_analysis_result **out, turbo_error *err);
 
-/* Run the rule sentence splitter and tokenizer, every head of the bundle
- * (one encoder pass a sentence) and the PII task over UTF-8 text,
+/* Find the sentences as turbo_analyzer_detect_sentences does, run the
+ * rule tokenizer, every head of the bundle (one encoder pass a sentence)
+ * and the PII task over UTF-8 text,
  * serialize the binary DocumentGraph ("TGRF" wire format) into the
  * result's graph buffer, and expose every supported layer instance as
  * typed rows. A layer whose head the bundle lacks is absent, never
  * replaced by a fallback layer: with no bundle the graph holds the
- * sentence, token and PII layers alone. */
+ * sentence, token and PII layers alone. Each layer's provenance names
+ * what wrote it: turbo:sentdetect or turbo-tagger-sentences for the
+ * sentences, turbo-tagger-entities or turbo-tagger-spans for the entities,
+ * turbo-tagger-words for the words. */
 int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
                                      turbo_analysis_result **out, turbo_error *err);
 

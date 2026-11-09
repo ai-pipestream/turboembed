@@ -20,9 +20,13 @@ pub enum ResolveError {
     /// The stored dictionary is in a format this use does not take; the
     /// format id is the store's, never the file's content.
     WrongFormat { format: String },
-    /// The stored dictionary could not be read or parsed. The store's own
-    /// message is dropped: it may name a path or a line of the file.
+    /// The stored dictionary could not be read. The store's own message
+    /// is dropped: it may name a path.
     Unreadable,
+    /// The stored dictionary was read but does not parse as `format` for
+    /// this use. `reason` is the parser's, which names a line or a byte
+    /// offset and never a term.
+    Unparsable { format: String, reason: String },
 }
 
 impl ResolveError {
@@ -35,6 +39,9 @@ impl ResolveError {
                 format!("the stored dictionary's format {format} is not taken here")
             }
             ResolveError::Unreadable => "the stored dictionary cannot be read".to_owned(),
+            ResolveError::Unparsable { format, reason } => {
+                format!("the stored dictionary does not parse as {format}: {reason}")
+            }
         }
     }
 }

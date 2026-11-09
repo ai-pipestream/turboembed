@@ -67,6 +67,12 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      longer. The compiler cannot be redistributed, so its image is built
      locally; `bundle/hailo/Dockerfile` (Hailo-10H) and
      `bundle/hailo/Dockerfile.hailo8` (Hailo-8, Hailo-8L) say how.
+     Both image builds run real ONNX Runtime comparison regressions.
+     The comparison requires a nonempty calibration set, exact
+     `[1, fixed_seq, hidden]` outputs, and finite hidden states on every
+     kept position. A classifier's logits are not encoder hidden states.
+     Rebuild and pin the image to use an updated comparison script;
+     existing recipe image digests retain their original script.
 5. **seal**: `files` is filled with each named file's size and SHA-256,
    the reference's and each converted artifact's `produced_by` with what
    its container reported and the image it ran in (and for a conversion,

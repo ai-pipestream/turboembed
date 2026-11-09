@@ -70,7 +70,7 @@ turbo-zoo = { path = "../analysis/zoo", default-features = false }
 turbo-bundle = { path = "../bundle", default-features = false }
 # ReadModelFile hashes a file as it streams it; the zoo's own SHA-256, already
 # in the tree under turbo-zoo.
-sha2 = "0.11"
+turbo-sha256 = { path = "../analysis/sha256" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 # The request body trait, to count a stream's bytes (ceiling.rs) and for

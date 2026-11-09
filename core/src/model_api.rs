@@ -117,6 +117,8 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     write_str(&mut info.tokenizer_sha256, &tokenizer.sha256);
     write_str(&mut info.prefix_query, &e.prefix_query);
     write_str(&mut info.prefix_document, &e.prefix_document);
+    write_str(&mut info.license, &m.model.license);
+    info.license_class = license_class(m.license_tier());
     // The manifest refuses more than TURBO_OUTPUT_DIMS_MAX (rule 2).
     let mut dims = e.output_dims.clone();
     dims.sort_unstable();
@@ -198,6 +200,18 @@ pub unsafe extern "C" fn turbo_model_release(m: *mut turbo_model) {
     }
 }
 
+/// turbo.h's TURBO_LICENSE_CLASS_* for the bundle's licence tier.
+fn license_class(tier: Option<manifest::LicenseClass>) -> u32 {
+    match tier {
+        None => TURBO_LICENSE_CLASS_UNSTATED,
+        Some(manifest::LicenseClass::Permissive) => TURBO_LICENSE_CLASS_PERMISSIVE,
+        Some(manifest::LicenseClass::Lgpl) => TURBO_LICENSE_CLASS_LGPL,
+        Some(manifest::LicenseClass::ShareAlike) => TURBO_LICENSE_CLASS_SHARE_ALIKE,
+        Some(manifest::LicenseClass::Gpl) => TURBO_LICENSE_CLASS_GPL,
+        Some(manifest::LicenseClass::LocalOnly) => TURBO_LICENSE_CLASS_LOCAL_ONLY,
+    }
+}
+
 /// # Safety
 /// Pointers are NULL or valid for the call, as turbo.h says.
 #[unsafe(no_mangle)]
@@ -217,7 +231,9 @@ pub unsafe extern "C" fn turbo_model_get_info(
             // the raw pointer, never as the whole struct.
             let size = (out as *const u32).read();
             let want = size_of::<turbo_model_info>();
-            if size as usize != TURBO_MODEL_INFO_SIZE_V1 && size as usize != TURBO_MODEL_INFO_SIZE_V2 {
+            if ![TURBO_MODEL_INFO_SIZE_V1, TURBO_MODEL_INFO_SIZE_V2, TURBO_MODEL_INFO_SIZE_V3]
+                .contains(&(size as usize))
+            {
                 sized(size, want, "turbo_model_info")?;
             }
             let mut info = m.inner.info;

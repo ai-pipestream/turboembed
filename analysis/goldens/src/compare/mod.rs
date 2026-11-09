@@ -21,7 +21,7 @@ pub use items::{CutCol, Items, Labels, Names, SpanCols, TokenCols, UnitCols, com
 pub use mismatch::{Item, Mismatch};
 
 use crate::format::{ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer};
-use crate::sha::sha256;
+use turbo_sha256::sha256;
 
 /// How close a value must be to the golden's.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -270,7 +270,7 @@ pub struct InputFound {
 /// and its SHA-256, and returns what the text has when it is not.
 pub fn check_input(golden: &Golden, text: &str) -> Result<(), InputFound> {
     let input = &golden.header.input;
-    let digest = sha256(text.as_bytes());
+    let digest = sha256(text.as_bytes()).0;
     if text.len() != input.utf8_len as usize || digest != input.sha256 {
         return Err(InputFound { len: text.len(), sha256: digest });
     }

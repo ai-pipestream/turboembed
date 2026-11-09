@@ -226,3 +226,10 @@ range 100-200-300
 matrix 1-2-3-4-5
 uuid 123e4567-e89b-12d3-a456-426614174000
 sha 0123456789abcdef0123456789abcdef01234567
+
+# US street addresses: a 4-digit year before a noun suffix, or a suffix word inside a phrase.
+in 2016 Central Park
+visited 2018 Apple Park
+the 2024 Annual Bay Summit
+the 3 Point Plan
+the 3 Five Point Plan

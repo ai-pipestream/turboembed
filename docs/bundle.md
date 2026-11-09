@@ -227,7 +227,7 @@ this form before it is written or loaded.
 | `bundle_version` | uint32 | yes | Schema version, 1. Anything else is rejected. |
 | `model.id`, `model.revision` | string | yes | Shown in `turbo_model_info`. The revision changes whenever any file changes. |
 | `model.source.repository`, `.commit` | string | yes | Where the checkpoint came from. |
-| `model.license` | string | yes | SPDX identifier. Nothing is redistributed without one. |
+| `model.license` | string | yes | SPDX identifier, under 128 bytes. Nothing is redistributed without one. `turbo_model_info.license` reports it, and `turbo_model_info.license_class` the bundle's tier as a `TURBO_LICENSE_CLASS_*` (`UNSTATED` when no class is recorded). |
 | `model.license_file` | path | no | The licence text. |
 | `model.license_class` | enum | no | The class the model zoo puts `model.license` in (docs/zoo.md): `CLASS_PERMISSIVE`, `CLASS_LGPL`, `CLASS_SHARE_ALIKE`, `CLASS_GPL` or `CLASS_LOCAL_ONLY`. The bundle tool writes it from the licence and `turbo-bundle verify` checks it. The tool makes no bundle under a licence the zoo refuses, and fetches a model whose class needs acceptance only with `--accept-terms`. |
 | `task` | enum | yes | `TASK_EMBED`, `TASK_RERANK`, or `TASK_EXTRACTIVE_QA`. Names the task block (`embed`, `rerank`, or `qa`) that follows. Any other `TASK_*` name is a task this build does not have. |
