@@ -121,6 +121,12 @@ stubs must be regenerated.
   mod 10 17 in `PiiChecksumAlgorithm`, the `Logistics`, `Web` and
   `PhoneExtension` extractors, and the `Logistics` and `Web` packs
   (#1878).
+- `age` 39 and `street-address` 40, appended to `PiiKindId`
+  (`TURBO_PII_KIND_AGE`, `TURBO_PII_KIND_STREET_ADDRESS`, Java `AGE`,
+  `STREET_ADDRESS`), with the `Age` and `UsAddress` extractors
+  (`turbo-pii:age`, `turbo-pii:us-address`): an age in years before
+  `years old` or `y/o` or after `age` or `aged`, and a US street
+  address with its unit, or a post office box (#1886).
 
 ### Changed: PII and the result envelope (#1879)
 
@@ -133,6 +139,8 @@ stubs must be regenerated.
   any digit run inside it, which drops some earlier `card`, `phone` and
   `uk-nhs` mentions inside web addresses. `us-passport` and
   `us-drivers-licence` need a label next to the value (#1959, #1960).
+- `AllStructured` also reports `age` and `street-address`, and `Contact`
+  reports `street-address` (#1886).
 - The release audit refuses to send an event whose value form is
   `UNSPECIFIED` or unknown (#1928).
 - docs/grpc.md records the PII and result envelope freeze: what is

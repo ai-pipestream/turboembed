@@ -2,6 +2,8 @@
 //! of the kinds it can find.
 
 mod aba;
+mod address;
+mod age;
 mod br;
 mod card;
 mod crypto;
@@ -63,6 +65,11 @@ pub enum Extractor {
     Web,
     /// `PhoneExtensionPiiExtractor`: extensions after a phone number.
     PhoneExtension,
+    /// `UsAddressPiiExtractor`: United States street addresses and post
+    /// office boxes.
+    UsAddress,
+    /// `AgePiiExtractor`: ages in years.
+    Age,
     /// A caller-defined extractor (`PiiExtractor`).
     Custom(&'static str),
 }
@@ -88,6 +95,8 @@ impl Extractor {
             Extractor::Logistics => PiiKinds::of(&[Vin, TrackingNumber]),
             Extractor::Web => PiiKinds::of(&[Url]),
             Extractor::PhoneExtension => PiiKinds::of(&[PhoneExtension]),
+            Extractor::UsAddress => PiiKinds::of(&[StreetAddress]),
+            Extractor::Age => PiiKinds::of(&[Age]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
@@ -108,6 +117,8 @@ impl Extractor {
             Extractor::Logistics => "LogisticsPiiExtractor",
             Extractor::Web => "WebPiiExtractor",
             Extractor::PhoneExtension => "PhoneExtensionPiiExtractor",
+            Extractor::UsAddress => "UsAddressPiiExtractor",
+            Extractor::Age => "AgePiiExtractor",
             Extractor::Custom(name) => name,
         }
     }
@@ -130,6 +141,8 @@ impl Extractor {
             Extractor::Logistics => "turbo-pii:logistics",
             Extractor::Web => "turbo-pii:web",
             Extractor::PhoneExtension => "turbo-pii:phone-extension",
+            Extractor::UsAddress => "turbo-pii:us-address",
+            Extractor::Age => "turbo-pii:age",
             Extractor::Custom(name) => name,
         }
     }
@@ -150,6 +163,8 @@ impl Extractor {
             Extractor::Logistics => 11,
             Extractor::Web => 12,
             Extractor::PhoneExtension => 13,
+            Extractor::UsAddress => 14,
+            Extractor::Age => 15,
         }
     }
 }
@@ -409,6 +424,8 @@ impl Scanner {
             Extractor::Logistics => logistics::scan(text, k, hits),
             Extractor::Web => url::scan(text, hits),
             Extractor::PhoneExtension => extension::scan(text, hits),
+            Extractor::UsAddress => address::scan(text, hits),
+            Extractor::Age => age::scan(text, hits),
             Extractor::Custom(_) => {}
         }
     }

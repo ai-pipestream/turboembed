@@ -123,7 +123,15 @@ const EXTERNAL_DOCS: [(&str, bool, &str, &str); 23] = [
 /// hundreds of real web addresses (citations, references, links) that
 /// `labels-external.tsv` predates, so `url` is scored on the mixed set
 /// in `precision_recall.rs` instead.
-const UNANNOTATED: [(&str, usize); 1] = [("url", 496)];
+const UNANNOTATED: [(&str, usize); 3] = [
+    ("url", 496),
+    // Every one is a real postal address in an RFC's author or registry
+    // block, or in its example text: four in the United States, one in
+    // Canada with a street shape like theirs.
+    ("street-address", 5),
+    // "the age of 5" in a worked example.
+    ("age", 1),
+];
 
 /// Only kinds with gold in these documents are pinned here; mentions
 /// of any other annotated kind count into the total false positives.
