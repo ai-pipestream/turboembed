@@ -122,7 +122,11 @@ public sealed interface TurboPiiEvidence
      */
     record Label(long byteStart, long byteEnd, long phraseIndex) implements TurboPiiEvidence {
         public Label {
-            if (byteStart < 0 || byteEnd < byteStart || phraseIndex < 0) {
+            if (byteStart < 0
+                    || byteEnd < byteStart
+                    || byteEnd > 0xFFFF_FFFFL
+                    || phraseIndex < 0
+                    || phraseIndex > 0xFFFF_FFFFL) {
                 throw new IllegalArgumentException(
                         "Invalid PII label evidence: [" + byteStart + ", " + byteEnd + ") phrase " + phraseIndex);
             }
@@ -135,9 +139,9 @@ public sealed interface TurboPiiEvidence
     }
 
     /** The span matched term {@code termIndex} of deny list {@code listIndex}. */
-    record DenyHit(int listIndex, long termIndex) implements TurboPiiEvidence {
+    record DenyHit(long listIndex, long termIndex) implements TurboPiiEvidence {
         public DenyHit {
-            if (listIndex < 0 || termIndex < 0) {
+            if (listIndex < 0 || listIndex > 0xFFFF_FFFFL || termIndex < 0 || termIndex > 0xFFFF_FFFFL) {
                 throw new IllegalArgumentException("Invalid PII deny-hit evidence: " + listIndex + ":" + termIndex);
             }
         }
@@ -149,9 +153,9 @@ public sealed interface TurboPiiEvidence
     }
 
     /** Extractor rule {@code ruleIndex} matched. */
-    record Rule(int ruleIndex) implements TurboPiiEvidence {
+    record Rule(long ruleIndex) implements TurboPiiEvidence {
         public Rule {
-            if (ruleIndex < 0) {
+            if (ruleIndex < 0 || ruleIndex > 0xFFFF_FFFFL) {
                 throw new IllegalArgumentException("Invalid PII rule evidence: " + ruleIndex);
             }
         }
@@ -173,8 +177,8 @@ public sealed interface TurboPiiEvidence
                 yield new Checksum(ChecksumAlgorithm.fromNative(a), b == 1L);
             }
             case LABEL -> new Label(a, b, c);
-            case DENY_HIT -> new DenyHit(Math.toIntExact(a), b);
-            case RULE -> new Rule(Math.toIntExact(a));
+            case DENY_HIT -> new DenyHit(a, b);
+            case RULE -> new Rule(a);
         };
     }
 }

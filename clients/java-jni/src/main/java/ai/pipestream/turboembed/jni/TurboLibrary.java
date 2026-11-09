@@ -119,7 +119,7 @@ public final class TurboLibrary {
     /** The 32-bit words of a native {@code turbo_pii_fact} in header order. */
     public static final int TURBO_PII_FACT_INTS = 4;
     /** The 32-bit words of a native {@code turbo_pii_candidate} in header order. */
-    public static final int TURBO_PII_CANDIDATE_INTS = 37;
+    public static final int TURBO_PII_CANDIDATE_INTS = 39;
 
     private static final String LIBRARY_NAME = "turbo";
     private static boolean loaded;

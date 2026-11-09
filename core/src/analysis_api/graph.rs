@@ -401,14 +401,26 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
 
 fn extract_pii_candidates(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<PiiCandidates>(doc, id) else { return Ok(()) };
-    if let Some(pii) = doc.get_key(&Key::<Pii>::named(id.name)) {
-        layer.check_against(pii).map_err(|msg| mapper.invalid(msg))?;
+    let pii_id = doc
+        .made_on(id)
+        .iter()
+        .copied()
+        .find(|k| k.ty == TypeId::of::<Pii>())
+        .ok_or_else(|| mapper.invalid("pii candidates need their pii layer".into()))?;
+    let pii = get_by_id::<Pii>(doc, pii_id).ok_or_else(|| mapper.invalid(format!("missing {pii_id}")))?;
+    if pii.spans.view() != layer.spans.view() {
+        return Err(mapper.invalid(format!(
+            "pii candidates over view {} but their pii layer over view {}",
+            layer.spans.view().0,
+            pii.spans.view().0
+        )));
     }
+    layer.check_against(pii).map_err(|msg| mapper.invalid(msg))?;
     let view = layer.spans.view();
     extract_pii_candidates_layer(
         builder,
         layer,
-        id.name,
+        (id.name, pii_id.name),
         view.0 as u32,
         |msg| mapper.invalid(msg),
         |span| mapper.coordinates(view, span),

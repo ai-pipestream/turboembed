@@ -203,7 +203,7 @@ public final class TurboLibrary {
             ValueLayout.JAVA_INT.withName("score_model_version_len"),
             ValueLayout.JAVA_FLOAT.withName("score_value"));
 
-    /** Layout of {@code struct turbo_pii_candidate} (148 bytes, alignment 4). */
+    /** Layout of {@code struct turbo_pii_candidate} (156 bytes, alignment 4). */
     public static final StructLayout TURBO_PII_CANDIDATE_LAYOUT = MemoryLayout.structLayout(
             ValueLayout.JAVA_INT.withName("item_index"),
             ValueLayout.JAVA_INT.withName("fragment_index"),
@@ -223,6 +223,8 @@ public final class TurboLibrary {
             ValueLayout.JAVA_INT.withName("source_codepoint_end"),
             ValueLayout.JAVA_INT.withName("instance_offset"),
             ValueLayout.JAVA_INT.withName("instance_len"),
+            ValueLayout.JAVA_INT.withName("pii_instance_offset"),
+            ValueLayout.JAVA_INT.withName("pii_instance_len"),
             ValueLayout.JAVA_INT.withName("label_offset"),
             ValueLayout.JAVA_INT.withName("label_len"),
             ValueLayout.JAVA_INT.withName("detector_id_offset"),

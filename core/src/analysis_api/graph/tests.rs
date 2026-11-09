@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
 use turbo_analysis::{IxRange, Provenance, Tag, TagSet, View, ViewBuilder};
-use turbo_analysis_layers::{ChecksumAlgorithm, PiiEvidence, PiiKind, PiiMention, Strs};
+use turbo_analysis_layers::{
+    ChecksumAlgorithm, PiiCandidate, PiiCandidates, PiiDisposition, PiiEvidence, PiiKind, PiiMention, Strs,
+};
 
 use super::*;
 use crate::analysis_api::{
     TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_FORMAT,
-    TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_SPAN_LABEL, TURBO_SPAN_PII_KIND,
+    TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, TURBO_PII_DISPOSITION_KEPT,
+    TURBO_PII_EVIDENCE_DENY_HIT, TURBO_PII_EVIDENCE_RULE, TURBO_SPAN_LABEL, TURBO_SPAN_PII_KIND,
     TURBO_SPAN_PROBABILITY, TURBO_SPAN_SOURCE_RANGE, TURBO_SPAN_TOKEN_RANGE, TURBO_SPAN_VALUE, TURBO_SPAN_VIEW_RANGE,
     turbo_span,
 };
@@ -351,4 +354,71 @@ fn extract_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {
         assert_eq!((row.token_start, row.token_end), (u32::from(kind.builtin_id().unwrap()), 0));
     }
     assert_eq!(ids.spans.iter().map(|r| r.classification).collect::<Vec<_>>(), [4, 3], "the tier is unchanged");
+}
+
+#[test]
+fn candidate_layer_resolves_bound_parent_pii_instance_when_another_pii_layer_shares_its_name() {
+    let mut doc = Document::new("a@b.co c@d.co".to_owned());
+    let mut actual = Pii::new(ViewId::SOURCE);
+    let det = actual.detector("custom:det", "1").unwrap();
+    actual.push(PiiMention {
+        span: Span::new(0, 6),
+        kind: PiiKind::Email,
+        detector: det,
+        evidence: &[PiiEvidence::Rule { rule: u32::MAX }],
+        score: None,
+        normalized: "a@b.co",
+    });
+    actual.push(PiiMention {
+        span: Span::new(7, 13),
+        kind: PiiKind::Email,
+        detector: det,
+        evidence: &[PiiEvidence::DenyHit { list: u32::MAX, term: 1 }],
+        score: None,
+        normalized: "c@d.co",
+    });
+    doc.add(&Key::<Pii>::named("actual"), actual, Provenance::by("test:pii")).unwrap();
+
+    // Unrelated one-mention PII layer with the same instance name ("audit") as the candidate layer.
+    let mut unrelated = Pii::new(ViewId::SOURCE);
+    let udet = unrelated.detector("custom:other", "1").unwrap();
+    unrelated.push(PiiMention {
+        span: Span::new(0, 6),
+        kind: PiiKind::Email,
+        detector: udet,
+        evidence: &[PiiEvidence::Shape],
+        score: None,
+        normalized: "a@b.co",
+    });
+    doc.add(&Key::<Pii>::named("audit"), unrelated, Provenance::by("test:pii")).unwrap();
+
+    // Candidate layer "audit" is bound via provenance to PII layer "actual" and refers to mention 1.
+    let mut cands = PiiCandidates::new(ViewId::SOURCE);
+    let cdet = cands.detectors.add("custom:det", "1").unwrap();
+    cands.push(PiiCandidate {
+        span: Span::new(7, 13),
+        kind: PiiKind::Email,
+        detector: cdet,
+        evidence: &[PiiEvidence::Rule { rule: u32::MAX }],
+        score: None,
+        disposition: PiiDisposition::Kept { mention: Ix::new(1) },
+    });
+    let mut prov = Provenance::by("test:pii");
+    prov.on.push(Key::<Pii>::named("actual").id());
+    doc.add(&Key::<PiiCandidates>::named("audit"), cands, prov).unwrap();
+
+    let result =
+        extract_graph(&doc, wire(&doc), Origin::Caller, PiiRows { values: false, kind_ids: true, detail: true })
+            .unwrap();
+    assert_eq!(result.pii_candidates.len(), 1);
+    let cand = &result.pii_candidates[0];
+    assert_eq!(pool(&result, cand.instance_offset, cand.instance_len), "audit");
+    assert_eq!(pool(&result, cand.pii_instance_offset, cand.pii_instance_len), "actual");
+    assert_eq!(cand.disposition, TURBO_PII_DISPOSITION_KEPT);
+    assert_eq!(cand.disposition_a, 1);
+    assert_eq!(result.pii_facts[0].kind, TURBO_PII_EVIDENCE_RULE);
+    assert_eq!(result.pii_facts[0].a, u32::MAX);
+    assert_eq!(result.pii_facts[1].kind, TURBO_PII_EVIDENCE_DENY_HIT);
+    assert_eq!(result.pii_facts[1].a, u32::MAX);
+    assert_eq!(result.pii_facts[1].b, 1);
 }

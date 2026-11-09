@@ -121,8 +121,8 @@ public sealed interface TurboPiiDisposition
     /** Kept as item {@code mentionIndex} of the {@code turbo:pii} layer. */
     record Kept(long mentionIndex) implements TurboPiiDisposition {
         public Kept {
-            if (mentionIndex < 0) {
-                throw new IllegalArgumentException("mentionIndex must not be negative: " + mentionIndex);
+            if (mentionIndex < 0 || mentionIndex > 0xFFFF_FFFFL) {
+                throw new IllegalArgumentException("mentionIndex must be an unsigned 32-bit integer: " + mentionIndex);
             }
         }
 
@@ -137,8 +137,8 @@ public sealed interface TurboPiiDisposition
         public AllowedByRule {
             Objects.requireNonNull(scope, "scope");
             Objects.requireNonNull(ruleKind, "ruleKind");
-            if (ruleIndex < 0) {
-                throw new IllegalArgumentException("ruleIndex must not be negative: " + ruleIndex);
+            if (ruleIndex < 0 || ruleIndex > 0xFFFF_FFFFL) {
+                throw new IllegalArgumentException("ruleIndex must be an unsigned 32-bit integer: " + ruleIndex);
             }
         }
 
@@ -151,8 +151,8 @@ public sealed interface TurboPiiDisposition
     /** Suppressed because it overlapped kept mention {@code mentionIndex}. */
     record NestedIn(long mentionIndex) implements TurboPiiDisposition {
         public NestedIn {
-            if (mentionIndex < 0) {
-                throw new IllegalArgumentException("mentionIndex must not be negative: " + mentionIndex);
+            if (mentionIndex < 0 || mentionIndex > 0xFFFF_FFFFL) {
+                throw new IllegalArgumentException("mentionIndex must be an unsigned 32-bit integer: " + mentionIndex);
             }
         }
 
@@ -177,8 +177,8 @@ public sealed interface TurboPiiDisposition
     /** Coalesced into kept mention {@code mentionIndex}. */
     record Repeats(long mentionIndex) implements TurboPiiDisposition {
         public Repeats {
-            if (mentionIndex < 0) {
-                throw new IllegalArgumentException("mentionIndex must not be negative: " + mentionIndex);
+            if (mentionIndex < 0 || mentionIndex > 0xFFFF_FFFFL) {
+                throw new IllegalArgumentException("mentionIndex must be an unsigned 32-bit integer: " + mentionIndex);
             }
         }
 

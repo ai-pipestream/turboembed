@@ -1074,10 +1074,12 @@ typedef struct turbo_pii_fact {
 /* Per-row PII detector identity, evidence slice and optional model score
  * for one TURBO_ANALYSIS_LAYER_PII row in turbo_analysis_result_spans.
  *
- * String offsets and byte lengths slice turbo_analysis_result_strings.
- * Facts lie at [fact_start, fact_end) in turbo_analysis_result_pii_facts.
- * When score_kind is 0, the mention has no score (score_value is NaN and
- * the score model slice is empty). */
+ * Every field is a 32-bit word (uint32_t or float), giving 14 words
+ * (56 bytes) at 4-byte alignment with no padding. String offsets and byte
+ * lengths slice turbo_analysis_result_strings. Facts lie at
+ * [fact_start, fact_end) in turbo_analysis_result_pii_facts. When
+ * score_kind is 0, the mention has no score (score_value is NaN and the
+ * score model slice is empty). */
 typedef struct turbo_pii_span {
     uint32_t span_index;
     uint32_t detector_id_offset;
@@ -1098,14 +1100,19 @@ typedef struct turbo_pii_span {
 /* One PII candidate row emitted when the analyzer is created with
  * TURBO_ANALYZER_PII_DETAIL.
  *
- * Candidates never carry matched text or a normalized value. String slices
- * index turbo_analysis_result_strings; facts lie at [fact_start, fact_end)
- * in turbo_analysis_result_pii_facts.
+ * Every field is a 32-bit word (uint32_t or float), giving 39 words
+ * (156 bytes) at 4-byte alignment with no padding. Candidates never carry
+ * matched text or a normalized value. String slices index
+ * turbo_analysis_result_strings; facts lie at [fact_start, fact_end) in
+ * turbo_analysis_result_pii_facts. instance_offset and instance_len name
+ * the turbo:pii-candidates layer instance; pii_instance_offset and
+ * pii_instance_len name the bound turbo:pii layer instance its mention
+ * references point into.
  *
  * Disposition fields (disposition is TURBO_PII_DISPOSITION_*):
  * - KEPT (1), NESTED_IN (3), REPEATS (5): disposition_a is the index of the
- *   kept mention in the turbo:pii layer of the same instance;
- *   disposition_b = 0, disposition_c = 0.
+ *   kept mention in the bound turbo:pii layer (pii_instance_offset,
+ *   pii_instance_len); disposition_b = 0, disposition_c = 0.
  * - ALLOWED_BY_RULE (2): disposition_a is TURBO_PII_ALLOW_SCOPE_*,
  *   disposition_b is TURBO_PII_ALLOW_RULE_*, and disposition_c is the rule
  *   index.
@@ -1130,6 +1137,8 @@ typedef struct turbo_pii_candidate {
     uint32_t source_codepoint_end;
     uint32_t instance_offset;
     uint32_t instance_len;
+    uint32_t pii_instance_offset;
+    uint32_t pii_instance_len;
     uint32_t label_offset;
     uint32_t label_len;
     uint32_t detector_id_offset;

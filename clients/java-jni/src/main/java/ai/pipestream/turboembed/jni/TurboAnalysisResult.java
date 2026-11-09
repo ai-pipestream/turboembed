@@ -754,23 +754,28 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
                     Integer.toUnsignedLong(piiCandidates[base + 16]),
                     Integer.toUnsignedLong(piiCandidates[base + 17]),
                     "candidate_instance");
-            String label = poolString(
+            String piiInstance = poolString(
                     Integer.toUnsignedLong(piiCandidates[base + 18]),
                     Integer.toUnsignedLong(piiCandidates[base + 19]),
+                    "candidate_pii_instance");
+            String label = poolString(
+                    Integer.toUnsignedLong(piiCandidates[base + 20]),
+                    Integer.toUnsignedLong(piiCandidates[base + 21]),
                     "candidate_label");
             TurboPiiDetector detector =
-                    decodeDetector(piiCandidates, base + 20, base + 21, base + 22, base + 23);
+                    decodeDetector(piiCandidates, base + 22, base + 23, base + 24, base + 25);
             List<TurboPiiEvidence> evidence = decodeFacts(
-                    Integer.toUnsignedLong(piiCandidates[base + 24]),
-                    Integer.toUnsignedLong(piiCandidates[base + 25]));
-            TurboPiiDisposition disposition = TurboPiiDisposition.fromNative(
                     Integer.toUnsignedLong(piiCandidates[base + 26]),
-                    Integer.toUnsignedLong(piiCandidates[base + 27]),
+                    Integer.toUnsignedLong(piiCandidates[base + 27]));
+            TurboPiiDisposition disposition = TurboPiiDisposition.fromNative(
                     Integer.toUnsignedLong(piiCandidates[base + 28]),
-                    Integer.toUnsignedLong(piiCandidates[base + 29]));
-            Optional<TurboPiiScore> score = decodeScore(piiCandidates, base + 30);
+                    Integer.toUnsignedLong(piiCandidates[base + 29]),
+                    Integer.toUnsignedLong(piiCandidates[base + 30]),
+                    Integer.toUnsignedLong(piiCandidates[base + 31]));
+            Optional<TurboPiiScore> score = decodeScore(piiCandidates, base + 32);
             out.add(new TurboPiiCandidate(
                     instance,
+                    piiInstance,
                     itemIndex,
                     fragmentIndex,
                     viewId,

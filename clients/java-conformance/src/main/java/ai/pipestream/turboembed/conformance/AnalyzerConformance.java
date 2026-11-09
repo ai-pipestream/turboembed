@@ -477,6 +477,29 @@ public abstract class AnalyzerConformance {
                     + "312e300300000008000000000001001c0000000300000000000d000700040000000201010300000000030000000300000005070000000201"
                     + "01030000000200000003000000040000000300000000010000703f010e00010003000000010000000001010000000401";
 
+    /**
+     * Same TGRF fixture as {@code build_bound_parent_and_max_u32_graph} in
+     * {@code core/tests/analysis_pii_evidence.rs}: a 2-mention {@code turbo:pii} layer
+     * {@code "actual"} with {@code Rule(0xFFFF_FFFFL)} and {@code DenyHit(0xFFFF_FFFFL, 1L)}, an
+     * unrelated 1-mention {@code turbo:pii} layer {@code "audit"}, and a
+     * {@code turbo:pii-candidates} layer {@code "audit"} bound via provenance to {@code "actual"}
+     * referring to mention 1.
+     */
+    private static final String PII_BOUND_PARENT_AND_MAX_U32_GRAPH_HEX =
+            "5447524602000d0000006140622e636f206340642e636f0d0000006140622e636f206340642e636f000100000000000000000c0000007475"
+                    + "72626f3a736f75726365010000003000000000000000000000000000000000000000010d0000006140622e636f206340642e636f00000000"
+                    + "0300000009000000747572626f3a7069690600000061637475616c0100020000000008000000746573743a70696901000000300000000000"
+                    + "00000000000000000000000000018b000000000000000200000001000000000000000600000001000000070000000d000000000000000100"
+                    + "00000a000000637573746f6d3a646574010000003102000000050000000500000002000000000000000200000005ffffffff04ffffffff01"
+                    + "00000002000000010000000200000002000000000002000000060000006140622e636f060000006340642e636f09000000747572626f3a70"
+                    + "69690500000061756469740100010000000008000000746573743a7069690100000030000000000000000000000000000000000000015f00"
+                    + "0000000000000100000001000000000000000600000000000000010000000c000000637573746f6d3a6f7468657201000000310100000005"
+                    + "00000001000000000001000000010100000001000000010000000001000000060000006140622e636f14000000747572626f3a7069692d63"
+                    + "616e646964617465730500000061756469740100010000000008000000746573743a70696901000000300000000000000000000000000000"
+                    + "0100000009000000747572626f3a7069690600000061637475616c015c000000000000000100000001000000070000000d00000000000000"
+                    + "010000000a000000637573746f6d3a646574010000003101000000050000000100000000000100000005ffffffff01000000010000000100"
+                    + "000000010000000101000000";
+
     @Test
     public void piiRowsCarryEvidenceFactsDetectorScoreAndDetailGatedCandidates() {
         byte[] fixture = HexFormat.of().parseHex(PII_EVIDENCE_GRAPH_HEX);
@@ -554,6 +577,26 @@ public abstract class AnalyzerConformance {
                         .equals(new TurboPiiDisposition.RejectedByRule(
                                 TurboPiiDisposition.RejectReason.LABEL_REQUIRED))));
                 assertFalse(analyzed.piiCandidates().isEmpty());
+            }
+
+            byte[] boundFixture = HexFormat.of().parseHex(PII_BOUND_PARENT_AND_MAX_U32_GRAPH_HEX);
+            try (TurboAnalysisResult bound = detailAnalyzer.inspectGraph(boundFixture)) {
+                List<? extends TurboSpanView> actualSpans = bound.spans(TurboLayerKind.PII, "actual");
+                assertEquals(2, actualSpans.size());
+                assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), actualSpans.get(0).piiEvidence());
+                assertEquals(
+                        List.of(new TurboPiiEvidence.DenyHit(0xFFFF_FFFFL, 1L)), actualSpans.get(1).piiEvidence());
+                assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), bound.copySpan(0).piiEvidence());
+                assertEquals(
+                        List.of(new TurboPiiEvidence.DenyHit(0xFFFF_FFFFL, 1L)), bound.copySpan(1).piiEvidence());
+
+                List<TurboPiiCandidate> boundCands = bound.piiCandidates();
+                assertEquals(1, boundCands.size());
+                TurboPiiCandidate boundCand = boundCands.get(0);
+                assertEquals("audit", boundCand.instance());
+                assertEquals("actual", boundCand.piiInstance());
+                assertEquals(new TurboPiiDisposition.Kept(1), boundCand.disposition());
+                assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), boundCand.evidence());
             }
         }
     }

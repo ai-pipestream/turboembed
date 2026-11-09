@@ -310,6 +310,7 @@ fn struct_layouts_match_the_header() {
             ("turbo_pii_candidate", "view_byte_start", offset_of!(turbo_pii_candidate, view_byte_start)),
             ("turbo_pii_candidate", "source_byte_start", offset_of!(turbo_pii_candidate, source_byte_start)),
             ("turbo_pii_candidate", "instance_offset", offset_of!(turbo_pii_candidate, instance_offset)),
+            ("turbo_pii_candidate", "pii_instance_offset", offset_of!(turbo_pii_candidate, pii_instance_offset)),
             ("turbo_pii_candidate", "label_offset", offset_of!(turbo_pii_candidate, label_offset)),
             ("turbo_pii_candidate", "detector_id_offset", offset_of!(turbo_pii_candidate, detector_id_offset)),
             ("turbo_pii_candidate", "fact_start", offset_of!(turbo_pii_candidate, fact_start)),

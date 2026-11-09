@@ -147,6 +147,8 @@ pub struct turbo_pii_candidate {
     pub source_codepoint_end: u32,
     pub instance_offset: u32,
     pub instance_len: u32,
+    pub pii_instance_offset: u32,
+    pub pii_instance_len: u32,
     pub label_offset: u32,
     pub label_len: u32,
     pub detector_id_offset: u32,
@@ -168,7 +170,7 @@ pub struct turbo_pii_candidate {
     pub score_value: f32,
 }
 
-pub const PII_CANDIDATE_INTS: usize = 37;
+pub const PII_CANDIDATE_INTS: usize = 39;
 const _: () = assert!(std::mem::offset_of!(turbo_pii_candidate, score_value) == (PII_CANDIDATE_INTS - 1) * 4);
 const _: () = assert!(size_of::<turbo_pii_candidate>() == PII_CANDIDATE_INTS * 4);
 const _: () = assert!(align_of::<turbo_pii_candidate>() == 4);
@@ -349,13 +351,14 @@ pub(crate) fn extract_pii_layer(
 pub(crate) fn extract_pii_candidates_layer(
     builder: &mut SpanPoolBuilder,
     layer: &PiiCandidates,
-    instance: &str,
+    (instance, pii_instance): (&str, &str),
     view_id: u32,
     invalid: impl Fn(String) -> Error,
     coords: impl Fn(Span) -> Result<(CoordRange, CoordRange)>,
 ) -> Result<()> {
     layer.check().map_err(&invalid)?;
     let instance_ref = builder.intern(instance)?;
+    let pii_instance_ref = builder.intern(pii_instance)?;
     for item in 0..layer.spans.len() {
         let item_index = index_u32(item, "PII candidate count")?;
         let c = layer.get(Ix::new(item_index));
@@ -391,6 +394,8 @@ pub(crate) fn extract_pii_candidates_layer(
                 source_codepoint_end: source.codepoint_end,
                 instance_offset: instance_ref.offset,
                 instance_len: instance_ref.len,
+                pii_instance_offset: pii_instance_ref.offset,
+                pii_instance_len: pii_instance_ref.len,
                 label_offset: meta.label.offset,
                 label_len: meta.label.len,
                 detector_id_offset: meta.detector_id.offset,

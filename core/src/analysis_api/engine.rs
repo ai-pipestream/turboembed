@@ -305,7 +305,7 @@ impl AnalyzerEngine {
             let (pii, candidates) = self.pii_detector.layer_with_candidates(text, ViewId::SOURCE);
             let mut builder = SpanPoolBuilder::with_capacity(pii.spans.len(), pii.spans.len().saturating_mul(16));
             extract_pii_layer(&mut builder, &pii, "", SOURCE_VIEW, self.pii, invalid, coords)?;
-            extract_pii_candidates_layer(&mut builder, &candidates, "", SOURCE_VIEW, invalid, coords)?;
+            extract_pii_candidates_layer(&mut builder, &candidates, ("", ""), SOURCE_VIEW, invalid, coords)?;
             Ok(builder.finish(Vec::new()))
         } else {
             let pii = self.pii_detector.layer(text, ViewId::SOURCE);

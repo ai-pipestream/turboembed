@@ -160,7 +160,36 @@ final class TurboSpanDataTest {
                 evidence.subList(0, 2),
                 Optional.of(score),
                 kept);
+        assertEquals("default", candidate.instance());
+        assertEquals("default", candidate.piiInstance());
         assertEquals(Optional.of(TurboPiiKind.CARD), candidate.piiKind());
         assertEquals(OptionalInt.empty(), candidate.piiCustomKindIndex());
+
+        TurboPiiCandidate crossInstance = new TurboPiiCandidate(
+                "audit",
+                "actual",
+                0,
+                0,
+                0,
+                range,
+                range,
+                TurboPiiKind.EMAIL.nativeCode(),
+                "email",
+                detector,
+                List.of(TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.RULE.nativeCode(), 0xFFFF_FFFFL, 0, 0)),
+                Optional.empty(),
+                new TurboPiiDisposition.Kept(1));
+        assertEquals("audit", crossInstance.instance());
+        assertEquals("actual", crossInstance.piiInstance());
+        assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), crossInstance.evidence());
+
+        assertEquals(
+                new TurboPiiEvidence.DenyHit(0xFFFF_FFFFL, 1L),
+                TurboPiiEvidence.fromNative(TurboPiiEvidence.Kind.DENY_HIT.nativeCode(), 0xFFFF_FFFFL, 1L, 0L));
+        assertThrows(IllegalArgumentException.class, () -> new TurboPiiEvidence.Rule(-1L));
+        assertThrows(IllegalArgumentException.class, () -> new TurboPiiEvidence.Rule(0x1_0000_0000L));
+        assertThrows(IllegalArgumentException.class, () -> new TurboPiiEvidence.DenyHit(-1L, 0L));
+        assertThrows(IllegalArgumentException.class, () -> new TurboPiiEvidence.DenyHit(0x1_0000_0000L, 0L));
+        assertThrows(IllegalArgumentException.class, () -> new TurboPiiEvidence.DenyHit(0L, 0x1_0000_0000L));
     }
 }

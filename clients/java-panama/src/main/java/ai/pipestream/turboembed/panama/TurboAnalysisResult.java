@@ -84,9 +84,9 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
         if (PROB_OFFSET != 112L) {
             throw new ExceptionInInitializerError("turbo_span.prob must be at offset 112, got " + PROB_OFFSET);
         }
-        if (PII_FACT_STRIDE != 16L || PII_SPAN_STRIDE != 56L || PII_CANDIDATE_STRIDE != 148L) {
+        if (PII_FACT_STRIDE != 16L || PII_SPAN_STRIDE != 56L || PII_CANDIDATE_STRIDE != 156L) {
             throw new ExceptionInInitializerError(
-                    "turbo_pii layouts must be 16/56/148 bytes, got "
+                    "turbo_pii layouts must be 16/56/156 bytes, got "
                             + PII_FACT_STRIDE
                             + "/"
                             + PII_SPAN_STRIDE
@@ -1054,21 +1054,26 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
                     segU32(piiCandidatesSegment, base + 64L),
                     segU32(piiCandidatesSegment, base + 68L),
                     "candidate_instance");
-            String label = poolString(
+            String piiInstance = poolString(
                     segU32(piiCandidatesSegment, base + 72L),
                     segU32(piiCandidatesSegment, base + 76L),
+                    "candidate_pii_instance");
+            String label = poolString(
+                    segU32(piiCandidatesSegment, base + 80L),
+                    segU32(piiCandidatesSegment, base + 84L),
                     "candidate_label");
-            TurboPiiDetector detector = decodeDetector(piiCandidatesSegment, base + 80L);
+            TurboPiiDetector detector = decodeDetector(piiCandidatesSegment, base + 88L);
             List<TurboPiiEvidence> evidence = decodeFacts(
-                    segU32(piiCandidatesSegment, base + 96L), segU32(piiCandidatesSegment, base + 100L));
+                    segU32(piiCandidatesSegment, base + 104L), segU32(piiCandidatesSegment, base + 108L));
             TurboPiiDisposition disposition = TurboPiiDisposition.fromNative(
-                    segU32(piiCandidatesSegment, base + 104L),
-                    segU32(piiCandidatesSegment, base + 108L),
                     segU32(piiCandidatesSegment, base + 112L),
-                    segU32(piiCandidatesSegment, base + 116L));
-            Optional<TurboPiiScore> score = decodeScore(piiCandidatesSegment, base + 120L);
+                    segU32(piiCandidatesSegment, base + 116L),
+                    segU32(piiCandidatesSegment, base + 120L),
+                    segU32(piiCandidatesSegment, base + 124L));
+            Optional<TurboPiiScore> score = decodeScore(piiCandidatesSegment, base + 128L);
             out.add(new TurboPiiCandidate(
                     instance,
+                    piiInstance,
                     itemIndex,
                     fragmentIndex,
                     viewId,
