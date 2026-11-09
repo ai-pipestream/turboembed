@@ -37,6 +37,13 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         ("THE HSUS, 2100 L ST., NW, WASHINGTON, DC", "2100 L ST., NW"),
         ("at 9 Elm St. North of the river", "9 Elm St"),
         ("at 9 Elm St, North Carolina", "9 Elm St"),
+        ("at 3 Point Lane", "3 Point Lane"),
+        ("at 1999 Main Street", "1999 Main Street"),
+        ("at 2016 Central Park West", "2016 Central Park West"),
+        ("at 2016 Central Park, Apt 4B", "2016 Central Park, Apt 4B"),
+        ("at 2016 Central Park, New York", "2016 Central Park"),
+        ("12\u{00A0}Main\u{00A0}St", "12\u{00A0}Main\u{00A0}St"),
+        ("12\u{202F}Main\u{202F}St", "12\u{202F}Main\u{202F}St"),
     ] {
         assert_eq!(of_kind(&d, text, "street-address"), [want], "{text}");
     }
@@ -52,6 +59,14 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         "1234567 Main Street",               // seven digits
         "the 5th Avenue store",              // an ordinal is no house number
         "12\nMain Street",                   // a line break
+        "2016 Central Park",                 // year before a noun suffix
+        "2018 Apple Park",                   // year before a noun suffix
+        "2024 Annual Bay Summit",            // year before a noun suffix
+        "2016 Central Park, where we met",   // comma before a lower case word, not a city
+        "the 3 Point Plan",                  // suffix word with no street name before it
+        "the 3 Five Point Plan",             // suffix word inside a capitalized phrase
+        "the 3 North Point Plan",            // direction and suffix word inside a phrase
+        "the 12 Wall Street Journal",        // suffix word followed by another capitalized word
     ] {
         assert!(of_kind(&d, not, "street-address").is_empty(), "{not}");
     }
@@ -66,6 +81,8 @@ fn post_office_boxes_are_street_addresses() {
         ("p. o. box 9", "p. o. box 9"),
         ("P O BOX 300", "P O BOX 300"),
         ("Post Office Box 4410.", "Post Office Box 4410"),
+        ("PO\u{00A0}Box\u{00A0}1234", "PO\u{00A0}Box\u{00A0}1234"),
+        ("Post\u{202F}Office\u{202F}Box\u{202F}4410", "Post\u{202F}Office\u{202F}Box\u{202F}4410"),
     ] {
         assert_eq!(of_kind(&d, text, "street-address"), [want], "{text}");
     }

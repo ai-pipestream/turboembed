@@ -56,6 +56,66 @@ const UNITS: [&str; 16] = [
     "Unit",
 ];
 
+/// Suffixes from [`STREET_SUFFIXES`] that name a thoroughfare or postal
+/// abbreviation rather than a general English noun (`Park`, `Point`,
+/// `Summit`, `Center`, `Court`, `Hill`), sorted for binary search.
+const STREET_ONLY_SUFFIXES: [&str; 54] = [
+    "ALLEY",
+    "ALY",
+    "AVE",
+    "AVENUE",
+    "BLVD",
+    "BOULEVARD",
+    "BYP",
+    "BYPASS",
+    "CIR",
+    "CSWY",
+    "CT",
+    "CTR",
+    "CV",
+    "CYN",
+    "DR",
+    "DRIVE",
+    "EXPRESSWAY",
+    "EXPY",
+    "FREEWAY",
+    "FWY",
+    "HIGHWAY",
+    "HWY",
+    "JCT",
+    "LANE",
+    "LN",
+    "MOTORWAY",
+    "MTWY",
+    "PARKWAY",
+    "PKWY",
+    "PL",
+    "PLZ",
+    "RD",
+    "RDG",
+    "ROAD",
+    "RTE",
+    "RUE",
+    "SKWY",
+    "SQ",
+    "ST",
+    "STRA",
+    "STRAVENUE",
+    "STREET",
+    "TER",
+    "TERRACE",
+    "THROUGHWAY",
+    "TPKE",
+    "TRCE",
+    "TRFY",
+    "TRL",
+    "TRWY",
+    "TURNPIKE",
+    "WAY",
+    "XING",
+    "XRD",
+];
+
 pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
@@ -92,10 +152,16 @@ fn word_end(text: &str, at: usize) -> Option<usize> {
     (last > at).then_some(last)
 }
 
-/// The byte after one space or tab at `at`, never a line break, so an
-/// address does not run on into the next line.
+/// The byte after one horizontal space (`' '`, `'\t'`, `U+00A0` or
+/// `U+202F`) at `at`, never a line break, so an address does not run on
+/// into the next line.
 fn space(b: &[u8], at: usize) -> Option<usize> {
-    matches!(b.get(at), Some(b' ' | b'\t')).then_some(at + 1)
+    match b.get(at..) {
+        Some([b' ' | b'\t', ..]) => Some(at + 1),
+        Some([0xC2, 0xA0, ..]) => Some(at + 2),
+        Some([0xE2, 0x80, 0xAF, ..]) => Some(at + 3),
+        _ => None,
+    }
 }
 
 fn is_ordinal(w: &str) -> bool {
@@ -108,7 +174,7 @@ fn capitalized(w: &str) -> bool {
     w.chars().next().is_some_and(char::is_uppercase)
 }
 
-fn is_suffix(w: &str) -> bool {
+fn in_table(w: &str, table: &[&str]) -> bool {
     if !capitalized(w) || w.len() > 10 || !w.is_ascii() {
         return false;
     }
@@ -117,11 +183,25 @@ fn is_suffix(w: &str) -> bool {
         *u = c.to_ascii_uppercase();
     }
     let up = std::str::from_utf8(&up[..w.len()]).unwrap_or("");
-    STREET_SUFFIXES.binary_search(&up).is_ok()
+    table.binary_search(&up).is_ok()
+}
+
+fn is_suffix(w: &str) -> bool {
+    in_table(w, &STREET_SUFFIXES)
+}
+
+fn is_street_only_suffix(w: &str) -> bool {
+    in_table(w, &STREET_ONLY_SUFFIXES)
 }
 
 fn is_direction(w: &str) -> bool {
     DIRECTIONS.contains(&w)
+}
+
+fn comma_city(text: &str, end: usize) -> bool {
+    let b = text.as_bytes();
+    b.get(end) == Some(&b',')
+        && space(b, end + 1).and_then(|s| word_end(text, s).map(|e| &text[s..e])).is_some_and(capitalized)
 }
 
 /// The end of a street address whose house number starts at `start`.
@@ -142,26 +222,42 @@ fn street(text: &str, start: usize) -> Option<usize> {
     // The words after the number, each after one space: a direction may
     // lead, then names and ordinals; the last suffix with a name before
     // it ends the street.
-    let mut words: Vec<(usize, usize)> = Vec::with_capacity(MAX_NAME_WORDS + 2);
+    let mut words = [(0usize, 0usize); MAX_NAME_WORDS + 2];
+    let mut n_words = 0;
     let mut at = p;
-    while words.len() < MAX_NAME_WORDS + 2 {
+    while n_words < words.len() {
         let Some(s) = space(b, at) else { break };
         let Some(e) = word_end(text, s) else { break };
         let w = &text[s..e];
         if !(capitalized(w) || is_ordinal(w)) {
             break;
         }
-        words.push((s, e));
+        words[n_words] = (s, e);
+        n_words += 1;
         at = e;
     }
-    let suffix_from = |first: usize| (first + 1..words.len()).rev().find(|&k| is_suffix(&text[words[k].0..words[k].1]));
+    let words = &words[..n_words];
+    let suffix_from = |first: usize| {
+        let stop = words.len().min(first + 1 + MAX_NAME_WORDS);
+        (first + 1..stop).rev().find(|&k| is_suffix(&text[words[k].0..words[k].1]))
+    };
     let leads = words.first().is_some_and(|&(s, e)| is_direction(&text[s..e]));
     let suffix = leads.then(|| suffix_from(1)).flatten().or_else(|| suffix_from(0))?;
+    let suffix_word = &text[words[suffix].0..words[suffix].1];
     let mut end = words[suffix].1;
     if let Some(e) = post_direction(text, end) {
         end = e;
     }
-    Some(unit(text, end).unwrap_or(end))
+    if let Some(e) = unit(text, end) {
+        end = e;
+    } else if end < words[words.len() - 1].1 {
+        return None;
+    }
+    let year = p == start + 4 && matches!(b[start..start + 2], [b'1', b'9'] | [b'2', b'0']);
+    if year && end == words[suffix].1 && !is_street_only_suffix(suffix_word) && !comma_city(text, end) {
+        return None;
+    }
+    Some(end)
 }
 
 /// The end of a direction after the suffix ending at `end`: `Main St
@@ -225,15 +321,22 @@ fn po_box(text: &str, start: usize) -> Option<usize> {
     let b = text.as_bytes();
     let lower = |at: usize| b.get(at).map(u8::to_ascii_lowercase);
     let mut p = start;
-    if b.len() >= p + 11 && b[p..p + 11].eq_ignore_ascii_case(b"post office") {
-        p += 11;
+    if b.len() >= p + 4
+        && b[p..p + 4].eq_ignore_ascii_case(b"post")
+        && let Some(q) = space(b, p + 4)
+        && b.len() >= q + 6
+        && b[q..q + 6].eq_ignore_ascii_case(b"office")
+    {
+        p = q + 6;
     } else {
         p += 1;
         if lower(p) == Some(b'.') {
             p += 1;
         }
-        if lower(p) == Some(b' ') && lower(p + 1) == Some(b'o') {
-            p += 1;
+        if let Some(q) = space(b, p)
+            && lower(q) == Some(b'o')
+        {
+            p = q;
         }
         if lower(p) != Some(b'o') {
             return None;
@@ -252,4 +355,17 @@ fn po_box(text: &str, start: usize) -> Option<usize> {
     let stop = p + n;
     let ok = (1..=MAX_BOX_DIGITS).contains(&n) && on_end(text, stop) && after(text, stop) != Some('-');
     ok.then_some(stop)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{STREET_ONLY_SUFFIXES, STREET_SUFFIXES};
+
+    #[test]
+    fn street_only_suffixes_are_sorted_and_in_street_suffixes() {
+        assert!(STREET_ONLY_SUFFIXES.windows(2).all(|w| w[0] < w[1]));
+        for &s in &STREET_ONLY_SUFFIXES {
+            assert!(STREET_SUFFIXES.binary_search(&s).is_ok(), "{s}");
+        }
+    }
 }

@@ -696,18 +696,27 @@ to a trained head.
   standard abbreviation of USPS Publication 28 Appendix C1
   (`analysis/pii/src/tables/street_suffixes.rs`, in any case once the
   word is capitalized); the last suffix in the run ends the street
-  (`18 Mill Creek Road`). A direction may follow the suffix (`Main St
+  (`18 Mill Creek Road`), provided no unconsumed capitalized word follows
+  it on the same line (`3 Point Lane`, not `the 3 Five Point Plan`). When
+  the house number is a four-digit year (`1900` to `2099`) and the suffix
+  is a general noun (`Park`, `Point`, `Summit`, `Center`) rather than a
+  street-only suffix (`St`, `Street`, `Ave`, `Avenue`, `Rd`, `Road`,
+  `Blvd`), a post-direction, a unit or a comma and capitalized city word
+  must follow (`2016 Central Park West`, `2016 Central Park, New York`,
+  not `2016 Central Park` or `2024 Annual Bay Summit`). A direction may
+  follow the suffix (`Main St
   NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
   an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
   `Building`, `Lot` and the like with an optional `.`, or `#`, then one
   to six letters, digits and hyphens. Post office boxes are the same
   kind: `PO`, `P.O.`, `P. O.`, `P O` or `Post Office`, then `Box` and one
   to ten digits, in any case. Every piece is on one line and joined by
-  one space, so a city, state and ZIP code after a comma, or the next
+  one horizontal space (`' '`, `'\t'`, `U+00A0` or `U+202F`), so a city,
+  state and ZIP code after a comma, or the next
   line of a letter, stay outside the mention. Lower case street words,
   a house number inside a decimal, an ordinal alone (`5th Avenue`) and
   a number with no suffix after its words (`Table 4 Summary`, `Route
-  66`) are not addresses.
+  66`, `the 3 Point Plan`) are not addresses.
 
 `age` is low severity and `street-address` medium; both are suggested a
 label rewrite and are masked keeping separators. Neither needs a label
@@ -930,7 +939,7 @@ each in a sentence, and near misses of the checksummed kinds with no
 label) together with the checked-in true and false positive corpora
 (`analysis/pii/tests/data/golden-true-positives.tsv` and
 `analysis/pii/tests/data/golden-false-positives.txt`):
-1912 texts, 1120 labels made in the test.
+1917 texts, 1120 labels made in the test.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|
