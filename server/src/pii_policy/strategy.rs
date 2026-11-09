@@ -1,16 +1,17 @@
 //! `PiiRewriteStrategy` messages to #1902's [`RewriteStrategy`] and back.
 
 use turbo_pii::rewrite::{
-    Abbreviator, FormatRedactor, HmacTokenizer, KeepSide, MapReplacer, MapTarget, MaskPolicy, Pseudonymizer,
-    RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
+    Abbreviator, AgeSafeHarbor, FormatRedactor, HmacTokenizer, KeepSide, MapReplacer, MapTarget, MaskPolicy,
+    Pseudonymizer, RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
 };
 
 use super::error::{At, PolicyError};
 use super::resolve::{PolicyResolver, check_dictionary, check_key_id};
 use crate::proto::result::{
-    PiiFormatStrategy, PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy, PiiMapTarget,
-    PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy, PiiStrategy,
-    PiiTruncateStrategy, PiiZipSafeHarborStrategy, pii_map_strategy::Table, pii_rewrite_strategy::Strategy,
+    PiiAgeSafeHarborStrategy, PiiFormatStrategy, PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy,
+    PiiMapTarget, PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy,
+    PiiStrategy, PiiTruncateStrategy, PiiZipSafeHarborStrategy, pii_map_strategy::Table,
+    pii_rewrite_strategy::Strategy,
 };
 
 /// A whole-value mask with `'*'`: the conservative default, and what
@@ -181,6 +182,9 @@ pub(crate) fn strategy(
             RewriteStrategy::Pseudonym(Pseudonymizer::new(prefix.as_str(), suffix.as_str()))
         }
         Strategy::ZipSafeHarbor(z) => zip_safe_harbor(at, z)?,
+        Strategy::AgeSafeHarbor(PiiAgeSafeHarborStrategy { mask_char: c }) => RewriteStrategy::AgeSafeHarbor(
+            AgeSafeHarbor::new().with_mask(mask_char(at, c, AgeSafeHarbor::DEFAULT_MASK)?),
+        ),
     }))
 }
 
@@ -199,6 +203,7 @@ pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
         Strategy::StaticText(_) => PiiStrategy::Static,
         Strategy::Pseudonym(_) => PiiStrategy::Pseudonym,
         Strategy::ZipSafeHarbor(_) => PiiStrategy::ZipSafeHarbor,
+        Strategy::AgeSafeHarbor(_) => PiiStrategy::AgeSafeHarbor,
     }
 }
 
@@ -208,9 +213,9 @@ fn char_string(c: char, default: char) -> String {
 
 /// The message for `s`, where the native value says all its message does:
 /// mask, truncate (a kept end is written as last-N), format, SHA-256,
-/// pseudonym and ZIP Safe Harbor. A keyed token holds key bytes and no reference, a map its
-/// table, a static replacer per-kind texts and an abbreviator private
-/// punctuation, so those give `None`; a strategy that refuses overlaps has
+/// pseudonym, ZIP Safe Harbor and age Safe Harbor. A keyed token holds key
+/// bytes and no reference, a map its table, a static replacer per-kind
+/// texts and an abbreviator private punctuation, so those give `None`; a strategy that refuses overlaps has
 /// no message field and gives `None` too.
 pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
     if s.refuses_overlaps() {
@@ -246,6 +251,9 @@ pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
         RewriteStrategy::ZipSafeHarbor(z) => Strategy::ZipSafeHarbor(PiiZipSafeHarborStrategy {
             mask_char: char_string(z.mask(), ZipSafeHarbor::DEFAULT_MASK),
             restricted_prefixes: if z.is_hhs_2000() { Vec::new() } else { z.restricted().map(str::to_owned).collect() },
+        }),
+        RewriteStrategy::AgeSafeHarbor(a) => Strategy::AgeSafeHarbor(PiiAgeSafeHarborStrategy {
+            mask_char: char_string(a.mask(), AgeSafeHarbor::DEFAULT_MASK),
         }),
         RewriteStrategy::Mask(_)
         | RewriteStrategy::Hmac(_)

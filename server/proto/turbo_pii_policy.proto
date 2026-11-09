@@ -205,6 +205,8 @@ message PiiRewriteStrategy
     PiiPseudonymStrategy pseudonym = 10;
     // PII_STRATEGY_ZIP_SAFE_HARBOR
     PiiZipSafeHarborStrategy zip_safe_harbor = 11;
+    // PII_STRATEGY_AGE_SAFE_HARBOR
+    PiiAgeSafeHarborStrategy age_safe_harbor = 12;
   }
 }
 
@@ -302,6 +304,17 @@ message PiiZipSafeHarborStrategy
   // most 1000. Empty means the 17 prefixes HHS published from the 2000
   // Census in its de-identification guidance.
   repeated string restricted_prefixes = 2;
+}
+
+// HIPAA Safe Harbor for a person's age (45 CFR 164.514(b)(2)(i)(C)): an
+// age of 89 or under is kept as written and every older age is written
+// as "90+", so "aged 93" becomes "aged 90+". The age kind's mention is the
+// number alone. A mention that is not one or more ASCII digits is masked
+// whole, and so is a cluster of overlapping mentions.
+message PiiAgeSafeHarborStrategy
+{
+  // One character; empty means '*'.
+  string mask_char = 1;
 }
 
 // A registered, versioned key: never key material.

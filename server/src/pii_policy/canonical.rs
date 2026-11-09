@@ -273,6 +273,7 @@ fn strategy(e: &mut Enc, s: &pb::PiiRewriteStrategy) {
             }
             e.rep_str(2, &prefixes);
         }),
+        Some(S::AgeSafeHarbor(a)) => e.arm(12, a, |e, a| e.str(1, &a.mask_char)),
     }
 }
 

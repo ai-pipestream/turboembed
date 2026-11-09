@@ -141,6 +141,11 @@ stubs must be regenerated.
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
   digits, or `000` for a restricted area, and mask the rest; the HHS 2000
   Census table is bundled and a caller may pass its own (#1966).
+- HIPAA Safe Harbor age aggregation: the `PiiAgeSafeHarborStrategy` arm
+  of `PiiRewriteStrategy` (`age_safe_harbor`, field 12) and
+  `PII_STRATEGY_AGE_SAFE_HARBOR` (13) keep an age of 89 or under and write
+  every older age as `90+`; a mention that is not an age is masked
+  (#1884).
 
 ### Changed: PII and the result envelope (#1879)
 

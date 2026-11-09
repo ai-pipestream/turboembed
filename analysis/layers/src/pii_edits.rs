@@ -38,11 +38,13 @@ pub enum PiiStrategyKind {
     Ff1 = 11,
     /// HIPAA Safe Harbor ZIP generalization.
     ZipSafeHarbor = 12,
+    /// HIPAA Safe Harbor age aggregation (`90+`).
+    AgeSafeHarbor = 13,
 }
 
 impl PiiStrategyKind {
     /// Every kind, in id order.
-    pub const ALL: [PiiStrategyKind; 12] = [
+    pub const ALL: [PiiStrategyKind; 13] = [
         PiiStrategyKind::Mask,
         PiiStrategyKind::Pseudonym,
         PiiStrategyKind::Hmac,
@@ -55,6 +57,7 @@ impl PiiStrategyKind {
         PiiStrategyKind::Aes256Gcm,
         PiiStrategyKind::Ff1,
         PiiStrategyKind::ZipSafeHarbor,
+        PiiStrategyKind::AgeSafeHarbor,
     ];
 
     /// The stable id.
@@ -82,6 +85,7 @@ impl PiiStrategyKind {
             PiiStrategyKind::Aes256Gcm => "aes-256-gcm",
             PiiStrategyKind::Ff1 => "ff1",
             PiiStrategyKind::ZipSafeHarbor => "zip-safe-harbor",
+            PiiStrategyKind::AgeSafeHarbor => "age-safe-harbor",
         }
     }
 }

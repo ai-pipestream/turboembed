@@ -1468,6 +1468,8 @@ enum PiiStrategy
   PII_STRATEGY_FF1 = 11;
   // HIPAA Safe Harbor ZIP generalization (PiiZipSafeHarborStrategy).
   PII_STRATEGY_ZIP_SAFE_HARBOR = 12;
+  // HIPAA Safe Harbor age aggregation (PiiAgeSafeHarborStrategy).
+  PII_STRATEGY_AGE_SAFE_HARBOR = 13;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

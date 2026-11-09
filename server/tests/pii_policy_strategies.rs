@@ -204,6 +204,7 @@ fn every_arm() -> Vec<Strategy> {
         Strategy::StaticText(pb::PiiStaticStrategy { replacement: "x".to_owned() }),
         Strategy::Pseudonym(pb::PiiPseudonymStrategy::default()),
         Strategy::ZipSafeHarbor(pb::PiiZipSafeHarborStrategy::default()),
+        Strategy::AgeSafeHarbor(pb::PiiAgeSafeHarborStrategy::default()),
     ];
     for arm in &arms {
         match arm {
@@ -217,7 +218,8 @@ fn every_arm() -> Vec<Strategy> {
             | Strategy::Sha256(_)
             | Strategy::StaticText(_)
             | Strategy::Pseudonym(_)
-            | Strategy::ZipSafeHarbor(_) => {}
+            | Strategy::ZipSafeHarbor(_)
+            | Strategy::AgeSafeHarbor(_) => {}
         }
     }
     arms
@@ -234,7 +236,7 @@ fn every_arm_maps_to_exactly_one_pii_strategy_value() {
         assert_eq!(i32::from(native.kind().id()), value as i32, "{arm:?} edits record {value:?}");
         hit.insert(value as i32);
     }
-    let all: std::collections::BTreeSet<i32> = (1..=9).chain([12]).collect();
+    let all: std::collections::BTreeSet<i32> = (1..=9).chain([12, 13]).collect();
     assert_eq!(hit, all, "every PiiStrategy value but UNSPECIFIED and the reversible ones has an arm");
     // The reversible strategies take a key, which never travels in a
     // policy message, so they have no arm.
@@ -243,5 +245,5 @@ fn every_arm_maps_to_exactly_one_pii_strategy_value() {
     {
         assert_eq!(value as i32, i32::from(native.id()));
     }
-    assert!(pb::PiiStrategy::try_from(13).is_err(), "a new PiiStrategy value needs an arm here");
+    assert!(pb::PiiStrategy::try_from(14).is_err(), "a new PiiStrategy value needs an arm here");
 }
