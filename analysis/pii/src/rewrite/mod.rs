@@ -5,7 +5,8 @@
 //! unkeyed SHA-256 digests ([`Sha256Tokenizer`]), caller lookup tables
 //! ([`MapReplacer`]), partial character retention ([`Truncate`]), initials
 //! abbreviation ([`Abbreviator`]), HIPAA Safe Harbor ZIP generalization
-//! ([`ZipSafeHarbor`]), and composable per-kind policies
+//! ([`ZipSafeHarbor`]) and age aggregation ([`AgeSafeHarbor`]), and
+//! composable per-kind policies
 //! ([`RewritePolicy`], [`RewriteStrategy`]).
 //!
 //! - [`mask`] overwrites the characters of each span in place, so the
@@ -14,7 +15,8 @@
 //!   alignment maps each masked character to its source character.
 //! - [`Pseudonymizer`], [`HmacTokenizer`], [`FormatRedactor`],
 //!   [`StaticReplacer`], [`Sha256Tokenizer`], [`MapReplacer`],
-//!   [`Truncate`], [`Abbreviator`], [`ZipSafeHarbor`] and [`RewritePolicy`] replace each
+//!   [`Truncate`], [`Abbreviator`], [`ZipSafeHarbor`], [`AgeSafeHarbor`]
+//!   and [`RewritePolicy`] replace each
 //!   mention and return a [`PiiRewrite`]: a view derived from the text
 //!   with an alignment both ways, its label layer, and its
 //!   `turbo:pii-edits` layer.
@@ -27,6 +29,7 @@
 //!   an AES-256-GCM token, or the FF1 encryption of its digits or letters.
 
 mod abbreviate;
+mod age_safe_harbor;
 mod audit;
 mod chosen;
 mod format;
@@ -46,6 +49,7 @@ mod view;
 mod zip_safe_harbor;
 
 pub use abbreviate::Abbreviator;
+pub use age_safe_harbor::AgeSafeHarbor;
 pub use audit::{KindReport, PiiAuditReport};
 pub use chosen::{Choice, StrategyChooser, rewrite_chosen};
 pub use format::{FormatError, FormatRedactor, StaticReplacer};

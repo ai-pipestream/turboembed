@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, and HIPAA Safe Harbor ZIP generalization |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, and HIPAA Safe Harbor age aggregation |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -476,12 +476,24 @@ the source text into the rewritten text and back
   17 prefixes HHS published from the 2000 Census
   (`HHS_2000_RESTRICTED_PREFIXES`, `ZipSafeHarbor::hhs_2000()`) or a
   caller's own three-digit list (`ZipSafeHarbor::with_restricted`, for a
-  later Census). A mention that is not five ASCII digits, optionally
-  followed by `-` and four more, is masked whole, and so is a cluster of
+  later Census). A mention of another kind than `us-zip`, or that is not
+  five ASCII digits optionally followed by `-` and four more, is masked
+  whole, and so is a cluster of
   overlapping mentions, so the strategy never leaves another kind's value
   readable. Edits record `PiiStrategyKind::ZipSafeHarbor`
   (`PII_STRATEGY_ZIP_SAFE_HARBOR`); the gRPC arm is
   `PiiZipSafeHarborStrategy` (#1884).
+- **Age Safe Harbor (`AgeSafeHarbor`):** HIPAA Safe Harbor
+  (45 CFR 164.514(b)(2)(i)(C)) for `age`: keeps an age of 89 or under as
+  written and writes every older age as `90+`, the single category the
+  rule allows (`aged 93` becomes `aged 90+`, `34-year-old` stays). The
+  `age` mention is the number alone, so the words around it stay. Leading
+  zeros do not make an age younger (`093` becomes `90+`). A mention of
+  another kind than `age`, digits or not, or that is not one or more ASCII
+  digits, is masked whole with the mask character
+  (`*` by default), and so is a cluster of overlapping mentions. Edits
+  record `PiiStrategyKind::AgeSafeHarbor` (`PII_STRATEGY_AGE_SAFE_HARBOR`);
+  the gRPC arm is `PiiAgeSafeHarborStrategy` (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so

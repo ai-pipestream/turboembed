@@ -15,8 +15,9 @@
 //! domain, see `docs/licences.md`), or a caller's own list built from a
 //! later Census.
 //!
-//! A mention that is not a ZIP code (five ASCII digits, optionally
-//! followed by `-` and four more) is masked whole, so a policy that sends
+//! A mention of another kind than `us-zip`, or whose text is not a ZIP
+//! code (five ASCII digits, optionally followed by `-` and four more), is
+//! masked whole, so a policy that sends
 //! another kind here never leaves its value readable. A cluster of
 //! overlapping mentions is masked whole too: another mention's strategy
 //! may not allow any of its characters to stay.
@@ -24,7 +25,7 @@
 use std::fmt;
 
 use turbo_analysis::View;
-use turbo_analysis_layers::{Pii, PiiStrategyKind};
+use turbo_analysis_layers::{Pii, PiiKind, PiiStrategyKind};
 
 use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError};
@@ -172,6 +173,16 @@ impl ZipSafeHarbor {
         }
     }
 
+    /// Appends a mention of `kind` reading `value` to `out`: generalized
+    /// when `kind` is [`PiiKind::UsZip`], masked whole otherwise.
+    pub fn write_mention(&self, kind: PiiKind, value: &str, out: &mut String) {
+        if kind == PiiKind::UsZip {
+            self.write_generalized(value, out);
+        } else {
+            self.write_masked(value, out);
+        }
+    }
+
     /// Returns `value` generalized.
     pub fn apply(&self, value: &str) -> String {
         let mut out = String::with_capacity(value.len());
@@ -196,7 +207,7 @@ impl ZipSafeHarbor {
             |cluster, out| {
                 let piece = &text[cluster.merged.span.range()];
                 if cluster.members.len() == 1 {
-                    self.write_generalized(piece, out);
+                    self.write_mention(cluster.merged.kind, piece, out);
                 } else {
                     self.write_masked(piece, out);
                 }

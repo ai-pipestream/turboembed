@@ -125,3 +125,17 @@ fn overlapping_mentions_are_masked_whole() {
     assert_eq!(p.rewrite(&source_view(text), &phone_wins).unwrap().text(), "******1234");
     assert!(zip.clone().refusing_overlaps().rewrite(&source_view(text), &pii).is_err());
 }
+
+/// A five-digit mention of another kind (a caller's account number) is not
+/// a ZIP code: the strategy masks it whole, alone and as the default of a
+/// policy, so it never keeps its first three digits.
+#[test]
+fn a_zip_shaped_mention_of_another_kind_is_masked_whole() {
+    let account = PiiKind::Custom(turbo_pii::CustomKindId::new(0));
+    let text = "acct 62704 zip 62704";
+    let pii = manual(&[(5, 10, account, "62704"), (15, 20, PiiKind::UsZip, "62704")]);
+    let want = "acct ***** zip 627**";
+    assert_eq!(ZipSafeHarbor::hhs_2000().rewrite(&source_view(text), &pii).unwrap().text(), want);
+    let policy = RewritePolicy::new(ZipSafeHarbor::hhs_2000());
+    assert_eq!(policy.rewrite(&source_view(text), &pii).unwrap().text(), want);
+}
