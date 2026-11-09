@@ -5,10 +5,11 @@ use std::io::Write;
 
 use turbo_analysis::{Document, Ix, Key, Span};
 use turbo_analysis_layers::{
-    Aspects, Categories, Chunks, EmotionDimension, EmotionLayer, Entities, Language, Opinions, Pii, PolarityScores,
+    Aspects, Categories, Chunks, EmotionDimension, EmotionLayer, Entities, Language, Opinions, PolarityScores,
     Sentences, Tokens,
 };
 
+use super::pii_export::append_markdown_pii;
 use super::{
     DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
     sanitize_single_line,
@@ -44,6 +45,17 @@ impl DocumentFormatter for MarkdownFormatter {
         doc_id: &str,
         doc: &Document,
         offsets: ExportOffsetMode,
+        out: &mut dyn Write,
+    ) -> Result<(), FormatExportError> {
+        self.format_document_with_detail(doc_id, doc, offsets, false, out)
+    }
+
+    fn format_document_with_detail(
+        &self,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
         out: &mut dyn Write,
     ) -> Result<(), FormatExportError> {
         let mut buf = String::new();
@@ -191,25 +203,7 @@ impl DocumentFormatter for MarkdownFormatter {
             buf.push('\n');
         }
 
-        // Findings only: a mention's value never leaves through an export
-        // (#1904); its span locates it in the document text.
-        if let Some(pii) = doc.get::<Pii>()
-            && !pii.spans.is_empty()
-        {
-            buf.push_str("## PII Summary\n\n");
-            let p_view = pii.spans.view();
-            for m in pii.mentions() {
-                let src_span = doc.to_source(p_view, m.span);
-                let (s, e) = offsets.convert_source_span(doc, src_span)?;
-                let _ = writeln!(
-                    buf,
-                    "- **{}** [{s}..{e}] (confidence: `{}`)",
-                    escape_markdown(pii.kind_name(m.kind).unwrap_or("")),
-                    m.confidence().name(),
-                );
-            }
-            buf.push('\n');
-        }
+        append_markdown_pii(doc, offsets, detail, &mut buf)?;
 
         if let Some(chunks) = doc.get::<Chunks>()
             && !chunks.spans.is_empty()

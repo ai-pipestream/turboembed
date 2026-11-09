@@ -45,6 +45,7 @@ pub fn tensors(spec: &HeadSpec, hidden: usize) -> Vec<(String, Vec<u64>)> {
     out.push(("mention.bias".into(), vec![d]));
     out.push(("pair.weight".into(), vec![d, d]));
     out.push(("distance".into(), vec![BUCKETS.len() as u64]));
+    words::push_mix(spec, &mut out);
     out
 }
 
@@ -128,6 +129,11 @@ impl CorefRanker {
     /// The encoder width the head reads.
     pub fn hidden(&self) -> usize {
         self.hidden
+    }
+
+    /// Encoder layers the head reads per row (1 without `layer_mix`).
+    pub fn taps(&self) -> usize {
+        self.reader.taps()
     }
 
     /// The width of a mention vector, `coref.dim`.

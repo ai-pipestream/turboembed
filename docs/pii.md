@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, and initials abbreviation |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, and HIPAA Safe Harbor ZIP generalization |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -468,6 +468,20 @@ the source text into the rewritten text and back
   `Abbreviator` is intended for name or multi-word phrase kinds and should
   not be used as a default strategy on numeric kinds (for example,
   `123-45-6789` would abbreviate to `1.4.6.`).
+- **ZIP Safe Harbor (`ZipSafeHarbor`):** HIPAA Safe Harbor
+  (45 CFR 164.514(b)(2)(i)(B)) for `us-zip`: keeps the first three digits
+  of a ZIP code, writes `000` when that three-digit area holds 20,000
+  people or fewer, and masks every other digit (`62704-1234` becomes
+  `627**-****`, `03601` becomes `000**`). The restricted areas are the
+  17 prefixes HHS published from the 2000 Census
+  (`HHS_2000_RESTRICTED_PREFIXES`, `ZipSafeHarbor::hhs_2000()`) or a
+  caller's own three-digit list (`ZipSafeHarbor::with_restricted`, for a
+  later Census). A mention that is not five ASCII digits, optionally
+  followed by `-` and four more, is masked whole, and so is a cluster of
+  overlapping mentions, so the strategy never leaves another kind's value
+  readable. Edits record `PiiStrategyKind::ZipSafeHarbor`
+  (`PII_STRATEGY_ZIP_SAFE_HARBOR`); the gRPC arm is
+  `PiiZipSafeHarborStrategy` (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
@@ -481,6 +495,52 @@ the source text into the rewritten text and back
   `RewriteError::Overlap`; when coalesced, a source character inside the
   union span is kept only when every overlapping mention covering that byte
   permits keeping it under its own strategy.
+
+### Reversible protection (`reversible` feature)
+
+With the `reversible` cargo feature of `turbo-pii`, two strategies
+replace each mention with a value that a holder of the key can decrypt
+back to the mention as it was written (its surface). The feature brings
+in the RustCrypto `aes-gcm` crate and the `fpe` crate (both MIT or
+Apache-2.0). The default build has no crypto crate.
+
+- **AES-256-GCM tokens (`AesGcmEncryptor`):** the token is the kind in
+  capitals, `:`, then the unpadded base64url of the 12-byte nonce, the
+  ciphertext and the 16-byte tag, for example `EMAIL:...`. The associated
+  data binds the kind as the token writes it, plus a caller context
+  (`with_context`, such as a document id or a field name). A token moved
+  to another kind or context, decrypted with another key, or changed in
+  any character fails authentication (`CryptError::Authentication`).
+  Every token draws a fresh nonce, so one value gives a different token
+  each time and tokens are not linkable. `decrypt(token)` returns the
+  kind and the value.
+- **FF1 format-preserving encryption (`Ff1Encryptor`, NIST SP 800-38G):**
+  encrypts the characters of an alphabet (`Ff1Alphabet::Digits`,
+  `UpperAlphanumeric` or `Alphanumeric`, radix 10, 36 or 62) under a
+  caller tweak (`with_tweak`). Every other character keeps its place, so
+  `123-45-6789` encrypts to another `ddd-dd-dddd`. A value with a letter
+  or digit outside the alphabet is refused (`CryptError::OutsideAlphabet`,
+  which names its byte offset, never the character) rather than leaving
+  that character in the clear. FF1 needs a domain of
+  at least a million values, so a value with fewer than 6 digits, or 4
+  letters and digits, is refused (`CryptError::TooFewNumerals`). One value
+  under one key and tweak always encrypts the same way, so ciphertexts
+  are linkable, as `HmacTokenizer` labels are.
+
+Both take a 32-byte AES-256 key from the caller (`CryptError::KeyLength`
+otherwise). The key is kept only in the cipher's key schedule, which is
+zeroised on drop, and it never appears in `Debug` output. In a rewrite,
+a mention that cannot be encrypted fails the rewrite with
+`RewriteError::Encrypt`. The edits record the strategy as
+`PiiStrategyKind::Aes256Gcm` (10) or `PiiStrategyKind::Ff1` (11), which
+are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire. They
+are not yet `RewritePolicy` strategies, and a gRPC redaction policy
+cannot name them: on the server, keys are to be registered key
+references, never key bytes in a message.
+`analysis/pii/tests/reversible.rs` runs the NIST FF1 AES-256 samples
+through `Ff1Encryptor` and the round trip of both strategies for every
+built-in kind and a custom one. The encryptor's unit test checks the
+cipher against NIST CAVP AES-256-GCM vectors.
 
 ### The redacted view
 

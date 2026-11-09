@@ -261,6 +261,18 @@ fn strategy(e: &mut Enc, s: &pb::PiiRewriteStrategy) {
             e.str(1, &p.prefix);
             e.str(2, &p.suffix);
         }),
+        Some(S::ZipSafeHarbor(z)) => e.arm(11, z, |e, z| {
+            e.str(1, &z.mask_char);
+            // A set: the strategy sorts and folds it, so the digest does,
+            // and the bundled table spelled out digests as empty.
+            let mut prefixes = z.restricted_prefixes.clone();
+            prefixes.sort_unstable();
+            prefixes.dedup();
+            if prefixes.iter().map(String::as_str).eq(turbo_pii::rewrite::HHS_2000_RESTRICTED_PREFIXES) {
+                prefixes.clear();
+            }
+            e.rep_str(2, &prefixes);
+        }),
     }
 }
 

@@ -8,7 +8,16 @@ publish = false
 [lib]
 name = "turbo_pii"
 
+[features]
+# Reversible protection: AES-256-GCM tokens and FF1 format-preserving
+# encryption (`rewrite::AesGcmEncryptor`, `rewrite::Ff1Encryptor`), built on
+# the RustCrypto `aes-gcm` and the `fpe` crates. The default build has no
+# crypto crate.
+reversible = ["dep:aes-gcm", "dep:fpe"]
+
 [dependencies]
+aes-gcm = { version = "0.11.1", default-features = false, features = ["aes", "alloc", "zeroize"], optional = true }
+fpe = { version = "0.7.0", default-features = false, features = ["alloc"], optional = true }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-glossary = { path = "../glossary" }
