@@ -282,6 +282,13 @@ stubs must be regenerated.
 
 ### Fixed
 
+- levelzero: a context on an Intel GPU under the `xe` driver no longer
+  loses its device (`0x70000001`) when a desktop client draws while the
+  device pages an evicted buffer back in. The backend sets
+  `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0` in the process's
+  environment before it opens the Level Zero loader, unless the caller set
+  `EnableRecoverablePageFaults` itself (docs/levelzero.md, A lost device)
+  (#1765).
 - The cpu backend's embed cells set field 9's bit (`layers`) in
   `turbo_capability.options_honored`, which reads `0b1_1111_1111` there,
   and a layer count of 0 or over an encoder's layers is

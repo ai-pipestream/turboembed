@@ -13,6 +13,21 @@ fn the_backend_is_linked_before_the_cpu_and_names_itself() {
     assert_eq!(v, "", "nothing is linked at build time; each device names the loader it opened");
 }
 
+/// Opening the loader turns the Intel runtime's recoverable page faults
+/// off, unless the caller set them (tests/levelzero_page_faults.rs): with
+/// them on, a queue suspended while the device faults on an evicted
+/// buffer loses the device (#1765).
+#[test]
+fn listing_turns_the_runtime_s_page_faults_off() {
+    let Some(_) = gpu_device("listing_turns_the_runtime_s_page_faults_off") else { return };
+    if !turbo::ze::page_faults_off() {
+        println!("listing_turns_the_runtime_s_page_faults_off: skipped: the caller set EnableRecoverablePageFaults");
+        return;
+    }
+    assert_eq!(std::env::var("EnableRecoverablePageFaults").as_deref(), Ok("0"));
+    assert_eq!(std::env::var("NEOReadDebugKeys").as_deref(), Ok("1"));
+}
+
 // ---- Devices -------------------------------------------------------------------------------
 
 /// The PCI device ids of the Intel GPUs the kernel has bound a compute

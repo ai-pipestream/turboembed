@@ -583,21 +583,63 @@ On the Arc Pro B70 under `xe`, the kernel log names each one seen
   which are one group: each frame a desktop client draws is one such
   suspend.
 
-What kept a context on the engine is not known, and no loss has been
-reproduced on purpose. On a B70 (2026-11-09) none of these lost the device:
+What keeps a context on the engine is a page fault (#1765). The runtime
+makes its address spaces ones whose page faults the kernel recovers. In
+that mode the kernel may evict a client's host-memory buffers while they
+are idle (its shrinker, under memory pressure), and the device pages them
+back in by faulting when it next touches them; and it is these queues the
+kernel suspends for other clients' jobs. A suspend that lands while a
+fault is being served does not complete, and 640 ms later the engine is
+reset. The buffers are the runtime's own as much as the backend's: the
+2 MB buffers it stages every read of device memory through, its command
+buffers, and a session's packed rows.
+
+So a loss needs a context idle long enough under memory pressure to be
+evicted, then work on it while a desktop client draws. `train-relation`
+is that: its test pass follows minutes of training on the CPU, and both
+the first reports and a soak lost the device there, in `buffer_read`, the
+first copy to fault. With the kernel's shrinker run by hand during the
+training of a 640-document `train-relation` (`echo 2 >
+/proc/sys/vm/drop_caches`, as root), three runs of four lost the device:
+768 faults on one staging buffer, one for each hardware thread of the
+copy, a suspend during them, and the reset 641 ms after it.
+
+The backend therefore turns the runtime's recoverable page faults off:
+before it opens the loader it sets `NEOReadDebugKeys=1` and
+`EnableRecoverablePageFaults=0` in the process's environment, and a
+context's debug log line says so. The kernel then rebinds evicted buffers
+itself before the queue runs again and does not suspend the queue for
+other clients' jobs. With them off, six runs of six of that
+reproduction completed with no fault and no suspend of the queue, at the
+same speed (ModernBERT-base, 8 rows of 512 tokens at MODEL: 100.4 ms a
+pass before, 100.0 ms after) and the same vectors. The backend needs no
+faulting memory: every buffer it hands the device is the driver's own.
+
+- A caller that sets `EnableRecoverablePageFaults` itself, to anything,
+  keeps its value, and `NEOReadDebugKeys` is then not touched; `-1` is the
+  runtime's default, with the faults on.
+- The runtime reads the variables when it starts. A process that has
+  already loaded it another way (OpenCL, SYCL, oneDNN on its own) before
+  the first `turbo_runtime_create` keeps what it started with; set the
+  two variables in that process's environment instead.
+- `NEOReadDebugKeys=1` has the runtime read its other switches from the
+  environment too, where a process has any set.
+- Shared-system USM, where the device reads any host address, needs the
+  faults. The backend does not use it.
+
+What did not lose the device, with the faults on (a B70, 2026-11-09):
 single runs of 12 s, 31 s and 77 s; launches of several seconds each; two
-and three processes computing at once, with launches of 20 ms and of over
-640 ms; a render client drawing 60 frames a second during runs with such
-launches; a process stopped for 13 s in the middle of a pass; 4,200 reads
-of 48 MB into memory unmapped after every second read, 1,200 of them with
-the render client drawing; and the whole `train-relation` on Re-DocRED.
+and three processes computing at once; a render client drawing 60 frames
+a second during runs; a process stopped for 13 s in the middle of a pass;
+and 14 whole `train-relation` runs under that render client before the
+fifteenth was lost.
 
 All nine resets on that machine on 2026-10-26, six of them in
 `levelzero_loads`, fell within the four days a desktop client (snap-store)
 was running; one sample, minutes before it stopped, had it at 61% of the
 render engine. After it stopped, 1,400 runs of the loads at once passed
 (`docs/receipts/levelzero-1433/`). A render client is what the suspends
-above need, so it is the likely trigger, not a reproduced one: no load was
-recorded at the reset times and no run was made with it up.
+need, which fits; no load was recorded at those reset times.
+
 Check the kernel log and the other clients on the card before
 reading a lost device as a defect here.
