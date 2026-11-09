@@ -482,6 +482,51 @@ the source text into the rewritten text and back
   union span is kept only when every overlapping mention covering that byte
   permits keeping it under its own strategy.
 
+### Reversible protection (`reversible` feature)
+
+With the `reversible` cargo feature of `turbo-pii`, two strategies
+replace each mention with a value that a holder of the key can decrypt
+back to the mention as it was written (its surface). The feature brings
+in the RustCrypto `aes-gcm` crate and the `fpe` crate (both MIT or
+Apache-2.0). The default build has no crypto crate.
+
+- **AES-256-GCM tokens (`AesGcmEncryptor`):** the token is the kind in
+  capitals, `:`, then the unpadded base64url of the 12-byte nonce, the
+  ciphertext and the 16-byte tag, for example `EMAIL:...`. The associated
+  data binds the kind as the token writes it, plus a caller context
+  (`with_context`, such as a document id or a field name). A token moved
+  to another kind or context, decrypted with another key, or changed in
+  any character fails authentication (`CryptError::Authentication`).
+  Every token draws a fresh nonce, so one value gives a different token
+  each time and tokens are not linkable. `decrypt(token)` returns the
+  kind and the value.
+- **FF1 format-preserving encryption (`Ff1Encryptor`, NIST SP 800-38G):**
+  encrypts the characters of an alphabet (`Ff1Alphabet::Digits`,
+  `UpperAlphanumeric` or `Alphanumeric`, radix 10, 36 or 62) under a
+  caller tweak (`with_tweak`). Every other character keeps its place, so
+  `123-45-6789` encrypts to another `ddd-dd-dddd`. A value with a letter
+  or digit outside the alphabet is refused (`CryptError::OutsideAlphabet`)
+  rather than leaving that character in the clear. FF1 needs a domain of
+  at least a million values, so a value with fewer than 6 digits, or 4
+  letters and digits, is refused (`CryptError::TooFewNumerals`). One value
+  under one key and tweak always encrypts the same way, so ciphertexts
+  are linkable, as `HmacTokenizer` labels are.
+
+Both take a 32-byte AES-256 key from the caller (`CryptError::KeyLength`
+otherwise). The key is kept only in the cipher's key schedule, which is
+zeroised on drop, and it never appears in `Debug` output. In a rewrite,
+a mention that cannot be encrypted fails the rewrite with
+`RewriteError::Encrypt`. The edits record the strategy as
+`PiiStrategyKind::Aes256Gcm` (10) or `PiiStrategyKind::Ff1` (11), which
+are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire. They
+are not yet `RewritePolicy` strategies, and a gRPC redaction policy
+cannot name them: on the server, keys are to be registered key
+references, never key bytes in a message.
+`analysis/pii/tests/reversible.rs` runs the NIST FF1 AES-256 samples
+through `Ff1Encryptor` and the round trip of both strategies for every
+built-in kind and a custom one. The encryptor's unit test checks the
+cipher against NIST CAVP AES-256-GCM vectors.
+
 ### The redacted view
 
 The server's `turbo-pii:redact` step writes the same view and edits from

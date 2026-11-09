@@ -21,6 +21,9 @@
 //!   `redacted` with its edits.
 //! - [`PiiAuditReport`] counts mentions by kind with keyed tokens in
 //!   place of values.
+//! - With the `reversible` feature, `AesGcmEncryptor` and `Ff1Encryptor`
+//!   replace each mention with a value a holder of the key decrypts:
+//!   an AES-256-GCM token, or the FF1 encryption of its digits or letters.
 
 mod abbreviate;
 mod audit;
@@ -33,6 +36,8 @@ mod policy;
 mod pseudonym;
 mod redacted;
 mod replace;
+#[cfg(feature = "reversible")]
+mod reversible;
 mod sha256_replace;
 mod state;
 mod truncate;
@@ -49,6 +54,8 @@ pub use policy::{RewritePolicy, RewriteStrategy};
 pub use pseudonym::Pseudonymizer;
 pub use redacted::{REDACTED, RedactedView};
 pub use replace::{PiiRewrite, RewriteError};
+#[cfg(feature = "reversible")]
+pub use reversible::{AesGcmEncryptor, CryptError, Ff1Alphabet, Ff1Encryptor, KEY_BYTES};
 pub use sha256_replace::{Sha256Replacer, Sha256Tokenizer};
 pub use truncate::{KeepSide, Truncate};
 pub use view::{MASKED, MaskedView, mask_into, mask_view};
