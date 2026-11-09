@@ -163,11 +163,51 @@ const LOADER: &str = "ze_loader.dll";
 #[cfg(not(windows))]
 const LOADER: &str = "libze_loader.so.1";
 
+/// The Intel compute runtime's switch for recoverable page faults, read
+/// from the environment when the driver starts, and the switch that has
+/// it read such variables at all.
+const PAGE_FAULTS: &str = "EnableRecoverablePageFaults";
+const READ_KEYS: &str = "NEOReadDebugKeys";
+
+/// What [`page_faults_off`] did, for the log: true when this process set
+/// the variables, false when the caller had set PAGE_FAULTS itself.
+static FAULTS_OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// Turns the runtime's recoverable page faults off, before the loader is
+/// opened, unless the caller set EnableRecoverablePageFaults itself (to
+/// anything: -1 is the runtime's own default).
+///
+/// With them on, under the `xe` kernel driver, the kernel evicts the
+/// runtime's host-memory buffers while a context is idle and the device
+/// pages them back in by faulting, and it suspends the runtime's queues
+/// for every job of another client on the render and compute engines. A
+/// suspend that lands while a fault is being served does not complete,
+/// and the firmware resets the engine: the context's device is lost
+/// (#1765, docs/levelzero.md). With them off the kernel rebinds evicted
+/// buffers itself before the queue runs again, and does not suspend it
+/// for other clients' jobs. The backend uses no memory that needs the
+/// faults: every buffer it hands the device is the driver's own.
+pub fn page_faults_off() -> bool {
+    *FAULTS_OFF.get_or_init(|| {
+        if cfg!(windows) || std::env::var_os(PAGE_FAULTS).is_some() {
+            return false;
+        }
+        // SAFETY: once, before the loader and its drivers are in the
+        // process, which read these when they start.
+        unsafe {
+            std::env::set_var(READ_KEYS, "1");
+            std::env::set_var(PAGE_FAULTS, "0");
+        }
+        true
+    })
+}
+
 impl Api {
     /// None when the loader is not installed. A loader without
     /// zeInitDrivers predates Level Zero 1.10 and is an error. `who` is
     /// the backend name on that error.
     pub fn load(who: &str) -> Result<Option<Api>, String> {
+        page_faults_off();
         let Ok(lib) = (unsafe { libloading::Library::new(LOADER) }) else {
             return Ok(None);
         };
