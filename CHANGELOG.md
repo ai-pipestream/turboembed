@@ -114,9 +114,25 @@ stubs must be regenerated.
   `turbo:pii-edits`. A mention the ceiling excludes is withheld with
   `NOT_ALLOWED_BY_POLICY`, and the named policy's digest is part of the
   audit event's `policy_digest` (#1943).
+- US identifier kinds, appended to `PiiKindId`: `vin` 31,
+  `tracking-number` 32, `us-ein` 33, `url` 34 (#1959), `us-passport` 35,
+  `us-drivers-licence` 36, `us-zip` 37 and `phone-extension` 38 (#1960),
+  with checksum ids VIN 14, UPS mod 10 15, FedEx mod 11 16 and GS1
+  mod 10 17 in `PiiChecksumAlgorithm`, the `Logistics`, `Web` and
+  `PhoneExtension` extractors, and the `Logistics` and `Web` packs
+  (#1878).
 
 ### Changed: PII and the result envelope (#1879)
 
+- The default structured pack (`AllStructured`) now also reports
+  all eight new kinds: `vin`, `tracking-number`, `us-ein`, `url`,
+  `us-passport`, `us-drivers-licence`, `us-zip` and `phone-extension`.
+  `Contact` reports `phone-extension`, and `UsIdentity` reports
+  `us-ein`, `us-passport`, `us-drivers-licence` and `us-zip`, so a caller
+  of those packs gets more mentions than before. A `url` mention holds
+  any digit run inside it, which drops some earlier `card`, `phone` and
+  `uk-nhs` mentions inside web addresses. `us-passport` and
+  `us-drivers-licence` need a label next to the value (#1959, #1960).
 - The release audit refuses to send an event whose value form is
   `UNSPECIFIED` or unknown (#1928).
 - docs/grpc.md records the PII and result envelope freeze: what is
