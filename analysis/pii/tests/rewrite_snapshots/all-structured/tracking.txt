@@ -1,0 +1,9 @@
+MASKED	UPS ****************** and ** *** *** ** **** *** *; FedEx ************, ground ***************, **********************; USPS **** **** **** **** **** **, ********************** and ********************.
+
+MASK_ALL	UPS ################## and ########################; FedEx ############, ground ###############, ######################; USPS ###########################, ###################### and ####################.
+
+REWRITE	pseudonymize	OVERLAP	
+REWRITE	hmac	OVERLAP	
+AUDIT	phone	2	2	PHONE-3f94bbfbe2e85d3d, PHONE-b7f537dfdc0d34f4
+AUDIT	tracking-number	8	7	TRACKING-NUMBER-cb725268304e9bc6, TRACKING-NUMBER-b876e918c927a739, TRACKING-NUMBER-d8ed70befc1f3f7f
+AUDIT_REPORT	phone: 2 mentions, 2 distinct [PHONE-3f94bbfbe2e85d3d, PHONE-b7f537dfdc0d34f4]\ntracking-number: 8 mentions, 7 distinct [TRACKING-NUMBER-cb725268304e9bc6, TRACKING-NUMBER-b876e918c927a739, TRACKING-NUMBER-d8ed70befc1f3f7f]

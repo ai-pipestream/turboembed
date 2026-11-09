@@ -1,0 +1,12 @@
+MASKED	See https://portal.example.com/vendors?id=42, http://status.example.org:8080/health and (www.example.net/help). Also HTTPS://Docs.Example.com/Guide#intro, http://***.*.*.**/admin and ftp://ftp.example.org/pub/.
+
+MASK_ALL	See https://portal.example.com/vendors?id=42, http://status.example.org:8080/health and (www.example.net/help). Also HTTPS://Docs.Example.com/Guide#intro, http://##########/admin and ftp://ftp.example.org/pub/.
+
+REWRITE	pseudonymize	OK	See https://portal.example.com/vendors?id=42, http://status.example.org:8080/health and (www.example.net/help). Also HTTPS://Docs.Example.com/Guide#intro, http://IPV4-1/admin and ftp://ftp.example.org/pub/.
+
+LABEL	pseudonymize	162	172	162	168	IPV4-1
+REWRITE	hmac	OK	See https://portal.example.com/vendors?id=42, http://status.example.org:8080/health and (www.example.net/help). Also HTTPS://Docs.Example.com/Guide#intro, http://IPV4-c4321a89eab2e999/admin and ftp://ftp.example.org/pub/.
+
+LABEL	hmac	162	172	162	183	IPV4-c4321a89eab2e999
+AUDIT	ipv4	1	1	IPV4-c4321a89eab2e999
+AUDIT_REPORT	ipv4: 1 mentions, 1 distinct [IPV4-c4321a89eab2e999]

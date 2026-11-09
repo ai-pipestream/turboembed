@@ -1,0 +1,23 @@
+MASKED	Call +* ***-***-**** ext. ****, (***) ***-**** x **** or +** ** **** **** #****; extension 5521 alone is not one, nor 555-0100 extra 99.
+
+MASK_ALL	Call ############### ext. ####, ############## x #### or ################ #####; extension 5521 alone is not one, nor 555-0100 extra 99.
+
+REWRITE	pseudonymize	OK	Call PHONE-1 ext. PHONE-EXTENSION-1, PHONE-2 x PHONE-EXTENSION-2 or PHONE-3 #PHONE-EXTENSION-3; extension 5521 alone is not one, nor 555-0100 extra 99.
+
+LABEL	pseudonymize	5	20	5	12	PHONE-1
+LABEL	pseudonymize	26	30	18	35	PHONE-EXTENSION-1
+LABEL	pseudonymize	32	46	37	44	PHONE-2
+LABEL	pseudonymize	49	53	47	64	PHONE-EXTENSION-2
+LABEL	pseudonymize	57	73	68	75	PHONE-3
+LABEL	pseudonymize	75	79	77	94	PHONE-EXTENSION-3
+REWRITE	hmac	OK	Call PHONE-7516d03383db4bb8 ext. PHONE-EXTENSION-f854c09c7d95c3cf, PHONE-4dc8a6e3610d038b x PHONE-EXTENSION-135183826f212baa or PHONE-a959e925a02fa145 #PHONE-EXTENSION-72fe138b38de7ec8; extension 5521 alone is not one, nor 555-0100 extra 99.
+
+LABEL	hmac	5	20	5	27	PHONE-7516d03383db4bb8
+LABEL	hmac	26	30	33	65	PHONE-EXTENSION-f854c09c7d95c3cf
+LABEL	hmac	32	46	67	89	PHONE-4dc8a6e3610d038b
+LABEL	hmac	49	53	92	124	PHONE-EXTENSION-135183826f212baa
+LABEL	hmac	57	73	128	150	PHONE-a959e925a02fa145
+LABEL	hmac	75	79	152	184	PHONE-EXTENSION-72fe138b38de7ec8
+AUDIT	phone	3	3	PHONE-7516d03383db4bb8, PHONE-4dc8a6e3610d038b, PHONE-a959e925a02fa145
+AUDIT	phone-extension	3	3	PHONE-EXTENSION-f854c09c7d95c3cf, PHONE-EXTENSION-135183826f212baa, PHONE-EXTENSION-72fe138b38de7ec8
+AUDIT_REPORT	phone: 3 mentions, 3 distinct [PHONE-7516d03383db4bb8, PHONE-4dc8a6e3610d038b, PHONE-a959e925a02fa145]\nphone-extension: 3 mentions, 3 distinct [PHONE-EXTENSION-f854c09c7d95c3cf, PHONE-EXTENSION-135183826f212baa, PHONE-EXTENSION-72fe138b38de7ec8]

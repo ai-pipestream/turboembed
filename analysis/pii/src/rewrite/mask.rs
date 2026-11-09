@@ -268,11 +268,19 @@ impl MaskPolicy {
             | PiiKind::Bic
             | PiiKind::Imei
             | PiiKind::CaSin
-            | PiiKind::AbaRouting => whole.keeping_format(),
+            | PiiKind::AbaRouting
+            | PiiKind::UsEin
+            | PiiKind::Vin
+            | PiiKind::TrackingNumber
+            | PiiKind::UsPassport
+            | PiiKind::UsDriversLicence
+            | PiiKind::UsZip
+            | PiiKind::PhoneExtension => whole.keeping_format(),
             PiiKind::Jwt
             | PiiKind::AwsAccessKey
             | PiiKind::GithubToken
             | PiiKind::UrlCredential
+            | PiiKind::Url
             | PiiKind::BtcAddress
             | PiiKind::EthAddress
             | PiiKind::Custom(_) => whole,

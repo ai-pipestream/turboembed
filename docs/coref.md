@@ -49,12 +49,15 @@ subtracts the largest logit when the plain exponential sum overflows.
 `turbo-train-head train-coref` trains an antecedent-ranking head
 (`HEAD_COREF_RANKER`) on LitBank's 100 literary works over a frozen
 encoder, and `assemble` packs it with that encoder into one bundle. The
-zoo lists the first such bundle as `turbo-en-litbank-modernbert-base-coref-1`
+zoo lists such a bundle as `turbo-en-litbank-modernbert-base-coref-2`
 (`KIND_HEAD`, `COMPONENT_COREFERENCE_RESOLVER`, `language` `en`,
 `CLASS_PERMISSIVE`): `Index::find("en", Component::CoreferenceResolver)`
 returns it, and `docs/licences.md` records the data. On the ten held-out
-test works it reaches CoNLL F1 0.7094 against the singleton baseline's
-0.3009; the receipt beside the release carries every setting and digest.
+test works it reaches CoNLL F1 0.7348 against the singleton baseline's
+0.3009. It has the first bundle's shape (0.7094), trained at seed 2: the
+#1828 sweep found no span or ranking setting that beats the shape across
+seeds (`trainer/recipes/records/1828/README.md`). The receipt beside the
+release carries every setting and digest.
 
 ## Training and scoring
 

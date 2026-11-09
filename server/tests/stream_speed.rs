@@ -38,6 +38,7 @@ async fn stream_round(c: &mut Analysis, docs: &[String], linger_ms: u32) -> Dura
     for (i, text) in docs.iter().enumerate() {
         tx.send(AnalyzeStreamRequest {
             kind: Some(Kind::Document(AnalyzeDocument {
+                binding: None,
                 id: format!("s-{i}"),
                 model: NAME.into(),
                 text: text.clone().into(),

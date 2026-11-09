@@ -234,6 +234,7 @@ pub fn stream_header(order: i32, max_inflight: u32, batch_linger_ms: u32) -> Ana
 pub fn stream_doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) -> AnalyzeStreamRequest {
     AnalyzeStreamRequest {
         kind: Some(Kind::Document(AnalyzeDocument {
+            binding: None,
             id: id.into(),
             model: model.into(),
             text: text.into(),

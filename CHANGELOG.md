@@ -260,6 +260,13 @@ stubs must be regenerated.
 
 ### Breaking
 
+- C ABI `TURBO_PII_CONFIDENCE_LABELLED` moved from `3` to `4` and code `3`
+  is now `TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM`, and Java
+  `TurboPiiConfidence` has `LABELLED_CHECKSUM(3)` and `LABELLED(4)` (#1899).
+- `KindReport.suppressed` and `PiiAuditReport.total_suppressed` were added as
+  public fields on `turbo_pii::rewrite::KindReport` and `PiiAuditReport`
+  (breaking struct-literal construction outside the crate; `of()` and
+  `with_suppressed()` are unaffected; #1898).
 - The in-process analyzer withholds PII values by default: a PII row from
   `turbo_analyzer_detect_pii`, `turbo_analyzer_analyze_graph` or
   `turbo_analyzer_inspect_graph` has its kind, tier and ranges, with

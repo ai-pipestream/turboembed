@@ -7,15 +7,20 @@ mod card;
 mod crypto;
 mod email;
 mod es_de;
+mod extension;
 mod fr;
 mod iban;
 mod jws;
 mod jwt;
 mod labelled;
+mod logistics;
 mod national;
 mod network;
 mod phone;
 mod secrets;
+mod url;
+mod us;
+mod us_labelled;
 
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -40,7 +45,8 @@ pub enum Extractor {
     Secrets,
     /// `CryptoPiiExtractor`: Bitcoin and Ethereum addresses.
     Crypto,
-    /// `UsIdentityPiiExtractor`: SSNs and ITINs.
+    /// `UsIdentityPiiExtractor`: SSNs, ITINs and EINs, and labelled
+    /// passport, driver's licence and ZIP codes.
     UsIdentity,
     /// `EuIdentityPiiExtractor`: European national and business identifiers.
     EuIdentity,
@@ -50,6 +56,13 @@ pub enum Extractor {
     CaIdentity,
     /// `DevicePiiExtractor`: labelled IMEIs.
     Device,
+    /// `LogisticsPiiExtractor`: vehicle identification numbers and parcel
+    /// tracking numbers.
+    Logistics,
+    /// `WebPiiExtractor`: web addresses.
+    Web,
+    /// `PhoneExtensionPiiExtractor`: extensions after a phone number.
+    PhoneExtension,
     /// A caller-defined extractor (`PiiExtractor`).
     Custom(&'static str),
 }
@@ -65,13 +78,16 @@ impl Extractor {
             Extractor::Network => PiiKinds::of(&[Ipv4, Ipv6, Mac]),
             Extractor::Secrets => PiiKinds::of(&[AwsAccessKey, GithubToken, Jwt, UrlCredential]),
             Extractor::Crypto => PiiKinds::of(&[BtcAddress, EthAddress]),
-            Extractor::UsIdentity => PiiKinds::of(&[UsSsn, UsItin]),
+            Extractor::UsIdentity => PiiKinds::of(&[UsSsn, UsItin, UsEin, UsPassport, UsDriversLicence, UsZip]),
             Extractor::EuIdentity => {
                 PiiKinds::of(&[UkNhs, DeSteuerId, EsDni, EsNie, EsCif, DePersonalausweis, FrNir, FrSiren, FrSiret, Bic])
             }
             Extractor::BrIdentity => PiiKinds::of(&[BrCpf, BrCnpj]),
             Extractor::CaIdentity => PiiKinds::of(&[CaSin]),
             Extractor::Device => PiiKinds::of(&[Imei]),
+            Extractor::Logistics => PiiKinds::of(&[Vin, TrackingNumber]),
+            Extractor::Web => PiiKinds::of(&[Url]),
+            Extractor::PhoneExtension => PiiKinds::of(&[PhoneExtension]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
@@ -89,6 +105,9 @@ impl Extractor {
             Extractor::BrIdentity => "BrIdentityPiiExtractor",
             Extractor::CaIdentity => "CaIdentityPiiExtractor",
             Extractor::Device => "DevicePiiExtractor",
+            Extractor::Logistics => "LogisticsPiiExtractor",
+            Extractor::Web => "WebPiiExtractor",
+            Extractor::PhoneExtension => "PhoneExtensionPiiExtractor",
             Extractor::Custom(name) => name,
         }
     }
@@ -108,6 +127,9 @@ impl Extractor {
             Extractor::BrIdentity => "turbo-pii:br-identity",
             Extractor::CaIdentity => "turbo-pii:ca-identity",
             Extractor::Device => "turbo-pii:device",
+            Extractor::Logistics => "turbo-pii:logistics",
+            Extractor::Web => "turbo-pii:web",
+            Extractor::PhoneExtension => "turbo-pii:phone-extension",
             Extractor::Custom(name) => name,
         }
     }
@@ -125,6 +147,9 @@ impl Extractor {
             Extractor::Device => 8,
             Extractor::Custom(_) => 9,
             Extractor::BrIdentity => 10,
+            Extractor::Logistics => 11,
+            Extractor::Web => 12,
+            Extractor::PhoneExtension => 13,
         }
     }
 }
@@ -370,11 +395,20 @@ impl Scanner {
                 }
             }
             Extractor::Crypto => crypto::scan(text, k, hits),
-            Extractor::UsIdentity => national::scan_us(text, k, hits),
+            Extractor::UsIdentity => {
+                national::scan_us(text, k, hits);
+                if k.contains(PiiKind::UsEin) {
+                    us::scan_ein(text, hits);
+                }
+                us_labelled::scan(text, k, hits);
+            }
             Extractor::EuIdentity => national::scan_eu(text, k, hits),
             Extractor::BrIdentity => br::scan_br(text, k, hits),
             Extractor::CaIdentity => labelled::scan_sin(text, hits),
             Extractor::Device => labelled::scan_imei(text, hits),
+            Extractor::Logistics => logistics::scan(text, k, hits),
+            Extractor::Web => url::scan(text, hits),
+            Extractor::PhoneExtension => extension::scan(text, hits),
             Extractor::Custom(_) => {}
         }
     }

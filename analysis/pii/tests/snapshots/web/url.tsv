@@ -1,0 +1,6 @@
+4	44	url	format	https://portal.example.com/vendors?id=42
+46	83	url	format	http://status.example.org:8080/health
+89	109	url	format	www.example.net/help
+117	153	url	format	https://docs.example.com/Guide#intro
+155	178	url	format	http://192.0.2.10/admin
+183	209	url	format	ftp://ftp.example.org/pub/

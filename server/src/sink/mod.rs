@@ -30,7 +30,7 @@ pub use receiver::{MAX_SUMMARY_ERRORS, SinkReceiver};
 
 use crate::api::Failure;
 use crate::proto::result::analyze_stream_response::Outcome;
-use crate::proto::result::{AnalyzeStreamResponse, DocumentGraphResponse};
+use crate::proto::result::{AnalyzeStreamResponse, DocumentGraphResponse, InputBinding};
 use crate::proto::sink::turbo_sink_service_client::TurboSinkServiceClient;
 use crate::proto::sink::{DocumentSinkItem, DocumentSinkSummary};
 
@@ -155,17 +155,22 @@ impl SinkForwarder {
         if matches!(answer.outcome, None | Some(Outcome::Failure(_))) {
             return;
         }
-        let item = DocumentSinkItem { doc_id: answer.id.clone(), analyzed: Some(answer.clone()), ..Default::default() };
-        self.enqueue(item);
+        let (doc_id, analyzed, binding) = (answer.id.clone(), Some(answer.clone()), answer.binding.clone());
+        self.enqueue(DocumentSinkItem { doc_id, analyzed, binding, ..Default::default() });
     }
 
     /// Offers one document graph without waiting, with the typed
     /// projection when configured. A graph that does not import, or a
     /// projection the graph cannot give, is refused and not offered.
     /// Answers whether the queue took it. Imports the graph: call it off
-    /// the async runtime.
-    pub(crate) fn offer_graph(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, Failure> {
-        self.offer_item(doc_id, document::graph_item(doc_id, graph, self.typed, &self.pii_output))
+    /// the async runtime. The caller's `binding` rides on the item.
+    pub(crate) fn offer_graph(
+        &self,
+        doc_id: &str,
+        graph: Vec<u8>,
+        binding: Option<&InputBinding>,
+    ) -> Result<bool, Failure> {
+        self.offer_item(doc_id, document::graph_item(doc_id, graph, self.typed, &self.pii_output, binding))
     }
 
     /// Offers the graph this server exported from `doc` as `exported`,
@@ -176,8 +181,10 @@ impl SinkForwarder {
         doc_id: &str,
         exported: DocumentGraphResponse,
         doc: &Document,
+        binding: Option<&InputBinding>,
     ) -> Result<bool, Failure> {
-        self.offer_item(doc_id, document::exported_item(doc_id, exported, doc, self.typed, &self.pii_output))
+        let item = document::exported_item(doc_id, exported, doc, self.typed, &self.pii_output, binding);
+        self.offer_item(doc_id, item)
     }
 
     /// Queues `item`, or counts the refusal that built it.
@@ -353,7 +360,7 @@ mod tests {
             true => Outcome::Failure(AnalyzeFailure::default()),
             false => Outcome::Vectors(AnalyzeVectors { dim: 1, data: vec![0; 4].into(), ..Default::default() }),
         };
-        AnalyzeStreamResponse { id: id.into(), outcome: Some(outcome) }
+        AnalyzeStreamResponse { id: id.into(), outcome: Some(outcome), binding: None }
     }
 
     fn config(items: usize, bytes: u64) -> SinkConfig {

@@ -294,17 +294,24 @@ fn the_markit_split_sweep_records_are_receipts_of_the_recorded_release() {
     }
 }
 
-/// The zoo's English part-of-speech entry is the head-B bundle: our own,
-/// permissive, trained on MASC 3.0.0, and attributed with the receipt's
-/// test score.
+/// The zoo's English part-of-speech entries (#1828): head B's command
+/// retrained, preferred by the language lookup, then the opt-in two-layer
+/// BiLSTM bundle. Each is our own, permissive, trained on MASC 3.0.0, and
+/// attributed with its receipt's test score.
 #[test]
-fn the_builtin_english_pos_entry_is_the_head_b_bundle() {
-    let head = receipt("head-B.json");
+fn the_builtin_english_pos_entries_are_the_1828_bundles() {
     let index = turbo_zoo::Index::builtin();
     let found: Vec<_> = index.find("en", turbo_zoo::Component::Pos).collect();
-    assert_eq!(found.len(), 1, "one English POS entry");
-    let a = found[0];
-    assert_eq!(a.id.as_str(), "turbo-en-masc-pos-modernbert-base-1");
+    let ids: Vec<&str> = found.iter().map(|a| a.id.as_str()).collect();
+    assert_eq!(ids, ["turbo-en-masc-pos-modernbert-base-2", "turbo-en-masc-pos-modernbert-base-bilstm256x2-1"]);
+    for (a, run) in found.into_iter().zip(["pos-shipped.json", "pos-bilstm256x2.json"]) {
+        let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("records/1828").join(run);
+        let head: Receipt = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+        pos_entry(a, &head);
+    }
+}
+
+fn pos_entry(a: &turbo_zoo::Artifact, head: &Receipt) {
     assert_eq!((a.kind, a.format), (turbo_zoo::Kind::Head, turbo_zoo::Format::Safetensors));
     assert_eq!(a.class, turbo_zoo::LicenceClass::Permissive);
     assert_eq!(a.computed_class(), turbo_zoo::LicenceClass::Permissive);
@@ -418,4 +425,38 @@ fn the_ud_head_records_are_receipts_of_the_recorded_releases() {
         let text = String::from_utf8(bytes).unwrap().to_lowercase();
         assert!(!text.contains("opennlp") && !text.contains("/work/"), "{name}: no OpenNLP row, no host paths");
     }
+}
+
+/// The #1828 sweep receipts: each run on the recorded release, scored
+/// against the head it would replace (MASC head B, or the first LitBank
+/// coreference head), read from the files those heads' records pin.
+#[test]
+fn the_1828_sweep_receipts_score_against_the_shipped_heads() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("records/1828");
+    let head_b = "76fac774d60210b9279a47ebcb565e12e2b353897f560afa4806e43771e8a3b6";
+    let coref_1 = "111513401ea11dc0731d07fe5b100db9063fa02b9b7d81f375040c3410952e36";
+    let mut runs = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let name = entry.unwrap().file_name().into_string().unwrap();
+        if !name.ends_with(".json") {
+            continue;
+        }
+        runs += 1;
+        let bytes = std::fs::read(dir.join(&name)).unwrap();
+        let raw: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(raw.get("host").is_none(), "{name}: host field present");
+        let r: Receipt = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert!(r.corpus.recorded, "{name}: not the recorded release");
+        assert!(r.command.iter().all(|c| !c.starts_with('/')), "{name}: an absolute path in the command");
+        let against = r.eval.against.as_ref().unwrap_or_else(|| panic!("{name}: no --against row"));
+        let prior = against.files.iter().find(|f| f.path == "head.safetensors").unwrap();
+        let want = if name.starts_with("pos-") { head_b } else { coref_1 };
+        assert_eq!(prior.sha256, want, "{name}: scored against another head");
+        let c = &against.comparison;
+        assert_eq!(c.model, r.eval.model.as_ref().unwrap().score(), "{name}");
+        assert!(c.low <= c.delta && c.delta <= c.high, "{name}: {c:?}");
+        let text = String::from_utf8(bytes).unwrap().to_lowercase();
+        assert!(!text.contains("opennlp") && !text.contains("/work/"), "{name}: no OpenNLP row, no host paths");
+    }
+    assert_eq!(runs, 26);
 }

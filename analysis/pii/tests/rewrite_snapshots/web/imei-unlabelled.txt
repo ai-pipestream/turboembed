@@ -1,0 +1,9 @@
+MASKED	Serial 490154203237518 with no label.
+
+MASK_ALL	Serial 490154203237518 with no label.
+
+REWRITE	pseudonymize	OK	Serial 490154203237518 with no label.
+
+REWRITE	hmac	OK	Serial 490154203237518 with no label.
+
+AUDIT_REPORT	no pii found

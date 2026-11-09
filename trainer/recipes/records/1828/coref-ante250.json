@@ -1,0 +1,847 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "train-coref",
+    "--corpus",
+    "litbank",
+    "--dir",
+    "litbank",
+    "--bundle",
+    "modernbert-base",
+    "--out",
+    "coref-ante250",
+    "--device",
+    "cuda",
+    "--commit",
+    "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+    "--against",
+    "turbo-en-litbank-modernbert-base-coref-1",
+    "--max-antecedents",
+    "250"
+  ],
+  "commit": "a3f7399523103e65825ea5d8f6e1ade79997adf6",
+  "unix_time": 1793940297,
+  "corpus": {
+    "id": "litbank",
+    "name": "LitBank",
+    "task": "coref",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://github.com/dbamman/litbank/blob/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md",
+    "attribution": "Trained on LitBank (Bamman, Popat and Shen, NAACL 2019; Bamman, Lewke and Mansoor, LREC 2020), published at https://github.com/dbamman/litbank under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/) over public-domain texts from Project Gutenberg.",
+    "recorded": true,
+    "files": [
+      {
+        "path": "coref/conll/1023_bleak_house_brat.conll",
+        "size": 112515,
+        "sha256": "2771286534c8886eabc5cbddbe3f1906b7a6e62f0495a5017a705bf4429c963a"
+      },
+      {
+        "path": "coref/conll/105_persuasion_brat.conll",
+        "size": 99215,
+        "sha256": "cbf749eedd272f8bff3f5b6daece18319930696566ea16dad842a4c12ff14a64"
+      },
+      {
+        "path": "coref/conll/1064_the_masque_of_the_red_death_brat.conll",
+        "size": 136401,
+        "sha256": "961639e2a61a9e05bd7c2d25482f23bc0760ff05ff0f99853be55b80c64f7417"
+      },
+      {
+        "path": "coref/conll/110_tess_of_the_durbervilles_a_pure_woman_brat.conll",
+        "size": 147863,
+        "sha256": "693a50aec48f3ba04fbabe9d2ebf4b54b6e98bea98d2339efd915667e48fc8cd"
+      },
+      {
+        "path": "coref/conll/11231_bartleby_the_scrivener_a_story_of_wallstreet_brat.conll",
+        "size": 218160,
+        "sha256": "8cfe084fda629afa7f436eef1f3c18ded3ef6f6b2e3e6f956e78db77bb3613a4"
+      },
+      {
+        "path": "coref/conll/113_the_secret_garden_brat.conll",
+        "size": 108830,
+        "sha256": "09155cef5a9eb001776aec33db40a56c997bca0d8dc56c182bc6c2794ddac202"
+      },
+      {
+        "path": "coref/conll/1155_the_secret_adversary_brat.conll",
+        "size": 121787,
+        "sha256": "a8a6d0d06ec7d0850825df8776c65bc0f508e5777adbb3793698fab9e3a0808b"
+      },
+      {
+        "path": "coref/conll/11_alices_adventures_in_wonderland_brat.conll",
+        "size": 142111,
+        "sha256": "3471151d70d4d0fb9bdfe4e5bfb9e80c87b16ae5613c084b4953eb2139e875ab"
+      },
+      {
+        "path": "coref/conll/1206_the_flying_u_ranch_brat.conll",
+        "size": 113363,
+        "sha256": "8773ed38bdb7a7495602f71d5f76c81d3d98dc76eac584b66746da8539f5c021"
+      },
+      {
+        "path": "coref/conll/120_treasure_island_brat.conll",
+        "size": 115560,
+        "sha256": "1ffeb220863c9a9e006dfdc2f2a21dff794aea8ff5739ce86d3361f997eed835"
+      },
+      {
+        "path": "coref/conll/1245_night_and_day_brat.conll",
+        "size": 114560,
+        "sha256": "835608916cc4c936a5f0731376d8e0999da1f45b74ab923c4e8cddd67af87915"
+      },
+      {
+        "path": "coref/conll/1260_jane_eyre_an_autobiography_brat.conll",
+        "size": 130548,
+        "sha256": "f53730c0170e99f20bd8760817e0ccc12f96e2f857a67db58dad9855fb661db2"
+      },
+      {
+        "path": "coref/conll/12677_personality_plus_some_experiences_of_emma_mcchesney_and_her_son_jock_brat.conll",
+        "size": 216283,
+        "sha256": "94293de673f722017f1c7a92c15441b98229806142270fe1311623da7613d790"
+      },
+      {
+        "path": "coref/conll/1327_elizabeth_and_her_german_garden_brat.conll",
+        "size": 141667,
+        "sha256": "4ead7958d200dbbceafaee8a6e157248a5a90b0d39cb01596ba997397c858750"
+      },
+      {
+        "path": "coref/conll/1342_pride_and_prejudice_brat.conll",
+        "size": 114884,
+        "sha256": "3e3a8cbfb959420bb9179a1a12debd19bbcf6ea459aa02be337de610f3c24b85"
+      },
+      {
+        "path": "coref/conll/1400_great_expectations_brat.conll",
+        "size": 114218,
+        "sha256": "6406f9f979397626d7efad85d47acef9d6b1d28c497b8dc1833fb450dcc9a2a9"
+      },
+      {
+        "path": "coref/conll/145_middlemarch_brat.conll",
+        "size": 97371,
+        "sha256": "35bc7e08240c18fb181ac575c4f8a544628ce6a015171ca29e70ef7aa875e072"
+      },
+      {
+        "path": "coref/conll/15265_the_quest_of_the_silver_fleece_a_novel_brat.conll",
+        "size": 153404,
+        "sha256": "36374b1bc4d8ccc6fc6a6ff30a8131c24e47085367b2b575ae3ca0b3b15f15f7"
+      },
+      {
+        "path": "coref/conll/155_the_moonstone_brat.conll",
+        "size": 102061,
+        "sha256": "b8e64341442a49b38f3fa2db2787b41b2d9c8c9e48bd2e9105524e425a4aa0f6"
+      },
+      {
+        "path": "coref/conll/158_emma_brat.conll",
+        "size": 85082,
+        "sha256": "0c1285dd247f4bad4be126166bcaa807553799959e9ea08ab77ef0646eb111da"
+      },
+      {
+        "path": "coref/conll/160_the_awakening_and_selected_short_stories_brat.conll",
+        "size": 156155,
+        "sha256": "61bdf63f9709980aa2ebbea4d1d2f704d0cf5cad9cbdfe73c18e0895515c56e2"
+      },
+      {
+        "path": "coref/conll/16357_mary_a_fiction_brat.conll",
+        "size": 109114,
+        "sha256": "c4d2eda60b050cb164c5c3a037615587a58b2c1dea1eedf49c395c89bb0cd13f"
+      },
+      {
+        "path": "coref/conll/1661_the_adventures_of_sherlock_holmes_brat.conll",
+        "size": 148327,
+        "sha256": "66ba70ee858e685078b47e3c01c036b3a9410a27a9219057c881ca502e9ace59"
+      },
+      {
+        "path": "coref/conll/1695_the_man_who_was_thursday_a_nightmare_brat.conll",
+        "size": 153308,
+        "sha256": "5f0e94fd452e564aafbaf1e2d153c074f3ce815d7154435d767510479c337f2e"
+      },
+      {
+        "path": "coref/conll/171_charlotte_temple_brat.conll",
+        "size": 109074,
+        "sha256": "ee56736df030ca314ae4f953baf7cff7914d72ff56783e57e04cb15ebb04f79e"
+      },
+      {
+        "path": "coref/conll/174_the_picture_of_dorian_gray_brat.conll",
+        "size": 126658,
+        "sha256": "fec99b4fb1383bc995ea54d73699376d5c61e51db4dedf459f5e016094c399eb"
+      },
+      {
+        "path": "coref/conll/18581_adrift_in_new_york_tom_and_florence_braving_the_world_brat.conll",
+        "size": 184677,
+        "sha256": "601f64dc079b40e38974b1a714d68f5ec507841769dd726b5d9c981e6ceafe34"
+      },
+      {
+        "path": "coref/conll/2005_piccadilly_jim_brat.conll",
+        "size": 108340,
+        "sha256": "3ca2445074b39aa2b9f54944e9777a80ee917ab1c4803cd6c9a37fc9835b3082"
+      },
+      {
+        "path": "coref/conll/2084_the_way_of_all_flesh_brat.conll",
+        "size": 119372,
+        "sha256": "364140de18334a5c3b1fcda12efc9ae35d15c522fab8f6c600f3db7fa8e36225"
+      },
+      {
+        "path": "coref/conll/208_daisy_miller_a_study_brat.conll",
+        "size": 114926,
+        "sha256": "ee6cf3a21e7f62f84ae701b206f113393900cb14b6be21b94ee3b6e5acad7c30"
+      },
+      {
+        "path": "coref/conll/2095_clotelle_a_tale_of_the_southern_states_brat.conll",
+        "size": 154509,
+        "sha256": "f55555a5e3c9614ed50b75e3ad1bd77977c1b332fbcfe50233f66a1aceeabadb"
+      },
+      {
+        "path": "coref/conll/209_the_turn_of_the_screw_brat.conll",
+        "size": 116814,
+        "sha256": "5e01a2caae65416bf97674088d43e1155517499926d89415fcf12ade608e95ae"
+      },
+      {
+        "path": "coref/conll/215_the_call_of_the_wild_brat.conll",
+        "size": 115483,
+        "sha256": "a24b3ac3bced111cfc255b02c801f112ce565c052673d2473f5d268677a1cc9e"
+      },
+      {
+        "path": "coref/conll/2166_king_solomons_mines_brat.conll",
+        "size": 117978,
+        "sha256": "58ebd8e6894c7a346d6363682349825d64dacef0c889ccb91f1a9447fb24dd4f"
+      },
+      {
+        "path": "coref/conll/217_sons_and_lovers_brat.conll",
+        "size": 104547,
+        "sha256": "63f52e18a0ccbfea542e0665a6da8293fe1f34164ac976dc00921d6e449b4333"
+      },
+      {
+        "path": "coref/conll/219_heart_of_darkness_brat.conll",
+        "size": 110557,
+        "sha256": "cf97d8a10a67e4d302985e626be1e9613652f857c62453a708394de9ae69d924"
+      },
+      {
+        "path": "coref/conll/233_sister_carrie_a_novel_brat.conll",
+        "size": 119871,
+        "sha256": "9551ea854c85076e2cbacdf4f5623b86ad7c362312a5635fe5014ba9b1349984"
+      },
+      {
+        "path": "coref/conll/238_dear_enemy_brat.conll",
+        "size": 95400,
+        "sha256": "a6b8292f200f90fe96a99133697320475222dd139cbaa80e1160cbe3550699ec"
+      },
+      {
+        "path": "coref/conll/2489_moby_dick_brat.conll",
+        "size": 102688,
+        "sha256": "9ced0dfa7218e62fe2f601380f55e88ee5cddf5dde06fe43eca000e5270179b1"
+      },
+      {
+        "path": "coref/conll/24_o_pioneers_brat.conll",
+        "size": 94136,
+        "sha256": "f791ec95faffe59172f71f00b7ef23a6dcdb11bfdfcc41f5f8b22d82e0472600"
+      },
+      {
+        "path": "coref/conll/2641_a_room_with_a_view_brat.conll",
+        "size": 112311,
+        "sha256": "776f8f7be118b26bd0be48a43f5b32cdf53ab38fdeea821eed069019b64d62be"
+      },
+      {
+        "path": "coref/conll/271_black_beauty_brat.conll",
+        "size": 98414,
+        "sha256": "87d4dc7469517ed37d772fe66f8eaf3b43d1e088757d1dc4aacdbebe479845f0"
+      },
+      {
+        "path": "coref/conll/2775_the_good_soldier_brat.conll",
+        "size": 125593,
+        "sha256": "8b455764dabc35c58a8786abe7fee3ef393eb4a8913086e1a6681fb9c6576710"
+      },
+      {
+        "path": "coref/conll/27_far_from_the_madding_crowd_brat.conll",
+        "size": 144402,
+        "sha256": "c3c0d1cc3da87b5a18d180f3d5ffafbf210dfd59d75609127b4270c863dae536"
+      },
+      {
+        "path": "coref/conll/2807_to_have_and_to_hold_brat.conll",
+        "size": 114093,
+        "sha256": "88f41fd60b11eb578bb09ab68fa6b24e422e157fbe9a7b898ebd978675502990"
+      },
+      {
+        "path": "coref/conll/2814_dubliners_brat.conll",
+        "size": 94256,
+        "sha256": "adf476b60ae81acc48f5d953d4ef027224d62883439374cc4c18a6d00c6b2694"
+      },
+      {
+        "path": "coref/conll/2852_the_hound_of_the_baskervilles_brat.conll",
+        "size": 138996,
+        "sha256": "158906bf6dd8abd8973557c7b27938635340d7e17ca16d72decd4f0e8992488c"
+      },
+      {
+        "path": "coref/conll/2891_howards_end_brat.conll",
+        "size": 98899,
+        "sha256": "8b470bd2b43ce8e546d69941d83f946dcac4dcf50d22cc3dd0aa96439859abce"
+      },
+      {
+        "path": "coref/conll/3268_the_mysteries_of_udolpho_brat.conll",
+        "size": 125380,
+        "sha256": "7180ce7f7a9dc63c1d46e4bac3a533fe37135fd6fd3f8ddb8537e6a1a90c36c9"
+      },
+      {
+        "path": "coref/conll/32_herland_brat.conll",
+        "size": 86049,
+        "sha256": "0e570ea2aad15dff274d4d17ead07872b0227be362b2b26b33b907389490482c"
+      },
+      {
+        "path": "coref/conll/33_the_scarlet_letter_brat.conll",
+        "size": 117760,
+        "sha256": "57cda5aa46aacd7370063c125dc8d8197c3a3241642ef2ed75dc63d523d8d949"
+      },
+      {
+        "path": "coref/conll/3457_the_man_of_the_forest_brat.conll",
+        "size": 120002,
+        "sha256": "34fb522855de0e04e01703fcfe33fe6c4e1b539a0c7438e32d05fd442565ec03"
+      },
+      {
+        "path": "coref/conll/345_dracula_brat.conll",
+        "size": 99072,
+        "sha256": "cd40a2da589e75284fcd3c85f88cde600aedbdcdcfa766c8e7a147a8547fe9e8"
+      },
+      {
+        "path": "coref/conll/351_of_human_bondage_brat.conll",
+        "size": 105546,
+        "sha256": "cae321668a26a031bcebed87dbfd5ba99affbcb90649cce8642e2255faf6968d"
+      },
+      {
+        "path": "coref/conll/367_country_of_the_pointed_firs_brat.conll",
+        "size": 132278,
+        "sha256": "deccd207d67e5bd1b0d353e12aee9ae8c7bf5037a24d56f24dc4df38d6599d9a"
+      },
+      {
+        "path": "coref/conll/36_the_war_of_the_worlds_brat.conll",
+        "size": 115826,
+        "sha256": "def37bf8c79b9562baa1d751ec660ffd3d0a8aa727b4adde94e16df93cd0f786"
+      },
+      {
+        "path": "coref/conll/4051_lady_bridget_in_the_nevernever_land_a_story_of_australian_life_brat.conll",
+        "size": 209803,
+        "sha256": "3f3c08b31ba6ac0659d8f9badfccf2d48de3b6b20e7a3170421e0d57c50ee80b"
+      },
+      {
+        "path": "coref/conll/41286_miss_marjoribanks_brat.conll",
+        "size": 154667,
+        "sha256": "f3683632175b731774c6ae989081e2fdb67d760cb874de2d448ec1bbb600070f"
+      },
+      {
+        "path": "coref/conll/41_the_legend_of_sleepy_hollow_brat.conll",
+        "size": 137965,
+        "sha256": "3c098d0a1fd682bfec4889f2b0ce4a3d35c9e9b179e91c5cdfb166c84e40cf8b"
+      },
+      {
+        "path": "coref/conll/4217_a_portrait_of_the_artist_as_a_young_man_brat.conll",
+        "size": 164552,
+        "sha256": "4820deb04462a63e224748dd08c7d610da7ca9e081a59d770cf76e6c1761eff8"
+      },
+      {
+        "path": "coref/conll/4276_north_and_south_brat.conll",
+        "size": 107098,
+        "sha256": "fdf1c12999c1fbd9f6a84d4046e5f7fed2b952670abfbe936329846c8ea2a5eb"
+      },
+      {
+        "path": "coref/conll/4300_ulysses_brat.conll",
+        "size": 91372,
+        "sha256": "a1424a9e91fac463ebcf9919ab6d847233b3467d02753412c1ae50684d729277"
+      },
+      {
+        "path": "coref/conll/432_the_ambassadors_brat.conll",
+        "size": 119284,
+        "sha256": "d739b037f00370d24c491b533f344e4938690b11bff3bab433da4686358493c6"
+      },
+      {
+        "path": "coref/conll/434_the_circular_staircase_brat.conll",
+        "size": 122208,
+        "sha256": "98a4038c6eda7c5f31135cee3fe5caf4891aa5d51edd605ca4bbe05f4aa7c7e5"
+      },
+      {
+        "path": "coref/conll/44_the_song_of_the_lark_brat.conll",
+        "size": 114899,
+        "sha256": "fbcb0f9d9856566cefebd46b6da5fc6630381239e11bff7ce1a56763d63828e4"
+      },
+      {
+        "path": "coref/conll/45_anne_of_green_gables_brat.conll",
+        "size": 112948,
+        "sha256": "57cf09fbb06cc7c4e80fd711b004c64610d6764e0a35c23e1231cf85f077d4e7"
+      },
+      {
+        "path": "coref/conll/472_the_house_behind_the_cedars_brat.conll",
+        "size": 129904,
+        "sha256": "68bcd782f4396f3d5ba057b56361ea7d0fff0bb5ca0d6419d4204d7eff6a68b6"
+      },
+      {
+        "path": "coref/conll/502_desert_gold_brat.conll",
+        "size": 98551,
+        "sha256": "602a75d7d3d7e83519d75657e86695c506d232196e17009859437515b64b87b7"
+      },
+      {
+        "path": "coref/conll/514_little_women_brat.conll",
+        "size": 97939,
+        "sha256": "4ed8f191fbd9c17c8321c014b818dc50d1494a8da240bf2b63acbe560bac2019"
+      },
+      {
+        "path": "coref/conll/521_the_life_and_adventures_of_robinson_crusoe_brat.conll",
+        "size": 181254,
+        "sha256": "a5b50dba8af16825847144eda371c9c4f92699c6ca2f52f908ed9abc52586220"
+      },
+      {
+        "path": "coref/conll/5230_the_invisible_man_a_grotesque_romance_brat.conll",
+        "size": 150797,
+        "sha256": "981bd31e2b2133f6bc0886435f95f383b12b22aca5eba3e5c32ffb9fa9a783e6"
+      },
+      {
+        "path": "coref/conll/5348_ragged_dick_or_street_life_in_new_york_with_the_bootblacks_brat.conll",
+        "size": 200674,
+        "sha256": "6222bd539eb61476e17d3c037c2793258ab4749664e9ccc10ff7240ae42b8c23"
+      },
+      {
+        "path": "coref/conll/541_the_age_of_innocence_brat.conll",
+        "size": 115936,
+        "sha256": "9de5ed9744b93495059c1c701eb0a9f4d48b083982d2e42a3ca49c74494a8a78"
+      },
+      {
+        "path": "coref/conll/543_main_street_brat.conll",
+        "size": 101663,
+        "sha256": "a85a7597e502a9f9443a5da10f9c1b13cd61259419069670d1877d123367179f"
+      },
+      {
+        "path": "coref/conll/550_silas_marner_brat.conll",
+        "size": 101579,
+        "sha256": "a38da59490ef358a07e1f2aac51a7e5fe4d3a2b281baa1ad5c7f23ad4f4f9484"
+      },
+      {
+        "path": "coref/conll/599_vanity_fair_brat.conll",
+        "size": 99153,
+        "sha256": "fbeae712599782a99e92abc94b260291b7dc7a48ed052728bceb9ef3abaeb412"
+      },
+      {
+        "path": "coref/conll/6053_evelina_or_the_history_of_a_young_ladys_entrance_into_the_world_brat.conll",
+        "size": 203351,
+        "sha256": "1ca2bf7d44ed60d74a23f77c47523d88b459e113501c3504d5d2e93adcb360d4"
+      },
+      {
+        "path": "coref/conll/60_the_scarlet_pimpernel_brat.conll",
+        "size": 116646,
+        "sha256": "601b734a4824feb0f8f12f62eb85a16130949fbc7c98542f45b27b6e1bfe36e8"
+      },
+      {
+        "path": "coref/conll/62_a_princess_of_mars_brat.conll",
+        "size": 110080,
+        "sha256": "1768e67f22864fa5e5a11a2c88f03029a9fb594cbe6b5c75f06f6f37ae62e5c0"
+      },
+      {
+        "path": "coref/conll/6593_history_of_tom_jones_a_foundling_brat.conll",
+        "size": 143183,
+        "sha256": "dbb1d20d9946ae1046a21f3af07b13d27f08c8b07308380a176565d80d9d9498"
+      },
+      {
+        "path": "coref/conll/711_allan_quatermain_brat.conll",
+        "size": 105304,
+        "sha256": "b09b044183397f0b6352326a38286849fb3501880ef7572af9fcbc771c302034"
+      },
+      {
+        "path": "coref/conll/730_oliver_twist_brat.conll",
+        "size": 101550,
+        "sha256": "f81bf99f86a3354a62208ca01015816d28a87acc171332d50cbcf784304c364c"
+      },
+      {
+        "path": "coref/conll/73_the_red_badge_of_courage_an_episode_of_the_american_civil_war_brat.conll",
+        "size": 198175,
+        "sha256": "34c534553a5cbdb9bd389d3388952cb829a4f0a6659f9d3aa6d39d4210964d84"
+      },
+      {
+        "path": "coref/conll/74_the_adventures_of_tom_sawyer_brat.conll",
+        "size": 127219,
+        "sha256": "5e7e619c2c121093b33abb05a8e170a548566966556f0d2f9c0c9d6bc683eb76"
+      },
+      {
+        "path": "coref/conll/766_david_copperfield_brat.conll",
+        "size": 109419,
+        "sha256": "46be22b4e55acea640d667e8fc78144347064e3f0d01197307f612b27d0a1055"
+      },
+      {
+        "path": "coref/conll/768_wuthering_heights_brat.conll",
+        "size": 110441,
+        "sha256": "a9eb0f6d287e3bba26f208d8cc237297a37806ff10203e22878b8d4b081ca012"
+      },
+      {
+        "path": "coref/conll/76_adventures_of_huckleberry_finn_brat.conll",
+        "size": 141180,
+        "sha256": "b8f9a888314dabc40df463ba384e4fae06a750b1e50500f0a82ff0b2be0fc1e7"
+      },
+      {
+        "path": "coref/conll/77_the_house_of_the_seven_gables_brat.conll",
+        "size": 140469,
+        "sha256": "74af63564e6e0a57b1e172e61e71b4d62bc9f0566d31bf7aec6e29a419ff7331"
+      },
+      {
+        "path": "coref/conll/78_tarzan_of_the_apes_brat.conll",
+        "size": 110917,
+        "sha256": "c205041bd280d93e770b10c50e01086498186f68d325012c560f1488337c10f6"
+      },
+      {
+        "path": "coref/conll/805_this_side_of_paradise_brat.conll",
+        "size": 117022,
+        "sha256": "dd50aaa08f8353d1aadc0d3b566b3799749ab5bfcf87d786975c42f41ebf999e"
+      },
+      {
+        "path": "coref/conll/829_gullivers_travels_into_several_remote_nations_of_the_world_brat.conll",
+        "size": 325383,
+        "sha256": "886295009fb83ba0bb0de8d65e4af50f53eb9e28432b88b8a847191d5dc0b62c"
+      },
+      {
+        "path": "coref/conll/84_frankenstein_or_the_modern_prometheus_brat.conll",
+        "size": 175360,
+        "sha256": "47e63625d1a677ae048d1ebcc5180d13b475aae7aaea8d7f9c299fd449e5ca63"
+      },
+      {
+        "path": "coref/conll/876_life_in_the_ironmills_or_the_korl_woman_brat.conll",
+        "size": 164377,
+        "sha256": "e297ed6e9896e3ac05da246f1e700a585f22a4a17705d28c957f3954b072e7e9"
+      },
+      {
+        "path": "coref/conll/8867_the_magnificent_ambersons_brat.conll",
+        "size": 136255,
+        "sha256": "c8fd63628fde8613cdbfd5ee8d67e2e3812b6be899549174b7d5d7e8ee316cfd"
+      },
+      {
+        "path": "coref/conll/932_the_fall_of_the_house_of_usher_brat.conll",
+        "size": 146462,
+        "sha256": "989d28cf6ad6e432e0f86d6faecf8898d357265b0455685a175603d4aca176e8"
+      },
+      {
+        "path": "coref/conll/940_the_last_of_the_mohicans_a_narrative_of_1757_brat.conll",
+        "size": 184514,
+        "sha256": "d27427f9f6e8d2989a1eca75ac8ff1e27592915de7d395580a829e0ca05d34fc"
+      },
+      {
+        "path": "coref/conll/95_the_prisoner_of_zenda_brat.conll",
+        "size": 131748,
+        "sha256": "442caaa90f911d8ae17870407507d13c86b9cc73afe927e33291c5f81e56d710"
+      },
+      {
+        "path": "coref/conll/969_the_tenant_of_wildfell_hall_brat.conll",
+        "size": 131264,
+        "sha256": "bf1a1c08a1b6257c0aa720961a8c41aa61b19d27674377f8be140cd1279f8163"
+      },
+      {
+        "path": "coref/conll/974_the_secret_agent_a_simple_tale_brat.conll",
+        "size": 169213,
+        "sha256": "ef8f014b48125a46dc173a057caac589f8a8eb3ee15e97af0c07c6d09d9b4add"
+      },
+      {
+        "path": "coref/conll/9830_the_beautiful_and_damned_brat.conll",
+        "size": 130041,
+        "sha256": "5c70c7a9af1bcd5e519eb687f195f336f8b1dc1b97bcda318265a4254c0d27db"
+      }
+    ],
+    "split": "sorted coref/conll works partitioned 80/10/10 train/dev/test at 3e50db0ffc033d7ccbb94f4d88f6b99210328ed8",
+    "train": {
+      "sentences": 6997,
+      "words": 166604
+    },
+    "dev": {
+      "sentences": 806,
+      "words": 20467
+    },
+    "test": {
+      "sentences": 759,
+      "words": 23461
+    },
+    "skipped": 0
+  },
+  "encoder": {
+    "model": "answerdotai/ModernBERT-base",
+    "revision": "1",
+    "manifest_sha256": "65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8",
+    "hidden": 768,
+    "layers": 22,
+    "width": 8190,
+    "backend": "cuda",
+    "device": "NVIDIA GeForce RTX 4080 SUPER",
+    "precision": "f32 (model)"
+  },
+  "head": {
+    "name": "coref",
+    "layer": "turboembed:coref",
+    "kind": "HEAD_COREF_RANKER",
+    "labels": [
+      "coref"
+    ],
+    "scheme": "SCHEME_TAGS",
+    "word_pooling": "WORD_POOLING_FIRST",
+    "decode": "DECODE_ANTECEDENT",
+    "span": {
+      "max_words": 64,
+      "width_dim": 16
+    },
+    "coref": {
+      "dim": 128,
+      "antecedents": 250
+    },
+    "license_class": "CLASS_PERMISSIVE",
+    "artifact": "weights-f32",
+    "tensor_prefix": "heads.coref"
+  },
+  "config": {
+    "seed": 1,
+    "epochs": 60,
+    "batch": 16,
+    "lr": 0.002,
+    "weight_decay": 0.01,
+    "clip": 5.0,
+    "warmup": 0.1,
+    "patience": 6,
+    "tolerance": 0.001,
+    "threads": 0,
+    "max_train": 0,
+    "dev_left_out": 0
+  },
+  "training": {
+    "train_loss": [
+      6.602018676345557,
+      4.813024776426215,
+      2.9619732042320184,
+      2.5541772948191976,
+      1.9844853217368608,
+      1.8335588502398819,
+      1.7461236426498818,
+      1.5763214751888932,
+      2.066508331376569,
+      1.8558358857499861,
+      1.5023641554789202,
+      1.4485596732268424,
+      1.3277960782140084,
+      1.3384888174524798,
+      1.1932582590492724,
+      1.1261450782777533,
+      1.1277839890035846,
+      1.0713592636656006,
+      0.9932247292155093,
+      0.9673574127665281,
+      1.0098740427370656,
+      1.0800834663046466,
+      1.1637730013872543,
+      1.0159120293454578,
+      0.9072291392032245,
+      0.9223492590492204,
+      0.9050586318193986,
+      0.9047773982828816,
+      0.8584890209139744,
+      0.7908918496407481,
+      0.7556798704307746,
+      0.7302847267077899,
+      0.7157881334798185,
+      0.6949425126098869,
+      0.6682775520281038,
+      0.6481054764922127
+    ],
+    "dev": [
+      0.28015988372093026,
+      0.3648255813953488,
+      0.4309593023255814,
+      0.39425872093023256,
+      0.44585755813953487,
+      0.5843023255813954,
+      0.5675872093023255,
+      0.5047238372093024,
+      0.39934593023255816,
+      0.5425145348837209,
+      0.5734011627906976,
+      0.6253633720930233,
+      0.6140988372093024,
+      0.6180959302325582,
+      0.6257267441860465,
+      0.6319040697674418,
+      0.6373546511627907,
+      0.6286337209302325,
+      0.6322674418604651,
+      0.654796511627907,
+      0.6460755813953488,
+      0.5446947674418605,
+      0.6457122093023255,
+      0.6475290697674418,
+      0.6609738372093024,
+      0.6587936046511628,
+      0.6442587209302325,
+      0.6598837209302325,
+      0.6566133720930233,
+      0.6660610465116279,
+      0.6493459302325582,
+      0.6555232558139535,
+      0.6544331395348837,
+      0.6653343023255814,
+      0.6584302325581395,
+      0.6526162790697675
+    ],
+    "best_epoch": 30,
+    "epoch_seconds": [
+      0.79399808,
+      0.761362231,
+      0.776964147,
+      0.818377661,
+      0.775156246,
+      0.777292498,
+      0.794589971,
+      0.79275556,
+      0.76509348,
+      0.782810236,
+      0.798577824,
+      0.79984409,
+      0.765052171,
+      0.767935326,
+      0.791323401,
+      0.776979335,
+      0.763134444,
+      0.778607986,
+      0.790098473,
+      0.773954823,
+      0.802901755,
+      0.804962763,
+      0.761099785,
+      0.768748946,
+      0.798081245,
+      0.785635911,
+      0.763643808,
+      0.812194334,
+      0.800637501,
+      0.789265819,
+      0.759140107,
+      0.796319652,
+      0.793764188,
+      0.77232437,
+      0.80475483,
+      0.795907883
+    ]
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "coref": {
+        "documents": 10,
+        "mentions": 3169,
+        "gold_clusters": 1010,
+        "predicted_clusters": 1338,
+        "muc": {
+          "precision": 0.8618241398143092,
+          "recall": 0.7308939323761,
+          "f1": 0.7909774436090226
+        },
+        "b_cubed": {
+          "precision": 0.7373089735160118,
+          "recall": 0.6918315815785677,
+          "f1": 0.7138466982009269
+        },
+        "ceaf_e": {
+          "precision": 0.6176249700077249,
+          "recall": 0.8182002077924119,
+          "f1": 0.7039030748469641
+        },
+        "conll_f1": 0.7362424055523045
+      }
+    },
+    "baseline": {
+      "coref": {
+        "documents": 10,
+        "mentions": 3169,
+        "gold_clusters": 1010,
+        "predicted_clusters": 3169,
+        "muc": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "b_cubed": {
+          "precision": 1.0,
+          "recall": 0.3187125276112338,
+          "f1": 0.48336922708782
+        },
+        "ceaf_e": {
+          "precision": 0.2765197971857044,
+          "recall": 0.867615086417324,
+          "f1": 0.41937843373127415
+        },
+        "conll_f1": 0.300915886939698
+      }
+    },
+    "comparison": {
+      "model": 0.7362424055523045,
+      "baseline": 0.300915886939698,
+      "delta": 0.43532651861260646,
+      "low": 0.3329719139563197,
+      "high": 0.5114086046849763,
+      "resamples": 1000,
+      "seed": 1
+    },
+    "against": {
+      "name": "turbo-en-litbank-modernbert-base-coref-1 (max words 64, width 16, mlp 128, antecedents 128)",
+      "baseline": {
+        "coref": {
+          "documents": 10,
+          "mentions": 3169,
+          "gold_clusters": 1010,
+          "predicted_clusters": 1228,
+          "muc": {
+            "precision": 0.8222565687789799,
+            "recall": 0.7392311255210746,
+            "f1": 0.7785365853658538
+          },
+          "b_cubed": {
+            "precision": 0.6294453355284736,
+            "recall": 0.7298206569719993,
+            "f1": 0.6759268764729157
+          },
+          "ceaf_e": {
+            "precision": 0.613937282257875,
+            "recall": 0.7464504778343273,
+            "f1": 0.6737399308424223
+          },
+          "conll_f1": 0.7094011308937306
+        }
+      },
+      "comparison": {
+        "model": 0.7362424055523045,
+        "baseline": 0.7094011308937306,
+        "delta": 0.026841274658573888,
+        "low": 0.01006910856883203,
+        "high": 0.04221855447450229,
+        "resamples": 1000,
+        "seed": 1
+      },
+      "files": [
+        {
+          "path": "head.json",
+          "size": 431,
+          "sha256": "5eac3e3c08151e4019e3295aadc8f86518d1960e786b2d9745ba62f88b906e1f"
+        },
+        {
+          "path": "head.safetensors",
+          "size": 865300,
+          "sha256": "111513401ea11dc0731d07fe5b100db9063fa02b9b7d81f375040c3410952e36"
+        },
+        {
+          "path": "receipt.json",
+          "size": 25352,
+          "sha256": "b0bca43f1a5cf06e30fb5ad2ad073037d5287f164f6a907d289ac70d0b7de8cf"
+        }
+      ]
+    }
+  },
+  "timing_s": {
+    "read": 0.107517198,
+    "features": 14.002982606,
+    "train": 28.824958547,
+    "eval": 3.035906814,
+    "feature_words": 187071
+  },
+  "outputs": [
+    {
+      "path": "head.safetensors",
+      "size": 865300,
+      "sha256": "99f6841ccdf074b3201690a50b47de940e4c230842aea4fc0bffbc287f841211"
+    },
+    {
+      "path": "head.json",
+      "size": 431,
+      "sha256": "3024465a1fbc0d03879f67fe0643bf04c4b6de522c60703c67516c0641913291"
+    }
+  ]
+}

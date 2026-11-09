@@ -118,19 +118,34 @@ const EXTERNAL_DOCS: [(&str, bool, &str, &str); 23] = [
     ),
 ];
 
+/// Kinds these documents were never annotated for: their mentions are
+/// counted and pinned, but neither true nor false. The documents carry
+/// hundreds of real web addresses (citations, references, links) that
+/// `labels-external.tsv` predates, so `url` is scored on the mixed set
+/// in `precision_recall.rs` instead.
+const UNANNOTATED: [(&str, usize); 1] = [("url", 496)];
+
 /// Only kinds with gold in these documents are pinned here; mentions
-/// of any other kind count into the total false positives.
+/// of any other annotated kind count into the total false positives.
 #[test]
 fn precision_and_recall_on_external_prose() {
     let set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
-    let by_kind = measure(&set);
+    let mut by_kind = measure(&set);
+    for (kind, found) in UNANNOTATED {
+        let c = by_kind.remove(kind).unwrap_or_default();
+        assert_eq!((c.tp, c.fn_), (0, 0), "{kind} has no gold here");
+        eprintln!("{kind}: {} mentions, not annotated in this partition", c.fp);
+        assert_eq!(c.fp, found, "{kind}");
+    }
     eprintln!("\nexternal prose evaluation set (#968):");
-    let want_by_kind: [(&str, usize, usize, usize); 20] = [
+    let want_by_kind: [(&str, usize, usize, usize); 21] = [
         ("aba-routing", 4, 0, 4),
         ("aws-access-key", 4, 0, 0),
         ("btc-address", 8, 0, 3),
         ("ca-sin", 0, 0, 2),
-        ("card", 314, 11, 41),
+        // Seven false cards are digit runs inside web addresses, dropped
+        // since the url mention holds them.
+        ("card", 314, 4, 41),
         ("de-steuer-id", 2, 0, 0),
         ("email", 22, 2, 1),
         ("eth-address", 14, 0, 0),
@@ -141,11 +156,15 @@ fn precision_and_recall_on_external_prose() {
         ("ipv6", 3, 0, 0),
         ("jwt", 0, 0, 2),
         ("mac", 29, 0, 0),
-        ("phone", 5, 16, 0),
-        ("uk-nhs", 1, 2, 3),
+        // One false phone and one false NHS number are digit runs inside
+        // web addresses, dropped since the url mention holds them.
+        ("phone", 5, 15, 0),
+        ("uk-nhs", 1, 1, 3),
         ("url-credential", 1, 0, 0),
         ("us-itin", 2, 0, 2),
         ("us-ssn", 3, 0, 0),
+        // A 12-digit test card that fails Luhn passes the FedEx check.
+        ("tracking-number", 0, 1, 0),
     ];
     let mut total = Counts::default();
     for (kind, c) in &by_kind {
@@ -169,7 +188,7 @@ fn precision_and_recall_on_external_prose() {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (431, 34, 60));
+    assert_eq!((total.tp, total.fp, total.fn_), (431, 26, 60));
 }
 
 #[test]

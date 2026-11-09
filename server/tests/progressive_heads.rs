@@ -67,6 +67,7 @@ async fn serve_models(models: Vec<ModelConfig>) -> (Server, AnalysisServiceClien
 
 fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineRequest {
     AnalyzePipelineRequest {
+        binding: None,
         doc_id: doc_id.into(),
         text: DOC.into(),
         source_bytes: Vec::new(),

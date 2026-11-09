@@ -137,7 +137,7 @@ fn unknown_kind_codes_and_evidence_kinds_are_refused_on_import() {
     assert_eq!(import(&good, &codecs()).unwrap().get::<Pii>().unwrap().kind, [PiiKind::Phone]);
     for (code, tag, want) in [
         (0, 1, "unknown pii kind code 0"),
-        (31, 1, "unknown pii kind code 31"),
+        (39, 1, "unknown pii kind code 39"),
         (65_536, 1, "unknown pii kind code 65536"),
         (30, 0, "unknown pii evidence kind 0"),
         (30, 9, "unknown pii evidence kind 9"),

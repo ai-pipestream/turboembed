@@ -397,11 +397,23 @@ impl Server {
     /// does not have), is refused, not offered and counted refused; a graph
     /// for a server without a sink is refused too.
     pub async fn forward_document(&self, doc_id: &str, graph: Vec<u8>) -> Result<bool, api::Failure> {
+        self.forward_bound_document(doc_id, graph, None).await
+    }
+
+    /// [`Self::forward_document`] with the caller's `binding` of the input
+    /// (#1939) on the item and its typed projection, copied as given; a
+    /// `parse_artifact_digest` without a `parse_artifact_id` is refused.
+    pub async fn forward_bound_document(
+        &self,
+        doc_id: &str,
+        graph: Vec<u8>,
+        binding: Option<proto::result::InputBinding>,
+    ) -> Result<bool, api::Failure> {
         let sink = self.sink.clone().ok_or_else(sink::no_sink)?;
         let doc_id = doc_id.to_owned();
         // Importing the graph walks the whole document; keep the async
         // runtime free of it.
-        tokio::task::spawn_blocking(move || sink.offer_graph(&doc_id, graph))
+        tokio::task::spawn_blocking(move || sink.offer_graph(&doc_id, graph, binding.as_ref()))
             .await
             .map_err(|e| api::Failure::new(api::TURBO_E_INTERNAL, 0, format!("the sink forwarding task failed: {e}")))?
     }

@@ -556,7 +556,18 @@ and the stacks are built from the projected view's tokens.
 
 - `rewritten_text`: the text of the requested view when that view is a
   PII rewrite view, one a `turbo-pii:` annotator wrote, such as the masked
-  view. The text of any other view needs `full_text`.
+  view. The text of any other view needs `full_text`. A rewrite view
+  counts only when it rewrote every finding: a `turbo:pii` instance it
+  did not read that holds a mention (a second detector run after the
+  rewrite) may sit in clear in its text, so that view also needs
+  `full_text` (#1932). Findings a parent rewrite view covered, or that a
+  rewrite read as a projected copy, count as covered. A layer is judged
+  by its lineage (its own view and every layer it read or was made on,
+  back to a view): one made from another view's text (the source's
+  lemmas, keyword phrases, a `ProjectView` copy of them on the rewrite
+  view, linked names joined into entities) is listed bare, and one made
+  from the rewrite view alone, such as lemmas aligned to its tokens, is
+  kept.
 - `full_text`: source and view texts and graph bytes, as for a document
   without PII.
 - `detail`: candidates and evidence detail (#1903).
@@ -720,6 +731,10 @@ digest that is not available is absent, never zero-filled or invented.
   (source repository revision, parse artifact id and digest) copied from
   `InspectDocumentGraphRequest.binding` exactly as given. The server
   never invents repository provenance: no binding sent, none returned.
+  `AnalyzePipelineRequest.binding` (field 13, issue #1939) is copied the
+  same way into the progressive call's receipt and onto its sink item;
+  `AnalyzeDocument.binding` on `AnalyzeStream` is below. On every path a
+  `parse_artifact_digest` without a `parse_artifact_id` is refused.
 - `result` (`ResultIdentity`): the SHA-256 of the exact TGRF bytes
   `DocumentGraph::to_bytes` writes for the document, so `sha256sum` of
   the graph bytes reproduces it, with the graph format version, the
@@ -1061,7 +1076,17 @@ learned sparse lexical expansion, `ANALYZE_OUTPUT_TOKEN_VECTORS` for
 per-token contextual vectors and encoder window spans, or
 `ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes), and `offsets`
 (`OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, or `OFFSET_MODE_CODE_POINT` for
-span offsets on `SparseTermsResult` and `TokenVectorsResult`). Every
+span offsets on `SparseTermsResult` and `TokenVectorsResult`), and
+optionally `binding` (field 7, issue #1939), the caller's `InputBinding`
+of the text: its source revision and parse artifact id and digest. The
+server echoes it as given on the document's answer
+(`AnalyzeStreamResponse.binding`, field 7), failures included, and on
+the answer's sink item, so a downstream store joins the result to the
+parse artifact; a document that sends none gets none back, and a
+`parse_artifact_digest` without a `parse_artifact_id` fails that
+document with `TURBO_E_INVALID_ARGUMENT`. The binding counts toward the
+document's queued bytes; a refusal over the stream's byte cap echoes it
+only when its id and binding fit that cap. Every
 document answers exactly once as an `AnalyzeStreamResponse` tagged with
 its id:
 - `AnalyzeVectors`, whose `data` is byte for byte the row the
@@ -1154,6 +1179,10 @@ entities, relations, learned sentences, word splits, coreference) on
 Unicode text read in several windows, every head layer's offsets in all
 three `OffsetMode`s, the named selection refusals, and encoder forwards
 over whole requests.
+`server/tests/input_binding.rs` proves the caller's `InputBinding` on
+`AnalyzeStream` answers, progressive receipts and sink items (#1939):
+copied as given, absent when not sent, the projection and its receipt
+agreeing, and the refusals of an orphan digest and a disagreeing item.
 `cargo test --release -p turbo-kserve --test speed --
 --ignored` measures the encoding and decoding speed bar against the
 current vector and span messages (docs/receipts/server-723/README.md).

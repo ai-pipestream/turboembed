@@ -137,6 +137,25 @@ pii_kinds! {
     AbaRouting = 29, "aba-routing", 290;
     /// A telephone number.
     Phone = 30, "phone", 300;
+    /// A vehicle identification number (ISO 3779, 49 CFR 565), check digit
+    /// verified.
+    Vin = 31, "vin", 310;
+    /// A UPS, FedEx or USPS parcel tracking number, check digit verified.
+    TrackingNumber = 32, "tracking-number", 320;
+    /// A United States Employer Identification Number with a valid IRS
+    /// campus prefix.
+    UsEin = 33, "us-ein", 330;
+    /// A web address: an `http`, `https`, `ftp` or `ftps` URL, or a host
+    /// starting `www.`.
+    Url = 34, "url", 340;
+    /// A United States passport book or card number after a passport label.
+    UsPassport = 35, "us-passport", 350;
+    /// A United States driver's licence number after a licence label.
+    UsDriversLicence = 36, "us-drivers-licence", 360;
+    /// A United States ZIP or ZIP+4 code after a state code or a ZIP label.
+    UsZip = 37, "us-zip", 370;
+    /// The extension digits after a telephone number (`ext.`, `x`, `#`).
+    PhoneExtension = 38, "phone-extension", 380;
 }
 
 /// The first codec kind code of a custom kind: code `CUSTOM_CODE_BASE + i`
@@ -145,7 +164,7 @@ pub const CUSTOM_CODE_BASE: u32 = 1 << 16;
 
 impl PiiKind {
     /// The largest built-in id; a [`PiiKinds`] bit set holds ids up to 127.
-    pub const MAX_BUILTIN_ID: u16 = 30;
+    pub const MAX_BUILTIN_ID: u16 = 38;
 
     /// Every built-in kind, in id order.
     pub fn builtins() -> impl Iterator<Item = PiiKind> {

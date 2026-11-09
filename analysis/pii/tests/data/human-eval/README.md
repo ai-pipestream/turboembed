@@ -1,21 +1,22 @@
 # Mixed PII evaluation set (partial work for #968)
 
-Eight documents (`45,401` UTF-8 bytes) and their span-level annotations
-(`labels.tsv`, `87` gold mentions across all 20 built-in `PiiKind`
+Nine documents (`48,036` UTF-8 bytes) and their span-level annotations
+(`labels.tsv`, `131` gold mentions across 28 built-in `PiiKind`
 variants), scored by `precision_and_recall_on_human_written_text` in
 `analysis/pii/tests/precision_recall.rs` (`docs/pii.md`,
 `docs/licences.md`).
 
 The evaluation set is a mixed corpus:
-- Five third-party MASC 3.0.0 documents (`34,969` bytes, `12` gold spans,
-  all `phone`, across `masc-att2`, `masc-hsus4`, `masc-united1`, and
+- Five third-party MASC 3.0.0 documents (`34,969` bytes, `19` gold spans,
+  `12` `phone` and `7` `us-zip`, across `masc-att2`, `masc-hsus4`, `masc-united1`, and
   `masc-nyt6`, plus `masc-lsc-access` with `0` gold spans as a statutory
   and CFR citation false-positive stress document).
 - Two project-adapted specification summaries (`4,360` bytes, `18` gold
   spans: `10` `eth-address` in `eip-55.txt` and `8` `btc-address` in
   `bip-173-350.txt`) embedding the canonical test vectors from ERC-55
   (CC0-1.0) and BIP-173 / BIP-350 (BSD-2-Clause).
-- One project-authored operational memo collection (`operational-memos.txt`,
+- One project-authored US identifier memo file (`us-identifiers-memos.txt`,
+  `2,635` bytes, `31` gold spans, #1878) and one project-authored operational memo collection (`operational-memos.txt`,
   `6,072` bytes, `57` gold spans: `3` `phone` spans and every gold
   mention of the remaining 17 built-in kinds).
 
@@ -53,6 +54,7 @@ text and gold byte offsets.
 | `eip-55` | `eip-55.txt` | 2,164 | `5359191d91cf2c6e707bc4a790ef90155da0499e788b386805ba10022ef6b848` | Project-adapted summary (Apache-2.0) embedding the canonical test vectors from [ERC-55](https://eips.ethereum.org/EIPS/eip-55) by Vitalik Buterin and Alex Van de Sande (2016-01-14, CC0-1.0), plus invalid mixed-case checksum near misses and the detector's all-zero burn-address exclusion. |
 | `bip-173-350` | `bip-173-350.txt` | 2,196 | `a8d1e9b7621ff57df9a51e67fe636cd08cd7bd14ed1ef7014473a0402a9d14ae` | Project-adapted summary (Apache-2.0) embedding the canonical test vectors from [BIP-173](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki) and [BIP-350](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki) by Pieter Wuille and Greg Maxwell (BSD-2-Clause), plus synthetic Base58Check vectors and invalid Bech32/Bech32m near misses. |
 | `operational-memos` | `operational-memos.txt` | 6,072 | `260fc461b579030279741b25a1b1c7f03c4fa5c3929fb5585bf12ee38dc3fe9c` | Project-authored incident, treasury, network, tax/payroll, clinical and mobile fleet memos (Apache-2.0) using documentation, test, and synthetic checksum-valid specimen identifiers (RFC 2606, RFC 5737, RFC 3849, RFC 7042, RFC 7519, AWS documentation example keys, ISO 13616 / Bundesbank specimen IBANs, Federal Reserve routing numbers, NHS test numbers, ISO 7064 test Steuer-IDs, SIN `046 454 286`, and Luhn-valid test IMEIs). |
+| `us-identifiers-memos` | `us-identifiers-memos.txt` | 2,635 | `248776341fb8d0d4759f319e758a5c42453ee9c80da5ac3d0628286301c02232` | Project-authored fleet, shipping, vendor and web-portal memos (Apache-2.0, #1878) with synthetic VINs and tracking numbers carrying valid check digits, the UPS sample number `1Z999AA10123456784`, made up EINs with assigned prefixes and RFC 2606 domains, plus marked near misses. Gold: `4` `vin`, `9` `tracking-number`, `3` `us-ein`, `4` `url`, `2` `us-passport`, `2` `us-drivers-licence`, `3` `us-zip`, `2` `phone`, `2` `phone-extension`. |
 
 The five MASC documents are stored in `turbo_goldens::escape` encoding
 (`.escaped`, identical to their files in `analysis/goldens/data/inputs/masc/`)
@@ -131,3 +133,22 @@ sources publish them: documentation address blocks, specimen IBANs, the
 RFC example JWT, and the RFC authors' public contact addresses. Nothing was
 rewritten, so no replacement transformation needs recording. Detector output
 played no part in choosing gold spans.
+
+## `url` gold (#1878)
+
+The `url` kind came after these annotations. Every web address with a
+scheme or a `www.` host in the mixed set is `url` gold (six in the
+existing documents: `www.universalcard.com` in `masc-att2`,
+`www.copia.org` in `masc-nyt6`, the source links of `eip-55` and
+`bip-173-350`, and `https://example.com:8443/health` in
+`operational-memos`), each checked by hand. Bare domains such as
+`creativecommons.org/publicdomain/zero/1.0` are not URLs by the scanner's
+rule and carry no gold. `labels-external.tsv` has no `url` gold, so the
+external partition counts its `url` mentions without scoring them.
+
+## `us-zip` gold (#1878)
+
+Every five-digit run in the MASC letters is a ZIP code after a state code
+(`NY 10009` in `masc-united1`; `DC 20037`, `MD 21401`, `NY 10271`,
+`VA 23209`, `WA 98504-0422` and `WV 25305` in `masc-hsus4`). These seven
+are `us-zip` gold, each checked by hand.

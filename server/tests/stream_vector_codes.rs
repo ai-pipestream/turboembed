@@ -23,6 +23,7 @@ async fn send_codes(stream: &mut Stream, id: &str, text: &str, options: Option<A
         .tx
         .send(AnalyzeStreamRequest {
             kind: Some(Kind::Document(AnalyzeDocument {
+                binding: None,
                 id: id.into(),
                 model: NAME.into(),
                 text: text.into(),
