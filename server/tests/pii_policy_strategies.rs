@@ -7,6 +7,7 @@ mod common;
 
 use common::*;
 use pb::pii_rewrite_strategy::Strategy;
+use turbo_analysis_layers::PiiStrategyKind;
 use turbo_kserve::pii_policy::{RedactionPolicy, strategy_to_proto};
 use turbo_kserve::proto::result as pb;
 use turbo_pii::rewrite::{
@@ -233,7 +234,14 @@ fn every_arm_maps_to_exactly_one_pii_strategy_value() {
         assert_eq!(i32::from(native.kind().id()), value as i32, "{arm:?} edits record {value:?}");
         hit.insert(value as i32);
     }
-    let all: std::collections::BTreeSet<i32> = (1..=10).collect();
-    assert_eq!(hit, all, "every PiiStrategy value but UNSPECIFIED has an arm");
-    assert!(pb::PiiStrategy::try_from(11).is_err(), "a new PiiStrategy value needs an arm here");
+    let all: std::collections::BTreeSet<i32> = (1..=9).chain([12]).collect();
+    assert_eq!(hit, all, "every PiiStrategy value but UNSPECIFIED and the reversible ones has an arm");
+    // The reversible strategies take a key, which never travels in a
+    // policy message, so they have no arm.
+    for (value, native) in
+        [(pb::PiiStrategy::Aes256Gcm, PiiStrategyKind::Aes256Gcm), (pb::PiiStrategy::Ff1, PiiStrategyKind::Ff1)]
+    {
+        assert_eq!(value as i32, i32::from(native.id()));
+    }
+    assert!(pb::PiiStrategy::try_from(13).is_err(), "a new PiiStrategy value needs an arm here");
 }

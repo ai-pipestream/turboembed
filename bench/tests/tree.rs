@@ -367,7 +367,12 @@ fn core_and_analysis_external_dependencies_are_allowlisted() {
             let name = name.trim();
             // #1490: approved maintained AEAD only in the evaluation adapter.
             let artifact_aead = path == "analysis/eval/Cargo.toml" && name == "ring";
-            if !value.contains("path =") && !ALLOWED.contains(&name) && !artifact_aead {
+            // #1885: RustCrypto AES-GCM and FF1, optional behind turbo-pii's
+            // `reversible` feature only.
+            let reversible = path == "analysis/pii/Cargo.toml"
+                && matches!(name, "aes-gcm" | "fpe")
+                && value.contains("optional = true");
+            if !value.contains("path =") && !ALLOWED.contains(&name) && !artifact_aead && !reversible {
                 found.push(format!("{path}: {name}"));
             }
             if matches!(path.as_str(), "core/Cargo.toml" | "analysis/calibration/Cargo.toml")

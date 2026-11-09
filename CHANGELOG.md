@@ -39,6 +39,11 @@ stubs must be regenerated.
 
 ### Added: PII and the result envelope (#1879)
 
+- Reversible PII protection behind the `turbo-pii` feature `reversible`:
+  `AesGcmEncryptor` (AES-256-GCM tokens bound to kind and context) and
+  `Ff1Encryptor` (FF1 format-preserving encryption, NIST SP 800-38G).
+  `PiiStrategy` gains `PII_STRATEGY_AES_256_GCM = 10` and
+  `PII_STRATEGY_FF1 = 11` for the edits they write (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -133,7 +138,7 @@ stubs must be regenerated.
   address with its unit, or a post office box (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
-  `PII_STRATEGY_ZIP_SAFE_HARBOR` (10) keep a ZIP code's first three
+  `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
   digits, or `000` for a restricted area, and mask the rest; the HHS 2000
   Census table is bundled and a caller may pass its own (#1966).
 

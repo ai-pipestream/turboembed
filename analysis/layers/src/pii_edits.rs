@@ -32,12 +32,17 @@ pub enum PiiStrategyKind {
     Map = 7,
     Truncate = 8,
     Abbreviate = 9,
-    ZipSafeHarbor = 10,
+    /// An AES-256-GCM token a holder of the key decrypts.
+    Aes256Gcm = 10,
+    /// FF1 format-preserving encryption a holder of the key decrypts.
+    Ff1 = 11,
+    /// HIPAA Safe Harbor ZIP generalization.
+    ZipSafeHarbor = 12,
 }
 
 impl PiiStrategyKind {
     /// Every kind, in id order.
-    pub const ALL: [PiiStrategyKind; 10] = [
+    pub const ALL: [PiiStrategyKind; 12] = [
         PiiStrategyKind::Mask,
         PiiStrategyKind::Pseudonym,
         PiiStrategyKind::Hmac,
@@ -47,6 +52,8 @@ impl PiiStrategyKind {
         PiiStrategyKind::Map,
         PiiStrategyKind::Truncate,
         PiiStrategyKind::Abbreviate,
+        PiiStrategyKind::Aes256Gcm,
+        PiiStrategyKind::Ff1,
         PiiStrategyKind::ZipSafeHarbor,
     ];
 
@@ -72,6 +79,8 @@ impl PiiStrategyKind {
             PiiStrategyKind::Map => "map",
             PiiStrategyKind::Truncate => "truncate",
             PiiStrategyKind::Abbreviate => "abbreviate",
+            PiiStrategyKind::Aes256Gcm => "aes-256-gcm",
+            PiiStrategyKind::Ff1 => "ff1",
             PiiStrategyKind::ZipSafeHarbor => "zip-safe-harbor",
         }
     }
