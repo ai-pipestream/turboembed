@@ -105,6 +105,7 @@ async fn inspect(s: &Server, graph: Vec<u8>, offsets: OffsetMode) -> TypedDocume
         pii_output: None,
         binding: None,
         operation_key: String::new(),
+        pii_policy: None,
     };
     c.inspect_document_graph(req).await.unwrap().into_inner()
 }

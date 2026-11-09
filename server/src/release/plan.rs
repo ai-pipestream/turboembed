@@ -13,7 +13,9 @@ use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, Sensitive};
 
 use super::caps::{Form, Forms, Grant, effective};
 use super::keys::TokenKey;
+use super::policy::{ceiling, check_digest};
 use crate::api::{Failure, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
+use crate::pii_policy::RedactionPolicy;
 use crate::proto::audit::PiiAccessMention;
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{InspectDocumentGraphRequest, PiiValue, PiiWithheldReason, TypedDocumentResult, pii_value};
@@ -32,6 +34,8 @@ pub struct Planned {
     /// The custom kind's name; empty for a built-in kind.
     pub custom: String,
     pub form: Form,
+    /// Every form in effect for the mention; `form` is the first.
+    pub forms: Forms,
     /// The normalized value. Its `Debug` prints `<withheld>`.
     pub value: Sensitive<String>,
     /// The redaction policy of the edit that covers the mention, if any.
@@ -73,23 +77,33 @@ impl Planned {
 }
 
 /// The answer to `req` with every value withheld, and the mentions whose
-/// value `asked` may release under `policy` and `grant`. `req` asks for
-/// values withheld; its other options are decided as #1904 decides them.
+/// value `asked` may release under `policy`, the release ceilings of
+/// `redaction` and `grant`. `req` asks for values withheld; its other
+/// options are decided as #1904 decides them. With `redaction`, a graph
+/// whose `turbo:pii-edits` did not record its digest is refused.
 pub fn project(
     req: &InspectDocumentGraphRequest,
     policy: PiiOutputPolicy,
     asked: Forms,
     grant: &Grant,
+    redaction: Option<&RedactionPolicy>,
 ) -> Result<(TypedDocumentResult, Vec<Planned>), Failure> {
     let mut typed = inspect_document_graph_under(req, policy)?;
     let mut plan = Vec::new();
-    if !typed.layers.iter().any(|l| l.id == Pii::ID) {
+    let has_pii = typed.layers.iter().any(|l| l.id == Pii::ID);
+    if !has_pii && redaction.is_none() {
         return Ok((typed, plan));
     }
     // The projection imported the same bytes and accepted them.
     let bad = |e: String| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e);
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
+    if let Some(r) = redaction {
+        check_digest(&doc, r)?;
+    }
+    if !has_pii {
+        return Ok((typed, plan));
+    }
     let covers = covers(&doc)?;
     let layers: Vec<(usize, String, usize)> = typed
         .layers
@@ -115,26 +129,32 @@ pub fn project(
         }
         for i in 0..pii.len() {
             let m = pii.get(Ix::new(i as u32));
-            let Some(form) = effective(asked, policy.values, grant.forms(m.kind)).iter().next() else {
-                // Withheld because the service is not granted the form for
-                // this mention's kind. A form the server-wide output policy
-                // excludes refused the request before the graph was read,
-                // so NOT_ALLOWED_BY_POLICY waits for a per-kind policy
-                // ceiling (#1943).
-                let reason = PiiWithheldReason::NotGranted;
+            let custom =
+                if m.kind.is_custom() { pii.custom_kinds.name(m.kind).unwrap_or("").to_owned() } else { String::new() };
+            let granted = grant.forms(m.kind);
+            let forms = effective(asked, policy.values, ceiling(redaction, m.kind, &custom), granted);
+            let Some(form) = forms.iter().next() else {
+                // A form the server-wide output policy excludes refused the
+                // request before the graph was read. Not granted: the
+                // service could not have it whatever the policy says; else
+                // the policy's ceiling for the kind excludes it (#1943).
+                let reason = if effective(asked, policy.values, Forms::ALL, granted).is_empty() {
+                    PiiWithheldReason::NotGranted
+                } else {
+                    PiiWithheldReason::NotAllowedByPolicy
+                };
                 if let Some(Value::Pii(w)) = &mut typed.layers[li].annotations[i].value {
                     w.value = Some(withheld_because(reason));
                 }
                 continue;
             };
-            let custom =
-                if m.kind.is_custom() { pii.custom_kinds.name(m.kind).unwrap_or("").to_owned() } else { String::new() };
             plan.push(Planned {
                 layer: li,
                 index: i,
                 kind: m.kind,
                 custom,
                 form,
+                forms,
                 value: Sensitive::new(m.normalized.to_owned()),
                 cover: covers.get(i).cloned().flatten(),
             });

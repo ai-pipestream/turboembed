@@ -12,6 +12,7 @@ use tonic::{Request, Response, Status};
 use turbo_analysis::export::export;
 use turbo_analysis::{Document, Key, Provenance, Span, ViewId};
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
+use turbo_kserve::pii_policy::PolicyFiles;
 use turbo_kserve::proto::audit::turbo_audit_service_server::{TurboAuditService, TurboAuditServiceServer};
 use turbo_kserve::proto::audit::{PiiAccessEvent, RecordPiiAccessRequest, RecordPiiAccessResponse};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
@@ -151,8 +152,23 @@ fn model() -> ModelConfig {
 
 /// An mTLS server with `release` under `policy`.
 pub async fn server(files: &Files, release: ReleaseConfig, policy: PiiOutputPolicy) -> Server {
-    let serve =
-        Serve { tls: Some(files.tls.clone()), pii_output: policy, pii_release: Some(release), ..Serve::default() };
+    server_with(files, release, policy, PolicyFiles::default()).await
+}
+
+/// [`server`], also serving the redaction policies `policies` by name.
+pub async fn server_with(
+    files: &Files,
+    release: ReleaseConfig,
+    policy: PiiOutputPolicy,
+    policies: PolicyFiles,
+) -> Server {
+    let serve = Serve {
+        tls: Some(files.tls.clone()),
+        pii_output: policy,
+        pii_release: Some(release),
+        pii_policies: policies,
+        ..Serve::default()
+    };
     Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap()
 }
 

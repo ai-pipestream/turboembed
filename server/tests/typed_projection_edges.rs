@@ -42,6 +42,7 @@ async fn project_and_round_trip(fragments: &[Span], expected: &[(u32, u32)], out
                 pii_output: None,
                 binding: None,
                 operation_key: String::new(),
+                pii_policy: None,
             })
             .await
             .unwrap()
@@ -113,6 +114,7 @@ async fn token_ranges_without_a_tokens_layer_are_refused() {
             pii_output: None,
             binding: None,
             operation_key: String::new(),
+            pii_policy: None,
         })
         .await
         .unwrap()

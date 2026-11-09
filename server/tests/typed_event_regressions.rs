@@ -68,6 +68,7 @@ async fn nested_event_references_and_spans_are_validated() {
                 pii_output: None,
                 binding: None,
                 operation_key: String::new(),
+                pii_policy: None,
             })
             .await
             .unwrap()

@@ -182,6 +182,7 @@ fn kind_rule(e: &mut Enc, r: &pb::PiiKindRule) {
         e.u32(2, l.window_words);
         e.rep_str(3, &l.extra_labels);
     });
+    e.msg(7, r.release_ceiling.as_ref(), |e, c: &pb::PiiReleaseCeiling| e.rep_enum(1, &c.forms));
 }
 
 fn strategy_entry(e: &mut Enc, s: &pb::PiiStrategyEntry) {

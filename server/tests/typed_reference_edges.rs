@@ -47,6 +47,7 @@ async fn relations_mentions_and_levels_keep_native_reference_bounds() {
                 pii_output: full_text(),
                 binding: None,
                 operation_key: String::new(),
+                pii_policy: None,
             })
             .await
             .unwrap()
