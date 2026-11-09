@@ -6,14 +6,16 @@ mod codec;
 use codec::{Decoder, Encoder};
 mod verified;
 use verified::VerifiedReader;
+mod key_file;
 mod policy;
 mod store;
+pub use key_file::KeyFile;
 pub use policy::*;
 pub use store::{EncryptedStore, SecurityContext};
 #[cfg(test)]
 mod tests;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KeyId(pub [u8; 16]);
 
 /// An opaque principal and artifact binding, authenticated but never stored.
