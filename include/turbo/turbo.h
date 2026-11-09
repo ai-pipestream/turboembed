@@ -139,6 +139,16 @@ typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans an
 #define TURBO_PAIR_ROBERTA 2
 #define TURBO_TASK_EXTRACTIVE_QA 3
 
+/* turbo_model_info.license_class: the model zoo's licence classes, least
+ * to most restrictive (docs/zoo.md). LOCAL_ONLY is fetched only after the
+ * user accepts the licence and is never redistributed. */
+#define TURBO_LICENSE_CLASS_UNSTATED    0   /* the manifest names no class */
+#define TURBO_LICENSE_CLASS_PERMISSIVE  1
+#define TURBO_LICENSE_CLASS_LGPL        2
+#define TURBO_LICENSE_CLASS_SHARE_ALIKE 3
+#define TURBO_LICENSE_CLASS_GPL         4
+#define TURBO_LICENSE_CLASS_LOCAL_ONLY  5
+
 /* What a (device, task) cell may say. There is no "planned": a thing that
  * does not run is unsupported. */
 #define TURBO_CAP_UNSUPPORTED  0
@@ -413,9 +423,13 @@ typedef struct turbo_model_info {
                                                       name, ascending; 0 past the count */
     uint32_t rerank_query_tokens;    /* rerank: default query truncation budget */
     uint32_t rerank_pair_template;   /* rerank: TURBO_PAIR_BERT or TURBO_PAIR_ROBERTA */
+    char     license[128];           /* manifest model.license, an SPDX expression */
+    uint32_t license_class;          /* TURBO_LICENSE_CLASS_*: the most restrictive of
+                                        model.license_class and every head's corpora */
     /* Fields marked embed are 0 or empty for a model of another task. The
-     * library also accepts a struct_size that ends before output_dims_count
-     * or before rerank_query_tokens, writing only the caller's prefix. */
+     * library also accepts a struct_size that ends before output_dims_count,
+     * before rerank_query_tokens or before license, writing only the
+     * caller's prefix. */
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
