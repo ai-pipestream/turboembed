@@ -108,6 +108,13 @@ stable id (1 to 38), its name and a priority; the ids are the numbers of
 the proto `PiiKindId` enum, the C `TURBO_PII_KIND_*` defines, the Java
 `TurboPiiKind` enum and the binary codec, and never change. Priority
 alone decides ordering and cluster winners; `PiiKind` has no `Ord`.
+A C ABI PII row carries its kind as a number in `token_start` under
+`TURBO_SPAN_PII_KIND` when the analyzer is created with
+`TURBO_ANALYZER_PII_KIND_IDS`: the id for a built-in kind, and
+`TURBO_PII_KIND_CUSTOM_BASE` (`1 << 16`, the codec's custom kind code)
+plus the custom-table index for a custom kind. The Java bindings always
+ask for it and expose it as `piiKindCode()`, `piiKind()` and
+`piiCustomKindIndex()` (#1940).
 Confidence ids are format 1, checksum 2, labelled checksum 3 and
 labelled 4 everywhere; 0 is unspecified and refused.
 

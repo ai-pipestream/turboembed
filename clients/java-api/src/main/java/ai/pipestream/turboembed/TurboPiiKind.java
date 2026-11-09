@@ -1,12 +1,14 @@
 package ai.pipestream.turboembed;
 
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Built-in PII kinds with their stable native ids: the same numbers as the native
  * {@code TURBO_PII_KIND_*} constants, the proto {@code PiiKindId} enum and the binary
  * layer codec. An id is identity only; ids are append-only and never reused. A caller's
- * custom kind has no constant here and is known by its name alone.
+ * custom kind has no constant here: its row carries its name and a numeric kind code of
+ * {@link #CUSTOM_CODE_BASE} plus its index in the layer's custom-kind table.
  */
 public enum TurboPiiKind {
     JWT(1, "jwt"),
@@ -48,6 +50,13 @@ public enum TurboPiiKind {
     US_ZIP(37, "us-zip"),
     PHONE_EXTENSION(38, "phone-extension");
 
+    /**
+     * The numeric kind code of the first custom kind: code {@code CUSTOM_CODE_BASE + i} is entry
+     * {@code i} of the layer's custom-kind table (native {@code TURBO_PII_KIND_CUSTOM_BASE}).
+     * Every built-in id is below it.
+     */
+    public static final long CUSTOM_CODE_BASE = 1L << 16;
+
     private final int nativeCode;
     private final String wireName;
 
@@ -74,6 +83,29 @@ public enum TurboPiiKind {
             }
         }
         throw new IllegalStateException("Unknown native PII kind id: " + nativeCode);
+    }
+
+    /**
+     * Returns the built-in kind a PII row's numeric kind code names, or empty for a custom kind's
+     * code. A code that is neither is refused.
+     */
+    public static Optional<TurboPiiKind> fromCode(long code) {
+        if (code >= CUSTOM_CODE_BASE && code - CUSTOM_CODE_BASE <= 0xFFFFL) {
+            return Optional.empty();
+        }
+        return Optional.of(fromNative(code));
+    }
+
+    /**
+     * Returns the custom-kind table index a PII row's numeric kind code names, or empty for a
+     * built-in kind's code.
+     */
+    public static OptionalInt customIndex(long code) {
+        if (code >= CUSTOM_CODE_BASE && code - CUSTOM_CODE_BASE <= 0xFFFFL) {
+            return OptionalInt.of((int) (code - CUSTOM_CODE_BASE));
+        }
+        fromNative(code);
+        return OptionalInt.empty();
     }
 
     /** Returns the built-in kind named {@code wireName}, or empty for a custom kind. */

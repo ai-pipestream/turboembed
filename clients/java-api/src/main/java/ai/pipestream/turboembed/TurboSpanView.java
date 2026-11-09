@@ -2,6 +2,7 @@ package ai.pipestream.turboembed;
 
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 
 /** A lifetime-bound row view, with explicit source, view and token coordinate spaces.
@@ -36,6 +37,25 @@ public interface TurboSpanView {
 
     /** Returns the PII evidence classification, or empty for another layer kind. */
     Optional<TurboPiiConfidence> piiConfidence();
+
+    /**
+     * Returns a PII row's numeric kind code: a {@link TurboPiiKind} id, or
+     * {@link TurboPiiKind#CUSTOM_CODE_BASE} plus a custom-table index. Empty for another layer
+     * kind.
+     */
+    OptionalLong piiKindCode();
+
+    /** Returns a PII row's built-in kind from its numeric code, or empty for a custom kind. */
+    default Optional<TurboPiiKind> piiKind() {
+        OptionalLong code = piiKindCode();
+        return code.isPresent() ? TurboPiiKind.fromCode(code.getAsLong()) : Optional.empty();
+    }
+
+    /** Returns a custom-kind PII row's custom-table index, or empty for a built-in kind. */
+    default OptionalInt piiCustomKindIndex() {
+        OptionalLong code = piiKindCode();
+        return code.isPresent() ? TurboPiiKind.customIndex(code.getAsLong()) : OptionalInt.empty();
+    }
 
     /** Returns the range in {@link #viewId()}'s coordinate space, when present. */
     Optional<TurboSpanData.CoordinateRange> viewRange();
