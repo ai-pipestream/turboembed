@@ -2,7 +2,9 @@
 //! request names it as the redact step took it, inline or by name
 //! (`InspectDocumentGraphRequest.pii_policy`), its digest must be the one
 //! the graph's `turbo:pii-edits` recorded, and each kind rule's release
-//! ceiling caps the forms that kind's mentions leave in.
+//! ceiling caps the forms that kind's mentions leave in. With
+//! `--pii-require-recorded-policy` (#1977) a request that names no policy
+//! is refused when the graph's `turbo:pii-edits` recorded one.
 
 use std::any::TypeId;
 use std::sync::Arc;
@@ -62,6 +64,23 @@ pub fn check_digest(doc: &Document, policy: &RedactionPolicy) -> Result<(), Fail
     }
     if !recorded {
         return Err(refused("names a redaction policy, and the graph's turbo:pii-edits record none"));
+    }
+    Ok(())
+}
+
+/// Refused when a `turbo:pii-edits` layer of `doc` records a policy
+/// digest: under `--pii-require-recorded-policy` (#1977) a ceiling, once
+/// recorded, applies to every values request, so one that names no policy
+/// is refused. The refusal names no kind and no value.
+pub fn check_unnamed(doc: &Document) -> Result<(), Failure> {
+    let ty = TypeId::of::<PiiEdits>();
+    let recorded = doc
+        .layers()
+        .filter(|k| k.ty == ty)
+        .filter_map(|k| doc.get_key(&Key::<PiiEdits>::named(k.name)))
+        .any(|edits| edits.policy_digest.is_some());
+    if recorded {
+        return Err(refused("names no policy, and the graph's turbo:pii-edits record one"));
     }
     Ok(())
 }

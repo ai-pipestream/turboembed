@@ -13,6 +13,8 @@ mod common;
 mod fixture;
 #[path = "pii_policy/common.rs"]
 mod policy;
+#[path = "pii_release/recorded.rs"]
+mod recorded;
 
 use std::time::Duration;
 

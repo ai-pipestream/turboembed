@@ -114,6 +114,10 @@ stubs must be regenerated.
   `turbo:pii-edits`. A mention the ceiling excludes is withheld with
   `NOT_ALLOWED_BY_POLICY`, and the named policy's digest is part of the
   audit event's `policy_digest` (#1943).
+- `--pii-require-recorded-policy`
+  (`TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY`), off by default: a values
+  request that names no `pii_policy` is refused when the graph's
+  `turbo:pii-edits` recorded a policy digest (#1977).
 - US identifier kinds, appended to `PiiKindId`: `vin` 31,
   `tracking-number` 32, `us-ein` 33, `url` 34 (#1959), `us-passport` 35,
   `us-drivers-licence` 36, `us-zip` 37 and `phone-extension` 38 (#1960),
