@@ -16,7 +16,7 @@ use crate::format::{
     UnicodeVersion, VERSION,
 };
 use crate::hex::{digit, parse_hex, to_hex};
-use crate::sha::sha256;
+use turbo_sha256::sha256;
 
 use layer::read_layer;
 
@@ -219,9 +219,9 @@ impl Golden {
         if bytes.len() != i.utf8_len as usize {
             return Err(mismatch("length in UTF-8 bytes", i.utf8_len.to_string(), bytes.len().to_string()));
         }
-        let digest = sha256(&bytes);
+        let digest = sha256(&bytes).0;
         if digest != i.sha256 {
-            return Err(mismatch("SHA-256", to_hex(&i.sha256), to_hex(&digest)));
+            return Err(mismatch("SHA-256", to_hex(i.sha256), to_hex(digest)));
         }
         let text = String::from_utf8(bytes).map_err(|e| {
             mismatch("encoding", "UTF-8".into(), format!("invalid UTF-8 at byte {}", e.utf8_error().valid_up_to()))

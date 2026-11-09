@@ -200,7 +200,7 @@ fn tokens_are_keyed_deterministic_and_name_their_key() {
     let other = TokenKey::load(&key_file("k33", &[8; 32])).unwrap();
     assert_ne!(t.token, other.token(KIND, PLANTED).token, "another key gives another token");
     // The token is a MAC over a domain prefix, not over the bare value.
-    assert_ne!(t.token, turbo_pii::checksum::sha256::hmac(&[7; 32], PLANTED.as_bytes()).to_vec());
+    assert_ne!(t.token, turbo_sha256::hmac_sha256(&[7; 32], PLANTED.as_bytes()).0.to_vec());
 }
 
 #[test]

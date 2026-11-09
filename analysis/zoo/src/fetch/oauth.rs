@@ -12,7 +12,6 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use sha2::Digest;
 
 /// Google's consent page.
 pub const GOOGLE_AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -65,7 +64,7 @@ impl Pkce {
 
     /// The S256 challenge: base64url of the verifier's SHA-256.
     pub fn challenge(&self) -> String {
-        base64url(&sha2::Sha256::digest(self.verifier.as_bytes()))
+        base64url(&turbo_sha256::sha256(self.verifier.as_bytes()).0)
     }
 }
 
@@ -344,13 +343,13 @@ fn random_bytes() -> [u8; 32] {
         return out;
     }
     use std::hash::{BuildHasher, Hasher};
-    let mut seed = sha2::Sha256::new();
+    let mut seed = turbo_sha256::Sha256::new();
     for i in 0..8u64 {
         let mut h = std::collections::hash_map::RandomState::new().build_hasher();
         h.write_u64(i);
-        seed.update(h.finish().to_le_bytes());
+        seed.update(&h.finish().to_le_bytes());
     }
-    out.copy_from_slice(&seed.finalize());
+    out.copy_from_slice(&seed.finish().0);
     out
 }
 

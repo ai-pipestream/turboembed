@@ -39,8 +39,8 @@ fn one_million_a_streamed_in_odd_pieces() {
         &[999_999, 1],
     ] {
         let (a, b) = million_a_in_pieces(sizes);
-        assert_eq!(hex::to_hex(&a.finish()), MILLION_A_256, "sha256 in pieces {sizes:?}");
-        assert_eq!(hex::to_hex(&b.finish()), MILLION_A_512, "sha512 in pieces {sizes:?}");
+        assert_eq!(hex::to_hex(a.finish()), MILLION_A_256, "sha256 in pieces {sizes:?}");
+        assert_eq!(hex::to_hex(b.finish()), MILLION_A_512, "sha512 in pieces {sizes:?}");
     }
 }
 
@@ -55,12 +55,12 @@ fn published_vectors_by_streaming_and_in_one_call() {
         (m112, "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1"),
     ];
     for (msg, want) in v256 {
-        assert_eq!(hex::to_hex(&sha256(msg)), want);
+        assert_eq!(hex::to_hex(sha256(msg)), want);
         let mut h = Sha256::new();
         for b in msg {
             h.update(std::slice::from_ref(b));
         }
-        assert_eq!(hex::to_hex(&h.finish()), want, "byte by byte, {} bytes", msg.len());
+        assert_eq!(hex::to_hex(h.finish()), want, "byte by byte, {} bytes", msg.len());
     }
     let v512: [(&[u8], &str); 4] = [
         (
@@ -81,12 +81,12 @@ fn published_vectors_by_streaming_and_in_one_call() {
         ),
     ];
     for (msg, want) in v512 {
-        assert_eq!(hex::to_hex(&sha512(msg)), want);
+        assert_eq!(hex::to_hex(sha512(msg)), want);
         let mut h = Sha512::new();
         for b in msg {
             h.update(std::slice::from_ref(b));
         }
-        assert_eq!(hex::to_hex(&h.finish()), want, "byte by byte, {} bytes", msg.len());
+        assert_eq!(hex::to_hex(h.finish()), want, "byte by byte, {} bytes", msg.len());
     }
 }
 
