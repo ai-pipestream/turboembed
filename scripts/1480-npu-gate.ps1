@@ -9,7 +9,7 @@
 $ErrorActionPreference = "Continue"
 $ProgressPreference = "SilentlyContinue"
 $Root = "C:\te"
-$Stamp = Get-Date -Format "yyyyMMdd-HHmm"
+$Stamp = "{0}-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), $PID
 $Out = Join-Path $Root ("out-1480-" + $Stamp)
 $Src = Join-Path $Root ("src-1480-" + $Stamp)
 $Scratch = Join-Path $Out "scratch"
@@ -24,7 +24,8 @@ function Problem([string]$Name, [string]$Why) {
   "$Name,$Why," | Add-Content "$Out\summary.csv"
 }
 function Finish {
-  Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -Force
+  try { Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -ErrorAction Stop }
+  catch { Problem "archive" "could not write the evidence archive: $_" }
   Get-Content "$Out\summary.csv"
   Write-Host "Send back: $Out.zip"
   if ($global:Problems.Count -gt 0) {
@@ -37,8 +38,14 @@ function Finish {
 function Step([string]$Name, [scriptblock]$Body) {
   Write-Host "=== $Name" -ForegroundColor Cyan
   $t = Get-Date; $global:LASTEXITCODE = 0
-  & $Body *>&1 | Tee-Object -FilePath "$Out\$Name.log" | Out-Host
-  $code = if ($null -ne $global:LASTEXITCODE) { $global:LASTEXITCODE } else { 0 }
+  try {
+    $ErrorActionPreference = "Stop"
+    & $Body *>&1 | Tee-Object -FilePath "$Out\$Name.log" | Out-Host
+    $code = $global:LASTEXITCODE
+  } catch {
+    Problem $Name "could not complete step: $_"
+    return $false
+  }
   "$Name,$code,{0:N1}" -f ((Get-Date) - $t).TotalMinutes | Add-Content "$Out\summary.csv"
   if ($code -ne 0) {
     Write-Host "--- $Name exit $code" -ForegroundColor Red
@@ -151,7 +158,10 @@ foreach ($p in $pipelines) {
   if (Test-Path $outDir) {
     $dest = Join-Path $Records $name
     $null = New-Item -ItemType Directory -Force $dest
-    Copy-Item "$outDir\*.json" $dest -Force -ErrorAction SilentlyContinue
+    foreach ($set in ($Sets -split ",")) {
+      try { Copy-Item (Join-Path $outDir "$set.json") $dest -Force -ErrorAction Stop }
+      catch { Problem "eval-$name" "missing or uncopiable record for $set" }
+    }
     if (Test-Path "$Out\eval-$name.log") { Copy-Item "$Out\eval-$name.log" "$Logs\$name.log" -Force }
   } else {
     Problem "eval-$name" "wrote no output directory $outDir"
