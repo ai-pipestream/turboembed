@@ -204,17 +204,33 @@ impl Step for NormalizedTokensStep {
     }
 }
 
-/// Runs [`SubwordAnnotator`] on `norm_view`, projects [`Subwords`] back to
+pub(super) trait SubwordPieces: Annotator<Reads = (View, Option<Tokens>), Writes = (Subwords,)> {
+    fn pieces(&self, view: &View) -> Result<Subwords, Error>;
+}
+
+impl SubwordPieces for SubwordAnnotator {
+    fn pieces(&self, view: &View) -> Result<Subwords, Error> {
+        SubwordAnnotator::pieces(self, view)
+    }
+}
+
+impl SubwordPieces for turbo_gliner::GlinerSubwords {
+    fn pieces(&self, view: &View) -> Result<Subwords, Error> {
+        turbo_gliner::GlinerSubwords::pieces(self, view)
+    }
+}
+
+/// Runs a model's subword tokenizer on `norm_view`, projects [`Subwords`] back to
 /// [`ViewId::SOURCE`], and aligns piece-to-token indices with [`Tokens`] in
 /// [`ViewId::SOURCE`] when present.
-pub(super) struct NormalizedSubwordsStep {
-    pub(super) annotator: SubwordAnnotator,
+pub(super) struct NormalizedSubwordsStep<A: SubwordPieces> {
+    pub(super) annotator: A,
     pub(super) norm_view: &'static str,
 }
 
-impl Step for NormalizedSubwordsStep {
+impl<A: SubwordPieces> Step for NormalizedSubwordsStep<A> {
     fn id(&self) -> &'static str {
-        SubwordAnnotator::ID
+        A::ID
     }
 
     fn reads(&self) -> Vec<KeyId> {

@@ -21,6 +21,8 @@ use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Analyzer, Document};
+use turbo_gliner::{Decode, ExtractionSchema};
+use turbo_relation::{RelationLabel, ZeroShotRelationConfig};
 
 use crate::api::{
     Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
@@ -49,7 +51,7 @@ pub use profiles::{
     ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
     profile_capabilities,
 };
-use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state};
+use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, StepOptions, compile_analyzer_with_state};
 pub use steps::{compile_analyzer, compile_analyzer_with_redaction, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
@@ -232,6 +234,36 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
                 .map_err(|e| plain(bad(e.to_string())))?,
         ),
     };
+    let open_span = req
+        .open_span
+        .as_ref()
+        .map(|schema| {
+            ExtractionSchema::new(
+                schema.labels.clone(),
+                schema.threshold.unwrap_or(0.5),
+                if schema.nested { Decode::Nested } else { Decode::Flat },
+            )
+            .map_err(|e| plain(bad(format!("open_span: {e}"))))
+        })
+        .transpose()?;
+    let relations = req.relations.as_ref().map(|schema| {
+        let labels = schema
+            .labels
+            .iter()
+            .map(|label| RelationLabel {
+                name: label.name.clone(),
+                threshold: label.threshold.map(f64::from),
+                symmetric: label.symmetric,
+                domain: (!label.domain.is_empty()).then(|| label.domain.clone()),
+                range: (!label.range.is_empty()).then(|| label.range.clone()),
+            })
+            .collect();
+        ZeroShotRelationConfig {
+            threshold: schema.threshold.unwrap_or(0.5).into(),
+            within_sentence: schema.within_sentence,
+            ..ZeroShotRelationConfig::new(labels)
+        }
+    });
     compile_analyzer_with_state(
         initial_doc,
         &step_names,
@@ -239,7 +271,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
         &req.model,
         profile_name,
         required_bundles,
-        redaction.as_ref(),
+        StepOptions { redaction: redaction.as_ref(), open_span, relations, relation_model: &req.relation_model },
     )
     .map_err(plain)
 }

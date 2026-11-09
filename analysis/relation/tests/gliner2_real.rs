@@ -31,6 +31,10 @@ const REVISION: &str = "f9634218e53580c56edf0de97ca1a7d3f1c2354e";
 /// The checkpoint's directory, fetched and verified, and its encoder
 /// package, made once beside it.
 fn model() -> Gliner2Relations {
+    if let Ok(root) = std::env::var("GLINER2_PACKAGE") {
+        let package = turbo_pins::require(root);
+        return Gliner2Relations::load(&package.join("encoder"), &package, REPOSITORY, REVISION).unwrap();
+    }
     // The tests of this file share one fetch and one package.
     static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
@@ -168,4 +172,107 @@ fn the_scorer_finds_the_reference_relations_between_given_mentions() {
     let model = producer.model.as_ref().expect("the scorer's model in the evidence");
     assert_eq!((model.id.as_str(), model.sha256.as_str()), (REPOSITORY, sha.as_str()));
     assert_eq!(ev.verify(&docs[0]), Ok(()));
+}
+
+#[test]
+#[ignore = "requires the real relation checkpoint; run with --release -- --ignored"]
+fn release_labelled_relations_include_negative_cases() {
+    use std::collections::BTreeSet;
+
+    fn run(
+        model: Arc<Gliner2Relations>,
+        text: &str,
+        entities: &[(u32, u32, u32)],
+        sentences: &[(u32, u32)],
+    ) -> BTreeSet<(usize, usize, String)> {
+        let mut doc = Document::new(text);
+        let kinds = TagSet::new("kinds", &["PERSON", "ORG", "LOC"]);
+        let mut spans = Spans::new(ViewId::SOURCE);
+        let mut tokens = Spans::new(ViewId::SOURCE);
+        let mut sentence_spans = Spans::new(ViewId::SOURCE);
+        for &(a, b, _) in entities {
+            spans.push(Span::new(a, b));
+            tokens.push(Span::new(a, b));
+        }
+        for &(a, b) in sentences {
+            sentence_spans.push(Span::new(a, b));
+        }
+        doc.add(&Key::DEFAULT, turbo_analysis_layers::Tokens { spans: tokens, sentence: None }, Provenance::by("test"))
+            .unwrap();
+        doc.add(&Key::DEFAULT, turbo_analysis_layers::Sentences { spans: sentence_spans }, Provenance::by("test"))
+            .unwrap();
+        doc.add(
+            &Key::DEFAULT,
+            Entities {
+                spans,
+                tokens: (0..entities.len() as u32).map(|i| IxRange::new(i, i + 1)).collect(),
+                kind: entities.iter().map(|e| turbo_analysis::Tag(e.2 as u16)).collect(),
+                kinds: Arc::clone(&kinds),
+                score: vec![1.0; entities.len()],
+            },
+            Provenance::by("test"),
+        )
+        .unwrap();
+        let typed = |name: &str, d: &str, r: &str| RelationLabel {
+            domain: Some(vec![d.into()]),
+            range: Some(vec![r.into()]),
+            ..RelationLabel::new(name)
+        };
+        let labels = vec![
+            typed("founded", "PERSON", "ORG"),
+            typed("works for", "PERSON", "ORG"),
+            typed("located in", "ORG", "LOC"),
+        ];
+        let config = ZeroShotRelationConfig::new(labels);
+        let annotator = ZeroShotRelationAnnotator::new(config, model).unwrap();
+        let analyzer = Analyzer::builder()
+            .given(Key::<Entities>::DEFAULT)
+            .given(Key::<turbo_analysis_layers::Sentences>::DEFAULT)
+            .add(annotator)
+            .step(EvidenceStep::new(Key::<Relations>::DEFAULT))
+            .build()
+            .unwrap();
+        let mut docs = vec![doc];
+        for result in analyzer.run(&mut docs) {
+            result.unwrap();
+        }
+        docs[0].get::<Evidence<Relations>>().unwrap().verify(&docs[0]).unwrap();
+        let relations = docs[0].get::<Relations>().unwrap();
+        (0..relations.subject.len())
+            .map(|i| {
+                (
+                    relations.subject[i].get(),
+                    relations.object[i].get(),
+                    relations.kinds.label(relations.kind[i]).to_owned(),
+                )
+            })
+            .collect()
+    }
+
+    let model = Arc::new(model());
+    let positive_text = "Steve Jobs founded Apple in Cupertino. Tim Cook works for Apple.";
+    let positive = run(
+        model.clone(),
+        positive_text,
+        &[(0, 10, 0), (19, 24, 1), (28, 37, 2), (39, 47, 0), (58, 63, 1)],
+        &[(0, 38), (39, 64)],
+    );
+    let gold: BTreeSet<(usize, usize, String)> =
+        [(0, 1, "founded".to_owned()), (3, 4, "works for".to_owned()), (1, 2, "located in".to_owned())]
+            .into_iter()
+            .collect();
+    assert!(gold.is_subset(&positive), "missing positives: {:?}", gold.difference(&positive));
+    let negative = run(model, "Alice and Acme met in Paris.", &[(0, 5, 0), (10, 14, 1), (22, 27, 2)], &[(0, 28)]);
+    let tp = positive.intersection(&gold).count();
+    let fp = positive.difference(&gold).count() + negative.len();
+    let fn_ = gold.difference(&positive).count();
+    let precision = tp as f64 / (tp + fp) as f64;
+    let recall = tp as f64 / (tp + fn_) as f64;
+    let f1 = 2.0 * precision * recall / (precision + recall);
+    println!(
+        "release relation evaluation: tp={tp} fp={fp} fn={fn_} precision={precision:.6} recall={recall:.6} f1={f1:.6}; negative false positives={}",
+        negative.len()
+    );
+    assert_eq!((tp, fn_), (3, 0));
+    assert_eq!(fp, positive.len() - tp + negative.len());
 }

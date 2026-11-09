@@ -2416,6 +2416,7 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-numeric",
  "turbo-pii",
+ "turbo-pins",
  "turbo-query",
  "turbo-relation",
  "turbo-sat",
@@ -2449,6 +2450,7 @@ dependencies = [
  "tonic",
  "turbo",
  "turbo-kserve",
+ "turbo-pins",
  "turbo-sha256",
  "turbo-zoo",
 ]
@@ -2914,6 +2916,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-gliner",
  "turbo-pins",
  "turbo-sentdetect",
  "turbo-tagger",

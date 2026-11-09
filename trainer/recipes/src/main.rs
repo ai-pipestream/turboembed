@@ -28,6 +28,8 @@
 //!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
 //!     [--balance] to repeat smaller training corpora to the largest split)
+//! turbo-train-head eval-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
+//!     [--encoder-bundle <sealed encoder> --device cpu|cuda|levelzero|metal] [--threshold X] [--threads N]
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N] [--against <run dir>])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
@@ -62,6 +64,7 @@ use turbo_trainer_recipes::ud_heads::UdHead;
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod baseline_cmd;
+mod eval_gliner;
 mod peer_cmd;
 mod summarize;
 mod train_coref;
@@ -123,10 +126,11 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "eval-gliner" => eval_gliner::evaluate_command(&argv, &corpus_id, &dir, unrecorded, a),
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, eval-gliner, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }

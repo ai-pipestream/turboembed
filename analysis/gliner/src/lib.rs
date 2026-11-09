@@ -9,14 +9,16 @@ mod output;
 pub mod package;
 mod packing;
 mod schema;
+mod subwords;
 mod window;
 pub use codec::{codecs, register_codecs};
 pub use config::Config;
 pub use open_span::OpenSpanModel;
 pub use output::{Decisions, GlinerAnnotator};
 pub use packing::PackedInput;
-pub use schema::{Decode, ExtractionSchema};
+pub use schema::{Decode, ExtractionSchema, MAX_LABELS};
 use std::path::Path;
+pub use subwords::GlinerSubwords;
 use turbo::{deberta::Encoder, sentencepiece::SentencePiece};
 use turbo_analysis::ModelRef;
 use turbo_analysis_embed::EncoderOptions;
@@ -95,6 +97,9 @@ impl Model {
     }
     pub fn config(&self) -> &Config {
         &self.config
+    }
+    pub fn context_limit(&self) -> usize {
+        self.encoder_config().max_sequence
     }
     /// Where the encoder runs: None for the CPU encoder itself, else the
     /// backend, device and precision of its session on the backend table.
