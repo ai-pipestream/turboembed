@@ -403,8 +403,8 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
     assert!(md.contains("- **PER** [19..30]: \\*Dr.\\_Smith\\* (score: 0.9800)"));
     assert!(md.contains("## Sentiment & Emotion Summary"));
     assert!(md.contains("- **Emotion Target 1**: `joy` (0.9200)"));
-    // Findings only: the summary locates the mention, never repeats its value (#1904).
-    assert!(md.contains("- **email** [39..56] (confidence: `format`)"));
+    // Findings only: the summary locates the mention, never repeats its value (#1904, #1942).
+    assert!(md.contains("- **email** [39..56] (confidence: `format`, detector: `test@1`, evidence: shape)"));
     assert!(md.contains("- **Chunk 1** [4..58]"));
 
     // 4. JSON-LD: valid JSON containing projected spans in all three offset modes.
@@ -415,6 +415,8 @@ fn tsv_csv_markdown_jsonld_and_warc_handle_special_chars_and_child_view_projecti
         assert!(jsonld.contains("\"turbo:tokens\": ["));
         assert!(jsonld.contains("\"turbo:entities\": ["));
         assert!(jsonld.contains("\"turbo:pii\": ["));
+        assert!(jsonld.contains("\"detector\": {\"id\": \"test\", \"version\": \"1\"}"));
+        assert!(jsonld.contains("\"evidence\": [{\"shape\": {}}]"));
         assert!(!jsonld.contains("\"normalized\": \"admin@example.com\""), "a PII value in the export");
     }
 

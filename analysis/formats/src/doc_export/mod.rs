@@ -11,12 +11,13 @@ pub mod brat_export;
 pub mod conllu_export;
 pub mod jsonld_export;
 pub mod markdown_export;
+pub(crate) mod pii_export;
 pub mod tabular_export;
 pub mod warc_export;
 
 pub use brat_export::{BratFormatter, parse_brat_with_offsets};
 pub use conllu_export::ConlluFormatter;
-pub use jsonld_export::JsonLdFormatter;
+pub use jsonld_export::{JSONLD_CONTEXT, JSONLD_CONTEXT_URI, JsonLdFormatter};
 pub use markdown_export::MarkdownFormatter;
 pub use tabular_export::{CsvFormatter, TsvFormatter};
 pub use warc_export::{WarcFormatter, WarcRecord, parse_warc_records};
@@ -192,6 +193,21 @@ pub trait DocumentFormatter: Send + Sync {
         out: &mut dyn Write,
     ) -> Result<(), FormatExportError>;
 
+    /// Formats `doc` (identified by `doc_id`) using `offsets`, including PII
+    /// candidate detail (`turbo:pii-candidates`) when `detail` is `true`, and
+    /// writes the result to `out`.
+    fn format_document_with_detail(
+        &self,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+        out: &mut dyn Write,
+    ) -> Result<(), FormatExportError> {
+        let _ = detail;
+        self.format_document(doc_id, doc, offsets, out)
+    }
+
     /// Convenience helper that formats `doc` into a byte vector.
     fn format_to_vec(
         &self,
@@ -199,8 +215,20 @@ pub trait DocumentFormatter: Send + Sync {
         doc: &Document,
         offsets: ExportOffsetMode,
     ) -> Result<Vec<u8>, FormatExportError> {
+        self.format_to_vec_with_detail(doc_id, doc, offsets, false)
+    }
+
+    /// Convenience helper that formats `doc` into a byte vector, including PII
+    /// candidate detail (`turbo:pii-candidates`) when `detail` is `true`.
+    fn format_to_vec_with_detail(
+        &self,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+    ) -> Result<Vec<u8>, FormatExportError> {
         let mut buf = Vec::new();
-        self.format_document(doc_id, doc, offsets, &mut buf)?;
+        self.format_document_with_detail(doc_id, doc, offsets, detail, &mut buf)?;
         Ok(buf)
     }
 
@@ -211,7 +239,19 @@ pub trait DocumentFormatter: Send + Sync {
         doc: &Document,
         offsets: ExportOffsetMode,
     ) -> Result<String, FormatExportError> {
-        let bytes = self.format_to_vec(doc_id, doc, offsets)?;
+        self.format_to_string_with_detail(doc_id, doc, offsets, false)
+    }
+
+    /// Convenience helper that formats `doc` into a UTF-8 [`String`], including
+    /// PII candidate detail (`turbo:pii-candidates`) when `detail` is `true`.
+    fn format_to_string_with_detail(
+        &self,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+    ) -> Result<String, FormatExportError> {
+        let bytes = self.format_to_vec_with_detail(doc_id, doc, offsets, detail)?;
         String::from_utf8(bytes).map_err(|e| FormatExportError::InvalidData(e.to_string()))
     }
 }
@@ -313,8 +353,23 @@ impl FormatterRegistry {
         offsets: ExportOffsetMode,
         out: &mut dyn Write,
     ) -> Result<OutputFormatDescriptor, FormatExportError> {
+        self.format_document_with_detail(format_id, doc_id, doc, offsets, false, out)
+    }
+
+    /// Formats `doc` using the formatter registered under `format_id`,
+    /// including PII candidate detail (`turbo:pii-candidates`) when `detail` is
+    /// `true`.
+    pub fn format_document_with_detail(
+        &self,
+        format_id: &str,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+        out: &mut dyn Write,
+    ) -> Result<OutputFormatDescriptor, FormatExportError> {
         let formatter = self.get(format_id)?;
-        formatter.format_document(doc_id, doc, offsets, out)?;
+        formatter.format_document_with_detail(doc_id, doc, offsets, detail, out)?;
         Ok(formatter.descriptor())
     }
 
@@ -326,8 +381,22 @@ impl FormatterRegistry {
         doc: &Document,
         offsets: ExportOffsetMode,
     ) -> Result<(OutputFormatDescriptor, Vec<u8>), FormatExportError> {
+        self.format_to_vec_with_detail(format_id, doc_id, doc, offsets, false)
+    }
+
+    /// Formats `doc` into a byte vector using the formatter registered under
+    /// `format_id`, including PII candidate detail (`turbo:pii-candidates`)
+    /// when `detail` is `true`.
+    pub fn format_to_vec_with_detail(
+        &self,
+        format_id: &str,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+    ) -> Result<(OutputFormatDescriptor, Vec<u8>), FormatExportError> {
         let mut buf = Vec::new();
-        let desc = self.format_document(format_id, doc_id, doc, offsets, &mut buf)?;
+        let desc = self.format_document_with_detail(format_id, doc_id, doc, offsets, detail, &mut buf)?;
         Ok((desc, buf))
     }
 }
