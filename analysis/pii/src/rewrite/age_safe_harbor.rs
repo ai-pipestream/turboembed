@@ -8,13 +8,13 @@
 //! `34-year-old` stays `34-year-old`. The `age` kind's mention is the
 //! number alone, so the words around it stay.
 //!
-//! A mention that is not an age (one or more ASCII digits) is masked
-//! whole, so a policy that sends another kind here never leaves its value
-//! readable. A cluster of overlapping mentions is masked whole too:
+//! A mention of another kind than `age`, or whose text is not one or more
+//! ASCII digits, is masked whole, so a policy that sends another kind here
+//! never leaves its value readable, digits or not. A cluster of overlapping mentions is masked whole too:
 //! another mention's strategy may not allow any of its characters to stay.
 
 use turbo_analysis::View;
-use turbo_analysis_layers::{Pii, PiiStrategyKind};
+use turbo_analysis_layers::{Pii, PiiKind, PiiStrategyKind};
 
 use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError};
@@ -88,6 +88,16 @@ impl AgeSafeHarbor {
         out.push_str(if over { AgeSafeHarbor::OVER_89 } else { value });
     }
 
+    /// Appends a mention of `kind` reading `value` to `out`: aggregated
+    /// when `kind` is [`PiiKind::Age`], masked whole otherwise.
+    pub fn write_mention(&self, kind: PiiKind, value: &str, out: &mut String) {
+        if kind == PiiKind::Age {
+            self.write_aggregated(value, out);
+        } else {
+            self.write_masked(value, out);
+        }
+    }
+
     /// Returns `value` aggregated.
     pub fn apply(&self, value: &str) -> String {
         let mut out = String::with_capacity(value.len());
@@ -112,7 +122,7 @@ impl AgeSafeHarbor {
             |cluster, out| {
                 let piece = &text[cluster.merged.span.range()];
                 if cluster.members.len() == 1 {
-                    self.write_aggregated(piece, out);
+                    self.write_mention(cluster.merged.kind, piece, out);
                 } else {
                     self.write_masked(piece, out);
                 }

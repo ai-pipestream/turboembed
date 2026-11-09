@@ -101,3 +101,17 @@ fn the_config_hash_covers_the_mask_and_overlap_choice() {
     assert_ne!(base, hash(MaskPolicy::new('*').unwrap().into()), "the strategy kind is part of the hash");
     assert_ne!(base, hash(ZipSafeHarbor::hhs_2000().into()));
 }
+
+/// A short all-digit identifier of another kind (a caller's employee id, a
+/// phone extension) is not an age: the strategy masks it whole, alone and
+/// as the default of a policy, so it never passes through unchanged.
+#[test]
+fn a_digit_mention_of_another_kind_is_masked_whole() {
+    let employee = PiiKind::Custom(turbo_pii::CustomKindId::new(0));
+    let text = "id 42 ext 7 aged 93";
+    let pii = manual(&[(3, 5, employee, "42"), (10, 11, PiiKind::PhoneExtension, "7"), (17, 19, PiiKind::Age, "93")]);
+    let want = "id ** ext * aged 90+";
+    assert_eq!(AgeSafeHarbor::new().rewrite(&source_view(text), &pii).unwrap().text(), want);
+    let policy = RewritePolicy::new(AgeSafeHarbor::new());
+    assert_eq!(policy.rewrite(&source_view(text), &pii).unwrap().text(), want);
+}

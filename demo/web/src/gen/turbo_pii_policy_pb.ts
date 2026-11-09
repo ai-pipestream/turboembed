@@ -756,8 +756,9 @@ export const PiiAbbreviateStrategySchema: GenMessage<PiiAbbreviateStrategy> = /*
  * 164.514(b)(2)(i)(B)): keep the first three digits, written as 000 when
  * that three-digit area is restricted (20,000 people or fewer), and mask
  * every other digit; the ZIP+4 hyphen stays ("62704-1234" becomes
- * "627**-****"). A mention that is not five ASCII digits, optionally
- * followed by '-' and four more, is masked whole, and so is a cluster of
+ * "627**-****"). A mention of another kind than US ZIP, or that is not
+ * five ASCII digits optionally followed by '-' and four more, is masked
+ * whole, and so is a cluster of
  * overlapping mentions.
  *
  * @generated from message turbo.result.v1.PiiZipSafeHarborStrategy
@@ -791,8 +792,9 @@ export const PiiZipSafeHarborStrategySchema: GenMessage<PiiZipSafeHarborStrategy
  * HIPAA Safe Harbor for a person's age (45 CFR 164.514(b)(2)(i)(C)): an
  * age of 89 or under is kept as written and every older age is written
  * as "90+", so "aged 93" becomes "aged 90+". The age kind's mention is the
- * number alone. A mention that is not one or more ASCII digits is masked
- * whole, and so is a cluster of overlapping mentions.
+ * number alone. A mention of another kind than age, digits or not, or
+ * that is not one or more ASCII digits, is masked whole, and so is a
+ * cluster of overlapping mentions.
  *
  * @generated from message turbo.result.v1.PiiAgeSafeHarborStrategy
  */

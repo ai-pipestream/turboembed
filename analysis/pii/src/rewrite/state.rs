@@ -88,11 +88,11 @@ impl<'a> RewriteState<'a> {
                 Ok(())
             }
             RewriteStrategy::ZipSafeHarbor(zip) => {
-                zip.write_generalized(&text[m.span.range()], out);
+                zip.write_mention(m.kind, &text[m.span.range()], out);
                 Ok(())
             }
             RewriteStrategy::AgeSafeHarbor(age) => {
-                age.write_aggregated(&text[m.span.range()], out);
+                age.write_mention(m.kind, &text[m.span.range()], out);
                 Ok(())
             }
         }

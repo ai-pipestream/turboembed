@@ -476,8 +476,9 @@ the source text into the rewritten text and back
   17 prefixes HHS published from the 2000 Census
   (`HHS_2000_RESTRICTED_PREFIXES`, `ZipSafeHarbor::hhs_2000()`) or a
   caller's own three-digit list (`ZipSafeHarbor::with_restricted`, for a
-  later Census). A mention that is not five ASCII digits, optionally
-  followed by `-` and four more, is masked whole, and so is a cluster of
+  later Census). A mention of another kind than `us-zip`, or that is not
+  five ASCII digits optionally followed by `-` and four more, is masked
+  whole, and so is a cluster of
   overlapping mentions, so the strategy never leaves another kind's value
   readable. Edits record `PiiStrategyKind::ZipSafeHarbor`
   (`PII_STRATEGY_ZIP_SAFE_HARBOR`); the gRPC arm is
@@ -487,8 +488,9 @@ the source text into the rewritten text and back
   written and writes every older age as `90+`, the single category the
   rule allows (`aged 93` becomes `aged 90+`, `34-year-old` stays). The
   `age` mention is the number alone, so the words around it stay. Leading
-  zeros do not make an age younger (`093` becomes `90+`). A mention that is
-  not one or more ASCII digits is masked whole with the mask character
+  zeros do not make an age younger (`093` becomes `90+`). A mention of
+  another kind than `age`, digits or not, or that is not one or more ASCII
+  digits, is masked whole with the mask character
   (`*` by default), and so is a cluster of overlapping mentions. Edits
   record `PiiStrategyKind::AgeSafeHarbor` (`PII_STRATEGY_AGE_SAFE_HARBOR`);
   the gRPC arm is `PiiAgeSafeHarborStrategy` (#1884).
