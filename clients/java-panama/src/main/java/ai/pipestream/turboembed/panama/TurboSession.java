@@ -1,6 +1,7 @@
 package ai.pipestream.turboembed.panama;
 
 import ai.pipestream.turboembed.TurboEmbedOptions;
+import ai.pipestream.turboembed.TurboException;
 import ai.pipestream.turboembed.TurboModelInfo;
 import ai.pipestream.turboembed.TurboRerankOptions;
 import ai.pipestream.turboembed.TurboSessionOptions;
@@ -155,6 +156,7 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
         invocationLock.lock();
         try {
             MemorySegment s = requireOpen();
+            int8RangesFit(options);
             String[] arr = texts.toArray(String[]::new);
             try (Arena arena = Arena.ofConfined()) {
                 MemorySegment textArray = TurboLibrary.allocateTextArray(arena, arr);
@@ -171,6 +173,24 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
             }
         } finally {
             invocationLock.unlock();
+        }
+    }
+
+    /**
+     * Refuses int8 ranges that are not {@code 2 * outputDim} values (the model's dim when
+     * {@code outputDim} is 0): the native write reads that many floats from the pointer.
+     */
+    private void int8RangesFit(TurboEmbedOptions options) {
+        float[] ranges = options.int8Ranges();
+        if (options.quantization() != TurboEmbedOptions.Quantization.INT8 || ranges == null || ranges.length == 0) {
+            return;
+        }
+        int dim = options.outputDim() == 0 ? modelInfo().dim() : options.outputDim();
+        long need = 2L * dim;
+        if (ranges.length != need) {
+            int code = TurboLibrary.TURBO_E_INVALID_ARGUMENT;
+            throw new TurboException(code, TurboLibrary.statusName(code), 0, "int8Ranges holds " + ranges.length
+                    + " values; an output dim of " + dim + " needs " + need + " (a low and a high a dimension)");
         }
     }
 

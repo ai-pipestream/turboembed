@@ -169,6 +169,11 @@ public abstract class SessionConformance {
                     assertEquals(want, int8[i][j], 1, "row " + i + " dimension " + j);
                 }
             }
+            // Ranges that are not two a dimension are refused before the native write reads them.
+            for (float[] wrong : new float[][] {new float[2], new float[63], new float[66]}) {
+                assertEquals(INVALID_ARGUMENT,
+                        code(() -> session.embedCodes(texts, TurboEmbedOptions.DEFAULT.withInt8(wrong))));
+            }
         }
     }
 

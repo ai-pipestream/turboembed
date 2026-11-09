@@ -13,12 +13,12 @@ use super::sys::{JNIEnv, jbyteArray, jclass, jfloatArray, jintArray, jlong, jobj
 use super::{check, count, error, handle, java_array, run, split, text};
 use crate::status::{Error, INTERNAL, INVALID_ARGUMENT, INVALID_HANDLE, Result};
 use crate::{
-    TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_DTYPE_U8, turbo_context, turbo_context_create, turbo_context_release,
-    turbo_embed_options, turbo_embed_write_text, turbo_model, turbo_model_get_info, turbo_model_info, turbo_model_load,
-    turbo_model_release, turbo_rerank_options, turbo_rerank_write_pairs, turbo_result, turbo_result_get_info,
-    turbo_result_info, turbo_result_read, turbo_result_release, turbo_runtime, turbo_runtime_create,
-    turbo_runtime_release, turbo_runtime_select, turbo_session, turbo_session_create, turbo_session_desc,
-    turbo_session_release, turbo_session_run, turbo_text_pair,
+    TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_DTYPE_U8, TURBO_QUANTIZE_INT8, turbo_context, turbo_context_create,
+    turbo_context_release, turbo_embed_options, turbo_embed_write_text, turbo_model, turbo_model_get_info,
+    turbo_model_info, turbo_model_load, turbo_model_release, turbo_rerank_options, turbo_rerank_write_pairs,
+    turbo_result, turbo_result_get_info, turbo_result_info, turbo_result_read, turbo_result_release, turbo_runtime,
+    turbo_runtime_create, turbo_runtime_release, turbo_runtime_select, turbo_session, turbo_session_create,
+    turbo_session_desc, turbo_session_release, turbo_session_run, turbo_text_pair,
 };
 
 /// The handles behind one Java `TurboSession`, released in reverse order,
@@ -154,9 +154,27 @@ fn embed_run(
     let n = count(texts.len(), "texts")?;
     let ranges = env.float_array(ranges);
     let o = embed_options(&env.int_array(opts), &ranges)?;
+    if o.quantization == TURBO_QUANTIZE_INT8 && !ranges.is_empty() {
+        int8_ranges_fit(s, o.output_dim, ranges.len())?;
+    }
     let mut e = error();
     check(unsafe { turbo_embed_write_text(s.session, texts.as_ptr(), n, &o, &mut e) }, &e)?;
     run_bytes(s)
+}
+
+/// The C call reads 2 * output_dim floats from `int8_ranges`, the model's
+/// dim when output_dim is 0, so a Java array of any other length is refused
+/// before the pointer is handed over.
+fn int8_ranges_fit(s: &Session, output_dim: u32, len: usize) -> Result<()> {
+    let dim = if output_dim == 0 { model_info(s)?.dim } else { output_dim };
+    let need = 2 * dim as usize;
+    if len == need {
+        return Ok(());
+    }
+    Err(Error::new(
+        INVALID_ARGUMENT,
+        format!("int8Ranges holds {len} values; an output dim of {dim} needs {need} (a low and a high a dimension)"),
+    ))
 }
 
 /// `static native float[][] sessionEmbed(long session, byte[] texts, int[] lengths, int[] options, float[] int8Ranges)`:
@@ -178,7 +196,7 @@ pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_sessionEmbed(
         if info.dtype != TURBO_DTYPE_F32 {
             return Err(Error::new(INVALID_ARGUMENT, "the options quantize the vectors: read them with embedCodes"));
         }
-        let values: Vec<f32> = bytes.chunks_exact(4).map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]])).collect();
+        let values: Vec<f32> = bytes.as_chunks::<4>().0.iter().map(|b| f32::from_ne_bytes(*b)).collect();
         java_array(env.new_float_matrix(info.batch as usize, &values), "embedding")
     })
 }
@@ -320,7 +338,7 @@ pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_sessionRerank(
         if info.dtype != TURBO_DTYPE_F32 {
             return Err(Error::new(INTERNAL, format!("the rerank result's dtype is {}, not F32", info.dtype)));
         }
-        let scores: Vec<f32> = bytes.chunks_exact(4).map(|b| f32::from_ne_bytes([b[0], b[1], b[2], b[3]])).collect();
+        let scores: Vec<f32> = bytes.as_chunks::<4>().0.iter().map(|b| f32::from_ne_bytes(*b)).collect();
         if info.batch as usize != pairs.len() || info.dim != 1 {
             return Err(Error::new(
                 INTERNAL,
