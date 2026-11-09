@@ -324,8 +324,9 @@ jobs:
   # and static runtime), for the default architecture alone; Level Zero
   # compiles its OpenCL C kernels with clang 20; Metal builds on macOS.
   # Hailo is left out: HailoRT's headers are not published as a package
-  # this runner can install. Each lane runs only when the core, the
-  # headers, the lock file or this file changed, and in the merge queue.
+  # this runner can install. Each lane runs only when the core,
+  # analysis/, the headers, the root Cargo.toml, the lock file or this
+  # file changed, and in the merge queue.
   backends-linux:
     if: github.event_name != 'push'
     runs-on: ubuntu-24.04
@@ -341,7 +342,7 @@ jobs:
         id: changed
         run: |
           if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|include/|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: dtolnay/rust-toolchain@stable
@@ -386,7 +387,7 @@ jobs:
         id: changed
         run: |
           if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|include/|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: dtolnay/rust-toolchain@stable
