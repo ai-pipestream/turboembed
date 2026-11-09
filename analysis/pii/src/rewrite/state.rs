@@ -182,3 +182,48 @@ impl<'a> RewriteState<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use turbo_analysis::{Document, Span, View, ViewId};
+    use turbo_analysis_layers::{CustomKindId, CustomKinds, Pii, PiiEvidence, PiiKind, PiiMention};
+
+    use crate::rewrite::mask::RETENTION_WORK;
+    use crate::rewrite::{MaskPolicy, RewritePolicy, Truncate};
+
+    /// Precomputing `CharRetention` once per cluster member keeps overlapping
+    /// cluster rewrites linear in cluster byte length. Counts retention work,
+    /// never wall-clock time (#1936).
+    #[test]
+    fn overlapping_cluster_rewrites_in_linear_time() {
+        const PERSON: PiiKind = PiiKind::Custom(CustomKindId::new(0));
+        let kinds = CustomKinds::from_names(["person"]).unwrap();
+        let policy = RewritePolicy::new(MaskPolicy::new('*').unwrap())
+            .with_custom_kinds(kinds.clone())
+            .with(PiiKind::Email, Truncate::keep_end(4));
+        let work_for = |n: usize| {
+            let doc = Document::new("a".repeat(n));
+            let view = doc.get::<View>().unwrap();
+            let mut pii = Pii::with_custom_kinds(ViewId::SOURCE, kinds.clone());
+            let det = pii.detector("test", "1").unwrap();
+            for (end, kind, norm) in [(n as u32, PiiKind::Email, "e"), ((n / 2) as u32, PERSON, "p")] {
+                pii.push(PiiMention {
+                    span: Span::new(0, end),
+                    kind,
+                    detector: det,
+                    evidence: &[PiiEvidence::Shape],
+                    score: None,
+                    normalized: norm,
+                });
+            }
+            RETENTION_WORK.with(|c| c.set(0));
+            let out = policy.rewrite(view, &pii).unwrap();
+            assert!(out.text().ends_with("aaaa") && out.text()[..n - 4].chars().all(|c| c == '*'));
+            RETENTION_WORK.with(Cell::get)
+        };
+        let (w1, w4) = (work_for(2_000), work_for(8_000));
+        assert!(w1 > 0 && w4 <= w1 * 4, "cluster retention work must grow linearly: N={w1}, 4N={w4}");
+    }
+}

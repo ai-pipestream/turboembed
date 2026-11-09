@@ -8,10 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import ai.pipestream.turboembed.TurboAnalysisResult;
 import ai.pipestream.turboembed.TurboAnalyzer;
 import ai.pipestream.turboembed.TurboException;
+import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiKind;
 import ai.pipestream.turboembed.TurboRuntime;
 import ai.pipestream.turboembed.TurboSession;
+import ai.pipestream.turboembed.TurboSpanData;
+import ai.pipestream.turboembed.TurboSpanView;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -387,6 +392,44 @@ public abstract class AnalyzerConformance {
             assertEquals("046454286", sin.value());
             assertEquals(PII_LABELLED_CHECKSUM, sin.classification());
         }
+    }
+
+    @Test
+    public void piiRowsCarryTheirNumericKindWithNoLabelParse() {
+        String text = "Email alice@example.com from 192.168.1.42. SIN: 046 454 286.";
+        try (TurboAnalyzer analyzer = rules()) {
+            byte[] graph;
+            try (TurboAnalysisResult detected = analyzer.detectPii(text);
+                    TurboAnalysisResult analyzed = analyzer.analyzeGraph(text)) {
+                assertPiiKinds(detected);
+                assertPiiKinds(analyzed);
+                graph = analyzed.copyGraphBytes();
+            }
+            try (TurboAnalysisResult inspected = analyzer.inspectGraph(graph)) {
+                assertPiiKinds(inspected);
+            }
+        }
+    }
+
+    /** Every PII row's numeric kind is the registry id of its label; no other row has one. */
+    private static void assertPiiKinds(TurboAnalysisResult result) {
+        Set<TurboPiiKind> seen = new TreeSet<>();
+        for (TurboSpanView row : result.spans()) {
+            if (row.layerKind() != TurboLayerKind.PII) {
+                assertTrue(row.piiKindCode().isEmpty(), "a " + row.layerKind() + " row has a PII kind");
+                continue;
+            }
+            TurboPiiKind kind = TurboPiiKind.fromName(row.label().orElseThrow()).orElseThrow();
+            assertEquals(kind.nativeCode(), row.piiKindCode().orElseThrow(), row.label().orElseThrow());
+            assertEquals(kind, row.piiKind().orElseThrow());
+            assertTrue(row.piiCustomKindIndex().isEmpty());
+            assertTrue(row.tokenRange().isEmpty(), "a PII row has no token range");
+            TurboSpanData copy = row.materialize();
+            assertEquals(kind, copy.piiKind().orElseThrow());
+            assertEquals(row.classification(), copy.classification());
+            seen.add(kind);
+        }
+        assertEquals(Set.of(TurboPiiKind.EMAIL, TurboPiiKind.IPV4, TurboPiiKind.CA_SIN), seen);
     }
 
     @Test

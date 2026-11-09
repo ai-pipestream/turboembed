@@ -19,10 +19,10 @@ use turbo_tokenize::{TokenizerOptions, simple_spans};
 use super::graph::{Origin, extract_graph};
 use super::heads::{BundleHeads, Want, unsupported};
 use super::{
-    AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
-    TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM,
-    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
-    coordinate_range,
+    AnalysisResultInner, PiiRows, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES,
+    TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS,
+    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
+    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -34,13 +34,14 @@ mod direct;
 pub(crate) struct AnalyzerConfig<'a> {
     pub(crate) language: &'a str,
     pub(crate) bundle_path: &'a str,
-    /// `TURBO_ANALYZER_PII_VALUES`: PII rows carry their value (#1904).
-    pub(crate) pii_values: bool,
+    /// What PII rows carry: their value (`TURBO_ANALYZER_PII_VALUES`,
+    /// #1904) and their numeric kind (`TURBO_ANALYZER_PII_KIND_IDS`, #1940).
+    pub(crate) pii: PiiRows,
 }
 
 impl Default for AnalyzerConfig<'_> {
     fn default() -> Self {
-        Self { language: "en", bundle_path: "", pii_values: false }
+        Self { language: "en", bundle_path: "", pii: PiiRows::default() }
     }
 }
 
@@ -49,7 +50,7 @@ pub struct AnalyzerEngine {
     heads: Option<BundleHeads>,
     pii_detector: PiiDetector,
     codecs: Codecs,
-    pii_values: bool,
+    pii: PiiRows,
 }
 
 fn index_u32(index: usize, what: &str) -> Result<u32> {
@@ -116,7 +117,7 @@ impl AnalyzerEngine {
             heads,
             pii_detector: PiiDetector::pack(Pack::AllStructured),
             codecs,
-            pii_values: cfg.pii_values,
+            pii: cfg.pii,
         })
     }
 
@@ -302,7 +303,7 @@ impl AnalyzerEngine {
         for (idx, mention) in pii.mentions().enumerate() {
             let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
             let label = builder.string_ref(pii.kind_name(mention.kind).unwrap_or(""))?;
-            let value = if self.pii_values { Some(builder.string_ref(mention.normalized)?) } else { None };
+            let value = if self.pii.values { Some(builder.string_ref(mention.normalized)?) } else { None };
             let classification = match mention.confidence() {
                 PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
                 PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
@@ -318,6 +319,7 @@ impl AnalyzerEngine {
                     source: Some(coords),
                     label: Some(label),
                     value,
+                    pii_kind: self.pii.kind_ids.then(|| mention.kind.code()),
                     ..SpanDraft::default()
                 },
             )?;
@@ -460,7 +462,7 @@ impl AnalyzerEngine {
 
         let graph = export(&doc, &self.codecs).map_err(|e| Error::new(BUNDLE_INVALID, format!("export graph: {e}")))?;
         let wire = graph.to_bytes().map_err(|e| Error::new(BUNDLE_INVALID, format!("encode graph: {e}")))?;
-        extract_graph(&doc, wire, Origin::Analyzed, self.pii_values)
+        extract_graph(&doc, wire, Origin::Analyzed, self.pii)
     }
 
     pub fn inspect_graph(&self, graph_bytes: &[u8]) -> Result<AnalysisResultInner> {
@@ -468,7 +470,7 @@ impl AnalyzerEngine {
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("invalid DocumentGraph wire bytes: {e}")))?;
         let doc = import(&graph, &self.codecs)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("DocumentGraph import failed: {e}")))?;
-        extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller, self.pii_values)
+        extract_graph(&doc, graph_bytes.to_vec(), Origin::Caller, self.pii)
     }
 }
 

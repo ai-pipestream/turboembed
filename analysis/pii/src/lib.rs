@@ -15,6 +15,8 @@
 //! - [`checksum`] has the checks the detectors validate with, written
 //!   here: Luhn, mod 97, SHA-256, HMAC-SHA-256, Keccak-256, base58check
 //!   and bech32.
+//! - [`PiiRiskScorer`] writes the `turbo:pii-risk` layer ([`PiiRisk`]):
+//!   one score and level per document from the `turbo:pii` layer alone.
 //! - [`rewrite`] masks, pseudonymizes and tokenizes the mentions of a
 //!   text, and reports on them without their values.
 //!
@@ -26,6 +28,7 @@ mod detector;
 mod hits;
 pub mod lists;
 pub mod rewrite;
+mod risk;
 mod scan;
 mod tables;
 pub mod text;
@@ -34,11 +37,15 @@ pub mod window;
 pub use detector::{DENY_LIST_DETECTOR, Pack, PiiDetector};
 pub use hits::{PiiSink, SinkError};
 pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
+pub use risk::PiiRiskScorer;
 pub use scan::{BUILTIN_VERSION, CustomExtractor, Extractor, Scanner, ScannerError};
 pub use turbo_analysis_layers::{
     AllowRule, AllowScope, ChecksumAlgorithm, CustomKindId, CustomKinds, DetectorError, EvidenceList, KindError, Pii,
     PiiCandidate, PiiCandidates, PiiConfidence, PiiDetectorRef, PiiDetectors, PiiDisposition, PiiEdit, PiiEdits,
     PiiEvidence, PiiKind, PiiKinds, PiiMention, PiiPlan, PiiRule, PiiScore, PiiScoreKind, PiiStrategyKind,
     RejectReason,
+};
+pub use turbo_analysis_layers::{
+    PiiRisk, PiiRiskKind, PiiRiskLevel, PiiSeverity, PiiSeverityTable, PiiSuggestedRewrite, confidence_weight,
 };
 pub use window::LabelPolicy;

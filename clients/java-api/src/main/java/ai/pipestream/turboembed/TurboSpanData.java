@@ -3,6 +3,7 @@ package ai.pipestream.turboembed;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 
 /**
@@ -12,7 +13,9 @@ import java.util.OptionalLong;
  * only the pool strings it names; it remains usable after its {@link TurboAnalysisResult} closes.
  * A field family is present only when the corresponding {@link Optional} is non-empty. In
  * particular, covered sentence and token text are not labels: read them from {@code sourceRange}
- * or {@code viewRange} so their coordinate space remains explicit.
+ * or {@code viewRange} so their coordinate space remains explicit. {@code piiKindCode} is a PII
+ * row's numeric kind ({@link TurboPiiKind#fromCode}, {@link TurboPiiKind#customIndex}), present
+ * on every PII row the native library reports it for and on no other row.
  */
 public record TurboSpanData(
         TurboLayerKind layerKind,
@@ -27,7 +30,27 @@ public record TurboSpanData(
         String instance,
         Optional<String> label,
         Optional<String> value,
-        OptionalDouble probability) {
+        OptionalDouble probability,
+        OptionalLong piiKindCode) {
+
+    /** A row without a numeric PII kind, as rows were before it was reported (#1940). */
+    public TurboSpanData(
+            TurboLayerKind layerKind,
+            long itemIndex,
+            long fragmentIndex,
+            long viewId,
+            long classification,
+            Optional<CoordinateRange> viewRange,
+            Optional<CoordinateRange> sourceRange,
+            Optional<TokenRange> tokenRange,
+            String layer,
+            String instance,
+            Optional<String> label,
+            Optional<String> value,
+            OptionalDouble probability) {
+        this(layerKind, itemIndex, fragmentIndex, viewId, classification, viewRange, sourceRange, tokenRange, layer,
+                instance, label, value, probability, OptionalLong.empty());
+    }
 
     /** Validates copied span fields. */
     public TurboSpanData {
@@ -40,6 +63,13 @@ public record TurboSpanData(
         Objects.requireNonNull(label, "label");
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(probability, "probability");
+        Objects.requireNonNull(piiKindCode, "piiKindCode");
+        if (piiKindCode.isPresent()) {
+            if (layerKind != TurboLayerKind.PII) {
+                throw new IllegalArgumentException("a " + layerKind + " row has a PII kind code");
+            }
+            TurboPiiKind.customIndex(piiKindCode.getAsLong());
+        }
         requireNonNegative(itemIndex, "itemIndex");
         requireNonNegative(fragmentIndex, "fragmentIndex");
         requireNonNegative(viewId, "viewId");
@@ -74,6 +104,7 @@ public record TurboSpanData(
                 + ", label=" + label
                 + ", value=" + (value.isPresent() ? "Optional[<withheld>]" : "Optional.empty")
                 + ", probability=" + probability
+                + ", piiKindCode=" + piiKindCode
                 + "]";
     }
 
@@ -86,6 +117,25 @@ public record TurboSpanData(
         return layerKind == TurboLayerKind.PII
                 ? Optional.of(TurboPiiConfidence.fromNative(classification))
                 : Optional.empty();
+    }
+
+    /**
+     * Returns the built-in kind of a PII row from its numeric kind code, with no label parse.
+     *
+     * @return the built-in kind, or empty for a custom kind, another layer kind, or a row without
+     *     a code
+     */
+    public Optional<TurboPiiKind> piiKind() {
+        return piiKindCode.isPresent() ? TurboPiiKind.fromCode(piiKindCode.getAsLong()) : Optional.empty();
+    }
+
+    /**
+     * Returns the custom-kind table index of a PII row of a custom kind.
+     *
+     * @return the index, or empty for a built-in kind, another layer kind, or a row without a code
+     */
+    public OptionalInt piiCustomKindIndex() {
+        return piiKindCode.isPresent() ? TurboPiiKind.customIndex(piiKindCode.getAsLong()) : OptionalInt.empty();
     }
 
     /**

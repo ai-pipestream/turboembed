@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
+import java.util.OptionalLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
@@ -530,6 +531,10 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
         return readLocked(() -> tokenRangeRaw(index));
     }
 
+    OptionalLong piiKindCode(int index) {
+        return readLocked(() -> piiKindCodeRaw(index));
+    }
+
     String layer(int index) {
         return readLocked(() -> layerRaw(index));
     }
@@ -675,6 +680,9 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
     }
 
     private Optional<TurboSpanData.TokenRange> tokenRangeRaw(int index) {
+        if (piiKindCodeRaw(index).isPresent()) {
+            return Optional.empty();
+        }
         if (!hasFlag(index, TurboLibrary.TURBO_SPAN_TOKEN_RANGE)) {
             if (u32(index, TOKEN_START_OFFSET) != 0 || u32(index, TOKEN_END_OFFSET) != 0) {
                 throw new IllegalStateException("native span has nonzero absent token range fields");
@@ -683,6 +691,20 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
         }
         return Optional.of(new TurboSpanData.TokenRange(
                 u32(index, TOKEN_START_OFFSET), u32(index, TOKEN_END_OFFSET)));
+    }
+
+    /** A PII row's numeric kind, read from token_start under TURBO_SPAN_PII_KIND (#1940). */
+    private OptionalLong piiKindCodeRaw(int index) {
+        if (!hasFlag(index, TurboLibrary.TURBO_SPAN_PII_KIND)) {
+            return OptionalLong.empty();
+        }
+        if (hasFlag(index, TurboLibrary.TURBO_SPAN_TOKEN_RANGE) || layerKindRaw(index) != TurboLayerKind.PII) {
+            throw new IllegalStateException("native span has a PII kind on a row that is not a PII row");
+        }
+        if (u32(index, TOKEN_END_OFFSET) != 0L) {
+            throw new IllegalStateException("native span has a nonzero token end with its PII kind");
+        }
+        return OptionalLong.of(u32(index, TOKEN_START_OFFSET));
     }
 
     private String poolString(long offset, long length, String what) {
@@ -760,6 +782,7 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
                 instanceRaw(index),
                 labelRaw(index),
                 valueRaw(index),
-                probabilityRaw(index));
+                probabilityRaw(index),
+                piiKindCodeRaw(index));
     }
 }
