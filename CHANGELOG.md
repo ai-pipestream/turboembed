@@ -103,7 +103,7 @@ stubs must be regenerated.
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (10) keep a ZIP code's first three
   digits, or `000` for a restricted area, and mask the rest; the HHS 2000
-  Census table is bundled and a caller may pass its own (#1884).
+  Census table is bundled and a caller may pass its own (#1966).
 
 ### Changed: PII and the result envelope (#1879)
 
