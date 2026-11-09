@@ -119,3 +119,30 @@ fn a_fingerprint_reads_either_case_and_prints_lowercase() {
     assert_eq!(fp().to_string(), FP.to_ascii_lowercase());
     assert_eq!(Fingerprint::parse(&FP.to_ascii_lowercase()).unwrap(), fp());
 }
+
+#[test]
+fn requiring_the_recorded_policy_is_off_by_default_and_set_by_its_flag_or_variable() {
+    let grant = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
+    let on = |a: Args| a.pii_release.unwrap().require_recorded_policy;
+    assert!(!on(args(&grant).unwrap()), "off by default");
+    assert!(on(args(&format!("{grant} --pii-require-recorded-policy")).unwrap()));
+    for (v, want) in [("1", true), ("true", true), ("yes", true), ("0", false), ("false", false), ("no", false)] {
+        let env = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| v.to_owned());
+        assert_eq!(on(args_env(&grant, env).unwrap()), want, "{v}");
+    }
+    // The flag wins over a variable that turns it off.
+    let off = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| "0".to_owned());
+    assert!(on(args_env(&format!("{grant} --pii-require-recorded-policy"), off).unwrap()));
+    for (cmd, want) in [
+        (format!("{grant} --pii-require-recorded-policy=1"), "takes no value"),
+        (format!("{grant} --pii-require-recorded-policy --pii-require-recorded-policy"), "given once"),
+        (format!("{MTLS} --pii-require-recorded-policy"), "need --pii-grant"),
+    ] {
+        let e = args(&cmd).unwrap_err();
+        assert!(e.contains(want), "{cmd}: {e}");
+    }
+    let bad = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| "on".to_owned());
+    assert!(args_env(&grant, bad).unwrap_err().contains("not one of"));
+    let set = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| "1".to_owned());
+    assert!(args_env(MTLS, set).unwrap_err().contains("need --pii-grant"));
+}

@@ -29,7 +29,7 @@ use crate::{SECOND, ask, forms, reason};
 
 /// A policy whose email rule has `ceiling` and whose phone kind has no
 /// rule, at `revision`.
-fn wire(ceiling: Option<&[PiiValueForm]>, revision: u64) -> pb::RedactionPolicy {
+pub fn wire(ceiling: Option<&[PiiValueForm]>, revision: u64) -> pb::RedactionPolicy {
     let mut email = rule(
         "email",
         builtin(pb::PiiKindId::Email),
@@ -42,7 +42,7 @@ fn wire(ceiling: Option<&[PiiValueForm]>, revision: u64) -> pb::RedactionPolicy 
 }
 
 /// `graph()` with the redacted view and edits `policy` writes.
-fn redacted(policy: &pb::RedactionPolicy) -> Vec<u8> {
+pub fn redacted(policy: &pb::RedactionPolicy) -> Vec<u8> {
     let policy = Arc::new(RedactionPolicy::from_proto(policy, &NoRegistry).unwrap());
     let mut doc: Document = import(&DocumentGraph::from_bytes(&graph()).unwrap(), codecs()).unwrap();
     let (view, mut edits) = {
@@ -55,16 +55,16 @@ fn redacted(policy: &pb::RedactionPolicy) -> Vec<u8> {
     export(&doc, codecs()).unwrap().to_bytes().unwrap()
 }
 
-fn inline(p: &pb::RedactionPolicy) -> Option<PiiReleasePolicy> {
+pub fn inline(p: &pb::RedactionPolicy) -> Option<PiiReleasePolicy> {
     Some(PiiReleasePolicy { policy: Some(pii_release_policy::Policy::Inline(p.encode_to_vec())) })
 }
 
-fn named(name: &str) -> Option<PiiReleasePolicy> {
+pub fn named(name: &str) -> Option<PiiReleasePolicy> {
     Some(PiiReleasePolicy { policy: Some(pii_release_policy::Policy::Name(name.into())) })
 }
 
 /// A request for `form` from `graph`, released under `policy`.
-fn under(
+pub fn under(
     form: PiiValueForm,
     key: &str,
     graph: Vec<u8>,
@@ -73,7 +73,7 @@ fn under(
     InspectDocumentGraphRequest { graph, pii_policy: policy, ..ask(form, key) }
 }
 
-fn sent(audit: &Audit) -> Vec<PiiAccessEvent> {
+pub fn sent(audit: &Audit) -> Vec<PiiAccessEvent> {
     let calls = audit.calls.lock().unwrap().clone();
     calls.iter().map(|c| RecordPiiAccessRequest::decode(c.as_slice()).unwrap().event.unwrap()).collect()
 }
