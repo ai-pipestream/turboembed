@@ -251,10 +251,14 @@ fn street(text: &str, start: usize) -> Option<usize> {
     if let Some(e) = unit(text, end) {
         end = e;
     } else if end < words[words.len() - 1].1 {
-        // A city may follow a street suffix without a comma. Keep rejecting
-        // noun suffixes and article-led phrases such as the Wall Street Journal.
-        let article = text[..start].split_whitespace().next_back().is_some_and(|w| w.eq_ignore_ascii_case("the"));
-        if !is_street_only_suffix(suffix_word) || article {
+        // A city may follow a street suffix without a comma. Only a known
+        // title or an ambiguous noun suffix is enough to reject that boundary.
+        let word = |i: usize| &text[words[i].0..words[i].1];
+        let journal = suffix == 1
+            && word(0).eq_ignore_ascii_case("Wall")
+            && suffix_word.eq_ignore_ascii_case("Street")
+            && word(2).eq_ignore_ascii_case("Journal");
+        if !is_street_only_suffix(suffix_word) || journal {
             return None;
         }
     }
