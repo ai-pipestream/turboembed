@@ -5,7 +5,7 @@ use super::boundary_tests::spec;
 use super::coref::{BUCKETS, CorefRanker, bucket, chains, check_mentions, tensors};
 use super::tagger::NO_WORD;
 use super::words::Work;
-use crate::manifest::{CorefShape, Decode, HeadKind, HeadSpec, SpanShape};
+use crate::manifest::{CorefShape, Decode, HeadKind, HeadSpec, LayerMix, SpanShape};
 
 fn coref_spec(antecedents: u32) -> HeadSpec {
     let mut s = spec(HeadKind::CorefRanker, &["coref"], Decode::Antecedent);
@@ -137,6 +137,48 @@ fn a_ranker_needs_its_span_its_coref_shape_and_its_one_label() {
     let mut tagger = spec(HeadKind::TokenTagger, &["X"], Decode::Argmax);
     tagger.coref = Some(CorefShape { dim: 2, antecedents: 2 });
     assert!(tagger.validate("h").is_err());
+}
+
+/// With `layer_mix` the ranker lists the mix tensors last and mixes the
+/// taps before pooling: its mention vectors over [taps, rows, hidden]
+/// states are the plain ranker's over the mixed states.
+#[test]
+fn a_mixed_ranker_reads_its_taps_as_the_plain_one_reads_the_mix() {
+    let (hidden, taps) = (4, 3usize);
+    let words = [NO_WORD, 0, 1, 1, 2, NO_WORD];
+    let plain = coref_spec(4);
+    let mut mixed = coref_spec(4);
+    mixed.layer_mix = Some(LayerMix { layers: taps as u32, layer: None });
+    assert!(mixed.validate("h").is_ok());
+    let ts = tensors(&mixed, hidden);
+    assert_eq!(ts[ts.len() - 2], ("mix.weight".to_string(), vec![taps as u64]));
+    assert_eq!(ts[ts.len() - 1], ("mix.gamma".to_string(), vec![1]));
+    let w = weights(&mixed, hidden);
+    let m = head(&mixed, hidden, &w);
+    assert_eq!(m.taps(), taps);
+    let p = head(&plain, hidden, &w);
+    assert_eq!(p.taps(), 1);
+
+    let stride = words.len() * hidden;
+    let states = values(0xc0de, taps * stride);
+    let get = |k: &str| &w.iter().find(|(n, _)| n == k).unwrap().1;
+    let (mw, gamma) = (get("mix.weight"), get("mix.gamma")[0] as f64);
+    let max = mw.iter().fold(f64::NEG_INFINITY, |a, &b| a.max(b as f64));
+    let exps: Vec<f64> = mw.iter().map(|&v| (v as f64 - max).exp()).collect();
+    let z: f64 = exps.iter().sum();
+    let one: Vec<f32> = (0..stride)
+        .map(|r| (0..taps).map(|k| gamma * (exps[k] / z) * states[k * stride + r] as f64).sum::<f64>() as f32)
+        .collect();
+
+    let mentions = [(0, 0), (0, 1), (1, 2), (2, 2)];
+    let (mut got, mut want, mut work) = (Vec::new(), Vec::new(), Work::default());
+    assert_eq!(m.mentions(&states, &words, &mentions, &mut got, &mut work).unwrap(), 3);
+    assert_eq!(p.mentions(&one, &words, &mentions, &mut want, &mut work).unwrap(), 3);
+    assert_eq!(got.len(), want.len());
+    for (g, r) in got.iter().zip(&want) {
+        assert!((g - r).abs() < 1e-5, "{g} vs {r}");
+    }
+    assert!(m.mentions(&states[..stride], &words, &mentions, &mut got, &mut work).is_err());
 }
 
 #[test]
