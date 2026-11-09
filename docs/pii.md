@@ -696,14 +696,18 @@ to a trained head.
   standard abbreviation of USPS Publication 28 Appendix C1
   (`analysis/pii/src/tables/street_suffixes.rs`, in any case once the
   word is capitalized); the last suffix in the run ends the street
-  (`18 Mill Creek Road`), provided no unconsumed capitalized word follows
-  it on the same line (`3 Point Lane`, not `the 3 Five Point Plan`). When
-  the house number is a four-digit year (`1900` to `2099`) and the suffix
-  is a general noun (`Park`, `Point`, `Summit`, `Center`) rather than a
-  street-only suffix (`St`, `Street`, `Ave`, `Avenue`, `Rd`, `Road`,
-  `Blvd`), a post-direction, a unit or a comma and capitalized city word
-  must follow (`2016 Central Park West`, `2016 Central Park, New York`,
-  not `2016 Central Park` or `2024 Annual Bay Summit`). A direction may
+  (`18 Mill Creek Road`). A street-only suffix (`St`, `Street`, `Ave`,
+  `Avenue`, `Rd`, `Road`, `Blvd`, `Ct`, `Court`, `Loop` and the like) may
+  be followed on the same line by a comma-less city (`12 Main Street
+  Boston`, `12 Oak Court Springfield`, `1 Infinite Loop Cupertino`, not
+  `the 12 Wall Street Journal`), whereas a general noun suffix (`Park`,
+  `Point`, `Summit`, `Center`, `Plan`) may not be followed by unconsumed
+  capitalized words (`3 Point Lane`, not `the 3 Five Point Plan` or
+  `2020 Vision Center Plan`). When the house number is a four-digit year
+  (`1900` to `2099`) and the suffix is a general noun rather than a
+  street-only suffix, a post-direction, a unit or a comma and capitalized
+  city word must follow (`2016 Central Park West`, `2016 Central Park,
+  New York`, not `2016 Central Park` or `2024 Annual Bay Summit`). A direction may
   follow the suffix (`Main St
   NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
   an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,

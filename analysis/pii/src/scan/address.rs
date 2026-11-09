@@ -58,8 +58,8 @@ const UNITS: [&str; 16] = [
 
 /// Suffixes from [`STREET_SUFFIXES`] that name a thoroughfare or postal
 /// abbreviation rather than a general English noun (`Park`, `Point`,
-/// `Summit`, `Center`, `Court`, `Hill`), sorted for binary search.
-const STREET_ONLY_SUFFIXES: [&str; 54] = [
+/// `Summit`, `Center`, `Hill`, `Plaza`), sorted for binary search.
+const STREET_ONLY_SUFFIXES: [&str; 56] = [
     "ALLEY",
     "ALY",
     "AVE",
@@ -69,6 +69,7 @@ const STREET_ONLY_SUFFIXES: [&str; 54] = [
     "BYP",
     "BYPASS",
     "CIR",
+    "COURT",
     "CSWY",
     "CT",
     "CTR",
@@ -85,6 +86,7 @@ const STREET_ONLY_SUFFIXES: [&str; 54] = [
     "JCT",
     "LANE",
     "LN",
+    "LOOP",
     "MOTORWAY",
     "MTWY",
     "PARKWAY",
@@ -256,13 +258,13 @@ fn street(text: &str, start: usize) -> Option<usize> {
         let word = |i: usize| &text[words[i].0..words[i].1];
         let journal = suffix == 1
             && word(0).eq_ignore_ascii_case("Wall")
-            && suffix_word.eq_ignore_ascii_case("Street")
+            && (suffix_word.eq_ignore_ascii_case("Street") || suffix_word.eq_ignore_ascii_case("St"))
             && word(2).eq_ignore_ascii_case("Journal");
         if !is_street_only_suffix(suffix_word) || journal {
             return None;
         }
     }
-    let year = p == start + 4 && matches!(b[start..start + 2], [b'1', b'9'] | [b'2', b'0']);
+    let year = digits == 4 && p == start + 4 && matches!(b[start..start + 2], [b'1', b'9'] | [b'2', b'0']);
     if year && end == words[suffix].1 && !is_street_only_suffix(suffix_word) && !comma_city(text, end) {
         return None;
     }

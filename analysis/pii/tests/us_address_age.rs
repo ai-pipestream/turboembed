@@ -40,6 +40,9 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         ("at 3 Point Lane", "3 Point Lane"),
         ("Ship to 12 Main Street Boston", "12 Main Street"),
         ("Use the 12 Main Street Boston address", "12 Main Street"),
+        ("Mail to 12 Oak Court Springfield", "12 Oak Court"),
+        ("1 Infinite Loop Cupertino", "1 Infinite Loop"),
+        ("at 201B Central Park", "201B Central Park"),
         ("at 1999 Main Street", "1999 Main Street"),
         ("at 2016 Central Park West", "2016 Central Park West"),
         ("at 2016 Central Park, Apt 4B", "2016 Central Park, Apt 4B"),
@@ -68,6 +71,7 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         "the 3 Point Plan",                  // suffix word with no street name before it
         "the 3 Five Point Plan",             // suffix word inside a capitalized phrase
         "the 12 Wall Street Journal",        // suffix word inside a publication title
+        "the 12 Wall St Journal",            // abbreviated suffix word inside a publication title
         "the 3 North Point Plan",            // direction and suffix word inside a phrase
     ] {
         assert!(of_kind(&d, not, "street-address").is_empty(), "{not}");
