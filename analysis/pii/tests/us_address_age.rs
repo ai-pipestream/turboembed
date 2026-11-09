@@ -47,6 +47,7 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         ("at 2016 Central Park West", "2016 Central Park West"),
         ("at 2016 Central Park, Apt 4B", "2016 Central Park, Apt 4B"),
         ("at 2016 Central Park, New York", "2016 Central Park"),
+        ("2024 Oak Ct, Springfield", "2024 Oak Ct"),
         ("12\u{00A0}Main\u{00A0}St", "12\u{00A0}Main\u{00A0}St"),
         ("12\u{202F}Main\u{202F}St", "12\u{202F}Main\u{202F}St"),
     ] {
@@ -68,6 +69,7 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         "2018 Apple Park",                            // year before a noun suffix
         "2024 Annual Bay Summit",                     // year before a noun suffix
         "The 2024 Supreme Court ruled on the issue.", // year before Court without address tail
+        "the 2024 Supreme Ct ruled",                  // year before Ct without address tail
         "the 2023 Feedback Loop report",              // year before Loop without address tail
         "2016 Central Park, where we met",            // comma before a lower case word, not a city
         "the 3 Point Plan",                           // suffix word with no street name before it
