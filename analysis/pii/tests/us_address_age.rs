@@ -53,26 +53,27 @@ fn street_addresses_run_from_the_house_number_to_the_suffix_or_unit() {
         assert_eq!(of_kind(&d, text, "street-address"), [want], "{text}");
     }
     for not in [
-        "We sold 1600 units on the street.", // lower case words
-        "Turn left on Main Street.",         // no house number
-        "Route 66 is long",                  // the number is after the words
-        "Call 555 Smith",                    // no suffix
-        "In 1999 the court ruled",           // lower case suffix word
-        "Table 4 Summary",                   // no suffix
-        "Order 0 Main St",                   // a house number never starts with 0
-        "12.5 Main St",                      // inside a decimal
-        "1234567 Main Street",               // seven digits
-        "the 5th Avenue store",              // an ordinal is no house number
-        "12\nMain Street",                   // a line break
-        "2016 Central Park",                 // year before a noun suffix
-        "2018 Apple Park",                   // year before a noun suffix
-        "2024 Annual Bay Summit",            // year before a noun suffix
-        "2016 Central Park, where we met",   // comma before a lower case word, not a city
-        "the 3 Point Plan",                  // suffix word with no street name before it
-        "the 3 Five Point Plan",             // suffix word inside a capitalized phrase
-        "the 12 Wall Street Journal",        // suffix word inside a publication title
-        "the 12 Wall St Journal",            // abbreviated suffix word inside a publication title
-        "the 3 North Point Plan",            // direction and suffix word inside a phrase
+        "We sold 1600 units on the street.",          // lower case words
+        "Turn left on Main Street.",                  // no house number
+        "Route 66 is long",                           // the number is after the words
+        "Call 555 Smith",                             // no suffix
+        "In 1999 the court ruled",                    // lower case suffix word
+        "Table 4 Summary",                            // no suffix
+        "Order 0 Main St",                            // a house number never starts with 0
+        "12.5 Main St",                               // inside a decimal
+        "1234567 Main Street",                        // seven digits
+        "the 5th Avenue store",                       // an ordinal is no house number
+        "12\nMain Street",                            // a line break
+        "2016 Central Park",                          // year before a noun suffix
+        "2018 Apple Park",                            // year before a noun suffix
+        "2024 Annual Bay Summit",                     // year before a noun suffix
+        "The 2024 Supreme Court ruled on the issue.", // year before Court without address tail
+        "2016 Central Park, where we met",            // comma before a lower case word, not a city
+        "the 3 Point Plan",                           // suffix word with no street name before it
+        "the 3 Five Point Plan",                      // suffix word inside a capitalized phrase
+        "the 12 Wall Street Journal",                 // suffix word inside a publication title
+        "the 12 Wall St Journal",                     // abbreviated suffix word inside a publication title
+        "the 3 North Point Plan",                     // direction and suffix word inside a phrase
     ] {
         assert!(of_kind(&d, not, "street-address").is_empty(), "{not}");
     }
