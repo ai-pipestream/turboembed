@@ -35,17 +35,41 @@ pub const TURBO_SPAN_TOKEN_RANGE: u32 = 1 << 2;
 pub const TURBO_SPAN_LABEL: u32 = 1 << 3;
 pub const TURBO_SPAN_VALUE: u32 = 1 << 4;
 pub const TURBO_SPAN_PROBABILITY: u32 = 1 << 5;
+/// A PII row's `token_start` holds its numeric kind (`TURBO_PII_KIND_*`, or
+/// [`TURBO_PII_KIND_CUSTOM_BASE`] plus a custom-table index) and `token_end`
+/// is zero. Set only under `TURBO_ANALYZER_PII_KIND_IDS`, never with
+/// `TURBO_SPAN_TOKEN_RANGE` (#1940).
+pub const TURBO_SPAN_PII_KIND: u32 = 1 << 6;
 const TURBO_SPAN_KNOWN_FLAGS: u32 = TURBO_SPAN_VIEW_RANGE
     | TURBO_SPAN_SOURCE_RANGE
     | TURBO_SPAN_TOKEN_RANGE
     | TURBO_SPAN_LABEL
     | TURBO_SPAN_VALUE
-    | TURBO_SPAN_PROBABILITY;
+    | TURBO_SPAN_PROBABILITY
+    | TURBO_SPAN_PII_KIND;
 
 /// `turbo_analyzer_desc.flags`: PII rows carry their normalized value
 /// (`TURBO_SPAN_VALUE`). Off by default: the value is withheld (#1904).
 pub const TURBO_ANALYZER_PII_VALUES: u32 = 1 << 0;
-pub(crate) const TURBO_ANALYZER_KNOWN_FLAGS: u32 = TURBO_ANALYZER_PII_VALUES;
+/// `turbo_analyzer_desc.flags`: PII rows carry their numeric kind under
+/// `TURBO_SPAN_PII_KIND`. Off by default, so a caller built before the flag
+/// sees the rows it always saw (#1940).
+pub const TURBO_ANALYZER_PII_KIND_IDS: u32 = 1 << 1;
+pub(crate) const TURBO_ANALYZER_KNOWN_FLAGS: u32 = TURBO_ANALYZER_PII_VALUES | TURBO_ANALYZER_PII_KIND_IDS;
+
+/// The numeric kind of a custom PII kind: `TURBO_PII_KIND_CUSTOM_BASE + i`
+/// is entry `i` of its layer's custom-kind table, the binary codec's own
+/// kind code. Every built-in `TURBO_PII_KIND_*` id is below it.
+pub const TURBO_PII_KIND_CUSTOM_BASE: u32 = turbo_analysis_layers::CUSTOM_CODE_BASE;
+
+/// What a PII row carries beyond its kind name, tier and ranges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct PiiRows {
+    /// `TURBO_ANALYZER_PII_VALUES`: the normalized value (#1904).
+    pub(crate) values: bool,
+    /// `TURBO_ANALYZER_PII_KIND_IDS`: the numeric kind (#1940).
+    pub(crate) kind_ids: bool,
+}
 
 pub const TURBO_PII_CONFIDENCE_FORMAT: u32 = 1;
 pub const TURBO_PII_CONFIDENCE_CHECKSUM: u32 = 2;
@@ -198,6 +222,8 @@ pub(crate) struct SpanDraft {
     pub(crate) label: Option<PoolRef>,
     pub(crate) value: Option<PoolRef>,
     pub(crate) prob: Option<f64>,
+    /// A PII row's numeric kind, carried in `token_start`.
+    pub(crate) pii_kind: Option<u32>,
 }
 
 #[derive(Default)]
@@ -257,6 +283,9 @@ impl SpanPoolBuilder {
         {
             return Err(Error::new(CAPACITY, "analysis token range is reversed"));
         }
+        if draft.tokens.is_some() && draft.pii_kind.is_some() {
+            return Err(Error::new(CAPACITY, "analysis row has both a token range and a PII kind"));
+        }
         let mut flags = 0;
         if draft.view.is_some() {
             flags |= TURBO_SPAN_VIEW_RANGE;
@@ -275,6 +304,9 @@ impl SpanPoolBuilder {
         }
         if draft.prob.is_some() {
             flags |= TURBO_SPAN_PROBABILITY;
+        }
+        if draft.pii_kind.is_some() {
+            flags |= TURBO_SPAN_PII_KIND;
         }
         debug_assert_eq!(flags & !TURBO_SPAN_KNOWN_FLAGS, 0);
         let view = draft.view.unwrap_or(CoordRange {
@@ -298,7 +330,7 @@ impl SpanPoolBuilder {
                 codepoint_end: 0,
             }
         };
-        let (token_start, token_end) = draft.tokens.unwrap_or((0, 0));
+        let (token_start, token_end) = draft.tokens.or(draft.pii_kind.map(|kind| (kind, 0))).unwrap_or((0, 0));
         let label = draft.label.unwrap_or_default();
         let value = draft.value.unwrap_or_default();
         self.spans.push(turbo_span {
@@ -398,7 +430,7 @@ mod tests {
             (*raw).struct_size = TURBO_ANALYZER_DESC_SIZE_V1 as u32;
             (*raw).language = view("de");
             let cfg = decode_analyzer_desc(raw.cast::<turbo_analyzer_desc>()).unwrap();
-            assert_eq!(cfg, AnalyzerConfig { language: "de", bundle_path: "", pii_values: false });
+            assert_eq!(cfg, AnalyzerConfig { language: "de", bundle_path: "", pii: PiiRows::default() });
 
             (*raw).language = view("");
             let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();

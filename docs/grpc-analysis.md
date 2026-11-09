@@ -990,6 +990,17 @@ computed outside the crate with `sha256sum`. The FNV
 `config_hash` of a step stays a local cache hash; the policy digest is in
 the redact step's cache key and on every edit and decision.
 
+### The risk step
+
+`turbo-pii:risk` (aliases `turbo:pii-risk`, `pii-risk`) runs beside
+`turbo-pii:pii` and writes `turbo:pii-risk`: a per-document score, a
+`PiiRiskLevel` from `NONE` to `CRITICAL`, and per-kind counts, severities
+and suggested rewrites (`TypedAnnotation.pii_risk`, `PiiRiskAnnotation`).
+It carries no value, so a findings-only answer keeps it.
+`pii_policy::suggested_policy` builds a `RedactionPolicy` from it for the
+redact step. docs/pii.md, "Per-document risk", has the tables and cut
+points.
+
 ### The redact step
 
 `turbo-pii:redact` (aliases `turbo:pii-redact`, `pii-redact`) runs on

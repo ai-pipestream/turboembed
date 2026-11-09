@@ -1,6 +1,7 @@
 //! The `turbo:pii` and `turbo:pii-candidates` projections (#1903): each
 //! mention with its detector, its evidence facts and its optional score,
-//! and each candidate with the decision taken on it. The confidence tier
+//! and each candidate with the decision taken on it; and the
+//! `turbo:pii-risk` document score (#1889). The confidence tier
 //! on the wire is derived from the facts. A candidate carries no value.
 
 use std::any::TypeId;
@@ -8,7 +9,7 @@ use std::any::TypeId;
 use turbo_analysis::{Ix, KeyId, Layer, Span, ViewId};
 use turbo_analysis_layers::{
     AllowRule, AllowScope, ChecksumAlgorithm, Pii, PiiCandidates, PiiDetectorRef, PiiDetectors, PiiDisposition,
-    PiiEvidence, PiiKind, PiiPlan, PiiScore, PiiScoreKind,
+    PiiEvidence, PiiKind, PiiPlan, PiiRisk, PiiScore, PiiScoreKind,
 };
 
 use super::{ProjectionCx, build_layer};
@@ -16,8 +17,9 @@ use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     PiiAllowRuleRef, PiiAllowedByRule, PiiCandidateAnnotation, PiiChecksumEvidence, PiiDenyHitEvidence,
     PiiDetectorRef as WireDetector, PiiDisposition as WireDisposition, PiiEvidence as WireEvidence, PiiKindRef,
-    PiiLabelEvidence, PiiMention, PiiPlannedRewrite, PiiRuleEvidence, PiiScore as WireScore, PiiShapeEvidence,
-    TypedAnnotation, TypedLayer, pii_allow_rule_ref, pii_disposition, pii_evidence, pii_kind_ref,
+    PiiLabelEvidence, PiiMention, PiiPlannedRewrite, PiiRiskAnnotation, PiiRiskKind as WireRiskKind, PiiRuleEvidence,
+    PiiScore as WireScore, PiiShapeEvidence, TypedAnnotation, TypedLayer, pii_allow_rule_ref, pii_disposition,
+    pii_evidence, pii_kind_ref,
 };
 
 /// The wire reference of `kind`: its stable built-in id (the `PiiKindId`
@@ -182,5 +184,44 @@ pub(crate) fn project_pii_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option
         }
         return Some(layer);
     }
+    if ty == TypeId::of::<PiiRisk>() {
+        // A document-scoped layer: its one annotation has no span.
+        let mut layer = build_layer::<PiiRisk>(cx, key, |_, l, mref| {
+            vec![TypedAnnotation {
+                spans: Vec::new(),
+                probability: None,
+                model_ref: mref.map(ToOwned::to_owned),
+                value: Some(Value::PiiRisk(wire_risk(l))),
+            }]
+        });
+        if let Some(r) = cx.doc.get_key(&turbo_analysis::Key::<PiiRisk>::named(key.name)) {
+            layer.custom_pii_kinds = r.custom_kinds.names().map(str::to_owned).collect();
+        }
+        return Some(layer);
+    }
     None
+}
+
+/// The wire form of a risk layer: kinds and counts, no value.
+pub(crate) fn wire_risk(l: &PiiRisk) -> PiiRiskAnnotation {
+    PiiRiskAnnotation {
+        score: l.score,
+        level: i32::from(l.level.id()),
+        mentions: l.mentions,
+        density_per_1000_chars: l.density_per_1000_chars,
+        kinds: l
+            .kinds
+            .iter()
+            .map(|k| WireRiskKind {
+                kind: Some(pii_kind_ref(k.kind)),
+                mentions: k.mentions,
+                severity: i32::from(k.severity.id()),
+                weighted_count: k.weighted_count,
+                contribution: k.contribution,
+                suggested: i32::from(k.suggested.id()),
+            })
+            .collect(),
+        severity_table_digest: l.severity_table_digest,
+        chars: l.chars,
+    }
 }

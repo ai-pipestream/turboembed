@@ -16,11 +16,12 @@ use turbo_analysis_layers::{
 };
 
 use super::{
-    AnalysisResultInner, CoordRange, LayerRef, PoolRef, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_DEPENDENCIES,
-    TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS, TURBO_ANALYSIS_LAYER_MORPHOLOGY,
-    TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS,
-    TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED,
-    TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM, coordinate_range,
+    AnalysisResultInner, CoordRange, LayerRef, PiiRows, PoolRef, SpanDraft, SpanPoolBuilder,
+    TURBO_ANALYSIS_LAYER_DEPENDENCIES, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
+    TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS,
+    TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS, TURBO_PII_CONFIDENCE_CHECKSUM,
+    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
+    coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -56,8 +57,9 @@ struct Mapper<'a> {
     doc: &'a Document,
     origin: Origin,
     /// Whether a PII row carries its normalized value
-    /// (`TURBO_ANALYZER_PII_VALUES`, #1904); otherwise the value is withheld.
-    pii_values: bool,
+    /// (`TURBO_ANALYZER_PII_VALUES`, #1904; otherwise the value is withheld)
+    /// and its numeric kind (`TURBO_ANALYZER_PII_KIND_IDS`, #1940).
+    pii: PiiRows,
 }
 
 impl Mapper<'_> {
@@ -91,6 +93,8 @@ struct ItemFields {
     value: Option<PoolRef>,
     classification: u32,
     prob: Option<f64>,
+    /// A PII row's numeric kind (`TURBO_SPAN_PII_KIND`, #1940).
+    pii_kind: Option<u32>,
 }
 
 fn push_fragments<L: Layer>(
@@ -122,6 +126,7 @@ fn push_fragments<L: Layer>(
                 label: fields.label,
                 value: fields.value,
                 prob: fields.prob,
+                pii_kind: fields.pii_kind,
             },
         )?;
     }
@@ -160,6 +165,7 @@ fn extract_sentences(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &D
                 value: None,
                 classification: 0,
                 prob: probs.map(|values| values[item]),
+                pii_kind: None,
             },
         )?;
     }
@@ -184,6 +190,7 @@ fn extract_tokens(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Docu
                 value: None,
                 classification: 0,
                 prob: probs.map(|values| values[item]),
+                pii_kind: None,
             },
         )?;
     }
@@ -218,6 +225,7 @@ fn extract_pos(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
                 value: None,
                 classification: 0,
                 prob: layer.prob.as_ref().map(|values| values[item]),
+                pii_kind: None,
             },
         )?;
     }
@@ -254,6 +262,7 @@ fn extract_lemmas(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Docu
                 value: None,
                 classification: 0,
                 prob: probs.map(|values| values[item]),
+                pii_kind: None,
             },
         )?;
     }
@@ -290,6 +299,7 @@ fn extract_morphology(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &
                 value: None,
                 classification: 0,
                 prob: probs.map(|values| values[item]),
+                pii_kind: None,
             },
         )?;
     }
@@ -332,6 +342,7 @@ fn extract_dependencies(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc:
                 value: None,
                 classification,
                 prob: None,
+                pii_kind: None,
             },
         )?;
     }
@@ -369,7 +380,7 @@ fn extract_entities(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Do
             layer_ref,
             &layer.spans,
             item,
-            ItemFields { tokens, label: Some(label), value: None, classification: 0, prob },
+            ItemFields { tokens, label: Some(label), value: None, classification: 0, prob, pii_kind: None },
         )?;
     }
     Ok(())
@@ -384,7 +395,7 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
             Error::new(INVALID_ARGUMENT, format!("PII mention {item} has a custom kind outside its layer's table"))
         })?;
         let label = builder.string_ref(name)?;
-        let value = if mapper.pii_values { Some(builder.string_ref(mention.normalized)?) } else { None };
+        let value = if mapper.pii.values { Some(builder.string_ref(mention.normalized)?) } else { None };
         let classification = match mention.confidence() {
             PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
             PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
@@ -397,21 +408,28 @@ fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Documen
             layer_ref,
             &layer.spans,
             item,
-            ItemFields { tokens: None, label: Some(label), value, classification, prob: None },
+            ItemFields {
+                tokens: None,
+                label: Some(label),
+                value,
+                classification,
+                prob: None,
+                pii_kind: mapper.pii.kind_ids.then(|| mention.kind.code()),
+            },
         )?;
     }
     Ok(())
 }
 
-/// The rows of every layer of `doc` this ABI knows; a PII row's value only
-/// when `pii_values` (#1904).
+/// The rows of every layer of `doc` this ABI knows; a PII row's value and
+/// numeric kind only as `pii` asks (#1904, #1940).
 pub(crate) fn extract_graph(
     doc: &Document,
     graph: Vec<u8>,
     origin: Origin,
-    pii_values: bool,
+    pii: PiiRows,
 ) -> Result<AnalysisResultInner> {
-    let mapper = Mapper { doc, origin, pii_values };
+    let mapper = Mapper { doc, origin, pii };
     let mut builder = SpanPoolBuilder::default();
     for id in doc.layers() {
         if id.ty == TypeId::of::<Sentences>() {

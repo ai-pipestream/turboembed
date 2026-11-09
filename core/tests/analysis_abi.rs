@@ -289,7 +289,7 @@ fn retired_model_paths_are_refused_by_field_and_the_earlier_size_names_no_bundle
         assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_STRUCT_SIZE);
         desc.struct_size = size_of::<turbo_analyzer_desc>() as u32;
         desc.bundle_path = t("");
-        desc.flags = 2;
+        desc.flags = 1 << 31;
         assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::INVALID_ARGUMENT);
     }
 }

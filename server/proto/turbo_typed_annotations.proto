@@ -608,9 +608,10 @@ message TypedLayer
   optional uint32 native_view = 10;
   // Why the layer is not OK; absent when it is.
   optional LayerError error = 11;
-  // The custom-kind names a turbo:pii or turbo:pii-candidates layer's
-  // PiiKindRef.custom indexes, and for a turbo:pii-edits layer its covered
-  // pii layer's table; empty for every other layer.
+  // The custom-kind names a turbo:pii, turbo:pii-candidates or
+  // turbo:pii-risk layer's PiiKindRef.custom indexes, and for a
+  // turbo:pii-edits layer its covered pii layer's table; empty for every
+  // other layer.
   repeated string custom_pii_kinds = 12;
 }
 
@@ -1502,6 +1503,85 @@ message PiiEditAnnotation
   bytes policy_digest = 7;
 }
 
+// A document's PII risk level (#1889), from its score by fixed cut points:
+// NONE at 0, LOW above 0, MEDIUM from 3, HIGH from 6, CRITICAL from 9.
+enum PiiRiskLevel
+{
+  PII_RISK_LEVEL_UNSPECIFIED = 0;
+  PII_RISK_LEVEL_NONE = 1;
+  PII_RISK_LEVEL_LOW = 2;
+  PII_RISK_LEVEL_MEDIUM = 3;
+  PII_RISK_LEVEL_HIGH = 4;
+  PII_RISK_LEVEL_CRITICAL = 5;
+}
+
+// How much one mention of a kind matters to the risk score; its weight is
+// low 0.5, medium 2, high 5, critical 10.
+enum PiiSeverity
+{
+  PII_SEVERITY_UNSPECIFIED = 0;
+  PII_SEVERITY_LOW = 1;
+  PII_SEVERITY_MEDIUM = 2;
+  PII_SEVERITY_HIGH = 3;
+  PII_SEVERITY_CRITICAL = 4;
+}
+
+// What a suggested RedactionPolicy rewrites a kind with; none needs a key,
+// a dictionary or per-document numbering. Each value is one
+// PiiRewriteStrategy arm (turbo_pii_policy.proto).
+enum PiiSuggestedRewrite
+{
+  PII_SUGGESTED_REWRITE_UNSPECIFIED = 0;
+  // PiiMaskStrategy, '*'.
+  PII_SUGGESTED_REWRITE_MASK = 1;
+  // PiiMaskStrategy, '*', keep_format.
+  PII_SUGGESTED_REWRITE_MASK_KEEP_FORMAT = 2;
+  // PiiFormatStrategy, template "[%t]".
+  PII_SUGGESTED_REWRITE_LABEL = 3;
+  // PiiLastNStrategy, count 4, '*', keep_format.
+  PII_SUGGESTED_REWRITE_KEEP_LAST_FOUR = 4;
+}
+
+// One kind found in the document and what it adds to the risk score.
+message PiiRiskKind
+{
+  // A custom index is into the layer's TypedLayer.custom_pii_kinds.
+  PiiKindRef kind = 1;
+  uint32 mentions = 2;
+  PiiSeverity severity = 3;
+  // The sum over the kind's mentions of the confidence weight, a heuristic
+  // over the evidence facts and never a probability: 1 for a deny list hit
+  // or a label with a passed checksum, 0.9 for a passed checksum, 0.85 for
+  // a label, 0.75 for the shape alone.
+  float weighted_count = 4;
+  // severity weight x log2(1 + weighted_count).
+  float contribution = 5;
+  // The rule a suggested RedactionPolicy gives the kind.
+  PiiSuggestedRewrite suggested = 6;
+}
+
+// The one annotation of a turbo:pii-risk layer (#1889): a per-document
+// score and level for routing (index as is, redact, quarantine), computed
+// from the turbo:pii layer alone. It carries kinds and counts, never a
+// value, so it is returned under every PiiOutputOptions.
+message PiiRiskAnnotation
+{
+  // The sum over kinds, in kind order, of PiiRiskKind.contribution. Adding
+  // a mention never lowers it.
+  float score = 1;
+  PiiRiskLevel level = 2;
+  uint32 mentions = 3;
+  // Mentions per 1,000 characters (Unicode scalar values) of the view.
+  float density_per_1000_chars = 4;
+  // One entry per kind found, by kind id; custom kinds after built-ins.
+  repeated PiiRiskKind kinds = 5;
+  // The FNV-1a digest of the severity table used: the built-in table
+  // always gives the same one.
+  fixed64 severity_table_digest = 6;
+  // The length of the scanned view in Unicode scalar values.
+  uint32 chars = 7;
+}
+
 message NoiseSpan
 {
   string severity = 1;
@@ -2078,5 +2158,6 @@ message TypedAnnotation
     PiiEditAnnotation pii_edit = 98;
     // turbo:pii-candidates (#1903).
     PiiCandidateAnnotation pii_candidate = 99;
+    PiiRiskAnnotation pii_risk = 100;
   }
 }

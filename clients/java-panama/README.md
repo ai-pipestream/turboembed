@@ -106,7 +106,9 @@ created with `Config.withPiiValues(true)` (`TURBO_ANALYZER_PII_VALUES`; by
 default `value()` is empty, #1904), and a `TurboPiiConfidence`
 evidence classification (`FORMAT(1)`, `CHECKSUM(2)`, `LABELLED_CHECKSUM(3)`,
 `LABELLED(4)`). PII classification is not represented as a
-probability.
+probability. A PII row's kind is also read as a number, with no label
+parse: `piiKindCode()`, `piiKind()` for a built-in `TurboPiiKind`, and
+`piiCustomKindIndex()` for a custom kind (#1940).
 
 ## Bundles and explicit unknowns
 

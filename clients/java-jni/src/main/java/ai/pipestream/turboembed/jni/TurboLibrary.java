@@ -69,10 +69,20 @@ public final class TurboLibrary {
      * row withholds it (#1904); set through {@code Config.withPiiValues(true)}.
      */
     public static final int TURBO_ANALYZER_PII_VALUES = 1;
+    /**
+     * Analyzer descriptor flag: PII rows carry their numeric kind under
+     * {@link #TURBO_SPAN_PII_KIND} (#1940). This binding always sets it.
+     */
+    public static final int TURBO_ANALYZER_PII_KIND_IDS = 1 << 1;
     /** Native span flag: a normalized value is present. */
     public static final int TURBO_SPAN_VALUE = 1 << 4;
     /** Native span flag: a probability is present. */
     public static final int TURBO_SPAN_PROBABILITY = 1 << 5;
+    /**
+     * Native span flag: a PII row's numeric kind is in {@code token_start} and {@code token_end}
+     * is zero. Never set with {@link #TURBO_SPAN_TOKEN_RANGE}.
+     */
+    public static final int TURBO_SPAN_PII_KIND = 1 << 6;
     /** Mask containing every native span flag defined by this ABI. */
     public static final int TURBO_SPAN_KNOWN_FLAGS =
             TURBO_SPAN_VIEW_RANGE
@@ -80,7 +90,8 @@ public final class TurboLibrary {
                     | TURBO_SPAN_TOKEN_RANGE
                     | TURBO_SPAN_LABEL
                     | TURBO_SPAN_VALUE
-                    | TURBO_SPAN_PROBABILITY;
+                    | TURBO_SPAN_PROBABILITY
+                    | TURBO_SPAN_PII_KIND;
 
     /** Native PII classification: format-only evidence. */
     public static final int TURBO_PII_CONFIDENCE_FORMAT = 1;
