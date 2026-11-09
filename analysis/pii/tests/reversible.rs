@@ -142,15 +142,20 @@ fn a_changed_token_fails_authentication() {
 fn values_ff1_would_leave_in_the_clear_are_refused() {
     let digits = Ff1Encryptor::new(&KEY, Ff1Alphabet::Digits).unwrap();
     assert_eq!(digits.encrypt("12345"), Err(CryptError::TooFewNumerals { have: 5, need: 6 }));
-    assert_eq!(digits.encrypt("AB123456"), Err(CryptError::OutsideAlphabet('A')));
-    assert_eq!(digits.encrypt("123\u{0663}456"), Err(CryptError::OutsideAlphabet('\u{0663}')));
+    assert_eq!(digits.encrypt("AB123456"), Err(CryptError::OutsideAlphabet { at: 0 }));
+    assert_eq!(digits.encrypt("123\u{0663}456"), Err(CryptError::OutsideAlphabet { at: 3 }));
     let upper = Ff1Encryptor::new(&KEY, Ff1Alphabet::UpperAlphanumeric).unwrap();
-    assert_eq!(upper.encrypt("X12345a"), Err(CryptError::OutsideAlphabet('a')));
+    assert_eq!(upper.encrypt("X12345a"), Err(CryptError::OutsideAlphabet { at: 6 }));
     assert_eq!(upper.encrypt("X12"), Err(CryptError::TooFewNumerals { have: 3, need: 4 }));
     assert_eq!(upper.encrypt(""), Err(CryptError::EmptyValue));
     let text = "pin 1234 here";
     let r = digits.rewrite(&source_view(text), &layer(text, &[(4, 8, PiiKind::UsSsn)]));
     assert!(matches!(r.err(), Some(turbo_pii::rewrite::RewriteError::Encrypt(s, _)) if s == Span::new(4, 8)));
+    // The error of a value with a character outside the alphabet names its
+    // offset, not the character.
+    let text = "id Q12345678 end";
+    let err = digits.rewrite(&source_view(text), &layer(text, &[(3, 12, PiiKind::UsSsn)])).err().unwrap();
+    assert!(!err.to_string().contains('Q'), "{err}");
 }
 
 #[test]

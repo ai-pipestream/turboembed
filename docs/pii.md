@@ -505,8 +505,9 @@ Apache-2.0). The default build has no crypto crate.
   `UpperAlphanumeric` or `Alphanumeric`, radix 10, 36 or 62) under a
   caller tweak (`with_tweak`). Every other character keeps its place, so
   `123-45-6789` encrypts to another `ddd-dd-dddd`. A value with a letter
-  or digit outside the alphabet is refused (`CryptError::OutsideAlphabet`)
-  rather than leaving that character in the clear. FF1 needs a domain of
+  or digit outside the alphabet is refused (`CryptError::OutsideAlphabet`,
+  which names its byte offset, never the character) rather than leaving
+  that character in the clear. FF1 needs a domain of
   at least a million values, so a value with fewer than 6 digits, or 4
   letters and digits, is refused (`CryptError::TooFewNumerals`). One value
   under one key and tweak always encrypts the same way, so ciphertexts

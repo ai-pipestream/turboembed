@@ -134,10 +134,10 @@ impl Ff1Encryptor {
             return Err(CryptError::EmptyValue);
         }
         let mut numerals = Vec::with_capacity(value.len());
-        for c in value.chars() {
+        for (at, c) in value.char_indices() {
             match self.alphabet.numeral(c) {
                 Some(n) => numerals.push(n),
-                None if c.is_alphanumeric() => return Err(CryptError::OutsideAlphabet(c)),
+                None if c.is_alphanumeric() => return Err(CryptError::OutsideAlphabet { at }),
                 None => {}
             }
         }

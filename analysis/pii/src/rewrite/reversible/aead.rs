@@ -32,8 +32,8 @@ pub struct AesGcmEncryptor {
     context: Vec<u8>,
     refuse_overlaps: bool,
     // Nonces are HMAC-SHA-256 of a counter under a random seed of this
-    // encryptor: unique within it, and as unlikely to repeat across
-    // encryptors under one key as random 96-bit nonces.
+    // encryptor, cut to 96 bits: distinct within it and across encryptors
+    // under one key with the probability of random 96-bit nonces.
     seed: [u8; 32],
     counter: AtomicU64,
 }

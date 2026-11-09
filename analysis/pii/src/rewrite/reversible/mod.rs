@@ -38,9 +38,11 @@ pub enum CryptError {
     Authentication,
     /// A decrypted value that is not UTF-8.
     NotUtf8,
-    /// A letter or digit outside the FF1 alphabet. It would be left in
-    /// the clear, so the value is refused.
-    OutsideAlphabet(char),
+    /// A letter or digit outside the FF1 alphabet, at this byte offset of
+    /// the value. It would be left in the clear, so the value is refused.
+    /// The error names the offset, never the character, so it carries no
+    /// part of the value.
+    OutsideAlphabet { at: usize },
     /// Fewer letters or digits of the alphabet than FF1 takes: the domain
     /// must hold at least a million values.
     TooFewNumerals { have: usize, need: usize },
@@ -55,7 +57,9 @@ impl fmt::Display for CryptError {
             CryptError::Malformed => f.write_str("the token is not KIND: followed by base64url"),
             CryptError::Authentication => f.write_str("the token failed authentication"),
             CryptError::NotUtf8 => f.write_str("the decrypted value is not UTF-8"),
-            CryptError::OutsideAlphabet(c) => write!(f, "{c:?} is a letter or digit outside the alphabet"),
+            CryptError::OutsideAlphabet { at } => {
+                write!(f, "the value has a letter or digit outside the alphabet at byte {at}")
+            }
             CryptError::TooFewNumerals { have, need } => {
                 write!(f, "the value has {have} letters or digits of the alphabet, FF1 needs at least {need}")
             }
@@ -107,7 +111,9 @@ fn from_base64url(text: &str) -> Option<Vec<u8>> {
 
 /// 32 bytes from the system's random source: `/dev/urandom` on Unix, and
 /// elsewhere std's hasher keys, which std draws from that source, with the
-/// time, run through SHA-256.
+/// time, run through SHA-256. std draws those keys once per thread and
+/// steps them, so off Unix the seed holds the 128 random bits of one draw:
+/// enough for a nonce seed, which needs to be distinct, not secret.
 fn random_seed() -> [u8; 32] {
     let mut out = [0u8; 32];
     #[cfg(unix)]
