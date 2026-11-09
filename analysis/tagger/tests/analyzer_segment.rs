@@ -49,22 +49,11 @@ struct Row {
     label: String,
 }
 
-/// The tiny bundle with a sentence head, a split head that splits `del`
-/// and `can't` whenever their split scores lead, and a flat span head.
+/// The sealed tiny bundle with a sentence head, a split head that splits
+/// `del` and `can't` whenever their split scores lead, and a flat span
+/// head, pinned.
 fn segment_bundle() -> std::path::PathBuf {
-    bundle("analyzer-segment", |m| {
-        let del = split_label("del", &["de", "el"]);
-        let cant = split_label("can't", &["ca", "n't"]);
-        m["heads"] = json!([
-            sentence_head(),
-            {
-                "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
-                "labels": [del, cant, "_"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
-                "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32", "tensor_prefix": "heads.words"
-            },
-            span_head("DECODE_SPANS_FLAT"),
-        ]);
-    })
+    turbo_pins::require(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-segment-bundle"))
 }
 
 struct Analyzer(*mut turbo_analyzer);
