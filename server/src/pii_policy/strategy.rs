@@ -2,7 +2,7 @@
 
 use turbo_pii::rewrite::{
     Abbreviator, FormatRedactor, HmacTokenizer, KeepSide, MapReplacer, MapTarget, MaskPolicy, Pseudonymizer,
-    RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate,
+    RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
 };
 
 use super::error::{At, PolicyError};
@@ -10,7 +10,7 @@ use super::resolve::{PolicyResolver, check_dictionary, check_key_id};
 use crate::proto::result::{
     PiiFormatStrategy, PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy, PiiMapTarget,
     PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy, PiiStrategy,
-    PiiTruncateStrategy, pii_map_strategy::Table, pii_rewrite_strategy::Strategy,
+    PiiTruncateStrategy, PiiZipSafeHarborStrategy, pii_map_strategy::Table, pii_rewrite_strategy::Strategy,
 };
 
 /// A whole-value mask with `'*'`: the conservative default, and what
@@ -105,6 +105,22 @@ fn map(
     Ok(RewriteStrategy::Map(Box::new(replacer.with_target(target).with_fallback(fallback))))
 }
 
+/// The most restricted prefixes a ZIP Safe Harbor table may list: every
+/// three-digit area there is.
+const MAX_ZIP_PREFIXES: usize = 1000;
+
+fn zip_safe_harbor(at: At, z: &PiiZipSafeHarborStrategy) -> Result<RewriteStrategy, PolicyError> {
+    let c = mask_char(at, &z.mask_char, ZipSafeHarbor::DEFAULT_MASK)?;
+    let zip = if z.restricted_prefixes.is_empty() {
+        ZipSafeHarbor::hhs_2000()
+    } else if z.restricted_prefixes.len() > MAX_ZIP_PREFIXES {
+        return Err(invalid(at, format_args!("more than {MAX_ZIP_PREFIXES} restricted ZIP prefixes")));
+    } else {
+        ZipSafeHarbor::with_restricted(&z.restricted_prefixes).map_err(|e| invalid(at, e))?
+    };
+    Ok(RewriteStrategy::ZipSafeHarbor(zip.with_mask(c)))
+}
+
 /// The native strategy of `s`, or `None` when its arm is unset or unknown
 /// to this server (the caller decides between refusing and flagging).
 /// `default` is what an unset map fallback gets.
@@ -164,6 +180,7 @@ pub(crate) fn strategy(
         Strategy::Pseudonym(PiiPseudonymStrategy { prefix, suffix }) => {
             RewriteStrategy::Pseudonym(Pseudonymizer::new(prefix.as_str(), suffix.as_str()))
         }
+        Strategy::ZipSafeHarbor(z) => zip_safe_harbor(at, z)?,
     }))
 }
 
@@ -181,6 +198,7 @@ pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
         Strategy::Sha256(_) => PiiStrategy::Sha256,
         Strategy::StaticText(_) => PiiStrategy::Static,
         Strategy::Pseudonym(_) => PiiStrategy::Pseudonym,
+        Strategy::ZipSafeHarbor(_) => PiiStrategy::ZipSafeHarbor,
     }
 }
 
@@ -189,8 +207,8 @@ fn char_string(c: char, default: char) -> String {
 }
 
 /// The message for `s`, where the native value says all its message does:
-/// mask, truncate (a kept end is written as last-N), format, SHA-256 and
-/// pseudonym. A keyed token holds key bytes and no reference, a map its
+/// mask, truncate (a kept end is written as last-N), format, SHA-256,
+/// pseudonym and ZIP Safe Harbor. A keyed token holds key bytes and no reference, a map its
 /// table, a static replacer per-kind texts and an abbreviator private
 /// punctuation, so those give `None`; a strategy that refuses overlaps has
 /// no message field and gives `None` too.
@@ -225,6 +243,10 @@ pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
         RewriteStrategy::Pseudonym(p) => {
             Strategy::Pseudonym(PiiPseudonymStrategy { prefix: p.prefix.clone(), suffix: p.suffix.clone() })
         }
+        RewriteStrategy::ZipSafeHarbor(z) => Strategy::ZipSafeHarbor(PiiZipSafeHarborStrategy {
+            mask_char: char_string(z.mask(), ZipSafeHarbor::DEFAULT_MASK),
+            restricted_prefixes: if z.is_hhs_2000() { Vec::new() } else { z.restricted().map(str::to_owned).collect() },
+        }),
         RewriteStrategy::Mask(_)
         | RewriteStrategy::Hmac(_)
         | RewriteStrategy::Map(_)

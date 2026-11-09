@@ -1430,6 +1430,7 @@ enum PiiStrategy
   PII_STRATEGY_MAP = 7;
   PII_STRATEGY_TRUNCATE = 8;
   PII_STRATEGY_ABBREVIATE = 9;
+  PII_STRATEGY_ZIP_SAFE_HARBOR = 10;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

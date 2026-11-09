@@ -4,7 +4,8 @@
 //! ([`FormatRedactor`]), fixed static replacement ([`StaticReplacer`]),
 //! unkeyed SHA-256 digests ([`Sha256Tokenizer`]), caller lookup tables
 //! ([`MapReplacer`]), partial character retention ([`Truncate`]), initials
-//! abbreviation ([`Abbreviator`]), and composable per-kind policies
+//! abbreviation ([`Abbreviator`]), HIPAA Safe Harbor ZIP generalization
+//! ([`ZipSafeHarbor`]), and composable per-kind policies
 //! ([`RewritePolicy`], [`RewriteStrategy`]).
 //!
 //! - [`mask`] overwrites the characters of each span in place, so the
@@ -13,7 +14,7 @@
 //!   alignment maps each masked character to its source character.
 //! - [`Pseudonymizer`], [`HmacTokenizer`], [`FormatRedactor`],
 //!   [`StaticReplacer`], [`Sha256Tokenizer`], [`MapReplacer`],
-//!   [`Truncate`], [`Abbreviator`] and [`RewritePolicy`] replace each
+//!   [`Truncate`], [`Abbreviator`], [`ZipSafeHarbor`] and [`RewritePolicy`] replace each
 //!   mention and return a [`PiiRewrite`]: a view derived from the text
 //!   with an alignment both ways, its label layer, and its
 //!   `turbo:pii-edits` layer.
@@ -37,6 +38,7 @@ mod sha256_replace;
 mod state;
 mod truncate;
 mod view;
+mod zip_safe_harbor;
 
 pub use abbreviate::Abbreviator;
 pub use audit::{KindReport, PiiAuditReport};
@@ -52,6 +54,7 @@ pub use replace::{PiiRewrite, RewriteError};
 pub use sha256_replace::{Sha256Replacer, Sha256Tokenizer};
 pub use truncate::{KeepSide, Truncate};
 pub use view::{MASKED, MaskedView, mask_into, mask_view};
+pub use zip_safe_harbor::{HHS_2000_RESTRICTED_PREFIXES, ZipSafeHarbor, ZipTableError};
 
 use turbo_analysis::{Document, Span, View};
 

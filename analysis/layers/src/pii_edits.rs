@@ -32,11 +32,12 @@ pub enum PiiStrategyKind {
     Map = 7,
     Truncate = 8,
     Abbreviate = 9,
+    ZipSafeHarbor = 10,
 }
 
 impl PiiStrategyKind {
     /// Every kind, in id order.
-    pub const ALL: [PiiStrategyKind; 9] = [
+    pub const ALL: [PiiStrategyKind; 10] = [
         PiiStrategyKind::Mask,
         PiiStrategyKind::Pseudonym,
         PiiStrategyKind::Hmac,
@@ -46,6 +47,7 @@ impl PiiStrategyKind {
         PiiStrategyKind::Map,
         PiiStrategyKind::Truncate,
         PiiStrategyKind::Abbreviate,
+        PiiStrategyKind::ZipSafeHarbor,
     ];
 
     /// The stable id.
@@ -70,6 +72,7 @@ impl PiiStrategyKind {
             PiiStrategyKind::Map => "map",
             PiiStrategyKind::Truncate => "truncate",
             PiiStrategyKind::Abbreviate => "abbreviate",
+            PiiStrategyKind::ZipSafeHarbor => "zip-safe-harbor",
         }
     }
 }
