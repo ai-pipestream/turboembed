@@ -198,6 +198,13 @@ stubs must be regenerated.
   `TurboEmbedOptions` and `TurboRerankOptions` carry the per-call
   options, `TurboSession.embedCodes` reads int8 codes and packed sign
   bits, and `TurboSession.modelInfo` reads `turbo_model_get_info` (#2005).
+- The in-process analyzer reads a bundle's segmenting heads: a
+  sentence boundary head finds the sentences of every task in place of
+  the rule splitter, a token split head writes each token's syntactic
+  words as `TURBO_ANALYSIS_LAYER_WORDS` rows (`TurboLayerKind.WORDS`)
+  in `turbo_analyzer_tokenize` and the graph, and a span classifier is
+  an entity head beside a BIO or BILOU tagger. The graph's provenance
+  names the head that wrote each layer (#2001).
 - `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
@@ -273,6 +280,11 @@ stubs must be regenerated.
   `turbo:structure` layer an `initial_graph` carries, so a Java or
   Python client seeds the chunker without a DocumentGraph writer; a
   malformed block is refused naming it (#1777).
+- `turbo_model_info` reports the manifest's `model.license` (`license`)
+  and the bundle's licence tier (`license_class`, a
+  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
+  or redistribute the model. The 772-byte struct is still accepted, and
+  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
 
 ### Changed
 
