@@ -170,10 +170,10 @@ smart chunking works without another embedding bundle.
 
 Remaining limits: a step runs over the source view only; under
 `annotate-v2` a bundle with two heads for one step is refused as
-ambiguous rather than run twice; a learned sentence step cannot follow a
-normalizer; and the rule sentence step after `turbo:normalize:case-fold`
-reads the folded view, whose sentences start in lower case, so it finds
-no boundary after the first.
+ambiguous rather than run twice; and a learned sentence step cannot follow a
+normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
+the source, or the last view written before the fold, so its boundaries
+match an unnormalized request.
 
 `server/tests/full_text_graph.rs` is the in-process acceptance of the
 model-free stages: `compile_analyzer` with normalization, structure,
