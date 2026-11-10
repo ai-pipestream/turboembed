@@ -202,6 +202,20 @@ layers bi-directionally back to `ViewId::SOURCE` at their default keys so
 `SparseTerms<View>` is preserved across UTF-8, UTF-16, and Unicode code-point
 offset modes.
 
+Two of those steps match text as written and so read the cased view: the
+rule sentence step (`turbo-sentdetect:rules`) and the place-name step
+(`turbo-geo:names`, `turbo:entities`). In a chain with
+`turbo:normalize:case-fold` they read the last view written before the
+fold, or the source when the fold comes first, and their spans are in
+source offsets as always. A full fold also rewrites spellings (`ﬁ` to
+`fi`, `ſ` to `s`), which would otherwise turn words the text does not
+write into place names. Tokens, subwords and the steps that read them
+keep reading the last view, folded. Structure blocks read it too and do
+not depend on case. Every other step reads the source.
+`server/tests/case_fold_sentences.rs` and
+`server/tests/progressive_case_fold_names.rs` hold the two steps to the
+results of the same request without the fold.
+
 Span offsets cross in the unit a message names (`OffsetMode` on
 `ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and
 `ExtractionResult`): UTF-8 bytes (the internal offsets), UTF-16 code
