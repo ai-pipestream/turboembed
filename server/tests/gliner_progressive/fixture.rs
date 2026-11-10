@@ -78,6 +78,8 @@ pub fn package() -> PathBuf {
                     projection_factor: 4,
                     prompt_factor: 4,
                     out_project_mlp: true,
+                    token_level: false,
+                    prompt_projection: true,
                     max_width: 3,
                     entity_token: 12,
                     separator_token: 13,
