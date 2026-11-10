@@ -180,7 +180,7 @@ stubs must be regenerated.
   native `DateMode::SafeHarbor` keep a date's year, as the `year` mode
   does, but write every year 90 or more years before the reference year
   as one category (`1936 or earlier` for a 2026 reference), recording
-  `PII_STRATEGY_DATE_SAFE_HARBOR` (17) (#1884).
+  `PII_STRATEGY_DATE_SAFE_HARBOR` (17) (#2114).
 
 ### Changed: PII and the result envelope (#1879)
 
