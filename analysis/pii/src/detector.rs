@@ -47,12 +47,18 @@ pub enum Pack {
     Logistics,
     /// Web addresses.
     Web,
-    /// Every detector: the default `CursorPiiExtractor` and every pack.
+    /// Every identifier detector: the default `CursorPiiExtractor` and
+    /// every pack above. The dates and money packs are not in it.
     AllStructured,
+    /// Calendar dates naming a day, a week or a month. Opt-in: dates are
+    /// in most texts, and only some of them are a person's.
+    Dates,
+    /// Amounts of money with their currency. Opt-in, as dates are.
+    Money,
 }
 
 impl Pack {
-    pub const ALL: [Pack; 13] = [
+    pub const ALL: [Pack; 15] = [
         Pack::Payment,
         Pack::Contact,
         Pack::Network,
@@ -66,6 +72,8 @@ impl Pack {
         Pack::Logistics,
         Pack::Web,
         Pack::AllStructured,
+        Pack::Dates,
+        Pack::Money,
     ];
 
     /// The name of the `PiiPacks` factory method, in kebab case
@@ -85,6 +93,8 @@ impl Pack {
             Pack::Logistics => "logistics",
             Pack::Web => "web",
             Pack::AllStructured => "all-structured",
+            Pack::Dates => "dates",
+            Pack::Money => "money",
         }
     }
 
@@ -115,6 +125,8 @@ impl Pack {
             Pack::Device => vec![Scanner::all(Extractor::Device)],
             Pack::Logistics => vec![Scanner::all(Extractor::Logistics)],
             Pack::Web => vec![Scanner::all(Extractor::Web)],
+            Pack::Dates => vec![Scanner::all(Extractor::Temporal)],
+            Pack::Money => vec![Scanner::all(Extractor::Money)],
             Pack::AllStructured => [
                 Extractor::Cursor,
                 Extractor::Secrets,

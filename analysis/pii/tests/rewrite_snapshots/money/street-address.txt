@@ -1,0 +1,9 @@
+MASKED	Ship to 1600 Pennsylvania Avenue NW, Washington, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+MASK_ALL	Ship to 1600 Pennsylvania Avenue NW, Washington, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+REWRITE	pseudonymize	OK	Ship to 1600 Pennsylvania Avenue NW, Washington, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+REWRITE	hmac	OK	Ship to 1600 Pennsylvania Avenue NW, Washington, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+AUDIT_REPORT	no pii found

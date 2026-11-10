@@ -75,7 +75,12 @@ not find (`ScannerError`).
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date` and `currency` |
+| `Dates` | (none) | temporal | `date` |
+| `Money` | (none) | money | `currency` |
+
+`Dates` and `Money` are opt-in and not in `AllStructured`: dates and
+amounts are in most texts, and only some of them are a person's.
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -808,6 +813,35 @@ written with a zero). The external partition was annotated before
 these kinds existed: its five postal addresses (RFC author and registry
 blocks and one example) and one age are counted and pinned but not
 scored.
+
+### Dates and amounts of money
+
+`date` and `currency` take ids 41 and 42. Their scanners read the text
+with the numeric crate's own scanners (docs/temporal.md, docs/money.md),
+so a date or an amount is found exactly where `turbo:temporal` or
+`turbo:money` would find it.
+
+- `date` (new `Temporal` extractor, `TemporalPiiExtractor`,
+  `turbo-pii:temporal`, in `Dates`; `analysis/pii/src/scan/date.rs`):
+  the absolute mentions of the temporal scanner that name a day, an ISO
+  week or a month (`2026-07-14`, `July 4, 1952`, `14th March 2025`,
+  `August 2026`). A year alone and a quarter are not date elements HIPAA
+  counts, and a relative expression (`3 weeks ago`) needs a reference
+  date the scanner never takes, so none is a mention; nor is a
+  calendar-invalid one (`2026-13-40`). The normalized form is the value
+  in ISO 8601 (`1952-07-04`, `2026-08`).
+- `currency` (new `Money` extractor, `MoneyPiiExtractor`,
+  `turbo-pii:money`, in `Money`; `analysis/pii/src/scan/money.rs`): the
+  mentions of the money scanner with its default symbol table, amounts
+  read in US notation (`$1,250.00`, `EUR 40`, `-$3`, `40 euros`). A bare
+  number is never money. The normalized form is the ISO 4217 code and
+  the amount (`USD 1250.00`, `EUR 40`).
+
+Both are low severity, suggested a label rewrite and masked keeping
+separators (`****-**-**`). Neither needs a label; `date`, `date of
+birth`, `dob` and `born`, and `amount`, `balance`, `salary` and
+`payment`, are their label phrases for the context window. They are the
+kinds the date rewrites of #1884 act on.
 
 ## Custom extractors and scanner rules
 

@@ -251,7 +251,7 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         ("no kind", |m| m.kind_ref = None),
         ("an empty kind ref", |m| m.kind_ref = Some(PiiKindRef { kind: None })),
         ("unspecified kind", |m| m.kind_ref = builtin(0)),
-        ("kind past the table", |m| m.kind_ref = builtin(41)),
+        ("kind past the table", |m| m.kind_ref = builtin(43)),
         ("negative kind", |m| m.kind_ref = builtin(-7)),
         ("custom kind with no table", |m| m.kind_ref = custom(0)),
         ("unspecified tier", |m| m.confidence = 0),

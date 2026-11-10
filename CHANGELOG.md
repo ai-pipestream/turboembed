@@ -136,6 +136,13 @@ stubs must be regenerated.
   (`turbo-pii:age`, `turbo-pii:us-address`): an age in years before
   `years old` or `y/o` or after `age` or `aged`, and a US street
   address with its unit, or a post office box (#1886).
+- `date` 41 and `currency` 42, appended to `PiiKindId`
+  (`TURBO_PII_KIND_DATE`, `TURBO_PII_KIND_CURRENCY`, Java `DATE`,
+  `CURRENCY`), with the `Temporal` and `Money` extractors
+  (`turbo-pii:temporal`, `turbo-pii:money`) and the opt-in `Dates` and
+  `Money` packs, which `AllStructured` does not include: a calendar date
+  naming a day, week or month, and an amount with its currency, read by
+  the numeric crate's scanners (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three

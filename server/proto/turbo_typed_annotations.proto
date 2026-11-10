@@ -1050,6 +1050,8 @@ enum PiiKindId
   PII_KIND_ID_PHONE_EXTENSION = 38;
   PII_KIND_ID_AGE = 39;
   PII_KIND_ID_STREET_ADDRESS = 40;
+  PII_KIND_ID_DATE = 41;
+  PII_KIND_ID_CURRENCY = 42;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C
