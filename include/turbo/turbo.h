@@ -678,9 +678,9 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * opts may be NULL.
  *
  * On an extractive QA model (TURBO_TASK_EXTRACTIVE_QA) whose device applies
- * the span head (the cuda backend), each range's vector goes through the
- * head on the device and its row is the head's [start, end] logits: dim
- * is 2, and a read copies 8 bytes a range. The head reads the whole
+ * the span head (the cuda and metal backends), each range's vector goes
+ * through the head on the device and its row is the head's [start, end]
+ * logits: dim is 2, and a read copies 8 bytes a range. The head reads the whole
  * vector, so there a normalization that resolves to other than
  * TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
  * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim that
