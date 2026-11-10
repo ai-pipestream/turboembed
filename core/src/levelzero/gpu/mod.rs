@@ -281,8 +281,7 @@ pub(crate) unsafe fn create(
     ze("zeCommandListCreateImmediate", unsafe {
         (api.command_list_create_immediate)(handle, dev.handle, &queue_desc(), &mut q.list)
     })?;
-    let faults =
-        if crate::ze::page_faults_off() { "the runtime's page faults turned off" } else { "page faults as set" };
+    let faults = crate::ze::page_faults_off().describe();
     ctx.say(LOG_DEBUG, &format!("levelzero context on device {ordinal} ({}): one in-order queue, {faults}", dev.name));
     unsafe { *out = Box::into_raw(ctx) as *mut c_void };
     Ok(())
