@@ -9469,7 +9469,7 @@ function init12() {
 
 // demo/web/src/graphwire.ts
 var MAGIC = "TGRF";
-var FORMAT_VERSION = 2;
+var FORMAT_VERSION = 3;
 var LISTED2 = 64;
 var WireError = class extends Error {
   constructor(message, at) {
@@ -9598,6 +9598,8 @@ function error(c) {
             throw tagError(c3, "a source error", r);
           })
         ]);
+      case 12:
+        return one("over limit", [str(c2, "annotator"), str(c2, "limit"), u32(c2, "max"), u32(c2, "got")]);
       default:
         throw tagError(c2, "an error", tag);
     }
