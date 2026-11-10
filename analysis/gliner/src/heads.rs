@@ -330,6 +330,7 @@ impl Heads {
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
         let mut input = crate::train::TrainingInput {
             words: w.words.clone(),
+            projected_words: projected[labels * d..].to_vec(),
             spans: Vec::new(),
             prompts: w.prompts.clone(),
             prompt_inputs: projected[..labels * d].to_vec(),
@@ -357,15 +358,21 @@ impl Heads {
         Ok((input, candidates))
     }
 
-    pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
+    pub(crate) fn set_output(
+        &mut self,
+        params: &[Vec<f32>],
+        boundaries: bool,
+        prompt: bool,
+        recurrent: bool,
+    ) -> Result<(), String> {
         let (h, f) = match &self.head {
             SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        if !matches!(params.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16) {
-            return Err("gliner output training requires output tensors with optional boundary and prompt MLPs".into());
+        if !matches!(params.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 24) {
+            return Err("gliner output training requires output tensors with optional head groups".into());
         }
-        let linear = matches!(params.len(), 2 | 10 | 14);
+        let linear = matches!(params.len(), 2 | 10 | 14 | 18);
         let output_len = if linear { 2 } else { 4 };
         let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
@@ -381,13 +388,22 @@ impl Heads {
                 last: Dense::new(&values[2], values[3].clone(), h, f)?,
             }))
         };
-        let boundaries = if matches!(params.len(), 10 | 12 | 14 | 16) {
+        let boundaries = if boundaries {
             Some((mlp(&params[output_len..output_len + 4])?, mlp(&params[output_len + 4..output_len + 8])?))
         } else {
             None
         };
-        let prompt = if matches!(params.len(), 8 | 14 | 16) {
-            Some(PromptHead::Mlp(mlp(&params[params.len() - 4..])?))
+        let prompt_offset = output_len + if boundaries.is_some() { 8 } else { 0 };
+        let prompt = if prompt { Some(PromptHead::Mlp(mlp(&params[prompt_offset..prompt_offset + 4])?)) } else { None };
+        let recurrent = if recurrent {
+            let values = &params[params.len() - 8..];
+            let forward: Vec<f32> = values[2].iter().zip(&values[3]).map(|(a, b)| a + b).collect();
+            let reverse: Vec<f32> = values[6].iter().zip(&values[7]).map(|(a, b)| a + b).collect();
+            let dirs = [
+                Weights { w: &values[0], u: &values[1], b: &forward, reverse: false },
+                Weights { w: &values[4], u: &values[5], b: &reverse, reverse: true },
+            ];
+            Some(Lstm::new(h, h / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?)
         } else {
             None
         };
@@ -399,6 +415,9 @@ impl Heads {
         }
         if let Some(prompt) = prompt {
             self.prompt = prompt;
+        }
+        if let Some(recurrent) = recurrent {
+            self.lstm = recurrent;
         }
         Ok(())
     }

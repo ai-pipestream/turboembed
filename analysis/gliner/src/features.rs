@@ -25,11 +25,13 @@ impl Boundary {
         out
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn backward(
         &self,
         params: &[Vec<f32>],
         words: &[f32],
         dout: &[f32],
+        dwords: &mut [f32],
         grads: &mut [Vec<f32>],
         h: usize,
         f: usize,
@@ -48,6 +50,9 @@ impl Boundary {
                 let d = if self.mid[row * f * h + i] > 0.0 { dmid[i] } else { 0.0 };
                 for j in 0..h {
                     grads[0][i * h + j] += d * words[row * h + j];
+                    if !dwords.is_empty() {
+                        dwords[row * h + j] += d * params[0][i * h + j];
+                    }
                 }
                 grads[1][i] += d;
             }
