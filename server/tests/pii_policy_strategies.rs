@@ -6,6 +6,7 @@
 mod common;
 
 use common::*;
+use pb::pii_date_strategy::Mode;
 use pb::pii_rewrite_strategy::Strategy;
 use turbo_analysis_layers::PiiStrategyKind;
 use turbo_kserve::pii_policy::{RedactionPolicy, strategy_to_proto};
@@ -183,8 +184,14 @@ fn conditions_choose_the_first_entry_that_holds() {
 
 /// One message of every `PiiRewriteStrategy` arm. The match below has no
 /// wildcard, so a new arm fails to compile here until it is listed.
+/// The date arm is listed once per mode, as each records its own value.
+fn date_arm(mode: Mode) -> Strategy {
+    Strategy::Date(pb::PiiDateStrategy { mode: Some(mode), mask_char: String::new() })
+}
+
 fn every_arm() -> Vec<Strategy> {
-    let arms = vec![
+    #[cfg_attr(not(feature = "pii-reversible"), allow(unused_mut))]
+    let mut arms = vec![
         Strategy::Mask(pb::PiiMaskStrategy::default()),
         Strategy::Format(pb::PiiFormatStrategy { template: "[%t]".to_owned() }),
         Strategy::Map(Box::new(pb::PiiMapStrategy {
@@ -205,7 +212,20 @@ fn every_arm() -> Vec<Strategy> {
         Strategy::Pseudonym(pb::PiiPseudonymStrategy::default()),
         Strategy::ZipSafeHarbor(pb::PiiZipSafeHarborStrategy::default()),
         Strategy::AgeSafeHarbor(pb::PiiAgeSafeHarborStrategy::default()),
+        date_arm(Mode::Year(pb::PiiDateYear {})),
+        date_arm(Mode::Shift(pb::PiiDateShift { days: 3, ..Default::default() })),
+        date_arm(Mode::Relative(pb::PiiDateRelative { reference: "2026-07-14".to_owned() })),
     ];
+    // A server without reversible protection does not know these two.
+    #[cfg(feature = "pii-reversible")]
+    arms.extend([
+        Strategy::Aes256Gcm(pb::PiiAesGcmStrategy { key: key_ref("vault", 1), context: String::new() }),
+        Strategy::Ff1(pb::PiiFf1Strategy {
+            key: key_ref("vault", 1),
+            alphabet: pb::PiiFf1Alphabet::Digits as i32,
+            tweak: String::new(),
+        }),
+    ]);
     for arm in &arms {
         match arm {
             Strategy::Mask(_)
@@ -219,7 +239,10 @@ fn every_arm() -> Vec<Strategy> {
             | Strategy::StaticText(_)
             | Strategy::Pseudonym(_)
             | Strategy::ZipSafeHarbor(_)
-            | Strategy::AgeSafeHarbor(_) => {}
+            | Strategy::AgeSafeHarbor(_)
+            | Strategy::Date(_)
+            | Strategy::Aes256Gcm(_)
+            | Strategy::Ff1(_) => {}
         }
     }
     arms
@@ -236,14 +259,17 @@ fn every_arm_maps_to_exactly_one_pii_strategy_value() {
         assert_eq!(i32::from(native.kind().id()), value as i32, "{arm:?} edits record {value:?}");
         hit.insert(value as i32);
     }
-    let all: std::collections::BTreeSet<i32> = (1..=9).chain([12, 13]).collect();
-    assert_eq!(hit, all, "every PiiStrategy value but UNSPECIFIED and the reversible ones has an arm");
-    // The reversible strategies take a key, which never travels in a
-    // policy message, so they have no arm.
+    let reversible: &[i32] = if cfg!(feature = "pii-reversible") { &[10, 11] } else { &[] };
+    let all: std::collections::BTreeSet<i32> =
+        (1..=9).chain([12, 13, 14, 15, 16]).chain(reversible.iter().copied()).collect();
+    assert_eq!(
+        hit, all,
+        "every PiiStrategy value but UNSPECIFIED (and, without reversible protection, 10 and 11) has an arm"
+    );
     for (value, native) in
         [(pb::PiiStrategy::Aes256Gcm, PiiStrategyKind::Aes256Gcm), (pb::PiiStrategy::Ff1, PiiStrategyKind::Ff1)]
     {
         assert_eq!(value as i32, i32::from(native.id()));
     }
-    assert!(pb::PiiStrategy::try_from(14).is_err(), "a new PiiStrategy value needs an arm here");
+    assert!(pb::PiiStrategy::try_from(17).is_err(), "a new PiiStrategy value needs an arm here");
 }

@@ -86,9 +86,9 @@ impl AnalysisService for Analysis {
             if let Some(loaded) = m.loaded.get() {
                 bundles.push(bundle_capabilities(&m.name, loaded).map_err(plain)?);
             } else if let Some(model) = m.gliner.get() {
-                bundles.push(gliner_capabilities(&m.name, model));
+                bundles.push(gliner_capabilities(&m.name, model, &m.vocabulary));
             } else if let Some(model) = m.relations.get() {
-                bundles.push(relation_capabilities(&m.name, model));
+                bundles.push(relation_capabilities(&m.name, model, &m.vocabulary));
             }
         }
         Ok(Response::new(CapabilitiesResponse {
@@ -112,10 +112,20 @@ impl AnalysisService for Analysis {
                 .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the licence check failed: {e}"))))?
                 .map_err(plain)?;
         }
+        let vocabulary = match req.vocabulary.clone() {
+            Some(v) => {
+                let resolver = self.state.vocabulary_resolver.clone();
+                tokio::task::spawn_blocking(move || resolver.resolve_binding(&v))
+                    .await
+                    .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the vocabulary check failed: {e}"))))?
+                    .map_err(plain)?
+            }
+            None => Default::default(),
+        };
         // The registration this request owns, by identity, through
         // loading, the answer, and rollback: a same-named replacement is
         // a different Arc and is never touched.
-        let registered = self.state.add(name, config).map_err(plain)?;
+        let registered = self.state.add_with_vocabulary(name, config, vocabulary).map_err(plain)?;
         let state = self.state.clone();
         let loading = registered.clone();
         let loaded = tokio::task::spawn_blocking(move || state.load_one(&loading)).await;
@@ -128,9 +138,9 @@ impl AnalysisService for Analysis {
         let capabilities = if let Some(loaded) = registered.loaded.get() {
             bundle_capabilities(&registered.name, loaded).map_err(plain)?
         } else if let Some(model) = registered.gliner.get() {
-            gliner_capabilities(&registered.name, model)
+            gliner_capabilities(&registered.name, model, &registered.vocabulary)
         } else if let Some(model) = registered.relations.get() {
-            relation_capabilities(&registered.name, model)
+            relation_capabilities(&registered.name, model, &registered.vocabulary)
         } else {
             return Err(plain(Failure::new(
                 TURBO_E_INVALID_STATE,

@@ -8,24 +8,26 @@
 </head>
 <body>
 <header>
-  <h1>turboembed <span class="sub">gRPC workbench</span></h1>
-  <p id="server" class="muted">Checking the server&hellip;</p>
-  <label class="token">Bearer token
-    <input id="token" type="password" autocomplete="off" placeholder="only if the demo asks for one">
-  </label>
-  <nav class="tabs">
-    <button type="button" data-tab="embed">Embed</button>
-    <button type="button" data-tab="semantic">Semantic</button>
-    <button type="button" data-tab="analyze">Analyze</button>
-    <button type="button" data-tab="search">Search</button>
-    <button type="button" data-tab="vocabulary">Vocabulary</button>
-    <button type="button" data-tab="models">Models</button>
-    <button type="button" data-tab="server">Server</button>
+  <div class="top">
+    <h1>turboembed <span class="sub">gRPC workbench</span></h1>
+    <p id="server" class="muted status" role="status">Checking the server&hellip;</p>
+    <label class="token">Bearer token
+      <input id="token" type="password" autocomplete="off" placeholder="only if the demo asks for one">
+    </label>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Areas">
+    <button type="button" role="tab" id="tabbtn-embed" aria-controls="tab-embed" data-tab="embed">Embed</button>
+    <button type="button" role="tab" id="tabbtn-semantic" aria-controls="tab-semantic" data-tab="semantic">Semantic</button>
+    <button type="button" role="tab" id="tabbtn-analyze" aria-controls="tab-analyze" data-tab="analyze">Analyze</button>
+    <button type="button" role="tab" id="tabbtn-search" aria-controls="tab-search" data-tab="search">Search</button>
+    <button type="button" role="tab" id="tabbtn-vocabulary" aria-controls="tab-vocabulary" data-tab="vocabulary">Vocabulary</button>
+    <button type="button" role="tab" id="tabbtn-models" aria-controls="tab-models" data-tab="models">Models</button>
+    <button type="button" role="tab" id="tabbtn-server" aria-controls="tab-server" data-tab="server">Server</button>
   </nav>
 </header>
 
 <main>
-<section class="panel split" id="tab-embed" hidden>
+<section class="panel split" id="tab-embed" role="tabpanel" aria-labelledby="tabbtn-embed" hidden>
   <div class="box">
     <h2>Texts</h2>
     <p class="muted">One text per line; all of them go in one request.</p>
@@ -60,7 +62,7 @@ How do I reset my router?</textarea>
   <div id="embed-results" class="results"></div>
 </section>
 
-<section class="panel split" id="tab-semantic" hidden>
+<section class="panel split" id="tab-semantic" role="tabpanel" aria-labelledby="tabbtn-semantic" hidden>
   <div class="box">
     <h2>Query</h2>
     <input id="sem-query" class="wide" value="Who wrote the first published program?">
@@ -88,7 +90,7 @@ A kitten naps in the warm sun by the window.</textarea>
   </div>
 </section>
 
-<section class="panel split" id="tab-analyze" hidden>
+<section class="panel split" id="tab-analyze" role="tabpanel" aria-labelledby="tabbtn-analyze" hidden>
   <div class="box">
     <h2>Document</h2>
     <textarea id="analyze-text" rows="10" spellcheck="false">Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine.
@@ -100,6 +102,7 @@ The engine was never built, but her notes describe how it could compute Bernoull
       <label>Open-span labels <input id="analyze-labels" value="person, organization, location" /></label>
       <label>Threshold <input id="analyze-threshold" type="number" min="0" max="1" step="0.05" value="0.5" /></label>
       <label><input id="analyze-nested" type="checkbox" /> Nested spans</label>
+      <label>Guidelines (optional, one label=prompt per line) <textarea id="analyze-guidelines" rows="2" placeholder="VisualWork=visual artwork"></textarea></label>
       <label>Relation model <select id="analyze-relation-model"></select></label>
       <label>Relation labels <input id="analyze-relation-labels" value="founded, works for, located in" /></label>
       <label>Relation threshold <input id="analyze-relation-threshold" type="number" min="0" max="1" step="0.05" value="0.5" /></label>
@@ -155,7 +158,7 @@ The engine was never built, but her notes describe how it could compute Bernoull
   </div>
 </section>
 
-<section class="panel split" id="tab-search" hidden>
+<section class="panel split" id="tab-search" role="tabpanel" aria-labelledby="tabbtn-search" hidden>
   <div class="box">
     <h2>New index</h2>
     <form id="search-create" class="options">
@@ -211,7 +214,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   </div>
 </section>
 
-<section class="panel split" id="tab-vocabulary" hidden>
+<section class="panel split" id="tab-vocabulary" role="tabpanel" aria-labelledby="tabbtn-vocabulary" hidden>
   <div class="box">
     <h2>Import a dictionary</h2>
     <form id="vocab-import" class="options">
@@ -247,7 +250,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   </div>
 </section>
 
-<section class="panel split" id="tab-server" hidden>
+<section class="panel split" id="tab-server" role="tabpanel" aria-labelledby="tabbtn-server" hidden>
   <div class="box">
     <h2>Load a bundle</h2>
     <form id="server-load" class="options">
@@ -264,7 +267,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   </div>
 </section>
 
-<section class="panel split" id="tab-models" hidden>
+<section class="panel split" id="tab-models" role="tabpanel" aria-labelledby="tabbtn-models" hidden>
   <div class="box">
     <h2>Catalog</h2>
     <p class="muted">Licence acceptances and installs are for the user the demo was started with (--user).</p>

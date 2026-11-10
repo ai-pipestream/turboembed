@@ -44,6 +44,23 @@ stubs must be regenerated.
   `Ff1Encryptor` (FF1 format-preserving encryption, NIST SP 800-38G).
   `PiiStrategy` gains `PII_STRATEGY_AES_256_GCM = 10` and
   `PII_STRATEGY_FF1 = 11` for the edits they write (#1885).
+- With `reversible`, `RewriteStrategy::AesGcm` and `RewriteStrategy::Ff1`
+  put both encryptors in a `RewritePolicy`, per kind. Their key enters the
+  policy's configuration hash only as an HMAC under a fixed label (#1885).
+- The server's `pii-reversible` cargo feature: the redaction policy arms
+  `aes_256_gcm` (`PiiAesGcmStrategy`, field 14) and `ff1`
+  (`PiiFf1Strategy`, field 15, with `PiiFf1Alphabet`), each naming a key
+  registered with `--pii-encryption-key ID:VERSION:PATH`
+  (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`), a registry of exactly 32-byte keys
+  kept apart from the token keys. A server built without the feature
+  does not know the arms (#1885).
+- Ciphertext value release: `--pii-grant FINGERPRINT:ciphertext:KINDS`
+  releases `PII_VALUE_FORM_CIPHERTEXT` from `InspectDocumentGraph` as
+  `PiiValueCiphertext` (scheme `turbo-pii-aes-256-gcm-v1`), AES-256-GCM
+  under the active encryption key (`--pii-encryption-key-active`,
+  `TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`, among several), bound to the
+  kind. `--pii-output-allow` accepts `ciphertext`. Needs the
+  `pii-reversible` feature (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -60,6 +77,16 @@ stubs must be regenerated.
   `token_start`. Off by default, so existing callers see the same rows.
   Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
   `piiKind()` and `piiCustomKindIndex()` (#1964).
+- C ABI PII rows carry their detector identity, evidence facts and
+  optional score through `turbo_analysis_result_pii_spans` and
+  `turbo_analysis_result_pii_facts` (`turbo_pii_span`,
+  `turbo_pii_fact`), and `turbo_analyzer_desc.flags` bit
+  `TURBO_ANALYZER_PII_DETAIL` exposes `turbo:pii-candidates` rows
+  through `turbo_analysis_result_pii_candidates` (`turbo_pii_candidate`),
+  with no value or label text. Java `TurboSpanView` and `TurboSpanData`
+  read `piiDetector()`, `piiEvidence()` and `piiScore()`, and
+  `TurboAnalysisResult.piiCandidates()` reads candidates under
+  `Config.withPiiDetail(true)` (#1941).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
@@ -136,6 +163,21 @@ stubs must be regenerated.
   (`turbo-pii:age`, `turbo-pii:us-address`): an age in years before
   `years old` or `y/o` or after `age` or `aged`, and a US street
   address with its unit, or a post office box (#1886).
+- `date` 41 and `currency` 42, appended to `PiiKindId`
+  (`TURBO_PII_KIND_DATE`, `TURBO_PII_KIND_CURRENCY`, Java `DATE`,
+  `CURRENCY`), with the `Temporal` and `Money` extractors
+  (`turbo-pii:temporal`, `turbo-pii:money`) and the opt-in `Dates` and
+  `Money` packs, which `AllStructured` does not include: a calendar date
+  naming a day or month, and an amount with its currency, read by
+  the numeric crate's scanners (#1886).
+- `state` 43 and `county` 44, appended to `PiiKindId`
+  (`TURBO_PII_KIND_STATE`, `TURBO_PII_KIND_COUNTY`, Java `STATE`,
+  `COUNTY`), with the `UsState` and `UsCounty` extractors
+  (`turbo-pii:us-state`, `turbo-pii:us-county`) and the opt-in `Places`
+  pack, which `AllStructured` does not include: a US state, District or
+  territory by name, or by its USPS code after a state label or before a
+  ZIP code, and a county or county equivalent of the Census Bureau's 2020
+  county list (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
@@ -146,6 +188,15 @@ stubs must be regenerated.
   `PII_STRATEGY_AGE_SAFE_HARBOR` (13) keep an age of 89 or under and write
   every older age as `90+`; a mention that is not an age is masked
   (#1884).
+- Date rewrites: the `PiiDateStrategy` arm of `PiiRewriteStrategy`
+  (`date`, field 13) and native `DateRewrite` truncate a `date` mention to
+  its year, shift it (fixed years, months and days, plus an offset a
+  registered key chooses per context) keeping its written form, or write
+  it relative to a reference date the caller passes, recording
+  `PII_STRATEGY_DATE_YEAR` (14), `PII_STRATEGY_DATE_SHIFT` (15) or
+  `PII_STRATEGY_DATE_RELATIVE` (16). A policy rule for `date` or
+  `currency` turns on the opt-in `Dates` or `Money` pack of the
+  `turbo-pii:pii` step (#1884).
 
 ### Changed: PII and the result envelope (#1879)
 
@@ -280,6 +331,22 @@ stubs must be regenerated.
   `turbo:structure` layer an `initial_graph` carries, so a Java or
   Python client seeds the chunker without a DocumentGraph writer; a
   malformed block is refused naming it (#1777).
+- `TurboTrainingService.TrainComponent` trains a sentence detector,
+  tokenizer, POS tagger, lemmatizer, chunker, name finder, document
+  categorizer or language detector from samples the client streams in
+  their native format, streams each iteration as progress, and sends
+  the model file back; admin only, sharing the training slot with
+  `TrainStaticModel`, and stopped when the client goes away (#2012).
+- `TurboTrainingService.StreamingTraining` runs one training over a
+  stream the client feeds. A corpus job learns a vocabulary from the
+  streamed documents, distils a static model with its terms and indexes
+  the documents with that model, keeping all three or none: the
+  vocabulary is stored and the index published in one last step, and a
+  failure or a client that goes away removes the model. A component job
+  trains the feed-forward dependency parser from CoNLL-U samples,
+  streams each epoch's loss, and sends the model file back. Admin only,
+  sharing the training slot with `TrainStaticModel` and `TrainComponent`
+  (#2026).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
   `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
@@ -306,6 +373,13 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `AnalyzeDocumentProgressive`: in a step chain that folds case,
+  `turbo-sentdetect:rules` reads the last view before the fold, so a
+  folded document keeps its sentence boundaries instead of becoming one
+  sentence (#2086).
+- `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
+  client goes away stops at its next iteration and frees the training
+  slot, as GIS and the perceptron do (#2067).
 - levelzero: a context on an Intel GPU under the `xe` driver no longer
   loses its device (`0x70000001`) when a desktop client draws while the
   device pages an evicted buffer back in. The backend sets
@@ -313,6 +387,12 @@ stubs must be regenerated.
   environment before it opens the Level Zero loader, unless the caller set
   `EnableRecoverablePageFaults` itself (docs/levelzero.md, A lost device)
   (#1765).
+- levelzero: the page-fault switch is set only once a Level Zero loader
+  is found, before its drivers start, and only in builds with the
+  `levelzero` feature (an `npu`-only build sets nothing); a caller that
+  set `NEOReadDebugKeys` to anything but `1` keeps it, and neither
+  variable is written. turbo.h says the first `turbo_runtime_create` may
+  write the environment and how to opt out (#2023).
 - The cpu backend's embed cells set field 9's bit (`layers`) in
   `turbo_capability.options_honored`, which reads `0b1_1111_1111` there,
   and a layer count of 0 or over an encoder's layers is

@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, and HIPAA Safe Harbor age aggregation |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting and relative dates |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -75,7 +75,14 @@ not find (`ScannerError`).
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date`, `currency`, `state` and `county` |
+| `Dates` | (none) | temporal | `date` |
+| `Money` | (none) | money | `currency` |
+| `Places` | (none) | US state, US county | `state`, `county` |
+
+`Dates`, `Money` and `Places` are opt-in and not in `AllStructured`:
+dates, amounts and places are in most texts, and only some of them are
+a person's.
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -292,8 +299,12 @@ confidence tier, the audit report and every policy decision read them.
   the typed validator refuses a mention whose tier is not the one its
   evidence derives to, an unknown fact, algorithm, score kind, scope or
   reason, a missing detector, and a candidate whose mention index lies
-  outside the `turbo:pii` layer of the same instance. The C ABI and the
-  Java binding carry the derived tier only.
+  outside the `turbo:pii` layer of the same instance. The C ABI borrows
+  `turbo_pii_span`, `turbo_pii_fact` and (under
+  `TURBO_ANALYZER_PII_DETAIL`) `turbo_pii_candidate` slices from
+  `turbo_analysis_result` alongside `turbo_span`, and the Java bindings
+  read them as `piiDetector()`, `piiEvidence()`, `piiScore()` and
+  `piiCandidates()`, with no value or label text by default (#1941).
 
 ## Per-document risk
 
@@ -494,6 +505,44 @@ the source text into the rewritten text and back
   (`*` by default), and so is a cluster of overlapping mentions. Edits
   record `PiiStrategyKind::AgeSafeHarbor` (`PII_STRATEGY_AGE_SAFE_HARBOR`);
   the gRPC arm is `PiiAgeSafeHarborStrategy` (#1884).
+- **Dates (`DateRewrite`):** for `date`, the mention's text is read again
+  with the temporal scanner, so the value is the one the detector saw,
+  then, by `DateMode`:
+  - `Year`: the year alone (`July 14, 2026` becomes `2026`), which Safe
+    Harbor (45 CFR 164.514(b)(2)(i)(C)) lets a record keep. Edits record
+    `DateYear` (`PII_STRATEGY_DATE_YEAR`).
+  - `Shift(DateShift)`: moved by years and months as one count of months,
+    then days, then an optional keyed offset, and written in the form it
+    was written in: month names full or three letters in their case,
+    ordinals (`14th` becomes `2nd`), zero-padded days and separators stay.
+    A day past the end of the new month becomes its last day (January 31
+    plus one month is the end of February, a leap day plus a year is
+    February 28), and a month mention moves as its first day does, or one
+    month the days' way when they would leave it in its own month
+    (`July 2026` under a 10-day shift becomes `August 2026`). A shift
+    whose net effect would write a value back as it was (no offset, or a
+    fixed shift that cancels the keyed one) masks it whole, so no date
+    under a shift stays readable.
+    `DateShift::keyed(key, context, max_days)` adds 1 to `max_days` days,
+    earlier or later, chosen by HMAC-SHA-256 of `context` under a key of
+    at least 32 bytes: never zero, and the same for every date with that
+    context, so intervals within a document or patient stay. Edits record
+    `DateShift` (`PII_STRATEGY_DATE_SHIFT`).
+  - `Relative(reference)`: relative to a reference date the caller passes,
+    never the clock (`3 months ago`, `in 2 weeks`, `today`), counted in
+    the largest whole unit that fits: days under a week, weeks under 31
+    days, calendar months under a year, then years; a month mention in
+    months, then years. The temporal scanner reads each phrase back with
+    the same reference. Edits record `DateRelative`
+    (`PII_STRATEGY_DATE_RELATIVE`).
+
+  A mention of another kind, a text that is not one whole absolute day or
+  month mention (the scanner reads four-digit years only, so `7/14/26` or
+  `July 14, 26`), a date shifted out of the years `0001` to `9999`, and a
+  cluster of overlapping mentions are masked whole (`*` by default). The
+  gRPC arm is `PiiDateStrategy`, with `year`, `shift` (a keyed offset
+  names a registered key; `max_days` 0 means 30) and `relative`
+  (`reference` as `yyyy-MM-dd`) (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
@@ -545,14 +594,26 @@ zeroised on drop, and it never appears in `Debug` output. In a rewrite,
 a mention that cannot be encrypted fails the rewrite with
 `RewriteError::Encrypt`. The edits record the strategy as
 `PiiStrategyKind::Aes256Gcm` (10) or `PiiStrategyKind::Ff1` (11), which
-are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire. They
-are not yet `RewritePolicy` strategies, and a gRPC redaction policy
-cannot name them: on the server, keys are to be registered key
-references, never key bytes in a message.
+are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire.
+
+With the feature, both are `RewriteStrategy` arms (`RewriteStrategy::AesGcm`
+and `RewriteStrategy::Ff1`, from `AesGcmEncryptor` or `Ff1Encryptor` with
+`.into()`), so a `RewritePolicy` can give each kind its own encryptor and
+mask or tokenize the rest. Each mention is encrypted as written. When
+mentions overlap, the merged run is encrypted once, as one value. Two
+encryptors are equal, and fold the same into the policy's configuration
+hash, when their key, context or tweak, alphabet and overlap rule match.
+The key enters as an HMAC-SHA-256 under a fixed label, as an
+`HmacTokenizer` key does, never as itself. A clone of an
+`AesGcmEncryptor` draws a nonce seed of its own and is still equal,
+since it decrypts the same tokens. A gRPC redaction policy cannot name
+them yet: on the server, keys are to be registered key references,
+never key bytes in a message.
 `analysis/pii/tests/reversible.rs` runs the NIST FF1 AES-256 samples
 through `Ff1Encryptor` and the round trip of both strategies for every
-built-in kind and a custom one. The encryptor's unit test checks the
-cipher against NIST CAVP AES-256-GCM vectors.
+built-in kind and a custom one. `analysis/pii/tests/reversible_policy.rs`
+runs them as policy strategies beside a mask. The encryptor's unit test
+checks the cipher against NIST CAVP AES-256-GCM vectors.
 
 ### The redacted view
 
@@ -776,22 +837,23 @@ to a trained head.
   `Point`, `Summit`, `Center`, `Plan`) may not be followed by unconsumed
   capitalized words (`3 Point Lane`, not `the 3 Five Point Plan` or
   `2020 Vision Center Plan`). When the house number is a four-digit year
-  (`1900` to `2099`) and the suffix is a general noun (or `Court` or
-  `Loop`, as in `2024 Supreme Court` or `2023 Feedback Loop`) rather than
-  an unambiguous street-only suffix, a post-direction, a unit or a comma
-  and capitalized city word must follow (`2016 Central Park West`, `2016
-  Central Park, New York`, not `2016 Central Park`, `2024 Supreme Court`,
-  `2023 Feedback Loop` or `2024 Annual Bay Summit`). A direction may
-  follow the suffix (`Main St
-  NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
-  an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
+  (`1900` to `2099`) and the suffix is a general noun (or `Court`, `Ct`
+  or `Loop`, as in `2024 Supreme Court`, `2024 Supreme Ct` or `2023
+  Feedback Loop`) rather than an unambiguous street-only suffix, a
+  post-direction, a unit or a comma and capitalized city word must
+  follow (`2016 Central Park West`, `2016 Central Park, New York`,
+  `2024 Oak Ct, Springfield`, not `2016 Central Park`, `2024 Supreme
+  Court`, `2024 Supreme Ct`, `2023 Feedback Loop` or `2024 Annual Bay
+  Summit`). A direction may follow the suffix (`Main St NW`, or a
+  quadrant after a `.` or a comma, `L St., NW`), then a unit: an
+  optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
   `Building`, `Lot` and the like with an optional `.`, or `#`, then one
   to six letters, digits and hyphens. Post office boxes are the same
   kind: `PO`, `P.O.`, `P. O.`, `P O` or `Post Office`, then `Box` and one
   to ten digits, in any case. Every piece is on one line and joined by
   one horizontal space (`' '`, `'\t'`, `U+00A0` or `U+202F`), so a city,
-  state and ZIP code after a comma, or the next
-  line of a letter, stay outside the mention. Lower case street words,
+  state and ZIP code after a comma, or the next line of a letter, stay
+  outside the mention. Lower case street words,
   a house number inside a decimal, an ordinal alone (`5th Avenue`) and
   a number with no suffix after its words (`Table 4 Summary`, `Route
   66`, `the 3 Point Plan`) are not addresses.
@@ -808,6 +870,92 @@ written with a zero). The external partition was annotated before
 these kinds existed: its five postal addresses (RFC author and registry
 blocks and one example) and one age are counted and pinned but not
 scored.
+
+### Dates and amounts of money
+
+`date` and `currency` take ids 41 and 42. Their scanners read the text
+with the numeric crate's own scanners (docs/temporal.md, docs/money.md),
+so a date or an amount is found exactly where `turbo:temporal` or
+`turbo:money` would find it.
+
+- `date` (new `Temporal` extractor, `TemporalPiiExtractor`,
+  `turbo-pii:temporal`, in `Dates`; `analysis/pii/src/scan/date.rs`):
+  the absolute mentions of the temporal scanner that name a day or a
+  month (`2026-07-14`, `July 4, 1952`, `14th March 2025`,
+  `August 2026`). A year alone and a quarter are not date elements HIPAA
+  counts, and a relative expression (`3 weeks ago`) needs a reference
+  date the scanner never takes, so none is a mention; nor is a
+  calendar-invalid one (`2026-13-40`). The normalized form is the value
+  in ISO 8601 (`1952-07-04`, `2026-08`).
+- `currency` (new `Money` extractor, `MoneyPiiExtractor`,
+  `turbo-pii:money`, in `Money`; `analysis/pii/src/scan/money.rs`): the
+  mentions of the money scanner with its default symbol table, amounts
+  read in US notation (`$1,250.00`, `EUR 40`, `-$3`, `40 euros`). A bare
+  number is never money. The normalized form is the ISO 4217 code and
+  the amount (`USD 1250.00`, `EUR 40`).
+
+Both are low severity, suggested a label rewrite and masked keeping
+separators (`****-**-**`). Neither needs a label; `date`, `date of
+birth`, `dob` and `born`, and `amount`, `balance`, `salary` and
+`payment`, are their label phrases for the context window. They are the
+kinds the date rewrites of #1884 act on.
+
+A redaction policy over gRPC turns `Dates`, `Money` or `Places` on
+itself: an enabled rule for `date`, `currency`, `state` or `county`
+adds that pack's scanners to the `turbo-pii:pii` step, which otherwise
+runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
+
+### States and counties
+
+`state` and `county` take ids 43 and 44, in the opt-in `Places` pack.
+
+- `state` (new `UsState` extractor, `UsStatePiiExtractor`,
+  `turbo-pii:us-state`; `analysis/pii/src/scan/state.rs`): the name of a
+  state, the District of Columbia or an inhabited territory (`Illinois`,
+  `New York`, `Puerto Rico`, `U.S. Virgin Islands`), as written or all in
+  capitals, at word boundaries, single spaces between its words.
+  `Washington, D.C.` and `Washington DC` are the District. `New York
+  City` is a city and `Washington County` a county, so neither is a
+  state; a county word that makes no county of the list leaves the state
+  (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
+  `OK`), so it is a mention only in capitals and only directly after a
+  state label (`State: OR`) or before a ZIP code (`Springfield, IL
+  62704`). The normalized form is the USPS code (`IL`).
+- `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
+  `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
+  county equivalent of the Census Bureau's 2020 county list
+  (`national_county2020.txt`, public domain, SHA-256
+  `9f6e5f6eb6ac2f5e9a36d5fd01dec77991bddc75118f748a069441a4782970d6`),
+  with its own last word: `County`, `Parish`, `Borough`, `Census Area`,
+  `Municipality` or `Municipio` (`Cook County`, `Orleans Parish`,
+  `Matanuska-Susitna Borough`, `Mayagüez Municipio`). Each word reads as
+  the list writes it or in capitals, and the last also in small letters
+  (`Cook county`); a right single quotation mark reads as an apostrophe.
+  The independent cities (`Baltimore city`) are cities, not counties. A
+  name shared by several states (`Washington County`) is one mention,
+  normalized as the list spells it; a state named beside it (`Cook
+  County, Illinois`) is a mention of its own.
+  The 1,918 names are in `analysis/pii/src/tables/us_counties.txt`.
+
+Both are low severity, suggested a label rewrite and masked keeping
+spaces (`**** ******`). Neither needs a label; `state`, `state of
+residence`, `county` and `county of residence` are their label phrases.
+HIPAA Safe Harbor removes every geographic subdivision smaller than a
+state, so `county` is an identifier and `state` is not; the state kind
+is there for policies that want the whole place gone.
+
+Scored on its own (`places_eval.rs`, gold in
+`analysis/pii/tests/data/human-eval/labels-places.tsv`), the `Places`
+pack over the ten documents of the human-written set and a
+project-authored memo of places and near misses (`places-memos.txt`):
+
+| Kind | Source | TP | FP | FN | Precision | Recall |
+|---|---|---:|---:|---:|---:|---:|
+| `state` | third-party MASC (`29`) + project-authored (`11`) | 40 | 0 | 0 | 1.000 | 1.000 |
+| `county` | project-authored (`places-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
+
+The MASC documents name no county, so the county figures are only those
+of the memo written for it.
 
 ## Custom extractors and scanner rules
 

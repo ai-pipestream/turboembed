@@ -46,6 +46,10 @@ fn every_strategy() -> Vec<Strategy> {
         Strategy::Pseudonym(pb::PiiPseudonymStrategy::default()),
         Strategy::ZipSafeHarbor(pb::PiiZipSafeHarborStrategy::default()),
         Strategy::AgeSafeHarbor(pb::PiiAgeSafeHarborStrategy::default()),
+        Strategy::Date(pb::PiiDateStrategy {
+            mode: Some(pb::pii_date_strategy::Mode::Year(pb::PiiDateYear {})),
+            mask_char: String::new(),
+        }),
     ]
 }
 

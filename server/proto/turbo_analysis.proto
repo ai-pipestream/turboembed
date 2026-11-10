@@ -211,6 +211,39 @@ message BundleCapabilities
   // that order; empty for a bundle without heads.
   // "turbo-tagger:heads" and the annotate-v2 profile run every one listed.
   repeated string head_steps = 9;
+
+  // The stored vocabulary artifacts bound to this bundle at LoadBundle
+  // (#2013); absent when none were bound.
+  optional VocabularyBinding vocabulary = 10;
+}
+
+// A stored dictionary or learned vocabulary in the server's vocabulary
+// store (--vocabulary-dir, docs/grpc-vocabulary.md), pinned by its
+// artifact id and the lowercase hexadecimal SHA-256 of its stored bytes
+// (#2013). Resolved through the vocabulary store and cached by digest;
+// never a file path or inline terms.
+message VocabularyArtifactRef
+{
+  string artifact_id = 1;
+  string sha256 = 2;
+}
+
+// Stored vocabulary artifacts bound into a bundle at LoadBundle or into
+// one AnalyzeStream or AnalyzeDocumentProgressive request (#2013). A
+// field set on a request overrides the bundle's binding for that step.
+message VocabularyBinding
+{
+  // Plain-word-list dictionary or learned vocabulary bound to
+  // turbo-stopword:bundled and turbo-keywords:yake, writing
+  // turbo:stopwords (and turbo:keywords) with this artifact's ModelRef
+  // in layer provenance.
+  optional VocabularyArtifactRef stopwords = 1;
+
+  // Glossary dictionary (glossary-csv, glossary-tbx, glossary-mapped)
+  // or learned vocabulary bound to turbo-glossary:annotator, writing
+  // turbo:glossary-terms with this artifact's ModelRef in layer
+  // provenance.
+  optional VocabularyArtifactRef glossary = 2;
 }
 
 // The limits an extraction schema may carry, the schema-extract crate's
@@ -287,6 +320,11 @@ message LoadBundleRequest
   // terms. Without a catalog there is no acceptance file and nothing is
   // checked.
   string user = 12;
+
+  // Optional stored stopword or glossary artifacts resolved from the
+  // vocabulary store (--vocabulary-dir) before the bundle is registered
+  // and bound as defaults for requests against it (#2013).
+  optional VocabularyBinding vocabulary = 13;
 }
 
 message LoadBundleResponse
@@ -573,6 +611,10 @@ enum AnalyzeOutput
   // int8 codes or packed sign bits, never f32. AnalyzeOptions.quantization
   // must name TURBO_QUANTIZE_INT8 or TURBO_QUANTIZE_UBINARY.
   ANALYZE_OUTPUT_VECTOR_CODES = 3;
+
+  // A DocumentGraphResponse built from the document text and the
+  // request's or bundle's bound vocabulary artifacts (#2013).
+  ANALYZE_OUTPUT_DOCUMENT_GRAPH = 4;
 }
 
 // The embed options one document asks for: the fields of
@@ -653,11 +695,16 @@ message AnalyzeDocument
   // absent when the caller has none. A parse_artifact_digest without a
   // parse_artifact_id fails the document.
   optional InputBinding binding = 7;
+
+  // Optional stored stopword or glossary artifacts resolved from the
+  // vocabulary store for this document (#2013), overriding any
+  // vocabulary bound on the bundle.
+  optional VocabularyBinding vocabulary = 8;
 }
 
 // One document's answer, tagged with its correlation id: its vectors,
-// sparse terms, token vectors, or failure. A failed document never ends
-// the stream.
+// sparse terms, token vectors, document graph, or failure. A failed
+// document never ends the stream.
 message AnalyzeStreamResponse
 {
   // The document's correlation id.
@@ -679,6 +726,10 @@ message AnalyzeStreamResponse
 
     // The document's pooled vector as quantized codes (#1492).
     VectorCodesResult vector_codes = 6;
+
+    // The document's analyzed DocumentGraphResponse
+    // (ANALYZE_OUTPUT_DOCUMENT_GRAPH, #2013).
+    DocumentGraphResponse document_graph = 8;
   }
 
   // The document's AnalyzeDocument.binding as given, on every answer,
@@ -955,6 +1006,11 @@ message AnalyzePipelineRequest
   // Served GLiNER2 package for turbo:zero-shot-relations. This is separate
   // from model so one request can run GLiNER entities and GLiNER2 relations.
   string relation_model = 16;
+
+  // Optional stored stopword or glossary artifacts resolved from the
+  // vocabulary store for this request (#2013), overriding any
+  // vocabulary bound on the bundle.
+  optional VocabularyBinding vocabulary = 17;
 }
 
 // Open-label entity extraction over a converted GLiNER package.
@@ -966,6 +1022,9 @@ message OpenSpanSchema
   optional float threshold = 2;
   // False selects flat decoding; true permits non-crossing nested spans.
   bool nested = 3;
+  // Optional parallel aliases, descriptions, or annotation guidelines for
+  // the model prompt. Empty uses labels; otherwise one prompt per label.
+  repeated string prompts = 4;
 }
 
 // Open-label relation extraction between the document's existing entities.

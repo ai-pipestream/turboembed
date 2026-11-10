@@ -1,6 +1,7 @@
 //! The PII release flags and their variables (docs/grpc-analysis.md, PII
 //! value release, #1909): the grants per verified client certificate, the
-//! token keys, the audit service, and whether a values request must name
+//! token keys, the encryption keys of the reversible redaction strategies
+//! (#1885), the audit service, and whether a values request must name
 //! the policy the graph recorded (#1977). Every one needs `--pii-grant`,
 //! and a grant needs mTLS and the audit endpoint.
 
@@ -14,7 +15,9 @@ use crate::tls::TlsConfig;
 
 pub const ENV_PII_GRANTS: &str = "TURBO_KSERVE_PII_GRANTS";
 pub const ENV_PII_TOKEN_KEYS: &str = "TURBO_KSERVE_PII_TOKEN_KEYS";
+pub const ENV_PII_ENCRYPTION_KEYS: &str = "TURBO_KSERVE_PII_ENCRYPTION_KEYS";
 pub const ENV_PII_TOKEN_KEY_ACTIVE: &str = "TURBO_KSERVE_PII_TOKEN_KEY_ACTIVE";
+pub const ENV_PII_ENCRYPTION_KEY_ACTIVE: &str = "TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE";
 pub const ENV_PII_AUDIT_ENDPOINT: &str = "TURBO_KSERVE_PII_AUDIT_ENDPOINT";
 pub const ENV_PII_AUDIT_TIMEOUT_MS: &str = "TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS";
 pub const ENV_PII_REQUIRE_RECORDED_POLICY: &str = "TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY";
@@ -24,7 +27,9 @@ pub const ENV_PII_REQUIRE_RECORDED_POLICY: &str = "TURBO_KSERVE_PII_REQUIRE_RECO
 pub(super) struct ReleaseFlags {
     grants: Vec<String>,
     token_keys: Vec<String>,
+    encryption_keys: Vec<String>,
     active: Option<String>,
+    encryption_active: Option<String>,
     endpoint: Option<String>,
     timeout_ms: Option<String>,
     require_recorded: Option<bool>,
@@ -33,7 +38,8 @@ pub(super) struct ReleaseFlags {
 impl ReleaseFlags {
     /// Takes `flag` if it is a release flag: `inline` is its `=value`, and
     /// `value` reads the value the flag needs. Answers false for any other
-    /// flag. `--pii-grant` and `--pii-token-key` repeat.
+    /// flag. `--pii-grant`, `--pii-token-key` and `--pii-encryption-key`
+    /// repeat.
     pub(super) fn take(
         &mut self,
         flag: &str,
@@ -48,7 +54,9 @@ impl ReleaseFlags {
             }
             "--pii-grant" => self.grants.push(value()?),
             "--pii-token-key" => self.token_keys.push(value()?),
+            "--pii-encryption-key" => self.encryption_keys.push(value()?),
             "--pii-token-key-active" => super::once(flag, value()?, &mut self.active)?,
+            "--pii-encryption-key-active" => super::once(flag, value()?, &mut self.encryption_active)?,
             "--pii-audit-endpoint" => super::once(flag, value()?, &mut self.endpoint)?,
             "--pii-audit-timeout-ms" => super::once(flag, value()?, &mut self.timeout_ms)?,
             _ => return Ok(false),
@@ -75,7 +83,12 @@ impl ReleaseFlags {
         };
         let grants = list(self.grants, ENV_PII_GRANTS);
         let token_keys = list(self.token_keys, ENV_PII_TOKEN_KEYS);
+        let encryption_keys = list(self.encryption_keys, ENV_PII_ENCRYPTION_KEYS);
+        if !encryption_keys.is_empty() && !cfg!(feature = "pii-reversible") {
+            return Err("--pii-encryption-key needs a server built with the pii-reversible feature".into());
+        }
         let active = from_env(self.active, ENV_PII_TOKEN_KEY_ACTIVE);
+        let encryption_active = from_env(self.encryption_active, ENV_PII_ENCRYPTION_KEY_ACTIVE);
         let endpoint = from_env(self.endpoint, ENV_PII_AUDIT_ENDPOINT);
         let timeout_ms = from_env(self.timeout_ms, ENV_PII_AUDIT_TIMEOUT_MS);
         let require_recorded_policy = match (self.require_recorded, env(ENV_PII_REQUIRE_RECORDED_POLICY)) {
@@ -93,13 +106,16 @@ impl ReleaseFlags {
         };
         if grants.is_empty() {
             if !token_keys.is_empty()
+                || !encryption_keys.is_empty()
                 || active.is_some()
+                || encryption_active.is_some()
                 || endpoint.is_some()
                 || timeout_ms.is_some()
                 || require_recorded_policy
             {
-                return Err("--pii-token-key, --pii-token-key-active, --pii-audit-endpoint, \
-                            --pii-audit-timeout-ms and --pii-require-recorded-policy need --pii-grant"
+                return Err("--pii-token-key, --pii-encryption-key, --pii-token-key-active, \
+                            --pii-encryption-key-active, --pii-audit-endpoint, --pii-audit-timeout-ms \
+                            and --pii-require-recorded-policy need --pii-grant"
                     .into());
             }
             return Ok(None);
@@ -112,8 +128,15 @@ impl ReleaseFlags {
             .iter()
             .map(|k| TokenKeyFile::parse(k).map_err(|e| format!("--pii-token-key: {e}")))
             .collect::<Result<Vec<_>, _>>()?;
+        let encryption_keys = encryption_keys
+            .iter()
+            .map(|k| TokenKeyFile::parse(k).map_err(|e| format!("--pii-encryption-key: {e}")))
+            .collect::<Result<Vec<_>, _>>()?;
         let active_token_key =
             active.map(|a| KeyRef::parse(&a).map_err(|e| format!("--pii-token-key-active: {e}"))).transpose()?;
+        let active_encryption_key = encryption_active
+            .map(|a| KeyRef::parse(&a).map_err(|e| format!("--pii-encryption-key-active: {e}")))
+            .transpose()?;
         let audit_endpoint = endpoint.ok_or("--pii-grant needs --pii-audit-endpoint: every release is audited")?;
         let audit_timeout = match timeout_ms {
             None => DEFAULT_AUDIT_TIMEOUT,
@@ -126,6 +149,8 @@ impl ReleaseFlags {
             grants: parsed,
             token_keys,
             active_token_key,
+            encryption_keys,
+            active_encryption_key,
             audit_endpoint,
             audit_timeout,
             require_recorded_policy,

@@ -1,5 +1,6 @@
 package ai.pipestream.turboembed;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
@@ -80,6 +81,30 @@ public interface TurboSpanView {
 
     /** Returns the model probability, when present. Rule rows do not invent one. */
     OptionalDouble probability();
+
+    /**
+     * Returns the PII detector's {@code (id, version)} when this is a PII row, or empty for other
+     * layers.
+     */
+    default Optional<TurboPiiDetector> piiDetector() {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the structured evidence facts supporting this PII row in order, or an empty list for
+     * other layers.
+     */
+    default List<TurboPiiEvidence> piiEvidence() {
+        return List.of();
+    }
+
+    /**
+     * Returns the optional model score attached to this PII row, or empty when unscored or not a
+     * PII row.
+     */
+    default Optional<TurboPiiScore> piiScore() {
+        return Optional.empty();
+    }
 
     /**
      * Slices source text with this row's source UTF-16 range.

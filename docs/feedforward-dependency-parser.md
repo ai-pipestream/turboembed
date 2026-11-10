@@ -66,6 +66,15 @@ existing lossless dependency carrier, including multiword-token ranges,
 then trains over syntactic words. Malformed input includes its sentence
 number in the error.
 
+`FeedforwardDependencyTrainer::train_observed` and
+`train_feedforward_conllu_observed` call an observer after each epoch
+with a `FeedforwardEpoch`: the epoch from 1, the epochs asked for, and
+the mean cross-entropy of the epoch's examples as they were scored, with
+dropout applied. An observer that answers false stops the training with
+an error. Observing does not change the model. The server's
+`StreamingTraining` component job trains through it
+(docs/grpc-training.md).
+
 `DependencyAnnotator<A>::new` accepts either `DependencyParserME` or
 `FeedforwardDependencyParser`. Neural provenance records a canonical model digest
 and beam width in the configuration hash. Token and word anchors retain

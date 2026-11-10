@@ -336,7 +336,8 @@ typedef struct turbo_backend_model {
     const turbo_backend_tensor *head;
     uint32_t    head_out;         /* 2 for the span head: start, then end */
     uint32_t    lookahead;        /* keys a query attends to past itself, 0 for the whole
-                                     row; the core loads a banded model on the CPU only */
+                                     row; the core loads a banded model on the CPU and
+                                     Level Zero only */
     uint32_t    position_buckets;       /* TURBO_FAMILY_DEBERTA_V2: half the relative table's
                                            rows; 0 for every other family */
     uint32_t    max_relative_positions; /* TURBO_FAMILY_DEBERTA_V2: the distance the log buckets

@@ -162,6 +162,19 @@ pii_kinds! {
     /// A United States street address (house number, street name and
     /// suffix, unit) or post office box.
     StreetAddress = 40, "street-address", 400;
+    /// A calendar date naming a day or a month (`2026-07-14`, `July 14,
+    /// 2026`, `14th July 2026`, `July 2026`): HIPAA counts every element of
+    /// a date but the year alone.
+    Date = 41, "date", 410;
+    /// An amount of money with its currency (`$1,250.00`, `EUR 40`,
+    /// `40 euros`).
+    Currency = 42, "currency", 420;
+    /// A United States state, the District of Columbia or an inhabited
+    /// territory (`Illinois`, `New York`, `IL` before a ZIP code).
+    State = 43, "state", 430;
+    /// A United States county or county equivalent of the Census list
+    /// (`Cook County`, `Orleans Parish`, `Bethel Census Area`).
+    County = 44, "county", 440;
 }
 
 /// The first codec kind code of a custom kind: code `CUSTOM_CODE_BASE + i`
@@ -170,7 +183,7 @@ pub const CUSTOM_CODE_BASE: u32 = 1 << 16;
 
 impl PiiKind {
     /// The largest built-in id; a [`PiiKinds`] bit set holds ids up to 127.
-    pub const MAX_BUILTIN_ID: u16 = 40;
+    pub const MAX_BUILTIN_ID: u16 = 44;
 
     /// Every built-in kind, in id order.
     pub fn builtins() -> impl Iterator<Item = PiiKind> {

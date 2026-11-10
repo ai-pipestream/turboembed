@@ -12,7 +12,8 @@ There is no per-binding data adapter: calls use the shared Java API.
 `Row` and `Graph` are only test fixture snapshots used to compare the
 native results, not a second public application API.
 
-The expectations cover the seeded heads in `testdata/tiny-bert-heads-bundle`,
+The expectations cover the seeded heads in `testdata/tiny-bert-heads-bundle`
+and `testdata/tiny-bert-segment-bundle`,
 rule tokenization and sentence splitting, PII, graph round trips, native
 error details, retained owners and closed views. Loader tests run fresh
 JVM processes for automatic selection, explicit overrides and missing jars.
