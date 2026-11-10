@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir /tmp/${WHEEL} tokenizers==0.22.2 && rm /tmp/${WHE
 # hef_compile.py seeds torch; the 3.x compiler does not install it.
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.9.1
 COPY hef_compile.py /
+COPY test_cut_validation.py /
+RUN cd / && python -m unittest test_cut_validation
 ENV HOME=/tmp PYTHONHASHSEED=0
 WORKDIR /tmp
 ENTRYPOINT ["python", "/hef_compile.py"]

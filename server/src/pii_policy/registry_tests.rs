@@ -85,6 +85,22 @@ fn a_store_whose_bytes_changed_under_the_descriptor_is_unreadable() {
     assert!(!e.reason().contains("dictionaries"), "no path: {}", e.reason());
 }
 
+#[test]
+fn a_stored_dictionary_that_does_not_parse_says_which_line() {
+    let store = Arc::new(Store::open(&dir("unparsable")).unwrap());
+    // A blank replacement is a headword with an empty definition, which
+    // the store takes, but a map table refuses it.
+    let map = put(&store, "dict-map", MAP_FORMAT, format!("bob\tB\n{SECRET}\t \n").as_bytes());
+    let r = ServerResolver::load(&[], Some(store)).unwrap();
+    let e = r.map_entries("dict-map", &map).unwrap_err();
+    let reason = "line 2: not a key, a tab and a replacement".to_owned();
+    assert_eq!(e, ResolveError::Unparsable { format: MAP_FORMAT.to_owned(), reason });
+    let said = e.reason();
+    assert!(said.contains(MAP_FORMAT) && said.contains("line 2"), "{said}");
+    assert!(!said.contains(SECRET) && !said.contains("bob"), "no term: {said}");
+    assert_eq!(r.cached_dictionaries(), 0, "a refusal caches nothing");
+}
+
 fn deny_policy(terms: pb::PiiTermSource) -> pb::RedactionPolicy {
     pb::RedactionPolicy {
         id: "p".into(),

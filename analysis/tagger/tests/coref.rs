@@ -109,6 +109,29 @@ fn the_chains_are_the_core_heads_links_over_the_entities() {
     assert_eq!(members(&again), members(&groups));
 }
 
+/// A ranker with a learned mix of the encoder's last two layers loads
+/// from its bundle and resolves the entities through the encoder's taps.
+#[test]
+fn a_ranker_with_a_layer_mix_loads_and_resolves() {
+    let mut head = coref_head(4);
+    head["layer_mix"] = json!({"layers": 2});
+    let dir = bundle("coref-mix", |m| m["heads"] = json!([head]));
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let ents = entities(&toks);
+    let tagger = CorefTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
+    assert_eq!(tagger.head().taps(), 2);
+    let (groups, edges) = tagger.annotate((view, &toks, &ents, None)).unwrap();
+    groups.check().unwrap();
+    edges.check().unwrap();
+    let in_one = (0..RANGES.len()).all(|e| groups.groups_containing(Ix::new(e as u32)).count() == 1);
+    assert!(in_one, "every entity is in exactly one chain");
+    let (again, _) = tagger.annotate((view, &toks, &ents, None)).unwrap();
+    let members = |gr: &turbo_analysis::Groups<Entities>| gr.iter().map(|(_, m)| m.to_vec()).collect::<Vec<_>>();
+    assert_eq!(members(&again), members(&groups));
+}
+
 #[test]
 fn bad_entities_and_wrong_heads_are_refused() {
     let dir = bundle("coref-refuse", |m| m["heads"] = json!([coref_head(2), heads()[0].clone()]));

@@ -166,7 +166,7 @@ pub fn load_labelled(table: &[(&str, bool, &str, &str)], labels_file: &str, esca
     for &(id, escaped, file, expected_sha) in table {
         let raw = std::fs::read_to_string(dir.join(file)).expect("human-eval document on disk");
         let text = if escaped { unescape(raw.trim_end_matches('\n')).expect("valid escaped text") } else { raw };
-        assert_eq!(to_hex(&sha256(text.as_bytes())), expected_sha, "{id} SHA-256");
+        assert_eq!(to_hex(sha256(text.as_bytes())), expected_sha, "{id} SHA-256");
         docs.push((id, Labelled { text, labels: Vec::new() }));
     }
     let labels_raw = std::fs::read_to_string(dir.join(labels_file)).expect("human-eval labels");

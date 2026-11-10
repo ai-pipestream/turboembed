@@ -52,6 +52,7 @@ pub(super) fn check_fragment(
     }
     let mut outcomes = Vec::with_capacity(frag.members.len());
     for (k, m) in frag.members.iter().enumerate() {
+        read_member();
         let o = parse(lid, &format!("{what} member {k}"), m.outcome)?;
         if own_view && o != SpanOutcome::Exact {
             return Err(bad(format!("{lid} {what} member {k} is on its own view and not exact")));
@@ -92,10 +93,59 @@ pub(super) fn check_fragments(lid: &str, i: usize, frags: &[SpanFragment], own_v
             return Err(bad(format!("{lid}[{i}] fragment {f_ix} is empty in a multi-fragment span")));
         }
         for m in &frag.members {
+            read_member();
             if !seen.insert(m.index) {
                 return Err(bad(format!("{lid}[{i}] native fragment {} is a member of two fragments", m.index)));
             }
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Member reads: once when its fragment is checked and once when it is
+    /// claimed against the other fragments, each a constant-time step.
+    static MEMBER_READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// One member read.
+#[inline]
+fn read_member() {
+    #[cfg(test)]
+    MEMBER_READS.with(|n| n.set(n.get() + 1));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::proto::result::FragmentMember;
+
+    /// Members read to check `fragments` coalesced fragments of `per` members each.
+    fn reads(fragments: u32, per: u32) -> u64 {
+        let frags: Vec<SpanFragment> = (0..fragments)
+            .map(|f| SpanFragment {
+                start: f * 2,
+                end: f * 2 + 1,
+                outcome: SpanOutcome::Exact as i32,
+                members: (0..per)
+                    .map(|k| FragmentMember { index: f * per + k, outcome: SpanOutcome::Exact as i32 })
+                    .collect(),
+            })
+            .collect();
+        MEMBER_READS.with(|n| n.set(0));
+        check_fragments("l", 0, &frags, false).unwrap();
+        MEMBER_READS.with(std::cell::Cell::get)
+    }
+
+    /// Codex on #1921: reuse across fragments was a `Vec::contains`, so a
+    /// long list cost its square. Each member is read twice, in one long
+    /// fragment or spread across many, and the claim against the others
+    /// is one set probe.
+    #[test]
+    fn each_member_is_read_twice() {
+        for (fragments, per) in [(1, 50_000), (1, 200_000), (500, 400)] {
+            assert_eq!(reads(fragments, per), 2 * u64::from(fragments * per), "{fragments} x {per}");
+        }
+    }
 }

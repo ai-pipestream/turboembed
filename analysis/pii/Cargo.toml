@@ -21,6 +21,7 @@ fpe = { version = "0.7.0", default-features = false, features = ["alloc"], optio
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-glossary = { path = "../glossary" }
+turbo-sha256 = { path = "../sha256" }
 # Character.isLetterOrDigit(int) and Character.isWhitespace(int), which
 # OpenNLP's boundary and label checks ask.
 turbo-unicode = { path = "../unicode" }

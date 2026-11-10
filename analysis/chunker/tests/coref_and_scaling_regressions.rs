@@ -6,8 +6,8 @@
 //!    `extract_chains` and `coref_boundaries_from_chains` on both `Entities`
 //!    and `Mentions`.
 //! 3. View mismatch rejection in `DistilledBoundaryScorer::annotate`.
-//! 4. Linear-time $O(m)$ dependency subtree precomputation on long chains
-//!    (400 / 800 / 1600 tokens).
+//! 4. Clause cuts on long dependency chains (400 and 3,200 tokens); the
+//!    step count that holds them linear is a unit test in the crate.
 
 use turbo_analysis::{
     Analyzer, Annotator, Bound, Document, Edge, Edges, Groups, Ix, IxRange, Key, ModelRef, Provenance, Span, Spans,
@@ -208,30 +208,16 @@ fn chain(n: usize, rel_name: &str) -> (Sentences, Tokens, Dependencies<Tokens>) 
 }
 
 #[test]
-fn long_dependency_chain_scales_linearly() {
-    // Two chains eight times apart, best of five rounds each, measured
-    // round-robin after a warm-up so load on a shared runner hits both sizes
-    // alike. Linear work grows about eightfold and a quadratic walk 64-fold;
-    // 24 sits between. The old version timed one run per size against a
-    // 100 ms ceiling and a 16x ratio over 4x the input, and a loaded runner
-    // measured 343 us then 5.6 ms (16.3x) on a single sample.
+fn long_dependency_chain_keeps_every_token() {
+    // Chains of 400 and 3,200 tokens give one clause cut row a token. The
+    // unit test next to the cut search counts its steps on the same chains,
+    // so nothing here depends on the clock.
     for rel_name in ["dep", "conj"] {
-        let inputs = [400usize, 3_200].map(|n| chain(n, rel_name));
-        let cut = |(s, tokens, deps): &(Sentences, Tokens, Dependencies<Tokens>)| {
-            let cuts = clause_cuts(s, tokens, Some(deps), None, None, None, None, ClauseCosts::default());
-            assert_eq!(cuts.sentences[0].tokens.len(), tokens.spans.len());
-        };
-        inputs.iter().for_each(cut);
-        let mut best = [std::time::Duration::MAX; 2];
-        for _ in 0..5 {
-            for (input, best) in inputs.iter().zip(&mut best) {
-                let start = std::time::Instant::now();
-                cut(input);
-                *best = (*best).min(start.elapsed());
-            }
+        for n in [400usize, 3_200] {
+            let (s, tokens, deps) = chain(n, rel_name);
+            let cuts = clause_cuts(&s, &tokens, Some(&deps), None, None, None, None, ClauseCosts::default());
+            assert_eq!(cuts.sentences[0].tokens.len(), n, "rel={rel_name} n={n}");
+            assert_eq!(cuts.sentences[0].breaks.len(), n - 1, "rel={rel_name} n={n}");
         }
-        let [small, large] = best.map(|d| d.as_nanos().max(1));
-        eprintln!("rel={rel_name} best timings (ns): 400={small}, 3200={large}");
-        assert!(small.saturating_mul(24) > large, "rel={rel_name} best timings (ns): 400={small}, 3200={large}");
     }
 }

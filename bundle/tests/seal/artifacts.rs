@@ -15,6 +15,7 @@ fn a_sealed_bundle_loads_through_the_core() {
             "calibration/texts.jsonl",
             "hailo/model-hailo10h-s128.hef",
             "hailo/model-hailo8-s128.hef",
+            "hailo/model-hailo8l-s128.hef",
             "onnx/model-f16.onnx",
             "onnx/model.onnx",
             "openvino/embeddings.bin",

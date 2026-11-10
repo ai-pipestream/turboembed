@@ -155,7 +155,7 @@ pub(crate) fn table(g: &Golden, id: &str, value: &str, sentences: &[Vec<String>]
 
 /// The SHA-256 of `bytes` in lowercase hex.
 pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
-    turbo_goldens::hex::to_hex(&sha256(bytes))
+    turbo_goldens::hex::to_hex(sha256(bytes))
 }
 
 /// The model file of the training golden, checked against its recorded

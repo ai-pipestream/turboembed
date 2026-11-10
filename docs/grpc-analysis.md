@@ -958,8 +958,12 @@ and detector lists, with a typed `PolicyError` naming the field.
   format template, map (inline entries or a registered dictionary, with a
   fallback that is never a map), truncate, last-N, abbreviate, keyed
   token (HMAC under a registered key), SHA-256 (unkeyed, reversible by
-  guessing for low-entropy values, never a default), static text and
-  pseudonym (per-document numbers, never a default).
+  guessing for low-entropy values, never a default), static text,
+  pseudonym (per-document numbers, never a default), ZIP Safe Harbor
+  (first three digits kept, `000` for a restricted area, the rest masked;
+  the bundled HHS 2000 Census table or the caller's own prefixes) and age
+  Safe Harbor (an age of 89 or under kept, every older age written as
+  `90+`).
 - **Default**: a kind with no rule, or no entry that applies, gets
   `default_strategy`, which is a mask or a keyed token only; unset, a
   whole-value `*` mask. The native `RewriteStrategy::default()` is the

@@ -44,6 +44,8 @@ fn every_strategy() -> Vec<Strategy> {
         Strategy::Sha256(pb::PiiSha256Strategy::default()),
         Strategy::StaticText(pb::PiiStaticStrategy { replacement: "[E]".to_owned() }),
         Strategy::Pseudonym(pb::PiiPseudonymStrategy::default()),
+        Strategy::ZipSafeHarbor(pb::PiiZipSafeHarborStrategy::default()),
+        Strategy::AgeSafeHarbor(pb::PiiAgeSafeHarborStrategy::default()),
     ]
 }
 
