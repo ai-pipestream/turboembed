@@ -1,5 +1,6 @@
 package ai.pipestream.turboembed;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -31,7 +32,46 @@ public record TurboSpanData(
         Optional<String> label,
         Optional<String> value,
         OptionalDouble probability,
-        OptionalLong piiKindCode) {
+        OptionalLong piiKindCode,
+        Optional<TurboPiiDetector> piiDetector,
+        List<TurboPiiEvidence> piiEvidence,
+        Optional<TurboPiiScore> piiScore) {
+
+    /** A row without PII detector, evidence or score metadata (#1941). */
+    public TurboSpanData(
+            TurboLayerKind layerKind,
+            long itemIndex,
+            long fragmentIndex,
+            long viewId,
+            long classification,
+            Optional<CoordinateRange> viewRange,
+            Optional<CoordinateRange> sourceRange,
+            Optional<TokenRange> tokenRange,
+            String layer,
+            String instance,
+            Optional<String> label,
+            Optional<String> value,
+            OptionalDouble probability,
+            OptionalLong piiKindCode) {
+        this(
+                layerKind,
+                itemIndex,
+                fragmentIndex,
+                viewId,
+                classification,
+                viewRange,
+                sourceRange,
+                tokenRange,
+                layer,
+                instance,
+                label,
+                value,
+                probability,
+                piiKindCode,
+                Optional.empty(),
+                List.of(),
+                Optional.empty());
+    }
 
     /** A row without a numeric PII kind, as rows were before it was reported (#1940). */
     public TurboSpanData(
@@ -49,7 +89,7 @@ public record TurboSpanData(
             Optional<String> value,
             OptionalDouble probability) {
         this(layerKind, itemIndex, fragmentIndex, viewId, classification, viewRange, sourceRange, tokenRange, layer,
-                instance, label, value, probability, OptionalLong.empty());
+                instance, label, value, probability, OptionalLong.empty(), Optional.empty(), List.of(), Optional.empty());
     }
 
     /** Validates copied span fields. */
@@ -64,11 +104,18 @@ public record TurboSpanData(
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(probability, "probability");
         Objects.requireNonNull(piiKindCode, "piiKindCode");
+        Objects.requireNonNull(piiDetector, "piiDetector");
+        piiEvidence = List.copyOf(Objects.requireNonNull(piiEvidence, "piiEvidence"));
+        Objects.requireNonNull(piiScore, "piiScore");
         if (piiKindCode.isPresent()) {
             if (layerKind != TurboLayerKind.PII) {
                 throw new IllegalArgumentException("a " + layerKind + " row has a PII kind code");
             }
             TurboPiiKind.customIndex(piiKindCode.getAsLong());
+        }
+        if ((piiDetector.isPresent() || !piiEvidence.isEmpty() || piiScore.isPresent())
+                && layerKind != TurboLayerKind.PII) {
+            throw new IllegalArgumentException("a " + layerKind + " row has PII detector, evidence or score");
         }
         requireNonNegative(itemIndex, "itemIndex");
         requireNonNegative(fragmentIndex, "fragmentIndex");
@@ -105,6 +152,9 @@ public record TurboSpanData(
                 + ", value=" + (value.isPresent() ? "Optional[<withheld>]" : "Optional.empty")
                 + ", probability=" + probability
                 + ", piiKindCode=" + piiKindCode
+                + ", piiDetector=" + piiDetector
+                + ", piiEvidence=" + piiEvidence
+                + ", piiScore=" + piiScore
                 + "]";
     }
 

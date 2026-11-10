@@ -1,5 +1,6 @@
-//! Token keys: registered, versioned key references in server config whose
-//! bytes are read from a file at start (#1909). The bytes stay in
+//! Token keys (#1909) and encryption keys (#1885): registered, versioned
+//! key references in server config whose bytes are read from a file at
+//! start. The bytes stay in
 //! [`KeyBytes`], whose `Debug` prints nothing of them; no message, error
 //! or event carries them, only the reference.
 
@@ -11,6 +12,10 @@ use crate::proto::result::{PiiPolicyKeyRef, PiiValueToken};
 /// The fewest and most bytes a token key file may hold.
 pub const MIN_KEY_BYTES: usize = 32;
 pub const MAX_KEY_BYTES: usize = 1024;
+
+/// The bytes an encryption key file holds: an AES-256 key, for the
+/// AES-256-GCM and FF1 redaction strategies.
+pub const ENCRYPTION_KEY_BYTES: usize = 32;
 
 /// What a token is a MAC over, before the kind and the value: tokens of
 /// this scheme never equal a MAC of the bare value under the same key.
@@ -29,19 +34,22 @@ impl KeyRef {
     }
 
     /// `ID:VERSION`; the id is ASCII letters, digits, `-`, `_` and `.`,
-    /// and the version a number from 1.
+    /// and the version a number from 1. An error never repeats the input,
+    /// which may be key text pasted in the wrong place: it names the part
+    /// that is wrong and its length.
     pub fn parse(s: &str) -> Result<KeyRef, String> {
-        let (id, version) = s.split_once(':').ok_or_else(|| format!("`{s}` is not ID:VERSION"))?;
+        let (id, version) = s.split_once(':').ok_or_else(|| shape("ID:VERSION", s))?;
         KeyRef::new(id, version)
     }
 
     fn new(id: &str, version: &str) -> Result<KeyRef, String> {
         if !Self::valid_id(id) {
-            return Err(format!("key id `{id}` is not 1 to 64 of A-Z, a-z, 0-9, -, _ and ."));
+            let n = id.len();
+            return Err(format!("the key id ({n} bytes, not shown) is not 1 to 64 of A-Z, a-z, 0-9, -, _ and ."));
         }
         match version.parse::<u32>() {
             Ok(v) if v > 0 => Ok(KeyRef { id: id.to_owned(), version: v }),
-            _ => Err(format!("key version `{version}` is not a number from 1")),
+            _ => Err(format!("the key version ({} bytes, not shown) is not a number from 1", version.len())),
         }
     }
 
@@ -79,17 +87,29 @@ pub struct TokenKeyFile {
 }
 
 impl TokenKeyFile {
-    /// `ID:VERSION:PATH`; the path may hold `:`.
+    /// `ID:VERSION:PATH`; the path may hold `:`. As with
+    /// [`KeyRef::parse`], an error never repeats the input, not even an id
+    /// that has the right shape: pasted key text can. Errors after a
+    /// complete parse, such as a file that does not read, name the
+    /// reference and the path's length in bytes, never the path.
     pub fn parse(s: &str) -> Result<TokenKeyFile, String> {
         let mut parts = s.splitn(3, ':');
         let (Some(id), Some(version), Some(path)) = (parts.next(), parts.next(), parts.next()) else {
-            return Err(format!("`{s}` is not ID:VERSION:PATH"));
+            return Err(shape("ID:VERSION:PATH", s));
         };
+        let key = KeyRef::new(id, version)?;
         if path.is_empty() {
-            return Err(format!("`{s}`: the path is empty"));
+            return Err("the path is empty (nothing after ID:VERSION:)".into());
         }
-        Ok(TokenKeyFile { key: KeyRef::new(id, version)?, path: PathBuf::from(path) })
+        Ok(TokenKeyFile { key, path: PathBuf::from(path) })
     }
+}
+
+/// A value that does not split into `form`, described without its text.
+fn shape(form: &str, s: &str) -> String {
+    let parts = s.split(':').count();
+    let n = s.len();
+    format!("the value ({n} bytes in {parts} `:`-separated parts, not shown) is not {form}")
 }
 
 /// Key material. Its `Debug` names its length only.
@@ -108,17 +128,26 @@ pub struct TokenKey {
     bytes: KeyBytes,
 }
 
+/// The bytes of a key file. A read error names `flag`, the reference and
+/// the path's length: the path may be key text pasted in the wrong place.
+/// `std::fs::read`'s error does not repeat the path.
+fn read_key(flag: &str, file: &TokenKeyFile) -> Result<Vec<u8>, String> {
+    std::fs::read(&file.path).map_err(|e| {
+        let n = file.path.as_os_str().len();
+        format!("{flag} {}: the key file (a path of {n} bytes, not shown) cannot be read: {e}", file.key)
+    })
+}
+
 impl TokenKey {
-    /// Reads `file`. An error names the reference and the path, never the
-    /// bytes.
+    /// Reads `file`. An error names the reference and the path's length,
+    /// never the path or the bytes: key text pasted where the path belongs
+    /// would otherwise be printed.
     pub fn load(file: &TokenKeyFile) -> Result<TokenKey, String> {
-        let bytes = std::fs::read(&file.path)
-            .map_err(|e| format!("--pii-token-key {}: {}: {e}", file.key, file.path.display()))?;
+        let bytes = read_key("--pii-token-key", file)?;
         if !(MIN_KEY_BYTES..=MAX_KEY_BYTES).contains(&bytes.len()) {
             return Err(format!(
-                "--pii-token-key {}: {} holds {} bytes, not {MIN_KEY_BYTES} to {MAX_KEY_BYTES}",
+                "--pii-token-key {}: the key file holds {} bytes, not {MIN_KEY_BYTES} to {MAX_KEY_BYTES}",
                 file.key,
-                file.path.display(),
                 bytes.len()
             ));
         }
@@ -151,23 +180,68 @@ impl TokenKey {
     }
 }
 
+/// A key of the AES-256-GCM and FF1 redaction strategies
+/// (`--pii-encryption-key`, #1885). `Debug` names its reference only.
+#[derive(Debug)]
+pub struct EncryptionKey {
+    pub key: KeyRef,
+    bytes: KeyBytes,
+}
+
+impl EncryptionKey {
+    /// Reads `file`, which must hold exactly [`ENCRYPTION_KEY_BYTES`]. An
+    /// error names the reference and the path's length, never the path or
+    /// the bytes, as [`TokenKey::load`].
+    pub fn load(file: &TokenKeyFile) -> Result<EncryptionKey, String> {
+        let bytes = read_key("--pii-encryption-key", file)?;
+        if bytes.len() != ENCRYPTION_KEY_BYTES {
+            return Err(format!(
+                "--pii-encryption-key {}: the key file holds {} bytes, not {ENCRYPTION_KEY_BYTES}",
+                file.key,
+                bytes.len()
+            ));
+        }
+        Ok(EncryptionKey { key: file.key.clone(), bytes: KeyBytes(bytes) })
+    }
+
+    /// The key material, for a redaction policy's encryption strategy;
+    /// never logged or printed.
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes.0
+    }
+}
+
+/// Refuses a reference `flag` lists twice.
+pub fn distinct(flag: &str, keys: &[TokenKeyFile]) -> Result<(), String> {
+    for (i, k) in keys.iter().enumerate() {
+        if keys[..i].iter().any(|o| o.key == k.key) {
+            return Err(format!("{flag} {} given twice", k.key));
+        }
+    }
+    Ok(())
+}
+
 /// The token key the configured keys name: the one key, or the one
 /// `--pii-token-key-active` names among several.
 pub fn active<'a>(keys: &'a [TokenKeyFile], active: Option<&KeyRef>) -> Result<Option<&'a TokenKeyFile>, String> {
-    for (i, k) in keys.iter().enumerate() {
-        if keys[..i].iter().any(|o| o.key == k.key) {
-            return Err(format!("--pii-token-key {} given twice", k.key));
-        }
-    }
+    active_of("--pii-token-key", keys, active)
+}
+
+/// The key `flag`'s values name: the one key, or the one `{flag}-active`
+/// names among several.
+pub fn active_of<'a>(
+    flag: &str,
+    keys: &'a [TokenKeyFile],
+    active: Option<&KeyRef>,
+) -> Result<Option<&'a TokenKeyFile>, String> {
+    distinct(flag, keys)?;
     match (keys, active) {
         ([], None) => Ok(None),
-        ([], Some(a)) => Err(format!("--pii-token-key-active {a} needs --pii-token-key")),
+        ([], Some(a)) => Err(format!("{flag}-active {a} needs {flag}")),
         ([one], None) => Ok(Some(one)),
-        (_, None) => Err("several --pii-token-key values need --pii-token-key-active".into()),
-        (keys, Some(a)) => keys
-            .iter()
-            .find(|k| &k.key == a)
-            .map(Some)
-            .ok_or_else(|| format!("--pii-token-key-active {a} is not a --pii-token-key")),
+        (_, None) => Err(format!("several {flag} values need {flag}-active")),
+        (keys, Some(a)) => {
+            keys.iter().find(|k| &k.key == a).map(Some).ok_or_else(|| format!("{flag}-active {a} is not a {flag}"))
+        }
     }
 }

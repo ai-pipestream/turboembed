@@ -323,7 +323,11 @@ impl<S: RelationScorer + 'static> Annotator for ZeroShotRelationAnnotator<S> {
         if entities.spans.view() != view.id() || sentences.is_some_and(|s| s.spans.view() != view.id()) {
             return Err(fail("the entities and sentences are not in the view read".into()));
         }
-        let (relations, edges) = self.extract(view, entities, sentences).map_err(|e| fail(e.to_string()))?;
+        let (relations, edges) = self.extract(view, entities, sentences).map_err(|e| match e {
+            // Counts and a static name only: a server may pass these on.
+            RelationError::OverLimit { limit, max, got } => Error::over_limit(Self::ID, limit, max, got),
+            e => fail(e.to_string()),
+        })?;
         relations.check().map_err(fail)?;
         Ok((relations, edges))
     }

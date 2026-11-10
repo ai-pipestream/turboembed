@@ -443,8 +443,10 @@ older than the runtime, it lists none and the runtime's log says why.
   is `a100`, `NVIDIA GeForce RTX 4070 Ti SUPER` is `rtx4070tisuper`,
   `NVIDIA RTX 6000 Ada Generation` is `rtx6000ada`.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options` but `layers` (field 9), which it
-  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32
+  every field of `turbo_embed_options`; `layers` (field 9) reads the
+  earlier layers of the BERT, RoBERTa, ModernBERT, nomic-bert and
+  DeBERTa-v2 encoders on a range write (Range pooling, below). MODEL and
+  EXACT compute in F32
   with F32 FMAs. `TURBO_CUDA_TF32=1`, read when a session is made, puts
   MODEL's GEMMs on the tensor cores of sm_80 and newer instead: they
   round their F32 operands to TF32 and accumulate in F32
@@ -528,7 +530,9 @@ older than the runtime, it lists none and the runtime's log says why.
   The graph holds 4 + 5 × layers kernels (34 for MiniLM's 6 layers;
   4 + 7 × layers with the LayerNorms apart, see below),
   captured when the session is made and never again: nothing about a
-  run's shape is a launch argument. The first kernel, `fetch_rows`,
+  run's shape is a launch argument. (A range write that reads earlier
+  layers runs a second graph of its own, captured at the first one:
+  Range pooling, below.) The first kernel, `fetch_rows`,
   brings the rows from the staging when the write left them there. The
   second, `pack_rows`, reads the mask and writes the run's packing to
   device memory: each row's length (1 + its last live position) and
@@ -724,8 +728,27 @@ older than the runtime, it lists none and the runtime's log says why.
   same range over the same rows gives the same bits whatever else the
   batch holds. The session's output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, made with the
-  session, so a range run allocates nothing either. The device is a GPU,
-  so `cpu_threads` (field 6 of `turbo_session_desc`) is 0 alone: any
+  session, so a range run allocates nothing either. A range write with
+  `layers` T above 1 (`turbo_embed_write_layer_ranges`) pools each range
+  from each of the last T layers in the one pass, into the same buffer as
+  `[T, ranges, output_dim]`. Its run is a second graph for each choice of
+  kernels, captured at the session's first such write and kept with it:
+  the first graph's kernels, with the pooling kernel after every layer
+  too. Each pooling is told how many layers follow its own, and finds in
+  the run's arguments whether the run reads its layer and which block is
+  its: a layer before the last T returns at once. The earlier layers are
+  pooled from the states the final pooling reads of the last (the F16
+  residual stream where FASTEST keeps that alone), each vector cut and
+  normalized as the last block's. A ModernBERT's final_norm goes over
+  each earlier layer read first, into the buffer of the GEMM product the
+  residual has just taken (`norm_into`, which also returns at once for a
+  layer not read), so every block is on the final states' scale. The
+  final layer's block is the last, from the kernel and the states of the
+  plain range write, so it is that write's vectors bit for bit, and each
+  block is within docs/conformance.md's bounds of the CPU's
+  (`core/tests/ranges/layers.rs`). A run with `layers` 0 or 1 launches
+  the first graph, which is as it was: no kernel is added to it. The
+  device is a GPU, so `cpu_threads` (field 6 of `turbo_session_desc`) is 0 alone: any
   other value is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
 - **The span head.** The table sets `token_head`, so an extractive QA
   model is loaded with its span head (`turbo_backend_model.head`: the
