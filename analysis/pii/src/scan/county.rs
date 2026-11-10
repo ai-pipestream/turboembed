@@ -5,10 +5,15 @@
 //! single spaces between its words. Each word is read as the table
 //! writes it or all in capitals, the last also in small letters
 //! (`Cook county`), and a right single quotation mark reads as an
-//! apostrophe (`Prince George’s County`). The longest name ending at a
-//! suffix wins. The normalized form is the table's spelling.
+//! apostrophe (`Prince George’s County`). A name is compared in
+//! normalization form C, so a decomposed spelling (`Doña Ana County` with
+//! `n` + U+0303) reads as the precomposed one. The longest name ending at
+//! a suffix wins. The normalized form is the table's spelling.
+
+use std::borrow::Cow;
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
+use turbo_unicode::normalize::{Form, is_normalized, normalize};
 
 use crate::hits::Hits;
 use crate::tables::us_counties::{MAX_WORDS, SUFFIXES, county};
@@ -68,10 +73,22 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         at = start;
     }
     starts[..n].iter().rev().find_map(|&start| {
-        let written = &text[start..end];
-        let name = county(written)?;
-        (on_name_start(text, start) && cased_like(written, name)).then_some((start, name))
+        let written = nfc(&text[start..end]);
+        let name = county(&written)?;
+        (on_name_start(text, start) && cased_like(&written, name)).then_some((start, name))
     })
+}
+
+/// `written` in normalization form C, as the table is written, so a
+/// decomposed spelling (`n` + U+0303 for `ñ`) finds its name. The mention
+/// keeps the bytes of the source; text already in NFC is not copied.
+fn nfc(written: &str) -> Cow<'_, str> {
+    if written.is_ascii() || is_normalized(Form::Nfc, written) {
+        return Cow::Borrowed(written);
+    }
+    let mut out = String::new();
+    normalize(Form::Nfc, written, &mut out);
+    Cow::Owned(out)
 }
 
 /// Whether each word of `written` is the word of `name` as the table

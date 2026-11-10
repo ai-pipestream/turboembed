@@ -946,6 +946,14 @@ and `Washington_County` hold no place, while `Illinois-based` and
 rule (`on_word_start`, `on_end`), so their spans and pack snapshots stay
 those of the port.
 
+A county name is compared in Unicode normalization form C, as the
+Census list is written. A decomposed spelling (`Doña Ana County` with
+`n` + U+0303, `Mayagüez Municipio` with `u` + U+0308) is the same
+county: its mention keeps the source's bytes and its value is the
+list's spelling. A candidate that is ASCII or already NFC is compared in
+place, with no copy. Every state name is ASCII, so the state scanner
+needs no folding.
+
 Both are low severity, suggested a label rewrite and masked keeping
 spaces (`**** ******`). Neither needs a label; `state`, `state of
 residence`, `county` and `county of residence` are their label phrases.
