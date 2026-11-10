@@ -170,10 +170,10 @@ smart chunking works without another embedding bundle.
 
 Remaining limits: a step runs over the source view only; under
 `annotate-v2` a bundle with two heads for one step is refused as
-ambiguous rather than run twice; a learned sentence step cannot follow a
-normalizer; and the rule sentence step after `turbo:normalize:case-fold`
-reads the folded view, whose sentences start in lower case, so it finds
-no boundary after the first.
+ambiguous rather than run twice; and a learned sentence step cannot follow a
+normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
+the source, or the last view written before the fold, so its boundaries
+match an unnormalized request.
 
 `server/tests/full_text_graph.rs` is the in-process acceptance of the
 model-free stages: `compile_analyzer` with normalization, structure,
@@ -190,6 +190,13 @@ deterministic runs, empty input and a 600-sentence document. A stage the request
 refused by name: `turbo:chunker` without a bundle (it reads
 `turbo:subwords`), `turbo:gliner` without `open_span`,
 `turbo:zero-shot-relations` without relation labels, and an unknown step.
+A document over `turbo:zero-shot-relations`' limits (its mention and
+pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
+fails that step with `TURBO_E_CAPACITY`, and the failure message names
+the limit and both counts, for example `step 'turbo:zero-shot-relations'
+failed: over its encoder max_sequence 512, got 528`; never the text.
+The step's layer error, in the step failure, the complete graph and
+the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -201,6 +208,20 @@ layers bi-directionally back to `ViewId::SOURCE` at their default keys so
 1-to-1 `Ix<L>` alignment with `Vectors<Sentences>`, `Vectors<Chunks>`, and
 `SparseTerms<View>` is preserved across UTF-8, UTF-16, and Unicode code-point
 offset modes.
+
+Two of those steps match text as written and so read the cased view: the
+rule sentence step (`turbo-sentdetect:rules`) and the place-name step
+(`turbo-geo:names`, `turbo:entities`). In a chain with
+`turbo:normalize:case-fold` they read the last view written before the
+fold, or the source when the fold comes first, and their spans are in
+source offsets as always. A full fold also rewrites spellings (`ﬁ` to
+`fi`, `ſ` to `s`), which would otherwise turn words the text does not
+write into place names. Tokens, subwords and the steps that read them
+keep reading the last view, folded. Structure blocks read it too and do
+not depend on case. Every other step reads the source.
+`server/tests/case_fold_sentences.rs` and
+`server/tests/progressive_case_fold_names.rs` hold the two steps to the
+results of the same request without the fold.
 
 Span offsets cross in the unit a message names (`OffsetMode` on
 `ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and
@@ -749,12 +770,14 @@ encryption strategies name, each exactly 32 bytes). With several keys,
 made under; it is refused without a grant that includes ciphertext.
 `PiiValueCiphertext` carries the scheme `turbo-pii-aes-256-gcm-v1`, the
 key's id and version, and as `ciphertext` the UTF-8 text of a
-`turbo-pii` AES-256-GCM token: the kind code in capitals (`BUILTIN:3`,
-`CUSTOM:BADGE`), `:`, and the unpadded base64url of a 12-byte nonce, the
-encrypted normalized value and the 16-byte tag. The associated data binds
-the kind code and the context `turbo-kserve.pii-release.v1`, so a holder
-of the key decrypts it with `AesGcmEncryptor` under that context, and a
-ciphertext moved to another kind fails authentication. Each release
+`turbo-pii` AES-256-GCM token: the kind code as it is, its case kept
+(`builtin:3`, `custom:Badge`), `:`, and the unpadded base64url of a
+12-byte nonce, the encrypted normalized value and the 16-byte tag. The
+associated data binds the exact kind code and the context
+`turbo-kserve.pii-release.v1`, so a holder of the key decrypts it with
+`AesGcmEncryptor` under that context, and a ciphertext moved to another
+kind fails authentication. Custom kind names are case-sensitive, so that
+holds for `custom:Badge` and `custom:badge` too. Each release
 draws a fresh nonce, so, unlike tokens, equal values give different
 ciphertexts. A grant with no ciphertext kind gives the policy digest it
 gave before ciphertext release.

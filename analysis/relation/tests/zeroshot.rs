@@ -259,3 +259,19 @@ fn inputs_that_do_not_hold_together_are_refused_not_indexed() {
     assert!(invalid(a.extract(view, &past, Some(&s))));
     assert!(a.extract(view, &e, Some(&s)).is_ok());
 }
+
+#[test]
+fn a_limit_reaches_the_analyzer_as_counts_only() {
+    let (mut doc, e, _) = fixture();
+    // One token per mention, as the fixture's token ranges say.
+    let words = [(0, 4), (13, 18), (22, 31), (33, 37), (48, 53)];
+    doc.add(&Key::DEFAULT, Tokens { spans: spans(&words), sentence: None }, Provenance::by("test")).unwrap();
+    doc.add(&Key::DEFAULT, e, Provenance::by("test")).unwrap();
+    let config = ZeroShotRelationConfig { max_mentions: 4, ..ZeroShotRelationConfig::new(labels()) };
+    let a = ZeroShotRelationAnnotator::new(config, LexicalRelationScorer).unwrap();
+    let analyzer =
+        Analyzer::builder().given(Key::<Entities>::DEFAULT).add(a).step(EvidenceStep::new(Key::<Relations>::DEFAULT));
+    let mut docs = vec![doc];
+    let err = analyzer.build().unwrap().run(&mut docs).into_iter().find_map(Result::err).expect("the step fails");
+    assert_eq!(err.limit_detail(), Some("max_mentions 4, got 5"), "{err}");
+}
