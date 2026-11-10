@@ -83,6 +83,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         open_span: None,
         relations: None,
         relation_model: String::new(),
+        vocabulary: None,
     }
 }
 

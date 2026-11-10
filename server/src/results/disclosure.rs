@@ -57,15 +57,13 @@ impl PiiOutputPolicy {
 
     /// One `--pii-output-allow` value: `none`, or a comma-separated list of
     /// `rewritten-text`, `full-text`, `detail`, and the value forms
-    /// `token` and `clear`, each at most once. `ciphertext` waits for
-    /// #1885.
+    /// `token`, `ciphertext` and `clear`, each at most once.
     pub fn parse(s: &str) -> Result<PiiOutputPolicy, String> {
         let mut values = Forms::NONE;
         let mut rest = Vec::new();
         if s != "none" {
             for part in s.split(',') {
                 match Form::parse(part) {
-                    Some(Form::Ciphertext) => return Err("ciphertext release waits for #1885".into()),
                     Some(f) if values.contains(f) => return Err(format!("`{part}` given twice")),
                     Some(f) => values = values.with(f),
                     None => rest.push(part),
