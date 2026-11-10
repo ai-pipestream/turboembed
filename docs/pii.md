@@ -914,7 +914,9 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   state, the District of Columbia or an inhabited territory (`Illinois`,
   `New York`, `Puerto Rico`, `U.S. Virgin Islands`), as written or all in
   capitals, at word boundaries, single spaces between its words.
-  `Washington, D.C.` and `Washington DC` are the District. `New York
+  `Washington, D.C.` and `Washington DC` are the District; with a word
+  character joined to that suffix (`Washington DC_x`) the text names
+  neither the District nor the state. `New York
   City` is a city and `Washington County` a county, so neither is a
   state; a county word that makes no county of the list leaves the state
   (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
