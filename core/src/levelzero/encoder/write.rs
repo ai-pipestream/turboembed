@@ -128,6 +128,18 @@ impl Session {
         if r.batch > 1 && r.row_stride < r.seq {
             return Err(fail(INVALID_SHAPE, format!("row_stride {} is under seq {}", r.row_stride, r.seq)));
         }
+        // The core checks both before the backend sees the write.
+        let taps = if ranges.is_empty() { 1 } else { r.taps.max(1) };
+        if taps > self.model().desc.layers {
+            let layers = self.model().desc.layers;
+            return Err(fail(INVALID_ARGUMENT, format!("{taps} layers: the model has 1 to {layers} to read")));
+        }
+        if taps as usize * ranges.len() > self.max_ranges as usize {
+            return Err(fail(
+                CAPACITY,
+                format!("{} ranges from {taps} layers: the levelzero session holds {}", ranges.len(), self.max_ranges),
+            ));
+        }
         let head = !ranges.is_empty() && r.head == 1;
         if head && self.model().head.is_null() {
             return Err(fail(INVALID_ARGUMENT, "rows.head is 1 on a model loaded without a token head"));
@@ -140,6 +152,7 @@ impl Session {
         self.has_types = !r.types.is_null();
         self.batch = r.batch;
         self.ranges = ranges.len() as u32;
+        self.taps = taps;
         self.head = head;
         self.tokens = tokens;
         self.longest = longest;

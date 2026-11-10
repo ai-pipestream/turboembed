@@ -174,8 +174,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   filed under, is from the PCI device id: `b70` for 0xe223, and
   `intel-<id>` for a device not named yet.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options` but `layers` (field 9), which it
-  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32;
+  every field of `turbo_embed_options`; `layers` (field 9) reads the
+  earlier layers of the BERT, RoBERTa, ModernBERT, nomic-bert and
+  DeBERTa-v2 encoders on a range write (Range pooling, below). MODEL
+  and EXACT compute in F32;
   FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
   intermediate widths are multiples of 32, and in F32 otherwise, which
   `turbo_session_get_info` says. A
@@ -320,7 +322,18 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   depend on the other rows of the batch. The output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, allocated with
   the session; a run allocates nothing. A plain write after a range
-  write, or the reverse, replaces it.
+  write, or the reverse, replaces it. A range write with `layers` T
+  above 1 (`turbo_embed_write_layer_ranges`) pools each range from each
+  of the last T layers in the one pass: after each of those layers but
+  the last, the same pooling kernel writes its block of the output from
+  the layer's F32 states, before the next layer runs, and the last block
+  is the plain range write's, bit for bit. At FASTEST, where the
+  residual stream is F16, each layer a block reads also writes its states
+  to F32, as the last layer does for the pooling; a ModernBERT's
+  final_norm is applied to each block's states, as to the last layer's.
+  Normalization then runs over the T blocks at once. T times the ranges
+  is at most `max_ranges`, which the core checks
+  (`core/tests/ranges/layers.rs`).
 - **The span head.** The table sets `token_head`, so an extractive QA
   model is loaded with its span head (`turbo_backend_model.head`: the
   `[2, hidden]` weight and then the bias, F32, copied to the device in an
