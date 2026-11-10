@@ -939,14 +939,17 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   (case, accents and punctuation folded). Many city names are also
   common words or given names (`Mobile`, `Phoenix`, `Jackson`), so a name
   is a mention only in one of two settings:
-  - directly before a comma, a space and a US state's name or USPS code,
-    when the gazetteer holds a place of that name in that state
-    (`Springfield, IL`, `Mobile, Alabama`; not `Mobile, IL`);
+  - directly before a comma, a space and a US state's or territory's
+    name or USPS code, when the gazetteer holds a place of that name
+    there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
+    `Mobile, IL`). The gazetteer files the territories under their own
+    country codes, which are their USPS codes;
   - directly after a city label, as any place of that name: `city of
     residence`, `place of birth`, `city of` and `town of` with or without
     a colon, and `birthplace`, `city/town`, `city` and `town` only with
     one (`City: Phoenix`, `the city of Mobile`), as `the city Council`
-    names none.
+    names none. A known name that a space and a capitalized word follow
+    is the start of a longer name (`City: San Foo`), so it is no mention.
 
   A bare name (`Chicago is large`) is no mention. The name has at most
   five words with single spaces between them, and its first and last

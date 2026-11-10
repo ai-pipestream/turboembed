@@ -3,11 +3,12 @@
 //! places, public domain) in one of two settings, since many city names
 //! are common words or given names too (`Mobile`, `Phoenix`, `Jackson`):
 //!
-//! - directly before a comma, a space and a US state's name or USPS code
-//!   (`Springfield, IL`, `Mobile, Alabama`), when the gazetteer holds a
-//!   place of that name in that state;
+//! - directly before a comma, a space and a US state's or territory's
+//!   name or USPS code (`Springfield, IL`, `Mobile, Alabama`,
+//!   `San Juan, PR`), when the gazetteer holds a place of that name there;
 //! - directly after a city label (`city of Phoenix`, `City: Mobile`,
-//!   `place of birth: Lyon`), as any place of that name.
+//!   `place of birth: Lyon`), as any place of that name, unless a
+//!   capitalized word follows it (`City: San Foo`).
 //!
 //! A bare name with neither is no mention. The name has at most
 //! [`MAX_WORDS`] words with single spaces between them, its first and last
@@ -40,30 +41,37 @@ const LABELS: [(&[u8], bool); 8] = [
     (b"town", true),
 ];
 
+/// The territories, which the gazetteer files under their own country
+/// codes, the same as their USPS codes.
+const TERRITORIES: [&str; 5] = ["AS", "GU", "MP", "PR", "VI"];
+/// How many bytes the scan tests for anchors at once.
+const LANES: usize = 32;
+
 /// Finds the cities from their anchors, so text with no state after a
-/// comma and no city label costs one pass over its bytes: a name that
-/// ends at a comma before a state, and a name that starts after a label.
+/// comma and no city label costs one pass that tests [`LANES`] bytes at a
+/// time: a comma, a space and a capital (the name ends at the comma
+/// before a state), and the colon or the `of` of a city label (the name
+/// starts after it).
 pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut found: Vec<(usize, usize, &'static str)> = Vec::new();
-    for i in 0..b.len() {
-        match b[i] {
-            b',' => {
-                if let Some(code) = state_after(text, i) {
-                    found.extend(before_state(text, i, code));
-                }
-            }
-            b'c' | b'C' | b't' | b'T' | b'p' | b'P' | b'b' | b'B' => {
-                let head = b.get(i..i + 4).map(|h| [h[0] | 0x20, h[1] | 0x20, h[2] | 0x20, h[3] | 0x20]);
-                if !matches!(&head, Some(h) if matches!(h, b"city" | b"town" | b"plac" | b"birt")) {
-                    continue;
-                }
-                if let Some(at) = after_label(text, i) {
-                    found.extend(after_label_name(text, at));
-                }
-            }
-            _ => {}
+    let mut at = 0;
+    while at < b.len() {
+        // A whole lane is tested with no branch, so the test vectorizes;
+        // the lanes of most text hold no anchor.
+        if let Some(w) = b.get(at..at + LANES + 2).and_then(|w| <&[u8; LANES + 2]>::try_from(w).ok())
+            && (0..LANES).fold(0u8, |any, j| any | u8::from(anchor(w[j], w[j + 1], w[j + 2]))) == 0
+        {
+            at += LANES;
+            continue;
         }
+        let byte = |i: usize| b.get(i).copied().unwrap_or(0);
+        for i in at..(at + LANES).min(b.len()) {
+            if anchor(byte(i), byte(i + 1), byte(i + 2)) {
+                at_anchor(text, i, &mut found);
+            }
+        }
+        at += LANES;
     }
     found.sort_unstable_by_key(|&(start, end, _)| (start, usize::MAX - end));
     let mut last = 0;
@@ -72,6 +80,51 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
             hits.add(start, end, PiiKind::City, PiiEvidence::Shape, |s| s.push_str(name));
             last = end;
         }
+    }
+}
+
+/// Whether the bytes `c0`, `c1`, `c2` start an anchor: `, ` and a capital,
+/// a colon, or `of` in either case.
+#[inline(always)]
+fn anchor(c0: u8, c1: u8, c2: u8) -> bool {
+    (c0 == b',') & (c1 == b' ') & c2.is_ascii_uppercase() | (c0 == b':') | (c0 | 0x20 == b'o') & (c1 | 0x20 == b'f')
+}
+
+/// The cities that the anchor at `i` starts or ends.
+fn at_anchor(text: &str, i: usize, found: &mut Vec<(usize, usize, &'static str)>) {
+    let mut after = |start: Option<usize>| {
+        if let Some(name) = start.and_then(|start| after_label(text, start)) {
+            found.extend(after_label_name(text, name));
+        }
+    };
+    match text.as_bytes()[i] {
+        b',' => {
+            if let Some(code) = state_after(text, i) {
+                found.extend(before_state(text, i, code));
+            }
+        }
+        b':' => {
+            let end = text[..i].trim_end_matches(|c: char| whitespace(c) || matches!(c, ':' | '#' | '=')).len();
+            let last = end.checked_sub(1).map(|e| text.as_bytes()[e] | 0x20);
+            for (label, _) in LABELS.iter().filter(|(l, _)| l.last().copied() == last) {
+                after(end.checked_sub(label.len()));
+            }
+        }
+        _ => {
+            for len in [b"city of".len(), b"place of".len()] {
+                after((i + 2).checked_sub(len));
+            }
+        }
+    }
+}
+
+/// Whether `entry` is a place in the state or territory with USPS code
+/// `code`.
+fn in_state(entry: &Entry<'static>, code: &str) -> bool {
+    match entry.country_code() {
+        Some("US") => entry.containment().any(|a| is_state(a, code)),
+        Some(country) => country == code && TERRITORIES.contains(&code),
+        None => false,
     }
 }
 
@@ -86,25 +139,25 @@ fn before_state(text: &str, comma: usize, code: &str) -> Option<(usize, usize, &
     let mut starts = [0; MAX_WORDS];
     let n = word_starts_before(text, comma, &mut starts);
     starts[..n].iter().rev().find_map(|&start| {
-        let entry = lookup(text, start, comma)?
-            .into_iter()
-            .find(|e| e.country_code() == Some("US") && e.containment().any(|a| is_state(a, code)))?;
+        let entry = lookup(text, start, comma)?.into_iter().find(|e| in_state(e, code))?;
         Some((start, comma, entry.name()))
     })
 }
 
 /// The longest city name that starts at `at`, after a label: any place of
-/// that name, or one in the state after it when one follows.
+/// that name, or one in the state after it when one follows. A name that
+/// a capitalized word follows is part of a longer one (`City: San Foo`),
+/// so it is no mention.
 fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str)> {
     let mut ends = [0; MAX_WORDS];
     let n = word_ends(text, at, &mut ends);
     ends[..n].iter().rev().find_map(|&end| {
+        if text.as_bytes().get(end) == Some(&b' ') && capital_at(text, end + 1) {
+            return None;
+        }
         let found = lookup(text, at, end)?;
         let state = state_after(text, end);
-        let in_state = |e: &&Entry<'static>| {
-            state.is_some_and(|code| e.country_code() == Some("US") && e.containment().any(|a| is_state(a, code)))
-        };
-        let entry = found.iter().find(in_state).or(found.first())?;
+        let entry = found.iter().find(|e| state.is_some_and(|code| in_state(e, code))).or(found.first())?;
         Some((at, end, entry.name()))
     })
 }

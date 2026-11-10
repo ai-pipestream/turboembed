@@ -160,7 +160,8 @@ stubs must be regenerated.
 - `city` 45, appended to `PiiKindId` (`TURBO_PII_KIND_CITY`, Java
   `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
   `Places` pack: a populated place of the bundled Natural Earth gazetteer
-  directly before its US state (`Springfield, IL`) or after a city label
+  directly before its US state or territory (`Springfield, IL`,
+  `San Juan, PR`) or after a city label
   (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
   (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`

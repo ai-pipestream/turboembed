@@ -39,6 +39,15 @@ fn a_city_before_its_state_is_a_mention() {
         ("in Truth or Consequences, New Mexico", "Truth or Consequences", "Truth or Consequences"),
         ("Fond du Lac, WI", "Fond du Lac", "Fond du Lac"),
         ("moved to Fond du Lac, Wisconsin", "Fond du Lac", "Fond du Lac"),
+        // The territories, which the gazetteer files under their own codes.
+        ("San Juan, PR", "San Juan", "San Juan"),
+        ("in San Juan, Puerto Rico", "San Juan", "San Juan"),
+        ("Ponce, PR 00731", "Ponce", "Ponce"),
+        ("Mayag\u{fc}ez, PR", "Mayag\u{fc}ez", "Mayaguez"),
+        ("Mayagu\u{308}ez, PR", "Mayagu\u{308}ez", "Mayaguez"),
+        ("Agana, GU", "Agana", "Agana"),
+        ("Pago Pago, AS", "Pago Pago", "Pago Pago"),
+        ("Christiansted, VI", "Christiansted", "Christiansted"),
     ] {
         assert_eq!(one(text), (written.to_owned(), name.to_owned()), "{text:?}");
     }
@@ -54,6 +63,11 @@ fn a_city_after_a_city_label_is_a_mention() {
         ("town of Springfield", "Springfield", "Springfield"),
         ("City: Rio de Janeiro", "Rio de Janeiro", "Rio de Janeiro"),
         ("Birthplace: S\u{e3}o Paulo", "S\u{e3}o Paulo", "Sao Paulo"),
+        ("place of birth Lyon", "Lyon", "Lyon"),
+        ("CITY OF MOBILE", "MOBILE", "Mobile"),
+        ("City : Phoenix", "Phoenix", "Phoenix"),
+        ("Town:\tSpringfield", "Springfield", "Springfield"),
+        ("the city of Mobile is on the bay", "Mobile", "Mobile"),
     ] {
         assert_eq!(one(text), (written.to_owned(), name.to_owned()), "{text:?}");
     }
@@ -84,6 +98,13 @@ fn what_is_no_city_mention() {
         "Kansas  City, MO",
         "the Kansas City Chiefs",
         "City, MO",
+        // A country's code is no state's: Toronto is in Canada.
+        "Toronto, CA",
+        // After a label, a known name that a capitalized word follows is
+        // the start of a longer one, which the gazetteer does not hold.
+        "City: San Germ\u{e1}n",
+        "City: San Foo",
+        "the city of Paris Hilton",
     ] {
         assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
     }
