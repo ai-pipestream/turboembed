@@ -171,7 +171,22 @@ smart chunking works without another embedding bundle.
 Remaining limits: a step runs over the source view only; under
 `annotate-v2` a bundle with two heads for one step is refused as
 ambiguous rather than run twice; a learned sentence step cannot follow a
-normalizer.
+normalizer; and the rule sentence step after `turbo:normalize:case-fold`
+reads the folded view, whose sentences start in lower case, so it finds
+no boundary after the first.
+
+`server/tests/full_text_graph.rs` is the in-process acceptance of the
+model-free stages: `compile_analyzer` with normalization, structure,
+sentences, tokens, abbreviations, terms, stems, stopwords, keywords, the
+place-name gazetteer (`turbo-geo:names`), PII, numbers, money, dates and
+both boundary layers, over UTF-8 text with a heading, two paragraphs and
+a ligature NFKC unfolds. It checks each layer's source slices, UTF-16 and
+code point round trips, projection into the normalized view and back, a
+byte-identical export, import and re-export, deterministic runs, empty
+input and a 600-sentence document. A stage the request cannot run is
+refused by name: `turbo:chunker` without a bundle (it reads
+`turbo:subwords`), `turbo:gliner` without `open_span`,
+`turbo:zero-shot-relations` without relation labels, and an unknown step.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
