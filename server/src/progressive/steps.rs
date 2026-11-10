@@ -232,6 +232,10 @@ pub(crate) fn compile_analyzer_with_state(
     let mut norm_index = 0usize;
     let mut norm_chain: Vec<&'static str> = Vec::new();
     let mut active_norm_view: Option<&'static str> = None;
+    // Rule sentences decide boundaries on case: after a fold they read the
+    // last view that still has it (None is the source).
+    let mut cased_norm_view: Option<&'static str> = None;
+    let mut folded = false;
 
     for &name in step_names {
         if name == "turbo:gliner" {
@@ -250,6 +254,10 @@ pub(crate) fn compile_analyzer_with_state(
             norm_index += 1;
             norm_chain.push(write_v);
             active_norm_view = Some(write_v);
+            folded |= matches!(name, "turbo:normalize:case-fold" | "case_fold");
+            if !folded {
+                cased_norm_view = Some(write_v);
+            }
             builder = match name {
                 "turbo:normalize" | "turbo:normalize:chain" | "normalize" => add_norm(
                     builder,
@@ -308,7 +316,7 @@ pub(crate) fn compile_analyzer_with_state(
             }
             "turbo-sentdetect:rules" | "turbo:sentences" => {
                 let ann = RuleSentenceDetector::new("eng");
-                if let Some(nv) = active_norm_view {
+                if let Some(nv) = cased_norm_view {
                     builder.step(NormalizedSourceStep { annotator: ann, norm_view: nv, _marker: PhantomData })
                 } else {
                     builder.add(ann)
