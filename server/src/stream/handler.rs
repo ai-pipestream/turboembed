@@ -65,7 +65,7 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
             TURBO_E_INVALID_ENUM,
             0,
             format!(
-                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS, ANALYZE_OUTPUT_VECTOR_CODES"
+                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS, ANALYZE_OUTPUT_VECTOR_CODES, ANALYZE_OUTPUT_DOCUMENT_GRAPH"
             ),
         )
     })?;

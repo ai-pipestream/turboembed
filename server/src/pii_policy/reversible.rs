@@ -108,7 +108,7 @@ mod enabled {
         let name = kind.builtin_name().unwrap_or("custom");
         Err(PolicyError::Invalid {
             at,
-            reason: format!("ff1.alphabet cannot encrypt a {name} value: every one holds {short} outside it"),
+            reason: format!("ff1.alphabet cannot encrypt a value of kind {name}: every one holds {short} outside it"),
         })
     }
 }

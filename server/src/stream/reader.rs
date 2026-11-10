@@ -43,23 +43,48 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "id is empty"));
         }
         check_binding(d.binding.as_ref(), "binding")?;
-        if d.model.is_empty() {
+        if d.model.is_empty() && d.output != AnalyzeOutput::DocumentGraph as i32 {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "model is empty"));
         }
-        let (served, loaded) = state.ready(&d.model, "")?;
-        room.bind_device(loaded.device);
-        if loaded.task != turbo::TURBO_TASK_EMBED {
-            return Err(Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"));
-        }
+        let resolved_model = if d.model.is_empty() {
+            None
+        } else if d.output == AnalyzeOutput::DocumentGraph as i32 {
+            let served = state.ready_served(&d.model)?;
+            let loaded = served.loaded.get().cloned();
+            if let Some(l) = &loaded {
+                room.bind_device(l.device);
+            }
+            Some((served, loaded))
+        } else {
+            let (served, loaded) = state.ready(&d.model, "")?;
+            room.bind_device(loaded.device);
+            if loaded.task != turbo::TURBO_TASK_EMBED {
+                return Err(Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"));
+            }
+            Some((served, Some(loaded)))
+        };
         let doc_opts = handler::doc_options(d.output, d.offsets, d.options.as_ref())?;
-        if !matches!(doc_opts.output, AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes) {
+        let default_vocab = crate::vocabulary::ResolvedVocabulary::default();
+        let base_vocab = resolved_model.as_ref().map_or(&default_vocab, |(served, _)| &served.vocabulary);
+        let vocabulary = state.vocabulary_resolver.resolve_merged(base_vocab, d.vocabulary.as_ref())?;
+        if doc_opts.output == AnalyzeOutput::DocumentGraph {
             if std::str::from_utf8(&d.text).is_err() {
                 return Err(Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"));
             }
+        } else if !matches!(doc_opts.output, AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes) {
+            if std::str::from_utf8(&d.text).is_err() {
+                return Err(Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"));
+            }
+            let (_, Some(loaded)) = resolved_model.as_ref().expect("model required for embed outputs") else {
+                unreachable!()
+            };
             let embed = loaded.embed()?;
             embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k)?;
         }
         if let Some(r) = &doc_opts.int8_ranges {
+            let Some((_, Some(loaded))) = resolved_model.as_ref() else {
+                return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 8, "int8_ranges requires a loaded embedding model"));
+            };
             // The library reads 2 x the resolved width: the table must be that long.
             let o = &doc_opts.embed;
             let width = if o.output_dim == 0 { loaded.model.info()?.dim } else { o.output_dim };
@@ -74,14 +99,30 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
                 ));
             }
         }
-        Ok((served, loaded, doc_opts))
+        Ok((resolved_model, doc_opts, vocabulary))
     })();
-    let (served, loaded, doc_opts) = match checked {
+    let (resolved_model, doc_opts, vocabulary) = match checked {
         Ok(v) => v,
         Err(f) => return Err(Box::new((id, d.binding, f, room))),
     };
-    let batch_limit = loaded.slots[0].info.max_batch;
-    let version = loaded.revision.clone();
+    let (loaded, model, version, batch_limit) = match resolved_model {
+        Some((served, Some(loaded))) => {
+            let batch_limit = loaded.slots[0].info.max_batch;
+            let version = loaded.revision.clone();
+            let model = served.name.clone();
+            (Some(loaded), model, version, batch_limit)
+        }
+        Some((served, None)) => {
+            let version = served
+                .gliner
+                .get()
+                .map(|g| g.identity().revision.clone())
+                .or_else(|| served.relations.get().map(|r| r.model().revision.clone()))
+                .unwrap_or_default();
+            (None, served.name.clone(), version, crate::stream::MAX_INFLIGHT_ITEMS_PER_STREAM as u32)
+        }
+        None => (None, String::new(), String::new(), crate::stream::MAX_INFLIGHT_ITEMS_PER_STREAM as u32),
+    };
     Ok(Doc {
         seq: 0,
         id: d.id,
@@ -94,8 +135,9 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
         sparse_top_k: doc_opts.sparse_top_k,
         sparse_floor: doc_opts.sparse_floor,
         token_stride: doc_opts.token_stride,
+        vocabulary,
         loaded,
-        model: served.name.clone(),
+        model,
         version,
         batch_limit,
         room,
@@ -156,7 +198,8 @@ pub(crate) async fn run(
         };
         let id = document.id.clone();
         let binding_len = document.binding.as_ref().map_or(0, prost::Message::encoded_len);
-        let bytes = document.text.len() + document.id.len() + document.model.len() + binding_len;
+        let vocab_len = document.vocabulary.as_ref().map_or(0, prost::Message::encoded_len);
+        let bytes = document.text.len() + document.id.len() + document.model.len() + binding_len + vocab_len;
         // A document over a byte cap refuses at once, naming the limit,
         // but its refusal is admitted like anything else: one item and
         // the id's bytes, held until the answer is sent. Without that

@@ -126,7 +126,7 @@ mod enabled {
         // prefix.
         let err = refused(ff1(pb::PiiFf1Alphabet::Digits, ""));
         let PolicyError::Invalid { reason, .. } = &err else { panic!("{err:?}") };
-        assert!(reason.starts_with("ff1.alphabet cannot encrypt a email value"), "{reason}");
+        assert!(reason.starts_with("ff1.alphabet cannot encrypt a value of kind email"), "{reason}");
         assert!(err.to_string().contains("kind_rules[0].strategies[0]"), "{err}");
         let github = |a| policy(vec![rule("gh", builtin(pb::PiiKindId::GithubToken), vec![entry(ff1(a, ""))])]);
         let err = RedactionPolicy::from_proto(&github(pb::PiiFf1Alphabet::UpperAlphanumeric), &TestRegistry);

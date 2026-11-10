@@ -169,6 +169,12 @@ pii_kinds! {
     /// An amount of money with its currency (`$1,250.00`, `EUR 40`,
     /// `40 euros`).
     Currency = 42, "currency", 420;
+    /// A United States state, the District of Columbia or an inhabited
+    /// territory (`Illinois`, `New York`, `IL` before a ZIP code).
+    State = 43, "state", 430;
+    /// A United States county or county equivalent of the Census list
+    /// (`Cook County`, `Orleans Parish`, `Bethel Census Area`).
+    County = 44, "county", 440;
 }
 
 /// The first codec kind code of a custom kind: code `CUSTOM_CODE_BASE + i`
@@ -177,7 +183,7 @@ pub const CUSTOM_CODE_BASE: u32 = 1 << 16;
 
 impl PiiKind {
     /// The largest built-in id; a [`PiiKinds`] bit set holds ids up to 127.
-    pub const MAX_BUILTIN_ID: u16 = 42;
+    pub const MAX_BUILTIN_ID: u16 = 44;
 
     /// Every built-in kind, in id order.
     pub fn builtins() -> impl Iterator<Item = PiiKind> {
