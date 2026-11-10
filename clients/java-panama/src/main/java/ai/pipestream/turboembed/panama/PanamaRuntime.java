@@ -2,6 +2,7 @@ package ai.pipestream.turboembed.panama;
 
 import ai.pipestream.turboembed.TurboBridge;
 import ai.pipestream.turboembed.TurboRuntime;
+import ai.pipestream.turboembed.TurboSessionOptions;
 import java.nio.file.Path;
 
 /** Factory for the Panama implementation of the shared Java API. */
@@ -15,5 +16,7 @@ public final class PanamaRuntime implements TurboRuntime {
     }
 
     @Override
-    public TurboSession openSession(Path bundleDir) { return TurboSession.open(bundleDir); }
+    public TurboSession openSession(Path bundleDir, TurboSessionOptions options) {
+        return TurboSession.open(bundleDir, options);
+    }
 }
