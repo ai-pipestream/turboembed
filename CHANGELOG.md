@@ -377,6 +377,12 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `AnalyzeDocumentProgressive`: a document over a limit of
+  `turbo:zero-shot-relations` (such as the GLiNER2 encoder's 512 word
+  pieces) fails the step with `TURBO_E_CAPACITY` and a message naming the
+  limit and the counts, instead of `TURBO_E_INTERNAL` with no detail.
+  The layer's error has the new kind `LAYER_ERROR_KIND_LIMIT` with the
+  same code (#2125).
 - `AnalyzeDocumentProgressive`: in a step chain that folds case,
   `turbo-sentdetect:rules` reads the last view before the fold, so a
   folded document keeps its sentence boundaries instead of becoming one

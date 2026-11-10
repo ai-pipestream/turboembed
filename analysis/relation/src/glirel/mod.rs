@@ -164,7 +164,7 @@ impl GlirelRelations {
         let p = prompt::build(&self.tokenizer, &self.specials, text, labels)
             .ok_or_else(|| bad("a label with no subwords"))?;
         if p.words.len() > self.max_words {
-            return Err(RelationError::OverLimit { limit: "GLiREL max_len", max: self.max_words, got: p.words.len() });
+            return Err(RelationError::OverLimit { limit: "glirel max_len", max: self.max_words, got: p.words.len() });
         }
         Ok(p)
     }
@@ -191,7 +191,7 @@ impl GlirelRelations {
             .ok_or_else(|| bad("a label with no subwords"))?;
         if prompt.words.len() > self.max_words {
             return Err(RelationError::OverLimit {
-                limit: "GLiREL max_len",
+                limit: "glirel max_len",
                 max: self.max_words,
                 got: prompt.words.len(),
             });
