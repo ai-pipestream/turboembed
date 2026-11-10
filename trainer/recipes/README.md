@@ -269,8 +269,9 @@ map use the all-label thresholds for held-out decoding. Candidate tensors are
 reused for calibrated all-label and held-out predictions; only seen labels are
 scored again.
 
-`train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP in Rust on
-frozen encoder, prompt, recurrent and boundary features. Each training span
+`train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP or NuNER's
+single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and
+boundary features. Each training span
 keeps its gold labels and at most four highest-logit negative labels; gold
 spans are accompanied by up to two hard-negative spans per positive span,
 with a minimum of four. Positive BCE terms have weight 4. `--balance` repeats

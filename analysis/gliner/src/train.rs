@@ -47,18 +47,23 @@ pub struct OutputTrainer {
 
 impl OutputTrainer {
     pub fn load(config: &Config, bytes: &[u8]) -> Result<Self, String> {
-        if !config.out_project_mlp {
-            return Err("gliner output training currently requires the markerV0 MLP".into());
-        }
         let file = File::parse("gliner heads", bytes).map_err(|e| e.message)?;
         let (h, f) = (config.hidden, config.projection_factor);
+        let specs: Vec<(&str, Vec<usize>)> = if config.out_project_mlp {
+            vec![
+                ("span_rep_layer.span_rep_layer.out_project.0.weight", vec![f * h, 2 * h]),
+                ("span_rep_layer.span_rep_layer.out_project.0.bias", vec![f * h]),
+                ("span_rep_layer.span_rep_layer.out_project.3.weight", vec![h, f * h]),
+                ("span_rep_layer.span_rep_layer.out_project.3.bias", vec![h]),
+            ]
+        } else {
+            vec![
+                ("span_rep_layer.span_rep_layer.out_project.weight", vec![h, 2 * h]),
+                ("span_rep_layer.span_rep_layer.out_project.bias", vec![h]),
+            ]
+        };
         let mut params = Vec::new();
-        for (name, shape) in [
-            ("span_rep_layer.span_rep_layer.out_project.0.weight", vec![f * h, 2 * h]),
-            ("span_rep_layer.span_rep_layer.out_project.0.bias", vec![f * h]),
-            ("span_rep_layer.span_rep_layer.out_project.3.weight", vec![h, f * h]),
-            ("span_rep_layer.span_rep_layer.out_project.3.bias", vec![h]),
-        ] {
+        for (name, shape) in specs {
             let tensor = file.get(name, Dtype::F32, shape.len()).map_err(|e| e.message)?;
             let expected: Vec<u64> = shape.iter().map(|&x| x as u64).collect();
             if tensor.shape != expected {
@@ -88,16 +93,18 @@ impl OutputTrainer {
 
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
         let file = File::parse("gliner heads", original).map_err(|e| e.message)?;
+        let names: Vec<&str> = if self.params.len() == 2 {
+            vec!["span_rep_layer.span_rep_layer.out_project.weight", "span_rep_layer.span_rep_layer.out_project.bias"]
+        } else {
+            vec![
+                "span_rep_layer.span_rep_layer.out_project.0.weight",
+                "span_rep_layer.span_rep_layer.out_project.0.bias",
+                "span_rep_layer.span_rep_layer.out_project.3.weight",
+                "span_rep_layer.span_rep_layer.out_project.3.bias",
+            ]
+        };
         let mut out = original.to_vec();
-        for (name, values) in [
-            "span_rep_layer.span_rep_layer.out_project.0.weight",
-            "span_rep_layer.span_rep_layer.out_project.0.bias",
-            "span_rep_layer.span_rep_layer.out_project.3.weight",
-            "span_rep_layer.span_rep_layer.out_project.3.bias",
-        ]
-        .into_iter()
-        .zip(&self.params)
-        {
+        for (name, values) in names.into_iter().zip(&self.params) {
             let tensor =
                 file.get(name, Dtype::F32, if name.ends_with("bias") { 1 } else { 2 }).map_err(|e| e.message)?;
             if values.len() * 4 != tensor.data.len() {
@@ -120,7 +127,7 @@ impl OutputTrainer {
         grads: &mut [Vec<f32>],
     ) -> Result<f64, String> {
         let (h, f, labels) = (self.hidden, self.factor, input.prompts.len() / self.hidden);
-        if grads.len() != 4
+        if !matches!(grads.len(), 2 | 4)
             || grads.iter().zip(&self.params).any(|(a, b)| a.len() != b.len())
             || input.spans.len() != input.pairs.len() * 2 * h
             || candidates.len() != input.pairs.len() * labels
@@ -162,20 +169,30 @@ impl OutputTrainer {
             hard.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
             active.extend(hard.into_iter().map(|x| x.1).take(4usize.saturating_sub(active.len())));
             let x = &input.spans[index * 2 * h..(index + 1) * 2 * h];
-            let mut z = self.params[1].clone();
-            for (o, row) in z.iter_mut().enumerate() {
-                for (i, &v) in x.iter().enumerate() {
-                    *row += self.params[0][o * 2 * h + i] * v;
+            let linear = self.params.len() == 2;
+            let (z, mid) = if linear {
+                (Vec::new(), x.to_vec())
+            } else {
+                let mut z = self.params[1].clone();
+                for (o, row) in z.iter_mut().enumerate() {
+                    for (i, &v) in x.iter().enumerate() {
+                        *row += self.params[0][o * 2 * h + i] * v;
+                    }
                 }
-            }
-            let mid: Vec<f32> = z.iter().map(|&x| x.max(0.0)).collect();
-            let mut dz = vec![0.0; f * h];
+                let mid: Vec<f32> = z.iter().map(|&x| x.max(0.0)).collect();
+                (z, mid)
+            };
+            let mut dz = if linear { Vec::new() } else { vec![0.0; f * h] };
+            let (wout, bout, weight_index, bias_index) = if linear {
+                (&self.params[0], &self.params[1], 0, 1)
+            } else {
+                (&self.params[2], &self.params[3], 2, 3)
+            };
             for label in active {
                 let prompt = &input.prompts[label * h..(label + 1) * h];
                 let mut logit = 0.0;
                 for (o, &p) in prompt.iter().enumerate() {
-                    let value =
-                        self.params[3][o] + (0..f * h).map(|i| self.params[2][o * f * h + i] * mid[i]).sum::<f32>();
+                    let value = bout[o] + (0..mid.len()).map(|i| wout[o * mid.len() + i] * mid[i]).sum::<f32>();
                     logit += value * p;
                 }
                 let (start, end) = input.pairs[index];
@@ -189,19 +206,23 @@ impl OutputTrainer {
                     );
                 let d = (probability - target) * weight * scale as f32;
                 for (o, &p) in prompt.iter().enumerate() {
-                    for i in 0..f * h {
-                        grads[2][o * f * h + i] += d * p * mid[i];
-                        dz[i] += d * p * self.params[2][o * f * h + i];
+                    for i in 0..mid.len() {
+                        grads[weight_index][o * mid.len() + i] += d * p * mid[i];
+                        if !linear {
+                            dz[i] += d * p * wout[o * mid.len() + i];
+                        }
                     }
-                    grads[3][o] += d * prompt[o];
+                    grads[bias_index][o] += d * p;
                 }
             }
-            for i in 0..f * h {
-                let d = if z[i] > 0.0 { dz[i] } else { 0.0 };
-                for (j, &v) in x.iter().enumerate() {
-                    grads[0][i * 2 * h + j] += d * v;
+            if !linear {
+                for i in 0..f * h {
+                    let d = if z[i] > 0.0 { dz[i] } else { 0.0 };
+                    for (j, &v) in x.iter().enumerate() {
+                        grads[0][i * 2 * h + j] += d * v;
+                    }
+                    grads[1][i] += d;
                 }
-                grads[1][i] += d;
             }
         }
         let mut total = -loss * scale;
@@ -220,7 +241,8 @@ impl OutputTrainer {
     }
 
     pub fn step(&mut self, optimizer: &mut AdamW<f32>, grads: &mut [Vec<f32>]) -> Result<f64, String> {
-        optimizer.step(&mut self.params, grads, &[true, false, true, false]).map_err(|e| e.message)
+        let decay: Vec<bool> = (0..self.params.len()).map(|i| i % 2 == 0).collect();
+        optimizer.step(&mut self.params, grads, &decay).map_err(|e| e.message)
     }
 }
 
@@ -243,20 +265,18 @@ mod tests {
         (trainer, input, candidates)
     }
 
-    #[test]
-    fn output_gradients_match_finite_differences() {
-        let (mut trainer, input, candidates) = fixture();
+    fn check_gradients(trainer: &mut OutputTrainer, input: &TrainingInput, candidates: &[Candidate]) {
         trainer.set_anchor(0.25).unwrap();
         for tensor in 0..trainer.params.len() {
             for at in 0..trainer.params[tensor].len() {
                 let original = trainer.params[tensor][at];
                 let mut grads = trainer.zero_grads();
-                let loss = trainer.gradients(&input, &candidates, &[(0, 1, 0)], &mut grads).unwrap();
+                let loss = trainer.gradients(input, candidates, &[(0, 1, 0)], &mut grads).unwrap();
                 assert!(loss.is_finite());
                 trainer.params[tensor][at] = original + 0.001;
-                let plus = trainer.gradients(&input, &candidates, &[(0, 1, 0)], &mut trainer.zero_grads()).unwrap();
+                let plus = trainer.gradients(input, candidates, &[(0, 1, 0)], &mut trainer.zero_grads()).unwrap();
                 trainer.params[tensor][at] = original - 0.001;
-                let minus = trainer.gradients(&input, &candidates, &[(0, 1, 0)], &mut trainer.zero_grads()).unwrap();
+                let minus = trainer.gradients(input, candidates, &[(0, 1, 0)], &mut trainer.zero_grads()).unwrap();
                 trainer.params[tensor][at] = original;
                 let expected = (plus - minus) / 0.002;
                 assert!(
@@ -266,5 +286,19 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn output_gradients_match_finite_differences() {
+        let (mut trainer, input, candidates) = fixture();
+        check_gradients(&mut trainer, &input, &candidates);
+    }
+
+    #[test]
+    fn linear_output_gradients_match_finite_differences() {
+        let (_, input, candidates) = fixture();
+        let params = vec![vec![0.3, -0.4], vec![0.2]];
+        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        check_gradients(&mut trainer, &input, &candidates);
     }
 }

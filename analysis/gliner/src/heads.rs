@@ -267,14 +267,15 @@ impl Heads {
     }
 
     pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
-        if params.len() != 4 {
-            return Err("gliner output training requires four tensors".into());
-        }
         let (h, f) = (self.hidden, self.start.first.n);
-        self.span = OutputHead::Mlp(Mlp {
-            first: Dense::new(&params[0], params[1].clone(), f, 2 * h)?,
-            last: Dense::new(&params[2], params[3].clone(), h, f)?,
-        });
+        self.span = match params {
+            [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
+                first: Dense::new(w0, b0.clone(), f, 2 * h)?,
+                last: Dense::new(w1, b1.clone(), h, f)?,
+            }),
+            [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
+            _ => return Err("gliner output training requires two linear or four MLP tensors".into()),
+        };
         Ok(())
     }
 
