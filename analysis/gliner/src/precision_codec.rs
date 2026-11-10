@@ -1,6 +1,6 @@
 use turbo_analysis::export::{ExportError, ImportCx, LayerCodec, Reader, Writer};
 use turbo_analysis::{Document, IxRange, Layer, Span, TagSet, ViewId};
-use turbo_analysis_layers::{PiiRule, Tokens};
+use turbo_analysis_layers::{CustomKinds, Tokens};
 
 use crate::precision::{PrecisionCandidates, PrecisionDecision, PrecisionRejection};
 
@@ -72,7 +72,27 @@ fn put_decision(w: &mut Writer, decision: PrecisionDecision) {
     };
 }
 
-fn get_decision(r: &mut Reader) -> Result<PrecisionDecision, ExportError> {
+fn put_custom(w: &mut Writer, custom: &CustomKinds) -> Result<(), ExportError> {
+    w.usize(custom.len())?;
+    for name in custom.names() {
+        w.str(name)?;
+    }
+    Ok(())
+}
+
+fn get_custom(r: &mut Reader) -> Result<CustomKinds, ExportError> {
+    let n = r.usize()?;
+    if n > CustomKinds::MAX {
+        return Err(ExportError::Malformed("precision custom PII kind count exceeds limit".into()));
+    }
+    let mut names = Vec::with_capacity(n);
+    for _ in 0..n {
+        names.push(r.string()?);
+    }
+    CustomKinds::from_names(&names).map_err(|e| ExportError::Malformed(e.to_string()))
+}
+
+fn get_decision(r: &mut Reader, custom: &CustomKinds) -> Result<PrecisionDecision, ExportError> {
     let tag = r.u8()?;
     let code = r.u32()?;
     match tag {
@@ -81,12 +101,12 @@ fn get_decision(r: &mut Reader) -> Result<PrecisionDecision, ExportError> {
         2 => Ok(PrecisionDecision::Rejected(PrecisionRejection::NonEntity)),
         3 => Ok(PrecisionDecision::Rejected(PrecisionRejection::NoCompatibleLink)),
         4 => {
-            // A custom kind comes back as the index it was written with,
-            // into the custom-kind table of the PII layer the rule read.
-            match PiiRule::from_code(code) {
-                Some(PiiRule::Kind(kind)) => Ok(PrecisionDecision::Rejected(PrecisionRejection::PiiConflict(kind))),
-                _ => Err(ExportError::Malformed(format!("unknown PII conflict kind {code}"))),
-            }
+            // A custom kind is an entry of the table written with the
+            // rows, so its name comes back with it.
+            let kind = custom
+                .from_code(code)
+                .map_err(|_| ExportError::Malformed(format!("unknown PII conflict kind {code}")))?;
+            Ok(PrecisionDecision::Rejected(PrecisionRejection::PiiConflict(kind)))
         }
         other => Err(ExportError::Malformed(format!("unknown precision decision {other}"))),
     }
@@ -97,6 +117,7 @@ impl LayerCodec for PrecisionCandidates {
         self.check().map_err(ExportError::Malformed)?;
         let mut w = Writer::new();
         w.u32(u32::from(self.spans.view().0));
+        put_custom(&mut w, &self.custom_kinds)?;
         w.usize(self.spans.len())?;
         for i in 0..self.spans.len() {
             put_span(&mut w, self.original_spans[i]);
@@ -116,11 +137,13 @@ impl LayerCodec for PrecisionCandidates {
         let mut r = Reader::new(data);
         let view =
             ViewId(r.u32()?.try_into().map_err(|_| ExportError::Malformed("precision view id exceeds u16".into()))?);
+        let custom = get_custom(&mut r)?;
         let n = r.usize()?;
         if n > MAX_CANDIDATES {
             return Err(ExportError::Malformed("precision candidate count exceeds limit".into()));
         }
         let mut out = PrecisionCandidates::new(view, std::sync::Arc::new(TagSet::default()));
+        out.custom_kinds = custom;
         for _ in 0..n {
             out.original_spans.push(get_span(&mut r)?);
             out.spans.push(get_span(&mut r)?);
@@ -130,7 +153,7 @@ impl LayerCodec for PrecisionCandidates {
             out.kind.push(kind);
             out.logits.push(f32::from_bits(r.u32()?));
             out.score.push(r.f64()?);
-            out.decision.push(get_decision(&mut r)?);
+            out.decision.push(get_decision(&mut r, &out.custom_kinds)?);
         }
         out.kinds = get_kinds(&mut r)?;
         if !r.is_done() {

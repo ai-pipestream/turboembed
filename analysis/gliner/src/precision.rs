@@ -5,7 +5,7 @@ use turbo_analysis::{
     Anchor, Annotator, Document, Error, Execution, Fnv1a, Ix, IxRange, Key, Layer, ModelRef, Refs, Span, Spans,
     Support, Tag, TagSet, View, ViewId,
 };
-use turbo_analysis_layers::{Entities, Pii, PiiKind, Tokens};
+use turbo_analysis_layers::{CustomKinds, Entities, Pii, PiiKind, Tokens};
 use turbo_entity_linker::{KbProvider, prior_score, type_compatibility};
 
 use crate::Decisions;
@@ -42,6 +42,9 @@ pub struct PrecisionCandidates {
     pub logits: Vec<f32>,
     pub score: Vec<f64>,
     pub decision: Vec<PrecisionDecision>,
+    /// The table every custom kind of a [`PrecisionRejection::PiiConflict`]
+    /// indexes: that of the PII layer the stage read.
+    pub custom_kinds: CustomKinds,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -68,6 +71,7 @@ impl PrecisionCandidates {
             logits: Vec::new(),
             score: Vec::new(),
             decision: Vec::new(),
+            custom_kinds: CustomKinds::new(),
         }
     }
 
@@ -165,6 +169,9 @@ impl Layer for PrecisionCandidates {
             }
             if !c.logit.is_finite() || !c.score.is_finite() {
                 return Err(format!("precision candidate {i} has a nonfinite score"));
+            }
+            if let PrecisionDecision::Rejected(PrecisionRejection::PiiConflict(kind)) = c.decision {
+                self.custom_kinds.check(kind).map_err(|e| format!("precision candidate {i}: {e}"))?;
             }
             let changed = c.original_span != c.span || c.original_tokens != c.tokens;
             match (c.decision, changed) {
@@ -302,6 +309,9 @@ impl HybridPrecision {
     ) -> Result<PrecisionCandidates, Error> {
         validate_inputs(view, tokens, entities, decisions, pii)?;
         let mut out = PrecisionCandidates::new(view.id(), Arc::clone(&entities.kinds));
+        if let Some(layer) = pii {
+            out.custom_kinds = layer.custom_kinds.clone();
+        }
         for (ix, original_span) in entities.spans.iter() {
             let original_tokens = entities.tokens[ix.get()];
             let trimmed = trim(view, tokens, original_tokens, self.trim_articles);

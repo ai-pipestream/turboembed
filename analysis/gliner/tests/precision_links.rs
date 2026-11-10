@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::export::{DocumentGraph, export, import};
-use turbo_analysis::{Document, Ix, IxRange, Key, Provenance, Span, Spans, TagSet, View, ViewId};
+use turbo_analysis::{Document, Ix, IxRange, Key, Layer, Provenance, Span, Spans, TagSet, View, ViewId};
 use turbo_analysis_layers::{CustomKinds, Entities, Pii, PiiEvidence, PiiKind, PiiMention, Tokens};
 use turbo_entity_linker::{CatalogProvider, KbEntity, KnowledgeBase};
 use turbo_gliner::{Decisions, HybridPrecision, PrecisionCandidates, PrecisionDecision, PrecisionRejection, codecs};
@@ -116,4 +116,29 @@ fn a_rejection_for_a_custom_pii_kind_survives_a_graph_round_trip() {
     let restored = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs()).unwrap();
     let rows = restored.require(&Key::<PrecisionCandidates>::DEFAULT).unwrap();
     assert_eq!(rows.get(Ix::new(0)).decision, conflict);
+    // The layer carries the table, so the kind keeps its name with no PII
+    // layer in the document.
+    assert_eq!(rows.custom_kinds.name(kind), Some("account-name"));
+
+    // A custom kind outside the table is refused by the layer check, by a
+    // document, and on import.
+    let mut unbound = rows.clone();
+    unbound.custom_kinds = CustomKinds::new();
+    assert!(unbound.check().unwrap_err().contains("is not in the kind table"));
+    let reads = vec![Key::<Entities>::DEFAULT.id(), Key::<Decisions>::DEFAULT.id(), Key::<Tokens>::DEFAULT.id()];
+    let provenance = Provenance { version: "1", reads, ..Provenance::by("turbo:gliner-precision") };
+    assert!(document().add(&Key::<PrecisionCandidates>::DEFAULT, unbound, provenance).is_err());
+    // The exported bytes with the rejection's kind code changed to the
+    // next custom index, which the table does not have. The code's four
+    // bytes occur elsewhere too; every such edit is refused, and the one
+    // on the rejection is refused for its kind.
+    let (code, next) = (kind.code().to_le_bytes(), (kind.code() + 1).to_le_bytes());
+    let mut unknown_kind = 0;
+    for i in (0..bytes.len() - 3).filter(|&i| bytes[i..i + 4] == code) {
+        let mut edited = bytes.clone();
+        edited[i..i + 4].copy_from_slice(&next);
+        let error = DocumentGraph::from_bytes(&edited).and_then(|graph| import(&graph, &codecs()).map(|_| ()));
+        unknown_kind += usize::from(error.unwrap_err().to_string().contains("unknown PII conflict kind"));
+    }
+    assert_eq!(unknown_kind, 1);
 }
