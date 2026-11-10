@@ -1052,6 +1052,8 @@ enum PiiKindId
   PII_KIND_ID_STREET_ADDRESS = 40;
   PII_KIND_ID_DATE = 41;
   PII_KIND_ID_CURRENCY = 42;
+  PII_KIND_ID_STATE = 43;
+  PII_KIND_ID_COUNTY = 44;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C

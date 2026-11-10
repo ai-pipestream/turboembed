@@ -75,12 +75,14 @@ not find (`ScannerError`).
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date` and `currency` |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date`, `currency`, `state` and `county` |
 | `Dates` | (none) | temporal | `date` |
 | `Money` | (none) | money | `currency` |
+| `Places` | (none) | US state, US county | `state`, `county` |
 
-`Dates` and `Money` are opt-in and not in `AllStructured`: dates and
-amounts are in most texts, and only some of them are a person's.
+`Dates`, `Money` and `Places` are opt-in and not in `AllStructured`:
+dates, amounts and places are in most texts, and only some of them are
+a person's.
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -882,10 +884,61 @@ birth`, `dob` and `born`, and `amount`, `balance`, `salary` and
 `payment`, are their label phrases for the context window. They are the
 kinds the date rewrites of #1884 act on.
 
-A redaction policy over gRPC turns `Dates` or `Money` on itself: an
-enabled rule for `date` or `currency` adds that pack's scanner to the
-`turbo-pii:pii` step, which otherwise runs `AllStructured`
-(`RedactionPolicy::opted_in_packs`).
+A redaction policy over gRPC turns `Dates`, `Money` or `Places` on
+itself: an enabled rule for `date`, `currency`, `state` or `county`
+adds that pack's scanners to the `turbo-pii:pii` step, which otherwise
+runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
+
+### States and counties
+
+`state` and `county` take ids 43 and 44, in the opt-in `Places` pack.
+
+- `state` (new `UsState` extractor, `UsStatePiiExtractor`,
+  `turbo-pii:us-state`; `analysis/pii/src/scan/state.rs`): the name of a
+  state, the District of Columbia or an inhabited territory (`Illinois`,
+  `New York`, `Puerto Rico`, `U.S. Virgin Islands`), as written or all in
+  capitals, at word boundaries, single spaces between its words.
+  `Washington, D.C.` and `Washington DC` are the District. `New York
+  City` is a city and `Washington County` a county, so neither is a
+  state. A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
+  `OK`), so it is a mention only in capitals and only directly after a
+  state label (`State: OR`) or before a ZIP code (`Springfield, IL
+  62704`). The normalized form is the USPS code (`IL`).
+- `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
+  `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
+  county equivalent of the Census Bureau's 2020 county list
+  (`national_county2020.txt`, public domain, SHA-256
+  `9f6e5f6eb6ac2f5e9a36d5fd01dec77991bddc75118f748a069441a4782970d6`),
+  with its own last word: `County`, `Parish`, `Borough`, `Census Area`,
+  `Municipality` or `Municipio` (`Cook County`, `Orleans Parish`,
+  `Matanuska-Susitna Borough`, `Mayagüez Municipio`). Each word reads as
+  the list writes it or in capitals, and the last also in small letters
+  (`Cook county`); a right single quotation mark reads as an apostrophe.
+  The independent cities (`Baltimore city`) are cities, not counties. A
+  name shared by several states (`Washington County`) is one mention,
+  normalized as the list spells it; a state named beside it (`Cook
+  County, Illinois`) is a mention of its own.
+  The 1,918 names are in `analysis/pii/src/tables/us_counties.txt`.
+
+Both are low severity, suggested a label rewrite and masked keeping
+spaces (`**** ******`). Neither needs a label; `state`, `state of
+residence`, `county` and `county of residence` are their label phrases.
+HIPAA Safe Harbor removes every geographic subdivision smaller than a
+state, so `county` is an identifier and `state` is not; the state kind
+is there for policies that want the whole place gone.
+
+Scored on its own (`places_eval.rs`, gold in
+`analysis/pii/tests/data/human-eval/labels-places.tsv`), the `Places`
+pack over the ten documents of the human-written set and a
+project-authored memo of places and near misses (`places-memos.txt`):
+
+| Kind | Source | TP | FP | FN | Precision | Recall |
+|---|---|---:|---:|---:|---:|---:|
+| `state` | third-party MASC (`29`) + project-authored (`11`) | 40 | 0 | 0 | 1.000 | 1.000 |
+| `county` | project-authored (`places-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
+
+The MASC documents name no county, so the county figures are only those
+of the memo written for it.
 
 ## Custom extractors and scanner rules
 

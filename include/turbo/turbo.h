@@ -924,6 +924,8 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_KIND_STREET_ADDRESS     40
 #define TURBO_PII_KIND_DATE               41
 #define TURBO_PII_KIND_CURRENCY           42
+#define TURBO_PII_KIND_STATE              43
+#define TURBO_PII_KIND_COUNTY             44
 
 /* The numeric kind of a custom PII kind is TURBO_PII_KIND_CUSTOM_BASE + i
  * for entry i of its layer's custom-kind table, the binary layer codec's
