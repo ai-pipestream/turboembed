@@ -7,11 +7,13 @@
 //! list (`Washington County`) is the county's. A two-letter USPS code (`IL`) is a common word or
 //! abbreviation too (`IN`, `OR`, `ME`, `OK`), so it is a mention only in
 //! capitals and only after a state label (`State: IL`) or before a ZIP
-//! code that ends an address (`Springfield, IL 62704`, not `Order IN 12345
-//! units`). The normalized form is the USPS code.
+//! code that ends an address: after a comma or a city of that state
+//! (`Springfield, IL 62704`, `Springfield IL 62704`), or at the start of a
+//! line, not after another word (`Order IN 12345`). The normalized form is the USPS code.
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
+use super::city::city_before;
 use super::national::on_number_end;
 use super::us_labelled::STATES;
 use crate::hits::Hits;
@@ -92,16 +94,16 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
     {
         return None;
     }
-    let zip = b.get(i + 2) == Some(&b' ') && zip_end(text, i + 3).is_some_and(|end| address_like(text, i, end));
+    let zip = b.get(i + 2) == Some(&b' ') && zip_end(text, i + 3).is_some() && address_like(text, i);
     (zip || find_any_label(text, i, &LABELS, false).is_some()).then_some(i + 2)
 }
 
-/// Whether a code at `code` and the ZIP code ending at `end` read as the
-/// end of an address: after a comma (`Springfield, IL 62704 is`), at the
-/// start of a line (`IL 62704`), or after a name with the line or the
-/// clause ending at the ZIP code (`Springfield IL 62704.`). A word after
-/// the number (`Order IN 12345 units`) makes it a count, not an address.
-fn address_like(text: &str, code: usize, end: usize) -> bool {
+/// Whether a code at `code` before a ZIP code reads as the end of an
+/// address, by what comes before it: a comma (`Springfield, IL 62704`),
+/// only blanks back to the start of a line (`IL 62704`), or a city of that
+/// state and one space (`Springfield IL 62704 is`). A word that is no city
+/// there (`Order IN 12345`, `PART OR 90210`) makes the number a count.
+fn address_like(text: &str, code: usize) -> bool {
     let before = &text.as_bytes()[..code];
     if before.ends_with(b", ") {
         return true;
@@ -110,7 +112,10 @@ fn address_like(text: &str, code: usize, end: usize) -> bool {
     // is looked at once however many codes a line holds.
     let blanks = before.iter().rev().take_while(|&&c| c == b' ' || c == b'\t').count();
     matches!(before.len().checked_sub(blanks + 1).map(|p| before[p]), None | Some(b'\n'))
-        || matches!(text.as_bytes().get(end), None | Some(b'\n' | b'\r' | b',' | b'.' | b';' | b')'))
+        || before.len() >= 2
+            && before.ends_with(b" ")
+            && before[before.len() - 2] != b' '
+            && city_before(text, code - 1, &text[code..code + 2])
 }
 
 /// The end of a whole ZIP or ZIP+4 token at `at` (`62704`, `62704-1234`),

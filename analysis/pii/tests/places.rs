@@ -76,16 +76,19 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("state of residence: ME"), ("ME".to_owned(), "state", "ME".to_owned()));
     assert_eq!(one("Springfield, IL 62704-1234."), ("IL".to_owned(), "state", "IL".to_owned()));
     assert_eq!(one("Portland, OR 97201."), ("OR".to_owned(), "state", "OR".to_owned()));
-    // A code before a ZIP code ends an address: after a comma, at the
-    // start of a line, or after a name with the line or clause ending at
-    // the ZIP code.
+    let states: Vec<_> = found("PORTLAND OR 97201").into_iter().filter(|m| m.1 == "state").collect();
+    assert_eq!(states, [("OR".to_owned(), "state", "OR".to_owned())]);
+    // A code before a ZIP code ends an address by what comes before it:
+    // a comma, the start of a line, or a city of that state.
     for text in [
         "Springfield, IL 62704 is the address",
         "IL 62704",
         "Name\n  IL 62704 x",
         "Springfield IL 62704",
         "Springfield IL 62704.",
-        "Springfield IL 62704\nUSA",
+        "Springfield IL 62704 is",
+        "Send it to Springfield IL 62704 by Friday",
+        "1 Main St\nSpringfield IL 62704\nUSA",
         "(Springfield IL 62704)",
         "SPRINGFIELD IL 62704",
     ] {
@@ -96,6 +99,13 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         "Order IN 12345 units",
         "We ship OR 90210 boxes",
         "sold ME 12345 more",
+        "Order IN 12345.",
+        "Order IN 12345",
+        "Lot IN 12345; ship",
+        "(see IN 12345)",
+        "We need OR 90210, now",
+        "PART OR 90210",
+        "Springfield  IL 62704",
         "IN the morning, OR later, ME too, OK?",
         "Springfield, IL",
         "IL 627041",
