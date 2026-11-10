@@ -22,7 +22,12 @@ public enum TurboLayerKind {
     /**
      * Morphology rows aligned to tokens: one row per token, with the feature string as the label.
      */
-    MORPHOLOGY(8);
+    MORPHOLOGY(8),
+    /**
+     * Syntactic word rows from a token split head: the tokens a word belongs to as its token range,
+     * and its form as the label only when the form is not the text of its range.
+     */
+    WORDS(9);
 
     private final int nativeCode;
 

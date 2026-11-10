@@ -324,6 +324,13 @@ typedef struct turbo_capability {
     char     reason[160];         /* why it is not SUPPORTED, else empty */
 } turbo_capability;
 
+/* With the levelzero backend, the first call that finds a Level Zero
+ * loader may set NEOReadDebugKeys=1 and EnableRecoverablePageFaults=0 in
+ * the process's environment, before the drivers start (docs/levelzero.md,
+ * page faults). setenv is not safe while another thread is in getenv or
+ * setenv, so that call must not race one; to have nothing written, set
+ * EnableRecoverablePageFaults yourself, or NEOReadDebugKeys to anything
+ * but 1. */
 int32_t turbo_runtime_create(const turbo_runtime_desc *desc, turbo_runtime **out, turbo_error *err);
 void    turbo_runtime_release(turbo_runtime *rt);
 
@@ -828,6 +835,7 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_ANALYSIS_LAYER_PII       6
 #define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
 #define TURBO_ANALYSIS_LAYER_MORPHOLOGY 8
+#define TURBO_ANALYSIS_LAYER_WORDS     9
 
 #define TURBO_SPAN_VIEW_RANGE   (1u << 0)
 #define TURBO_SPAN_SOURCE_RANGE (1u << 1)
@@ -914,6 +922,8 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_KIND_PHONE_EXTENSION    38
 #define TURBO_PII_KIND_AGE                39
 #define TURBO_PII_KIND_STREET_ADDRESS     40
+#define TURBO_PII_KIND_DATE               41
+#define TURBO_PII_KIND_CURRENCY           42
 
 /* The numeric kind of a custom PII kind is TURBO_PII_KIND_CUSTOM_BASE + i
  * for entry i of its layer's custom-kind table, the binary layer codec's
@@ -924,8 +934,16 @@ void    turbo_result_release(turbo_result *r);
  * English with the rule sentence splitter and rule tokenizer only. The
  * learned components come from a bundle (docs/bundle.md) named by
  * bundle_path: its heads write the part-of-speech, morphology, lemma,
- * dependency and entity layers, each from the one head of the bundle whose
- * layer it is, in one encoder pass a sentence on the cpu backend. Without a
+ * dependency, entity and syntactic word layers, each from the one head of
+ * the bundle whose layer it is, in one encoder pass a sentence on the cpu
+ * backend. An entity head is a token tagger over BIO or BILOU labels or a
+ * span classifier (HEAD_SPAN_CLASSIFIER); the word layer's is a token
+ * split head (HEAD_TOKEN_SPLIT). A bundle with a sentence boundary head
+ * (HEAD_SENTENCE_BOUNDARY) finds the sentences of every task with it, over
+ * the rule tokenizer's tokens of the whole text, in place of the rule
+ * splitter; a head of another kind on the sentence layer fails
+ * turbo_analyzer_create with TURBO_E_UNSUPPORTED_TASK naming field 7, so
+ * no rule splitter stands in for it. Without a
  * bundle, or with a bundle lacking a layer's head, that layer's tasks fail
  * with TURBO_E_UNSUPPORTED_TASK naming what is missing, except on no
  * input: a task given empty text or a token count of 0 returns TURBO_OK
@@ -963,7 +981,12 @@ typedef struct turbo_analyzer_desc {
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
  * token_start also carries a PII row's numeric kind under
  * TURBO_SPAN_PII_KIND, which never comes with TURBO_SPAN_TOKEN_RANGE.
- * Discontinuous items emit one row per fragment. For a morphology row,
+ * Discontinuous items emit one row per fragment. A word row
+ * (TURBO_ANALYSIS_LAYER_WORDS) is one syntactic word: its token range is
+ * the tokens it belongs to, its text range the bytes of its token it is
+ * (a "ca" of "can't") or else the whole token, and it has a label, its
+ * form, only when that form is not the text of its range (a "del" read as
+ * "de" and "el"). For a morphology row,
  * there is one row per token and label is the feature string as the
  * MorphFeatures layer writes it. classification is layer-specific:
  * TURBO_PII_CONFIDENCE_* for PII; for a dependency row, whose label is the
@@ -1019,13 +1042,19 @@ int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **
 turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
 void    turbo_analyzer_release(turbo_analyzer *a);
 
-/* Detect sentence spans in UTF-8 text. Sentence text is read from the
- * row's source range; no covered-text copy is put in the string pool. */
+/* Detect sentence spans in UTF-8 text, with the bundle's sentence
+ * boundary head when it has one and the rule splitter otherwise. A head's
+ * sentence runs from its first token's start to its last token's end.
+ * Sentence text is read from the row's source range; no covered-text copy
+ * is put in the string pool. */
 int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
                                         turbo_analysis_result **out, turbo_error *err);
 
-/* Tokenize UTF-8 text. Token text is read from each row's source range;
- * its token range is the one-token range at its item index. */
+/* Tokenize UTF-8 text with the rule tokenizer. Token text is read from
+ * each row's source range; its token range is the one-token range at its
+ * item index. With a bundle's token split head the result also holds a
+ * word row (TURBO_ANALYSIS_LAYER_WORDS) for each syntactic word of the
+ * tokens, read a sentence at a time. */
 int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
                                 turbo_analysis_result **out, turbo_error *err);
 
@@ -1057,13 +1086,15 @@ int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
  * the bundle's entity head only. No dictionary, pattern or other
  * recognizer is merged in, and nothing is kept between calls. Rows are
  * token-only: one row per entity, with its token range, its kind as the
- * label, and the mean of its tokens' probabilities. Without an entity head
- * this is unsupported. */
+ * label, and its probability: the mean of its tokens' for a tagger head,
+ * its kind's softmax among the span's own scores for a span classifier.
+ * Without an entity head this is unsupported. */
 int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                    turbo_analysis_result **out, turbo_error *err);
 
 /* Find named entities directly in UTF-8 text with the bundle's entity
- * head, over the rule tokenizer's tokens a sentence at a time. Rows are as
+ * head, over the rule tokenizer's tokens a sentence at a time (the
+ * sentences turbo_analyzer_detect_sentences finds). Rows are as
  * turbo_analyzer_find_tokens writes them, with the entity's view and
  * source ranges, and a token range into the tokens of the whole text.
  * Without an entity head this is unsupported. */
@@ -1078,13 +1109,17 @@ int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
 int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
                                   turbo_analysis_result **out, turbo_error *err);
 
-/* Run the rule sentence splitter and tokenizer, every head of the bundle
- * (one encoder pass a sentence) and the PII task over UTF-8 text,
+/* Find the sentences as turbo_analyzer_detect_sentences does, run the
+ * rule tokenizer, every head of the bundle (one encoder pass a sentence)
+ * and the PII task over UTF-8 text,
  * serialize the binary DocumentGraph ("TGRF" wire format) into the
  * result's graph buffer, and expose every supported layer instance as
  * typed rows. A layer whose head the bundle lacks is absent, never
  * replaced by a fallback layer: with no bundle the graph holds the
- * sentence, token and PII layers alone. */
+ * sentence, token and PII layers alone. Each layer's provenance names
+ * what wrote it: turbo:sentdetect or turbo-tagger-sentences for the
+ * sentences, turbo-tagger-entities or turbo-tagger-spans for the entities,
+ * turbo-tagger-words for the words. */
 int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
                                      turbo_analysis_result **out, turbo_error *err);
 

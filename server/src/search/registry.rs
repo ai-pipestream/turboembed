@@ -164,53 +164,42 @@ impl SearchRegistry {
     }
 
     pub(crate) fn create_index(&self, state: &State, spec: IndexSpec) -> Result<IndexSummary> {
-        if spec.index_name.is_empty() {
-            return Err(bad_arg("spec.index_name must not be empty"));
-        }
-        let space = parse_space(spec.space.as_ref())?;
-        if !spec.embed_bundle.is_empty() {
-            verify_embed_bundle_matches_space(state, &spec.embed_bundle, &space)?;
-        }
-        let metric = parse_metric(spec.metric)?;
-        let storage = VectorStorageKind::try_from(spec.storage)
-            .map_err(|_| bad_arg(format!("unknown storage kind {}", spec.storage)))?;
-        let quant = match storage {
-            VectorStorageKind::FlatF32 => None,
-            VectorStorageKind::TurboQuant => {
-                let bits = parse_quant_bits(spec.quant_bits)?;
-                let tq = TurboQuant::new(bits, spec.quant_calibrate)
-                    .map_err(|e| bad_arg(format!("invalid TurboQuant configuration: {e}")))?;
-                if !space.dim.is_multiple_of(8) {
-                    return Err(bad_arg(format!(
-                        "TurboQuant requires space.dim ({}) to be a multiple of 8",
-                        space.dim
-                    )));
-                }
-                Some(tq)
-            }
-        };
+        self.publish(HybridIndex::empty(state, spec)?)
+    }
+
+    /// Registers an index under a name that no index and no alias has,
+    /// once `commit` succeeds. The registry's index and alias writers
+    /// wait from the checks to the registration, so the name is free
+    /// when `commit` runs, and after it nothing can fail.
+    pub(crate) fn publish_after(
+        &self,
+        index: HybridIndex,
+        commit: impl FnOnce() -> Result<()>,
+    ) -> Result<IndexSummary> {
+        let name = index.spec.index_name.clone();
         let mut indexes = self.indexes.write().unwrap_or_else(|e| e.into_inner());
-        if indexes.contains_key(&spec.index_name) {
-            return Err(already_exists(format!("search index `{}` already exists", spec.index_name)));
+        let aliases = self.aliases.read().unwrap_or_else(|e| e.into_inner());
+        if indexes.contains_key(&name) {
+            return Err(already_exists(format!("search index `{name}` already exists")));
         }
-        let hybrid = HybridIndex {
-            spec: spec.clone(),
-            space,
-            metric,
-            storage,
-            quant,
-            sealed: false,
-            docs: Vec::new(),
-            chunks: Vec::new(),
-            bm25: Bm25PostingIndexBuilder::new().build(),
-            dense: CompiledDense::Empty,
-            token_index: None,
-            token_candidates: Vec::new(),
-            seen_terms: BTreeSet::new(),
-            term_df: BTreeMap::new(),
-        };
-        let summary = hybrid.summary();
-        indexes.insert(spec.index_name.clone(), Arc::new(RwLock::new(hybrid)));
+        if let Some(target) = aliases.get(&name) {
+            return Err(already_exists(format!("`{name}` is an alias of search index `{target}`")));
+        }
+        commit()?;
+        let summary = index.summary();
+        indexes.insert(name, Arc::new(RwLock::new(index)));
+        Ok(summary)
+    }
+
+    /// Registers an index under its name, which no index may have.
+    pub(crate) fn publish(&self, index: HybridIndex) -> Result<IndexSummary> {
+        let name = index.spec.index_name.clone();
+        let mut indexes = self.indexes.write().unwrap_or_else(|e| e.into_inner());
+        if indexes.contains_key(&name) {
+            return Err(already_exists(format!("search index `{name}` already exists")));
+        }
+        let summary = index.summary();
+        indexes.insert(name, Arc::new(RwLock::new(index)));
         Ok(summary)
     }
 
@@ -278,7 +267,54 @@ impl SearchRegistry {
     }
 }
 
+/// A spec's storage, and its quantizer when the rows are TurboQuant codes of `dim` values.
+pub(crate) fn parse_storage(spec: &IndexSpec, dim: u32) -> Result<(VectorStorageKind, Option<TurboQuant>)> {
+    let storage = VectorStorageKind::try_from(spec.storage)
+        .map_err(|_| bad_arg(format!("unknown storage kind {}", spec.storage)))?;
+    let quant = match storage {
+        VectorStorageKind::FlatF32 => None,
+        VectorStorageKind::TurboQuant => {
+            let tq = TurboQuant::new(parse_quant_bits(spec.quant_bits)?, spec.quant_calibrate)
+                .map_err(|e| bad_arg(format!("invalid TurboQuant configuration: {e}")))?;
+            if !dim.is_multiple_of(8) {
+                return Err(bad_arg(format!("TurboQuant requires space.dim ({dim}) to be a multiple of 8")));
+            }
+            Some(tq)
+        }
+    };
+    Ok((storage, quant))
+}
+
 impl HybridIndex {
+    /// The index a spec describes, with nothing in it and in no registry.
+    pub(crate) fn empty(state: &State, spec: IndexSpec) -> Result<HybridIndex> {
+        if spec.index_name.is_empty() {
+            return Err(bad_arg("spec.index_name must not be empty"));
+        }
+        let space = parse_space(spec.space.as_ref())?;
+        if !spec.embed_bundle.is_empty() {
+            verify_embed_bundle_matches_space(state, &spec.embed_bundle, &space)?;
+        }
+        let metric = parse_metric(spec.metric)?;
+        let (storage, quant) = parse_storage(&spec, space.dim)?;
+        Ok(HybridIndex {
+            spec,
+            space,
+            metric,
+            storage,
+            quant,
+            sealed: false,
+            docs: Vec::new(),
+            chunks: Vec::new(),
+            bm25: Bm25PostingIndexBuilder::new().build(),
+            dense: CompiledDense::Empty,
+            token_index: None,
+            token_candidates: Vec::new(),
+            seen_terms: BTreeSet::new(),
+            term_df: BTreeMap::new(),
+        })
+    }
+
     pub fn summary(&self) -> IndexSummary {
         let dense_row_count = match &self.dense {
             CompiledDense::Empty => 0,

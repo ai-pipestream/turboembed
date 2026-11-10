@@ -56,5 +56,6 @@ pub(crate) fn error(e: impl std::fmt::Display) -> Error {
 pub mod feedforward;
 pub use feedforward::{
     Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
-    FeedforwardDependencyTrainer, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights, Vocabulary,
+    FeedforwardDependencyTrainer, FeedforwardEpoch, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights,
+    Vocabulary,
 };

@@ -7,6 +7,7 @@ mod age;
 mod br;
 mod card;
 mod crypto;
+mod date;
 mod email;
 mod es_de;
 mod extension;
@@ -16,6 +17,7 @@ mod jws;
 mod jwt;
 mod labelled;
 mod logistics;
+mod money;
 mod national;
 mod network;
 mod phone;
@@ -70,6 +72,10 @@ pub enum Extractor {
     UsAddress,
     /// `AgePiiExtractor`: ages in years.
     Age,
+    /// `TemporalPiiExtractor`: calendar dates naming a day, week or month.
+    Temporal,
+    /// `MoneyPiiExtractor`: amounts of money with their currency.
+    Money,
     /// A caller-defined extractor (`PiiExtractor`).
     Custom(&'static str),
 }
@@ -97,6 +103,8 @@ impl Extractor {
             Extractor::PhoneExtension => PiiKinds::of(&[PhoneExtension]),
             Extractor::UsAddress => PiiKinds::of(&[StreetAddress]),
             Extractor::Age => PiiKinds::of(&[Age]),
+            Extractor::Temporal => PiiKinds::of(&[Date]),
+            Extractor::Money => PiiKinds::of(&[Currency]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
@@ -119,6 +127,8 @@ impl Extractor {
             Extractor::PhoneExtension => "PhoneExtensionPiiExtractor",
             Extractor::UsAddress => "UsAddressPiiExtractor",
             Extractor::Age => "AgePiiExtractor",
+            Extractor::Temporal => "TemporalPiiExtractor",
+            Extractor::Money => "MoneyPiiExtractor",
             Extractor::Custom(name) => name,
         }
     }
@@ -143,6 +153,8 @@ impl Extractor {
             Extractor::PhoneExtension => "turbo-pii:phone-extension",
             Extractor::UsAddress => "turbo-pii:us-address",
             Extractor::Age => "turbo-pii:age",
+            Extractor::Temporal => "turbo-pii:temporal",
+            Extractor::Money => "turbo-pii:money",
             Extractor::Custom(name) => name,
         }
     }
@@ -165,6 +177,8 @@ impl Extractor {
             Extractor::PhoneExtension => 13,
             Extractor::UsAddress => 14,
             Extractor::Age => 15,
+            Extractor::Temporal => 16,
+            Extractor::Money => 17,
         }
     }
 }
@@ -426,6 +440,8 @@ impl Scanner {
             Extractor::PhoneExtension => extension::scan(text, hits),
             Extractor::UsAddress => address::scan(text, hits),
             Extractor::Age => age::scan(text, hits),
+            Extractor::Temporal => date::scan(text, hits),
+            Extractor::Money => money::scan(text, hits),
             Extractor::Custom(_) => {}
         }
     }

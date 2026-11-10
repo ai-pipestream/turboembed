@@ -1,0 +1,9 @@
+MASKED	lower case: gb82 west 1234 5698 7654 32 and nl91abna0417164300
+
+MASK_ALL	lower case: gb82 west 1234 5698 7654 32 and nl91abna0417164300
+
+REWRITE	pseudonymize	OK	lower case: gb82 west 1234 5698 7654 32 and nl91abna0417164300
+
+REWRITE	hmac	OK	lower case: gb82 west 1234 5698 7654 32 and nl91abna0417164300
+
+AUDIT_REPORT	no pii found

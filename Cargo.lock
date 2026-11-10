@@ -285,12 +285,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "const-oid"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
-
-[[package]]
 name = "cpubits"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -451,17 +445,6 @@ checksum = "ab63b0e2bf4d5928aff72e83a7dace85d7bba5fe12dcc3c5a572d78caffd3f3c"
 dependencies = [
  "derive_builder_core",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "digest"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
-dependencies = [
- "block-buffer",
- "const-oid",
- "crypto-common",
 ]
 
 [[package]]
@@ -1674,17 +1657,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha2"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "digest",
-]
-
-[[package]]
 name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2426,6 +2398,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-pins",
+ "turbo-trainer",
  "turbo-zoo",
 ]
 
@@ -2462,6 +2435,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-maxent",
  "turbo-pins",
+ "turbo-sha256",
  "turbo-unicode",
 ]
 
@@ -2528,7 +2502,6 @@ dependencies = [
  "prost",
  "protox",
  "serde_json",
- "sha2",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2543,6 +2516,7 @@ dependencies = [
  "turbo-bundle",
  "turbo-chunker",
  "turbo-coref",
+ "turbo-doccat",
  "turbo-encoding-layers",
  "turbo-entity-linker",
  "turbo-formats",
@@ -2558,12 +2532,15 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-numeric",
  "turbo-pii",
+ "turbo-pins",
+ "turbo-postag",
  "turbo-query",
  "turbo-relation",
  "turbo-sat",
  "turbo-schema-extract",
  "turbo-sentdetect",
  "turbo-sequence",
+ "turbo-sha256",
  "turbo-stem",
  "turbo-stopword",
  "turbo-stopword-layers",
@@ -2571,6 +2548,8 @@ dependencies = [
  "turbo-tagger",
  "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-train",
+ "turbo-train-components",
  "turbo-vector-index",
  "turbo-wordnet",
  "turbo-zoo",
@@ -2591,6 +2570,7 @@ dependencies = [
  "tonic",
  "turbo",
  "turbo-kserve",
+ "turbo-pins",
  "turbo-sha256",
  "turbo-zoo",
 ]
@@ -2753,6 +2733,8 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-glossary",
  "turbo-goldens",
+ "turbo-numeric",
+ "turbo-sha256",
  "turbo-unicode",
 ]
 
@@ -3058,6 +3040,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-gliner",
  "turbo-pins",
  "turbo-sentdetect",
  "turbo-tagger",
@@ -3102,8 +3085,8 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
- "sha2",
  "turbo-maxent",
+ "turbo-sha256",
  "turbo-zstd",
  "ureq",
 ]

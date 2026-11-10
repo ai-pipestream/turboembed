@@ -62,6 +62,9 @@ async fn turbo_search_service_end_to_end() {
     assert!(providers.iter().any(|p| p.id == "turbo-chunker:bm25-posting"));
     assert!(providers.iter().any(|p| p.id == "turbo-vector-index:turboquant"));
     assert!(providers.iter().any(|p| p.id == "turbo-vector-index:token-maxsim"));
+    assert!(client.list_indexes(ListIndexesRequest {}).await.unwrap().into_inner().indexes.is_empty());
+    assert!(client.list_aliases(ListAliasesRequest {}).await.unwrap().into_inner().aliases.is_empty());
+    assert!(client.list_collections(ListCollectionsRequest {}).await.unwrap().into_inner().collections.is_empty());
 
     let col = client
         .set_collection(SetCollectionRequest {
@@ -430,6 +433,31 @@ async fn turbo_search_service_end_to_end() {
     assert_eq!(reindexed.swapped_alias, "active");
     assert_eq!(reindexed.summary.unwrap().chunk_count, 3);
 
+    let listed_ix = client.list_indexes(ListIndexesRequest {}).await.unwrap().into_inner().indexes;
+    let ix_names: Vec<&str> = listed_ix.iter().map(|s| s.index_name.as_str()).collect();
+    assert_eq!(ix_names, vec!["idx-flat", "idx-quant", "idx-quant-reloaded", "idx-v2"]);
+    assert!(listed_ix[0].sealed);
+    assert_eq!(listed_ix[0].chunk_count, 3);
+
+    let listed_aliases = client.list_aliases(ListAliasesRequest {}).await.unwrap().into_inner().aliases;
+    assert_eq!(listed_aliases, vec![AliasEntry { alias: "active".into(), index_name: "idx-v2".into() }]);
+
+    let listed_cols = client.list_collections(ListCollectionsRequest {}).await.unwrap().into_inner().collections;
+    assert_eq!(listed_cols.len(), 1);
+    assert_eq!(listed_cols[0].collection_name, "finance-corpus");
+    assert_eq!(listed_cols[0].total_units, 6);
+
+    client.delete_collection(DeleteCollectionRequest { collection_name: "finance-corpus".into() }).await.unwrap();
+    assert!(client.list_collections(ListCollectionsRequest {}).await.unwrap().into_inner().collections.is_empty());
+    assert_eq!(
+        client
+            .delete_collection(DeleteCollectionRequest { collection_name: "finance-corpus".into() })
+            .await
+            .unwrap_err()
+            .code(),
+        Code::NotFound
+    );
+
     drop(watch_stream);
     drop(strict_watch);
     drop(client);
@@ -439,47 +467,27 @@ async fn turbo_search_service_end_to_end() {
 
 #[tokio::test]
 async fn create_index_validates_quant_bits_before_u8_narrowing() {
-    let srv = Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve::default())
-        .await
-        .expect("start server");
+    let srv = Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve::default()).await.unwrap();
     let mut client = TurboSearchServiceClient::connect(format!("http://{}", srv.local_addr())).await.unwrap();
+    let req = |index_name: String, quant_bits: u32| CreateIndexRequest {
+        spec: Some(IndexSpec {
+            index_name,
+            space: Some(test_space(16)),
+            metric: DistanceMetric::Cosine as i32,
+            storage: VectorStorageKind::TurboQuant as i32,
+            quant_bits,
+            ..Default::default()
+        }),
+        load_from_path: String::new(),
+    };
 
     for (bits, want_bits) in [(0u32, 4u32), (2, 2), (3, 3), (4, 4)] {
-        let summary = client
-            .create_index(CreateIndexRequest {
-                spec: Some(IndexSpec {
-                    index_name: format!("valid-bits-{bits}"),
-                    space: Some(test_space(16)),
-                    metric: DistanceMetric::Cosine as i32,
-                    storage: VectorStorageKind::TurboQuant as i32,
-                    quant_bits: bits,
-                    ..Default::default()
-                }),
-                load_from_path: String::new(),
-            })
-            .await
-            .unwrap()
-            .into_inner()
-            .summary
-            .unwrap();
-        assert_eq!(summary.quant_bits, want_bits, "quant_bits={bits}");
+        let res = client.create_index(req(format!("valid-bits-{bits}"), bits)).await.unwrap().into_inner();
+        assert_eq!(res.summary.unwrap().quant_bits, want_bits, "quant_bits={bits}");
     }
 
     for bad_bits in [1u32, 5, 8, 256, 258, 259, 260, 65_538] {
-        let err = client
-            .create_index(CreateIndexRequest {
-                spec: Some(IndexSpec {
-                    index_name: format!("bad-bits-{bad_bits}"),
-                    space: Some(test_space(16)),
-                    metric: DistanceMetric::Cosine as i32,
-                    storage: VectorStorageKind::TurboQuant as i32,
-                    quant_bits: bad_bits,
-                    ..Default::default()
-                }),
-                load_from_path: String::new(),
-            })
-            .await
-            .unwrap_err();
+        let err = client.create_index(req(format!("bad-bits-{bad_bits}"), bad_bits)).await.unwrap_err();
         assert_eq!(err.code(), Code::InvalidArgument, "expected InvalidArgument for quant_bits={bad_bits}");
     }
 

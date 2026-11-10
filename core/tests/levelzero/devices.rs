@@ -20,8 +20,9 @@ fn the_backend_is_linked_before_the_cpu_and_names_itself() {
 #[test]
 fn listing_turns_the_runtime_s_page_faults_off() {
     let Some(_) = gpu_device("listing_turns_the_runtime_s_page_faults_off") else { return };
-    if !turbo::ze::page_faults_off() {
-        println!("listing_turns_the_runtime_s_page_faults_off: skipped: the caller set EnableRecoverablePageFaults");
+    let faults = turbo::ze::page_faults_off();
+    if *faults != turbo::ze::Faults::Off {
+        println!("listing_turns_the_runtime_s_page_faults_off: skipped: {}", faults.describe());
         return;
     }
     assert_eq!(std::env::var("EnableRecoverablePageFaults").as_deref(), Ok("0"));
@@ -162,7 +163,7 @@ fn embed_is_offered_in_f32_and_f16_as_sessions_run_it() {
         // FASTEST runs the linear layers on the matrix engines in F16.
         let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
         assert_eq!(cap.dtype, want, "precision {p}");
-        assert_eq!(cap.options_honored, 0b1111_1111, "every field of turbo_embed_options but layers (9)");
+        assert_eq!(cap.options_honored, 0b1_1111_1111, "every field of turbo_embed_options, layers too");
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
         assert_eq!(info.compute_dtype, cap.dtype, "precision {p}");
     }

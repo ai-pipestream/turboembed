@@ -10,13 +10,14 @@
 //! are.
 
 use std::fmt;
+use std::sync::Arc;
 
 use aes_gcm::aes::Aes256;
 use fpe::ff1::{FF1, FlexibleNumeralString};
 use turbo_analysis::View;
 use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
-use super::{CryptError, check_key};
+use super::{CryptError, check_key, key_check};
 use crate::rewrite::replace::EditOrigin;
 use crate::rewrite::{PiiRewrite, RewriteError};
 
@@ -79,7 +80,10 @@ impl Ff1Alphabet {
 /// Encrypts the numerals of each mention with FF1 under a 32-byte AES-256
 /// key and a caller tweak.
 pub struct Ff1Encryptor {
-    ff1: FF1<Aes256>,
+    // Shared by clones: FF1 is not Clone, and the key schedule is
+    // zeroised when the last clone drops.
+    ff1: Arc<FF1<Aes256>>,
+    key_check: [u8; 32],
     alphabet: Ff1Alphabet,
     tweak: Vec<u8>,
     refuse_overlaps: bool,
@@ -96,13 +100,45 @@ impl fmt::Debug for Ff1Encryptor {
     }
 }
 
+impl Clone for Ff1Encryptor {
+    fn clone(&self) -> Ff1Encryptor {
+        Ff1Encryptor {
+            ff1: Arc::clone(&self.ff1),
+            key_check: self.key_check,
+            alphabet: self.alphabet,
+            tweak: self.tweak.clone(),
+            refuse_overlaps: self.refuse_overlaps,
+        }
+    }
+}
+
+/// Equal when the key, the alphabet, the tweak and the overlap rule are.
+impl PartialEq for Ff1Encryptor {
+    fn eq(&self, other: &Ff1Encryptor) -> bool {
+        self.key_check == other.key_check
+            && self.alphabet == other.alphabet
+            && self.tweak == other.tweak
+            && self.refuse_overlaps == other.refuse_overlaps
+    }
+}
+
+impl Eq for Ff1Encryptor {}
+
 impl Ff1Encryptor {
+    /// Folds the key (as an HMAC under a fixed label, never itself), the
+    /// alphabet, the tweak and the overlap rule into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        let alphabet = u8::try_from(self.alphabet.radix()).expect("radix 10, 36 or 62");
+        h.bytes(&self.key_check).u8(alphabet).usize(self.tweak.len()).bytes(&self.tweak);
+        h.u8(u8::from(self.refuse_overlaps));
+    }
+
     /// An encryptor of `alphabet` under the 32-byte AES-256 `key`, with an
     /// empty tweak.
     pub fn new(key: &[u8], alphabet: Ff1Alphabet) -> Result<Ff1Encryptor, CryptError> {
         check_key(key)?;
-        let ff1 = FF1::<Aes256>::new(key, alphabet.radix()).expect("the radixes are 10, 36 and 62");
-        Ok(Ff1Encryptor { ff1, alphabet, tweak: Vec::new(), refuse_overlaps: false })
+        let ff1 = Arc::new(FF1::<Aes256>::new(key, alphabet.radix()).expect("the radixes are 10, 36 and 62"));
+        Ok(Ff1Encryptor { ff1, key_check: key_check(key), alphabet, tweak: Vec::new(), refuse_overlaps: false })
     }
 
     /// This encryptor under `tweak`, which decryption must then be given:

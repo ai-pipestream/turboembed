@@ -440,7 +440,7 @@ another way overrides it (#1613).
   an S3-compatible store such as RustFS, in the same
   `<prefix>/blobs/sha256/<hex>` layout: a file is read with one GET and
   kept with one PUT, each signed with AWS Signature Version 4 (computed
-  over `sha2`, no AWS SDK), or unsigned for a public bucket.
+  with `turbo-sha256`, no AWS SDK), or unsigned for a public bucket.
   `S3Bucket::new("s3://bucket/prefix")` is configured the way the AWS
   tools are: `AWS_ENDPOINT_URL_S3` or `AWS_ENDPOINT_URL` for a store
   other than AWS (addressed path-style), `AWS_REGION` or

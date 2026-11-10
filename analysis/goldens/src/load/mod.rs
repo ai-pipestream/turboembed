@@ -28,7 +28,7 @@ pub use error::LoadError;
 
 use crate::compare::{GoldenCompare, check_input, check_shape, shape_of};
 use crate::format::{Golden, GoldenLayer};
-use crate::sha::Sha256;
+use turbo_sha256::Sha256;
 
 /// The key name a golden layer is loaded under unless the caller picks
 /// another.
@@ -206,7 +206,7 @@ fn provenance(golden: &Golden, reads: Vec<KeyId>) -> Provenance {
         field(c.value.as_bytes());
     }
     let digest = sha.finish();
-    let config = u64::from_be_bytes(digest[..8].try_into().expect("eight bytes"));
+    let config = u64::from_be_bytes(digest.0[..8].try_into().expect("eight bytes"));
     Provenance {
         version: intern(&h.opennlp.version),
         config,

@@ -1,17 +1,14 @@
 //! In-process analysis engine backing `turbo_analyzer`: the rule sentence
 //! splitter and rule tokenizer, the PII detector, and the heads of the
-//! bundle the descriptor names (heads/), run a sentence at a time.
-
-use std::sync::Arc;
+//! bundle the descriptor names (heads/), run a sentence at a time. A
+//! bundle with a sentence boundary head finds the sentences in place of
+//! the rule splitter, over the rule tokenizer's tokens.
 
 use turbo_analysis::{
-    Codecs, Document, DocumentGraph, Execution, IxRange, Key, Layer, ModelRef, OffsetTable, Provenance, Span, Spans,
-    Tag, TagSet, ViewId, export, import,
+    Codecs, Document, DocumentGraph, Key, Layer, OffsetTable, Provenance, Span, Spans, Tag, ViewId, export, import,
 };
 use turbo_analysis_layers::export::register_codecs;
-use turbo_analysis_layers::{
-    Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens,
-};
+use turbo_analysis_layers::{Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Tokens};
 use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::RuleSplitter;
 use turbo_tokenize::{TokenizerOptions, simple_spans};
@@ -27,6 +24,7 @@ use super::{
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
 mod direct;
+mod layers;
 
 /// Configuration decoded from `turbo_analyzer_desc` using only the fields
 /// proven present by `struct_size`.
@@ -121,7 +119,33 @@ impl AnalyzerEngine {
         })
     }
 
-    fn sentence_spans(&self, text: &str) -> Vec<Span> {
+    /// Whether the bundle finds the sentences with a head.
+    fn head_sentences(&self) -> bool {
+        self.heads.as_ref().is_some_and(BundleHeads::has_sentences)
+    }
+
+    /// The sentences of `text`: the bundle's sentence boundary head's
+    /// over the rule tokens when it has one, the rule splitter's
+    /// otherwise.
+    fn sentence_spans(&self, text: &str) -> Result<Vec<Span>> {
+        if self.head_sentences() {
+            return self.sentences_over(text, &self.token_spans(text));
+        }
+        Ok(self.rule_sentences(text))
+    }
+
+    /// As [`sentence_spans`](Self::sentence_spans), over `text`'s rule
+    /// tokens `tokens` already made. A head's sentence runs from its
+    /// first token's start to its last token's end.
+    fn sentences_over(&self, text: &str, tokens: &[Span]) -> Result<Vec<Span>> {
+        let Some(heads) = self.heads.as_ref().filter(|h| h.has_sentences()) else {
+            return Ok(self.rule_sentences(text));
+        };
+        let ranges = heads.sentences(&forms(text, tokens)?)?.unwrap_or_default();
+        Ok(ranges.iter().map(|r| Span::new(tokens[r.start].start, tokens[r.end - 1].end)).collect())
+    }
+
+    fn rule_sentences(&self, text: &str) -> Vec<Span> {
         let mut spans = Vec::new();
         self.rule_splitter.split(text, &mut spans);
         spans
@@ -268,7 +292,7 @@ impl AnalyzerEngine {
         let offsets = OffsetTable::build(text);
         let tok_spans = self.token_spans(text);
         let tok_strs = forms(text, &tok_spans)?;
-        let seqs = sequences(&tok_spans, &self.sentence_spans(text));
+        let seqs = sequences(&tok_spans, &self.sentences_over(text, &tok_spans)?);
         let words: Vec<Vec<&str>> = seqs.iter().map(|s| s.iter().map(|&i| tok_strs[i]).collect()).collect();
         let found = heads.run(&words, &Want { entities: true, ..Want::default() })?.entities.expect("asked for");
         let mut builder = SpanPoolBuilder::default();
@@ -327,134 +351,22 @@ impl AnalyzerEngine {
         Ok(builder.finish(Vec::new()))
     }
 
-    /// The provenance of a layer the bundle's heads wrote.
-    fn head_provenance(heads: &BundleHeads, annotator: &'static str) -> Provenance {
-        let mut p = Provenance::by(annotator);
-        p.model = Some(ModelRef {
-            id: heads.model_id.clone(),
-            revision: heads.model_revision.clone(),
-            sha256: heads.manifest_sha256.clone(),
-        });
-        p.execution = Some(Execution {
-            backend: heads.backend.clone(),
-            device: heads.device.clone(),
-            precision: "f32 (model)".into(),
-        });
-        p
-    }
-
-    /// Every layer the bundle's heads write, added to `doc` over its
-    /// tokens, read a sentence at a time.
-    fn add_head_layers(&self, doc: &mut Document, text: &str, tok_spans: &[Span], sent_spans: &[Span]) -> Result<()> {
-        let Some(heads) = &self.heads else { return Ok(()) };
-        let added = |e: turbo_analysis::Error| Error::new(BUNDLE_INVALID, format!("add layer: {e}"));
-        let tok_strs = forms(text, tok_spans)?;
-        let seqs = sequences(tok_spans, sent_spans);
-        let words: Vec<Vec<&str>> = seqs.iter().map(|s| s.iter().map(|&i| tok_strs[i]).collect()).collect();
-        let written = heads.run(&words, &heads.has())?;
-        let n = tok_spans.len();
-        if let Some(decoded) = written.pos {
-            let (mut tags, mut prob) = (vec![Tag(0); n], vec![0.0; n]);
-            for (s, d) in seqs.iter().zip(&decoded) {
-                for (k, &i) in s.iter().enumerate() {
-                    (tags[i], prob[i]) = (Tag(d.tags[k] as u16), d.prob[k]);
-                }
-            }
-            let tagset: Arc<TagSet> = heads.pos_tagset()?.clone();
-            let layer = PosTags { tagset, tags, prob: Some(prob) };
-            doc.add(&Key::<PosTags>::DEFAULT, layer, Self::head_provenance(heads, "turbo-tagger-pos"))
-                .map_err(added)?;
-        }
-        if let Some(decoded) = written.morphology {
-            let tagset: Arc<TagSet> = heads.morph_tagset()?.clone();
-            let mut of: Vec<&str> = vec![""; n];
-            for (s, d) in seqs.iter().zip(&decoded) {
-                for (k, &i) in s.iter().enumerate() {
-                    of[i] = tagset.label(Tag(d.tags[k] as u16));
-                }
-            }
-            let mut feats = Strs::default();
-            for f in of {
-                feats.push(f);
-            }
-            doc.add(
-                &Key::<MorphFeatures<Tokens>>::DEFAULT,
-                MorphFeatures::new(feats),
-                Self::head_provenance(heads, "turbo-tagger-morphology"),
-            )
-            .map_err(added)?;
-        }
-        if let Some(lemmas) = written.lemmas {
-            let mut of: Vec<&str> = vec![""; n];
-            for (s, l) in seqs.iter().zip(&lemmas) {
-                for (&i, lemma) in s.iter().zip(l) {
-                    of[i] = lemma;
-                }
-            }
-            let mut lemma = Strs::default();
-            for l in of {
-                lemma.push(l);
-            }
-            doc.add(&Key::<Lemmas>::DEFAULT, Lemmas { lemma }, Self::head_provenance(heads, "turbo-tagger-lemmas"))
-                .map_err(added)?;
-        }
-        if let Some(parses) = written.dependencies {
-            let (mut head, mut relation) = (vec![None; n], vec![Tag(0); n]);
-            for (s, p) in seqs.iter().zip(&parses) {
-                for (k, &i) in s.iter().enumerate() {
-                    let h = p.heads[k] as usize;
-                    head[i] = (h > 0).then(|| turbo_analysis::Ix::new(s[h - 1] as u32));
-                    relation[i] = Tag(p.relations[k] as u16);
-                }
-            }
-            let layer = Dependencies::<Tokens> { head, relation, relations: heads.relations()?.clone() };
-            doc.add(
-                &Key::<Dependencies<Tokens>>::DEFAULT,
-                layer,
-                Self::head_provenance(heads, "turbo-tagger-dependencies"),
-            )
-            .map_err(added)?;
-        }
-        if let Some(found) = written.entities {
-            let mut layer = Entities {
-                spans: Spans::new(ViewId::SOURCE),
-                tokens: Vec::new(),
-                kind: Vec::new(),
-                kinds: heads.entity_kinds()?.clone(),
-                score: Vec::new(),
-            };
-            for (s, found) in seqs.iter().zip(&found) {
-                for e in found {
-                    let (a, b) = (s[e.start as usize], s[e.end as usize - 1]);
-                    layer.spans.push(Span::new(tok_spans[a].start, tok_spans[b].end));
-                    layer.tokens.push(IxRange::new(a as u32, b as u32 + 1));
-                    layer.kind.push(Tag(e.kind as u16));
-                    layer.score.push(e.prob);
-                }
-            }
-            doc.add(&Key::<Entities>::DEFAULT, layer, Self::head_provenance(heads, "turbo-tagger-entities"))
-                .map_err(added)?;
-        }
-        Ok(())
-    }
-
     pub fn analyze_graph(&self, text: &str) -> Result<AnalysisResultInner> {
         let added = |e: turbo_analysis::Error| Error::new(BUNDLE_INVALID, format!("add layer: {e}"));
         let mut doc = Document::new(text);
-        let sent_vec = self.sentence_spans(text);
+        let tok_vec = self.token_spans(text);
+        forms(text, &tok_vec)?;
+        let sent_vec = self.sentences_over(text, &tok_vec)?;
         let mut sent_spans = Spans::new(ViewId::SOURCE);
         for span in &sent_vec {
             sent_spans.push(*span);
         }
-        doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("turbo:sentdetect"))
-            .map_err(added)?;
-        let tok_vec = self.token_spans(text);
-        forms(text, &tok_vec)?;
-        let mut tok_spans = Spans::new(ViewId::SOURCE);
-        for span in &tok_vec {
-            tok_spans.push(*span);
-        }
-        doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("turbo:tokenize"))
+        let by = match &self.heads {
+            Some(heads) if heads.has_sentences() => Self::head_provenance(heads, "turbo-tagger-sentences"),
+            _ => Provenance::by("turbo:sentdetect"),
+        };
+        doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sent_spans }, by).map_err(added)?;
+        doc.add(&Key::<Tokens>::DEFAULT, layers::tokens_of(&tok_vec), Provenance::by("turbo:tokenize"))
             .map_err(added)?;
         self.add_head_layers(&mut doc, text, &tok_vec, &sent_vec)?;
         let pii = self.pii_detector.layer(text, ViewId::SOURCE);

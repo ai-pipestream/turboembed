@@ -22,7 +22,6 @@ use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
 use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError, TokenizerError, kind_name};
-use crate::checksum::sha256;
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
@@ -126,7 +125,7 @@ impl Sha256Tokenizer {
         if value.is_empty() {
             return Err(TokenizerError::EmptyValue);
         }
-        let hash = sha256::digest(value.as_bytes());
+        let hash = turbo_sha256::sha256(value.as_bytes()).0;
         out.push_str(&self.prefix);
         if self.kind_prefix {
             out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));

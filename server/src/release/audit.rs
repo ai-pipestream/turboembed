@@ -8,7 +8,7 @@ use std::fmt;
 use std::time::Duration;
 
 use tonic::transport::{Channel, Endpoint};
-use turbo_pii::checksum::sha256::Sha256;
+use turbo_sha256::Sha256;
 
 use crate::proto::audit::turbo_audit_service_client::TurboAuditServiceClient;
 use crate::proto::audit::{
@@ -153,5 +153,5 @@ pub fn event_id(key: &EventKey<'_>) -> String {
         }
     }
     bytes(&mut h, key.policy_digest);
-    h.finish().iter().map(|b| format!("{b:02x}")).collect()
+    h.finish().to_hex()
 }

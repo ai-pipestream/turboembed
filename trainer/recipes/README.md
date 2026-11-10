@@ -238,6 +238,58 @@ corpus and its feature rows to the largest split, without changing dev or
 test. Single-corpus cache input is supported; mixed-corpus cache input is
 refused.
 
+`eval-gliner` evaluates a converted pretrained GLiNER checkpoint without
+training a `HEAD_OPEN_SPAN` model. It uses the same corpora, `--hold-out`
+schema, all-type and seen-type scores, per-dataset metrics, baselines and
+paired bootstraps, and writes word-aligned `predictions.bio` beside the
+receipt. Schemas over GLiNER's 32-label prompt limit are scored in label
+batches and decoded together, including candidates from every batch.
+`--threads N` evaluates contiguous partitions on independent model sessions
+and restores their original order. `--split dev` selects the publisher dev
+split for threshold tuning; the default is `test`. Use `--package <converted GLiNER>`
+with `--encoder-bundle <sealed encoder>` and `--device` for backend execution,
+or the package alone for CPU execution. `--guidelines <json>` supplies a
+label-to-prompt map for aliases and annotation guidelines. Gold labels and
+scoring stay unchanged. Long prompts are batched per sentence to fit the
+encoder, and the receipt's peer name includes the full schema digest.
+`--calibrate` is valid only with `--split dev`: it makes two coordinate-ascent
+passes over a fixed 0.05 threshold grid. A label changes only when its
+exact-span F1 improves in the joint flat decode without reducing overall F1.
+Ties prefer overall F1, then the value closest to `--threshold`, then the
+higher value. It writes `thresholds.json`
+containing every label, its threshold, and the full schema digest. Pass that
+file to a later test run with `--thresholds <json>`; evaluation refuses a file
+whose version, labels, schema, or thresholds do not match. Every run writes
+this artifact, including uniform-threshold runs, and its SHA-256 is part of
+the peer identity. Calibration never reads test labels. The per-label filter
+runs before flat overlap resolution across all labels. New artifacts also carry
+`held_thresholds`, fitted independently on the held-out schema's dev
+candidates and used only for held-out decoding. Older artifacts without that
+map use the all-label thresholds for held-out decoding. Candidate tensors are
+reused for calibrated all-label and held-out predictions; only seen labels are
+scored again.
+
+`train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP or NuNER's
+single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and
+boundary features. Each training span
+keeps its gold labels and at most four highest-logit negative labels; gold
+spans are accompanied by up to two hard-negative spans per positive span,
+with a minimum of four. Positive BCE terms have weight 4. `--balance` repeats
+smaller corpus training splits to the largest, and `--hold-out` removes those
+types from every training batch. Each corpus supplies only its declared seen
+labels, so absent types are not treated as negative evidence. The command
+selects the zero-shot initialization or any strictly better epoch by dev F1,
+never evaluates test, and writes the best complete package under `model/`
+plus dev predictions and a receipt. Use `eval-gliner --split dev --calibrate`
+on that package before one frozen test evaluation. `--max-train N` is a
+per-corpus smoke-test or ablation limit, not balanced sampling. `--threads N`
+computes at most N sentences per batch concurrently and reduces their
+gradients in original sentence order; 0 uses the whole batch. Set
+`TURBO_CPU_THREADS=1` when using multiple sentence workers so encoder calls
+do not create nested thread pools. `--anchor W` adds `W * ||params - base||^2`
+to the output-head loss and its exact gradient, limiting drift from the
+pretrained MLP. The default is 0, and the peer identity records the value.
+
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
 10 dev, 10 test), checkpointing `head.safetensors` and `head.json` by

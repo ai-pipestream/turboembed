@@ -57,6 +57,9 @@ async fn progressive_stream_emits_strict_1_based_sequence_and_matches_analyzer_r
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        open_span: None,
+        relations: None,
+        relation_model: String::new(),
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
@@ -187,6 +190,9 @@ async fn progressive_stream_isolates_real_annotator_failure_and_completes_siblin
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        open_span: None,
+        relations: None,
+        relation_model: String::new(),
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
@@ -266,6 +272,9 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        open_span: None,
+        relations: None,
+        relation_model: String::new(),
     };
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
     let first = stream.next().await.unwrap().unwrap();
@@ -288,6 +297,9 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        open_span: None,
+        relations: None,
+        relation_model: String::new(),
     };
     let err = client.analyze_document_progressive(bad_step_req).await.unwrap_err();
     assert_eq!(err.code(), Code::InvalidArgument);
@@ -308,6 +320,9 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        open_span: None,
+        relations: None,
+        relation_model: String::new(),
     };
     let err = client.analyze_document_progressive(bad_model_req).await.unwrap_err();
     assert_eq!(err.code(), Code::InvalidArgument);

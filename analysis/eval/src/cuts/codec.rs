@@ -1,7 +1,6 @@
 use super::{Dump, Header, codecs, cuts_path, graph, key};
 use crate::Result;
 use crate::artifact::{ArtifactKey, EvaluationArtifactStore, PendingArtifact, Publication, TemporaryFileStore};
-use crate::sha::Sha256;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use turbo_analysis::{
@@ -9,6 +8,7 @@ use turbo_analysis::{
     export::{Codecs, DocumentGraph, import},
 };
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences};
+use turbo_sha256::Sha256;
 #[path = "wire.rs"]
 mod wire;
 
@@ -100,7 +100,7 @@ impl Writer {
         self.write(&[0])?;
         self.write(&self.docs.to_le_bytes())?;
         let digest = self.hash.finish();
-        self.out.write_all(&digest).map_err(|e| e.to_string())?;
+        self.out.write_all(&digest.0).map_err(|e| e.to_string())?;
         let receipt = self.out.finalize().map_err(|e| e.to_string())?;
         Ok((receipt, self.docs))
     }
@@ -123,19 +123,22 @@ impl Dump {
         Self::read_from(&TemporaryFileStore::new(path.parent().unwrap_or(Path::new("."))), &key)
     }
     pub fn read_from(store: &dyn EvaluationArtifactStore, name: &ArtifactKey) -> Result<Self> {
-        Self::read_checked(store, name, None)
+        let source = store.open(name).map_err(|e| e.to_string())?;
+        Self::read_stream(source, SetCheck::KeyName(name))
     }
     /// Read an explicitly keyed artifact and check its protected expected set.
     /// Error text omits decoded document identifiers and content.
     pub fn read_at(store: &dyn EvaluationArtifactStore, name: &ArtifactKey, expected_set: &str) -> Result<Self> {
-        Self::read_checked(store, name, Some(expected_set)).map_err(|_| "cut artifact decoding failed".into())
+        let source = store.open(name).map_err(|_| "cut artifact decoding failed".to_owned())?;
+        Self::read_stream(source, SetCheck::Expected(expected_set)).map_err(|_| "cut artifact decoding failed".into())
     }
-    fn read_checked(
-        store: &dyn EvaluationArtifactStore,
-        name: &ArtifactKey,
-        expected_set: Option<&str>,
-    ) -> Result<Self> {
+    /// Read an opaque-keyed artifact from an encrypted store, preserving
+    /// sanitized storage-open errors while redacting decoded identifiers.
+    pub(super) fn read_opaque(store: &dyn EvaluationArtifactStore, name: &ArtifactKey) -> Result<Self> {
         let source = store.open(name).map_err(|e| e.to_string())?;
+        Self::read_stream(source, SetCheck::Opaque).map_err(|_| "cut artifact decoding failed".into())
+    }
+    fn read_stream(source: Box<dyn Read>, check: SetCheck<'_>) -> Result<Self> {
         let mut input = wire::Input::new(BufReader::new(source));
         let magic = input.bytes(wire::MAGIC.len())?;
         if magic == b"turbo-eval cuts 1\n" {
@@ -145,9 +148,10 @@ impl Dump {
             return Err("not a version 2 cut dump".into());
         }
         let header = wire::read_header(&input.chunk(wire::HEADER)?)?;
-        let matches = match expected_set {
-            Some(set) => header.set == set,
-            None => key(&header.set)? == *name,
+        let matches = match check {
+            SetCheck::Expected(set) => header.set == set,
+            SetCheck::KeyName(name) => key(&header.set)? == *name,
+            SetCheck::Opaque => key(&header.set).is_ok(),
         };
         if !matches {
             return Err("cut dump: header set disagrees with artifact key".into());
@@ -163,7 +167,7 @@ impl Dump {
                     let hash = std::mem::take(&mut input.hash).finish();
                     let mut digest = [0; 32];
                     input.source.read_exact(&mut digest).map_err(|e| format!("cut dump: incomplete digest: {e}"))?;
-                    if digest != hash {
+                    if digest != hash.0 {
                         return Err("cut dump: digest mismatch".into());
                     }
                     input.end()?;
@@ -189,4 +193,10 @@ impl Dump {
             }
         }
     }
+}
+
+enum SetCheck<'a> {
+    KeyName(&'a ArtifactKey),
+    Expected(&'a str),
+    Opaque,
 }

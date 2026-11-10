@@ -175,7 +175,7 @@ impl<'f> Minimizer<'f> {
     }
 
     /// The loop of `minimize`: returns why it stopped.
-    pub(super) fn minimize(&mut self, observe: &mut dyn FnMut(&QnIteration, &[f64])) -> Result<QnStop> {
+    pub(super) fn minimize(&mut self, observe: &mut dyn FnMut(&QnIteration, &[f64]) -> bool) -> Result<QnStop> {
         let l1 = self.params.l1();
         // The origin (next_point starts as it), its value and gradient, in
         // the search's own buffers.
@@ -217,7 +217,7 @@ impl<'f> Minimizer<'f> {
             }
             self.updates.update(&self.search);
             let stop = self.converged();
-            observe(
+            let halt = observe(
                 &QnIteration {
                     iteration,
                     value: self.search.value_at_next,
@@ -230,6 +230,9 @@ impl<'f> Minimizer<'f> {
             );
             if let Some(stop) = stop {
                 return Ok(stop);
+            }
+            if halt {
+                return Ok(QnStop::Stopped);
             }
             initial_step = 1.0;
         }

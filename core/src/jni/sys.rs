@@ -58,6 +58,7 @@ const NEW_FLOAT_ARRAY: usize = 181;
 const NEW_DOUBLE_ARRAY: usize = 182;
 const GET_BYTE_ARRAY_REGION: usize = 200;
 const GET_INT_ARRAY_REGION: usize = 203;
+const GET_FLOAT_ARRAY_REGION: usize = 205;
 const SET_BYTE_ARRAY_REGION: usize = 208;
 const SET_INT_ARRAY_REGION: usize = 211;
 const SET_FLOAT_ARRAY_REGION: usize = 213;
@@ -159,6 +160,17 @@ impl Env {
         out
     }
 
+    /// A copy of a `float[]`; empty for NULL.
+    pub fn float_array(&self, array: jfloatArray) -> Vec<f32> {
+        let len = self.array_length(array);
+        let mut out = vec![0f32; len];
+        if len > 0 {
+            let f = entry!(self, GET_FLOAT_ARRAY_REGION, fn(jfloatArray, jsize, jsize, *mut f32) -> ());
+            unsafe { f(self.env, array, 0, len as jsize, out.as_mut_ptr()) };
+        }
+        out
+    }
+
     /// A new `byte[]` holding `bytes`; NULL, with an exception pending, when
     /// the virtual machine is out of memory or the length is over `jsize`.
     pub fn new_byte_array(&self, bytes: &[u8]) -> jbyteArray {
@@ -211,20 +223,37 @@ impl Env {
     /// A new `float[][]` of `rows` rows, each a copy of its slice of
     /// `values`; NULL, with an exception pending, when an allocation fails.
     pub fn new_float_matrix(&self, rows: usize, values: &[f32]) -> jobjectArray {
+        let width = values.len().checked_div(rows).unwrap_or(0);
+        self.new_rows(c"[F", rows, |i| self.new_float_array(&values[i * width..(i + 1) * width]))
+    }
+
+    /// A new `byte[][]` of `rows` rows, as [`Env::new_float_matrix`].
+    pub fn new_byte_matrix(&self, rows: usize, values: &[u8]) -> jobjectArray {
+        let width = values.len().checked_div(rows).unwrap_or(0);
+        self.new_rows(c"[B", rows, |i| self.new_byte_array(&values[i * width..(i + 1) * width]))
+    }
+
+    /// A new `byte[][]` holding each of `rows`, whatever their lengths.
+    pub fn new_byte_rows(&self, rows: &[Vec<u8>]) -> jobjectArray {
+        self.new_rows(c"[B", rows.len(), |i| self.new_byte_array(&rows[i]))
+    }
+
+    /// An array of `rows` arrays of class `row_class`, row `i` made by
+    /// `make(i)`; NULL, with an exception pending, when an allocation fails.
+    fn new_rows(&self, row_class: &CStr, rows: usize, make: impl Fn(usize) -> jobject) -> jobjectArray {
         let Ok(count) = jsize::try_from(rows) else { return std::ptr::null_mut() };
-        let row_class = self.find_class(c"[F");
+        let row_class = self.find_class(row_class);
         if row_class.is_null() {
             return std::ptr::null_mut();
         }
         let new = entry!(self, NEW_OBJECT_ARRAY, fn(jsize, jclass, jobject) -> jobjectArray);
         let matrix = unsafe { new(self.env, count, row_class, std::ptr::null_mut()) };
-        if matrix.is_null() || rows == 0 {
+        if matrix.is_null() {
             return matrix;
         }
-        let width = values.len() / rows;
         let set = entry!(self, SET_OBJECT_ARRAY_ELEMENT, fn(jobjectArray, jsize, jobject) -> ());
-        for (index, row) in values.chunks(width.max(1)).take(rows).enumerate() {
-            let row = self.new_float_array(if width == 0 { &[] } else { row });
+        for index in 0..rows {
+            let row = make(index);
             if row.is_null() {
                 return std::ptr::null_mut();
             }

@@ -15,6 +15,8 @@ import { bundles, capabilities, onCapabilities } from "../state.js";
 let running: AbortController | null = null;
 let page = 0;
 let filter = new Set<string>();
+let openSpanModels = new Set<string>();
+let relationModels = new Set<string>();
 
 const select = (id: string) => $(id) as HTMLSelectElement;
 
@@ -60,12 +62,47 @@ async function run(): Promise<void> {
   const t0 = performance.now();
   say(note, "Analyzing\u2026", "busy");
   try {
+    const model = select("analyze-model").value;
+    const open = openSpanModels.has(model);
+    const relationModel = select("analyze-relation-model").value;
+    const labels = ($("analyze-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
+    const relationLabels = ($("analyze-relation-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
+    const threshold = ($("analyze-threshold") as HTMLInputElement).valueAsNumber;
+    const relationThreshold = ($("analyze-relation-threshold") as HTMLInputElement).valueAsNumber;
+    const guidelineText = ($("analyze-guidelines") as HTMLTextAreaElement).value.trim();
+    const guidelineMap = new Map<string, string>();
+    for (const line of guidelineText ? guidelineText.split("\n") : []) {
+      const at = line.indexOf("=");
+      if (at < 1 || at === line.length - 1) throw new Error("Use label=prompt on each guideline line.");
+      const label = line.slice(0, at).trim();
+      if (guidelineMap.has(label)) throw new Error(`Duplicate guideline for ${label}.`);
+      guidelineMap.set(label, line.slice(at + 1).trim());
+    }
+    const prompts = guidelineText ? labels.map((label) => guidelineMap.get(label) ?? label) : [];
+    if (open && labels.length === 0) throw new Error("Enter at least one open-span label.");
+    if (open && !Number.isFinite(threshold)) throw new Error("Enter a threshold from 0 to 1.");
+    if (relationModel && !open) throw new Error("Select an open-span entity model before running relations.");
+    if (relationModel && relationLabels.length === 0) throw new Error("Enter at least one relation label.");
+    if (relationModel && !Number.isFinite(relationThreshold)) throw new Error("Enter a relation threshold from 0 to 1.");
+    const pipelineSteps = open || relationModel ? ["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"] : [];
+    if (open) pipelineSteps.push("turbo:gliner");
+    if (relationModel) pipelineSteps.push("turbo:zero-shot-relations");
     const req = {
       docId: "page",
       text: (document.getElementById("analyze-text") as HTMLTextAreaElement).value,
       profile: select("analyze-profile").value,
-      model: select("analyze-model").value,
+      model,
+      relationModel,
       offsets: OffsetMode.UTF16,
+      steps: pipelineSteps,
+      openSpan: open ? { labels, prompts, threshold, nested: ($("analyze-nested") as HTMLInputElement).checked } : undefined,
+      relations: relationModel
+        ? {
+            labels: relationLabels.map((name) => ({ name })),
+            threshold: relationThreshold,
+            withinSentence: ($("analyze-relation-sentence") as HTMLInputElement).checked,
+          }
+        : undefined,
     };
     for await (const ev of analysis.analyzeDocumentProgressive(req, { signal: ac.signal })) {
       const ms = (performance.now() - t0).toFixed(1);
@@ -227,8 +264,12 @@ export function init(): void {
     void showWindow();
   });
   onCapabilities((c) => {
+    openSpanModels = new Set(bundles(c, "TASK_OPEN_SPAN"));
+    relationModels = new Set(bundles(c, "TASK_RELATION"));
+    const models = [...bundles(c, "TASK_EMBED"), ...openSpanModels];
     options(select("analyze-profile"), ["", ...c.profiles.map((p) => p.name)], ["default", ...c.profiles.map((p) => `${p.name} v${p.version}`)]);
-    options(select("analyze-model"), ["", ...bundles(c, "TASK_EMBED")], ["none", ...bundles(c, "TASK_EMBED")]);
+    options(select("analyze-model"), ["", ...models], ["none", ...models]);
+    options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
   });
   capabilities().catch(() => undefined);
   void loadFormats();
