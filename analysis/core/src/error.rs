@@ -86,41 +86,44 @@ impl std::error::Error for Error {}
 
 impl Error {
     /// An annotator's input over one of its limits: a static limit name
-    /// and two counts, never document text, so a server may pass it on.
+    /// in [`KNOWN_LIMITS`] (checked by [`known_limit`]) and two counts,
+    /// never document text, so a server may pass it on.
     pub fn over_limit(annotator: &'static str, limit: &'static str, max: usize, got: usize) -> Error {
-        debug_assert!(known_limit(limit).is_some(), "unlisted limit name {limit:?}; add it to error::known_limit");
+        debug_assert!(known_limit(limit).is_some(), "unlisted limit name {limit:?}; add it to error::KNOWN_LIMITS");
         Error::OverLimit { annotator, limit, max, got }
     }
 }
 
+/// All static limit names accepted by [`known_limit`] and [`Error::over_limit`],
+/// in sorted order.
+pub const KNOWN_LIMITS: &[&str] = &[
+    "encoder max_sequence",
+    "glirel max_len",
+    "max_classification_tasks",
+    "max_entity_types",
+    "max_fields_per_structure",
+    "max_labels",
+    "max_labels_per_task",
+    "max_mentions",
+    "max_pairs",
+    "max_prompt_subwords",
+    "max_structures",
+    "max_text_bytes",
+    "max_words",
+    "scorer max_labels",
+    "scorer max_mentions",
+    "tag set",
+];
+
 /// The static limit name matching `name`, if `name` is one of the known
-/// annotator limit names.
+/// annotator limit names in [`KNOWN_LIMITS`].
 ///
 /// An imported [`ErrorRecord::OverLimit`](crate::export::ErrorRecord::OverLimit)
 /// carries a wire string; matching against this closed table avoids
 /// interning or publishing caller-supplied text as a limit name.
 pub fn known_limit(name: &str) -> Option<&'static str> {
-    match name {
-        "encoder max_sequence" => Some("encoder max_sequence"),
-        "glirel max_len" => Some("glirel max_len"),
-        "max_classification_tasks" => Some("max_classification_tasks"),
-        "max_entity_types" => Some("max_entity_types"),
-        "max_fields_per_structure" => Some("max_fields_per_structure"),
-        "max_labels" => Some("max_labels"),
-        "max_labels_per_task" => Some("max_labels_per_task"),
-        "max_mentions" => Some("max_mentions"),
-        "max_pairs" => Some("max_pairs"),
-        "max_prompt_subwords" => Some("max_prompt_subwords"),
-        "max_structures" => Some("max_structures"),
-        "max_text_bytes" => Some("max_text_bytes"),
-        "max_tokens" => Some("max_tokens"),
-        "max_token_bytes" => Some("max_token_bytes"),
-        "max_words" => Some("max_words"),
-        "scorer max_labels" => Some("scorer max_labels"),
-        "scorer max_mentions" => Some("scorer max_mentions"),
-        "tag set" => Some("tag set"),
-        _ => None,
-    }
+    let i = KNOWN_LIMITS.binary_search(&name).ok()?;
+    Some(KNOWN_LIMITS[i])
 }
 
 #[cfg(test)]
@@ -132,7 +135,10 @@ mod tests {
         let e = Error::over_limit("gliner2", "encoder max_sequence", 512, 528);
         assert_eq!(e, Error::OverLimit { annotator: "gliner2", limit: "encoder max_sequence", max: 512, got: 528 });
         assert_eq!(e.to_string(), "gliner2: over its encoder max_sequence 512, got 528");
-        assert_eq!(known_limit("encoder max_sequence"), Some("encoder max_sequence"));
+        assert!(KNOWN_LIMITS.windows(2).all(|w| w[0] < w[1]), "KNOWN_LIMITS must be strictly sorted");
+        for &name in KNOWN_LIMITS {
+            assert_eq!(known_limit(name), Some(name));
+        }
         assert_eq!(known_limit("patient jane doe"), None);
     }
 }
