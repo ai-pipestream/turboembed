@@ -21,7 +21,7 @@ use turbo_kserve::proto::result as pb;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::results::typed::document_to_typed;
 use turbo_pii::rewrite::{Date, DateRewrite, DateShift, RewriteStrategy};
-use turbo_pii::{Pack, PiiStrategyKind};
+use turbo_pii::{Pack, PiiKind, PiiStrategyKind};
 
 fn date(mode: Mode, mask_char: &str) -> Strategy {
     Strategy::Date(pb::PiiDateStrategy { mode: Some(mode), mask_char: mask_char.to_owned() })
@@ -143,6 +143,11 @@ fn a_date_rule_turns_the_date_pack_on() {
     assert_eq!(p.opted_in_packs().collect::<Vec<_>>(), [Pack::Dates]);
     let none = RedactionPolicy::from_proto(&one(Strategy::Mask(pb::PiiMaskStrategy::default())), &NoRegistry).unwrap();
     assert_eq!(none.opted_in_packs().count(), 0, "a policy without a date rule keeps the default packs");
+    // Each opt-in pack scans the one kind its rule is matched on.
+    for (pack, kind) in [(Pack::Dates, PiiKind::Date), (Pack::Money, PiiKind::Currency)] {
+        let kinds: Vec<PiiKind> = pack.scanners().iter().flat_map(|s| s.kinds().iter()).collect();
+        assert_eq!(kinds, [kind], "{pack:?}");
+    }
 }
 
 #[test]

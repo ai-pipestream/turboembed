@@ -76,10 +76,12 @@ impl RedactionPolicy {
     /// are in most texts and only some are a person's, so `AllStructured`
     /// leaves them out until a policy asks for them.
     pub fn opted_in_packs(&self) -> impl Iterator<Item = Pack> + '_ {
-        [Pack::Dates, Pack::Money].into_iter().filter(|p| {
-            let kinds: Vec<PiiKind> = p.scanners().iter().flat_map(|s| s.kinds().iter()).collect();
-            self.rules.iter().any(|r| r.enabled && kinds.contains(&r.kind))
-        })
+        // The rule kinds against each pack's one kind: nothing is built
+        // for a policy that names neither.
+        [(Pack::Dates, PiiKind::Date), (Pack::Money, PiiKind::Currency)]
+            .into_iter()
+            .filter(|&(_, kind)| self.rules.iter().any(|r| r.enabled && r.kind == kind))
+            .map(|(pack, _)| pack)
     }
 
     /// The detector of `pack` configured by this policy, with the opt-in

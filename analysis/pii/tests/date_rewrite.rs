@@ -108,6 +108,26 @@ fn a_keyed_offset_is_one_per_context_and_never_zero() {
 }
 
 #[test]
+fn no_shift_writes_a_value_back_as_it_was() {
+    // A keyed offset under a month still moves a month mention.
+    for i in 0..200 {
+        let s = DateShift::default().keyed(&KEY, &format!("document-{i}"), 30).unwrap();
+        let n = s.keyed_days();
+        let out = DateRewrite::shift(s).apply("July 2026");
+        let want = if n > 0 { "August 2026" } else { "June 2026" };
+        assert_eq!(out, want, "offset {n}");
+    }
+    // A net shift of nothing masks the date whole.
+    assert_eq!(DateRewrite::shift(DateShift::fixed(0, 0, 0)).apply("2026-07-14"), "**********");
+    assert_eq!(DateRewrite::shift(DateShift::fixed(0, 0, 0)).apply("July 2026"), "*********");
+    let keyed = DateShift::default().keyed(&KEY, "document-1", 30).unwrap();
+    let n = keyed.keyed_days();
+    let cancel = DateShift::fixed(0, 0, i32::try_from(-n).unwrap()).keyed(&KEY, "document-1", 30).unwrap();
+    assert_eq!(DateRewrite::shift(cancel.clone()).apply("July 14, 2026"), "*************");
+    assert_eq!(DateRewrite::shift(cancel).apply("July 2026"), "*********");
+}
+
+#[test]
 fn keyed_shifts_check_their_key_and_range() {
     assert_eq!(DateShift::default().keyed(&[1; 31], "c", 30).err(), Some(DateShiftError::ShortKey(31)));
     assert_eq!(DateShift::default().keyed(&KEY, "c", 0).err(), Some(DateShiftError::MaxDays(0)));

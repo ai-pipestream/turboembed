@@ -356,7 +356,9 @@ message PiiDateYear
 // months, then by days, then by the keyed offset. A day past the end of
 // the new month becomes its last day, so January 31 plus one month is
 // the end of February and a leap day plus a year is February 28. A month
-// mention moves as its first day does.
+// mention moves as its first day does, or one month the days' way when
+// they would leave it in its own month. A shift that would write a value
+// back as it was masks it whole.
 message PiiDateShift
 {
   // Each negative for earlier.

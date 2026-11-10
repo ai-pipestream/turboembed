@@ -14,7 +14,9 @@
 //!   form). Months and years keep the day where it exists and take the
 //!   month's last day where it does not, so January 31 plus one month is
 //!   the end of February and a leap day plus a year is February 28. A
-//!   month mention moves as its first day does.
+//!   month mention moves as its first day does, and at least one month
+//!   the days' way when they move it less than that. A shift that would
+//!   write a value back as it was masks it whole.
 //! - [`DateMode::Relative`] writes the date relative to a reference date
 //!   the caller passes (`3 months ago`), never the clock, so the same
 //!   input gives the same output.
@@ -106,7 +108,8 @@ impl DateShift {
     /// document (its id as the context) or of one patient moves by the
     /// same number of days and the intervals between them stay; dates
     /// under another context move by another. Never zero, so no date
-    /// stays as written.
+    /// stays as written: a shift whose net effect leaves a value as it was
+    /// (a fixed shift cancelling the offset) masks it whole.
     pub fn keyed(mut self, key: &[u8], context: &str, max_days: u32) -> Result<DateShift, DateShiftError> {
         if key.len() < DateShift::MIN_KEY_BYTES {
             return Err(DateShiftError::ShortKey(key.len()));
@@ -145,6 +148,26 @@ impl DateShift {
         let magnitude = (word >> 1) % u64::from(k.max_days) + 1;
         let magnitude = magnitude as i64;
         if word & 1 == 0 { magnitude } else { -magnitude }
+    }
+
+    /// `was` moved, or `None` when it leaves the `Date` range. A month
+    /// moves as its first day does; when that lands in the same month and
+    /// the days moved are not zero, it moves one month their way, so a
+    /// keyed offset under a month still changes the month.
+    fn moved(&self, was: Stated) -> Option<Stated> {
+        match was {
+            Stated::Day(d) => self.apply(d).map(Stated::Day),
+            Stated::Month { year, month } => {
+                let first = Date::new(year, month, 1)?;
+                let mut d = self.apply(first)?;
+                let months = i64::from(self.years) * 12 + i64::from(self.months);
+                let days = i64::from(self.days) + self.keyed_days();
+                if (d.year(), d.month()) == (year, month) && days != 0 {
+                    d = first.plus_months(months + days.signum())?;
+                }
+                Some(Stated::Month { year: d.year(), month: d.month() })
+            }
+        }
     }
 
     /// `date` moved, or `None` when it leaves the `Date` range.
@@ -271,13 +294,9 @@ impl DateRewrite {
                 true
             }
             DateMode::Shift(s) => {
-                let moved = match was {
-                    Stated::Day(d) => s.apply(d).map(Stated::Day),
-                    Stated::Month { year, month } => Date::new(year, month, 1)
-                        .and_then(|d| s.apply(d))
-                        .map(|d| Stated::Month { year: d.year(), month: d.month() }),
-                };
-                moved.is_some_and(|m| form::write_like(value, was, m, out))
+                // A shift that would write the value back as it was masks
+                // it instead, so no date under a shift stays readable.
+                s.moved(was).is_some_and(|m| m != was && form::write_like(value, was, m, out))
             }
             DateMode::Relative(r) => {
                 relative::write_relative(was, *r, out);

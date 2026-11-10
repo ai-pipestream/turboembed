@@ -511,7 +511,12 @@ the source text into the rewritten text and back
     ordinals (`14th` becomes `2nd`), zero-padded days and separators stay.
     A day past the end of the new month becomes its last day (January 31
     plus one month is the end of February, a leap day plus a year is
-    February 28), and a month mention moves as its first day does.
+    February 28), and a month mention moves as its first day does, or one
+    month the days' way when they would leave it in its own month
+    (`July 2026` under a 10-day shift becomes `August 2026`). A shift
+    whose net effect would write a value back as it was (no offset, or a
+    fixed shift that cancels the keyed one) masks it whole, so no date
+    under a shift stays readable.
     `DateShift::keyed(key, context, max_days)` adds 1 to `max_days` days,
     earlier or later, chosen by HMAC-SHA-256 of `context` under a key of
     at least 32 bytes: never zero, and the same for every date with that
