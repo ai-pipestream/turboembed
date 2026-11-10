@@ -25,6 +25,19 @@ fi
 DEVICE="${TURBO_E2E_DEVICE:-0}"
 
 cargo build --locked -p turbo-kserve -p turbo-kserve-demo
+# The binaries just built: Cargo's own target directory, which
+# CARGO_TARGET_DIR or a Cargo config may put somewhere other than target/.
+TARGET="$(cargo metadata --locked --no-deps --format-version 1 | node -e '
+  let text = "";
+  process.stdin.on("data", (d) => (text += d));
+  process.stdin.on("end", () => console.log(JSON.parse(text).target_directory));')"
+DEBUG="$TARGET/debug"
+for exe in turbo-kserve turbo-kserve-demo; do
+  if [[ ! -x "$DEBUG/$exe" ]]; then
+    echo "error: $DEBUG/$exe is not there after the build" >&2
+    exit 1
+  fi
+done
 npm ci --prefix demo/web --ignore-scripts --no-audit --no-fund >/dev/null
 BIN="$ROOT/demo/web/node_modules/.bin"
 
@@ -48,14 +61,14 @@ read -r SERVER_PORT DEMO_PORT < <(node -e '
 
 mkdir "$WORK/vocabulary" "$WORK/catalog" "$WORK/training"
 BERT="bundle=testdata/tiny-bert-bundle,device=$DEVICE,sessions=1"
-target/debug/turbo-kserve --listen "127.0.0.1:$SERVER_PORT" \
+"$DEBUG/turbo-kserve" --listen "127.0.0.1:$SERVER_PORT" \
   --vocabulary-dir "$WORK/vocabulary" --catalog-dir "$WORK/catalog" --training-dir "$WORK/training" \
   --model "$BERT" \
   --model "name=tiny-bert-fastest,$BERT,precision=PRECISION_FASTEST" \
   --model "name=tiny-bert-exact,$BERT,precision=PRECISION_EXACT" \
   --model "bundle=testdata/tiny-modernbert-bundle,device=$DEVICE,sessions=1" >"$WORK/server.log" 2>&1 &
 PIDS+=($!)
-target/debug/turbo-kserve-demo --listen "127.0.0.1:$DEMO_PORT" \
+"$DEBUG/turbo-kserve-demo" --listen "127.0.0.1:$DEMO_PORT" \
   --server "http://127.0.0.1:$SERVER_PORT" >"$WORK/demo.log" 2>&1 &
 PIDS+=($!)
 

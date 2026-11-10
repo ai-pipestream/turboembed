@@ -10,6 +10,10 @@ container, no GPU.
   main at ca6264e0. All three tests fail; the two layout tests list 19
   faults at 1280 px and 22 at 390 px.
 - `green.log`: the same run with the change. All three pass.
+- `green-other-target.log`: the run with `CARGO_TARGET_DIR` naming
+  another directory and no `target/debug` in the checkout. All three
+  pass: the script starts the binaries from Cargo's own target
+  directory.
 
 Each picture is the same tab before (left) and after (right), full page
 from the top, taken by the same run:

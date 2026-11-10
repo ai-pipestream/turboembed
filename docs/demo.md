@@ -512,7 +512,10 @@ the page makes goes through the demo to the server.
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in
 `TURBO_E2E_SCALE` (default 1). `TURBO_E2E_DEVICE` is the server's device
-index of the CPU (default 0). The run needs a Chromium the pinned
+index of the CPU (default 0). The binaries started are the ones that
+build wrote, in the target directory `cargo metadata` names, so
+`CARGO_TARGET_DIR` and a configured target directory are followed. The
+run needs a Chromium the pinned
 Playwright can launch; `npx --prefix demo/web playwright install
 chromium` fetches one. Playwright 1.63.0 is pinned exactly in
 `demo/web/package.json` as a development dependency of this run alone:
