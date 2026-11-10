@@ -1,7 +1,7 @@
 //! Unkeyed SHA-256 hex digest replacement ([`Sha256Tokenizer`]).
 //!
 //! By default, each mention is replaced with the 64 lowercase hexadecimal
-//! digits of the SHA-256 digest ([`crate::checksum::sha256::digest`]) of its
+//! digits of the SHA-256 digest ([`turbo_sha256::sha256`]) of its
 //! normalized UTF-8 value. Callers may also request a shorter prefix (4 to
 //! 64 hex digits) or prepend the uppercase kind tag (`EMAIL-<hex>`) or a
 //! custom prefix.
