@@ -633,9 +633,11 @@ training of a 640-document `train-relation` (`echo 2 >
 copy, a suspend during them, and the reset 641 ms after it.
 
 The backend therefore turns the runtime's recoverable page faults off:
-before it opens the loader it sets `NEOReadDebugKeys=1` and
-`EnableRecoverablePageFaults=0` in the process's environment, and a
-context's debug log line says so. The kernel then rebinds evicted buffers
+once it has opened the loader, and before `zeInitDrivers` starts the
+drivers, it sets `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0`
+in the process's environment, and a context's debug log line says so. A
+process with no loader gets nothing set, and an `npu`-only build never
+sets them. The kernel then rebinds evicted buffers
 itself before the queue runs again and does not suspend the queue for
 other clients' jobs. With them off, six runs of six of that
 reproduction completed with no fault and no suspend of the queue, at the
@@ -646,6 +648,15 @@ faulting memory: every buffer it hands the device is the driver's own.
 - A caller that sets `EnableRecoverablePageFaults` itself, to anything,
   keeps its value, and `NEOReadDebugKeys` is then not touched; `-1` is the
   runtime's default, with the faults on.
+- A caller that sets `NEOReadDebugKeys` to anything but `1` keeps it, and
+  `EnableRecoverablePageFaults` is not set either: turning the keys on
+  would switch on every other debug key in that environment. The log line
+  says the faults were left on.
+- The variables are written with `setenv`, which is not safe while
+  another thread of the process is in `getenv` or `setenv` (a JVM host's
+  native threads, for one). The first `turbo_runtime_create` that opens
+  the loader must not race such a thread; a host that cannot promise
+  that sets `EnableRecoverablePageFaults` itself, and nothing is written.
 - The runtime reads the variables when it starts. A process that has
   already loaded it another way (OpenCL, SYCL, oneDNN on its own) before
   the first `turbo_runtime_create` keeps what it started with; set the
