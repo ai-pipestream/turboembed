@@ -300,7 +300,6 @@ impl Annotator for BoundGlossaryAnnotator {
     const VERSION: &'static str = GlossaryAnnotator::VERSION;
     type Reads = <GlossaryAnnotator as Annotator>::Reads;
     type Writes = <GlossaryAnnotator as Annotator>::Writes;
-
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.clone())
     }
@@ -334,9 +333,7 @@ impl VocabularyResolver {
         base: &ResolvedVocabulary,
         override_binding: Option<&VocabularyBinding>,
     ) -> Result<ResolvedVocabulary, Failure> {
-        let Some(b) = override_binding else {
-            return Ok(base.clone());
-        };
+        let Some(b) = override_binding else { return Ok(base.clone()) };
         let stopwords = match &b.stopwords {
             Some(r) => Some(self.resolve_stopwords("vocabulary.stopwords", r)?),
             None => base.stopwords.clone(),
@@ -348,7 +345,7 @@ impl VocabularyResolver {
         Ok(ResolvedVocabulary { stopwords, glossary })
     }
 
-    fn check_store(&self, field: &str, r: &VocabularyArtifactRef) -> Result<&Arc<Store>, Failure> {
+    fn read_checked(&self, field: &str, r: &VocabularyArtifactRef) -> Result<(&Arc<Store>, Stored), Failure> {
         check_artifact_ref(field, r)?;
         let store = self.store.as_ref().ok_or_else(|| ref_failure(field, &r.artifact_id, ResolveError::NoRegistry))?;
         match store.check_digest(&r.artifact_id, &r.sha256) {
@@ -356,11 +353,16 @@ impl VocabularyResolver {
                 let key = (r.artifact_id.clone(), r.sha256.clone());
                 self.stopwords.lock().unwrap_or_else(|p| p.into_inner()).remove(&key);
                 self.glossaries.lock().unwrap_or_else(|p| p.into_inner()).remove(&key);
-                Err(ref_failure(field, &r.artifact_id, ResolveError::NotRegistered))
+                return Err(ref_failure(field, &r.artifact_id, ResolveError::NotRegistered));
             }
-            Some(false) => Err(ref_failure(field, &r.artifact_id, ResolveError::DigestMismatch)),
-            Some(true) => Ok(store),
+            Some(false) => return Err(ref_failure(field, &r.artifact_id, ResolveError::DigestMismatch)),
+            Some(true) => {}
         }
+        let stored = store
+            .read(&r.artifact_id)
+            .map_err(|_| ref_failure(field, &r.artifact_id, ResolveError::Unreadable))?
+            .ok_or_else(|| ref_failure(field, &r.artifact_id, ResolveError::NotRegistered))?;
+        Ok((store, stored))
     }
 
     pub(crate) fn resolve_stopwords(
@@ -368,17 +370,12 @@ impl VocabularyResolver {
         field: &str,
         r: &VocabularyArtifactRef,
     ) -> Result<Arc<ResolvedStopwords>, Failure> {
-        let store = self.check_store(field, r)?;
+        let (_, stored) = self.read_checked(field, r)?;
         let key = (r.artifact_id.clone(), r.sha256.clone());
         if let Some(hit) = self.stopwords.lock().unwrap_or_else(|p| p.into_inner()).get(&key).cloned() {
             return Ok(hit);
         }
-        let stored = store
-            .read(&r.artifact_id)
-            .map_err(|_| ref_failure(field, &r.artifact_id, ResolveError::Unreadable))?
-            .ok_or_else(|| ref_failure(field, &r.artifact_id, ResolveError::NotRegistered))?;
-        let resolved = build_stopwords(&stored, &r.sha256).map_err(|e| ref_failure(field, &r.artifact_id, e))?;
-        let arc = Arc::new(resolved);
+        let arc = Arc::new(build_stopwords(&stored, &r.sha256).map_err(|e| ref_failure(field, &r.artifact_id, e))?);
         self.stopwords.lock().unwrap_or_else(|p| p.into_inner()).insert(key, Arc::clone(&arc));
         Ok(arc)
     }
@@ -388,19 +385,14 @@ impl VocabularyResolver {
         field: &str,
         r: &VocabularyArtifactRef,
     ) -> Result<Arc<ResolvedGlossary>, Failure> {
-        let store = self.check_store(field, r)?;
+        let (store, stored) = self.read_checked(field, r)?;
         let key = (r.artifact_id.clone(), r.sha256.clone());
         if let Some(hit) = self.glossaries.lock().unwrap_or_else(|p| p.into_inner()).get(&key).cloned() {
             return Ok(hit);
         }
-        let has_header_row = store.dictionary(&r.artifact_id).is_some_and(|d| d.has_header_row);
-        let stored = store
-            .read(&r.artifact_id)
-            .map_err(|_| ref_failure(field, &r.artifact_id, ResolveError::Unreadable))?
-            .ok_or_else(|| ref_failure(field, &r.artifact_id, ResolveError::NotRegistered))?;
-        let resolved =
-            build_glossary(&stored, &r.sha256, has_header_row).map_err(|e| ref_failure(field, &r.artifact_id, e))?;
-        let arc = Arc::new(resolved);
+        let has_hdr = store.dictionary(&r.artifact_id).is_some_and(|d| d.has_header_row);
+        let arc =
+            Arc::new(build_glossary(&stored, &r.sha256, has_hdr).map_err(|e| ref_failure(field, &r.artifact_id, e))?);
         self.glossaries.lock().unwrap_or_else(|p| p.into_inner()).insert(key, Arc::clone(&arc));
         Ok(arc)
     }

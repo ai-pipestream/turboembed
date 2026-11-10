@@ -2,13 +2,15 @@
 //! into `AnalyzeStream`, `AnalyzeDocumentProgressive`, and `LoadBundle`
 //! without a restart (issue `#2013`).
 
+#[path = "gliner_progressive/fixture.rs"]
+mod gliner_fixture;
 mod vocab;
 
 use tokio_stream::StreamExt;
 use tonic::Code;
 use turbo_analysis::export::{DocumentGraph, import};
 use turbo_analysis::{Document, Key, Layer, ViewId};
-use turbo_analysis_layers::Tokens;
+use turbo_analysis_layers::{Entities, Tokens};
 use turbo_glossary_layers::GlossaryTerms;
 use turbo_keywords::Keywords;
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
@@ -20,7 +22,7 @@ use turbo_kserve::proto::result::analyze_stream_response::Outcome;
 use turbo_kserve::proto::result::{
     AnalyzeDocument, AnalyzeOutput, AnalyzePipelineRequest, AnalyzeStreamHeader, AnalyzeStreamRequest,
     CapabilitiesRequest, DocumentGraphResponse, InspectDocumentGraphRequest, LoadBundleRequest, ModelRef, OffsetMode,
-    ProcessingReceipt, VocabularyArtifactRef, VocabularyBinding,
+    OpenSpanSchema, ProcessingReceipt, VocabularyArtifactRef, VocabularyBinding,
 };
 use turbo_kserve::proto::vocabulary::LearnVocabularyHeader;
 use turbo_kserve::results::document::codecs;
@@ -37,8 +39,9 @@ fn tiny_bundle_path() -> std::path::PathBuf {
 }
 
 fn model_cfg(name: &str) -> ModelConfig {
+    let bundle = tiny_bundle_path().to_str().unwrap().into();
     ModelConfig {
-        bundle: tiny_bundle_path().to_str().unwrap().into(),
+        bundle,
         name: Some(name.into()),
         device: Device::Index(0),
         precision: 0,
@@ -50,14 +53,8 @@ fn model_cfg(name: &str) -> ModelConfig {
 
 async fn start_server(vocabulary: Option<std::path::PathBuf>, preload: bool) -> (Server, AnalysisClient, VocabClient) {
     let models = if preload { vec![model_cfg("base")] } else { Vec::new() };
-    let s = Server::start(
-        "127.0.0.1:0".parse().unwrap(),
-        models,
-        MAX,
-        Serve { admin: true, vocabulary, ..Serve::default() },
-    )
-    .await
-    .unwrap();
+    let serve = Serve { admin: true, vocabulary, ..Serve::default() };
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), models, MAX, serve).await.unwrap();
     if preload {
         s.load().await.unwrap();
     }
@@ -79,24 +76,12 @@ fn gloss_bind(id: &str, sha256: &str) -> VocabularyBinding {
     VocabularyBinding { stopwords: None, glossary: Some(art_ref(id, sha256)) }
 }
 
-async fn run_progressive(
+async fn run_progressive_req(
     ac: &mut AnalysisClient,
-    model: &str,
-    text: &str,
-    vocabulary: Option<VocabularyBinding>,
+    req: AnalyzePipelineRequest,
 ) -> (DocumentGraphResponse, ProcessingReceipt, Document) {
-    let req = AnalyzePipelineRequest {
-        doc_id: "doc-vocab".into(),
-        text: text.into(),
-        offsets: OffsetMode::Utf8 as i32,
-        profile: "default".into(),
-        model: model.into(),
-        vocabulary,
-        ..Default::default()
-    };
     let mut stream = ac.analyze_document_progressive(req).await.unwrap().into_inner();
-    let mut complete = None;
-    let mut receipt = None;
+    let (mut complete, mut receipt) = (None, None);
     while let Some(ev) = stream.next().await {
         match ev.unwrap().event {
             Some(Event::Complete(c)) => complete = Some(c),
@@ -104,11 +89,30 @@ async fn run_progressive(
             _ => {}
         }
     }
-    let complete = complete.expect("Complete event");
-    let receipt = receipt.expect("Receipt event");
-    let graph = DocumentGraph::from_bytes(&complete.graph).unwrap();
-    let doc = import(&graph, codecs()).unwrap();
+    let (complete, receipt) = (complete.expect("Complete event"), receipt.expect("Receipt event"));
+    let doc = import(&DocumentGraph::from_bytes(&complete.graph).unwrap(), codecs()).unwrap();
     (complete, receipt, doc)
+}
+
+async fn run_progressive(
+    ac: &mut AnalysisClient,
+    model: &str,
+    text: &str,
+    vocabulary: Option<VocabularyBinding>,
+) -> (DocumentGraphResponse, ProcessingReceipt, Document) {
+    run_progressive_req(
+        ac,
+        AnalyzePipelineRequest {
+            doc_id: "doc-vocab".into(),
+            text: text.into(),
+            offsets: OffsetMode::Utf8 as i32,
+            profile: "default".into(),
+            model: model.into(),
+            vocabulary,
+            ..Default::default()
+        },
+    )
+    .await
 }
 
 async fn run_stream_graph(
@@ -117,37 +121,30 @@ async fn run_stream_graph(
     text: &str,
     vocabulary: Option<VocabularyBinding>,
 ) -> (DocumentGraphResponse, Document) {
+    let doc = AnalyzeDocument {
+        id: "stream-doc-1".into(),
+        model: model.into(),
+        text: text.as_bytes().to_vec(),
+        output: AnalyzeOutput::DocumentGraph as i32,
+        offsets: OffsetMode::Utf8 as i32,
+        vocabulary,
+        ..Default::default()
+    };
     let requests = vec![
-        AnalyzeStreamRequest {
-            kind: Some(Kind::Header(AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 0 })),
-        },
-        AnalyzeStreamRequest {
-            kind: Some(Kind::Document(AnalyzeDocument {
-                id: "stream-doc-1".into(),
-                model: model.into(),
-                text: text.as_bytes().to_vec(),
-                output: AnalyzeOutput::DocumentGraph as i32,
-                offsets: OffsetMode::Utf8 as i32,
-                vocabulary,
-                ..Default::default()
-            })),
-        },
+        AnalyzeStreamRequest { kind: Some(Kind::Header(AnalyzeStreamHeader::default())) },
+        AnalyzeStreamRequest { kind: Some(Kind::Document(doc)) },
     ];
     let mut stream = ac.analyze_stream(tokio_stream::iter(requests)).await.unwrap().into_inner();
     let resp = stream.next().await.unwrap().unwrap();
     assert_eq!(resp.id, "stream-doc-1");
-    let Some(Outcome::DocumentGraph(dg)) = resp.outcome else {
-        panic!("expected DocumentGraph outcome, got {:?}", resp.outcome);
-    };
-    let graph = DocumentGraph::from_bytes(&dg.graph).unwrap();
-    let doc = import(&graph, codecs()).unwrap();
+    let Some(Outcome::DocumentGraph(dg)) = resp.outcome else { panic!("expected DocumentGraph") };
+    let doc = import(&DocumentGraph::from_bytes(&dg.graph).unwrap(), codecs()).unwrap();
     (dg, doc)
 }
 
 fn flagged_tokens(doc: &Document) -> Vec<String> {
-    let tokens = doc.get::<Tokens>().expect("turbo:tokens");
-    let stop = doc.get::<Stopwords>().expect("turbo:stopwords");
-    let text = doc.text(ViewId::SOURCE);
+    let (tokens, stop, text) =
+        (doc.get::<Tokens>().unwrap(), doc.get::<Stopwords>().unwrap(), doc.text(ViewId::SOURCE));
     tokens
         .spans
         .iter()
@@ -158,15 +155,13 @@ fn flagged_tokens(doc: &Document) -> Vec<String> {
 }
 
 fn matched_glossary(doc: &Document) -> Vec<(String, String)> {
-    let terms = doc.get::<GlossaryTerms>().expect("turbo:glossary-terms");
-    let text = doc.text(ViewId::SOURCE);
+    let (terms, text) = (doc.get::<GlossaryTerms>().expect("turbo:glossary-terms"), doc.text(ViewId::SOURCE));
     terms
         .spans
         .iter()
         .zip(&terms.entry)
         .map(|((_, sp), &ix)| {
-            let entry = terms.glossary.get(ix);
-            (entry.id.to_owned(), text[sp.start as usize..sp.end as usize].to_owned())
+            (terms.glossary.get(ix).id.to_owned(), text[sp.start as usize..sp.end as usize].to_owned())
         })
         .collect()
 }
@@ -358,7 +353,6 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
         .load_bundle(LoadBundleRequest {
             name: "bound-model".into(),
             bundle: tiny_bundle_path().to_str().unwrap().into(),
-            device: 0,
             sessions: 1,
             vocabulary: Some(bundle_vocab.clone()),
             ..Default::default()
@@ -368,7 +362,7 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
         .into_inner();
     assert_eq!(loaded.capabilities.as_ref().unwrap().vocabulary, Some(bundle_vocab.clone()));
     let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
-    assert_eq!(caps.bundles[0].vocabulary, Some(bundle_vocab));
+    assert_eq!(caps.bundles[0].vocabulary, Some(bundle_vocab.clone()));
 
     // Model-free progressive request does not inherit from an unrelated named bundle (#2036).
     let (_, _, free_doc) = run_progressive(&mut ac, "", TEXT, None).await;
@@ -388,6 +382,40 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
     let (_, over_doc) = run_stream_graph(&mut ac, "bound-model", TEXT, Some(override_vocab)).await;
     assert_eq!(flagged_tokens(&over_doc), vec!["Zebulon".to_owned()]);
     assert_eq!(matched_glossary(&over_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
+
+    // GLiNER bundles also advertise and apply their bound default vocabulary (#2036).
+    let gliner_loaded = ac
+        .load_bundle(LoadBundleRequest {
+            name: "bound-gliner".into(),
+            bundle: gliner_fixture::package().to_str().unwrap().into(),
+            sessions: 1,
+            vocabulary: Some(bundle_vocab.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(gliner_loaded.capabilities.as_ref().unwrap().vocabulary, Some(bundle_vocab.clone()));
+    let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert_eq!(caps.bundles.iter().find(|b| b.name == "bound-gliner").unwrap().vocabulary, Some(bundle_vocab.clone()));
+    let gliner_req = |vocabulary: Option<VocabularyBinding>| AnalyzePipelineRequest {
+        doc_id: "gliner-vocab".into(),
+        text: TEXT.into(),
+        model: "bound-gliner".into(),
+        steps: vec!["turbo-tokenize:uax29-untyped".into(), "turbo-stopword:bundled".into(), "turbo:gliner".into()],
+        open_span: Some(OpenSpanSchema { labels: vec!["person".into()], threshold: Some(0.0), nested: false }),
+        vocabulary,
+        ..Default::default()
+    };
+    let (_, _, gliner_default_doc) = run_progressive_req(&mut ac, gliner_req(None)).await;
+    let (_, _, gliner_explicit_doc) = run_progressive_req(&mut ac, gliner_req(Some(bundle_vocab))).await;
+    assert_eq!(flagged_tokens(&gliner_default_doc), vec!["Quixotl".to_owned()]);
+    assert_eq!(flagged_tokens(&gliner_explicit_doc), vec!["Quixotl".to_owned()]);
+    assert_eq!(matched_glossary(&gliner_default_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
+    assert!(!gliner_default_doc.get::<Entities>().unwrap().spans.is_empty());
+    let (_, gliner_stream_doc) = run_stream_graph(&mut ac, "bound-gliner", TEXT, None).await;
+    assert_eq!(flagged_tokens(&gliner_stream_doc), vec!["Quixotl".to_owned()]);
+    assert_eq!(matched_glossary(&gliner_stream_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
     server.stop().await;
 }
 
@@ -406,29 +434,21 @@ async fn wrong_digest_unknown_id_wrong_format_and_no_store_are_refused_with_type
         ("bad hex digest", sw_bind(&sw.artifact_id, "not-a-sha256"), "64 lowercase hexadecimal digits"),
         ("unknown artifact", sw_bind("missing-artifact", &sw.sha256), "not registered"),
         ("path traversal id", sw_bind("../etc/passwd", &sw.sha256), "looks like a file path"),
-        (
-            "wrong format for stopwords",
-            sw_bind(&map.artifact_id, &map.sha256),
-            "headword-definition-tsv is not taken here",
-        ),
+        ("wrong format for stopwords", sw_bind(&map.artifact_id, &map.sha256), "headword-definition-tsv is not taken"),
         ("wrong format for glossary", gloss_bind(&sw.artifact_id, &sw.sha256), "plain-word-list is not taken here"),
     ];
 
     for (label, vocab, want_msg) in cases {
-        let prog_err = ac
-            .analyze_document_progressive(AnalyzePipelineRequest {
-                doc_id: "bad".into(),
-                text: TEXT.into(),
-                profile: "default".into(),
-                vocabulary: Some(vocab.clone()),
-                ..Default::default()
-            })
-            .await
-            .err()
-            .unwrap_or_else(|| panic!("{label}: expected progressive refusal"));
+        let prog_req = AnalyzePipelineRequest {
+            doc_id: "bad".into(),
+            text: TEXT.into(),
+            profile: "default".into(),
+            vocabulary: Some(vocab.clone()),
+            ..Default::default()
+        };
+        let prog_err = ac.analyze_document_progressive(prog_req).await.err().unwrap();
         assert_eq!(refusal(&prog_err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT), "{label}");
-        assert!(prog_err.message().contains(want_msg), "{label}: got {:?}", prog_err.message());
-        assert!(!prog_err.message().contains(secret_word), "{label}: leaked secret word");
+        assert!(prog_err.message().contains(want_msg) && !prog_err.message().contains(secret_word), "{label}");
 
         let stream_reqs = vec![
             AnalyzeStreamRequest { kind: Some(Kind::Header(AnalyzeStreamHeader::default())) },
@@ -444,47 +464,31 @@ async fn wrong_digest_unknown_id_wrong_format_and_no_store_are_refused_with_type
             },
         ];
         let mut st = ac.analyze_stream(tokio_stream::iter(stream_reqs)).await.unwrap().into_inner();
-        let ans = st.next().await.unwrap().unwrap();
-        let Some(Outcome::Failure(fail)) = ans.outcome else {
-            panic!("{label}: expected AnalyzeFailure on stream, got {:?}", ans.outcome);
-        };
+        let Some(Outcome::Failure(fail)) = st.next().await.unwrap().unwrap().outcome else { panic!("{label}") };
         assert_eq!(fail.turbo_code, TURBO_E_INVALID_ARGUMENT, "{label}");
-        assert!(fail.message.contains(want_msg), "{label}: got {:?}", fail.message);
-        assert!(!fail.message.contains(secret_word), "{label}: leaked secret word");
+        assert!(fail.message.contains(want_msg) && !fail.message.contains(secret_word), "{label}");
 
-        let load_err = ac
-            .load_bundle(LoadBundleRequest {
-                name: "bad-bundle".into(),
-                bundle: tiny_bundle_path().to_str().unwrap().into(),
-                device: 0,
-                sessions: 1,
-                vocabulary: Some(vocab),
-                ..Default::default()
-            })
-            .await
-            .err()
-            .unwrap_or_else(|| panic!("{label}: expected LoadBundle refusal"));
+        let load_req = LoadBundleRequest {
+            name: "bad-bundle".into(),
+            bundle: tiny_bundle_path().to_str().unwrap().into(),
+            sessions: 1,
+            vocabulary: Some(vocab),
+            ..Default::default()
+        };
+        let load_err = ac.load_bundle(load_req).await.expect_err(label);
         assert_eq!(refusal(&load_err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT), "{label}");
-        assert!(load_err.message().contains(want_msg), "{label}: got {:?}", load_err.message());
-        assert!(!load_err.message().contains(secret_word), "{label}: leaked secret word");
+        assert!(load_err.message().contains(want_msg) && !load_err.message().contains(secret_word), "{label}");
     }
-
     server.stop().await;
 
     let (no_vocab_server, mut no_vocab_ac, _) = start_server(None, false).await;
-    let err = no_vocab_ac
-        .analyze_document_progressive(AnalyzePipelineRequest {
-            doc_id: "no-store".into(),
-            text: TEXT.into(),
-            profile: "default".into(),
-            vocabulary: Some(VocabularyBinding {
-                stopwords: Some(art_ref(&sw.artifact_id, &sw.sha256)),
-                glossary: None,
-            }),
-            ..Default::default()
-        })
-        .await
-        .expect_err("expected refusal without vocabulary store");
+    let no_store_req = AnalyzePipelineRequest {
+        doc_id: "no-store".into(),
+        text: TEXT.into(),
+        vocabulary: Some(sw_bind(&sw.artifact_id, &sw.sha256)),
+        ..Default::default()
+    };
+    let err = no_vocab_ac.analyze_document_progressive(no_store_req).await.expect_err("expected refusal");
     assert_eq!(refusal(&err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT));
     assert!(err.message().contains("the server has no registry for it"), "got: {}", err.message());
     no_vocab_server.stop().await;

@@ -86,9 +86,9 @@ impl AnalysisService for Analysis {
             if let Some(loaded) = m.loaded.get() {
                 bundles.push(bundle_capabilities(&m.name, loaded).map_err(plain)?);
             } else if let Some(model) = m.gliner.get() {
-                bundles.push(gliner_capabilities(&m.name, model));
+                bundles.push(gliner_capabilities(&m.name, model, &m.vocabulary));
             } else if let Some(model) = m.relations.get() {
-                bundles.push(relation_capabilities(&m.name, model));
+                bundles.push(relation_capabilities(&m.name, model, &m.vocabulary));
             }
         }
         Ok(Response::new(CapabilitiesResponse {
@@ -138,9 +138,9 @@ impl AnalysisService for Analysis {
         let capabilities = if let Some(loaded) = registered.loaded.get() {
             bundle_capabilities(&registered.name, loaded).map_err(plain)?
         } else if let Some(model) = registered.gliner.get() {
-            gliner_capabilities(&registered.name, model)
+            gliner_capabilities(&registered.name, model, &registered.vocabulary)
         } else if let Some(model) = registered.relations.get() {
-            relation_capabilities(&registered.name, model)
+            relation_capabilities(&registered.name, model, &registered.vocabulary)
         } else {
             return Err(plain(Failure::new(
                 TURBO_E_INVALID_STATE,

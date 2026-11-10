@@ -84,7 +84,11 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
     })
 }
 
-pub(crate) fn gliner_capabilities(name: &str, model: &turbo_gliner::Model) -> BundleCapabilities {
+pub(crate) fn gliner_capabilities(
+    name: &str,
+    model: &turbo_gliner::Model,
+    vocabulary: &crate::vocabulary::ResolvedVocabulary,
+) -> BundleCapabilities {
     let identity = model.identity();
     BundleCapabilities {
         name: name.to_owned(),
@@ -109,11 +113,15 @@ pub(crate) fn gliner_capabilities(name: &str, model: &turbo_gliner::Model) -> Bu
             max_words: 384,
         }),
         head_steps: vec!["turbo:gliner".into()],
-        vocabulary: None,
+        vocabulary: vocabulary.to_proto(),
     }
 }
 
-pub(crate) fn relation_capabilities(name: &str, model: &turbo_relation::Gliner2Relations) -> BundleCapabilities {
+pub(crate) fn relation_capabilities(
+    name: &str,
+    model: &turbo_relation::Gliner2Relations,
+    vocabulary: &crate::vocabulary::ResolvedVocabulary,
+) -> BundleCapabilities {
     let identity = model.model();
     BundleCapabilities {
         name: name.to_owned(),
@@ -138,7 +146,7 @@ pub(crate) fn relation_capabilities(name: &str, model: &turbo_relation::Gliner2R
             max_words: 512,
         }),
         head_steps: vec!["turbo:zero-shot-relations".into()],
-        vocabulary: None,
+        vocabulary: vocabulary.to_proto(),
     }
 }
 

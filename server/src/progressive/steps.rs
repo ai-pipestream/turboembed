@@ -215,7 +215,13 @@ pub(crate) fn compile_analyzer_with_state(
     };
     let embed_cx =
         resolve_embed_context(state, model_name, profile_name, required_bundles, &step_vec, gliner.is_some())?;
-    let vocab = block5::resolve_vocabulary(state, model_name, embed_cx.as_ref().map(|cx| &*cx.loaded), vocabulary)?;
+    let vocab = block5::resolve_vocabulary(
+        state,
+        model_name,
+        relation_model,
+        embed_cx.as_ref().map(|cx| &*cx.loaded),
+        vocabulary,
+    )?;
     compile_pipeline_with(initial_doc, step_names, embed_cx, gliner, relation, profile_name, redaction, &vocab)
 }
 

@@ -162,11 +162,7 @@ impl State {
         let metrics = Metrics::new();
         Self {
             models: RwLock::new(
-                names
-                    .into_iter()
-                    .zip(models)
-                    .map(|(name, config)| Served::new(name, config, Default::default()))
-                    .collect(),
+                names.into_iter().zip(models).map(|(n, c)| Served::new(n, c, Default::default())).collect(),
             ),
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
@@ -250,17 +246,23 @@ impl State {
         Ok((m.clone(), m.loaded.get().cloned()))
     }
 
+    /// A ready registration of any supported kind (`loaded`, `gliner`, or `relations`).
+    pub(crate) fn ready_served(&self, name: &str) -> api::Result<Arc<Served>> {
+        let (m, _) = self.peek(name)?;
+        if !gliner::is_loaded(&m) {
+            return Err(Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", m.name)));
+        }
+        Ok(m)
+    }
+
     /// A ready model, the version empty or its revision.
     pub(crate) fn ready(&self, name: &str, version: &str) -> api::Result<(Arc<Served>, Arc<Loaded>)> {
         let (m, loaded) = self.peek(name)?;
         let l = loaded
             .ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", m.name)))?;
         if !version.is_empty() && version != l.revision {
-            return Err(Failure::new(
-                TURBO_E_BUNDLE_NOT_FOUND,
-                0,
-                format!("model {} has version {}, not {version}", m.name, l.revision),
-            ));
+            let msg = format!("model {} has version {}, not {version}", m.name, l.revision);
+            return Err(Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 0, msg));
         }
         Ok((m, l))
     }
@@ -393,11 +395,8 @@ impl State {
         let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
         if !matches!(info.task, TURBO_TASK_EMBED | TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) {
-            return Err(fail("turbo_model_get_info", &[])(Failure::new(
-                TURBO_E_UNSUPPORTED_TASK,
-                0,
-                format!("unsupported task {}", info.task),
-            )));
+            let f = Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {}", info.task));
+            return Err(fail("turbo_model_get_info", &[])(f));
         }
         let qa = if info.task == TURBO_TASK_EXTRACTIVE_QA {
             Some(crate::tasks::QaModel::load(&c.bundle).map_err(fail("turbo_model_load", &[]))?)
@@ -430,10 +429,9 @@ impl State {
                 let b = ctx
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
                     .map_err(fail("turbo_buffer_alloc", &[]))?;
-                let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
-                Ok::<_, LoadError>((b, p))
+                Ok::<_, LoadError>((b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?, b))
             };
-            let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
+            let ((a, ids), (b, mask), (t, types)) = (alloc()?, alloc()?, alloc()?);
             slots.push(Slot {
                 _buffers: [ids, mask, types],
                 ptrs: [a, b, t],
@@ -487,12 +485,8 @@ impl LoadError {
     /// Converts the load failure to its mapped gRPC Status with `turbo-code`
     /// and `turbo-field` trailing metadata.
     pub fn to_status(&self) -> tonic::Status {
-        let f = Failure::new(
-            self.failure.code,
-            self.failure.field,
-            format!("model {}: {}: {}", self.model, self.call, self.failure.message),
-        );
-        crate::status::to_status(&f, self.fields)
+        let msg = format!("model {}: {}: {}", self.model, self.call, self.failure.message);
+        crate::status::to_status(&Failure::new(self.failure.code, self.failure.field, msg), self.fields)
     }
 }
 

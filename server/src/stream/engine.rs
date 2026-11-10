@@ -349,23 +349,16 @@ impl Engine {
                 for row in rows {
                     let mut response = match row.payload {
                         RowPayload::Vector(data) => {
-                            let vectors = crate::proto::result::AnalyzeVectors {
-                                model: model.clone(),
-                                version: version.clone(),
-                                dim,
-                                data,
-                                quantization,
-                            };
-                            ok_response(row.id, vectors)
+                            let (model, version) = (model.clone(), version.clone());
+                            ok_response(
+                                row.id,
+                                crate::proto::result::AnalyzeVectors { model, version, dim, data, quantization },
+                            )
                         }
                         RowPayload::Codes(data) => {
-                            let codes = crate::proto::result::VectorCodesResult {
-                                model: model.clone(),
-                                version: version.clone(),
-                                dim,
-                                data,
-                                quantization,
-                            };
+                            let (model, version) = (model.clone(), version.clone());
+                            let codes =
+                                crate::proto::result::VectorCodesResult { model, version, dim, data, quantization };
                             let outcome = crate::proto::result::analyze_stream_response::Outcome::VectorCodes(codes);
                             AnalyzeStreamResponse { id: row.id, outcome: Some(outcome), binding: None }
                         }

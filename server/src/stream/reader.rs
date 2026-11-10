@@ -48,17 +48,24 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
         }
         let resolved_model = if d.model.is_empty() {
             None
+        } else if d.output == AnalyzeOutput::DocumentGraph as i32 {
+            let served = state.ready_served(&d.model)?;
+            let loaded = served.loaded.get().cloned();
+            if let Some(l) = &loaded {
+                room.bind_device(l.device);
+            }
+            Some((served, loaded))
         } else {
             let (served, loaded) = state.ready(&d.model, "")?;
             room.bind_device(loaded.device);
-            if loaded.task != turbo::TURBO_TASK_EMBED && d.output != AnalyzeOutput::DocumentGraph as i32 {
+            if loaded.task != turbo::TURBO_TASK_EMBED {
                 return Err(Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"));
             }
-            Some((served, loaded))
+            Some((served, Some(loaded)))
         };
         let doc_opts = handler::doc_options(d.output, d.offsets, d.options.as_ref())?;
         let default_vocab = crate::vocabulary::ResolvedVocabulary::default();
-        let base_vocab = resolved_model.as_ref().map_or(&default_vocab, |(_, loaded)| &loaded.vocabulary);
+        let base_vocab = resolved_model.as_ref().map_or(&default_vocab, |(served, _)| &served.vocabulary);
         let vocabulary = state.vocabulary_resolver.resolve_merged(base_vocab, d.vocabulary.as_ref())?;
         if doc_opts.output == AnalyzeOutput::DocumentGraph {
             if std::str::from_utf8(&d.text).is_err() {
@@ -68,12 +75,14 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
             if std::str::from_utf8(&d.text).is_err() {
                 return Err(Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"));
             }
-            let (_, loaded) = resolved_model.as_ref().expect("model required for embed outputs");
+            let (_, Some(loaded)) = resolved_model.as_ref().expect("model required for embed outputs") else {
+                unreachable!()
+            };
             let embed = loaded.embed()?;
             embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k)?;
         }
         if let Some(r) = &doc_opts.int8_ranges {
-            let Some((_, loaded)) = resolved_model.as_ref() else {
+            let Some((_, Some(loaded))) = resolved_model.as_ref() else {
                 return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 8, "int8_ranges requires a loaded embedding model"));
             };
             // The library reads 2 x the resolved width: the table must be that long.
@@ -97,11 +106,20 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
         Err(f) => return Err(Box::new((id, d.binding, f, room))),
     };
     let (loaded, model, version, batch_limit) = match resolved_model {
-        Some((served, loaded)) => {
+        Some((served, Some(loaded))) => {
             let batch_limit = loaded.slots[0].info.max_batch;
             let version = loaded.revision.clone();
             let model = served.name.clone();
             (Some(loaded), model, version, batch_limit)
+        }
+        Some((served, None)) => {
+            let version = served
+                .gliner
+                .get()
+                .map(|g| g.identity().revision.clone())
+                .or_else(|| served.relations.get().map(|r| r.model().revision.clone()))
+                .unwrap_or_default();
+            (None, served.name.clone(), version, crate::stream::MAX_INFLIGHT_ITEMS_PER_STREAM as u32)
         }
         None => (None, String::new(), String::new(), crate::stream::MAX_INFLIGHT_ITEMS_PER_STREAM as u32),
     };
