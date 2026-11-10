@@ -291,7 +291,8 @@ impl MaskPolicy {
             | PiiKind::Date
             | PiiKind::Currency
             | PiiKind::State
-            | PiiKind::County => whole.keeping_format(),
+            | PiiKind::County
+            | PiiKind::City => whole.keeping_format(),
             PiiKind::Jwt
             | PiiKind::AwsAccessKey
             | PiiKind::GithubToken

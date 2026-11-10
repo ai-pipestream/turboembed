@@ -6,6 +6,7 @@ mod address;
 mod age;
 mod br;
 mod card;
+mod city;
 mod county;
 mod crypto;
 mod date;
@@ -82,6 +83,8 @@ pub enum Extractor {
     UsState,
     /// `UsCountyPiiExtractor`: United States counties of the Census list.
     UsCounty,
+    /// `CityPiiExtractor`: cities of the bundled gazetteer, by state or label.
+    City,
     /// A caller-defined extractor (`PiiExtractor`).
     Custom(&'static str),
 }
@@ -113,6 +116,7 @@ impl Extractor {
             Extractor::Money => PiiKinds::of(&[Currency]),
             Extractor::UsState => PiiKinds::of(&[State]),
             Extractor::UsCounty => PiiKinds::of(&[County]),
+            Extractor::City => PiiKinds::of(&[City]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
@@ -139,6 +143,7 @@ impl Extractor {
             Extractor::Money => "MoneyPiiExtractor",
             Extractor::UsState => "UsStatePiiExtractor",
             Extractor::UsCounty => "UsCountyPiiExtractor",
+            Extractor::City => "CityPiiExtractor",
             Extractor::Custom(name) => name,
         }
     }
@@ -167,6 +172,7 @@ impl Extractor {
             Extractor::Money => "turbo-pii:money",
             Extractor::UsState => "turbo-pii:us-state",
             Extractor::UsCounty => "turbo-pii:us-county",
+            Extractor::City => "turbo-pii:city",
             Extractor::Custom(name) => name,
         }
     }
@@ -193,6 +199,7 @@ impl Extractor {
             Extractor::Money => 17,
             Extractor::UsState => 18,
             Extractor::UsCounty => 19,
+            Extractor::City => 20,
         }
     }
 }
@@ -458,6 +465,7 @@ impl Scanner {
             Extractor::Money => money::scan(text, hits),
             Extractor::UsState => state::scan(text, hits),
             Extractor::UsCounty => county::scan(text, hits),
+            Extractor::City => city::scan(text, hits),
             Extractor::Custom(_) => {}
         }
     }

@@ -21,6 +21,8 @@ fpe = { version = "0.7.0", default-features = false, features = ["alloc"], optio
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-glossary = { path = "../glossary" }
+# The bundled gazetteer the city kind reads.
+turbo-geo = { path = "../geo" }
 # The temporal and money scanners the date and currency kinds read.
 turbo-numeric = { path = "../numeric" }
 turbo-sha256 = { path = "../sha256" }

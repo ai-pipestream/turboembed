@@ -69,12 +69,12 @@ impl CustomExtractor for Identifiers {
 const OPT_IN: [(Pack, &[PiiKind]); 3] = [
     (Pack::Dates, &[PiiKind::Date]),
     (Pack::Money, &[PiiKind::Currency]),
-    (Pack::Places, &[PiiKind::State, PiiKind::County]),
+    (Pack::Places, &[PiiKind::State, PiiKind::County, PiiKind::City]),
 ];
 
 /// Whether `kind` is one of the [`OPT_IN`] kinds, as one comparison.
 const fn opt_in_kind(kind: PiiKind) -> bool {
-    matches!(kind, PiiKind::Date | PiiKind::Currency | PiiKind::State | PiiKind::County)
+    matches!(kind, PiiKind::Date | PiiKind::Currency | PiiKind::State | PiiKind::County | PiiKind::City)
 }
 
 impl RedactionPolicy {

@@ -922,9 +922,10 @@ itself: an enabled rule for `date`, `currency`, `state` or `county`
 adds that pack's scanners to the `turbo-pii:pii` step, which otherwise
 runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
 
-### States and counties
+### States, counties and cities
 
-`state` and `county` take ids 43 and 44, in the opt-in `Places` pack.
+`state`, `county` and `city` take ids 43, 44 and 45, in the opt-in
+`Places` pack.
 
 - `state` (new `UsState` extractor, `UsStatePiiExtractor`,
   `turbo-pii:us-state`; `analysis/pii/src/scan/state.rs`): the name of a
@@ -938,8 +939,15 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   state; a county word that makes no county of the list leaves the state
   (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
   `OK`), so it is a mention only in capitals and only directly after a
-  state label (`State: OR`) or before a ZIP code (`Springfield, IL
-  62704`). The normalized form is the USPS code (`IL`).
+  state label (`State: OR`) or before a ZIP code that ends an address,
+  by what comes before the code: a comma (`Springfield, IL 62704`), a
+  city of that state in the bundled gazetteer and one space
+  (`Springfield IL 62704 is`), or the start of a line when only blanks
+  follow the ZIP code to the line's end or a clause's end (`IL 62704`,
+  `IL 62704, USA`). After any other
+  word (`Order IN 12345.`, `PART OR 90210`), or with a word after a line's
+  code and number (`IN 12345 units`), the number is a count, not a
+  state. The normalized form is the USPS code (`IL`).
 - `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
   `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
   county equivalent of the Census Bureau's 2020 county list
@@ -955,10 +963,34 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   normalized as the list spells it; a state named beside it (`Cook
   County, Illinois`) is a mention of its own.
   The 1,918 names are in `analysis/pii/src/tables/us_counties.txt`.
+- `city` (new `City` extractor, `CityPiiExtractor`, `turbo-pii:city`;
+  `analysis/pii/src/scan/city.rs`): a populated place of the bundled
+  gazetteer (`turbo_geo::BundledGazetteer`, Natural Earth's 7,342
+  populated places, public domain), matched by the gazetteer's own rule
+  (case, accents and punctuation folded). Many city names are also
+  common words or given names (`Mobile`, `Phoenix`, `Jackson`), so a name
+  is a mention only in one of two settings:
+  - directly before a comma, a space and a US state's or territory's
+    name or USPS code, when the gazetteer holds a place of that name
+    there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
+    `Mobile, IL`). The gazetteer files the territories under their own
+    country codes, which are their USPS codes;
+  - directly after a city label, as any place of that name: `city of
+    residence`, `place of birth`, `city of` and `town of` with or without
+    a colon, and `birthplace`, `city/town`, `city` and `town` only with
+    one (`City: Phoenix`, `the city of Mobile`), as `the city Council`
+    names none. A known name that a space and a capitalized word follow
+    is the start of a longer name (`City: San Foo`), so it is no mention.
+
+  A bare name (`Chicago is large`) is no mention. The name has at most
+  five words with single spaces between them, and its first and last
+  words start with a capital (`Rio de Janeiro`). The longest name wins,
+  and the normalized form is the gazetteer's name (`Sao Paulo` for
+  `São Paulo`). A city and the state after it are two mentions.
 
 A place name starts and ends where no letter, digit, combining mark or
 `_` touches it (`text::name_char`, `on_name_start`, `on_name_end`), at
-both ends of a state name, a county name and a USPS code. So
+both ends of a state name, a county name, a city name and a USPS code. So
 `x_Illinois`, `Illinois_x`, `e` + U+0301 + `Illinois`, `Cook County_x`
 and `Washington_County` hold no place, while `Illinois-based` and
 `(Cook County)` do. The other scanners keep the shared letter-or-digit
@@ -989,9 +1021,13 @@ project-authored memo of places and near misses (`places-memos.txt`):
 |---|---|---:|---:|---:|---:|---:|
 | `state` | third-party MASC (`29`) + project-authored (`11`) | 40 | 0 | 0 | 1.000 | 1.000 |
 | `county` | project-authored (`places-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
+| `city` | third-party MASC (`24`) + project-authored (`12`) | 9 | 0 | 27 | 1.000 | 0.250 |
 
 The MASC documents name no county, so the county figures are only those
-of the memo written for it.
+of the memo written for it. The `city` gold marks every reference to a
+city, bare names in running prose included (`in Rouen`, `the Boston
+area`), so its recall counts what the two settings above leave out: all
+27 misses are names with no state after them and no label before them.
 
 ## Custom extractors and scanner rules
 
