@@ -207,6 +207,19 @@ frameworks and libc++, which every macOS has.
   vector bit for bit. The session's output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, made with the
   session, so a range run allocates nothing either.
+- **Token head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head, F32 `[2, hidden]` and its bias,
+  copied once into a shared buffer of the model's. A range write that
+  asks for the head pools each range's whole vector, unnormalized, and a
+  third kernel, one SIMD group per output value, applies the head in
+  F32 after the pool: each lane sums its products by fused multiply-add
+  in dimension order, then the lanes by `simd_sum`. The run hands out a
+  `[ranges, 2]` F32 buffer of logits, made with the session for
+  `max_ranges`, so a QA window's result is 8 bytes a token rather than
+  its hidden state. `core/tests/metal_qa.rs` holds the logits within
+  1e-5 of the head applied in F64 to the CPU backend's hidden states, at
+  EXACT and MODEL, and `extractive_qa_logits_match_upstream` holds them
+  to the reference at MODEL, EXACT and FASTEST (docs/conformance.md).
 - **Numerics.** F32 throughout. Apple GPUs have no F64, so where the CPU
   encoder sums in F64 this backend sums in F32: LayerNorm takes the mean,
   then the variance around it, in two passes, and the L2 norm is summed

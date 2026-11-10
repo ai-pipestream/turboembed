@@ -1489,6 +1489,9 @@ enum PiiStrategy
   PII_STRATEGY_DATE_SHIFT = 15;
   // A date relative to a reference date (PiiDateStrategy.relative).
   PII_STRATEGY_DATE_RELATIVE = 16;
+  // A date truncated to its year, with years indicating an age over 89 as
+  // one category (PiiDateStrategy.safe_harbor).
+  PII_STRATEGY_DATE_SAFE_HARBOR = 17;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

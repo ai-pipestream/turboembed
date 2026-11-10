@@ -174,8 +174,8 @@ range writes and so open QA sessions; they are reached only by naming them in
 `QaOptions`, as `ExtractiveQa::open`, which the bundle check and the annotator
 use, stays on the CPU. Level Zero is held to the reference and the CPU path by
 `core/tests/levelzero_qa.rs` and the conformance check, and applies the span
-head on the device, as CUDA does (docs/levelzero.md). Metal has not been run
-against the reference here, and does not apply the span head yet (`token_head`
-in `turbo_backend.h`), so on it each token's final hidden state still comes
-back to the host for it, about 1.2 MB a 384-token RoBERTa-base window. The
+head on the device, as CUDA does (docs/levelzero.md). Metal is held to them by
+`core/tests/metal_qa.rs` and the conformance check, and applies the span head
+on the device too, so a window's result is its `[tokens, 2]` logits
+(docs/metal.md, Token head); no real QA bundle has been timed on it. The
 threshold is not calibrated on held-out data.

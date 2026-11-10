@@ -403,9 +403,11 @@ Packing sentences into shared windows is 1.3x to 1.6x faster than one window
 per sentence. The native annotator is 2.3x to 2.7x faster than the Python
 reference on one thread.
 
-knowledgator/gliner-multitask-large-v0.5 (Apache-2.0) cannot be converted. It
-uses `span_mode: token_level` on DeBERTa-v3-large with max_width 100, while
-the converter and the heads support only the markerV0 profile.
+knowledgator/gliner-multitask-large-v0.5 uses `span_mode: token_level` on
+DeBERTa-v3-large with max_width 100. Its token scorer produces start, end, and
+inside logits for every token-label pair. A span logit is the minimum of its
+boundary and inside logits. The native converter supports this profile,
+including checkpoints without a prompt projection, with widths up to 100.
 
 ## Conversion and loading
 

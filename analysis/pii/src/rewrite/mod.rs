@@ -6,7 +6,8 @@
 //! ([`MapReplacer`]), partial character retention ([`Truncate`]), initials
 //! abbreviation ([`Abbreviator`]), HIPAA Safe Harbor ZIP generalization
 //! ([`ZipSafeHarbor`]) and age aggregation ([`AgeSafeHarbor`]), date
-//! truncation, shifting and relative dates ([`DateRewrite`]), and
+//! truncation, shifting, relative dates and Safe Harbor date years
+//! ([`DateRewrite`]), and
 //! composable per-kind policies
 //! ([`RewritePolicy`], [`RewriteStrategy`]).
 //!
@@ -55,7 +56,7 @@ pub use abbreviate::Abbreviator;
 pub use age_safe_harbor::AgeSafeHarbor;
 pub use audit::{KindReport, PiiAuditReport};
 pub use chosen::{Choice, StrategyChooser, rewrite_chosen};
-pub use date::{DateMode, DateRewrite, DateShift, DateShiftError};
+pub use date::{DateMode, DateRewrite, DateShift, DateShiftError, safe_harbor_category, safe_harbor_cutoff};
 pub use format::{FormatError, FormatRedactor, StaticReplacer};
 pub use hmac::{HmacTokenizer, TokenizerError};
 pub use map::{MapError, MapReplacer, MapTarget, TSV_DELIMITER};
