@@ -50,7 +50,11 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
     let mut at = suffix;
     while n < starts.len() && at >= 2 && text.as_bytes()[at - 1] == b' ' {
         let word_end = at - 1;
-        let mut start = text[..word_end].rfind(|c: char| c.is_whitespace()).map_or(0, |p| p + 1);
+        let mut start = text[..word_end]
+            .char_indices()
+            .rev()
+            .find(|&(_, c)| c.is_whitespace())
+            .map_or(0, |(p, c)| p + c.len_utf8());
         // Leading punctuation (`(Cook County`) is not part of the name.
         let Some(lead) = text[start..word_end].find(|c: char| c.is_alphanumeric()) else { break };
         start += lead;

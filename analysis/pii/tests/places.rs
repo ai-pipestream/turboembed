@@ -87,6 +87,8 @@ fn county_names_end_in_their_own_word() {
         ("from Mayagüez Municipio", "Mayagüez Municipio", "Mayagüez Municipio"),
         ("Doña Ana County", "Doña Ana County", "Doña Ana County"),
         ("Washington County records", "Washington County", "Washington County"),
+        ("in\u{a0}Cook County", "Cook County", "Cook County"),
+        ("in\u{2003}Orleans Parish", "Orleans Parish", "Orleans Parish"),
     ] {
         assert_eq!(one(text), (written.to_owned(), "county", name.to_owned()), "{text:?}");
     }
@@ -102,6 +104,8 @@ fn what_is_no_county_name() {
         "Baltimore city",
         "a big Area",
         "Cook  County",
+        "the\u{a0}bay area",
+        "\u{3000}Area",
     ] {
         assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
     }
