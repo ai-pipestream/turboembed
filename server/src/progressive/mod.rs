@@ -4,6 +4,7 @@
 //! streams [`AnalyzeProgressiveEvent`] messages with strictly increasing 1-based
 //! sequence numbers as each branch completes.
 
+mod config;
 mod normalize;
 pub mod profiles;
 pub mod seed;
@@ -49,7 +50,9 @@ pub use profiles::{
     ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
     profile_capabilities,
 };
-pub(crate) use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state, compile_pipeline};
+pub(crate) use steps::{
+    CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, StepOptions, compile_analyzer_with_state, compile_pipeline,
+};
 pub use steps::{compile_analyzer, compile_analyzer_with_redaction, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
@@ -232,6 +235,8 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
                 .map_err(|e| plain(bad(e.to_string())))?,
         ),
     };
+    let open_span = config::open_span(req.open_span.as_ref()).map_err(plain)?;
+    let relations = config::relations(req.relations.as_ref());
     compile_analyzer_with_state(
         initial_doc,
         &step_names,
@@ -239,8 +244,13 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
         &req.model,
         profile_name,
         required_bundles,
-        redaction.as_ref(),
-        req.vocabulary.as_ref(),
+        StepOptions {
+            redaction: redaction.as_ref(),
+            open_span,
+            relations,
+            relation_model: &req.relation_model,
+            vocabulary: req.vocabulary.as_ref(),
+        },
     )
     .map_err(plain)
 }

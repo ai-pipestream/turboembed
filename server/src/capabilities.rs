@@ -5,7 +5,7 @@
 
 use crate::api::{self, Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM};
 use crate::config::{Device, ModelConfig};
-use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits, ServerLimits};
+use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits, SchemaLimits, ServerLimits};
 use crate::results::{
     MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, MAX_CHUNKS, MAX_FRAGMENTS, MAX_GRAPH_BYTES, MAX_LEVELS, MAX_MAPPING_EDITS,
     MAX_RECORD_VALUES, MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES,
@@ -78,12 +78,68 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
         widths,
         context_limit: si.max_seq,
         batch_limit: si.max_batch,
-        // No task the server loads reads an extraction schema yet; a
-        // schema-extraction bundle fills this with `records::schema_limits`.
         schema: None,
         head_steps: loaded.head_steps.clone(),
         vocabulary: loaded.vocabulary.to_proto(),
     })
+}
+
+pub(crate) fn gliner_capabilities(name: &str, model: &turbo_gliner::Model) -> BundleCapabilities {
+    let identity = model.identity();
+    BundleCapabilities {
+        name: name.to_owned(),
+        model: Some(ModelRef {
+            id: identity.id.clone(),
+            revision: identity.revision.clone(),
+            sha256: identity.sha256.clone(),
+        }),
+        task: "TASK_OPEN_SPAN".into(),
+        roles: vec!["PROMPT_NONE".into()],
+        widths: Vec::new(),
+        context_limit: model.context_limit() as u32,
+        batch_limit: 1,
+        schema: Some(SchemaLimits {
+            max_entity_types: turbo_gliner::MAX_LABELS as u32,
+            max_classification_tasks: 0,
+            max_labels_per_task: 0,
+            max_structures: 0,
+            max_fields_per_structure: 0,
+            max_text_bytes: 128,
+            max_prompt_subwords: model.context_limit() as u32,
+            max_words: 384,
+        }),
+        head_steps: vec!["turbo:gliner".into()],
+        vocabulary: None,
+    }
+}
+
+pub(crate) fn relation_capabilities(name: &str, model: &turbo_relation::Gliner2Relations) -> BundleCapabilities {
+    let identity = model.model();
+    BundleCapabilities {
+        name: name.to_owned(),
+        model: Some(ModelRef {
+            id: identity.id.clone(),
+            revision: identity.revision.clone(),
+            sha256: identity.sha256.clone(),
+        }),
+        task: "TASK_RELATION".into(),
+        roles: vec!["PROMPT_NONE".into()],
+        widths: Vec::new(),
+        context_limit: 512,
+        batch_limit: 1,
+        schema: Some(SchemaLimits {
+            max_entity_types: 0,
+            max_classification_tasks: 0,
+            max_labels_per_task: 64,
+            max_structures: 0,
+            max_fields_per_structure: 0,
+            max_text_bytes: 128,
+            max_prompt_subwords: 512,
+            max_words: 512,
+        }),
+        head_steps: vec!["turbo:zero-shot-relations".into()],
+        vocabulary: None,
+    }
 }
 
 /// The LoadBundle request as the configuration the loader takes,

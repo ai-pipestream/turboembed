@@ -1,0 +1,9 @@
+MASKED	Mail to 1 Main St, Springfield, IL 62704 or Austin, TX 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, IL 00000.
+
+MASK_ALL	Mail to 1 Main St, Springfield, IL 62704 or Austin, TX 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, IL 00000.
+
+REWRITE	pseudonymize	OK	Mail to 1 Main St, Springfield, IL 62704 or Austin, TX 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, IL 00000.
+
+REWRITE	hmac	OK	Mail to 1 Main St, Springfield, IL 62704 or Austin, TX 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, IL 00000.
+
+AUDIT_REPORT	no pii found

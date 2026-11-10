@@ -136,11 +136,23 @@ stubs must be regenerated.
   (`turbo-pii:age`, `turbo-pii:us-address`): an age in years before
   `years old` or `y/o` or after `age` or `aged`, and a US street
   address with its unit, or a post office box (#1886).
+- `date` 41 and `currency` 42, appended to `PiiKindId`
+  (`TURBO_PII_KIND_DATE`, `TURBO_PII_KIND_CURRENCY`, Java `DATE`,
+  `CURRENCY`), with the `Temporal` and `Money` extractors
+  (`turbo-pii:temporal`, `turbo-pii:money`) and the opt-in `Dates` and
+  `Money` packs, which `AllStructured` does not include: a calendar date
+  naming a day, week or month, and an amount with its currency, read by
+  the numeric crate's scanners (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
   digits, or `000` for a restricted area, and mask the rest; the HHS 2000
   Census table is bundled and a caller may pass its own (#1966).
+- HIPAA Safe Harbor age aggregation: the `PiiAgeSafeHarborStrategy` arm
+  of `PiiRewriteStrategy` (`age_safe_harbor`, field 12) and
+  `PII_STRATEGY_AGE_SAFE_HARBOR` (13) keep an age of 89 or under and write
+  every older age as `90+`; a mention that is not an age is masked
+  (#1884).
 
 ### Changed: PII and the result envelope (#1879)
 
@@ -186,6 +198,20 @@ stubs must be regenerated.
   word-level heads, one row per token with the feature string as the
   label, and `turbo_analyzer_morphology` (`TurboAnalyzer.morphology`,
   `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1812).
+- The Java session (JNI and Panama) opens on any device:
+  `TurboSessionOptions` names a device index or the task
+  `turbo_runtime_select` picks a device for, with the precision,
+  batch, sequence length and CPU threads of the session.
+  `TurboEmbedOptions` and `TurboRerankOptions` carry the per-call
+  options, `TurboSession.embedCodes` reads int8 codes and packed sign
+  bits, and `TurboSession.modelInfo` reads `turbo_model_get_info` (#2005).
+- The in-process analyzer reads a bundle's segmenting heads: a
+  sentence boundary head finds the sentences of every task in place of
+  the rule splitter, a token split head writes each token's syntactic
+  words as `TURBO_ANALYSIS_LAYER_WORDS` rows (`TurboLayerKind.WORDS`)
+  in `turbo_analyzer_tokenize` and the graph, and a span classifier is
+  an entity head beside a BIO or BILOU tagger. The graph's provenance
+  names the head that wrote each layer (#2001).
 - `DocumentSinkItem.typed` (field 9) carries the item's graph as
   `InspectDocumentGraph` projects it: `--sink-typed-offsets` and
   `--sink-typed-view` (`TURBO_KSERVE_SINK_TYPED_OFFSETS`,
@@ -261,6 +287,17 @@ stubs must be regenerated.
   `turbo:structure` layer an `initial_graph` carries, so a Java or
   Python client seeds the chunker without a DocumentGraph writer; a
   malformed block is refused naming it (#1777).
+- `TurboTrainingService.TrainComponent` trains a sentence detector,
+  tokenizer, POS tagger, lemmatizer, chunker, name finder, document
+  categorizer or language detector from samples the client streams in
+  their native format, streams each iteration as progress, and sends
+  the model file back; admin only, sharing the training slot with
+  `TrainStaticModel`, and stopped when the client goes away (#2012).
+- `turbo_model_info` reports the manifest's `model.license` (`license`)
+  and the bundle's licence tier (`license_class`, a
+  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
+  or redistribute the model. The 772-byte struct is still accepted, and
+  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
 
 ### Changed
 
@@ -282,6 +319,22 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
+  client goes away stops at its next iteration and frees the training
+  slot, as GIS and the perceptron do (#2067).
+- levelzero: a context on an Intel GPU under the `xe` driver no longer
+  loses its device (`0x70000001`) when a desktop client draws while the
+  device pages an evicted buffer back in. The backend sets
+  `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0` in the process's
+  environment before it opens the Level Zero loader, unless the caller set
+  `EnableRecoverablePageFaults` itself (docs/levelzero.md, A lost device)
+  (#1765).
+- levelzero: the page-fault switch is set only once a Level Zero loader
+  is found, before its drivers start, and only in builds with the
+  `levelzero` feature (an `npu`-only build sets nothing); a caller that
+  set `NEOReadDebugKeys` to anything but `1` keeps it, and neither
+  variable is written. turbo.h says the first `turbo_runtime_create` may
+  write the environment and how to opt out (#2023).
 - The cpu backend's embed cells set field 9's bit (`layers`) in
   `turbo_capability.options_honored`, which reads `0b1_1111_1111` there,
   and a layer count of 0 or over an encoder's layers is

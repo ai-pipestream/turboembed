@@ -2,6 +2,8 @@
 //! while serving: the analysis service's LoadBundle and UnloadBundle add
 //! and remove entries, and every listing reads the current list.
 
+mod gliner;
+
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
@@ -98,6 +100,8 @@ pub(crate) struct Served {
     pub(crate) config: ModelConfig,
     pub(crate) vocabulary: crate::vocabulary::ResolvedVocabulary,
     pub(crate) loaded: OnceLock<Arc<Loaded>>,
+    pub(crate) gliner: OnceLock<Arc<turbo_gliner::Model>>,
+    pub(crate) relations: OnceLock<Arc<turbo_relation::Gliner2Relations>>,
 }
 
 /// Dropped models first, then contexts, then the runtime.
@@ -133,10 +137,22 @@ fn not_found(name: &str) -> Failure {
     Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 0, format!("no model {name} is served here"))
 }
 
+impl Served {
+    fn new(name: String, config: ModelConfig, vocabulary: crate::vocabulary::ResolvedVocabulary) -> Arc<Self> {
+        Arc::new(Self {
+            name,
+            config,
+            vocabulary,
+            loaded: OnceLock::new(),
+            gliner: OnceLock::new(),
+            relations: OnceLock::new(),
+        })
+    }
+}
+
 /// The most a server serves: sessions pile up pinned buffers, and every
 /// served name holds a loaded model. LoadBundle refuses past these with
-/// TURBO_E_CAPACITY naming the limit, before anything is allocated; the
-/// capability listing shows them.
+/// TURBO_E_CAPACITY naming the limit; the capability listing shows them.
 pub(crate) const MAX_SESSIONS_PER_MODEL: u32 = 32;
 pub(crate) const MAX_LOADED_MODELS: usize = 64;
 
@@ -149,9 +165,7 @@ impl State {
                 names
                     .into_iter()
                     .zip(models)
-                    .map(|(name, config)| {
-                        Arc::new(Served { name, config, vocabulary: Default::default(), loaded: OnceLock::new() })
-                    })
+                    .map(|(name, config)| Served::new(name, config, Default::default()))
                     .collect(),
             ),
             runtime: OnceLock::new(),
@@ -194,7 +208,7 @@ impl State {
         if self.draining.load(Ordering::Acquire) {
             return false;
         }
-        self.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| m.loaded.get().is_some())
+        self.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| gliner::is_loaded(m))
     }
 
     /// True when the server is draining.
@@ -279,19 +293,16 @@ impl State {
         if models.len() >= MAX_LOADED_MODELS {
             return Err(over("max_loaded_models", "served models", models.len() as u64 + 1));
         }
-        let m = Arc::new(Served { name, config, vocabulary, loaded: OnceLock::new() });
+        let m = Served::new(name, config, vocabulary);
         models.push(m.clone());
         drop(models);
         self.notify_health();
         Ok(m)
     }
 
-    /// Removes the caller's own registration, whatever name it carries:
-    /// the entry goes only when it is still the one the caller
-    /// registered, under the write lock, so a concurrent unload and
-    /// re-registration of the same name is never touched. An entry the
-    /// caller no longer holds is not an error: there is nothing of
-    /// theirs to roll back.
+    /// Removes the caller's own registration under the write lock when it
+    /// is still the entry the caller registered, so a concurrent unload
+    /// and re-registration of the same name is never touched.
     pub(crate) fn remove_if(&self, expected: &Arc<Served>) -> api::Result<()> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         let removed = models.iter().position(|m| Arc::ptr_eq(m, expected)).map(|i| models.remove(i)).is_some();
@@ -322,7 +333,7 @@ impl State {
     pub(crate) fn load(&self) -> std::result::Result<(), String> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         for m in self.listing() {
-            if m.loaded.get().is_none() {
+            if !gliner::is_loaded(&m) {
                 self.load_model(&m).map_err(|e| e.to_string())?;
             }
         }
@@ -335,7 +346,7 @@ impl State {
     /// failure cannot fail or roll back another's.
     pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
-        if m.loaded.get().is_none() {
+        if !gliner::is_loaded(m) {
             self.load_model(m)?;
         }
         Ok(())
@@ -351,6 +362,9 @@ impl State {
     }
 
     fn load_model_inner(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
+        if gliner::load(self, m)? {
+            return Ok(());
+        }
         let fail = |call: &'static str, fields: &'static [&'static str]| {
             let model = m.name.clone();
             move |failure: Failure| LoadError { model, call, failure, fields }

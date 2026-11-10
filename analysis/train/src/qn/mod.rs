@@ -46,6 +46,7 @@ use crate::event::{Event, EventChecksum};
 use crate::gis::TrainingReport;
 use crate::index::{DataIndex, IndexParams};
 use crate::java_string::JavaString;
+use crate::monitor::TrainingConfiguration;
 use crate::params::{DEFAULT_CUTOFF, DEFAULT_ITERATIONS, Key, TrainerType, TrainingParameters};
 
 mod generic;
@@ -169,6 +170,8 @@ pub enum QnStop {
     FunctionEvaluations,
     /// `Iterations` iterations were run.
     Iterations,
+    /// The caller's stop criterion ([`train_with`]) said to stop.
+    Stopped,
 }
 
 impl QnStop {
@@ -180,6 +183,7 @@ impl QnStop {
             QnStop::StepSize => "step-size",
             QnStop::FunctionEvaluations => "fct-eval",
             QnStop::Iterations => "iterations",
+            QnStop::Stopped => "stopped",
         }
     }
 }
@@ -255,6 +259,15 @@ impl QnModel {
 /// checksum over the events, the indexer named by the parameters with
 /// `sort` on and the default cutoff when none is given, then [`train`].
 pub fn train_events(events: &[Event], params: &TrainingParameters) -> Result<(QnModel, TrainingReport)> {
+    train_events_with(events, params, &mut TrainingConfiguration::default())
+}
+
+/// [`train_events`], stopping early as [`train_with`] does.
+pub fn train_events_with(
+    events: &[Event],
+    params: &TrainingParameters,
+    config: &mut TrainingConfiguration,
+) -> Result<(QnModel, TrainingReport)> {
     // QNTrainer.init reads its parameters and validate checks them before
     // the indexer runs, so a bad parameter is refused whatever the events.
     QnParams::from_training_parameters(params)?;
@@ -268,18 +281,40 @@ pub fn train_events(events: &[Event], params: &TrainingParameters) -> Result<(Qn
         indexing.put(Key::CUTOFF, DEFAULT_CUTOFF);
     }
     let index = DataIndex::index(events, &IndexParams::from_training_parameters(&indexing)?)?;
-    let model = train(&index, params)?;
+    let model = train_with(&index, params, config)?;
     Ok((model, TrainingReport { event_hash: Some(checksum.value()), trainer_type: TrainerType::Event }))
 }
 
 /// `AbstractEventTrainer.train(DataIndexer)` for `MAXENT_QN`: validates the
 /// parameters, refuses an index with one outcome, then trains.
 pub fn train(index: &DataIndex, params: &TrainingParameters) -> Result<QnModel> {
+    train_with(index, params, &mut TrainingConfiguration::default())
+}
+
+/// [`train`], with the configuration's stop criterion, when it has one,
+/// tested after every iteration on the rise of the log likelihood since
+/// the iteration before, as GIS tests it: a criterion that holds ends the
+/// run there, with the model of the point reached ([`QnStop::Stopped`]).
+/// QNTrainer reads no configuration, so with none the run is the JVM's.
+/// The monitor is not called: QN logs its iterations itself.
+pub fn train_with(
+    index: &DataIndex,
+    params: &TrainingParameters,
+    config: &mut TrainingConfiguration,
+) -> Result<QnModel> {
     let qn = QnParams::from_training_parameters(params)?;
     if index.outcome_labels().len() <= 1 {
         return Err(Error::InsufficientTrainingData(ONE_OUTCOME));
     }
-    Ok(train_model(index, &qn, &mut |_, _| {})?.0)
+    let stop = config.stop.as_deref();
+    let mut previous: Option<f64> = None;
+    let mut until = |it: &QnIteration, _: &[f64]| {
+        // The minimizer's value is the negative log likelihood.
+        let rise = previous.map_or(f64::INFINITY, |p| p - it.value);
+        previous = Some(it.value);
+        stop.is_some_and(|s| s.test(rise))
+    };
+    Ok(run(index, &qn, &mut until)?.0)
 }
 
 /// `QNTrainer.trainModel(iterations, indexer)` without the outcome check:
@@ -293,6 +328,19 @@ pub fn train_model(
     index: &DataIndex,
     params: &QnParams,
     observe: &mut dyn FnMut(&QnIteration, &[f64]),
+) -> Result<(QnModel, QnStop)> {
+    run(index, params, &mut |it, x| {
+        observe(it, x);
+        false
+    })
+}
+
+/// [`train_model`] with an observer that can end the run: true stops it
+/// after that iteration.
+fn run(
+    index: &DataIndex,
+    params: &QnParams,
+    observe: &mut dyn FnMut(&QnIteration, &[f64]) -> bool,
 ) -> Result<(QnModel, QnStop)> {
     params.validate()?;
     if params.iterations <= 0 {

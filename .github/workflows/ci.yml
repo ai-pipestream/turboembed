@@ -108,11 +108,21 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: bufbuild/buf-setup-action@v1
+      # Cached install: buf-setup-action downloads from GitHub Releases on
+      # every run and failed merge-queue run 42580497484 three times with
+      # HTTP 504. The composite action hits the Actions cache for the same
+      # OS/arch/version and only downloads with curl retries on a miss.
+      # The SHA-256 is pinned here, from the v1.70.0 release, and checked on
+      # every run, cache hit or not. Bump the version and the hashes together.
+      - uses: ./.github/actions/setup-buf
         with:
           version: 1.70.0
-          # Authenticated, so the version lookup is not rate limited.
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          sha256: |
+            e2bbcdd324da09c16a15963dc2dae0525c955c05dc118223cf732f4f7509c5e6  buf-Linux-x86_64
+            95eaebf9c6a25fd26510c9596b6cedebbb2ab90258904f96edc9625e505181b6  buf-Linux-aarch64
+            f6662346793727c4a5a11a813983a74964f40a626c7ca35df96fe2582b1fbebf  buf-Darwin-arm64
+            ee339fd6ca4ec2312bd9b5f2b53493b7396d87b702efbdaac98b5acbe8d1e3d9  buf-Darwin-x86_64
+            cd911f151142d09843131b591d0a4ca65f8e53500395fcd6a9848138d6e2f3b8  buf-Windows-x86_64.exe
       - name: buf lint
         run: buf lint server/proto
       - name: buf breaking against main
@@ -318,6 +328,89 @@ jobs:
           TURBO_BENCH_REQUIRE_RECORD: "1"
         run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
 
+  # The accelerator backends, compiled and linted only: no runner here has
+  # the devices, so a green job is not a device run. The CUDA backend
+  # builds against the toolkit the release pins (its nvcc, runtime headers
+  # and static runtime), for the default architecture alone; Level Zero
+  # compiles its OpenCL C kernels with clang 20; Metal builds on macOS.
+  # Hailo is left out: HailoRT's headers are not published as a package
+  # this runner can install. Each lane runs only when the core, the
+  # headers, the lock file or this file changed, and in the merge queue.
+  backends-linux:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    env:
+      CUDA_VERSION: "12.8"
+      CUDA_PACKAGE: "12-8"
+      CARGO_TARGET_DIR: target/core
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: what changed
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ] \
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|include/|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.changed.outputs.run
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        if: steps.changed.outputs.run
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: the CUDA toolkit (nvcc, the runtime's headers and static library) and clang 20
+        if: steps.changed.outputs.run
+        run: |
+          curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cuda-nvcc-$CUDA_PACKAGE cuda-cudart-dev-$CUDA_PACKAGE cuda-cccl-$CUDA_PACKAGE clang-20
+          /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
+          clang-20 --version | head -1
+      - name: clippy (cuda)
+        if: steps.changed.outputs.run
+        env:
+          TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
+        run: cargo clippy --locked -p turbo --features cuda --all-targets -- -D warnings
+      - name: clippy (levelzero)
+        if: steps.changed.outputs.run
+        env:
+          TURBO_CLANG: clang-20
+        run: cargo clippy --locked -p turbo --features levelzero --all-targets -- -D warnings
+
+  backends-macos:
+    if: github.event_name != 'push'
+    runs-on: macos-15
+    env:
+      CARGO_TARGET_DIR: target/core
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: what changed
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ] \
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|include/|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.changed.outputs.run
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        if: steps.changed.outputs.run
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: clippy (metal)
+        if: steps.changed.outputs.run
+        run: cargo clippy --locked -p turbo --features metal --all-targets -- -D warnings
+
   # Both Java bridges consume the same pure API and conformance modules.
   # JNI runs on Java 21, then Panama on Java 25, against the same native library.
   java-jni:
@@ -424,7 +517,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, proto, bench-throughput, test, fuzz, features, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04

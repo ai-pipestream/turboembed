@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, and HIPAA Safe Harbor ZIP generalization |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, and HIPAA Safe Harbor age aggregation |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -75,7 +75,12 @@ not find (`ScannerError`).
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date` and `currency` |
+| `Dates` | (none) | temporal | `date` |
+| `Money` | (none) | money | `currency` |
+
+`Dates` and `Money` are opt-in and not in `AllStructured`: dates and
+amounts are in most texts, and only some of them are a person's.
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -476,12 +481,24 @@ the source text into the rewritten text and back
   17 prefixes HHS published from the 2000 Census
   (`HHS_2000_RESTRICTED_PREFIXES`, `ZipSafeHarbor::hhs_2000()`) or a
   caller's own three-digit list (`ZipSafeHarbor::with_restricted`, for a
-  later Census). A mention that is not five ASCII digits, optionally
-  followed by `-` and four more, is masked whole, and so is a cluster of
+  later Census). A mention of another kind than `us-zip`, or that is not
+  five ASCII digits optionally followed by `-` and four more, is masked
+  whole, and so is a cluster of
   overlapping mentions, so the strategy never leaves another kind's value
   readable. Edits record `PiiStrategyKind::ZipSafeHarbor`
   (`PII_STRATEGY_ZIP_SAFE_HARBOR`); the gRPC arm is
   `PiiZipSafeHarborStrategy` (#1884).
+- **Age Safe Harbor (`AgeSafeHarbor`):** HIPAA Safe Harbor
+  (45 CFR 164.514(b)(2)(i)(C)) for `age`: keeps an age of 89 or under as
+  written and writes every older age as `90+`, the single category the
+  rule allows (`aged 93` becomes `aged 90+`, `34-year-old` stays). The
+  `age` mention is the number alone, so the words around it stay. Leading
+  zeros do not make an age younger (`093` becomes `90+`). A mention of
+  another kind than `age`, digits or not, or that is not one or more ASCII
+  digits, is masked whole with the mask character
+  (`*` by default), and so is a cluster of overlapping mentions. Edits
+  record `PiiStrategyKind::AgeSafeHarbor` (`PII_STRATEGY_AGE_SAFE_HARBOR`);
+  the gRPC arm is `PiiAgeSafeHarborStrategy` (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
@@ -756,18 +773,34 @@ to a trained head.
   standard abbreviation of USPS Publication 28 Appendix C1
   (`analysis/pii/src/tables/street_suffixes.rs`, in any case once the
   word is capitalized); the last suffix in the run ends the street
-  (`18 Mill Creek Road`). A direction may follow the suffix (`Main St
-  NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
-  an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
+  (`18 Mill Creek Road`). A street-only suffix (`St`, `Street`, `Ave`,
+  `Avenue`, `Rd`, `Road`, `Blvd`, `Ct`, `Court`, `Loop` and the like) may
+  be followed on the same line by a comma-less city (`12 Main Street
+  Boston`, `12 Oak Court Springfield`, `1 Infinite Loop Cupertino`, not
+  `the 12 Wall Street Journal`), whereas a general noun suffix (`Park`,
+  `Point`, `Summit`, `Center`, `Plan`) may not be followed by unconsumed
+  capitalized words (`3 Point Lane`, not `the 3 Five Point Plan` or
+  `2020 Vision Center Plan`). When the house number is a four-digit year
+  (`1900` to `2099`) and the suffix is a general noun (or `Court`, `Ct`
+  or `Loop`, as in `2024 Supreme Court`, `2024 Supreme Ct` or `2023
+  Feedback Loop`) rather than an unambiguous street-only suffix, a
+  post-direction, a unit or a comma and capitalized city word must
+  follow (`2016 Central Park West`, `2016 Central Park, New York`,
+  `2024 Oak Ct, Springfield`, not `2016 Central Park`, `2024 Supreme
+  Court`, `2024 Supreme Ct`, `2023 Feedback Loop` or `2024 Annual Bay
+  Summit`). A direction may follow the suffix (`Main St NW`, or a
+  quadrant after a `.` or a comma, `L St., NW`), then a unit: an
+  optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
   `Building`, `Lot` and the like with an optional `.`, or `#`, then one
   to six letters, digits and hyphens. Post office boxes are the same
   kind: `PO`, `P.O.`, `P. O.`, `P O` or `Post Office`, then `Box` and one
   to ten digits, in any case. Every piece is on one line and joined by
-  one space, so a city, state and ZIP code after a comma, or the next
-  line of a letter, stay outside the mention. Lower case street words,
+  one horizontal space (`' '`, `'\t'`, `U+00A0` or `U+202F`), so a city,
+  state and ZIP code after a comma, or the next line of a letter, stay
+  outside the mention. Lower case street words,
   a house number inside a decimal, an ordinal alone (`5th Avenue`) and
   a number with no suffix after its words (`Table 4 Summary`, `Route
-  66`) are not addresses.
+  66`, `the 3 Point Plan`) are not addresses.
 
 `age` is low severity and `street-address` medium; both are suggested a
 label rewrite and are masked keeping separators. Neither needs a label
@@ -781,6 +814,35 @@ written with a zero). The external partition was annotated before
 these kinds existed: its five postal addresses (RFC author and registry
 blocks and one example) and one age are counted and pinned but not
 scored.
+
+### Dates and amounts of money
+
+`date` and `currency` take ids 41 and 42. Their scanners read the text
+with the numeric crate's own scanners (docs/temporal.md, docs/money.md),
+so a date or an amount is found exactly where `turbo:temporal` or
+`turbo:money` would find it.
+
+- `date` (new `Temporal` extractor, `TemporalPiiExtractor`,
+  `turbo-pii:temporal`, in `Dates`; `analysis/pii/src/scan/date.rs`):
+  the absolute mentions of the temporal scanner that name a day, an ISO
+  week or a month (`2026-07-14`, `July 4, 1952`, `14th March 2025`,
+  `August 2026`). A year alone and a quarter are not date elements HIPAA
+  counts, and a relative expression (`3 weeks ago`) needs a reference
+  date the scanner never takes, so none is a mention; nor is a
+  calendar-invalid one (`2026-13-40`). The normalized form is the value
+  in ISO 8601 (`1952-07-04`, `2026-08`).
+- `currency` (new `Money` extractor, `MoneyPiiExtractor`,
+  `turbo-pii:money`, in `Money`; `analysis/pii/src/scan/money.rs`): the
+  mentions of the money scanner with its default symbol table, amounts
+  read in US notation (`$1,250.00`, `EUR 40`, `-$3`, `40 euros`). A bare
+  number is never money. The normalized form is the ISO 4217 code and
+  the amount (`USD 1250.00`, `EUR 40`).
+
+Both are low severity, suggested a label rewrite and masked keeping
+separators (`****-**-**`). Neither needs a label; `date`, `date of
+birth`, `dob` and `born`, and `amount`, `balance`, `salary` and
+`payment`, are their label phrases for the context window. They are the
+kinds the date rewrites of #1884 act on.
 
 ## Custom extractors and scanner rules
 
@@ -990,7 +1052,7 @@ each in a sentence, and near misses of the checksummed kinds with no
 label) together with the checked-in true and false positive corpora
 (`analysis/pii/tests/data/golden-true-positives.tsv` and
 `analysis/pii/tests/data/golden-false-positives.txt`):
-1912 texts, 1120 labels made in the test.
+1917 texts, 1120 labels made in the test.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|

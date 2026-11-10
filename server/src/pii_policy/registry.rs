@@ -96,7 +96,8 @@ impl ServerResolver {
             Some(Stored::Dictionary(..)) => return Err(ResolveError::DigestMismatch),
             Some(Stored::Vocabulary(..)) | None => return Err(ResolveError::NotRegistered),
         };
-        let resolved = parse(&bytes).map_err(|_| ResolveError::Unreadable)?;
+        let resolved =
+            parse(&bytes).map_err(|reason| ResolveError::Unparsable { format: format.to_owned(), reason })?;
         self.cache().insert(key, resolved.clone());
         Ok(resolved)
     }

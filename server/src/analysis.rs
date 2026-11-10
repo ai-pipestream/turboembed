@@ -10,7 +10,9 @@ use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
 use crate::api::{Failure, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED};
-use crate::capabilities::{bundle_capabilities, load_config, result_limits, server_limits};
+use crate::capabilities::{
+    bundle_capabilities, gliner_capabilities, load_config, relation_capabilities, result_limits, server_limits,
+};
 use crate::kserve::Reply;
 use crate::progressive;
 use crate::proto::result::analysis_service_server::AnalysisService;
@@ -26,7 +28,7 @@ use crate::results::Wire;
 use crate::results::{
     extraction::Extraction, layers::ChunkLevels, records::RecordSet, rerank::RerankScores, tokens::TokenVectors,
 };
-use crate::state::{Loaded, State};
+use crate::state::State;
 use crate::status::to_status;
 use crate::stream;
 use turbo_analysis::View;
@@ -83,6 +85,10 @@ impl AnalysisService for Analysis {
         for m in self.state.listing() {
             if let Some(loaded) = m.loaded.get() {
                 bundles.push(bundle_capabilities(&m.name, loaded).map_err(plain)?);
+            } else if let Some(model) = m.gliner.get() {
+                bundles.push(gliner_capabilities(&m.name, model));
+            } else if let Some(model) = m.relations.get() {
+                bundles.push(relation_capabilities(&m.name, model));
             }
         }
         Ok(Response::new(CapabilitiesResponse {
@@ -129,10 +135,19 @@ impl AnalysisService for Analysis {
             let _ = self.state.remove_if(&registered);
             return Err(e.to_status());
         }
-        let l: Arc<Loaded> = registered.loaded.get().cloned().ok_or_else(|| {
-            plain(Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", registered.name)))
-        })?;
-        let capabilities = bundle_capabilities(&registered.name, &l).map_err(plain)?;
+        let capabilities = if let Some(loaded) = registered.loaded.get() {
+            bundle_capabilities(&registered.name, loaded).map_err(plain)?
+        } else if let Some(model) = registered.gliner.get() {
+            gliner_capabilities(&registered.name, model)
+        } else if let Some(model) = registered.relations.get() {
+            relation_capabilities(&registered.name, model)
+        } else {
+            return Err(plain(Failure::new(
+                TURBO_E_INVALID_STATE,
+                0,
+                format!("model {} is not loaded yet", registered.name),
+            )));
+        };
         Ok(Response::new(LoadBundleResponse { capabilities: Some(capabilities) }))
     }
 

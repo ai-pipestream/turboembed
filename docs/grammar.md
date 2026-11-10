@@ -537,12 +537,6 @@ the same text in the test build, checks the layers and prints the time.
 The benchmark also times the parse with the unit rules and
 `TimeAnnotator` over the same text.
 
-## Not yet done
-
-Time zones are available through `TimeAnnotator::with_time_zones`;
-the default parser retains the existing zone-free specification contract.
-See the explicit-zone section below.
-
 ## Parser boundary checks
 
 The chart admits at most four live readings per span and category. A rule
@@ -564,6 +558,9 @@ The existing unresolved-date convention, including `Feb 30`, is unchanged.
 
 
 ## Explicit time zones
+
+The default parser reads no zones and keeps the zone-free specification
+contract; `TimeAnnotator::with_time_zones` turns them on.
 
 Enable zone suffixes with
 `TimeAnnotator::english().with_time_zones(Region::Unspecified)` using

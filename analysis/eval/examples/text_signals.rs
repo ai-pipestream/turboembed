@@ -14,9 +14,9 @@ use turbo_chunker::{
     WeighTextBoundaries, Weight, segment,
 };
 use turbo_eval::lexical::{Lexical, Search, TermRule};
-use turbo_eval::sha::{sha256, to_hex};
 use turbo_eval::{metrics, read, spans};
 use turbo_sentdetect::RuleSentenceDetector;
+use turbo_sha256::{sha256, to_hex};
 use turbo_stem::{TermAnalyzer, TermAnnotator};
 
 const CORPUS_SHA: &str = "72a52a41193e2838b8074f80ac074b94f956b84886c36a61c58a7df4171bdd72";
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("output already exists".into());
     }
     let archive = std::fs::read(&args[0])?;
-    if to_hex(&sha256(&archive)) != CORPUS_SHA {
+    if to_hex(sha256(&archive)) != CORPUS_SHA {
         return Err("Qasper archive checksum differs".into());
     }
     let raw = read::tar::gzip_member("Qasper", &archive, "qasper-test-v0.3.json")?;
@@ -190,7 +190,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "boundary_documents":arm.boundary}));
     }
     let report = json!({"schema":1,"corpus":"Qasper v0.3 test, CC BY 4.0","corpus_archive_sha256":CORPUS_SHA,
-        "corpus_member_sha256":to_hex(&sha256(&raw)),
+        "corpus_member_sha256":to_hex(sha256(&raw)),
         "sentence_config_hash":format!("{:016x}",detector.config_hash()),
         "term_analyzer_hash":format!("{:016x}",term_step.config_hash()),
         "lexical_hash":format!("{:016x}",lexical.config_hash()),"discourse_hash":format!("{:016x}",discourse.config_hash()),

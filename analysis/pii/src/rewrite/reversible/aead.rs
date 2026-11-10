@@ -17,7 +17,6 @@ use turbo_analysis::View;
 use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
 use super::{CryptError, base64url, check_key, from_base64url, random_seed};
-use crate::checksum::sha256;
 use crate::rewrite::replace::EditOrigin;
 use crate::rewrite::{PiiRewrite, RewriteError, kind_name};
 
@@ -106,7 +105,7 @@ impl AesGcmEncryptor {
 
     fn next_nonce(&self) -> [u8; NONCE_BYTES] {
         let n = self.counter.fetch_add(1, Ordering::Relaxed);
-        let mac = sha256::hmac(&self.seed, &n.to_le_bytes());
+        let mac = turbo_sha256::hmac_sha256(&self.seed, &n.to_le_bytes()).0;
         let mut nonce = [0u8; NONCE_BYTES];
         nonce.copy_from_slice(&mac[..NONCE_BYTES]);
         nonce

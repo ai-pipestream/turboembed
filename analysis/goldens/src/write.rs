@@ -64,7 +64,7 @@ impl Golden {
 fn write_header(h: &Header, out: &mut String) -> io::Result<()> {
     out.push_str(&format!("golden {VERSION}\n"));
     record(out, &["generator", &h.generator.name, &h.generator.version.to_string()])?;
-    record(out, &["opennlp", &to_hex(&h.opennlp.commit), &h.opennlp.version])?;
+    record(out, &["opennlp", &to_hex(h.opennlp.commit), &h.opennlp.version])?;
     record(out, &["jdk", &h.jdk.version, &h.jdk.vm_version, &h.jdk.vendor])?;
     record(out, &["unicode", &h.unicode.to_string()])?;
     let i = &h.input;
@@ -82,11 +82,11 @@ fn write_header(h: &Header, out: &mut String) -> io::Result<()> {
             &format!("{}/{}", i.set, i.id),
             &i.utf8_len.to_string(),
             &i.utf16_len.to_string(),
-            &to_hex(&i.sha256),
+            &to_hex(i.sha256),
         ],
     )?;
     for m in &h.models {
-        record(out, &["model", &m.file, &to_hex(&m.sha512)])?;
+        record(out, &["model", &m.file, &to_hex(m.sha512)])?;
     }
     record(out, &["annotator", &h.annotator.class, &h.annotator.method])?;
     if let Some(w) = h.config.windows(2).find(|w| w[0].key >= w[1].key) {
@@ -200,7 +200,7 @@ fn write_layer(l: &GoldenLayer, out: &mut String) -> io::Result<()> {
 /// An `f64` field: the raw bits as 16 lowercase hex digits, a space, and
 /// Java's decimal.
 pub fn push_f64(out: &mut String, x: f64) {
-    out.push_str(&to_hex(&x.to_bits().to_be_bytes()));
+    out.push_str(&to_hex(x.to_bits().to_be_bytes()));
     out.push(' ');
     out.push_str(&java_double(x));
 }

@@ -121,7 +121,7 @@ fn touching_rows_do_not_match_one_edit_over_both() {
     let mut g = view_golden();
     g.header.input.utf8_len = text.len() as u32;
     g.header.input.utf16_len = 2;
-    g.header.input.sha256 = sha256(text.as_bytes());
+    g.header.input.sha256 = sha256(text.as_bytes()).0;
     let v = g.layers.iter_mut().find(|l| l.id == "turbo:view").unwrap();
     let mut with = Strs::default();
     with.push("A");

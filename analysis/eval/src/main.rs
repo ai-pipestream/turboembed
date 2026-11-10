@@ -47,7 +47,8 @@ usage:
       when the gate fails, 2 on an error
   turbo-eval chunk-gate <candidate-dir> <windows-dir> [<baseline-dir> ...]
       the chunker gate on evidence with an nDCG@10 floor (chunk_gate.rs)
-  turbo-eval cuts <a-dir> <b-dir>
+  turbo-eval cuts <a-dir> <b-dir> [--cuts-key-file <file>]
+                  [--cuts-principal <hex>]
       compare two directories of cut dumps (run --dump-cuts), one per set;
       exit status 1 when any cut differs, 2 on an error
   turbo-eval analysis --gold <f.conllu>|--lang-gold <f.tsv>|--ner-gold <f.tsv>
@@ -93,6 +94,11 @@ run options:
                           terms there, for a reference BM25
   --dump-cuts <dir>       with turbo-chunker (no --level), also write each
                           set's cuts to <dir>/<set>.cuts for turbo-eval cuts
+  --cuts-key-file <file>  with --dump-cuts or cuts, encrypt or read cut
+                          artifacts through EncryptedStore using the keys in
+                          <file> (docs/encrypted-artifacts.md)
+  --cuts-principal <hex>  with --cuts-key-file, the 32-hex caller principal
+                          scope (default: 747572626f2d6576616c2d6375747300)
   --repo <dir>            the clean, pushed working tree this tool was
                           built from (default: the one it was built in)
 
@@ -135,11 +141,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
         Some("fetch") => fetch_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("run") => run_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("squad") => turbo_eval::squad::command(&args[1..]).map(|()| ExitCode::SUCCESS),
-        Some("cuts") if args.len() == 3 => {
-            let sets = turbo_eval::cuts::compare_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
-            sets.iter().for_each(|s| print!("{s}"));
-            Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
-        }
+        Some("cuts") => cuts_cmd(&args[1..]),
         Some("chunk-gate") => turbo_eval::chunk_gate::command(&args[1..]),
         Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
@@ -360,10 +362,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         }
         r => return Err(format!("--retrieval {r}: dense, bm25, hybrid or cascade")),
     };
-    let dump_cuts = o.take("--dump-cuts").map(|d| turbo_eval::cuts::DumpConfig {
-        store: Box::new(turbo_eval::artifact::TemporaryFileStore::new(d)),
-        precision,
-    });
+    let dump_cuts = dump_cuts_opts(&mut o, precision)?;
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
         return Err("--sets names no set".into());
@@ -401,59 +400,57 @@ fn run_cmd(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_usage_names_every_set() {
-        for s in sets::ALL {
-            assert!(USAGE.contains(s.name), "{} is missing from the usage", s.name);
-        }
-    }
-
-    #[test]
-    fn the_level_flags_are_checked() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
-        let e = TurboEmbedder::open(&dir, Device::Cpu, Precision::Model).unwrap();
-        let built = |extra: &[&str]| {
-            let mut a = ["--chunker", "turbo-chunker", "--max", "64", "--target", "48"].map(String::from).to_vec();
-            a.extend(extra.iter().map(|s| s.to_string()));
-            let mut o = Opts::parse(&a).unwrap();
-            chunker(&mut o, &e, (&dir, &Device::Cpu, Precision::Model))
-        };
-        let refused = |extra: &[&str]| built(extra).err().unwrap();
-        assert!(refused(&["--level", "paragraph"]).contains("chunk, section or document"));
-        assert!(refused(&["--level", "chunk", "--level-vectors", "late"]).contains("local or contextual"));
-        assert!(refused(&["--level-vectors", "local"]).contains("needs --level"));
-        let config = built(&["--level", "section", "--level-vectors", "contextual"]).unwrap().config();
-        assert!(config.iter().any(|s| s.name == "level" && s.value == "section"));
-        assert!(config.iter().any(|s| s.name == "level_vectors" && s.value.starts_with("contextual")));
-    }
-
-    #[test]
-    fn the_sentence_tier_defaults_to_rules_and_sat_needs_a_bundle() {
-        let built = |args: &[&str]| {
-            let a = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-            let mut o = Opts::parse(&a).unwrap();
-            sentencer(&mut o, &Device::Cpu, Precision::Model)
-        };
-        for args in [&[][..], &["--sentences", "rule"][..]] {
-            assert!(matches!(built(args).unwrap(), Sentencer::Rules(..)));
-        }
-        assert!(matches!(built(&["--sentences", "newline"]).unwrap(), Sentencer::Newline));
-        let err = |args: &[&str]| match built(args) {
-            Ok(_) => panic!("sentence options unexpectedly accepted: {args:?}"),
-            Err(e) => e,
-        };
-        assert!(err(&["--sentences", "sat"]).contains("--sat-bundle"));
-        assert!(err(&["--sat-bundle", "some-bundle"]).contains("--sentences sat"));
-        assert!(err(&["--sentences", "model.bin"]).contains("rules, rules:<tag>, newline or sat"));
-    }
-
-    #[test]
-    fn an_unknown_set_is_refused_by_name() {
-        let e = load_set("no-such-set", Path::new("/nonexistent")).unwrap_err();
-        assert!(e.contains("no-such-set"), "{e}");
+fn cuts_principal(o: &mut Opts) -> Result<turbo_eval::artifact::encrypted::PrincipalId> {
+    match o.take("--cuts-principal") {
+        Some(hex) => turbo_eval::artifact::encrypted::PrincipalId::parse_hex(&hex)
+            .map_err(|e| format!("--cuts-principal {hex}: {e}")),
+        None => Ok(turbo_eval::cuts::CUTS_CLI_PRINCIPAL),
     }
 }
+
+fn dump_cuts_opts(o: &mut Opts, precision: Precision) -> Result<Option<turbo_eval::cuts::DumpConfig>> {
+    let dir = o.take("--dump-cuts");
+    let key_file = o.take("--cuts-key-file");
+    if key_file.is_none() && o.0.contains_key("--cuts-principal") {
+        return Err("--cuts-principal needs --cuts-key-file <file>".into());
+    }
+    let principal = cuts_principal(o)?;
+    match (dir, key_file) {
+        (None, None) => Ok(None),
+        (None, Some(_)) => Err("--cuts-key-file needs --dump-cuts <dir>".into()),
+        (Some(d), None) => Ok(Some(turbo_eval::cuts::DumpConfig::plain(d, precision))),
+        (Some(d), Some(f)) => {
+            let keys = Arc::new(turbo_eval::artifact::encrypted::KeyFile::load(Path::new(&f))?);
+            Ok(Some(turbo_eval::cuts::DumpConfig::encrypted_with_principal(d, principal, keys, precision)?))
+        }
+    }
+}
+
+fn cuts_cmd(args: &[String]) -> Result<ExitCode> {
+    if args.len() < 2 || args[0].starts_with("--") || args[1].starts_with("--") {
+        return Err(USAGE.into());
+    }
+    let (a, b) = (Path::new(&args[0]), Path::new(&args[1]));
+    let mut o = Opts::parse(&args[2..])?;
+    let key_file = o.take("--cuts-key-file");
+    if key_file.is_none() && o.0.contains_key("--cuts-principal") {
+        return Err("--cuts-principal needs --cuts-key-file <file>".into());
+    }
+    let principal = cuts_principal(&mut o)?;
+    if let Some(unknown) = o.0.keys().next() {
+        return Err(format!("{unknown}: not an option here\n{USAGE}"));
+    }
+    let sets = match key_file {
+        None => turbo_eval::cuts::compare_dirs(a, b)?,
+        Some(f) => {
+            let keys = Arc::new(turbo_eval::artifact::encrypted::KeyFile::load(Path::new(&f))?);
+            turbo_eval::cuts::compare_encrypted_dirs_with_principal(a, b, principal, keys)?
+        }
+    };
+    sets.iter().for_each(|s| print!("{s}"));
+    Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+}
+
+#[cfg(test)]
+#[path = "main_tests.rs"]
+mod tests;

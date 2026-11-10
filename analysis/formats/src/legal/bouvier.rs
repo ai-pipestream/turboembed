@@ -4,6 +4,22 @@ use super::LegalError;
 use super::text::Decoded;
 use crate::sample::DocumentSample;
 
+#[cfg(test)]
+thread_local! {
+    /// Bytes the reader has looked at (tag searches and decoding), so a test
+    /// can hold the scan linear without a clock.
+    static SCANNED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// `n` more bytes looked at.
+#[inline]
+fn scanned(n: usize) {
+    #[cfg(test)]
+    SCANNED.with(|c| c.set(c.get() + n as u64));
+    #[cfg(not(test))]
+    let _ = n;
+}
+
 /// Entries of Bouvier's 1856 dictionary in the Constitution Society's HTML.
 #[derive(Debug)]
 pub struct BouvierReader {
@@ -77,15 +93,17 @@ fn find_paragraph(source: &str, start: usize) -> Option<usize> {
 }
 
 fn find_ci(source: &str, needle: &str, start: usize) -> Option<usize> {
-    source.as_bytes()[start..]
+    let found = source.as_bytes()[start..]
         .windows(needle.len())
-        .position(|window| window.eq_ignore_ascii_case(needle.as_bytes()))
-        .map(|i| start + i)
+        .position(|window| window.eq_ignore_ascii_case(needle.as_bytes()));
+    scanned(found.map_or(source.len() - start, |i| i + needle.len()));
+    found.map(|i| start + i)
 }
 
 fn decode(source: &str, start: usize, end: usize) -> Result<Decoded, LegalError> {
     let mut out = Decoded::new(start);
     let mut pos = start;
+    scanned(end.saturating_sub(start));
     while pos < end {
         if source.as_bytes()[pos] == b'<' {
             let close = source[pos..end]
@@ -138,4 +156,33 @@ fn entity_char(entity: &str) -> Option<char> {
     let value = entity.strip_prefix('#')?;
     let (radix, digits) = value.strip_prefix(['x', 'X']).map_or((10, value), |digits| (16, digits));
     char::from_u32(u32::from_str_radix(digits, radix).ok()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An entry and a numbered continuation paragraph, `entries` times.
+    const PAIR: &str = "<P><B>T</B>. x</P>\n<P>1. y</P>\n";
+
+    fn scanned_for(entries: usize) -> u64 {
+        let source = PAIR.repeat(entries);
+        SCANNED.with(|c| c.set(0));
+        let read: Vec<_> = BouvierReader::new(&source).unwrap().collect();
+        assert_eq!(read.len(), entries);
+        assert_eq!(read[entries - 1].tokens.len(), 4, "the continuation joins its entry");
+        SCANNED.with(std::cell::Cell::get)
+    }
+
+    #[test]
+    fn a_large_page_is_scanned_a_bounded_number_of_times() {
+        let (n1, n4) = (scanned_for(4_000), scanned_for(16_000));
+        let page = PAIR.len() as u64;
+        // Each tag search stops at its match and each span is decoded once:
+        // a few passes over each entry, about four times as much for four
+        // times the entries (the last entry adds a few bytes). A search that
+        // ran from the top of the page each time would be sixteen times.
+        assert!(n1 > 0 && n4 * 10 <= n1 * 41, "scanning grew faster than the page: N={n1}, 4N={n4}");
+        assert!(n4 <= 8 * page * 16_000, "{n4} bytes looked at for a page of {}", page * 16_000);
+    }
 }

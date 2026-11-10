@@ -126,5 +126,34 @@ The libraries are unchanged by this measurement; narrowing them (the
 variants above) changes what they extract and is left to its own
 change, measured on this fixture.
 
+## Progressive document graph preview
+
+`AnalyzeDocumentProgressive` accepts `turbo:zero-shot-relations` with an
+`OpenRelationSchema` and a separate `relation_model`. This lets one request use
+a converted GLiNER package for entities and GLiNER2 for relations. Labels carry
+optional thresholds, symmetry, and domain/range entity-kind constraints. The
+step writes relation mentions, deduplicated `Edges<Entities, Entities>`, and
+`Evidence<Relations>`. Graph export preserves entity links and original source
+offsets. The demo exposes separate entity and relation model selectors and
+label inputs over binary protobuf Connect.
+
+A servable GLiNER2 package is the upstream checkpoint directory with its native
+DeBERTa manifest and weights in an encoder subdirectory. It also contains
+`config.json`, `added_tokens.json`, `model.safetensors`, and `spm.model`.
+`LoadBundle` advertises it as `TASK_RELATION`.
+It remains subject to the existing acceptance and local-only distribution
+rules. GLiNER2 is the preview relation scorer. GLiREL remains an opt-in native
+scorer outside this serving integration; the dependency-path semantic defaults
+remain starting rules, not a high-quality general relation model.
+
+The real GLiNER2 check in `analysis/relation/tests/gliner2_real.rs` evaluates
+three known positive triples and one same-sentence negative example. At
+threshold 0.5 it records TP=3, FP=0, FN=0, precision=recall=F1=1.0. This is a
+small release-labelled smoke corpus, not evidence of broad relation accuracy.
+The progressive test also checks a real two-model graph, evidence, model
+digests, deduplicated edges, and binary graph round-trip. A larger external
+relation benchmark is still needed before calling the stage generally
+production-quality.
+
 Predicate-argument events with N-ary, anchored arguments are in
 [events.md](events.md).

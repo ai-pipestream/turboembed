@@ -238,6 +238,18 @@ corpus and its feature rows to the largest split, without changing dev or
 test. Single-corpus cache input is supported; mixed-corpus cache input is
 refused.
 
+`eval-gliner` evaluates a converted pretrained GLiNER checkpoint without
+training a `HEAD_OPEN_SPAN` model. It uses the same corpora, `--hold-out`
+schema, all-type and seen-type scores, per-dataset metrics, baselines and
+paired bootstraps, and writes word-aligned `predictions.bio` beside the
+receipt. Schemas over GLiNER's 32-label prompt limit are scored in label
+batches and decoded together, including candidates from every batch.
+`--threads N` evaluates contiguous partitions on independent model sessions
+and restores their original order. `--split dev` selects the publisher dev
+split for threshold tuning; the default is `test`. Use `--package <converted GLiNER>`
+with `--encoder-bundle <sealed encoder>` and `--device` for backend execution,
+or the package alone for CPU execution.
+
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
 10 dev, 10 test), checkpointing `head.safetensors` and `head.json` by

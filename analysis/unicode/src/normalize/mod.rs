@@ -33,6 +33,11 @@ pub use segment::{for_each_run, is_normalized, normalize};
 /// costs n log n; ordering it by insertion was quadratic, and a few
 /// hundred kilobytes of marks alone took seconds.
 fn canonical_order<T>(chars: &mut [T], class: impl Fn(&T) -> u8) {
+    let class = |c: &T| {
+        #[cfg(test)]
+        CLASS_LOOKUPS.with(|n| n.set(n.get() + 1));
+        class(c)
+    };
     let mut i = 0;
     while i < chars.len() {
         if class(&chars[i]) == 0 {
@@ -44,6 +49,17 @@ fn canonical_order<T>(chars: &mut [T], class: impl Fn(&T) -> u8) {
         i = end;
     }
 }
+
+#[cfg(test)]
+thread_local! {
+    /// Combining classes canonical ordering has looked up, so a test can
+    /// hold the ordering of a long run near linear without a clock.
+    static CLASS_LOOKUPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[path = "order_tests.rs"]
+mod order_tests;
 
 /// A normalization form.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

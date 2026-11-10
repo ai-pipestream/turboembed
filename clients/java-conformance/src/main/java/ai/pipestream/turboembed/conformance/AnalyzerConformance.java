@@ -46,6 +46,7 @@ public abstract class AnalyzerConformance {
     protected static final int PII = 6;
     protected static final int DEPENDENCIES = 7;
     protected static final int MORPHOLOGY = 8;
+    protected static final int WORDS_LAYER = 9;
 
     /** Native status codes. */
     protected static final int INVALID_ARGUMENT = 256;
@@ -75,6 +76,49 @@ public abstract class AnalyzerConformance {
             ".");
     static final double FIRST_POS_PROBABILITY = 0.7409762693307227;
     static final double BOB_PROBABILITY = 0.23651067881995255;
+    static final String SEGMENT_TEXT =
+            "Ann met Bob del Paris , and the quiet old dog slept by the river . Bob can't walk the old dog . "
+                    + "Ann watched del río while the dog slept .";
+    static final List<String> SEGMENT_SENTENCES = List.of(
+            "Ann",
+            "met Bob del",
+            "Paris",
+            ",",
+            "and the",
+            "quiet",
+            "old dog",
+            "slept by",
+            "the river",
+            ". Bob can't walk",
+            "the old dog",
+            ". Ann",
+            "watched del",
+            "río while the dog",
+            "slept .");
+    static final List<String> SEGMENT_ENTITIES = List.of(
+            "Ann",
+            "met Bob",
+            "del",
+            "Paris",
+            ",",
+            "and",
+            "quiet",
+            "old",
+            "slept by",
+            "the river",
+            ". Bob",
+            "can't",
+            "the old",
+            ". Ann",
+            "río while",
+            "the dog",
+            ".");
+    static final List<String> SEGMENT_ENTITY_LABELS = List.of(
+            "LOC", "LOC", "PER", "PER", "LOC", "PER", "LOC", "LOC", "LOC", "LOC", "LOC", "PER", "LOC", "LOC", "PER",
+            "PER", "PER");
+    static final double SEGMENT_ANN_PROBABILITY = 0.9975184416333847;
+    static final double SEGMENT_MET_BOB_PROBABILITY = 0.7490066968063475;
+    static final double SEGMENT_DEL_PROBABILITY = 0.5584937173410172;
     /**
      * The BERT encoder forward pass computes activations in IEEE-754 {@code f32} before head
      * probabilities are promoted to {@code f64}; {@code glibc} and Android {@code bionic}
@@ -91,6 +135,10 @@ public abstract class AnalyzerConformance {
 
     private TurboAnalyzer heads() {
         return binding().openAnalyzer("en", Testdata.headsBundle());
+    }
+
+    private TurboAnalyzer segment() {
+        return binding().openAnalyzer("en", Testdata.segmentBundle());
     }
 
     @Test
@@ -279,6 +327,113 @@ public abstract class AnalyzerConformance {
                     entities.stream().map(row -> row.coveredSourceText(TEXT)).collect(Collectors.toList()));
             assertEquals(new Row.Tokens(20, 21), entities.get(1).tokenRange());
 
+            assertEquals(graph.rows(), Row.copy(analyzer.inspectGraph(graph.bytes())));
+        }
+    }
+
+    @Test
+    public void sentenceTokenSplitAndSpanHeadsMatchTheRustAnalyzerAndRoundTripThroughTheGraph() {
+        try (TurboAnalyzer analyzer = segment()) {
+            List<Row> sentences = Row.copy(analyzer.detectSentences(SEGMENT_TEXT));
+            assertEquals(
+                    SEGMENT_SENTENCES,
+                    sentences.stream()
+                            .map(row -> row.coveredSourceText(SEGMENT_TEXT))
+                            .collect(Collectors.toList()));
+            for (Row sentence : sentences) {
+                assertEquals(SENTENCES, sentence.layerKind());
+                assertEquals(sentence.viewRange(), sentence.sourceRange());
+                assertNull(sentence.tokenRange());
+                assertNull(sentence.label());
+                assertNull(sentence.value());
+                assertNull(sentence.probability());
+            }
+            assertEquals(new Row.Range(112, 130, 112, 129, 112, 129), sentences.get(13).sourceRange());
+
+            List<Row> tokenized = Row.copy(analyzer.tokenize(SEGMENT_TEXT));
+            List<Row> tokens = ofKind(tokenized, TOKENS_LAYER);
+            List<Row> words = ofKind(tokenized, WORDS_LAYER);
+            assertEquals(34, tokens.size());
+            assertEquals(36, words.size());
+            assertEquals(tokens.size() + words.size(), tokenized.size());
+            for (int i = 0; i < words.size(); i++) {
+                Row word = words.get(i);
+                assertEquals(WORDS_LAYER, word.layerKind());
+                assertEquals("turbo:words", word.layer());
+                assertEquals("", word.instance());
+                assertEquals(i, word.itemIndex());
+                assertEquals(0, word.fragmentIndex());
+                assertEquals(0, word.viewId());
+                assertEquals(word.viewRange(), word.sourceRange());
+                assertNull(word.value());
+                assertNull(word.probability());
+                long t = word.tokenRange().start();
+                assertEquals(new Row.Tokens(t, t + 1L), word.tokenRange());
+                assertEquals(tokens.get(Math.toIntExact(t)).sourceRange(), word.sourceRange());
+                if (i == 3 || i == 28) {
+                    assertEquals("de", word.label());
+                    assertEquals("del", word.coveredSourceText(SEGMENT_TEXT));
+                } else if (i == 4 || i == 29) {
+                    assertEquals("el", word.label());
+                    assertEquals("del", word.coveredSourceText(SEGMENT_TEXT));
+                } else {
+                    assertNull(word.label(), "a word whose form is in the text carries no label");
+                }
+            }
+            assertEquals(new Row.Tokens(3, 4), words.get(3).tokenRange());
+            assertEquals(new Row.Tokens(3, 4), words.get(4).tokenRange());
+            assertEquals(new Row.Range(12, 15, 12, 15, 12, 15), words.get(3).sourceRange());
+            assertEquals(new Row.Tokens(27, 28), words.get(28).tokenRange());
+            assertEquals(new Row.Tokens(27, 28), words.get(29).tokenRange());
+            assertEquals(new Row.Range(108, 111, 108, 111, 108, 111), words.get(28).sourceRange());
+            assertEquals(new Row.Range(112, 116, 112, 115, 112, 115), words.get(30).sourceRange());
+            assertEquals("río", words.get(30).coveredSourceText(SEGMENT_TEXT));
+
+            List<Row> found = Row.copy(analyzer.findText(SEGMENT_TEXT));
+            assertEquals(
+                    SEGMENT_ENTITIES,
+                    found.stream()
+                            .map(row -> row.coveredSourceText(SEGMENT_TEXT))
+                            .collect(Collectors.toList()));
+            assertEquals(SEGMENT_ENTITY_LABELS, labels(found));
+            assertEquals(new Row.Tokens(0, 1), found.get(0).tokenRange());
+            assertEquals(SEGMENT_ANN_PROBABILITY, found.get(0).probability(), HEAD_PROBABILITY_DELTA);
+            assertEquals(new Row.Tokens(1, 3), found.get(1).tokenRange());
+            assertEquals(SEGMENT_MET_BOB_PROBABILITY, found.get(1).probability(), HEAD_PROBABILITY_DELTA);
+            assertEquals(new Row.Tokens(3, 4), found.get(2).tokenRange());
+            assertEquals(SEGMENT_DEL_PROBABILITY, found.get(2).probability(), HEAD_PROBABILITY_DELTA);
+            assertEquals(new Row.Tokens(28, 30), found.get(14).tokenRange());
+            assertEquals(new Row.Range(112, 122, 112, 121, 112, 121), found.get(14).sourceRange());
+
+            List<Row> firstSentence = Row.copy(analyzer.findTokens(new String[] {"Ann"}));
+            assertEquals(1, firstSentence.size());
+            assertEquals(new Row.Tokens(0, 1), firstSentence.get(0).tokenRange());
+            assertEquals("LOC", firstSentence.get(0).label());
+            assertEquals(SEGMENT_ANN_PROBABILITY, firstSentence.get(0).probability(), HEAD_PROBABILITY_DELTA);
+            assertNull(firstSentence.get(0).viewRange());
+            assertNull(firstSentence.get(0).sourceRange());
+
+            List<Row> secondSentence = Row.copy(analyzer.findTokens(new String[] {"met", "Bob", "del"}));
+            assertEquals(2, secondSentence.size());
+            assertEquals(new Row.Tokens(0, 2), secondSentence.get(0).tokenRange());
+            assertEquals("LOC", secondSentence.get(0).label());
+            assertEquals(SEGMENT_MET_BOB_PROBABILITY, secondSentence.get(0).probability(), HEAD_PROBABILITY_DELTA);
+            assertNull(secondSentence.get(0).viewRange());
+            assertNull(secondSentence.get(0).sourceRange());
+            assertEquals(new Row.Tokens(2, 3), secondSentence.get(1).tokenRange());
+            assertEquals("PER", secondSentence.get(1).label());
+            assertEquals(SEGMENT_DEL_PROBABILITY, secondSentence.get(1).probability(), HEAD_PROBABILITY_DELTA);
+
+            Graph graph = Graph.copy(analyzer.analyzeGraph(SEGMENT_TEXT));
+            TreeSet<Integer> kinds = new TreeSet<>();
+            for (Row row : graph.rows()) {
+                kinds.add(row.layerKind());
+            }
+            assertEquals(new TreeSet<>(List.of(SENTENCES, TOKENS_LAYER, ENTITIES, WORDS_LAYER)), kinds);
+            assertEquals(sentences, ofKind(graph.rows(), SENTENCES));
+            assertEquals(tokens, ofKind(graph.rows(), TOKENS_LAYER));
+            assertEquals(words, ofKind(graph.rows(), WORDS_LAYER));
+            assertEquals(found, ofKind(graph.rows(), ENTITIES));
             assertEquals(graph.rows(), Row.copy(analyzer.inspectGraph(graph.bytes())));
         }
     }

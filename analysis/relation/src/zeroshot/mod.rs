@@ -23,6 +23,7 @@ pub use annotate::ZeroShotRelationAnnotator;
 pub use lexical::LexicalRelationScorer;
 
 use std::fmt;
+use std::sync::Arc;
 
 use turbo_analysis::{ModelRef, Span};
 
@@ -114,6 +115,31 @@ pub trait RelationScorer: Send + Sync {
         labels: &[&str],
         out: &mut Vec<f32>,
     ) -> Result<(), RelationError>;
+}
+
+impl<S: RelationScorer> RelationScorer for Arc<S> {
+    fn model_ref(&self) -> Option<ModelRef> {
+        (**self).model_ref()
+    }
+
+    fn max_labels(&self) -> usize {
+        (**self).max_labels()
+    }
+
+    fn max_mentions(&self) -> usize {
+        (**self).max_mentions()
+    }
+
+    fn score(
+        &self,
+        text: &str,
+        mentions: &[Mention<'_>],
+        pairs: &[(u32, u32)],
+        labels: &[&str],
+        out: &mut Vec<f32>,
+    ) -> Result<(), RelationError> {
+        (**self).score(text, mentions, pairs, labels, out)
+    }
 }
 
 /// Why zero-shot relation extraction refused a request.

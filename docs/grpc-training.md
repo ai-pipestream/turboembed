@@ -1,9 +1,10 @@
-# Static model training over gRPC
+# Training over gRPC
 
 `turbo-kserve` serves `turbo.training.v1.TurboTrainingService` on its port:
 static models distilled from an encoder the server already serves
 (docs/static.md), sealed into a training directory, and served under
-their own name as soon as they are sealed. `server/proto/turbo_training.proto`
+their own name as soon as they are sealed; and classical components
+trained from samples the client streams, their model files sent back. `server/proto/turbo_training.proto`
 is the crate's own file; generate a client from it in any language with
 gRPC.
 
@@ -21,11 +22,12 @@ and moves the sealed bundle into place whole; a server removes any
 | `TrainStaticModel` | yes | Distils, seals and serves a static model, streaming its progress. |
 | `ListStaticModels` | no | The static models in the training directory, each file checked. |
 | `DeleteStaticModel` | yes | Stops serving a static model and removes its directory. |
+| `TrainComponent` | yes | Trains a classical component from streamed samples and streams its model file back. |
 
 The admin calls are served only when the server is started with
 `--admin`; without it they refuse with `UNIMPLEMENTED` and touch no
-file. Without `--training-dir` every call but `ListTeachers` refuses
-with `UNIMPLEMENTED`.
+file. Without `--training-dir` every call but `ListTeachers` and
+`TrainComponent` refuses with `UNIMPLEMENTED`.
 
 ## Teachers
 
@@ -119,8 +121,62 @@ whether it was served. A model served under the same name from another
 directory is not touched. An unknown name is `NOT_FOUND`
 (`TURBO_E_BUNDLE_NOT_FOUND`).
 
+## Component training
+
+`TrainComponent` trains one classical component from samples in its
+native format and sends the model file back; the server keeps nothing.
+The client streams a `TrainComponentStart` first, then the samples as
+UTF-8 in any number of `samples` chunks, cut anywhere (inside a
+character too), and ends its stream to start the training. It shares
+the one training slot with `TrainStaticModel`.
+
+| `component` | Samples, as `turbo-formats` reads them |
+|---|---|
+| `SENTENCE_DETECTOR` | One sentence a line, a blank line between documents. |
+| `TOKENIZER` | One sentence a line, tokens split by whitespace or `<SPLIT>`. |
+| `POS_TAGGER` | One sentence a line of `word_TAG` tokens. |
+| `LEMMATIZER` | Word, tag and lemma, tab separated, a line a token, a blank line between sentences. |
+| `CHUNKER` | Word, tag and chunk tag, space separated, a line a token, a blank line between sentences. |
+| `NAME_FINDER` | One sentence a line, `<START:type> ... <END>` around each name. |
+| `DOCUMENT_CATEGORIZER` | A category then the document's tokens, whitespace separated, a line each. |
+| `LANGUAGE_DETECTOR` | A language code, a tab, then the text, a line each. |
+
+`language` is the code the model records, required for every component
+but the language detector, which learns its languages from the
+samples. `parameters` are the training parameters a parameters file
+names (`Algorithm`, `Iterations`, `Cutoff`, `Tolerance`, ...), each
+value a string; unset keys take the trainer's defaults (`MAXENT`, 100
+iterations, cutoff 5; the name finder's own). The sentence detector,
+tokenizer, POS tagger and lemmatizer train `MAXENT` (GIS) only and
+refuse any other `Algorithm`; every trainer but `NAIVEBAYES` needs
+`Iterations` of at least 1. `name_type` gives the
+name finder's untyped names a type (`default` when empty).
+
+The answer streams `TrainComponentProgress`: `ADMITTED`, `READ` with the
+sample count, an `ITERATION` for each finished iteration (with the
+events classified correctly, the event count and the trainer's measure,
+`Log Likelihood` for GIS and `Training Accuracy` for the perceptron),
+then `PACKAGED`. The model file follows as `model` chunks of at most
+1 MiB, and `TrainedComponent` ends the stream with the component, the
+sample count and the file's size and SHA-256 so the client can check
+what it put together. The file loads where a trained model of that
+component does: the annotators' `from_trained_archive` (and
+`from_trained_archive_with_format`).
+
+Refusals: a first message that is not the start, a second start, an
+unnamed component, a missing or longer than 64 byte language,
+parameters the trainer refuses, samples that are not UTF-8 (naming the
+byte), a refused sample line, or no samples are `INVALID_ARGUMENT`;
+more than 256 MiB of samples, or an upload that sends no message for a
+minute (`Serve::upload_idle`), is `OUT_OF_RANGE` (`TURBO_E_CAPACITY`);
+a call while another training runs is `UNAVAILABLE` (`TURBO_E_BUSY`).
+A client that goes away stops the training at its next iteration, the
+quasi-Newton trainer's included, and frees the slot; naive Bayes counts
+in one pass and is not stopped. A client
+that drops the answer but keeps its upload open looks to the server
+like a slow one, so the upload idle limit is what frees the slot then.
+
 ## Not yet served
 
-`TrainComponent` (classical and neural component training from streamed
-samples) and `StreamingTraining` (analysis, vocabulary, distillation and
-indexing as one transaction) are the rest of issue #1223.
+`StreamingTraining` (analysis, vocabulary, distillation and indexing as
+one transaction) is the rest of issue #1223.

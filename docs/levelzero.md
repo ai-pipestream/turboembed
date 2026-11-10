@@ -174,8 +174,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   filed under, is from the PCI device id: `b70` for 0xe223, and
   `intel-<id>` for a device not named yet.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options` but `layers` (field 9), which it
-  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32;
+  every field of `turbo_embed_options`; `layers` (field 9) reads the
+  earlier layers of the BERT, RoBERTa, ModernBERT, nomic-bert and
+  DeBERTa-v2 encoders on a range write (Range pooling, below). MODEL
+  and EXACT compute in F32;
   FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
   intermediate widths are multiples of 32, and in F32 otherwise, which
   `turbo_session_get_info` says. A
@@ -219,7 +221,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   packed rows from the staging over the bus, and its LayerNorm in one
   kernel; per layer one projection for Q, K and V with their biases, one
   attention kernel (scaled dot products over the keys whose mask is 1,
-  with an online softmax), the attention output projection, a residual
+  with an online softmax; for a model of limited lookahead,
+  `architecture.lookahead`, a query's keys stop that many past it, each
+  kernel's walk over the keys ending at its last query's band), the
+  attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
   epilogue, the feed-forward output (its sums split four ways over its
   terms where the kernels below split them), and a kernel that adds the
@@ -317,7 +322,30 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   depend on the other rows of the batch. The output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, allocated with
   the session; a run allocates nothing. A plain write after a range
-  write, or the reverse, replaces it.
+  write, or the reverse, replaces it. A range write with `layers` T
+  above 1 (`turbo_embed_write_layer_ranges`) pools each range from each
+  of the last T layers in the one pass: after each of those layers but
+  the last, the same pooling kernel writes its block of the output from
+  the layer's F32 states, before the next layer runs, and the last block
+  is the plain range write's, bit for bit. At FASTEST, where the
+  residual stream is F16, each layer a block reads also writes its states
+  to F32, as the last layer does for the pooling; a ModernBERT's
+  final_norm is applied to each block's states, as to the last layer's.
+  Normalization then runs over the T blocks at once. T times the ranges
+  is at most `max_ranges`, which the core checks
+  (`core/tests/ranges/layers.rs`).
+- **The span head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head (`turbo_backend_model.head`: the
+  `[2, hidden]` weight and then the bias, F32, copied to the device in an
+  allocation of their own), and a range write to it asks for the head
+  (`rows.head`). The run then pools each range's whole vector,
+  unnormalized, into the projections' scratch, which is free after the
+  last layer and holds `max_batch * max_seq` vectors, and `span_head`
+  computes each range's start and end logits from it, a sub-group per
+  logit, the products and sums in F64 as the CPU path's head does, into
+  the output buffer as `[ranges, 2]` F32. A window's read is then 8 bytes
+  a token, where the hidden states were 3 KB a token at RoBERTa-base's
+  768 (`core/tests/levelzero_qa.rs`).
 - **Failures.** The driver's immediate list cannot finish or be destroyed
   after an append to it fails. Every append signals an event of the
   context's, so when one fails the call waits for the event of the last
@@ -583,21 +611,74 @@ On the Arc Pro B70 under `xe`, the kernel log names each one seen
   which are one group: each frame a desktop client draws is one such
   suspend.
 
-What kept a context on the engine is not known, and no loss has been
-reproduced on purpose. On a B70 (2026-11-09) none of these lost the device:
+What keeps a context on the engine is a page fault (#1765). The runtime
+makes its address spaces ones whose page faults the kernel recovers. In
+that mode the kernel may evict a client's host-memory buffers while they
+are idle (its shrinker, under memory pressure), and the device pages them
+back in by faulting when it next touches them; and it is these queues the
+kernel suspends for other clients' jobs. A suspend that lands while a
+fault is being served does not complete, and 640 ms later the engine is
+reset. The buffers are the runtime's own as much as the backend's: the
+2 MB buffers it stages every read of device memory through, its command
+buffers, and a session's packed rows.
+
+So a loss needs a context idle long enough under memory pressure to be
+evicted, then work on it while a desktop client draws. `train-relation`
+is that: its test pass follows minutes of training on the CPU, and both
+the first reports and a soak lost the device there, in `buffer_read`, the
+first copy to fault. With the kernel's shrinker run by hand during the
+training of a 640-document `train-relation` (`echo 2 >
+/proc/sys/vm/drop_caches`, as root), three runs of four lost the device:
+768 faults on one staging buffer, one for each hardware thread of the
+copy, a suspend during them, and the reset 641 ms after it.
+
+The backend therefore turns the runtime's recoverable page faults off:
+once it has opened the loader, and before `zeInitDrivers` starts the
+drivers, it sets `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0`
+in the process's environment, and a context's debug log line says so. A
+process with no loader gets nothing set, and an `npu`-only build never
+sets them. The kernel then rebinds evicted buffers
+itself before the queue runs again and does not suspend the queue for
+other clients' jobs. With them off, six runs of six of that
+reproduction completed with no fault and no suspend of the queue, at the
+same speed (ModernBERT-base, 8 rows of 512 tokens at MODEL: 100.4 ms a
+pass before, 100.0 ms after) and the same vectors. The backend needs no
+faulting memory: every buffer it hands the device is the driver's own.
+
+- A caller that sets `EnableRecoverablePageFaults` itself, to anything,
+  keeps its value, and `NEOReadDebugKeys` is then not touched; `-1` is the
+  runtime's default, with the faults on.
+- A caller that sets `NEOReadDebugKeys` to anything but `1` keeps it, and
+  `EnableRecoverablePageFaults` is not set either: turning the keys on
+  would switch on every other debug key in that environment. The log line
+  says the faults were left on.
+- The variables are written with `setenv`, which is not safe while
+  another thread of the process is in `getenv` or `setenv` (a JVM host's
+  native threads, for one). The first `turbo_runtime_create` that opens
+  the loader must not race such a thread; a host that cannot promise
+  that sets `EnableRecoverablePageFaults` itself, and nothing is written.
+- The runtime reads the variables when it starts. A process that has
+  already loaded it another way (OpenCL, SYCL, oneDNN on its own) before
+  the first `turbo_runtime_create` keeps what it started with; set the
+  two variables in that process's environment instead.
+- `NEOReadDebugKeys=1` has the runtime read its other switches from the
+  environment too, where a process has any set.
+- Shared-system USM, where the device reads any host address, needs the
+  faults. The backend does not use it.
+
+What did not lose the device, with the faults on (a B70, 2026-11-09):
 single runs of 12 s, 31 s and 77 s; launches of several seconds each; two
-and three processes computing at once, with launches of 20 ms and of over
-640 ms; a render client drawing 60 frames a second during runs with such
-launches; a process stopped for 13 s in the middle of a pass; 4,200 reads
-of 48 MB into memory unmapped after every second read, 1,200 of them with
-the render client drawing; and the whole `train-relation` on Re-DocRED.
+and three processes computing at once; a render client drawing 60 frames
+a second during runs; a process stopped for 13 s in the middle of a pass;
+and 14 whole `train-relation` runs under that render client before the
+fifteenth was lost.
 
 All nine resets on that machine on 2026-10-26, six of them in
 `levelzero_loads`, fell within the four days a desktop client (snap-store)
 was running; one sample, minutes before it stopped, had it at 61% of the
 render engine. After it stopped, 1,400 runs of the loads at once passed
 (`docs/receipts/levelzero-1433/`). A render client is what the suspends
-above need, so it is the likely trigger, not a reproduced one: no load was
-recorded at the reset times and no run was made with it up.
+need, which fits; no load was recorded at those reset times.
+
 Check the kernel log and the other clients on the card before
 reading a lost device as a defect here.

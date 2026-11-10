@@ -152,24 +152,56 @@ pub fn evaluate_dataset(
     resamples: usize,
     seed: u64,
 ) -> Result<OpenSpanDatasetEval> {
-    let test = &corpus.splits.test;
+    let predicted = predict_from_features(matcher, &corpus.splits.test, test_wf, all_lf, all_types)?;
+    let held = if hold_out.is_empty() {
+        None
+    } else {
+        let held_lf = embed_label_names(enc, hold_out, pooling)?;
+        let gold = filter_sentences(&corpus.splits.test, hold_out);
+        Some(predict_from_features(matcher, &gold, test_wf, &held_lf, hold_out)?)
+    };
+    evaluate_predictions(corpus, all_types, seen_types, hold_out, &predicted, held.as_deref(), "test", resamples, seed)
+}
+
+/// Scores predictions from any open-span implementation against the same
+/// majority and dictionary baselines and held-out slices as a trained head.
+#[allow(clippy::too_many_arguments)]
+pub fn evaluate_predictions(
+    corpus: &Corpus,
+    all_types: &[String],
+    seen_types: &[String],
+    hold_out: &[String],
+    predicted: &[Vec<String>],
+    held_predicted: Option<&[Vec<String>]>,
+    split: &str,
+    resamples: usize,
+    seed: u64,
+) -> Result<OpenSpanDatasetEval> {
+    let test = match split {
+        "dev" => &corpus.splits.dev,
+        "test" => &corpus.splits.test,
+        _ => return Err(Error("open-span evaluation split must be dev or test".into())),
+    };
+    if predicted.len() != test.len() || hold_out.is_empty() != held_predicted.is_none() {
+        return Err(Error("open-span predictions do not match the evaluation split or held-out schema".into()));
+    }
+    if held_predicted.is_some_and(|p| p.len() != test.len()) {
+        return Err(Error("open-span held-out predictions do not match the evaluation split".into()));
+    }
     let train = filter_sentences(&corpus.splits.train, seen_types);
-    let predicted = predict_from_features(matcher, test, test_wf, all_lf, all_types)?;
     let majority = crate::eval::Majority::train(&train);
     let base: Vec<Vec<String>> = test.iter().map(|s| majority.predict(&s.words)).collect();
     let dictionary = dictionary_baseline(test, all_types);
     let seen = Seen::of(&train);
     let groups = coarse(&corpus.record.id);
-    let model = evaluate(Task::Bio, test, &predicted, &seen, groups);
+    let model = evaluate(Task::Bio, test, predicted, &seen, groups);
     let baseline = evaluate(Task::Bio, test, &base, &seen, groups);
     let dict = evaluate(Task::Bio, test, &dictionary, &seen, groups);
-    let comparison = bootstrap(Task::Bio, test, &predicted, &base, resamples, seed);
-    let dictionary_comparison = bootstrap(Task::Bio, test, &predicted, &dictionary, resamples, seed);
+    let comparison = bootstrap(Task::Bio, test, predicted, &base, resamples, seed);
+    let dictionary_comparison = bootstrap(Task::Bio, test, predicted, &dictionary, resamples, seed);
     let mut held = (None, None, None, None, None);
-    if !hold_out.is_empty() {
-        let held_lf = embed_label_names(enc, hold_out, pooling)?;
+    if let Some(pred) = held_predicted {
         let gold = filter_sentences(test, hold_out);
-        let pred = predict_from_features(matcher, &gold, test_wf, &held_lf, hold_out)?;
         let base_held = filter_sentences(
             &base
                 .iter()
@@ -181,11 +213,11 @@ pub fn evaluate_dataset(
         let base_held: Vec<Vec<String>> = base_held.into_iter().map(|s| s.labels).collect();
         let dict_held = dictionary_baseline(&gold, hold_out);
         held = (
-            Some(evaluate(Task::Bio, &gold, &pred, &seen, None)),
+            Some(evaluate(Task::Bio, &gold, pred, &seen, None)),
             Some(evaluate(Task::Bio, &gold, &base_held, &seen, None)),
             Some(evaluate(Task::Bio, &gold, &dict_held, &seen, None)),
-            Some(bootstrap(Task::Bio, &gold, &pred, &base_held, resamples, seed)),
-            Some(bootstrap(Task::Bio, &gold, &pred, &dict_held, resamples, seed)),
+            Some(bootstrap(Task::Bio, &gold, pred, &base_held, resamples, seed)),
+            Some(bootstrap(Task::Bio, &gold, pred, &dict_held, resamples, seed)),
         );
     }
     Ok(OpenSpanDatasetEval {

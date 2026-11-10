@@ -116,6 +116,24 @@
   SHA-256 `237700d9aee15f087c4f005309a1a086afa649515c93d6bae51ebb0c50dc13d5`.
   The heads are untrained: their outputs are deterministic, not
   meaningful.
+- `tiny-bert-segment-bundle/`: `tiny-bert-bundle/` with three heads of
+  seeded weights appended to its weights file (`manifest.heads`,
+  docs/bundle.md "Heads"): the sentence boundary head `sents` (`inside`
+  and `last`, argmax), the token split head `words` (`del` into `de` and
+  `el`, `can't` into `ca` and `n't`, and `_`, edit-tree decoding), and
+  the span classifier `mentions` (`O`, `PER` and `LOC`, flat span
+  decoding, `max_words` 3, `width_dim` 4). They are the heads
+  `analysis/tagger/tests/common/mod.rs` builds for the segment tests,
+  written once and sealed, so the in-process analyzer
+  (`analysis/tagger/tests/analyzer_segment.rs`) and the Java bindings
+  (`clients/java-conformance`, `clients/java-panama`, `clients/java-jni`)
+  load a checked-in bundle with segmentation and span-classifier heads.
+  The encoder's weights, the tokenizer file and the reference file are
+  the tiny bundle's unchanged; the model id is
+  `turboembed/tiny-bert-segment`; the weights file is 4051672 bytes,
+  SHA-256 `58da1a146ccce5049ddbe5ed9460e602f082a28c820025cf98240747a6e2e71f`.
+  The heads are untrained: their outputs are deterministic, not
+  meaningful.
 
 - `tiny-sat-recipe/`: the recipe of a small SaT model (wtpsplit's
   `SubwordXLMForTokenClassification`, XLM-R with two layers of width 32,

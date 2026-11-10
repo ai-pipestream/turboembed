@@ -115,7 +115,7 @@ analysis pipeline without a restart through `VocabularyArtifactRef`
   advertises the active binding on `BundleCapabilities.vocabulary`
   (field 10).
 - `AnalyzeDocument.vocabulary` (field 8) on `AnalyzeStream` and
-  `AnalyzePipelineRequest.vocabulary` (field 14) on
+  `AnalyzePipelineRequest.vocabulary` (field 17) on
   `AnalyzeDocumentProgressive` bind `stopwords` and `glossary` for one
   document or request, overriding whichever slots the request sets over
   any bundle default. On `AnalyzeStream`, setting `output` to

@@ -53,6 +53,8 @@ public final class TurboLibrary {
     public static final int TURBO_ANALYSIS_LAYER_DEPENDENCIES = 7;
     /** Native {@code TURBO_ANALYSIS_LAYER_MORPHOLOGY}. */
     public static final int TURBO_ANALYSIS_LAYER_MORPHOLOGY = 8;
+    /** Native {@code TURBO_ANALYSIS_LAYER_WORDS}. */
+    public static final int TURBO_ANALYSIS_LAYER_WORDS = 9;
 
     /** Native span flag: a view range is present. */
     public static final int TURBO_SPAN_VIEW_RANGE = 1;
@@ -180,6 +182,20 @@ public final class TurboLibrary {
 
     /** Size in bytes of {@code struct turbo_result_info} (488 bytes). */
     public static final int TURBO_RESULT_INFO_SIZE = 488;
+    /** {@code sizeof(turbo_session_desc)}: eight {@code uint32_t}. */
+    public static final int TURBO_SESSION_DESC_SIZE = 32;
+    /** {@code sizeof(turbo_embed_options)}: eight {@code uint32_t}, the ranges pointer at 32, two more. */
+    public static final int TURBO_EMBED_OPTIONS_SIZE = 48;
+    /** {@code sizeof(turbo_rerank_options)}: four {@code uint32_t}. */
+    public static final int TURBO_RERANK_OPTIONS_SIZE = 16;
+    /** {@code sizeof(turbo_model_info)}. */
+    public static final int TURBO_MODEL_INFO_SIZE = 772;
+    /** {@code TURBO_DTYPE_I8}: an embed result's int8 codes. */
+    public static final int TURBO_DTYPE_I8 = 6;
+    /** {@code TURBO_DTYPE_U8}: an embed result's packed sign bits. */
+    public static final int TURBO_DTYPE_U8 = 7;
+    /** {@code TURBO_DTYPE_F32}. */
+    public static final int TURBO_DTYPE_F32 = 12;
 
     private static final Arena LIBRARY_ARENA = Arena.ofAuto();
     private static final Linker LINKER = Linker.nativeLinker();
@@ -201,6 +217,10 @@ public final class TurboLibrary {
     /** {@code void turbo_runtime_release(turbo_runtime *)} */
     public static final MethodHandle TURBO_RUNTIME_RELEASE = downcall("turbo_runtime_release",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_runtime_select(turbo_runtime *, uint32_t, uint32_t *, char *, uint32_t, turbo_error *)} */
+    public static final MethodHandle TURBO_RUNTIME_SELECT = downcall("turbo_runtime_select",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_context_create(turbo_runtime *, uint32_t, turbo_context **, turbo_error *)} */
     public static final MethodHandle TURBO_CONTEXT_CREATE = downcall("turbo_context_create",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
@@ -212,6 +232,9 @@ public final class TurboLibrary {
     public static final MethodHandle TURBO_MODEL_LOAD = downcall("turbo_model_load",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, TURBO_TEXT_LAYOUT,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_model_get_info(turbo_model *, turbo_model_info *, turbo_error *)} */
+    public static final MethodHandle TURBO_MODEL_GET_INFO = downcall("turbo_model_get_info",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code void turbo_model_release(turbo_model *)} */
     public static final MethodHandle TURBO_MODEL_RELEASE = downcall("turbo_model_release",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
