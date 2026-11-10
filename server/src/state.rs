@@ -2,7 +2,7 @@
 //! while serving: the analysis service's LoadBundle and UnloadBundle add
 //! and remove entries, and every listing reads the current list.
 
-mod gliner;
+pub(crate) mod gliner;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
