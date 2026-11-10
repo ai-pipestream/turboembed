@@ -183,3 +183,22 @@ fn no_word_character_touches_either_end_of_a_place_name() {
         assert_eq!((w.as_str(), k), (written, kind), "{text:?}");
     }
 }
+
+#[test]
+fn decomposed_county_spellings_read_as_the_table_writes_them() {
+    // #2081: `n` + U+0303 and `u` + U+0308 rather than `ñ` and `ü`. The
+    // mention keeps the source's bytes; the value is the table's NFC name.
+    for (text, written, name) in [
+        ("from Don\u{303}a Ana County.", "Don\u{303}a Ana County", "Doña Ana County"),
+        ("in Mayagu\u{308}ez Municipio", "Mayagu\u{308}ez Municipio", "Mayagüez Municipio"),
+        ("MAYAGU\u{308}EZ MUNICIPIO", "MAYAGU\u{308}EZ MUNICIPIO", "Mayagüez Municipio"),
+        ("DON\u{303}A ANA county", "DON\u{303}A ANA county", "Doña Ana County"),
+    ] {
+        assert_eq!(one(text), (written.to_owned(), "county", name.to_owned()), "{text:?}");
+    }
+    // A mark the name does not hold is still no name, and a mark joined
+    // to its end keeps the #2089 rule.
+    for text in ["Don\u{301}a Ana County", "Doña Ana County\u{303}", "e\u{301}Doña Ana County"] {
+        assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
+    }
+}

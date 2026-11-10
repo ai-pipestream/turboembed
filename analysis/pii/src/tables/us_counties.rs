@@ -53,6 +53,7 @@ mod tests {
             let last = name.rsplit(' ').next().unwrap().to_uppercase();
             assert!(SUFFIXES.contains(&last.as_str()), "{name}");
             assert!(name.split(' ').count() <= MAX_WORDS, "{name}");
+            assert!(turbo_unicode::normalize::is_normalized(turbo_unicode::normalize::Form::Nfc, name), "{name}");
         }
         assert_eq!(county("COOK COUNTY"), Some("Cook County"));
         assert_eq!(county("Prince George\u{2019}s County"), Some("Prince George's County"));

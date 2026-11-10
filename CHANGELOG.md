@@ -152,7 +152,8 @@ stubs must be regenerated.
   ZIP code, and a county or county equivalent of the Census Bureau's 2020
   county list (#1886). No letter, digit, combining mark or `_` may touch
   either end of a place name, so `x_Illinois` and `Cook County_x` hold
-  none (#2089).
+  none (#2089). A county name is compared in NFC, so a decomposed
+  spelling finds its county (#2081).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
