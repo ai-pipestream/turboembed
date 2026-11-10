@@ -58,9 +58,11 @@ pub(super) fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
     let end = i + name.len();
     if *code == "WA"
         && let Some(d) = DISTRICT.iter().find(|d| b.get(end..end + d.len()).is_some_and(|w| w == **d))
-        && on_name_end(text, end + d.len())
     {
-        return Some((end + d.len(), "DC"));
+        // A word character joined to the suffix (`Washington DC_x`) names
+        // neither the District nor the state.
+        let end = end + d.len();
+        return on_name_end(text, end).then_some((end, "DC"));
     }
     if *code == "NY" && b.get(end..end + 5).is_some_and(|w| w.eq_ignore_ascii_case(b" city")) && on_end(text, end + 5) {
         return None;

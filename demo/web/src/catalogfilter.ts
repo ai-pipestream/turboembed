@@ -27,7 +27,8 @@ export function plain(value: string, prefix: string): string {
  * lower case, so `ß`, `ẞ` and `SS` all read "ss"; the dot that lower
  * casing a dotted capital I leaves on the `i` is dropped, so
  * "istanbul" finds it; and a final sigma reads as any other sigma.
- * Folding folded text changes nothing.
+ * Folding a folded code point changes nothing; each side of a
+ * comparison is folded once.
  */
 export function fold(text: string): string {
   const cased = text.toLowerCase().toUpperCase().toLowerCase();

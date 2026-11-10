@@ -1,4 +1,5 @@
-//! #1884: date truncation, shifting and relative dates (`DateRewrite`).
+//! #1884: date truncation, shifting, relative dates and Safe Harbor date
+//! years (`DateRewrite`).
 //! The written form stays on a shift, leap days and month ends clamp,
 //! a keyed offset is the same for one context and never zero, what is not
 //! a whole date is masked, and the strategy works as a rewrite and inside
@@ -11,7 +12,7 @@ use turbo_analysis::{Annotator, Span, ViewId};
 use turbo_analysis_layers::{Date, Temporals};
 use turbo_pii::rewrite::{
     AgeSafeHarbor, DateMode, DateRewrite, DateShift, DateShiftError, MaskPolicy, RedactedView, RewritePolicy,
-    RewriteStrategy, source_view,
+    RewriteStrategy, safe_harbor_category, safe_harbor_cutoff, source_view,
 };
 use turbo_pii::{Pack, PiiKind, PiiStrategyKind};
 
@@ -224,4 +225,67 @@ fn the_config_hash_covers_the_mode_and_its_parameters() {
     assert_ne!(keyed(&KEY, "a"), fixed(0, 0, 0));
     assert_ne!(hash(DateRewrite::relative(d(2026, 1, 1))), hash(DateRewrite::relative(d(2026, 1, 2))));
     assert_eq!(DateRewrite::relative(d(2026, 1, 1)).mode(), &DateMode::Relative(d(2026, 1, 1)));
+    let harbor = |r| hash(DateRewrite::safe_harbor(r));
+    assert_ne!(harbor(d(2026, 1, 1)), harbor(d(2027, 1, 1)));
+    assert_ne!(harbor(d(2026, 1, 1)), base, "safe harbor is another mode than the year");
+    assert_ne!(harbor(d(2026, 1, 1)), hash(DateRewrite::relative(d(2026, 1, 1))));
+}
+
+#[test]
+fn safe_harbor_keeps_the_year_and_groups_years_over_89() {
+    let r = DateRewrite::safe_harbor(d(2026, 7, 14));
+    assert_eq!(r.mode(), &DateMode::SafeHarbor(d(2026, 7, 14)));
+    assert_eq!(r.kind(), PiiStrategyKind::DateSafeHarbor);
+    assert_eq!(safe_harbor_cutoff(d(2026, 7, 14)), 1936);
+    assert_eq!(safe_harbor_category(d(2026, 1, 1)), "1936 or earlier");
+    for (text, want) in [
+        // 89 at most on the reference date: the year stays.
+        ("2026-07-14", "2026"),
+        ("July 14, 1937", "1937"),
+        ("December 31, 1937", "1937"),
+        ("January 1937", "1937"),
+        // Can be 90 or older: one category, whatever the day or month.
+        ("1936-12-31", "1936 or earlier"),
+        ("January 1, 1936", "1936 or earlier"),
+        ("14th July 1936", "1936 or earlier"),
+        ("Jul 4 1902", "1936 or earlier"),
+        ("March 1890", "1936 or earlier"),
+        ("0001-01-01", "1936 or earlier"),
+        // A date after the reference keeps its year too.
+        ("2031-02-03", "2031"),
+    ] {
+        assert_eq!(r.apply(text), want, "{text:?}");
+    }
+    // The category follows the reference year, not the clock.
+    assert_eq!(DateRewrite::safe_harbor(d(2000, 1, 1)).apply("1911-05-05"), "1911");
+    assert_eq!(DateRewrite::safe_harbor(d(2000, 1, 1)).apply("1910-05-05"), "1910 or earlier");
+    // A reference before year 91 has no year to group.
+    assert_eq!(DateRewrite::safe_harbor(d(50, 1, 1)).apply("0001-01-01"), "0001");
+    // What is not one whole date is masked, as in every mode.
+    for not in ["7/14/26", "1936", "Q3 1936", "next week"] {
+        assert_eq!(r.apply(not), "*".repeat(not.chars().count()), "{not:?}");
+    }
+}
+
+#[test]
+fn safe_harbor_works_as_a_rewrite_and_in_a_policy() {
+    let text = "Admitted July 14, 2026; born 1930-07-04; mother born March 1940.";
+    let pii = layer(&pack(Pack::Dates), text);
+    assert_eq!(pii.mentions().filter(|m| m.kind == PiiKind::Date).count(), 3);
+    let src = source_view(text);
+    let r = DateRewrite::safe_harbor(d(2026, 8, 1)).rewrite(&src, &pii).unwrap();
+    assert_eq!(r.text(), "Admitted 2026; born 1936 or earlier; mother born 1940.");
+    assert!(r.edits().edits().all(|e| e.strategy == PiiStrategyKind::DateSafeHarbor));
+    let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
+    assert_offset_and_span_maps(text, &sources, &r);
+    // Another kind sent here is masked whole; an age goes to its own
+    // Safe Harbor strategy.
+    let text = "Born July 4, 1930, aged 96.";
+    let pii = manual(&[(5, 17, PiiKind::Date, "1930-07-04"), (24, 26, PiiKind::Age, "96")]);
+    let policy = RewritePolicy::new(MaskPolicy::new('#').unwrap())
+        .with(PiiKind::Date, DateRewrite::safe_harbor(d(2026, 7, 14)))
+        .with(PiiKind::Age, AgeSafeHarbor::new());
+    assert_eq!(policy.rewrite(&source_view(text), &pii).unwrap().text(), "Born 1936 or earlier, aged 90+.");
+    let all = RewritePolicy::new(RewriteStrategy::from(DateRewrite::safe_harbor(d(2026, 7, 14))));
+    assert_eq!(all.rewrite(&source_view(text), &pii).unwrap().text(), "Born 1936 or earlier, aged **.");
 }
