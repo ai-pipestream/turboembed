@@ -370,7 +370,8 @@ stubs must be regenerated.
 
 - Over-limit step failures are carried as the typed
   `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
-  variants (`{ annotator, limit, max, got }`, displayed as
+  variants (`{ annotator, limit, max, got }`, with `Display` changed
+  from `"{annotator}: limit: {limit} {max}, got {got}"` to
   `"{annotator}: over its {limit} {max}, got {got}"`) instead of an
   `Error::Annotator` detail string, and an imported
   `ErrorRecord::OverLimit` keeps its typed form only when `limit` is in
