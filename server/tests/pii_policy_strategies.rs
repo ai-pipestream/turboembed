@@ -215,6 +215,7 @@ fn every_arm() -> Vec<Strategy> {
         date_arm(Mode::Year(pb::PiiDateYear {})),
         date_arm(Mode::Shift(pb::PiiDateShift { days: 3, ..Default::default() })),
         date_arm(Mode::Relative(pb::PiiDateRelative { reference: "2026-07-14".to_owned() })),
+        date_arm(Mode::SafeHarbor(pb::PiiDateSafeHarbor { reference: "2026-07-14".to_owned() })),
     ];
     // A server without reversible protection does not know these two.
     #[cfg(feature = "pii-reversible")]
@@ -261,7 +262,7 @@ fn every_arm_maps_to_exactly_one_pii_strategy_value() {
     }
     let reversible: &[i32] = if cfg!(feature = "pii-reversible") { &[10, 11] } else { &[] };
     let all: std::collections::BTreeSet<i32> =
-        (1..=9).chain([12, 13, 14, 15, 16]).chain(reversible.iter().copied()).collect();
+        (1..=9).chain([12, 13, 14, 15, 16, 17]).chain(reversible.iter().copied()).collect();
     assert_eq!(
         hit, all,
         "every PiiStrategy value but UNSPECIFIED (and, without reversible protection, 10 and 11) has an arm"
@@ -271,5 +272,5 @@ fn every_arm_maps_to_exactly_one_pii_strategy_value() {
     {
         assert_eq!(value as i32, i32::from(native.id()));
     }
-    assert!(pb::PiiStrategy::try_from(17).is_err(), "a new PiiStrategy value needs an arm here");
+    assert!(pb::PiiStrategy::try_from(18).is_err(), "a new PiiStrategy value needs an arm here");
 }

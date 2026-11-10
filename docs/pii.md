@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting and relative dates |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting, relative dates and Safe Harbor date years |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -535,14 +535,31 @@ the source text into the rewritten text and back
     months, then years. The temporal scanner reads each phrase back with
     the same reference. Edits record `DateRelative`
     (`PII_STRATEGY_DATE_RELATIVE`).
+  - `SafeHarbor(reference)`: the year alone, as `Year` writes it, except
+    that every year 90 or more years before the reference year is written
+    as one category, `1936 or earlier` for a 2026 reference
+    (`safe_harbor_category`). Someone born in such a year can be older
+    than 89 on the reference date, so Safe Harbor
+    (45 CFR 164.514(b)(2)(i)(C)) counts the year as an element of a date
+    indicative of an age over 89, which may be kept only aggregated into
+    one category of age 90 or older. The cutoff is by year alone
+    (`safe_harbor_cutoff`), so the category also takes a year whose
+    people are 89 on part of it, and no year whose people may be 90 is
+    left ungrouped.
+    The reference is passed in, usually the release date of the record,
+    never the clock. The rule does not know which date is a birth date,
+    so it groups every old enough date; pair it with `AgeSafeHarbor` for
+    the `age` kind. Edits record `DateSafeHarbor`
+    (`PII_STRATEGY_DATE_SAFE_HARBOR`).
 
   A mention of another kind, a text that is not one whole absolute day or
   month mention (the scanner reads four-digit years only, so `7/14/26` or
   `July 14, 26`), a date shifted out of the years `0001` to `9999`, and a
   cluster of overlapping mentions are masked whole (`*` by default). The
   gRPC arm is `PiiDateStrategy`, with `year`, `shift` (a keyed offset
-  names a registered key; `max_days` 0 means 30) and `relative`
-  (`reference` as `yyyy-MM-dd`) (#1884).
+  names a registered key; `max_days` 0 means 30), `relative` and
+  `safe_harbor` (each with a required `reference` as `yyyy-MM-dd`)
+  (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
