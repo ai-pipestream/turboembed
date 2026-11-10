@@ -4,7 +4,7 @@
 // monitor, the teachers it can use and the static models it made.
 
 import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
-import { kindName, kinds, matches } from "../catalogfilter.js";
+import { kindName, kinds, matches, purpose } from "../catalogfilter.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { catalog, describe, training } from "../rpc.js";
 import { refresh } from "../state.js";
@@ -37,44 +37,49 @@ async function act(change: () => Promise<string>): Promise<void> {
   }
 }
 
+/**
+ * A catalog entry as a card: its name, what it is for, its licence and
+ * size, and one action. With terms still to accept the action is
+ * reading them, since Install stays off until they are accepted.
+ */
 function entryRow(e: CatalogEntry, w: Who): HTMLElement {
   const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t: LicenceTerms) => act(() => accept(e, t))));
   let install: HTMLElement | string = "";
   if (w.canChange) {
-    const b = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
+    const b = el("button", { type: "button", class: e.missingTerms.length ? "" : "primary", text: e.installed ? "Reinstall" : "Install" });
     b.disabled = e.missingTerms.length > 0;
     b.title = b.disabled ? "Accept the licence terms first" : "";
     b.addEventListener("click", () => void installModel(e));
     install = b;
   }
-  const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
+  const licence = el("span", { class: "licence", text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
   return el(
     "div",
     { class: "entry" },
+    el("div", { class: "id", text: e.id }),
+    el("div", { class: "purpose", text: purpose(e) }),
     el(
       "div",
       { class: "facts" },
-      el("span", { class: "id", text: e.id }),
       el("span", { class: "tag kind", text: kindName(e.kind) }),
       e.language ? el("span", { class: "tag", title: "language", text: e.language }) : null,
-      licence,
-      el("span", { class: "muted", text: size(e.totalBytes) }),
       e.installed ? el("span", { class: "tag installed", text: "installed" }) : null,
     ),
+    el("div", { class: "facts" }, licence, el("span", { class: "muted", text: size(e.totalBytes) })),
     el("div", { class: "acts" }, install, saveButtons(e, w), terms),
   );
 }
 
 /**
- * The catalog as a list under a filter: a chip per kind with its count
- * and a box for words, which hide the rows that do not match.
+ * The catalog as cards under a filter: a chip per kind with its count
+ * and a box for words, which hide the cards that do not match.
  */
 function catalogTable(entries: CatalogEntry[], w: Who): HTMLElement {
   if (!entries.length) return el("p", { class: "muted", text: "The catalog lists nothing." });
   const rows = entries.map((e) => entryRow(e, w));
   const list = el("div", { class: "catalog" }, rows);
   const count = el("span", { class: "muted", id: "models-count", role: "status" });
-  const box = el("input", { id: "models-filter", type: "search", placeholder: "filter by id, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
+  const box = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
   box.value = filterText;
   if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
   const chips: [string, HTMLButtonElement][] = [["", "all", entries.length] as const, ...kinds(entries).map(([k, n]) => [k, kindName(k), n] as const)].map(([k, name, n]) => {
