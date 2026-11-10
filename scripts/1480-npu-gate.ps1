@@ -19,13 +19,26 @@ $Logs = Join-Path $Records "logs"
 $null = New-Item -ItemType Directory -Force -Path $Out, $Scratch, $Records, $Dumps, $Logs, "$Root\bundles"
 "step,exit,minutes" | Set-Content "$Out\summary.csv"
 $global:Problems = [System.Collections.Generic.List[string]]::new()
+# One CSV field: quoted, with inner quotes doubled, when it holds a comma, a quote or a line break.
+function CsvField([string]$s) {
+  if ($s.IndexOfAny([char[]]@(',', '"', "`r", "`n")) -ge 0) { return '"' + $s.Replace('"', '""') + '"' }
+  return $s
+}
 function Problem([string]$Name, [string]$Why) {
   $global:Problems.Add("$Name`: $Why")
-  "$Name,$Why," | Add-Content "$Out\summary.csv"
+  ("{0},{1}," -f (CsvField $Name), (CsvField $Why)) | Add-Content "$Out\summary.csv"
 }
 function Finish {
+  # 7-Zip writes Zip64, so cut dumps over 2 GB pack; Windows PowerShell 5.1's Compress-Archive
+  # fails on them. Compress-Archive is used only when 7z is missing, which the prerequisite check
+  # already reports, and then the archive holds no more than the summary and logs.
   try {
-    Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -ErrorAction Stop
+    if (Have "7z") {
+      & 7z a -tzip "$Out.zip" "$Out\*" *>&1 | Add-Content "$Root\archive-1480-$Stamp.log"
+      if ($LASTEXITCODE -ne 0) { throw "7z exit $LASTEXITCODE (log $Root\archive-1480-$Stamp.log)" }
+    } else {
+      Compress-Archive -Path "$Out\*" -DestinationPath "$Out.zip" -ErrorAction Stop
+    }
     Write-Host "Send back: $Out.zip"
   } catch { Problem "archive" "could not write the evidence archive: $_" }
   Get-Content "$Out\summary.csv"
@@ -46,7 +59,7 @@ function Step([string]$Name, [scriptblock]$Body) {
     Problem $Name "could not complete step: $_"
     return $false
   }
-  "$Name,$code,{0:N1}" -f ((Get-Date) - $t).TotalMinutes | Add-Content "$Out\summary.csv"
+  "{0},{1},{2:N1}" -f (CsvField $Name), $code, ((Get-Date) - $t).TotalMinutes | Add-Content "$Out\summary.csv"
   if ($code -ne 0) {
     Write-Host "--- $Name exit $code" -ForegroundColor Red
     $global:Problems.Add("$Name`: exit $code")
@@ -62,7 +75,7 @@ function RefreshPath {
   }
 }
 RefreshPath
-foreach ($tool in @("git", "cargo")) {
+foreach ($tool in @("git", "cargo", "7z")) {
   if (-not (Have $tool)) { Problem "prerequisites" "$tool is unavailable" }
 }
 if ($global:Problems.Count -gt 0) { Finish }
@@ -115,9 +128,8 @@ function Get-Bundle([string]$Tag, [string]$Prefix) {
     }
     if (-not ((Test-Path $dst) -and (Get-Item $dst).Length -eq $a.size)) { return "" }
   }
-  $sz = if (Have "7z") { (Get-Command 7z).Source } else { "$env:ProgramFiles\7-Zip\7z.exe" }
   Remove-Item $x -Recurse -Force -ErrorAction SilentlyContinue
-  & $sz x "$dir\$Prefix.zip" "-o$x" -y *>&1 | Add-Content "$Out\extract-$Prefix.log"
+  & 7z x "$dir\$Prefix.zip" "-o$x" -y *>&1 | Add-Content "$Out\extract-$Prefix.log"
   if ($LASTEXITCODE -ne 0 -or -not (Test-Path "$x\manifest.json")) { return "" }
   $null = New-Item -ItemType File -Force "$x\.ok"
   return [string]$x
@@ -193,8 +205,13 @@ if (Test-Path $CpuDumps) {
     $npuDump = Join-Path $Dumps $name
     $cpuDump = Join-Path $CpuDumps $name
     if ((Test-Path $npuDump) -and (Test-Path $cpuDump)) {
+      # CPU first, as the committed reports/cuts-cpu-<backend>-*.txt read: A is the CPU, B the NPU.
+      "== $name (A cpu, B npu)" | Add-Content $CutReport
       $null = Step "cuts-$name" {
-        cargo run --release -p turbo-eval --features turbo/npu -- cuts $npuDump $cpuDump
+        # Add-Content, not Tee-Object: on Windows PowerShell 5.1 Tee-Object -Append writes
+        # UTF-16, which would follow the header line above in another encoding.
+        cargo run --release -p turbo-eval --features turbo/npu -- cuts $cpuDump $npuDump |
+          Add-Content -Path $CutReport -PassThru
       }
     } else {
       Problem "cuts-$name" "skipped: no NPU dump at $npuDump or no CPU dump at $cpuDump"
