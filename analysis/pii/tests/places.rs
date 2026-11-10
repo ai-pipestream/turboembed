@@ -175,8 +175,27 @@ fn no_word_character_touches_either_end_of_a_place_name() {
         "State: IL_x",
         "State: IL\u{301}",
         "State: e\u{301}IL",
+        // #2096: a District suffix joined to another word is no District,
+        // and the `Washington` before it is no state.
+        "Washington DC_x",
+        "Washington DC9",
+        "Washington, DC\u{301}",
+        "Washington, D.C.x",
+        "Washington D.C._x",
     ] {
         assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
+    }
+    // The District and the plain state keep their readings.
+    for (text, written, code) in [
+        ("Washington DC", "Washington DC", "DC"),
+        ("Washington, D.C.", "Washington, D.C.", "DC"),
+        ("(Washington, DC)", "Washington, DC", "DC"),
+        ("Washington D.C.-based", "Washington D.C.", "DC"),
+        ("Washington", "Washington", "WA"),
+        ("Washington, Dana said", "Washington", "WA"),
+        ("Washington D", "Washington", "WA"),
+    ] {
+        assert_eq!(one(text), (written.to_owned(), "state", code.to_owned()), "{text:?}");
     }
     // Punctuation is no word character, at either end.
     for (text, written, kind) in [
