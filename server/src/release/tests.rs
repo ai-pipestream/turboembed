@@ -88,6 +88,19 @@ fn key_flag_parse_errors_never_repeat_the_input() {
     assert_not_echoed(&err, key);
     let err = EncryptionKey::load(&short).unwrap_err();
     assert_eq!(err, "--pii-encryption-key tok:3: the key file holds 5 bytes, not 32");
+    // A malformed `--pii-grant` value describes its length and part count
+    // without echoing the input (#2133).
+    let mut grants = Grants::default();
+    for bad in
+        [key.to_owned(), format!("{key}:clear"), with_colons, format!("{FP}:{key}:email"), format!("{FP}:clear:{key}")]
+    {
+        let err = grants.add(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    assert_eq!(
+        grants.add(key).unwrap_err(),
+        "the value (44 bytes in 1 `:`-separated parts, not shown) is not FINGERPRINT:FORMS:KINDS"
+    );
 }
 
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {
