@@ -12,8 +12,8 @@ use super::replace::{EditOrigin, MentionCluster};
 use super::state::MemberInitial;
 pub(crate) use super::state::RewriteState;
 use super::{
-    Abbreviator, AgeSafeHarbor, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, PiiRewrite, Pseudonymizer,
-    RewriteError, Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
+    Abbreviator, AgeSafeHarbor, DateRewrite, FormatRedactor, HmacTokenizer, MapReplacer, MaskPolicy, PiiRewrite,
+    Pseudonymizer, RewriteError, Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
 };
 
 /// Any mention replacement strategy supported by [`PiiRewrite`].
@@ -41,6 +41,8 @@ pub enum RewriteStrategy {
     ZipSafeHarbor(ZipSafeHarbor),
     /// HIPAA Safe Harbor age aggregation ([`AgeSafeHarbor`]).
     AgeSafeHarbor(AgeSafeHarbor),
+    /// Date truncation, shifting and relative dates ([`DateRewrite`]).
+    Date(DateRewrite),
 }
 
 /// A whole-value `'*'` mask. Never a per-document pseudonym (`EMAIL-1`
@@ -118,6 +120,12 @@ impl From<AgeSafeHarbor> for RewriteStrategy {
     }
 }
 
+impl From<DateRewrite> for RewriteStrategy {
+    fn from(v: DateRewrite) -> RewriteStrategy {
+        RewriteStrategy::Date(v)
+    }
+}
+
 impl RewriteStrategy {
     /// Folds the strategy's kind and every parameter that changes what it
     /// writes into `h`.
@@ -135,6 +143,7 @@ impl RewriteStrategy {
             RewriteStrategy::Abbreviate(s) => s.fold_config(h),
             RewriteStrategy::ZipSafeHarbor(s) => s.fold_config(h),
             RewriteStrategy::AgeSafeHarbor(s) => s.fold_config(h),
+            RewriteStrategy::Date(s) => s.fold_config(h),
         }
     }
 
@@ -153,6 +162,7 @@ impl RewriteStrategy {
             RewriteStrategy::Abbreviate(s) => s.refuses_overlaps(),
             RewriteStrategy::ZipSafeHarbor(s) => s.refuses_overlaps(),
             RewriteStrategy::AgeSafeHarbor(s) => s.refuses_overlaps(),
+            RewriteStrategy::Date(s) => s.refuses_overlaps(),
         }
     }
 
@@ -171,6 +181,7 @@ impl RewriteStrategy {
             RewriteStrategy::Abbreviate(s) => s.rewrite(src, pii),
             RewriteStrategy::ZipSafeHarbor(s) => s.rewrite(src, pii),
             RewriteStrategy::AgeSafeHarbor(s) => s.rewrite(src, pii),
+            RewriteStrategy::Date(s) => s.rewrite(src, pii),
         }
     }
 
@@ -188,6 +199,7 @@ impl RewriteStrategy {
             RewriteStrategy::Abbreviate(_) => PiiStrategyKind::Abbreviate,
             RewriteStrategy::ZipSafeHarbor(_) => PiiStrategyKind::ZipSafeHarbor,
             RewriteStrategy::AgeSafeHarbor(_) => PiiStrategyKind::AgeSafeHarbor,
+            RewriteStrategy::Date(s) => s.kind(),
         }
     }
 
@@ -219,7 +231,8 @@ impl RewriteStrategy {
             | RewriteStrategy::Sha256(_)
             | RewriteStrategy::Abbreviate(_)
             | RewriteStrategy::ZipSafeHarbor(_)
-            | RewriteStrategy::AgeSafeHarbor(_) => CharRetention::NONE,
+            | RewriteStrategy::AgeSafeHarbor(_)
+            | RewriteStrategy::Date(_) => CharRetention::NONE,
         }
     }
 

@@ -95,6 +95,10 @@ impl<'a> RewriteState<'a> {
                 age.write_mention(m.kind, &text[m.span.range()], out);
                 Ok(())
             }
+            RewriteStrategy::Date(date) => {
+                date.write_mention(m.kind, &text[m.span.range()], out);
+                Ok(())
+            }
         }
     }
 
@@ -185,6 +189,11 @@ impl<'a> RewriteState<'a> {
             // Overlapping mentions are not one age either.
             RewriteStrategy::AgeSafeHarbor(age) => {
                 age.write_masked(piece, out);
+                Ok(())
+            }
+            // Nor are they one date.
+            RewriteStrategy::Date(date) => {
+                date.write_masked(piece, out);
                 Ok(())
             }
             other => self.write_strategy(other, text, winner, out),
