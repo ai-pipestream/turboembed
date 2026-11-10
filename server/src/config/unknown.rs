@@ -19,6 +19,7 @@ const KNOWN_FLAGS: &[&str] = &[
     "--pii-audit-endpoint",
     "--pii-audit-timeout-ms",
     "--pii-encryption-key",
+    "--pii-encryption-key-active",
     "--pii-grant",
     "--pii-output-allow",
     "--pii-policy",

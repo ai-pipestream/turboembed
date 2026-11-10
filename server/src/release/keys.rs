@@ -224,16 +224,24 @@ pub fn distinct(flag: &str, keys: &[TokenKeyFile]) -> Result<(), String> {
 /// The token key the configured keys name: the one key, or the one
 /// `--pii-token-key-active` names among several.
 pub fn active<'a>(keys: &'a [TokenKeyFile], active: Option<&KeyRef>) -> Result<Option<&'a TokenKeyFile>, String> {
-    distinct("--pii-token-key", keys)?;
+    active_of("--pii-token-key", keys, active)
+}
+
+/// The key `flag`'s values name: the one key, or the one `{flag}-active`
+/// names among several.
+pub fn active_of<'a>(
+    flag: &str,
+    keys: &'a [TokenKeyFile],
+    active: Option<&KeyRef>,
+) -> Result<Option<&'a TokenKeyFile>, String> {
+    distinct(flag, keys)?;
     match (keys, active) {
         ([], None) => Ok(None),
-        ([], Some(a)) => Err(format!("--pii-token-key-active {a} needs --pii-token-key")),
+        ([], Some(a)) => Err(format!("{flag}-active {a} needs {flag}")),
         ([one], None) => Ok(Some(one)),
-        (_, None) => Err("several --pii-token-key values need --pii-token-key-active".into()),
-        (keys, Some(a)) => keys
-            .iter()
-            .find(|k| &k.key == a)
-            .map(Some)
-            .ok_or_else(|| format!("--pii-token-key-active {a} is not a --pii-token-key")),
+        (_, None) => Err(format!("several {flag} values need {flag}-active")),
+        (keys, Some(a)) => {
+            keys.iter().find(|k| &k.key == a).map(Some).ok_or_else(|| format!("{flag}-active {a} is not a {flag}"))
+        }
     }
 }

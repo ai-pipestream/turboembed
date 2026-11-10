@@ -177,3 +177,19 @@ canvas.plot { width: 100%; max-width: 640px; border: 1px solid var(--line); bord
 .share span { display: block; height: 100%; background: rgb(var(--heat)); }
 .leaf { padding: 1px 0; }
 progress { width: 100%; }
+.filter input { flex: 1; min-width: 12em; }
+.catalog .entry { border-top: 1px solid var(--line); padding: 8px 0; }
+.catalog .entry[hidden] { display: none; }
+.catalog .facts { display: flex; gap: 4px 8px; flex-wrap: wrap; align-items: baseline; }
+.catalog .id { font-weight: 600; overflow-wrap: anywhere; }
+.catalog .tag { margin-left: 0; }
+.catalog .tag.installed { color: var(--ok); border-color: var(--ok); }
+.catalog details { margin-top: 0; }
+.catalog dl { margin: 4px 0; }
+.catalog dd { margin: 0 0 4px; overflow-wrap: anywhere; }
+.acts { display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: baseline; margin-top: 4px; }
+.acts:empty { display: none; }
+.acts details[open] { flex: 1 1 100%; }
+.acts button { font-size: 13px; padding: 3px 10px; }
+.files button { margin: 4px 4px 0 0; font-size: 13px; padding: 3px 8px; }
+button.chip { cursor: pointer; }

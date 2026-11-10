@@ -344,3 +344,48 @@ fn a_token_is_bound_to_the_kind_it_was_found_as() {
     assert_ne!(k.token("ab", "c").token, k.token("a", "bc").token);
     assert_ne!(k.token("", "ab").token, k.token("a", "b").token);
 }
+
+#[test]
+fn a_grant_without_ciphertext_keeps_its_canonical_line() {
+    let mut grants = Grants::default();
+    grants.add(&format!("{FP}:token+clear:email")).unwrap();
+    let fp = Fingerprint::parse(FP).unwrap();
+    let before = grants.of(Some(&fp)).canonical();
+    assert!(before.starts_with("token=") && !before.contains("ciphertext"), "{before}");
+    grants.add(&format!("{FP}:ciphertext:phone")).unwrap();
+    let g = grants.of(Some(&fp));
+    assert!(g.canonical().starts_with(&before) && g.canonical().contains(";ciphertext="));
+    assert_eq!(g.forms(PiiKind::Phone), Forms::of(Form::Ciphertext));
+    assert!(g.allows_any(Form::Ciphertext) && grants.any(Form::Ciphertext));
+}
+
+#[cfg(feature = "pii-reversible")]
+#[test]
+fn a_ciphertext_decrypts_under_its_key_and_kind_only() {
+    use turbo_pii::rewrite::AesGcmEncryptor;
+
+    use super::cipher::{CONTEXT, ReleaseCipher, SCHEME};
+    let key = [5u8; 32];
+    let file = key_file("enc32", &key);
+    let c = ReleaseCipher::load(&file).unwrap();
+    let sealed = c.seal(KIND, PLANTED).unwrap();
+    assert_eq!((sealed.scheme.as_str(), sealed.key_id.as_str(), sealed.key_version), (SCHEME, "tok", 3));
+    assert!(!holds(&sealed.ciphertext, PLANTED.as_bytes()));
+    assert_ne!(sealed.ciphertext, c.seal(KIND, PLANTED).unwrap().ciphertext, "a fresh nonce each time");
+    let text = String::from_utf8(sealed.ciphertext).unwrap();
+    let dec = AesGcmEncryptor::new(&key).unwrap().with_context(CONTEXT);
+    assert_eq!(dec.decrypt(&text).unwrap(), ("BUILTIN:1".to_owned(), PLANTED.to_owned()));
+    let moved = text.replacen("BUILTIN:1", "BUILTIN:2", 1);
+    assert!(dec.decrypt(&moved).is_err(), "another kind fails authentication");
+    assert!(AesGcmEncryptor::new(&key).unwrap().decrypt(&text).is_err(), "another context fails");
+    assert!(AesGcmEncryptor::new(&[6u8; 32]).unwrap().with_context(CONTEXT).decrypt(&text).is_err());
+    let debug = format!("{c:?}");
+    assert!(!debug.contains("5, 5") && debug.contains("tok"), "{debug}");
+    let e = ReleaseCipher::load(&key_file("enc31", &[5u8; 31])).unwrap_err();
+    assert!(e.contains("not 32") && !e.contains("5, 5"), "{e}");
+}
+
+#[cfg(feature = "pii-reversible")]
+fn holds(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}

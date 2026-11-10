@@ -26,7 +26,7 @@ fn everything() -> String {
          cpf 529.982.247-25 cnpj 11.222.333/0001-81 SIN: 046 454 286 IMEI: 490154203237518 \
          vin 1FTFW1E51NFA00001 ups 1Z999AA10123456784 ein 12-3456789 site www.example.net/help \
          tel +1 202-555-0143 ext 12 passport X12345678 DL D1234567 Springfield, IL 62704 \
-         aged 41 at 8 Oak Lane born July 4, 1952 paid $1,250.00",
+         aged 41 at 8 Oak Lane born July 4, 1952 paid $1,250.00 in Cook County, Illinois",
         "a".repeat(36)
     )
 }
@@ -42,9 +42,10 @@ fn kinds_found(d: &PiiDetector) -> PiiKinds {
 #[test]
 fn every_pack_is_in_order_and_finds_its_kinds_only() {
     use PiiKind::*;
-    // The dates and money packs are opt-in, not in AllStructured.
-    let all_kinds: Vec<PiiKind> = PiiKind::builtins().filter(|k| !matches!(k, Date | Currency)).collect();
-    let expected: [(Pack, &[PiiKind]); 15] = [
+    // The dates, money and places packs are opt-in, not in AllStructured.
+    let all_kinds: Vec<PiiKind> =
+        PiiKind::builtins().filter(|k| !matches!(k, Date | Currency | State | County)).collect();
+    let expected: [(Pack, &[PiiKind]); 16] = [
         (Pack::Payment, &[Iban, Card, AbaRouting]),
         (Pack::Contact, &[Email, Phone, PhoneExtension, StreetAddress]),
         (Pack::Network, &[Ipv4, Ipv6, Mac]),
@@ -60,6 +61,7 @@ fn every_pack_is_in_order_and_finds_its_kinds_only() {
         (Pack::AllStructured, &all_kinds),
         (Pack::Dates, &[Date]),
         (Pack::Money, &[Currency]),
+        (Pack::Places, &[State, County]),
     ];
     for (p, kinds) in expected {
         let d = pack(p);
@@ -79,7 +81,7 @@ fn the_wide_pack_keeps_every_mention_of_the_narrow_ones() {
     let wide_parity = rows(&wide().keeping_nested(), &text);
     let wide_default = rows(&wide(), &text);
     // The opt-in packs are not part of the wide one.
-    for p in Pack::ALL.into_iter().filter(|p| !matches!(p, Pack::Dates | Pack::Money)) {
+    for p in Pack::ALL.into_iter().filter(|p| !matches!(p, Pack::Dates | Pack::Money | Pack::Places)) {
         for row in rows(&pack(p).keeping_nested(), &text) {
             assert!(wide_parity.contains(&row), "{}: {row:?}", p.name());
         }
@@ -241,7 +243,9 @@ fn kind_ids_and_priorities() {
             "age",
             "street-address",
             "date",
-            "currency"
+            "currency",
+            "state",
+            "county"
         ]
     );
     for (i, r) in PiiKind::TABLE.iter().enumerate() {
@@ -438,6 +442,7 @@ fn pack_config_hashes_are_pinned_on_kind_ids() {
             ("all-structured", 11777157568047150422),
             ("dates", 606945844798268029),
             ("money", 603119544333418324),
+            ("places", 5539767383867711292),
         ]
     );
 }
