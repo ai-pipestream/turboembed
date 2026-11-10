@@ -75,6 +75,8 @@ pub(super) struct Session {
     /// The ranges embed_write_ranges wrote, which the run pools by; 0
     /// after embed_write, whose run pools each row.
     pub(super) ranges: u32,
+    /// Whether the run puts the ranges through the model's head.
+    pub(super) head: bool,
     /// Live tokens, packed.
     pub(super) tokens: u32,
     pub(super) longest: u32,
@@ -222,8 +224,15 @@ pub(super) unsafe fn create(
                     && !is_rotary
                     && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                     && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
-            let mut kernels =
-                Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
+            let mut kernels = Kernels::new(
+                c,
+                d.hidden,
+                d.intermediate,
+                head_dim,
+                xmx,
+                is_deberta.then_some((d, max_seq)),
+                d.lookahead > 0,
+            )?;
             if is_rotary {
                 let rk = super::rotary::RotaryKernels::new(c, head_dim)?;
                 let local = rk.attention_local(max_seq, head_dim);
@@ -336,6 +345,7 @@ pub(super) unsafe fn create(
                 has_types: false,
                 batch: 0,
                 ranges: 0,
+                head: false,
                 tokens: 0,
                 longest: 0,
                 pooling: 0,

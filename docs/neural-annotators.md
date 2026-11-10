@@ -65,10 +65,11 @@ Face hub):
   config's `lookahead` among the layers (`sat-3l`: 48 over 3 layers, 16
   keys ahead a layer), and a bundle carries that per-layer value as
   `architecture.lookahead` (docs/bundle.md); `turbo-bundle` seal holds a
-  recipe's value to the upstream `config.json`. The CPU backend runs the
-  band; on the other backends the loader skips the artifact, so a load
-  there is `TURBO_E_BUNDLE_NO_ARTIFACT`, naming the backend, before any
-  weights are read, and `bundle/recipes/sat-3l.json` lists `cpu` alone.
+  recipe's value to the upstream `config.json`. The CPU and Level Zero
+  backends run the band; on the other backends the loader skips the
+  artifact, so a load there is `TURBO_E_BUNDLE_NO_ARTIFACT`, naming the
+  backend, before any weights are read, and `bundle/recipes/sat-3l.json`
+  lists `levelzero` and `cpu`.
   They are trained on mC4
   alone, so they are permissive; `sat-3l` at
   `a3b7ba6b61881d619989757aea971cde7d3d6a98` is in the zoo index
@@ -336,9 +337,13 @@ different machine from the 4-core rows above.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead on a device: the loader skips the artifact of a
-  bundle with `architecture.lookahead` on every backend but the CPU
-  (`turbo::model::runs_band`), so `sat-3l` runs on the CPU only.
+- Limited lookahead on CUDA and Metal: the loader skips the artifact of
+  a bundle with `architecture.lookahead` on every backend but the CPU and
+  Level Zero (`turbo::model::runs_band`). On Level Zero the tiny banded
+  bundle matches wtpsplit at MODEL as the CPU does
+  (`TURBO_TEST_DEVICE=levelzero cargo test -p turbo-sat --features
+  turbo/levelzero --test parity`); a sealed `sat-3l` has not been run
+  there.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED`; its `classifier` block (`CLASSIFIER_TOKEN`,
   docs/bundle.md) says what the head is, and `turbo-sat` reads the
