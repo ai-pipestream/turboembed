@@ -1,0 +1,16 @@
+MASKED	Mail to 1 Main St, Springfield, ** 62704 or Austin, ** 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, ** 00000.
+
+MASK_ALL	Mail to 1 Main St, Springfield, ## 62704 or Austin, ## 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, ## 00000.
+
+REWRITE	pseudonymize	OK	Mail to 1 Main St, Springfield, STATE-1 62704 or Austin, STATE-2 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, STATE-1 00000.
+
+LABEL	pseudonymize	32	34	32	39	STATE-1
+LABEL	pseudonymize	52	54	57	64	STATE-2
+LABEL	pseudonymize	130	132	140	147	STATE-1
+REWRITE	hmac	OK	Mail to 1 Main St, Springfield, STATE-84549c8ff7f8cfff 62704 or Austin, STATE-929c890916ae4769 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, STATE-84549c8ff7f8cfff 00000.
+
+LABEL	hmac	32	34	32	54	STATE-84549c8ff7f8cfff
+LABEL	hmac	52	54	72	94	STATE-929c890916ae4769
+LABEL	hmac	130	132	170	192	STATE-84549c8ff7f8cfff
+AUDIT	state	3	2	STATE-84549c8ff7f8cfff, STATE-929c890916ae4769
+AUDIT_REPORT	state: 3 mentions, 2 distinct [STATE-84549c8ff7f8cfff, STATE-929c890916ae4769]

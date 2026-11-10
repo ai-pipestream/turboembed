@@ -414,7 +414,13 @@ default: start it with `--admin` (docs/grpc.md, Flags) to answer them
 and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
 `LoadBundleRequest` accepts either an explicit `device` index or
 `select_device = true` (with `device = 0`) to pick a device for the
-bundle's task via `turbo_runtime_select`, and any load or session creation
+bundle's task via `turbo_runtime_select`, and optionally `vocabulary`
+(`VocabularyBinding`, field 13, issue #2013; see
+[docs/grpc-vocabulary.md](grpc-vocabulary.md)) to bind stored
+`stopwords` and `glossary` artifacts (`VocabularyArtifactRef`:
+`artifact_id` plus `sha256`) as the bundle's default vocabulary,
+advertised on `BundleCapabilities.vocabulary` (field 10). Any load,
+vocabulary resolution, or session creation
 failure returns its mapped gRPC status code with `turbo-code` and
 `turbo-field` trailing metadata (docs/kserve.md, Errors).
 On a server started with a catalog (docs/grpc-catalog.md), a bundle whose
@@ -1163,18 +1169,26 @@ and `int8_ranges` among them, plus `sparse_top_k`, `sparse_floor`, and
 `token_stride`), `output`
 (`ANALYZE_OUTPUT_VECTORS` by default, `ANALYZE_OUTPUT_SPARSE_TERMS` for
 learned sparse lexical expansion, `ANALYZE_OUTPUT_TOKEN_VECTORS` for
-per-token contextual vectors and encoder window spans, or
-`ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes), and `offsets`
+per-token contextual vectors and encoder window spans,
+`ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes, or
+`ANALYZE_OUTPUT_DOCUMENT_GRAPH` for the progressive document graph
+pipeline), and `offsets`
 (`OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, or `OFFSET_MODE_CODE_POINT` for
-span offsets on `SparseTermsResult` and `TokenVectorsResult`), and
+span offsets on `SparseTermsResult` and `TokenVectorsResult`),
 optionally `binding` (field 7, issue #1939), the caller's `InputBinding`
-of the text: its source revision and parse artifact id and digest. The
-server echoes it as given on the document's answer
+of the text: its source revision and parse artifact id and digest, and
+optionally `vocabulary` (field 8, issue #2013), a `VocabularyBinding`
+(`stopwords` and `glossary` `VocabularyArtifactRef` pairs of
+`artifact_id` and `sha256` resolved against the vocabulary store and
+cached by digest; see [docs/grpc-vocabulary.md](grpc-vocabulary.md))
+overriding any bundle-level binding for this document. The
+server echoes `binding` as given on the document's answer
 (`AnalyzeStreamResponse.binding`, field 7), failures included, and on
 the answer's sink item, so a downstream store joins the result to the
 parse artifact; a document that sends none gets none back, and a
 `parse_artifact_digest` without a `parse_artifact_id` fails that
-document with `TURBO_E_INVALID_ARGUMENT`. The binding counts toward the
+document with `TURBO_E_INVALID_ARGUMENT`. Both `binding` and
+`vocabulary` count toward the
 document's queued bytes; a refusal over the stream's byte cap echoes it
 only when its id and binding fit that cap. Every
 document answers exactly once as an `AnalyzeStreamResponse` tagged with
@@ -1187,7 +1201,8 @@ its id:
   model's `dim`; another length is the document's
   `TURBO_E_INVALID_ARGUMENT` naming field 8, and documents batch together
   only under the same table. A `quantization` other than 0 or
-  `TURBO_QUANTIZE_NONE` with a sparse-terms or token-vectors `output`
+  `TURBO_QUANTIZE_NONE` with a sparse-terms, token-vectors, or
+  document-graph `output`
   is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output
   whose `quantization` names f32;
 - `SparseTermsResult` (`ANALYZE_OUTPUT_SPARSE_TERMS`, issue #917),
@@ -1201,9 +1216,15 @@ its id:
   pooled vector's codes as their own outcome: the same bytes
   `AnalyzeVectors` carries under `TURBO_QUANTIZE_INT8` (with the
   document's `int8_ranges` table) or `TURBO_QUANTIZE_UBINARY`, so a
-  client asks for codes without asking for vectors; or
+  client asks for codes without asking for vectors;
+- `DocumentGraphResponse` (`ANALYZE_OUTPUT_DOCUMENT_GRAPH`, field 8,
+  issue #2013), the exported document graph with its `layers` (carrying
+  `ModelRef { id: artifact_id, revision: format_id, sha256 }` on any
+  bound `turbo:stopwords`, `turbo:keywords`, or `turbo:glossary-terms`
+  layer) and `findings` (`TypedDocumentResult`); or
 - `AnalyzeFailure` with the turbo status code, field and refusal the
-  single-document call would carry.
+  single-document call would carry (including `TURBO_E_INVALID_ARGUMENT`
+  when a `vocabulary` reference fails digest or format validation).
 A failed document never ends the stream; unknown model, unknown option
 value, missing MLM head, and an over-limit document all answer this way,
 and a batch whose write fails is retried one document at a time so the

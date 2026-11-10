@@ -103,10 +103,48 @@ n-grams, each most frequent first with ties in byte order. The artifact
 id is derived from the bytes, so the same documents in the same order
 with the same header are one artifact.
 
-## What it does not do yet
+## Binding into an analysis pipeline (issue #2013)
 
-A stored artifact is not yet bound into a running analysis pipeline: a
-pipeline reads its dictionaries from the paths its bundle names, and the
-store's files are not among them. Binding a stored glossary or stopword
-list into `AnalyzeStream` without a restart needs a way for a request to
-name an artifact, which this service does not define.
+A stored dictionary or learned vocabulary is bound into a running
+analysis pipeline without a restart through `VocabularyArtifactRef`
+(`artifact_id` and lowercase hex `sha256`, in
+`server/proto/turbo_analysis.proto`) inside `VocabularyBinding`:
+
+- `LoadBundleRequest.vocabulary` (field 13) binds a bundle's default
+  `stopwords` and `glossary` artifacts when the bundle is loaded and
+  advertises the active binding on `BundleCapabilities.vocabulary`
+  (field 10).
+- `AnalyzeDocument.vocabulary` (field 8) on `AnalyzeStream` and
+  `AnalyzePipelineRequest.vocabulary` (field 17) on
+  `AnalyzeDocumentProgressive` bind `stopwords` and `glossary` for one
+  document or request, overriding whichever slots the request sets over
+  any bundle default. On `AnalyzeStream`, setting `output` to
+  `ANALYZE_OUTPUT_DOCUMENT_GRAPH` (4) runs the document graph pipeline
+  with the resolved binding and answers with
+  `AnalyzeStreamResponse.document_graph` (`DocumentGraphResponse`).
+
+Each reference resolves against the `--vocabulary-dir` store and is
+verified against its 64-character lowercase hex `sha256` before the
+bytes are parsed, then cached by digest so repeated requests share one
+compiled annotator:
+
+- `stopwords` accepts a `plain-word-list` dictionary from
+  `ImportDictionary` or a `# turbo-vocabulary 1` artifact from
+  `LearnVocabulary` (each `term` row's headword, NFKC-normalized and
+  lowercased), driving `turbo:stopwords` (`turbo-stopword:filter`) and
+  `turbo:keywords` (`turbo-keywords:yake`).
+- `glossary` accepts a `glossary-csv`, `glossary-tbx`, or
+  `glossary-mapped` dictionary from `ImportDictionary`, or a
+  `# turbo-vocabulary 1` artifact from `LearnVocabulary`, driving
+  `turbo:glossary-terms` (`turbo-glossary:annotator`, appended after
+  tokenization when bound on the default pipeline).
+
+Every step that runs with a bound artifact records
+`ModelRef { id: artifact_id, revision: format_id, sha256 }` in its
+layer provenance (`LayerInfo.model`, `TypedDocumentResult` layer
+provenance, and `ProcessingReceipt` step receipts) and folds the
+artifact identity into `config_hash`. A wrong `sha256`, an unknown or
+malformed `artifact_id`, an incompatible dictionary format, or a server
+started without `--vocabulary-dir` is refused with `INVALID_ARGUMENT`
+(`TURBO_E_INVALID_ARGUMENT`, 256) naming the reference and never
+quoting dictionary terms or filesystem paths.

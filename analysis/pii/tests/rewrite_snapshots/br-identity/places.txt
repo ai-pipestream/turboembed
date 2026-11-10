@@ -1,0 +1,9 @@
+MASKED	Lives in Cook County, Illinois, near Springfield, IL 62704; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+MASK_ALL	Lives in Cook County, Illinois, near Springfield, IL 62704; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+REWRITE	pseudonymize	OK	Lives in Cook County, Illinois, near Springfield, IL 62704; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+REWRITE	hmac	OK	Lives in Cook County, Illinois, near Springfield, IL 62704; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+AUDIT_REPORT	no pii found
