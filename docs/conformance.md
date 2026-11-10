@@ -121,9 +121,24 @@ scale, the largest reference value in magnitude
 
 The F32 bound is the one `core/tests/rerank.rs` and
 `core/tests/qa_inference.rs` hold the CPU to. The F16, BF16 and I8
-bounds are set from each format's precision and have not yet been
-measured on a device; a device run that fails one is to be looked at
-before the bound is changed.
+bounds were set from each format's precision; the measurements below
+are the largest difference each device gave, as a fraction of the
+scale, at FASTEST. A bound is kept at least five times the largest
+difference measured for its dtype; a device run that fails one is to be
+looked at before the bound is changed.
+
+| Device | Compute dtype | Small rerank | Small QA | MS MARCO MiniLM L6 v2 | BGE reranker base |
+|---|---|---:|---:|---:|---:|
+| Level Zero, Arc Pro B70 | F16 | 1.5e-3 | 5.7e-4 | 4.9e-4 | 9.0e-4 |
+| Level Zero with oneDNN, Arc Pro B70 | F16 | 2.1e-3 | 1.1e-3 | 4.2e-4 | 4.6e-4 |
+
+The small rerank and QA columns are this check, at
+`TURBO_TEST_PRECISION=fastest`; the two real rerankers are
+`core/tests/levelzero_rerank.rs` with `TURBO_TEST_RERANK_BUNDLES`
+(docs/reranking.md), which holds FASTEST to the same bound. Level Zero
+computes in F32 or F16 only, so it measures no BF16 or I8 bound. The
+Level Zero rows were run on compute-runtime 26.27.39122.14, loader
+1.32.0 and oneAPI 2025.3.
 
 The decisions are checked too:
 
