@@ -574,7 +574,9 @@ older than the runtime, it lists none and the runtime's log says why.
      query's own band is masked as a masked key is, which is how a
      ModernBERT's sliding window runs, with the reach before the query
      and after it apart (`AttnArgs.back`, `window`). A model with no
-     band launches the kernels with the window off, as before;
+     band launches the kernels with the window off, as before. Heads
+     wider than 64 have no attention kernel here, with a band or
+     without, and such a model is refused at load;
   3. the attention output GEMM, with its bias, the residual and
      LayerNorm in its epilogue: each tile's finishing block adds the
      bias and the residual into the hidden states and counts the tile

@@ -261,8 +261,8 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
 /// With `TURBO_TEST_BANDED_BUNDLE` naming a real BERT or RoBERTa bundle,
 /// that bundle's weights with a band of `ahead` keys, split into heads of
 /// 32, 64 and 128 values (each a model the CPU and a device run alike,
-/// reaching every head width's attention kernel; a device that refuses a
-/// width at load, naming it, is skipped for that width), on each device of
+/// reaching every head width's attention kernel; CUDA, which has none for
+/// heads of 128, is skipped at that width alone), on each device of
 /// BANDED at MODEL and FASTEST, against the CPU on rows long enough to
 /// fill the staged kernel's group; skipped without it. The bound is
 /// docs/conformance.md's cosine for the session's compute dtype.
@@ -307,9 +307,7 @@ fn a_real_bundle_with_a_band_matches_the_cpu_on_each_device() {
         for &(b, precision, _) in &devices {
             let l = match Loaded::load_on(&dir, |rt| first_of(rt, b).unwrap()) {
                 Ok(l) => l,
-                // A backend with no attention kernel for heads this wide
-                // refuses the model at load, naming the width.
-                Err(e) if e.is(UNSUPPORTED, &format!("heads {head} wide")) => {
+                Err(e) if no_kernel_for_width(b, head, &e) => {
                     println!("{b}, heads of {head}: skipped: {}", e.message);
                     continue;
                 }
@@ -329,6 +327,27 @@ fn a_real_bundle_with_a_band_matches_the_cpu_on_each_device() {
         }
         std::fs::remove_dir_all(&dir).unwrap();
     }
+}
+
+/// Whether a refusal at load is the one gap the real-bundle test skips:
+/// CUDA has no attention kernel for heads of 128 and says so, naming the
+/// width. Any other backend, width or failure fails the test.
+fn no_kernel_for_width(backend: &str, head: u64, e: &Failure) -> bool {
+    backend == "cuda" && head == 128 && e.is(UNSUPPORTED, "heads 128 wide")
+}
+
+#[test]
+fn only_cuda_at_heads_of_128_skips_a_width() {
+    let refusal = |head: u64| Failure { code: UNSUPPORTED, field: 0, message: format!("heads {head} wide") };
+    assert!(no_kernel_for_width("cuda", 128, &refusal(128)));
+    for (backend, head) in [("cuda", 32), ("cuda", 64), ("levelzero", 32), ("levelzero", 64), ("levelzero", 128)] {
+        assert!(!no_kernel_for_width(backend, head, &refusal(head)), "{backend}, heads of {head}");
+    }
+    // The width's own refusal alone: another code or message fails.
+    let other = Failure { code: INVALID_ARGUMENT, field: 0, message: "heads 128 wide".into() };
+    assert!(!no_kernel_for_width("cuda", 128, &other));
+    let other = Failure { code: UNSUPPORTED, field: 0, message: "device memory for the weights".into() };
+    assert!(!no_kernel_for_width("cuda", 128, &other));
 }
 
 /// Every file under `src`, linked or copied into `dst`.
