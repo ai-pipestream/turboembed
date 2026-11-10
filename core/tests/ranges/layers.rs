@@ -5,7 +5,9 @@
 //! as RoBERTa), the run's shape, and the refusals turbo.h lists, with a
 //! count over the model's layers refused alike on a device that is not
 //! the CPU. Each block against a model cut after its layer is the cpu
-//! encoder's own test (cpu/encoder/taps_tests.rs).
+//! encoder's own test (cpu/encoder/taps_tests.rs). On each device this
+//! build lists whose cell sets field 9's bit, every block matches the
+//! CPU's within the conformance tolerance for its compute dtype.
 
 use std::path::Path;
 
@@ -141,15 +143,12 @@ fn a_count_over_the_model_is_refused_alike_on_every_device() {
     for backend in devices {
         let l = Loaded::load_on(&dir, |rt| first_of(rt, backend).expect("listed"))
             .unwrap_or_else(|e| panic!("{backend}: {e:?}"));
-        let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
-        cap.struct_size = size_of::<turbo_capability>() as u32;
-        let at = first_of(l.rt, backend).unwrap();
-        let rc = unsafe {
-            turbo_runtime_capability(l.rt, at, TURBO_TASK_EMBED, TURBO_PRECISION_MODEL, &mut cap, &mut new_error())
-        };
-        assert_eq!(rc, 0, "{backend}");
-        let reads = cap.options_honored & 1 << 8 != 0;
-        assert_eq!(reads, backend == "cpu", "{backend}: the cpu backend alone reads the earlier layers");
+        let reads = reads_layers(&l, backend, TURBO_PRECISION_MODEL);
+        assert_eq!(
+            reads,
+            matches!(backend, "cpu" | "metal"),
+            "{backend}: the cpu and metal backends alone read the earlier layers"
+        );
         let s = session_of(&l, 0);
         let over = s.write_layer_ranges(&t.batch(), &good, 3, None).unwrap_err();
         assert_eq!((over.code, over.field), (INVALID_ARGUMENT, 9), "{backend}: {over:?}");
@@ -161,6 +160,115 @@ fn a_count_over_the_model_is_refused_alike_on_every_device() {
             Err(e) => {
                 assert!(!reads, "{backend}: {e:?} with field 9's bit set");
                 assert_eq!((e.code, e.field), (UNSUPPORTED_OPTION, 9), "{backend}: {e:?}");
+            }
+        }
+    }
+}
+
+/// Whether the cell of `backend`'s first device, the one `l` is loaded on,
+/// sets field 9's bit at `precision`: its range writes read earlier layers.
+fn reads_layers(l: &Loaded, backend: &str, precision: u32) -> bool {
+    let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
+    cap.struct_size = size_of::<turbo_capability>() as u32;
+    let at = first_of(l.rt, backend).unwrap();
+    let rc = unsafe { turbo_runtime_capability(l.rt, at, TURBO_TASK_EMBED, precision, &mut cap, &mut new_error()) };
+    assert_eq!(rc, 0, "{backend}");
+    cap.options_honored & 1 << 8 != 0
+}
+
+/// Whether TURBO_TEST_REQUIRE_<BACKEND> asks that `backend` be tested.
+fn required(backend: &str) -> bool {
+    std::env::var(format!("TURBO_TEST_REQUIRE_{}", backend.to_uppercase())).is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+/// The small bundles of each family the layers are read from, with their
+/// layer counts, and the small BERT as RoBERTa, whose fixture is returned
+/// to be kept while it is read.
+fn layer_bundles() -> (Vec<(std::path::PathBuf, u32)>, Fixture) {
+    let mut m = model_manifest();
+    m["architecture"]["family"] = json!("FAMILY_ROBERTA");
+    m["architecture"]["position_offset"] = json!(2);
+    let mut f = Fixture::new("layers-roberta-devices", m);
+    f.weights("weights/model.safetensors", &tiny_weights(0));
+    let roberta = f.write().to_path_buf();
+    let dirs = vec![
+        (testdata().join("tiny-bert-bundle"), 2),
+        (testdata().join("tiny-modernbert-bundle"), 3),
+        (testdata().join("tiny-deberta-bundle"), 2),
+        (testdata().join("tiny-nomic-bundle"), 2),
+        (roberta, 2),
+    ];
+    (dirs, f)
+}
+
+/// Every layer read on a device whose cell sets field 9's bit, at MODEL
+/// and FASTEST, against the CPU's at MODEL: each block within the
+/// conformance tolerance for the session's compute dtype, and the last
+/// block the device's own plain range write bit for bit. A device this
+/// build does not list is skipped, unless TURBO_TEST_REQUIRE_<BACKEND> is
+/// set, as is one whose cell lacks the bit, and a precision the device
+/// refuses for a family, each with the reason.
+#[test]
+fn the_layers_read_on_a_device_match_the_cpu() {
+    for backend in ["cuda", "metal", "levelzero"] {
+        if !listed(backend) {
+            assert!(!required(backend), "TURBO_TEST_REQUIRE_{}: no {backend} device is listed", backend.to_uppercase());
+            println!("the_layers_read_on_a_device_match_the_cpu: {backend}: skipped: no device is listed");
+            continue;
+        }
+        let (bundles, _roberta) = layer_bundles();
+        for (dir, deep) in bundles {
+            let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+            let cpu = Loaded::load(&dir).unwrap_or_else(|e| panic!("{name}: {e:?}"));
+            let (t, lens) = tokens_of(&dir, &RANGES_TEXTS);
+            let ranges = [range(0, 0, lens[0] as u32), range(1, 1, 4), range(2, 0, 2)];
+            let s = session_of(&cpu, 3 * deep);
+            s.write_layer_ranges(&t.batch(), &ranges, deep, None).unwrap();
+            let want = s.run().unwrap().rows();
+            let l = Loaded::load_on(&dir, |rt| first_of(rt, backend).expect("listed"))
+                .unwrap_or_else(|e| panic!("{backend}, {name}: {e:?}"));
+            for (precision, label) in [(TURBO_PRECISION_MODEL, "MODEL"), (TURBO_PRECISION_FASTEST, "FASTEST")] {
+                if !reads_layers(&l, backend, precision) {
+                    println!("{backend}, {name}, {label}: skipped: the cell does not set field 9's bit");
+                    continue;
+                }
+                let mut d = session_desc(0, 0, precision);
+                d.max_ranges = 3 * deep;
+                let s = match Session::create(l.m, Some(&d)) {
+                    Ok(s) => s,
+                    Err(e) if e.code == UNSUPPORTED || e.code == UNSUPPORTED_OPTION => {
+                        println!("{backend}, {name}, {label}: skipped: {}", e.message);
+                        continue;
+                    }
+                    Err(e) => panic!("{backend}, {name}: {e:?}"),
+                };
+                let what = format!("{backend}, {name}, {label}");
+                s.write_layer_ranges(&t.batch(), &ranges, deep, None).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+                let got = s.run().unwrap().rows();
+                let floor = crate::common::conformance::tolerance(s.info().compute_dtype);
+                assert_eq!(got.len(), want.len(), "{what}");
+                let mut worst = (1.0f64, 0.0f64);
+                for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+                    let (c, m) = (cosine(g, w), max_abs_diff(g, w));
+                    worst = (worst.0.min(c), worst.1.max(m));
+                    assert!(c >= floor.min_cosine, "{what}, vector {i} (tap {}): cosine {c}", i / 3);
+                    if let Some(most) = floor.max_abs_diff {
+                        assert!(m <= most, "{what}, vector {i} (tap {}): max abs diff {m:e}", i / 3);
+                    }
+                }
+                let plain = run_ranges(&s, &t, &ranges, &embed_options());
+                let last = &got[3 * (deep as usize - 1)..];
+                assert_eq!(
+                    last.iter().map(|v| bits(v)).collect::<Vec<_>>(),
+                    plain.iter().map(|v| bits(v)).collect::<Vec<_>>(),
+                    "{what}: the last block is the plain range write"
+                );
+                println!(
+                    "{what}: {} vectors from {deep} layers, 1 - min cosine {:.2e}, max abs diff {:.2e}",
+                    got.len(),
+                    1.0 - worst.0,
+                    worst.1
+                );
             }
         }
     }
