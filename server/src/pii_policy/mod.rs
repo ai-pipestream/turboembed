@@ -24,6 +24,7 @@ mod named;
 mod redact;
 mod registry;
 mod resolve;
+mod reversible;
 mod strategy;
 mod suggest;
 

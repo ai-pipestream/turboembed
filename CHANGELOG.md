@@ -47,6 +47,20 @@ stubs must be regenerated.
 - With `reversible`, `RewriteStrategy::AesGcm` and `RewriteStrategy::Ff1`
   put both encryptors in a `RewritePolicy`, per kind. Their key enters the
   policy's configuration hash only as an HMAC under a fixed label (#1885).
+- The server's `pii-reversible` cargo feature: the redaction policy arms
+  `aes_256_gcm` (`PiiAesGcmStrategy`, field 14) and `ff1`
+  (`PiiFf1Strategy`, field 15, with `PiiFf1Alphabet`), each naming a key
+  registered with `--pii-encryption-key ID:VERSION:PATH`
+  (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`), a registry of exactly 32-byte keys
+  kept apart from the token keys. A server built without the feature
+  does not know the arms (#1885).
+- Ciphertext value release: `--pii-grant FINGERPRINT:ciphertext:KINDS`
+  releases `PII_VALUE_FORM_CIPHERTEXT` from `InspectDocumentGraph` as
+  `PiiValueCiphertext` (scheme `turbo-pii-aes-256-gcm-v1`), AES-256-GCM
+  under the active encryption key (`--pii-encryption-key-active`,
+  `TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`, among several), bound to the
+  kind. `--pii-output-allow` accepts `ciphertext`. Needs the
+  `pii-reversible` feature (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -63,6 +77,16 @@ stubs must be regenerated.
   `token_start`. Off by default, so existing callers see the same rows.
   Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
   `piiKind()` and `piiCustomKindIndex()` (#1964).
+- C ABI PII rows carry their detector identity, evidence facts and
+  optional score through `turbo_analysis_result_pii_spans` and
+  `turbo_analysis_result_pii_facts` (`turbo_pii_span`,
+  `turbo_pii_fact`), and `turbo_analyzer_desc.flags` bit
+  `TURBO_ANALYZER_PII_DETAIL` exposes `turbo:pii-candidates` rows
+  through `turbo_analysis_result_pii_candidates` (`turbo_pii_candidate`),
+  with no value or label text. Java `TurboSpanView` and `TurboSpanData`
+  read `piiDetector()`, `piiEvidence()` and `piiScore()`, and
+  `TurboAnalysisResult.piiCandidates()` reads candidates under
+  `Config.withPiiDetail(true)` (#1941).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
@@ -335,9 +359,11 @@ stubs must be regenerated.
   (#2026).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
-  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
-  or redistribute the model. The 772-byte struct is still accepted, and
-  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
+  `TURBO_LICENSE_CLASS_*`), and `ModelMetadata` serves them as
+  `model_info.license` and `model_info.license_class`, so a caller can
+  check whether it may serve or redistribute the model. The 772-byte
+  struct is still accepted, and a `model.license` of 128 bytes or more
+  is `BUNDLE_INVALID` (#2019, #2041).
 
 ### Changed
 
@@ -359,6 +385,27 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `AnalyzeDocumentProgressive`: a document over a limit of
+  `turbo:zero-shot-relations` (such as the GLiNER2 encoder's 512 word
+  pieces) fails the step with `TURBO_E_CAPACITY` and a message naming the
+  limit and the counts, instead of `TURBO_E_INTERNAL` with no detail.
+  The layer's error has the new kind `LAYER_ERROR_KIND_LIMIT` with the
+  same code (#2125).
+- `AnalyzeDocumentProgressive`: in a step chain that folds case,
+  `turbo-sentdetect:rules` reads the last view before the fold, so a
+  folded document keeps its sentence boundaries instead of becoming one
+  sentence (#2086).
+- `--pii-token-key`, `--pii-token-key-active` and `--pii-encryption-key`
+  (and their variables):
+  a value that does not parse is described by its length and parts, never
+  repeated, and a key file that cannot be loaded is named by its reference
+  and the path's length, so key text pasted into the flag does not reach
+  stderr (#2093).
+- `turbo-kserve`: an argument no flag claims is named without its value.
+  A misspelled `--flag=value` reads `unknown argument --flag=...`, and a
+  stray non-flag word, or `--` followed by text no flag could be, is
+  described by its length, so key text pasted there does not reach stderr
+  (#2102).
 - `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
   client goes away stops at its next iteration and frees the training
   slot, as GIS and the perceptron do (#2067).

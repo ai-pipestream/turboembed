@@ -24,7 +24,7 @@ function statusName(s: LayerWireStatus): string {
   return LayerWireStatus[s] ?? String(s);
 }
 
-function layerRows(layers: Map<string, LayerInfo>): HTMLTableElement {
+function layerRows(layers: Map<string, LayerInfo>): HTMLElement {
   return table(
     ["layer", "instance", "status", "items", "annotator"],
     [...layers.values()].map((l) => [

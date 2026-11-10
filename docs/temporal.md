@@ -162,6 +162,18 @@ deterministic rules in `turbo-numeric` and `turbo-grammar`, projected by
   Disjoint `"date"` spans predicted only by the learned head (such as named
   holidays not in `Temporals`) are retained as fallback entities.
 
+### Measured against MASC gold and peers (#1731)
+
+On the 39 MASC 3.0.0 held-out documents with named entities, the rule
+`"date"` spans score exact-span F1 0.2394 against MASC's date gold, below
+spaCy `en_core_web_trf` (0.5176) and Stanza (0.4806) on the same text:
+MASC's date also covers deictic times (`now`, `tonight`), decades,
+durations and bare years, which the rules leave alone. This is the
+deterministic baseline a learned date head must beat. The record, with the
+reviewed-set rows for `"time"`, `"money"` and `"percent"` and the commands,
+is `analysis/eval/records/rule-entities-1731/README.md`, made by the
+`rule_entities_gate` example of `turbo-query`.
+
 ## Edge cases and testing
 
 Default extraction behavior:

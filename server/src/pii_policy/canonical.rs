@@ -217,11 +217,13 @@ fn mask(e: &mut Enc, m: &pb::PiiMaskStrategy) {
     e.bool(2, m.keep_format);
 }
 
+fn key_ref(e: &mut Enc, r: &pb::PiiPolicyKeyRef) {
+    e.str(1, &r.id);
+    e.u32(2, r.version);
+}
+
 fn keyed_token(e: &mut Enc, k: &pb::PiiKeyedTokenStrategy) {
-    e.msg(1, k.key.as_ref(), |e, r: &pb::PiiPolicyKeyRef| {
-        e.str(1, &r.id);
-        e.u32(2, r.version);
-    });
+    e.msg(1, k.key.as_ref(), key_ref);
     e.u32(2, k.length);
 }
 
@@ -300,6 +302,15 @@ fn strategy(e: &mut Enc, s: &pb::PiiRewriteStrategy) {
         }),
         Some(S::AgeSafeHarbor(a)) => e.arm(12, a, |e, a| e.str(1, &a.mask_char)),
         Some(S::Date(d)) => e.arm(13, d, date),
+        Some(S::Aes256Gcm(a)) => e.arm(14, a, |e, a| {
+            e.msg(1, a.key.as_ref(), key_ref);
+            e.str(2, &a.context);
+        }),
+        Some(S::Ff1(f)) => e.arm(15, f, |e, f| {
+            e.msg(1, f.key.as_ref(), key_ref);
+            e.enm(2, f.alphabet);
+            e.str(3, &f.tweak);
+        }),
     }
 }
 

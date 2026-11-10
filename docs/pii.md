@@ -299,8 +299,12 @@ confidence tier, the audit report and every policy decision read them.
   the typed validator refuses a mention whose tier is not the one its
   evidence derives to, an unknown fact, algorithm, score kind, scope or
   reason, a missing detector, and a candidate whose mention index lies
-  outside the `turbo:pii` layer of the same instance. The C ABI and the
-  Java binding carry the derived tier only.
+  outside the `turbo:pii` layer of the same instance. The C ABI borrows
+  `turbo_pii_span`, `turbo_pii_fact` and (under
+  `TURBO_ANALYZER_PII_DETAIL`) `turbo_pii_candidate` slices from
+  `turbo_analysis_result` alongside `turbo_span`, and the Java bindings
+  read them as `piiDetector()`, `piiEvidence()`, `piiScore()` and
+  `piiCandidates()`, with no value or label text by default (#1941).
 
 ## Per-document risk
 
