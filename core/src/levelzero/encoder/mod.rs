@@ -102,6 +102,7 @@ mod rotary;
 mod session;
 mod stages;
 mod staging;
+mod taps;
 mod tune;
 mod write;
 

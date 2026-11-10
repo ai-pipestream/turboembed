@@ -1,0 +1,65 @@
+name: setup-buf
+description: >
+  Install the buf CLI from a GitHub Actions cache, downloading from
+  GitHub Releases only on a cache miss, with retries and a sha256 check.
+inputs:
+  version:
+    description: buf version without a leading v (for example 1.70.0).
+    required: true
+runs:
+  using: composite
+  steps:
+    # One cache entry per OS, arch, and version. Hits skip the release
+    # download that failed merge-queue run 42580497484 with HTTP 504.
+    - name: Restore cached buf
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/buf-bin
+        key: buf-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+    - name: Download buf on cache miss
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        BUF_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        case "${RUNNER_OS}" in
+          Linux) os=Linux ;;
+          macOS) os=Darwin ;;
+          Windows) os=Windows ;;
+          *) echo "unsupported RUNNER_OS=${RUNNER_OS}" >&2; exit 1 ;;
+        esac
+        case "${RUNNER_ARCH}" in
+          X64) arch=x86_64 ;;
+          ARM64)
+            if [ "$os" = Linux ]; then arch=aarch64; else arch=arm64; fi
+            ;;
+          *) echo "unsupported RUNNER_ARCH=${RUNNER_ARCH}" >&2; exit 1 ;;
+        esac
+        if [ "$os" = Windows ]; then
+          asset="buf-${os}-${arch}.exe"
+          out_name=buf.exe
+        else
+          asset="buf-${os}-${arch}"
+          out_name=buf
+        fi
+        base="https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}"
+        mkdir -p "${RUNNER_TEMP}/buf-bin"
+        cd "${RUNNER_TEMP}/buf-bin"
+        # Retries cover transient GitHub Releases 504s; --retry-all-errors
+        # retries 5xx as well as connection failures.
+        curl --fail --location --show-error \
+          --retry 5 --retry-all-errors --retry-delay 5 \
+          --output sha256.txt "${base}/sha256.txt"
+        curl --fail --location --show-error \
+          --retry 5 --retry-all-errors --retry-delay 5 \
+          --output "${asset}" "${base}/${asset}"
+        grep -E "  ${asset}$" sha256.txt | sha256sum -c -
+        mv "${asset}" "${out_name}"
+        chmod +x "${out_name}"
+        rm -f sha256.txt
+        "./${out_name}" --version
+    - name: Add buf to PATH
+      shell: bash
+      run: echo "${RUNNER_TEMP}/buf-bin" >> "$GITHUB_PATH"

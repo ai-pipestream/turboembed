@@ -244,7 +244,7 @@ impl Session {
                     wait: signal,
                 })?);
                 q.pending_wait = signal as crate::levelzero::ze::Handle;
-                if l + 1 == d.layers && which == 3 {
+                if self.states_in_f32(l) && which == 3 {
                     let n = tokens as u64 * h as u64;
                     let args = [Ptr(self.xh), U64(n), Ptr(self.x)];
                     k.widen_f16.launch(c, q, what, &args, [elementwise_groups(n), 1, 1])?;
@@ -291,8 +291,8 @@ impl Session {
                 Ptr(half.layers[l as usize][which]),
                 Ptr(bias),
                 // The residual stream is F16; the last layer's also goes to
-                // x in F32, for the pooling.
-                Ptr(if l + 1 == d.layers && which == 3 { self.x } else { 0 }),
+                // x in F32, for the pooling, and so does each tapped one's.
+                Ptr(if self.states_in_f32(l) && which == 3 { self.x } else { 0 }),
                 Ptr(self.xh),
                 Ptr(lnw),
                 Ptr(lnb),
@@ -310,6 +310,10 @@ impl Session {
         };
         self.lookup(q)?;
         for l in 0..layers.min(d.layers) {
+            // The tap of the layer before, from its F32 states.
+            if l > 0 && self.tapped(l - 1) {
+                self.tap(q, l - 1, self.x)?;
+            }
             // The linear layers that read the hidden states read them in F16 at
             // FASTEST, as the LayerNorms leave them.
             let x = if xmx { self.xh } else { self.x };
@@ -345,7 +349,7 @@ impl Session {
                     Ptr(layer(l, FFN_IN_BIAS)),
                     Ptr(half.layers[l as usize][3]),
                     Ptr(layer(l, FFN_OUT_BIAS)),
-                    Ptr(if l + 1 == d.layers { self.x } else { 0 }),
+                    Ptr(if self.states_in_f32(l) { self.x } else { 0 }),
                     Ptr(self.xh),
                     Ptr(layer(l, FFN_LN_WEIGHT)),
                     Ptr(layer(l, FFN_LN_BIAS)),
@@ -393,25 +397,18 @@ impl Session {
         let (batch, h) = (self.batch, self.model().desc.hidden);
         // A vector per row, or per range after embed_write_ranges, whose
         // ranges the kernel reads from the staging after the row table.
-        // With the head, each range's whole vector, into the projections'
-        // scratch, free after the last layer and max_batch * max_seq
-        // vectors wide; the head then writes the output.
+        // With taps, into the last block, after the taps' blocks. With the
+        // head (never with taps: the core refuses both), each range's whole
+        // vector, into the projections' scratch, free after the last layer
+        // and max_batch * max_seq vectors wide; the head then writes the
+        // output.
         let vectors = if self.ranges > 0 {
-            let (dim, to) = if self.head { (h, self.qkv) } else { (self.output_dim, self.output.ptr as u64) };
-            let args = [
-                Ptr(self.x),
-                Ptr(self.packed_mask),
-                Ptr(self.rows),
-                Ptr(self.ranges_at() as u64),
-                I32(h as i32),
-                I32(dim as i32),
-                Ptr(to),
-            ];
-            k.pool_ranges.launch(c, q, "range pooling", &args, [self.ranges, dim.div_ceil(16), 1])?;
             if self.head {
-                return self.apply_head(q, to);
+                self.pool_ranges_into(q, self.x, h, self.qkv)?;
+                return self.apply_head(q, self.qkv);
             }
-            self.ranges
+            self.pool_ranges_into(q, self.x, self.output_dim, self.block(self.taps - 1))?;
+            self.taps * self.ranges
         } else {
             let args = [
                 Ptr(self.x),

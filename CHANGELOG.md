@@ -335,6 +335,12 @@ stubs must be regenerated.
   environment before it opens the Level Zero loader, unless the caller set
   `EnableRecoverablePageFaults` itself (docs/levelzero.md, A lost device)
   (#1765).
+- levelzero: the page-fault switch is set only once a Level Zero loader
+  is found, before its drivers start, and only in builds with the
+  `levelzero` feature (an `npu`-only build sets nothing); a caller that
+  set `NEOReadDebugKeys` to anything but `1` keeps it, and neither
+  variable is written. turbo.h says the first `turbo_runtime_create` may
+  write the environment and how to opt out (#2023).
 - The cpu backend's embed cells set field 9's bit (`layers`) in
   `turbo_capability.options_honored`, which reads `0b1_1111_1111` there,
   and a layer count of 0 or over an encoder's layers is

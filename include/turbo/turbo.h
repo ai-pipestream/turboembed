@@ -324,6 +324,13 @@ typedef struct turbo_capability {
     char     reason[160];         /* why it is not SUPPORTED, else empty */
 } turbo_capability;
 
+/* With the levelzero backend, the first call that finds a Level Zero
+ * loader may set NEOReadDebugKeys=1 and EnableRecoverablePageFaults=0 in
+ * the process's environment, before the drivers start (docs/levelzero.md,
+ * page faults). setenv is not safe while another thread is in getenv or
+ * setenv, so that call must not race one; to have nothing written, set
+ * EnableRecoverablePageFaults yourself, or NEOReadDebugKeys to anything
+ * but 1. */
 int32_t turbo_runtime_create(const turbo_runtime_desc *desc, turbo_runtime **out, turbo_error *err);
 void    turbo_runtime_release(turbo_runtime *rt);
 

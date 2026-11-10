@@ -174,8 +174,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   filed under, is from the PCI device id: `b70` for 0xe223, and
   `intel-<id>` for a device not named yet.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options` but `layers` (field 9), which it
-  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32;
+  every field of `turbo_embed_options`; `layers` (field 9) reads the
+  earlier layers of the BERT, RoBERTa, ModernBERT, nomic-bert and
+  DeBERTa-v2 encoders on a range write (Range pooling, below). MODEL
+  and EXACT compute in F32;
   FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
   intermediate widths are multiples of 32, and in F32 otherwise, which
   `turbo_session_get_info` says. A
@@ -320,7 +322,18 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   depend on the other rows of the batch. The output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, allocated with
   the session; a run allocates nothing. A plain write after a range
-  write, or the reverse, replaces it.
+  write, or the reverse, replaces it. A range write with `layers` T
+  above 1 (`turbo_embed_write_layer_ranges`) pools each range from each
+  of the last T layers in the one pass: after each of those layers but
+  the last, the same pooling kernel writes its block of the output from
+  the layer's F32 states, before the next layer runs, and the last block
+  is the plain range write's, bit for bit. At FASTEST, where the
+  residual stream is F16, each layer a block reads also writes its states
+  to F32, as the last layer does for the pooling; a ModernBERT's
+  final_norm is applied to each block's states, as to the last layer's.
+  Normalization then runs over the T blocks at once. T times the ranges
+  is at most `max_ranges`, which the core checks
+  (`core/tests/ranges/layers.rs`).
 - **The span head.** The table sets `token_head`, so an extractive QA
   model is loaded with its span head (`turbo_backend_model.head`: the
   `[2, hidden]` weight and then the bias, F32, copied to the device in an
@@ -620,9 +633,11 @@ training of a 640-document `train-relation` (`echo 2 >
 copy, a suspend during them, and the reset 641 ms after it.
 
 The backend therefore turns the runtime's recoverable page faults off:
-before it opens the loader it sets `NEOReadDebugKeys=1` and
-`EnableRecoverablePageFaults=0` in the process's environment, and a
-context's debug log line says so. The kernel then rebinds evicted buffers
+once it has opened the loader, and before `zeInitDrivers` starts the
+drivers, it sets `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0`
+in the process's environment, and a context's debug log line says so. A
+process with no loader gets nothing set, and an `npu`-only build never
+sets them. The kernel then rebinds evicted buffers
 itself before the queue runs again and does not suspend the queue for
 other clients' jobs. With them off, six runs of six of that
 reproduction completed with no fault and no suspend of the queue, at the
@@ -633,6 +648,15 @@ faulting memory: every buffer it hands the device is the driver's own.
 - A caller that sets `EnableRecoverablePageFaults` itself, to anything,
   keeps its value, and `NEOReadDebugKeys` is then not touched; `-1` is the
   runtime's default, with the faults on.
+- A caller that sets `NEOReadDebugKeys` to anything but `1` keeps it, and
+  `EnableRecoverablePageFaults` is not set either: turning the keys on
+  would switch on every other debug key in that environment. The log line
+  says the faults were left on.
+- The variables are written with `setenv`, which is not safe while
+  another thread of the process is in `getenv` or `setenv` (a JVM host's
+  native threads, for one). The first `turbo_runtime_create` that opens
+  the loader must not race such a thread; a host that cannot promise
+  that sets `EnableRecoverablePageFaults` itself, and nothing is written.
 - The runtime reads the variables when it starts. A process that has
   already loaded it another way (OpenCL, SYCL, oneDNN on its own) before
   the first `turbo_runtime_create` keeps what it started with; set the
