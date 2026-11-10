@@ -546,12 +546,18 @@ struct AttnArgs {
     Packing p;
     int heads, head_dim, hidden, tcap, chunk, queries;
     float scale;
-    /* A sliding-window layer's keys each side of a query: query i reads
-     * keys j with |i - j| <= window, positions in its row; -1 for every
-     * key of the row. Chunks of keys outside every query's band are not
-     * read. */
+    /* A banded layer's keys about a query: query i reads keys j with
+     * i - back <= j <= i + window, positions in its row; window -1 for
+     * every key of the row, back then not read. A sliding-window layer
+     * has the two equal; limited lookahead has window keys ahead and
+     * back BAND_ALL, every key before the query. Chunks of keys outside
+     * every query's band are not read. */
     int window = -1;
+    int back = -1;
 };
+
+/* AttnArgs.back for every key before the query: more than any row has. */
+constexpr int BAND_ALL = 1 << 28;
 
 cudaError_t attention(cudaStream_t s, const AttnArgs &a, const Shape &shape, const Plan &plan);
 

@@ -22,7 +22,7 @@ const TEXTS: [&str; 4] = [
 ];
 
 /// The backends whose attention takes a band (turbo::model::runs_band).
-const BANDED: [&str; 2] = ["cpu", "levelzero"];
+const BANDED: [&str; 3] = ["cpu", "cuda", "levelzero"];
 
 /// The small BERT with `lookahead` keys ahead.
 fn banded_fixture(name: &str, lookahead: u32) -> Fixture {
@@ -227,8 +227,8 @@ fn a_band_of_no_keys_is_refused_at_load() {
     assert!(e.is(BUNDLE_INVALID, "architecture.lookahead: 0 is not a band of 1 key or more"), "{e:?}");
 }
 
-/// Every device's backend but the CPU's and Level Zero's runs whole rows, so rule 6 skips
-/// the banded artifact there before any file of it is read. The weights
+/// Every device's backend but the CPU's, CUDA's and Level Zero's runs whole rows, so rule
+/// 6 skips the banded artifact there before any file of it is read. The weights
 /// are left out of the bundle: the CPU, which runs the band, opens them
 /// and finds none, and every other backend refuses with the reason.
 #[test]
@@ -241,7 +241,7 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
 
     let bundle = turbo::bundle::Bundle::open(f.write()).unwrap();
     let raw = backend::format_bit(backend::TURBO_FORMAT_SAFETENSORS);
-    for b in ["cuda", "metal"] {
+    for b in ["metal"] {
         let e = turbo::model::choose(&bundle.manifest, b, raw, "").unwrap_err();
         let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
         assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
@@ -251,7 +251,7 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
     // The same through turbo_model_load on each such device this machine has.
     let mut rt = std::ptr::null_mut();
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
-    let present: Vec<&str> = ["cuda", "metal"].into_iter().filter(|b| first_of(rt, b).is_some()).collect();
+    let present: Vec<&str> = ["metal"].into_iter().filter(|b| first_of(rt, b).is_some()).collect();
     unsafe { turbo_runtime_release(rt) };
     for b in present {
         let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();
@@ -262,7 +262,8 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
 /// With `TURBO_TEST_BANDED_BUNDLE` naming a real BERT or RoBERTa bundle,
 /// that bundle's weights with a band of `ahead` keys, split into heads of
 /// 32, 64 and 128 values (each a model the CPU and a device run alike,
-/// reaching every head width's attention kernel), on each device of
+/// reaching every head width's attention kernel; a device that refuses a
+/// width at load, naming it, is skipped for that width), on each device of
 /// BANDED at MODEL and FASTEST, against the CPU on rows long enough to
 /// fill the staged kernel's group; skipped without it. The bound is
 /// docs/conformance.md's cosine for the session's compute dtype.
@@ -305,7 +306,16 @@ fn a_real_bundle_with_a_band_matches_the_cpu_on_each_device() {
         let moved = want.iter().zip(&whole).map(|(w, x)| cosine(w, x)).fold(1.0, f64::min);
         assert!(moved < 0.999, "heads of {head}, band {ahead}: the band changed little ({moved})");
         for &(b, precision, _) in &devices {
-            let l = Loaded::load_on(&dir, |rt| first_of(rt, b).unwrap()).unwrap_or_else(|e| panic!("{e:?}"));
+            let l = match Loaded::load_on(&dir, |rt| first_of(rt, b).unwrap()) {
+                Ok(l) => l,
+                // A backend with no attention kernel for heads this wide
+                // refuses the model at load, naming the width.
+                Err(e) if e.is(UNSUPPORTED, &format!("heads {head} wide")) => {
+                    println!("{b}, heads of {head}: skipped: {}", e.message);
+                    continue;
+                }
+                Err(e) => panic!("{e:?}"),
+            };
             let s = Session::create(l.m, Some(&session_desc(4, 0, precision))).unwrap();
             s.write_text(&texts, None).unwrap();
             let got = s.run().unwrap().rows();

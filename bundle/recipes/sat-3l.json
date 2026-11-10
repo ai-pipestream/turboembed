@@ -200,6 +200,7 @@
           "weights/model.safetensors"
         ],
         "backends": [
+          "cuda",
           "levelzero",
           "cpu"
         ],
