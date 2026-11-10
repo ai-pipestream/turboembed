@@ -542,7 +542,8 @@ the source text into the rewritten text and back
     indicative of an age over 89, which may be kept only aggregated into
     one category of age 90 or older. The cutoff is by year alone
     (`safe_harbor_cutoff`), so the category also takes a year whose
-    people are 89 on part of it, never a year whose people may be 90.
+    people are 89 on part of it, and no year whose people may be 90 is
+    left ungrouped.
     The reference is passed in, usually the release date of the record,
     never the clock. The rule does not know which date is a birth date,
     so it groups every old enough date; pair it with `AgeSafeHarbor` for

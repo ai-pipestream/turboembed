@@ -197,3 +197,53 @@ fn the_redact_step_reduces_dates_and_the_wire_edits_say_so() {
         }
     }
 }
+
+/// The canonical bytes of a date arm written by hand from the contract at
+/// the top of `canonical.rs`: fields in ascending number order, so
+/// `mask_char` (4) comes before `safe_harbor` (5) but after `year` (1).
+fn arm_bytes(fields: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut inner = Vec::new();
+    for (n, value) in fields {
+        inner.extend_from_slice(&n.to_le_bytes());
+        inner.extend_from_slice(value);
+    }
+    let mut out = 13u32.to_le_bytes().to_vec();
+    out.extend_from_slice(&(inner.len() as u64).to_le_bytes());
+    out.extend_from_slice(&inner);
+    out
+}
+
+fn string_value(s: &str) -> Vec<u8> {
+    let mut v = (s.len() as u64).to_le_bytes().to_vec();
+    v.extend_from_slice(s.as_bytes());
+    v
+}
+
+fn nested_value(fields: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut inner = Vec::new();
+    for (n, value) in fields {
+        inner.extend_from_slice(&n.to_le_bytes());
+        inner.extend_from_slice(value);
+    }
+    let mut v = (inner.len() as u64).to_le_bytes().to_vec();
+    v.extend_from_slice(&inner);
+    v
+}
+
+#[test]
+fn the_canonical_date_arm_keeps_ascending_field_order() {
+    use turbo_kserve::pii_policy::canonical;
+    let contains = |hay: &[u8], needle: &[u8]| hay.windows(needle.len()).any(|w| w == needle);
+    let reference = nested_value(&[(1, string_value("2026-07-14"))]);
+    let harbor = canonical::encode(&date_policy(date(safe_harbor("2026-07-14"), "#")));
+    let want = arm_bytes(&[(4, string_value("#")), (5, reference.clone())]);
+    assert!(contains(&harbor, &want), "mask_char (4) is written before safe_harbor (5)");
+    let unmasked = canonical::encode(&date_policy(date(safe_harbor("2026-07-14"), "")));
+    assert!(contains(&unmasked, &arm_bytes(&[(5, reference)])));
+    // The older modes keep their bytes: the mode arm, then mask_char.
+    let year_bytes = canonical::encode(&date_policy(date(year(), "#")));
+    assert!(contains(&year_bytes, &arm_bytes(&[(1, nested_value(&[])), (4, string_value("#"))])));
+    let rel = canonical::encode(&date_policy(date(relative("2026-07-14"), "#")));
+    let rel_ref = nested_value(&[(1, string_value("2026-07-14"))]);
+    assert!(contains(&rel, &arm_bytes(&[(3, rel_ref), (4, string_value("#"))])));
+}
