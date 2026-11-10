@@ -3455,11 +3455,11 @@ export const PiiValueTokenSchema: GenMessage<PiiValueToken> = /*@__PURE__*/
  * The value encrypted under a registered encryption key with a named
  * scheme (#1885). The server's one scheme is turbo-pii-aes-256-gcm-v1:
  * `ciphertext` is the UTF-8 text of a turbo-pii AES-256-GCM token, the
- * kind code in capitals (BUILTIN:3, CUSTOM:BADGE), ':', and the unpadded
- * base64url of a 12-byte nonce, the encrypted normalized value and the
- * 16-byte tag, its associated data binding the kind code and the context
- * turbo-kserve.pii-release.v1. Each release draws a fresh nonce, so equal
- * values give different ciphertexts.
+ * kind code with its case kept (builtin:3, custom:Badge), ':', and the
+ * unpadded base64url of a 12-byte nonce, the encrypted normalized value
+ * and the 16-byte tag, its associated data binding the exact kind code
+ * and the context turbo-kserve.pii-release.v1. Each release draws a fresh
+ * nonce, so equal values give different ciphertexts.
  *
  * @generated from message turbo.result.v1.PiiValueCiphertext
  */
