@@ -71,6 +71,13 @@ fn check_key(key: &[u8]) -> Result<(), CryptError> {
     if key.len() == KEY_BYTES { Ok(()) } else { Err(CryptError::KeyLength(key.len())) }
 }
 
+/// What a policy's configuration hash and equality see of a key: an
+/// HMAC-SHA-256 under a fixed label, as [`crate::rewrite::HmacTokenizer`]
+/// folds its key, never the key itself.
+fn key_check(key: &[u8]) -> [u8; 32] {
+    turbo_sha256::hmac_sha256(key, b"turbo-pii:redacted config key").0
+}
+
 const BASE64URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 /// Appends `bytes` to `out` as unpadded base64url (RFC 4648 section 5).
