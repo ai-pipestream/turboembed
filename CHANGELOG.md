@@ -358,6 +358,10 @@ stubs must be regenerated.
 
 ### Fixed
 
+- PII policies: an `ff1` arm whose alphabet cannot hold a character
+  every value of its rule's kind has (the digit alphabet on `email`, for
+  one) is refused when the policy loads, naming the entry and the kind,
+  instead of failing every document with such a mention (#2111).
 - `AnalyzeDocumentProgressive`: in a step chain that folds case,
   `turbo-sentdetect:rules` reads the last view before the fold, so a
   folded document keeps its sentence boundaries instead of becoming one

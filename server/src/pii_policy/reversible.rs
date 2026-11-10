@@ -16,6 +16,7 @@ use crate::proto::result::{PiiAesGcmStrategy, PiiFf1Strategy};
 
 #[cfg(feature = "pii-reversible")]
 mod enabled {
+    use turbo_pii::PiiKind;
     use turbo_pii::rewrite::{AesGcmEncryptor, Ff1Alphabet, Ff1Encryptor, RewriteStrategy};
 
     use super::super::error::{At, PolicyError};
@@ -65,6 +66,51 @@ mod enabled {
         let enc = Ff1Encryptor::new(bytes, alphabet).map_err(|e| invalid(at, e))?.with_tweak(s.tweak.as_bytes());
         Ok(enc.into())
     }
+
+    /// The letters every value of a built-in kind holds, as its detector
+    /// finds it. A kind not named here may be all digits, and FF1 checks
+    /// each mention when it encrypts.
+    enum Letters {
+        /// At least one letter, of either case.
+        Some,
+        /// At least one lower case letter.
+        Lower,
+    }
+
+    fn letters(kind: PiiKind) -> Option<Letters> {
+        match kind {
+            // `ghp_`, `gho_`, `ghu_`, `ghr_`, `ghs_` or `github_pat_`.
+            PiiKind::GithubToken => Some(Letters::Lower),
+            // `AKIA` or `ASIA`; a registered top level domain; a country
+            // code; a bank code; a check letter; `X`, `Y` or `Z` and a
+            // check letter; `0x` or `0X`; a scheme or `www.`.
+            PiiKind::AwsAccessKey
+            | PiiKind::Email
+            | PiiKind::Iban
+            | PiiKind::Bic
+            | PiiKind::EsDni
+            | PiiKind::EsNie
+            | PiiKind::EthAddress
+            | PiiKind::Url => Some(Letters::Some),
+            _ => None,
+        }
+    }
+
+    /// Refuses an FF1 arm whose alphabet cannot hold a character every
+    /// value of `kind` has: the policy would load, then fail on each such
+    /// mention.
+    pub fn check_kind(at: At, s: &PiiFf1Strategy, kind: PiiKind) -> Result<(), PolicyError> {
+        let short = match (PiiFf1Alphabet::try_from(s.alphabet), letters(kind)) {
+            (Ok(PiiFf1Alphabet::Digits), Some(_)) => "a letter",
+            (Ok(PiiFf1Alphabet::UpperAlphanumeric), Some(Letters::Lower)) => "a lower case letter",
+            _ => return Ok(()),
+        };
+        let name = kind.builtin_name().unwrap_or("custom");
+        Err(PolicyError::Invalid {
+            at,
+            reason: format!("ff1.alphabet cannot encrypt a {name} value: every one holds {short} outside it"),
+        })
+    }
 }
 
 /// The native strategy of an `aes_256_gcm` arm, or `None` on a server
@@ -100,5 +146,20 @@ pub(super) fn ff1(
     {
         let _ = (at, s, resolver);
         Ok(None)
+    }
+}
+
+/// Refuses an `ff1` arm on a kind whose values its alphabet cannot hold. A
+/// server without reversible protection does not know the arm, so there
+/// is nothing to check.
+pub(super) fn check_ff1_kind(at: At, s: &PiiFf1Strategy, kind: turbo_pii::PiiKind) -> Result<(), PolicyError> {
+    #[cfg(feature = "pii-reversible")]
+    {
+        enabled::check_kind(at, s, kind)
+    }
+    #[cfg(not(feature = "pii-reversible"))]
+    {
+        let _ = (at, s, kind);
+        Ok(())
     }
 }

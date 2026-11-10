@@ -31,6 +31,12 @@ fn two_rules(email: Strategy, ssn: Strategy) -> pb::RedactionPolicy {
     ])
 }
 
+/// `s` on US SSNs, whose values are digits and `-`.
+#[cfg_attr(not(feature = "pii-reversible"), allow(dead_code))]
+fn on_ssn(s: Strategy) -> pb::RedactionPolicy {
+    policy(vec![rule("ssn", builtin(pb::PiiKindId::UsSsn), vec![entry(s)])])
+}
+
 fn refused(s: Strategy) -> PolicyError {
     match RedactionPolicy::from_proto(&one(s), &TestRegistry) {
         Ok(_) => panic!("the policy is refused"),
@@ -73,7 +79,8 @@ mod enabled {
         assert_eq!(want.decrypt(&token).unwrap().1, "jane@example.com", "the registered key decrypts it");
         assert_eq!(strategy_to_proto(&got), None, "a native encryptor holds key bytes, not a reference");
 
-        let got = native(ff1(pb::PiiFf1Alphabet::UpperAlphanumeric, "ssn"));
+        let p = RedactionPolicy::from_proto(&on_ssn(ff1(pb::PiiFf1Alphabet::UpperAlphanumeric, "ssn")), &TestRegistry);
+        let got = p.expect("the policy converts").rules[0].strategies[0].strategy.clone();
         let want = Ff1Encryptor::new(&ENCRYPTION_KEY, Ff1Alphabet::UpperAlphanumeric).unwrap().with_tweak(b"ssn");
         assert_eq!(got, RewriteStrategy::from(want));
         assert_eq!(got.kind(), PiiStrategyKind::Ff1);
@@ -113,8 +120,33 @@ mod enabled {
     }
 
     #[test]
+    fn an_ff1_alphabet_that_cannot_hold_the_kind_is_refused_at_load() {
+        // Every email holds a letter (its top level domain), so digits
+        // alone cannot encrypt one; every GitHub token holds a lower case
+        // prefix.
+        let err = refused(ff1(pb::PiiFf1Alphabet::Digits, ""));
+        let PolicyError::Invalid { reason, .. } = &err else { panic!("{err:?}") };
+        assert!(reason.starts_with("ff1.alphabet cannot encrypt a email value"), "{reason}");
+        assert!(err.to_string().contains("kind_rules[0].strategies[0]"), "{err}");
+        let github = |a| policy(vec![rule("gh", builtin(pb::PiiKindId::GithubToken), vec![entry(ff1(a, ""))])]);
+        let err = RedactionPolicy::from_proto(&github(pb::PiiFf1Alphabet::UpperAlphanumeric), &TestRegistry);
+        assert!(matches!(err, Err(PolicyError::Invalid { .. })), "{err:?}");
+        // An alphabet that holds every letter converts, and the run time
+        // check still covers the rest.
+        native(ff1(pb::PiiFf1Alphabet::Alphanumeric, ""));
+        native(ff1(pb::PiiFf1Alphabet::UpperAlphanumeric, ""));
+        RedactionPolicy::from_proto(&github(pb::PiiFf1Alphabet::Alphanumeric), &TestRegistry).unwrap();
+        RedactionPolicy::from_proto(&on_ssn(ff1(pb::PiiFf1Alphabet::Digits, "")), &TestRegistry).unwrap();
+        // Under `redact_and_flag_unknown` the refusal stands: the arm is
+        // known, only unusable on this kind.
+        let mut flagged = one(ff1(pb::PiiFf1Alphabet::Digits, ""));
+        flagged.redact_and_flag_unknown = true;
+        assert!(RedactionPolicy::from_proto(&flagged, &TestRegistry).is_err());
+    }
+
+    #[test]
     fn the_digest_covers_the_key_reference_context_alphabet_and_tweak() {
-        let digest = |s| RedactionPolicy::from_proto(&one(s), &TestRegistry).unwrap().digest;
+        let digest = |s| RedactionPolicy::from_proto(&on_ssn(s), &TestRegistry).unwrap().digest;
         let base = digest(aes("vault", 1, "a"));
         assert_eq!(base, digest(aes("vault", 1, "a")));
         assert_ne!(base, digest(aes("vault", 1, "b")));
