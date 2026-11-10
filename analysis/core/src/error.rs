@@ -77,3 +77,43 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+/// How an [`Error::Annotator`] detail written by [`Error::over_limit`]
+/// begins.
+pub const LIMIT_PREFIX: &str = "limit: ";
+
+impl Error {
+    /// An annotator's input over one of its limits: a static limit name
+    /// and two counts, never document text, so a server may pass it on.
+    pub fn over_limit(annotator: &'static str, limit: &'static str, max: usize, got: usize) -> Error {
+        Error::Annotator { annotator, detail: format!("{LIMIT_PREFIX}{limit} {max}, got {got}") }
+    }
+
+    /// The limit and counts of an [`Error::over_limit`] error, or `None`
+    /// for any other. A detail that has the prefix but holds anything
+    /// besides lower case ASCII letters, digits, spaces, `_` and `,` is
+    /// not one, so no other detail is mistaken for it.
+    pub fn limit_detail(&self) -> Option<&str> {
+        let Error::Annotator { detail, .. } = self else { return None };
+        let rest = detail.strip_prefix(LIMIT_PREFIX)?;
+        let plain = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b" _,".contains(&b);
+        (!rest.is_empty() && rest.bytes().all(plain)).then_some(rest)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_over_limit_error_reads_back_and_nothing_else_does() {
+        let e = Error::over_limit("gliner2", "encoder max_sequence", 512, 528);
+        assert_eq!(e.limit_detail(), Some("encoder max_sequence 512, got 528"));
+        assert_eq!(e.to_string(), "gliner2: limit: encoder max_sequence 512, got 528");
+        for detail in ["limit: ", "limit: Jane Doe 3", "limit: a\nb", "panic: x", "over 3"] {
+            let e = Error::Annotator { annotator: "x", detail: detail.to_owned() };
+            assert_eq!(e.limit_detail(), None, "{detail:?}");
+        }
+        assert_eq!(Error::Pipeline("limit: a 1, got 2".to_owned()).limit_detail(), None);
+    }
+}

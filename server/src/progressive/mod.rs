@@ -8,6 +8,8 @@ mod config;
 mod normalize;
 pub mod profiles;
 pub mod seed;
+#[cfg(test)]
+mod step_error_tests;
 mod steps;
 
 use std::collections::HashSet;
@@ -88,6 +90,7 @@ fn bad(msg: impl Into<String>) -> Failure {
 fn step_error_code(err: &turbo_analysis::Error) -> i32 {
     match err {
         turbo_analysis::Error::Annotator { detail, .. } if detail.starts_with("panic:") => TURBO_E_PANIC,
+        e @ turbo_analysis::Error::Annotator { .. } if e.limit_detail().is_some() => TURBO_E_CAPACITY,
         turbo_analysis::Error::Annotator { .. } => TURBO_E_INTERNAL,
         turbo_analysis::Error::Missing(_)
         | turbo_analysis::Error::Duplicate(_)
@@ -365,8 +368,13 @@ fn run_progressive_task(
                         turbo_code: step_error_code(&err),
                         field: 0,
                         // A code name, never the error's text: an annotator's
-                        // detail can quote the document (issue #1908).
-                        message: format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
+                        // detail can quote the document (issue #1908). An
+                        // input over a limit says which and by how much,
+                        // counts only (#2125).
+                        message: match err.limit_detail() {
+                            Some(limit) => format!("step '{}' failed: over its {limit}", ev.timing.step_id),
+                            None => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
+                        },
                     }),
                     skipped_dependents: ev.skipped_dependents.into_iter().map(str::to_owned).collect(),
                     layers: affected_layers,
