@@ -63,6 +63,16 @@ stubs must be regenerated.
   `token_start`. Off by default, so existing callers see the same rows.
   Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
   `piiKind()` and `piiCustomKindIndex()` (#1964).
+- C ABI PII rows carry their detector identity, evidence facts and
+  optional score through `turbo_analysis_result_pii_spans` and
+  `turbo_analysis_result_pii_facts` (`turbo_pii_span`,
+  `turbo_pii_fact`), and `turbo_analyzer_desc.flags` bit
+  `TURBO_ANALYZER_PII_DETAIL` exposes `turbo:pii-candidates` rows
+  through `turbo_analysis_result_pii_candidates` (`turbo_pii_candidate`),
+  with no value or label text. Java `TurboSpanView` and `TurboSpanData`
+  read `piiDetector()`, `piiEvidence()` and `piiScore()`, and
+  `TurboAnalysisResult.piiCandidates()` reads candidates under
+  `Config.withPiiDetail(true)` (#1941).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
