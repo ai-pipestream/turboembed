@@ -299,7 +299,7 @@ impl Heads {
         Ok(out)
     }
 
-    /// Frozen encoder, prompt and boundary features for output-head training,
+    /// Frozen word and prompt features for output and boundary training,
     /// plus the ordinary inference candidates used to mine hard negatives.
     pub(crate) fn training(
         &self,
@@ -329,6 +329,7 @@ impl Heads {
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
         let mut input = crate::train::TrainingInput {
+            words: w.words.clone(),
             spans: Vec::new(),
             prompts: w.prompts.clone(),
             pairs: pairs.iter().map(|&(start, end)| (start, end + 1)).collect(),
@@ -360,16 +361,36 @@ impl Heads {
             SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        let span = match params {
+        if !matches!(params.len(), 2 | 4 | 10 | 12) {
+            return Err("gliner output training requires output tensors with optional boundary MLPs".into());
+        }
+        let linear = matches!(params.len(), 2 | 10);
+        let output_len = if linear { 2 } else { 4 };
+        let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
                 last: Dense::new(w1, b1.clone(), h, f)?,
             }),
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
-            _ => return Err("gliner output training requires two linear or four MLP tensors".into()),
+            _ => unreachable!(),
         };
-        let SpanHead::Marker { span: current, .. } = &mut self.head else { unreachable!() };
+        let boundary = |values: &[Vec<f32>]| -> Result<Box<Mlp>, String> {
+            Ok(Box::new(Mlp {
+                first: Dense::new(&values[0], values[1].clone(), f, h)?,
+                last: Dense::new(&values[2], values[3].clone(), h, f)?,
+            }))
+        };
+        let boundaries = if output_len < params.len() {
+            Some((boundary(&params[output_len..output_len + 4])?, boundary(&params[output_len + 4..])?))
+        } else {
+            None
+        };
+        let SpanHead::Marker { start, end, span: current } = &mut self.head else { unreachable!() };
         *current = span;
+        if let Some((new_start, new_end)) = boundaries {
+            *start = new_start;
+            *end = new_end;
+        }
         Ok(())
     }
 
