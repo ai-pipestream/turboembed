@@ -155,5 +155,29 @@ digests, deduplicated edges, and binary graph round-trip. A larger external
 relation benchmark is still needed before calling the stage generally
 production-quality.
 
+Stage status for the full document graph:
+
+- Included in the preview and served: the GLiNER2 scorer, as the
+  `turbo:zero-shot-relations` step of `AnalyzeDocumentProgressive`.
+- Included in the preview, in process only: the dependency-path rules
+  (`RelationAnnotator`, with the default libraries as starting rules). No
+  serving step runs them.
+- Experimental: a trained relation classifier head. It is served, as the
+  `turbo-tagger:relations` step of `AnalyzeDocumentProgressive` for a bundle
+  that carries `head.relations` (see [grpc-analysis.md](grpc-analysis.md)),
+  but no release corpus has measured its quality yet.
+- Experimental and in process only: GLiREL. No serving step runs it.
+
+`analysis/relation/tests/release_acceptance.rs` runs the rules and the GLiREL
+scorer in one analyzer over one shared `Entities` layer, the scorer writing
+named instances. It checks each stage's `Relations` mentions (subject,
+object, type and confidence read back as entity text), its deduplicated
+edges at the best confidence, a rule that matches nothing, and each stage's
+provenance and model reference. It then exports and re-imports the graph
+over text with multi-byte characters. Every link reads the same entity text,
+spans keep their byte offsets, and the re-export is byte-identical. The
+GLiREL weights there are the seeded reduced fixture, so that test shows
+wiring, not quality.
+
 Predicate-argument events with N-ary, anchored arguments are in
 [events.md](events.md).

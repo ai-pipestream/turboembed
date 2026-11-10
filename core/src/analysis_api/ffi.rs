@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use super::{
     ANALYSIS_RESULT_MAGIC, ANALYZER_MAGIC, AnalysisResultInner, AnalyzerConfig, AnalyzerEngine, PiiRows,
-    TURBO_ANALYZER_DESC_SIZE_V1, TURBO_ANALYZER_KNOWN_FLAGS, TURBO_ANALYZER_PII_KIND_IDS, TURBO_ANALYZER_PII_VALUES,
-    analysis_result_handle, analyzer_handle, turbo_analysis_result, turbo_analyzer, turbo_analyzer_desc, turbo_span,
+    TURBO_ANALYZER_DESC_SIZE_V1, TURBO_ANALYZER_KNOWN_FLAGS, TURBO_ANALYZER_PII_DETAIL, TURBO_ANALYZER_PII_KIND_IDS,
+    TURBO_ANALYZER_PII_VALUES, analysis_result_handle, analyzer_handle, turbo_analysis_result, turbo_analyzer,
+    turbo_analyzer_desc, turbo_span,
 };
 use crate::ffi::{array_len, call, out_ptr, text};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_STRUCT_SIZE, Result};
@@ -81,6 +82,7 @@ pub(crate) unsafe fn decode_analyzer_desc<'a>(desc: *const turbo_analyzer_desc) 
         pii: PiiRows {
             values: flags & TURBO_ANALYZER_PII_VALUES != 0,
             kind_ids: flags & TURBO_ANALYZER_PII_KIND_IDS != 0,
+            detail: flags & TURBO_ANALYZER_PII_DETAIL != 0,
         },
     })
 }

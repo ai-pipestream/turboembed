@@ -267,16 +267,14 @@ impl SearchRegistry {
     }
 }
 
-/// A spec's storage, and its quantizer when the rows are TurboQuant codes
-/// of `dim` values.
+/// A spec's storage, and its quantizer when the rows are TurboQuant codes of `dim` values.
 pub(crate) fn parse_storage(spec: &IndexSpec, dim: u32) -> Result<(VectorStorageKind, Option<TurboQuant>)> {
     let storage = VectorStorageKind::try_from(spec.storage)
         .map_err(|_| bad_arg(format!("unknown storage kind {}", spec.storage)))?;
     let quant = match storage {
         VectorStorageKind::FlatF32 => None,
         VectorStorageKind::TurboQuant => {
-            let bits = if spec.quant_bits == 0 { 4 } else { spec.quant_bits as u8 };
-            let tq = TurboQuant::new(bits, spec.quant_calibrate)
+            let tq = TurboQuant::new(parse_quant_bits(spec.quant_bits)?, spec.quant_calibrate)
                 .map_err(|e| bad_arg(format!("invalid TurboQuant configuration: {e}")))?;
             if !dim.is_multiple_of(8) {
                 return Err(bad_arg(format!("TurboQuant requires space.dim ({dim}) to be a multiple of 8")));
@@ -419,6 +417,14 @@ pub fn parse_metric(raw: i32) -> Result<Metric> {
         Ok(DistanceMetric::Cosine) => Ok(Metric::Cosine),
         Ok(DistanceMetric::Dot) => Ok(Metric::Dot),
         Err(_) => Err(bad_arg(format!("unknown distance metric {raw}"))),
+    }
+}
+
+pub fn parse_quant_bits(raw: u32) -> Result<u8> {
+    match raw {
+        0 => Ok(4),
+        2..=4 => Ok(raw as u8),
+        _ => Err(bad_arg(format!("invalid quant_bits {raw}: expected 0 (default 4), 2, 3, or 4"))),
     }
 }
 

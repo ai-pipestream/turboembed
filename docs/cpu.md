@@ -76,8 +76,9 @@ layer L - layers + k + 1 writes for the ranges
 (`core/src/cpu/encoder/taps_tests.rs`). Static models read only their
 table. The embed cell sets field 9's bit in
 `turbo_capability.options_honored` (bit 8, so the cpu's cells read
-0b111111111); the other backends leave it clear. A count of 0, or over
-an encoder's layers, is `TURBO_E_INVALID_ARGUMENT` naming field 9 on
+0b111111111); CUDA's and Level Zero's set it too (docs/cuda.md,
+docs/levelzero.md), and the other backends leave it clear. A count of
+0, or over an encoder's layers, is `TURBO_E_INVALID_ARGUMENT` naming field 9 on
 every device, checked before whether the device reads the earlier
 layers, so a request gets the same code wherever it runs.
 

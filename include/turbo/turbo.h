@@ -712,10 +712,11 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * checked against the model before the device. Only then is above 1 on a
  * device whose turbo_capability.options_honored lacks field 9's bit, on a
  * static model (its table is its one layer), or on a model whose device
- * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu
- * backend sets the bit and reads the earlier layers of its BERT, RoBERTa,
- * ModernBERT, nomic-bert and DeBERTa-v2 encoders. count times layers
- * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
+ * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu,
+ * cuda and levelzero backends set the bit and read the earlier layers of
+ * their BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders.
+ * count times layers over the session's max_ranges is TURBO_E_CAPACITY.
+ * Everything else is as
  * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
                                        const turbo_token_range *ranges, uint32_t count,
@@ -870,12 +871,72 @@ void    turbo_result_release(turbo_result *r);
  * label still holds the kind's name and classification its tier. */
 #define TURBO_ANALYZER_PII_KIND_IDS (1u << 1)
 
+/* turbo_analyzer_desc.flags. TURBO_ANALYZER_PII_DETAIL: populate PII
+ * candidate rows (turbo_analysis_result_pii_candidates) in detect_pii,
+ * analyze_graph and inspect_graph, and include the turbo:pii-candidates
+ * layer in the graph turbo_analyzer_analyze_graph writes. Off by default:
+ * candidate rows are omitted unless asked for (#1941). */
+#define TURBO_ANALYZER_PII_DETAIL (1u << 2)
+
 /* Discrete PII evidence tier codes (not a monotonic numeric scale:
  * 3 = LABELLED_CHECKSUM is stronger than 4 = LABELLED). */
 #define TURBO_PII_CONFIDENCE_FORMAT            1
 #define TURBO_PII_CONFIDENCE_CHECKSUM          2
 #define TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM 3
 #define TURBO_PII_CONFIDENCE_LABELLED          4
+
+/* Structured PII evidence fact kind tags (turbo_pii_fact.kind), matching
+ * the binary layer codec. 0 is no fact. */
+#define TURBO_PII_EVIDENCE_SHAPE    1
+#define TURBO_PII_EVIDENCE_CHECKSUM 2
+#define TURBO_PII_EVIDENCE_LABEL    3
+#define TURBO_PII_EVIDENCE_DENY_HIT 4
+#define TURBO_PII_EVIDENCE_RULE     5
+
+/* Stable checksum algorithm ids for TURBO_PII_EVIDENCE_CHECKSUM
+ * (turbo_pii_fact.a), matching ChecksumAlgorithm::id in the layer codec. */
+#define TURBO_PII_CHECKSUM_LUHN            1
+#define TURBO_PII_CHECKSUM_MOD97           2
+#define TURBO_PII_CHECKSUM_MOD11           3
+#define TURBO_PII_CHECKSUM_MOD23           4
+#define TURBO_PII_CHECKSUM_ES_CIF          5
+#define TURBO_PII_CHECKSUM_ISO7064_MOD11_10 6
+#define TURBO_PII_CHECKSUM_ICAO9303        7
+#define TURBO_PII_CHECKSUM_BASE58CHECK     8
+#define TURBO_PII_CHECKSUM_BECH32          9
+#define TURBO_PII_CHECKSUM_EIP55           10
+#define TURBO_PII_CHECKSUM_ABA_WEIGHTS     11
+#define TURBO_PII_CHECKSUM_OTHER           12
+#define TURBO_PII_CHECKSUM_LA_POSTE_MOD5   13
+#define TURBO_PII_CHECKSUM_VIN             14
+#define TURBO_PII_CHECKSUM_UPS_MOD10       15
+#define TURBO_PII_CHECKSUM_FEDEX_MOD11     16
+#define TURBO_PII_CHECKSUM_GS1_MOD10       17
+
+/* PII model score kinds (turbo_pii_span.score_kind and
+ * turbo_pii_candidate.score_kind), matching PiiScoreKind::id. 0 means no
+ * score is present (score_value is NaN). */
+#define TURBO_PII_SCORE_PROBABILITY 1
+#define TURBO_PII_SCORE_LOGIT       2
+#define TURBO_PII_SCORE_HEURISTIC   3
+
+/* PII candidate disposition tags (turbo_pii_candidate.disposition), plus
+ * allow-rule scope, allow-rule kind and reject-reason codes, matching the
+ * binary turbo:pii-candidates layer codec. */
+#define TURBO_PII_DISPOSITION_KEPT             1
+#define TURBO_PII_DISPOSITION_ALLOWED_BY_RULE  2
+#define TURBO_PII_DISPOSITION_NESTED_IN        3
+#define TURBO_PII_DISPOSITION_REJECTED_BY_RULE 4
+#define TURBO_PII_DISPOSITION_REPEATS          5
+
+#define TURBO_PII_ALLOW_SCOPE_GLOBAL 1
+#define TURBO_PII_ALLOW_SCOPE_KIND   2
+
+#define TURBO_PII_ALLOW_RULE_TERM    1
+#define TURBO_PII_ALLOW_RULE_PATTERN 2
+
+#define TURBO_PII_REJECT_LABEL_REQUIRED 1
+#define TURBO_PII_REJECT_THRESHOLD      2
 
 /* Stable PII kind ids, the same numbers as the Rust kind registry, the
  * proto PiiKindId enum, Java TurboPiiKind and the binary layer codec. An
@@ -1034,6 +1095,115 @@ typedef struct turbo_span {
     double   prob;
 } turbo_span;
 
+/* One structured evidence fact supporting a PII mention or candidate.
+ *
+ * A fact holds small integers only, never matched text or label text:
+ * - TURBO_PII_EVIDENCE_SHAPE (1): a = 0, b = 0, c = 0.
+ * - TURBO_PII_EVIDENCE_CHECKSUM (2): a is TURBO_PII_CHECKSUM_*, b is 1 when
+ *   the check passed and 0 when it failed, c = 0.
+ * - TURBO_PII_EVIDENCE_LABEL (3): a and b are [byte_start, byte_end) of the
+ *   context label in the layer's view, and c is the phrase index in the
+ *   kind's phrase list (built-in phrases first, then extra labels).
+ * - TURBO_PII_EVIDENCE_DENY_HIT (4): a is the deny-list index and b is the
+ *   term index within that list, c = 0.
+ * - TURBO_PII_EVIDENCE_RULE (5): a is the extractor rule number, b = 0,
+ *   c = 0. */
+typedef struct turbo_pii_fact {
+    uint32_t kind;
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+} turbo_pii_fact;
+
+/* Per-row PII detector identity, evidence slice and optional model score
+ * for one TURBO_ANALYSIS_LAYER_PII row in turbo_analysis_result_spans.
+ *
+ * Every field is a 32-bit word (uint32_t or float), giving 14 words
+ * (56 bytes) at 4-byte alignment with no padding. String offsets and byte
+ * lengths slice turbo_analysis_result_strings. Facts lie at
+ * [fact_start, fact_end) in turbo_analysis_result_pii_facts. When
+ * score_kind is 0, the mention has no score (score_value is NaN and the
+ * score model slice is empty). */
+typedef struct turbo_pii_span {
+    uint32_t span_index;
+    uint32_t detector_id_offset;
+    uint32_t detector_id_len;
+    uint32_t detector_version_offset;
+    uint32_t detector_version_len;
+    uint32_t fact_start;
+    uint32_t fact_end;
+    uint32_t score_kind;
+    uint32_t score_calibrated;
+    uint32_t score_model_id_offset;
+    uint32_t score_model_id_len;
+    uint32_t score_model_version_offset;
+    uint32_t score_model_version_len;
+    float    score_value;
+} turbo_pii_span;
+
+/* One PII candidate row emitted when the analyzer is created with
+ * TURBO_ANALYZER_PII_DETAIL.
+ *
+ * Every field is a 32-bit word (uint32_t or float), giving 39 words
+ * (156 bytes) at 4-byte alignment with no padding. Candidates never carry
+ * matched text or a normalized value. String slices index
+ * turbo_analysis_result_strings; facts lie at [fact_start, fact_end) in
+ * turbo_analysis_result_pii_facts. instance_offset and instance_len name
+ * the turbo:pii-candidates layer instance; pii_instance_offset and
+ * pii_instance_len name the bound turbo:pii layer instance its mention
+ * references point into.
+ *
+ * Disposition fields (disposition is TURBO_PII_DISPOSITION_*):
+ * - KEPT (1), NESTED_IN (3), REPEATS (5): disposition_a is the index of the
+ *   kept mention in the bound turbo:pii layer (pii_instance_offset,
+ *   pii_instance_len); disposition_b = 0, disposition_c = 0.
+ * - ALLOWED_BY_RULE (2): disposition_a is TURBO_PII_ALLOW_SCOPE_*,
+ *   disposition_b is TURBO_PII_ALLOW_RULE_*, and disposition_c is the rule
+ *   index.
+ * - REJECTED_BY_RULE (4): disposition_a is TURBO_PII_REJECT_*;
+ *   disposition_b = 0, disposition_c = 0. */
+typedef struct turbo_pii_candidate {
+    uint32_t item_index;
+    uint32_t fragment_index;
+    uint32_t view_id;
+    uint32_t kind_code;
+    uint32_t view_byte_start;
+    uint32_t view_byte_end;
+    uint32_t view_utf16_start;
+    uint32_t view_utf16_end;
+    uint32_t view_codepoint_start;
+    uint32_t view_codepoint_end;
+    uint32_t source_byte_start;
+    uint32_t source_byte_end;
+    uint32_t source_utf16_start;
+    uint32_t source_utf16_end;
+    uint32_t source_codepoint_start;
+    uint32_t source_codepoint_end;
+    uint32_t instance_offset;
+    uint32_t instance_len;
+    uint32_t pii_instance_offset;
+    uint32_t pii_instance_len;
+    uint32_t label_offset;
+    uint32_t label_len;
+    uint32_t detector_id_offset;
+    uint32_t detector_id_len;
+    uint32_t detector_version_offset;
+    uint32_t detector_version_len;
+    uint32_t fact_start;
+    uint32_t fact_end;
+    uint32_t disposition;
+    uint32_t disposition_a;
+    uint32_t disposition_b;
+    uint32_t disposition_c;
+    uint32_t score_kind;
+    uint32_t score_calibrated;
+    uint32_t score_model_id_offset;
+    uint32_t score_model_id_len;
+    uint32_t score_model_version_offset;
+    uint32_t score_model_version_len;
+    float    score_value;
+} turbo_pii_candidate;
+
 /* Create, retain or release an analyzer handle. Both turbo_analyzer and
  * turbo_analysis_result are thread-safe (Send + Sync): an analyzer may be
  * called concurrently from multiple threads, and a result may be read or
@@ -1140,6 +1310,29 @@ int32_t turbo_analyzer_inspect_graph(turbo_analyzer *a,
 int32_t turbo_analysis_result_spans(const turbo_analysis_result *r,
                                     const turbo_span **spans, uint32_t *count,
                                     turbo_error *err);
+
+/* Borrow the result's per-row PII metadata array (*pii_spans may be NULL
+ * when *count is 0). Each entry describes one TURBO_ANALYSIS_LAYER_PII row
+ * in turbo_analysis_result_spans (matched by span_index), in ascending
+ * span_index order. */
+int32_t turbo_analysis_result_pii_spans(const turbo_analysis_result *r,
+                                        const turbo_pii_span **pii_spans,
+                                        uint32_t *count, turbo_error *err);
+
+/* Borrow the result's contiguous PII evidence fact pool (*facts may be NULL
+ * when *count is 0). Entries in turbo_analysis_result_pii_spans and
+ * turbo_analysis_result_pii_candidates index this array by
+ * [fact_start, fact_end). */
+int32_t turbo_analysis_result_pii_facts(const turbo_analysis_result *r,
+                                        const turbo_pii_fact **facts,
+                                        uint32_t *count, turbo_error *err);
+
+/* Borrow the result's PII candidate rows (*candidates may be NULL when
+ * *count is 0). Populated only when the analyzer was created with
+ * TURBO_ANALYZER_PII_DETAIL. */
+int32_t turbo_analysis_result_pii_candidates(const turbo_analysis_result *r,
+                                             const turbo_pii_candidate **candidates,
+                                             uint32_t *count, turbo_error *err);
 
 /* Borrow the result's contiguous UTF-8 string pool (*pool may be NULL when
  * *bytes is 0). Layer, instance, label and value offset/length pairs slice
