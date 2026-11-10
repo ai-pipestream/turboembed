@@ -119,3 +119,7 @@ levelzero = ["turbo/levelzero"]
 levelzero-onednn = ["turbo/levelzero-onednn"]
 npu = ["turbo/npu"]
 hailo = ["turbo/hailo"]
+# Reversible PII protection: the AES-256-GCM and FF1 redaction strategies
+# and --pii-encryption-key, through turbo-pii's `reversible` feature (the
+# RustCrypto aes-gcm and fpe crates). Without it the server refuses both.
+pii-reversible = ["turbo-pii/reversible"]

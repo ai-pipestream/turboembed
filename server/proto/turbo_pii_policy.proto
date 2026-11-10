@@ -210,6 +210,11 @@ message PiiRewriteStrategy
     // PII_STRATEGY_DATE_YEAR, PII_STRATEGY_DATE_SHIFT or
     // PII_STRATEGY_DATE_RELATIVE: one per mode
     PiiDateStrategy date = 13;
+    // PII_STRATEGY_AES_256_GCM. Needs a server built with reversible
+    // protection; any other server refuses the policy.
+    PiiAesGcmStrategy aes_256_gcm = 14;
+    // PII_STRATEGY_FF1. Needs a server built with reversible protection.
+    PiiFf1Strategy ff1 = 15;
   }
 }
 
@@ -385,10 +390,60 @@ message PiiDateRelative
   string reference = 1;
 }
 
+// The mention as written, replaced by an AES-256-GCM token that a holder
+// of the key and the context decrypts back to it: the kind in capitals,
+// ':', then the unpadded base64url of a 12-byte nonce, the ciphertext and
+// the 16-byte tag. The associated data binds the kind and the context.
+// Each token draws a fresh nonce, so tokens of one value are not
+// linkable. A cluster of overlapping mentions is encrypted once, as the
+// merged run.
+message PiiAesGcmStrategy
+{
+  // A registered encryption key (`--pii-encryption-key`). Required; an
+  // unregistered reference is refused.
+  PiiPolicyKeyRef key = 1;
+  // Bound into every token: a document id or a field name, say. Empty
+  // binds none.
+  string context = 2;
+}
+
+// The characters FF1 encrypts. UNSPECIFIED is refused.
+enum PiiFf1Alphabet
+{
+  PII_FF1_ALPHABET_UNSPECIFIED = 0;
+  // 0 to 9, radix 10.
+  PII_FF1_ALPHABET_DIGITS = 1;
+  // 0 to 9 then A to Z, radix 36; a lower case letter is refused.
+  PII_FF1_ALPHABET_UPPER_ALPHANUMERIC = 2;
+  // 0 to 9, A to Z then a to z, radix 62.
+  PII_FF1_ALPHABET_ALPHANUMERIC = 3;
+}
+
+// The mention as written, with the characters of `alphabet` encrypted
+// together by FF1 (NIST SP 800-38G) under the key and the tweak. Every
+// other character keeps its place, so 123-45-6789 encrypts to another
+// ddd-dd-dddd. One value under one key and tweak always encrypts the same
+// way. A letter or digit outside the alphabet, or fewer than a million
+// values in the domain (6 digits, or 4 letters and digits), fails the
+// rewrite rather than leave a character in the clear.
+message PiiFf1Strategy
+{
+  // A registered encryption key (`--pii-encryption-key`). Required.
+  PiiPolicyKeyRef key = 1;
+  // Required.
+  PiiFf1Alphabet alphabet = 2;
+  // The FF1 tweak: a field name or a record id, say. Empty is a valid
+  // tweak.
+  string tweak = 3;
+}
+
 // A registered, versioned key: never key material.
 message PiiPolicyKeyRef
 {
-  // The registered key's id (`--pii-token-key ID:VERSION:PATH`): ASCII,
+  // The registered key's id: a token key (`--pii-token-key
+  // ID:VERSION:PATH`) for keyed tokens and keyed date shifts, an
+  // encryption key (`--pii-encryption-key ID:VERSION:PATH`) for
+  // PiiAesGcmStrategy and PiiFf1Strategy. ASCII,
   // at most 128 bytes, never key material. Required.
   string id = 1;
   // The registered key's version, read unsigned. Required (not 0).
