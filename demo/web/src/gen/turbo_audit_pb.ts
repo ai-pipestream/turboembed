@@ -306,7 +306,7 @@ export enum PiiAccessForm {
   TOKEN = 1,
 
   /**
-   * The value encrypted under a registered key; refused until #1885.
+   * The value encrypted under a registered encryption key (#1885).
    *
    * @generated from enum value: PII_ACCESS_FORM_CIPHERTEXT = 2;
    */

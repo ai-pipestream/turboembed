@@ -1,0 +1,5 @@
+MASKED	
+MASK_ALL	
+REWRITE	pseudonymize	OK	
+REWRITE	hmac	OK	
+AUDIT_REPORT	no pii found

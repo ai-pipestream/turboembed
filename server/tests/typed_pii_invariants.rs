@@ -25,6 +25,7 @@ use turbo_kserve::proto::result::{
     SpanOutcome, TypedDocumentResult, TypedLayer,
 };
 // The projection itself is under test, so the text is asked for (#1904).
+use turbo_kserve::release::cipher::SCHEME;
 use turbo_kserve::results::disclosure::Disclosure;
 use turbo_kserve::results::typed::{document_to_typed, document_to_typed_with, validate_typed_document};
 use turbo_pii::{Pii, PiiConfidence, PiiDetector, PiiEvidence, PiiKind, PiiMention};
@@ -251,7 +252,7 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         ("no kind", |m| m.kind_ref = None),
         ("an empty kind ref", |m| m.kind_ref = Some(PiiKindRef { kind: None })),
         ("unspecified kind", |m| m.kind_ref = builtin(0)),
-        ("kind past the table", |m| m.kind_ref = builtin(43)),
+        ("kind past the table", |m| m.kind_ref = builtin(45)),
         ("negative kind", |m| m.kind_ref = builtin(-7)),
         ("custom kind with no table", |m| m.kind_ref = custom(0)),
         ("unspecified tier", |m| m.confidence = 0),
@@ -298,8 +299,8 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     let not_requested = PiiValueWithheld { reason: PiiWithheldReason::NotRequested as i32 };
     assert_eq!(m.value, value(Some(Form::Withheld(not_requested))), "withheld, not requested (#1931)");
     validate_typed_document(&wire).unwrap();
-    // A release (#1909) writes a 32-byte token naming its key, or the
-    // value in clear; both validate.
+    // A release (#1909) writes a 32-byte token naming its key, a ciphertext
+    // of the server's scheme naming its key (#1885), or the value in clear.
     let token = |m: &mut WirePii| {
         m.value = value(Some(Form::Token(PiiValueToken {
             token: vec![7; 32],
@@ -310,10 +311,11 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     validate_typed_document(&pii_message(token)).unwrap();
     let clear = |m: &mut WirePii| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())));
     validate_typed_document(&pii_message(clear)).unwrap();
+    validate_typed_document(&pii_message(|m| m.value = cipher(b"BUILTIN:1:AAAA", "vault", 1, SCHEME))).unwrap();
     // Everything else is refused, and the error names the form, never the
     // token, the ciphertext or the key.
     let secrets = ["planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];
-    let refusals: [(&str, Edit); 8] = [
+    let refusals: [(&str, Edit); 10] = [
         ("no value", |m| m.value = None),
         ("a withheld value without a reason", |m| m.value = value(Some(Form::Withheld(PiiValueWithheld::default())))),
         ("an unknown reason", |m| m.value = value(Some(Form::Withheld(PiiValueWithheld { reason: 99 })))),
@@ -330,20 +332,20 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
             m.value =
                 value(Some(Form::Token(PiiValueToken { token: vec![7; 32], key_id: String::new(), key_version: 0 })))
         }),
-        ("a ciphertext", |m| {
-            m.value = value(Some(Form::Ciphertext(PiiValueCiphertext {
-                ciphertext: b"planted-cipher".to_vec(),
-                key_id: "planted-key-id".to_owned(),
-                key_version: 3,
-                scheme: "planted-scheme".to_owned(),
-            })))
-        }),
+        ("an unknown scheme", |m| m.value = cipher(b"planted-cipher", "planted-key-id", 3, "planted-scheme")),
+        ("an empty ciphertext", |m| m.value = cipher(b"", "planted-key-id", 3, SCHEME)),
+        ("a ciphertext without a key", |m| m.value = cipher(b"planted-cipher", "", 0, SCHEME)),
     ];
     for (what, edit) in refusals {
         let message = refused(what, &pii_message(edit), &secrets);
         assert!(message.contains("turbo:pii[0]") && message.contains("5..21"), "{what}: {message}");
         assert!(message.contains("pii mention value"), "{what}: {message}");
     }
+}
+
+fn cipher(c: &[u8], key_id: &str, key_version: u32, scheme: &str) -> Option<PiiValue> {
+    let c = PiiValueCiphertext { ciphertext: c.to_vec(), key_id: key_id.into(), key_version, scheme: scheme.into() };
+    value(Some(Form::Ciphertext(c)))
 }
 
 #[test]

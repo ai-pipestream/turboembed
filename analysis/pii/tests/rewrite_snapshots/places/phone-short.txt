@@ -1,0 +1,9 @@
+MASKED	Dial 911, then 555-0100, then +1 555.
+
+MASK_ALL	Dial 911, then 555-0100, then +1 555.
+
+REWRITE	pseudonymize	OK	Dial 911, then 555-0100, then +1 555.
+
+REWRITE	hmac	OK	Dial 911, then 555-0100, then +1 555.
+
+AUDIT_REPORT	no pii found

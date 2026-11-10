@@ -54,6 +54,13 @@ stubs must be regenerated.
   (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`), a registry of exactly 32-byte keys
   kept apart from the token keys. A server built without the feature
   does not know the arms (#1885).
+- Ciphertext value release: `--pii-grant FINGERPRINT:ciphertext:KINDS`
+  releases `PII_VALUE_FORM_CIPHERTEXT` from `InspectDocumentGraph` as
+  `PiiValueCiphertext` (scheme `turbo-pii-aes-256-gcm-v1`), AES-256-GCM
+  under the active encryption key (`--pii-encryption-key-active`,
+  `TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`, among several), bound to the
+  kind. `--pii-output-allow` accepts `ciphertext`. Needs the
+  `pii-reversible` feature (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -163,6 +170,14 @@ stubs must be regenerated.
   `Money` packs, which `AllStructured` does not include: a calendar date
   naming a day or month, and an amount with its currency, read by
   the numeric crate's scanners (#1886).
+- `state` 43 and `county` 44, appended to `PiiKindId`
+  (`TURBO_PII_KIND_STATE`, `TURBO_PII_KIND_COUNTY`, Java `STATE`,
+  `COUNTY`), with the `UsState` and `UsCounty` extractors
+  (`turbo-pii:us-state`, `turbo-pii:us-county`) and the opt-in `Places`
+  pack, which `AllStructured` does not include: a US state, District or
+  territory by name, or by its USPS code after a state label or before a
+  ZIP code, and a county or county equivalent of the Census Bureau's 2020
+  county list (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
