@@ -281,7 +281,7 @@ jobs:
       # Reversible PII protection is behind a feature that brings in the
       # RustCrypto AES-GCM and FF1 crates.
       - name: test (pii reversible)
-        run: cargo test -p turbo-pii --features reversible --lib --test reversible
+        run: cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host
