@@ -269,8 +269,8 @@ fn compile_pipeline_with(
     let mut norm_index = 0usize;
     let mut norm_chain: Vec<&'static str> = Vec::new();
     let mut active_norm_view: Option<&'static str> = None;
-    // Rule sentences decide boundaries on case: after a fold they read the
-    // last view that still has it (None is the source).
+    // Rule sentences and place names read text as written: after a fold
+    // they read the last view that still has its case (None is the source).
     let mut cased_norm_view: Option<&'static str> = None;
     let mut folded = false;
 
@@ -371,8 +371,9 @@ fn compile_pipeline_with(
                 }
             }
             "turbo-geo:names" | "turbo:entities" => {
+                // Place names are matched as written, like rule sentences.
                 let ann = NameAnnotator::new(bundled_name_finder());
-                if let Some(nv) = active_norm_view {
+                if let Some(nv) = cased_norm_view {
                     builder.step(NormalizedNameStep { annotator: ann, norm_view: nv })
                 } else {
                     builder.add(ann)
