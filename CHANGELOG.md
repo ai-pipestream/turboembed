@@ -280,6 +280,12 @@ stubs must be regenerated.
   `turbo:structure` layer an `initial_graph` carries, so a Java or
   Python client seeds the chunker without a DocumentGraph writer; a
   malformed block is refused naming it (#1777).
+- `TurboTrainingService.TrainComponent` trains a sentence detector,
+  tokenizer, POS tagger, lemmatizer, chunker, name finder, document
+  categorizer or language detector from samples the client streams in
+  their native format, streams each iteration as progress, and sends
+  the model file back; admin only, sharing the training slot with
+  `TrainStaticModel`, and stopped when the client goes away (#2012).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
   `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
