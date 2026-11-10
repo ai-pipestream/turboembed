@@ -12,7 +12,7 @@ use turbo_gliner::{
 };
 
 pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
-    if v.get("span_mode").and_then(Value::as_str) != Some("markerV0")
+    if !matches!(v.get("span_mode").and_then(Value::as_str), Some("markerV0" | "marker"))
         || v.get("subtoken_pooling").and_then(Value::as_str) != Some("first")
     {
         return Err("gliner requires a supported markerV0/first profile".into());
@@ -45,6 +45,9 @@ pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
     }
     Ok(Config {
         hidden: v.get("hidden_size").and_then(Value::as_u64).ok_or("gliner missing hidden_size")? as usize,
+        projection_factor: 4,
+        prompt_factor: 4,
+        out_project_mlp: true,
         max_width: v.get("max_width").and_then(Value::as_u64).ok_or("gliner missing max_width")? as usize,
         entity_token: entity_token as u32,
         separator_token: (entity_token + 1) as u32,
@@ -115,7 +118,20 @@ pub fn convert_files(
         .map_err(|e| e.message)?;
     ec["vocab_size"] = embedding.shape[0].into();
     let encoder = crate::deberta::from_huggingface(&ec)?;
-    let config = from_huggingface(&gc, encoder.vocabulary)?;
+    let mut config = from_huggingface(&gc, encoder.vocabulary)?;
+    let start = f.get("span_rep_layer.span_rep_layer.project_start.0.weight", Dtype::F32, 2).map_err(|e| e.message)?;
+    let factor = start.shape[0] / config.hidden as u64;
+    if start.shape[0] % config.hidden as u64 != 0 || !matches!(factor, 2 | 4) {
+        return Err("gliner projection factor must be 2 or 4".into());
+    }
+    config.projection_factor = factor as usize;
+    let prompt = f.get("prompt_rep_layer.0.weight", Dtype::F32, 2).map_err(|e| e.message)?;
+    let prompt_factor = prompt.shape[0] / config.hidden as u64;
+    if prompt.shape[0] % config.hidden as u64 != 0 || !matches!(prompt_factor, 2 | 4) {
+        return Err("gliner prompt factor must be 2 or 4".into());
+    }
+    config.prompt_factor = prompt_factor as usize;
+    config.out_project_mlp = f.tensor("span_rep_layer.span_rep_layer.out_project.0.weight").is_some();
     let heads = convert_heads(&config, &encoder, &bytes)?;
     let tokenizer = read(spm, 16 << 20)?;
     let parsed_spm = turbo::sentencepiece::SentencePiece::parse(&tokenizer).map_err(|e| e.message)?;
@@ -158,6 +174,9 @@ mod tests {
             "model_name":"microsoft/deberta-v3-small", "hidden_size":512, "max_width":12});
         assert_eq!(from_huggingface(&base, 128004).unwrap().hidden, 512);
         assert!(from_huggingface(&base, 128003).is_err());
+        let mut marker_alias = base.clone();
+        marker_alias["span_mode"] = "marker".into();
+        assert!(from_huggingface(&marker_alias, 128004).is_ok());
         for model_name in ["microsoft/deberta-v3-base", "microsoft/deberta-v3-large"] {
             let mut english = base.clone();
             english["model_name"] = model_name.into();
@@ -191,7 +210,17 @@ mod tests {
     }
     #[test]
     fn canonical_head_conversion_is_deterministic_and_rejects_nonfinite() {
-        let c = Config { hidden: 16, max_width: 3, entity_token: 12, separator_token: 13, cls_token: 1, eos_token: 2 };
+        let c = Config {
+            hidden: 16,
+            projection_factor: 4,
+            prompt_factor: 4,
+            out_project_mlp: true,
+            max_width: 3,
+            entity_token: 12,
+            separator_token: 13,
+            cls_token: 1,
+            eos_token: 2,
+        };
         let ec = turbo::deberta::Config {
             hidden: 32,
             heads: 2,
