@@ -8,6 +8,49 @@ export interface Filterable {
   kind: string;
   language: string;
   licence: string;
+  /** The catalog's component name, such as `COMPONENT_DENSE_ENCODER`; empty when the entry names none. */
+  component?: string;
+}
+
+/** What each component the catalog names is for, in a visitor's words. */
+const PURPOSES: Record<string, string> = {
+  COMPONENT_DENSE_ENCODER: "Embeds text for semantic search",
+  COMPONENT_SPARSE_ENCODER: "Sparse embeddings for term-weighted search",
+  COMPONENT_LATE_INTERACTION_ENCODER: "Per-token embeddings for late-interaction search",
+  COMPONENT_ENTITY_EXTRACTOR: "Finds named entities",
+  COMPONENT_SCHEMA_EXTRACTOR: "Extracts the fields of a schema",
+  COMPONENT_RELATION_EXTRACTOR: "Finds relations between entities",
+  COMPONENT_ZERO_SHOT_CATEGORIZER: "Classifies text into labels given at request time",
+  COMPONENT_EXTRACTIVE_QA: "Answers questions from a passage",
+  COMPONENT_SENTENCE_DETECTOR: "Splits text into sentences",
+  COMPONENT_ASPECT_SENTIMENT: "Sentiment by aspect",
+  COMPONENT_DOCUMENT_CATEGORIZER: "Classifies documents",
+  COMPONENT_POS: "Tags parts of speech",
+  COMPONENT_COREFERENCE_RESOLVER: "Links mentions of the same thing",
+};
+
+/** What a kind with no component is for. */
+const KIND_PURPOSES: Record<string, string> = {
+  KIND_DATASET: "Data to train and evaluate with",
+  KIND_LEXICON: "Word list",
+  KIND_MODEL: "Model files",
+  KIND_HEAD: "Head on a shared encoder",
+};
+
+/**
+ * What an entry is for, in a line: from its component when the catalog
+ * names one, else from its kind. A component this page has no line for
+ * reads as its name in plain words.
+ */
+export function purpose(e: Filterable): string {
+  const c = e.component ?? "";
+  if (c) return PURPOSES[c] ?? sentence(plain(c, "COMPONENT_"));
+  return KIND_PURPOSES[e.kind] ?? sentence(kindName(e.kind));
+}
+
+function sentence(text: string): string {
+  const first = [...text][0] ?? "";
+  return first.toUpperCase() + text.slice(first.length);
 }
 
 /** A catalog kind in plain words: `KIND_MODEL` is "model". */
@@ -62,12 +105,12 @@ export function words(text: string): string[] {
 
 /**
  * Whether `e` is of `kind` (any when empty) and every word typed is in
- * its id, kind, language or licence, whatever the case. The kind
+ * its id, kind, purpose, language or licence, whatever the case. The kind
  * matches in plain words and in its enum spelling.
  */
 export function matches(e: Filterable, kind: string, text: string): boolean {
   if (kind && e.kind !== kind) return false;
-  const hay = fold(`${e.id} ${kindName(e.kind)} ${e.kind} ${e.language} ${e.licence}`);
+  const hay = fold(`${e.id} ${kindName(e.kind)} ${e.kind} ${purpose(e)} ${e.language} ${e.licence}`);
   return words(text).every((w) => hay.includes(w));
 }
 

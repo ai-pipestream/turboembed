@@ -7907,6 +7907,36 @@ function init5() {
 }
 
 // demo/web/src/catalogfilter.ts
+var PURPOSES = {
+  COMPONENT_DENSE_ENCODER: "Embeds text for semantic search",
+  COMPONENT_SPARSE_ENCODER: "Sparse embeddings for term-weighted search",
+  COMPONENT_LATE_INTERACTION_ENCODER: "Per-token embeddings for late-interaction search",
+  COMPONENT_ENTITY_EXTRACTOR: "Finds named entities",
+  COMPONENT_SCHEMA_EXTRACTOR: "Extracts the fields of a schema",
+  COMPONENT_RELATION_EXTRACTOR: "Finds relations between entities",
+  COMPONENT_ZERO_SHOT_CATEGORIZER: "Classifies text into labels given at request time",
+  COMPONENT_EXTRACTIVE_QA: "Answers questions from a passage",
+  COMPONENT_SENTENCE_DETECTOR: "Splits text into sentences",
+  COMPONENT_ASPECT_SENTIMENT: "Sentiment by aspect",
+  COMPONENT_DOCUMENT_CATEGORIZER: "Classifies documents",
+  COMPONENT_POS: "Tags parts of speech",
+  COMPONENT_COREFERENCE_RESOLVER: "Links mentions of the same thing"
+};
+var KIND_PURPOSES = {
+  KIND_DATASET: "Data to train and evaluate with",
+  KIND_LEXICON: "Word list",
+  KIND_MODEL: "Model files",
+  KIND_HEAD: "Head on a shared encoder"
+};
+function purpose(e) {
+  const c = e.component ?? "";
+  if (c) return PURPOSES[c] ?? sentence(plain(c, "COMPONENT_"));
+  return KIND_PURPOSES[e.kind] ?? sentence(kindName(e.kind));
+}
+function sentence(text) {
+  const first = [...text][0] ?? "";
+  return first.toUpperCase() + text.slice(first.length);
+}
 function kindName(kind) {
   const name = kind.startsWith("KIND_") ? kind.slice(5) : kind;
   return name.toLowerCase().split("_").join(" ");
@@ -7938,7 +7968,7 @@ function words(text) {
 }
 function matches(e, kind, text) {
   if (kind && e.kind !== kind) return false;
-  const hay = fold(`${e.id} ${kindName(e.kind)} ${e.kind} ${e.language} ${e.licence}`);
+  const hay = fold(`${e.id} ${kindName(e.kind)} ${e.kind} ${purpose(e)} ${e.language} ${e.licence}`);
   return words(text).every((w) => hay.includes(w));
 }
 function kinds(entries) {
@@ -8386,26 +8416,26 @@ function entryRow(e, w) {
   const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t2) => act2(() => accept(e, t2))));
   let install = "";
   if (w.canChange) {
-    const b = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
+    const b = el("button", { type: "button", class: e.missingTerms.length ? "" : "primary", text: e.installed ? "Reinstall" : "Install" });
     b.disabled = e.missingTerms.length > 0;
     b.title = b.disabled ? "Accept the licence terms first" : "";
     b.addEventListener("click", () => void installModel(e));
     install = b;
   }
-  const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
+  const licence = el("span", { class: "licence", text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
   return el(
     "div",
     { class: "entry" },
+    el("div", { class: "id", text: e.id }),
+    el("div", { class: "purpose", text: purpose(e) }),
     el(
       "div",
       { class: "facts" },
-      el("span", { class: "id", text: e.id }),
       el("span", { class: "tag kind", text: kindName(e.kind) }),
       e.language ? el("span", { class: "tag", title: "language", text: e.language }) : null,
-      licence,
-      el("span", { class: "muted", text: size(e.totalBytes) }),
       e.installed ? el("span", { class: "tag installed", text: "installed" }) : null
     ),
+    el("div", { class: "facts" }, licence, el("span", { class: "muted", text: size(e.totalBytes) })),
     el("div", { class: "acts" }, install, saveButtons(e, w), terms)
   );
 }
@@ -8414,7 +8444,7 @@ function catalogTable(entries, w) {
   const rows2 = entries.map((e) => entryRow(e, w));
   const list5 = el("div", { class: "catalog" }, rows2);
   const count = el("span", { class: "muted", id: "models-count", role: "status" });
-  const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by id, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
+  const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
   box5.value = filterText;
   if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
   const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n]) => [k, kindName(k), n])].map(([k, name, n]) => {

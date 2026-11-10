@@ -138,8 +138,25 @@ test("the catalog narrows by words typed and by kind", async () => {
     const all = await shown();
     assert.equal(all.length > 10, true);
     assert.equal(await page.textContent("#models-count"), `${all.length} entries`);
-    // No kind is shown by its enum name.
-    assert.equal((await page.locator(".catalog").innerText()).includes("KIND_"), false);
+    // No kind or component is shown by its enum name.
+    const text = await page.locator(".catalog").innerText();
+    assert.equal(text.includes("KIND_") || text.includes("COMPONENT_"), false);
+    // The entries are cards: several to a row at this width, each saying
+    // what it is for and inside the catalog's box.
+    const cards = await page.locator(".catalog .entry").evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        const box = e.parentElement!.getBoundingClientRect();
+        return { top: Math.round(r.top), inside: r.left >= box.left - 1 && r.right <= box.right + 1, purpose: e.querySelector(".purpose")?.textContent ?? "" };
+      }),
+    );
+    assert.equal(cards.length, all.length);
+    assert.equal(cards.filter((c) => c.top === cards[0].top).length > 1, true);
+    assert.deepEqual(cards.filter((c) => !c.inside || c.purpose.trim() === ""), []);
+
+    await page.fill("#models-filter", "semantic search");
+    const search = await shown();
+    assert.equal(search.length > 0 && search.length < all.length, true);
 
     await page.fill("#models-filter", "BGE small");
     const bge = await shown();

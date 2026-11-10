@@ -406,10 +406,13 @@ for any refused call.
 - Server: the server's name, version and readiness (`ServerLive`,
   `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, with task
   and prompt roles in plain words, analysis profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
-- Models: `ListModelCatalog` for the demo's user as a list, an entry
-  per artifact with its id, kind in plain words (model, head, dataset,
-  lexicon), language, licence and size. A filter box narrows the list
-  to the entries whose id, kind, language or licence holds every word
+- Models: `ListModelCatalog` for the demo's user as cards, one per
+  artifact: its id, a line saying what it is for (from the catalog's
+  component, such as "Embeds text for semantic search", else from its
+  kind), its kind in plain words (model, head, dataset, lexicon),
+  language, licence and size, and its actions. A card whose terms or
+  files are opened takes the full row. A filter box narrows the cards
+  to the entries whose id, purpose, kind, language or licence holds every word
   typed, whatever the case (words are parted by any Unicode white space,
   the next-line control included; `ß`, `ẞ` and `SS` compare equal, as
   do a final and a medial sigma; and a kind also matches in its enum
@@ -522,8 +525,9 @@ the page makes goes through the demo to the server.
   shows the server up, and the arrow keys move between the tabs.
 - The catalog read from the server narrows to the entries matching the
   words typed and to one kind by its chip, says how many of how many
-  are shown, names no kind by its enum, and says so when nothing
-  matches.
+  are shown, names no kind or component by its enum, and says so when
+  nothing matches. The entries are cards, several to a row at 1280
+  pixels, each saying what it is for.
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in
