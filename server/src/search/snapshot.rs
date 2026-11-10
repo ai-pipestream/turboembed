@@ -13,7 +13,7 @@ use crate::api::Result;
 use crate::proto::search::{ChunkInput, IndexSpec, SparseEntryProto, TokenVectorInput, VectorStorageKind};
 use crate::search::registry::{
     CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, corrupt_snapshot, io_err, not_found,
-    parse_metric, parse_space,
+    parse_metric, parse_quant_bits, parse_space,
 };
 
 const SNAPSHOT_MAGIC: &[u8; 8] = b"TSRCHIX\x01";
@@ -192,7 +192,7 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
     let quant = match storage {
         VectorStorageKind::FlatF32 => None,
         VectorStorageKind::TurboQuant => {
-            let bits = if spec.quant_bits == 0 { 4 } else { spec.quant_bits as u8 };
+            let bits = parse_quant_bits(spec.quant_bits).map_err(|f| corrupt_snapshot(f.message))?;
             Some(TurboQuant::new(bits, spec.quant_calibrate).map_err(|e| corrupt_snapshot(e.to_string()))?)
         }
     };
