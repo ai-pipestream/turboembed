@@ -922,13 +922,14 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   `OK`), so it is a mention only in capitals and only directly after a
   state label (`State: OR`) or before a ZIP code that ends an address,
   by what comes before the code: a comma (`Springfield, IL 62704`), a
-  city of that state in the bundled gazetteer and one space
-  (`Springfield IL 62704 is`), or the start of a line when only blanks
+  capitalized word and one space when the ZIP code's three-digit prefix
+  belongs to that state (`Springfield IL 62704 is`, `Reading PA 19601`),
+  or the start of a line when only blanks
   follow the ZIP code to the line's end or a clause's end (`IL 62704`,
-  `IL 62704, USA`). After any other
-  word (`Order IN 12345.`, `PART OR 90210`), or with a word after a line's
-  code and number (`IN 12345 units`), the number is a count, not a
-  state. The normalized form is the USPS code (`IL`).
+  `IL 62704, USA`). After a small word or with another state's prefix
+  (`(see IN 12345)`, `Order IN 12345.`, `PART OR 90210`), or with a word
+  after a line's code and number (`IN 12345 units`), the number is a
+  count, not a state. The normalized form is the USPS code (`IL`).
 - `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
   `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
   county equivalent of the Census Bureau's 2020 county list

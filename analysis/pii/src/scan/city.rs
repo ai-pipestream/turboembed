@@ -156,18 +156,6 @@ fn before_state(text: &str, comma: usize, code: &str) -> Option<(usize, usize, &
     })
 }
 
-/// Whether a city of the state with USPS code `code` ends at `end`, by
-/// the same words and gazetteer rule as a city before `, IL`. No city
-/// name holds a digit, so the words stop at one (`IL 62704 is. Order`).
-pub(super) fn city_before(text: &str, end: usize, code: &str) -> bool {
-    let mut starts = [0; MAX_WORDS];
-    let n = word_starts_before(text, end, &mut starts);
-    starts[..n]
-        .iter()
-        .take_while(|&&start| !text.as_bytes()[start..end].iter().any(u8::is_ascii_digit))
-        .any(|&start| lookup(text, start, end).is_some_and(|found| found.iter().any(|e| in_state(e, code))))
-}
-
 /// The longest city name that starts at `at`, after a label: any place of
 /// that name, or one in the state after it when one follows. A name that
 /// a capitalized word follows is part of a longer one (`City: San Foo`),

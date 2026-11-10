@@ -78,9 +78,22 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("Portland, OR 97201."), ("OR".to_owned(), "state", "OR".to_owned()));
     let states: Vec<_> = found("PORTLAND OR 97201").into_iter().filter(|m| m.1 == "state").collect();
     assert_eq!(states, [("OR".to_owned(), "state", "OR".to_owned())]);
+    // Towns the bundled gazetteer lacks still give their state before a
+    // ZIP code of that state (#2126).
+    for (text, code) in [
+        ("Reading PA 19601", "PA"),
+        ("Send it to Reading PA 19601-1234 by Friday", "PA"),
+        ("New Hope PA 18938", "PA"),
+        ("Amherst MA 01002", "MA"),
+        ("Sedona AZ 86336", "AZ"),
+    ] {
+        let states: Vec<_> = found(text).into_iter().filter(|m| m.1 == "state").collect();
+        assert_eq!(states, [(code.to_owned(), "state", code.to_owned())], "{text:?}");
+    }
     // A code before a ZIP code ends an address by what comes before it:
-    // a comma, a city of that state, or the start of a line with only
-    // blanks after the ZIP code to the line's end.
+    // a comma, a capitalized word with a ZIP prefix of that state, or the
+    // start of a line with only blanks after the ZIP code to the line's
+    // or clause's end.
     for text in [
         "Springfield, IL 62704 is the address",
         "IL 62704",
@@ -111,8 +124,11 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         "Order IN 12345",
         "Lot IN 12345; ship",
         "(see IN 12345)",
+        "(see IN 46201)",
         "We need OR 90210, now",
         "PART OR 90210",
+        "x_Springfield IL 62704",
+        "e\u{301}Springfield IL 62704",
         "IN 12345 units",
         "\tOR 90210 boxes",
         "Order\nIN 12345 units",

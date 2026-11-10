@@ -7,19 +7,21 @@
 //! list (`Washington County`) is the county's. A two-letter USPS code (`IL`) is a common word or
 //! abbreviation too (`IN`, `OR`, `ME`, `OK`), so it is a mention only in
 //! capitals and only after a state label (`State: IL`) or before a ZIP
-//! code that ends an address: after a comma or a city of that state
-//! (`Springfield, IL 62704`, `Springfield IL 62704`), or alone on a line
-//! with its ZIP code, not after another word (`Order IN 12345`). The normalized form is the USPS code.
+//! code that ends an address: after a comma (`Springfield, IL 62704`),
+//! after a capitalized word when the ZIP code's three-digit prefix
+//! belongs to that state (`Springfield IL 62704`, `Reading PA 19601`),
+//! or alone on a line with its ZIP code, not after another word or with
+//! another state's prefix (`Order IN 12345`, `PART OR 90210`). The
+//! normalized form is the USPS code.
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
-use super::city::city_before;
 use super::national::on_number_end;
 use super::us_labelled::STATES;
 use crate::hits::Hits;
 use crate::tables::us_counties::{SUFFIXES, county};
 use crate::tables::us_states::US_STATES;
-use crate::text::{on_end, on_name_end, on_name_start};
+use crate::text::{name_char, on_end, on_name_end, on_name_start};
 use crate::window::find_any_label;
 
 /// The labels a code is read after, longest first.
@@ -100,14 +102,17 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
 
 /// Whether a code at `code` before the ZIP code ending at `end` reads as
 /// the end of an address, by what comes before it: a comma
-/// (`Springfield, IL 62704`), a city of that state and one space
-/// (`Springfield IL 62704 is`), or only blanks back to the start of a line
-/// when only blanks, or blanks and a clause's end, follow the ZIP code
-/// (`IL 62704`, `IL 62704.`). A word that is no city there
-/// (`Order IN 12345`, `PART OR 90210`), or a word after a line's code and
-/// number (`IN 12345 units`), makes the number a count.
+/// (`Springfield, IL 62704`), a capitalized word and one space when the
+/// ZIP code's three-digit prefix belongs to that state
+/// (`Springfield IL 62704 is`, `Reading PA 19601`), or only blanks back
+/// to the start of a line when only blanks, or blanks and a clause's
+/// end, follow the ZIP code (`IL 62704`, `IL 62704.`). A small word or a
+/// prefix from another state (`(see IN 12345)`, `Order IN 12345`,
+/// `PART OR 90210`), or a word after a line's code and number
+/// (`IN 12345 units`), makes the number a count.
 fn address_like(text: &str, code: usize, end: usize) -> bool {
-    let before = &text.as_bytes()[..code];
+    let b = text.as_bytes();
+    let before = &b[..code];
     if before.ends_with(b", ") {
         return true;
     }
@@ -121,7 +126,92 @@ fn address_like(text: &str, code: usize, end: usize) -> bool {
     before.len() >= 2
         && before.ends_with(b" ")
         && before[before.len() - 2] != b' '
-        && city_before(text, code - 1, &text[code..code + 2])
+        && zip_prefix_in_state(&b[code..code + 2], &b[code + 3..code + 6])
+        && capitalized_word_before(text, code - 1)
+}
+
+/// Whether the word ending at `end` is shaped like the last word of a
+/// place name: letters and internal apostrophes or hyphens (`Reading`,
+/// `O'Fallon`, `Winston-Salem`), no digit or `_`, starting with a
+/// capital and ending with a word character.
+fn capitalized_word_before(text: &str, end: usize) -> bool {
+    let start = text[..end]
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '-')))
+        .map_or(0, |(p, c)| p + c.len_utf8());
+    let word = &text[start..end];
+    !word.bytes().any(|b| b.is_ascii_digit() || b == b'_')
+        && word.chars().next().is_some_and(char::is_uppercase)
+        && word.chars().next_back().is_some_and(name_char)
+}
+
+/// Whether the three-digit ZIP prefix `zip` (`005`..`999`) is assigned by
+/// the USPS to the state, territory or armed-forces designation `code`.
+fn zip_prefix_in_state(code: &[u8], zip: &[u8]) -> bool {
+    let p = u16::from(zip[0] - b'0') * 100 + u16::from(zip[1] - b'0') * 10 + u16::from(zip[2] - b'0');
+    match code {
+        b"AL" => (350..=369).contains(&p),
+        b"AK" => (995..=999).contains(&p),
+        b"AZ" => (850..=865).contains(&p),
+        b"AR" => (716..=729).contains(&p),
+        b"CA" => (900..=961).contains(&p),
+        b"CO" => (800..=816).contains(&p),
+        b"CT" => (60..=69).contains(&p),
+        b"DE" => (197..=199).contains(&p),
+        b"FL" => (320..=349).contains(&p),
+        b"GA" => (300..=319).contains(&p) || (398..=399).contains(&p),
+        b"HI" => (967..=968).contains(&p),
+        b"ID" => (832..=838).contains(&p),
+        b"IL" => (600..=629).contains(&p),
+        b"IN" => (460..=479).contains(&p),
+        b"IA" => (500..=528).contains(&p),
+        b"KS" => (660..=679).contains(&p),
+        b"KY" => (400..=427).contains(&p),
+        b"LA" => (700..=714).contains(&p),
+        b"ME" => (39..=49).contains(&p),
+        b"MD" => (206..=219).contains(&p),
+        b"MA" => (10..=27).contains(&p) || p == 55,
+        b"MI" => (480..=499).contains(&p),
+        b"MN" => (550..=567).contains(&p),
+        b"MS" => (386..=397).contains(&p),
+        b"MO" => (630..=658).contains(&p),
+        b"MT" => (590..=599).contains(&p),
+        b"NE" => (680..=693).contains(&p),
+        b"NV" => (889..=898).contains(&p),
+        b"NH" => (30..=38).contains(&p),
+        b"NJ" => (70..=89).contains(&p),
+        b"NM" => (870..=884).contains(&p),
+        b"NY" => p == 5 || p == 63 || (100..=149).contains(&p),
+        b"NC" => (270..=289).contains(&p),
+        b"ND" => (580..=588).contains(&p),
+        b"OH" => (430..=459).contains(&p),
+        b"OK" => (730..=749).contains(&p),
+        b"OR" => (970..=979).contains(&p),
+        b"PA" => (150..=196).contains(&p),
+        b"RI" => (28..=29).contains(&p),
+        b"SC" => (290..=299).contains(&p),
+        b"SD" => (570..=577).contains(&p),
+        b"TN" => (370..=385).contains(&p),
+        b"TX" => p == 733 || (750..=799).contains(&p) || p == 885,
+        b"UT" => (840..=847).contains(&p),
+        b"VT" => (50..=59).contains(&p),
+        b"VA" => p == 201 || (220..=246).contains(&p),
+        b"WA" => (980..=994).contains(&p),
+        b"WV" => (247..=268).contains(&p),
+        b"WI" => (530..=549).contains(&p),
+        b"WY" => (820..=831).contains(&p),
+        b"DC" => (200..=205).contains(&p) || p == 569,
+        b"AS" => p == 967,
+        b"GU" | b"MP" | b"FM" | b"MH" | b"PW" => p == 969,
+        b"PR" => (6..=7).contains(&p) || p == 9,
+        b"VI" => p == 8,
+        b"UM" => p == 968,
+        b"AA" => p == 340,
+        b"AE" => (90..=98).contains(&p),
+        b"AP" => (962..=966).contains(&p),
+        _ => false,
+    }
 }
 
 /// Whether only blanks follow `end` to the end of its line or the text,
