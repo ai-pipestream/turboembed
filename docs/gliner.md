@@ -232,7 +232,12 @@ checkpoint configuration and model identity.
 `HybridPrecision` is a separate annotator over the high-recall `Entities` and
 `Decisions` outputs. It can trim leading articles and non-entity edge tokens,
 reject non-alphanumeric candidates, apply label-specific PII negative rules,
-and require a compatible entity-linker candidate. `require_link` restricts that
+and require a compatible entity-linker candidate. Trimming repeats until
+neither rule applies, so punctuation an article stood before goes with it
+(`the "Acme"` becomes `Acme`), and a candidate that is an article and nothing
+else once trimmed is rejected as a non-entity. A PII layer must be valid and
+over the same view as the other inputs, since a negative rule compares byte
+offsets. `require_link` restricts that
 last requirement to the named labels; labels outside the explicit set retain
 their model candidates, so a gazetteer does not erase an unseen type. With no
 explicit set, every label is subject to linking when a provider is present.
@@ -244,8 +249,16 @@ The original `Entities` and `Decisions` layers remain unchanged, preserving
 their model provenance; the precision layer's provenance reads them.
 `precision_evidence` adds raw logits, support links to all three input layers,
 and an explicit abstention reason for every rejection. The graph codecs retain
-these fields and the evidence after export and import. Empty or malformed token
-ranges return an error rather than indexing outside the input layers.
+these fields and the evidence after export and import. The stage has no model
+of its own, so each evidence record names the model that produced the entities
+it read. Empty or malformed token ranges return an error rather than indexing
+outside the input layers.
+
+A document accepts a `PrecisionCandidates` layer, on `add` and on import, only
+when every original and final span is exactly the span of its non-empty token
+range in the tokens the layer was made on, in the same view, and the final
+span lies within the original. A span outside the text, inside a character, or
+detached from its tokens is refused.
 
 `PrecisionEvaluation` reports exact span-and-label precision, recall, F1,
 candidate counts, and false-positive rows independently for model-only,

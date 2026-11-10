@@ -12,6 +12,7 @@ mod precision;
 mod precision_codec;
 mod precision_eval;
 mod precision_evidence;
+mod precision_rules;
 mod schema;
 mod subwords;
 pub mod train;

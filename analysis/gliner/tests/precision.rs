@@ -112,6 +112,11 @@ fn precision_records_accepted_changed_and_rejected_candidates_with_evidence() {
     doc.add(&Key::<PrecisionCandidates>::DEFAULT, filtered, provenance).unwrap();
     let evidence = precision_evidence(&doc, Key::<PrecisionCandidates>::DEFAULT).unwrap();
     evidence.verify(&doc).unwrap();
+    // The records name the model whose candidates they are.
+    assert!(model.is_some());
+    for i in 0..5 {
+        assert_eq!(evidence.producer_of(i).model, model);
+    }
     assert_eq!(evidence.raw_of(0), Some(4.0));
     assert_eq!(evidence.abstention_of(1), Some("non-entity"));
     assert_eq!(evidence.abstention_of(4), Some("pii-conflict:5"));

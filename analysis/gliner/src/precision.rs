@@ -9,6 +9,7 @@ use turbo_analysis_layers::{Entities, Pii, PiiKind, Tokens};
 use turbo_entity_linker::{KbProvider, prior_score, type_compatibility};
 
 use crate::Decisions;
+use crate::precision_rules::{trim, validate_inputs};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrecisionRejection {
@@ -118,6 +119,16 @@ impl Layer for PrecisionCandidates {
         self.decision.len()
     }
 
+    fn text_spans(&self) -> Option<turbo_analysis::TextSpans<'_>> {
+        Some(self.spans.text_spans())
+    }
+
+    /// The original spans are a second span column the container does not
+    /// see: they are held to the tokens the document already checked.
+    fn check_document(&self, doc: &Document, on: &[turbo_analysis::KeyId]) -> Result<(), String> {
+        crate::precision_rules::check_in_document(self, doc, on)
+    }
+
     fn indexes(&self) -> Vec<(turbo_analysis::KeyId, usize)> {
         let bound = self.original_tokens.iter().chain(&self.tokens).map(|r| r.end.get()).max().unwrap_or(0);
         vec![(Key::<Tokens>::DEFAULT.id(), bound)]
@@ -140,8 +151,11 @@ impl Layer for PrecisionCandidates {
             if c.original_span.is_empty() || c.span.is_empty() {
                 return Err(format!("precision candidate {i} is empty"));
             }
-            if c.original_tokens.start > c.original_tokens.end || c.tokens.start > c.tokens.end {
-                return Err(format!("precision candidate {i} has reversed token bounds"));
+            if c.original_tokens.start >= c.original_tokens.end || c.tokens.start >= c.tokens.end {
+                return Err(format!("precision candidate {i} has empty or reversed token bounds"));
+            }
+            if c.span.start < c.original_span.start || c.span.end > c.original_span.end {
+                return Err(format!("precision candidate {i} expands beyond its original span"));
             }
             if c.tokens.start < c.original_tokens.start || c.tokens.end > c.original_tokens.end {
                 return Err(format!("precision candidate {i} expands beyond its original tokens"));
@@ -286,17 +300,20 @@ impl HybridPrecision {
         decisions: &Decisions,
         pii: Option<&Pii>,
     ) -> Result<PrecisionCandidates, Error> {
-        validate_inputs(view, tokens, entities, decisions)?;
+        validate_inputs(view, tokens, entities, decisions, pii)?;
         let mut out = PrecisionCandidates::new(view.id(), Arc::clone(&entities.kinds));
         for (ix, original_span) in entities.spans.iter() {
             let original_tokens = entities.tokens[ix.get()];
-            let (span, token_range) = trim(view, tokens, original_tokens, self.trim_articles);
+            let trimmed = trim(view, tokens, original_tokens, self.trim_articles);
+            let (span, token_range) = (trimmed.span, trimmed.tokens);
             let kind = entities.kind[ix.get()];
             let label = entities.kinds.label(kind);
             let text = &view.text()[span.range()];
             let changed = span != original_span || token_range != original_tokens;
-            let mut rejection = (self.reject_non_alpha && !text.chars().any(char::is_alphanumeric))
-                .then_some(PrecisionRejection::NonEntity);
+            // What is left is an article alone, or (when asked) nothing a
+            // name is written with.
+            let non_alpha = self.reject_non_alpha && !text.chars().any(char::is_alphanumeric);
+            let mut rejection = (trimmed.bare_article || non_alpha).then_some(PrecisionRejection::NonEntity);
             if rejection.is_none()
                 && let Some(layer) = pii
             {
@@ -343,60 +360,6 @@ impl HybridPrecision {
         out.check().map_err(|detail| Error::Invalid { layer: Key::<PrecisionCandidates>::DEFAULT.id(), detail })?;
         Ok(out)
     }
-}
-
-fn validate_inputs(view: &View, tokens: &Tokens, entities: &Entities, decisions: &Decisions) -> Result<(), Error> {
-    let fail = |detail: String| Error::Invalid { layer: Key::<PrecisionCandidates>::DEFAULT.id(), detail };
-    tokens.check().map_err(fail)?;
-    entities.check().map_err(fail)?;
-    decisions.check().map_err(fail)?;
-    if entities.spans.view() != view.id() || tokens.spans.view() != view.id() {
-        return Err(fail("precision inputs must share one view".into()));
-    }
-    if entities.spans.len() != decisions.logits.len() {
-        return Err(fail("precision decisions must align to entities".into()));
-    }
-    for (_, span) in tokens.spans.iter() {
-        if view.text().get(span.range()).is_none() {
-            return Err(fail(format!("token span {}..{} is outside its view", span.start, span.end)));
-        }
-    }
-    let (starts, ends) = tokens.spans.columns();
-    for (i, range) in entities.tokens.iter().enumerate() {
-        let (start, end) = (range.start.get(), range.end.get());
-        if start >= end || end > tokens.spans.len() {
-            return Err(fail(format!("entity {i} has an empty or out-of-bounds token range")));
-        }
-        let expected = Span::new(starts[start], ends[end - 1]);
-        let span = entities.spans.get(turbo_analysis::Ix::new(i as u32));
-        if span != expected || view.text().get(span.range()).is_none() {
-            return Err(fail(format!("entity {i} does not match its token span")));
-        }
-    }
-    Ok(())
-}
-
-fn trim(view: &View, tokens: &Tokens, range: IxRange<Tokens>, articles: bool) -> (Span, IxRange<Tokens>) {
-    let (starts, ends) = tokens.spans.columns();
-    let (mut start, mut end) = (range.start.get(), range.end.get());
-    while end - start > 1
-        && !view.text()[starts[start] as usize..ends[start] as usize].chars().any(char::is_alphanumeric)
-    {
-        start += 1;
-    }
-    while end - start > 1
-        && !view.text()[starts[end - 1] as usize..ends[end - 1] as usize].chars().any(char::is_alphanumeric)
-    {
-        end -= 1;
-    }
-    if articles && end - start > 1 {
-        let first = &view.text()[starts[start] as usize..ends[start] as usize];
-        if matches!(first.to_ascii_lowercase().as_str(), "a" | "an" | "the") {
-            start += 1;
-        }
-    }
-    let range = IxRange::new(start as u32, end as u32);
-    (Span::new(starts[start], ends[end - 1]), range)
 }
 
 impl Annotator for HybridPrecision {
