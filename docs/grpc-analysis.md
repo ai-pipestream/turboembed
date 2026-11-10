@@ -173,7 +173,10 @@ Remaining limits: a step runs over the source view only; under
 ambiguous rather than run twice; and a learned sentence step cannot follow a
 normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
 the source, or the last view written before the fold, so its boundaries
-match an unnormalized request.
+match the same request without the fold. When the fold comes first, that
+is the unnormalized request; after another normalizer, such as
+`turbo:normalize` then the fold, it is the request with that normalizer
+and no fold.
 
 `server/tests/full_text_graph.rs` is the in-process acceptance of the
 model-free stages: `compile_analyzer` with normalization, structure,
