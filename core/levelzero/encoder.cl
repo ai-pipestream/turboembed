@@ -1534,6 +1534,27 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void normalize(__glo
     for (int d = lid; d < output_dim; d += BLOCK) dst[d] *= inv;
 }
 
+/* The token head over each range's pooled vector, hidden wide: value v is
+ * range v / head_out's output v % head_out, the bias plus the dot product
+ * of that output's weight row with the vector, the products and sums in
+ * F64 as the CPU path's head computes them. A sub-group a value; the bias
+ * is the head_out values after the [head_out, hidden] weight. */
+#define HEAD_SUBGROUPS 8
+
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * HEAD_SUBGROUPS, 1, 1)))
+void span_head(__global const float *pooled, __global const float *w, int head_out, int hidden, int values,
+               __global float *out) {
+    const int v = get_group_id(0) * HEAD_SUBGROUPS + get_sub_group_id();
+    if (v >= values) return;
+    const int lane = get_sub_group_local_id(), i = v / head_out, o = v % head_out;
+    __global const float *x = pooled + (size_t)i * hidden;
+    __global const float *wo = w + (size_t)o * hidden;
+    double acc = 0.0;
+    for (int d = lane; d < hidden; d += 16) acc += (double)wo[d] * (double)x[d];
+    acc = sub_group_reduce_add(acc);
+    if (lane == 0) out[v] = (float)((double)w[(size_t)head_out * hidden + o] + acc);
+}
+
 /* ---- Widening ------------------------------------------------------------------
  *
  * An F16 or BF16 model's weights in F32, for the sessions that compute in

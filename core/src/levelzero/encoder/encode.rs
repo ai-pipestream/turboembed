@@ -393,18 +393,24 @@ impl Session {
         let (batch, h) = (self.batch, self.model().desc.hidden);
         // A vector per row, or per range after embed_write_ranges, whose
         // ranges the kernel reads from the staging after the row table.
+        // With the head, each range's whole vector, into the projections'
+        // scratch, free after the last layer and max_batch * max_seq
+        // vectors wide; the head then writes the output.
         let vectors = if self.ranges > 0 {
+            let (dim, to) = if self.head { (h, self.qkv) } else { (self.output_dim, self.output.ptr as u64) };
             let args = [
                 Ptr(self.x),
                 Ptr(self.packed_mask),
                 Ptr(self.rows),
                 Ptr(self.ranges_at() as u64),
                 I32(h as i32),
-                I32(self.output_dim as i32),
-                Ptr(self.output.ptr as u64),
+                I32(dim as i32),
+                Ptr(to),
             ];
-            let groups = [self.ranges, self.output_dim.div_ceil(16), 1];
-            k.pool_ranges.launch(c, q, "range pooling", &args, groups)?;
+            k.pool_ranges.launch(c, q, "range pooling", &args, [self.ranges, dim.div_ceil(16), 1])?;
+            if self.head {
+                return self.apply_head(q, to);
+            }
             self.ranges
         } else {
             let args = [
