@@ -10,6 +10,7 @@ pub mod package;
 mod packing;
 mod schema;
 mod subwords;
+pub mod train;
 mod window;
 pub use codec::{codecs, register_codecs};
 pub use config::Config;
@@ -169,15 +170,37 @@ impl Model {
 }
 /// Stable logit-priority decoding. Nested mode allows containment but rejects
 /// crossing intervals and multiple labels on exactly the same interval.
-pub fn decode(mut candidates: Vec<Candidate>, schema: &ExtractionSchema) -> Vec<Candidate> {
-    candidates.retain(|c| {
-        c.logit.is_finite()
+pub fn decode(candidates: Vec<Candidate>, schema: &ExtractionSchema) -> Vec<Candidate> {
+    decode_with_thresholds(candidates, schema, &[schema.threshold()]).expect("one uniform GLiNER threshold")
+}
+
+/// Applies a threshold to each candidate by label, then resolves all labels
+/// together. The schema supplies the decode mode and prompt-independent rules.
+pub fn decode_with_thresholds(
+    mut candidates: Vec<Candidate>,
+    schema: &ExtractionSchema,
+    thresholds: &[f32],
+) -> Result<Vec<Candidate>, String> {
+    if thresholds.is_empty() || thresholds.iter().any(|x| !x.is_finite() || !(0.0..=1.0).contains(x)) {
+        return Err("GLiNER thresholds must be finite and in [0,1]".into());
+    }
+    let mut accepted = Vec::with_capacity(candidates.len());
+    for c in candidates.drain(..) {
+        let &threshold = if thresholds.len() == 1 {
+            &thresholds[0]
+        } else {
+            thresholds.get(c.label).ok_or("GLiNER candidate has no label threshold")?
+        };
+        if c.logit.is_finite()
             && c.score.is_finite()
-            && (c.score > schema.threshold() || (schema.threshold() == 0.5 && c.logit > 0.0 && c.score >= 0.5))
-    });
-    candidates.sort_by(|a, b| b.logit.total_cmp(&a.logit).then_with(|| b.score.total_cmp(&a.score)));
+            && (c.score > threshold || (threshold == 0.5 && c.logit > 0.0 && c.score >= 0.5))
+        {
+            accepted.push(c);
+        }
+    }
+    accepted.sort_by(|a, b| b.logit.total_cmp(&a.logit).then_with(|| b.score.total_cmp(&a.score)));
     let mut out: Vec<Candidate> = Vec::new();
-    for c in candidates {
+    for c in accepted {
         if out.iter().any(|b| {
             let overlaps = c.start < b.end && b.start < c.end;
             let contains = (c.start <= b.start && c.end >= b.end) || (b.start <= c.start && b.end >= c.end);
@@ -188,7 +211,7 @@ pub fn decode(mut candidates: Vec<Candidate>, schema: &ExtractionSchema) -> Vec<
         out.push(c);
     }
     out.sort_by_key(|c| (c.start, c.end));
-    out
+    Ok(out)
 }
 
 #[cfg(test)]
