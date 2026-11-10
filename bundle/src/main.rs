@@ -10,7 +10,7 @@ use turbo_bundle::{Result, catalogue, distill, fetch, seal};
 const USAGE: &str = "\
 usage:
   turbo-bundle gliner-convert <encoder-config.json> <gliner_config.json> <checkpoint.safetensors> <spm.model> <repo> <revision> <license> <new-dir>
-      convert the native GLiNER small-v2.1 span model
+      convert a supported native GLiNER markerV0 span model
   turbo-bundle gliner-verify <directory>
       verify all native GLiNER package digests and tensors
   turbo-bundle deberta-convert <config.json> <checkpoint.safetensors> <prefix-or-dash> <repo> <revision> <license> <new-dir>

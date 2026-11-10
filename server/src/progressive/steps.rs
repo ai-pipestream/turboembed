@@ -2,29 +2,20 @@
 //! `AnalyzeDocumentProgressive` (issues `#1218`, `#1302`, `#1325`).
 
 use std::marker::PhantomData;
-use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 
-use turbo::{TURBO_PRECISION_EXACT, TURBO_PRECISION_FASTEST, TURBO_TASK_EMBED};
-use turbo_abbrev::AbbreviationAnnotator;
 use turbo_analysis::analyzer::Builder;
 use turbo_analysis::{Analyzer, Bound, Document, Key};
-use turbo_analysis_embed::{
-    ChunkVectors, Device, EncoderOptions, LevelVectors, Precision, SentenceChunkVectors, SentenceVectors,
-    SparseAnnotator, SparseOptions, SubwordAnnotator, SubwordVectors, VectorAnnotator, VectorOptions,
-};
+use turbo_analysis_embed::{ChunkVectors, LevelVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors};
 use turbo_analysis_layers::{
     Boundaries, Chunks, Entities, Levels, Sentences, Stems, Structure, Subwords, Terms, Tokens,
 };
-use turbo_chunker::levels::LevelBuilder;
-use turbo_chunker::terms::TermIndexer;
-use turbo_chunker::{Budget, Chunker, Costs, LexicalBoundaries, StructureBoundaries};
+use turbo_chunker::{Budget, Chunker};
 use turbo_geo::{BundledGazetteer, NameAnnotator, NameFinder};
-use turbo_keywords::{Stopwords as KeywordStopwords, YakeAnnotator};
-use turbo_normalize::{Chain, Invisible, NormalizeStep, Normalizer, UnicodeForm, Whitespace};
+use turbo_gliner::ExtractionSchema;
+use turbo_normalize::{CaseFold, Chain, Invisible, NormalizeStep, Normalizer, UnicodeForm, Whitespace};
+use turbo_relation::ZeroShotRelationConfig;
 use turbo_sentdetect::RuleSentenceDetector;
-use turbo_stem::{Algorithm, StemAnnotator, TermAnnotator};
-use turbo_stopword::{ListChoice, StopwordAnnotator, StopwordLanguage};
 use turbo_stopword_layers::Stopwords;
 use turbo_structure::{StructureAnnotator, Syntax};
 use turbo_tokenize::uax29::UntypedWordTokenizer;
@@ -36,12 +27,15 @@ use super::normalize::{
 
 mod block5;
 pub mod heads;
+mod relations;
 
-use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_INVALID_ARGUMENT};
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::pii_policy::Redaction;
-use crate::state::{Loaded, State};
+use crate::proto::result::VocabularyBinding;
+use crate::state::State;
+use crate::vocabulary::ResolvedVocabulary;
 
-pub(super) const DEFAULT_STEPS: &[&str] = &[
+pub(crate) const DEFAULT_STEPS: &[&str] = &[
     "turbo-structure:blocks",
     "turbo-sentdetect:rules",
     "turbo-tokenize:uax29-untyped",
@@ -54,9 +48,9 @@ pub(super) const DEFAULT_STEPS: &[&str] = &[
     "turbo:lexical-boundaries",
 ];
 
-pub(super) const MINIMAL_STEPS: &[&str] = &["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"];
+pub(crate) const MINIMAL_STEPS: &[&str] = &["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"];
 
-pub(super) const CHUNKING_STEPS: &[&str] = &[
+pub(crate) const CHUNKING_STEPS: &[&str] = &[
     "turbo-structure:blocks",
     "turbo-sentdetect:rules",
     "turbo-tokenize:uax29-untyped",
@@ -88,6 +82,8 @@ pub(super) fn is_normalizer_step(name: &str) -> bool {
             | "turbo:normalize:nfkc"
             | "unicode_normalize"
             | "turbo:normalize:nfc"
+            | "turbo:normalize:case-fold"
+            | "case_fold"
             | "turbo:normalize:whitespace"
             | "whitespace"
             | "turbo:normalize:invisible"
@@ -142,152 +138,29 @@ pub(super) fn register_given_layers(mut builder: Builder, initial_doc: &Document
     builder
 }
 
-struct EmbedContext {
-    loaded: Arc<Loaded>,
-    vectors: Option<Arc<VectorAnnotator>>,
-}
+mod embed;
+mod gliner;
 
-impl EmbedContext {
-    fn encoder_options(&self) -> EncoderOptions {
-        let slot = &self.loaded.slots[0];
-        let precision = match slot.desc.precision {
-            TURBO_PRECISION_FASTEST => Precision::Fastest,
-            TURBO_PRECISION_EXACT => Precision::Exact,
-            _ => Precision::Model,
-        };
-        EncoderOptions {
-            device: Device::Index(self.loaded.device),
-            precision,
-            max_batch: slot.info.max_batch,
-            max_seq: slot.info.max_seq,
-            max_ranges: 0,
-            cpu_threads: 0,
-            layers: 0,
-        }
-    }
-
-    fn subword_annotator(&self) -> Result<SubwordAnnotator, Failure> {
-        SubwordAnnotator::open(Path::new(&self.loaded.bundle)).map_err(|e| Failure::new(e.code, e.field, e.message))
-    }
-
-    fn vector_annotator(&mut self) -> Result<Arc<VectorAnnotator>, Failure> {
-        if let Some(v) = &self.vectors {
-            return Ok(Arc::clone(v));
-        }
-        let opts = VectorOptions { encoder: self.encoder_options(), ..VectorOptions::default() };
-        let ann = VectorAnnotator::open(Path::new(&self.loaded.bundle), &opts)
-            .map_err(|e| Failure::new(e.code, e.field, e.message))?;
-        let arc = Arc::new(ann);
-        self.vectors = Some(Arc::clone(&arc));
-        Ok(arc)
-    }
-
-    fn sparse_annotator(&self) -> Result<SparseAnnotator, Failure> {
-        let opts = SparseOptions { encoder: self.encoder_options(), ..SparseOptions::default() };
-        SparseAnnotator::open(Path::new(&self.loaded.bundle), &opts)
-            .map_err(|e| Failure::new(e.code, e.field, e.message))
-    }
-}
-
-fn resolve_embed_context(
-    state: Option<&State>,
-    model_name: &str,
-    profile_name: &str,
-    required_bundles: &[&str],
-    step_names: &[&str],
-) -> Result<Option<EmbedContext>, Failure> {
-    let needs_sparse = required_bundles.contains(&"embed.sparse") || step_names.iter().copied().any(step_needs_sparse);
-    let needs_embed =
-        needs_sparse || required_bundles.contains(&"TASK_EMBED") || step_names.iter().copied().any(step_needs_embed);
-
-    if !needs_embed {
-        if !model_name.trim().is_empty() {
-            return Err(bad(format!(
-                "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",
-                model_name
-            )));
-        }
-        return Ok(None);
-    }
-
-    let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
-    let needed_heads = heads::needed(step_names, required_bundles);
-    let any_head = required_bundles.contains(&heads::ANY_HEAD);
-    let Some(st) = state else {
-        return Err(Failure::new(
-            TURBO_E_BUNDLE_NOT_FOUND,
-            0,
-            format!("{who} requires bundle 'TASK_EMBED', which is not loaded"),
-        ));
-    };
-
-    let trimmed = model_name.trim();
-    if !trimmed.is_empty() {
-        let (_, loaded) = st
-            .ready(trimmed, "")
-            .map_err(|f| Failure::new(f.code, f.field, format!("{} (required bundle 'TASK_EMBED')", f.message)))?;
-        if loaded.task != TURBO_TASK_EMBED {
-            return Err(Failure::new(
-                TURBO_E_BUNDLE_NOT_FOUND,
-                0,
-                format!("{who} requires bundle 'TASK_EMBED', which model '{trimmed}' does not provide"),
-            ));
-        }
-        if needs_sparse {
-            let embed = loaded.embed().map_err(|f| {
-                Failure::new(f.code, f.field, format!("{} (required bundle 'embed.sparse')", f.message))
-            })?;
-            if embed.mlm.is_none() {
-                return Err(Failure::new(
-                    TURBO_E_BUNDLE_NOT_FOUND,
-                    0,
-                    format!("{who} requires bundle 'embed.sparse', which model '{trimmed}' does not provide"),
-                ));
-            }
-        }
-        heads::check_model(&loaded, &who, trimmed, &needed_heads, any_head)?;
-        return Ok(Some(EmbedContext { loaded, vectors: None }));
-    }
-
-    let embed_models: Vec<Arc<Loaded>> = st
-        .listing()
-        .into_iter()
-        .filter_map(|m| m.loaded.get().cloned())
-        .filter(|l| l.task == TURBO_TASK_EMBED)
-        .collect();
-    if embed_models.is_empty() {
-        return Err(Failure::new(
-            TURBO_E_BUNDLE_NOT_FOUND,
-            0,
-            format!("{who} requires bundle 'TASK_EMBED', which is not loaded"),
-        ));
-    }
-    let embed_models = heads::select(embed_models, &who, &needed_heads, any_head)?;
-
-    if needs_sparse {
-        for loaded in embed_models {
-            if loaded.embed().is_ok_and(|e| e.mlm.is_some()) {
-                return Ok(Some(EmbedContext { loaded, vectors: None }));
-            }
-        }
-        return Err(Failure::new(
-            TURBO_E_BUNDLE_NOT_FOUND,
-            0,
-            format!("{who} requires bundle 'embed.sparse', which is not loaded"),
-        ));
-    }
-
-    Ok(Some(EmbedContext { loaded: embed_models.into_iter().next().expect("non-empty"), vectors: None }))
-}
+pub(crate) use embed::EmbedContext;
+use embed::resolve_embed_context;
 
 fn add_norm<N: Normalizer>(builder: Builder, n: N, read_view: &'static str, write_view: &'static str) -> Builder {
     builder.step(Bound::new(NormalizeStep::new(n)).read(0, read_view).write(0, write_view))
 }
 
+#[derive(Default)]
+pub(crate) struct StepOptions<'a> {
+    pub(crate) redaction: Option<&'a Redaction>,
+    pub(crate) open_span: Option<ExtractionSchema>,
+    pub(crate) relations: Option<ZeroShotRelationConfig>,
+    pub(crate) relation_model: &'a str,
+    pub(crate) vocabulary: Option<&'a VocabularyBinding>,
+}
+
 /// Builds an [`Analyzer`] from `initial_doc` and the requested `step_names`
 /// without model state.
 pub fn compile_analyzer(initial_doc: &Document, step_names: &[&str]) -> Result<Analyzer, Failure> {
-    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], None)
+    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], StepOptions::default())
 }
 
 /// [`compile_analyzer`] with the redaction policy `turbo-pii:redact` runs.
@@ -296,11 +169,13 @@ pub fn compile_analyzer_with_redaction(
     step_names: &[&str],
     redaction: &Redaction,
 ) -> Result<Analyzer, Failure> {
-    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], Some(redaction))
+    let options = StepOptions { redaction: Some(redaction), ..StepOptions::default() };
+    compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], options)
 }
 
 /// Builds an [`Analyzer`] from `initial_doc`, resolving model-backed steps and
 /// required profile bundles against `state`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn compile_analyzer_with_state(
     initial_doc: &Document,
     step_names: &[&str],
@@ -308,17 +183,78 @@ pub(crate) fn compile_analyzer_with_state(
     model_name: &str,
     profile_name: &str,
     required_bundles: &[&str],
-    redaction: Option<&Redaction>,
+    options: StepOptions<'_>,
 ) -> Result<Analyzer, Failure> {
+    let StepOptions { redaction, open_span, relations, relation_model, vocabulary } = options;
     let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
     if redaction.is_some() && !redacts {
         return Err(bad("pii_redaction is set but the steps do not include turbo-pii:redact"));
     }
     // A step named by a legacy layer id runs as the step its current id names.
     let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
-    let step_names: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
-    let step_names = step_names.as_slice();
-    let mut embed_cx = resolve_embed_context(state, model_name, profile_name, required_bundles, step_names)?;
+    let step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    let wants_gliner = step_vec.contains(&"turbo:gliner");
+    let gliner = if wants_gliner {
+        let schema = open_span.ok_or_else(|| bad("turbo:gliner requires open_span labels"))?;
+        Some((gliner::open(state, model_name)?, schema))
+    } else {
+        if open_span.is_some() {
+            return Err(bad("open_span is set but the steps do not include turbo:gliner"));
+        }
+        None
+    };
+    let wants_relations = step_vec.contains(&"turbo:zero-shot-relations");
+    let relation = if wants_relations {
+        let config = relations.ok_or_else(|| bad("turbo:zero-shot-relations requires relation labels"))?;
+        Some((relations::open(state, relation_model)?, config))
+    } else {
+        if relations.is_some() || !relation_model.trim().is_empty() {
+            return Err(bad("relations are set but the steps do not include turbo:zero-shot-relations"));
+        }
+        None
+    };
+    let embed_cx =
+        resolve_embed_context(state, model_name, profile_name, required_bundles, &step_vec, gliner.is_some())?;
+    let vocab = block5::resolve_vocabulary(
+        state,
+        model_name,
+        relation_model,
+        embed_cx.as_ref().map(|cx| &*cx.loaded),
+        vocabulary,
+    )?;
+    compile_pipeline_with(initial_doc, step_names, embed_cx, gliner, relation, profile_name, redaction, &vocab)
+}
+
+pub(crate) fn compile_pipeline(
+    initial_doc: &Document,
+    step_names: &[&str],
+    embed_cx: Option<EmbedContext>,
+    profile_name: &str,
+    redaction: Option<&Redaction>,
+    vocabulary: &ResolvedVocabulary,
+) -> Result<Analyzer, Failure> {
+    compile_pipeline_with(initial_doc, step_names, embed_cx, None, None, profile_name, redaction, vocabulary)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compile_pipeline_with(
+    initial_doc: &Document,
+    step_names: &[&str],
+    mut embed_cx: Option<EmbedContext>,
+    gliner: Option<(std::sync::Arc<turbo_gliner::Model>, ExtractionSchema)>,
+    relation: Option<(std::sync::Arc<turbo_relation::Gliner2Relations>, ZeroShotRelationConfig)>,
+    profile_name: &str,
+    redaction: Option<&Redaction>,
+    vocabulary: &ResolvedVocabulary,
+) -> Result<Analyzer, Failure> {
+    let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
+    if redaction.is_some() && !redacts {
+        return Err(bad("pii_redaction is set but the steps do not include turbo-pii:redact"));
+    }
+    let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
+    let mut step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    block5::append_bound_glossary(&mut step_vec, vocabulary);
+    let step_names = step_vec.as_slice();
     let step_names = &heads::expand(step_names, embed_cx.as_ref())?[..];
     let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
     let head_plan = heads::plan(embed_cx.as_ref(), step_names, &who)?;
@@ -333,14 +269,32 @@ pub(crate) fn compile_analyzer_with_state(
     let mut norm_index = 0usize;
     let mut norm_chain: Vec<&'static str> = Vec::new();
     let mut active_norm_view: Option<&'static str> = None;
+    // Rule sentences decide boundaries on case: after a fold they read the
+    // last view that still has it (None is the source).
+    let mut cased_norm_view: Option<&'static str> = None;
+    let mut folded = false;
 
     for &name in step_names {
+        if name == "turbo:gliner" {
+            let (model, schema) = gliner.as_ref().expect("GLiNER step resolved");
+            builder = builder.step(gliner::GlinerStep::new(model.clone(), schema.clone()));
+            continue;
+        }
+        if name == "turbo:zero-shot-relations" {
+            let (model, config) = relation.as_ref().expect("relation step resolved");
+            builder = relations::add(builder, model.clone(), config.clone())?;
+            continue;
+        }
         if is_normalizer_step(name) {
             let read_v = if norm_index == 0 { "" } else { NORM_VIEWS[norm_index - 1] };
             let write_v = if norm_index + 1 == total_norms { "normalized" } else { NORM_VIEWS[norm_index] };
             norm_index += 1;
             norm_chain.push(write_v);
             active_norm_view = Some(write_v);
+            folded |= matches!(name, "turbo:normalize:case-fold" | "case_fold");
+            if !folded {
+                cased_norm_view = Some(write_v);
+            }
             builder = match name {
                 "turbo:normalize" | "turbo:normalize:chain" | "normalize" => add_norm(
                     builder,
@@ -352,6 +306,7 @@ pub(crate) fn compile_analyzer_with_state(
                     add_norm(builder, UnicodeForm::nfkc(), read_v, write_v)
                 }
                 "turbo:normalize:nfc" => add_norm(builder, UnicodeForm::nfc(), read_v, write_v),
+                "turbo:normalize:case-fold" | "case_fold" => add_norm(builder, CaseFold::full(), read_v, write_v),
                 "turbo:normalize:whitespace" | "whitespace" => {
                     add_norm(builder, Whitespace::keep_paragraphs(), read_v, write_v)
                 }
@@ -364,7 +319,7 @@ pub(crate) fn compile_analyzer_with_state(
         }
 
         let (next_builder, handled) =
-            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction)?;
+            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction, vocabulary)?;
         let (next_builder, handled) = match handled {
             true => (next_builder, true),
             false => heads::add_step(next_builder, name, head_plan.as_ref()),
@@ -398,7 +353,7 @@ pub(crate) fn compile_analyzer_with_state(
             }
             "turbo-sentdetect:rules" | "turbo:sentences" => {
                 let ann = RuleSentenceDetector::new("eng");
-                if let Some(nv) = active_norm_view {
+                if let Some(nv) = cased_norm_view {
                     builder.step(NormalizedSourceStep { annotator: ann, norm_view: nv, _marker: PhantomData })
                 } else {
                     builder.add(ann)
@@ -424,30 +379,23 @@ pub(crate) fn compile_analyzer_with_state(
                 }
             }
             "turbo:subwords" | "subwords" => {
-                let cx = embed_cx.as_ref().expect("embed context resolved");
-                let ann = cx.subword_annotator()?;
-                if let Some(nv) = active_norm_view {
-                    builder.step(NormalizedSubwordsStep { annotator: ann, norm_view: nv })
+                if let Some(cx) = embed_cx.as_ref() {
+                    let ann = cx.subword_annotator()?;
+                    if let Some(nv) = active_norm_view {
+                        builder.step(NormalizedSubwordsStep { annotator: ann, norm_view: nv })
+                    } else {
+                        builder.add(ann)
+                    }
                 } else {
-                    builder.add(ann)
+                    let (model, _) = gliner.as_ref().expect("GLiNER subwords resolved");
+                    let ann = turbo_gliner::GlinerSubwords::new(model.clone());
+                    if let Some(nv) = active_norm_view {
+                        builder.step(NormalizedSubwordsStep { annotator: ann, norm_view: nv })
+                    } else {
+                        builder.add(ann)
+                    }
                 }
             }
-            "turbo-abbrev:schwartz-hearst" | "turbo-abbrev:abbreviations" | "turbo:abbreviations" => {
-                builder.add(AbbreviationAnnotator)
-            }
-            "turbo-stem:terms" | "turbo:terms" => builder.add(TermAnnotator::default()),
-            "turbo-stem:stemmer" | "turbo:stems" => builder.add(StemAnnotator::new(Algorithm::Porter)),
-            "turbo-stopword:bundled" | "turbo-stopword:stopwords" | "turbo:stopwords" => {
-                builder.add(StopwordAnnotator::new(ListChoice::Fixed(StopwordLanguage::English)))
-            }
-            "turbo-keywords:yake" | "turbo:keywords" => {
-                builder.add(YakeAnnotator::new(KeywordStopwords::bundled(StopwordLanguage::English)))
-            }
-            "turbo:structure-boundaries" | "turbo:boundaries" => {
-                builder.add(StructureBoundaries { costs: Costs::default() })
-            }
-            "turbo:lexical-boundaries" => builder.step(LexicalBoundaries::default().bound()),
-            "turbo:term-indexer" | "turbo:term-index" => builder.add(TermIndexer),
             "turbo:chunker" | "turbo:chunks" => {
                 let budget = if let Some(cx) = embed_cx.as_mut() {
                     let va = cx.vector_annotator()?;
@@ -459,7 +407,6 @@ pub(crate) fn compile_analyzer_with_state(
                 };
                 builder.add(Chunker { budget })
             }
-            "turbo:level-builder" | "turbo:levels" => builder.add(LevelBuilder),
             "turbo:sentence-vectors" | "sentence_vectors" => {
                 let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
                 builder.add(SentenceVectors(va))

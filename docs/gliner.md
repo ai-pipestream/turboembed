@@ -4,13 +4,16 @@ Part of #391, #715, and #962. `turbo-gliner` adds the entity-schema portion of
 GLiNER extraction using the native DeBERTa-v3 and mDeBERTa-v3 encoder. It supports the
 Apache-2.0 `urchade/gliner_small-v2.1` checkpoint at
 `4e091416cf7c3481db542c2a3d26156916f3a47f` (`urchade-gliner-small-v2.1` with
-`microsoft-deberta-v3-small-tokenizer` in the zoo) and the multilingual
+`microsoft-deberta-v3-small-tokenizer` in the zoo), the medium and large English
+v2.1 checkpoints with the same markerV0 profile, and the multilingual
 Apache-2.0 `urchade/gliner_multi-v2.1` checkpoint at
 `443d26d654e0324125a96bebd8e796c14ff2efe6` (`urchade-gliner-multi-v2.1` with
-`microsoft-mdeberta-v3-base-tokenizer` in the zoo). Both checkpoints are
-local-only by their training data (text from The Pile): the zoo fetches them
-from their publisher after the user accepts the dataset page's terms, and
-never bundles them (decision 2026-10-28). See `docs/licences.md`.
+`microsoft-mdeberta-v3-base-tokenizer` in the zoo). The converter also accepts
+the small, medium and large `gliner-community` v2.5 markerV0 checkpoints.
+These checkpoints are local-only by their training data (text from The Pile):
+the zoo fetches the
+registered checkpoints from their publisher after the user accepts the dataset
+page's terms, and never bundles them (decision 2026-10-28). See `docs/licences.md`.
 No encoder attention or matrix-multiplication loop is changed here.
 
 `Model::new` takes the CPU encoder. `Model::open_on` takes the encoder as
@@ -224,6 +227,29 @@ alongside `turbo_analysis_layers::export::codecs()` to export the entire graph.
 The annotator hash includes the ordered labels, threshold, decoding mode,
 checkpoint configuration and model identity.
 
+## Progressive serving
+
+`LoadBundle` accepts the converted package directory directly and advertises
+`TASK_OPEN_SPAN`. `AnalyzeDocumentProgressive` runs `turbo:gliner` when
+`model` names that package and `open_span` supplies 1 to 32 labels, a threshold,
+and flat or nested decoding. Optional parallel `prompts` carry aliases,
+descriptions, or annotation guidelines without changing output labels. Empty
+prompts use the labels. Schema digests cover labels, prompts, threshold, and
+mode. The complete prompt prefix must fit the encoder context; an oversized
+request is refused rather than truncated. The step writes `Entities`, `Decisions`, and
+`Evidence<Entities>` in one step. `turbo:subwords` uses the same checkpoint's
+SentencePiece tokenizer, including fused byte fallback and source-safe piece
+offsets, so `turbo:chunker` needs no second embedding bundle. Case folding is
+available as `turbo:normalize:case-fold` with source-projected layers.
+
+`relation_model` can independently name a GLiNER2 package for
+`turbo:zero-shot-relations`; see [relation.md](relation.md). The demo exposes
+both model selectors and their label controls. Direct gRPC and binary protobuf
+Connect are tested against the same real two-model graph, including model
+digests, evidence, source offsets, deterministic output, and graph re-import.
+The small fixture suite also checks hot loading, Unicode, empty input,
+long-document windows, and schema refusals without downloading a checkpoint.
+
 ## Long documents
 
 The annotator packs consecutive whole sentences into windows that fit both
@@ -314,21 +340,26 @@ reference on one thread.
 
 knowledgator/gliner-multitask-large-v0.5 (Apache-2.0) cannot be converted. It
 uses `span_mode: token_level` on DeBERTa-v3-large with max_width 100, while
-the converter and the heads support only the small-v2.1 markerV0 profile.
+the converter and the heads support only the markerV0 profile.
 
 ## Conversion and loading
 
 The converter accepts either F32 safetensors (`model.safetensors`, as published
 by `urchade/gliner_multi-v2.1`) or a `torch.save` zip archive
 (`pytorch_model.bin`, as published by `urchade/gliner_small-v2.1`, read with
-the code-free pickle reader in `bundle/src/torch/`). It requires the
-small-v2.1 (`microsoft/deberta-v3-small`, 128,004 vocabulary rows) or
-multi-v2.1 (`microsoft/mdeberta-v3-base`, 250,105 vocabulary rows)
-markerV0/first-pooling profile, RNN and marker embeddings, and rejects
+the code-free pickle reader in `bundle/src/torch/`). It requires DeBERTa-v3
+small, base or large (128,003 or 128,004 vocabulary rows), or mDeBERTa-v3 base
+(250,105 vocabulary rows), with the markerV0/first-pooling profile, RNN and
+marker embeddings. The v2.5 profile reads its explicit entity token ID. When
+its encoder and head widths match and it has no projection layer, conversion
+writes the upstream identity operation exactly. The converter rejects
 unsupported switches or mismatched `spm.model` vocabularies. Shapes and finite
 values are checked for every required encoder, recurrent and head tensor. It
 does not substitute random weights for missing tensors. Source revision and
-licence must be supplied.
+licence must be supplied. The `marker` alias is accepted alongside `markerV0`.
+Prompt and start/end projection factors may independently be 2 or 4, and
+`out_project` may be a two-layer MLP or one linear layer. NuNER Zero-span uses
+the latter combination and is converted and parity-checked locally before use.
 
 ```
 turbo-bundle gliner-convert config.json gliner_config.json pytorch_model.bin spm.model urchade/gliner_small-v2.1 4e091416cf7c3481db542c2a3d26156916f3a47f Apache-2.0 new-gliner-small
@@ -344,6 +375,54 @@ heads, tokenizer and the encoder manifest; the encoder verifies its weights.
 `turbo_gliner::package::Manifest::load` returns the immutable model. Its ModelRef
 digest binds the whole package via the GLiNER manifest.
 
+## Open-span recipe evaluation
+
+`turbo-train-head eval-gliner` applies a converted checkpoint to the BIO
+corpora and genuinely held-out type schemas used by `train-open-span`:
+
+```
+turbo-train-head eval-gliner --corpus wnut17 --dir corpora/wnut17 \
+    --package new-gliner-small --hold-out location --out gliner-wnut-eval
+```
+
+Add `--encoder-bundle <sealed encoder>` and `--device cuda`, `levelzero` or
+`metal` to run the encoder on that backend. The command evaluates every test
+sentence with all types, seen types and held-out types. `--split dev` selects
+the publisher dev split for threshold selection before a final test run. It
+reports independent per-dataset metrics in mixed-corpus runs and writes
+`predictions.bio` with its digest in the receipt. Schemas over 32 labels are
+scored in label batches and decoded together rather than truncated. `--threads N`
+evaluates contiguous partitions on independent model sessions and restores
+their original order. Per-sentence prompt batches fit the encoder context and
+decode together when guidelines are long. `train-gliner` uses the same batches
+and remaps gold label indexes for each batch.
+A type is held out from this recipe, not proven absent from the pretrained
+checkpoint's own training data.
+This is an evaluation path, not evidence that the checkpoint passes a corpus's
+shipping gate.
+
+## Mixed-corpus development evidence
+
+The release sweep uses WNUT-17 plus MultiCoNER v2 English with `location`,
+`VisualWork`, `Scientist`, and `Clothing` held out. It covers 1,880 development
+sentences, 29,056 words, 39 labels, independent per-dataset scores, majority and
+dictionary baselines, and paired bootstrap. These are development results, not
+test results:
+
+| Model, threshold | Overall F1 | Held-out F1 | WNUT F1 | MultiCoNER F1 |
+|---|---:|---:|---:|---:|
+| small v2.5, 0.8 | 0.2644 | 0.1457 | 0.3490 | 0.2061 |
+| small v2.5, 0.9 | 0.2073 | 0.1792 | 0.3040 | 0.1412 |
+| medium v2.5, 0.8 | 0.2049 | 0.1340 | 0.1488 | 0.2423 |
+| medium v2.5, 0.9 | 0.1822 | 0.1525 | 0.1347 | 0.2134 |
+
+Threshold 0.8 gives each candidate its highest overall development F1 and is
+frozen for the single final test run per candidate. The higher held-out scores
+at 0.9 remain visible rather than hidden; they do not change the selected
+operating point. Earlier WNUT-only results are not comparable to this mixed
+fine-grained schema. Both candidates beat the held-out baselines, but these
+scores still call for caution on unseen fine-grained types.
+
 ## Numerical and boundary proof
 
 `bundle/reference/gliner/build_reference.py` executes the real encoder
@@ -356,15 +435,20 @@ on four English and Unicode fixtures, and
 `analysis/gliner/tests/fixtures/multi-reference.json` records `urchade/gliner_multi-v2.1`
 on five multilingual and Unicode fixtures (French, German, Japanese,
 emoji/Gothic supplementary-plane characters, and nested English).
+`small-v2.5-reference.json` records `gliner-community/gliner_small-v2.5` on the
+English fixtures, including its absent-projection identity profile.
 
 The independent Rust full-checkpoint tests (`full_checkpoint_matches_python`
 and `multi_checkpoint_matches_python` in `analysis/gliner/tests/checkpoint.rs`)
 fetch the checkpoints and tokenizers through `turbo-zoo` and package them via
 `turbo-bundle` (or read `GLINER_PACKAGE` / `GLINER_MULTI_PACKAGE` when set).
+`small_v2_5_checkpoint_matches_python` reads `GLINER_V2_5_PACKAGE`.
 They compare token IDs and positions exactly, logits within 0.002 and selected
 scores within 0.0001, and require identical decoded labels and spans. The
-maximum logit error is 0.00003242 on `urchade/gliner_small-v2.1` and 0.00033951
-on `urchade/gliner_multi-v2.1`. An additional native annotation test checks
+maximum logit error is 0.00003242 on `urchade/gliner_small-v2.1`, 0.00033951 on
+`urchade/gliner_multi-v2.1`, and 0.00005913 on small v2.5. The medium and large
+v2.5 conversions measured 0.00006676 and 0.00003624 on the same fixtures. An
+additional native annotation test checks
 nested source slices with multi-byte UTF-8, named instances, threshold/logit
 evidence and graph export/import:
 

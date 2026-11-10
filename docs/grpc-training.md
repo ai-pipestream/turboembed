@@ -3,8 +3,11 @@
 `turbo-kserve` serves `turbo.training.v1.TurboTrainingService` on its port:
 static models distilled from an encoder the server already serves
 (docs/static.md), sealed into a training directory, and served under
-their own name as soon as they are sealed; and classical components
-trained from samples the client streams, their model files sent back. `server/proto/turbo_training.proto`
+their own name as soon as they are sealed; classical components
+trained from samples the client streams, their model files sent back;
+and streamed trainings: a corpus made into a vocabulary, a static model
+and a search index as one transaction, and a neural component trained
+from samples. `server/proto/turbo_training.proto`
 is the crate's own file; generate a client from it in any language with
 gRPC.
 
@@ -23,11 +26,13 @@ and moves the sealed bundle into place whole; a server removes any
 | `ListStaticModels` | no | The static models in the training directory, each file checked. |
 | `DeleteStaticModel` | yes | Stops serving a static model and removes its directory. |
 | `TrainComponent` | yes | Trains a classical component from streamed samples and streams its model file back. |
+| `StreamingTraining` | yes | Runs a corpus job (vocabulary, static model and index, all kept or none) or a neural component job over one stream. |
 
 The admin calls are served only when the server is started with
 `--admin`; without it they refuse with `UNIMPLEMENTED` and touch no
-file. Without `--training-dir` every call but `ListTeachers` and
-`TrainComponent` refuses with `UNIMPLEMENTED`.
+file. Without `--training-dir` every call but `ListTeachers`,
+`TrainComponent` and a `StreamingTraining` component job refuses with
+`UNIMPLEMENTED`.
 
 ## Teachers
 
@@ -170,13 +175,140 @@ byte), a refused sample line, or no samples are `INVALID_ARGUMENT`;
 more than 256 MiB of samples, or an upload that sends no message for a
 minute (`Serve::upload_idle`), is `OUT_OF_RANGE` (`TURBO_E_CAPACITY`);
 a call while another training runs is `UNAVAILABLE` (`TURBO_E_BUSY`).
-A client that goes away stops the training at its next iteration (a
-trainer that tests no stop criterion each iteration, such as the
-quasi-Newton one, stops when it finishes) and frees the slot. A client
+A client that goes away stops the training at its next iteration, the
+quasi-Newton trainer's included, and frees the slot; naive Bayes counts
+in one pass and is not stopped. A client
 that drops the answer but keeps its upload open looks to the server
 like a slow one, so the upload idle limit is what frees the slot then.
 
-## Not yet served
+## Streamed training
 
-`StreamingTraining` (analysis, vocabulary, distillation and indexing as
-one transaction) is the rest of issue #1223.
+`StreamingTraining` is one stream in each direction. The client sends a
+`StreamingTrainingStart` first, naming one job, then the job's input,
+and ends its stream to say the input is whole. The answer is
+`StreamingTrainingProgress` for each stage, then the job's own last
+message. A job shares the one training slot with `TrainStaticModel` and
+`TrainComponent`: a start that passes its checks while another training
+runs is `UNAVAILABLE` (`TURBO_E_BUSY`).
+
+Every refusal carries `turbo-field`: the field of the job message
+(`CorpusTraining` or `NeuralComponentTraining`) the refusal is about, or
+0 when it is about the stream itself, its documents or its samples. A
+first message that is not the start, a start that names no job, a second
+start, and input of the other job's kind are `INVALID_ARGUMENT`. An
+upload that sends no message for a minute (`Serve::upload_idle`) is
+`OUT_OF_RANGE` (`TURBO_E_CAPACITY`) and frees the slot.
+
+### A corpus job
+
+A corpus job makes three things from the documents the client streams,
+in this order, and keeps all of them or none:
+
+1. a vocabulary learned from the documents, as `LearnVocabulary` learns
+   it, kept in the vocabulary store (docs/grpc-vocabulary.md) when the
+   job completes;
+2. a static model distilled with the vocabulary's single terms, sealed
+   into the training directory and served, as `TrainStaticModel` makes
+   it;
+3. a search index of the documents, each chunk embedded by that model
+   (docs/grpc-search.md), as `CreateIndex` and `IndexDocuments` make it.
+
+It needs `--training-dir` and `--vocabulary-dir`. `CorpusTraining` names
+the three parts:
+
+| Field | Meaning |
+|---|---|
+| `vocabulary` (1) | `CorpusVocabulary`: `LearnVocabularyHeader`'s settings, field for field. Unset is every default. |
+| `model` (2) | A `TrainStaticModelRequest`, checked as `TrainStaticModel` checks it. `vocabulary_artifact_id` must be empty: the vocabulary is the one the job learns. `terms` are added after the vocabulary's. |
+| `index` (3) | `CorpusIndex`: `index_name`, which no index or alias may have, when the job starts or when it publishes; `storage` (`FLAT_F32` or `TURBO_QUANT`, with `quant_bits` and `quant_calibrate`); `collection_name`, empty for the index's own name; `chunk_budget_tokens`. |
+
+The index's space is the new model's: its id, revision and manifest
+SHA-256, its width (`pca_dims`), unit vectors, compared by cosine.
+TurboQuant storage needs a width that is a multiple of 8. Every check is
+made before the job is admitted, and nothing is written by a start that
+is refused.
+
+Each document is a `CorpusDocument`: a `doc_id` of 1 to 1,024 bytes that
+no other document of the stream has, and a text that is not empty. One
+job reads at most 256 MiB of text and 1,048,576 documents
+(`TURBO_E_CAPACITY` past either); they are held in memory until the
+index has them. A job with no documents is `INVALID_ARGUMENT`.
+
+| Stage | Meaning |
+|---|---|
+| `STREAMING_STAGE_ADMITTED` | The checks passed and the job holds the slot. |
+| `STREAMING_STAGE_ANALYZING` | `completed_items` documents are read and counted. Sent now and then while the upload runs, when the client is reading; the last one has `total_items`, every document of the stream. |
+| `STREAMING_STAGE_LEARNING_VOCABULARY` | The vocabulary is learned, with `completed_items` single terms. It is not in the store yet. |
+| `STREAMING_STAGE_DISTILLING_MODEL` | A step of the distillation in `distillation`, a `TrainStaticModelProgress` with its own `TRAIN_STAGE_KEPT` to `TRAIN_STAGE_LOADED`. The model is served from `LOADED` on. |
+| `STREAMING_STAGE_INDEXING` | `completed_items` of `total_items` documents are chunked and embedded. |
+| `STREAMING_STAGE_COMPLETED` | The vocabulary is stored, the index is published and the job is kept. |
+
+`CorpusTrained` ends the stream: the vocabulary's id, SHA-256, term and
+n-gram counts, and `vocabulary_created`; the model as `TrainStaticModel`
+ends with it (`TrainedStaticModel`); and the index's name with the
+documents and chunks it holds.
+
+The job is kept in one last step. The index is filled before then, so
+no search sees part of it, and the vocabulary is held by the job, so no
+listing, download or training sees one a failed job would take back.
+The step checks that no index and no alias has the index's name, stores
+the vocabulary, and publishes the index, while the search service's
+index and alias writers wait: a name taken since the start
+(`FAILED_PRECONDITION`, field 3) or a store that cannot be written
+fails the job with nothing stored or published.
+
+A job that fails before or in that step, or whose client goes away
+(seen while the upload is read, between the stages, and between
+documents while they are indexed), removes the model it made and stops
+serving it. A vocabulary the store already holds, because the same
+documents and settings were learned before or are learned while the job
+runs, is never the job's to remove: the job ends with
+`vocabulary_created` false and that vocabulary stays whatever becomes of
+the job. The slot is given back once nothing of a failed job is left,
+before the stream's status. From `COMPLETED` on the three stay; remove
+them with `DeleteIndex`, `DeleteStaticModel` and
+`DeleteVocabularyArtifact`.
+
+### A component job
+
+A component job trains a neural component from samples and sends the
+model file back; the server keeps nothing, and the job needs neither
+directory. After the start the client streams the samples as UTF-8 in
+any number of `samples` chunks, cut anywhere.
+
+| `component` | Samples | Model file |
+|---|---|---|
+| `NEURAL_COMPONENT_KIND_DEPENDENCY_PARSER` | CoNLL-U sentences, a blank line between them. | The feed-forward dependency parser's `TURBO-DEPPARSE-FF-V1` file (docs/feedforward-dependency-parser.md), which `FeedforwardDependencyModel::from_bytes` reads. |
+
+`NeuralComponentTraining` carries the trainer's settings; a field left 0
+or unset takes the trainer's default:
+
+| Field | Meaning | Default |
+|---|---|---|
+| `tagset` | The column the tags are read from: `UPOS` or `XPOS`. | `UPOS`. |
+| `embedding_size` | The embedding width, at most 4,096. | 50. |
+| `hidden_size` | The hidden layer's width, at most 65,536. | 200. |
+| `epochs` | Passes over the examples, at most 10,000. | 10. |
+| `batch_size` | Examples in a minibatch. | 256. |
+| `learning_rate` | AdaGrad's learning rate, over 0. | 0.02. |
+| `l2` | The L2 penalty on the dense matrices, at least 0. Optional, so 0 is a setting. | 1e-8. |
+| `dropout` | Hidden dropout, in [0, 1). Optional. | 0.5. |
+| `word_cutoff` | A word seen fewer times is unknown. Optional. | 2. |
+| `seed` | The seed of the initial weights and the shuffles. Optional. | 17. |
+| `layout` | `CHEN_MANNING_18` or `COMPACT_14` feature slots. | `CHEN_MANNING_18`. |
+| `activation` | `CUBE` or `RELU`. | `CUBE`. |
+
+The same samples and settings give the same file, byte for byte. The
+answer streams `ADMITTED`, `READ` with the sentence count in
+`completed_items`, an `EPOCH` for each finished epoch (`completed_items`
+of `total_items`, with the mean cross-entropy of its examples in
+`loss`), then `PACKAGED`. The model file follows as `model` chunks of at
+most 1 MiB, and `TrainedNeuralComponent` ends the stream with the
+sentence count and the file's size and SHA-256.
+
+An unnamed component, an enum value the server does not know, more than
+10,000 epochs, settings the trainer refuses, samples that are not UTF-8
+(naming the byte), a sentence the reader refuses (naming its number) or
+no samples are `INVALID_ARGUMENT`; more than 256 MiB of samples is
+`TURBO_E_CAPACITY`. A client that goes away stops the training at its
+next epoch and frees the slot.

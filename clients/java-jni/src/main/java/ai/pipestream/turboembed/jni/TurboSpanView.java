@@ -2,7 +2,11 @@ package ai.pipestream.turboembed.jni;
 
 import ai.pipestream.turboembed.TurboLayerKind;
 import ai.pipestream.turboembed.TurboPiiConfidence;
+import ai.pipestream.turboembed.TurboPiiDetector;
+import ai.pipestream.turboembed.TurboPiiEvidence;
+import ai.pipestream.turboembed.TurboPiiScore;
 import ai.pipestream.turboembed.TurboSpanData;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -82,6 +86,21 @@ public final class TurboSpanView implements ai.pipestream.turboembed.TurboSpanVi
     @Override
     public OptionalLong piiKindCode() {
         return owner.piiKindCode(index);
+    }
+
+    @Override
+    public Optional<TurboPiiDetector> piiDetector() {
+        return owner.piiDetector(index);
+    }
+
+    @Override
+    public List<TurboPiiEvidence> piiEvidence() {
+        return owner.piiEvidence(index);
+    }
+
+    @Override
+    public Optional<TurboPiiScore> piiScore() {
+        return owner.piiScore(index);
     }
 
     /** Returns the range in {@link #viewId()}'s coordinate space, when present. */

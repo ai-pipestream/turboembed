@@ -126,5 +126,58 @@ The libraries are unchanged by this measurement; narrowing them (the
 variants above) changes what they extract and is left to its own
 change, measured on this fixture.
 
+## Progressive document graph preview
+
+`AnalyzeDocumentProgressive` accepts `turbo:zero-shot-relations` with an
+`OpenRelationSchema` and a separate `relation_model`. This lets one request use
+a converted GLiNER package for entities and GLiNER2 for relations. Labels carry
+optional thresholds, symmetry, and domain/range entity-kind constraints. The
+step writes relation mentions, deduplicated `Edges<Entities, Entities>`, and
+`Evidence<Relations>`. Graph export preserves entity links and original source
+offsets. The demo exposes separate entity and relation model selectors and
+label inputs over binary protobuf Connect.
+
+A servable GLiNER2 package is the upstream checkpoint directory with its native
+DeBERTa manifest and weights in an encoder subdirectory. It also contains
+`config.json`, `added_tokens.json`, `model.safetensors`, and `spm.model`.
+`LoadBundle` advertises it as `TASK_RELATION`.
+It remains subject to the existing acceptance and local-only distribution
+rules. GLiNER2 is the preview relation scorer. GLiREL remains an opt-in native
+scorer outside this serving integration; the dependency-path semantic defaults
+remain starting rules, not a high-quality general relation model.
+
+The real GLiNER2 check in `analysis/relation/tests/gliner2_real.rs` evaluates
+three known positive triples and one same-sentence negative example. At
+threshold 0.5 it records TP=3, FP=0, FN=0, precision=recall=F1=1.0. This is a
+small release-labelled smoke corpus, not evidence of broad relation accuracy.
+The progressive test also checks a real two-model graph, evidence, model
+digests, deduplicated edges, and binary graph round-trip. A larger external
+relation benchmark is still needed before calling the stage generally
+production-quality.
+
+Stage status for the full document graph:
+
+- Included in the preview and served: the GLiNER2 scorer, as the
+  `turbo:zero-shot-relations` step of `AnalyzeDocumentProgressive`.
+- Included in the preview, in process only: the dependency-path rules
+  (`RelationAnnotator`, with the default libraries as starting rules). No
+  serving step runs them.
+- Experimental: a trained relation classifier head. It is served, as the
+  `turbo-tagger:relations` step of `AnalyzeDocumentProgressive` for a bundle
+  that carries `head.relations` (see [grpc-analysis.md](grpc-analysis.md)),
+  but no release corpus has measured its quality yet.
+- Experimental and in process only: GLiREL. No serving step runs it.
+
+`analysis/relation/tests/release_acceptance.rs` runs the rules and the GLiREL
+scorer in one analyzer over one shared `Entities` layer, the scorer writing
+named instances. It checks each stage's `Relations` mentions (subject,
+object, type and confidence read back as entity text), its deduplicated
+edges at the best confidence, a rule that matches nothing, and each stage's
+provenance and model reference. It then exports and re-imports the graph
+over text with multi-byte characters. Every link reads the same entity text,
+spans keep their byte offsets, and the re-export is byte-identical. The
+GLiREL weights there are the seeded reduced fixture, so that test shows
+wiring, not quality.
+
 Predicate-argument events with N-ary, anchored arguments are in
 [events.md](events.md).

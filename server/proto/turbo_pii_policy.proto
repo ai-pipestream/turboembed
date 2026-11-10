@@ -207,6 +207,14 @@ message PiiRewriteStrategy
     PiiZipSafeHarborStrategy zip_safe_harbor = 11;
     // PII_STRATEGY_AGE_SAFE_HARBOR
     PiiAgeSafeHarborStrategy age_safe_harbor = 12;
+    // PII_STRATEGY_DATE_YEAR, PII_STRATEGY_DATE_SHIFT or
+    // PII_STRATEGY_DATE_RELATIVE: one per mode
+    PiiDateStrategy date = 13;
+    // PII_STRATEGY_AES_256_GCM. Needs a server built with reversible
+    // protection; any other server refuses the policy.
+    PiiAesGcmStrategy aes_256_gcm = 14;
+    // PII_STRATEGY_FF1. Needs a server built with reversible protection.
+    PiiFf1Strategy ff1 = 15;
   }
 }
 
@@ -319,10 +327,123 @@ message PiiAgeSafeHarborStrategy
   string mask_char = 1;
 }
 
+// Reduces a calendar date (the date kind: "2026-07-14", "July 14, 2026",
+// "14th July 2026", "July 2026"). Its text is read again with the
+// temporal scanner, so the value is the one the detector saw. A mention
+// of another kind, a text that is not one whole absolute day or month
+// mention (a two-digit year such as "7/14/26"), a date shifted out of
+// the years 0001 to 9999, and a cluster of overlapping mentions are
+// masked whole.
+message PiiDateStrategy
+{
+  // Required.
+  oneof mode
+  {
+    // PII_STRATEGY_DATE_YEAR
+    PiiDateYear year = 1;
+    // PII_STRATEGY_DATE_SHIFT
+    PiiDateShift shift = 2;
+    // PII_STRATEGY_DATE_RELATIVE
+    PiiDateRelative relative = 3;
+  }
+  // One character; empty means '*'.
+  string mask_char = 4;
+}
+
+// The year alone: "July 14, 2026" becomes "2026", which HIPAA Safe Harbor
+// (45 CFR 164.514(b)(2)(i)(C)) lets a record keep.
+message PiiDateYear
+{
+}
+
+// The date moved and written in the form it was written in ("July 14,
+// 2026" stays in month-name form): by years and months as one count of
+// months, then by days, then by the keyed offset. A day past the end of
+// the new month becomes its last day, so January 31 plus one month is
+// the end of February and a leap day plus a year is February 28. A month
+// mention moves as its first day does, or one month the days' way when
+// they would leave it in its own month. A shift that would write a value
+// back as it was masks it whole.
+message PiiDateShift
+{
+  // Each negative for earlier.
+  int32 years = 1;
+  int32 months = 2;
+  int32 days = 3;
+  // With a key, an offset of 1 to max_days days, earlier or later, that
+  // HMAC-SHA-256 under the key chooses from context: the same key and
+  // context move every date by the same days, so intervals stay. Set
+  // context per document or per patient for an offset each.
+  PiiPolicyKeyRef key = 4;
+  // 1 to 3650; 0 means 30. Only with a key.
+  uint32 max_days = 5;
+  // Only with a key.
+  string context = 6;
+}
+
+// The date relative to a reference date ("3 months ago", "in 2 weeks",
+// "today"), counted in the largest whole unit that fits: days under a
+// week, weeks under 31 days, calendar months under a year, then years.
+message PiiDateRelative
+{
+  // The reference date, yyyy-MM-dd. Required: the clock is never read.
+  string reference = 1;
+}
+
+// The mention as written, replaced by an AES-256-GCM token that a holder
+// of the key and the context decrypts back to it: the kind in capitals,
+// ':', then the unpadded base64url of a 12-byte nonce, the ciphertext and
+// the 16-byte tag. The associated data binds the kind and the context.
+// Each token draws a fresh nonce, so tokens of one value are not
+// linkable. A cluster of overlapping mentions is encrypted once, as the
+// merged run.
+message PiiAesGcmStrategy
+{
+  // A registered encryption key (`--pii-encryption-key`). Required; an
+  // unregistered reference is refused.
+  PiiPolicyKeyRef key = 1;
+  // Bound into every token: a document id or a field name, say. Empty
+  // binds none.
+  string context = 2;
+}
+
+// The characters FF1 encrypts. UNSPECIFIED is refused.
+enum PiiFf1Alphabet
+{
+  PII_FF1_ALPHABET_UNSPECIFIED = 0;
+  // 0 to 9, radix 10.
+  PII_FF1_ALPHABET_DIGITS = 1;
+  // 0 to 9 then A to Z, radix 36; a lower case letter is refused.
+  PII_FF1_ALPHABET_UPPER_ALPHANUMERIC = 2;
+  // 0 to 9, A to Z then a to z, radix 62.
+  PII_FF1_ALPHABET_ALPHANUMERIC = 3;
+}
+
+// The mention as written, with the characters of `alphabet` encrypted
+// together by FF1 (NIST SP 800-38G) under the key and the tweak. Every
+// other character keeps its place, so 123-45-6789 encrypts to another
+// ddd-dd-dddd. One value under one key and tweak always encrypts the same
+// way. A letter or digit outside the alphabet, or fewer than a million
+// values in the domain (6 digits, or 4 letters and digits), fails the
+// rewrite rather than leave a character in the clear.
+message PiiFf1Strategy
+{
+  // A registered encryption key (`--pii-encryption-key`). Required.
+  PiiPolicyKeyRef key = 1;
+  // Required.
+  PiiFf1Alphabet alphabet = 2;
+  // The FF1 tweak: a field name or a record id, say. Empty is a valid
+  // tweak.
+  string tweak = 3;
+}
+
 // A registered, versioned key: never key material.
 message PiiPolicyKeyRef
 {
-  // The registered key's id (`--pii-token-key ID:VERSION:PATH`): ASCII,
+  // The registered key's id: a token key (`--pii-token-key
+  // ID:VERSION:PATH`) for keyed tokens and keyed date shifts, an
+  // encryption key (`--pii-encryption-key ID:VERSION:PATH`) for
+  // PiiAesGcmStrategy and PiiFf1Strategy. ASCII,
   // at most 128 bytes, never key material. Required.
   string id = 1;
   // The registered key's version, read unsigned. Required (not 0).

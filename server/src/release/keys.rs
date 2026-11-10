@@ -1,5 +1,6 @@
-//! Token keys: registered, versioned key references in server config whose
-//! bytes are read from a file at start (#1909). The bytes stay in
+//! Token keys (#1909) and encryption keys (#1885): registered, versioned
+//! key references in server config whose bytes are read from a file at
+//! start. The bytes stay in
 //! [`KeyBytes`], whose `Debug` prints nothing of them; no message, error
 //! or event carries them, only the reference.
 
@@ -11,6 +12,10 @@ use crate::proto::result::{PiiPolicyKeyRef, PiiValueToken};
 /// The fewest and most bytes a token key file may hold.
 pub const MIN_KEY_BYTES: usize = 32;
 pub const MAX_KEY_BYTES: usize = 1024;
+
+/// The bytes an encryption key file holds: an AES-256 key, for the
+/// AES-256-GCM and FF1 redaction strategies.
+pub const ENCRYPTION_KEY_BYTES: usize = 32;
 
 /// What a token is a MAC over, before the kind and the value: tokens of
 /// this scheme never equal a MAC of the bare value under the same key.
@@ -151,23 +156,69 @@ impl TokenKey {
     }
 }
 
+/// A key of the AES-256-GCM and FF1 redaction strategies
+/// (`--pii-encryption-key`, #1885). `Debug` names its reference only.
+#[derive(Debug)]
+pub struct EncryptionKey {
+    pub key: KeyRef,
+    bytes: KeyBytes,
+}
+
+impl EncryptionKey {
+    /// Reads `file`, which must hold exactly [`ENCRYPTION_KEY_BYTES`]. An
+    /// error names the reference and the path, never the bytes.
+    pub fn load(file: &TokenKeyFile) -> Result<EncryptionKey, String> {
+        let bytes = std::fs::read(&file.path)
+            .map_err(|e| format!("--pii-encryption-key {}: {}: {e}", file.key, file.path.display()))?;
+        if bytes.len() != ENCRYPTION_KEY_BYTES {
+            return Err(format!(
+                "--pii-encryption-key {}: {} holds {} bytes, not {ENCRYPTION_KEY_BYTES}",
+                file.key,
+                file.path.display(),
+                bytes.len()
+            ));
+        }
+        Ok(EncryptionKey { key: file.key.clone(), bytes: KeyBytes(bytes) })
+    }
+
+    /// The key material, for a redaction policy's encryption strategy;
+    /// never logged or printed.
+    pub(crate) fn bytes(&self) -> &[u8] {
+        &self.bytes.0
+    }
+}
+
+/// Refuses a reference `flag` lists twice.
+pub fn distinct(flag: &str, keys: &[TokenKeyFile]) -> Result<(), String> {
+    for (i, k) in keys.iter().enumerate() {
+        if keys[..i].iter().any(|o| o.key == k.key) {
+            return Err(format!("{flag} {} given twice", k.key));
+        }
+    }
+    Ok(())
+}
+
 /// The token key the configured keys name: the one key, or the one
 /// `--pii-token-key-active` names among several.
 pub fn active<'a>(keys: &'a [TokenKeyFile], active: Option<&KeyRef>) -> Result<Option<&'a TokenKeyFile>, String> {
-    for (i, k) in keys.iter().enumerate() {
-        if keys[..i].iter().any(|o| o.key == k.key) {
-            return Err(format!("--pii-token-key {} given twice", k.key));
-        }
-    }
+    active_of("--pii-token-key", keys, active)
+}
+
+/// The key `flag`'s values name: the one key, or the one `{flag}-active`
+/// names among several.
+pub fn active_of<'a>(
+    flag: &str,
+    keys: &'a [TokenKeyFile],
+    active: Option<&KeyRef>,
+) -> Result<Option<&'a TokenKeyFile>, String> {
+    distinct(flag, keys)?;
     match (keys, active) {
         ([], None) => Ok(None),
-        ([], Some(a)) => Err(format!("--pii-token-key-active {a} needs --pii-token-key")),
+        ([], Some(a)) => Err(format!("{flag}-active {a} needs {flag}")),
         ([one], None) => Ok(Some(one)),
-        (_, None) => Err("several --pii-token-key values need --pii-token-key-active".into()),
-        (keys, Some(a)) => keys
-            .iter()
-            .find(|k| &k.key == a)
-            .map(Some)
-            .ok_or_else(|| format!("--pii-token-key-active {a} is not a --pii-token-key")),
+        (_, None) => Err(format!("several {flag} values need {flag}-active")),
+        (keys, Some(a)) => {
+            keys.iter().find(|k| &k.key == a).map(Some).ok_or_else(|| format!("{flag}-active {a} is not a {flag}"))
+        }
     }
 }

@@ -2398,6 +2398,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-pins",
+ "turbo-trainer",
  "turbo-zoo",
 ]
 
@@ -2531,6 +2532,7 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-numeric",
  "turbo-pii",
+ "turbo-pins",
  "turbo-postag",
  "turbo-query",
  "turbo-relation",
@@ -2568,6 +2570,7 @@ dependencies = [
  "tonic",
  "turbo",
  "turbo-kserve",
+ "turbo-pins",
  "turbo-sha256",
  "turbo-zoo",
 ]
@@ -2730,6 +2733,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-glossary",
  "turbo-goldens",
+ "turbo-numeric",
  "turbo-sha256",
  "turbo-unicode",
 ]
@@ -2760,11 +2764,13 @@ dependencies = [
 name = "turbo-query"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "turbo",
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-formats",
  "turbo-geo",
  "turbo-glossary",
  "turbo-glossary-layers",
@@ -2783,6 +2789,7 @@ dependencies = [
  "turbo-stopword-layers",
  "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-train-recipes",
  "turbo-unicode",
 ]
 
@@ -3036,6 +3043,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-gliner",
  "turbo-pins",
  "turbo-sentdetect",
  "turbo-tagger",

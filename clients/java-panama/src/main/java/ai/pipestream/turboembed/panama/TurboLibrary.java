@@ -74,6 +74,12 @@ public final class TurboLibrary {
      * {@link #TURBO_SPAN_PII_KIND} (#1940). This binding always sets it.
      */
     public static final int TURBO_ANALYZER_PII_KIND_IDS = 1 << 1;
+    /**
+     * Analyzer descriptor flag: PII tasks and graph inspection expose candidate rows from
+     * {@code turbo:pii-candidates} (#1941). Off by default; set through
+     * {@code Config.withPiiDetail(true)}.
+     */
+    public static final int TURBO_ANALYZER_PII_DETAIL = 1 << 2;
     /** Native span flag: a normalized value is present. */
     public static final int TURBO_SPAN_VALUE = 1 << 4;
     /** Native span flag: a probability is present. */
@@ -174,6 +180,72 @@ public final class TurboLibrary {
             ValueLayout.JAVA_INT.withName("value_offset"),
             ValueLayout.JAVA_INT.withName("value_len"),
             ValueLayout.JAVA_DOUBLE.withName("prob"));
+
+    /** Layout of {@code struct turbo_pii_fact} (16 bytes, alignment 4). */
+    public static final StructLayout TURBO_PII_FACT_LAYOUT = MemoryLayout.structLayout(
+            ValueLayout.JAVA_INT.withName("kind"),
+            ValueLayout.JAVA_INT.withName("a"),
+            ValueLayout.JAVA_INT.withName("b"),
+            ValueLayout.JAVA_INT.withName("c"));
+
+    /** Layout of {@code struct turbo_pii_span} (56 bytes, alignment 4). */
+    public static final StructLayout TURBO_PII_SPAN_LAYOUT = MemoryLayout.structLayout(
+            ValueLayout.JAVA_INT.withName("span_index"),
+            ValueLayout.JAVA_INT.withName("detector_id_offset"),
+            ValueLayout.JAVA_INT.withName("detector_id_len"),
+            ValueLayout.JAVA_INT.withName("detector_version_offset"),
+            ValueLayout.JAVA_INT.withName("detector_version_len"),
+            ValueLayout.JAVA_INT.withName("fact_start"),
+            ValueLayout.JAVA_INT.withName("fact_end"),
+            ValueLayout.JAVA_INT.withName("score_kind"),
+            ValueLayout.JAVA_INT.withName("score_calibrated"),
+            ValueLayout.JAVA_INT.withName("score_model_id_offset"),
+            ValueLayout.JAVA_INT.withName("score_model_id_len"),
+            ValueLayout.JAVA_INT.withName("score_model_version_offset"),
+            ValueLayout.JAVA_INT.withName("score_model_version_len"),
+            ValueLayout.JAVA_FLOAT.withName("score_value"));
+
+    /** Layout of {@code struct turbo_pii_candidate} (156 bytes, alignment 4). */
+    public static final StructLayout TURBO_PII_CANDIDATE_LAYOUT = MemoryLayout.structLayout(
+            ValueLayout.JAVA_INT.withName("item_index"),
+            ValueLayout.JAVA_INT.withName("fragment_index"),
+            ValueLayout.JAVA_INT.withName("view_id"),
+            ValueLayout.JAVA_INT.withName("kind_code"),
+            ValueLayout.JAVA_INT.withName("view_byte_start"),
+            ValueLayout.JAVA_INT.withName("view_byte_end"),
+            ValueLayout.JAVA_INT.withName("view_utf16_start"),
+            ValueLayout.JAVA_INT.withName("view_utf16_end"),
+            ValueLayout.JAVA_INT.withName("view_codepoint_start"),
+            ValueLayout.JAVA_INT.withName("view_codepoint_end"),
+            ValueLayout.JAVA_INT.withName("source_byte_start"),
+            ValueLayout.JAVA_INT.withName("source_byte_end"),
+            ValueLayout.JAVA_INT.withName("source_utf16_start"),
+            ValueLayout.JAVA_INT.withName("source_utf16_end"),
+            ValueLayout.JAVA_INT.withName("source_codepoint_start"),
+            ValueLayout.JAVA_INT.withName("source_codepoint_end"),
+            ValueLayout.JAVA_INT.withName("instance_offset"),
+            ValueLayout.JAVA_INT.withName("instance_len"),
+            ValueLayout.JAVA_INT.withName("pii_instance_offset"),
+            ValueLayout.JAVA_INT.withName("pii_instance_len"),
+            ValueLayout.JAVA_INT.withName("label_offset"),
+            ValueLayout.JAVA_INT.withName("label_len"),
+            ValueLayout.JAVA_INT.withName("detector_id_offset"),
+            ValueLayout.JAVA_INT.withName("detector_id_len"),
+            ValueLayout.JAVA_INT.withName("detector_version_offset"),
+            ValueLayout.JAVA_INT.withName("detector_version_len"),
+            ValueLayout.JAVA_INT.withName("fact_start"),
+            ValueLayout.JAVA_INT.withName("fact_end"),
+            ValueLayout.JAVA_INT.withName("disposition"),
+            ValueLayout.JAVA_INT.withName("disposition_a"),
+            ValueLayout.JAVA_INT.withName("disposition_b"),
+            ValueLayout.JAVA_INT.withName("disposition_c"),
+            ValueLayout.JAVA_INT.withName("score_kind"),
+            ValueLayout.JAVA_INT.withName("score_calibrated"),
+            ValueLayout.JAVA_INT.withName("score_model_id_offset"),
+            ValueLayout.JAVA_INT.withName("score_model_id_len"),
+            ValueLayout.JAVA_INT.withName("score_model_version_offset"),
+            ValueLayout.JAVA_INT.withName("score_model_version_len"),
+            ValueLayout.JAVA_FLOAT.withName("score_value"));
 
     /** Layout of {@code struct turbo_text_pair} (32 bytes). */
     public static final StructLayout TURBO_TEXT_PAIR_LAYOUT = MemoryLayout.structLayout(
@@ -318,6 +390,18 @@ public final class TurboLibrary {
                     ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analysis_result_spans(const turbo_analysis_result *, const turbo_span **, uint32_t *, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYSIS_RESULT_SPANS = downcall("turbo_analysis_result_spans",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_analysis_result_pii_spans(const turbo_analysis_result *, const turbo_pii_span **, uint32_t *, turbo_error *)} */
+    public static final MethodHandle TURBO_ANALYSIS_RESULT_PII_SPANS = downcall("turbo_analysis_result_pii_spans",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_analysis_result_pii_facts(const turbo_analysis_result *, const turbo_pii_fact **, uint32_t *, turbo_error *)} */
+    public static final MethodHandle TURBO_ANALYSIS_RESULT_PII_FACTS = downcall("turbo_analysis_result_pii_facts",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_analysis_result_pii_candidates(const turbo_analysis_result *, const turbo_pii_candidate **, uint32_t *, turbo_error *)} */
+    public static final MethodHandle TURBO_ANALYSIS_RESULT_PII_CANDIDATES = downcall("turbo_analysis_result_pii_candidates",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analysis_result_strings(const turbo_analysis_result *, const char **, uint64_t *, turbo_error *)} */

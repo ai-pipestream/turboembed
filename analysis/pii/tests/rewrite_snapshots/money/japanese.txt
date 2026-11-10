@@ -1,0 +1,9 @@
+MASKED	連絡先：support@example.jp、電話 +44 20 7946 0321、カード 4111111111111111。
+
+MASK_ALL	連絡先：support@example.jp、電話 +44 20 7946 0321、カード 4111111111111111。
+
+REWRITE	pseudonymize	OK	連絡先：support@example.jp、電話 +44 20 7946 0321、カード 4111111111111111。
+
+REWRITE	hmac	OK	連絡先：support@example.jp、電話 +44 20 7946 0321、カード 4111111111111111。
+
+AUDIT_REPORT	no pii found

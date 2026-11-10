@@ -119,7 +119,7 @@ fn a_layer_range_write_refuses_what_it_cannot_take() {
 }
 
 /// The backends whose embed cell sets field 9's bit.
-const READS_LAYERS: [&str; 3] = ["cpu", "metal", "levelzero"];
+const READS_LAYERS: [&str; 4] = ["cpu", "cuda", "metal", "levelzero"];
 
 /// The device backends this build lists, failing where
 /// TURBO_TEST_REQUIRE_<BACKEND>=1 names one it does not.
