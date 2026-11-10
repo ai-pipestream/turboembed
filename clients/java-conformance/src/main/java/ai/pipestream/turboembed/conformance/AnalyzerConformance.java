@@ -12,7 +12,12 @@ import ai.pipestream.turboembed.TurboAnalysisResult;
 import ai.pipestream.turboembed.TurboAnalyzer;
 import ai.pipestream.turboembed.TurboException;
 import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiCandidate;
+import ai.pipestream.turboembed.TurboPiiDetector;
+import ai.pipestream.turboembed.TurboPiiDisposition;
+import ai.pipestream.turboembed.TurboPiiEvidence;
 import ai.pipestream.turboembed.TurboPiiKind;
+import ai.pipestream.turboembed.TurboPiiScore;
 import ai.pipestream.turboembed.TurboRuntime;
 import ai.pipestream.turboembed.TurboSession;
 import ai.pipestream.turboembed.TurboSpanData;
@@ -20,7 +25,10 @@ import ai.pipestream.turboembed.TurboSpanView;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -585,6 +593,155 @@ public abstract class AnalyzerConformance {
             seen.add(kind);
         }
         assertEquals(Set.of(TurboPiiKind.EMAIL, TurboPiiKind.IPV4, TurboPiiKind.CA_SIN), seen);
+    }
+
+    /**
+     * Same TGRF fixture as {@code core/tests/analysis_pii_evidence.rs}: a Luhn-passed card with a
+     * label fact, a custom extractor mention with detector identity and score, and a
+     * {@code turbo:pii-candidates} layer with kept and label-rejected candidates.
+     */
+    private static final String PII_EVIDENCE_GRAPH_HEX =
+            "5447524602004300000050414e20343533322d303135312d313238332d303336362c20656d706c6f79656520452d34322c20616e6420756e"
+                    + "6c6162656c6c65642030343620343534203238362e4300000050414e20343533322d303135312d313238332d303336362c20656d706c6f79"
+                    + "656520452d34322c20616e6420756e6c6162656c6c65642030343620343534203238362e000100000000000000000c000000747572626f3a"
+                    + "736f75726365010000003000000000000000000000000000000000000000014300000050414e20343533322d303135312d313238332d3033"
+                    + "36362c20656d706c6f79656520452d34322c20616e6420756e6c6162656c6c65642030343620343534203238362e00000000020000000900"
+                    + "0000747572626f3a706969000000000100020000000009000000747572626f3a706969010000003000000000000000000000000000000000"
+                    + "0000010b0100000000000002000000010000000400000017000000010000002200000026000000010000000b000000656d706c6f7965652d"
+                    + "69640400000010000000747572626f2d7069693a637572736f7205000000302e312e3015000000747572626f2d7069693a63612d6964656e"
+                    + "7469747905000000302e312e300b00000061636d653a656d702d696405000000322e312e300b00000061636d653a73636f72657203000000"
+                    + "312e300200000008000000000001000200000000000200030000000201010300000000030000000300000005070000000200000002000000"
+                    + "030000000200000000010000703f0103000102000000100000003435333230313531313238333033363604000000452d3432140000007475"
+                    + "72626f3a7069692d63616e64696461746573000000000100030000000009000000747572626f3a7069690100000030000000000000000000"
+                    + "00000000000100000009000000747572626f3a70696900000000011501000000000000030000000100000004000000170000000100000022"
+                    + "00000026000000010000003700000042000000010000000b000000656d706c6f7965652d69640400000010000000747572626f2d7069693a"
+                    + "637572736f7205000000302e312e3015000000747572626f2d7069693a63612d6964656e7469747905000000302e312e300b00000061636d"
+                    + "653a656d702d696405000000322e312e300b00000061636d653a73636f72657203000000312e300300000008000000000001001c00000003"
+                    + "0000000000020001000400000002010103000000000300000003000000050700000002010103000000020000000300000004000000030000"
+                    + "0000010000703f010300010003000000010000000001010000000401";
+
+    /**
+     * Same TGRF fixture as {@code build_bound_parent_and_max_u32_graph} in
+     * {@code core/tests/analysis_pii_evidence.rs}: a 2-mention {@code turbo:pii} layer
+     * {@code "actual"} with {@code Rule(0xFFFF_FFFFL)} and {@code DenyHit(0xFFFF_FFFFL, 1L)}, an
+     * unrelated 1-mention {@code turbo:pii} layer {@code "audit"}, and a
+     * {@code turbo:pii-candidates} layer {@code "audit"} bound via provenance to {@code "actual"}
+     * referring to mention 1.
+     */
+    private static final String PII_BOUND_PARENT_AND_MAX_U32_GRAPH_HEX =
+            "5447524602000d0000006140622e636f206340642e636f0d0000006140622e636f206340642e636f000100000000000000000c0000007475"
+                    + "72626f3a736f75726365010000003000000000000000000000000000000000000000010d0000006140622e636f206340642e636f00000000"
+                    + "0300000009000000747572626f3a7069690600000061637475616c0100020000000008000000746573743a70696901000000300000000000"
+                    + "00000000000000000000000000018b000000000000000200000001000000000000000600000001000000070000000d000000000000000100"
+                    + "00000a000000637573746f6d3a646574010000003102000000050000000500000002000000000000000200000005ffffffff04ffffffff01"
+                    + "00000002000000010000000200000002000000000002000000060000006140622e636f060000006340642e636f09000000747572626f3a70"
+                    + "69690500000061756469740100010000000008000000746573743a7069690100000030000000000000000000000000000000000000015f00"
+                    + "0000000000000100000001000000000000000600000000000000010000000c000000637573746f6d3a6f7468657201000000310100000005"
+                    + "00000001000000000001000000010100000001000000010000000001000000060000006140622e636f14000000747572626f3a7069692d63"
+                    + "616e646964617465730500000061756469740100010000000008000000746573743a70696901000000300000000000000000000000000000"
+                    + "0100000009000000747572626f3a7069690600000061637475616c015c000000000000000100000001000000070000000d00000000000000"
+                    + "010000000a000000637573746f6d3a646574010000003101000000050000000100000000000100000005ffffffff01000000010000000100"
+                    + "000000010000000101000000";
+
+    @Test
+    public void piiRowsCarryEvidenceFactsDetectorScoreAndDetailGatedCandidates() {
+        byte[] fixture = HexFormat.of().parseHex(PII_EVIDENCE_GRAPH_HEX);
+        List<TurboPiiEvidence> expectedCardEvidence = List.of(
+                new TurboPiiEvidence.Checksum(TurboPiiEvidence.ChecksumAlgorithm.LUHN, true),
+                new TurboPiiEvidence.Label(0, 3, 3));
+        List<TurboPiiEvidence> expectedEmpEvidence = List.of(new TurboPiiEvidence.Rule(7));
+        TurboPiiDetector expectedEmpDetector = new TurboPiiDetector("acme:emp-id", "2.1.0");
+        TurboPiiScore expectedEmpScore = new TurboPiiScore(
+                0.9375f, TurboPiiScore.Kind.PROBABILITY, new TurboPiiDetector("acme:scorer", "1.0"), true);
+
+        try (TurboAnalyzer defaultAnalyzer = rules();
+                TurboAnalysisResult inspected = defaultAnalyzer.inspectGraph(fixture)) {
+            assertTrue(inspected.piiCandidates().isEmpty(), "candidates are withheld without withPiiDetail(true)");
+            List<? extends TurboSpanView> spans = inspected.spans();
+            assertEquals(2, spans.size());
+
+            TurboSpanView card = spans.get(0);
+            assertEquals(Optional.of(TurboPiiKind.CARD), card.piiKind());
+            assertEquals(PII_LABELLED_CHECKSUM, card.classification());
+            assertEquals(Optional.of(new TurboPiiDetector("turbo-pii:cursor", "0.1.0")), card.piiDetector());
+            assertEquals(expectedCardEvidence, card.piiEvidence());
+            assertEquals(Optional.empty(), card.piiScore());
+            assertEquals(Optional.empty(), card.value());
+
+            TurboSpanView emp = spans.get(1);
+            assertEquals(Optional.empty(), emp.piiKind());
+            assertEquals(OptionalInt.of(0), emp.piiCustomKindIndex());
+            assertEquals(Optional.of("employee-id"), emp.label());
+            assertEquals(Optional.of(expectedEmpDetector), emp.piiDetector());
+            assertEquals(expectedEmpEvidence, emp.piiEvidence());
+            assertEquals(Optional.of(expectedEmpScore), emp.piiScore());
+            assertEquals(Optional.empty(), emp.value());
+
+            for (TurboSpanData copy : inspected.copySpans()) {
+                String rendered = copy.toString();
+                for (String forbidden : List.of("4532", "E-42", "046 454 286", "046454286", "PAN")) {
+                    assertFalse(rendered.contains(forbidden), "default span leaked " + forbidden + ": " + rendered);
+                }
+            }
+            assertEquals(expectedCardEvidence, inspected.copySpan(0).piiEvidence());
+            assertEquals(Optional.of(expectedEmpDetector), inspected.copySpan(1).piiDetector());
+            assertEquals(Optional.of(expectedEmpScore), inspected.copySpan(1).piiScore());
+        }
+
+        TurboAnalyzer.Config detailConfig = new TurboAnalyzer.Config("en", null).withPiiDetail(true);
+        try (TurboAnalyzer detailAnalyzer = binding().createAnalyzer(detailConfig);
+                TurboAnalysisResult detailed = detailAnalyzer.inspectGraph(fixture)) {
+            List<TurboPiiCandidate> cands = detailed.piiCandidates();
+            assertEquals(3, cands.size());
+
+            TurboPiiCandidate c0 = cands.get(0);
+            assertEquals(Optional.of(TurboPiiKind.CARD), c0.piiKind());
+            assertEquals(new TurboPiiDisposition.Kept(0), c0.disposition());
+            assertEquals(expectedCardEvidence, c0.evidence());
+
+            TurboPiiCandidate c1 = cands.get(1);
+            assertEquals(OptionalInt.of(0), c1.piiCustomKindIndex());
+            assertEquals("employee-id", c1.label());
+            assertEquals(expectedEmpDetector, c1.detector());
+            assertEquals(expectedEmpEvidence, c1.evidence());
+            assertEquals(Optional.of(expectedEmpScore), c1.score());
+            assertEquals(new TurboPiiDisposition.Kept(1), c1.disposition());
+
+            TurboPiiCandidate c2 = cands.get(2);
+            assertEquals(Optional.of(TurboPiiKind.CA_SIN), c2.piiKind());
+            assertEquals(
+                    new TurboPiiDisposition.RejectedByRule(TurboPiiDisposition.RejectReason.LABEL_REQUIRED),
+                    c2.disposition());
+
+            String directText = "IMEI: 490154203237518 and unlabelled 046 454 286.";
+            try (TurboAnalysisResult detected = detailAnalyzer.detectPii(directText);
+                    TurboAnalysisResult analyzed = detailAnalyzer.analyzeGraph(directText)) {
+                assertTrue(detected.piiCandidates().stream().anyMatch(c -> c.disposition()
+                        .equals(new TurboPiiDisposition.RejectedByRule(
+                                TurboPiiDisposition.RejectReason.LABEL_REQUIRED))));
+                assertFalse(analyzed.piiCandidates().isEmpty());
+            }
+
+            byte[] boundFixture = HexFormat.of().parseHex(PII_BOUND_PARENT_AND_MAX_U32_GRAPH_HEX);
+            try (TurboAnalysisResult bound = detailAnalyzer.inspectGraph(boundFixture)) {
+                List<? extends TurboSpanView> actualSpans = bound.spans(TurboLayerKind.PII, "actual");
+                assertEquals(2, actualSpans.size());
+                assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), actualSpans.get(0).piiEvidence());
+                assertEquals(
+                        List.of(new TurboPiiEvidence.DenyHit(0xFFFF_FFFFL, 1L)), actualSpans.get(1).piiEvidence());
+                assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), bound.copySpan(0).piiEvidence());
+                assertEquals(
+                        List.of(new TurboPiiEvidence.DenyHit(0xFFFF_FFFFL, 1L)), bound.copySpan(1).piiEvidence());
+
+                List<TurboPiiCandidate> boundCands = bound.piiCandidates();
+                assertEquals(1, boundCands.size());
+                TurboPiiCandidate boundCand = boundCands.get(0);
+                assertEquals("audit", boundCand.instance());
+                assertEquals("actual", boundCand.piiInstance());
+                assertEquals(new TurboPiiDisposition.Kept(1), boundCand.disposition());
+                assertEquals(List.of(new TurboPiiEvidence.Rule(0xFFFF_FFFFL)), boundCand.evidence());
+            }
+        }
     }
 
     @Test

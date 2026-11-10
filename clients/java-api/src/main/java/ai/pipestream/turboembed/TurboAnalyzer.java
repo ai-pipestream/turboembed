@@ -16,22 +16,35 @@ public interface TurboAnalyzer extends AutoCloseable {
      * @param piiValues  whether PII rows carry the mention's normalized value
      *                   ({@code TURBO_ANALYZER_PII_VALUES}); false by default, when a PII row
      *                   has its kind, tier and ranges and {@code value()} is empty (#1904)
+     * @param piiDetail  whether PII candidate rows are populated
+     *                   ({@code TURBO_ANALYZER_PII_DETAIL}); false by default, when
+     *                   {@link TurboAnalysisResult#piiCandidates()} is empty (#1941)
      */
-    public record Config(String language, Path bundlePath, boolean piiValues) {
+    public record Config(String language, Path bundlePath, boolean piiValues, boolean piiDetail) {
 
         /** Normalizes an absent language to English. */
         public Config {
             language = language == null || isBlank(language) ? "en" : language;
         }
 
-        /** A configuration whose PII rows withhold their values. */
+        /** A configuration whose PII candidate rows are omitted. */
+        public Config(String language, Path bundlePath, boolean piiValues) {
+            this(language, bundlePath, piiValues, false);
+        }
+
+        /** A configuration whose PII rows withhold their values and omit candidate rows. */
         public Config(String language, Path bundlePath) {
-            this(language, bundlePath, false);
+            this(language, bundlePath, false, false);
         }
 
         /** This configuration with PII values carried, or withheld, as {@code piiValues} says. */
         public Config withPiiValues(boolean piiValues) {
-            return new Config(language, bundlePath, piiValues);
+            return new Config(language, bundlePath, piiValues, piiDetail);
+        }
+
+        /** This configuration with PII candidate rows populated, or omitted, as {@code piiDetail} says. */
+        public Config withPiiDetail(boolean piiDetail) {
+            return new Config(language, bundlePath, piiValues, piiDetail);
         }
 
         /** Returns the rule sentence/tokenizer configuration with no bundle. */

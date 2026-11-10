@@ -108,7 +108,12 @@ evidence classification (`FORMAT(1)`, `CHECKSUM(2)`, `LABELLED_CHECKSUM(3)`,
 `LABELLED(4)`). PII classification is not represented as a
 probability. A PII row's kind is also read as a number, with no label
 parse: `piiKindCode()`, `piiKind()` for a built-in `TurboPiiKind`, and
-`piiCustomKindIndex()` for a custom kind (#1940).
+`piiCustomKindIndex()` for a custom kind (#1940). Each PII row also reads
+its detector identity (`piiDetector()`), evidence facts (`piiEvidence()`)
+and optional score (`piiScore()`); when the analyzer was created with
+`Config.withPiiDetail(true)` (`TURBO_ANALYZER_PII_DETAIL`),
+`TurboAnalysisResult.piiCandidates()` returns the `TurboPiiCandidate` rows
+of `turbo:pii-candidates`, with no value or label text (#1941).
 
 ## Bundles and explicit unknowns
 

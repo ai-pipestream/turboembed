@@ -52,6 +52,12 @@ final class TurboJni {
 
     static native double[] resultProbabilities(long result);
 
+    static native int[] resultPiiSpans(long result);
+
+    static native int[] resultPiiFacts(long result);
+
+    static native int[] resultPiiCandidates(long result);
+
     static native byte[] resultStrings(long result);
 
     static native long resultGraphLength(long result);
