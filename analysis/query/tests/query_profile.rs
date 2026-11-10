@@ -429,7 +429,7 @@ fn recognizes_numeric_clock_expressions_and_distinguishes_time_annotator_config_
 }
 
 #[test]
-fn query_analysis_latency_stays_within_submillisecond_budget() {
+fn query_analysis_latency_stays_within_10ms_budget() {
     use std::path::Path;
     use turbo_analysis_embed::{SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions};
     use turbo_sentdetect::RuleSentenceDetector;
@@ -455,31 +455,37 @@ fn query_analysis_latency_stays_within_submillisecond_budget() {
         "cheap direct flights from New York to Paris tomorrow morning under $850 with 25 kg baggage and 15% discount",
     ];
 
-    let iterations = 200usize;
+    fn min_median(mut f: impl FnMut() -> u128) -> u128 {
+        let mut buf = [0u128; 41];
+        (0..5)
+            .map(|_| {
+                buf.fill_with(&mut f);
+                buf.sort_unstable();
+                buf[20]
+            })
+            .min()
+            .unwrap()
+    }
     for q in queries {
         let warm = profile.analyze(q).unwrap();
-        assert!(warm.terms.len() <= 32);
+        assert!(warm.terms.len() <= 32 && !warm.filters.is_empty());
         let mut warm_static = turbo_analysis::Document::new(q);
         static_analyzer.run(std::slice::from_mut(&mut warm_static)).into_iter().next().unwrap().unwrap();
 
-        let mut q_ns = Vec::with_capacity(iterations);
-        let mut s_ns = Vec::with_capacity(iterations);
-        for _ in 0..iterations {
+        let med_q = min_median(|| {
             let t0 = Instant::now();
             let res = std::hint::black_box(profile.analyze(std::hint::black_box(q)).unwrap());
-            q_ns.push(t0.elapsed().as_nanos());
+            let elapsed = t0.elapsed().as_nanos();
             assert!(!res.filters.is_empty());
-
+            elapsed
+        });
+        let med_s = min_median(|| {
             let t1 = Instant::now();
             let mut d = turbo_analysis::Document::new(std::hint::black_box(q));
             static_analyzer.run(std::slice::from_mut(&mut d)).into_iter().next().unwrap().unwrap();
             std::hint::black_box(&d);
-            s_ns.push(t1.elapsed().as_nanos());
-        }
-        q_ns.sort_unstable();
-        s_ns.sort_unstable();
-        let med_q = q_ns[iterations / 2];
-        let med_s = s_ns[iterations / 2];
+            t1.elapsed().as_nanos()
+        });
         assert!(med_q < 10_000_000, "expected sub-10ms median query analysis latency for {q:?}, got {med_q} ns");
         #[cfg(not(debug_assertions))]
         assert!(

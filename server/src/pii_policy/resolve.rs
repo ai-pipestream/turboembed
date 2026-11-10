@@ -20,9 +20,13 @@ pub enum ResolveError {
     /// The stored dictionary is in a format this use does not take; the
     /// format id is the store's, never the file's content.
     WrongFormat { format: String },
-    /// The stored dictionary could not be read or parsed. The store's own
-    /// message is dropped: it may name a path or a line of the file.
+    /// The stored dictionary could not be read. The store's own message
+    /// is dropped: it may name a path.
     Unreadable,
+    /// The stored dictionary was read but does not parse as `format` for
+    /// this use. `reason` is the parser's, which names a line or a byte
+    /// offset and never a term.
+    Unparsable { format: String, reason: String },
 }
 
 impl ResolveError {
@@ -35,6 +39,9 @@ impl ResolveError {
                 format!("the stored dictionary's format {format} is not taken here")
             }
             ResolveError::Unreadable => "the stored dictionary cannot be read".to_owned(),
+            ResolveError::Unparsable { format, reason } => {
+                format!("the stored dictionary does not parse as {format}: {reason}")
+            }
         }
     }
 }
@@ -45,6 +52,11 @@ impl ResolveError {
 pub trait PolicyResolver {
     /// The bytes of the HMAC key registered as `id` at `version`.
     fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError>;
+    /// The bytes of the encryption key registered as `id` at `version`
+    /// (`--pii-encryption-key`), for the AES-256-GCM and FF1 strategies.
+    /// A token key of the same reference is another key and never
+    /// answers.
+    fn encryption_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError>;
     /// The terms of the `plain-word-list` dictionary `artifact_id` whose
     /// stored bytes hash to `sha256`.
     fn terms(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[String]>, ResolveError>;
@@ -60,6 +72,10 @@ pub struct NoRegistry;
 
 impl PolicyResolver for NoRegistry {
     fn hmac_key(&self, _: &str, _: u32) -> Result<&[u8], ResolveError> {
+        Err(ResolveError::NoRegistry)
+    }
+
+    fn encryption_key(&self, _: &str, _: u32) -> Result<&[u8], ResolveError> {
         Err(ResolveError::NoRegistry)
     }
 

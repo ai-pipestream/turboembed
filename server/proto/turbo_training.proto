@@ -397,6 +397,19 @@ service TurboTrainingService {
   rpc ListStaticModels(ListStaticModelsRequest) returns (ListStaticModelsResponse);
   // Admin. Stops serving a static model and removes its directory.
   rpc DeleteStaticModel(DeleteStaticModelRequest) returns (DeleteStaticModelResponse);
+  // Admin. Trains a classical component from samples the client streams
+  // in their native format, one training at a time (with
+  // TrainStaticModel). Progress, the model file in chunks, then one
+  // trained. Nothing is kept on the server.
+  rpc TrainComponent(stream TrainComponentRequest) returns (stream TrainComponentUpdate);
+  // Admin. One training the client streams its input to, one at a time
+  // (with TrainStaticModel and TrainComponent). A corpus job learns a
+  // vocabulary from the documents, distils a static model with its
+  // terms, and indexes the documents with that model, as one
+  // transaction: all three are kept, or none is. A component job trains
+  // a neural component from samples and streams its model file back.
+  // Progress for each stage, then the job's own last message.
+  rpc StreamingTraining(stream StreamingTrainingRequest) returns (stream StreamingTrainingUpdate);
 }
 
 message Teacher {
@@ -567,4 +580,317 @@ message DeleteStaticModelRequest {
 message DeleteStaticModelResponse {
   // Whether the model was served, and is no longer.
   bool unloaded = 1;
+}
+
+// The classical components TrainComponent trains, and the sample format
+// each reads (docs/grpc-training.md, Component training).
+enum ComponentKind {
+  COMPONENT_KIND_UNSPECIFIED = 0;
+  // One sentence a line, a blank line between documents.
+  COMPONENT_KIND_SENTENCE_DETECTOR = 1;
+  // One sentence a line, tokens split by whitespace or <SPLIT>.
+  COMPONENT_KIND_TOKENIZER = 2;
+  // One sentence a line of word_TAG tokens.
+  COMPONENT_KIND_POS_TAGGER = 3;
+  // word, tag and lemma, tab separated, a line a token, a blank line
+  // between sentences.
+  COMPONENT_KIND_LEMMATIZER = 4;
+  // word, tag and chunk tag, space separated, a line a token, a blank
+  // line between sentences.
+  COMPONENT_KIND_CHUNKER = 5;
+  // One sentence a line with <START:type> ... <END> around names.
+  COMPONENT_KIND_NAME_FINDER = 6;
+  // A category then the document's tokens, separated by whitespace, a
+  // line each.
+  COMPONENT_KIND_DOCUMENT_CATEGORIZER = 7;
+  // A language code, a tab, then the text, a line each.
+  COMPONENT_KIND_LANGUAGE_DETECTOR = 8;
+}
+
+// The first message of a TrainComponent call.
+message TrainComponentStart {
+  ComponentKind component = 1;
+  // The language the model records (ISO 639). Required except for the
+  // language detector, which learns its languages from the samples.
+  string language = 2;
+  // Training parameters as a parameters file names them (Iterations,
+  // Cutoff, Algorithm, ...), each value a string. Unset keys take the
+  // trainer's defaults: MAXENT, 100 iterations, cutoff 5.
+  map<string, string> parameters = 3;
+  // The name finder: the type given to names the samples leave untyped.
+  // Empty: "default".
+  string name_type = 4;
+}
+
+message TrainComponentRequest {
+  oneof part {
+    // First, and only first.
+    TrainComponentStart start = 1;
+    // The samples as UTF-8, in any number of chunks cut anywhere. The end
+    // of the client's stream starts the training.
+    bytes samples = 2;
+  }
+}
+
+enum ComponentStage {
+  COMPONENT_STAGE_UNSPECIFIED = 0;
+  // The start passed its checks and holds the training slot.
+  COMPONENT_STAGE_ADMITTED = 1;
+  // Every sample is read: samples of them.
+  COMPONENT_STAGE_READ = 2;
+  // An iteration finished: iteration, with correct of events classified
+  // and the measure the trainer reports.
+  COMPONENT_STAGE_ITERATION = 3;
+  // The model file is packaged; its chunks follow.
+  COMPONENT_STAGE_PACKAGED = 4;
+}
+
+message TrainComponentProgress {
+  ComponentStage stage = 1;
+  uint64 samples = 2;
+  uint32 iteration = 3;
+  uint64 correct = 4;
+  uint64 events = 5;
+  // "Training Accuracy" or "Log Likelihood".
+  string measure = 6;
+  double value = 7;
+}
+
+message TrainedComponent {
+  ComponentKind component = 1;
+  uint64 samples = 2;
+  // The model file sent in the chunks before this message: its size and
+  // lowercase hex SHA-256.
+  uint64 size = 3;
+  string sha256 = 4;
+}
+
+message TrainComponentUpdate {
+  oneof update {
+    TrainComponentProgress progress = 1;
+    // The next bytes of the model file.
+    bytes model = 2;
+    TrainedComponent trained = 3;
+  }
+}
+
+message StreamingTrainingRequest {
+  oneof part {
+    // First, and only first.
+    StreamingTrainingStart start = 1;
+    // A corpus job's next document. The end of the client's stream
+    // starts the vocabulary.
+    CorpusDocument document = 2;
+    // A component job's samples as UTF-8, in any number of chunks cut
+    // anywhere. The end of the client's stream starts the training.
+    bytes samples = 3;
+  }
+}
+
+message StreamingTrainingStart {
+  oneof job {
+    CorpusTraining corpus = 1;
+    NeuralComponentTraining component = 2;
+  }
+}
+
+message CorpusDocument {
+  // The document's id in the index: not empty, at most 1024 bytes, and
+  // no other document of the stream may have it.
+  string doc_id = 1;
+  // The document's text, counted for the vocabulary and indexed.
+  string text = 2;
+}
+
+// A corpus job: its three parts are named here and made in this order.
+message CorpusTraining {
+  // The vocabulary learned from the documents and kept in the vocabulary
+  // store (docs/grpc-vocabulary.md).
+  CorpusVocabulary vocabulary = 1;
+  // The static model distilled with the vocabulary's single terms, as
+  // TrainStaticModel takes it. vocabulary_artifact_id must be empty: the
+  // vocabulary is the one this job learns. terms are added after it.
+  TrainStaticModelRequest model = 2;
+  // The search index the documents are put in, embedded by the model.
+  CorpusIndex index = 3;
+}
+
+// How the vocabulary is learned: LearnVocabularyHeader's settings
+// (turbo_vocabulary.proto), field for field.
+message CorpusVocabulary {
+  // A term or n-gram seen fewer times than this is left out (0 is 1).
+  uint32 min_term_frequency = 1;
+  // The most single terms, and separately the most n-grams, kept (0
+  // keeps all).
+  uint32 max_terms = 2;
+  bool lowercase = 3;
+  // Drops the language's bundled stopwords from the terms, and n-grams
+  // that start or end with one.
+  bool filter_stopwords = 4;
+  bool include_ngrams = 5;
+  // n-gram sizes, both at least 2 and at most the store's max_ngram_size.
+  uint32 min_ngram_size = 6;
+  uint32 max_ngram_size = 7;
+  // An n-gram's pointwise mutual information, in bits, must reach this.
+  double min_pmi = 8;
+  // A stored dictionary whose headwords are kept whatever their counts.
+  string dictionary_artifact_id = 9;
+  string language = 10;
+}
+
+// How the index is stored.
+enum CorpusIndexStorage {
+  // Exact f32 rows.
+  CORPUS_INDEX_STORAGE_FLAT_F32 = 0;
+  // TurboQuant codes; the model's width must be a multiple of 8.
+  CORPUS_INDEX_STORAGE_TURBO_QUANT = 1;
+}
+
+// The index a corpus job makes. Its space is the new model's: the
+// model's id, revision and manifest SHA-256, its width, unit vectors,
+// compared by cosine.
+message CorpusIndex {
+  // The index's name: not empty, and no index or alias may have it,
+  // when the job starts or when it publishes.
+  string index_name = 1;
+  CorpusIndexStorage storage = 2;
+  // TurboQuant's bit width, 2, 3 or 4; 0 is 4.
+  uint32 quant_bits = 3;
+  bool quant_calibrate = 4;
+  // The collection whose term statistics the documents are added to;
+  // empty is the index's own name.
+  string collection_name = 5;
+  // The token budget of a chunk; 0 is the index's default.
+  uint32 chunk_budget_tokens = 6;
+}
+
+// The neural components a component job trains.
+enum NeuralComponentKind {
+  NEURAL_COMPONENT_KIND_UNSPECIFIED = 0;
+  // The feed-forward transition dependency parser
+  // (docs/feedforward-dependency-parser.md). Samples: CoNLL-U sentences,
+  // a blank line between them.
+  NEURAL_COMPONENT_KIND_DEPENDENCY_PARSER = 1;
+}
+
+// The part-of-speech column a CoNLL-U sample's tags are read from.
+enum ConlluTagset {
+  // UPOS, column 4.
+  CONLLU_TAGSET_UPOS = 0;
+  // XPOS, column 5.
+  CONLLU_TAGSET_XPOS = 1;
+}
+
+// The slots a parser state is read through.
+enum DependencyFeatureLayout {
+  // 18 word, 18 tag and 12 label slots.
+  DEPENDENCY_FEATURE_LAYOUT_CHEN_MANNING_18 = 0;
+  // 14 word, 14 tag and 8 label slots.
+  DEPENDENCY_FEATURE_LAYOUT_COMPACT_14 = 1;
+}
+
+enum DependencyActivation {
+  DEPENDENCY_ACTIVATION_CUBE = 0;
+  DEPENDENCY_ACTIVATION_RELU = 1;
+}
+
+// A component job. A field left 0 or unset takes the trainer's default.
+message NeuralComponentTraining {
+  NeuralComponentKind component = 1;
+  ConlluTagset tagset = 2;
+  // The embedding width, at most 4096; 0 is 50.
+  uint32 embedding_size = 3;
+  // The hidden layer's width, at most 65536; 0 is 200.
+  uint32 hidden_size = 4;
+  // Passes over the examples, at most 10000; 0 is 10.
+  uint32 epochs = 5;
+  // Examples in a minibatch; 0 is 256.
+  uint32 batch_size = 6;
+  // AdaGrad's learning rate, over 0; 0 is 0.02.
+  double learning_rate = 7;
+  // The L2 penalty on the dense matrices, at least 0; unset is 1e-8.
+  optional double l2 = 8;
+  // Hidden dropout, in [0, 1); unset is 0.5.
+  optional double dropout = 9;
+  // A word seen fewer times than this is unknown; unset is 2.
+  optional uint32 word_cutoff = 10;
+  // The seed of the initial weights and the shuffles; unset is 17.
+  optional int64 seed = 11;
+  DependencyFeatureLayout layout = 12;
+  DependencyActivation activation = 13;
+}
+
+enum StreamingStage {
+  STREAMING_STAGE_UNSPECIFIED = 0;
+  // The start passed its checks and holds the training slot.
+  STREAMING_STAGE_ADMITTED = 1;
+  // Corpus: completed_items documents are read and counted. Repeated;
+  // the last one has total_items, every document of the stream.
+  STREAMING_STAGE_ANALYZING = 2;
+  // Corpus: the vocabulary is learned, with completed_items single
+  // terms. It is stored when the job completes.
+  STREAMING_STAGE_LEARNING_VOCABULARY = 3;
+  // Corpus: a step of the distillation, as TrainStaticModel streams it,
+  // in distillation. Repeated; the model is served after its LOADED.
+  STREAMING_STAGE_DISTILLING_MODEL = 4;
+  // Corpus: completed_items of total_items documents are staged for the
+  // index. Repeated.
+  STREAMING_STAGE_INDEXING = 5;
+  // Corpus: the vocabulary is stored, the index is published and the
+  // transaction is kept.
+  STREAMING_STAGE_COMPLETED = 6;
+  // Component: every sample is read, completed_items of them.
+  STREAMING_STAGE_READ = 7;
+  // Component: epoch completed_items of total_items finished, with the
+  // mean cross-entropy of its examples in loss.
+  STREAMING_STAGE_EPOCH = 8;
+  // Component: the model file is packaged; its chunks follow.
+  STREAMING_STAGE_PACKAGED = 9;
+}
+
+message StreamingTrainingProgress {
+  StreamingStage stage = 1;
+  uint64 completed_items = 2;
+  uint64 total_items = 3;
+  TrainStaticModelProgress distillation = 4;
+  double loss = 5;
+}
+
+// What a corpus job kept.
+message CorpusTrained {
+  // The vocabulary's id in the store and the SHA-256 of its bytes.
+  string vocabulary_artifact_id = 1;
+  string vocabulary_sha256 = 2;
+  // Whether this job stored it: false when the store already held these
+  // bytes.
+  bool vocabulary_created = 3;
+  uint64 vocabulary_terms = 4;
+  uint64 vocabulary_ngrams = 5;
+  // The static model, as TrainStaticModel ends with it.
+  TrainedStaticModel model = 6;
+  string index_name = 7;
+  uint64 indexed_documents = 8;
+  uint64 indexed_chunks = 9;
+}
+
+message TrainedNeuralComponent {
+  NeuralComponentKind component = 1;
+  // The sentences trained on.
+  uint64 samples = 2;
+  // The model file sent in the chunks before this message: its size and
+  // lowercase hex SHA-256.
+  uint64 size = 3;
+  string sha256 = 4;
+}
+
+message StreamingTrainingUpdate {
+  oneof update {
+    StreamingTrainingProgress progress = 1;
+    // Component: the next bytes of the model file.
+    bytes model = 2;
+    // Corpus: last.
+    CorpusTrained corpus = 3;
+    // Component: last.
+    TrainedNeuralComponent component = 4;
+  }
 }

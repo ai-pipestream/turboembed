@@ -1,8 +1,8 @@
 //! AWS Signature Version 4 for the S3 requests a store makes: a GET or a
-//! PUT of one object, with no query. HMAC-SHA-256 is the RFC 2104
-//! construction over `sha2`, so no AWS SDK or HMAC crate is needed.
+//! PUT of one object, with no query. SHA-256 and HMAC-SHA-256 are
+//! `turbo-sha256`'s, so no AWS SDK or HMAC crate is needed.
 
-use sha2::{Digest, Sha256};
+use turbo_sha256::sha256;
 
 /// The SHA-256 of an empty body, the payload hash of every GET.
 pub const EMPTY_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -24,18 +24,7 @@ impl std::fmt::Debug for Credentials {
 
 /// HMAC-SHA-256 of `data` under `key` (RFC 2104).
 pub fn hmac(key: &[u8], data: &[u8]) -> [u8; 32] {
-    let mut block = [0u8; 64];
-    if key.len() > 64 {
-        block[..32].copy_from_slice(&Sha256::digest(key));
-    } else {
-        block[..key.len()].copy_from_slice(key);
-    }
-    let (mut inner, mut outer) = (Sha256::new(), Sha256::new());
-    inner.update(block.map(|b| b ^ 0x36));
-    inner.update(data);
-    outer.update(block.map(|b| b ^ 0x5c));
-    outer.update(inner.finalize());
-    outer.finalize().into()
+    turbo_sha256::hmac_sha256(key, data).0
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -93,7 +82,7 @@ pub fn sign(
     let names = all.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(";");
     let request = format!("{method}\n{path}\n\n{canonical_headers}\n{names}\n{payload}");
     let scope = format!("{day}/{region}/s3/aws4_request");
-    let to_sign = format!("AWS4-HMAC-SHA256\n{date}\n{scope}\n{}", hex(&Sha256::digest(request.as_bytes())));
+    let to_sign = format!("AWS4-HMAC-SHA256\n{date}\n{scope}\n{}", hex(&sha256(request.as_bytes()).0));
     let mut key = hmac(format!("AWS4{}", creds.secret).as_bytes(), day.as_bytes());
     for part in [region, "s3", "aws4_request"] {
         key = hmac(&key, part.as_bytes());
@@ -108,7 +97,7 @@ pub fn sign(
 
 /// The SHA-256 of `bytes` in hex, the payload hash of a PUT.
 pub fn payload_sha256(bytes: &[u8]) -> String {
-    hex(&Sha256::digest(bytes))
+    hex(&sha256(bytes).0)
 }
 
 #[cfg(test)]

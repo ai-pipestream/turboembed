@@ -55,6 +55,8 @@ public final class TurboLibrary {
     public static final int TURBO_ANALYSIS_LAYER_DEPENDENCIES = 7;
     /** Native {@code TURBO_ANALYSIS_LAYER_MORPHOLOGY}. */
     public static final int TURBO_ANALYSIS_LAYER_MORPHOLOGY = 8;
+    /** Native {@code TURBO_ANALYSIS_LAYER_WORDS}. */
+    public static final int TURBO_ANALYSIS_LAYER_WORDS = 9;
 
     /** Native span flag: a view range is present. */
     public static final int TURBO_SPAN_VIEW_RANGE = 1;
@@ -74,6 +76,12 @@ public final class TurboLibrary {
      * {@link #TURBO_SPAN_PII_KIND} (#1940). This binding always sets it.
      */
     public static final int TURBO_ANALYZER_PII_KIND_IDS = 1 << 1;
+    /**
+     * Analyzer descriptor flag: PII tasks and graph inspection expose candidate rows from
+     * {@code turbo:pii-candidates} (#1941). Off by default; set through
+     * {@code Config.withPiiDetail(true)}.
+     */
+    public static final int TURBO_ANALYZER_PII_DETAIL = 1 << 2;
     /** Native span flag: a normalized value is present. */
     public static final int TURBO_SPAN_VALUE = 1 << 4;
     /** Native span flag: a probability is present. */
@@ -108,6 +116,12 @@ public final class TurboLibrary {
      * {@code double}.
      */
     public static final int TURBO_SPAN_INTS = 28;
+    /** The 32-bit words of a native {@code turbo_pii_span} in header order. */
+    public static final int TURBO_PII_SPAN_INTS = 14;
+    /** The 32-bit words of a native {@code turbo_pii_fact} in header order. */
+    public static final int TURBO_PII_FACT_INTS = 4;
+    /** The 32-bit words of a native {@code turbo_pii_candidate} in header order. */
+    public static final int TURBO_PII_CANDIDATE_INTS = 39;
 
     private static final String LIBRARY_NAME = "turbo";
     private static boolean loaded;

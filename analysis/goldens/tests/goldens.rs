@@ -37,7 +37,7 @@ fn the_fixture_reads_into_typed_fields() {
     let g = golden();
     let h = &g.header;
     assert_eq!(h.generator, Generator { name: "turbo-goldens-java".into(), version: 1 });
-    assert_eq!(hex::to_hex(&h.opennlp.commit), "0123456789abcdef0123456789abcdef01234567");
+    assert_eq!(hex::to_hex(h.opennlp.commit), "0123456789abcdef0123456789abcdef01234567");
     assert_eq!(h.opennlp.commit[0], 0x01);
     assert_eq!(h.opennlp.version, "3.0.0-PRE-SNAPSHOT");
     assert_eq!(
@@ -49,7 +49,7 @@ fn the_fixture_reads_into_typed_fields() {
     assert_eq!(h.input.id, "zurich");
     assert_eq!(h.input.utf8_len, 37);
     assert_eq!(h.input.utf16_len, 36);
-    assert_eq!(h.input.sha256, sha256(TEXT.as_bytes()));
+    assert_eq!(h.input.sha256, sha256(TEXT.as_bytes()).0);
     assert_eq!(h.models.len(), 2);
     assert_eq!(h.models[0].file, "fixture-sentence.bin");
     assert_eq!(h.models[0].sha512, sha512(b"fixture model"));

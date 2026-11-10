@@ -66,7 +66,6 @@ pub mod retrieve;
 pub mod run;
 pub mod set;
 pub mod sets;
-pub mod sha;
 pub mod significance;
 pub mod source;
 pub mod spans;

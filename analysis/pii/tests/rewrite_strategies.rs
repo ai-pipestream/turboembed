@@ -8,7 +8,6 @@ mod support;
 
 use support::*;
 use turbo_analysis::Span;
-use turbo_pii::checksum::sha256;
 use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{
     Abbreviator, FormatError, FormatRedactor, HmacTokenizer, MapError, MapReplacer, MapTarget, MaskPolicy,
@@ -105,14 +104,16 @@ fn sha256_tokenizer_hashes_normalized_values_and_validates_lengths() {
     assert!(!sha.has_kind_prefix());
     assert_eq!(sha.prefix(), "");
 
-    let expected_jane: String = sha256::digest(b"jane@example.com").iter().map(|b| format!("{b:02x}")).collect();
+    let expected_jane: String =
+        turbo_sha256::sha256(b"jane@example.com").0.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(expected_jane.len(), 64);
     assert_eq!(sha.digest("email", "jane@example.com").unwrap(), expected_jane);
 
     let text = "Contact JANE@EXAMPLE.COM or jane@example.com.";
     let pii = layer(&cursor(), text);
     let r = sha.rewrite(&source_view(text), &pii).unwrap();
-    let expected_upper: String = sha256::digest(b"JANE@example.com").iter().map(|b| format!("{b:02x}")).collect();
+    let expected_upper: String =
+        turbo_sha256::sha256(b"JANE@example.com").0.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(r.text(), format!("Contact {expected_upper} or {expected_jane}."));
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text, &sources, &r);

@@ -120,9 +120,17 @@ pub fn insertion_and_deletion() -> Document {
         b.keep(1);
         b.replace(t.len(), "");
     });
-    // A token on the deleted dashes: its projection onto the derived
-    // views is an empty deleted anchor (#1907 part 2).
-    tokens_on(&mut doc, ViewId::SOURCE, "dashes", &[(2, 4)]);
+    // A token on the deleted dashes, and two-fragment tokens whose fragments
+    // coalesce on the derived views (#1907 part 2, #1938): "b" + the second
+    // dash coalesces as exact + deleted on "spaced" and deleted + deleted on
+    // "tight", and "a" + the first dash stays two fragments on "spaced" and
+    // coalesces as exact + deleted on "tight".
+    let mut s = Spans::<Tokens>::new(ViewId::SOURCE);
+    s.push(Span::new(2, 4));
+    s.push_fragments(&[Span::new(1, 2), Span::new(3, 4)]);
+    s.push_fragments(&[Span::new(0, 1), Span::new(2, 3)]);
+    doc.add(&Key::<Tokens>::named("dashes"), Tokens { spans: s, sentence: None }, Provenance::by("test:tokens"))
+        .unwrap();
     doc
 }
 
@@ -137,6 +145,12 @@ pub fn unequal_replacements() -> Document {
         b.keep(7);
         b.replace(13, "zz");
     });
+    // Two separated fragments inside "aaaa" both widen to "x" on "normalized"
+    // and coalesce with two widened members (#1938).
+    let mut s = Spans::<Tokens>::new(ViewId::SOURCE);
+    s.push_fragments(&[Span::new(0, 1), Span::new(2, 3)]);
+    doc.add(&Key::<Tokens>::named("pairs"), Tokens { spans: s, sentence: None }, Provenance::by("test:tokens"))
+        .unwrap();
     doc
 }
 

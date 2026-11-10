@@ -3,10 +3,14 @@
 `turbo_eval::artifact::encrypted::EncryptedStore` wraps an
 `EvaluationArtifactStore` with client-side AES-256-GCM encryption. The explicit
 `SecurityContext` supplies an authenticated principal, encoding identifier,
-key provider, authorization policy, retention policy and audit sink. This is
-an opt-in library adapter implementing the security contracts of #1490. Existing CLI cut exports still use
-`TemporaryFileStore` directly and remain plaintext. No key service, login
-flow or production remote provider is introduced here.
+key provider, authorization policy, retention policy and audit sink. This
+adapter implements the security contracts of #1490. Default CLI cut exports
+(`turbo-eval run --dump-cuts <dir>`) still use `TemporaryFileStore` directly in
+plaintext; passing `--cuts-key-file <file>` (with optional
+`--cuts-principal <32-hex>`) opts `turbo-eval run --dump-cuts <dir>` and
+`turbo-eval cuts <a-dir> <b-dir>` into `EncryptedStore` using the caller's key
+file (`KeyFile`, #2018). No remote key service, login flow or production remote
+provider is introduced here.
 
 Purpose, destination and encoding remain separate. This adapter supports only
 the existing evaluation-artifact operations: begin, publish, open, list and
@@ -19,8 +23,56 @@ The cut codec's `Writer::create_at(store, key, header)` and
 They preserve expected-set validation without exposing that set in the provider
 name. The keyed reader redacts document identifiers from decoding failures;
 the keyed writer redacts document-encoding failures. Use `compare_dumps` after
-reading two explicitly addressed artifacts. The original `create_in`,
-`read_from` and CLI directory comparison retain their naming contracts.
+reading two explicitly addressed artifacts, or `compare_encrypted_dirs` /
+`compare_encrypted_stores` (and `turbo-eval cuts <a-dir> <b-dir> --cuts-key-file <file>`)
+to compare two encrypted cut directories paired by their authenticated header
+set name. The original `create_in`, `read_from` and default CLI directory
+comparison retain their plaintext `<set>.cuts` naming contracts.
+
+## CLI encrypted cut exports and what stays visible
+
+`DumpConfig::encrypted` (and `turbo-eval run --dump-cuts <dir> --cuts-key-file <file>`)
+wraps `TemporaryFileStore::new(dir)` in `EncryptedStore` under
+`CUTS_ENCODING` (`turbo-eval-cuts2`) and `CUTS_CLI_PRINCIPAL`
+(`747572626f2d6576616c2d6375747300`, or the 32-hex `--cuts-principal` scope) and
+mints a fresh 32-hex `ArtifactKey` per exported set via `new_artifact_key()`.
+Each non-empty, non-`#` line in `<file>` (`KeyFile`) is either
+`<32-hex-key-id>:<64-hex-key>` (a 16-byte `KeyId` and 32-byte master key) or
+`revoked:<32-hex-key-id>`. The first active key line encrypts new exports;
+later key lines remain resolvable by `KeyId` so rotated keys can still decrypt
+earlier exports. Parse errors report line numbers only and never echo key bytes.
+
+Client-side encryption hides the cut header (`set`, `sha256`, backend, device,
+precision, budget and chunker settings), document identifiers, and document
+source text and layers inside the AES-256-GCM frames, but the following
+metadata stays visible outside the ciphertext:
+
+- **Names**:
+  - Each published file in `<dump-cuts-dir>` is named
+    `<32-hex-principal>.<32-hex-artifact-key>`. The artifact key is a fresh
+    random 128-bit hex identifier rather than `<set>.cuts`, while the 32-hex
+    principal prefix stays visible and groups all exports written under that
+    principal scope.
+  - Each file's 56-byte `TEAEAD01` header carries the 16-byte `KeyId` and
+    32-byte HKDF salt in cleartext.
+  - `turbo-eval run` still writes `<out>/<set>.json` named after each evaluated
+    set and prints `set <set>: the cuts of <n> documents in artifact <key>` to
+    standard error, linking the set name to the opaque artifact key in the
+    CLI's own output.
+- **Counts**:
+  - The number of published files in `<dump-cuts-dir>` equals the number of
+    exported sets.
+  - The number of encrypted `64 KiB` data frames in each file is observable from
+    the outer frame headers.
+  - Standard error (`the cuts of <n> documents`) and `<out>/<set>.json` report
+    the set's document, query and chunk counts.
+- **Sizes**:
+  - Each file's byte length on disk (and its temporary verification snapshot
+    under `<dump-cuts-dir>/.artifact-<hex>/ciphertext` during reads) equals the
+    serialized version-2 cut-dump length plus deterministic framing overhead:
+    56-byte header + 21 bytes (1-byte kind, 4-byte length, 16-byte tag) per
+    64 KiB plaintext frame + 37-byte terminal frame
+    (`93 + plaintext_bytes + 21 * ceil(plaintext_bytes / 65536)`).
 
 ## Identity and policy
 

@@ -14,9 +14,10 @@ fn weights_load_rejects_out_of_bounds_artifact_index() {
 }
 
 #[test]
-fn only_the_cpu_runs_a_banded_model() {
+fn only_the_cpu_and_levelzero_run_a_banded_model() {
     assert!(runs_band("cpu", 16).is_ok());
-    for b in ["cuda", "metal", "levelzero", "npu", "hailo"] {
+    assert!(runs_band("levelzero", 16).is_ok());
+    for b in ["cuda", "metal", "npu", "hailo"] {
         assert!(runs_band(b, 0).is_ok());
         let e = runs_band(b, 16).err().unwrap();
         assert_eq!(e.code, UNSUPPORTED);
@@ -73,8 +74,10 @@ fn choose_skips_an_artifact_whose_backend_cannot_run_the_band_or_the_family() {
     }
 
     m.architecture.as_mut().unwrap().lookahead = Some(4);
-    assert_eq!(choose(m, "cpu", safetensors, "").unwrap(), 0);
-    for b in ["cuda", "metal", "levelzero"] {
+    for b in ["cpu", "levelzero"] {
+        assert_eq!(choose(m, b, safetensors, "").unwrap(), 0, "{b}");
+    }
+    for b in ["cuda", "metal"] {
         let e = choose(m, b, safetensors, "").unwrap_err();
         assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
         let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");

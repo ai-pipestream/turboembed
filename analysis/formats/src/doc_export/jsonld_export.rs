@@ -5,11 +5,13 @@ use std::io::Write;
 
 use turbo_analysis::{Document, Edges, Ix, Key, Layer as _};
 use turbo_analysis_layers::{
-    Categories, Chunks, Dependencies, Entities, Language, Lemmas, MorphFeatures, Pii, PosTags, Sentences, Stems,
-    Tokens, WordDependencies, WordLemmas, WordPosTags, Words,
+    Categories, Chunks, Dependencies, Entities, Language, Lemmas, MorphFeatures, PosTags, Sentences, Stems, Tokens,
+    WordDependencies, WordLemmas, WordPosTags, Words,
 };
 use turbo_stopword_layers::Stopwords;
 
+use super::pii_export::append_jsonld_pii;
+pub use super::pii_export::{JSONLD_CONTEXT, JSONLD_CONTEXT_URI};
 use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer};
 
 const REQUIRED_LAYERS: &[&str] = &[];
@@ -44,11 +46,22 @@ impl DocumentFormatter for JsonLdFormatter {
         offsets: ExportOffsetMode,
         out: &mut dyn Write,
     ) -> Result<(), FormatExportError> {
+        self.format_document_with_detail(doc_id, doc, offsets, false, out)
+    }
+
+    fn format_document_with_detail(
+        &self,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+        out: &mut dyn Write,
+    ) -> Result<(), FormatExportError> {
         let mut buf = String::new();
         let source_text = doc.source();
 
         buf.push_str("{\n");
-        buf.push_str("  \"@context\": \"https://turboembed.ai/ns/jsonld/v1\",\n");
+        let _ = writeln!(buf, "  \"@context\": {},", json_string(JSONLD_CONTEXT_URI));
         buf.push_str("  \"@type\": \"turbo:AnnotatedDocument\",\n");
         let _ = writeln!(buf, "  \"@id\": {},", json_string(&format!("urn:turbo:document:{doc_id}")));
         let _ = writeln!(buf, "  \"docId\": {},", json_string(doc_id));
@@ -57,7 +70,10 @@ impl DocumentFormatter for JsonLdFormatter {
 
         // Provenance inventory in deterministic layer order.
         buf.push_str("  \"provenance\": [\n");
-        let layer_keys: Vec<_> = doc.layers().collect();
+        let layer_keys: Vec<_> = doc
+            .layers()
+            .filter(|k| detail || k.ty != std::any::TypeId::of::<turbo_analysis_layers::PiiCandidates>())
+            .collect();
         for (idx, key) in layer_keys.iter().enumerate() {
             let prov = doc.provenance(*key);
             let by = prov.map_or("", |p| p.annotator);
@@ -283,27 +299,7 @@ impl DocumentFormatter for JsonLdFormatter {
             sections.push(s);
         }
 
-        // Findings only: a mention's value never leaves through an export
-        // (#1904); its span locates it in the document text.
-        if let Some(pii) = doc.get::<Pii>() {
-            let view = pii.spans.view();
-            let mut s = String::from("    \"turbo:pii\": [");
-            for (i, m) in pii.mentions().enumerate() {
-                if i > 0 {
-                    s.push_str(", ");
-                }
-                let src = doc.to_source(view, m.span);
-                let (start, end) = offsets.convert_source_span(doc, src)?;
-                let _ = write!(
-                    s,
-                    "{{\"@type\": \"turbo:PiiMention\", \"kind\": {}, \"confidence\": {}, \"start\": {start}, \"end\": {end}}}",
-                    json_string(pii.kind_name(m.kind).unwrap_or("")),
-                    json_string(m.confidence().name()),
-                );
-            }
-            s.push(']');
-            sections.push(s);
-        }
+        append_jsonld_pii(doc, offsets, detail, &mut sections)?;
 
         if let Some(chunks) = doc.get::<Chunks>() {
             let view = chunks.spans.view();
@@ -333,7 +329,7 @@ impl DocumentFormatter for JsonLdFormatter {
     }
 }
 
-fn format_json_f64(v: f64) -> String {
+pub(crate) fn format_json_f64(v: f64) -> String {
     if v.is_finite() { format!("{v:.6}") } else { "null".to_owned() }
 }
 

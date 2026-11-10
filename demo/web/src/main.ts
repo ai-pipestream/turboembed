@@ -30,7 +30,19 @@ function show(name: string): void {
 }
 
 function start(): void {
-  for (const b of document.querySelectorAll<HTMLButtonElement>("nav.tabs button")) b.addEventListener("click", () => show(b.dataset.tab ?? "embed"));
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>("nav.tabs button")];
+  tabs.forEach((b, i) => {
+    b.addEventListener("click", () => show(b.dataset.tab ?? "embed"));
+    // Left and right move between the tabs, as in any tab list.
+    b.addEventListener("keydown", (ev) => {
+      const step = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      ev.preventDefault();
+      const next = tabs[(i + step + tabs.length) % tabs.length];
+      next.focus();
+      show(next.dataset.tab ?? "embed");
+    });
+  });
   server.init();
   embed.init();
   semantic.init();

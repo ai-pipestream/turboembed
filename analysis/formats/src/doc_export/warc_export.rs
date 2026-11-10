@@ -59,6 +59,17 @@ impl DocumentFormatter for WarcFormatter {
         offsets: ExportOffsetMode,
         out: &mut dyn Write,
     ) -> Result<(), FormatExportError> {
+        self.format_document_with_detail(doc_id, doc, offsets, false, out)
+    }
+
+    fn format_document_with_detail(
+        &self,
+        doc_id: &str,
+        doc: &Document,
+        offsets: ExportOffsetMode,
+        detail: bool,
+        out: &mut dyn Write,
+    ) -> Result<(), FormatExportError> {
         let clean_id = sanitize_warc_token(doc_id);
         let target_uri = format!("urn:turbo:document:{clean_id}");
         let info_record_id = format!("<urn:turbo:warcinfo:{clean_id}>");
@@ -71,7 +82,7 @@ impl DocumentFormatter for WarcFormatter {
         let _ = write!(warcinfo_body, "doc-id: {}\r\n", sanitize_single_line(doc_id));
         let info_bytes = warcinfo_body.as_bytes();
 
-        let resource_bytes = JsonLdFormatter.format_to_vec(doc_id, doc, offsets)?;
+        let resource_bytes = JsonLdFormatter.format_to_vec_with_detail(doc_id, doc, offsets, detail)?;
 
         write_warc_record(
             out,

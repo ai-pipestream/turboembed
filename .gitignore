@@ -40,4 +40,5 @@ hs_err_pid*.log
 /clients/java-jni/android-conformance/app/src/main/jniLibs/
 /clients/java-jni/android-conformance/app/src/main/assets/testdata/tiny-bert-bundle/
 /clients/java-jni/android-conformance/app/src/main/assets/testdata/tiny-bert-heads-bundle/
+/clients/java-jni/android-conformance/app/src/main/assets/testdata/tiny-bert-segment-bundle/
 /clients/java-jni/jniLibs/

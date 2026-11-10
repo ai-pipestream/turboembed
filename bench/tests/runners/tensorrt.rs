@@ -264,6 +264,7 @@ fn recipe_manifest() -> turbo::manifest::Manifest {
         "openvino/embeddings.bin",
         "hailo/model-hailo10h-s128.hef",
         "hailo/model-hailo8-s128.hef",
+        "hailo/model-hailo8l-s128.hef",
         "reference/reference.safetensors",
     ];
     m["files"] = paths.iter().map(|p| serde_json::json!({ "path": p, "size": 1, "sha256": "0".repeat(64) })).collect();

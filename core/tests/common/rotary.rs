@@ -138,12 +138,19 @@ pub fn modernbert(name: &str) -> Fixture {
 /// rows of hundreds of tokens (max_seq 1024) keep their softmax spread: the long rows of
 /// the tiled attention at head widths 32, 64 and 128.
 pub fn wide_modernbert(name: &str, h: u64, heads: u64, window: u64) -> Fixture {
+    long_modernbert(name, h, heads, (window, 3), 1024)
+}
+
+/// As [`wide_modernbert`], a global layer every `global_every` layers and
+/// rows of up to `max_seq` tokens.
+pub fn long_modernbert(name: &str, h: u64, heads: u64, (window, global_every): (u64, u64), max_seq: u64) -> Fixture {
     let mut m = modernbert_manifest(h, 2 * h);
     m["architecture"]["heads"] = heads.into();
-    m["architecture"]["attention"] = json!({ "window": window, "global_every": 3 });
-    m["embed"]["max_seq"] = 1024.into();
-    m["architecture"]["max_positions"] = 1024.into();
-    m["reference"]["cases"][8]["text"] = json!([PARAGRAPH; 32].join(" "));
+    m["architecture"]["attention"] = json!({ "window": window, "global_every": global_every });
+    m["embed"]["max_seq"] = max_seq.into();
+    m["architecture"]["max_positions"] = max_seq.into();
+    // A reference case longer than max_seq, as the loader asks for.
+    m["reference"]["cases"][8]["text"] = json!(vec![PARAGRAPH; (max_seq / 32) as usize].join(" "));
     let mut f = Fixture::new(name, m);
     let scale = 1.0 / (h as f32).sqrt();
     let mut w = tensors(modernbert_shapes(h, 2 * h, false));

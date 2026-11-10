@@ -143,7 +143,7 @@ pub mod tagdict;
 pub mod tokenize;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, TrainedChunkerModel, chunk_events, train_chunker_model};
-pub use depparse::train_feedforward_conllu;
+pub use depparse::{train_feedforward_conllu, train_feedforward_conllu_observed};
 pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};
 pub use doccat::{TrainedDoccatModel, train_doccat};
 pub use error::{Error, Result};
