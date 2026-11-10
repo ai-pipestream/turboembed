@@ -21,6 +21,8 @@ turbo-tagger = { path = "../../analysis/tagger" }
 turbo-analysis-embed = { path = "../../analysis/embed" }
 turbo-sentdetect = { path = "../../analysis/sentdetect" }
 turbo-gliner = { path = "../../analysis/gliner" }
+turbo-schema-extract = { path = "../../analysis/schema-extract" }
+turbo-relation = { path = "../../analysis/relation" }
 # MASC: the recorded release, its digest and fixed split, and the Penn
 # tag reader. These pins outlive the maxent recipes (plan B17).
 turbo-train-recipes = { path = "../../analysis/train-recipes" }

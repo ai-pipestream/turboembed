@@ -3063,6 +3063,8 @@ dependencies = [
  "turbo-formats",
  "turbo-gliner",
  "turbo-pins",
+ "turbo-relation",
+ "turbo-schema-extract",
  "turbo-sentdetect",
  "turbo-tagger",
  "turbo-train-recipes",

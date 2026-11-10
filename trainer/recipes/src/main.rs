@@ -33,6 +33,9 @@
 //! turbo-train-head eval-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
 //!     [--encoder-bundle <sealed encoder> --device cpu|cuda|levelzero|metal] [--threshold X] [--threads N]
 //!     [--split dev --calibrate | --thresholds <dev thresholds.json>] [--guidelines <label-to-prompt json>]
+//! turbo-train-head eval-gliner2 --corpus wnut-17 ... --package <GLiNER2 checkpoint> --hold-out <types>
+//!     [--threshold X] [--threads N] [--split dev --calibrate | --thresholds <dev thresholds.json>]
+//!     [--guidelines <label-to-description json>]
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N] [--against <run dir>])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
@@ -68,6 +71,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod baseline_cmd;
 mod eval_gliner;
+mod eval_gliner2;
 mod peer_cmd;
 mod summarize;
 mod train_coref;
@@ -132,10 +136,11 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-gliner" => train_gliner::train(&argv, &corpus_id, &dir, unrecorded, a),
         "eval-gliner" => eval_gliner::evaluate_command(&argv, &corpus_id, &dir, unrecorded, a),
+        "eval-gliner2" => eval_gliner2::evaluate_command(&argv, &corpus_id, &dir, unrecorded, a),
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-gliner, eval-gliner, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-gliner, eval-gliner, eval-gliner2, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
