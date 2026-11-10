@@ -45,6 +45,7 @@ async fn stream_round(c: &mut Analysis, docs: &[String], linger_ms: u32) -> Dura
                 options: None,
                 output: 0,
                 offsets: 0,
+                vocabulary: None,
             })),
         })
         .await

@@ -177,6 +177,7 @@ async fn document_graph_matches_between_connect_and_grpc() {
             max_seq: 0,
             select_device: false,
             user: String::new(),
+            vocabulary: None,
         })
         .await
         .unwrap();

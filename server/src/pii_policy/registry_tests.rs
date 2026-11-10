@@ -41,7 +41,7 @@ fn resolver(name: &str) -> (ServerResolver, String, String, String) {
     let words = put(&store, "dict-words", TERMS_FORMAT, format!("\u{feff}  {SECRET}  \r\nAcme Corp\n\n").as_bytes());
     let map = put(&store, "dict-map", MAP_FORMAT, format!("{SECRET}\tJ. Doe\nbob\t B \n").as_bytes());
     let csv = put(&store, "dict-csv", "glossary-csv", b"g1,New York\n");
-    (ServerResolver::load(&[], Some(store)).unwrap(), words, map, csv)
+    (ServerResolver::load(&[], &[], Some(store)).unwrap(), words, map, csv)
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn every_bad_reference_is_a_typed_refusal() {
     assert_eq!(r.map_entries("dict-words", &words).unwrap_err(), wrong(TERMS_FORMAT));
     assert_eq!(r.terms("dict-csv", &csv).unwrap_err(), wrong("glossary-csv"));
     assert_eq!(r.map_entries("dict-csv", &csv).unwrap_err(), wrong("glossary-csv"));
-    let none = ServerResolver::load(&[], None).unwrap();
+    let none = ServerResolver::load(&[], &[], None).unwrap();
     assert_eq!(none.terms("dict-words", &words).unwrap_err(), ResolveError::NoRegistry);
     assert_eq!(r.cached_dictionaries(), 0, "a refusal caches nothing");
 }
@@ -79,7 +79,7 @@ fn a_store_whose_bytes_changed_under_the_descriptor_is_unreadable() {
     let store = Arc::new(Store::open(&d).unwrap());
     let words = put(&store, "dict-words", TERMS_FORMAT, format!("{SECRET}\n").as_bytes());
     std::fs::write(d.join("dictionaries/dict-words.data"), b"swapped\n").unwrap();
-    let r = ServerResolver::load(&[], Some(store)).unwrap();
+    let r = ServerResolver::load(&[], &[], Some(store)).unwrap();
     let e = r.terms("dict-words", &words).unwrap_err();
     assert_eq!(e, ResolveError::Unreadable);
     assert!(!e.reason().contains("dictionaries"), "no path: {}", e.reason());
@@ -91,7 +91,7 @@ fn a_stored_dictionary_that_does_not_parse_says_which_line() {
     // A blank replacement is a headword with an empty definition, which
     // the store takes, but a map table refuses it.
     let map = put(&store, "dict-map", MAP_FORMAT, format!("bob\tB\n{SECRET}\t \n").as_bytes());
-    let r = ServerResolver::load(&[], Some(store)).unwrap();
+    let r = ServerResolver::load(&[], &[], Some(store)).unwrap();
     let e = r.map_entries("dict-map", &map).unwrap_err();
     let reason = "line 2: not a key, a tab and a replacement".to_owned();
     assert_eq!(e, ResolveError::Unparsable { format: MAP_FORMAT.to_owned(), reason });
@@ -174,7 +174,7 @@ fn map_keys_equal_once_normalized_are_refused_inline_and_from_a_dictionary() {
     let store = Arc::new(Store::open(&dir("collide")).unwrap());
     let rows = format!(" {SECRET} \tB\n{SECRET}\tA\n");
     let map = put(&store, "dict-collide", MAP_FORMAT, rows.as_bytes());
-    let r = ServerResolver::load(&[], Some(store)).unwrap();
+    let r = ServerResolver::load(&[], &[], Some(store)).unwrap();
     let inline = pb::PiiMapEntries {
         entries: [(format!(" {SECRET} "), "B".to_owned()), (SECRET.to_owned(), "A".to_owned())].into(),
     };
@@ -199,4 +199,35 @@ fn map_keys_equal_once_normalized_are_refused_inline_and_from_a_dictionary() {
         m.case_sensitive = true;
     }
     RedactionPolicy::from_proto(&policy, &r).unwrap();
+}
+
+#[test]
+fn encryption_keys_are_their_own_registry_of_exactly_32_bytes() {
+    use crate::release::keys::{KeyRef, TokenKeyFile};
+    let d = dir("enc-keys");
+    std::fs::create_dir_all(&d).unwrap();
+    let file = |name: &str, bytes: &[u8], id: &str| {
+        let path = d.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        TokenKeyFile { key: KeyRef { id: id.into(), version: 1 }, path }
+    };
+    let token = file("token", &[1u8; 32], "tok");
+    let enc = file("enc", &[2u8; 32], "vault");
+    let r = ServerResolver::load(std::slice::from_ref(&token), std::slice::from_ref(&enc), None).unwrap();
+    assert_eq!(r.encryption_key("vault", 1).unwrap(), &[2u8; 32]);
+    assert_eq!(r.encryption_key("tok", 1).unwrap_err(), ResolveError::NotRegistered, "a token key is not one");
+    assert_eq!(r.hmac_key("vault", 1).unwrap_err(), ResolveError::NotRegistered, "nor the other way round");
+    assert_eq!(r.encryption_key("vault", 2).unwrap_err(), ResolveError::NotRegistered);
+    let debug = format!("{r:?}");
+    assert!(debug.contains("vault:1") && !debug.contains("2, 2"), "{debug}");
+
+    let short = file("short", &[3u8; 31], "short");
+    let e = ServerResolver::load(&[], &[short], None).unwrap_err();
+    assert!(e.contains("31 bytes, not 32") && !e.contains("3, 3"), "{e}");
+    let long = file("long", &[3u8; 33], "long");
+    assert!(ServerResolver::load(&[], &[long], None).unwrap_err().contains("33 bytes"));
+    let shared = file("shared", &[1u8; 32], "vault");
+    let e = ServerResolver::load(&[token], &[shared], None).unwrap_err();
+    assert!(e.contains("one key, one use"), "{e}");
+    let _ = std::fs::remove_dir_all(&d);
 }

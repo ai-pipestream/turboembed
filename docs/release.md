@@ -65,7 +65,9 @@ protos by the `proto` CI job. Its pins are exact, in
 `@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0. The page
 itself is bundled into `demo/static/app.js` by `scripts/build-web.sh`
 with TypeScript 7.0.2 and esbuild 0.28.2, pinned the same way and
-checked by the same job.
+checked by the same job. Playwright 1.63.0, pinned beside them, is a
+development dependency of the page's browser run only
+(`scripts/e2e-web.sh`); nothing built or released links it.
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
 builds and checks the release archives and client stubs and keeps them,
