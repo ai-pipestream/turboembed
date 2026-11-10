@@ -235,9 +235,14 @@ reject non-alphanumeric candidates, apply label-specific PII negative rules,
 and require a compatible entity-linker candidate. Trimming repeats until
 neither rule applies, so punctuation an article stood before goes with it
 (`the "Acme"` becomes `Acme`), and a candidate that is an article and nothing
-else once trimmed is rejected as a non-entity. A PII layer must be valid and
-over the same view as the other inputs, since a negative rule compares byte
-offsets. `require_link` restricts that
+else once trimmed is rejected as a non-entity. A PII layer must be valid,
+over the same view as the other inputs, and have every mention inside the text
+on character boundaries, since a negative rule compares byte offsets. A
+required link is a candidate whose types are compatible with the label and
+whose blended score reaches the threshold: no candidate, or only candidates of
+an incompatible type, is no link at any threshold. A negative rule may name a
+custom PII kind; its rejection is stored as that kind's index in the PII
+layer's custom-kind table and survives export and import. `require_link` restricts that
 last requirement to the named labels; labels outside the explicit set retain
 their model candidates, so a gazetteer does not erase an unseen type. With no
 explicit set, every label is subject to linking when a provider is present.

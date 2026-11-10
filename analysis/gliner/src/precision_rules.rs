@@ -32,6 +32,13 @@ pub(crate) fn validate_inputs(
         if pii.spans.view() != view.id() {
             return Err(fail("the PII layer must be over the view of the precision inputs".into()));
         }
+        // `Pii::check` does not see the text; a document does, but this
+        // layer need not have come from one.
+        for (i, (_, span)) in pii.spans.iter().enumerate() {
+            if view.text().get(span.range()).is_none() {
+                return Err(fail(format!("pii mention {i} is outside the text or splits a character")));
+            }
+        }
     }
     if entities.spans.len() != decisions.logits.len() {
         return Err(fail("precision decisions must align to entities".into()));

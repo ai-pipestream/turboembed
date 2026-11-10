@@ -1,6 +1,6 @@
 use turbo_analysis::export::{ExportError, ImportCx, LayerCodec, Reader, Writer};
 use turbo_analysis::{Document, IxRange, Layer, Span, TagSet, ViewId};
-use turbo_analysis_layers::{PiiKind, Tokens};
+use turbo_analysis_layers::{PiiRule, Tokens};
 
 use crate::precision::{PrecisionCandidates, PrecisionDecision, PrecisionRejection};
 
@@ -81,12 +81,12 @@ fn get_decision(r: &mut Reader) -> Result<PrecisionDecision, ExportError> {
         2 => Ok(PrecisionDecision::Rejected(PrecisionRejection::NonEntity)),
         3 => Ok(PrecisionDecision::Rejected(PrecisionRejection::NoCompatibleLink)),
         4 => {
-            let kind = PiiKind::TABLE
-                .iter()
-                .find(|row| row.kind.code() == code)
-                .map(|row| row.kind)
-                .ok_or_else(|| ExportError::Malformed(format!("unknown PII conflict kind {code}")))?;
-            Ok(PrecisionDecision::Rejected(PrecisionRejection::PiiConflict(kind)))
+            // A custom kind comes back as the index it was written with,
+            // into the custom-kind table of the PII layer the rule read.
+            match PiiRule::from_code(code) {
+                Some(PiiRule::Kind(kind)) => Ok(PrecisionDecision::Rejected(PrecisionRejection::PiiConflict(kind))),
+                _ => Err(ExportError::Malformed(format!("unknown PII conflict kind {code}"))),
+            }
         }
         other => Err(ExportError::Malformed(format!("unknown precision decision {other}"))),
     }

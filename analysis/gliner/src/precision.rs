@@ -331,15 +331,20 @@ impl HybridPrecision {
                 }
             }
             if rejection.is_none() && self.links(label) {
-                let mut best = 0.0_f64;
+                // Only a candidate of a compatible type is a link at all:
+                // a strong prior does not make a person an organisation,
+                // and no candidate is no link whatever the threshold.
+                let mut best: Option<f64> = None;
                 for provider in &self.providers {
                     for candidate in provider.generate_candidates(text, None, 4, 1.0) {
-                        let link =
-                            0.5 * prior_score(&candidate) + 0.5 * type_compatibility(label, &candidate.entity_types);
-                        best = best.max(link);
+                        let compatibility = type_compatibility(label, &candidate.entity_types);
+                        if compatibility > 0.0 {
+                            let link = 0.5 * prior_score(&candidate) + 0.5 * compatibility;
+                            best = Some(best.map_or(link, |b| b.max(link)));
+                        }
                     }
                 }
-                if best < self.link_threshold {
+                if best.is_none_or(|link| link < self.link_threshold) {
                     rejection = Some(PrecisionRejection::NoCompatibleLink);
                 }
             }
