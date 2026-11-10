@@ -357,10 +357,12 @@ fn run_progressive_task(
                         // A code name, never the error's text: an annotator's
                         // detail can quote the document (issue #1908). An
                         // input over a limit says which and by how much,
-                        // counts only (#2125).
-                        message: match err.limit_detail() {
-                            Some(limit) => format!("step '{}' failed: over its {limit}", ev.timing.step_id),
-                            None => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
+                        // counts only (#2125, #2134).
+                        message: match &err {
+                            turbo_analysis::Error::OverLimit { limit, max, got, .. } => {
+                                format!("step '{}' failed: over its {limit} {max}, got {got}", ev.timing.step_id)
+                            }
+                            _ => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
                         },
                     }),
                     skipped_dependents: ev.skipped_dependents.into_iter().map(str::to_owned).collect(),

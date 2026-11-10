@@ -55,6 +55,9 @@ pub(super) fn error_record(error: &Error, cx: &ExportCx) -> Result<ErrorRecord, 
         Error::Annotator { annotator, detail } => {
             ErrorRecord::Annotator { annotator: annotator.to_string(), detail: detail.clone() }
         }
+        Error::OverLimit { annotator, limit, max, got } => {
+            ErrorRecord::OverLimit { annotator: annotator.to_string(), limit: limit.to_string(), max: *max, got: *got }
+        }
         Error::Skipped(reason) => ErrorRecord::Skipped(reason.clone()),
         Error::Offset { unit, at, reason } => ErrorRecord::Offset { unit: *unit, at: *at, reason: *reason },
         Error::Source(e) => ErrorRecord::Source(e.clone()),
@@ -104,6 +107,12 @@ pub(super) fn rebuild_error(
         ErrorRecord::Annotator { annotator, detail } => {
             Error::Annotator { annotator: cx.intern(&annotator.clone()), detail: detail.clone() }
         }
+        ErrorRecord::OverLimit { annotator, limit, max, got } => Error::OverLimit {
+            annotator: cx.intern(&annotator.clone()),
+            limit: cx.intern(&limit.clone()),
+            max: *max,
+            got: *got,
+        },
         ErrorRecord::Skipped(reason) => Error::Skipped(reason.clone()),
         ErrorRecord::Offset { unit, at, reason } => Error::Offset { unit: *unit, at: *at, reason: *reason },
         ErrorRecord::Source(e) => Error::Source(e.clone()),

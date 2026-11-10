@@ -33,6 +33,9 @@ pub enum Error {
     Pipeline(String),
     /// An annotator's own failure on one document.
     Annotator { annotator: &'static str, detail: String },
+    /// An annotator's input over one of its limits: a static limit name
+    /// and two counts, never document text.
+    OverLimit { annotator: &'static str, limit: &'static str, max: usize, got: usize },
     /// Not a failure: the annotator declined this document, for this
     /// reason. Its outputs are recorded as skipped, so "skipped" is never
     /// mistaken for "found nothing", and steps that need them are skipped
@@ -64,6 +67,9 @@ impl fmt::Display for Error {
             Error::Invalid { layer, detail } => write!(f, "{layer}: {detail}"),
             Error::Pipeline(d) => write!(f, "pipeline: {d}"),
             Error::Annotator { annotator, detail } => write!(f, "{annotator}: {detail}"),
+            Error::OverLimit { annotator, limit, max, got } => {
+                write!(f, "{annotator}: over its {limit} {max}, got {got}")
+            }
             Error::Skipped(why) => write!(f, "skipped: {why}"),
             Error::Offset { unit, at, reason: OffsetError::PastEnd { len } } => {
                 write!(f, "{unit} {at} is past the end of the view, which is {len} long")
@@ -78,39 +84,12 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-/// How an [`Error::Annotator`] detail written by [`Error::over_limit`]
-/// begins.
-pub const LIMIT_PREFIX: &str = "limit: ";
-
 impl Error {
     /// An annotator's input over one of its limits: a static limit name
     /// and two counts, never document text, so a server may pass it on.
     pub fn over_limit(annotator: &'static str, limit: &'static str, max: usize, got: usize) -> Error {
-        Error::Annotator { annotator, detail: format!("{LIMIT_PREFIX}{limit} {max}, got {got}") }
+        Error::OverLimit { annotator, limit, max, got }
     }
-
-    /// The limit and counts of an [`Error::over_limit`] error, or `None`
-    /// for any other. A detail that has the prefix but not the exact
-    /// shape [`limit_detail`] reads is not one, so no other detail is
-    /// mistaken for it.
-    pub fn limit_detail(&self) -> Option<&str> {
-        let Error::Annotator { detail, .. } = self else { return None };
-        limit_detail(detail)
-    }
-}
-
-/// [`Error::limit_detail`] on an annotator detail string, such as the one
-/// an exported error record carries. Only the exact shape
-/// [`Error::over_limit`] writes reads back: a name of lower case ASCII
-/// letters, digits, spaces and `_`, then two counts.
-pub fn limit_detail(detail: &str) -> Option<&str> {
-    let rest = detail.strip_prefix(LIMIT_PREFIX)?;
-    let count = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    let (head, got) = rest.rsplit_once(", got ")?;
-    let (name, max) = head.rsplit_once(' ')?;
-    let plain = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b" _".contains(&b);
-    let named = !name.trim().is_empty() && name.bytes().all(plain);
-    (named && count(max) && count(got)).then_some(rest)
 }
 
 #[cfg(test)]
@@ -118,25 +97,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_over_limit_error_reads_back_and_nothing_else_does() {
+    fn an_over_limit_error_carries_its_limit_and_counts() {
         let e = Error::over_limit("gliner2", "encoder max_sequence", 512, 528);
-        assert_eq!(e.limit_detail(), Some("encoder max_sequence 512, got 528"));
-        assert_eq!(e.to_string(), "gliner2: limit: encoder max_sequence 512, got 528");
-        let glirel = Error::over_limit("glirel", "glirel max_len", 384, 400);
-        assert_eq!(glirel.limit_detail(), Some("glirel max_len 384, got 400"));
-        for detail in [
-            "limit: ",
-            "limit: Jane Doe 3",
-            "limit: a\nb",
-            "panic: x",
-            "over 3",
-            "limit: some lower case words here 3",
-            "limit: a 1, got x",
-            "limit:  1, got 2",
-        ] {
-            let e = Error::Annotator { annotator: "x", detail: detail.to_owned() };
-            assert_eq!(e.limit_detail(), None, "{detail:?}");
-        }
-        assert_eq!(Error::Pipeline("limit: a 1, got 2".to_owned()).limit_detail(), None);
+        assert_eq!(e, Error::OverLimit { annotator: "gliner2", limit: "encoder max_sequence", max: 512, got: 528 });
+        assert_eq!(e.to_string(), "gliner2: over its encoder max_sequence 512, got 528");
     }
 }

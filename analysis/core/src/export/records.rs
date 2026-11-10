@@ -91,6 +91,7 @@ pub enum ErrorRecord {
     Invalid { layer: LayerRef, detail: String },
     Pipeline(String),
     Annotator { annotator: String, detail: String },
+    OverLimit { annotator: String, limit: String, max: usize, got: usize },
     Skipped(String),
     Offset { unit: crate::offsets::OffsetUnit, at: u32, reason: crate::offsets::OffsetError },
     Source(crate::bytes::SourceError),

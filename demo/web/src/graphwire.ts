@@ -155,6 +155,8 @@ function error(c: Cursor): Part {
             throw tagError(c, "a source error", r);
           }),
         ]);
+      case 12:
+        return one("over limit", [str(c, "annotator"), str(c, "limit"), u32(c, "max"), u32(c, "got")]);
       default:
         throw tagError(c, "an error", tag);
     }
