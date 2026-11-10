@@ -355,7 +355,8 @@ for any refused call.
   annotations marked, a chip per layer to show only some, paging, and
   heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
   names, shown when it is text and offered as a download. An open-span model
-  enables caller entity labels, threshold, and flat or nested decoding. A
+  enables caller entity labels, optional label=prompt guidelines, threshold,
+  and flat or nested decoding. A
   separate relation model adds caller relation labels, threshold, and sentence
   scoping over those entities, so one run produces entity and relation evidence
   and edges. The graph retains model identities and source offsets.

@@ -14,7 +14,17 @@ fn ec() -> turbo::deberta::Config {
     }
 }
 fn config() -> Config {
-    Config { hidden: 16, max_width: 3, entity_token: 12, separator_token: 13, cls_token: 1, eos_token: 2 }
+    Config {
+        hidden: 16,
+        projection_factor: 4,
+        prompt_factor: 4,
+        out_project_mlp: true,
+        max_width: 3,
+        entity_token: 12,
+        separator_token: 13,
+        cls_token: 1,
+        eos_token: 2,
+    }
 }
 #[test]
 fn real_checkpoint_heads_match_upstream_python() {
@@ -114,6 +124,19 @@ fn decode_threshold_and_tie_order_match_reference() {
     assert_eq!(selected.iter().map(|x| (x.start, x.label)).collect::<Vec<_>>(), vec![(0, 0), (3, 0)]);
     assert_eq!(heads::sigmoid(f32::MAX), 1.0);
     assert_eq!(heads::sigmoid(-f32::MAX), 0.0);
+}
+
+#[test]
+fn per_label_thresholds_filter_before_global_overlap_resolution() {
+    let schema = ExtractionSchema::new(vec!["a".into(), "b".into()], 0.5, Decode::Flat).unwrap();
+    let candidates = vec![
+        Candidate { start: 0, end: 2, label: 0, logit: 3.0, score: 0.75 },
+        Candidate { start: 1, end: 3, label: 1, logit: 2.0, score: 0.8 },
+    ];
+    let selected = decode_with_thresholds(candidates.clone(), &schema, &[0.8, 0.7]).unwrap();
+    assert_eq!(selected.iter().map(|x| x.label).collect::<Vec<_>>(), [1]);
+    assert!(decode_with_thresholds(candidates.clone(), &schema, &[]).is_err());
+    assert!(decode_with_thresholds(candidates, &schema, &[0.5, f32::NAN]).is_err());
 }
 
 #[test]

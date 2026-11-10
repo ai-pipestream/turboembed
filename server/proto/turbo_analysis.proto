@@ -966,6 +966,9 @@ message OpenSpanSchema
   optional float threshold = 2;
   // False selects flat decoding; true permits non-crossing nested spans.
   bool nested = 3;
+  // Optional parallel aliases, descriptions, or annotation guidelines for
+  // the model prompt. Empty uses labels; otherwise one prompt per label.
+  repeated string prompts = 4;
 }
 
 // Open-label relation extraction between the document's existing entities.
