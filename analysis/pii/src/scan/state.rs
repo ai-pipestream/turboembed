@@ -11,6 +11,7 @@
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
+use super::national::on_number_end;
 use super::us_labelled::STATES;
 use crate::hits::Hits;
 use crate::tables::us_counties::SUFFIXES;
@@ -87,7 +88,9 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
 }
 
 /// The end of a whole ZIP or ZIP+4 token at `at` (`62704`, `62704-1234`),
-/// with no letter, digit, `-` or `_` joined to it (`12345abc` is none).
+/// with no letter, digit, `-` or `_` joined to it and not the start of a
+/// decimal, grouped or split number (`12345abc`, `12345.67`, `12345,678`
+/// and `12345/6` are none).
 fn zip_end(text: &str, at: usize) -> Option<usize> {
     let b = text.as_bytes();
     let digits = |from: usize, n: usize| b.get(from..from + n).is_some_and(|d| d.iter().all(u8::is_ascii_digit));
@@ -95,5 +98,5 @@ fn zip_end(text: &str, at: usize) -> Option<usize> {
         return None;
     }
     let end = if b.get(at + 5) == Some(&b'-') && digits(at + 6, 4) { at + 10 } else { at + 5 };
-    (on_end(text, end) && !matches!(b.get(end), Some(b'-' | b'_'))).then_some(end)
+    (on_number_end(text, end, b".,-/") && !matches!(b.get(end), Some(b'-' | b'_'))).then_some(end)
 }

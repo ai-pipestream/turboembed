@@ -10,6 +10,8 @@
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
+use turbo_unicode::category::general_category;
+
 use crate::hits::Hits;
 use crate::tables::us_counties::{MAX_WORDS, SUFFIXES, county};
 use crate::text::{on_end, on_word_start};
@@ -50,13 +52,15 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
     let mut at = suffix;
     while n < starts.len() && at >= 2 && text.as_bytes()[at - 1] == b' ' {
         let word_end = at - 1;
-        // A word runs back over letters, digits and the marks inside a
-        // name (`St.`, `O'Brien`, `Miami-Dade`); anything else ends it
-        // (`County:Cook County`, a no-break space).
+        // A word runs back over letters, digits, combining marks, `_` and
+        // the marks inside a name (`St.`, `O'Brien`, `Miami-Dade`); anything
+        // else ends it (`County:Cook County`, a no-break space). So
+        // `x_Cook County` and `e\u{301}Cook County` hold no name, as
+        // `\u{e9}Cook County` holds none.
         let mut start = text[..word_end]
             .char_indices()
             .rev()
-            .find(|&(_, c)| !(c.is_alphanumeric() || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| !(word_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
             .map_or(0, |(p, c)| p + c.len_utf8());
         // Leading punctuation (`(Cook County`) is not part of the name.
         let Some(lead) = text[start..word_end].find(|c: char| c.is_alphanumeric()) else { break };
@@ -70,6 +74,11 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         let name = county(written)?;
         (on_word_start(text, start) && cased_like(written, name)).then_some((start, name))
     })
+}
+
+/// A letter, digit, combining mark or `_`: what a word is made of.
+fn word_char(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || general_category(c).is_mark()
 }
 
 /// Whether each word of `written` is the word of `name` as the table

@@ -65,6 +65,7 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("State: OR"), ("OR".to_owned(), "state", "OR".to_owned()));
     assert_eq!(one("state of residence: ME"), ("ME".to_owned(), "state", "ME".to_owned()));
     assert_eq!(one("Springfield, IL 62704-1234."), ("IL".to_owned(), "state", "IL".to_owned()));
+    assert_eq!(one("Portland, OR 97201."), ("OR".to_owned(), "state", "OR".to_owned()));
     for text in [
         "IN the morning, OR later, ME too, OK?",
         "Springfield, IL",
@@ -77,6 +78,10 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         "IN 12345-",
         "IN 12345_x",
         "IN 12345-12",
+        "LOG IN 12345.67",
+        "IN 12345,678",
+        "IN 12345/6",
+        "AMOUNT PAID IN 25000.00",
     ] {
         assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
     }
@@ -120,6 +125,9 @@ fn what_is_no_county_name() {
         "Cook  County",
         "the\u{a0}bay area",
         "\u{3000}Area",
+        "x_Cook County",
+        "e\u{301}Cook County",
+        "\u{e9}Cook County",
     ] {
         assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
     }
