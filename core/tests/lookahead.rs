@@ -272,7 +272,7 @@ fn a_real_bundle_with_a_band_matches_the_cpu_on_each_device() {
     let Ok(dir) = std::env::var("TURBO_TEST_BANDED_BUNDLE") else {
         return println!("{test}: skipped: TURBO_TEST_BANDED_BUNDLE is not set");
     };
-    let src = std::path::PathBuf::from(dir);
+    let src = turbo_pins::require(&dir);
     let devices: Vec<_> = banded_devices().into_iter().filter(|d| d.0 != "cpu").collect();
     let long = TEXTS.join(" ").repeat(4);
     let texts = [long.as_str(), TEXTS[0], TEXTS[1], TEXTS[2]];
