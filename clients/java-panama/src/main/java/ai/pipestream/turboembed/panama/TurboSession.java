@@ -1,5 +1,10 @@
 package ai.pipestream.turboembed.panama;
 
+import ai.pipestream.turboembed.TurboEmbedOptions;
+import ai.pipestream.turboembed.TurboException;
+import ai.pipestream.turboembed.TurboModelInfo;
+import ai.pipestream.turboembed.TurboRerankOptions;
+import ai.pipestream.turboembed.TurboSessionOptions;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -11,7 +16,8 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * In-process model session over {@code libturbo} for dense embedding and cross-encoder reranking
- * using Java 22+ Panama FFM.
+ * using Java 22+ Panama FFM, on the device the {@link TurboSessionOptions} name (device 0, the
+ * CPU, by default).
  */
 public final class TurboSession implements ai.pipestream.turboembed.TurboSession {
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -20,16 +26,19 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
     private final MemorySegment context;
     private final MemorySegment model;
     private final MemorySegment session;
+    private final int device;
 
     private TurboSession(
             MemorySegment runtime,
             MemorySegment context,
             MemorySegment model,
-            MemorySegment session) {
+            MemorySegment session,
+            int device) {
         this.runtime = runtime;
         this.context = context;
         this.model = model;
         this.session = session;
+        this.device = device;
     }
 
     /**
@@ -39,7 +48,18 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
      * @return open {@code TurboSession}
      */
     public static TurboSession open(Path bundleDir) {
+        return open(bundleDir, TurboSessionOptions.DEFAULT);
+    }
+
+    /**
+     * Opens a bundle directory on the device {@code options} names (an index, or the device
+     * {@code turbo_runtime_select} picks for a task) with its precision, batch, sequence length
+     * and CPU threads.
+     */
+    public static TurboSession open(Path bundleDir, TurboSessionOptions options) {
         Objects.requireNonNull(bundleDir, "bundleDir");
+        Objects.requireNonNull(options, "options");
+        int[] o = options.toNative();
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment err = TurboLibrary.allocateError(arena);
             MemorySegment outPtr = arena.allocate(ValueLayout.ADDRESS);
@@ -56,8 +76,20 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
             MemorySegment ctx = MemorySegment.NULL;
             MemorySegment mdl = MemorySegment.NULL;
             try {
+                int device = o[0];
+                if (o[1] != 0) {
+                    MemorySegment picked = arena.allocate(ValueLayout.JAVA_INT);
+                    try {
+                        code = (int) TurboLibrary.TURBO_RUNTIME_SELECT.invokeExact(
+                                rt, o[1], picked, MemorySegment.NULL, 0, err);
+                    } catch (Throwable t) {
+                        throw new IllegalStateException("turbo_runtime_select failed", t);
+                    }
+                    TurboLibrary.checkStatus(code, err);
+                    device = picked.get(ValueLayout.JAVA_INT, 0L);
+                }
                 try {
-                    code = (int) TurboLibrary.TURBO_CONTEXT_CREATE.invokeExact(rt, 0, outPtr, err);
+                    code = (int) TurboLibrary.TURBO_CONTEXT_CREATE.invokeExact(rt, device, outPtr, err);
                 } catch (Throwable t) {
                     throw new IllegalStateException("turbo_context_create failed", t);
                 }
@@ -73,15 +105,20 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
                 TurboLibrary.checkStatus(code, err);
                 mdl = requireNativeHandle(outPtr.get(ValueLayout.ADDRESS, 0L), "turbo_model_load");
 
+                MemorySegment desc = arena.allocate(TurboLibrary.TURBO_SESSION_DESC_SIZE, 4L);
+                desc.set(ValueLayout.JAVA_INT, 0L, TurboLibrary.TURBO_SESSION_DESC_SIZE);
+                desc.set(ValueLayout.JAVA_INT, 4L, o[3]);
+                desc.set(ValueLayout.JAVA_INT, 8L, o[4]);
+                desc.set(ValueLayout.JAVA_INT, 12L, o[2]);
+                desc.set(ValueLayout.JAVA_INT, 24L, o[5]);
                 try {
-                    code = (int) TurboLibrary.TURBO_SESSION_CREATE.invokeExact(
-                            mdl, MemorySegment.NULL, outPtr, err);
+                    code = (int) TurboLibrary.TURBO_SESSION_CREATE.invokeExact(mdl, desc, outPtr, err);
                 } catch (Throwable t) {
                     throw new IllegalStateException("turbo_session_create failed", t);
                 }
                 TurboLibrary.checkStatus(code, err);
                 MemorySegment sess = requireNativeHandle(outPtr.get(ValueLayout.ADDRESS, 0L), "turbo_session_create");
-                return new TurboSession(rt, ctx, mdl, sess);
+                return new TurboSession(rt, ctx, mdl, sess, device);
             } catch (RuntimeException e) {
                 releaseSuppressed(e, TurboLibrary.TURBO_MODEL_RELEASE, mdl);
                 releaseSuppressed(e, TurboLibrary.TURBO_CONTEXT_RELEASE, ctx);
@@ -112,46 +149,142 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
         }
     }
 
-    /**
-     * Embeds a batch of UTF-8 texts and returns one {@code float[dim]} vector per input text.
-     *
-     * @param texts non-empty list of texts to embed
-     * @return {@code float[texts.size()][dim]} embedding matrix
-     */
-    public float[][] embed(List<String> texts) {
+    /** Writes the texts with the options and runs; {@code read} reads the result. */
+    private <T> T embedRun(List<String> texts, TurboEmbedOptions options, ResultReader<T> read) {
         validateStrings(texts, "texts");
+        Objects.requireNonNull(options, "options");
         invocationLock.lock();
         try {
-        MemorySegment s = requireOpen();
-        String[] arr = texts.toArray(String[]::new);
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment textArray = TurboLibrary.allocateTextArray(arena, arr);
-            MemorySegment err = TurboLibrary.allocateError(arena);
-            int code;
-            try {
-                code = (int) TurboLibrary.TURBO_EMBED_WRITE_TEXT.invokeExact(
-                        s, textArray, arr.length, MemorySegment.NULL, err);
-            } catch (Throwable t) {
-                throw new IllegalStateException("turbo_embed_write_text failed", t);
+            MemorySegment s = requireOpen();
+            int8RangesFit(options);
+            String[] arr = texts.toArray(String[]::new);
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment textArray = TurboLibrary.allocateTextArray(arena, arr);
+                MemorySegment err = TurboLibrary.allocateError(arena);
+                MemorySegment opts = embedOptions(arena, options);
+                int code;
+                try {
+                    code = (int) TurboLibrary.TURBO_EMBED_WRITE_TEXT.invokeExact(s, textArray, arr.length, opts, err);
+                } catch (Throwable t) {
+                    throw new IllegalStateException("turbo_embed_write_text failed", t);
+                }
+                TurboLibrary.checkStatus(code, err);
+                return executeAndRead(arena, s, err, read);
             }
-            TurboLibrary.checkStatus(code, err);
-            return executeAndReadF32(arena, s, err);
-        }
         } finally {
             invocationLock.unlock();
         }
     }
 
     /**
-     * Reranks {@code passages} against {@code query} and returns raw relevance logits.
-     *
-     * @param query    query text
-     * @param passages candidate passage texts
-     * @return one relevance score per passage
+     * Refuses int8 ranges that are not {@code 2 * outputDim} values (the model's dim when
+     * {@code outputDim} is 0): the native write reads that many floats from the pointer.
      */
-    public float[] rerank(String query, List<String> passages) {
+    private void int8RangesFit(TurboEmbedOptions options) {
+        float[] ranges = options.int8Ranges();
+        if (options.quantization() != TurboEmbedOptions.Quantization.INT8 || ranges == null || ranges.length == 0) {
+            return;
+        }
+        int dim = options.outputDim() == 0 ? modelInfo().dim() : options.outputDim();
+        long need = 2L * dim;
+        if (ranges.length != need) {
+            int code = TurboLibrary.TURBO_E_INVALID_ARGUMENT;
+            throw new TurboException(code, TurboLibrary.statusName(code), 0, "int8Ranges holds " + ranges.length
+                    + " values; an output dim of " + dim + " needs " + need + " (a low and a high a dimension)");
+        }
+    }
+
+    /** {@code turbo_embed_options} for {@code options}, its ranges in {@code arena}. */
+    private static MemorySegment embedOptions(Arena arena, TurboEmbedOptions options) {
+        int[] o = options.toNative();
+        MemorySegment opts = arena.allocate(TurboLibrary.TURBO_EMBED_OPTIONS_SIZE, 8L);
+        opts.set(ValueLayout.JAVA_INT, 0L, TurboLibrary.TURBO_EMBED_OPTIONS_SIZE);
+        for (int i = 0; i < o.length; i++) {
+            opts.set(ValueLayout.JAVA_INT, 4L * (i + 1), o[i]);
+        }
+        float[] ranges = options.int8Ranges();
+        MemorySegment r = MemorySegment.NULL;
+        if (ranges != null && ranges.length > 0) {
+            r = arena.allocate((long) ranges.length * Float.BYTES, 4L);
+            MemorySegment.copy(ranges, 0, r, ValueLayout.JAVA_FLOAT, 0L, ranges.length);
+        }
+        opts.set(ValueLayout.ADDRESS, 32L, r);
+        return opts;
+    }
+
+    @Override
+    public float[][] embed(List<String> texts, TurboEmbedOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (options.quantization().codes()) {
+            throw new IllegalArgumentException(options.quantization() + " makes codes: read them with embedCodes");
+        }
+        return embedRun(texts, options, TurboSession::readF32);
+    }
+
+    @Override
+    public byte[][] embedCodes(List<String> texts, TurboEmbedOptions options) {
+        Objects.requireNonNull(options, "options");
+        if (!options.quantization().codes()) {
+            throw new IllegalArgumentException(options.quantization() + " makes F32 vectors: read them with embed");
+        }
+        return embedRun(texts, options, TurboSession::readCodes);
+    }
+
+    @Override
+    public TurboModelInfo modelInfo() {
+        invocationLock.lock();
+        try {
+            requireOpen();
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment err = TurboLibrary.allocateError(arena);
+                MemorySegment info = arena.allocate(TurboLibrary.TURBO_MODEL_INFO_SIZE, 4L);
+                info.set(ValueLayout.JAVA_INT, 0L, TurboLibrary.TURBO_MODEL_INFO_SIZE);
+                int code;
+                try {
+                    code = (int) TurboLibrary.TURBO_MODEL_GET_INFO.invokeExact(model, info, err);
+                } catch (Throwable t) {
+                    throw new IllegalStateException("turbo_model_get_info failed", t);
+                }
+                TurboLibrary.checkStatus(code, err);
+                int dims = Math.min(info.get(ValueLayout.JAVA_INT, 696L), 16);
+                int[] numbers = new int[10 + dims];
+                numbers[0] = device;
+                for (int i = 1; i <= 7; i++) {
+                    numbers[i] = info.get(ValueLayout.JAVA_INT, 4L * i);
+                }
+                numbers[8] = info.get(ValueLayout.JAVA_INT, 764L);
+                numbers[9] = info.get(ValueLayout.JAVA_INT, 768L);
+                for (int i = 0; i < dims; i++) {
+                    numbers[10 + i] = info.get(ValueLayout.JAVA_INT, 700L + 4L * i);
+                }
+                long[][] fields = {{32, 128}, {160, 64}, {224, 72}, {296, 72}, {368, 72}, {440, 128}, {568, 128}};
+                String[] text = new String[fields.length];
+                for (int i = 0; i < fields.length; i++) {
+                    text[i] = cString(info.asSlice(fields[i][0], fields[i][1]));
+                }
+                return TurboModelInfo.fromNative(numbers, text);
+            }
+        } finally {
+            invocationLock.unlock();
+        }
+    }
+
+    /** The UTF-8 string in {@code field} up to its first NUL. */
+    private static String cString(MemorySegment field) {
+        int n = 0;
+        while (n < field.byteSize() && field.get(ValueLayout.JAVA_BYTE, n) != 0) {
+            n++;
+        }
+        byte[] bytes = new byte[n];
+        MemorySegment.copy(field, ValueLayout.JAVA_BYTE, 0L, bytes, 0, n);
+        return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    @Override
+    public float[] rerank(String query, List<String> passages, TurboRerankOptions options) {
         Objects.requireNonNull(query, "query");
         validateStrings(passages, "passages");
+        Objects.requireNonNull(options, "options");
         invocationLock.lock();
         try {
         MemorySegment s = requireOpen();
@@ -166,15 +299,20 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
                 TurboLibrary.writeTextInPlace(arena, pairs, base + 16L, passages.get(i));
             }
             MemorySegment err = TurboLibrary.allocateError(arena);
+            int[] o = options.toNative();
+            MemorySegment opts = arena.allocate(TurboLibrary.TURBO_RERANK_OPTIONS_SIZE, 4L);
+            opts.set(ValueLayout.JAVA_INT, 0L, TurboLibrary.TURBO_RERANK_OPTIONS_SIZE);
+            for (int i = 0; i < o.length; i++) {
+                opts.set(ValueLayout.JAVA_INT, 4L * (i + 1), o[i]);
+            }
             int code;
             try {
-                code = (int) TurboLibrary.TURBO_RERANK_WRITE_PAIRS.invokeExact(
-                        s, pairs, passages.size(), MemorySegment.NULL, err);
+                code = (int) TurboLibrary.TURBO_RERANK_WRITE_PAIRS.invokeExact(s, pairs, passages.size(), opts, err);
             } catch (Throwable t) {
                 throw new IllegalStateException("turbo_rerank_write_pairs failed", t);
             }
             TurboLibrary.checkStatus(code, err);
-            float[][] matrix = executeAndReadF32(arena, s, err);
+            float[][] matrix = executeAndRead(arena, s, err, TurboSession::readF32);
             if (matrix.length != passages.size()) {
                 throw new IllegalStateException(
                         "native rerank returned " + matrix.length + " rows for " + passages.size() + " passages");
@@ -193,7 +331,36 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
         }
     }
 
-    private static float[][] executeAndReadF32(Arena arena, MemorySegment s, MemorySegment err) {
+    /** Reads a run's output: its dtype, shape and the bytes read out. */
+    @FunctionalInterface
+    private interface ResultReader<T> {
+        T read(int dtype, int batch, int dim, MemorySegment data);
+    }
+
+    private static float[][] readF32(int dtype, int batch, int dim, MemorySegment data) {
+        if (dtype != TurboLibrary.TURBO_DTYPE_F32) {
+            throw new IllegalStateException("the result's dtype is " + dtype + ", not F32");
+        }
+        float[][] out = new float[batch][dim];
+        for (int r = 0; r < batch; r++) {
+            MemorySegment.copy(data, ValueLayout.JAVA_FLOAT, (long) r * dim * 4L, out[r], 0, dim);
+        }
+        return out;
+    }
+
+    private static byte[][] readCodes(int dtype, int batch, int dim, MemorySegment data) {
+        if (dtype != TurboLibrary.TURBO_DTYPE_I8 && dtype != TurboLibrary.TURBO_DTYPE_U8) {
+            throw new IllegalStateException("the result's dtype is " + dtype + ", not I8 or U8");
+        }
+        int width = dtype == TurboLibrary.TURBO_DTYPE_I8 ? dim : (dim + 7) / 8;
+        byte[][] out = new byte[batch][width];
+        for (int r = 0; r < batch; r++) {
+            MemorySegment.copy(data, ValueLayout.JAVA_BYTE, (long) r * width, out[r], 0, width);
+        }
+        return out;
+    }
+
+    private static <T> T executeAndRead(Arena arena, MemorySegment s, MemorySegment err, ResultReader<T> read) {
         MemorySegment resOut = arena.allocate(ValueLayout.ADDRESS);
         int code;
         try {
@@ -225,8 +392,15 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
             }
             int batch = (int) batchLong;
             int dim = (int) dimLong;
+            int dtype = info.get(ValueLayout.JAVA_INT, 16L);
             long bytes = info.get(ValueLayout.JAVA_LONG, 32L);
-            long expectedBytes = Math.multiplyExact(Math.multiplyExact(batchLong, dimLong), Float.BYTES);
+            long rowBytes = switch (dtype) {
+                case TurboLibrary.TURBO_DTYPE_F32 -> dimLong * Float.BYTES;
+                case TurboLibrary.TURBO_DTYPE_I8 -> dimLong;
+                case TurboLibrary.TURBO_DTYPE_U8 -> (dimLong + 7) / 8;
+                default -> throw new IllegalStateException("the result's dtype is " + dtype);
+            };
+            long expectedBytes = Math.multiplyExact(batchLong, rowBytes);
             if (bytes < 0 || bytes != expectedBytes) {
                 throw new IllegalStateException(
                         "native result byte length " + bytes + " does not match shape bytes " + expectedBytes);
@@ -246,13 +420,7 @@ public final class TurboSession implements ai.pipestream.turboembed.TurboSession
                         "native result read wrote " + writtenBytes + " bytes, expected " + bytes);
             }
 
-            float[][] out = new float[batch][dim];
-            for (int r = 0; r < batch; r++) {
-                for (int c = 0; c < dim; c++) {
-                    out[r][c] = dst.get(ValueLayout.JAVA_FLOAT, ((long) r * dim + c) * 4L);
-                }
-            }
-            return out;
+            return read.read(dtype, batch, dim, dst);
         } catch (RuntimeException e) {
             failure = e;
             throw e;

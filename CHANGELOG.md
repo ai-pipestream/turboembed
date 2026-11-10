@@ -191,6 +191,13 @@ stubs must be regenerated.
   word-level heads, one row per token with the feature string as the
   label, and `turbo_analyzer_morphology` (`TurboAnalyzer.morphology`,
   `TurboAnalyzer.morphologyCopied`) tags pre-tokenized tokens (#1812).
+- The Java session (JNI and Panama) opens on any device:
+  `TurboSessionOptions` names a device index or the task
+  `turbo_runtime_select` picks a device for, with the precision,
+  batch, sequence length and CPU threads of the session.
+  `TurboEmbedOptions` and `TurboRerankOptions` carry the per-call
+  options, `TurboSession.embedCodes` reads int8 codes and packed sign
+  bits, and `TurboSession.modelInfo` reads `turbo_model_get_info` (#2005).
 - The in-process analyzer reads a bundle's segmenting heads: a
   sentence boundary head finds the sentences of every task in place of
   the rule splitter, a token split head writes each token's syntactic
