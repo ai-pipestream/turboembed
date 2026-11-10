@@ -46,11 +46,14 @@ pub enum PiiStrategyKind {
     DateShift = 15,
     /// A date written relative to a reference date.
     DateRelative = 16,
+    /// A date truncated to its year, with years indicating an age over 89
+    /// written as one category.
+    DateSafeHarbor = 17,
 }
 
 impl PiiStrategyKind {
     /// Every kind, in id order.
-    pub const ALL: [PiiStrategyKind; 16] = [
+    pub const ALL: [PiiStrategyKind; 17] = [
         PiiStrategyKind::Mask,
         PiiStrategyKind::Pseudonym,
         PiiStrategyKind::Hmac,
@@ -67,6 +70,7 @@ impl PiiStrategyKind {
         PiiStrategyKind::DateYear,
         PiiStrategyKind::DateShift,
         PiiStrategyKind::DateRelative,
+        PiiStrategyKind::DateSafeHarbor,
     ];
 
     /// The stable id.
@@ -98,6 +102,7 @@ impl PiiStrategyKind {
             PiiStrategyKind::DateYear => "date-year",
             PiiStrategyKind::DateShift => "date-shift",
             PiiStrategyKind::DateRelative => "date-relative",
+            PiiStrategyKind::DateSafeHarbor => "date-safe-harbor",
         }
     }
 }

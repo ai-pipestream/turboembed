@@ -398,6 +398,14 @@ pub mod names {
         (TURBO_STAGE_DEVICE, "STAGE_DEVICE"),
         (TURBO_STAGE_FUSED, "STAGE_FUSED"),
     ];
+    const LICENSE_CLASS: &[(u32, &str)] = &[
+        (TURBO_LICENSE_CLASS_UNSTATED, "LICENSE_CLASS_UNSTATED"),
+        (TURBO_LICENSE_CLASS_PERMISSIVE, "LICENSE_CLASS_PERMISSIVE"),
+        (TURBO_LICENSE_CLASS_LGPL, "LICENSE_CLASS_LGPL"),
+        (TURBO_LICENSE_CLASS_SHARE_ALIKE, "LICENSE_CLASS_SHARE_ALIKE"),
+        (TURBO_LICENSE_CLASS_GPL, "LICENSE_CLASS_GPL"),
+        (TURBO_LICENSE_CLASS_LOCAL_ONLY, "LICENSE_CLASS_LOCAL_ONLY"),
+    ];
     /// The embed task's stage constants, by index.
     pub const EMBED_STAGES: [&str; TURBO_EMBED_STAGE_COUNT] = [
         "EMBED_STAGE_TOKENIZE",
@@ -441,5 +449,8 @@ pub mod names {
     }
     pub fn precision(v: u32) -> String {
         pick(PRECISION, v)
+    }
+    pub fn license_class(v: u32) -> String {
+        pick(LICENSE_CLASS, v)
     }
 }

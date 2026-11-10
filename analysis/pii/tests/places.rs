@@ -9,10 +9,12 @@ use support::*;
 use turbo_pii::rewrite::mask_by_kind;
 use turbo_pii::{Pack, PiiKind};
 
-/// The written text, kind and normalized value of each mention.
+/// The written text, kind and normalized value of each state or county
+/// mention (cities are `places_city.rs`).
 fn found(text: &str) -> Vec<(String, &'static str, String)> {
     rows(&pack(Pack::Places), text)
         .into_iter()
+        .filter(|r| r.2 != "city")
         .map(|(s, e, kind, value)| (text[s as usize..e as usize].to_owned(), kind, value))
         .collect()
 }
@@ -74,7 +76,48 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("state of residence: ME"), ("ME".to_owned(), "state", "ME".to_owned()));
     assert_eq!(one("Springfield, IL 62704-1234."), ("IL".to_owned(), "state", "IL".to_owned()));
     assert_eq!(one("Portland, OR 97201."), ("OR".to_owned(), "state", "OR".to_owned()));
+    let states: Vec<_> = found("PORTLAND OR 97201").into_iter().filter(|m| m.1 == "state").collect();
+    assert_eq!(states, [("OR".to_owned(), "state", "OR".to_owned())]);
+    // A code before a ZIP code ends an address by what comes before it:
+    // a comma, a city of that state, or the start of a line with only
+    // blanks after the ZIP code to the line's end.
     for text in [
+        "Springfield, IL 62704 is the address",
+        "IL 62704",
+        "Name\n  IL 62704 \nx",
+        "IL 62704  \r\nUSA",
+        "IL 62704.",
+        "Name\nIL 62704, USA",
+        "IL 62704\u{a0}",
+        "\tIL 62704-1234\t",
+        "Springfield IL 62704 ",
+        "Springfield IL 62704-1234 \nUSA",
+        "Springfield IL 62704",
+        "Springfield IL 62704.",
+        "Springfield IL 62704 is",
+        "Send it to Springfield IL 62704 by Friday",
+        "1 Main St\nSpringfield IL 62704\nUSA",
+        "(Springfield IL 62704)",
+        "SPRINGFIELD IL 62704",
+    ] {
+        let states: Vec<_> = found(text).into_iter().filter(|m| m.1 == "state").collect();
+        assert_eq!(states, [("IL".to_owned(), "state", "IL".to_owned())], "{text:?}");
+    }
+    for text in [
+        "Order IN 12345 units",
+        "We ship OR 90210 boxes",
+        "sold ME 12345 more",
+        "Order IN 12345.",
+        "Order IN 12345",
+        "Lot IN 12345; ship",
+        "(see IN 12345)",
+        "We need OR 90210, now",
+        "PART OR 90210",
+        "IN 12345 units",
+        "\tOR 90210 boxes",
+        "Order\nIN 12345 units",
+        "Order\r\n  ME 12345 more",
+        "Springfield  IL 62704",
         "IN the morning, OR later, ME too, OK?",
         "Springfield, IL",
         "IL 627041",
@@ -153,4 +196,97 @@ fn places_are_low_opt_in_and_masked_keeping_their_spaces() {
     assert!(rows(&pack(Pack::AllStructured), text).is_empty());
     assert_eq!(PiiKind::State.builtin_name(), Some("state"));
     assert_eq!(PiiKind::County.builtin_name(), Some("county"));
+}
+
+#[test]
+fn no_word_character_touches_either_end_of_a_place_name() {
+    // #2089: a letter, digit, combining mark or `_` at either end joins the
+    // name to another word, for states and counties alike.
+    for text in [
+        "x_Illinois",
+        "Illinois_x",
+        "e\u{301}Illinois",
+        "Illinois\u{301}",
+        "x_Cook County",
+        "Cook County_x",
+        "e\u{301}Cook County",
+        "Cook County\u{301}",
+        "Washington_County",
+        "Washington County_x",
+        "New York City_x",
+        "x_IL 62704",
+        "State: IL_x",
+        "State: IL\u{301}",
+        "State: e\u{301}IL",
+        // #2096: a District suffix joined to another word is no District,
+        // and the `Washington` before it is no state.
+        "Washington DC_x",
+        "Washington DC9",
+        "Washington, DC\u{301}",
+        "Washington, D.C.x",
+        "Washington D.C._x",
+    ] {
+        assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
+    }
+    // The District and the plain state keep their readings.
+    for (text, written, code) in [
+        ("Washington DC", "Washington DC", "DC"),
+        ("Washington, D.C.", "Washington, D.C.", "DC"),
+        ("(Washington, DC)", "Washington, DC", "DC"),
+        ("Washington D.C.-based", "Washington D.C.", "DC"),
+        ("Washington", "Washington", "WA"),
+        ("Washington, Dana said", "Washington", "WA"),
+        ("Washington D", "Washington", "WA"),
+    ] {
+        assert_eq!(one(text), (written.to_owned(), "state", code.to_owned()), "{text:?}");
+    }
+    // Punctuation is no word character, at either end.
+    for (text, written, kind) in [
+        ("Illinois-based", "Illinois", "state"),
+        ("pre-Illinois", "Illinois", "state"),
+        ("(Illinois)", "Illinois", "state"),
+        ("Cook County-based", "Cook County", "county"),
+        ("\"Cook County\"", "Cook County", "county"),
+        ("State: IL.", "IL", "state"),
+    ] {
+        let (w, k, _) = one(text);
+        assert_eq!((w.as_str(), k), (written, kind), "{text:?}");
+    }
+}
+
+#[test]
+fn decomposed_county_spellings_read_as_the_table_writes_them() {
+    // #2081: `n` + U+0303 and `u` + U+0308 rather than `ñ` and `ü`. The
+    // mention keeps the source's bytes; the value is the table's NFC name.
+    for (text, written, name) in [
+        ("from Don\u{303}a Ana County.", "Don\u{303}a Ana County", "Doña Ana County"),
+        ("in Mayagu\u{308}ez Municipio", "Mayagu\u{308}ez Municipio", "Mayagüez Municipio"),
+        ("MAYAGU\u{308}EZ MUNICIPIO", "MAYAGU\u{308}EZ MUNICIPIO", "Mayagüez Municipio"),
+        ("DON\u{303}A ANA county", "DON\u{303}A ANA county", "Doña Ana County"),
+    ] {
+        assert_eq!(one(text), (written.to_owned(), "county", name.to_owned()), "{text:?}");
+    }
+    // A mark the name does not hold is still no name, and a mark joined
+    // to its end keeps the #2089 rule.
+    for text in ["Don\u{301}a Ana County", "Doña Ana County\u{303}", "e\u{301}Doña Ana County"] {
+        assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
+    }
+}
+
+#[test]
+fn every_county_of_the_table_is_found_and_suffix_words_in_prose_are_not() {
+    let d = pack(Pack::Places);
+    for name in include_str!("../src/tables/us_counties.txt").lines() {
+        let (head, last) = name.rsplit_once(' ').unwrap();
+        for written in [name.to_owned(), name.to_uppercase(), format!("{head} {}", last.to_lowercase())] {
+            let text = format!("records of {written}.");
+            let counties: Vec<_> = rows(&d, &text).into_iter().filter(|r| r.2 == "county").collect();
+            assert_eq!(counties.len(), 1, "{text:?}: {counties:?}");
+            assert_eq!((counties[0].1 as usize, counties[0].3.as_str()), (text.len() - 1, name), "{text:?}");
+        }
+    }
+    // A suffix word after a small word is no county, and no search.
+    for text in ["In the area.", "in the county", "the parish hall", "a borough", "the municipality"] {
+        assert!(found(text).iter().all(|m| m.1 != "county"), "{text:?}");
+    }
 }
