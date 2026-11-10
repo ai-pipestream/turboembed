@@ -116,3 +116,16 @@ fn a_city_and_its_state_are_two_mentions() {
     let kinds: Vec<_> = rows.iter().map(|r| (r.2, r.3.as_str())).collect();
     assert_eq!(kinds, [("city", "Springfield"), ("state", "IL")]);
 }
+
+#[test]
+fn a_run_of_separators_is_walked_once() {
+    // Each colon of a run used to look back over the whole run, so a
+    // megabyte of them took minutes; now it is one pass.
+    let n = 1 << 20;
+    for text in [":".repeat(n), format!("City{}", ":".repeat(n)), " : ".repeat(n / 3), "City #= ".repeat(n / 8)] {
+        assert!(cities(&text).is_empty());
+    }
+    assert_eq!(one(&format!("City{}Phoenix", ": ".repeat(1000))), ("Phoenix".to_owned(), "Phoenix".to_owned()));
+    assert_eq!(one("City #: Phoenix"), ("Phoenix".to_owned(), "Phoenix".to_owned()));
+    assert_eq!(one("City::Phoenix"), ("Phoenix".to_owned(), "Phoenix".to_owned()));
+}

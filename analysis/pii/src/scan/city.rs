@@ -104,7 +104,19 @@ fn at_anchor(text: &str, i: usize, found: &mut Vec<(usize, usize, &'static str)>
             }
         }
         b':' => {
-            let end = text[..i].trim_end_matches(|c: char| whitespace(c) || matches!(c, ':' | '#' | '=')).len();
+            // Only the first colon of a run of separators looks back, and
+            // only as far as the run goes, so each byte is walked once
+            // (`:::` costs no more than `:`).
+            let mut end = i;
+            for (at, c) in text[..i].char_indices().rev() {
+                if c == ':' {
+                    return;
+                }
+                if !(whitespace(c) || matches!(c, '#' | '=')) {
+                    break;
+                }
+                end = at;
+            }
             let last = end.checked_sub(1).map(|e| text.as_bytes()[e] | 0x20);
             for (label, _) in LABELS.iter().filter(|(l, _)| l.last().copied() == last) {
                 after(end.checked_sub(label.len()));
