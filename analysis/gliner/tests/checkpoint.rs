@@ -139,11 +139,12 @@ fn small_v2_5_checkpoint_matches_python() {
     assert!(grads[0].iter().any(|&x| x != 0.0));
 
     let mut boundary =
-        turbo_gliner::train::OutputTrainer::load_with_boundaries(model.config(), &original, true).unwrap();
+        turbo_gliner::train::OutputTrainer::load_with_heads(model.config(), &original, true, true).unwrap();
     let mut grads = boundary.zero_grads();
     let boundary_loss = boundary.gradients(&input, &candidates, &gold, &mut grads).unwrap();
     assert!((boundary_loss - loss).abs() < 1e-4);
-    assert!(grads[4..].iter().flatten().any(|&x| x != 0.0));
+    assert!(grads[4..12].iter().flatten().any(|&x| x != 0.0));
+    assert!(grads[12..].iter().flatten().any(|&x| x != 0.0));
     let mut optimizer = turbo_gliner::train::output_optimizer(
         turbo_trainer::adamw::Settings { lr: 1e-6, total: 1, ..turbo_trainer::adamw::Settings::default() },
         &boundary,

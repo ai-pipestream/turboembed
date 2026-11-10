@@ -332,6 +332,7 @@ impl Heads {
             words: w.words.clone(),
             spans: Vec::new(),
             prompts: w.prompts.clone(),
+            prompt_inputs: projected[..labels * d].to_vec(),
             pairs: pairs.iter().map(|&(start, end)| (start, end + 1)).collect(),
         };
         let scorer = Matrix::from_rows(&[&w.prompts], d).map_err(memory)?;
@@ -361,10 +362,10 @@ impl Heads {
             SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        if !matches!(params.len(), 2 | 4 | 10 | 12) {
-            return Err("gliner output training requires output tensors with optional boundary MLPs".into());
+        if !matches!(params.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16) {
+            return Err("gliner output training requires output tensors with optional boundary and prompt MLPs".into());
         }
-        let linear = matches!(params.len(), 2 | 10);
+        let linear = matches!(params.len(), 2 | 10 | 14);
         let output_len = if linear { 2 } else { 4 };
         let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
@@ -374,14 +375,19 @@ impl Heads {
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
             _ => unreachable!(),
         };
-        let boundary = |values: &[Vec<f32>]| -> Result<Box<Mlp>, String> {
+        let mlp = |values: &[Vec<f32>]| -> Result<Box<Mlp>, String> {
             Ok(Box::new(Mlp {
                 first: Dense::new(&values[0], values[1].clone(), f, h)?,
                 last: Dense::new(&values[2], values[3].clone(), h, f)?,
             }))
         };
-        let boundaries = if output_len < params.len() {
-            Some((boundary(&params[output_len..output_len + 4])?, boundary(&params[output_len + 4..])?))
+        let boundaries = if matches!(params.len(), 10 | 12 | 14 | 16) {
+            Some((mlp(&params[output_len..output_len + 4])?, mlp(&params[output_len + 4..output_len + 8])?))
+        } else {
+            None
+        };
+        let prompt = if matches!(params.len(), 8 | 14 | 16) {
+            Some(PromptHead::Mlp(mlp(&params[params.len() - 4..])?))
         } else {
             None
         };
@@ -390,6 +396,9 @@ impl Heads {
         if let Some((new_start, new_end)) = boundaries {
             *start = new_start;
             *end = new_end;
+        }
+        if let Some(prompt) = prompt {
+            self.prompt = prompt;
         }
         Ok(())
     }

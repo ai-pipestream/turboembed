@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use turbo::safetensors::{Dtype, File};
 use turbo_trainer::adamw::{AdamW, Settings};
 
+use crate::features::{Boundary, Prompt};
 use crate::{Candidate, Config, ExtractionSchema, Model};
 
 #[derive(Clone, Debug)]
@@ -12,6 +13,7 @@ pub struct TrainingInput {
     pub(crate) words: Vec<f32>,
     pub(crate) spans: Vec<f32>,
     pub(crate) prompts: Vec<f32>,
+    pub(crate) prompt_inputs: Vec<f32>,
     pub(crate) pairs: Vec<(usize, usize)>,
 }
 
@@ -48,10 +50,14 @@ pub struct OutputTrainer {
 
 impl OutputTrainer {
     pub fn load(config: &Config, bytes: &[u8]) -> Result<Self, String> {
-        Self::load_with_boundaries(config, bytes, false)
+        Self::load_with_heads(config, bytes, false, false)
     }
 
     pub fn load_with_boundaries(config: &Config, bytes: &[u8], boundaries: bool) -> Result<Self, String> {
+        Self::load_with_heads(config, bytes, boundaries, false)
+    }
+
+    pub fn load_with_heads(config: &Config, bytes: &[u8], boundaries: bool, prompt: bool) -> Result<Self, String> {
         let file = File::parse("gliner heads", bytes).map_err(|e| e.message)?;
         let (h, f) = (config.hidden, config.projection_factor);
         let mut specs: Vec<(String, Vec<usize>)> = if config.out_project_mlp {
@@ -67,10 +73,10 @@ impl OutputTrainer {
                 ("span_rep_layer.span_rep_layer.out_project.bias".into(), vec![h]),
             ]
         };
+        if (boundaries || prompt) && config.token_level {
+            return Err("gliner token-level output training is not supported".into());
+        }
         if boundaries {
-            if config.token_level {
-                return Err("gliner token-level output training is not supported".into());
-            }
             for stem in ["project_start", "project_end"] {
                 let stem = format!("span_rep_layer.span_rep_layer.{stem}");
                 specs.extend([
@@ -78,6 +84,20 @@ impl OutputTrainer {
                     (format!("{stem}.0.bias"), vec![f * h]),
                     (format!("{stem}.3.weight"), vec![h, f * h]),
                     (format!("{stem}.3.bias"), vec![h]),
+                ]);
+            }
+        }
+        if prompt {
+            if !config.prompt_projection {
+                return Err("gliner prompt training requires a prompt projection".into());
+            }
+            for stem in ["0", "3"] {
+                specs.extend([
+                    (
+                        format!("prompt_rep_layer.{stem}.weight"),
+                        if stem == "0" { vec![f * h, h] } else { vec![h, f * h] },
+                    ),
+                    (format!("prompt_rep_layer.{stem}.bias"), if stem == "0" { vec![f * h] } else { vec![h] }),
                 ]);
             }
         }
@@ -112,15 +132,22 @@ impl OutputTrainer {
 
     fn boundary_offset(&self) -> Option<usize> {
         match self.params.len() {
-            10 => Some(2),
-            12 => Some(4),
+            10 | 14 => Some(2),
+            12 | 16 => Some(4),
+            _ => None,
+        }
+    }
+
+    fn prompt_offset(&self) -> Option<usize> {
+        match self.params.len() {
+            8 | 14 | 16 => Some(self.params.len() - 4),
             _ => None,
         }
     }
 
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
         let file = File::parse("gliner heads", original).map_err(|e| e.message)?;
-        let mut names: Vec<String> = if matches!(self.params.len(), 2 | 10) {
+        let mut names: Vec<String> = if matches!(self.params.len(), 2 | 10 | 14) {
             vec![
                 "span_rep_layer.span_rep_layer.out_project.weight".into(),
                 "span_rep_layer.span_rep_layer.out_project.bias".into(),
@@ -138,6 +165,11 @@ impl OutputTrainer {
                 for suffix in ["0.weight", "0.bias", "3.weight", "3.bias"] {
                     names.push(format!("span_rep_layer.span_rep_layer.{stem}.{suffix}"));
                 }
+            }
+        }
+        if self.prompt_offset().is_some() {
+            for suffix in ["0.weight", "0.bias", "3.weight", "3.bias"] {
+                names.push(format!("prompt_rep_layer.{suffix}"));
             }
         }
         let mut out = original.to_vec();
@@ -165,15 +197,17 @@ impl OutputTrainer {
     ) -> Result<f64, String> {
         let (h, f, labels) = (self.hidden, self.factor, input.prompts.len() / self.hidden);
         let boundary = self.boundary_offset();
+        let prompt_offset = self.prompt_offset();
         let valid_words = boundary.is_none()
             || (input.words.len().is_multiple_of(h)
                 && input.pairs.iter().all(|&(start, end)| start < end && end <= input.words.len() / h));
-        if !matches!(grads.len(), 2 | 4 | 10 | 12)
+        if !matches!(grads.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16)
             || grads.iter().zip(&self.params).any(|(a, b)| a.len() != b.len())
             || input.spans.len() != input.pairs.len() * 2 * h
             || candidates.len() != input.pairs.len() * labels
             || labels == 0
             || !valid_words
+            || (prompt_offset.is_some() && input.prompt_inputs.len() != input.prompts.len())
         {
             return Err("gliner output training input or gradient shape mismatch".into());
         }
@@ -184,7 +218,11 @@ impl OutputTrainer {
                 Boundary::forward(&self.params[offset + 4..], &input.words, n, h, f),
             )
         });
-        let linear = matches!(self.params.len(), 2 | 10);
+        let prompt_features =
+            prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, f));
+        let prompt_values = prompt_features.as_ref().map_or(&input.prompts, |(_, values)| values);
+        let mut dprompt = if prompt_offset.is_some() { vec![0.0; labels * h] } else { Vec::new() };
+        let linear = matches!(self.params.len(), 2 | 10 | 14);
         let positive: BTreeSet<(usize, usize, usize)> = gold.iter().copied().collect();
         let mut selected: BTreeSet<usize> = input
             .pairs
@@ -248,7 +286,7 @@ impl OutputTrainer {
                 (&self.params[2], &self.params[3], 2, 3)
             };
             for label in active {
-                let prompt = &input.prompts[label * h..(label + 1) * h];
+                let prompt = &prompt_values[label * h..(label + 1) * h];
                 let mut logit = 0.0;
                 for (o, &p) in prompt.iter().enumerate() {
                     let value = bout[o] + (0..mid.len()).map(|i| wout[o * mid.len() + i] * mid[i]).sum::<f32>();
@@ -273,6 +311,10 @@ impl OutputTrainer {
                         }
                     }
                     grads[bias_index][o] += d * p;
+                    if prompt_offset.is_some() {
+                        let value = bout[o] + (0..mid.len()).map(|i| wout[o * mid.len() + i] * mid[i]).sum::<f32>();
+                        dprompt[label * h + o] += d * value;
+                    }
                 }
             }
             if !linear {
@@ -296,6 +338,9 @@ impl OutputTrainer {
             starts.backward(&self.params[offset..], &input.words, &dstarts, &mut grads[offset..], h, f);
             ends.backward(&self.params[offset + 4..], &input.words, &dends, &mut grads[offset + 4..], h, f);
         }
+        if let (Some(offset), Some((features, _))) = (prompt_offset, &prompt_features) {
+            features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, f);
+        }
         let mut total = -loss * scale;
         if self.anchor > 0.0 {
             let mut penalty = 0.0;
@@ -317,55 +362,6 @@ impl OutputTrainer {
     }
 }
 
-struct Boundary {
-    mid: Vec<f32>,
-    out: Vec<f32>,
-}
-
-impl Boundary {
-    fn forward(params: &[Vec<f32>], words: &[f32], n: usize, h: usize, f: usize) -> Self {
-        let mut out = Self { mid: vec![0.0; n * f * h], out: vec![0.0; n * h] };
-        for row in 0..n {
-            for i in 0..f * h {
-                let mut z = params[1][i];
-                for j in 0..h {
-                    z += params[0][i * h + j] * words[row * h + j];
-                }
-                out.mid[row * f * h + i] = z.max(0.0);
-            }
-            for o in 0..h {
-                let mut z = params[3][o];
-                for i in 0..f * h {
-                    z += params[2][o * f * h + i] * out.mid[row * f * h + i];
-                }
-                out.out[row * h + o] = z.max(0.0);
-            }
-        }
-        out
-    }
-
-    fn backward(&self, params: &[Vec<f32>], words: &[f32], dout: &[f32], grads: &mut [Vec<f32>], h: usize, f: usize) {
-        for row in 0..words.len() / h {
-            let mut dmid = vec![0.0; f * h];
-            for o in 0..h {
-                let d = if self.out[row * h + o] > 0.0 { dout[row * h + o] } else { 0.0 };
-                for i in 0..f * h {
-                    grads[2][o * f * h + i] += d * self.mid[row * f * h + i];
-                    dmid[i] += d * params[2][o * f * h + i];
-                }
-                grads[3][o] += d;
-            }
-            for i in 0..f * h {
-                let d = if self.mid[row * f * h + i] > 0.0 { dmid[i] } else { 0.0 };
-                for j in 0..h {
-                    grads[0][i * h + j] += d * words[row * h + j];
-                }
-                grads[1][i] += d;
-            }
-        }
-    }
-}
-
 pub fn output_optimizer(settings: Settings, trainer: &OutputTrainer) -> Result<AdamW<f32>, String> {
     AdamW::new(settings, &trainer.params.iter().map(Vec::len).collect::<Vec<_>>()).map_err(|e| e.message)
 }
@@ -381,6 +377,7 @@ mod tests {
             words: vec![0.6, -0.2],
             spans: vec![0.5, -0.3, 0.2, 0.8],
             prompts: vec![0.7],
+            prompt_inputs: vec![0.4],
             pairs: vec![(0, 1), (1, 2)],
         };
         let candidates = vec![
@@ -443,6 +440,26 @@ mod tests {
         let (_, input, candidates) = fixture();
         let mut params = vec![vec![0.3, -0.4], vec![0.2]];
         for _ in 0..2 {
+            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
+        }
+        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        check_gradients(&mut trainer, &input, &candidates);
+    }
+
+    #[test]
+    fn prompt_gradients_match_finite_differences() {
+        let (output, input, candidates) = fixture();
+        let mut params = output.params;
+        params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
+        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        check_gradients(&mut trainer, &input, &candidates);
+    }
+
+    #[test]
+    fn all_head_gradients_match_finite_differences() {
+        let (output, input, candidates) = fixture();
+        let mut params = output.params;
+        for _ in 0..3 {
             params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
         }
         let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
