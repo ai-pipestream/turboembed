@@ -285,7 +285,9 @@ per-corpus smoke-test or ablation limit, not balanced sampling. `--threads N`
 computes at most N sentences per batch concurrently and reduces their
 gradients in original sentence order; 0 uses the whole batch. Set
 `TURBO_CPU_THREADS=1` when using multiple sentence workers so encoder calls
-do not create nested thread pools.
+do not create nested thread pools. `--anchor W` adds `W * ||params - base||^2`
+to the output-head loss and its exact gradient, limiting drift from the
+pretrained MLP. The default is 0, and the peer identity records the value.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,

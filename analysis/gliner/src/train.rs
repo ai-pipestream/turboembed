@@ -41,6 +41,8 @@ pub struct OutputTrainer {
     hidden: usize,
     factor: usize,
     params: Vec<Vec<f32>>,
+    base: Vec<Vec<f32>>,
+    anchor: f32,
 }
 
 impl OutputTrainer {
@@ -64,7 +66,16 @@ impl OutputTrainer {
             }
             params.push(tensor.f32s());
         }
-        Ok(Self { hidden: h, factor: f, params })
+        Ok(Self { hidden: h, factor: f, base: params.clone(), params, anchor: 0.0 })
+    }
+
+    pub fn set_anchor(&mut self, weight: f32) -> Result<(), String> {
+        if !weight.is_finite() || weight < 0.0 {
+            return Err("gliner anchor must be finite and nonnegative".into());
+        }
+        self.base = self.params.clone();
+        self.anchor = weight;
+        Ok(())
     }
 
     pub fn zero_grads(&self) -> Vec<Vec<f32>> {
@@ -193,7 +204,19 @@ impl OutputTrainer {
                 grads[1][i] += d;
             }
         }
-        Ok(-loss * scale)
+        let mut total = -loss * scale;
+        if self.anchor > 0.0 {
+            let mut penalty = 0.0;
+            for ((params, base), grads) in self.params.iter().zip(&self.base).zip(grads.iter_mut()) {
+                for ((param, base), grad) in params.iter().zip(base).zip(grads) {
+                    let delta = param - base;
+                    penalty += f64::from(delta * delta);
+                    *grad += 2.0 * self.anchor * delta;
+                }
+            }
+            total += f64::from(self.anchor) * penalty;
+        }
+        Ok(total)
     }
 
     pub fn step(&mut self, optimizer: &mut AdamW<f32>, grads: &mut [Vec<f32>]) -> Result<f64, String> {
@@ -210,11 +233,8 @@ mod tests {
     use super::*;
 
     fn fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
-        let trainer = OutputTrainer {
-            hidden: 1,
-            factor: 2,
-            params: vec![vec![0.2, -0.1, 0.3, 0.4], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]],
-        };
+        let params = vec![vec![0.2, -0.1, 0.3, 0.4], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]];
+        let trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
         let input = TrainingInput { spans: vec![0.5, -0.3, 0.2, 0.8], prompts: vec![0.7], pairs: vec![(0, 1), (1, 2)] };
         let candidates = vec![
             Candidate { start: 0, end: 1, label: 0, logit: 0.1, score: 0.6 },
@@ -226,6 +246,7 @@ mod tests {
     #[test]
     fn output_gradients_match_finite_differences() {
         let (mut trainer, input, candidates) = fixture();
+        trainer.set_anchor(0.25).unwrap();
         for tensor in 0..trainer.params.len() {
             for at in 0..trainer.params[tensor].len() {
                 let original = trainer.params[tensor][at];

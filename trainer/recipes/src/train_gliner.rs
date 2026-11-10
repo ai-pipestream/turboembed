@@ -31,6 +31,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let balance = a.flag("--balance");
     let guidelines = a.value("--guidelines")?.map(read_guidelines).transpose()?;
     let max_train: usize = a.parsed("--max-train", 0)?;
+    let anchor: f32 = a.parsed("--anchor", 0.0)?;
     let head = super::head_args(&mut a)?;
     if head.crf || head.bilstm.is_some() || head.hash.is_some() {
         return Err(Error("train-gliner takes neither token-tagging adapters nor CRF".into()));
@@ -86,6 +87,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let original_heads = turbo_gliner::package::read(&package.join("heads.safetensors"), 256 << 20).map_err(Error)?;
     let mut model = Manifest::load(&package).map_err(Error)?;
     let mut trainer = OutputTrainer::load(model.config(), &original_heads).map_err(Error)?;
+    trainer.set_anchor(anchor).map_err(Error)?;
     let total: usize = corpora.iter().map(|x| x.splits.train.len().div_ceil(c.batch)).sum();
     let steps = (total * c.epochs as usize) as u64;
     let settings = Settings {
@@ -213,7 +215,8 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         super::eval_gliner::prediction_text(&combined.splits.dev, &best_predictions.all)?.into_bytes();
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
     let identity = model.identity();
-    let peer_name = format!("gliner-tuned:{}@{}#{}", identity.id, identity.revision, manifest_record.sha256);
+    let peer_name =
+        format!("gliner-tuned:{}@{}#{};anchor={anchor}", identity.id, identity.revision, manifest_record.sha256);
     let evaluation = score_parts(&combined, &all_types, &seen_types, &hold_out, &best_predictions)?;
     let train_filtered = filter_sentences(&combined.splits.train, &seen_types);
     let majority = Majority::train(&train_filtered);

@@ -29,7 +29,7 @@
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
 //!     [--balance] to repeat smaller training corpora to the largest split)
 //! turbo-train-head train-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
-//!     [--balance] [--max-train N] [--guidelines <json>] [training settings as train]
+//!     [--balance] [--max-train N] [--guidelines <json>] [--anchor W] [training settings as train]
 //! turbo-train-head eval-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
 //!     [--encoder-bundle <sealed encoder> --device cpu|cuda|levelzero|metal] [--threshold X] [--threads N]
 //!     [--split dev --calibrate | --thresholds <dev thresholds.json>] [--guidelines <label-to-prompt json>]
