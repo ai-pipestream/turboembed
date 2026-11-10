@@ -5680,13 +5680,13 @@ function timestampFromJson(timestamp, json) {
   if (typeof json !== "string") {
     throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: ${formatVal(json)}`);
   }
-  const matches = json.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?(?:Z|([+-][0-9][0-9]:[0-9][0-9]))$/);
-  if (!matches) {
+  const matches2 = json.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?(?:Z|([+-][0-9][0-9]:[0-9][0-9]))$/);
+  if (!matches2) {
     throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: invalid RFC 3339 string`);
   }
   const ms = Date.parse(
     // biome-ignore format: want this to read well
-    matches[1] + "-" + matches[2] + "-" + matches[3] + "T" + matches[4] + ":" + matches[5] + ":" + matches[6] + (matches[8] ? matches[8] : "Z")
+    matches2[1] + "-" + matches2[2] + "-" + matches2[3] + "T" + matches2[4] + ":" + matches2[5] + ":" + matches2[6] + (matches2[8] ? matches2[8] : "Z")
   );
   if (Number.isNaN(ms)) {
     throw new Error(`cannot decode message ${timestamp.$typeName} from JSON: invalid RFC 3339 string`);
@@ -5696,8 +5696,8 @@ function timestampFromJson(timestamp, json) {
   }
   timestamp.seconds = protoInt64.parse(ms / 1e3);
   timestamp.nanos = 0;
-  if (matches[7]) {
-    timestamp.nanos = parseInt("1" + matches[7] + "0".repeat(9 - matches[7].length)) - 1e9;
+  if (matches2[7]) {
+    timestamp.nanos = parseInt("1" + matches2[7] + "0".repeat(9 - matches2[7].length)) - 1e9;
   }
 }
 function durationFromJson(duration, json) {
@@ -7906,6 +7906,29 @@ function init5() {
   capabilities().catch((e) => say($("embed-error"), describe(e), "error"));
 }
 
+// demo/web/src/catalogfilter.ts
+function kindName(kind) {
+  const name = kind.startsWith("KIND_") ? kind.slice(5) : kind;
+  return name.toLowerCase().split("_").join(" ");
+}
+function plain(value, prefix2) {
+  const name = value.startsWith(prefix2) ? value.slice(prefix2.length) : value;
+  return name.toLowerCase().split("_").join(" ");
+}
+function words(text) {
+  return text.toLowerCase().split(" ").map((w) => w.trim()).filter((w) => w.length > 0);
+}
+function matches(e, kind, text) {
+  if (kind && e.kind !== kind) return false;
+  const hay = `${e.id} ${kindName(e.kind)} ${e.language} ${e.licence}`.toLowerCase();
+  return words(text).every((w) => hay.includes(w));
+}
+function kinds(entries) {
+  const count = /* @__PURE__ */ new Map();
+  for (const e of entries) count.set(e.kind, (count.get(e.kind) ?? 0) + 1);
+  return [...count];
+}
+
 // demo/web/src/sha256.ts
 var K = new Uint32Array([
   1116352408,
@@ -8324,6 +8347,8 @@ function init6() {
 var installing = null;
 var saving = null;
 var trainingRun = null;
+var filterKind = "";
+var filterText = "";
 var note3 = () => $("models-note");
 function bar(done, total) {
   const p = el("progress", { max: String(Math.max(1, total)) });
@@ -8350,15 +8375,70 @@ function entryRow(e, w) {
     install = b;
   }
   const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
-  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), licence, el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install, saveButtons(e, w))];
+  return el(
+    "div",
+    { class: "entry" },
+    el(
+      "div",
+      { class: "facts" },
+      el("span", { class: "id", text: e.id }),
+      el("span", { class: "tag kind", text: kindName(e.kind) }),
+      e.language ? el("span", { class: "tag", title: "language", text: e.language }) : null,
+      licence,
+      el("span", { class: "muted", text: size(e.totalBytes) }),
+      e.installed ? el("span", { class: "tag installed", text: "installed" }) : null
+    ),
+    el("div", { class: "acts" }, install, saveButtons(e, w), terms)
+  );
+}
+function catalogTable(entries, w) {
+  if (!entries.length) return el("p", { class: "muted", text: "The catalog lists nothing." });
+  const rows2 = entries.map((e) => entryRow(e, w));
+  const list5 = el("div", { class: "catalog" }, rows2);
+  const count = el("span", { class: "muted", id: "models-count", role: "status" });
+  const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by id, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
+  box5.value = filterText;
+  if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
+  const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n]) => [k, kindName(k), n])].map(([k, name, n]) => {
+    const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n}` });
+    chip.addEventListener("click", () => {
+      filterKind = k;
+      apply();
+    });
+    return [k, chip];
+  });
+  const none = el("p", { class: "muted", text: "No entry matches.", hidden: "" });
+  function apply() {
+    let shown2 = 0;
+    entries.forEach((e, i) => {
+      const on = matches(e, filterKind, filterText);
+      rows2[i].hidden = !on;
+      if (on) shown2++;
+    });
+    for (const [k, chip] of chips) {
+      chip.classList.toggle("on", k === filterKind);
+      chip.setAttribute("aria-pressed", String(k === filterKind));
+    }
+    count.textContent = shown2 === entries.length ? `${entries.length} entries` : `${shown2} of ${entries.length} entries`;
+    list5.hidden = shown2 === 0;
+    none.hidden = shown2 !== 0;
+  }
+  box5.addEventListener("input", () => {
+    filterText = box5.value;
+    apply();
+  });
+  apply();
+  return el("div", {}, el("div", { class: "row filter" }, box5, count), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
 }
 function saveButtons(e, w) {
   if (!w.user || e.missingTerms.length > 0) return null;
+  if (!e.files.length) return null;
   return el(
-    "div",
-    {},
+    "details",
+    { class: "files" },
+    el("summary", { text: e.files.length === 1 ? "1 file" : `${e.files.length} files` }),
     e.files.map((f) => {
-      const b = el("button", { type: "button", text: `Save ${f.path}` });
+      const b = el("button", { type: "button", text: `Save ${f.path}`, title: size(f.size) });
       b.addEventListener("click", () => void saveFile(e, f));
       return b;
     })
@@ -8386,13 +8466,13 @@ async function loadCatalog() {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
     const w = who(acc);
     box5.replaceChildren(
-      el("h3", { text: "Catalog" }),
-      el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
-      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map((e) => entryRow(e, w))),
+      el("h3", { text: "Installed" }),
+      table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]), "", "Nothing is installed."),
       el("h3", { text: "Accepted terms" }),
       acceptedTable(acc, w, (t) => act2(() => revoke(t))),
-      el("h3", { text: "Installed" }),
-      table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]))
+      el("h3", { text: "Catalog" }),
+      el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
+      catalogTable(cat.entries, w)
     );
     say(note3(), "");
   } catch (e) {
@@ -9121,12 +9201,12 @@ function renderCapabilities(c) {
     ["name", "task", "model", "widths", "context", "batch", "roles", ""],
     c.bundles.map((b) => [
       b.name,
-      b.task,
+      plain(b.task, "TASK_"),
       b.model ? `${b.model.id}@${b.model.revision}` : "",
       b.widths.join(", "),
       String(b.contextLimit),
       String(b.batchLimit),
-      b.roles.join(" "),
+      b.roles.map((r) => plain(r, "PROMPT_")).join(", "),
       unloadButton(b.name)
     ])
   );

@@ -2764,11 +2764,13 @@ dependencies = [
 name = "turbo-query"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "turbo",
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-formats",
  "turbo-geo",
  "turbo-glossary",
  "turbo-glossary-layers",
@@ -2787,6 +2789,7 @@ dependencies = [
  "turbo-stopword-layers",
  "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-train-recipes",
  "turbo-unicode",
 ]
 

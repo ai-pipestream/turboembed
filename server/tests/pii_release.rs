@@ -8,6 +8,9 @@
 mod ceiling;
 #[path = "pii_release/certs.rs"]
 mod certs;
+#[cfg(feature = "pii-reversible")]
+#[path = "pii_release/cipher.rs"]
+mod cipher;
 mod common;
 #[path = "pii_release/fixture.rs"]
 mod fixture;

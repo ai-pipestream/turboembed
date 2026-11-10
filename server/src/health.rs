@@ -29,7 +29,7 @@ fn service_status(state: &State, service: &str) -> Option<ServingStatus> {
         name => {
             let models = state.models.read().unwrap_or_else(|e| e.into_inner());
             let m = models.iter().find(|m| m.name == name)?;
-            if !state.is_draining() && m.loaded.get().is_some() {
+            if !state.is_draining() && crate::state::gliner::is_loaded(m) {
                 Some(ServingStatus::Serving)
             } else {
                 Some(ServingStatus::NotServing)
