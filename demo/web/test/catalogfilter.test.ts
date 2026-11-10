@@ -26,6 +26,33 @@ test("typed words are split on spaces and lower cased", () => {
   assert.deepEqual(words(""), []);
 });
 
+test("any white space parts two words", () => {
+  assert.deepEqual(words("bge\tsmall"), ["bge", "small"]);
+  assert.deepEqual(words("bge\u00a0small"), ["bge", "small"]);
+  assert.deepEqual(words("bge\u3000small\n"), ["bge", "small"]);
+  assert.deepEqual(words("\u2003\t "), []);
+  const hit = (text: string) => entries.filter((e) => matches(e, "", text)).map((e) => e.id);
+  assert.deepEqual(hit("bge\tsmall"), ["baai-bge-small-en-v1.5"]);
+  assert.deepEqual(hit("bge\u00a0small"), ["baai-bge-small-en-v1.5"]);
+});
+
+test("the fold matches sharp s, a dotted capital I and astral letters", () => {
+  assert.deepEqual(words("Straße"), words("STRASSE"));
+  assert.deepEqual(words("\u0130stanbul"), ["istanbul"]);
+  assert.deepEqual(words("\u{10400}"), ["\u{10428}"]);
+  const hit = (text: string) => [...entries, { id: "\u0130stanbul-ner", kind: "KIND_HEAD", language: "tr", licence: "MIT" }]
+    .filter((e) => matches(e, "", text)).map((e) => e.id);
+  assert.deepEqual(hit("STRASSE"), ["Straße-École"]);
+  assert.deepEqual(hit("straße"), ["Straße-École"]);
+  assert.deepEqual(hit("istanbul"), ["\u0130stanbul-ner"]);
+});
+
+test("a kind matches in its enum spelling too", () => {
+  const hit = (text: string) => entries.filter((e) => matches(e, "", text)).map((e) => e.id);
+  assert.deepEqual(hit("KIND_LEXICON"), ["symspell-frequency-dictionary"]);
+  assert.deepEqual(hit("kind_dataset es"), ["ud-spanish-ancora-r2.16"]);
+});
+
 test("every word must match, in id, kind, language or licence", () => {
   const ids = (kind: string, text: string) => entries.filter((e) => matches(e, kind, text)).map((e) => e.id);
   assert.equal(ids("", "").length, entries.length);

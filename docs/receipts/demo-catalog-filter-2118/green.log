@@ -1,0 +1,166 @@
+TAP version 13
+# Subtest: an entity with its votes
+ok 1 - an entity with its votes
+  ---
+  duration_ms: 1.55614
+  type: 'test'
+  ...
+# Subtest: enums by name, unset fields left out
+ok 2 - enums by name, unset fields left out
+  ---
+  duration_ms: 0.21635
+  type: 'test'
+  ...
+# Subtest: kinds and enum values read as plain words
+ok 3 - kinds and enum values read as plain words
+  ---
+  duration_ms: 0.841958
+  type: 'test'
+  ...
+# Subtest: typed words are split on spaces and lower cased
+ok 4 - typed words are split on spaces and lower cased
+  ---
+  duration_ms: 0.737974
+  type: 'test'
+  ...
+# Subtest: any white space parts two words
+ok 5 - any white space parts two words
+  ---
+  duration_ms: 0.334559
+  type: 'test'
+  ...
+# Subtest: the fold matches sharp s, a dotted capital I and astral letters
+ok 6 - the fold matches sharp s, a dotted capital I and astral letters
+  ---
+  duration_ms: 1.522638
+  type: 'test'
+  ...
+# Subtest: a kind matches in its enum spelling too
+ok 7 - a kind matches in its enum spelling too
+  ---
+  duration_ms: 0.204637
+  type: 'test'
+  ...
+# Subtest: every word must match, in id, kind, language or licence
+ok 8 - every word must match, in id, kind, language or licence
+  ---
+  duration_ms: 0.218667
+  type: 'test'
+  ...
+# Subtest: kinds are counted in the order first seen
+ok 9 - kinds are counted in the order first seen
+  ---
+  duration_ms: 0.121377
+  type: 'test'
+  ...
+# Subtest: varints
+ok 10 - varints
+  ---
+  duration_ms: 1.679202
+  type: 'test'
+  ...
+# Subtest: a frame over the limit is refused
+ok 11 - a frame over the limit is refused
+  ---
+  duration_ms: 0.622431
+  type: 'test'
+  ...
+# Subtest: learn: the header, then typed and file documents
+ok 12 - learn: the header, then typed and file documents
+  ---
+  duration_ms: 2.238557
+  type: 'test'
+  ...
+# Subtest: index: one request per document, the file as its text
+ok 13 - index: one request per document, the file as its text
+  ---
+  duration_ms: 1.588299
+  type: 'test'
+  ...
+# Subtest: import: the header frame, then the raw file
+ok 14 - import: the header frame, then the raw file
+  ---
+  duration_ms: 0.973029
+  type: 'test'
+  ...
+# Subtest: the fixture reads to its end, every part inside its parent
+ok 15 - the fixture reads to its end, every part inside its parent
+  ---
+  duration_ms: 2.860158
+  type: 'test'
+  ...
+# Subtest: the fixture's views, alignment and statuses are where the export put them
+ok 16 - the fixture's views, alignment and statuses are where the export put them
+  ---
+  duration_ms: 1.212531
+  type: 'test'
+  ...
+# Subtest: cut, padded or foreign bytes are refused with where
+ok 17 - cut, padded or foreign bytes are refused with where
+  ---
+  duration_ms: 0.844368
+  type: 'test'
+  ...
+# Subtest: non-commercial by the artifact's own licence or by its training data
+ok 18 - non-commercial by the artifact's own licence or by its training data
+  ---
+  duration_ms: 1.351027
+  type: 'test'
+  ...
+# Subtest: a saved file must be the size and SHA-256 the catalog lists
+ok 19 - a saved file must be the size and SHA-256 the catalog lists
+  ---
+  duration_ms: 0.374096
+  type: 'test'
+  ...
+# Subtest: every length from 0 to 300 bytes
+ok 20 - every length from 0 to 300 bytes
+  ---
+  duration_ms: 15.816604
+  type: 'test'
+  ...
+# Subtest: updates in odd pieces give the one-shot digest
+ok 21 - updates in odd pieces give the one-shot digest
+  ---
+  duration_ms: 0.595238
+  type: 'test'
+  ...
+# Subtest: a Blob streamed in chunks
+ok 22 - a Blob streamed in chunks
+  ---
+  duration_ms: 112.165773
+  type: 'test'
+  ...
+# Subtest: each sign-in reads in plain words
+ok 23 - each sign-in reads in plain words
+  ---
+  duration_ms: 0.641804
+  type: 'test'
+  ...
+# Subtest: the page changes sources only for a user on an admin or zoo server
+ok 24 - the page changes sources only for a user on an admin or zoo server
+  ---
+  duration_ms: 0.210638
+  type: 'test'
+  ...
+# Subtest: a redirect brings a code and a state, or an error
+ok 25 - a redirect brings a code and a state, or an error
+  ---
+  duration_ms: 0.767985
+  type: 'test'
+  ...
+# Subtest: S3 keys are sent only when the form names one
+ok 26 - S3 keys are sent only when the form names one
+  ---
+  duration_ms: 0.158129
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 283.366923
