@@ -264,10 +264,10 @@ fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
 
 /// Whether `written` has a capital at the start of every word where the
 /// gazetteer's `name` has one (`Springfield`, `Rio de Janeiro`,
-/// `Coeur d'Alene`).
+/// `Coeur d'Alene`, `Winston-Salem`, `Winston Salem`).
 fn capitals_like_a_name(written: &str, name: &str) -> bool {
-    let mut w = written.split(' ');
-    let mut g = name.split(' ');
+    let mut w = written.split([' ', '-']).filter(|s| !s.is_empty());
+    let mut g = name.split([' ', '-']).filter(|s| !s.is_empty());
     loop {
         match (w.next(), g.next()) {
             (Some(w), Some(g)) => {
