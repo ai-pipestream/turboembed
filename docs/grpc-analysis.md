@@ -179,11 +179,14 @@ no boundary after the first.
 model-free stages: `compile_analyzer` with normalization, structure,
 sentences, tokens, abbreviations, terms, stems, stopwords, keywords, the
 place-name gazetteer (`turbo-geo:names`), PII, numbers, money, dates and
-both boundary layers, over UTF-8 text with a heading, two paragraphs and
-a ligature NFKC unfolds. It checks each layer's source slices, UTF-16 and
-code point round trips, projection into the normalized view and back, a
-byte-identical export, import and re-export, deterministic runs, empty
-input and a 600-sentence document. A stage the request cannot run is
+both boundary layers, over UTF-8 text with a heading, two paragraphs, a
+ligature NFKC unfolds, two characters outside the Basic Multilingual
+Plane, a combining mark, sharp s and dotted capital I. It checks each
+layer's source slices, UTF-16 and code point offsets against counts
+made from the text itself (one more UTF-16 unit per surrogate pair) and
+their round trips, projection into the normalized and the case-folded
+view and back, a byte-identical export, import and re-export,
+deterministic runs, empty input and a 600-sentence document. A stage the request cannot run is
 refused by name: `turbo:chunker` without a bundle (it reads
 `turbo:subwords`), `turbo:gliner` without `open_span`,
 `turbo:zero-shot-relations` without relation labels, and an unknown step.
