@@ -17,6 +17,7 @@
 //! | `redocred_path` | The dependency-path rule baseline on Re-DocRED (#1825) |
 //! | `peer` | A peer system's tags on a test split, exported and read back |
 //! | `eval` | Accuracy, span F1, the majority baseline, the paired bootstrap |
+//! | `gliner_eval` | Pretrained GLiNER label batches and word-aligned BIO predictions |
 //! | `ner_documents` | Strict span scores and paired bootstrap over whole documents |
 //! | `run` | Head spec, encoder features, prediction, outputs |
 //! | `receipt` | `receipt.json` |
@@ -33,6 +34,7 @@ pub mod distill;
 pub mod eval;
 pub mod fit_cache;
 pub mod germeval;
+pub mod gliner_eval;
 pub mod litbank;
 pub mod litbank_eval;
 pub mod masc_ne;

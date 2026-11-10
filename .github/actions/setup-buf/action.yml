@@ -1,27 +1,28 @@
 name: setup-buf
 description: >
   Install the buf CLI from a GitHub Actions cache, downloading from
-  GitHub Releases only on a cache miss, with retries and a sha256 check.
+  GitHub Releases only on a cache miss, with retries. The binary is checked
+  against a SHA-256 the caller pins, on a cache hit as well as a miss.
 inputs:
   version:
     description: buf version without a leading v (for example 1.70.0).
     required: true
+  sha256:
+    description: >
+      The pinned SHA-256 of each release asset the caller runs on, one
+      "<hash>  <asset>" line per OS and arch, as the release's sha256.txt
+      writes them (for example "e2bb...  buf-Linux-x86_64"). A runner whose
+      asset has no line fails.
+    required: true
 runs:
   using: composite
   steps:
-    # One cache entry per OS, arch, and version. Hits skip the release
-    # download that failed merge-queue run 42580497484 with HTTP 504.
-    - name: Restore cached buf
-      id: cache
-      uses: actions/cache@v4
-      with:
-        path: ${{ runner.temp }}/buf-bin
-        key: buf-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
-    - name: Download buf on cache miss
-      if: steps.cache.outputs.cache-hit != 'true'
+    # The asset this runner downloads and the hash pinned for it.
+    - name: Pick the pinned hash
+      id: pin
       shell: bash
       env:
-        BUF_VERSION: ${{ inputs.version }}
+        BUF_SHA256: ${{ inputs.sha256 }}
       run: |
         set -euo pipefail
         case "${RUNNER_OS}" in
@@ -44,22 +45,59 @@ runs:
           asset="buf-${os}-${arch}"
           out_name=buf
         fi
+        hash=""
+        while read -r h name; do
+          if [ "${name:-}" = "$asset" ]; then hash="$h"; fi
+        done <<< "$BUF_SHA256"
+        if [ "${#hash}" -ne 64 ]; then
+          echo "no pinned sha256 for ${asset} in the sha256 input" >&2
+          exit 1
+        fi
+        {
+          echo "asset=${asset}"
+          echo "out_name=${out_name}"
+          echo "hash=${hash}"
+        } >> "$GITHUB_OUTPUT"
+    # One cache entry per OS, arch, version and pinned hash. Hits skip the
+    # release download that failed merge-queue run 42580497484 with HTTP
+    # 504; a new pin misses the old entry.
+    - name: Restore cached buf
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/buf-bin
+        key: buf-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}-${{ steps.pin.outputs.hash }}
+    - name: Download buf on cache miss
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        BUF_VERSION: ${{ inputs.version }}
+        ASSET: ${{ steps.pin.outputs.asset }}
+        OUT_NAME: ${{ steps.pin.outputs.out_name }}
+      run: |
+        set -euo pipefail
         base="https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}"
         mkdir -p "${RUNNER_TEMP}/buf-bin"
         cd "${RUNNER_TEMP}/buf-bin"
         # Retries cover transient GitHub Releases 504s; --retry-all-errors
-        # retries 5xx as well as connection failures.
+        # retries 5xx as well as connection failures. The release's own
+        # sha256.txt is not trusted: the next step checks the pinned hash.
         curl --fail --location --show-error \
           --retry 5 --retry-all-errors --retry-delay 5 \
-          --output sha256.txt "${base}/sha256.txt"
-        curl --fail --location --show-error \
-          --retry 5 --retry-all-errors --retry-delay 5 \
-          --output "${asset}" "${base}/${asset}"
-        grep -E "  ${asset}$" sha256.txt | sha256sum -c -
-        mv "${asset}" "${out_name}"
-        chmod +x "${out_name}"
-        rm -f sha256.txt
-        "./${out_name}" --version
+          --output "${OUT_NAME}" "${base}/${ASSET}"
+        chmod +x "${OUT_NAME}"
+    # Runs on a hit and a miss alike: a cached binary is checked as a
+    # downloaded one is, and a mismatch fails the job.
+    - name: Verify buf against the pinned sha256
+      shell: bash
+      env:
+        OUT_NAME: ${{ steps.pin.outputs.out_name }}
+        HASH: ${{ steps.pin.outputs.hash }}
+      run: |
+        set -euo pipefail
+        cd "${RUNNER_TEMP}/buf-bin"
+        echo "${HASH}  ${OUT_NAME}" | sha256sum -c -
+        "./${OUT_NAME}" --version
     - name: Add buf to PATH
       shell: bash
       run: echo "${RUNNER_TEMP}/buf-bin" >> "$GITHUB_PATH"

@@ -152,13 +152,28 @@ such a bundle, refuses with `TURBO_E_BUNDLE_NOT_FOUND` naming the
 `head.*` requirement; with no `req.model`, the pipeline runs on the
 first loaded embed bundle providing every head it needs.
 
+Converted GLiNER and GLiNER2 packages add two request-driven steps outside the
+bundle-head table:
+
+| Step | Request fields | Layers written |
+|---|---|---|
+| `turbo:gliner` | `model`, `open_span` | `Entities`, `Decisions`, `Evidence<Entities>` |
+| `turbo:zero-shot-relations` | `relation_model`, `relations` | `Relations`, `Edges<Entities, Entities>`, `Evidence<Relations>` |
+
+`open_span` carries caller labels, threshold, and flat or nested decoding.
+`relations` carries labels with optional thresholds, symmetry, domain/range
+entity kinds, and sentence scoping. Separate model fields let one request run
+GLiNER entities and GLiNER2 relations. `turbo:subwords` uses the GLiNER
+package's own tokenizer when present, including normalized-view projection, so
+smart chunking works without another embedding bundle.
+
 Remaining limits: a step runs over the source view only; under
 `annotate-v2` a bundle with two heads for one step is refused as
 ambiguous rather than run twice; a learned sentence step cannot follow a
 normalizer.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
-`turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
+`turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
 `turbo-structure:project`) precede tokenization, subword segmentation, chunking,
 and embedding steps (`turbo:subwords`, `turbo:chunker`, `turbo:level-builder`,
 `turbo:sentence-vectors`, `turbo:chunk-vectors`, `turbo:sparse`), downstream

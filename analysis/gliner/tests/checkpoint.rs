@@ -112,6 +112,17 @@ fn multi_checkpoint_matches_python() {
     verify_reference(model, &reference);
 }
 
+#[test]
+#[ignore = "loads the local Apache-2.0 GLiNER small-v2.5 checkpoint; see docs/gliner.md"]
+fn small_v2_5_checkpoint_matches_python() {
+    let root = std::env::var_os("GLINER_V2_5_PACKAGE").expect("GLINER_V2_5_PACKAGE must name the converted package");
+    let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
+    verify_reference(
+        model,
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/small-v2.5-reference.json").as_path(),
+    );
+}
+
 fn verify_offsets_and_evidence(model: std::sync::Arc<turbo_gliner::Model>) {
     use turbo_analysis::{Analyzer, Bound, Document, Evidence, Key, Layer, Provenance, Span, Spans, View};
     use turbo_analysis_layers::{Entities, Tokens};

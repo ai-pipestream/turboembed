@@ -2,6 +2,8 @@
 //! while serving: the analysis service's LoadBundle and UnloadBundle add
 //! and remove entries, and every listing reads the current list.
 
+mod gliner;
+
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
@@ -95,6 +97,8 @@ pub(crate) struct Served {
     pub(crate) name: String,
     pub(crate) config: ModelConfig,
     pub(crate) loaded: OnceLock<Arc<Loaded>>,
+    pub(crate) gliner: OnceLock<Arc<turbo_gliner::Model>>,
+    pub(crate) relations: OnceLock<Arc<turbo_relation::Gliner2Relations>>,
 }
 
 /// Dropped models first, then contexts, then the runtime.
@@ -144,7 +148,15 @@ impl State {
                 names
                     .into_iter()
                     .zip(models)
-                    .map(|(name, config)| Arc::new(Served { name, config, loaded: OnceLock::new() }))
+                    .map(|(name, config)| {
+                        Arc::new(Served {
+                            name,
+                            config,
+                            loaded: OnceLock::new(),
+                            gliner: OnceLock::new(),
+                            relations: OnceLock::new(),
+                        })
+                    })
                     .collect(),
             ),
             runtime: OnceLock::new(),
@@ -180,7 +192,7 @@ impl State {
         if self.draining.load(Ordering::Acquire) {
             return false;
         }
-        self.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| m.loaded.get().is_some())
+        self.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| gliner::is_loaded(m))
     }
 
     /// True when the server is draining.
@@ -256,7 +268,13 @@ impl State {
         if models.len() >= MAX_LOADED_MODELS {
             return Err(over("max_loaded_models", "served models", models.len() as u64 + 1));
         }
-        let m = Arc::new(Served { name, config, loaded: OnceLock::new() });
+        let m = Arc::new(Served {
+            name,
+            config,
+            loaded: OnceLock::new(),
+            gliner: OnceLock::new(),
+            relations: OnceLock::new(),
+        });
         models.push(m.clone());
         drop(models);
         self.notify_health();
@@ -299,7 +317,7 @@ impl State {
     pub(crate) fn load(&self) -> std::result::Result<(), String> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         for m in self.listing() {
-            if m.loaded.get().is_none() {
+            if !gliner::is_loaded(&m) {
                 self.load_model(&m).map_err(|e| e.to_string())?;
             }
         }
@@ -312,7 +330,7 @@ impl State {
     /// failure cannot fail or roll back another's.
     pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
-        if m.loaded.get().is_none() {
+        if !gliner::is_loaded(m) {
             self.load_model(m)?;
         }
         Ok(())
@@ -328,6 +346,9 @@ impl State {
     }
 
     fn load_model_inner(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
+        if gliner::load(self, m)? {
+            return Ok(());
+        }
         let fail = |call: &'static str, fields: &'static [&'static str]| {
             let model = m.name.clone();
             move |failure: Failure| LoadError { model, call, failure, fields }
