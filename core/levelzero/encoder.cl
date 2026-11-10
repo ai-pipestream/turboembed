@@ -814,10 +814,21 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
 #define KEYS 64
 #define QUERIES 256
 
-#define FLASH(NAME, HD, CT, STORE4)                                                                                \
+/* Limited lookahead (architecture.lookahead): each attention kernel comes
+ * twice, as is and with a band, whose extra argument `ahead` is the most
+ * keys a query sees past itself; the host picks the banded one for a
+ * banded model. In the kernel without it the band is -1, a constant, so
+ * every band check folds away and the kernel is the whole-row one. */
+#define NO_BAND_ARG
+#define NO_BAND -1
+#define BAND_ARG , int ahead
+#define BAND ahead
+
+#define FLASH(NAME, HD, CT, STORE4, ARG, AHEAD)                                                                    \
     __kernel __attribute__((reqd_work_group_size(QUERIES, 1, 1))) void NAME(                                          \
         __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,    \
-        __global CT *ctx, int ahead) {                                                                          \
+        __global CT *ctx ARG) {                                                                                 \
+        const int band = AHEAD;                                                                                    \
         __local float4 ks[KEYS][HD / 4];                                                                           \
         __local float4 vs[KEYS][HD / 4];                                                                           \
         __local int live[KEYS];                                                                                    \
@@ -835,8 +846,8 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
             acc[d] = (float4)(0.0f);                                                                               \
         }                                                                                                          \
         float m = -INFINITY, l = 0.0f;                                                                             \
-        /* The keys the group's last query sees. */                                                                \
-        const int keys = min(len, (int)(get_group_id(0) + 1) * QUERIES + ahead);                                  \
+        /* With a band, the keys the group's last query sees. */                                                   \
+        const int keys = band < 0 ? len : min(len, (int)(get_group_id(0) + 1) * QUERIES + band);                  \
         for (int j0 = 0; j0 < keys; j0 += KEYS) {                                                                  \
             const int n = min(KEYS, keys - j0);                                                                    \
             for (int e = lid; e < n * (HD / 4); e += QUERIES) {                                                       \
@@ -849,7 +860,7 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
             barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
             if (mine) {                                                                                            \
                 for (int j = 0; j < n; j++) {                                                                      \
-                    if (live[j] == 0 || j0 + j > i + ahead) continue;                                              \
+                    if (live[j] == 0 || (band >= 0 && j0 + j > i + band)) continue;                                \
                     float4 s4 = q[0] * ks[j][0];                                                                   \
                     __attribute__((opencl_unroll_hint)) for (int d = 1; d < HD / 4; d++) s4 = fma(q[d], ks[j][d], s4); \
                     const float s = (s4.x + s4.y) + (s4.z + s4.w);                                                 \
@@ -872,11 +883,15 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
         __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) STORE4(acc[d] * inv, d, out);         \
     }
 
-FLASH(attention_32, 32, float, vstore4)
-FLASH(attention_64, 64, float, vstore4)
-FLASH(attention_128, 128, float, vstore4)
+FLASH(attention_32, 32, float, vstore4, NO_BAND_ARG, NO_BAND)
+FLASH(attention_64, 64, float, vstore4, NO_BAND_ARG, NO_BAND)
+FLASH(attention_128, 128, float, vstore4, NO_BAND_ARG, NO_BAND)
 /* At FASTEST, for the next layer's F16 operand. */
-FLASH(attention_128_to_half, 128, half, vstore_half4)
+FLASH(attention_128_to_half, 128, half, vstore_half4, NO_BAND_ARG, NO_BAND)
+FLASH(attention_32_band, 32, float, vstore4, BAND_ARG, BAND)
+FLASH(attention_64_band, 64, float, vstore4, BAND_ARG, BAND)
+FLASH(attention_128_band, 128, float, vstore4, BAND_ARG, BAND)
+FLASH(attention_128_to_half_band, 128, half, vstore_half4, BAND_ARG, BAND)
 
 /* At FASTEST, on the matrix engines: a sub-group takes 16 queries of a row
  * and head, a lane each, and walks the row's keys 32 at a time; a group's
@@ -912,18 +927,19 @@ int8 pack_probabilities(float8 lo, float8 hi) {
     return pb;
 }
 
-/* Limited lookahead: every score of keys past `last` masked, in the
- * layout of the XMX kernels' s[4] (s[2c + h], m: key j0 + 16c + 8h + m). */
-void band(float8 *s, int j0, int last) {
+/* With a band: every score of keys past `last` masked, in the layout of
+ * the XMX kernels' s[4] (s[2c + h], m: key j0 + 16c + 8h + m). */
+void band_scores(float8 *s, int j0, int last) {
     __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++)
         __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) if (j0 + 8 * h + m > last) s[h][m] = -INFINITY;
 }
 
-#define FLASH_XMX(HD)                                                                                              \
+#define FLASH_XMX(NAME, HD, ARG, AHEAD)                                                                            \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                        \
     __attribute__((reqd_work_group_size(16 * ATT_SUBGROUPS, 1, 1))) void                                           \
-    attention_xmx_##HD(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden,   \
-                       float scale, __global half *ctx, int ahead) {                                               \
+    NAME(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,    \
+         __global half *ctx ARG) {                                                                                 \
+        const int band = AHEAD;                                                                                    \
         const int lane = get_sub_group_local_id();                                                                 \
         const int q0 = (get_group_id(0) * ATT_SUBGROUPS + get_sub_group_id()) * 16;                                \
         const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                                                     \
@@ -939,7 +955,7 @@ void band(float8 *s, int j0, int last) {
         float8 acc[HD / 8];                                                                                        \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
         float mx = -INFINITY, l = 0.0f;                                                                            \
-        const int keys = min(len, q0 + 16 + ahead);                                                                \
+        const int keys = band < 0 ? len : min(len, q0 + 16 + band);                                                \
         for (int j0 = 0; j0 < keys; j0 += 32) {                                                                    \
             /* s[2c + h]: keys j0 + 16c + 8h .. + 7. */                                                            \
             float8 s[4] = {(float8)(0.0f), (float8)(0.0f), (float8)(0.0f), (float8)(0.0f)};                       \
@@ -966,7 +982,7 @@ void band(float8 *s, int j0, int last) {
                     if (!live) s[h][m] = -INFINITY;                                                                \
                 }                                                                                                  \
             }                                                                                                      \
-            if (j0 + 31 > q0 + ahead) band(s, j0, q0 + lane + ahead);                                              \
+            if (band >= 0 && j0 + 31 > q0 + band) band_scores(s, j0, q0 + lane + band);                            \
             const float8 top = fmax(fmax(s[0], s[1]), fmax(s[2], s[3]));                                           \
             const float4 t4 = fmax(top.lo, top.hi);                                                                \
             const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));                                           \
@@ -1004,8 +1020,10 @@ void band(float8 *s, int j0, int last) {
         }                                                                                                          \
     }
 
-FLASH_XMX(32)
-FLASH_XMX(64)
+FLASH_XMX(attention_xmx_32, 32, NO_BAND_ARG, NO_BAND)
+FLASH_XMX(attention_xmx_64, 64, NO_BAND_ARG, NO_BAND)
+FLASH_XMX(attention_xmx_32_band, 32, BAND_ARG, BAND)
+FLASH_XMX(attention_xmx_64_band, 64, BAND_ARG, BAND)
 
 /* The same attention with each 32-key tile of K and V staged in local
  * memory once for a group of ATT2_SG sub-groups, which read it from there
@@ -1017,13 +1035,12 @@ FLASH_XMX(64)
  * 64 when the longest row fills a group, 128 queries: on shorter rows and
  * on head width 32 the plain kernel is faster. Same arithmetic, same bits. */
 #define ATT2_SG 8
-__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * ATT2_SG, 1, 1))) void
-attention_xmx2_64(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,
-                     __global half *ctx, int ahead) {
-    /* A tile: K as 4 blocks of 4 short8 a lane (keys 0-7 and 8-15 of a half, dims 0-15 and 16-31 of a 32-dim
-     * column block), V as 8 blocks of 2 short8 a lane (a key a lane, 8 dims each). */
-    __local ushort Ks[2][4 * 4 * 128];
-    __local ushort Vs[2][8 * 2 * 128];
+/* A tile: K as 4 blocks of 4 short8 a lane (keys 0-7 and 8-15 of a half, dims 0-15 and 16-31 of a 32-dim column
+ * block), V as 8 blocks of 2 short8 a lane (a key a lane, 8 dims each), two of each in the kernel's local memory.
+ * The body of both kernels below, inlined into each with its band (-1 for none) a constant or the argument. */
+static inline __attribute__((always_inline)) void
+xmx2_64(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,
+        __global half *ctx, const int band, __local ushort (*Ks)[4 * 4 * 128], __local ushort (*Vs)[8 * 2 * 128]) {
     const int sg = get_sub_group_id(), lane = get_sub_group_local_id();
     const int q0 = (get_group_id(0) * ATT2_SG + sg) * 16;
     const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
@@ -1069,8 +1086,8 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
     ATT2_STORE(0);
     barrier(CLK_LOCAL_MEM_FENCE);
     int cur = 0;
-    /* The keys the group's last query sees; every sub-group walks them. */
-    const int keys = min(len, (int)(get_group_id(0) + 1) * ATT2_SG * 16 + ahead);
+    /* With a band, the keys the group's last query sees; every sub-group walks them. */
+    const int keys = band < 0 ? len : min(len, (int)(get_group_id(0) + 1) * ATT2_SG * 16 + band);
     for (int j0 = 0; j0 < keys; j0 += 32) {
         const bool more = j0 + 32 < keys;
         if (more) ATT2_LOAD(j0 + 32);
@@ -1098,7 +1115,7 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
                         if (!live) s[h][m] = -INFINITY;
                     }
             }
-            if (j0 + 31 > q0 + ahead) band(s, j0, q0 + lane + ahead);
+            if (band >= 0 && j0 + 31 > q0 + band) band_scores(s, j0, q0 + lane + band);
             const float8 top = fmax(fmax(s[0], s[1]), fmax(s[2], s[3]));
             const float4 t4 = fmax(top.lo, top.hi);
             const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));
@@ -1140,20 +1157,36 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
         vstore8((ulong8)(as_ulong4(h0), as_ulong4(h1)), b, (__global ulong *)out);
     }
 }
+
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * ATT2_SG, 1, 1))) void
+attention_xmx2_64(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,
+                  __global half *ctx) {
+    __local ushort Ks[2][4 * 4 * 128];
+    __local ushort Vs[2][8 * 2 * 128];
+    xmx2_64(qkv, mask, rows, hidden, scale, ctx, NO_BAND, Ks, Vs);
+}
+
+__kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * ATT2_SG, 1, 1))) void
+attention_xmx2_64_band(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden,
+                       float scale, __global half *ctx, int ahead) {
+    __local ushort Ks[2][4 * 4 * 128];
+    __local ushort Vs[2][8 * 2 * 128];
+    xmx2_64(qkv, mask, rows, hidden, scale, ctx, ahead, Ks, Vs);
+}
 #undef ATT2_SG
 
 /* Any other head width: one group per (query, head, row), the row's
  * scores in local memory, sized by the host: the query's head, the row's
  * scores, and one partial context per group of work-items. The context
  * goes to ctx_half in F16 instead where that is given, at FASTEST. */
-__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
+static inline __attribute__((always_inline)) void general_attention(
     __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
-    float scale, __global float *ctx, __global half *ctx_half, int ahead, __local float *sm) {
+    float scale, __global float *ctx, __global half *ctx_half, const int band, __local float *sm) {
     const int i = get_group_id(0), head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
     const int start = rows[2 * r], whole = rows[2 * r + 1];
     if (i >= whole) return;
-    /* The keys query i sees: those before it and at most ahead after. */
-    const int len = min(whole, i + 1 + ahead);
+    /* With a band, the keys query i sees: those before it and at most band after. */
+    const int len = band < 0 ? whole : min(whole, i + 1 + band);
     __local float *qi = sm;
     __local float *score = qi + head_dim;
     __local float *part = score + len;
@@ -1225,6 +1258,18 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
                 ctx[at + d] = c;
         }
     }
+}
+
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
+    __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
+    float scale, __global float *ctx, __global half *ctx_half, __local float *sm) {
+    general_attention(qkv, mask, rows, hidden, head_dim, scale, ctx, ctx_half, NO_BAND, sm);
+}
+
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention_band(
+    __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
+    float scale, __global float *ctx, __global half *ctx_half, int ahead, __local float *sm) {
+    general_attention(qkv, mask, rows, hidden, head_dim, scale, ctx, ctx_half, ahead, sm);
 }
 
 /* ---- DeBERTa-v2 -------------------------------------------------------------

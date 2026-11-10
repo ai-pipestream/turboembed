@@ -222,8 +222,15 @@ pub(super) unsafe fn create(
                     && !is_rotary
                     && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                     && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
-            let mut kernels =
-                Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
+            let mut kernels = Kernels::new(
+                c,
+                d.hidden,
+                d.intermediate,
+                head_dim,
+                xmx,
+                is_deberta.then_some((d, max_seq)),
+                d.lookahead > 0,
+            )?;
             if is_rotary {
                 let rk = super::rotary::RotaryKernels::new(c, head_dim)?;
                 let local = rk.attention_local(max_seq, head_dim);
