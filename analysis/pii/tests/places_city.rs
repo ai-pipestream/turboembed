@@ -35,6 +35,10 @@ fn a_city_before_its_state_is_a_mention() {
         ("Winston-Salem, NC", "Winston-Salem", "Winston-Salem"),
         ("(Kansas City, MO)", "Kansas City", "Kansas City"),
         ("City: Springfield, IL", "Springfield", "Springfield"),
+        ("Truth or Consequences, NM", "Truth or Consequences", "Truth or Consequences"),
+        ("in Truth or Consequences, New Mexico", "Truth or Consequences", "Truth or Consequences"),
+        ("Fond du Lac, WI", "Fond du Lac", "Fond du Lac"),
+        ("moved to Fond du Lac, Wisconsin", "Fond du Lac", "Fond du Lac"),
     ] {
         assert_eq!(one(text), (written.to_owned(), name.to_owned()), "{text:?}");
     }

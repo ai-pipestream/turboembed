@@ -157,7 +157,10 @@ fn word_starts_before(text: &str, end: usize, starts: &mut [usize]) -> usize {
             .map_or(0, |(p, c)| p + c.len_utf8());
         let Some(lead) = text[start..at].find(|c: char| c.is_alphanumeric()) else { break };
         start += lead;
-        if !capital_at(text, start) {
+        // The last word starts with a capital; an inner one may be small
+        // (`Truth or Consequences`, `Fond du Lac`), and `lookup` holds each
+        // candidate's first word to a capital.
+        if n == 0 && !capital_at(text, start) {
             break;
         }
         starts[n] = start;
