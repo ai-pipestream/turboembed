@@ -1472,6 +1472,12 @@ enum PiiStrategy
   PII_STRATEGY_ZIP_SAFE_HARBOR = 12;
   // HIPAA Safe Harbor age aggregation (PiiAgeSafeHarborStrategy).
   PII_STRATEGY_AGE_SAFE_HARBOR = 13;
+  // A date truncated to its year (PiiDateStrategy.year).
+  PII_STRATEGY_DATE_YEAR = 14;
+  // A date shifted, in its written form (PiiDateStrategy.shift).
+  PII_STRATEGY_DATE_SHIFT = 15;
+  // A date relative to a reference date (PiiDateStrategy.relative).
+  PII_STRATEGY_DATE_RELATIVE = 16;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

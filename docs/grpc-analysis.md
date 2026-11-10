@@ -160,7 +160,8 @@ bundle-head table:
 | `turbo:gliner` | `model`, `open_span` | `Entities`, `Decisions`, `Evidence<Entities>` |
 | `turbo:zero-shot-relations` | `relation_model`, `relations` | `Relations`, `Edges<Entities, Entities>`, `Evidence<Relations>` |
 
-`open_span` carries caller labels, threshold, and flat or nested decoding.
+`open_span` carries caller labels, optional parallel aliases or guideline
+prompts, threshold, and flat or nested decoding.
 `relations` carries labels with optional thresholds, symmetry, domain/range
 entity kinds, and sentence scoping. Separate model fields let one request run
 GLiNER entities and GLiNER2 relations. `turbo:subwords` uses the GLiNER
@@ -967,9 +968,14 @@ and detector lists, with a typed `PolicyError` naming the field.
   guessing for low-entropy values, never a default), static text,
   pseudonym (per-document numbers, never a default), ZIP Safe Harbor
   (first three digits kept, `000` for a restricted area, the rest masked;
-  the bundled HHS 2000 Census table or the caller's own prefixes) and age
+  the bundled HHS 2000 Census table or the caller's own prefixes), age
   Safe Harbor (an age of 89 or under kept, every older age written as
-  `90+`).
+  `90+`) and date (`year`: the year alone; `shift`: moved by fixed
+  years, months and days plus an optional offset a registered key
+  chooses from a context string, in the form it was written in;
+  `relative`: relative to a `yyyy-MM-dd` reference date; each mode
+  records its own `PiiStrategy`). A rule for `date` or `currency` turns
+  on the opt-in `Dates` or `Money` pack of the `turbo-pii:pii` step.
 - **Default**: a kind with no rule, or no entry that applies, gets
   `default_strategy`, which is a mask or a keyed token only; unset, a
   whole-value `*` mask. The native `RewriteStrategy::default()` is the

@@ -38,8 +38,17 @@ fn torch(x: &[Vec<f64>], suffix: &str) -> Vec<Vec<f64>> {
 
 #[test]
 fn the_bilstm_matches_torch_at_1_2_and_40_words() {
-    let config =
-        crate::Config { hidden: 16, max_width: 3, entity_token: 12, separator_token: 13, cls_token: 1, eos_token: 2 };
+    let config = crate::Config {
+        hidden: 16,
+        projection_factor: 4,
+        prompt_factor: 4,
+        out_project_mlp: true,
+        max_width: 3,
+        entity_token: 12,
+        separator_token: 13,
+        cls_token: 1,
+        eos_token: 2,
+    };
     let ec = turbo::deberta::Config {
         hidden: 32,
         heads: 2,

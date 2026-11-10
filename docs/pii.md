@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, and HIPAA Safe Harbor age aggregation |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting and relative dates |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -499,6 +499,44 @@ the source text into the rewritten text and back
   (`*` by default), and so is a cluster of overlapping mentions. Edits
   record `PiiStrategyKind::AgeSafeHarbor` (`PII_STRATEGY_AGE_SAFE_HARBOR`);
   the gRPC arm is `PiiAgeSafeHarborStrategy` (#1884).
+- **Dates (`DateRewrite`):** for `date`, the mention's text is read again
+  with the temporal scanner, so the value is the one the detector saw,
+  then, by `DateMode`:
+  - `Year`: the year alone (`July 14, 2026` becomes `2026`), which Safe
+    Harbor (45 CFR 164.514(b)(2)(i)(C)) lets a record keep. Edits record
+    `DateYear` (`PII_STRATEGY_DATE_YEAR`).
+  - `Shift(DateShift)`: moved by years and months as one count of months,
+    then days, then an optional keyed offset, and written in the form it
+    was written in: month names full or three letters in their case,
+    ordinals (`14th` becomes `2nd`), zero-padded days and separators stay.
+    A day past the end of the new month becomes its last day (January 31
+    plus one month is the end of February, a leap day plus a year is
+    February 28), and a month mention moves as its first day does, or one
+    month the days' way when they would leave it in its own month
+    (`July 2026` under a 10-day shift becomes `August 2026`). A shift
+    whose net effect would write a value back as it was (no offset, or a
+    fixed shift that cancels the keyed one) masks it whole, so no date
+    under a shift stays readable.
+    `DateShift::keyed(key, context, max_days)` adds 1 to `max_days` days,
+    earlier or later, chosen by HMAC-SHA-256 of `context` under a key of
+    at least 32 bytes: never zero, and the same for every date with that
+    context, so intervals within a document or patient stay. Edits record
+    `DateShift` (`PII_STRATEGY_DATE_SHIFT`).
+  - `Relative(reference)`: relative to a reference date the caller passes,
+    never the clock (`3 months ago`, `in 2 weeks`, `today`), counted in
+    the largest whole unit that fits: days under a week, weeks under 31
+    days, calendar months under a year, then years; a month mention in
+    months, then years. The temporal scanner reads each phrase back with
+    the same reference. Edits record `DateRelative`
+    (`PII_STRATEGY_DATE_RELATIVE`).
+
+  A mention of another kind, a text that is not one whole absolute day or
+  month mention (the scanner reads four-digit years only, so `7/14/26` or
+  `July 14, 26`), a date shifted out of the years `0001` to `9999`, and a
+  cluster of overlapping mentions are masked whole (`*` by default). The
+  gRPC arm is `PiiDateStrategy`, with `year`, `shift` (a keyed offset
+  names a registered key; `max_days` 0 means 30) and `relative`
+  (`reference` as `yyyy-MM-dd`) (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
@@ -550,14 +588,26 @@ zeroised on drop, and it never appears in `Debug` output. In a rewrite,
 a mention that cannot be encrypted fails the rewrite with
 `RewriteError::Encrypt`. The edits record the strategy as
 `PiiStrategyKind::Aes256Gcm` (10) or `PiiStrategyKind::Ff1` (11), which
-are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire. They
-are not yet `RewritePolicy` strategies, and a gRPC redaction policy
-cannot name them: on the server, keys are to be registered key
-references, never key bytes in a message.
+are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire.
+
+With the feature, both are `RewriteStrategy` arms (`RewriteStrategy::AesGcm`
+and `RewriteStrategy::Ff1`, from `AesGcmEncryptor` or `Ff1Encryptor` with
+`.into()`), so a `RewritePolicy` can give each kind its own encryptor and
+mask or tokenize the rest. Each mention is encrypted as written. When
+mentions overlap, the merged run is encrypted once, as one value. Two
+encryptors are equal, and fold the same into the policy's configuration
+hash, when their key, context or tweak, alphabet and overlap rule match.
+The key enters as an HMAC-SHA-256 under a fixed label, as an
+`HmacTokenizer` key does, never as itself. A clone of an
+`AesGcmEncryptor` draws a nonce seed of its own and is still equal,
+since it decrypts the same tokens. A gRPC redaction policy cannot name
+them yet: on the server, keys are to be registered key references,
+never key bytes in a message.
 `analysis/pii/tests/reversible.rs` runs the NIST FF1 AES-256 samples
 through `Ff1Encryptor` and the round trip of both strategies for every
-built-in kind and a custom one. The encryptor's unit test checks the
-cipher against NIST CAVP AES-256-GCM vectors.
+built-in kind and a custom one. `analysis/pii/tests/reversible_policy.rs`
+runs them as policy strategies beside a mask. The encryptor's unit test
+checks the cipher against NIST CAVP AES-256-GCM vectors.
 
 ### The redacted view
 
@@ -824,8 +874,8 @@ so a date or an amount is found exactly where `turbo:temporal` or
 
 - `date` (new `Temporal` extractor, `TemporalPiiExtractor`,
   `turbo-pii:temporal`, in `Dates`; `analysis/pii/src/scan/date.rs`):
-  the absolute mentions of the temporal scanner that name a day, an ISO
-  week or a month (`2026-07-14`, `July 4, 1952`, `14th March 2025`,
+  the absolute mentions of the temporal scanner that name a day or a
+  month (`2026-07-14`, `July 4, 1952`, `14th March 2025`,
   `August 2026`). A year alone and a quarter are not date elements HIPAA
   counts, and a relative expression (`3 weeks ago`) needs a reference
   date the scanner never takes, so none is a mention; nor is a
@@ -843,6 +893,11 @@ separators (`****-**-**`). Neither needs a label; `date`, `date of
 birth`, `dob` and `born`, and `amount`, `balance`, `salary` and
 `payment`, are their label phrases for the context window. They are the
 kinds the date rewrites of #1884 act on.
+
+A redaction policy over gRPC turns `Dates` or `Money` on itself: an
+enabled rule for `date` or `currency` adds that pack's scanner to the
+`turbo-pii:pii` step, which otherwise runs `AllStructured`
+(`RedactionPolicy::opted_in_packs`).
 
 ## Custom extractors and scanner rules
 

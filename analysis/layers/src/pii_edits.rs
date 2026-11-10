@@ -40,11 +40,17 @@ pub enum PiiStrategyKind {
     ZipSafeHarbor = 12,
     /// HIPAA Safe Harbor age aggregation (`90+`).
     AgeSafeHarbor = 13,
+    /// A date truncated to its year.
+    DateYear = 14,
+    /// A date shifted, in its written form.
+    DateShift = 15,
+    /// A date written relative to a reference date.
+    DateRelative = 16,
 }
 
 impl PiiStrategyKind {
     /// Every kind, in id order.
-    pub const ALL: [PiiStrategyKind; 13] = [
+    pub const ALL: [PiiStrategyKind; 16] = [
         PiiStrategyKind::Mask,
         PiiStrategyKind::Pseudonym,
         PiiStrategyKind::Hmac,
@@ -58,6 +64,9 @@ impl PiiStrategyKind {
         PiiStrategyKind::Ff1,
         PiiStrategyKind::ZipSafeHarbor,
         PiiStrategyKind::AgeSafeHarbor,
+        PiiStrategyKind::DateYear,
+        PiiStrategyKind::DateShift,
+        PiiStrategyKind::DateRelative,
     ];
 
     /// The stable id.
@@ -86,6 +95,9 @@ impl PiiStrategyKind {
             PiiStrategyKind::Ff1 => "ff1",
             PiiStrategyKind::ZipSafeHarbor => "zip-safe-harbor",
             PiiStrategyKind::AgeSafeHarbor => "age-safe-harbor",
+            PiiStrategyKind::DateYear => "date-year",
+            PiiStrategyKind::DateShift => "date-shift",
+            PiiStrategyKind::DateRelative => "date-relative",
         }
     }
 }

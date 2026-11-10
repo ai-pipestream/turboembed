@@ -27,6 +27,8 @@ import turbo.result.v1.TurboAnalysis.CapabilitiesResponse;
 import turbo.result.v1.TurboAnalysis.ProfileCapabilities;
 import turbo.result.v1.TurboPiiPolicy.PiiAbbreviateStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiAgeSafeHarborStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiDateStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiDateYear;
 import turbo.result.v1.TurboPiiPolicy.PiiDefaultStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiFormatStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiKeepSide;
@@ -1508,7 +1510,8 @@ final class Redaction {
                 arm(b -> b.setStaticText(PiiStaticStrategy.newBuilder().setReplacement("[E]"))),
                 arm(b -> b.setPseudonym(PiiPseudonymStrategy.newBuilder().setPrefix("[").setSuffix("]"))),
                 arm(b -> b.setZipSafeHarbor(PiiZipSafeHarborStrategy.newBuilder().setMaskChar("#"))),
-                arm(b -> b.setAgeSafeHarbor(PiiAgeSafeHarborStrategy.newBuilder().setMaskChar("#"))));
+                arm(b -> b.setAgeSafeHarbor(PiiAgeSafeHarborStrategy.newBuilder().setMaskChar("#"))),
+                arm(b -> b.setDate(PiiDateStrategy.newBuilder().setYear(PiiDateYear.getDefaultInstance()))));
     }
 
     static RedactionPolicy policy(long revision, PiiRewriteStrategy email) {

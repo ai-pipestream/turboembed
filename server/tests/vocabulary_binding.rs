@@ -399,7 +399,7 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
         text: TEXT.into(),
         model: "bound-gliner".into(),
         steps: vec!["turbo-tokenize:uax29-untyped".into(), "turbo-stopword:bundled".into(), "turbo:gliner".into()],
-        open_span: Some(OpenSpanSchema { labels: vec!["person".into()], threshold: Some(0.0), nested: false }),
+        open_span: Some(OpenSpanSchema { labels: vec!["person".into()], threshold: Some(0.0), ..Default::default() }),
         vocabulary,
         ..Default::default()
     };

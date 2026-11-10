@@ -197,6 +197,7 @@ async fn document_graph_matches_between_connect_and_grpc() {
             labels: vec!["person".into(), "organization".into(), "location".into()],
             threshold: Some(0.8),
             nested: false,
+            prompts: Vec::new(),
         }),
         relations: Some(OpenRelationSchema {
             labels: vec![

@@ -69,6 +69,16 @@ async function run(): Promise<void> {
     const relationLabels = ($("analyze-relation-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
     const threshold = ($("analyze-threshold") as HTMLInputElement).valueAsNumber;
     const relationThreshold = ($("analyze-relation-threshold") as HTMLInputElement).valueAsNumber;
+    const guidelineText = ($("analyze-guidelines") as HTMLTextAreaElement).value.trim();
+    const guidelineMap = new Map<string, string>();
+    for (const line of guidelineText ? guidelineText.split("\n") : []) {
+      const at = line.indexOf("=");
+      if (at < 1 || at === line.length - 1) throw new Error("Use label=prompt on each guideline line.");
+      const label = line.slice(0, at).trim();
+      if (guidelineMap.has(label)) throw new Error(`Duplicate guideline for ${label}.`);
+      guidelineMap.set(label, line.slice(at + 1).trim());
+    }
+    const prompts = guidelineText ? labels.map((label) => guidelineMap.get(label) ?? label) : [];
     if (open && labels.length === 0) throw new Error("Enter at least one open-span label.");
     if (open && !Number.isFinite(threshold)) throw new Error("Enter a threshold from 0 to 1.");
     if (relationModel && !open) throw new Error("Select an open-span entity model before running relations.");
@@ -85,7 +95,7 @@ async function run(): Promise<void> {
       relationModel,
       offsets: OffsetMode.UTF16,
       steps: pipelineSteps,
-      openSpan: open ? { labels, threshold, nested: ($("analyze-nested") as HTMLInputElement).checked } : undefined,
+      openSpan: open ? { labels, prompts, threshold, nested: ($("analyze-nested") as HTMLInputElement).checked } : undefined,
       relations: relationModel
         ? {
             labels: relationLabels.map((name) => ({ name })),
