@@ -73,6 +73,7 @@ fn request(text: &str, with_gliner: bool) -> AnalyzePipelineRequest {
             labels: vec!["person".into(), "location".into()],
             threshold: Some(0.0),
             nested: false,
+            prompts: Vec::new(),
         }),
         ..Default::default()
     }
@@ -110,7 +111,12 @@ async fn skipped_tokens_skip_every_gliner_output() {
             initial_graph,
             model: "gliner".into(),
             steps: vec!["turbo-tokenize:uax29-untyped".into(), "turbo:gliner".into()],
-            open_span: Some(OpenSpanSchema { labels: vec!["person".into()], threshold: None, nested: false }),
+            open_span: Some(OpenSpanSchema {
+                labels: vec!["person".into()],
+                threshold: None,
+                nested: false,
+                prompts: Vec::new(),
+            }),
             ..Default::default()
         },
     )
@@ -193,6 +199,12 @@ async fn converted_package_hot_loads_and_produces_a_deterministic_evidence_graph
 
     let again = analyze(&mut client, request(&format!("{text}{}", "Word. ".repeat(80)), true)).await;
     assert_eq!(again.graph, complete.graph);
+    let mut guided_request = request(&format!("{text}{}", "Word. ".repeat(80)), true);
+    guided_request.open_span.as_mut().unwrap().prompts = vec!["human being".into(), "geographic place".into()];
+    let guided = analyze(&mut client, guided_request).await;
+    assert_ne!(guided.graph, complete.graph);
+    let guided_doc = import(&DocumentGraph::from_bytes(&guided.graph).unwrap(), codecs()).unwrap();
+    assert_eq!(guided_doc.get::<Entities>().unwrap().kinds.labels().join(","), "person,location");
     let empty = analyze(&mut client, request("", true)).await;
     let empty_doc = import(&DocumentGraph::from_bytes(&empty.graph).unwrap(), codecs()).unwrap();
     assert_eq!(empty_doc.get::<Entities>().unwrap().len(), 0);
@@ -225,7 +237,8 @@ async fn case_fold_projects_tokens_and_gliner_validates_its_schema() {
     assert_eq!(error.code(), tonic::Code::InvalidArgument);
     assert!(error.message().contains("open_span"));
     let mut unexpected = request("Ann", false);
-    unexpected.open_span = Some(OpenSpanSchema { labels: vec!["person".into()], threshold: None, nested: false });
+    unexpected.open_span =
+        Some(OpenSpanSchema { labels: vec!["person".into()], threshold: None, nested: false, prompts: Vec::new() });
     let error = client.analyze_document_progressive(unexpected).await.unwrap_err();
     assert_eq!(error.code(), tonic::Code::InvalidArgument);
     assert!(error.message().contains("turbo:gliner"));
@@ -277,6 +290,7 @@ async fn real_package_builds_the_complete_analysis_graph() {
                 labels: vec!["person".into(), "organization".into(), "location".into()],
                 threshold: Some(0.8),
                 nested: false,
+                prompts: Vec::new(),
             }),
             pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
             ..Default::default()
@@ -377,6 +391,7 @@ async fn entities_and_neural_relations_share_one_graph() {
                 labels: vec!["person".into(), "organization".into(), "location".into()],
                 threshold: Some(0.8),
                 nested: false,
+                prompts: Vec::new(),
             }),
             relations: Some(OpenRelationSchema {
                 labels: vec![

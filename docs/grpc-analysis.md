@@ -160,7 +160,8 @@ bundle-head table:
 | `turbo:gliner` | `model`, `open_span` | `Entities`, `Decisions`, `Evidence<Entities>` |
 | `turbo:zero-shot-relations` | `relation_model`, `relations` | `Relations`, `Edges<Entities, Entities>`, `Evidence<Relations>` |
 
-`open_span` carries caller labels, threshold, and flat or nested decoding.
+`open_span` carries caller labels, optional parallel aliases or guideline
+prompts, threshold, and flat or nested decoding.
 `relations` carries labels with optional thresholds, symmetry, domain/range
 entity kinds, and sentence scoping. Separate model fields let one request run
 GLiNER entities and GLiNER2 relations. `turbo:subwords` uses the GLiNER
