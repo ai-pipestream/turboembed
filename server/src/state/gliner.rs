@@ -17,7 +17,7 @@ fn failure(served: &Served, call: &'static str, message: String) -> LoadError {
     }
 }
 
-pub(super) fn is_loaded(served: &Served) -> bool {
+pub(crate) fn is_loaded(served: &Served) -> bool {
     served.loaded.get().is_some() || served.gliner.get().is_some() || served.relations.get().is_some()
 }
 

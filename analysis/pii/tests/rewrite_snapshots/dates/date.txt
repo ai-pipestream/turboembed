@@ -1,0 +1,18 @@
+MASKED	Admitted ****-**-**, born **** *, ****, seen **** ***** ****, follow-up in ****** ****. Not dates: in 2026, Q3 2024, 3 weeks ago, 2026-13-40, version 1.2.3.
+
+MASK_ALL	Admitted ##########, born ############, seen ###############, follow-up in ###########. Not dates: in 2026, Q3 2024, 3 weeks ago, 2026-13-40, version 1.2.3.
+
+REWRITE	pseudonymize	OK	Admitted DATE-1, born DATE-2, seen DATE-3, follow-up in DATE-4. Not dates: in 2026, Q3 2024, 3 weeks ago, 2026-13-40, version 1.2.3.
+
+LABEL	pseudonymize	9	19	9	15	DATE-1
+LABEL	pseudonymize	26	38	22	28	DATE-2
+LABEL	pseudonymize	45	60	35	41	DATE-3
+LABEL	pseudonymize	75	86	56	62	DATE-4
+REWRITE	hmac	OK	Admitted DATE-756e25dac1d42ca7, born DATE-f571e63525f876be, seen DATE-c6633b5db1fc1470, follow-up in DATE-9a1907e819d02b6d. Not dates: in 2026, Q3 2024, 3 weeks ago, 2026-13-40, version 1.2.3.
+
+LABEL	hmac	9	19	9	30	DATE-756e25dac1d42ca7
+LABEL	hmac	26	38	37	58	DATE-f571e63525f876be
+LABEL	hmac	45	60	65	86	DATE-c6633b5db1fc1470
+LABEL	hmac	75	86	101	122	DATE-9a1907e819d02b6d
+AUDIT	date	4	4	DATE-756e25dac1d42ca7, DATE-f571e63525f876be, DATE-c6633b5db1fc1470
+AUDIT_REPORT	date: 4 mentions, 4 distinct [DATE-756e25dac1d42ca7, DATE-f571e63525f876be, DATE-c6633b5db1fc1470]

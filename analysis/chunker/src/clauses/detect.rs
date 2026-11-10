@@ -223,6 +223,7 @@ fn precompute_dep_subtrees(
         state[start_k] = 1;
         stack.push((start_k, first_child[start_k]));
         while let Some((u, next_c)) = stack.last_mut() {
+            stepped();
             let c = *next_c;
             if c != u32::MAX {
                 let c_idx = c as usize;
@@ -250,6 +251,21 @@ fn precompute_dep_subtrees(
     (bounds, verbal)
 }
 
+#[cfg(test)]
+thread_local! {
+    /// Steps the dependency-driven cut search has taken (subtree walk,
+    /// per-token clause check, punctuation skips), so a test can hold a
+    /// long chain linear without a clock.
+    pub(super) static STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// One step of the cut search.
+#[inline]
+fn stepped() {
+    #[cfg(test)]
+    STEPS.with(|n| n.set(n.get() + 1));
+}
+
 /// Adjusts a raw cut before sentence-local token `cut_before` (`0 < cut_before < m`)
 /// so closing/separating punctuation stays attached to the left clause and a
 /// preceding coordinating/subordinating conjunction starts the right clause.
@@ -266,6 +282,7 @@ fn adjust_cut(
     while cut_before < m
         && is_closing_or_sep_punct(tok_range.start + cut_before, tok_spans[cut_before], deps, pos, view)
     {
+        stepped();
         cut_before += 1;
     }
     if cut_before > 1
@@ -276,6 +293,7 @@ fn adjust_cut(
         while cut_before < m
             && is_closing_or_sep_punct(tok_range.start + cut_before, tok_spans[cut_before], deps, pos, view)
         {
+            stepped();
             cut_before += 1;
         }
     }
@@ -325,6 +343,7 @@ pub(super) fn build_sentence_cuts(
         if has_any_clause_rel {
             let (bounds, verbal) = precompute_dep_subtrees(&tok_range, d, pos);
             for k in 0..m {
+                stepped();
                 let t = tok_range.start + k;
                 let Some(rel) = dep_label(Some(d), t) else {
                     continue;
@@ -463,3 +482,7 @@ pub(super) fn build_sentence_cuts(
 
     SentenceClauseCuts { tokens: tok_spans, breaks }
 }
+
+#[cfg(test)]
+#[path = "detect_tests.rs"]
+mod tests;

@@ -48,6 +48,8 @@ pub(super) struct Kernels {
     /// The mean over each range of embed_write_ranges, in place of pool.
     pub(super) pool_ranges: Kernel,
     pub(super) normalize: Kernel,
+    /// An extractive QA model's span head over the range vectors (head.rs).
+    pub(super) span_head: Kernel,
     /// For a DeBERTa-v2 model, its lookup and its attention (deberta.rs).
     pub(super) deberta: Option<Deberta>,
     /// For a ModernBERT or nomic-bert model, its kernels (rotary.rs).
@@ -84,21 +86,26 @@ impl Kernels {
         head_dim: u32,
         xmx: bool,
         deberta: Option<(&turbo_backend_model, u32)>,
+        banded: bool,
     ) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
+        // A model of limited lookahead takes each attention kernel's banded
+        // twin, which reads the band as one more argument (stages.rs).
+        let band = if banded { "_band" } else { "" };
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
             32 | 64 if xmx => {
                 let staged = if head_dim == 64 {
-                    Some(c.kernel("attention_xmx2_64", [16 * ATT2_SUBGROUPS, 1, 1])?)
+                    Some(c.kernel(&format!("attention_xmx2_64{band}"), [16 * ATT2_SUBGROUPS, 1, 1])?)
                 } else {
                     None
                 };
-                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?, staged)
+                let plain = c.kernel(&format!("attention_xmx_{head_dim}{band}"), [16 * ATT_SUBGROUPS, 1, 1])?;
+                Attention::Xmx(plain, staged)
             }
-            128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
-            32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
-            _ => Attention::General(c.kernel("attention", row)?),
+            128 if xmx => Attention::Tiled(c.kernel(&format!("attention_128_to_half{band}"), [QUERIES, 1, 1])?),
+            32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}{band}"), [QUERIES, 1, 1])?),
+            _ => Attention::General(c.kernel(&format!("attention{band}"), row)?),
         };
         let wide = wide(hidden);
         let dpas = if wide { (WIDE_TM, WIDE_TN, WIDE_WM, WIDE_WN) } else { (DPAS_TM, DPAS_TN, DPAS_WM, DPAS_WN) };
@@ -150,6 +157,7 @@ impl Kernels {
             pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
             pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
+            span_head: c.kernel("span_head", [16 * super::head::HEAD_SUBGROUPS, 1, 1])?,
             deberta: match deberta {
                 Some((d, max_seq)) => Some(Deberta {
                     embed: c.kernel("deberta_embed", row)?,

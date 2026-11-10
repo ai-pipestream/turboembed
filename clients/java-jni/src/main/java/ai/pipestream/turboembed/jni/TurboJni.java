@@ -52,6 +52,12 @@ final class TurboJni {
 
     static native double[] resultProbabilities(long result);
 
+    static native int[] resultPiiSpans(long result);
+
+    static native int[] resultPiiFacts(long result);
+
+    static native int[] resultPiiCandidates(long result);
+
     static native byte[] resultStrings(long result);
 
     static native long resultGraphLength(long result);
@@ -62,11 +68,18 @@ final class TurboJni {
 
     static native void resultRelease(long result);
 
-    static native long sessionOpen(byte[] bundlePath);
+    static native long sessionOpen(byte[] bundlePath, int[] options);
 
-    static native float[][] sessionEmbed(long session, byte[] texts, int[] lengths);
+    static native float[][] sessionEmbed(long session, byte[] texts, int[] lengths, int[] options, float[] int8Ranges);
 
-    static native float[] sessionRerank(long session, byte[] query, byte[] passages, int[] lengths);
+    static native byte[][] sessionEmbedCodes(
+            long session, byte[] texts, int[] lengths, int[] options, float[] int8Ranges);
+
+    static native float[] sessionRerank(long session, byte[] query, byte[] passages, int[] lengths, int[] options);
+
+    static native int[] sessionInfo(long session);
+
+    static native byte[][] sessionInfoText(long session);
 
     static native void sessionRelease(long session);
 }

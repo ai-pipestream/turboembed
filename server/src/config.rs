@@ -359,7 +359,7 @@ impl Args {
                         return Err("--max-stream-bytes given twice".into());
                     }
                 }
-                _ => return Err(format!("unknown argument {a}")),
+                _ => return Err(unknown::unknown_argument(&flag, inline.is_some())),
             }
         }
         if listen.is_none()
@@ -486,6 +486,7 @@ mod bundles;
 mod pii;
 mod release;
 mod sink;
+mod unknown;
 
 #[cfg(test)]
 mod tests;

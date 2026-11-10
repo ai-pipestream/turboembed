@@ -18,7 +18,10 @@ The export is cut to that shape first:
   - the word-embedding Gather's output, the one on input_ids, becomes the
     input word_rows;
   - the tensor every attention Softmax adds to its scores becomes the
-    input attn_bias, one bias per head.
+    input attn_bias, one bias per head. The scores are the query-key
+    MatMul, or that MatMul divided or multiplied by a constant: MiniLM's
+    export scales the query and key before the product, BGE's the
+    product itself.
 The cut graph is checked against the export under onnxruntime on every
 calibration text, on the positions the mask keeps, before it is compiled.
 
@@ -85,15 +88,28 @@ def word_gather(graph):
     return found[0]
 
 
+def is_scores(made, consts, node):
+    """The query-key MatMul, or that MatMul divided or multiplied by a
+    constant (an initializer or a Constant node)."""
+    if node.op_type == "MatMul":
+        return True
+    if node.op_type not in ("Div", "Mul"):
+        return False
+    x, k = node.input
+    constant = k in consts or (k in made and made[k].op_type == "Constant")
+    return x in made and made[x].op_type == "MatMul" and constant
+
+
 def attention_bias(graph):
     """The tensor every attention Softmax adds to its scores."""
     made = producers(graph)
+    consts = {t.name for t in graph.initializer}
     biases = set()
     for sm in (n for n in graph.node if n.op_type == "Softmax"):
         add = made.get(sm.input[0])
         if add is None or add.op_type != "Add":
             sys.exit(f"hef_compile: Softmax {sm.name} does not read an Add of the scores and a bias")
-        scores = [i for i in add.input if i in made and made[i].op_type == "MatMul"]
+        scores = [i for i in add.input if i in made and is_scores(made, consts, made[i])]
         others = [i for i in add.input if i not in scores]
         if len(scores) != 1 or len(others) != 1:
             sys.exit(f"hef_compile: Add {add.name} before a Softmax is not scores plus one bias")
@@ -152,8 +168,14 @@ def check_cut(export, cut_path, tok, texts, rows, bias, masks):
 
     Both graphs are compared on their first output: the export's
     last_hidden_state and the cut graph's only output."""
-    full = ort.InferenceSession(export)
-    part = ort.InferenceSession(cut_path)
+    if not texts or not (len(texts) == len(rows) == len(bias) == len(masks)):
+        sys.exit("hef_compile: calibration texts, rows, bias and masks must have equal nonzero counts")
+    # Validation is CPU-only; do not create a host-sized pool per graph.
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = 2
+    options.inter_op_num_threads = 1
+    full = ort.InferenceSession(export, sess_options=options, providers=["CPUExecutionProvider"])
+    part = ort.InferenceSession(cut_path, sess_options=options, providers=["CPUExecutionProvider"])
     typed = any(i.name == "token_type_ids" for i in full.get_inputs())
     worst = 0.0
     for i, t in enumerate(texts):
@@ -162,10 +184,20 @@ def check_cut(export, cut_path, tok, texts, rows, bias, masks):
         feed = {"input_ids": ids, "attention_mask": np.array([e.attention_mask], np.int64)}
         if typed:
             feed["token_type_ids"] = np.zeros_like(ids)
-        a = full.run(None, feed)[0][0]
-        b = part.run(None, {"word_rows": rows[i], "attn_bias": bias[i][None]})[0][0]
+        a = full.run(None, feed)[0]
+        b = part.run(None, {"word_rows": rows[i], "attn_bias": bias[i][None]})[0]
+        expected = rows[i].shape
+        if len(expected) != 3 or expected[0] != 1 or a.shape != expected or b.shape != expected:
+            sys.exit(f"hef_compile: hidden-state shape must be {expected}, got export {a.shape}, cut {b.shape}")
+        if masks[i].shape != (expected[1],):
+            sys.exit("hef_compile: calibration mask shape does not match the hidden states")
         live = masks[i] == 1
-        worst = max(worst, float(np.abs(a[live] - b[live]).max()))
+        if not np.any(live):
+            sys.exit("hef_compile: calibration text has no kept positions")
+        a, b = a[0][live], b[0][live]
+        if not np.isfinite(a).all() or not np.isfinite(b).all():
+            sys.exit("hef_compile: nonfinite hidden states on a kept position")
+        worst = max(worst, float(np.abs(a.astype(np.float64) - b.astype(np.float64)).max()))
     if worst > CUT_TOLERANCE:
         sys.exit(f"hef_compile: the cut graph is {worst} from the export on a kept position, over {CUT_TOLERANCE}")
     return worst

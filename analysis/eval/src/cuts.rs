@@ -5,8 +5,9 @@
 //!
 //! Version 2 has a bounded binary header, framed document graphs and a
 //! required document-count/SHA-256 footer. Version 1 must be regenerated.
-//! Graphs retain source text and non-vector layers; this is not encrypted
-//! storage (security design is tracked separately in #1490).
+//! Graphs retain source text and non-vector layers; default exports use
+//! plaintext `TemporaryFileStore`, with opt-in AES-256-GCM encryption
+//! through `EncryptedStore` (#1490, #2018).
 //! Comparison means the chunker's cut-start identity, not complete range
 //! coverage or retrieval-quality equivalence.
 
@@ -25,12 +26,20 @@ use crate::Result;
 use crate::record::Setting;
 
 mod codec;
+mod encrypted;
 use crate::artifact::{ArtifactKey, EvaluationArtifactStore, TemporaryFileStore};
 pub use codec::Writer;
+pub use encrypted::{
+    CUTS_CLI_PRINCIPAL, CUTS_ENCODING, MAX_CUTS_CIPHERTEXT_BYTES, compare_encrypted_dirs,
+    compare_encrypted_dirs_with_principal, compare_encrypted_stores, encrypted_store, encrypted_store_with_principal,
+};
 
 pub struct DumpConfig {
     pub store: Box<dyn EvaluationArtifactStore>,
     pub precision: turbo_analysis_embed::Precision,
+    /// When true, each set is written with [`Writer::create_at`] under a
+    /// fresh 32-hex [`ArtifactKey`] instead of `<set>.cuts`.
+    pub opaque_keys: bool,
 }
 
 fn key(set: &str) -> Result<ArtifactKey> {

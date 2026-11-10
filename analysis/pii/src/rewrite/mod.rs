@@ -4,7 +4,11 @@
 //! ([`FormatRedactor`]), fixed static replacement ([`StaticReplacer`]),
 //! unkeyed SHA-256 digests ([`Sha256Tokenizer`]), caller lookup tables
 //! ([`MapReplacer`]), partial character retention ([`Truncate`]), initials
-//! abbreviation ([`Abbreviator`]), and composable per-kind policies
+//! abbreviation ([`Abbreviator`]), HIPAA Safe Harbor ZIP generalization
+//! ([`ZipSafeHarbor`]) and age aggregation ([`AgeSafeHarbor`]), date
+//! truncation, shifting, relative dates and Safe Harbor date years
+//! ([`DateRewrite`]), and
+//! composable per-kind policies
 //! ([`RewritePolicy`], [`RewriteStrategy`]).
 //!
 //! - [`mask`] overwrites the characters of each span in place, so the
@@ -13,7 +17,9 @@
 //!   alignment maps each masked character to its source character.
 //! - [`Pseudonymizer`], [`HmacTokenizer`], [`FormatRedactor`],
 //!   [`StaticReplacer`], [`Sha256Tokenizer`], [`MapReplacer`],
-//!   [`Truncate`], [`Abbreviator`] and [`RewritePolicy`] replace each
+//!   [`Truncate`], [`Abbreviator`], [`ZipSafeHarbor`], [`AgeSafeHarbor`],
+//!   [`DateRewrite`]
+//!   and [`RewritePolicy`] replace each
 //!   mention and return a [`PiiRewrite`]: a view derived from the text
 //!   with an alignment both ways, its label layer, and its
 //!   `turbo:pii-edits` layer.
@@ -26,8 +32,10 @@
 //!   an AES-256-GCM token, or the FF1 encryption of its digits or letters.
 
 mod abbreviate;
+mod age_safe_harbor;
 mod audit;
 mod chosen;
+mod date;
 mod format;
 mod hmac;
 mod map;
@@ -42,10 +50,13 @@ mod sha256_replace;
 mod state;
 mod truncate;
 mod view;
+mod zip_safe_harbor;
 
 pub use abbreviate::Abbreviator;
+pub use age_safe_harbor::AgeSafeHarbor;
 pub use audit::{KindReport, PiiAuditReport};
 pub use chosen::{Choice, StrategyChooser, rewrite_chosen};
+pub use date::{DateMode, DateRewrite, DateShift, DateShiftError, safe_harbor_category, safe_harbor_cutoff};
 pub use format::{FormatError, FormatRedactor, StaticReplacer};
 pub use hmac::{HmacTokenizer, TokenizerError};
 pub use map::{MapError, MapReplacer, MapTarget, TSV_DELIMITER};
@@ -58,7 +69,10 @@ pub use replace::{PiiRewrite, RewriteError};
 pub use reversible::{AesGcmEncryptor, CryptError, Ff1Alphabet, Ff1Encryptor, KEY_BYTES};
 pub use sha256_replace::{Sha256Replacer, Sha256Tokenizer};
 pub use truncate::{KeepSide, Truncate};
+/// The calendar date [`DateMode::Relative`] counts from.
+pub use turbo_analysis_layers::Date;
 pub use view::{MASKED, MaskedView, mask_into, mask_view};
+pub use zip_safe_harbor::{HHS_2000_RESTRICTED_PREFIXES, ZipSafeHarbor, ZipTableError};
 
 use turbo_analysis::{Document, Span, View};
 

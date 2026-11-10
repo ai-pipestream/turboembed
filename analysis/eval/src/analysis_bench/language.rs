@@ -15,7 +15,7 @@ use turbo_unicode::Script;
 use super::{BOOTSTRAP_SEED, DEFAULT_RESAMPLES, MetricScore};
 use crate::Result;
 use crate::model_gate::{Counts, Measure};
-use crate::sha::{sha256, to_hex};
+use turbo_sha256::{sha256, to_hex};
 
 /// One gold text with its ISO 639-3 language code.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -216,7 +216,7 @@ pub fn language_command(args: &[String]) -> Result<()> {
         return Err(format!("{out} exists; refusing to overwrite a record"));
     }
     let gold_bytes = std::fs::read(&gold_path).map_err(|e| format!("{gold_path}: {e}"))?;
-    let digest = to_hex(&sha256(&gold_bytes));
+    let digest = to_hex(sha256(&gold_bytes));
     if digest != want_sha.to_ascii_lowercase() {
         return Err(format!("{gold_path}: sha256 {digest}, pinned {want_sha}"));
     }

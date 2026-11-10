@@ -11,15 +11,22 @@ use turbo_kserve::proto::result as pb;
 
 /// A 32-byte test key: fixture material, never a real secret.
 pub const KEY: [u8; 32] = [7u8; 32];
+/// A second 32-byte test key, the encryption key `vault:1`.
+pub const ENCRYPTION_KEY: [u8; 32] = [9u8; 32];
 pub const DICT_SHA: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-/// Resolves `tokens:1` to [`KEY`], `names-dict` to two terms and
+/// Resolves `tokens:1` to [`KEY`], the encryption key `vault:1` to
+/// [`ENCRYPTION_KEY`], `names-dict` to two terms and
 /// `vip-map` to one map entry, each at [`DICT_SHA`].
 pub struct TestRegistry;
 
 impl PolicyResolver for TestRegistry {
     fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError> {
         if id == "tokens" && version == 1 { Ok(&KEY) } else { Err(ResolveError::NotRegistered) }
+    }
+
+    fn encryption_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError> {
+        if id == "vault" && version == 1 { Ok(&ENCRYPTION_KEY) } else { Err(ResolveError::NotRegistered) }
     }
 
     fn terms(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[String]>, ResolveError> {

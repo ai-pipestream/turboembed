@@ -245,7 +245,9 @@ fn many_affixes_on_one_boundary_stay_bounded() {
     }
     let d = load(&affix, "1\nb/A\n");
     let s = Stemmer::new(&d);
-    let found = within(Duration::from_secs(20), "continuation chain", || s.stems(&format!("b{}", "a".repeat(200))));
+    // The work bound lives in the stemmer's unit tests, which count the
+    // rules undone; this limit is only a backstop for a stalled machine.
+    let found = within(Duration::from_secs(120), "continuation chain", || s.stems(&format!("b{}", "a".repeat(200))));
     assert!(found.len() <= 2048);
 }
 

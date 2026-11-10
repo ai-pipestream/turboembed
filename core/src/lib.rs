@@ -71,6 +71,13 @@ pub const TURBO_PAIR_BERT: u32 = 1;
 pub const TURBO_PAIR_ROBERTA: u32 = 2;
 pub const TURBO_TASK_EXTRACTIVE_QA: u32 = 3;
 
+pub const TURBO_LICENSE_CLASS_UNSTATED: u32 = 0;
+pub const TURBO_LICENSE_CLASS_PERMISSIVE: u32 = 1;
+pub const TURBO_LICENSE_CLASS_LGPL: u32 = 2;
+pub const TURBO_LICENSE_CLASS_SHARE_ALIKE: u32 = 3;
+pub const TURBO_LICENSE_CLASS_GPL: u32 = 4;
+pub const TURBO_LICENSE_CLASS_LOCAL_ONLY: u32 = 5;
+
 pub const TURBO_DEVICE_CPU: u32 = 1;
 pub const TURBO_DEVICE_GPU: u32 = 2;
 pub const TURBO_DEVICE_IGPU: u32 = 3;
@@ -252,7 +259,13 @@ pub struct turbo_model_info {
     pub output_dims: [u32; TURBO_OUTPUT_DIMS_MAX],
     pub rerank_query_tokens: u32,
     pub rerank_pair_template: u32,
+    pub license: [c_char; 128],
+    pub license_class: u32,
 }
+
+/// The size of turbo_model_info before license was appended, which
+/// turbo_model_get_info still accepts.
+pub const TURBO_MODEL_INFO_SIZE_V3: usize = std::mem::offset_of!(turbo_model_info, license);
 
 /// The size of turbo_model_info before output_dims_count was appended,
 /// which turbo_model_get_info still accepts.

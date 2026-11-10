@@ -74,6 +74,10 @@ fn struct_layouts_match_the_header() {
         ("turbo_model_info", "prefix_document", offset_of!(turbo_model_info, prefix_document)),
         ("turbo_model_info", "output_dims_count", offset_of!(turbo_model_info, output_dims_count)),
         ("turbo_model_info", "output_dims", offset_of!(turbo_model_info, output_dims)),
+        ("turbo_model_info", "rerank_query_tokens", offset_of!(turbo_model_info, rerank_query_tokens)),
+        ("turbo_model_info", "rerank_pair_template", offset_of!(turbo_model_info, rerank_pair_template)),
+        ("turbo_model_info", "license", offset_of!(turbo_model_info, license)),
+        ("turbo_model_info", "license_class", offset_of!(turbo_model_info, license_class)),
     ];
     use turbo::backend::{turbo_backend_model, turbo_backend_tensor};
     let model_fields: &[(&str, &str, usize)] = &[
@@ -295,6 +299,28 @@ fn struct_layouts_match_the_header() {
             ("turbo_span", "label_offset", offset_of!(turbo_span, label_offset)),
             ("turbo_span", "value_offset", offset_of!(turbo_span, value_offset)),
             ("turbo_span", "prob", offset_of!(turbo_span, prob)),
+            ("turbo_pii_fact", "kind", offset_of!(turbo_pii_fact, kind)),
+            ("turbo_pii_fact", "a", offset_of!(turbo_pii_fact, a)),
+            ("turbo_pii_fact", "b", offset_of!(turbo_pii_fact, b)),
+            ("turbo_pii_fact", "c", offset_of!(turbo_pii_fact, c)),
+            ("turbo_pii_span", "span_index", offset_of!(turbo_pii_span, span_index)),
+            ("turbo_pii_span", "detector_id_offset", offset_of!(turbo_pii_span, detector_id_offset)),
+            ("turbo_pii_span", "fact_start", offset_of!(turbo_pii_span, fact_start)),
+            ("turbo_pii_span", "score_kind", offset_of!(turbo_pii_span, score_kind)),
+            ("turbo_pii_span", "score_model_id_offset", offset_of!(turbo_pii_span, score_model_id_offset)),
+            ("turbo_pii_span", "score_value", offset_of!(turbo_pii_span, score_value)),
+            ("turbo_pii_candidate", "item_index", offset_of!(turbo_pii_candidate, item_index)),
+            ("turbo_pii_candidate", "kind_code", offset_of!(turbo_pii_candidate, kind_code)),
+            ("turbo_pii_candidate", "view_byte_start", offset_of!(turbo_pii_candidate, view_byte_start)),
+            ("turbo_pii_candidate", "source_byte_start", offset_of!(turbo_pii_candidate, source_byte_start)),
+            ("turbo_pii_candidate", "instance_offset", offset_of!(turbo_pii_candidate, instance_offset)),
+            ("turbo_pii_candidate", "pii_instance_offset", offset_of!(turbo_pii_candidate, pii_instance_offset)),
+            ("turbo_pii_candidate", "label_offset", offset_of!(turbo_pii_candidate, label_offset)),
+            ("turbo_pii_candidate", "detector_id_offset", offset_of!(turbo_pii_candidate, detector_id_offset)),
+            ("turbo_pii_candidate", "fact_start", offset_of!(turbo_pii_candidate, fact_start)),
+            ("turbo_pii_candidate", "disposition", offset_of!(turbo_pii_candidate, disposition)),
+            ("turbo_pii_candidate", "score_kind", offset_of!(turbo_pii_candidate, score_kind)),
+            ("turbo_pii_candidate", "score_value", offset_of!(turbo_pii_candidate, score_value)),
         ],
     ]
     .concat();
@@ -324,6 +350,9 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_session_desc", size_of::<turbo_backend_session_desc>()),
         ("turbo_analyzer_desc", size_of::<turbo_analyzer_desc>()),
         ("turbo_span", size_of::<turbo_span>()),
+        ("turbo_pii_fact", size_of::<turbo_pii_fact>()),
+        ("turbo_pii_span", size_of::<turbo_pii_span>()),
+        ("turbo_pii_candidate", size_of::<turbo_pii_candidate>()),
     ];
     let mut src = String::from(
         "#include <stddef.h>\n#include <stdio.h>\n#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\nint main(void) {\n",
@@ -420,4 +449,15 @@ fn the_token_head_layout_is_the_one_proposed() {
     // struct has no padding.
     assert_eq!(offset_of!(turbo_backend_embed_rows, taps), 56);
     assert_eq!(size_of::<turbo_backend_embed_rows>(), 64);
+}
+
+/// The layout the licence was added with: its two fields after
+/// rerank_pair_template, and the size before them still accepted.
+#[test]
+fn the_licence_layout_is_the_one_proposed() {
+    assert_eq!(offset_of!(turbo_model_info, rerank_pair_template), 768);
+    assert_eq!(offset_of!(turbo_model_info, license), 772);
+    assert_eq!(offset_of!(turbo_model_info, license_class), 900);
+    assert_eq!(size_of::<turbo_model_info>(), 904);
+    assert_eq!(TURBO_MODEL_INFO_SIZE_V3, 772);
 }

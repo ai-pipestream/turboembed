@@ -269,4 +269,31 @@ mod tests {
             assert_eq!(s.stem(w), s.stems(w).into_iter().next(), "{w:?}");
         }
     }
+
+    /// A thousand one-letter suffixes that each allow the whole set again
+    /// could chain once per letter of the word. The search undoes at most an
+    /// outer and an inner suffix, so its work is one pass over the rules
+    /// plus one pass under each, the same for any word length. Counts rules
+    /// undone, never wall-clock time.
+    #[test]
+    fn a_continuation_chain_is_undone_two_deep_whatever_the_length() {
+        use std::fmt::Write;
+        const RULES: u64 = 1000;
+        let mut aff = format!("SFX A Y {RULES}\n");
+        for i in 0..RULES {
+            writeln!(aff, "SFX A 0 a/A {}", if i % 2 == 0 { "." } else { "a" }).unwrap();
+        }
+        let dict = Dictionary::from_bytes(aff.as_bytes(), b"1\nb/A\n", LoadMode::Strict).unwrap();
+        let s = Stemmer::new(&dict);
+        let undos = |letters: usize| {
+            affixes::UNDOS.with(|n| n.set(0));
+            let found = s.stems(&format!("b{}", "a".repeat(letters)));
+            assert!(found.len() <= 2048, "{} stems", found.len());
+            affixes::UNDOS.with(std::cell::Cell::get)
+        };
+        let (short, long) = (undos(200), undos(800));
+        assert!(short > RULES, "the search undid only {short} rules");
+        assert_eq!(short, long, "work grew with the word: {short} rules undone at 200 letters, {long} at 800");
+        assert!(short <= RULES * (RULES + 1), "{short} rules undone, over one pass under each of {RULES}");
+    }
 }

@@ -150,9 +150,9 @@ unsafe fn write_ranges(
 }
 
 /// turbo.h: 1 to the model's layers, and above 1 only where the device's
-/// cell honors field 9 (the cpu backend), on its BERT, RoBERTa,
-/// ModernBERT, nomic-bert and DeBERTa-v2 encoders, with no span head on
-/// the device.
+/// cell honors field 9 (the cpu, cuda and levelzero backends), on its
+/// BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders, with no
+/// span head on the device.
 fn check_taps(s: &SessionInner, taps: u32) -> Result<()> {
     let w = &s.model.weights;
     let model = Taps { layers: w.layers(), family: w.family(), span_head: s.model.span_head.is_some() };

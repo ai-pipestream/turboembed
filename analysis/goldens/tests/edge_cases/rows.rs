@@ -426,7 +426,7 @@ fn the_input_text_must_match_in_encoding_and_utf16_length() {
     std::fs::create_dir_all(dir.join("inputs/test")).unwrap();
     let write_input = |bytes: &[u8]| std::fs::write(dir.join("inputs/test/x.txt"), bytes).unwrap();
     let golden_for = |bytes: &[u8], utf16: u32| {
-        let sha = to_hex_lower(&sha256(bytes));
+        let sha = to_hex_lower(&sha256(bytes).0);
         let text = HEADER.replacen(
             "input\ttest/x\t100\t100\tf03e4a09022fa42c68b4fbab2730c195ceb468707eb0b2598a7b1e91abc4918f",
             &format!("input\ttest/x\t{}\t{utf16}\t{sha}", bytes.len()),

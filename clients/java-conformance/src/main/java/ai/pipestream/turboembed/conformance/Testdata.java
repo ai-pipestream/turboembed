@@ -53,6 +53,11 @@ public final class Testdata {
         return bundle("tiny-bert-heads-bundle");
     }
 
+    /** The sealed small BERT bundle with seeded sentence, token-split and span-classifier heads. */
+    public static Path segmentBundle() {
+        return bundle("tiny-bert-segment-bundle");
+    }
+
     /** A path under {@code testdata} that no bundle is at. */
     public static Path missingBundle() {
         return repoRoot().resolve("testdata").resolve("does-not-exist");
@@ -69,6 +74,7 @@ public final class Testdata {
     private static boolean looksLikeRepoRoot(Path dir) {
         return Files.isDirectory(dir.resolve("testdata/tiny-bert-bundle"))
                 && Files.isDirectory(dir.resolve("testdata/tiny-bert-heads-bundle"))
+                && Files.isDirectory(dir.resolve("testdata/tiny-bert-segment-bundle"))
                 && Files.isRegularFile(dir.resolve("clients/java-conformance/pom.xml"));
     }
 }

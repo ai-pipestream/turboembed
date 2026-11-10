@@ -4,7 +4,7 @@ use turbo_eval::analysis_bench::{
     parse_sentence_list, score_conllu, score_language, score_ner, score_sentence_list, score_sentencer,
     score_tokenizer, script_fallback_predictions,
 };
-use turbo_eval::sha::{sha256, to_hex};
+use turbo_sha256::{sha256, to_hex};
 
 const GOLD: &str = concat!(
     "# text = Cats purr.\n",
@@ -290,7 +290,7 @@ fn the_language_command_writes_a_record() {
     let gold_text = "ell\tΚαλημέρα κόσμε\nkor\t안녕하세요 세상\n";
     let gold = dir.join("gold.tsv");
     std::fs::write(&gold, gold_text).unwrap();
-    let digest = to_hex(&sha256(gold_text.as_bytes()));
+    let digest = to_hex(sha256(gold_text.as_bytes()));
     let out = dir.join("record.json");
     command(&[
         "--lang-gold".into(),
@@ -353,7 +353,7 @@ fn the_entity_command_writes_a_record() {
     std::fs::write(&gold, gold_text).unwrap();
     let pred = dir.join("pred.tsv");
     std::fs::write(&pred, "B-person\nO\n").unwrap();
-    let digest = to_hex(&sha256(gold_text.as_bytes()));
+    let digest = to_hex(sha256(gold_text.as_bytes()));
     let out = dir.join("record.json");
     command(&[
         "--ner-gold".into(),
@@ -381,7 +381,7 @@ fn the_command_writes_a_record_and_refuses_a_wrong_pin() {
     std::fs::create_dir_all(&dir).unwrap();
     let gold = dir.join("gold.conllu");
     std::fs::write(&gold, GOLD).unwrap();
-    let digest = to_hex(&sha256(GOLD.as_bytes()));
+    let digest = to_hex(sha256(GOLD.as_bytes()));
     let out = dir.join("record.json");
     let args = |sha: &str| {
         vec![
@@ -418,7 +418,7 @@ fn the_command_writes_a_tokenizer_record() {
     std::fs::create_dir_all(&dir).unwrap();
     let gold = dir.join("gold.conllu");
     std::fs::write(&gold, GOLD_TOK).unwrap();
-    let digest = to_hex(&sha256(GOLD_TOK.as_bytes()));
+    let digest = to_hex(sha256(GOLD_TOK.as_bytes()));
     let out = dir.join("record.json");
     let args: Vec<String> = [
         "--gold",

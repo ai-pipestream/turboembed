@@ -221,3 +221,7 @@ snapshot suites in both `LatinUs` and `LatinEu` notations.
 `analysis/namefind/tests/rule_entities_eval.rs`, and
 `analysis/query/tests/rule_entities_gold.rs` test `"money"` projection into
 `Entities`, provenance preservation, and exact-span gold F1.
+Measured beside spaCy `en_core_web_trf` and Stanza on the reviewed set
+(`"money"` F1 1.0000 for the rules, 0.2353 and 0.3750 for the peers, whose
+OntoNotes spans leave out the currency symbol):
+`analysis/eval/records/rule-entities-1731/README.md` (#1731).
