@@ -71,11 +71,24 @@ impl RedactionPolicy {
         self.rules.iter().filter(|r| !r.enabled).map(|r| r.kind)
     }
 
-    /// The detector of `pack` configured by this policy.
+    /// The opt-in packs ([`Pack::Dates`], [`Pack::Money`]) this policy
+    /// turns on: those with a kind an enabled rule names. Dates and amounts
+    /// are in most texts and only some are a person's, so `AllStructured`
+    /// leaves them out until a policy asks for them.
+    pub fn opted_in_packs(&self) -> impl Iterator<Item = Pack> + '_ {
+        [Pack::Dates, Pack::Money].into_iter().filter(|p| {
+            let kinds: Vec<PiiKind> = p.scanners().iter().flat_map(|s| s.kinds().iter()).collect();
+            self.rules.iter().any(|r| r.enabled && kinds.contains(&r.kind))
+        })
+    }
+
+    /// The detector of `pack` configured by this policy, with the opt-in
+    /// packs the policy turns on ([`RedactionPolicy::opted_in_packs`]).
     pub fn detector(&self, pack: Pack) -> Result<PiiDetector, String> {
         let off: Vec<PiiKind> = self.disabled_kinds().collect();
         let mut scanners = Vec::new();
-        for s in pack.scanners() {
+        let extra = self.opted_in_packs().filter(|p| *p != pack).flat_map(Pack::scanners);
+        for s in pack.scanners().into_iter().chain(extra) {
             let kinds: Vec<PiiKind> = s.kinds().iter().filter(|k| !off.contains(k)).collect();
             if kinds.is_empty() {
                 continue;

@@ -141,7 +141,7 @@ stubs must be regenerated.
   `CURRENCY`), with the `Temporal` and `Money` extractors
   (`turbo-pii:temporal`, `turbo-pii:money`) and the opt-in `Dates` and
   `Money` packs, which `AllStructured` does not include: a calendar date
-  naming a day, week or month, and an amount with its currency, read by
+  naming a day or month, and an amount with its currency, read by
   the numeric crate's scanners (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
@@ -153,6 +153,15 @@ stubs must be regenerated.
   `PII_STRATEGY_AGE_SAFE_HARBOR` (13) keep an age of 89 or under and write
   every older age as `90+`; a mention that is not an age is masked
   (#1884).
+- Date rewrites: the `PiiDateStrategy` arm of `PiiRewriteStrategy`
+  (`date`, field 13) and native `DateRewrite` truncate a `date` mention to
+  its year, shift it (fixed years, months and days, plus an offset a
+  registered key chooses per context) keeping its written form, or write
+  it relative to a reference date the caller passes, recording
+  `PII_STRATEGY_DATE_YEAR` (14), `PII_STRATEGY_DATE_SHIFT` (15) or
+  `PII_STRATEGY_DATE_RELATIVE` (16). A policy rule for `date` or
+  `currency` turns on the opt-in `Dates` or `Money` pack of the
+  `turbo-pii:pii` step (#1884).
 
 ### Changed: PII and the result envelope (#1879)
 

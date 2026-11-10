@@ -1,11 +1,12 @@
 //! Calendar dates, `TemporalPiiExtractor`: the absolute mentions the
 //! temporal scanner of turbo-numeric finds (docs/temporal.md) that name a
-//! day, an ISO week or a month (`2026-07-14`, `July 14, 2026`,
+//! day or a month (`2026-07-14`, `July 14, 2026`,
 //! `14th July 2026`, `July 2026`). A year alone or a quarter
 //! is not a date element HIPAA counts, and a relative expression
 //! (`3 weeks ago`) needs a reference date this scanner never takes, so
 //! neither is a mention. The normalized form is the value in ISO 8601
-//! (`2026-07-14`, a week as `2026-W29`, `2026-07`).
+//! (`2026-07-14`, `2026-07`). An ISO week is kept too, but only a
+//! relative expression (`next week`) has one.
 
 use std::fmt::Write;
 
