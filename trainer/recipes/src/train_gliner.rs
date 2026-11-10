@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use turbo_gliner::ExtractionSchema;
 use turbo_gliner::package::Manifest;
 use turbo_gliner::train::{OutputTrainer, output_optimizer};
 use turbo_trainer::adamw::Settings;
@@ -114,6 +115,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     for epoch in 0..c.epochs {
         let at = Instant::now();
         let mut epoch_loss = 0.0;
+        let mut completed = 0;
         for (corpus, declared) in corpora.iter().zip(&declared) {
             let active = turbo_trainer_recipes::open_span_mix::corpus_active_types(declared, &seen_types);
             if active.is_empty() {
@@ -123,16 +125,54 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             let mut order: Vec<usize> = (0..corpus.splits.train.len()).collect();
             rng.shuffle(&mut order);
             for batch in order.chunks(c.batch) {
+                let lanes = if c.threads == 0 { batch.len() } else { c.threads.min(batch.len()) }.max(1);
+                let mut results = Vec::with_capacity(batch.len());
+                for lane in batch.chunks(lanes) {
+                    if lane.len() == 1 {
+                        results.push(sentence_gradients(
+                            &model,
+                            &trainer,
+                            &corpus.splits.train[lane[0]],
+                            &schema,
+                            &active,
+                        )?);
+                        continue;
+                    }
+                    let mut computed = std::thread::scope(|scope| {
+                        let mut handles = Vec::new();
+                        for &index in lane {
+                            let model = &model;
+                            let trainer = &trainer;
+                            let schema = &schema;
+                            let active = &active;
+                            handles.push(scope.spawn(move || {
+                                sentence_gradients(model, trainer, &corpus.splits.train[index], schema, active)
+                            }));
+                        }
+                        let mut computed = Vec::with_capacity(handles.len());
+                        for handle in handles {
+                            computed
+                                .push(handle.join().map_err(|_| Error("a GLiNER training worker panicked".into()))??);
+                        }
+                        Ok::<_, Error>(computed)
+                    })?;
+                    results.append(&mut computed);
+                }
                 let mut grads = trainer.zero_grads();
-                for &index in batch {
-                    let sentence = &corpus.splits.train[index];
-                    let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();
-                    let (input, candidates) = model.training_input(&words, &schema).map_err(Error)?;
-                    let gold = gold_spans(sentence, &active)?;
-                    epoch_loss += trainer.gradients(&input, &candidates, &gold, &mut grads).map_err(Error)?;
+                for (loss, local) in results {
+                    epoch_loss += loss;
+                    for (sum, part) in grads.iter_mut().zip(local) {
+                        for (a, b) in sum.iter_mut().zip(part) {
+                            *a += b;
+                        }
+                    }
                 }
                 trainer.step(&mut optimizer, &mut grads).map_err(Error)?;
                 model.apply_output(&trainer).map_err(Error)?;
+                completed += 1;
+                if completed % 100 == 0 {
+                    eprintln!("epoch {} steps {completed}/{total}", epoch + 1);
+                }
             }
         }
         train_loss.push(epoch_loss);
@@ -269,6 +309,21 @@ fn score_parts(
     predictions: &Predictions,
 ) -> Result<turbo_trainer_recipes::receipt::OpenSpanDatasetEval> {
     evaluate_predictions(corpus, all, seen, held, &predictions.all, Some(&predictions.held), "dev", 0, 1)
+}
+
+fn sentence_gradients(
+    model: &turbo_gliner::Model,
+    trainer: &OutputTrainer,
+    sentence: &Sentence,
+    schema: &ExtractionSchema,
+    labels: &[String],
+) -> Result<(f64, Vec<Vec<f32>>)> {
+    let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();
+    let (input, candidates) = model.training_input(&words, schema).map_err(Error)?;
+    let gold = gold_spans(sentence, labels)?;
+    let mut grads = trainer.zero_grads();
+    let loss = trainer.gradients(&input, &candidates, &gold, &mut grads).map_err(Error)?;
+    Ok((loss, grads))
 }
 
 fn gold_spans(sentence: &Sentence, labels: &[String]) -> Result<Vec<(usize, usize, usize)>> {

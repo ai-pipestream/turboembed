@@ -276,7 +276,11 @@ selects the zero-shot initialization or any strictly better epoch by dev F1,
 never evaluates test, and writes the best complete package under `model/`
 plus dev predictions and a receipt. Use `eval-gliner --split dev --calibrate`
 on that package before one frozen test evaluation. `--max-train N` is a
-per-corpus smoke-test or ablation limit, not balanced sampling.
+per-corpus smoke-test or ablation limit, not balanced sampling. `--threads N`
+computes at most N sentences per batch concurrently and reduces their
+gradients in original sentence order; 0 uses the whole batch. Set
+`TURBO_CPU_THREADS=1` when using multiple sentence workers so encoder calls
+do not create nested thread pools.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
