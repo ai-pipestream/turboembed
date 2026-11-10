@@ -107,11 +107,9 @@ pub(super) fn rebuild_error(
         ErrorRecord::Annotator { annotator, detail } => {
             Error::Annotator { annotator: cx.intern(&annotator.clone()), detail: detail.clone() }
         }
-        ErrorRecord::OverLimit { annotator, limit, max, got } => Error::OverLimit {
-            annotator: cx.intern(&annotator.clone()),
-            limit: cx.intern(&limit.clone()),
-            max: *max,
-            got: *got,
+        ErrorRecord::OverLimit { annotator, limit, max, got } => match crate::error::known_limit(limit) {
+            Some(limit) => Error::OverLimit { annotator: cx.intern(&annotator.clone()), limit, max: *max, got: *got },
+            None => Error::Annotator { annotator: cx.intern(&annotator.clone()), detail: String::new() },
         },
         ErrorRecord::Skipped(reason) => Error::Skipped(reason.clone()),
         ErrorRecord::Offset { unit, at, reason } => Error::Offset { unit: *unit, at: *at, reason: *reason },

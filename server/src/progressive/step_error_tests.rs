@@ -47,4 +47,8 @@ fn an_input_over_a_limit_is_capacity_and_other_failures_keep_their_codes() {
             assert_eq!(kind_code(kind), code);
         }
     }
+    let unlisted =
+        ErrorRecord::OverLimit { annotator: "custom".into(), limit: "patient jane doe".into(), max: 1, got: 2 };
+    let got = of_record(&unlisted);
+    assert_eq!((got.kind, got.turbo_code), (K::Annotator as i32, TURBO_E_INTERNAL));
 }

@@ -9341,7 +9341,7 @@ function init12() {
 
 // demo/web/src/graphwire.ts
 var MAGIC = "TGRF";
-var FORMAT_VERSION = 2;
+var FORMAT_VERSION = 3;
 var LISTED2 = 64;
 var WireError = class extends Error {
   constructor(message, at) {

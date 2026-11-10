@@ -359,7 +359,9 @@ fn run_progressive_task(
                         // input over a limit says which and by how much,
                         // counts only (#2125, #2134).
                         message: match &err {
-                            turbo_analysis::Error::OverLimit { limit, max, got, .. } => {
+                            turbo_analysis::Error::OverLimit { limit, max, got, .. }
+                                if turbo_analysis::error::known_limit(limit).is_some() =>
+                            {
                                 format!("step '{}' failed: over its {limit} {max}, got {got}", ev.timing.step_id)
                             }
                             _ => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),

@@ -218,4 +218,21 @@ fn an_over_limit_error_round_trips_through_records_and_wire() {
     let dir = DocumentGraphRef::parse(&wire).unwrap();
     let restored = dir.import_selected(&codecs, &[("turbo:tokens", "")]).unwrap();
     assert_eq!(restored.status(key), Some(&Status::Failed(over)));
+
+    // An imported OverLimit record whose limit name is not in the closed
+    // static table is downgraded to a generic Annotator error without
+    // interning or retaining the caller-supplied string.
+    let mut forged = graph;
+    forged.layers[0].status = StatusRecord::Failed(ErrorRecord::OverLimit {
+        annotator: "custom".into(),
+        limit: "patient jane doe".into(),
+        max: 1,
+        got: 2,
+    });
+    let forged_wire = forged.to_bytes().unwrap();
+    let forged_doc = import(&DocumentGraph::from_bytes(&forged_wire).unwrap(), &codecs).unwrap();
+    assert_eq!(
+        forged_doc.status(key),
+        Some(&Status::Failed(Error::Annotator { annotator: "custom", detail: String::new() }))
+    );
 }

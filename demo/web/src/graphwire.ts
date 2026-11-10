@@ -1,5 +1,5 @@
 // A reader for the binary DocumentGraph bytes (the analysis export
-// boundary, format version 2): little-endian counts, u32-length-prefixed
+// boundary, format version 3): little-endian counts, u32-length-prefixed
 // bytes and strings, one-byte tags for options and statuses. It names
 // every part with its offset and length so the page can show where the
 // bytes go. It follows analysis/core/src/export (graph.rs, wire.rs,
@@ -9,7 +9,7 @@
 export type Part = { name: string; at: number; len: number; value?: string; parts?: Part[] };
 
 export const MAGIC = "TGRF";
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 const LISTED = 64;
 
 export class WireError extends Error {
