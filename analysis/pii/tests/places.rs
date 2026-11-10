@@ -64,9 +64,20 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("Springfield, IL 62704"), ("IL".to_owned(), "state", "IL".to_owned()));
     assert_eq!(one("State: OR"), ("OR".to_owned(), "state", "OR".to_owned()));
     assert_eq!(one("state of residence: ME"), ("ME".to_owned(), "state", "ME".to_owned()));
-    for text in
-        ["IN the morning, OR later, ME too, OK?", "Springfield, IL", "IL 627041", "XX 62704", "il 62704", "State: Il"]
-    {
+    assert_eq!(one("Springfield, IL 62704-1234."), ("IL".to_owned(), "state", "IL".to_owned()));
+    for text in [
+        "IN the morning, OR later, ME too, OK?",
+        "Springfield, IL",
+        "IL 627041",
+        "XX 62704",
+        "il 62704",
+        "State: Il",
+        "LOG IN 12345abc",
+        "LOG IN 12345\u{e9}t\u{e9}",
+        "IN 12345-",
+        "IN 12345_x",
+        "IN 12345-12",
+    ] {
         assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
     }
 }
@@ -89,6 +100,9 @@ fn county_names_end_in_their_own_word() {
         ("Washington County records", "Washington County", "Washington County"),
         ("in\u{a0}Cook County", "Cook County", "Cook County"),
         ("in\u{2003}Orleans Parish", "Orleans Parish", "Orleans Parish"),
+        ("County:Cook County", "Cook County", "Cook County"),
+        ("see/Cook County", "Cook County", "Cook County"),
+        ("O'Brien County", "O'Brien County", "O'Brien County"),
     ] {
         assert_eq!(one(text), (written.to_owned(), "county", name.to_owned()), "{text:?}");
     }

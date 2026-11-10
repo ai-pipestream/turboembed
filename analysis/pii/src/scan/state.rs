@@ -82,8 +82,18 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
     {
         return None;
     }
-    let zip = b.get(i + 2) == Some(&b' ')
-        && b.get(i + 3..i + 8).is_some_and(|d| d.iter().all(u8::is_ascii_digit))
-        && !b.get(i + 8).is_some_and(u8::is_ascii_digit);
+    let zip = b.get(i + 2) == Some(&b' ') && zip_end(text, i + 3).is_some();
     (zip || find_any_label(text, i, &LABELS, false).is_some()).then_some(i + 2)
+}
+
+/// The end of a whole ZIP or ZIP+4 token at `at` (`62704`, `62704-1234`),
+/// with no letter, digit, `-` or `_` joined to it (`12345abc` is none).
+fn zip_end(text: &str, at: usize) -> Option<usize> {
+    let b = text.as_bytes();
+    let digits = |from: usize, n: usize| b.get(from..from + n).is_some_and(|d| d.iter().all(u8::is_ascii_digit));
+    if !digits(at, 5) {
+        return None;
+    }
+    let end = if b.get(at + 5) == Some(&b'-') && digits(at + 6, 4) { at + 10 } else { at + 5 };
+    (on_end(text, end) && !matches!(b.get(end), Some(b'-' | b'_'))).then_some(end)
 }
