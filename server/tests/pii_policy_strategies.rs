@@ -222,7 +222,7 @@ fn every_arm() -> Vec<Strategy> {
         Strategy::Aes256Gcm(pb::PiiAesGcmStrategy { key: key_ref("vault", 1), context: String::new() }),
         Strategy::Ff1(pb::PiiFf1Strategy {
             key: key_ref("vault", 1),
-            alphabet: pb::PiiFf1Alphabet::Digits as i32,
+            alphabet: pb::PiiFf1Alphabet::Alphanumeric as i32,
             tweak: String::new(),
         }),
     ]);
