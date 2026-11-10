@@ -438,22 +438,14 @@ fn subword_vectors_annotator_and_provider_populate_document_layer() {
 fn token_placement_scales_linearly_and_batch_matches_single_doc() {
     use turbo_analysis_embed::window::{Plan, Target, Which};
 
-    // 1. Scaling check on 20k, 40k, and 80k pieces with width=64, stride=32:
-    // Each piece is covered by at most 2 windows, so the active-window sweep
-    // finishes 80,000 pieces in well under 50ms even in unoptimized test builds.
-    for pieces in [20_000u32, 40_000, 80_000] {
+    // 1. Placement at 20k and 80k pieces with width=64, stride=32 is the
+    // most interior window of every sampled piece. That the sweep is linear
+    // is held by counting the windows it looks at, in the crate's own tests
+    // (window::tests), not by a clock.
+    for pieces in [20_000u32, 80_000] {
         let wins = plan_sliding_windows(0, pieces, 64, 32);
-        // Best of five runs: one run can be preempted on a loaded runner,
-        // while a quadratic sweep is slow on every run.
-        let mut elapsed = std::time::Duration::MAX;
-        let mut placed = Vec::new();
-        for _ in 0..5 {
-            let t0 = std::time::Instant::now();
-            placed = place_tokens_in_windows(0, pieces, &wins);
-            elapsed = elapsed.min(t0.elapsed());
-        }
+        let placed = place_tokens_in_windows(0, pieces, &wins);
         assert_eq!(placed.len(), pieces as usize);
-        assert!(elapsed.as_millis() < 100, "{pieces} pieces took {elapsed:?}");
         for sample in [0u32, 31, 32, 47, 48, 63, 64, pieces / 2, pieces - 1] {
             let want = most_interior_window(0, sample, &wins).unwrap();
             assert_eq!((placed[sample as usize].window, placed[sample as usize].interior_distance), want);
