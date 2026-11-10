@@ -3340,8 +3340,7 @@ export const PiiMentionSchema: GenMessage<PiiMention> = /*@__PURE__*/
  * allows the form, the calling service is granted it for the mention's
  * kind (#1909) and the request's redaction policy's release ceiling for
  * the kind, when set, includes it (#1943); a caller that holds the text slices it with
- * the spans. `token` and `clear` are produced; `ciphertext` waits for
- * #1885.
+ * the spans.
  *
  * @generated from message turbo.result.v1.PiiValue
  */
@@ -3367,7 +3366,7 @@ export type PiiValue = Message<"turbo.result.v1.PiiValue"> & {
     case: "token";
   } | {
     /**
-     * The value encrypted; refused until #1885.
+     * The value encrypted under a registered encryption key (#1885).
      *
      * @generated from field: turbo.result.v1.PiiValueCiphertext ciphertext = 3;
      */
@@ -3453,8 +3452,14 @@ export const PiiValueTokenSchema: GenMessage<PiiValueToken> = /*@__PURE__*/
   messageDesc(file_turbo_typed_annotations, 82);
 
 /**
- * The value encrypted under a registered key with a named scheme. Not
- * produced until #1885.
+ * The value encrypted under a registered encryption key with a named
+ * scheme (#1885). The server's one scheme is turbo-pii-aes-256-gcm-v1:
+ * `ciphertext` is the UTF-8 text of a turbo-pii AES-256-GCM token, the
+ * kind code in capitals (BUILTIN:3, CUSTOM:BADGE), ':', and the unpadded
+ * base64url of a 12-byte nonce, the encrypted normalized value and the
+ * 16-byte tag, its associated data binding the kind code and the context
+ * turbo-kserve.pii-release.v1. Each release draws a fresh nonce, so equal
+ * values give different ciphertexts.
  *
  * @generated from message turbo.result.v1.PiiValueCiphertext
  */
@@ -3535,8 +3540,8 @@ export type PiiOutputOptions = Message<"turbo.result.v1.PiiOutputOptions"> & {
   detail: boolean;
 
   /**
-   * Values in this form; UNSPECIFIED or WITHHELD withholds them. TOKEN
-   * and CLEAR are released by InspectDocumentGraph only, on a server with
+   * Values in this form; UNSPECIFIED or WITHHELD withholds them. TOKEN,
+   * CIPHERTEXT and CLEAR are released by InspectDocumentGraph only, on a server with
    * PII release configured (#1909), and only for the kinds the calling
    * service's verified client certificate is granted; every other mention
    * is withheld with its reason (PiiWithheldReason). A release needs the
@@ -3545,9 +3550,10 @@ export type PiiOutputOptions = Message<"turbo.result.v1.PiiOutputOptions"> & {
    * kind at all is refused with TURBO_E_INVALID_STATE (FAILED_PRECONDITION)
    * naming the form. Both are decided before the graph is read (#1931).
    * Each release is recorded with the audit service (turbo_audit.proto)
-   * before the answer leaves, and fails when the record does. CIPHERTEXT,
-   * and TOKEN or CLEAR on any other call or on a server without release,
-   * are refused with TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED).
+   * before the answer leaves, and fails when the record does. A value
+   * form on any other call or on a server without release, and CIPHERTEXT
+   * on a server that releases no ciphertext, are refused with
+   * TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED).
    *
    * @generated from field: turbo.result.v1.PiiValueForm values = 4;
    */
