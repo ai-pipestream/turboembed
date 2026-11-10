@@ -164,10 +164,12 @@ turbo-bench qa --bundle <bundle> --questions dev-v2.0.json --device cuda --preci
 The capability cell stays experimental: no benchmark record compiled into the
 build backs SUPPORTED for extractive QA, and the records above are task records,
 not the embedding records `turbo-bench check` reads. Metal and Level Zero offer
-range writes and so open QA sessions, but neither has been run against the
-reference here; they are reached only by naming them in `QaOptions`, as
-`ExtractiveQa::open`, which the bundle check and the annotator use, stays on the
-CPU. The threshold is not calibrated on held-out data. Metal and Level Zero
-do not apply the span head yet (`token_head` in `turbo_backend.h`), so on
-them each token's final hidden state still comes back to the host for it,
-about 1.2 MB a 384-token RoBERTa-base window.
+range writes and so open QA sessions; they are reached only by naming them in
+`QaOptions`, as `ExtractiveQa::open`, which the bundle check and the annotator
+use, stays on the CPU. Level Zero is held to the reference and the CPU path by
+`core/tests/levelzero_qa.rs` and the conformance check, and applies the span
+head on the device, as CUDA does (docs/levelzero.md). Metal has not been run
+against the reference here, and does not apply the span head yet (`token_head`
+in `turbo_backend.h`), so on it each token's final hidden state still comes
+back to the host for it, about 1.2 MB a 384-token RoBERTa-base window. The
+threshold is not calibrated on held-out data.

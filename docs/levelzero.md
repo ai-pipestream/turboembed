@@ -318,6 +318,18 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, allocated with
   the session; a run allocates nothing. A plain write after a range
   write, or the reverse, replaces it.
+- **The span head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head (`turbo_backend_model.head`: the
+  `[2, hidden]` weight and then the bias, F32, copied to the device in an
+  allocation of their own), and a range write to it asks for the head
+  (`rows.head`). The run then pools each range's whole vector,
+  unnormalized, into the projections' scratch, which is free after the
+  last layer and holds `max_batch * max_seq` vectors, and `span_head`
+  computes each range's start and end logits from it, a sub-group per
+  logit, the products and sums in F64 as the CPU path's head does, into
+  the output buffer as `[ranges, 2]` F32. A window's read is then 8 bytes
+  a token, where the hidden states were 3 KB a token at RoBERTa-base's
+  768 (`core/tests/levelzero_qa.rs`).
 - **Failures.** The driver's immediate list cannot finish or be destroyed
   after an append to it fails. Every append signals an event of the
   context's, so when one fails the call waits for the event of the last

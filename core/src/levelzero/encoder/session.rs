@@ -75,6 +75,8 @@ pub(super) struct Session {
     /// The ranges embed_write_ranges wrote, which the run pools by; 0
     /// after embed_write, whose run pools each row.
     pub(super) ranges: u32,
+    /// Whether the run puts the ranges through the model's head.
+    pub(super) head: bool,
     /// Live tokens, packed.
     pub(super) tokens: u32,
     pub(super) longest: u32,
@@ -336,6 +338,7 @@ pub(super) unsafe fn create(
                 has_types: false,
                 batch: 0,
                 ranges: 0,
+                head: false,
                 tokens: 0,
                 longest: 0,
                 pooling: 0,

@@ -48,6 +48,8 @@ pub(super) struct Kernels {
     /// The mean over each range of embed_write_ranges, in place of pool.
     pub(super) pool_ranges: Kernel,
     pub(super) normalize: Kernel,
+    /// An extractive QA model's span head over the range vectors (head.rs).
+    pub(super) span_head: Kernel,
     /// For a DeBERTa-v2 model, its lookup and its attention (deberta.rs).
     pub(super) deberta: Option<Deberta>,
     /// For a ModernBERT or nomic-bert model, its kernels (rotary.rs).
@@ -150,6 +152,7 @@ impl Kernels {
             pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
             pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
+            span_head: c.kernel("span_head", [16 * super::head::HEAD_SUBGROUPS, 1, 1])?,
             deberta: match deberta {
                 Some((d, max_seq)) => Some(Deberta {
                     embed: c.kernel("deberta_embed", row)?,
