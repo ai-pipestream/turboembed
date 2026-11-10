@@ -161,7 +161,7 @@ decimal.
 
 | Key | Source |
 |---|---|
-| `model_info.<field>` | `turbo_model_get_info`: `task`, `dim`, `pooling`, `normalize`, `max_seq`, `max_batch`, `dtype`, `model_id`, `revision`, `manifest_sha256`, `artifact_sha256`, `tokenizer_sha256`, `prefix_query`, `prefix_document`, `output_dims_count`, and `output_dims`: the first `output_dims_count` entries, ascending, in decimal separated by `,`, empty when there are none. These and `dim` are every `output_dim` a request may name. |
+| `model_info.<field>` | `turbo_model_get_info`: `task`, `dim`, `pooling`, `normalize`, `max_seq`, `max_batch`, `dtype`, `model_id`, `revision`, `manifest_sha256`, `artifact_sha256`, `tokenizer_sha256`, `prefix_query`, `prefix_document`, `license`, `license_class`, `output_dims_count`, and `output_dims`: the first `output_dims_count` entries, ascending, in decimal separated by `,`, empty when there are none. These and `dim` are every `output_dim` a request may name. |
 | `session_info.<field>` | `turbo_session_get_info` of the model's first session (all are made alike): `max_batch`, `max_seq`, `precision`, `compute_dtype`. |
 | `device_info.<field>` | `turbo_runtime_device_info` of the model's device: `kind`, `ordinal`, `unified_memory`, `memory_total`, `arch`, `name`, `vendor`, `backend`, `runtime_version`, `driver_version`. |
 | `capability.<field>` | `turbo_runtime_capability` for the model's device, `turbo_model_info.task` and the sessions' `precision`: `status`, `dtype`, `options_honored`, `cosine_floor`, `speed_ratio`, `benchmark`, `reason`. |
