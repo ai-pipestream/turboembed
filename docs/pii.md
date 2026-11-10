@@ -776,22 +776,23 @@ to a trained head.
   `Point`, `Summit`, `Center`, `Plan`) may not be followed by unconsumed
   capitalized words (`3 Point Lane`, not `the 3 Five Point Plan` or
   `2020 Vision Center Plan`). When the house number is a four-digit year
-  (`1900` to `2099`) and the suffix is a general noun (or `Court` or
-  `Loop`, as in `2024 Supreme Court` or `2023 Feedback Loop`) rather than
-  an unambiguous street-only suffix, a post-direction, a unit or a comma
-  and capitalized city word must follow (`2016 Central Park West`, `2016
-  Central Park, New York`, not `2016 Central Park`, `2024 Supreme Court`,
-  `2023 Feedback Loop` or `2024 Annual Bay Summit`). A direction may
-  follow the suffix (`Main St
-  NW`, or a quadrant after a `.` or a comma, `L St., NW`), then a unit:
-  an optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
+  (`1900` to `2099`) and the suffix is a general noun (or `Court`, `Ct`
+  or `Loop`, as in `2024 Supreme Court`, `2024 Supreme Ct` or `2023
+  Feedback Loop`) rather than an unambiguous street-only suffix, a
+  post-direction, a unit or a comma and capitalized city word must
+  follow (`2016 Central Park West`, `2016 Central Park, New York`,
+  `2024 Oak Ct, Springfield`, not `2016 Central Park`, `2024 Supreme
+  Court`, `2024 Supreme Ct`, `2023 Feedback Loop` or `2024 Annual Bay
+  Summit`). A direction may follow the suffix (`Main St NW`, or a
+  quadrant after a `.` or a comma, `L St., NW`), then a unit: an
+  optional comma, `Apt`, `Suite`, `Ste`, `Unit`, `Floor`, `Room`,
   `Building`, `Lot` and the like with an optional `.`, or `#`, then one
   to six letters, digits and hyphens. Post office boxes are the same
   kind: `PO`, `P.O.`, `P. O.`, `P O` or `Post Office`, then `Box` and one
   to ten digits, in any case. Every piece is on one line and joined by
   one horizontal space (`' '`, `'\t'`, `U+00A0` or `U+202F`), so a city,
-  state and ZIP code after a comma, or the next
-  line of a letter, stay outside the mention. Lower case street words,
+  state and ZIP code after a comma, or the next line of a letter, stay
+  outside the mention. Lower case street words,
   a house number inside a decimal, an ordinal alone (`5th Avenue`) and
   a number with no suffix after its words (`Table 4 Summary`, `Route
   66`, `the 3 Point Plan`) are not addresses.
