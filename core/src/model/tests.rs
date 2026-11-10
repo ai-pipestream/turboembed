@@ -14,10 +14,11 @@ fn weights_load_rejects_out_of_bounds_artifact_index() {
 }
 
 #[test]
-fn only_the_cpu_and_levelzero_run_a_banded_model() {
-    assert!(runs_band("cpu", 16).is_ok());
-    assert!(runs_band("levelzero", 16).is_ok());
-    for b in ["cuda", "metal", "npu", "hailo"] {
+fn only_the_cpu_levelzero_and_metal_run_a_banded_model() {
+    for b in ["cpu", "levelzero", "metal"] {
+        assert!(runs_band(b, 16).is_ok(), "{b}");
+    }
+    for b in ["cuda", "npu", "hailo"] {
         assert!(runs_band(b, 0).is_ok());
         let e = runs_band(b, 16).err().unwrap();
         assert_eq!(e.code, UNSUPPORTED);
@@ -74,15 +75,13 @@ fn choose_skips_an_artifact_whose_backend_cannot_run_the_band_or_the_family() {
     }
 
     m.architecture.as_mut().unwrap().lookahead = Some(4);
-    for b in ["cpu", "levelzero"] {
+    for b in ["cpu", "levelzero", "metal"] {
         assert_eq!(choose(m, b, safetensors, "").unwrap(), 0, "{b}");
     }
-    for b in ["cuda", "metal"] {
-        let e = choose(m, b, safetensors, "").unwrap_err();
-        assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
-        let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
-        assert!(e.message.contains(&why), "{}", e.message);
-    }
+    let e = choose(m, "cuda", safetensors, "").unwrap_err();
+    assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
+    let why = "weights-f32: architecture.lookahead 4: the cuda backend has no limited-lookahead attention";
+    assert!(e.message.contains(why), "{}", e.message);
 
     let a = m.architecture.as_mut().unwrap();
     a.lookahead = None;

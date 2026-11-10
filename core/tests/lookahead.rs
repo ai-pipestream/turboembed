@@ -22,7 +22,7 @@ const TEXTS: [&str; 4] = [
 ];
 
 /// The backends whose attention takes a band (turbo::model::runs_band).
-const BANDED: [&str; 2] = ["cpu", "levelzero"];
+const BANDED: [&str; 3] = ["cpu", "levelzero", "metal"];
 
 /// The small BERT with `lookahead` keys ahead.
 fn banded_fixture(name: &str, lookahead: u32) -> Fixture {
@@ -227,7 +227,7 @@ fn a_band_of_no_keys_is_refused_at_load() {
     assert!(e.is(BUNDLE_INVALID, "architecture.lookahead: 0 is not a band of 1 key or more"), "{e:?}");
 }
 
-/// Every device's backend but the CPU's and Level Zero's runs whole rows, so rule 6 skips
+/// Every device's backend but the CPU's, Level Zero's and Metal's runs whole rows, so rule 6 skips
 /// the banded artifact there before any file of it is read. The weights
 /// are left out of the bundle: the CPU, which runs the band, opens them
 /// and finds none, and every other backend refuses with the reason.
@@ -241,17 +241,15 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
 
     let bundle = turbo::bundle::Bundle::open(f.write()).unwrap();
     let raw = backend::format_bit(backend::TURBO_FORMAT_SAFETENSORS);
-    for b in ["cuda", "metal"] {
-        let e = turbo::model::choose(&bundle.manifest, b, raw, "").unwrap_err();
-        let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
-        assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
-        assert!(e.message.contains(&why), "{}", e.message);
-    }
+    let e = turbo::model::choose(&bundle.manifest, "cuda", raw, "").unwrap_err();
+    let why = "weights-f32: architecture.lookahead 4: the cuda backend has no limited-lookahead attention";
+    assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
+    assert!(e.message.contains(why), "{}", e.message);
 
     // The same through turbo_model_load on each such device this machine has.
     let mut rt = std::ptr::null_mut();
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
-    let present: Vec<&str> = ["cuda", "metal"].into_iter().filter(|b| first_of(rt, b).is_some()).collect();
+    let present: Vec<&str> = ["cuda"].into_iter().filter(|b| first_of(rt, b).is_some()).collect();
     unsafe { turbo_runtime_release(rt) };
     for b in present {
         let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();

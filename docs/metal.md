@@ -207,6 +207,19 @@ frameworks and libc++, which every macOS has.
   vector bit for bit. The session's output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, made with the
   session, so a range run allocates nothing either.
+- **Limited lookahead.** A BERT or RoBERTa model with
+  `architecture.lookahead` (SaT's `sat-3l`, docs/neural-annotators.md)
+  runs its attention with every key before a query and at most
+  `lookahead` keys after it: `AttentionParams.ahead` is the lookahead
+  and `window` reads the whole row before the query, so each attention
+  kernel, F32, F16 and the narrow one, stops its walk over the keys at the
+  chunk holding its last query's band, and drops each score past its own
+  query's band as a masked key's. A model without a band reads every key,
+  as before. model_load refuses a band on the other families, which the
+  manifest refuses already. `core/tests/lookahead.rs` holds Metal to the
+  f64 banded encoder on the small BERT for lookahead 1, 2 and 5: within
+  1.2e-7 at MODEL and 5.2e-4 at FASTEST, where the whole row is 5.6e-3
+  to 8.7e-3 away.
 - **Numerics.** F32 throughout. Apple GPUs have no F64, so where the CPU
   encoder sums in F64 this backend sums in F32: LayerNorm takes the mean,
   then the variance around it, in two passes, and the L2 norm is summed
@@ -309,8 +322,8 @@ type:
 
 Attention is BERT's with a window: on a sliding-window layer (layer l
 with l % global_every not 0) query i reads keys j with |i - j| <=
-attention_window / 2, the kernel visiting only the chunks of 32 keys
-that hold one, and a query whose window holds no live key (a left-padded
+attention_window / 2 (`AttentionParams` window and ahead both that
+half), the kernel visiting only the chunks of 32 keys that hold one, and a query whose window holds no live key (a left-padded
 row's pad) gets a context of 0. ModernBERT is pre-norm (`layer_norm_into`
 writing the normalized rows beside the residual, layer 0 reading x, the
 final norm last), its norms bias-free; nomic-bert is post-norm in BERT's

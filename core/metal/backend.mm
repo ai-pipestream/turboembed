@@ -1015,11 +1015,20 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             return refuse(err, TURBO_E_UNSUPPORTED,
                           "hidden %u and intermediate %u: the metal backend needs each a multiple of 8", desc->hidden,
                           desc->intermediate);
+        // Limited lookahead is BERT's and RoBERTa's band (the manifest
+        // allows it on those alone); the core passes it only in a
+        // description that holds the field.
+        const bool has_band = desc->struct_size >= offsetof(turbo_backend_model, lookahead) + sizeof(uint32_t);
+        const uint32_t lookahead = has_band ? desc->lookahead : 0;
+        if (lookahead && (deberta || rotary))
+            return refuse(err, TURBO_E_UNSUPPORTED, "lookahead %u: the metal backend bands BERT and RoBERTa attention alone",
+                          lookahead);
         const size_t elem = desc->dtype == TURBO_DTYPE_F32 ? 4 : 2;
         Model *m = make<Model>();
         m->ctx = c;
         m->desc = *desc;
         m->desc.tensors = nullptr;
+        m->desc.lookahead = lookahead;
         const int64_t copied = map_weights(m, desc);
         if (copied < 0) {
             delete m;
@@ -1244,13 +1253,15 @@ struct GemmParams {
      * to the sin table. */
     uint32_t head_dim = 0, rope_sin = 0;
 };
-/* AttentionParams::window for a layer that reads the whole row. */
+/* AttentionParams::window and ahead for a layer that reads every key on
+ * that side of a query. */
 constexpr uint32_t NO_WINDOW = UINT32_MAX;
 struct AttentionParams {
     uint32_t hidden, head_dim;
     float scale;
     uint32_t narrow_stride;
-    uint32_t window = NO_WINDOW;
+    /* The keys a query reads before it and after it (kernels.metal). */
+    uint32_t window = NO_WINDOW, ahead = NO_WINDOW;
 };
 struct PackParams {
     uint32_t rows, k, mode, head_dim;
@@ -2192,10 +2203,13 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                                                                 kn.k[k].maxTotalThreadsPerThreadgroup / 32}));
     };
     const uint32_t narrow_groups = groups_for(ATTENTION_NARROW), deberta_groups = groups_for(DEBERTA_ATTENTION);
-    // BERT's attention, which the rotary families share: a sliding window
-    // reads keys within `window` of each query, NO_WINDOW the whole row.
-    auto attend = [&](bool f16_att, uint32_t window) {
-        const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd), stride, window};
+    // BERT's attention, which the rotary families share: a query reads
+    // the keys `window` before it through `ahead` after it, NO_WINDOW every
+    // key on that side. A sliding window is the same both sides; a model of
+    // limited lookahead (architecture.lookahead) reads every key before a
+    // query and `lookahead` after it.
+    auto attend = [&](bool f16_att, uint32_t window, uint32_t ahead) {
+        const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd), stride, window, ahead};
         const bool wide = f16_att || wide_heads(hd);
         [enc setComputePipelineState:kn.k[f16_att ? att_h : wide ? ATTENTION : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
@@ -2262,7 +2276,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                 peak(s.k, h, 1);
                 peak(s.v, h, 2);
             }
-            attend(f16_att, window);
+            attend(f16_att, window, window);
             if (f16_att) peak(s.att, h, 3);
             if (modern) {
                 gemm(f16l, s.att, h, h, EPILOGUE_RESIDUAL, {{&lw[RL_OUT], s.x}}, {}, f16_att);
@@ -2319,7 +2333,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1)
                 threadsPerThreadgroup:MTLSizeMake(32 * deberta_groups, 1, 1)];
         } else {
-            attend(f16_att, NO_WINDOW);
+            attend(f16_att, NO_WINDOW, d.lookahead ? d.lookahead : NO_WINDOW);
         }
 
         if (f16_att) peak(s.att, h, 3);

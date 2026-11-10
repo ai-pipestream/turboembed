@@ -301,7 +301,7 @@ fn limited_lookahead_matches_wtpsplit() {
     if encoder().device != Device::Cpu {
         // A device whose attention takes no band (`turbo::model::runs_band`)
         // has the artifact skipped by rule 6 rather than read whole rows;
-        // one that takes it (Level Zero) is held to wtpsplit as the CPU is.
+        // one that takes it (Level Zero, Metal) is held to wtpsplit as the CPU is.
         let o = SatOptions { encoder: encoder(), ..SatOptions::default() };
         if let Err(e) = SatAnnotator::open(&dir, &o) {
             assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");
