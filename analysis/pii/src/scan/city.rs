@@ -176,14 +176,17 @@ fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str
 }
 
 /// The gazetteer's places named `text[start..end]`, when it is written
-/// like the gazetteer's name with no word character touching either end.
+/// like one of the gazetteer's names for the place with no word character
+/// touching either end.
 fn lookup(text: &str, start: usize, end: usize) -> Option<Vec<Entry<'static>>> {
     let written = &text[start..end];
     if !on_name_start(text, start) || !on_name_end(text, end) || !capital_at(text, start) {
         return None;
     }
     let mut found = BundledGazetteer::get().lookup(written);
-    found.retain(|e| capitals_like_a_name(written, e.name()));
+    found.retain(|e| {
+        std::iter::once(e.name()).chain(e.alternate_names()).any(|name| capitals_like_a_name(written, name))
+    });
     (!found.is_empty()).then_some(found)
 }
 
