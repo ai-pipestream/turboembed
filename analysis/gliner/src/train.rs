@@ -34,13 +34,17 @@ impl Model {
         if self.config.hidden != trainer.hidden || self.config.projection_factor != trainer.factor {
             return Err("gliner output trainer does not match the model".into());
         }
-        self.heads.set_output(&trainer.params)
+        self.heads.set_output(&trainer.params, trainer.boundaries)
     }
 }
 
 pub struct OutputTrainer {
     hidden: usize,
     factor: usize,
+    /// The output projection is one dense layer, not an MLP.
+    linear: bool,
+    /// The two boundary MLPs follow the output tensors.
+    boundaries: bool,
     params: Vec<Vec<f32>>,
     base: Vec<Vec<f32>>,
     anchor: f32,
@@ -90,7 +94,8 @@ impl OutputTrainer {
             }
             params.push(tensor.f32s());
         }
-        Ok(Self { hidden: h, factor: f, base: params.clone(), params, anchor: 0.0 })
+        let linear = !config.out_project_mlp;
+        Ok(Self { hidden: h, factor: f, linear, boundaries, base: params.clone(), params, anchor: 0.0 })
     }
 
     pub fn set_anchor(&mut self, weight: f32) -> Result<(), String> {
@@ -110,17 +115,17 @@ impl OutputTrainer {
         &self.params
     }
 
+    fn output_len(&self) -> usize {
+        if self.linear { 2 } else { 4 }
+    }
+
     fn boundary_offset(&self) -> Option<usize> {
-        match self.params.len() {
-            10 => Some(2),
-            12 => Some(4),
-            _ => None,
-        }
+        self.boundaries.then(|| self.output_len())
     }
 
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
         let file = File::parse("gliner heads", original).map_err(|e| e.message)?;
-        let mut names: Vec<String> = if matches!(self.params.len(), 2 | 10) {
+        let mut names: Vec<String> = if self.linear {
             vec![
                 "span_rep_layer.span_rep_layer.out_project.weight".into(),
                 "span_rep_layer.span_rep_layer.out_project.bias".into(),
@@ -168,7 +173,8 @@ impl OutputTrainer {
         let valid_words = boundary.is_none()
             || (input.words.len().is_multiple_of(h)
                 && input.pairs.iter().all(|&(start, end)| start < end && end <= input.words.len() / h));
-        if !matches!(grads.len(), 2 | 4 | 10 | 12)
+        // The buffer is this trainer's own: every tensor, each of its length.
+        if grads.len() != self.params.len()
             || grads.iter().zip(&self.params).any(|(a, b)| a.len() != b.len())
             || input.spans.len() != input.pairs.len() * 2 * h
             || candidates.len() != input.pairs.len() * labels
@@ -184,7 +190,7 @@ impl OutputTrainer {
                 Boundary::forward(&self.params[offset + 4..], &input.words, n, h, f),
             )
         });
-        let linear = matches!(self.params.len(), 2 | 10);
+        let linear = self.linear;
         let positive: BTreeSet<(usize, usize, usize)> = gold.iter().copied().collect();
         let mut selected: BTreeSet<usize> = input
             .pairs
@@ -374,9 +380,20 @@ pub fn output_optimizer(settings: Settings, trainer: &OutputTrainer) -> Result<A
 mod tests {
     use super::*;
 
+    fn built(params: Vec<Vec<f32>>, linear: bool, boundaries: bool) -> OutputTrainer {
+        OutputTrainer { hidden: 1, factor: 2, linear, boundaries, base: params.clone(), params, anchor: 0.0 }
+    }
+
+    fn boundary_params(mut params: Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+        for _ in 0..2 {
+            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
+        }
+        params
+    }
+
     fn fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
         let params = vec![vec![0.2, -0.1, 0.3, 0.4], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]];
-        let trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        let trainer = built(params, false, false);
         let input = TrainingInput {
             words: vec![0.6, -0.2],
             spans: vec![0.5, -0.3, 0.2, 0.8],
@@ -422,30 +439,41 @@ mod tests {
     #[test]
     fn linear_output_gradients_match_finite_differences() {
         let (_, input, candidates) = fixture();
-        let params = vec![vec![0.3, -0.4], vec![0.2]];
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        let mut trainer = built(vec![vec![0.3, -0.4], vec![0.2]], true, false);
         check_gradients(&mut trainer, &input, &candidates);
     }
 
     #[test]
     fn boundary_gradients_match_finite_differences() {
         let (output, input, candidates) = fixture();
-        let mut params = output.params;
-        for _ in 0..2 {
-            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
-        }
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        let mut trainer = built(boundary_params(output.params), false, true);
         check_gradients(&mut trainer, &input, &candidates);
     }
 
     #[test]
     fn linear_boundary_gradients_match_finite_differences() {
         let (_, input, candidates) = fixture();
-        let mut params = vec![vec![0.3, -0.4], vec![0.2]];
-        for _ in 0..2 {
-            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
-        }
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
+        let mut trainer = built(boundary_params(vec![vec![0.3, -0.4], vec![0.2]]), true, true);
         check_gradients(&mut trainer, &input, &candidates);
+    }
+
+    #[test]
+    fn a_gradient_buffer_of_another_mode_is_refused() {
+        let (output, input, candidates) = fixture();
+        let boundary = built(boundary_params(output.params.clone()), false, true);
+        let gold = [(0, 1, 0)];
+        // Too short: the output tensors match, the boundary tensors are missing.
+        let mut short = output.zero_grads();
+        assert!(boundary.gradients(&input, &candidates, &gold, &mut short).unwrap_err().contains("shape mismatch"));
+        // Too long: nothing of the surplus would be written.
+        let mut long = boundary.zero_grads();
+        assert!(output.gradients(&input, &candidates, &gold, &mut long).unwrap_err().contains("shape mismatch"));
+        assert!(long.iter().flatten().all(|&g| g == 0.0));
+        // A tensor of the wrong length anywhere in the buffer.
+        let mut wrong = boundary.zero_grads();
+        wrong[11].push(0.0);
+        assert!(boundary.gradients(&input, &candidates, &gold, &mut wrong).is_err());
+        let mut own = boundary.zero_grads();
+        assert!(boundary.gradients(&input, &candidates, &gold, &mut own).is_ok());
     }
 }

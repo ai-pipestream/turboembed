@@ -356,16 +356,17 @@ impl Heads {
         Ok((input, candidates))
     }
 
-    pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
-        let (h, f) = match &self.head {
-            SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
+    /// Installs trained tensors: the output projection in this model's own
+    /// form, then the two boundary MLPs when `boundaries` says they follow.
+    pub(crate) fn set_output(&mut self, params: &[Vec<f32>], boundaries: bool) -> Result<(), String> {
+        let (h, f, linear) = match &self.head {
+            SpanHead::Marker { start, span, .. } => (self.hidden, start.first.n, matches!(span, OutputHead::Linear(_))),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        if !matches!(params.len(), 2 | 4 | 10 | 12) {
-            return Err("gliner output training requires output tensors with optional boundary MLPs".into());
-        }
-        let linear = matches!(params.len(), 2 | 10);
         let output_len = if linear { 2 } else { 4 };
+        if params.len() != output_len + if boundaries { 8 } else { 0 } {
+            return Err("gliner output training tensors do not match the model's heads".into());
+        }
         let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
