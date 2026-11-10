@@ -128,6 +128,13 @@ impl Session {
         if r.batch > 1 && r.row_stride < r.seq {
             return Err(fail(INVALID_SHAPE, format!("row_stride {} is under seq {}", r.row_stride, r.seq)));
         }
+        let taps = if ranges.is_empty() { 1 } else { r.taps.max(1) };
+        if taps as usize * ranges.len() > self.max_ranges as usize || taps > self.model().desc.layers {
+            return Err(fail(
+                CAPACITY,
+                format!("{} ranges from {taps} layers: the levelzero session holds {}", ranges.len(), self.max_ranges),
+            ));
+        }
         // No crossing yet: the lookup kernel reads the packed rows, and the
         // pooling kernel the ranges, from the staging when the run starts.
         let (tokens, longest, sent) = unsafe { self.pack(r)? };
@@ -136,6 +143,7 @@ impl Session {
         self.has_types = !r.types.is_null();
         self.batch = r.batch;
         self.ranges = ranges.len() as u32;
+        self.taps = taps;
         self.tokens = tokens;
         self.longest = longest;
         // The core writes a range run's pooling as TURBO_POOLING_MEAN.

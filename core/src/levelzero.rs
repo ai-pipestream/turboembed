@@ -200,9 +200,9 @@ pub fn append_failure_recovers() -> Result<(), String> {
     gpu::append_failure_recovers(d, dev)
 }
 
-/// Fields of turbo_embed_options a run honors: normalize (4), pooling (5)
-/// and output_dim (6), every value of each.
-const EMBED_HONORED: u32 = 0b111000;
+/// Fields of turbo_embed_options a run honors: normalize (4), pooling (5),
+/// output_dim (6) and layers (9, encoder/taps.rs), every value of each.
+const EMBED_HONORED: u32 = 0b1_0011_1000;
 
 unsafe extern "C" fn context_create(
     ordinal: u32,

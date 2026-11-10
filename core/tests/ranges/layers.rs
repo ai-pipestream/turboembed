@@ -113,6 +113,90 @@ fn a_layer_range_write_refuses_what_it_cannot_take() {
     s.write_ranges(&t.batch(), &good, Some(&turbo_embed_options { layers: 1, ..embed_options() })).unwrap();
 }
 
+/// The backends whose embed cell sets field 9's bit.
+const READS_LAYERS: [&str; 2] = ["cpu", "levelzero"];
+
+/// The device backends this build lists, failing where
+/// TURBO_TEST_REQUIRE_<BACKEND>=1 names one it does not.
+fn devices() -> Vec<&'static str> {
+    ["cuda", "metal", "levelzero"]
+        .into_iter()
+        .filter(|b| {
+            let required = std::env::var(format!("TURBO_TEST_REQUIRE_{}", b.to_uppercase())).is_ok_and(|v| v == "1");
+            assert!(
+                !required || listed(b),
+                "TURBO_TEST_REQUIRE_{}=1 and the backend lists no device",
+                b.to_uppercase()
+            );
+            listed(b)
+        })
+        .collect()
+}
+
+fn cosine(a: &[f32], b: &[f32]) -> f64 {
+    let dot = |x: &[f32], y: &[f32]| x.iter().zip(y).map(|(&p, &q)| f64::from(p) * f64::from(q)).sum::<f64>();
+    dot(a, b) / (dot(a, a) * dot(b, b)).sqrt()
+}
+
+/// Each range from every layer of the bundle at `dir`, of `deep` layers,
+/// on `backend` at `precision` against the CPU at EXACT, normalized and
+/// not: the last block is the device's own plain range write bit for bit,
+/// and every vector within docs/conformance.md's bound for the session's
+/// compute dtype (a cosine of 0.9999 and a largest difference of 1e-4 of
+/// the vector's largest value in F32, a cosine of 0.999 in F16).
+fn agree_on(backend: &str, precision: u32, dir: &Path, deep: u32) {
+    let what = format!("{backend}, precision {precision}, {}", dir.display());
+    let (t, lens) = tokens_of(dir, &RANGES_TEXTS);
+    let ranges = [range(0, 0, lens[0] as u32), range(1, 1, 4), range(2, 0, 2)];
+    let cpu = Loaded::load(dir).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    let cs = session_of(&cpu, 3 * deep);
+    let l = Loaded::load_on(dir, |rt| first_of(rt, backend).unwrap()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    let mut d = session_desc(0, 0, precision);
+    d.max_ranges = 3 * deep;
+    let s = match Session::create(l.m, Some(&d)) {
+        Ok(s) => s,
+        Err(e) => return println!("{what}: skipped: {e:?}"),
+    };
+    let dtype = s.info().compute_dtype;
+    for normalize in [0, TURBO_NORMALIZE_NONE] {
+        let o = turbo_embed_options { normalize, ..embed_options() };
+        let plain = run_ranges(&s, &t, &ranges, &o);
+        let o = turbo_embed_options { layers: deep, ..o };
+        let (got, want) = (run_ranges(&s, &t, &ranges, &o), run_ranges(&cs, &t, &ranges, &o));
+        assert_eq!(got.len(), 3 * deep as usize, "{what}");
+        let last = got[3 * (deep as usize - 1)..].iter().map(|v| bits(v)).collect::<Vec<_>>();
+        assert_eq!(last, plain.iter().map(|v| bits(v)).collect::<Vec<_>>(), "{what}: the last block");
+        let mut worst = (1.0f64, 0.0f64);
+        for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+            let scale = w.iter().fold(0f32, |m, v| m.max(v.abs()));
+            let diff = g.iter().zip(w).fold(0f32, |m, (a, b)| m.max((a - b).abs())) / scale;
+            worst = (worst.0.min(cosine(g, w)), worst.1.max(f64::from(diff)));
+            let (floor, most) = if dtype == TURBO_DTYPE_F32 { (0.9999, 1e-4) } else { (0.999, f64::INFINITY) };
+            assert!(worst.0 >= floor && worst.1 <= most, "{what}, normalize {normalize}, vector {i}: {worst:?}");
+        }
+        println!(
+            "{what}, normalize {normalize}: 1 - min cosine {:.3e}, max diff {:.3e} of the scale",
+            1.0 - worst.0,
+            worst.1
+        );
+    }
+}
+
+/// Every device whose cell sets field 9's bit, on every family the CPU
+/// reads the layers of, at MODEL and FASTEST, against the CPU; a device
+/// that is not listed is skipped, unless TURBO_TEST_REQUIRE_<BACKEND>=1.
+#[test]
+fn every_layer_on_a_device_matches_the_cpu() {
+    for backend in devices().into_iter().filter(|b| READS_LAYERS.contains(b)) {
+        for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+            agree_on(backend, precision, &testdata().join("tiny-bert-bundle"), 2);
+            agree_on(backend, precision, &testdata().join("tiny-modernbert-bundle"), 3);
+            agree_on(backend, precision, &testdata().join("tiny-deberta-bundle"), 2);
+            agree_on(backend, precision, &testdata().join("tiny-nomic-bundle"), 2);
+        }
+    }
+}
+
 /// Whether this build lists a device of `backend`.
 fn listed(backend: &str) -> bool {
     let mut rt = std::ptr::null_mut();
@@ -133,7 +217,7 @@ fn a_count_over_the_model_is_refused_alike_on_every_device() {
     let dir = tiny_bundle();
     let (t, _) = tokens_of(&dir, &RANGES_TEXTS);
     let good = [range(0, 0, 2), range(1, 0, 3)];
-    let mut devices: Vec<&str> = ["cuda", "metal", "levelzero"].into_iter().filter(|b| listed(b)).collect();
+    let mut devices = devices();
     if devices.is_empty() {
         println!("no device but the CPU: the order is pinned by session/tests.rs alone");
     }
@@ -149,7 +233,7 @@ fn a_count_over_the_model_is_refused_alike_on_every_device() {
         };
         assert_eq!(rc, 0, "{backend}");
         let reads = cap.options_honored & 1 << 8 != 0;
-        assert_eq!(reads, backend == "cpu", "{backend}: the cpu backend alone reads the earlier layers");
+        assert_eq!(reads, READS_LAYERS.contains(&backend), "{backend}: which backends read the earlier layers");
         let s = session_of(&l, 0);
         let over = s.write_layer_ranges(&t.batch(), &good, 3, None).unwrap_err();
         assert_eq!((over.code, over.field), (INVALID_ARGUMENT, 9), "{backend}: {over:?}");
