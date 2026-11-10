@@ -58,6 +58,23 @@ async fn serve() -> (Server, AnalysisServiceClient<tonic::transport::Channel>, B
     serve_package(package()).await
 }
 
+#[tokio::test]
+async fn loaded_gliner_package_reports_serving_health() {
+    use turbo_kserve::proto::health::HealthCheckRequest;
+    use turbo_kserve::proto::health::health_check_response::ServingStatus;
+    use turbo_kserve::proto::health::health_client::HealthClient;
+
+    let (server, _client, _) = serve().await;
+    let mut health = HealthClient::connect(format!("http://{}", server.local_addr())).await.unwrap();
+    for service in ["gliner", ""] {
+        let response = health.check(HealthCheckRequest { service: service.into() }).await.unwrap().into_inner();
+        assert_eq!(response.status(), ServingStatus::Serving, "{service}");
+    }
+    let mut watch = health.watch(HealthCheckRequest { service: "gliner".into() }).await.unwrap().into_inner();
+    assert_eq!(watch.message().await.unwrap().unwrap().status(), ServingStatus::Serving);
+    server.stop().await;
+}
+
 fn request(text: &str, with_gliner: bool) -> AnalyzePipelineRequest {
     let mut steps = vec!["turbo-sentdetect:rules".into(), "turbo-tokenize:uax29-untyped".into()];
     if with_gliner {
