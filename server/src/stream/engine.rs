@@ -308,7 +308,13 @@ impl Engine {
             self.stalled.push_back((docs, permits));
             return;
         }
-        let Some(loaded) = docs.first().map(|d| d.loaded.clone()) else { return };
+        if docs.first().is_some_and(|d| d.output == crate::proto::result::AnalyzeOutput::DocumentGraph) {
+            let shared = self.shared.clone();
+            let dead = dead.clone();
+            self.inflight.spawn_blocking(move || run::run_document_graph(&shared, dead.flag(), docs, permits));
+            return;
+        }
+        let Some(loaded) = docs.first().and_then(|d| d.loaded.clone()) else { return };
         match loaded.take() {
             Ok(held) => {
                 let opts = docs[0].opts;
@@ -343,23 +349,16 @@ impl Engine {
                 for row in rows {
                     let mut response = match row.payload {
                         RowPayload::Vector(data) => {
-                            let vectors = crate::proto::result::AnalyzeVectors {
-                                model: model.clone(),
-                                version: version.clone(),
-                                dim,
-                                data,
-                                quantization,
-                            };
-                            ok_response(row.id, vectors)
+                            let (model, version) = (model.clone(), version.clone());
+                            ok_response(
+                                row.id,
+                                crate::proto::result::AnalyzeVectors { model, version, dim, data, quantization },
+                            )
                         }
                         RowPayload::Codes(data) => {
-                            let codes = crate::proto::result::VectorCodesResult {
-                                model: model.clone(),
-                                version: version.clone(),
-                                dim,
-                                data,
-                                quantization,
-                            };
+                            let (model, version) = (model.clone(), version.clone());
+                            let codes =
+                                crate::proto::result::VectorCodesResult { model, version, dim, data, quantization };
                             let outcome = crate::proto::result::analyze_stream_response::Outcome::VectorCodes(codes);
                             AnalyzeStreamResponse { id: row.id, outcome: Some(outcome), binding: None }
                         }
@@ -389,7 +388,16 @@ impl Engine {
                     return Err(());
                 }
                 for (doc, permit) in docs.into_iter().zip(permits) {
-                    match doc.loaded.take() {
+                    if doc.output == crate::proto::result::AnalyzeOutput::DocumentGraph {
+                        let shared = self.shared.clone();
+                        let dead = dead.clone();
+                        self.inflight.spawn_blocking(move || {
+                            run::run_document_graph(&shared, dead.flag(), vec![doc], vec![permit])
+                        });
+                        continue;
+                    }
+                    let Some(loaded) = doc.loaded.clone() else { continue };
+                    match loaded.take() {
                         Ok(held) => {
                             let opts = doc.opts;
                             let shared = self.shared.clone();
