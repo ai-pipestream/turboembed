@@ -119,4 +119,5 @@ pack_tests! {
     all_structured_snapshots: Pack::AllStructured, 80;
     dates_snapshots: Pack::Dates, 4;
     money_snapshots: Pack::Money, 5;
+    places_snapshots: Pack::Places, 6;
 }

@@ -129,6 +129,7 @@ pub fn release(files: &Files, grants: &[String], audit: SocketAddr, timeout: Dur
         token_keys: vec![TokenKeyFile { key: KeyRef { id: "tok".into(), version: 4 }, path: files.key.clone() }],
         active_token_key: None,
         encryption_keys: Vec::new(),
+        active_encryption_key: None,
         audit_endpoint: format!("http://{audit}"),
         audit_timeout: timeout,
         require_recorded_policy: false,

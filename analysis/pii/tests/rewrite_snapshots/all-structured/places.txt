@@ -1,0 +1,12 @@
+MASKED	Lives in Cook County, Illinois, near Springfield, IL *****; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+MASK_ALL	Lives in Cook County, Illinois, near Springfield, IL #####; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+REWRITE	pseudonymize	OK	Lives in Cook County, Illinois, near Springfield, IL US-ZIP-1; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+LABEL	pseudonymize	53	58	53	61	US-ZIP-1
+REWRITE	hmac	OK	Lives in Cook County, Illinois, near Springfield, IL US-ZIP-53e6cdd0fa6559c3; moved from Orleans Parish, Louisiana and NEW YORK. State: OR. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+LABEL	hmac	53	58	53	76	US-ZIP-53e6cdd0fa6559c3
+AUDIT	us-zip	1	1	US-ZIP-53e6cdd0fa6559c3
+AUDIT_REPORT	us-zip: 1 mentions, 1 distinct [US-ZIP-53e6cdd0fa6559c3]

@@ -30,6 +30,7 @@ async fn send_codes(stream: &mut Stream, id: &str, text: &str, options: Option<A
                 options,
                 output: AnalyzeOutput::VectorCodes as i32,
                 offsets: 0,
+                vocabulary: None,
             })),
         })
         .await

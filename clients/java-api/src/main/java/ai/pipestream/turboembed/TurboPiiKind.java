@@ -52,7 +52,9 @@ public enum TurboPiiKind {
     AGE(39, "age"),
     STREET_ADDRESS(40, "street-address"),
     DATE(41, "date"),
-    CURRENCY(42, "currency");
+    CURRENCY(42, "currency"),
+    STATE(43, "state"),
+    COUNTY(44, "county");
 
     /**
      * The numeric kind code of the first custom kind: code {@code CUSTOM_CODE_BASE + i} is entry

@@ -143,10 +143,14 @@ fn a_date_rule_turns_the_date_pack_on() {
     assert_eq!(p.opted_in_packs().collect::<Vec<_>>(), [Pack::Dates]);
     let none = RedactionPolicy::from_proto(&one(Strategy::Mask(pb::PiiMaskStrategy::default())), &NoRegistry).unwrap();
     assert_eq!(none.opted_in_packs().count(), 0, "a policy without a date rule keeps the default packs");
-    // Each opt-in pack scans the one kind its rule is matched on.
-    for (pack, kind) in [(Pack::Dates, PiiKind::Date), (Pack::Money, PiiKind::Currency)] {
+    // Each opt-in pack scans the kinds its rules are matched on.
+    for (pack, want) in [
+        (Pack::Dates, &[PiiKind::Date][..]),
+        (Pack::Money, &[PiiKind::Currency]),
+        (Pack::Places, &[PiiKind::State, PiiKind::County]),
+    ] {
         let kinds: Vec<PiiKind> = pack.scanners().iter().flat_map(|s| s.kinds().iter()).collect();
-        assert_eq!(kinds, [kind], "{pack:?}");
+        assert_eq!(kinds, want, "{pack:?}");
     }
 }
 
@@ -175,5 +179,15 @@ fn the_redact_step_reduces_dates_and_the_wire_edits_say_so() {
             assert_eq!(e.strategy, value as i32);
             assert_eq!(e.policy_digest, p.digest.as_bytes().to_vec());
         }
+    }
+}
+
+#[test]
+fn a_state_or_county_rule_turns_the_places_pack_on() {
+    for (name, id) in [("state", pb::PiiKindId::State), ("county", pb::PiiKindId::County)] {
+        let mask = Strategy::Mask(pb::PiiMaskStrategy::default());
+        let p = RedactionPolicy::from_proto(&policy(vec![rule(name, builtin(id), vec![entry(mask)])]), &NoRegistry)
+            .unwrap();
+        assert_eq!(p.opted_in_packs().collect::<Vec<_>>(), [Pack::Places], "{name}");
     }
 }
