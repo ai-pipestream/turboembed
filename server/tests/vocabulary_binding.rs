@@ -24,7 +24,7 @@ use turbo_kserve::proto::result::{
     CapabilitiesRequest, DocumentGraphResponse, InspectDocumentGraphRequest, LoadBundleRequest, ModelRef, OffsetMode,
     OpenSpanSchema, ProcessingReceipt, VocabularyArtifactRef, VocabularyBinding,
 };
-use turbo_kserve::proto::vocabulary::LearnVocabularyHeader;
+use turbo_kserve::proto::vocabulary::{DeleteVocabularyArtifactRequest, LearnVocabularyHeader};
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::{Serve, Server};
 use turbo_stopword::Stopwords;
@@ -205,18 +205,16 @@ async fn assert_prov(
 #[tokio::test]
 async fn imported_stopword_list_changes_next_request_without_restart_and_records_provenance() {
     let store_dir = dir("bind-stopwords");
-    let (server, mut ac, mut vc) = start_server(Some(store_dir), true).await;
+    let (server, mut ac, mut vc) = start_server(Some(store_dir.clone()), true).await;
 
     let (base_prog, _, base_doc) = run_progressive(&mut ac, "", TEXT, None).await;
     assert_eq!(flagged_tokens(&base_doc), vec!["and".to_owned()]);
     let base_sw_info = base_prog.layers.iter().find(|l| l.layer == "turbo:stopwords").unwrap();
     assert!(base_sw_info.model.is_none());
-
     let (_, base_stream_doc) = run_stream_graph(&mut ac, "base", TEXT, None).await;
     assert_eq!(flagged_tokens(&base_stream_doc), vec!["and".to_owned()]);
 
-    let custom_words = b"quixotl\nzebulon\n";
-    let desc = upload(&mut vc, "plain-word-list", "en", custom_words).await.unwrap();
+    let desc = upload(&mut vc, "plain-word-list", "en", b"quixotl\nzebulon\n").await.unwrap();
     let binding = VocabularyBinding { stopwords: Some(art_ref(&desc.artifact_id, &desc.sha256)), glossary: None };
     let want_model =
         ModelRef { id: desc.artifact_id.clone(), revision: "plain-word-list".into(), sha256: desc.sha256.clone() };
@@ -234,11 +232,19 @@ async fn imported_stopword_list_changes_next_request_without_restart_and_records
         assert!(phrase != "quixotl" && phrase != "zebulon", "stopword leaked into keywords: {phrase}");
     }
 
-    let (stream_resp, stream_doc) = run_stream_graph(&mut ac, "base", TEXT, Some(binding)).await;
+    let (stream_resp, stream_doc) = run_stream_graph(&mut ac, "base", TEXT, Some(binding.clone())).await;
     assert_eq!(flagged_tokens(&stream_doc), vec!["Quixotl".to_owned(), "Zebulon".to_owned()]);
     let s_ctx = (&stream_resp, &stream_doc, None);
     assert_prov(&mut ac, s_ctx, ("turbo:stopwords", "turbo-stopword:bundled"), &want_model).await;
     assert_prov(&mut ac, s_ctx, ("turbo:keywords", "turbo-keywords:yake"), &want_model).await;
+    // Cache hit skips disk read; deleting the artifact evicts it from index and cache.
+    std::fs::remove_file(store_dir.join("dictionaries").join(format!("{}.data", desc.artifact_id))).unwrap();
+    let (_, _, cached_doc) = run_progressive(&mut ac, "", TEXT, Some(binding.clone())).await;
+    assert_eq!(flagged_tokens(&cached_doc), vec!["Quixotl".to_owned(), "Zebulon".to_owned()]);
+    vc.delete_vocabulary_artifact(DeleteVocabularyArtifactRequest { artifact_id: desc.artifact_id }).await.unwrap();
+    let del_req = AnalyzePipelineRequest { vocabulary: Some(binding), ..Default::default() };
+    let del_err = ac.analyze_document_progressive(del_req).await.err().unwrap();
+    assert_eq!(refusal(&del_err), (Code::InvalidArgument, TURBO_E_INVALID_ARGUMENT));
     server.stop().await;
 }
 
@@ -249,13 +255,9 @@ async fn imported_glossary_and_learned_vocabulary_bind_with_provenance() {
 
     let csv_bytes = b"CONCEPT_ZEB,Zebulon\nCONCEPT_ZEP,Zephyr engines\n";
     let gloss_desc = upload(&mut vc, "glossary-csv", "en", csv_bytes).await.unwrap();
-    let learned_desc = learn(
-        &mut vc,
-        LearnVocabularyHeader { language: "en".into(), min_term_frequency: 1, lowercase: true, ..Default::default() },
-        &["quixotl build", "quixotl build"],
-    )
-    .await
-    .unwrap();
+    let learn_hdr =
+        LearnVocabularyHeader { language: "en".into(), min_term_frequency: 1, lowercase: true, ..Default::default() };
+    let learned_desc = learn(&mut vc, learn_hdr, &["quixotl build", "quixotl build"]).await.unwrap();
 
     let binding = VocabularyBinding {
         stopwords: Some(art_ref(&learned_desc.artifact_id, &learned_desc.sha256)),
@@ -266,11 +268,8 @@ async fn imported_glossary_and_learned_vocabulary_bind_with_provenance() {
         revision: "turbo-vocabulary-1".into(),
         sha256: learned_desc.sha256.clone(),
     };
-    let want_gloss_model = ModelRef {
-        id: gloss_desc.artifact_id.clone(),
-        revision: "glossary-csv".into(),
-        sha256: gloss_desc.sha256.clone(),
-    };
+    let want_gloss_model =
+        ModelRef { id: gloss_desc.artifact_id.clone(), revision: "glossary-csv".into(), sha256: gloss_desc.sha256 };
     let want_glossary_matches =
         vec![("CONCEPT_ZEB".to_owned(), "Zebulon".to_owned()), ("CONCEPT_ZEP".to_owned(), "Zephyr engines".to_owned())];
 
@@ -306,10 +305,9 @@ async fn imported_glossary_and_learned_vocabulary_bind_with_provenance() {
             ..Default::default()
         })),
     };
+    let batch_hdr = AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 50 };
     let batch_reqs = vec![
-        AnalyzeStreamRequest {
-            kind: Some(Kind::Header(AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 50 })),
-        },
+        AnalyzeStreamRequest { kind: Some(Kind::Header(batch_hdr)) },
         doc_req("b1", gloss_bind(&no_hdr.artifact_id, &no_hdr.sha256)),
         doc_req("b2", gloss_bind(&with_hdr.artifact_id, &with_hdr.sha256)),
     ];
@@ -345,17 +343,14 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
         stopwords: Some(art_ref(&sw_a.artifact_id, &sw_a.sha256)),
         glossary: Some(art_ref(&gloss_a.artifact_id, &gloss_a.sha256)),
     };
-    let loaded = ac
-        .load_bundle(LoadBundleRequest {
-            name: "bound-model".into(),
-            bundle: tiny_bundle_path().to_str().unwrap().into(),
-            sessions: 1,
-            vocabulary: Some(bundle_vocab.clone()),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_inner();
+    let load_req = |name: &str, bundle: std::path::PathBuf| LoadBundleRequest {
+        name: name.into(),
+        bundle: bundle.to_str().unwrap().into(),
+        sessions: 1,
+        vocabulary: Some(bundle_vocab.clone()),
+        ..Default::default()
+    };
+    let loaded = ac.load_bundle(load_req("bound-model", tiny_bundle_path())).await.unwrap().into_inner();
     assert_eq!(loaded.capabilities.as_ref().unwrap().vocabulary, Some(bundle_vocab.clone()));
     let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
     assert_eq!(caps.bundles[0].vocabulary, Some(bundle_vocab.clone()));
@@ -380,17 +375,7 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
     assert_eq!(matched_glossary(&over_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
 
     // GLiNER bundles also advertise and apply their bound default vocabulary (#2036).
-    let gliner_loaded = ac
-        .load_bundle(LoadBundleRequest {
-            name: "bound-gliner".into(),
-            bundle: gliner_fixture::package().to_str().unwrap().into(),
-            sessions: 1,
-            vocabulary: Some(bundle_vocab.clone()),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_inner();
+    let gliner_loaded = ac.load_bundle(load_req("bound-gliner", gliner_fixture::package())).await.unwrap().into_inner();
     assert_eq!(gliner_loaded.capabilities.as_ref().unwrap().vocabulary, Some(bundle_vocab.clone()));
     let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
     assert_eq!(caps.bundles.iter().find(|b| b.name == "bound-gliner").unwrap().vocabulary, Some(bundle_vocab.clone()));

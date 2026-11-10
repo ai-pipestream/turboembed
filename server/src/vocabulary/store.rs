@@ -237,20 +237,20 @@ impl Store {
     }
 
     /// Stores a vocabulary, or answers with the one already stored under
-    /// its id.
+    /// its id. The flag is whether this call stored it.
     pub(crate) fn put_vocabulary(
         &self,
         v: VocabularyArtifactDescriptor,
         bytes: &[u8],
-    ) -> Result<VocabularyArtifactDescriptor, String> {
+    ) -> Result<(VocabularyArtifactDescriptor, bool), String> {
         let mut index = self.index();
         if let Some(have) = index.vocabularies.get(&v.artifact_id) {
-            return Ok(have.clone());
+            return Ok((have.clone(), false));
         }
         self.write(VOCABULARIES, &format!("{}.tsv", v.artifact_id), bytes)?;
         self.write(VOCABULARIES, &format!("{}.meta", v.artifact_id), &vocabulary_meta(&v))?;
         index.vocabularies.insert(v.artifact_id.clone(), v.clone());
-        Ok(v)
+        Ok((v, true))
     }
 
     /// Removes an artifact, its descriptor first: false when there is none.

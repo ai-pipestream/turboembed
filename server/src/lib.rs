@@ -286,6 +286,7 @@ impl Server {
         let training = TurboTrainingServiceServer::new(training::TrainingService::new(
             state.clone(),
             store.clone(),
+            search_registry.clone(),
             training,
             serve.admin,
             serve.upload_idle.unwrap_or(training::component::UPLOAD_IDLE),
