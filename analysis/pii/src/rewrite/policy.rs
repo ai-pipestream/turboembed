@@ -43,6 +43,14 @@ pub enum RewriteStrategy {
     AgeSafeHarbor(AgeSafeHarbor),
     /// Date truncation, shifting and relative dates ([`DateRewrite`]).
     Date(DateRewrite),
+    /// Authenticated AES-256-GCM tokens of each mention's surface
+    /// ([`super::AesGcmEncryptor`]), with the `reversible` feature.
+    #[cfg(feature = "reversible")]
+    AesGcm(Box<super::AesGcmEncryptor>),
+    /// FF1 format-preserving encryption of each mention's surface
+    /// ([`super::Ff1Encryptor`]), with the `reversible` feature.
+    #[cfg(feature = "reversible")]
+    Ff1(Box<super::Ff1Encryptor>),
 }
 
 /// A whole-value `'*'` mask. Never a per-document pseudonym (`EMAIL-1`
@@ -126,6 +134,20 @@ impl From<DateRewrite> for RewriteStrategy {
     }
 }
 
+#[cfg(feature = "reversible")]
+impl From<super::AesGcmEncryptor> for RewriteStrategy {
+    fn from(v: super::AesGcmEncryptor) -> RewriteStrategy {
+        RewriteStrategy::AesGcm(Box::new(v))
+    }
+}
+
+#[cfg(feature = "reversible")]
+impl From<super::Ff1Encryptor> for RewriteStrategy {
+    fn from(v: super::Ff1Encryptor) -> RewriteStrategy {
+        RewriteStrategy::Ff1(Box::new(v))
+    }
+}
+
 impl RewriteStrategy {
     /// Folds the strategy's kind and every parameter that changes what it
     /// writes into `h`.
@@ -144,6 +166,10 @@ impl RewriteStrategy {
             RewriteStrategy::ZipSafeHarbor(s) => s.fold_config(h),
             RewriteStrategy::AgeSafeHarbor(s) => s.fold_config(h),
             RewriteStrategy::Date(s) => s.fold_config(h),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(s) => s.fold_config(h),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::Ff1(s) => s.fold_config(h),
         }
     }
 
@@ -163,6 +189,10 @@ impl RewriteStrategy {
             RewriteStrategy::ZipSafeHarbor(s) => s.refuses_overlaps(),
             RewriteStrategy::AgeSafeHarbor(s) => s.refuses_overlaps(),
             RewriteStrategy::Date(s) => s.refuses_overlaps(),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(s) => s.refuses_overlaps(),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::Ff1(s) => s.refuses_overlaps(),
         }
     }
 
@@ -182,6 +212,10 @@ impl RewriteStrategy {
             RewriteStrategy::ZipSafeHarbor(s) => s.rewrite(src, pii),
             RewriteStrategy::AgeSafeHarbor(s) => s.rewrite(src, pii),
             RewriteStrategy::Date(s) => s.rewrite(src, pii),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(s) => s.rewrite(src, pii),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::Ff1(s) => s.rewrite(src, pii),
         }
     }
 
@@ -200,6 +234,10 @@ impl RewriteStrategy {
             RewriteStrategy::ZipSafeHarbor(_) => PiiStrategyKind::ZipSafeHarbor,
             RewriteStrategy::AgeSafeHarbor(_) => PiiStrategyKind::AgeSafeHarbor,
             RewriteStrategy::Date(s) => s.kind(),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(_) => PiiStrategyKind::Aes256Gcm,
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::Ff1(_) => PiiStrategyKind::Ff1,
         }
     }
 
@@ -233,6 +271,8 @@ impl RewriteStrategy {
             | RewriteStrategy::ZipSafeHarbor(_)
             | RewriteStrategy::AgeSafeHarbor(_)
             | RewriteStrategy::Date(_) => CharRetention::NONE,
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(_) | RewriteStrategy::Ff1(_) => CharRetention::NONE,
         }
     }
 

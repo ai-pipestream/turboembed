@@ -54,7 +54,7 @@ impl GlinerAnnotator {
     /// Creates an annotator over a loaded [`OpenSpanModel`] (`HEAD_OPEN_SPAN`),
     /// pre-encoding and normalizing the label embeddings in `schema`.
     pub fn from_open_span(model: Arc<OpenSpanModel>, schema: ExtractionSchema) -> Result<Self, String> {
-        let label_states = model.embed_labels(schema.labels())?;
+        let label_states = model.embed_labels(schema.prompts())?;
         let labels: Vec<_> = schema.labels().iter().map(String::as_str).collect();
         let kinds = TagSet::new("turbo:gliner-types", &labels);
         Ok(Self { engine: Engine::OpenSpan { model, label_states }, schema, kinds })
@@ -160,7 +160,14 @@ impl Annotator for GlinerAnnotator {
             Engine::Deberta(m) => (serde_json::to_vec(m.config()).expect("finite validated config"), m.identity()),
             Engine::OpenSpan { model, .. } => (model.config_bytes().to_vec(), model.identity()),
         };
-        config_hash(&config, self.schema.labels(), self.schema.threshold(), self.schema.mode() as u8, identity)
+        config_hash(
+            &config,
+            self.schema.labels(),
+            self.schema.prompts(),
+            self.schema.threshold(),
+            self.schema.mode() as u8,
+            identity,
+        )
     }
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.annotate_with_work(input, &mut crate::heads::Work::default())
@@ -220,7 +227,14 @@ impl GlinerAnnotator {
 /// and decode mode, and the model identity. Every variable-length field
 /// is length-prefixed, and the threshold's bits are taken after `+ 0.0`,
 /// so `-0.0` and `0.0` hash alike.
-fn config_hash(config: &[u8], labels: &[String], threshold: f32, mode: u8, model: &ModelRef) -> u64 {
+fn config_hash(
+    config: &[u8],
+    labels: &[String],
+    prompts: &[String],
+    threshold: f32,
+    mode: u8,
+    model: &ModelRef,
+) -> u64 {
     let mut h = Fnv1a::new();
     let mut field = |bytes: &[u8]| {
         h.bytes(&(bytes.len() as u64).to_le_bytes()).bytes(bytes);
@@ -229,6 +243,11 @@ fn config_hash(config: &[u8], labels: &[String], threshold: f32, mode: u8, model
     field(&(labels.len() as u64).to_le_bytes());
     for label in labels {
         field(label.as_bytes());
+    }
+    if labels != prompts {
+        for prompt in prompts {
+            field(prompt.as_bytes());
+        }
     }
     field(&(threshold + 0.0).to_bits().to_le_bytes());
     field(&[mode]);
@@ -247,12 +266,12 @@ mod hash_tests {
         let model = ModelRef { id: "model".into(), revision: "rev".into(), sha256: "digest".into() };
         let labels = vec!["person".into(), "pläce".into()];
         let values = [
-            config_hash(b"{}", &[], 0.0, 0, &model),
-            config_hash(b"{}", &labels, -0.0, 0, &model),
-            config_hash(b"{}", &labels, 0.0, 0, &model),
-            config_hash(b"{\"x\":1}", &labels, 0.5, 1, &model),
-            config_hash(b"{}", &["ab".into(), "c".into()], 0.5, 2, &model),
-            config_hash(b"{}", &["a".into(), "bc".into()], 0.5, 2, &model),
+            config_hash(b"{}", &[], &[], 0.0, 0, &model),
+            config_hash(b"{}", &labels, &labels, -0.0, 0, &model),
+            config_hash(b"{}", &labels, &labels, 0.0, 0, &model),
+            config_hash(b"{\"x\":1}", &labels, &labels, 0.5, 1, &model),
+            config_hash(b"{}", &["ab".into(), "c".into()], &["ab".into(), "c".into()], 0.5, 2, &model),
+            config_hash(b"{}", &["a".into(), "bc".into()], &["a".into(), "bc".into()], 0.5, 2, &model),
         ];
         assert_eq!(
             values,
@@ -271,7 +290,7 @@ mod hash_tests {
     fn config_hash_is_fnv_and_folds_negative_zero_threshold() {
         let model = ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() };
         let labels = vec!["person".to_string(), "place".to_string()];
-        let hash = |t: f32, labels: &[String]| config_hash(b"{}", labels, t, 0, &model);
+        let hash = |t: f32, labels: &[String]| config_hash(b"{}", labels, labels, t, 0, &model);
         assert_eq!(hash(-0.0, &labels), hash(0.0, &labels));
         assert_ne!(hash(0.5, &labels), hash(0.0, &labels));
         assert_ne!(hash(0.5, &labels), hash(0.5, &["personplace".to_string()]));
