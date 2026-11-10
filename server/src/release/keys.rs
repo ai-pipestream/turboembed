@@ -83,8 +83,10 @@ pub struct TokenKeyFile {
 
 impl TokenKeyFile {
     /// `ID:VERSION:PATH`; the path may hold `:`. As with
-    /// [`KeyRef::parse`], an error never repeats the input. Once the
-    /// reference parses, later errors name it and the path.
+    /// [`KeyRef::parse`], an error never repeats the input, not even an id
+    /// that has the right shape: pasted key text can. Errors after a
+    /// complete parse, such as a file that does not read, name the
+    /// reference and the path.
     pub fn parse(s: &str) -> Result<TokenKeyFile, String> {
         let mut parts = s.splitn(3, ':');
         let (Some(id), Some(version), Some(path)) = (parts.next(), parts.next(), parts.next()) else {
@@ -92,7 +94,7 @@ impl TokenKeyFile {
         };
         let key = KeyRef::new(id, version)?;
         if path.is_empty() {
-            return Err(format!("{key}: the path is empty"));
+            return Err("the path is empty (nothing after ID:VERSION:)".into());
         }
         Ok(TokenKeyFile { key, path: PathBuf::from(path) })
     }

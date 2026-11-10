@@ -64,8 +64,12 @@ fn key_flag_parse_errors_never_repeat_the_input() {
     assert!(TokenKeyFile::parse(key).unwrap_err().contains("is not ID:VERSION:PATH"));
     assert!(TokenKeyFile::parse(&with_colons).unwrap_err().contains("key id (44 bytes"));
     assert!(KeyRef::parse(&format!("tok:{key}")).unwrap_err().contains("key version (44 bytes"));
-    // A reference that parsed is named, as later errors name it.
-    assert_eq!(TokenKeyFile::parse("tok:3:").unwrap_err(), "tok:3: the path is empty");
+    // Key text in the shape of an id, with no path, is not repeated
+    // either.
+    let id_shaped = "FAKEkeyMATERIAL0123456789abcdXYZ";
+    let err = TokenKeyFile::parse(&format!("{id_shaped}:1:")).unwrap_err();
+    assert_eq!(err, "the path is empty (nothing after ID:VERSION:)");
+    assert_not_echoed(&err, id_shaped);
     let ok = TokenKeyFile::parse("tok:3:/keys/a:b").unwrap();
     assert_eq!((ok.key.to_string(), ok.path), ("tok:3".to_owned(), PathBuf::from("/keys/a:b")));
 }
