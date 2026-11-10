@@ -153,18 +153,26 @@ fn agree_on(backend: &str, precision: u32, dir: &Path, deep: u32) {
     let l = Loaded::load_on(dir, |rt| first_of(rt, backend).unwrap()).unwrap_or_else(|e| panic!("{what}: {e:?}"));
     let mut d = session_desc(0, 0, precision);
     d.max_ranges = 3 * deep;
+    // A backend that runs a family in F32 alone refuses FASTEST for it,
+    // naming the precision; any other failure fails the test.
     let s = match Session::create(l.m, Some(&d)) {
         Ok(s) => s,
-        Err(e) => return println!("{what}: skipped: {e:?}"),
+        Err(e) if precision == TURBO_PRECISION_FASTEST && (e.code, e.field) == (UNSUPPORTED_OPTION, 3) => {
+            return println!("{what}: skipped: {e:?}");
+        }
+        Err(e) => panic!("{what}: {e:?}"),
     };
     let dtype = s.info().compute_dtype;
-    for normalize in [0, TURBO_NORMALIZE_NONE] {
+    // Every count of layers above 1: the first layers tapped or not, and
+    // ModernBERT's final_norm on each block.
+    for (normalize, taps) in [0, TURBO_NORMALIZE_NONE].into_iter().flat_map(|n| (2..=deep).map(move |k| (n, k))) {
+        let what = format!("{what}, {taps} layers");
         let o = turbo_embed_options { normalize, ..embed_options() };
         let plain = run_ranges(&s, &t, &ranges, &o);
-        let o = turbo_embed_options { layers: deep, ..o };
+        let o = turbo_embed_options { layers: taps, ..o };
         let (got, want) = (run_ranges(&s, &t, &ranges, &o), run_ranges(&cs, &t, &ranges, &o));
-        assert_eq!(got.len(), 3 * deep as usize, "{what}");
-        let last = got[3 * (deep as usize - 1)..].iter().map(|v| bits(v)).collect::<Vec<_>>();
+        assert_eq!(got.len(), 3 * taps as usize, "{what}");
+        let last = got[3 * (taps as usize - 1)..].iter().map(|v| bits(v)).collect::<Vec<_>>();
         assert_eq!(last, plain.iter().map(|v| bits(v)).collect::<Vec<_>>(), "{what}: the last block");
         let mut worst = (1.0f64, 0.0f64);
         for (i, (g, w)) in got.iter().zip(&want).enumerate() {

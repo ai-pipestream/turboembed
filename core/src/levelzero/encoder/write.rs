@@ -128,8 +128,13 @@ impl Session {
         if r.batch > 1 && r.row_stride < r.seq {
             return Err(fail(INVALID_SHAPE, format!("row_stride {} is under seq {}", r.row_stride, r.seq)));
         }
+        // The core checks both before the backend sees the write.
         let taps = if ranges.is_empty() { 1 } else { r.taps.max(1) };
-        if taps as usize * ranges.len() > self.max_ranges as usize || taps > self.model().desc.layers {
+        if taps > self.model().desc.layers {
+            let layers = self.model().desc.layers;
+            return Err(fail(INVALID_ARGUMENT, format!("{taps} layers: the model has 1 to {layers} to read")));
+        }
+        if taps as usize * ranges.len() > self.max_ranges as usize {
             return Err(fail(
                 CAPACITY,
                 format!("{} ranges from {taps} layers: the levelzero session holds {}", ranges.len(), self.max_ranges),
