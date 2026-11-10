@@ -204,8 +204,9 @@ upload that sends no message for a minute (`Serve::upload_idle`) is
 A corpus job makes three things from the documents the client streams,
 in this order, and keeps all of them or none:
 
-1. a vocabulary learned from the documents, in the vocabulary store
-   (docs/grpc-vocabulary.md), as `LearnVocabulary` learns it;
+1. a vocabulary learned from the documents, as `LearnVocabulary` learns
+   it, kept in the vocabulary store (docs/grpc-vocabulary.md) when the
+   job completes;
 2. a static model distilled with the vocabulary's single terms, sealed
    into the training directory and served, as `TrainStaticModel` makes
    it;
@@ -219,7 +220,7 @@ the three parts:
 |---|---|
 | `vocabulary` (1) | `CorpusVocabulary`: `LearnVocabularyHeader`'s settings, field for field. Unset is every default. |
 | `model` (2) | A `TrainStaticModelRequest`, checked as `TrainStaticModel` checks it. `vocabulary_artifact_id` must be empty: the vocabulary is the one the job learns. `terms` are added after the vocabulary's. |
-| `index` (3) | `CorpusIndex`: `index_name`, which no index or alias may have; `storage` (`FLAT_F32` or `TURBO_QUANT`, with `quant_bits` and `quant_calibrate`); `collection_name`, empty for the index's own name; `chunk_budget_tokens`. |
+| `index` (3) | `CorpusIndex`: `index_name`, which no index or alias may have, when the job starts or when it publishes; `storage` (`FLAT_F32` or `TURBO_QUANT`, with `quant_bits` and `quant_calibrate`); `collection_name`, empty for the index's own name; `chunk_budget_tokens`. |
 
 The index's space is the new model's: its id, revision and manifest
 SHA-256, its width (`pca_dims`), unit vectors, compared by cosine.
@@ -237,27 +238,36 @@ index has them. A job with no documents is `INVALID_ARGUMENT`.
 |---|---|
 | `STREAMING_STAGE_ADMITTED` | The checks passed and the job holds the slot. |
 | `STREAMING_STAGE_ANALYZING` | `completed_items` documents are read and counted. Sent now and then while the upload runs, when the client is reading; the last one has `total_items`, every document of the stream. |
-| `STREAMING_STAGE_LEARNING_VOCABULARY` | The vocabulary is in the store, with `completed_items` single terms. |
+| `STREAMING_STAGE_LEARNING_VOCABULARY` | The vocabulary is learned, with `completed_items` single terms. It is not in the store yet. |
 | `STREAMING_STAGE_DISTILLING_MODEL` | A step of the distillation in `distillation`, a `TrainStaticModelProgress` with its own `TRAIN_STAGE_KEPT` to `TRAIN_STAGE_LOADED`. The model is served from `LOADED` on. |
 | `STREAMING_STAGE_INDEXING` | `completed_items` of `total_items` documents are chunked and embedded. |
-| `STREAMING_STAGE_COMPLETED` | The index is published and the job is kept. |
+| `STREAMING_STAGE_COMPLETED` | The vocabulary is stored, the index is published and the job is kept. |
 
 `CorpusTrained` ends the stream: the vocabulary's id, SHA-256, term and
 n-gram counts, and `vocabulary_created`; the model as `TrainStaticModel`
 ends with it (`TrainedStaticModel`); and the index's name with the
 documents and chunks it holds.
 
-The index is filled before it is published, so no search sees part of
-it. Publishing it is the last step that can fail. A job that fails
-before then, or whose client goes away (seen while the upload is read,
-between the stages, and between documents while they are indexed),
-removes the model it made, stops serving it, and removes the vocabulary
-if this job stored it. A vocabulary the store already held, because the
-same documents and settings were learned before, is not the job's:
-`vocabulary_created` is false and a failed job leaves it. The slot is
-given back once nothing of a failed job is left, before the stream's
-status. From `COMPLETED` on the three stay; remove them with
-`DeleteIndex`, `DeleteStaticModel` and `DeleteVocabularyArtifact`.
+The job is kept in one last step. The index is filled before then, so
+no search sees part of it, and the vocabulary is held by the job, so no
+listing, download or training sees one a failed job would take back.
+The step checks that no index and no alias has the index's name, stores
+the vocabulary, and publishes the index, while the search service's
+index and alias writers wait: a name taken since the start
+(`FAILED_PRECONDITION`, field 3) or a store that cannot be written
+fails the job with nothing stored or published.
+
+A job that fails before or in that step, or whose client goes away
+(seen while the upload is read, between the stages, and between
+documents while they are indexed), removes the model it made and stops
+serving it. A vocabulary the store already holds, because the same
+documents and settings were learned before or are learned while the job
+runs, is never the job's to remove: the job ends with
+`vocabulary_created` false and that vocabulary stays whatever becomes of
+the job. The slot is given back once nothing of a failed job is left,
+before the stream's status. From `COMPLETED` on the three stay; remove
+them with `DeleteIndex`, `DeleteStaticModel` and
+`DeleteVocabularyArtifact`.
 
 ### A component job
 

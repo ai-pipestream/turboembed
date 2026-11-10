@@ -750,7 +750,8 @@ enum CorpusIndexStorage {
 // model's id, revision and manifest SHA-256, its width, unit vectors,
 // compared by cosine.
 message CorpusIndex {
-  // The index's name: not empty, and no index or alias may have it.
+  // The index's name: not empty, and no index or alias may have it,
+  // when the job starts or when it publishes.
   string index_name = 1;
   CorpusIndexStorage storage = 2;
   // TurboQuant's bit width, 2, 3 or 4; 0 is 4.
@@ -826,8 +827,8 @@ enum StreamingStage {
   // Corpus: completed_items documents are read and counted. Repeated;
   // the last one has total_items, every document of the stream.
   STREAMING_STAGE_ANALYZING = 2;
-  // Corpus: the vocabulary is in the store with completed_items single
-  // terms.
+  // Corpus: the vocabulary is learned, with completed_items single
+  // terms. It is stored when the job completes.
   STREAMING_STAGE_LEARNING_VOCABULARY = 3;
   // Corpus: a step of the distillation, as TrainStaticModel streams it,
   // in distillation. Repeated; the model is served after its LOADED.
@@ -835,7 +836,8 @@ enum StreamingStage {
   // Corpus: completed_items of total_items documents are staged for the
   // index. Repeated.
   STREAMING_STAGE_INDEXING = 5;
-  // Corpus: the index is published and the transaction is kept.
+  // Corpus: the vocabulary is stored, the index is published and the
+  // transaction is kept.
   STREAMING_STAGE_COMPLETED = 6;
   // Component: every sample is read, completed_items of them.
   STREAMING_STAGE_READ = 7;
@@ -860,7 +862,7 @@ message CorpusTrained {
   string vocabulary_artifact_id = 1;
   string vocabulary_sha256 = 2;
   // Whether this job stored it: false when the store already held these
-  // bytes, which a failed job would not have removed.
+  // bytes.
   bool vocabulary_created = 3;
   uint64 vocabulary_terms = 4;
   uint64 vocabulary_ngrams = 5;

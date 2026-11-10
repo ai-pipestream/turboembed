@@ -296,8 +296,9 @@ stubs must be regenerated.
 - `TurboTrainingService.StreamingTraining` runs one training over a
   stream the client feeds. A corpus job learns a vocabulary from the
   streamed documents, distils a static model with its terms and indexes
-  the documents with that model, keeping all three or none: a failure
-  or a client that goes away removes what the job made. A component job
+  the documents with that model, keeping all three or none: the
+  vocabulary is stored and the index published in one last step, and a
+  failure or a client that goes away removes the model. A component job
   trains the feed-forward dependency parser from CoNLL-U samples,
   streams each epoch's loss, and sends the model file back. Admin only,
   sharing the training slot with `TrainStaticModel` and `TrainComponent`

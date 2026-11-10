@@ -2184,7 +2184,8 @@ export const CorpusVocabularySchema: GenMessage<CorpusVocabulary> = /*@__PURE__*
  */
 export type CorpusIndex = Message<"turbo.training.v1.CorpusIndex"> & {
   /**
-   * The index's name: not empty, and no index or alias may have it.
+   * The index's name: not empty, and no index or alias may have it,
+   * when the job starts or when it publishes.
    *
    * @generated from field: string index_name = 1;
    */
@@ -2384,7 +2385,7 @@ export type CorpusTrained = Message<"turbo.training.v1.CorpusTrained"> & {
 
   /**
    * Whether this job stored it: false when the store already held these
-   * bytes, which a failed job would not have removed.
+   * bytes.
    *
    * @generated from field: bool vocabulary_created = 3;
    */
@@ -2976,8 +2977,8 @@ export enum StreamingStage {
   ANALYZING = 2,
 
   /**
-   * Corpus: the vocabulary is in the store with completed_items single
-   * terms.
+   * Corpus: the vocabulary is learned, with completed_items single
+   * terms. It is stored when the job completes.
    *
    * @generated from enum value: STREAMING_STAGE_LEARNING_VOCABULARY = 3;
    */
@@ -3000,7 +3001,8 @@ export enum StreamingStage {
   INDEXING = 5,
 
   /**
-   * Corpus: the index is published and the transaction is kept.
+   * Corpus: the vocabulary is stored, the index is published and the
+   * transaction is kept.
    *
    * @generated from enum value: STREAMING_STAGE_COMPLETED = 6;
    */

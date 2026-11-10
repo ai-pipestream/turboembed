@@ -3,8 +3,10 @@
 //! a static model distilled with its terms, and a search index of the
 //! documents embedded by that model, as one transaction. Each part is
 //! made as its own call makes it (LearnVocabulary, TrainStaticModel,
-//! CreateIndex and IndexDocuments); a job that fails, or whose client
-//! goes away before the index is published, removes what it made.
+//! CreateIndex and IndexDocuments). The vocabulary is stored and the
+//! index published in one last step; a job that fails, or whose client
+//! goes away before then, removes the model it made, and its vocabulary
+//! and index were never anyone else's to see.
 
 use std::collections::HashSet;
 use std::fs;
@@ -19,7 +21,7 @@ use tonic::{Status, Streaming};
 use super::stream::{Tx, UpdateStream, cancelled, internal, next, progress, update};
 use super::train::{self, Slot, Watch};
 use super::{TrainingService, blocking, invalid, plain, remove_static, runtime};
-use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_CAPACITY, TURBO_E_INVALID_STATE};
+use crate::api::{Failure, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE};
 use crate::proto::search::{
     DistanceMetric, IndexDocumentRequest, IndexSpec, ModelIdentity, NormalizationMode, SpaceSpec, VectorStorageKind,
 };
@@ -32,7 +34,7 @@ use crate::proto::training::{
 use crate::proto::vocabulary::LearnVocabularyHeader;
 use crate::search::SearchRegistry;
 use crate::search::ingest::{commit_staged_documents, stage_document};
-use crate::search::registry::{HybridIndex, parse_storage};
+use crate::search::registry::{ALREADY_EXISTS_FIELD, HybridIndex, parse_storage};
 use crate::vocabulary::{self, Dictionary, Learner, MAX_LANGUAGE, MAX_NGRAM_SIZE, Options, Store};
 
 /// The most document bytes one job reads; they are held in memory, and
@@ -67,13 +69,13 @@ struct Plan {
     storage: VectorStorageKind,
 }
 
-/// Removes what a job made unless it is kept: the static model, then the
-/// vocabulary when this job stored it, and always the staging directory.
-/// It runs when the job's steps return, and when they panic.
+/// Removes what a job made unless it is kept: the static model, and
+/// always the staging directory. It runs when the job's steps return, and
+/// when they panic. The vocabulary and the index need no undoing: neither
+/// is stored or published before the step that keeps the job.
 struct Undo<'a> {
     corpus: &'a Corpus,
     staging: PathBuf,
-    vocabulary: Option<String>,
     model: Option<String>,
 }
 
@@ -82,9 +84,6 @@ impl Drop for Undo<'_> {
         let c = self.corpus;
         if let Some(name) = self.model.take() {
             let _ = remove_static(&c.job.state, &c.job.publishing, &c.job.dir, &name);
-        }
-        if let Some(id) = self.vocabulary.take() {
-            let _ = c.store.delete(&id);
         }
         let _ = fs::remove_dir_all(&self.staging);
     }
@@ -294,8 +293,9 @@ async fn receive(
 
 impl Corpus {
     /// The transaction: the vocabulary, the model, then the index, which
-    /// is filled before any search can see it. Publishing the index is
-    /// the last step that can fail, and the job is kept from there.
+    /// is filled before any search can see it. The last step stores the
+    /// vocabulary and publishes the index as one, while the index's name
+    /// is checked free of indexes and aliases; the job is kept from there.
     fn run(
         &self,
         mut plan: Plan,
@@ -310,10 +310,9 @@ impl Corpus {
         let total = documents.len() as u64;
         send(progress(StreamingStage::Analyzing, total, total));
         let staging = train::staging(&self.job.dir, &plan.model.name);
-        let mut undo = Undo { corpus: self, staging, vocabulary: None, model: None };
+        let mut undo = Undo { corpus: self, staging, model: None };
 
-        let (v, tsv, created) = vocabulary::keep(&self.store, plan.seed.as_ref(), learner, &plan.header)?;
-        undo.vocabulary = created.then(|| v.artifact_id.clone());
+        let (v, tsv) = vocabulary::finish(&self.store, plan.seed.as_ref(), learner, &plan.header)?;
         let terms = plan.model.learned(v.artifact_id.clone(), v.sha256.clone(), &tsv, 2)?;
         send(progress(StreamingStage::LearningVocabulary, terms as u64, 0));
         gone()?;
@@ -340,9 +339,23 @@ impl Corpus {
             commit_staged_documents(&mut index, staged, &mut chunk_terms).map_err(plain)?;
         gone()?;
         let name = plan.index.index_name.clone();
-        self.search.publish(index).map_err(at_index)?;
+        // A vocabulary of these bytes that the store already holds is
+        // someone else's, and stays whatever becomes of this job; one
+        // this job stores is stored only once the index's name is known
+        // free, with nothing left to fail after it.
+        let mut stored = None;
+        let commit = || {
+            let put = self.store.put_vocabulary(v, &tsv).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e))?;
+            stored = Some(put);
+            Ok(())
+        };
+        self.search.publish_after(index, commit).map_err(|f| {
+            // A taken name is the index's refusal; a store that fails is not.
+            plain(Failure { field: if f.field == ALREADY_EXISTS_FIELD { 3 } else { f.field }, ..f })
+        })?;
+        let (v, created) = stored.ok_or_else(|| runtime("the vocabulary was not stored"))?;
         // Kept from here: nothing below fails.
-        (undo.vocabulary, undo.model) = (None, None);
+        undo.model = None;
         drop(undo);
         let collection = if plan.index.collection_name.is_empty() { &name } else { &plan.index.collection_name };
         self.search.record_collection_update(collection, &name, &chunk_terms);

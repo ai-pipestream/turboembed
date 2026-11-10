@@ -167,6 +167,30 @@ impl SearchRegistry {
         self.publish(HybridIndex::empty(state, spec)?)
     }
 
+    /// Registers an index under a name that no index and no alias has,
+    /// once `commit` succeeds. The registry's index and alias writers
+    /// wait from the checks to the registration, so the name is free
+    /// when `commit` runs, and after it nothing can fail.
+    pub(crate) fn publish_after(
+        &self,
+        index: HybridIndex,
+        commit: impl FnOnce() -> Result<()>,
+    ) -> Result<IndexSummary> {
+        let name = index.spec.index_name.clone();
+        let mut indexes = self.indexes.write().unwrap_or_else(|e| e.into_inner());
+        let aliases = self.aliases.read().unwrap_or_else(|e| e.into_inner());
+        if indexes.contains_key(&name) {
+            return Err(already_exists(format!("search index `{name}` already exists")));
+        }
+        if let Some(target) = aliases.get(&name) {
+            return Err(already_exists(format!("`{name}` is an alias of search index `{target}`")));
+        }
+        commit()?;
+        let summary = index.summary();
+        indexes.insert(name, Arc::new(RwLock::new(index)));
+        Ok(summary)
+    }
+
     /// Registers an index under its name, which no index may have.
     pub(crate) fn publish(&self, index: HybridIndex) -> Result<IndexSummary> {
         let name = index.spec.index_name.clone();

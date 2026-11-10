@@ -88,15 +88,15 @@ fn seed(store: &Store, h: &LearnVocabularyHeader) -> Result<Option<Dictionary>, 
     }
 }
 
-/// Ends the counting and stores the vocabulary under the id its bytes
-/// give it: the descriptor, the bytes, and whether this call stored it
-/// (the store may hold the same bytes already).
-pub(crate) fn keep(
+/// Ends the counting: the vocabulary's descriptor, under the id its bytes
+/// give it, and the bytes. Nothing is stored; [`Store::put_vocabulary`]
+/// stores them.
+pub(crate) fn finish(
     store: &Store,
     seed: Option<&Dictionary>,
     learner: Learner,
     h: &LearnVocabularyHeader,
-) -> Result<(VocabularyArtifactDescriptor, Vec<u8>, bool), Status> {
+) -> Result<(VocabularyArtifactDescriptor, Vec<u8>), Status> {
     let seeds = match seed {
         None => Vec::new(),
         Some(d) => {
@@ -125,8 +125,7 @@ pub(crate) fn keep(
         sha256,
         seed_dictionary_artifact_id: h.dictionary_artifact_id.clone(),
     };
-    let (v, created) = store.put_vocabulary(v, &learned.bytes).map_err(internal)?;
-    Ok((v, learned.bytes, created))
+    Ok((v, learned.bytes))
 }
 
 impl Vocabulary {
@@ -323,7 +322,11 @@ impl TurboVocabularyService for Vocabulary {
         }
         drop(tx);
         let learner = counting.await.map_err(|e| internal(format!("the vocabulary counter failed: {e}")))?;
-        let descriptor = blocking(move || Ok(keep(&store, seed.as_ref(), learner, &h)?.0)).await?;
+        let descriptor = blocking(move || {
+            let (v, bytes) = finish(&store, seed.as_ref(), learner, &h)?;
+            Ok(store.put_vocabulary(v, &bytes).map_err(internal)?.0)
+        })
+        .await?;
         Ok(Response::new(descriptor))
     }
 
