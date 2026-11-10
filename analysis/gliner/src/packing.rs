@@ -98,7 +98,7 @@ impl<'a> Packer<'a> {
         schema: &ExtractionSchema,
     ) -> Result<PackedInput, String> {
         let mut out = PackedInput { ids: vec![c.cls_token], prompts: Vec::new(), words: Vec::new() };
-        for label in schema.labels() {
+        for label in schema.prompts() {
             out.prompts.push(out.ids.len());
             out.ids.push(c.entity_token);
             out.ids.extend_from_slice(self.encode(label));

@@ -75,6 +75,9 @@ pub fn package() -> PathBuf {
                 version: 1,
                 config: turbo_gliner::Config {
                     hidden: 16,
+                    projection_factor: 4,
+                    prompt_factor: 4,
+                    out_project_mlp: true,
                     max_width: 3,
                     entity_token: 12,
                     separator_token: 13,

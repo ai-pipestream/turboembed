@@ -590,14 +590,26 @@ zeroised on drop, and it never appears in `Debug` output. In a rewrite,
 a mention that cannot be encrypted fails the rewrite with
 `RewriteError::Encrypt`. The edits record the strategy as
 `PiiStrategyKind::Aes256Gcm` (10) or `PiiStrategyKind::Ff1` (11), which
-are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire. They
-are not yet `RewritePolicy` strategies, and a gRPC redaction policy
-cannot name them: on the server, keys are to be registered key
-references, never key bytes in a message.
+are `PII_STRATEGY_AES_256_GCM` and `PII_STRATEGY_FF1` on the wire.
+
+With the feature, both are `RewriteStrategy` arms (`RewriteStrategy::AesGcm`
+and `RewriteStrategy::Ff1`, from `AesGcmEncryptor` or `Ff1Encryptor` with
+`.into()`), so a `RewritePolicy` can give each kind its own encryptor and
+mask or tokenize the rest. Each mention is encrypted as written. When
+mentions overlap, the merged run is encrypted once, as one value. Two
+encryptors are equal, and fold the same into the policy's configuration
+hash, when their key, context or tweak, alphabet and overlap rule match.
+The key enters as an HMAC-SHA-256 under a fixed label, as an
+`HmacTokenizer` key does, never as itself. A clone of an
+`AesGcmEncryptor` draws a nonce seed of its own and is still equal,
+since it decrypts the same tokens. A gRPC redaction policy cannot name
+them yet: on the server, keys are to be registered key references,
+never key bytes in a message.
 `analysis/pii/tests/reversible.rs` runs the NIST FF1 AES-256 samples
 through `Ff1Encryptor` and the round trip of both strategies for every
-built-in kind and a custom one. The encryptor's unit test checks the
-cipher against NIST CAVP AES-256-GCM vectors.
+built-in kind and a custom one. `analysis/pii/tests/reversible_policy.rs`
+runs them as policy strategies beside a mask. The encryptor's unit test
+checks the cipher against NIST CAVP AES-256-GCM vectors.
 
 ### The redacted view
 

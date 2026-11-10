@@ -58,7 +58,17 @@ fn options() -> EncoderOptions {
 /// its marker ids past the SentencePiece model's pieces and inside the
 /// encoder's vocabulary.
 fn config() -> Config {
-    Config { hidden: 16, max_width: 3, entity_token: 30000, separator_token: 30001, cls_token: 101, eos_token: 102 }
+    Config {
+        hidden: 16,
+        projection_factor: 4,
+        prompt_factor: 4,
+        out_project_mlp: true,
+        max_width: 3,
+        entity_token: 30000,
+        separator_token: 30001,
+        cls_token: 101,
+        eos_token: 102,
+    }
 }
 
 fn heads() -> Vec<u8> {

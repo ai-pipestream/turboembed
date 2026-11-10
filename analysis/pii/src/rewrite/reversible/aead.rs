@@ -16,7 +16,7 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use turbo_analysis::View;
 use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
-use super::{CryptError, base64url, check_key, from_base64url, random_seed};
+use super::{CryptError, base64url, check_key, from_base64url, key_check, random_seed};
 use crate::rewrite::replace::EditOrigin;
 use crate::rewrite::{PiiRewrite, RewriteError, kind_name};
 
@@ -28,6 +28,7 @@ const AAD_LABEL: &[u8] = b"turbo-pii:aes-256-gcm";
 /// key and the context decrypts back to the mention's surface.
 pub struct AesGcmEncryptor {
     cipher: Aes256Gcm,
+    key_check: [u8; 32],
     context: Vec<u8>,
     refuse_overlaps: bool,
     // Nonces are HMAC-SHA-256 of a counter under a random seed of this
@@ -52,6 +53,7 @@ impl Clone for AesGcmEncryptor {
     fn clone(&self) -> AesGcmEncryptor {
         AesGcmEncryptor {
             cipher: self.cipher.clone(),
+            key_check: self.key_check,
             context: self.context.clone(),
             refuse_overlaps: self.refuse_overlaps,
             seed: random_seed(),
@@ -60,13 +62,32 @@ impl Clone for AesGcmEncryptor {
     }
 }
 
+/// Equal when the key, the context and the overlap rule are: what the
+/// tokens decrypt under. The nonce seed is left out, so a clone is equal.
+impl PartialEq for AesGcmEncryptor {
+    fn eq(&self, other: &AesGcmEncryptor) -> bool {
+        self.key_check == other.key_check
+            && self.context == other.context
+            && self.refuse_overlaps == other.refuse_overlaps
+    }
+}
+
+impl Eq for AesGcmEncryptor {}
+
 impl AesGcmEncryptor {
+    /// Folds the key (as an HMAC under a fixed label, never itself), the
+    /// context and the overlap rule into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.bytes(&self.key_check).usize(self.context.len()).bytes(&self.context).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// An encryptor under the 32-byte AES-256 `key`, with an empty context.
     pub fn new(key: &[u8]) -> Result<AesGcmEncryptor, CryptError> {
         check_key(key)?;
         let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| CryptError::KeyLength(key.len()))?;
         Ok(AesGcmEncryptor {
             cipher,
+            key_check: key_check(key),
             context: Vec::new(),
             refuse_overlaps: false,
             seed: random_seed(),
