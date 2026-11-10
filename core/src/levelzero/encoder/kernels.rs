@@ -86,21 +86,26 @@ impl Kernels {
         head_dim: u32,
         xmx: bool,
         deberta: Option<(&turbo_backend_model, u32)>,
+        banded: bool,
     ) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
+        // A model of limited lookahead takes each attention kernel's banded
+        // twin, which reads the band as one more argument (stages.rs).
+        let band = if banded { "_band" } else { "" };
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
             32 | 64 if xmx => {
                 let staged = if head_dim == 64 {
-                    Some(c.kernel("attention_xmx2_64", [16 * ATT2_SUBGROUPS, 1, 1])?)
+                    Some(c.kernel(&format!("attention_xmx2_64{band}"), [16 * ATT2_SUBGROUPS, 1, 1])?)
                 } else {
                     None
                 };
-                Attention::Xmx(c.kernel(&format!("attention_xmx_{head_dim}"), [16 * ATT_SUBGROUPS, 1, 1])?, staged)
+                let plain = c.kernel(&format!("attention_xmx_{head_dim}{band}"), [16 * ATT_SUBGROUPS, 1, 1])?;
+                Attention::Xmx(plain, staged)
             }
-            128 if xmx => Attention::Tiled(c.kernel(&format!("attention_{head_dim}_to_half"), [QUERIES, 1, 1])?),
-            32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}"), [QUERIES, 1, 1])?),
-            _ => Attention::General(c.kernel("attention", row)?),
+            128 if xmx => Attention::Tiled(c.kernel(&format!("attention_128_to_half{band}"), [QUERIES, 1, 1])?),
+            32 | 64 | 128 => Attention::Tiled(c.kernel(&format!("attention_{head_dim}{band}"), [QUERIES, 1, 1])?),
+            _ => Attention::General(c.kernel(&format!("attention{band}"), row)?),
         };
         let wide = wide(hidden);
         let dpas = if wide { (WIDE_TM, WIDE_TN, WIDE_WM, WIDE_WN) } else { (DPAS_TM, DPAS_TN, DPAS_WM, DPAS_WN) };
