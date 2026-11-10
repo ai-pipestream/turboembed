@@ -31,6 +31,9 @@ test("any white space parts two words", () => {
   assert.deepEqual(words("bge\u00a0small"), ["bge", "small"]);
   assert.deepEqual(words("bge\u3000small\n"), ["bge", "small"]);
   assert.deepEqual(words("\u2003\t "), []);
+  assert.deepEqual(words("bge\u0085small"), ["bge", "small"]);
+  const white = "\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000";
+  for (const ch of white) assert.deepEqual(words(`bge${ch}small`), ["bge", "small"], `U+${ch.codePointAt(0)!.toString(16)}`);
   const hit = (text: string) => entries.filter((e) => matches(e, "", text)).map((e) => e.id);
   assert.deepEqual(hit("bge\tsmall"), ["baai-bge-small-en-v1.5"]);
   assert.deepEqual(hit("bge\u00a0small"), ["baai-bge-small-en-v1.5"]);
@@ -45,6 +48,19 @@ test("the fold matches sharp s, a dotted capital I and astral letters", () => {
   assert.deepEqual(hit("STRASSE"), ["Straße-École"]);
   assert.deepEqual(hit("straße"), ["Straße-École"]);
   assert.deepEqual(hit("istanbul"), ["\u0130stanbul-ner"]);
+});
+
+test("the fold treats both sharp s letters and both sigmas alike, and is stable", () => {
+  const one = (id: string, text: string) => matches({ id, kind: "KIND_MODEL", language: "de", licence: "MIT" }, "", text);
+  for (const id of ["Straße", "STRA\u1e9eE", "STRASSE"]) {
+    for (const text of ["Straße", "STRA\u1e9eE", "strasse", "STRASSE"]) assert.equal(one(id, text), true, `${id} by ${text}`);
+  }
+  assert.equal(one("\u039f\u0394\u039f\u03a3", "\u03bf\u03b4\u03bf\u03c3"), true);
+  assert.equal(one("\u03bf\u03b4\u03bf\u03c2-ner", "\u039f\u0394\u039f\u03a3"), true);
+  for (const text of ["\u1e9e", "ß", "\u0130", "I", "\u03a3", "\u03c2", "\u{10400}", "Straße \u0130stanbul"]) {
+    const once = words(text);
+    assert.deepEqual(words(once.join(" ")), once, text);
+  }
 });
 
 test("a kind matches in its enum spelling too", () => {

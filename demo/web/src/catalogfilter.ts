@@ -23,12 +23,20 @@ export function plain(value: string, prefix: string): string {
 }
 
 /**
- * Text folded for comparing whatever the case: upper case then lower
- * case, so `ß` and `SS` both read "ss", and the dot that lower casing
- * a dotted capital I leaves on the `i` dropped, so "istanbul" finds it.
+ * Text folded for comparing whatever the case: lower, upper, then
+ * lower case, so `ß`, `ẞ` and `SS` all read "ss"; the dot that lower
+ * casing a dotted capital I leaves on the `i` is dropped, so
+ * "istanbul" finds it; and a final sigma reads as any other sigma.
+ * Folding folded text changes nothing.
  */
 export function fold(text: string): string {
-  return text.toUpperCase().toLowerCase().split("i\u0307").join("i");
+  const cased = text.toLowerCase().toUpperCase().toLowerCase();
+  return cased.split("i\u0307").join("i").split("\u03c2").join("\u03c3");
+}
+
+/** Whether `ch` is Unicode white space: what `trim` drops, and the next-line control U+0085. */
+function space(ch: string): boolean {
+  return ch.trim() === "" || ch === "\u0085";
 }
 
 /**
@@ -40,7 +48,7 @@ export function words(text: string): string[] {
   const out: string[] = [];
   let word = "";
   for (const ch of text) {
-    if (ch.trim() !== "") {
+    if (!space(ch)) {
       word += ch;
       continue;
     }

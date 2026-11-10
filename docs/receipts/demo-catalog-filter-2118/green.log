@@ -2,165 +2,171 @@ TAP version 13
 # Subtest: an entity with its votes
 ok 1 - an entity with its votes
   ---
-  duration_ms: 1.55614
+  duration_ms: 1.832793
   type: 'test'
   ...
 # Subtest: enums by name, unset fields left out
 ok 2 - enums by name, unset fields left out
   ---
-  duration_ms: 0.21635
+  duration_ms: 0.343716
   type: 'test'
   ...
 # Subtest: kinds and enum values read as plain words
 ok 3 - kinds and enum values read as plain words
   ---
-  duration_ms: 0.841958
+  duration_ms: 0.91025
   type: 'test'
   ...
 # Subtest: typed words are split on spaces and lower cased
 ok 4 - typed words are split on spaces and lower cased
   ---
-  duration_ms: 0.737974
+  duration_ms: 0.809121
   type: 'test'
   ...
 # Subtest: any white space parts two words
 ok 5 - any white space parts two words
   ---
-  duration_ms: 0.334559
+  duration_ms: 2.015737
   type: 'test'
   ...
 # Subtest: the fold matches sharp s, a dotted capital I and astral letters
 ok 6 - the fold matches sharp s, a dotted capital I and astral letters
   ---
-  duration_ms: 1.522638
+  duration_ms: 0.288658
+  type: 'test'
+  ...
+# Subtest: the fold treats both sharp s letters and both sigmas alike, and is stable
+ok 7 - the fold treats both sharp s letters and both sigmas alike, and is stable
+  ---
+  duration_ms: 0.571479
   type: 'test'
   ...
 # Subtest: a kind matches in its enum spelling too
-ok 7 - a kind matches in its enum spelling too
+ok 8 - a kind matches in its enum spelling too
   ---
-  duration_ms: 0.204637
+  duration_ms: 0.214649
   type: 'test'
   ...
 # Subtest: every word must match, in id, kind, language or licence
-ok 8 - every word must match, in id, kind, language or licence
+ok 9 - every word must match, in id, kind, language or licence
   ---
-  duration_ms: 0.218667
+  duration_ms: 0.403638
   type: 'test'
   ...
 # Subtest: kinds are counted in the order first seen
-ok 9 - kinds are counted in the order first seen
+ok 10 - kinds are counted in the order first seen
   ---
-  duration_ms: 0.121377
+  duration_ms: 0.174276
   type: 'test'
   ...
 # Subtest: varints
-ok 10 - varints
+ok 11 - varints
   ---
-  duration_ms: 1.679202
+  duration_ms: 0.947322
   type: 'test'
   ...
 # Subtest: a frame over the limit is refused
-ok 11 - a frame over the limit is refused
+ok 12 - a frame over the limit is refused
   ---
-  duration_ms: 0.622431
+  duration_ms: 0.379438
   type: 'test'
   ...
 # Subtest: learn: the header, then typed and file documents
-ok 12 - learn: the header, then typed and file documents
+ok 13 - learn: the header, then typed and file documents
   ---
-  duration_ms: 2.238557
+  duration_ms: 1.965926
   type: 'test'
   ...
 # Subtest: index: one request per document, the file as its text
-ok 13 - index: one request per document, the file as its text
+ok 14 - index: one request per document, the file as its text
   ---
-  duration_ms: 1.588299
+  duration_ms: 0.865552
   type: 'test'
   ...
 # Subtest: import: the header frame, then the raw file
-ok 14 - import: the header frame, then the raw file
+ok 15 - import: the header frame, then the raw file
   ---
-  duration_ms: 0.973029
+  duration_ms: 0.48025
   type: 'test'
   ...
 # Subtest: the fixture reads to its end, every part inside its parent
-ok 15 - the fixture reads to its end, every part inside its parent
+ok 16 - the fixture reads to its end, every part inside its parent
   ---
-  duration_ms: 2.860158
+  duration_ms: 4.532986
   type: 'test'
   ...
 # Subtest: the fixture's views, alignment and statuses are where the export put them
-ok 16 - the fixture's views, alignment and statuses are where the export put them
+ok 17 - the fixture's views, alignment and statuses are where the export put them
   ---
-  duration_ms: 1.212531
+  duration_ms: 1.784991
   type: 'test'
   ...
 # Subtest: cut, padded or foreign bytes are refused with where
-ok 17 - cut, padded or foreign bytes are refused with where
+ok 18 - cut, padded or foreign bytes are refused with where
   ---
-  duration_ms: 0.844368
+  duration_ms: 1.517497
   type: 'test'
   ...
 # Subtest: non-commercial by the artifact's own licence or by its training data
-ok 18 - non-commercial by the artifact's own licence or by its training data
+ok 19 - non-commercial by the artifact's own licence or by its training data
   ---
-  duration_ms: 1.351027
+  duration_ms: 0.738557
   type: 'test'
   ...
 # Subtest: a saved file must be the size and SHA-256 the catalog lists
-ok 19 - a saved file must be the size and SHA-256 the catalog lists
+ok 20 - a saved file must be the size and SHA-256 the catalog lists
   ---
-  duration_ms: 0.374096
+  duration_ms: 0.196623
   type: 'test'
   ...
 # Subtest: every length from 0 to 300 bytes
-ok 20 - every length from 0 to 300 bytes
+ok 21 - every length from 0 to 300 bytes
   ---
-  duration_ms: 15.816604
+  duration_ms: 14.535638
   type: 'test'
   ...
 # Subtest: updates in odd pieces give the one-shot digest
-ok 21 - updates in odd pieces give the one-shot digest
+ok 22 - updates in odd pieces give the one-shot digest
   ---
-  duration_ms: 0.595238
+  duration_ms: 0.640528
   type: 'test'
   ...
 # Subtest: a Blob streamed in chunks
-ok 22 - a Blob streamed in chunks
+ok 23 - a Blob streamed in chunks
   ---
-  duration_ms: 112.165773
+  duration_ms: 128.871177
   type: 'test'
   ...
 # Subtest: each sign-in reads in plain words
-ok 23 - each sign-in reads in plain words
+ok 24 - each sign-in reads in plain words
   ---
-  duration_ms: 0.641804
+  duration_ms: 0.587898
   type: 'test'
   ...
 # Subtest: the page changes sources only for a user on an admin or zoo server
-ok 24 - the page changes sources only for a user on an admin or zoo server
+ok 25 - the page changes sources only for a user on an admin or zoo server
   ---
-  duration_ms: 0.210638
+  duration_ms: 0.165781
   type: 'test'
   ...
 # Subtest: a redirect brings a code and a state, or an error
-ok 25 - a redirect brings a code and a state, or an error
+ok 26 - a redirect brings a code and a state, or an error
   ---
-  duration_ms: 0.767985
+  duration_ms: 0.622573
   type: 'test'
   ...
 # Subtest: S3 keys are sent only when the form names one
-ok 26 - S3 keys are sent only when the form names one
+ok 27 - S3 keys are sent only when the form names one
   ---
-  duration_ms: 0.158129
+  duration_ms: 0.120369
   type: 'test'
   ...
-1..26
-# tests 26
+1..27
+# tests 27
 # suites 0
-# pass 26
+# pass 27
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 283.366923
+# duration_ms 312.514941

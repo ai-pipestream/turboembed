@@ -5,9 +5,10 @@ The filter over the Models catalog on the demo page
 container, no GPU.
 
 - `red.log`: `scripts/build-web.sh` with the new unit tests against the
-  filter as it was on main at a4bd8d08. 23 pass, 3 fail: white space
-  other than a space, the fold, and the enum spelling of a kind.
-- `green.log`: the same run with the change. 26 pass.
+  filter as it was on main at a4bd8d08. 23 pass, 4 fail: white space
+  other than a space, the fold, both sharp s letters and both sigmas,
+  and the enum spelling of a kind.
+- `green.log`: the same run with the change. 27 pass.
 - `desktop-filter.png`: the Models tab at 1280 px in Chromium through
   Playwright, against `turbo-kserve` on the CPU and a demo started with
   `--user`, after "Read the catalog" with `BGE`, a no-break space and

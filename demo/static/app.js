@@ -7915,13 +7915,17 @@ function plain(value, prefix2) {
   return name.toLowerCase().split("_").join(" ");
 }
 function fold(text) {
-  return text.toUpperCase().toLowerCase().split("i\u0307").join("i");
+  const cased = text.toLowerCase().toUpperCase().toLowerCase();
+  return cased.split("i\u0307").join("i").split("\u03C2").join("\u03C3");
+}
+function space(ch) {
+  return ch.trim() === "" || ch === "\x85";
 }
 function words(text) {
   const out = [];
   let word = "";
   for (const ch of text) {
-    if (ch.trim() !== "") {
+    if (!space(ch)) {
       word += ch;
       continue;
     }
