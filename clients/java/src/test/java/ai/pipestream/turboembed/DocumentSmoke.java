@@ -1494,7 +1494,10 @@ final class Redaction {
         return set.apply(PiiRewriteStrategy.newBuilder()).build();
     }
 
-    /** Every arm the server knows but the keyed token, which needs a registered key. */
+    /**
+     * Every arm the server knows but those that need a registered key: the keyed token, and the AES-256-GCM
+     * and FF1 arms of a server built with reversible protection.
+     */
     static List<PiiRewriteStrategy> everyArm() {
         return List.of(
                 arm(b -> b.setMask(PiiMaskStrategy.newBuilder().setMaskChar("#"))),

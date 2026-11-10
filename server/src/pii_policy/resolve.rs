@@ -52,6 +52,11 @@ impl ResolveError {
 pub trait PolicyResolver {
     /// The bytes of the HMAC key registered as `id` at `version`.
     fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError>;
+    /// The bytes of the encryption key registered as `id` at `version`
+    /// (`--pii-encryption-key`), for the AES-256-GCM and FF1 strategies.
+    /// A token key of the same reference is another key and never
+    /// answers.
+    fn encryption_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError>;
     /// The terms of the `plain-word-list` dictionary `artifact_id` whose
     /// stored bytes hash to `sha256`.
     fn terms(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[String]>, ResolveError>;
@@ -67,6 +72,10 @@ pub struct NoRegistry;
 
 impl PolicyResolver for NoRegistry {
     fn hmac_key(&self, _: &str, _: u32) -> Result<&[u8], ResolveError> {
+        Err(ResolveError::NoRegistry)
+    }
+
+    fn encryption_key(&self, _: &str, _: u32) -> Result<&[u8], ResolveError> {
         Err(ResolveError::NoRegistry)
     }
 

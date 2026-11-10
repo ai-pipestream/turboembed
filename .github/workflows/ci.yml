@@ -79,6 +79,8 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       - name: clippy (pii reversible)
         run: cargo clippy -p turbo-pii --features reversible --all-targets
+      - name: clippy (server pii-reversible)
+        run: cargo clippy -p turbo-kserve --features pii-reversible --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
       # through ureq or rustls, whose build script needs an aarch64 C
@@ -132,8 +134,14 @@ jobs:
             echo "server/proto unchanged from origin/main"
             exit 0
           fi
+          # Compare against the main this HEAD was built on, as the skip
+          # above does. The tip of origin/main can be newer than the merge
+          # ref (main moved after the push), and then a proto change merged
+          # since reads as a deletion in every proto pull request.
+          base=$(git merge-base origin/main HEAD)
+          echo "comparing against merge base $base"
           mkdir -p "$RUNNER_TEMP/base"
-          git archive origin/main server/proto | tar -x -C "$RUNNER_TEMP/base"
+          git archive "$base" server/proto | tar -x -C "$RUNNER_TEMP/base"
           if [ ! -f "$RUNNER_TEMP/base/server/proto/buf.yaml" ]; then
             cp server/proto/buf.yaml "$RUNNER_TEMP/base/server/proto/buf.yaml"
             sed -i \
@@ -290,6 +298,10 @@ jobs:
       # RustCrypto AES-GCM and FF1 crates.
       - name: test (pii reversible)
         run: cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
+      - name: test (server pii-reversible)
+        run: >-
+          cargo test -p turbo-kserve --features pii-reversible --lib
+          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host

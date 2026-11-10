@@ -40,6 +40,7 @@ async fn serve_package(
             max_seq: 0,
             select_device: false,
             user: String::new(),
+            vocabulary: None,
         })
         .await
         .unwrap()
@@ -358,6 +359,7 @@ async fn serve_relation_models(
                 max_seq: 0,
                 select_device: false,
                 user: String::new(),
+                vocabulary: None,
             })
             .await
             .unwrap();

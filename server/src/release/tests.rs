@@ -8,7 +8,7 @@ use turbo_analysis_layers::{PiiKind, Sensitive};
 
 use super::audit::{EventKey, event_id};
 use super::caps::{Fingerprint, Form, Forms, Grant, Grants, effective};
-use super::keys::{KeyRef, TokenKey, TokenKeyFile, active};
+use super::keys::{EncryptionKey, KeyRef, TokenKey, TokenKeyFile, active};
 use super::*;
 use crate::proto::audit::{PiiAccessKindGrant, PiiAccessMention};
 
@@ -82,6 +82,12 @@ fn key_flag_parse_errors_never_repeat_the_input() {
     let short = key_file(key, b"short");
     let err = TokenKey::load(&short).unwrap_err();
     assert_eq!(err, "--pii-token-key tok:3: the key file holds 5 bytes, not 32 to 1024");
+    // The encryption keys load the same way.
+    let err = EncryptionKey::load(&TokenKeyFile::parse(&format!("tok:1:{key}")).unwrap()).unwrap_err();
+    assert!(err.starts_with("--pii-encryption-key tok:1: the key file (a path of"), "{err}");
+    assert_not_echoed(&err, key);
+    let err = EncryptionKey::load(&short).unwrap_err();
+    assert_eq!(err, "--pii-encryption-key tok:3: the key file holds 5 bytes, not 32");
 }
 
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {

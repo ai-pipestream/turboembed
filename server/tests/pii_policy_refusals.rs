@@ -72,10 +72,10 @@ fn an_unknown_kind_id_is_refused() {
 }
 
 /// A strategy arm this server does not know arrives as an unknown field:
-/// field 15 of PiiRewriteStrategy, here a mask message's bytes.
+/// field 99 of PiiRewriteStrategy, here a mask message's bytes.
 fn with_unknown_arm(flag: bool) -> pb::RedactionPolicy {
     let mut arm = Vec::new();
-    prost::encoding::message::encode(15, &pb::PiiMaskStrategy::default(), &mut arm);
+    prost::encoding::message::encode(99, &pb::PiiMaskStrategy::default(), &mut arm);
     let mut entry_bytes = Vec::new();
     prost::encoding::bytes::encode(2, &arm, &mut entry_bytes);
     let entry = pb::PiiStrategyEntry::decode(&*entry_bytes).unwrap();

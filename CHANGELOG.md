@@ -47,6 +47,13 @@ stubs must be regenerated.
 - With `reversible`, `RewriteStrategy::AesGcm` and `RewriteStrategy::Ff1`
   put both encryptors in a `RewritePolicy`, per kind. Their key enters the
   policy's configuration hash only as an HMAC under a fixed label (#1885).
+- The server's `pii-reversible` cargo feature: the redaction policy arms
+  `aes_256_gcm` (`PiiAesGcmStrategy`, field 14) and `ff1`
+  (`PiiFf1Strategy`, field 15, with `PiiFf1Alphabet`), each naming a key
+  registered with `--pii-encryption-key ID:VERSION:PATH`
+  (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`), a registry of exactly 32-byte keys
+  kept apart from the token keys. A server built without the feature
+  does not know the arms (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -63,6 +70,16 @@ stubs must be regenerated.
   `token_start`. Off by default, so existing callers see the same rows.
   Java `TurboSpanView` and `TurboSpanData` read it as `piiKindCode()`,
   `piiKind()` and `piiCustomKindIndex()` (#1964).
+- C ABI PII rows carry their detector identity, evidence facts and
+  optional score through `turbo_analysis_result_pii_spans` and
+  `turbo_analysis_result_pii_facts` (`turbo_pii_span`,
+  `turbo_pii_fact`), and `turbo_analyzer_desc.flags` bit
+  `TURBO_ANALYZER_PII_DETAIL` exposes `turbo:pii-candidates` rows
+  through `turbo_analysis_result_pii_candidates` (`turbo_pii_candidate`),
+  with no value or label text. Java `TurboSpanView` and `TurboSpanData`
+  read `piiDetector()`, `piiEvidence()` and `piiScore()`, and
+  `TurboAnalysisResult.piiCandidates()` reads candidates under
+  `Config.withPiiDetail(true)` (#1941).
 - Rewrites as derived views: the redacted text is a `ViewChain` over
   the source view (`TypedLayer.native_view`, field 10) and every edit is
   a `PiiEditAnnotation` in the `turbo:pii-edits` layer (`pii_edit`,
@@ -305,6 +322,16 @@ stubs must be regenerated.
   their native format, streams each iteration as progress, and sends
   the model file back; admin only, sharing the training slot with
   `TrainStaticModel`, and stopped when the client goes away (#2012).
+- `TurboTrainingService.StreamingTraining` runs one training over a
+  stream the client feeds. A corpus job learns a vocabulary from the
+  streamed documents, distils a static model with its terms and indexes
+  the documents with that model, keeping all three or none: the
+  vocabulary is stored and the index published in one last step, and a
+  failure or a client that goes away removes the model. A component job
+  trains the feed-forward dependency parser from CoNLL-U samples,
+  streams each epoch's loss, and sends the model file back. Admin only,
+  sharing the training slot with `TrainStaticModel` and `TrainComponent`
+  (#2026).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
   `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
@@ -331,7 +358,12 @@ stubs must be regenerated.
 
 ### Fixed
 
-- `--pii-token-key` and `--pii-token-key-active` (and their variables):
+- `AnalyzeDocumentProgressive`: in a step chain that folds case,
+  `turbo-sentdetect:rules` reads the last view before the fold, so a
+  folded document keeps its sentence boundaries instead of becoming one
+  sentence (#2086).
+- `--pii-token-key`, `--pii-token-key-active` and `--pii-encryption-key`
+  (and their variables):
   a value that does not parse is described by its length and parts, never
   repeated, and a key file that cannot be loaded is named by its reference
   and the path's length, so key text pasted into the flag does not reach

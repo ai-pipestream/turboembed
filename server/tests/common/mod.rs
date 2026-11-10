@@ -203,6 +203,7 @@ pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> Load
         max_seq: 0,
         select_device: false,
         user: String::new(),
+        vocabulary: None,
     }
 }
 
@@ -241,6 +242,7 @@ pub fn stream_doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOpti
             options,
             output: 0,
             offsets: 0,
+            vocabulary: None,
         })),
     }
 }
