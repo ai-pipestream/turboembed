@@ -92,18 +92,34 @@ fn reference_at(text: &str, at: usize) -> Option<(usize, String)> {
         return None;
     }
     let run = bytes.iter().take_while(|b| b.is_ascii_alphanumeric()).count();
+    #[cfg(test)]
+    WORK.with(|w| w.set((w.get().0 + run as u64, w.get().1)));
     if bytes.get(run) == Some(&b';')
         && run < entities_table::MAX_KEY
-        && let Some(decoded) = entities_table::lookup(&rest[..run + 1])
+        && let Some(decoded) = looked_up(&rest[..run + 1])
     {
         return Some((at + 1 + run + 1, decoded.to_string()));
     }
     for len in (1..=run.min(entities_table::MAX_LEGACY)).rev() {
-        if let Some(decoded) = entities_table::lookup(&rest[..len]) {
+        if let Some(decoded) = looked_up(&rest[..len]) {
             return Some((at + 1 + len, decoded.to_string()));
         }
     }
     None
+}
+
+/// `entities_table::lookup`, counted under test.
+fn looked_up(key: &str) -> Option<&'static str> {
+    #[cfg(test)]
+    WORK.with(|w| w.set((w.get().0, w.get().1 + 1)));
+    entities_table::lookup(key)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Name bytes scanned and table lookups made by `reference_at`, so a
+    /// test can hold the per-reference work constant without a clock.
+    static WORK: std::cell::Cell<(u64, u64)> = const { std::cell::Cell::new((0, 0)) };
 }
 
 /// The WHATWG numeric-reference code point mapping.
@@ -140,5 +156,27 @@ fn map_code_point(value: u32) -> char {
         0x9E => '\u{017E}',
         0x9F => '\u{0178}',
         v => char::from_u32(v).unwrap_or('\u{FFFD}'),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_reference_is_one_name_scan_and_a_few_lookups() {
+        let unit = "&amp; x &zzzzzzzzzzzz y &#169; &notin; &notit; ";
+        let text = unit.repeat(32_000);
+        WORK.with(|w| w.set((0, 0)));
+        let out = crate::apply(&HtmlEntityDecodeNormalizer::new(), &text);
+        assert_eq!(out, "& x &zzzzzzzzzzzz y \u{a9} \u{2209} \u{ac}it; ".repeat(32_000));
+        let (scanned, lookups) = WORK.with(std::cell::Cell::get);
+        let ampersands = text.bytes().filter(|&b| b == b'&').count() as u64;
+        // Each name is scanned once, and a reference costs its exact key
+        // plus at most MAX_LEGACY shorter keys: never every length times
+        // a table search.
+        assert!(scanned <= text.len() as u64, "{scanned} name bytes scanned in {} bytes", text.len());
+        let most = (1 + entities_table::MAX_LEGACY) as u64 * ampersands;
+        assert!(lookups <= most, "{lookups} lookups for {ampersands} references, over {most}");
     }
 }

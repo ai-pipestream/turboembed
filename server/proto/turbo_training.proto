@@ -397,6 +397,11 @@ service TurboTrainingService {
   rpc ListStaticModels(ListStaticModelsRequest) returns (ListStaticModelsResponse);
   // Admin. Stops serving a static model and removes its directory.
   rpc DeleteStaticModel(DeleteStaticModelRequest) returns (DeleteStaticModelResponse);
+  // Admin. Trains a classical component from samples the client streams
+  // in their native format, one training at a time (with
+  // TrainStaticModel). Progress, the model file in chunks, then one
+  // trained. Nothing is kept on the server.
+  rpc TrainComponent(stream TrainComponentRequest) returns (stream TrainComponentUpdate);
 }
 
 message Teacher {
@@ -567,4 +572,96 @@ message DeleteStaticModelRequest {
 message DeleteStaticModelResponse {
   // Whether the model was served, and is no longer.
   bool unloaded = 1;
+}
+
+// The classical components TrainComponent trains, and the sample format
+// each reads (docs/grpc-training.md, Component training).
+enum ComponentKind {
+  COMPONENT_KIND_UNSPECIFIED = 0;
+  // One sentence a line, a blank line between documents.
+  COMPONENT_KIND_SENTENCE_DETECTOR = 1;
+  // One sentence a line, tokens split by whitespace or <SPLIT>.
+  COMPONENT_KIND_TOKENIZER = 2;
+  // One sentence a line of word_TAG tokens.
+  COMPONENT_KIND_POS_TAGGER = 3;
+  // word, tag and lemma, tab separated, a line a token, a blank line
+  // between sentences.
+  COMPONENT_KIND_LEMMATIZER = 4;
+  // word, tag and chunk tag, space separated, a line a token, a blank
+  // line between sentences.
+  COMPONENT_KIND_CHUNKER = 5;
+  // One sentence a line with <START:type> ... <END> around names.
+  COMPONENT_KIND_NAME_FINDER = 6;
+  // A category then the document's tokens, separated by whitespace, a
+  // line each.
+  COMPONENT_KIND_DOCUMENT_CATEGORIZER = 7;
+  // A language code, a tab, then the text, a line each.
+  COMPONENT_KIND_LANGUAGE_DETECTOR = 8;
+}
+
+// The first message of a TrainComponent call.
+message TrainComponentStart {
+  ComponentKind component = 1;
+  // The language the model records (ISO 639). Required except for the
+  // language detector, which learns its languages from the samples.
+  string language = 2;
+  // Training parameters as a parameters file names them (Iterations,
+  // Cutoff, Algorithm, ...), each value a string. Unset keys take the
+  // trainer's defaults: MAXENT, 100 iterations, cutoff 5.
+  map<string, string> parameters = 3;
+  // The name finder: the type given to names the samples leave untyped.
+  // Empty: "default".
+  string name_type = 4;
+}
+
+message TrainComponentRequest {
+  oneof part {
+    // First, and only first.
+    TrainComponentStart start = 1;
+    // The samples as UTF-8, in any number of chunks cut anywhere. The end
+    // of the client's stream starts the training.
+    bytes samples = 2;
+  }
+}
+
+enum ComponentStage {
+  COMPONENT_STAGE_UNSPECIFIED = 0;
+  // The start passed its checks and holds the training slot.
+  COMPONENT_STAGE_ADMITTED = 1;
+  // Every sample is read: samples of them.
+  COMPONENT_STAGE_READ = 2;
+  // An iteration finished: iteration, with correct of events classified
+  // and the measure the trainer reports.
+  COMPONENT_STAGE_ITERATION = 3;
+  // The model file is packaged; its chunks follow.
+  COMPONENT_STAGE_PACKAGED = 4;
+}
+
+message TrainComponentProgress {
+  ComponentStage stage = 1;
+  uint64 samples = 2;
+  uint32 iteration = 3;
+  uint64 correct = 4;
+  uint64 events = 5;
+  // "Training Accuracy" or "Log Likelihood".
+  string measure = 6;
+  double value = 7;
+}
+
+message TrainedComponent {
+  ComponentKind component = 1;
+  uint64 samples = 2;
+  // The model file sent in the chunks before this message: its size and
+  // lowercase hex SHA-256.
+  uint64 size = 3;
+  string sha256 = 4;
+}
+
+message TrainComponentUpdate {
+  oneof update {
+    TrainComponentProgress progress = 1;
+    // The next bytes of the model file.
+    bytes model = 2;
+    TrainedComponent trained = 3;
+  }
 }

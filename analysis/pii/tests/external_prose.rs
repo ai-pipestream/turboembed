@@ -9,7 +9,7 @@
 
 mod support;
 
-use support::{Counts, load_labelled, measure, ratio, ratio_text};
+use support::{Counts, load_labelled, measure, ratio, ratio_text, rows, wide};
 
 /// (id, goldens-escaped, file, pinned SHA-256 of the document text).
 const EXTERNAL_DOCS: [(&str, bool, &str, &str); 23] = [
@@ -238,4 +238,17 @@ fn zero_support_is_undefined() {
     assert_eq!(ratio_text(2, 2), "1.000");
     assert_eq!(ratio(0, 2), 0.0);
     assert_eq!(ratio(2, 2), 1.0);
+}
+
+#[test]
+fn year_shaped_phrases_and_prose_runs_are_not_street_addresses() {
+    let d = wide();
+    for not in
+        ["2016 Central Park", "2018 Apple Park", "2024 Annual Bay Summit", "the 3 Point Plan", "the 3 Five Point Plan"]
+    {
+        assert!(rows(&d, not).iter().all(|r| r.2 != "street-address"), "{not}");
+    }
+    let found: Vec<_> = rows(&d, "at 3 Point Lane").into_iter().filter(|r| r.2 == "street-address").collect();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].3, "3 Point Lane");
 }

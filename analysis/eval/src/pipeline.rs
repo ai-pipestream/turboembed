@@ -261,7 +261,7 @@ impl Pipeline {
             overhead: budget.overhead,
             chunker: self.chunker.config(),
         };
-        crate::cuts::Writer::create_in(config.store.as_ref(), &header).map(Some)
+        config.writer(&header).map(Some)
     }
 
     /// Runs the pipeline over the set and makes its record, checked.

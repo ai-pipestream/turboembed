@@ -6,8 +6,6 @@
 use std::fmt;
 use std::path::PathBuf;
 
-use turbo_pii::checksum::sha256;
-
 use crate::proto::result::{PiiPolicyKeyRef, PiiValueToken};
 
 /// The fewest and most bytes a token key file may hold.
@@ -146,7 +144,7 @@ impl TokenKey {
             msg.extend_from_slice(field);
         }
         PiiValueToken {
-            token: sha256::hmac(&self.bytes.0, &msg).to_vec(),
+            token: turbo_sha256::hmac_sha256(&self.bytes.0, &msg).0.to_vec(),
             key_id: self.key.id.clone(),
             key_version: self.key.version,
         }

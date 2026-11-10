@@ -32,6 +32,7 @@
 # Bundles checked in under testdata/.
 blobs/sha256/35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741  bundle  testdata/tiny-bert-bundle
 blobs/sha256/9fa507e8f7fc267176dd5667c1bc8e8e2939df0a25e7f3b8ac8f7859f4da0bc0  bundle  testdata/tiny-bert-heads-bundle
+blobs/sha256/e87a1ff84c799050f29b4b7fd84257f55b90ef95bd6db32eebd77ca0fe910546  bundle  testdata/tiny-bert-segment-bundle
 blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
 blobs/sha256/223fe30ed3eec3abac9281ae1cc543d634eab145b3286fe9887a87273bf9d231  bundle  testdata/tiny-modernbert-bundle
 blobs/sha256/8b12f898db464a68fa09e1bb996472c0c2ece0564daad20e6a3ffc332fb0ecd5  bundle  testdata/tiny-nomic-bundle
@@ -218,3 +219,4 @@ blobs/sha256/7b8e5673dc75b38da41f3d842bcc6941dccb4670ce472a915fd2547cfb6c0d03  b
 blobs/sha256/3d885ff5da3bb79e6b975e421248e810d74bbf63ed4f1af753e36403e34de61a  bundle  minishlab/potion-science-32M static build (B70 machine)
 blobs/sha256/dd3ea37954bdac157b691b2e7157da45f0bf258badb52eb130b25c1df0dcbcba  bundle  minishlab/potion-science-32M static-rust build (B70 machine)
 blobs/sha256/111f32a50017d71e0974139c17903aa95d37a1dc9719ed4782723fcadddc1b97  bundle  sentence-transformers/all-MiniLM-L6-v2 NPU s256 / minilm-npu-token-ids-f16-s256-605aeb78e (first recorded in analysis/eval/records/v1-172/npu/turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/867431b1ddfd21d61f157948ee77d37311a4af74c95444f02cc64a00eace4d9c  bundle  dslim/bert-base-NER revision 1, source d1a3e8f1, from bundle/recipes/dslim-bert-base-ner.json, for the namefind-dl device test (B70 machine)

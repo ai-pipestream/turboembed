@@ -12,7 +12,7 @@ use super::caps::Fingerprint;
 pub fn of<T>(req: &tonic::Request<T>) -> Option<Fingerprint> {
     let certs = req.peer_certs()?;
     let leaf = certs.first()?;
-    Some(Fingerprint(turbo_pii::checksum::sha256::digest(leaf.as_ref())))
+    Some(Fingerprint(turbo_sha256::sha256(leaf.as_ref()).0))
 }
 
 /// Without the `tls` feature no connection has an identity.

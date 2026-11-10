@@ -29,7 +29,6 @@ pub mod invariants;
 pub mod load;
 pub mod read;
 pub mod sentences;
-pub mod sha;
 pub mod write;
 
 use std::path::{Path, PathBuf};
@@ -46,7 +45,7 @@ pub use format::{
 pub use invariants::{Violation, assert_invariants, check_document};
 pub use load::{GOLDEN_KEY, GoldenLoad, LoadCx, LoadError, golden_key, load_document, load_layer};
 pub use read::GoldenError;
-pub use sha::{Sha256, Sha512, sha256, sha512};
+pub use turbo_sha256::{Sha256, Sha512, sha256, sha512};
 
 /// The checked-in golden data, `analysis/goldens/data`: the input texts
 /// under `inputs/<set>/` and a directory per annotator and model. Tests

@@ -19,6 +19,8 @@ RUN apt-get update \
 COPY ${WHEEL} /tmp/
 RUN pip install --no-cache-dir /tmp/${WHEEL} tokenizers==0.22.2 && rm /tmp/${WHEEL}
 COPY hef_compile.py /
+COPY test_cut_validation.py /
+RUN cd / && python -m unittest test_cut_validation
 ENV HOME=/tmp PYTHONHASHSEED=0
 WORKDIR /tmp
 ENTRYPOINT ["python", "/hef_compile.py"]

@@ -1,8 +1,6 @@
 //! Base58check, the encoding of legacy Bitcoin addresses, as OpenNLP's
 //! `Base58Check` decodes it.
 
-use super::sha256;
-
 const ALPHABET: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 /// The value of each ASCII byte in the alphabet, or -1.
@@ -61,14 +59,14 @@ pub fn checked_version(encoded: &[u8]) -> Option<u8> {
     for (p, r) in payload.iter_mut().zip(reversed[..PAYLOAD].iter().rev()) {
         *p = *r;
     }
-    let check = sha256::digest(&sha256::digest(&payload[..PAYLOAD - 4]));
+    let check = turbo_sha256::sha256(&turbo_sha256::sha256(&payload[..PAYLOAD - 4]).0).0;
     (check[..4] == payload[PAYLOAD - 4..]).then_some(payload[0])
 }
 
 /// Encodes `payload` (a version byte and a hash) with its checksum, the
 /// inverse of [`checked_version`]; for making test values.
 pub fn encode_checked(payload: &[u8]) -> String {
-    let check = sha256::digest(&sha256::digest(payload));
+    let check = turbo_sha256::sha256(&turbo_sha256::sha256(payload).0).0;
     let mut bytes = payload.to_vec();
     bytes.extend_from_slice(&check[..4]);
     let zeros = bytes.iter().take_while(|&&b| b == 0).count();

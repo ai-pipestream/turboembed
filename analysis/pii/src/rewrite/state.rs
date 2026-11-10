@@ -87,6 +87,14 @@ impl<'a> RewriteState<'a> {
                 abbr.write_abbreviated(&text[m.span.range()], out);
                 Ok(())
             }
+            RewriteStrategy::ZipSafeHarbor(zip) => {
+                zip.write_mention(m.kind, &text[m.span.range()], out);
+                Ok(())
+            }
+            RewriteStrategy::AgeSafeHarbor(age) => {
+                age.write_mention(m.kind, &text[m.span.range()], out);
+                Ok(())
+            }
         }
     }
 
@@ -166,6 +174,17 @@ impl<'a> RewriteState<'a> {
                     },
                     out,
                 );
+                Ok(())
+            }
+            // Overlapping mentions are not one ZIP code, and another
+            // member's strategy may keep none of its characters.
+            RewriteStrategy::ZipSafeHarbor(zip) => {
+                zip.write_masked(piece, out);
+                Ok(())
+            }
+            // Overlapping mentions are not one age either.
+            RewriteStrategy::AgeSafeHarbor(age) => {
+                age.write_masked(piece, out);
                 Ok(())
             }
             other => self.write_strategy(other, text, winner, out),

@@ -246,3 +246,30 @@ fn window_end_addition_does_not_wrap() {
     p.place(0, u32::MAX).unwrap();
     assert_eq!(p.windows[0].end, u32::MAX);
 }
+
+/// Windows the placement sweep looks at for `pieces` pieces, width 64 and
+/// stride 32, in planned order or reversed (the sorting path).
+fn placement_work(pieces: u32, reversed: bool) -> u64 {
+    let mut wins = plan_sliding_windows(0, pieces, 64, 32);
+    if reversed {
+        wins.reverse();
+    }
+    tokens::PLACEMENT_WORK.with(|n| n.set(0));
+    let placed = place_tokens_in_windows(0, pieces, &wins);
+    assert_eq!(placed.len(), pieces as usize);
+    tokens::PLACEMENT_WORK.with(std::cell::Cell::get)
+}
+
+#[test]
+fn token_placement_looks_at_a_bounded_number_of_windows_a_piece() {
+    for reversed in [false, true] {
+        let (n1, n4) = (placement_work(20_000, reversed), placement_work(80_000, reversed));
+        assert!(n1 > 0, "the sweep looked at no window");
+        // Linear work is four times as much (the edge windows add a little);
+        // a sweep that rescans from the first window would be sixteen.
+        assert!(n4 * 10 <= n1 * 41, "placement work grew faster than the pieces: N={n1}, 4N={n4}");
+        // A piece sits in at most two windows, and the sweep stops at the
+        // first window that starts past it: a few looks a piece, not a scan.
+        assert!(n4 <= 4 * 80_000, "placement looked at {n4} windows for 80000 pieces");
+    }
+}
