@@ -1144,9 +1144,13 @@ An unknown name is refused without echoing it.
   an unregistered key refuses the policy. The keys of the `aes_256_gcm`
   and `ff1` arms resolve through `--pii-encryption-key ID:VERSION:PATH`
   (repeated, or `TURBO_KSERVE_PII_ENCRYPTION_KEYS`), whose file must hold
-  exactly 32 bytes. That flag needs `--pii-grant`, as the token keys do,
-  and a server built with `pii-reversible`; without the feature it fails
-  start-up. The two registries are separate: a token key never answers
+  exactly 32 bytes. That flag needs a server built with `pii-reversible`;
+  without the feature it fails start-up. It does not need `--pii-grant`
+  or mTLS, unlike the token keys: encrypting during redaction releases
+  no value, it only writes ciphertext into the redacted view, so a server
+  with no grant still loads its encryption keys for these arms (#2111).
+  `--pii-encryption-key-active` still needs a grant with ciphertext, since
+  it only picks the key releases are made under. The two registries are separate: a token key never answers
   for an encryption reference, or the reverse, and an encryption key
   file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store

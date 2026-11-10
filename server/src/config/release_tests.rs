@@ -158,7 +158,7 @@ fn requiring_the_recorded_policy_is_off_by_default_and_set_by_its_flag_or_variab
 }
 
 #[test]
-fn encryption_keys_repeat_need_a_grant_and_a_reversible_build() {
+fn encryption_keys_repeat_and_need_a_reversible_build() {
     let grant = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
     let cmd = format!("{grant} --pii-encryption-key vault:1:/k/one --pii-encryption-key vault:2:/k/two:x");
     if cfg!(feature = "pii-reversible") {
@@ -173,7 +173,6 @@ fn encryption_keys_repeat_need_a_grant_and_a_reversible_build() {
             (format!("{grant} --pii-encryption-key a:1:/k --pii-encryption-key a:1:/j"), "given twice"),
             (format!("{grant} --pii-encryption-key a:0:/k"), "not a number from 1"),
             (format!("{grant} --pii-encryption-key a:1:"), "path is empty"),
-            (format!("{MTLS} --pii-encryption-key a:1:/k"), "need --pii-grant"),
         ] {
             let e = args(&cmd).unwrap_err();
             assert!(e.contains(want), "{cmd}: {e}");
@@ -206,6 +205,36 @@ fn a_ciphertext_grant_names_its_kinds_and_its_active_encryption_key() {
         (format!("{grant} {keys} --pii-encryption-key-active vault"), "--pii-encryption-key-active: "),
         (format!("{clear} --pii-encryption-key vault:1:/k --pii-encryption-key-active vault:1"), "with ciphertext"),
         (format!("{MTLS} --pii-encryption-key-active vault:1"), "need --pii-grant"),
+    ] {
+        let e = args(&cmd).unwrap_err();
+        assert!(e.contains(want), "{cmd}: {e}");
+    }
+}
+
+#[test]
+fn encryption_keys_need_no_grant_and_no_mtls() {
+    // Encrypting during redaction releases nothing (#2111): without a
+    // grant the keys come back on their own, for the policy arms.
+    let plain = "--listen 127.0.0.1:0 --admin";
+    let cmd = format!("{plain} --pii-encryption-key vault:1:/k/one --pii-encryption-key vault:2:/k/two");
+    if !cfg!(feature = "pii-reversible") {
+        assert!(args(&cmd).unwrap_err().contains("pii-reversible"));
+        return;
+    }
+    let a = args(&cmd).unwrap();
+    assert!(a.pii_release.is_none(), "no grant, no release");
+    let keys: Vec<_> = a.pii_encryption_keys.iter().map(|k| k.key.to_string()).collect();
+    assert_eq!(keys, ["vault:1", "vault:2"]);
+    let env = |k: &str| (k == ENV_PII_ENCRYPTION_KEYS).then(|| "vault:3:/k/three".to_owned());
+    assert_eq!(args_env(plain, env).unwrap().pii_encryption_keys.len(), 1, "from its variable");
+    let grant = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
+    let a = args(&format!("{grant} --pii-encryption-key vault:1:/k/one")).unwrap();
+    assert!(a.pii_encryption_keys.is_empty(), "with a grant the keys are the release's");
+    assert_eq!(a.pii_release.unwrap().encryption_keys.len(), 1);
+    for (cmd, want) in [
+        (format!("{plain} --pii-encryption-key a:1:/k --pii-encryption-key a:1:/j"), "given twice"),
+        (format!("{plain} --pii-encryption-key a:0:/k"), "not a number from 1"),
+        (format!("{plain} --pii-encryption-key vault:1:/k --pii-encryption-key-active vault:1"), "need --pii-grant"),
     ] {
         let e = args(&cmd).unwrap_err();
         assert!(e.contains(want), "{cmd}: {e}");

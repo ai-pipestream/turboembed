@@ -366,6 +366,12 @@ stubs must be regenerated.
 
 ### Changed
 
+- `--pii-encryption-key` (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`) no longer
+  needs `--pii-grant` or mTLS: encrypting during redaction releases no
+  value, so a server with no grant loads its encryption keys for the
+  redaction policies' `aes_256_gcm` and `ff1` arms.
+  `--pii-encryption-key-active` still needs a grant with ciphertext
+  (#2111).
 - The in-process analyzer (`turbo_analyzer_desc`) loads a bundle:
   `bundle_path` names a bundle whose heads write the part-of-speech,
   lemma, dependency and entity layers from one encoder pass a sentence,

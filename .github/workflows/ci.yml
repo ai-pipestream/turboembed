@@ -343,7 +343,7 @@ jobs:
       - name: test (server pii-reversible)
         run: >-
           cargo test -p turbo-kserve --features pii-reversible --lib
-          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest
+          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest --test pii_encryption_keys
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host

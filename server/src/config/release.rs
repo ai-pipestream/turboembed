@@ -2,15 +2,17 @@
 //! value release, #1909): the grants per verified client certificate, the
 //! token keys, the encryption keys of the reversible redaction strategies
 //! (#1885), the audit service, and whether a values request must name
-//! the policy the graph recorded (#1977). Every one needs `--pii-grant`,
-//! and a grant needs mTLS and the audit endpoint.
+//! the policy the graph recorded (#1977). Every one but the encryption
+//! keys needs `--pii-grant`, and a grant needs mTLS and the audit
+//! endpoint. An encryption key alone releases nothing: a redaction
+//! policy's AES-256-GCM and FF1 arms encrypt with it (#2111).
 
 use std::time::Duration;
 
 use crate::release::ReleaseConfig;
 use crate::release::audit::DEFAULT_AUDIT_TIMEOUT;
 use crate::release::caps::Grants;
-use crate::release::keys::{KeyRef, TokenKeyFile};
+use crate::release::keys::{self, KeyRef, TokenKeyFile};
 use crate::tls::TlsConfig;
 
 pub const ENV_PII_GRANTS: &str = "TURBO_KSERVE_PII_GRANTS";
@@ -66,12 +68,14 @@ impl ReleaseFlags {
 
     /// The release settings, with `env` filling in what the flags leave
     /// out; a repeated flag's variable is a `;`-separated list, read only
-    /// when the flag is not given.
+    /// when the flag is not given. Without a grant there is no release,
+    /// and the encryption keys come back on their own, for the redaction
+    /// policies' AES-256-GCM and FF1 arms.
     pub(super) fn resolve(
         self,
         env: impl Fn(&str) -> Option<String>,
         tls: Option<&TlsConfig>,
-    ) -> Result<Option<ReleaseConfig>, String> {
+    ) -> Result<(Option<ReleaseConfig>, Vec<TokenKeyFile>), String> {
         let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         let list = |given: Vec<String>, k: &str| -> Vec<String> {
             if !given.is_empty() {
@@ -104,21 +108,25 @@ impl ReleaseFlags {
                 }
             },
         };
+        let encryption_keys = encryption_keys
+            .iter()
+            .map(|k| TokenKeyFile::parse(k).map_err(|e| format!("--pii-encryption-key: {e}")))
+            .collect::<Result<Vec<_>, _>>()?;
         if grants.is_empty() {
             if !token_keys.is_empty()
-                || !encryption_keys.is_empty()
                 || active.is_some()
                 || encryption_active.is_some()
                 || endpoint.is_some()
                 || timeout_ms.is_some()
                 || require_recorded_policy
             {
-                return Err("--pii-token-key, --pii-encryption-key, --pii-token-key-active, \
-                            --pii-encryption-key-active, --pii-audit-endpoint, --pii-audit-timeout-ms \
+                return Err("--pii-token-key, --pii-token-key-active, --pii-encryption-key-active, \
+                            --pii-audit-endpoint, --pii-audit-timeout-ms \
                             and --pii-require-recorded-policy need --pii-grant"
                     .into());
             }
-            return Ok(None);
+            keys::distinct("--pii-encryption-key", &encryption_keys)?;
+            return Ok((None, encryption_keys));
         }
         let mut parsed = Grants::default();
         for g in &grants {
@@ -127,10 +135,6 @@ impl ReleaseFlags {
         let token_keys = token_keys
             .iter()
             .map(|k| TokenKeyFile::parse(k).map_err(|e| format!("--pii-token-key: {e}")))
-            .collect::<Result<Vec<_>, _>>()?;
-        let encryption_keys = encryption_keys
-            .iter()
-            .map(|k| TokenKeyFile::parse(k).map_err(|e| format!("--pii-encryption-key: {e}")))
             .collect::<Result<Vec<_>, _>>()?;
         let active_token_key =
             active.map(|a| KeyRef::parse(&a).map_err(|e| format!("--pii-token-key-active: {e}"))).transpose()?;
@@ -156,7 +160,7 @@ impl ReleaseFlags {
             require_recorded_policy,
         };
         config.check(tls)?;
-        Ok(Some(config))
+        Ok((Some(config), Vec::new()))
     }
 }
 
