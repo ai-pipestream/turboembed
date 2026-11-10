@@ -144,6 +144,13 @@ fn rules(texts: &[&str]) -> Result<Vec<Spans>, Fail> {
         .collect()
 }
 
+/// A peer span offset. One past `u32::MAX` is refused, not wrapped into a
+/// span that may pass the text checks below.
+fn offset(e: &Value, key: &str) -> Result<u32, Fail> {
+    let n = e[key].as_u64().ok_or_else(|| format!("{key} is not a whole number"))?;
+    Ok(u32::try_from(n).map_err(|_| format!("{key} {n} is past u32::MAX"))?)
+}
+
 fn peer(path: &Path, set: &GoldSet) -> Result<Vec<Spans>, Fail> {
     let mut by_id = BTreeMap::new();
     for line in std::fs::read_to_string(path)?.lines().filter(|l| !l.trim().is_empty()) {
@@ -151,8 +158,8 @@ fn peer(path: &Path, set: &GoldSet) -> Result<Vec<Spans>, Fail> {
         let id = v["id"].as_str().ok_or("peer line without id")?.to_owned();
         let mut spans = Spans::new();
         for e in v["entities"].as_array().ok_or("peer line without entities")? {
-            let (s, t) = (e["start"].as_u64().ok_or("start")?, e["end"].as_u64().ok_or("end")?);
-            spans.insert((s as u32, t as u32, e["label"].as_str().ok_or("label")?.to_owned()));
+            let (s, t) = (offset(e, "start")?, offset(e, "end")?);
+            spans.insert((s, t, e["label"].as_str().ok_or("label")?.to_owned()));
         }
         if by_id.insert(id.clone(), spans).is_some() {
             return Err(format!("{}: {id} twice", path.display()).into());
@@ -343,4 +350,26 @@ fn main() -> Result<(), Fail> {
     }
     eprintln!("{} documents written to {}", set.docs.len(), out.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_offset_past_u32_is_refused_not_wrapped() {
+        let wrapped = 4_294_967_296u64 + 3;
+        for key in ["start", "end"] {
+            let e = serde_json::json!({ "start": 3, "end": 9, "label": "date" });
+            assert_eq!(offset(&e, key).unwrap(), if key == "start" { 3 } else { 9 });
+            let mut bad = e.clone();
+            bad[key] = Value::from(wrapped);
+            let err = offset(&bad, key).unwrap_err().to_string();
+            assert!(err.contains("past u32::MAX"), "{err}");
+            bad[key] = Value::from(-1);
+            assert!(offset(&bad, key).is_err());
+        }
+        let max = serde_json::json!({ "start": u64::from(u32::MAX) });
+        assert_eq!(offset(&max, "start").unwrap(), u32::MAX);
+    }
 }
