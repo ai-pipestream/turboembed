@@ -178,4 +178,52 @@ mod tests {
         p.put(Key::ALGORITHM, "Mystery");
         assert_eq!(train_events(&events(), &p, &mut config).err(), Some(Error::UnknownAlgorithm("Mystery".into())));
     }
+
+    /// Stops whenever it is asked.
+    struct Stop;
+
+    impl crate::monitor::StopCriteria for Stop {
+        fn test(&self, _: f64) -> bool {
+            true
+        }
+
+        fn message_if_satisfied(&self) -> String {
+            "stop".into()
+        }
+    }
+
+    /// The configuration's stop criterion reaches the quasi-Newton trainer
+    /// through both entry points: a run told to stop after its first
+    /// iteration is the one-iteration run, not the full one.
+    #[test]
+    fn qn_hears_the_configuration_s_stop_criterion() {
+        let qn_params = |iterations: Option<i32>| {
+            let mut p = TrainingParameters::new();
+            p.put(Key::CUTOFF, 0);
+            p.put(Key::ALGORITHM, Algorithm::MaxentQn.name());
+            if let Some(n) = iterations {
+                p.put(Key::ITERATIONS, n);
+            }
+            p
+        };
+        let parameters = |m: &TrainedModel| match m {
+            TrainedModel::Qn(q) => q.all_parameters().to_vec(),
+            other => panic!("{:?}", other.algorithm()),
+        };
+        let mut plain = TrainingConfiguration::default();
+        let full = parameters(&train_events(&events(), &qn_params(None), &mut plain).unwrap().0);
+        let one = parameters(&train_events(&events(), &qn_params(Some(1)), &mut plain).unwrap().0);
+        assert_ne!(full, one);
+        let mut stop = TrainingConfiguration::new(None, Some(Box::new(Stop)));
+        assert_eq!(parameters(&train_events(&events(), &qn_params(None), &mut stop).unwrap().0), one);
+        let index = crate::index::DataIndex::index(
+            &events(),
+            &crate::index::IndexParams::new(crate::index::IndexerKind::OnePass, 0, true),
+        )
+        .unwrap();
+        let full = parameters(&train(&index, &qn_params(None), &mut plain).unwrap());
+        let one = parameters(&train(&index, &qn_params(Some(1)), &mut plain).unwrap());
+        assert_ne!(full, one);
+        assert_eq!(parameters(&train(&index, &qn_params(None), &mut stop).unwrap()), one);
+    }
 }
