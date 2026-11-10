@@ -49,6 +49,7 @@ rm -rf "$assets_testdata"
 mkdir -p "$assets_testdata"
 cp -a "$repo/testdata/tiny-bert-bundle" "$assets_testdata/tiny-bert-bundle"
 cp -a "$repo/testdata/tiny-bert-heads-bundle" "$assets_testdata/tiny-bert-heads-bundle"
+cp -a "$repo/testdata/tiny-bert-segment-bundle" "$assets_testdata/tiny-bert-segment-bundle"
 
 echo "building libturbo.so for API $api ($abis_csv)"
 rm -rf "$jni_libs"

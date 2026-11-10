@@ -207,6 +207,9 @@ message PiiRewriteStrategy
     PiiZipSafeHarborStrategy zip_safe_harbor = 11;
     // PII_STRATEGY_AGE_SAFE_HARBOR
     PiiAgeSafeHarborStrategy age_safe_harbor = 12;
+    // PII_STRATEGY_DATE_YEAR, PII_STRATEGY_DATE_SHIFT or
+    // PII_STRATEGY_DATE_RELATIVE: one per mode
+    PiiDateStrategy date = 13;
   }
 }
 
@@ -317,6 +320,69 @@ message PiiAgeSafeHarborStrategy
 {
   // One character; empty means '*'.
   string mask_char = 1;
+}
+
+// Reduces a calendar date (the date kind: "2026-07-14", "July 14, 2026",
+// "14th July 2026", "July 2026"). Its text is read again with the
+// temporal scanner, so the value is the one the detector saw. A mention
+// of another kind, a text that is not one whole absolute day or month
+// mention (a two-digit year such as "7/14/26"), a date shifted out of
+// the years 0001 to 9999, and a cluster of overlapping mentions are
+// masked whole.
+message PiiDateStrategy
+{
+  // Required.
+  oneof mode
+  {
+    // PII_STRATEGY_DATE_YEAR
+    PiiDateYear year = 1;
+    // PII_STRATEGY_DATE_SHIFT
+    PiiDateShift shift = 2;
+    // PII_STRATEGY_DATE_RELATIVE
+    PiiDateRelative relative = 3;
+  }
+  // One character; empty means '*'.
+  string mask_char = 4;
+}
+
+// The year alone: "July 14, 2026" becomes "2026", which HIPAA Safe Harbor
+// (45 CFR 164.514(b)(2)(i)(C)) lets a record keep.
+message PiiDateYear
+{
+}
+
+// The date moved and written in the form it was written in ("July 14,
+// 2026" stays in month-name form): by years and months as one count of
+// months, then by days, then by the keyed offset. A day past the end of
+// the new month becomes its last day, so January 31 plus one month is
+// the end of February and a leap day plus a year is February 28. A month
+// mention moves as its first day does, or one month the days' way when
+// they would leave it in its own month. A shift that would write a value
+// back as it was masks it whole.
+message PiiDateShift
+{
+  // Each negative for earlier.
+  int32 years = 1;
+  int32 months = 2;
+  int32 days = 3;
+  // With a key, an offset of 1 to max_days days, earlier or later, that
+  // HMAC-SHA-256 under the key chooses from context: the same key and
+  // context move every date by the same days, so intervals stay. Set
+  // context per document or per patient for an offset each.
+  PiiPolicyKeyRef key = 4;
+  // 1 to 3650; 0 means 30. Only with a key.
+  uint32 max_days = 5;
+  // Only with a key.
+  string context = 6;
+}
+
+// The date relative to a reference date ("3 months ago", "in 2 weeks",
+// "today"), counted in the largest whole unit that fits: days under a
+// week, weeks under 31 days, calendar months under a year, then years.
+message PiiDateRelative
+{
+  // The reference date, yyyy-MM-dd. Required: the clock is never read.
+  string reference = 1;
 }
 
 // A registered, versioned key: never key material.

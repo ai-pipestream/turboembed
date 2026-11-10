@@ -251,6 +251,16 @@ this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
 `connect+json`, no JSON or GET transport, and no `fetch` outside
 `upload.ts`.
 
+The page keeps to a few layout rules, which the browser run (Tests,
+below) checks on every tab at 1280 and 390 CSS pixels: the page never
+scrolls sideways, a wide table scrolling inside its card instead; no
+control leaves the box it is in, a long select or file picker shrinking
+to the box's width; a card with nothing in it is not drawn; and a list
+with no rows says "None." in place of bare column headings. The tabs
+are an ARIA tab list: the left and right arrow keys move between them.
+The header shows the server's name, version and state with a dot, green
+once `ServerReady` says ready and red when the demo cannot reach it.
+
 ## Starting it
 
 Build both binaries:
@@ -355,7 +365,8 @@ for any refused call.
   annotations marked, a chip per layer to show only some, paging, and
   heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
   names, shown when it is text and offered as a download. An open-span model
-  enables caller entity labels, threshold, and flat or nested decoding. A
+  enables caller entity labels, optional label=prompt guidelines, threshold,
+  and flat or nested decoding. A
   separate relation model adds caller relation labels, threshold, and sentence
   scoping over those entities, so one run produces entity and relation evidence
   and edges. The graph retains model identities and source offsets.
@@ -484,3 +495,30 @@ the server's prost types. Nothing is mocked.
   its `turbo-code` and `turbo-field` headers. With `TURBO_TEST_2GIB=1` it
   also streams 2 GiB of `StreamDocuments` frames, all accepted, and one
   frame more, refused 413.
+
+`scripts/e2e-web.sh` runs the page itself in a browser: it builds both
+binaries, starts the server on the CPU with `testdata/tiny-bert-bundle`
+at each tier and `testdata/tiny-modernbert-bundle`, starts the demo in
+front of it, and runs `demo/web/e2e/page.test.ts` under Node with
+Playwright driving Chromium. Nothing is stubbed here either: every call
+the page makes goes through the demo to the server.
+
+- Each tab at 1280 and 390 pixels wide, after the first thing a visitor
+  does there (Embed, Run, Analyze, or the lists a tab reads when it
+  opens): the layout rules under Building the page, and no uncaught
+  error in the page.
+- Embed answers with a card per served model and no error, the header
+  shows the server up, and the arrow keys move between the tabs.
+
+Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
+of every tab at each width there, at the device scale factor in
+`TURBO_E2E_SCALE` (default 1). `TURBO_E2E_DEVICE` is the server's device
+index of the CPU (default 0). The binaries started are the ones that
+build wrote, in the target directory `cargo metadata` names, so
+`CARGO_TARGET_DIR` and a configured target directory are followed. The
+run needs a Chromium the pinned
+Playwright can launch; `npx --prefix demo/web playwright install
+chromium` fetches one. Playwright 1.63.0 is pinned exactly in
+`demo/web/package.json` as a development dependency of this run alone:
+the page's bundle, the demo and the library do not use it, and no CI
+job runs it yet.

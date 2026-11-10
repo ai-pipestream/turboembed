@@ -2398,6 +2398,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-pins",
+ "turbo-trainer",
  "turbo-zoo",
 ]
 
@@ -2515,6 +2516,7 @@ dependencies = [
  "turbo-bundle",
  "turbo-chunker",
  "turbo-coref",
+ "turbo-doccat",
  "turbo-encoding-layers",
  "turbo-entity-linker",
  "turbo-formats",
@@ -2531,6 +2533,7 @@ dependencies = [
  "turbo-numeric",
  "turbo-pii",
  "turbo-pins",
+ "turbo-postag",
  "turbo-query",
  "turbo-relation",
  "turbo-sat",
@@ -2545,6 +2548,8 @@ dependencies = [
  "turbo-tagger",
  "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-train",
+ "turbo-train-components",
  "turbo-vector-index",
  "turbo-wordnet",
  "turbo-zoo",
@@ -2728,6 +2733,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-glossary",
  "turbo-goldens",
+ "turbo-numeric",
  "turbo-sha256",
  "turbo-unicode",
 ]

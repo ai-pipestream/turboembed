@@ -63,6 +63,8 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
         PiiKind::PhoneExtension => &["ext", "extn", "extension"],
         PiiKind::Age => &["age", "aged"],
         PiiKind::StreetAddress => &["address", "street address", "mailing address", "home address"],
+        PiiKind::Date => &["date", "date of birth", "dob", "born"],
+        PiiKind::Currency => &["amount", "balance", "salary", "payment"],
         PiiKind::Custom(_) => &[],
     }
 }
@@ -148,6 +150,8 @@ pub(super) const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [
         PiiKind::StreetAddress => {
             &[&["address"], &["street", "address"], &["mailing", "address"], &["home", "address"]]
         }
+        PiiKind::Date => &[&["date"], &["date", "of", "birth"], &["dob"], &["born"]],
+        PiiKind::Currency => &[&["amount"], &["balance"], &["salary"], &["payment"]],
         PiiKind::Custom(_) => &[],
     }
 }

@@ -23,7 +23,7 @@ use crate::kserve::Reply;
 use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyService;
 use crate::proto::vocabulary::*;
 use crate::status::to_status;
-use learn::{Learner, Options};
+pub(crate) use learn::{Learner, Options};
 pub(crate) use store::{Dictionary, Store, Stored};
 
 /// The largest dictionary upload: 256 MiB.
@@ -34,7 +34,7 @@ pub const MAX_NGRAM_SIZE: u32 = 5;
 pub const DOWNLOAD_CHUNK_BYTES: usize = 64 << 10;
 /// The longest upload name and language tag, in bytes.
 const MAX_NAME: usize = 256;
-const MAX_LANGUAGE: usize = 64;
+pub(crate) const MAX_LANGUAGE: usize = 64;
 
 pub(crate) struct Vocabulary {
     pub(crate) store: Option<Arc<Store>>,
@@ -78,6 +78,54 @@ fn artifact_id(prefix: &str, parts: &[&str]) -> String {
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Send + 'static) -> Result<T, Status> {
     tokio::task::spawn_blocking(f).await.map_err(|e| internal(format!("the vocabulary task failed: {e}")))?
+}
+
+/// The header's seed dictionary, when it names one.
+fn seed(store: &Store, h: &LearnVocabularyHeader) -> Result<Option<Dictionary>, Status> {
+    match h.dictionary_artifact_id.as_str() {
+        "" => Ok(None),
+        id => Ok(Some(store.dictionary(id).ok_or_else(|| not_found(id))?)),
+    }
+}
+
+/// Ends the counting: the vocabulary's descriptor, under the id its bytes
+/// give it, and the bytes. Nothing is stored; [`Store::put_vocabulary`]
+/// stores them.
+pub(crate) fn finish(
+    store: &Store,
+    seed: Option<&Dictionary>,
+    learner: Learner,
+    h: &LearnVocabularyHeader,
+) -> Result<(VocabularyArtifactDescriptor, Vec<u8>), Status> {
+    let seeds = match seed {
+        None => Vec::new(),
+        Some(d) => {
+            let id = &d.descriptor.artifact_id;
+            let Some(Stored::Dictionary(_, bytes)) = store.read(id).map_err(internal)? else {
+                return Err(not_found(id));
+            };
+            let format = formats::find(&d.descriptor.format_id)
+                .ok_or_else(|| internal(format!("stored format {:?}", d.descriptor.format_id)))?;
+            formats::headwords(format, &bytes, &d.descriptor.language, d.has_header_row).map_err(internal)?
+        }
+    };
+    let learned = learner.finish(&seeds);
+    if learned.documents == 0 {
+        return Err(invalid("no documents to learn from"));
+    }
+    let sha256 = turbo_maxent::sha256(&learned.bytes).to_hex();
+    let v = VocabularyArtifactDescriptor {
+        artifact_id: artifact_id("vocab", &[&sha256]),
+        language: h.language.clone(),
+        documents: learned.documents,
+        tokens: learned.tokens,
+        term_count: learned.terms,
+        ngram_count: learned.ngrams,
+        byte_size: learned.bytes.len() as u64,
+        sha256,
+        seed_dictionary_artifact_id: h.dictionary_artifact_id.clone(),
+    };
+    Ok((v, learned.bytes))
 }
 
 impl Vocabulary {
@@ -250,10 +298,7 @@ impl TurboVocabularyService for Vocabulary {
         .await?;
         check_text("language", &h.language, MAX_LANGUAGE)?;
         let options = Options::new(&h, MAX_NGRAM_SIZE).map_err(invalid)?;
-        let seed = match options.seed.as_str() {
-            "" => None,
-            id => Some(store.dictionary(id).ok_or_else(|| not_found(id))?),
-        };
+        let seed = seed(&store, &h)?;
         // Documents are counted off the async runtime, one at a time, in
         // the order they arrive; a full queue holds the reading back.
         let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(16);
@@ -278,35 +323,8 @@ impl TurboVocabularyService for Vocabulary {
         drop(tx);
         let learner = counting.await.map_err(|e| internal(format!("the vocabulary counter failed: {e}")))?;
         let descriptor = blocking(move || {
-            let seeds = match &seed {
-                None => Vec::new(),
-                Some(d) => {
-                    let id = &d.descriptor.artifact_id;
-                    let Some(Stored::Dictionary(_, bytes)) = store.read(id).map_err(internal)? else {
-                        return Err(not_found(id));
-                    };
-                    let format = formats::find(&d.descriptor.format_id)
-                        .ok_or_else(|| internal(format!("stored format {:?}", d.descriptor.format_id)))?;
-                    formats::headwords(format, &bytes, &d.descriptor.language, d.has_header_row).map_err(internal)?
-                }
-            };
-            let learned = learner.finish(&seeds);
-            if learned.documents == 0 {
-                return Err(invalid("no documents to learn from"));
-            }
-            let sha256 = turbo_maxent::sha256(&learned.bytes).to_hex();
-            let v = VocabularyArtifactDescriptor {
-                artifact_id: artifact_id("vocab", &[&sha256]),
-                language: h.language,
-                documents: learned.documents,
-                tokens: learned.tokens,
-                term_count: learned.terms,
-                ngram_count: learned.ngrams,
-                byte_size: learned.bytes.len() as u64,
-                sha256,
-                seed_dictionary_artifact_id: h.dictionary_artifact_id,
-            };
-            store.put_vocabulary(v, &learned.bytes).map_err(internal)
+            let (v, bytes) = finish(&store, seed.as_ref(), learner, &h)?;
+            Ok(store.put_vocabulary(v, &bytes).map_err(internal)?.0)
         })
         .await?;
         Ok(Response::new(descriptor))

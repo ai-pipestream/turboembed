@@ -13,10 +13,10 @@ async function status(): Promise<void> {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
-    s.className = "muted";
+    s.className = ready.ready ? "muted status up" : "muted status";
   } catch (e) {
     s.textContent = `The server is not reachable through the demo: ${describe(e)}`;
-    s.className = "error";
+    s.className = "error status down";
   }
 }
 

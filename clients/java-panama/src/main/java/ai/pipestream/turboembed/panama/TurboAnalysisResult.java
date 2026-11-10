@@ -1,14 +1,21 @@
 package ai.pipestream.turboembed.panama;
 
 import ai.pipestream.turboembed.TurboLayerKind;
+import ai.pipestream.turboembed.TurboPiiCandidate;
+import ai.pipestream.turboembed.TurboPiiDetector;
+import ai.pipestream.turboembed.TurboPiiDisposition;
+import ai.pipestream.turboembed.TurboPiiEvidence;
+import ai.pipestream.turboembed.TurboPiiScore;
 import ai.pipestream.turboembed.TurboSpanData;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,6 +39,9 @@ import java.util.function.Function;
  */
 public final class TurboAnalysisResult implements ai.pipestream.turboembed.TurboAnalysisResult {
     private static final long SPAN_STRIDE = TurboLibrary.TURBO_SPAN_LAYOUT.byteSize();
+    private static final long PII_SPAN_STRIDE = TurboLibrary.TURBO_PII_SPAN_LAYOUT.byteSize();
+    private static final long PII_FACT_STRIDE = TurboLibrary.TURBO_PII_FACT_LAYOUT.byteSize();
+    private static final long PII_CANDIDATE_STRIDE = TurboLibrary.TURBO_PII_CANDIDATE_LAYOUT.byteSize();
 
     private static final long LAYER_KIND_OFFSET = offset("layer_kind");
     private static final long FLAGS_OFFSET = offset("flags");
@@ -74,12 +84,27 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
         if (PROB_OFFSET != 112L) {
             throw new ExceptionInInitializerError("turbo_span.prob must be at offset 112, got " + PROB_OFFSET);
         }
+        if (PII_FACT_STRIDE != 16L || PII_SPAN_STRIDE != 56L || PII_CANDIDATE_STRIDE != 156L) {
+            throw new ExceptionInInitializerError(
+                    "turbo_pii layouts must be 16/56/156 bytes, got "
+                            + PII_FACT_STRIDE
+                            + "/"
+                            + PII_SPAN_STRIDE
+                            + "/"
+                            + PII_CANDIDATE_STRIDE);
+        }
     }
 
     private final MemorySegment handle;
     private final Arena ownerArena = Arena.ofShared();
     private final MemorySegment spansSegment;
     private final int spanCount;
+    private final MemorySegment piiSpansSegment;
+    private final MemorySegment piiFactsSegment;
+    private final int piiFactCount;
+    private final MemorySegment piiCandidatesSegment;
+    private final int piiCandidateCount;
+    private final int[] piiRowBySpanIndex;
     private final MemorySegment poolSegment;
     private final MemorySegment graphSegment;
     private final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock(true);
@@ -94,6 +119,12 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
 
         MemorySegment spans;
         int count;
+        MemorySegment piiSpans;
+        MemorySegment piiFacts;
+        int factCount;
+        MemorySegment piiCandidates;
+        int candCount;
+        int[] piiRows;
         MemorySegment pool;
         MemorySegment graph;
         try (Arena arena = Arena.ofConfined()) {
@@ -113,6 +144,56 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
                     Math.multiplyExact(unsignedCount, SPAN_STRIDE),
                     "span array",
                     ownerArena);
+
+            int piiSpanCount = invokeCountedSlice(
+                    TurboLibrary.TURBO_ANALYSIS_RESULT_PII_SPANS,
+                    "turbo_analysis_result_pii_spans",
+                    adopted,
+                    spansPtrOut,
+                    countOut,
+                    err);
+            piiSpans = boundedSegment(
+                    spansPtrOut.get(ValueLayout.ADDRESS, 0L),
+                    Math.multiplyExact((long) piiSpanCount, PII_SPAN_STRIDE),
+                    "pii span array",
+                    ownerArena);
+
+            factCount = invokeCountedSlice(
+                    TurboLibrary.TURBO_ANALYSIS_RESULT_PII_FACTS,
+                    "turbo_analysis_result_pii_facts",
+                    adopted,
+                    spansPtrOut,
+                    countOut,
+                    err);
+            piiFacts = boundedSegment(
+                    spansPtrOut.get(ValueLayout.ADDRESS, 0L),
+                    Math.multiplyExact((long) factCount, PII_FACT_STRIDE),
+                    "pii fact array",
+                    ownerArena);
+
+            candCount = invokeCountedSlice(
+                    TurboLibrary.TURBO_ANALYSIS_RESULT_PII_CANDIDATES,
+                    "turbo_analysis_result_pii_candidates",
+                    adopted,
+                    spansPtrOut,
+                    countOut,
+                    err);
+            piiCandidates = boundedSegment(
+                    spansPtrOut.get(ValueLayout.ADDRESS, 0L),
+                    Math.multiplyExact((long) candCount, PII_CANDIDATE_STRIDE),
+                    "pii candidate array",
+                    ownerArena);
+
+            piiRows = new int[count];
+            Arrays.fill(piiRows, -1);
+            for (int r = 0; r < piiSpanCount; r++) {
+                long spanIdx = Integer.toUnsignedLong(
+                        piiSpans.get(ValueLayout.JAVA_INT, Math.multiplyExact((long) r, PII_SPAN_STRIDE)));
+                if (spanIdx >= count) {
+                    throw new IllegalStateException("native turbo_pii_span span_index out of bounds: " + spanIdx);
+                }
+                piiRows[(int) spanIdx] = r;
+            }
 
             MemorySegment poolPtrOut = arena.allocate(ValueLayout.ADDRESS);
             MemorySegment poolLenOut = arena.allocate(ValueLayout.JAVA_LONG);
@@ -150,6 +231,12 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
         this.handle = adopted;
         this.spansSegment = spans;
         this.spanCount = count;
+        this.piiSpansSegment = piiSpans;
+        this.piiFactsSegment = piiFacts;
+        this.piiFactCount = factCount;
+        this.piiCandidatesSegment = piiCandidates;
+        this.piiCandidateCount = candCount;
+        this.piiRowBySpanIndex = piiRows;
         this.poolSegment = pool;
         this.graphSegment = graph;
     }
@@ -158,12 +245,24 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
             MemorySegment handle,
             MemorySegment spansSegment,
             int spanCount,
+            MemorySegment piiSpansSegment,
+            MemorySegment piiFactsSegment,
+            int piiFactCount,
+            MemorySegment piiCandidatesSegment,
+            int piiCandidateCount,
+            int[] piiRowBySpanIndex,
             MemorySegment poolSegment,
             MemorySegment graphSegment) {
         this.handle = handle;
         this.spanCount = spanCount;
+        this.piiFactCount = piiFactCount;
+        this.piiCandidateCount = piiCandidateCount;
+        this.piiRowBySpanIndex = piiRowBySpanIndex;
         try {
             this.spansSegment = rebindSegment(spansSegment, ownerArena);
+            this.piiSpansSegment = rebindSegment(piiSpansSegment, ownerArena);
+            this.piiFactsSegment = rebindSegment(piiFactsSegment, ownerArena);
+            this.piiCandidatesSegment = rebindSegment(piiCandidatesSegment, ownerArena);
             this.poolSegment = rebindSegment(poolSegment, ownerArena);
             this.graphSegment = rebindSegment(graphSegment, ownerArena);
         } catch (RuntimeException | Error e) {
@@ -192,6 +291,27 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
         } catch (Throwable t) {
             throw new IllegalStateException("turbo_analysis_result_spans failed", t);
         }
+    }
+
+    private static int invokeCountedSlice(
+            MethodHandle handle,
+            String name,
+            MemorySegment result,
+            MemorySegment ptrOut,
+            MemorySegment countOut,
+            MemorySegment err) {
+        int code;
+        try {
+            code = (int) handle.invokeExact(result, ptrOut, countOut, err);
+        } catch (Throwable t) {
+            throw new IllegalStateException(name + " failed", t);
+        }
+        TurboLibrary.checkStatus(code, err);
+        long unsignedCount = Integer.toUnsignedLong(countOut.get(ValueLayout.JAVA_INT, 0L));
+        if (unsignedCount > Integer.MAX_VALUE) {
+            throw new IllegalStateException("native " + name + " count exceeds Java indexing: " + unsignedCount);
+        }
+        return (int) unsignedCount;
     }
 
     private static int invokeStrings(
@@ -474,10 +594,26 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
             if (retained == null || MemorySegment.NULL.equals(retained)) {
                 throw new IllegalStateException("turbo_analysis_result_retain returned NULL");
             }
-            return new TurboAnalysisResult(retained, spansSegment, spanCount, poolSegment, graphSegment);
+            return new TurboAnalysisResult(
+                    retained,
+                    spansSegment,
+                    spanCount,
+                    piiSpansSegment,
+                    piiFactsSegment,
+                    piiFactCount,
+                    piiCandidatesSegment,
+                    piiCandidateCount,
+                    piiRowBySpanIndex,
+                    poolSegment,
+                    graphSegment);
         } finally {
             lifecycleLock.readLock().unlock();
         }
+    }
+
+    @Override
+    public List<TurboPiiCandidate> piiCandidates() {
+        return readLocked(this::piiCandidatesRaw);
     }
 
     @Override
@@ -533,6 +669,18 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
 
     OptionalLong piiKindCode(int index) {
         return readLocked(() -> piiKindCodeRaw(index));
+    }
+
+    Optional<TurboPiiDetector> piiDetector(int index) {
+        return readLocked(() -> piiDetectorRaw(index));
+    }
+
+    List<TurboPiiEvidence> piiEvidence(int index) {
+        return readLocked(() -> piiEvidenceRaw(index));
+    }
+
+    Optional<TurboPiiScore> piiScore(int index) {
+        return readLocked(() -> piiScoreRaw(index));
     }
 
     String layer(int index) {
@@ -783,6 +931,161 @@ public final class TurboAnalysisResult implements ai.pipestream.turboembed.Turbo
                 labelRaw(index),
                 valueRaw(index),
                 probabilityRaw(index),
-                piiKindCodeRaw(index));
+                piiKindCodeRaw(index),
+                piiDetectorRaw(index),
+                piiEvidenceRaw(index),
+                piiScoreRaw(index));
+    }
+
+    private Optional<TurboPiiDetector> piiDetectorRaw(int index) {
+        checkIndex(index);
+        int r = piiRowBySpanIndex[index];
+        if (r < 0) {
+            return Optional.empty();
+        }
+        long base = Math.multiplyExact((long) r, PII_SPAN_STRIDE);
+        return Optional.of(decodeDetector(piiSpansSegment, base + 4L));
+    }
+
+    private List<TurboPiiEvidence> piiEvidenceRaw(int index) {
+        checkIndex(index);
+        int r = piiRowBySpanIndex[index];
+        if (r < 0) {
+            return List.of();
+        }
+        long base = Math.multiplyExact((long) r, PII_SPAN_STRIDE);
+        return decodeFacts(segU32(piiSpansSegment, base + 20L), segU32(piiSpansSegment, base + 24L));
+    }
+
+    private Optional<TurboPiiScore> piiScoreRaw(int index) {
+        checkIndex(index);
+        int r = piiRowBySpanIndex[index];
+        if (r < 0) {
+            return Optional.empty();
+        }
+        long base = Math.multiplyExact((long) r, PII_SPAN_STRIDE);
+        return decodeScore(piiSpansSegment, base + 28L);
+    }
+
+    private static long segU32(MemorySegment seg, long byteOffset) {
+        return Integer.toUnsignedLong(seg.get(ValueLayout.JAVA_INT, byteOffset));
+    }
+
+    private TurboPiiDetector decodeDetector(MemorySegment seg, long detectorIdOffset) {
+        String id = poolString(
+                segU32(seg, detectorIdOffset), segU32(seg, detectorIdOffset + 4L), "detector_id");
+        String version = poolString(
+                segU32(seg, detectorIdOffset + 8L),
+                segU32(seg, detectorIdOffset + 12L),
+                "detector_version");
+        return new TurboPiiDetector(id, version);
+    }
+
+    private List<TurboPiiEvidence> decodeFacts(long factStart, long factEnd) {
+        if (factEnd < factStart || factEnd > piiFactCount) {
+            throw new IllegalStateException("native PII fact slice [" + factStart + ", " + factEnd + ") out of bounds");
+        }
+        int count = Math.toIntExact(factEnd - factStart);
+        if (count == 0) {
+            return List.of();
+        }
+        List<TurboPiiEvidence> out = new ArrayList<>(count);
+        for (long i = factStart; i < factEnd; i++) {
+            long base = Math.multiplyExact(i, PII_FACT_STRIDE);
+            out.add(TurboPiiEvidence.fromNative(
+                    segU32(piiFactsSegment, base),
+                    segU32(piiFactsSegment, base + 4L),
+                    segU32(piiFactsSegment, base + 8L),
+                    segU32(piiFactsSegment, base + 12L)));
+        }
+        return List.copyOf(out);
+    }
+
+    private Optional<TurboPiiScore> decodeScore(MemorySegment seg, long scoreKindOffset) {
+        long scoreKind = segU32(seg, scoreKindOffset);
+        long calibrated = segU32(seg, scoreKindOffset + 4L);
+        long modelIdOff = segU32(seg, scoreKindOffset + 8L);
+        long modelIdLen = segU32(seg, scoreKindOffset + 12L);
+        long modelVerOff = segU32(seg, scoreKindOffset + 16L);
+        long modelVerLen = segU32(seg, scoreKindOffset + 20L);
+        float value = seg.get(ValueLayout.JAVA_FLOAT, scoreKindOffset + 24L);
+        if (scoreKind == 0L) {
+            if (!Float.isNaN(value) || calibrated != 0L || modelIdOff != 0L || modelIdLen != 0L) {
+                throw new IllegalStateException("native PII score has nonzero fields when score_kind is 0");
+            }
+            return Optional.empty();
+        }
+        if (calibrated != 0L && calibrated != 1L) {
+            throw new IllegalStateException("native PII score_calibrated must be 0 or 1: " + calibrated);
+        }
+        TurboPiiDetector model = new TurboPiiDetector(
+                poolString(modelIdOff, modelIdLen, "score_model_id"),
+                poolString(modelVerOff, modelVerLen, "score_model_version"));
+        return Optional.of(new TurboPiiScore(
+                value, TurboPiiScore.Kind.fromNative(scoreKind), model, calibrated == 1L));
+    }
+
+    private List<TurboPiiCandidate> piiCandidatesRaw() {
+        if (piiCandidateCount == 0) {
+            return List.of();
+        }
+        List<TurboPiiCandidate> out = new ArrayList<>(piiCandidateCount);
+        for (int i = 0; i < piiCandidateCount; i++) {
+            long base = Math.multiplyExact((long) i, PII_CANDIDATE_STRIDE);
+            long itemIndex = segU32(piiCandidatesSegment, base);
+            long fragmentIndex = segU32(piiCandidatesSegment, base + 4L);
+            long viewId = segU32(piiCandidatesSegment, base + 8L);
+            long kindCode = segU32(piiCandidatesSegment, base + 12L);
+            TurboSpanData.CoordinateRange viewRange = new TurboSpanData.CoordinateRange(
+                    segU32(piiCandidatesSegment, base + 16L),
+                    segU32(piiCandidatesSegment, base + 20L),
+                    segU32(piiCandidatesSegment, base + 24L),
+                    segU32(piiCandidatesSegment, base + 28L),
+                    segU32(piiCandidatesSegment, base + 32L),
+                    segU32(piiCandidatesSegment, base + 36L));
+            TurboSpanData.CoordinateRange sourceRange = new TurboSpanData.CoordinateRange(
+                    segU32(piiCandidatesSegment, base + 40L),
+                    segU32(piiCandidatesSegment, base + 44L),
+                    segU32(piiCandidatesSegment, base + 48L),
+                    segU32(piiCandidatesSegment, base + 52L),
+                    segU32(piiCandidatesSegment, base + 56L),
+                    segU32(piiCandidatesSegment, base + 60L));
+            String instance = poolString(
+                    segU32(piiCandidatesSegment, base + 64L),
+                    segU32(piiCandidatesSegment, base + 68L),
+                    "candidate_instance");
+            String piiInstance = poolString(
+                    segU32(piiCandidatesSegment, base + 72L),
+                    segU32(piiCandidatesSegment, base + 76L),
+                    "candidate_pii_instance");
+            String label = poolString(
+                    segU32(piiCandidatesSegment, base + 80L),
+                    segU32(piiCandidatesSegment, base + 84L),
+                    "candidate_label");
+            TurboPiiDetector detector = decodeDetector(piiCandidatesSegment, base + 88L);
+            List<TurboPiiEvidence> evidence = decodeFacts(
+                    segU32(piiCandidatesSegment, base + 104L), segU32(piiCandidatesSegment, base + 108L));
+            TurboPiiDisposition disposition = TurboPiiDisposition.fromNative(
+                    segU32(piiCandidatesSegment, base + 112L),
+                    segU32(piiCandidatesSegment, base + 116L),
+                    segU32(piiCandidatesSegment, base + 120L),
+                    segU32(piiCandidatesSegment, base + 124L));
+            Optional<TurboPiiScore> score = decodeScore(piiCandidatesSegment, base + 128L);
+            out.add(new TurboPiiCandidate(
+                    instance,
+                    piiInstance,
+                    itemIndex,
+                    fragmentIndex,
+                    viewId,
+                    viewRange,
+                    sourceRange,
+                    kindCode,
+                    label,
+                    detector,
+                    evidence,
+                    score,
+                    disposition));
+        }
+        return List.copyOf(out);
     }
 }

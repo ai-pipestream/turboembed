@@ -13,9 +13,11 @@ mod engine;
 mod ffi;
 mod graph;
 mod heads;
+mod pii;
 
 pub use engine::*;
 pub use ffi::*;
+pub use pii::*;
 
 pub(crate) const ANALYZER_MAGIC: u64 = 0x7475_7262_6f61_6e31; // "turboan1"
 pub(crate) const ANALYSIS_RESULT_MAGIC: u64 = 0x7475_7262_6f61_7231; // "turboar1"
@@ -48,34 +50,6 @@ const TURBO_SPAN_KNOWN_FLAGS: u32 = TURBO_SPAN_VIEW_RANGE
     | TURBO_SPAN_VALUE
     | TURBO_SPAN_PROBABILITY
     | TURBO_SPAN_PII_KIND;
-
-/// `turbo_analyzer_desc.flags`: PII rows carry their normalized value
-/// (`TURBO_SPAN_VALUE`). Off by default: the value is withheld (#1904).
-pub const TURBO_ANALYZER_PII_VALUES: u32 = 1 << 0;
-/// `turbo_analyzer_desc.flags`: PII rows carry their numeric kind under
-/// `TURBO_SPAN_PII_KIND`. Off by default, so a caller built before the flag
-/// sees the rows it always saw (#1940).
-pub const TURBO_ANALYZER_PII_KIND_IDS: u32 = 1 << 1;
-pub(crate) const TURBO_ANALYZER_KNOWN_FLAGS: u32 = TURBO_ANALYZER_PII_VALUES | TURBO_ANALYZER_PII_KIND_IDS;
-
-/// The numeric kind of a custom PII kind: `TURBO_PII_KIND_CUSTOM_BASE + i`
-/// is entry `i` of its layer's custom-kind table, the binary codec's own
-/// kind code. Every built-in `TURBO_PII_KIND_*` id is below it.
-pub const TURBO_PII_KIND_CUSTOM_BASE: u32 = turbo_analysis_layers::CUSTOM_CODE_BASE;
-
-/// What a PII row carries beyond its kind name, tier and ranges.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PiiRows {
-    /// `TURBO_ANALYZER_PII_VALUES`: the normalized value (#1904).
-    pub(crate) values: bool,
-    /// `TURBO_ANALYZER_PII_KIND_IDS`: the numeric kind (#1940).
-    pub(crate) kind_ids: bool,
-}
-
-pub const TURBO_PII_CONFIDENCE_FORMAT: u32 = 1;
-pub const TURBO_PII_CONFIDENCE_CHECKSUM: u32 = 2;
-pub const TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM: u32 = 3;
-pub const TURBO_PII_CONFIDENCE_LABELLED: u32 = 4;
 
 /// C ABI configuration descriptor for `turbo_analyzer_create`. The five
 /// model path fields are retired: they keep their place so a program
@@ -162,6 +136,9 @@ pub struct AnalysisResultInner {
     pub spans: Vec<turbo_span>,
     pub pool: Vec<u8>,
     pub graph: Vec<u8>,
+    pub pii_spans: Vec<turbo_pii_span>,
+    pub pii_facts: Vec<turbo_pii_fact>,
+    pub pii_candidates: Vec<turbo_pii_candidate>,
 }
 
 const _: () = {
@@ -231,12 +208,22 @@ pub(crate) struct SpanDraft {
 pub(crate) struct SpanPoolBuilder {
     pub(crate) spans: Vec<turbo_span>,
     pub(crate) pool: Vec<u8>,
+    pub(crate) pii_spans: Vec<turbo_pii_span>,
+    pub(crate) pii_facts: Vec<turbo_pii_fact>,
+    pub(crate) pii_candidates: Vec<turbo_pii_candidate>,
     interned: HashMap<Box<str>, PoolRef>,
 }
 
 impl SpanPoolBuilder {
     pub(crate) fn with_capacity(span_cap: usize, pool_cap: usize) -> Self {
-        Self { spans: Vec::with_capacity(span_cap), pool: Vec::with_capacity(pool_cap), interned: HashMap::new() }
+        Self {
+            spans: Vec::with_capacity(span_cap),
+            pool: Vec::with_capacity(pool_cap),
+            pii_spans: Vec::new(),
+            pii_facts: Vec::new(),
+            pii_candidates: Vec::new(),
+            interned: HashMap::new(),
+        }
     }
 
     fn append_pool(&mut self, value: &str) -> Result<PoolRef> {
@@ -369,7 +356,14 @@ impl SpanPoolBuilder {
     }
 
     pub(crate) fn finish(self, graph: Vec<u8>) -> AnalysisResultInner {
-        AnalysisResultInner { spans: self.spans, pool: self.pool, graph }
+        AnalysisResultInner {
+            spans: self.spans,
+            pool: self.pool,
+            graph,
+            pii_spans: self.pii_spans,
+            pii_facts: self.pii_facts,
+            pii_candidates: self.pii_candidates,
+        }
     }
 }
 

@@ -68,10 +68,9 @@ fn report(what: &str, count: String, compute_dtype: u32, (c, d): (f64, f64)) {
 /// One line of `--nocapture` output for a run of `count` scores: the
 /// largest difference from the reference, as a fraction of the run's
 /// scale, and the bound.
-fn report_scores(what: &str, count: usize, compute_dtype: u32, d: f64) {
+fn report_scores(what: &str, count: usize, compute_dtype: u32, d: f64, bound: f64) {
     println!(
-        "  {what}: {count} scores, compute dtype {compute_dtype}, max diff {d:.3e} of the scale, bound {:.0e}",
-        score_bound(compute_dtype)
+        "  {what}: {count} scores, compute dtype {compute_dtype}, max diff {d:.3e} of the scale, bound {bound:.0e}"
     );
 }
 
@@ -88,6 +87,7 @@ fn rerank_scores_match_upstream() {
     let s = Session::create(l.m, Some(&session_desc(0, 0, precision()))).unwrap_or_else(|e| panic!("{e:?}"));
     let si = s.info();
     let (cases, want) = (f.cases(), f.reference());
+    let bound = score_bound(&device_backend(), si.compute_dtype);
     let opts = turbo_rerank_options {
         struct_size: size_of::<turbo_rerank_options>() as u32,
         query_tokens: 0,
@@ -105,15 +105,15 @@ fn rerank_scores_match_upstream() {
             got.extend(s.run().unwrap_or_else(|e| panic!("{e:?}")).rows().into_iter().flatten());
         }
         let what = format!("rerank, {per} pairs a write");
-        let d = scores_within(&what, &got, &want, si.compute_dtype);
-        let margin = 2.0 * score_bound(si.compute_dtype) * scale(&want);
+        let d = scores_within(&what, &got, &want, bound);
+        let margin = 2.0 * bound * scale(&want);
         let (compared, close) = same_order(&what, &got, &want, margin);
         // At F32 the bound is narrow enough that the small bundle's scores
         // are told apart; a check that compared nothing would say nothing.
         if si.compute_dtype == TURBO_DTYPE_F32 {
             assert!(compared > 0, "{what}: no two scores are far enough apart to compare");
         }
-        report_scores(&what, got.len(), si.compute_dtype, d);
+        report_scores(&what, got.len(), si.compute_dtype, d, bound);
         println!("    order: {compared} pairs as the reference ranks them, {close} too close to say");
     }
 }
@@ -136,6 +136,7 @@ fn extractive_qa_logits_match_upstream() {
     // The compute dtype a session at this precision reports on the device.
     let l = Loaded::load_on(&f.dir, device).unwrap_or_else(|e| panic!("{e:?}"));
     let dtype = Session::create(l.m, Some(&session_desc(0, 0, precision()))).unwrap().info().compute_dtype;
+    let bound = score_bound(&device_backend(), dtype);
     for max_batch in [1, 0] {
         let o = QaOptions { backend: Some(device_backend()), precision: precision(), max_batch, ..Default::default() };
         let mut qa = ExtractiveQa::open_with(&f.dir, &o).unwrap_or_else(|e| panic!("{e:?}"));
@@ -143,12 +144,12 @@ fn extractive_qa_logits_match_upstream() {
         let flat: Vec<f32> =
             got.iter().flatten().flat_map(|w| w.start.iter().zip(&w.end).flat_map(|(&s, &e)| [s, e])).collect();
         let what = format!("extractive QA, max_batch {max_batch}");
-        let d = scores_within(&what, &flat, &want, dtype);
+        let d = scores_within(&what, &flat, &want, bound);
         // The reference's logits in the device's windows, which hold the
         // same tokens in the same order.
         let (pairs, _) = want.as_chunks::<2>();
         let mut rest = pairs.iter();
-        let margin = 4.0 * score_bound(dtype) * scale(&want);
+        let margin = 4.0 * bound * scale(&want);
         let mut decided = 0;
         for (i, (windows, (_, context))) in got.iter().zip(&cases).enumerate() {
             let reference: Vec<WindowLogits> = windows
@@ -164,7 +165,7 @@ fn extractive_qa_logits_match_upstream() {
         if dtype == TURBO_DTYPE_F32 {
             assert!(decided > 0, "{what}: no case's answer is clear enough to compare");
         }
-        report_scores(&what, flat.len(), dtype, d);
+        report_scores(&what, flat.len(), dtype, d, bound);
         println!(
             "    answers: {decided} of {} cases as the reference answers them, the rest too close to say",
             cases.len()

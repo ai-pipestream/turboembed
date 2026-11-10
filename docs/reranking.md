@@ -140,7 +140,9 @@ Zero are EXPERIMENTAL until a compiled benchmark record backs them.
 bundle's pinned reference pairs on the device and on the CPU, with a bound
 of `1e-4` against both. Set
 `TURBO_TEST_RERANK_BUNDLES` to comma-separated bundle directories to run the
-real bundles at EXACT and MODEL precision:
+real bundles at EXACT and MODEL precision; `levelzero_rerank` also runs
+them at FASTEST, held to the F16 score bound of docs/conformance.md
+(Scores), which lists what it measured:
 
 ```sh
 TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle> \

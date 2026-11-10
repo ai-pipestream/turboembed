@@ -24,6 +24,7 @@ on:
       - ".github/workflows/android-conformance.yml"
       - "testdata/tiny-bert-bundle/**"
       - "testdata/tiny-bert-heads-bundle/**"
+      - "testdata/tiny-bert-segment-bundle/**"
 
 concurrency:
   group: android-conformance-${{ github.workflow }}-${{ github.ref }}

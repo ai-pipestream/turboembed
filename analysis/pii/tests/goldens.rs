@@ -117,4 +117,6 @@ pack_tests! {
     logistics_snapshots: Pack::Logistics, 12;
     web_snapshots: Pack::Web, 6;
     all_structured_snapshots: Pack::AllStructured, 80;
+    dates_snapshots: Pack::Dates, 4;
+    money_snapshots: Pack::Money, 5;
 }

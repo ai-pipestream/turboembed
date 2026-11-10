@@ -24,7 +24,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file turbo_pii_policy.proto.
  */
 export const file_turbo_pii_policy: GenFile = /*@__PURE__*/
-  fileDesc("ChZ0dXJib19waWlfcG9saWN5LnByb3RvEg90dXJiby5yZXN1bHQudjEi8wIKD1JlZGFjdGlvblBvbGljeRIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoBBIUCgxjdXN0b21fa2luZHMYAyADKAkSMAoKa2luZF9ydWxlcxgEIAMoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlLaW5kUnVsZRI9ChBkZWZhdWx0X3N0cmF0ZWd5GAUgASgLMiMudHVyYm8ucmVzdWx0LnYxLlBpaURlZmF1bHRTdHJhdGVneRIsCgVhbGxvdxgGIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd0xpc3QSKgoEZGVueRgHIAMoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlEZW55TGlzdBJAChJjdXN0b21faWRlbnRpZmllcnMYCCADKAsyJC50dXJiby5yZXN1bHQudjEuUGlpQ3VzdG9tSWRlbnRpZmllchIfChdyZWRhY3RfYW5kX2ZsYWdfdW5rbm93bhgJIAEoCCLMAgoLUGlpS2luZFJ1bGUSDwoHcnVsZV9pZBgBIAEoCRIpCgRraW5kGAIgASgLMhsudHVyYm8ucmVzdWx0LnYxLlBpaUtpbmRSZWYSLAoFc3RhdGUYAyABKA4yHS50dXJiby5yZXN1bHQudjEuUGlpUnVsZVN0YXRlEjUKCnN0cmF0ZWdpZXMYBCADKAsyIS50dXJiby5yZXN1bHQudjEuUGlpU3RyYXRlZ3lFbnRyeRIsCgVhbGxvdxgFIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd0xpc3QSMQoGbGFiZWxzGAYgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsT3ZlcnJpZGUSOwoPcmVsZWFzZV9jZWlsaW5nGAcgASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaVJlbGVhc2VDZWlsaW5nIkEKEVBpaVJlbGVhc2VDZWlsaW5nEiwKBWZvcm1zGAEgAygOMh0udHVyYm8ucmVzdWx0LnYxLlBpaVZhbHVlRm9ybSJ5ChBQaWlMYWJlbE92ZXJyaWRlEjkKC3JlcXVpcmVtZW50GAEgASgOMiQudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsUmVxdWlyZW1lbnQSFAoMd2luZG93X3dvcmRzGAIgASgNEhQKDGV4dHJhX2xhYmVscxgDIAMoCSJ+ChBQaWlTdHJhdGVneUVudHJ5EjMKBHdoZW4YASADKAsyJS50dXJiby5yZXN1bHQudjEuUGlpU3RyYXRlZ3lDb25kaXRpb24SNQoIc3RyYXRlZ3kYAiABKAsyIy50dXJiby5yZXN1bHQudjEuUGlpUmV3cml0ZVN0cmF0ZWd5IqMCChRQaWlTdHJhdGVneUNvbmRpdGlvbhJGCg9jaGVja3N1bV9wYXNzZWQYASABKAsyKy50dXJiby5yZXN1bHQudjEuUGlpQ2hlY2tzdW1QYXNzZWRDb25kaXRpb25IABJCCg1sYWJlbF9wcmVzZW50GAIgASgLMikudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsUHJlc2VudENvbmRpdGlvbkgAEjkKCGRldGVjdG9yGAMgASgLMiUudHVyYm8ucmVzdWx0LnYxLlBpaURldGVjdG9yQ29uZGl0aW9uSAASPAoOc2NvcmVfYXRfbGVhc3QYBCABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpU2NvcmVDb25kaXRpb25IAEIGCgR0ZXN0IlcKGlBpaUNoZWNrc3VtUGFzc2VkQ29uZGl0aW9uEjkKCmFsZ29yaXRobXMYASADKA4yJS50dXJiby5yZXN1bHQudjEuUGlpQ2hlY2tzdW1BbGdvcml0aG0iGgoYUGlpTGFiZWxQcmVzZW50Q29uZGl0aW9uIjMKFFBpaURldGVjdG9yQ29uZGl0aW9uEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiYQoRUGlpU2NvcmVDb25kaXRpb24SKwoEa2luZBgBIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5QaWlTY29yZUtpbmQSCwoDbWluGAIgASgCEhIKCmNhbGlicmF0ZWQYAyABKAgi3QUKElBpaVJld3JpdGVTdHJhdGVneRIwCgRtYXNrGAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlBpaU1hc2tTdHJhdGVneUgAEjQKBmZvcm1hdBgCIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5QaWlGb3JtYXRTdHJhdGVneUgAEi4KA21hcBgDIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBTdHJhdGVneUgAEjgKCHRydW5jYXRlGAQgASgLMiQudHVyYm8ucmVzdWx0LnYxLlBpaVRydW5jYXRlU3RyYXRlZ3lIABIzCgZsYXN0X24YBSABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpTGFzdE5TdHJhdGVneUgAEjwKCmFiYnJldmlhdGUYBiABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpQWJicmV2aWF0ZVN0cmF0ZWd5SAASPQoLa2V5ZWRfdG9rZW4YByABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpS2V5ZWRUb2tlblN0cmF0ZWd5SAASNAoGc2hhMjU2GAggASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaVNoYTI1NlN0cmF0ZWd5SAASOQoLc3RhdGljX3RleHQYCSABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpU3RhdGljU3RyYXRlZ3lIABI6Cglwc2V1ZG9ueW0YCiABKAsyJS50dXJiby5yZXN1bHQudjEuUGlpUHNldWRvbnltU3RyYXRlZ3lIABJECg96aXBfc2FmZV9oYXJib3IYCyABKAsyKS50dXJiby5yZXN1bHQudjEuUGlpWmlwU2FmZUhhcmJvclN0cmF0ZWd5SAASRAoPYWdlX3NhZmVfaGFyYm9yGAwgASgLMikudHVyYm8ucmVzdWx0LnYxLlBpaUFnZVNhZmVIYXJib3JTdHJhdGVneUgAQgoKCHN0cmF0ZWd5IpEBChJQaWlEZWZhdWx0U3RyYXRlZ3kSMAoEbWFzaxgBIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5QaWlNYXNrU3RyYXRlZ3lIABI9CgtrZXllZF90b2tlbhgCIAEoCzImLnR1cmJvLnJlc3VsdC52MS5QaWlLZXllZFRva2VuU3RyYXRlZ3lIAEIKCghzdHJhdGVneSI5Cg9QaWlNYXNrU3RyYXRlZ3kSEQoJbWFza19jaGFyGAEgASgJEhMKC2tlZXBfZm9ybWF0GAIgASgIIiUKEVBpaUZvcm1hdFN0cmF0ZWd5EhAKCHRlbXBsYXRlGAEgASgJIngKE1BpaVRydW5jYXRlU3RyYXRlZ3kSKgoEc2lkZRgBIAEoDjIcLnR1cmJvLnJlc3VsdC52MS5QaWlLZWVwU2lkZRINCgVjb3VudBgCIAEoDRIRCgltYXNrX2NoYXIYAyABKAkSEwoLa2VlcF9mb3JtYXQYBCABKAgiSQoQUGlpTGFzdE5TdHJhdGVneRINCgVjb3VudBgBIAEoDRIRCgltYXNrX2NoYXIYAiABKAkSEwoLa2VlcF9mb3JtYXQYAyABKAgibQoVUGlpQWJicmV2aWF0ZVN0cmF0ZWd5EhEKCXNlcGFyYXRvchgBIAEoCRIQCgh0cmFpbGluZxgCIAEoCRIYChBwcmVzZXJ2ZV9oeXBoZW5zGAMgASgIEhUKDXByZXNlcnZlX2Nhc2UYBCABKAgiSgoYUGlpWmlwU2FmZUhhcmJvclN0cmF0ZWd5EhEKCW1hc2tfY2hhchgBIAEoCRIbChNyZXN0cmljdGVkX3ByZWZpeGVzGAIgAygJIi0KGFBpaUFnZVNhZmVIYXJib3JTdHJhdGVneRIRCgltYXNrX2NoYXIYASABKAkiLgoPUGlpUG9saWN5S2V5UmVmEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKA0iVgoVUGlpS2V5ZWRUb2tlblN0cmF0ZWd5Ei0KA2tleRgBIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5QaWlQb2xpY3lLZXlSZWYSDgoGbGVuZ3RoGAIgASgNIkgKEVBpaVNoYTI1NlN0cmF0ZWd5Eg4KBmxlbmd0aBgBIAEoDRITCgtraW5kX3ByZWZpeBgCIAEoCBIOCgZwcmVmaXgYAyABKAkiKAoRUGlpU3RhdGljU3RyYXRlZ3kSEwoLcmVwbGFjZW1lbnQYASABKAkiNgoUUGlpUHNldWRvbnltU3RyYXRlZ3kSDgoGcHJlZml4GAEgASgJEg4KBnN1ZmZpeBgCIAEoCSKDAgoOUGlpTWFwU3RyYXRlZ3kSMQoHZW50cmllcxgBIAEoCzIeLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBFbnRyaWVzSAASNwoKZGljdGlvbmFyeRgCIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5QaWlEaWN0aW9uYXJ5UmVmSAASFgoOY2FzZV9zZW5zaXRpdmUYAyABKAgSLQoGdGFyZ2V0GAQgASgOMh0udHVyYm8ucmVzdWx0LnYxLlBpaU1hcFRhcmdldBI1CghmYWxsYmFjaxgFIAEoCzIjLnR1cmJvLnJlc3VsdC52MS5QaWlSZXdyaXRlU3RyYXRlZ3lCBwoFdGFibGUifQoNUGlpTWFwRW50cmllcxI8CgdlbnRyaWVzGAEgAygLMisudHVyYm8ucmVzdWx0LnYxLlBpaU1hcEVudHJpZXMuRW50cmllc0VudHJ5Gi4KDEVudHJpZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIjcKEFBpaURpY3Rpb25hcnlSZWYSEwoLYXJ0aWZhY3RfaWQYASABKAkSDgoGc2hhMjU2GAIgASgJIn4KDVBpaVRlcm1Tb3VyY2USKgoFdGVybXMYASABKAsyGS50dXJiby5yZXN1bHQudjEuUGlpVGVybXNIABI3CgpkaWN0aW9uYXJ5GAIgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaURpY3Rpb25hcnlSZWZIAEIICgZzb3VyY2UiGQoIUGlpVGVybXMSDQoFdGVybXMYASADKAkibQoPUGlpQWxsb3dQYXR0ZXJuEjEKBnN5bnRheBgBIAEoDjIhLnR1cmJvLnJlc3VsdC52MS5QaWlQYXR0ZXJuU3ludGF4Eg8KB3BhdHRlcm4YAiABKAkSFgoOY2FzZV9zZW5zaXRpdmUYAyABKAgiiQEKDFBpaUFsbG93TGlzdBItCgV0ZXJtcxgBIAMoCzIeLnR1cmJvLnJlc3VsdC52MS5QaWlUZXJtU291cmNlEhYKDmNhc2Vfc2Vuc2l0aXZlGAIgASgIEjIKCHBhdHRlcm5zGAMgAygLMiAudHVyYm8ucmVzdWx0LnYxLlBpaUFsbG93UGF0dGVybiK9AQoLUGlpRGVueUxpc3QSDwoHcnVsZV9pZBgBIAEoCRIpCgRraW5kGAIgASgLMhsudHVyYm8ucmVzdWx0LnYxLlBpaUtpbmRSZWYSLQoFdGVybXMYAyABKAsyHi50dXJiby5yZXN1bHQudjEuUGlpVGVybVNvdXJjZRIWCg5jYXNlX3NlbnNpdGl2ZRgEIAEoCBIRCgltYXhfZWRpdHMYBSABKA0SGAoQY2FwaXRhbGl6ZWRfb25seRgGIAEoCCJ4ChNQaWlDdXN0b21JZGVudGlmaWVyEg8KB3J1bGVfaWQYASABKAkSKQoEa2luZBgCIAEoCzIbLnR1cmJvLnJlc3VsdC52MS5QaWlLaW5kUmVmEg0KBXNoYXBlGAMgASgJEhYKDmNhc2Vfc2Vuc2l0aXZlGAQgASgIInYKFVBpaVJlZGFjdGlvblNlbGVjdGlvbhIyCgZpbmxpbmUYASABKAsyIC50dXJiby5yZXN1bHQudjEuUmVkYWN0aW9uUG9saWN5SAASDgoEbmFtZRgCIAEoCUgAEg8KB2RyeV9ydW4YAyABKAhCCAoGcG9saWN5KmcKDFBpaVJ1bGVTdGF0ZRIeChpQSUlfUlVMRV9TVEFURV9VTlNQRUNJRklFRBAAEhoKFlBJSV9SVUxFX1NUQVRFX0VOQUJMRUQQARIbChdQSUlfUlVMRV9TVEFURV9ESVNBQkxFRBACKqIBChNQaWlMYWJlbFJlcXVpcmVtZW50EiUKIVBJSV9MQUJFTF9SRVFVSVJFTUVOVF9VTlNQRUNJRklFRBAAEh4KGlBJSV9MQUJFTF9SRVFVSVJFTUVOVF9OT05FEAESIgoeUElJX0xBQkVMX1JFUVVJUkVNRU5UX1JFUVVJUkVEEAISIAocUElJX0xBQkVMX1JFUVVJUkVNRU5UX0JPT1NUUxADKlwKC1BpaUtlZXBTaWRlEh0KGVBJSV9LRUVQX1NJREVfVU5TUEVDSUZJRUQQABIXChNQSUlfS0VFUF9TSURFX1NUQVJUEAESFQoRUElJX0tFRVBfU0lERV9FTkQQAiqTAQoMUGlpTWFwVGFyZ2V0Eh4KGlBJSV9NQVBfVEFSR0VUX1VOU1BFQ0lGSUVEEAASKAokUElJX01BUF9UQVJHRVRfTk9STUFMSVpFRF9PUl9TVVJGQUNFEAESHQoZUElJX01BUF9UQVJHRVRfTk9STUFMSVpFRBACEhoKFlBJSV9NQVBfVEFSR0VUX1NVUkZBQ0UQAypxChBQaWlQYXR0ZXJuU3ludGF4EiIKHlBJSV9QQVRURVJOX1NZTlRBWF9VTlNQRUNJRklFRBAAEhwKGFBJSV9QQVRURVJOX1NZTlRBWF9TSEFQRRABEhsKF1BJSV9QQVRURVJOX1NZTlRBWF9HTE9CEAJiBnByb3RvMw", [file_turbo_typed_annotations]);
+  fileDesc("ChZ0dXJib19waWlfcG9saWN5LnByb3RvEg90dXJiby5yZXN1bHQudjEi8wIKD1JlZGFjdGlvblBvbGljeRIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoBBIUCgxjdXN0b21fa2luZHMYAyADKAkSMAoKa2luZF9ydWxlcxgEIAMoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlLaW5kUnVsZRI9ChBkZWZhdWx0X3N0cmF0ZWd5GAUgASgLMiMudHVyYm8ucmVzdWx0LnYxLlBpaURlZmF1bHRTdHJhdGVneRIsCgVhbGxvdxgGIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd0xpc3QSKgoEZGVueRgHIAMoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlEZW55TGlzdBJAChJjdXN0b21faWRlbnRpZmllcnMYCCADKAsyJC50dXJiby5yZXN1bHQudjEuUGlpQ3VzdG9tSWRlbnRpZmllchIfChdyZWRhY3RfYW5kX2ZsYWdfdW5rbm93bhgJIAEoCCLMAgoLUGlpS2luZFJ1bGUSDwoHcnVsZV9pZBgBIAEoCRIpCgRraW5kGAIgASgLMhsudHVyYm8ucmVzdWx0LnYxLlBpaUtpbmRSZWYSLAoFc3RhdGUYAyABKA4yHS50dXJiby5yZXN1bHQudjEuUGlpUnVsZVN0YXRlEjUKCnN0cmF0ZWdpZXMYBCADKAsyIS50dXJiby5yZXN1bHQudjEuUGlpU3RyYXRlZ3lFbnRyeRIsCgVhbGxvdxgFIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd0xpc3QSMQoGbGFiZWxzGAYgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsT3ZlcnJpZGUSOwoPcmVsZWFzZV9jZWlsaW5nGAcgASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaVJlbGVhc2VDZWlsaW5nIkEKEVBpaVJlbGVhc2VDZWlsaW5nEiwKBWZvcm1zGAEgAygOMh0udHVyYm8ucmVzdWx0LnYxLlBpaVZhbHVlRm9ybSJ5ChBQaWlMYWJlbE92ZXJyaWRlEjkKC3JlcXVpcmVtZW50GAEgASgOMiQudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsUmVxdWlyZW1lbnQSFAoMd2luZG93X3dvcmRzGAIgASgNEhQKDGV4dHJhX2xhYmVscxgDIAMoCSJ+ChBQaWlTdHJhdGVneUVudHJ5EjMKBHdoZW4YASADKAsyJS50dXJiby5yZXN1bHQudjEuUGlpU3RyYXRlZ3lDb25kaXRpb24SNQoIc3RyYXRlZ3kYAiABKAsyIy50dXJiby5yZXN1bHQudjEuUGlpUmV3cml0ZVN0cmF0ZWd5IqMCChRQaWlTdHJhdGVneUNvbmRpdGlvbhJGCg9jaGVja3N1bV9wYXNzZWQYASABKAsyKy50dXJiby5yZXN1bHQudjEuUGlpQ2hlY2tzdW1QYXNzZWRDb25kaXRpb25IABJCCg1sYWJlbF9wcmVzZW50GAIgASgLMikudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsUHJlc2VudENvbmRpdGlvbkgAEjkKCGRldGVjdG9yGAMgASgLMiUudHVyYm8ucmVzdWx0LnYxLlBpaURldGVjdG9yQ29uZGl0aW9uSAASPAoOc2NvcmVfYXRfbGVhc3QYBCABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpU2NvcmVDb25kaXRpb25IAEIGCgR0ZXN0IlcKGlBpaUNoZWNrc3VtUGFzc2VkQ29uZGl0aW9uEjkKCmFsZ29yaXRobXMYASADKA4yJS50dXJiby5yZXN1bHQudjEuUGlpQ2hlY2tzdW1BbGdvcml0aG0iGgoYUGlpTGFiZWxQcmVzZW50Q29uZGl0aW9uIjMKFFBpaURldGVjdG9yQ29uZGl0aW9uEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiYQoRUGlpU2NvcmVDb25kaXRpb24SKwoEa2luZBgBIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5QaWlTY29yZUtpbmQSCwoDbWluGAIgASgCEhIKCmNhbGlicmF0ZWQYAyABKAgijwYKElBpaVJld3JpdGVTdHJhdGVneRIwCgRtYXNrGAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlBpaU1hc2tTdHJhdGVneUgAEjQKBmZvcm1hdBgCIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5QaWlGb3JtYXRTdHJhdGVneUgAEi4KA21hcBgDIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBTdHJhdGVneUgAEjgKCHRydW5jYXRlGAQgASgLMiQudHVyYm8ucmVzdWx0LnYxLlBpaVRydW5jYXRlU3RyYXRlZ3lIABIzCgZsYXN0X24YBSABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpTGFzdE5TdHJhdGVneUgAEjwKCmFiYnJldmlhdGUYBiABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpQWJicmV2aWF0ZVN0cmF0ZWd5SAASPQoLa2V5ZWRfdG9rZW4YByABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpS2V5ZWRUb2tlblN0cmF0ZWd5SAASNAoGc2hhMjU2GAggASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaVNoYTI1NlN0cmF0ZWd5SAASOQoLc3RhdGljX3RleHQYCSABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpU3RhdGljU3RyYXRlZ3lIABI6Cglwc2V1ZG9ueW0YCiABKAsyJS50dXJiby5yZXN1bHQudjEuUGlpUHNldWRvbnltU3RyYXRlZ3lIABJECg96aXBfc2FmZV9oYXJib3IYCyABKAsyKS50dXJiby5yZXN1bHQudjEuUGlpWmlwU2FmZUhhcmJvclN0cmF0ZWd5SAASRAoPYWdlX3NhZmVfaGFyYm9yGAwgASgLMikudHVyYm8ucmVzdWx0LnYxLlBpaUFnZVNhZmVIYXJib3JTdHJhdGVneUgAEjAKBGRhdGUYDSABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpRGF0ZVN0cmF0ZWd5SABCCgoIc3RyYXRlZ3kikQEKElBpaURlZmF1bHRTdHJhdGVneRIwCgRtYXNrGAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlBpaU1hc2tTdHJhdGVneUgAEj0KC2tleWVkX3Rva2VuGAIgASgLMiYudHVyYm8ucmVzdWx0LnYxLlBpaUtleWVkVG9rZW5TdHJhdGVneUgAQgoKCHN0cmF0ZWd5IjkKD1BpaU1hc2tTdHJhdGVneRIRCgltYXNrX2NoYXIYASABKAkSEwoLa2VlcF9mb3JtYXQYAiABKAgiJQoRUGlpRm9ybWF0U3RyYXRlZ3kSEAoIdGVtcGxhdGUYASABKAkieAoTUGlpVHJ1bmNhdGVTdHJhdGVneRIqCgRzaWRlGAEgASgOMhwudHVyYm8ucmVzdWx0LnYxLlBpaUtlZXBTaWRlEg0KBWNvdW50GAIgASgNEhEKCW1hc2tfY2hhchgDIAEoCRITCgtrZWVwX2Zvcm1hdBgEIAEoCCJJChBQaWlMYXN0TlN0cmF0ZWd5Eg0KBWNvdW50GAEgASgNEhEKCW1hc2tfY2hhchgCIAEoCRITCgtrZWVwX2Zvcm1hdBgDIAEoCCJtChVQaWlBYmJyZXZpYXRlU3RyYXRlZ3kSEQoJc2VwYXJhdG9yGAEgASgJEhAKCHRyYWlsaW5nGAIgASgJEhgKEHByZXNlcnZlX2h5cGhlbnMYAyABKAgSFQoNcHJlc2VydmVfY2FzZRgEIAEoCCJKChhQaWlaaXBTYWZlSGFyYm9yU3RyYXRlZ3kSEQoJbWFza19jaGFyGAEgASgJEhsKE3Jlc3RyaWN0ZWRfcHJlZml4ZXMYAiADKAkiLQoYUGlpQWdlU2FmZUhhcmJvclN0cmF0ZWd5EhEKCW1hc2tfY2hhchgBIAEoCSLAAQoPUGlpRGF0ZVN0cmF0ZWd5EiwKBHllYXIYASABKAsyHC50dXJiby5yZXN1bHQudjEuUGlpRGF0ZVllYXJIABIuCgVzaGlmdBgCIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlEYXRlU2hpZnRIABI0CghyZWxhdGl2ZRgDIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5QaWlEYXRlUmVsYXRpdmVIABIRCgltYXNrX2NoYXIYBCABKAlCBgoEbW9kZSINCgtQaWlEYXRlWWVhciKNAQoMUGlpRGF0ZVNoaWZ0Eg0KBXllYXJzGAEgASgFEg4KBm1vbnRocxgCIAEoBRIMCgRkYXlzGAMgASgFEi0KA2tleRgEIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5QaWlQb2xpY3lLZXlSZWYSEAoIbWF4X2RheXMYBSABKA0SDwoHY29udGV4dBgGIAEoCSIkCg9QaWlEYXRlUmVsYXRpdmUSEQoJcmVmZXJlbmNlGAEgASgJIi4KD1BpaVBvbGljeUtleVJlZhIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgNIlYKFVBpaUtleWVkVG9rZW5TdHJhdGVneRItCgNrZXkYASABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpUG9saWN5S2V5UmVmEg4KBmxlbmd0aBgCIAEoDSJIChFQaWlTaGEyNTZTdHJhdGVneRIOCgZsZW5ndGgYASABKA0SEwoLa2luZF9wcmVmaXgYAiABKAgSDgoGcHJlZml4GAMgASgJIigKEVBpaVN0YXRpY1N0cmF0ZWd5EhMKC3JlcGxhY2VtZW50GAEgASgJIjYKFFBpaVBzZXVkb255bVN0cmF0ZWd5Eg4KBnByZWZpeBgBIAEoCRIOCgZzdWZmaXgYAiABKAkigwIKDlBpaU1hcFN0cmF0ZWd5EjEKB2VudHJpZXMYASABKAsyHi50dXJiby5yZXN1bHQudjEuUGlpTWFwRW50cmllc0gAEjcKCmRpY3Rpb25hcnkYAiABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpRGljdGlvbmFyeVJlZkgAEhYKDmNhc2Vfc2Vuc2l0aXZlGAMgASgIEi0KBnRhcmdldBgEIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBUYXJnZXQSNQoIZmFsbGJhY2sYBSABKAsyIy50dXJiby5yZXN1bHQudjEuUGlpUmV3cml0ZVN0cmF0ZWd5QgcKBXRhYmxlIn0KDVBpaU1hcEVudHJpZXMSPAoHZW50cmllcxgBIAMoCzIrLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBFbnRyaWVzLkVudHJpZXNFbnRyeRouCgxFbnRyaWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI3ChBQaWlEaWN0aW9uYXJ5UmVmEhMKC2FydGlmYWN0X2lkGAEgASgJEg4KBnNoYTI1NhgCIAEoCSJ+Cg1QaWlUZXJtU291cmNlEioKBXRlcm1zGAEgASgLMhkudHVyYm8ucmVzdWx0LnYxLlBpaVRlcm1zSAASNwoKZGljdGlvbmFyeRgCIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5QaWlEaWN0aW9uYXJ5UmVmSABCCAoGc291cmNlIhkKCFBpaVRlcm1zEg0KBXRlcm1zGAEgAygJIm0KD1BpaUFsbG93UGF0dGVybhIxCgZzeW50YXgYASABKA4yIS50dXJiby5yZXN1bHQudjEuUGlpUGF0dGVyblN5bnRheBIPCgdwYXR0ZXJuGAIgASgJEhYKDmNhc2Vfc2Vuc2l0aXZlGAMgASgIIokBCgxQaWlBbGxvd0xpc3QSLQoFdGVybXMYASADKAsyHi50dXJiby5yZXN1bHQudjEuUGlpVGVybVNvdXJjZRIWCg5jYXNlX3NlbnNpdGl2ZRgCIAEoCBIyCghwYXR0ZXJucxgDIAMoCzIgLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd1BhdHRlcm4ivQEKC1BpaURlbnlMaXN0Eg8KB3J1bGVfaWQYASABKAkSKQoEa2luZBgCIAEoCzIbLnR1cmJvLnJlc3VsdC52MS5QaWlLaW5kUmVmEi0KBXRlcm1zGAMgASgLMh4udHVyYm8ucmVzdWx0LnYxLlBpaVRlcm1Tb3VyY2USFgoOY2FzZV9zZW5zaXRpdmUYBCABKAgSEQoJbWF4X2VkaXRzGAUgASgNEhgKEGNhcGl0YWxpemVkX29ubHkYBiABKAgieAoTUGlpQ3VzdG9tSWRlbnRpZmllchIPCgdydWxlX2lkGAEgASgJEikKBGtpbmQYAiABKAsyGy50dXJiby5yZXN1bHQudjEuUGlpS2luZFJlZhINCgVzaGFwZRgDIAEoCRIWCg5jYXNlX3NlbnNpdGl2ZRgEIAEoCCJ2ChVQaWlSZWRhY3Rpb25TZWxlY3Rpb24SMgoGaW5saW5lGAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlJlZGFjdGlvblBvbGljeUgAEg4KBG5hbWUYAiABKAlIABIPCgdkcnlfcnVuGAMgASgIQggKBnBvbGljeSpnCgxQaWlSdWxlU3RhdGUSHgoaUElJX1JVTEVfU1RBVEVfVU5TUEVDSUZJRUQQABIaChZQSUlfUlVMRV9TVEFURV9FTkFCTEVEEAESGwoXUElJX1JVTEVfU1RBVEVfRElTQUJMRUQQAiqiAQoTUGlpTGFiZWxSZXF1aXJlbWVudBIlCiFQSUlfTEFCRUxfUkVRVUlSRU1FTlRfVU5TUEVDSUZJRUQQABIeChpQSUlfTEFCRUxfUkVRVUlSRU1FTlRfTk9ORRABEiIKHlBJSV9MQUJFTF9SRVFVSVJFTUVOVF9SRVFVSVJFRBACEiAKHFBJSV9MQUJFTF9SRVFVSVJFTUVOVF9CT09TVFMQAypcCgtQaWlLZWVwU2lkZRIdChlQSUlfS0VFUF9TSURFX1VOU1BFQ0lGSUVEEAASFwoTUElJX0tFRVBfU0lERV9TVEFSVBABEhUKEVBJSV9LRUVQX1NJREVfRU5EEAIqkwEKDFBpaU1hcFRhcmdldBIeChpQSUlfTUFQX1RBUkdFVF9VTlNQRUNJRklFRBAAEigKJFBJSV9NQVBfVEFSR0VUX05PUk1BTElaRURfT1JfU1VSRkFDRRABEh0KGVBJSV9NQVBfVEFSR0VUX05PUk1BTElaRUQQAhIaChZQSUlfTUFQX1RBUkdFVF9TVVJGQUNFEAMqcQoQUGlpUGF0dGVyblN5bnRheBIiCh5QSUlfUEFUVEVSTl9TWU5UQVhfVU5TUEVDSUZJRUQQABIcChhQSUlfUEFUVEVSTl9TWU5UQVhfU0hBUEUQARIbChdQSUlfUEFUVEVSTl9TWU5UQVhfR0xPQhACYgZwcm90bzM", [file_turbo_typed_annotations]);
 
 /**
  * @generated from message turbo.result.v1.RedactionPolicy
@@ -532,6 +532,15 @@ export type PiiRewriteStrategy = Message<"turbo.result.v1.PiiRewriteStrategy"> &
      */
     value: PiiAgeSafeHarborStrategy;
     case: "ageSafeHarbor";
+  } | {
+    /**
+     * PII_STRATEGY_DATE_YEAR, PII_STRATEGY_DATE_SHIFT or
+     * PII_STRATEGY_DATE_RELATIVE: one per mode
+     *
+     * @generated from field: turbo.result.v1.PiiDateStrategy date = 13;
+     */
+    value: PiiDateStrategy;
+    case: "date";
   } | { case: undefined; value?: undefined };
 };
 
@@ -815,6 +824,165 @@ export const PiiAgeSafeHarborStrategySchema: GenMessage<PiiAgeSafeHarborStrategy
   messageDesc(file_turbo_pii_policy, 18);
 
 /**
+ * Reduces a calendar date (the date kind: "2026-07-14", "July 14, 2026",
+ * "14th July 2026", "July 2026"). Its text is read again with the
+ * temporal scanner, so the value is the one the detector saw. A mention
+ * of another kind, a text that is not one whole absolute day or month
+ * mention (a two-digit year such as "7/14/26"), a date shifted out of
+ * the years 0001 to 9999, and a cluster of overlapping mentions are
+ * masked whole.
+ *
+ * @generated from message turbo.result.v1.PiiDateStrategy
+ */
+export type PiiDateStrategy = Message<"turbo.result.v1.PiiDateStrategy"> & {
+  /**
+   * Required.
+   *
+   * @generated from oneof turbo.result.v1.PiiDateStrategy.mode
+   */
+  mode: {
+    /**
+     * PII_STRATEGY_DATE_YEAR
+     *
+     * @generated from field: turbo.result.v1.PiiDateYear year = 1;
+     */
+    value: PiiDateYear;
+    case: "year";
+  } | {
+    /**
+     * PII_STRATEGY_DATE_SHIFT
+     *
+     * @generated from field: turbo.result.v1.PiiDateShift shift = 2;
+     */
+    value: PiiDateShift;
+    case: "shift";
+  } | {
+    /**
+     * PII_STRATEGY_DATE_RELATIVE
+     *
+     * @generated from field: turbo.result.v1.PiiDateRelative relative = 3;
+     */
+    value: PiiDateRelative;
+    case: "relative";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * One character; empty means '*'.
+   *
+   * @generated from field: string mask_char = 4;
+   */
+  maskChar: string;
+};
+
+/**
+ * Describes the message turbo.result.v1.PiiDateStrategy.
+ * Use `create(PiiDateStrategySchema)` to create a new message.
+ */
+export const PiiDateStrategySchema: GenMessage<PiiDateStrategy> = /*@__PURE__*/
+  messageDesc(file_turbo_pii_policy, 19);
+
+/**
+ * The year alone: "July 14, 2026" becomes "2026", which HIPAA Safe Harbor
+ * (45 CFR 164.514(b)(2)(i)(C)) lets a record keep.
+ *
+ * @generated from message turbo.result.v1.PiiDateYear
+ */
+export type PiiDateYear = Message<"turbo.result.v1.PiiDateYear"> & {
+};
+
+/**
+ * Describes the message turbo.result.v1.PiiDateYear.
+ * Use `create(PiiDateYearSchema)` to create a new message.
+ */
+export const PiiDateYearSchema: GenMessage<PiiDateYear> = /*@__PURE__*/
+  messageDesc(file_turbo_pii_policy, 20);
+
+/**
+ * The date moved and written in the form it was written in ("July 14,
+ * 2026" stays in month-name form): by years and months as one count of
+ * months, then by days, then by the keyed offset. A day past the end of
+ * the new month becomes its last day, so January 31 plus one month is
+ * the end of February and a leap day plus a year is February 28. A month
+ * mention moves as its first day does, or one month the days' way when
+ * they would leave it in its own month. A shift that would write a value
+ * back as it was masks it whole.
+ *
+ * @generated from message turbo.result.v1.PiiDateShift
+ */
+export type PiiDateShift = Message<"turbo.result.v1.PiiDateShift"> & {
+  /**
+   * Each negative for earlier.
+   *
+   * @generated from field: int32 years = 1;
+   */
+  years: number;
+
+  /**
+   * @generated from field: int32 months = 2;
+   */
+  months: number;
+
+  /**
+   * @generated from field: int32 days = 3;
+   */
+  days: number;
+
+  /**
+   * With a key, an offset of 1 to max_days days, earlier or later, that
+   * HMAC-SHA-256 under the key chooses from context: the same key and
+   * context move every date by the same days, so intervals stay. Set
+   * context per document or per patient for an offset each.
+   *
+   * @generated from field: turbo.result.v1.PiiPolicyKeyRef key = 4;
+   */
+  key?: PiiPolicyKeyRef | undefined;
+
+  /**
+   * 1 to 3650; 0 means 30. Only with a key.
+   *
+   * @generated from field: uint32 max_days = 5;
+   */
+  maxDays: number;
+
+  /**
+   * Only with a key.
+   *
+   * @generated from field: string context = 6;
+   */
+  context: string;
+};
+
+/**
+ * Describes the message turbo.result.v1.PiiDateShift.
+ * Use `create(PiiDateShiftSchema)` to create a new message.
+ */
+export const PiiDateShiftSchema: GenMessage<PiiDateShift> = /*@__PURE__*/
+  messageDesc(file_turbo_pii_policy, 21);
+
+/**
+ * The date relative to a reference date ("3 months ago", "in 2 weeks",
+ * "today"), counted in the largest whole unit that fits: days under a
+ * week, weeks under 31 days, calendar months under a year, then years.
+ *
+ * @generated from message turbo.result.v1.PiiDateRelative
+ */
+export type PiiDateRelative = Message<"turbo.result.v1.PiiDateRelative"> & {
+  /**
+   * The reference date, yyyy-MM-dd. Required: the clock is never read.
+   *
+   * @generated from field: string reference = 1;
+   */
+  reference: string;
+};
+
+/**
+ * Describes the message turbo.result.v1.PiiDateRelative.
+ * Use `create(PiiDateRelativeSchema)` to create a new message.
+ */
+export const PiiDateRelativeSchema: GenMessage<PiiDateRelative> = /*@__PURE__*/
+  messageDesc(file_turbo_pii_policy, 22);
+
+/**
  * A registered, versioned key: never key material.
  *
  * @generated from message turbo.result.v1.PiiPolicyKeyRef
@@ -841,7 +1009,7 @@ export type PiiPolicyKeyRef = Message<"turbo.result.v1.PiiPolicyKeyRef"> & {
  * Use `create(PiiPolicyKeyRefSchema)` to create a new message.
  */
 export const PiiPolicyKeyRefSchema: GenMessage<PiiPolicyKeyRef> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 19);
+  messageDesc(file_turbo_pii_policy, 23);
 
 /**
  * HMAC-SHA-256 of the normalized value under a registered key, as
@@ -871,7 +1039,7 @@ export type PiiKeyedTokenStrategy = Message<"turbo.result.v1.PiiKeyedTokenStrate
  * Use `create(PiiKeyedTokenStrategySchema)` to create a new message.
  */
 export const PiiKeyedTokenStrategySchema: GenMessage<PiiKeyedTokenStrategy> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 20);
+  messageDesc(file_turbo_pii_policy, 24);
 
 /**
  * Unkeyed SHA-256 of the normalized value. Anyone can recompute it, so a
@@ -908,7 +1076,7 @@ export type PiiSha256Strategy = Message<"turbo.result.v1.PiiSha256Strategy"> & {
  * Use `create(PiiSha256StrategySchema)` to create a new message.
  */
 export const PiiSha256StrategySchema: GenMessage<PiiSha256Strategy> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 21);
+  messageDesc(file_turbo_pii_policy, 25);
 
 /**
  * A fixed replacement text.
@@ -929,7 +1097,7 @@ export type PiiStaticStrategy = Message<"turbo.result.v1.PiiStaticStrategy"> & {
  * Use `create(PiiStaticStrategySchema)` to create a new message.
  */
 export const PiiStaticStrategySchema: GenMessage<PiiStaticStrategy> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 22);
+  messageDesc(file_turbo_pii_policy, 26);
 
 /**
  * Per-document numbered labels such as [EMAIL-1]. The numbers restart in
@@ -960,7 +1128,7 @@ export type PiiPseudonymStrategy = Message<"turbo.result.v1.PiiPseudonymStrategy
  * Use `create(PiiPseudonymStrategySchema)` to create a new message.
  */
 export const PiiPseudonymStrategySchema: GenMessage<PiiPseudonymStrategy> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 23);
+  messageDesc(file_turbo_pii_policy, 27);
 
 /**
  * A lookup table from value to replacement.
@@ -1018,7 +1186,7 @@ export type PiiMapStrategy = Message<"turbo.result.v1.PiiMapStrategy"> & {
  * Use `create(PiiMapStrategySchema)` to create a new message.
  */
 export const PiiMapStrategySchema: GenMessage<PiiMapStrategy> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 24);
+  messageDesc(file_turbo_pii_policy, 28);
 
 /**
  * Inline map entries. Keys and replacements are non-empty.
@@ -1040,7 +1208,7 @@ export type PiiMapEntries = Message<"turbo.result.v1.PiiMapEntries"> & {
  * Use `create(PiiMapEntriesSchema)` to create a new message.
  */
 export const PiiMapEntriesSchema: GenMessage<PiiMapEntries> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 25);
+  messageDesc(file_turbo_pii_policy, 29);
 
 /**
  * A dictionary registered with the vocabulary store, pinned by content:
@@ -1072,7 +1240,7 @@ export type PiiDictionaryRef = Message<"turbo.result.v1.PiiDictionaryRef"> & {
  * Use `create(PiiDictionaryRefSchema)` to create a new message.
  */
 export const PiiDictionaryRefSchema: GenMessage<PiiDictionaryRef> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 26);
+  messageDesc(file_turbo_pii_policy, 30);
 
 /**
  * Terms, inline or from a registered dictionary.
@@ -1108,7 +1276,7 @@ export type PiiTermSource = Message<"turbo.result.v1.PiiTermSource"> & {
  * Use `create(PiiTermSourceSchema)` to create a new message.
  */
 export const PiiTermSourceSchema: GenMessage<PiiTermSource> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 27);
+  messageDesc(file_turbo_pii_policy, 31);
 
 /**
  * @generated from message turbo.result.v1.PiiTerms
@@ -1127,7 +1295,7 @@ export type PiiTerms = Message<"turbo.result.v1.PiiTerms"> & {
  * Use `create(PiiTermsSchema)` to create a new message.
  */
 export const PiiTermsSchema: GenMessage<PiiTerms> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 28);
+  messageDesc(file_turbo_pii_policy, 32);
 
 /**
  * @generated from message turbo.result.v1.PiiAllowPattern
@@ -1160,7 +1328,7 @@ export type PiiAllowPattern = Message<"turbo.result.v1.PiiAllowPattern"> & {
  * Use `create(PiiAllowPatternSchema)` to create a new message.
  */
 export const PiiAllowPatternSchema: GenMessage<PiiAllowPattern> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 29);
+  messageDesc(file_turbo_pii_policy, 33);
 
 /**
  * Values that are never PII: exact terms (case-insensitive unless
@@ -1196,7 +1364,7 @@ export type PiiAllowList = Message<"turbo.result.v1.PiiAllowList"> & {
  * Use `create(PiiAllowListSchema)` to create a new message.
  */
 export const PiiAllowListSchema: GenMessage<PiiAllowList> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 30);
+  messageDesc(file_turbo_pii_policy, 34);
 
 /**
  * Terms that are always PII of a custom kind.
@@ -1253,7 +1421,7 @@ export type PiiDenyList = Message<"turbo.result.v1.PiiDenyList"> & {
  * Use `create(PiiDenyListSchema)` to create a new message.
  */
 export const PiiDenyListSchema: GenMessage<PiiDenyList> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 31);
+  messageDesc(file_turbo_pii_policy, 35);
 
 /**
  * A shape pattern that finds a custom kind.
@@ -1296,7 +1464,7 @@ export type PiiCustomIdentifier = Message<"turbo.result.v1.PiiCustomIdentifier">
  * Use `create(PiiCustomIdentifierSchema)` to create a new message.
  */
 export const PiiCustomIdentifierSchema: GenMessage<PiiCustomIdentifier> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 32);
+  messageDesc(file_turbo_pii_policy, 36);
 
 /**
  * The redaction policy one AnalyzePipelineRequest runs turbo-pii:redact
@@ -1342,7 +1510,7 @@ export type PiiRedactionSelection = Message<"turbo.result.v1.PiiRedactionSelecti
  * Use `create(PiiRedactionSelectionSchema)` to create a new message.
  */
 export const PiiRedactionSelectionSchema: GenMessage<PiiRedactionSelection> = /*@__PURE__*/
-  messageDesc(file_turbo_pii_policy, 33);
+  messageDesc(file_turbo_pii_policy, 37);
 
 /**
  * Whether a rule's kind is detected at all. UNSPECIFIED is refused.

@@ -41,6 +41,14 @@ public interface TurboAnalysisResult extends AutoCloseable {
     /** Explicitly copies rows of one layer kind. */
     List<TurboSpanData> copySpans(TurboLayerKind kind);
 
+    /**
+     * Explicitly copies the PII candidate rows emitted when the analyzer was created with
+     * {@link TurboAnalyzer.Config#withPiiDetail(boolean)} set to {@code true}; empty otherwise.
+     */
+    default List<TurboPiiCandidate> piiCandidates() {
+        return List.of();
+    }
+
     /** Returns the graph byte length without copying the graph. */
     long graphByteLength();
 
