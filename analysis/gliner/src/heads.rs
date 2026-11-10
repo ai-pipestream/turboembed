@@ -62,6 +62,19 @@ impl Mlp {
         self.last.run(mid, rows, y)
     }
 }
+enum OutputHead {
+    Mlp(Mlp),
+    Linear(Dense),
+}
+impl OutputHead {
+    fn run(&self, x: &[f32], rows: usize, mid: &mut Vec<f32>, y: &mut Vec<f32>) -> Result<(), String> {
+        match self {
+            Self::Mlp(head) => head.run(x, rows, mid, y),
+            Self::Linear(head) => head.run(x, rows, y),
+        }
+    }
+}
+
 /// The buffers of one call.
 #[derive(Default)]
 pub(crate) struct Work {
@@ -81,7 +94,7 @@ pub(crate) struct Heads {
     prompt: Mlp,
     start: Mlp,
     end: Mlp,
-    span: Mlp,
+    span: OutputHead,
     /// The forward and reverse directions over projected words, h =
     /// hidden / 2 each, bias_ih and bias_hh summed.
     lstm: Lstm,
@@ -126,7 +139,11 @@ impl Heads {
             prompt: mlp("prompt_rep_layer")?,
             start: mlp("span_rep_layer.span_rep_layer.project_start")?,
             end: mlp("span_rep_layer.span_rep_layer.project_end")?,
-            span: mlp("span_rep_layer.span_rep_layer.out_project")?,
+            span: if c.out_project_mlp {
+                OutputHead::Mlp(mlp("span_rep_layer.span_rep_layer.out_project")?)
+            } else {
+                OutputHead::Linear(linear("span_rep_layer.span_rep_layer.out_project")?)
+            },
             lstm,
             hidden: c.hidden,
         })
@@ -196,6 +213,68 @@ impl Heads {
         }
         Ok(out)
     }
+    /// Frozen encoder, prompt and boundary features for output-head training,
+    /// plus the ordinary inference candidates used to mine hard negatives.
+    pub(crate) fn training(
+        &self,
+        states: &[f32],
+        width: usize,
+        prompts: &[usize],
+        words: &[usize],
+        max_width: usize,
+    ) -> Result<(crate::train::TrainingInput, Vec<Candidate>), String> {
+        if width != self.projection.k || prompts.iter().chain(words).any(|&i| (i + 1) * width > states.len()) {
+            return Err("gliner hidden state layout mismatch".into());
+        }
+        let (d, labels, n) = (self.hidden, prompts.len(), words.len());
+        let mut w = Work::default();
+        for &i in prompts.iter().chain(words) {
+            w.x.extend_from_slice(&states[i * width..(i + 1) * width]);
+        }
+        self.projection.run(&w.x, labels + n, &mut w.projected)?;
+        self.prompt.run(&w.projected[..labels * d], labels, &mut w.mid, &mut w.prompts)?;
+        let projected = std::mem::take(&mut w.projected);
+        self.words(&projected[labels * d..], n, &mut w)?;
+        self.start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
+        self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
+        w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
+        let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
+        let mut input =
+            crate::train::TrainingInput { spans: Vec::new(), prompts: w.prompts.clone(), pairs: pairs.clone() };
+        let scorer = Matrix::from_rows(&[&w.prompts], d).map_err(memory)?;
+        let mut candidates = Vec::new();
+        for block in pairs.chunks(SPANS) {
+            w.x.clear();
+            for &(i, j) in block {
+                w.x.extend_from_slice(&w.starts[i * d..(i + 1) * d]);
+                w.x.extend_from_slice(&w.ends[j * d..(j + 1) * d]);
+            }
+            input.spans.extend_from_slice(&w.x);
+            self.span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
+            let logits = size(&mut w.logits, block.len(), labels);
+            scorer.apply(&w.spans, d, block.len(), None, logits, labels, Mode::Plain);
+            finite(logits, "span score")?;
+            for (&(i, j), row) in block.iter().zip(logits.chunks_exact(labels)) {
+                for (label, &logit) in row.iter().enumerate() {
+                    candidates.push(Candidate { start: i, end: j + 1, label, logit, score: sigmoid(logit) });
+                }
+            }
+        }
+        Ok((input, candidates))
+    }
+
+    pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
+        if params.len() != 4 {
+            return Err("gliner output training requires four tensors".into());
+        }
+        let (h, f) = (self.hidden, self.start.first.n);
+        self.span = OutputHead::Mlp(Mlp {
+            first: Dense::new(&params[0], params[1].clone(), f, 2 * h)?,
+            last: Dense::new(&params[2], params[3].clone(), h, f)?,
+        });
+        Ok(())
+    }
+
     /// The BiLSTM over `n` projected words into w.words [n, hidden]: forward
     /// states in the first half of each row, reverse in the second.
     fn words(&self, x: &[f32], n: usize, w: &mut Work) -> Result<(), String> {

@@ -56,6 +56,8 @@ fn verify_reference(model: Arc<Model>, reference_path: &Path) {
         assert_eq!(serde_json::to_value(&p.prompts).unwrap(), case["prompts"]);
         assert_eq!(serde_json::to_value(&p.words).unwrap(), case["positions"]);
         let scores = model.score_packed(&p, &schema).unwrap();
+        let (_, training_scores) = model.training_input(&words, &schema).unwrap();
+        assert_eq!(training_scores, scores);
         assert_eq!(scores.len(), case["logits"].as_array().unwrap().len());
         for (name, mode) in [("flat", Decode::Flat), ("nested", Decode::Nested)] {
             let schema = ExtractionSchema::new(schema.labels().to_vec(), 0.5, mode).unwrap();
@@ -121,6 +123,16 @@ fn small_v2_5_checkpoint_matches_python() {
         model,
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/small-v2.5-reference.json").as_path(),
     );
+}
+
+#[test]
+#[ignore = "loads the local MIT NuNER Zero-span checkpoint and generated Python reference"]
+fn nuner_zero_span_checkpoint_matches_python() {
+    let root = std::env::var_os("GLINER_NUNER_PACKAGE").expect("GLINER_NUNER_PACKAGE must name the converted package");
+    let reference =
+        std::env::var_os("GLINER_NUNER_REFERENCE").expect("GLINER_NUNER_REFERENCE must name the reference JSON");
+    let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
+    verify_reference(model, Path::new(&reference));
 }
 
 fn verify_offsets_and_evidence(model: std::sync::Arc<turbo_gliner::Model>) {

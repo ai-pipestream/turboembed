@@ -28,8 +28,11 @@
 //!     [--mlp N] [--type-dim N])
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
 //!     [--balance] to repeat smaller training corpora to the largest split)
+//! turbo-train-head train-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
+//!     [--balance] [--max-train N] [--guidelines <json>] [training settings as train]
 //! turbo-train-head eval-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
 //!     [--encoder-bundle <sealed encoder> --device cpu|cuda|levelzero|metal] [--threshold X] [--threads N]
+//!     [--split dev --calibrate | --thresholds <dev thresholds.json>] [--guidelines <label-to-prompt json>]
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N] [--against <run dir>])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
@@ -68,6 +71,7 @@ mod eval_gliner;
 mod peer_cmd;
 mod summarize;
 mod train_coref;
+mod train_gliner;
 mod train_open_span;
 mod train_relation;
 mod train_sentences;
@@ -126,11 +130,12 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-split" => train_split::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-relation" => train_relation::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
+        "train-gliner" => train_gliner::train(&argv, &corpus_id, &dir, unrecorded, a),
         "eval-gliner" => eval_gliner::evaluate_command(&argv, &corpus_id, &dir, unrecorded, a),
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, eval-gliner, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-gliner, eval-gliner, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }

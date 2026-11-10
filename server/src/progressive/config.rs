@@ -7,8 +7,9 @@ use crate::proto::result::{OpenRelationSchema, OpenSpanSchema};
 pub(super) fn open_span(schema: Option<&OpenSpanSchema>) -> Result<Option<ExtractionSchema>, Failure> {
     schema
         .map(|schema| {
-            ExtractionSchema::new(
+            ExtractionSchema::with_prompts(
                 schema.labels.clone(),
+                if schema.prompts.is_empty() { schema.labels.clone() } else { schema.prompts.clone() },
                 schema.threshold.unwrap_or(0.5),
                 if schema.nested { Decode::Nested } else { Decode::Flat },
             )

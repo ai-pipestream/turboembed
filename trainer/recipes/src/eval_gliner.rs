@@ -16,7 +16,7 @@ use turbo_trainer_recipes::open_span_mix::{combine, evaluate_predictions, read_c
 use turbo_trainer_recipes::peer::{Column, PeerRecord};
 use turbo_trainer_recipes::receipt::*;
 use turbo_trainer_recipes::run::replace;
-use turbo_trainer_recipes::{Error, Result, gliner_eval};
+use turbo_trainer_recipes::{Error, Result, gliner_calibrate::Calibration, gliner_eval};
 
 use super::{Args, OutDir, RESAMPLES, commit, finish};
 
@@ -31,6 +31,16 @@ pub(super) fn evaluate_command(
     let encoder_bundle = a.value("--encoder-bundle")?.map(PathBuf::from);
     let hold_out_arg = a.required("--hold-out")?;
     let threshold: f32 = a.parsed("--threshold", 0.5)?;
+    let calibrate = a.flag("--calibrate");
+    let calibration_path = a.value("--thresholds")?.map(PathBuf::from);
+    let guidelines = a
+        .value("--guidelines")?
+        .map(|path| {
+            std::fs::read(&path).map_err(|e| Error(format!("{path}: {e}"))).and_then(|bytes| {
+                serde_json::from_slice::<BTreeMap<String, String>>(&bytes).map_err(|e| Error(format!("{path}: {e}")))
+            })
+        })
+        .transpose()?;
     let split = a.value("--split")?.unwrap_or_else(|| "test".into());
     let seed: u64 = a.parsed("--seed", 1)?;
     let threads: usize = a.parsed("--threads", 1)?;
@@ -45,10 +55,24 @@ pub(super) fn evaluate_command(
     if !matches!(split.as_str(), "dev" | "test") {
         return Err(Error("--split must be dev or test".into()));
     }
+    if calibrate && split != "dev" {
+        return Err(Error("--calibrate is restricted to --split dev".into()));
+    }
+    if calibrate && calibration_path.is_some() {
+        return Err(Error("--calibrate and --thresholds are mutually exclusive".into()));
+    }
 
     let t = Instant::now();
     let corpora = read_corpora(corpus_id, dir, unrecorded)?;
     let (all_types, _) = type_schema(&corpora)?;
+    if let Some(guidelines) = &guidelines {
+        let unknown: Vec<&str> =
+            guidelines.keys().filter(|label| !all_types.contains(*label)).map(String::as_str).collect();
+        if !unknown.is_empty() {
+            return Err(Error(format!("--guidelines names labels outside the corpus: {unknown:?}")));
+        }
+    }
+    let schema_digest = gliner_eval::digest(&all_types, threshold, guidelines.as_ref());
     let hold_out: Vec<String> = hold_out_arg.split(',').map(|x| x.trim().to_owned()).collect();
     if hold_out.iter().any(|h| h.is_empty() || !all_types.contains(h)) {
         return Err(Error(format!("--hold-out must name corpus entity types, got {hold_out:?}")));
@@ -68,9 +92,23 @@ pub(super) fn evaluate_command(
     let t = Instant::now();
     let options = EncoderOptions { device, precision, ..EncoderOptions::default() };
     let model = open_model(&package, encoder_bundle.as_deref(), &options)?;
+    let calibration = if calibrate {
+        let raw = gliner_eval::candidates(&model, evaluation, &all_types, threshold, guidelines.as_ref())?;
+        Calibration::fit(evaluation, &all_types, &raw, threshold, schema_digest.clone())?
+    } else if let Some(path) = calibration_path {
+        Calibration::read(
+            &std::fs::read(&path).map_err(|e| Error(format!("{}: {e}", path.display())))?,
+            &all_types,
+            &schema_digest,
+        )?
+    } else {
+        Calibration::uniform(&all_types, schema_digest.clone(), threshold)
+    };
+    let calibration_bytes = calibration.bytes()?;
+    let calibration_digest = turbo::bundle::sha256_hex(&calibration_bytes);
     let identity = model.identity();
     let peer_name = format!(
-        "gliner:{}@{}#{};threshold={threshold};decode=flat;label_batch=32",
+        "gliner:{}@{}#{};threshold={threshold};decode=flat;label_batch=32;schema={schema_digest};calibration={calibration_digest}",
         identity.id, identity.revision, identity.sha256
     );
 
@@ -85,6 +123,8 @@ pub(super) fn evaluate_command(
         &seen_types,
         threshold,
         threads,
+        guidelines.as_ref(),
+        &calibration,
     )?;
     let Predictions { all: predicted, held, seen: predicted_seen } = predictions;
     let overall = evaluate_predictions(
@@ -160,6 +200,7 @@ pub(super) fn evaluate_command(
     let checked = turbo_trainer_recipes::ner_peer::read("predictions.bio", &prediction_bytes, evaluation)?;
     assert_eq!(checked, predicted);
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
+    let calibration_record = replace(&out.path, "thresholds.json", &calibration_bytes)?;
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
@@ -178,7 +219,7 @@ pub(super) fn evaluate_command(
         training: None,
         eval,
         timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
-        outputs: vec![prediction_record],
+        outputs: vec![prediction_record, calibration_record],
     };
     finish(out, receipt)
 }
@@ -198,6 +239,7 @@ fn open_model(package: &Path, encoder_bundle: Option<&Path>, options: &EncoderOp
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn predict_three(
     model: &Model,
     sentences: &[Sentence],
@@ -205,12 +247,14 @@ fn predict_three(
     hold_out: &[String],
     seen_types: &[String],
     threshold: f32,
+    guidelines: Option<&BTreeMap<String, String>>,
+    calibration: &Calibration,
 ) -> Result<Predictions> {
-    Ok(Predictions {
-        all: gliner_eval::predict(model, sentences, all_types, threshold)?,
-        held: gliner_eval::predict(model, sentences, hold_out, threshold)?,
-        seen: gliner_eval::predict(model, sentences, seen_types, threshold)?,
-    })
+    let predict = |labels: &[String]| {
+        let raw = gliner_eval::candidates(model, sentences, labels, threshold, guidelines)?;
+        gliner_eval::decode_candidates(sentences, labels, &raw, &calibration.values(labels)?)
+    };
+    Ok(Predictions { all: predict(all_types)?, held: predict(hold_out)?, seen: predict(seen_types)? })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -225,6 +269,8 @@ fn predict_partitioned(
     seen_types: &[String],
     threshold: f32,
     threads: usize,
+    guidelines: Option<&BTreeMap<String, String>>,
+    calibration: &Calibration,
 ) -> Result<Predictions> {
     if sentences.is_empty() {
         return Ok(Predictions::default());
@@ -237,10 +283,11 @@ fn predict_partitioned(
         for chunk in chunks {
             handles.push(scope.spawn(move || {
                 let worker = open_model(package, encoder_bundle, options)?;
-                predict_three(&worker, chunk, all_types, hold_out, seen_types, threshold)
+                predict_three(&worker, chunk, all_types, hold_out, seen_types, threshold, guidelines, calibration)
             }));
         }
-        let mut parts = vec![predict_three(&model, first, all_types, hold_out, seen_types, threshold)?];
+        let mut parts =
+            vec![predict_three(&model, first, all_types, hold_out, seen_types, threshold, guidelines, calibration)?];
         for handle in handles {
             parts.push(handle.join().map_err(|_| Error("a GLiNER evaluation worker panicked".into()))??);
         }
@@ -254,7 +301,7 @@ fn predict_partitioned(
     })
 }
 
-fn prediction_text(sentences: &[Sentence], predicted: &[Vec<String>]) -> Result<String> {
+pub(super) fn prediction_text(sentences: &[Sentence], predicted: &[Vec<String>]) -> Result<String> {
     let mut out = String::new();
     for (sentence, labels) in sentences.iter().zip(predicted) {
         if sentence.words.len() != labels.len() {
