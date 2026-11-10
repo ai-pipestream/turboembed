@@ -68,6 +68,11 @@ fn a_city_after_a_city_label_is_a_mention() {
         ("City : Phoenix", "Phoenix", "Phoenix"),
         ("Town:\tSpringfield", "Springfield", "Springfield"),
         ("the city of Mobile is on the bay", "Mobile", "Mobile"),
+        ("City: Springfield IL 62704", "Springfield", "Springfield"),
+        ("City: Mobile Alabama", "Mobile", "Mobile"),
+        ("Birthplace: Chicago Illinois", "Chicago", "Chicago"),
+        ("City: Truth or Consequences New Mexico", "Truth or Consequences", "Truth or Consequences"),
+        ("City: San Juan PR 00901", "San Juan", "San Juan"),
     ] {
         assert_eq!(one(text), (written.to_owned(), name.to_owned()), "{text:?}");
     }
@@ -83,6 +88,9 @@ fn what_is_no_city_mention() {
         // The state must hold a place of that name.
         "Springfield, Alaska",
         "Mobile, IL",
+        "City: Mobile, IL",
+        "City: Mobile Illinois",
+        "City: Mobile IL 62704",
         // No label without its colon.
         "the city Council met",
         "town Hall",
@@ -105,6 +113,7 @@ fn what_is_no_city_mention() {
         "City: San Germ\u{e1}n",
         "City: San Foo",
         "the city of Paris Hilton",
+        "City: Springfield IL",
     ] {
         assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
     }
@@ -112,9 +121,15 @@ fn what_is_no_city_mention() {
 
 #[test]
 fn a_city_and_its_state_are_two_mentions() {
-    let rows = rows(&pack(Pack::Places), "Springfield, Illinois");
-    let kinds: Vec<_> = rows.iter().map(|r| (r.2, r.3.as_str())).collect();
-    assert_eq!(kinds, [("city", "Springfield"), ("state", "IL")]);
+    for (text, city, state) in [
+        ("Springfield, Illinois", "Springfield", "IL"),
+        ("City: Springfield IL 62704", "Springfield", "IL"),
+        ("City: Mobile Alabama", "Mobile", "AL"),
+    ] {
+        let rows = rows(&pack(Pack::Places), text);
+        let kinds: Vec<_> = rows.iter().map(|r| (r.2, r.3.as_str())).collect();
+        assert_eq!(kinds, [("city", city), ("state", state)], "{text:?}");
+    }
 }
 
 #[test]

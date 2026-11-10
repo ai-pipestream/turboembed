@@ -949,12 +949,15 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
     there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
     `Mobile, IL`). The gazetteer files the territories under their own
     country codes, which are their USPS codes;
-  - directly after a city label, as any place of that name: `city of
+  - directly after a city label, as any place of that name, or one in
+    the state after it when a state follows (`City: Springfield, IL`,
+    `City: Springfield IL 62704`, `City: Mobile Alabama`): `city of
     residence`, `place of birth`, `city of` and `town of` with or without
     a colon, and `birthplace`, `city/town`, `city` and `town` only with
     one (`City: Phoenix`, `the city of Mobile`), as `the city Council`
-    names none. A known name that a space and a capitalized word follow
-    is the start of a longer name (`City: San Foo`), so it is no mention.
+    names none. A known name that a space and another capitalized word
+    follow is the start of a longer name (`City: San Foo`), so it is no
+    mention.
 
   A bare name (`Chicago is large`) is no mention. The name has at most
   five words with single spaces between them, and its first and last
