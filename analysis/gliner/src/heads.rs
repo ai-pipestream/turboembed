@@ -239,8 +239,11 @@ impl Heads {
         self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
-        let mut input =
-            crate::train::TrainingInput { spans: Vec::new(), prompts: w.prompts.clone(), pairs: pairs.clone() };
+        let mut input = crate::train::TrainingInput {
+            spans: Vec::new(),
+            prompts: w.prompts.clone(),
+            pairs: pairs.iter().map(|&(start, end)| (start, end + 1)).collect(),
+        };
         let scorer = Matrix::from_rows(&[&w.prompts], d).map_err(memory)?;
         let mut candidates = Vec::new();
         for block in pairs.chunks(SPANS) {

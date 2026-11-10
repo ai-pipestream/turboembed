@@ -38,6 +38,16 @@ pub fn predict(
     decode_candidates(sentences, labels, &candidates(model, sentences, labels, threshold, guidelines)?, &thresholds)
 }
 
+pub fn batches(
+    model: &Model,
+    words: &[&str],
+    labels: &[String],
+    threshold: f32,
+    guidelines: Option<&BTreeMap<String, String>>,
+) -> Result<Vec<Vec<String>>> {
+    fit_batches(labels, threshold, guidelines, |schema| model.pack(words, schema).map(|_| ()).map_err(Error))
+}
+
 pub fn candidates(
     model: &Model,
     sentences: &[Sentence],

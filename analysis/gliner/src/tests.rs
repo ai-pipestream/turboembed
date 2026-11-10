@@ -130,7 +130,7 @@ fn decode_threshold_and_tie_order_match_reference() {
 fn per_label_thresholds_filter_before_global_overlap_resolution() {
     let schema = ExtractionSchema::new(vec!["a".into(), "b".into()], 0.5, Decode::Flat).unwrap();
     let candidates = vec![
-        Candidate { start: 0, end: 2, label: 0, logit: 1.0, score: 0.75 },
+        Candidate { start: 0, end: 2, label: 0, logit: 3.0, score: 0.75 },
         Candidate { start: 1, end: 3, label: 1, logit: 2.0, score: 0.8 },
     ];
     let selected = decode_with_thresholds(candidates.clone(), &schema, &[0.8, 0.7]).unwrap();

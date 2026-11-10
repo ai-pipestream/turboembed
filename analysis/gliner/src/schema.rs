@@ -93,6 +93,7 @@ impl ExtractionSchema {
     /// Fingerprint a full schema independently of the per-batch model label limit.
     pub fn digest_parts(labels: &[String], prompts: &[String], threshold: f32, mode: Decode) -> String {
         let mut h = Fnv1a::new();
+        h.bytes(&(labels.len() as u64).to_le_bytes()).bytes(&(prompts.len() as u64).to_le_bytes());
         for text in labels.iter().chain(prompts) {
             h.bytes(&(text.len() as u64).to_le_bytes()).bytes(text.as_bytes());
         }
@@ -125,6 +126,14 @@ mod tests {
         assert_eq!(guided.labels(), ["VisualWork"]);
         assert_eq!(guided.prompts(), ["visual artwork, including a painting or photograph"]);
         assert_ne!(plain.digest(), guided.digest());
+    }
+
+    #[test]
+    fn digest_frames_label_and_prompt_lists() {
+        let plain =
+            ExtractionSchema::digest_parts(&["a".into(), "b".into()], &["a".into(), "b".into()], 0.5, Decode::Flat);
+        let guided = ExtractionSchema::digest_parts(&["a".into()], &["b".into()], 0.5, Decode::Flat);
+        assert_ne!(plain, guided);
     }
 
     #[test]

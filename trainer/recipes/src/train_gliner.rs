@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use turbo_gliner::ExtractionSchema;
 use turbo_gliner::package::Manifest;
 use turbo_gliner::train::{OutputTrainer, output_optimizer};
 use turbo_trainer::adamw::Settings;
@@ -121,7 +120,6 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
             if active.is_empty() {
                 continue;
             }
-            let schema = gliner_eval::schema(&active, threshold, guidelines.as_ref())?;
             let mut order: Vec<usize> = (0..corpus.splits.train.len()).collect();
             rng.shuffle(&mut order);
             for batch in order.chunks(c.batch) {
@@ -133,8 +131,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
                             &model,
                             &trainer,
                             &corpus.splits.train[lane[0]],
-                            &schema,
                             &active,
+                            threshold,
+                            guidelines.as_ref(),
                         )?);
                         continue;
                     }
@@ -143,10 +142,17 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
                         for &index in lane {
                             let model = &model;
                             let trainer = &trainer;
-                            let schema = &schema;
                             let active = &active;
+                            let guidelines = guidelines.as_ref();
                             handles.push(scope.spawn(move || {
-                                sentence_gradients(model, trainer, &corpus.splits.train[index], schema, active)
+                                sentence_gradients(
+                                    model,
+                                    trainer,
+                                    &corpus.splits.train[index],
+                                    active,
+                                    threshold,
+                                    guidelines,
+                                )
                             }));
                         }
                         let mut computed = Vec::with_capacity(handles.len());
@@ -318,14 +324,19 @@ fn sentence_gradients(
     model: &turbo_gliner::Model,
     trainer: &OutputTrainer,
     sentence: &Sentence,
-    schema: &ExtractionSchema,
     labels: &[String],
+    threshold: f32,
+    guidelines: Option<&BTreeMap<String, String>>,
 ) -> Result<(f64, Vec<Vec<f32>>)> {
     let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();
-    let (input, candidates) = model.training_input(&words, schema).map_err(Error)?;
-    let gold = gold_spans(sentence, labels)?;
     let mut grads = trainer.zero_grads();
-    let loss = trainer.gradients(&input, &candidates, &gold, &mut grads).map_err(Error)?;
+    let mut loss = 0.0;
+    for batch in gliner_eval::batches(model, &words, labels, threshold, guidelines)? {
+        let schema = gliner_eval::schema(&batch, threshold, guidelines)?;
+        let (input, candidates) = model.training_input(&words, &schema).map_err(Error)?;
+        let gold = gold_spans(sentence, &batch)?;
+        loss += trainer.gradients(&input, &candidates, &gold, &mut grads).map_err(Error)?;
+    }
     Ok((loss, grads))
 }
 
