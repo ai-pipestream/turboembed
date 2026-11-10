@@ -341,6 +341,10 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `turbo-kserve`: an argument no flag claims is named without its value.
+  A misspelled `--flag=value` reads `unknown argument --flag=...`, and a
+  stray non-flag word is described by its length, so key text pasted
+  there does not reach stderr (#2102).
 - `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
   client goes away stops at its next iteration and frees the training
   slot, as GIS and the perceptron do (#2067).
