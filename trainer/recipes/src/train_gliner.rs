@@ -292,11 +292,14 @@ fn score(
     threshold: f32,
     guidelines: Option<&BTreeMap<String, String>>,
 ) -> Result<(Predictions, turbo_trainer_recipes::receipt::OpenSpanDatasetEval)> {
-    let predictions = Predictions {
-        all: gliner_eval::predict(model, &corpus.splits.dev, all, threshold, guidelines)?,
-        held: gliner_eval::predict(model, &corpus.splits.dev, held, threshold, guidelines)?,
-        seen: gliner_eval::predict(model, &corpus.splits.dev, seen, threshold, guidelines)?,
-    };
+    let predictions = std::thread::scope(|scope| {
+        let held_task = scope.spawn(|| gliner_eval::predict(model, &corpus.splits.dev, held, threshold, guidelines));
+        let seen_task = scope.spawn(|| gliner_eval::predict(model, &corpus.splits.dev, seen, threshold, guidelines));
+        let all = gliner_eval::predict(model, &corpus.splits.dev, all, threshold, guidelines)?;
+        let held = held_task.join().map_err(|_| Error("a GLiNER dev scoring worker panicked".into()))??;
+        let seen = seen_task.join().map_err(|_| Error("a GLiNER dev scoring worker panicked".into()))??;
+        Ok::<_, Error>(Predictions { all, held, seen })
+    })?;
     let evaluation = score_parts(corpus, all, seen, held, &predictions)?;
     Ok((predictions, evaluation))
 }

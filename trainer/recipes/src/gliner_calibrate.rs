@@ -14,6 +14,8 @@ pub struct Calibration {
     pub schema: String,
     pub default: f32,
     pub thresholds: BTreeMap<String, f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub held_thresholds: Option<BTreeMap<String, f32>>,
 }
 
 impl Calibration {
@@ -23,30 +25,38 @@ impl Calibration {
             schema,
             default: threshold,
             thresholds: labels.iter().map(|x| (x.clone(), threshold)).collect(),
+            held_thresholds: None,
         }
     }
 
-    pub fn read(bytes: &[u8], labels: &[String], schema: &str) -> Result<Self> {
+    pub fn read(bytes: &[u8], labels: &[String], held: &[String], schema: &str) -> Result<Self> {
         let value: Self =
             serde_json::from_slice(bytes).map_err(|e| Error(format!("invalid GLiNER calibration: {e}")))?;
         if value.version != 1 || value.schema != schema || value.thresholds.len() != labels.len() {
             return Err(Error("GLiNER calibration version, schema, or labels do not match".into()));
         }
-        if !value.default.is_finite()
-            || !(0.0..=1.0).contains(&value.default)
-            || labels.iter().any(|x| !value.thresholds.contains_key(x))
-            || value.thresholds.values().any(|x| !x.is_finite() || !(0.0..=1.0).contains(x))
-        {
-            return Err(Error("GLiNER calibration must contain one finite threshold in [0,1] per schema label".into()));
+        if !value.default.is_finite() || !(0.0..=1.0).contains(&value.default) {
+            return Err(Error("GLiNER calibration default must be finite and in [0,1]".into()));
+        }
+        validate(values(labels, &value.thresholds)?, labels)?;
+        if let Some(thresholds) = &value.held_thresholds {
+            if thresholds.len() != held.len() {
+                return Err(Error("GLiNER held-out calibration labels do not match".into()));
+            }
+            validate(values(held, thresholds)?, held)?;
         }
         Ok(value)
     }
 
     pub fn values(&self, labels: &[String]) -> Result<Vec<f32>> {
-        labels
-            .iter()
-            .map(|x| self.thresholds.get(x).copied().ok_or_else(|| Error(format!("no threshold for {x}"))))
-            .collect()
+        values(labels, &self.thresholds)
+    }
+
+    pub fn held_values(&self, labels: &[String]) -> Result<Vec<f32>> {
+        match &self.held_thresholds {
+            Some(thresholds) => values(labels, thresholds),
+            None => self.values(labels),
+        }
     }
 
     pub fn fit(
@@ -96,7 +106,7 @@ impl Calibration {
             }
         }
         let thresholds = labels.iter().cloned().zip(values).collect();
-        Ok(Self { version: 1, schema, default, thresholds })
+        Ok(Self { version: 1, schema, default, thresholds, held_thresholds: None })
     }
 
     pub fn bytes(&self) -> Result<Vec<u8>> {
@@ -107,6 +117,17 @@ impl Calibration {
             })
             .map_err(|e| Error(e.to_string()))
     }
+}
+
+fn values(labels: &[String], thresholds: &BTreeMap<String, f32>) -> Result<Vec<f32>> {
+    labels.iter().map(|x| thresholds.get(x).copied().ok_or_else(|| Error(format!("no threshold for {x}")))).collect()
+}
+
+fn validate(values: Vec<f32>, _labels: &[String]) -> Result<()> {
+    if values.iter().any(|x| !x.is_finite() || !(0.0..=1.0).contains(x)) {
+        return Err(Error("GLiNER calibration thresholds must be finite and in [0,1]".into()));
+    }
+    Ok(())
 }
 
 struct Measurement {
@@ -179,13 +200,18 @@ mod tests {
             Candidate { start: 0, end: 2, label: 0, logit: 4.0, score: 0.95 },
             Candidate { start: 1, end: 2, label: 1, logit: 2.0, score: 0.8 },
         ]];
-        let fit =
+        let mut fit =
             Calibration::fit(&sentences, &["person".into(), "place".into()], &raw, 0.5, "schema-a".into()).unwrap();
         assert_eq!(fit.thresholds["person"], 0.5);
         assert_eq!(fit.thresholds["place"], 0.5);
+        assert_eq!(fit.held_values(&["place".into()]).unwrap(), [0.5]);
+        fit.held_thresholds = Some(BTreeMap::from([("place".into(), 0.7)]));
         let bytes = fit.bytes().unwrap();
-        assert!(Calibration::read(&bytes, &["person".into(), "place".into()], "schema-a").is_ok());
-        assert!(Calibration::read(&bytes, &["person".into(), "place".into()], "schema-b").is_err());
+        let loaded =
+            Calibration::read(&bytes, &["person".into(), "place".into()], &["place".into()], "schema-a").unwrap();
+        assert_eq!(loaded.held_values(&["place".into()]).unwrap(), [0.7]);
+        assert!(Calibration::read(&bytes, &["person".into(), "place".into()], &["person".into()], "schema-a").is_err());
+        assert!(Calibration::read(&bytes, &["person".into(), "place".into()], &["place".into()], "schema-b").is_err());
     }
 
     #[test]

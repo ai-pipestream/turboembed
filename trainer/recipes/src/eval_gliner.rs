@@ -92,17 +92,23 @@ pub(super) fn evaluate_command(
     let t = Instant::now();
     let options = EncoderOptions { device, precision, ..EncoderOptions::default() };
     let model = open_model(&package, encoder_bundle.as_deref(), &options)?;
-    let calibration = if calibrate {
-        let raw = gliner_eval::candidates(&model, evaluation, &all_types, threshold, guidelines.as_ref())?;
-        Calibration::fit(evaluation, &all_types, &raw, threshold, schema_digest.clone())?
+    let (calibration, raw) = if calibrate {
+        let all = gliner_eval::candidates(&model, evaluation, &all_types, threshold, guidelines.as_ref())?;
+        let held = gliner_eval::candidates(&model, evaluation, &hold_out, threshold, guidelines.as_ref())?;
+        let mut calibration = Calibration::fit(evaluation, &all_types, &all, threshold, schema_digest.clone())?;
+        calibration.held_thresholds =
+            Some(Calibration::fit(evaluation, &hold_out, &held, threshold, schema_digest.clone())?.thresholds);
+        (calibration, Some(Reuse { all, held }))
     } else if let Some(path) = calibration_path {
-        Calibration::read(
+        let calibration = Calibration::read(
             &std::fs::read(&path).map_err(|e| Error(format!("{}: {e}", path.display())))?,
             &all_types,
+            &hold_out,
             &schema_digest,
-        )?
+        )?;
+        (calibration, None)
     } else {
-        Calibration::uniform(&all_types, schema_digest.clone(), threshold)
+        (Calibration::uniform(&all_types, schema_digest.clone(), threshold), None)
     };
     let calibration_bytes = calibration.bytes()?;
     let calibration_digest = turbo::bundle::sha256_hex(&calibration_bytes);
@@ -125,6 +131,7 @@ pub(super) fn evaluate_command(
         threads,
         guidelines.as_ref(),
         &calibration,
+        raw,
     )?;
     let Predictions { all: predicted, held, seen: predicted_seen } = predictions;
     let overall = evaluate_predictions(
@@ -231,6 +238,11 @@ struct Predictions {
     seen: Vec<Vec<String>>,
 }
 
+struct Reuse {
+    all: Vec<Vec<turbo_gliner::Candidate>>,
+    held: Vec<Vec<turbo_gliner::Candidate>>,
+}
+
 fn open_model(package: &Path, encoder_bundle: Option<&Path>, options: &EncoderOptions) -> Result<Model> {
     match encoder_bundle {
         Some(bundle) => Manifest::open_on(package, bundle, options).map_err(Error),
@@ -249,12 +261,19 @@ fn predict_three(
     threshold: f32,
     guidelines: Option<&BTreeMap<String, String>>,
     calibration: &Calibration,
+    include_all: bool,
+    include_held: bool,
 ) -> Result<Predictions> {
-    let predict = |labels: &[String]| {
+    let predict = |labels: &[String], held: bool| {
         let raw = gliner_eval::candidates(model, sentences, labels, threshold, guidelines)?;
-        gliner_eval::decode_candidates(sentences, labels, &raw, &calibration.values(labels)?)
+        let thresholds = if held { calibration.held_values(labels)? } else { calibration.values(labels)? };
+        gliner_eval::decode_candidates(sentences, labels, &raw, &thresholds)
     };
-    Ok(Predictions { all: predict(all_types)?, held: predict(hold_out)?, seen: predict(seen_types)? })
+    Ok(Predictions {
+        all: if include_all { predict(all_types, false)? } else { Vec::new() },
+        held: if include_held { predict(hold_out, true)? } else { Vec::new() },
+        seen: predict(seen_types, false)?,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -271,23 +290,46 @@ fn predict_partitioned(
     threads: usize,
     guidelines: Option<&BTreeMap<String, String>>,
     calibration: &Calibration,
+    raw: Option<Reuse>,
 ) -> Result<Predictions> {
     if sentences.is_empty() {
         return Ok(Predictions::default());
     }
+    let (include_all, include_held) = (raw.is_none(), raw.is_none());
     let chunk_size = sentences.len().div_ceil(threads);
     let mut chunks = sentences.chunks(chunk_size);
     let first = chunks.next().expect("a nonempty split has one chunk");
-    std::thread::scope(|scope| {
+    let mut out = std::thread::scope(|scope| {
         let mut handles = Vec::new();
         for chunk in chunks {
             handles.push(scope.spawn(move || {
                 let worker = open_model(package, encoder_bundle, options)?;
-                predict_three(&worker, chunk, all_types, hold_out, seen_types, threshold, guidelines, calibration)
+                predict_three(
+                    &worker,
+                    chunk,
+                    all_types,
+                    hold_out,
+                    seen_types,
+                    threshold,
+                    guidelines,
+                    calibration,
+                    include_all,
+                    include_held,
+                )
             }));
         }
-        let mut parts =
-            vec![predict_three(&model, first, all_types, hold_out, seen_types, threshold, guidelines, calibration)?];
+        let mut parts = vec![predict_three(
+            &model,
+            first,
+            all_types,
+            hold_out,
+            seen_types,
+            threshold,
+            guidelines,
+            calibration,
+            include_all,
+            include_held,
+        )?];
         for handle in handles {
             parts.push(handle.join().map_err(|_| Error("a GLiNER evaluation worker panicked".into()))??);
         }
@@ -297,8 +339,13 @@ fn predict_partitioned(
             out.held.extend(part.held);
             out.seen.extend(part.seen);
         }
-        Ok(out)
-    })
+        Ok::<_, Error>(out)
+    })?;
+    if let Some(raw) = raw {
+        out.all = gliner_eval::decode_candidates(sentences, all_types, &raw.all, &calibration.values(all_types)?)?;
+        out.held = gliner_eval::decode_candidates(sentences, hold_out, &raw.held, &calibration.held_values(hold_out)?)?;
+    }
+    Ok(out)
 }
 
 pub(super) fn prediction_text(sentences: &[Sentence], predicted: &[Vec<String>]) -> Result<String> {

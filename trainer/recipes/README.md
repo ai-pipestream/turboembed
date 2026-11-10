@@ -262,7 +262,12 @@ file to a later test run with `--thresholds <json>`; evaluation refuses a file
 whose version, labels, schema, or thresholds do not match. Every run writes
 this artifact, including uniform-threshold runs, and its SHA-256 is part of
 the peer identity. Calibration never reads test labels. The per-label filter
-runs before flat overlap resolution across all labels.
+runs before flat overlap resolution across all labels. New artifacts also carry
+`held_thresholds`, fitted independently on the held-out schema's dev
+candidates and used only for held-out decoding. Older artifacts without that
+map use the all-label thresholds for held-out decoding. Candidate tensors are
+reused for calibrated all-label and held-out predictions; only seen labels are
+scored again.
 
 `train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP in Rust on
 frozen encoder, prompt, recurrent and boundary features. Each training span
