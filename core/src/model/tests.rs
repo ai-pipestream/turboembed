@@ -78,12 +78,10 @@ fn choose_skips_an_artifact_whose_backend_cannot_run_the_band_or_the_family() {
     for b in ["cpu", "cuda", "levelzero"] {
         assert_eq!(choose(m, b, safetensors, "").unwrap(), 0, "{b}");
     }
-    for b in ["metal"] {
-        let e = choose(m, b, safetensors, "").unwrap_err();
-        assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
-        let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
-        assert!(e.message.contains(&why), "{}", e.message);
-    }
+    let e = choose(m, "metal", safetensors, "").unwrap_err();
+    assert_eq!(e.code, BUNDLE_NO_ARTIFACT);
+    let why = "weights-f32: architecture.lookahead 4: the metal backend has no limited-lookahead attention";
+    assert!(e.message.contains(why), "{}", e.message);
 
     let a = m.architecture.as_mut().unwrap();
     a.lookahead = None;

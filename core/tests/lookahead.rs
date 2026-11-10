@@ -241,19 +241,18 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
 
     let bundle = turbo::bundle::Bundle::open(f.write()).unwrap();
     let raw = backend::format_bit(backend::TURBO_FORMAT_SAFETENSORS);
-    for b in ["metal"] {
-        let e = turbo::model::choose(&bundle.manifest, b, raw, "").unwrap_err();
-        let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
-        assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
-        assert!(e.message.contains(&why), "{}", e.message);
-    }
+    let b = "metal";
+    let e = turbo::model::choose(&bundle.manifest, b, raw, "").unwrap_err();
+    let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
+    assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
+    assert!(e.message.contains(&why), "{}", e.message);
 
-    // The same through turbo_model_load on each such device this machine has.
+    // The same through turbo_model_load where this machine has such a device.
     let mut rt = std::ptr::null_mut();
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
-    let present: Vec<&str> = ["metal"].into_iter().filter(|b| first_of(rt, b).is_some()).collect();
+    let present = first_of(rt, b).is_some();
     unsafe { turbo_runtime_release(rt) };
-    for b in present {
+    if present {
         let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();
         assert!(e.is(BUNDLE_NO_ARTIFACT, &format!("the {b} backend has no limited-lookahead attention")), "{e:?}");
     }
