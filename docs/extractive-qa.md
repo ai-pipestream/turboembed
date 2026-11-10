@@ -155,6 +155,12 @@ host, from the hidden states. Moving the head onto the device took the CUDA
 cell from 1,095, 593, 353 and 162 questions/s to the numbers above, 13 to 15%
 by bin, in three rounds alternating with the build before it.
 
+On an Arc Pro B70 through Level Zero, at exact precision, the same bins ran at
+692, 381, 222 and 104 questions/s with the span head on the device, from 657,
+360, 211 and 99 with it on the host, the mean of three rounds alternating with
+the build before it; the record is
+`benchmarks/qa/b70.levelzero.qa.exact.roberta-base-squad2-da039877.1927040d28ca.json`.
+
 ```sh
 turbo-bench qa --bundle <bundle> --questions dev-v2.0.json --device cuda --precision exact
 ```
