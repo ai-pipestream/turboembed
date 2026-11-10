@@ -99,6 +99,15 @@ impl<'a> RewriteState<'a> {
                 date.write_mention(m.kind, &text[m.span.range()], out);
                 Ok(())
             }
+            // Both encrypt the surface, so decryption gives back the text.
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(aes) => aes
+                .write_token(kind_name(self.kinds, m.kind), &text[m.span.range()], out)
+                .map_err(|e| RewriteError::Encrypt(m.span, e.to_string())),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::Ff1(ff1) => ff1
+                .write_encrypted(&text[m.span.range()], out)
+                .map_err(|e| RewriteError::Encrypt(m.span, e.to_string())),
         }
     }
 

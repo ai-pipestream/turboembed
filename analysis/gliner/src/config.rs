@@ -6,15 +6,33 @@ use serde::{Deserialize, Serialize};
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub hidden: usize,
+    #[serde(default = "default_projection_factor")]
+    pub projection_factor: usize,
+    #[serde(default = "default_projection_factor")]
+    pub prompt_factor: usize,
+    #[serde(default = "default_out_project_mlp")]
+    pub out_project_mlp: bool,
     pub max_width: usize,
     pub entity_token: u32,
     pub separator_token: u32,
     pub cls_token: u32,
     pub eos_token: u32,
 }
+
+fn default_projection_factor() -> usize {
+    4
+}
+
+fn default_out_project_mlp() -> bool {
+    true
+}
+
 impl Config {
     pub fn check(&self, encoder: &turbo::deberta::Config) -> Result<(), String> {
         encoder.check().map_err(|e| e.message)?;
+        if !matches!(self.projection_factor, 2 | 4) || !matches!(self.prompt_factor, 2 | 4) {
+            return Err("gliner projection factors must be 2 or 4".into());
+        }
         if self.hidden == 0 || self.hidden > 1024 || !self.hidden.is_multiple_of(2) {
             return Err("gliner hidden limit: positive even width <= 1024".into());
         }
@@ -39,14 +57,17 @@ impl Config {
             out.push((format!("{stem}.bias"), vec![output]));
         };
         linear("token_rep_layer.projection", encoder.hidden as u64, h);
-        for stem in [
-            "prompt_rep_layer",
-            "span_rep_layer.span_rep_layer.project_start",
-            "span_rep_layer.span_rep_layer.project_end",
-            "span_rep_layer.span_rep_layer.out_project",
-        ] {
-            linear(&format!("{stem}.0"), if stem.ends_with("out_project") { 2 * h } else { h }, 4 * h);
-            linear(&format!("{stem}.3"), 4 * h, h);
+        linear("prompt_rep_layer.0", h, self.prompt_factor as u64 * h);
+        linear("prompt_rep_layer.3", self.prompt_factor as u64 * h, h);
+        for stem in ["span_rep_layer.span_rep_layer.project_start", "span_rep_layer.span_rep_layer.project_end"] {
+            linear(&format!("{stem}.0"), h, self.projection_factor as u64 * h);
+            linear(&format!("{stem}.3"), self.projection_factor as u64 * h, h);
+        }
+        if self.out_project_mlp {
+            linear("span_rep_layer.span_rep_layer.out_project.0", 2 * h, self.projection_factor as u64 * h);
+            linear("span_rep_layer.span_rep_layer.out_project.3", self.projection_factor as u64 * h, h);
+        } else {
+            linear("span_rep_layer.span_rep_layer.out_project", 2 * h, h);
         }
         for suffix in ["", "_reverse"] {
             for (name, shape) in [
