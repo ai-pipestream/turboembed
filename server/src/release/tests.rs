@@ -8,7 +8,7 @@ use turbo_analysis_layers::{PiiKind, Sensitive};
 
 use super::audit::{EventKey, event_id};
 use super::caps::{Fingerprint, Form, Forms, Grant, Grants, effective};
-use super::keys::{KeyRef, TokenKey, TokenKeyFile, active};
+use super::keys::{EncryptionKey, KeyRef, TokenKey, TokenKeyFile, active};
 use super::*;
 use crate::proto::audit::{PiiAccessKindGrant, PiiAccessMention};
 
@@ -33,6 +33,61 @@ fn wire_key_references_follow_the_cli_id_contract() {
         assert_eq!(KeyRef::of_policy(&policy).unwrap(), parsed);
         assert_eq!(parsed.policy(), policy);
     }
+}
+
+/// No window of four bytes or more of `secret` is in `err`.
+fn assert_not_echoed(err: &str, secret: &str) {
+    let b = secret.as_bytes();
+    for w in b.windows(4) {
+        let w = std::str::from_utf8(w).unwrap();
+        assert!(!err.contains(w), "{err:?} repeats {w:?} of the input");
+    }
+}
+
+#[test]
+fn key_flag_parse_errors_never_repeat_the_input() {
+    // A base64 AES-256 key, and key-like text, pasted where a reference
+    // and a path belong.
+    let key = "q8ZrVx3T0bWmJ2kYp7LdN9fHcE4sGuA6oRiK1tXyQwM=";
+    let with_colons = format!("{key}:{key}:/keys/k");
+    for bad in
+        [key.to_owned(), format!("{key}:1"), with_colons.clone(), format!("tok:{key}:/keys/k"), format!("tok:{key}")]
+    {
+        let err = TokenKeyFile::parse(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    for bad in [key.to_owned(), format!("{key}:1"), format!("tok:{key}")] {
+        let err = KeyRef::parse(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    // The errors still say which part is wrong.
+    assert!(TokenKeyFile::parse(key).unwrap_err().contains("is not ID:VERSION:PATH"));
+    assert!(TokenKeyFile::parse(&with_colons).unwrap_err().contains("key id (44 bytes"));
+    assert!(KeyRef::parse(&format!("tok:{key}")).unwrap_err().contains("key version (44 bytes"));
+    // Key text in the shape of an id, with no path, is not repeated
+    // either.
+    let id_shaped = "FAKEkeyMATERIAL0123456789abcdXYZ";
+    let err = TokenKeyFile::parse(&format!("{id_shaped}:1:")).unwrap_err();
+    assert_eq!(err, "the path is empty (nothing after ID:VERSION:)");
+    assert_not_echoed(&err, id_shaped);
+    let ok = TokenKeyFile::parse("tok:3:/keys/a:b").unwrap();
+    assert_eq!((ok.key.to_string(), ok.path), ("tok:3".to_owned(), PathBuf::from("/keys/a:b")));
+    // Key text pasted as the path parses, then fails to load: the load
+    // error names the reference, not the path.
+    for bad in [format!("tok:1:{key}"), format!("tok:1:/run/keys/{key}")] {
+        let err = TokenKey::load(&TokenKeyFile::parse(&bad).unwrap()).unwrap_err();
+        assert!(err.starts_with("--pii-token-key tok:1: the key file (a path of"), "{err}");
+        assert_not_echoed(&err, key);
+    }
+    let short = key_file(key, b"short");
+    let err = TokenKey::load(&short).unwrap_err();
+    assert_eq!(err, "--pii-token-key tok:3: the key file holds 5 bytes, not 32 to 1024");
+    // The encryption keys load the same way.
+    let err = EncryptionKey::load(&TokenKeyFile::parse(&format!("tok:1:{key}")).unwrap()).unwrap_err();
+    assert!(err.starts_with("--pii-encryption-key tok:1: the key file (a path of"), "{err}");
+    assert_not_echoed(&err, key);
+    let err = EncryptionKey::load(&short).unwrap_err();
+    assert_eq!(err, "--pii-encryption-key tok:3: the key file holds 5 bytes, not 32");
 }
 
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {
