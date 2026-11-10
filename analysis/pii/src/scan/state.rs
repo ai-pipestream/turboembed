@@ -8,8 +8,8 @@
 //! abbreviation too (`IN`, `OR`, `ME`, `OK`), so it is a mention only in
 //! capitals and only after a state label (`State: IL`) or before a ZIP
 //! code that ends an address: after a comma or a city of that state
-//! (`Springfield, IL 62704`, `Springfield IL 62704`), or at the start of a
-//! line, not after another word (`Order IN 12345`). The normalized form is the USPS code.
+//! (`Springfield, IL 62704`, `Springfield IL 62704`), or alone on a line
+//! with its ZIP code, not after another word (`Order IN 12345`). The normalized form is the USPS code.
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 
@@ -94,28 +94,42 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
     {
         return None;
     }
-    let zip = b.get(i + 2) == Some(&b' ') && zip_end(text, i + 3).is_some() && address_like(text, i);
+    let zip = b.get(i + 2) == Some(&b' ') && zip_end(text, i + 3).is_some_and(|end| address_like(text, i, end));
     (zip || find_any_label(text, i, &LABELS, false).is_some()).then_some(i + 2)
 }
 
-/// Whether a code at `code` before a ZIP code reads as the end of an
-/// address, by what comes before it: a comma (`Springfield, IL 62704`),
-/// only blanks back to the start of a line (`IL 62704`), or a city of that
-/// state and one space (`Springfield IL 62704 is`). A word that is no city
-/// there (`Order IN 12345`, `PART OR 90210`) makes the number a count.
-fn address_like(text: &str, code: usize) -> bool {
+/// Whether a code at `code` before the ZIP code ending at `end` reads as
+/// the end of an address, by what comes before it: a comma
+/// (`Springfield, IL 62704`), a city of that state and one space
+/// (`Springfield IL 62704 is`), or only blanks back to the start of a line
+/// when only blanks follow the ZIP code to the line's end (`IL 62704`). A
+/// word that is no city there (`Order IN 12345`, `PART OR 90210`), or a
+/// word after a line's code and number (`IN 12345 units`), makes the
+/// number a count.
+fn address_like(text: &str, code: usize, end: usize) -> bool {
     let before = &text.as_bytes()[..code];
     if before.ends_with(b", ") {
         return true;
     }
-    // Only the blanks directly before the code are walked, so each byte
-    // is looked at once however many codes a line holds.
+    // Only the blanks directly before the code and after the ZIP code are
+    // walked, so each byte is looked at once however many codes a line
+    // holds.
     let blanks = before.iter().rev().take_while(|&&c| c == b' ' || c == b'\t').count();
-    matches!(before.len().checked_sub(blanks + 1).map(|p| before[p]), None | Some(b'\n'))
-        || before.len() >= 2
-            && before.ends_with(b" ")
-            && before[before.len() - 2] != b' '
-            && city_before(text, code - 1, &text[code..code + 2])
+    if matches!(before.len().checked_sub(blanks + 1).map(|p| before[p]), None | Some(b'\n')) {
+        return line_ends_after(text, end);
+    }
+    before.len() >= 2
+        && before.ends_with(b" ")
+        && before[before.len() - 2] != b' '
+        && city_before(text, code - 1, &text[code..code + 2])
+}
+
+/// Whether only blanks follow `end` to the end of its line or the text.
+fn line_ends_after(text: &str, end: usize) -> bool {
+    text[end..]
+        .chars()
+        .find(|&c| !matches!(c, ' ' | '\t' | '\r' | '\u{a0}'))
+        .is_none_or(|c| matches!(c, '\n' | '\u{b}' | '\u{c}' | '\u{85}' | '\u{2028}' | '\u{2029}'))
 }
 
 /// The end of a whole ZIP or ZIP+4 token at `at` (`62704`, `62704-1234`),

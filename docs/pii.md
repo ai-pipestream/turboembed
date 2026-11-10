@@ -917,10 +917,12 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
   `OK`), so it is a mention only in capitals and only directly after a
   state label (`State: OR`) or before a ZIP code that ends an address,
-  by what comes before the code: a comma (`Springfield, IL 62704`), the
-  start of a line (`IL 62704`), or a city of that state in the bundled
-  gazetteer and one space (`Springfield IL 62704 is`). After any other
-  word (`Order IN 12345.`, `PART OR 90210`) the number is a count, not a
+  by what comes before the code: a comma (`Springfield, IL 62704`), a
+  city of that state in the bundled gazetteer and one space
+  (`Springfield IL 62704 is`), or the start of a line when only blanks
+  follow the ZIP code to the line's end (`IL 62704`). After any other
+  word (`Order IN 12345.`, `PART OR 90210`), or with a word after a line's
+  code and number (`IN 12345 units`), the number is a count, not a
   state. The normalized form is the USPS code (`IL`).
 - `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
   `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
