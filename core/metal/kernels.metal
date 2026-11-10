@@ -1188,6 +1188,30 @@ kernel void pool_ranges(device const float *x [[buffer(0)]], device const int *m
     for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
 }
 
+// ---- The token head ---------------------------------------------------------
+
+struct HeadParams {
+    uint hidden;
+    uint head_out;
+};
+
+// The span head of an extractive QA model over the range vectors
+// pool_ranges wrote: one SIMD group per output value, out[i * head_out +
+// o] = bias[o] + w[o] . pooled[i], each lane's products summed by fma in
+// dimension order, then the lanes by simd_sum. w holds the [head_out,
+// hidden] weight and then the [head_out] bias.
+kernel void span_head(device const float *pooled [[buffer(0)]], device const float *w [[buffer(1)]],
+                      device float *out [[buffer(2)]], constant HeadParams &p [[buffer(3)]],
+                      uint v [[threadgroup_position_in_grid]], ushort lane [[thread_index_in_simdgroup]]) {
+    const uint i = v / p.head_out, o = v % p.head_out;
+    device const float *x = pooled + ulong(i) * p.hidden;
+    device const float *wo = w + ulong(o) * p.hidden;
+    float acc = 0.0f;
+    for (uint d = lane; d < p.hidden; d += 32) acc = fma(wo[d], x[d], acc);
+    acc = simd_sum(acc);
+    if (lane == 0) out[v] = w[ulong(p.head_out) * p.hidden + o] + acc;
+}
+
 // ---- DeBERTa-v2 ---------------------------------------------------------------
 //
 // The parts of a DeBERTa-v2 encoder (TURBO_FAMILY_DEBERTA_V2) that differ

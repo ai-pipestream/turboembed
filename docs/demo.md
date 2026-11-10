@@ -410,7 +410,10 @@ for any refused call.
   per artifact with its id, kind in plain words (model, head, dataset,
   lexicon), language, licence and size. A filter box narrows the list
   to the entries whose id, kind, language or licence holds every word
-  typed, whatever the case, and a chip per kind with its count shows
+  typed, whatever the case (words are parted by any Unicode white space,
+  the next-line control included; `ß`, `ẞ` and `SS` compare equal, as
+  do a final and a medial sigma; and a kind also matches in its enum
+  spelling), and a chip per kind with its count shows
   only that kind; both work in the page on the catalog already read
   (demo/web/src/catalogfilter.ts) and stay set when the catalog is read
   again after a change. Installed models and accepted terms are listed
@@ -528,9 +531,15 @@ of every tab at each width there, at the device scale factor in
 index of the CPU (default 0). The binaries started are the ones that
 build wrote, in the target directory `cargo metadata` names, so
 `CARGO_TARGET_DIR` and a configured target directory are followed. The
-run needs a Chromium the pinned
-Playwright can launch; `npx --prefix demo/web playwright install
-chromium` fetches one. Playwright 1.63.0 is pinned exactly in
+run needs a headless Chromium the pinned Playwright can launch; after
+`npm ci --prefix demo/web`,
+`demo/web/node_modules/.bin/playwright install chromium-headless-shell`
+fetches one. Playwright 1.63.0 is pinned exactly in
 `demo/web/package.json` as a development dependency of this run alone:
-the page's bundle, the demo and the library do not use it, and no CI
-job runs it yet.
+the page's bundle, the demo and the library do not use it.
+
+CI runs it in the `proto` job (.github/workflows/ci.yml), after the
+steps that check the generated code and the bundle. On a pull request
+and in the merge queue it runs when `demo/`, `server/`, the two test
+bundles, `scripts/e2e-web.sh`, `scripts/build-web.sh` or the workflow
+changed; the daily run always runs it.

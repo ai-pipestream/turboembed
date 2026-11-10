@@ -937,6 +937,23 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   County, Illinois`) is a mention of its own.
   The 1,918 names are in `analysis/pii/src/tables/us_counties.txt`.
 
+A place name starts and ends where no letter, digit, combining mark or
+`_` touches it (`text::name_char`, `on_name_start`, `on_name_end`), at
+both ends of a state name, a county name and a USPS code. So
+`x_Illinois`, `Illinois_x`, `e` + U+0301 + `Illinois`, `Cook County_x`
+and `Washington_County` hold no place, while `Illinois-based` and
+`(Cook County)` do. The other scanners keep the shared letter-or-digit
+rule (`on_word_start`, `on_end`), so their spans and pack snapshots stay
+those of the port.
+
+A county name is compared in Unicode normalization form C, as the
+Census list is written. A decomposed spelling (`Doña Ana County` with
+`n` + U+0303, `Mayagüez Municipio` with `u` + U+0308) is the same
+county: its mention keeps the source's bytes and its value is the
+list's spelling. A candidate that is ASCII or already NFC is compared in
+place, with no copy. Every state name is ASCII, so the state scanner
+needs no folding.
+
 Both are low severity, suggested a label rewrite and masked keeping
 spaces (`**** ******`). Neither needs a label; `state`, `state of
 residence`, `county` and `county of residence` are their label phrases.

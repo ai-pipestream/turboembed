@@ -41,7 +41,8 @@ enum LayerWireStatus
 // Why a layer or view is not OK, as a kind: no free text, no values, no
 // debug formatting (issue #1908). DECLINED is an annotator declining
 // the document; UPSTREAM is a skip because a layer it reads is not
-// complete; the rest are the analysis error kinds.
+// complete; LIMIT is an annotator refusing an input over one of its
+// limits (TURBO_E_CAPACITY); the rest are the analysis error kinds.
 enum LayerErrorKind
 {
   LAYER_ERROR_KIND_UNSPECIFIED = 0;
@@ -59,6 +60,7 @@ enum LayerErrorKind
   LAYER_ERROR_KIND_PANIC = 12;
   LAYER_ERROR_KIND_OFFSET = 13;
   LAYER_ERROR_KIND_SOURCE = 14;
+  LAYER_ERROR_KIND_LIMIT = 15;
 }
 
 // A sanitized layer error: the kind, the turbo status a client routes
@@ -1296,11 +1298,11 @@ message PiiValueToken
 // The value encrypted under a registered encryption key with a named
 // scheme (#1885). The server's one scheme is turbo-pii-aes-256-gcm-v1:
 // `ciphertext` is the UTF-8 text of a turbo-pii AES-256-GCM token, the
-// kind code in capitals (BUILTIN:3, CUSTOM:BADGE), ':', and the unpadded
-// base64url of a 12-byte nonce, the encrypted normalized value and the
-// 16-byte tag, its associated data binding the kind code and the context
-// turbo-kserve.pii-release.v1. Each release draws a fresh nonce, so equal
-// values give different ciphertexts.
+// kind code with its case kept (builtin:3, custom:Badge), ':', and the
+// unpadded base64url of a 12-byte nonce, the encrypted normalized value
+// and the 16-byte tag, its associated data binding the exact kind code
+// and the context turbo-kserve.pii-release.v1. Each release draws a fresh
+// nonce, so equal values give different ciphertexts.
 message PiiValueCiphertext
 {
   // The encrypted bytes, in `scheme`'s encoding.
