@@ -11,11 +11,12 @@
 //!   capitalized word follows it (`City: San Foo`).
 //!
 //! A bare name with neither is no mention. The name has at most
-//! [`MAX_WORDS`] words with single spaces between them, its first and last
-//! word start with a capital (`Rio de Janeiro`), no word character touches
-//! either end ([`name_char`]), and it is matched by the gazetteer's own
-//! rule (case, accents and punctuation folded). The longest name wins. The
-//! normalized form is the gazetteer's name of the place.
+//! [`MAX_WORDS`] words with single spaces between them, each word starts
+//! with a capital where the gazetteer's name has one (`Rio de Janeiro`,
+//! `Coeur d'Alene`), no word character touches either end ([`name_char`]),
+//! and it is matched by the gazetteer's own rule (case, accents and
+//! punctuation folded). The longest name wins. The normalized form is the
+//! gazetteer's name of the place.
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 use turbo_geo::{BundledGazetteer, Entry, Gazetteer};
@@ -175,13 +176,14 @@ fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str
 }
 
 /// The gazetteer's places named `text[start..end]`, when it is written
-/// like a name with no word character touching either end.
+/// like the gazetteer's name with no word character touching either end.
 fn lookup(text: &str, start: usize, end: usize) -> Option<Vec<Entry<'static>>> {
     let written = &text[start..end];
-    if !on_name_start(text, start) || !on_name_end(text, end) || !capitals_like_a_name(written) {
+    if !on_name_start(text, start) || !on_name_end(text, end) || !capital_at(text, start) {
         return None;
     }
-    let found = BundledGazetteer::get().lookup(written);
+    let mut found = BundledGazetteer::get().lookup(written);
+    found.retain(|e| capitals_like_a_name(written, e.name()));
     (!found.is_empty()).then_some(found)
 }
 
@@ -210,7 +212,8 @@ fn after_label(text: &str, i: usize) -> Option<usize> {
 
 /// The starts of the words before `end`, nearest first, with single spaces
 /// between them; a word runs back over word characters and the marks
-/// inside a name (`St. Louis`, `O'Fallon`, `Winston-Salem`).
+/// inside a name (`St. Louis`, `O'Fallon`, `Winston-Salem`,
+/// `Coeur d'Alene`).
 fn word_starts_before(text: &str, end: usize, starts: &mut [usize]) -> usize {
     let mut n = 0;
     let mut at = end;
@@ -222,12 +225,6 @@ fn word_starts_before(text: &str, end: usize, starts: &mut [usize]) -> usize {
             .map_or(0, |(p, c)| p + c.len_utf8());
         let Some(lead) = text[start..at].find(|c: char| c.is_alphanumeric()) else { break };
         start += lead;
-        // The last word starts with a capital; an inner one may be small
-        // (`Truth or Consequences`, `Fond du Lac`), and `lookup` holds each
-        // candidate's first word to a capital.
-        if n == 0 && !capital_at(text, start) {
-            break;
-        }
         starts[n] = start;
         n += 1;
         let b = text.as_bytes();
@@ -265,12 +262,23 @@ fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
     n
 }
 
-/// Whether the first and last words of `written` start with a capital, as
-/// a name does whose inner words may be small (`Rio de Janeiro`).
-fn capitals_like_a_name(written: &str) -> bool {
-    let first = written.split(' ').next().is_some_and(|w| w.chars().next().is_some_and(char::is_uppercase));
-    let last = written.rsplit(' ').next().is_some_and(|w| w.chars().next().is_some_and(char::is_uppercase));
-    first && last
+/// Whether `written` has a capital at the start of every word where the
+/// gazetteer's `name` has one (`Springfield`, `Rio de Janeiro`,
+/// `Coeur d'Alene`).
+fn capitals_like_a_name(written: &str, name: &str) -> bool {
+    let mut w = written.split(' ');
+    let mut g = name.split(' ');
+    loop {
+        match (w.next(), g.next()) {
+            (Some(w), Some(g)) => {
+                if capital_at(g, 0) && !capital_at(w, 0) {
+                    return false;
+                }
+            }
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
 }
 
 /// The USPS code of the state named directly after `end` by a comma and a
