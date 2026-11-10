@@ -169,6 +169,12 @@ blobs/sha256/a786c54bea47e9d4229dea9f5b634deed4d8786f48350f4ea977a7d384d96635  f
 blobs/sha256/accbc11c941000d7acf697f3ca30b1455f9b8a546c2660287cc9b9e288500025  file  UD Turkish BOUN r2.16 UPOS head over xlm-roberta-base (trainer/recipes/records/ud-1651/tr-boun-upos.json)
 blobs/sha256/d60d6ea090bd01e236ba9b435c5a204d49dd090be73e1d1f8444ed59d0353df0  file  UD Turkish BOUN r2.16 lemma head over xlm-roberta-base (trainer/recipes/records/ud-1651/tr-boun-lemma.json)
 
+# Packages used by real-checkpoint numerical and recipe evaluation.
+blobs/sha256/8a1d791d309a4fdc58265762abd5b1a43997e6de4b4586d803a04de77cd2fa83  package  gliner-community/gliner_small-v2.5 revision f227d3cd637bd4e6757ae143935316d062393341
+blobs/sha256/0db32ea7f922f45c3edf5ba7142c037667eccc2d3d3e81c45228a44a4c122d2f  package  gliner-community/gliner_medium-v2.5 revision 88c3b98b57ad5e7d66fb209ed61c53f4b1fd05da
+blobs/sha256/26704b1f5c4884efc1046bbd6efab2e6fe74885174f3bdd77a940807e63bbc4e  package  gliner-community/gliner_large-v2.5 revision 3d6d1760be1c591069f85f207fced9214df8b15f
+blobs/sha256/90a41b2753dbe2721fa8138a7a91bf6e829a1c9d32292119d3337949dc09f3b5  package  urchade/gliner_multi-v2.1 revision 443d26d654e0324125a96bebd8e796c14ff2efe6
+
 # Bundles CI makes from a pinned recipe before a test loads them.
 blobs/sha256/09275a1b537fd120d5ee10ed614aa8963c65100dda824b6c14fc9f9a7715de04  bundle  minishlab/potion-base-2M as the static-parity job of ci.yml makes it
 
@@ -180,6 +186,7 @@ blobs/sha256/8dc4c5f58d474c5714b2b5c33782a8ce8d14033c0b13336c9400301cff254842  b
 blobs/sha256/c38aa631f6b5a02f8f198ec6e9bbed4e98b8a3e7437032898950245458192c70  bundle  BAAI/bge-m3 revision 2 (RTX 4080 machine)
 blobs/sha256/4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52  bundle  FacebookAI/xlm-roberta-base revision 1, from bundle/recipes/xlm-roberta-base.json (RTX 4080 machine)
 blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  bundle  gliner2-base-v1 encoder bundle (fastino/gliner2-base-v1) (B70 machine)
+blobs/sha256/34314634641f8e9a4ecb674c70bf043a4e21af2d34b021a3b2286c77e2dfad38  tree  gliner2-base-v1 progressive graph release test
 blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
 blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)
 blobs/sha256/b5285611dd564973d4b90ce148a5f62aef766ad11859cc62bcb801157309c146  bundle  sentence-transformers/all-MiniLM-L6-v2 static distillation, 256 dims (B70 machine)

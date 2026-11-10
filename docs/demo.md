@@ -354,8 +354,12 @@ for any refused call.
   the finished graph through `InspectDocumentWindow`, the text with its
   annotations marked, a chip per layer to show only some, paging, and
   heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
-  names, shown when it is text and offered as a download. Four panels
-  below it each call when opened, and again when the graph changes:
+  names, shown when it is text and offered as a download. An open-span model
+  enables caller entity labels, threshold, and flat or nested decoding. A
+  separate relation model adds caller relation labels, threshold, and sentence
+  scoping over those entities, so one run produces entity and relation evidence
+  and edges. The graph retains model identities and source offsets.
+  Four panels below it each call when opened, and again when the graph changes:
   - Normalization X-Ray: `InspectDocumentWindow` with
     `xray_target_view` between any two views, offsets in UTF-8 bytes,
     UTF-16 units or code points, the text with each edit run inserted

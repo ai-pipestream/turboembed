@@ -8,13 +8,17 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use common::*;
-use turbo_kserve::Serve;
+use turbo_kserve::config::DEFAULT_MAX_MESSAGE_BYTES as MAX;
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
-use turbo_kserve::proto::result::{AnalyzePipelineRequest, AnalyzeProgressiveEvent};
+use turbo_kserve::proto::result::{
+    AnalyzePipelineRequest, AnalyzeProgressiveEvent, LoadBundleRequest, OpenRelationLabel, OpenRelationSchema,
+    OpenSpanSchema,
+};
 use turbo_kserve::proto::search::turbo_search_service_client::TurboSearchServiceClient;
 use turbo_kserve::proto::search::*;
 use turbo_kserve::proto::vocabulary::{DownloadVocabularyRequest, VocabularyArtifactChunk};
+use turbo_kserve::{Serve, Server};
 
 const NAME: &str = "tiny-bert-bundle";
 
@@ -150,4 +154,96 @@ async fn download_vocabulary_refusal_ends_the_stream_with_the_servers_metadata()
     let (msgs, end) = stream(&demo, path, &req).await.frames::<VocabularyArtifactChunk>().await;
     assert!(msgs.is_empty());
     assert!(end.starts_with(r#"{"error":{"code":""#) && end.contains(r#""metadata":{"turbo-code":[""#), "{end}");
+}
+
+#[tokio::test]
+#[ignore = "requires GLINER_PACKAGE and GLINER2_PACKAGE release candidates"]
+async fn document_graph_matches_between_connect_and_grpc() {
+    let entity_package = turbo_pins::require(std::env::var("GLINER_PACKAGE").expect("GLINER_PACKAGE"));
+    let relation_package = turbo_pins::require(std::env::var("GLINER2_PACKAGE").expect("GLINER2_PACKAGE"));
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, Serve { admin: true, ..Serve::default() })
+        .await
+        .unwrap();
+    let d = demo(&s, &[]).await;
+    let mut grpc = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    for (name, package) in [("gliner", entity_package), ("relations", relation_package)] {
+        grpc.load_bundle(LoadBundleRequest {
+            name: name.into(),
+            bundle: package.to_string_lossy().into_owned(),
+            device: 0,
+            sessions: 1,
+            precision: 0,
+            max_batch: 0,
+            max_seq: 0,
+            select_device: false,
+            user: String::new(),
+        })
+        .await
+        .unwrap();
+    }
+    let req = AnalyzePipelineRequest {
+        doc_id: "document-graph-connect".into(),
+        text: "Steve Jobs founded Apple in Cupertino. Tim Cook works for Apple.".into(),
+        model: "gliner".into(),
+        relation_model: "relations".into(),
+        steps: vec![
+            "turbo-sentdetect:rules".into(),
+            "turbo-tokenize:uax29-untyped".into(),
+            "turbo:gliner".into(),
+            "turbo:zero-shot-relations".into(),
+        ],
+        open_span: Some(OpenSpanSchema {
+            labels: vec!["person".into(), "organization".into(), "location".into()],
+            threshold: Some(0.8),
+            nested: false,
+        }),
+        relations: Some(OpenRelationSchema {
+            labels: vec![
+                OpenRelationLabel {
+                    name: "founded".into(),
+                    threshold: None,
+                    symmetric: false,
+                    domain: vec!["person".into()],
+                    range: vec!["organization".into()],
+                },
+                OpenRelationLabel {
+                    name: "works for".into(),
+                    threshold: None,
+                    symmetric: false,
+                    domain: vec!["person".into()],
+                    range: vec!["organization".into()],
+                },
+                OpenRelationLabel {
+                    name: "located in".into(),
+                    threshold: None,
+                    symmetric: false,
+                    domain: vec!["organization".into()],
+                    range: vec!["location".into()],
+                },
+            ],
+            threshold: Some(0.5),
+            within_sentence: true,
+        }),
+        ..Default::default()
+    };
+    let path = "/turbo.result.v1.AnalysisService/AnalyzeDocumentProgressive";
+    let (got, end) = stream(&d, path, &req).await.frames::<AnalyzeProgressiveEvent>().await;
+    assert_eq!(end, "{}");
+    let mut want = Vec::new();
+    let mut direct = grpc.analyze_document_progressive(req).await.unwrap().into_inner();
+    while let Some(event) = direct.message().await.unwrap() {
+        want.push(event);
+    }
+    assert_eq!(got.len(), want.len());
+    let (Some(Event::Complete(connect)), Some(Event::Complete(direct))) =
+        (&got[got.len() - 2].event, &want[want.len() - 2].event)
+    else {
+        panic!("no Complete event")
+    };
+    assert_eq!(connect.graph, direct.graph);
+    assert!(connect.layers.iter().any(|l| l.layer == "turbo:entities"));
+    assert!(connect.layers.iter().any(|l| l.layer == "turbo:gliner-decisions"));
+    assert!(connect.layers.iter().any(|l| l.layer == "turbo:relations"));
+    assert!(connect.layers.iter().any(|l| l.layer.starts_with("turbo:edges")));
+    s.stop().await;
 }

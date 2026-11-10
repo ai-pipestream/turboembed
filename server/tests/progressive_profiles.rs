@@ -156,6 +156,9 @@ async fn each_named_profile_runs_from_single_request_and_produces_exact_listed_l
             pii_output: None,
             operation_key: String::new(),
             pii_redaction: None,
+            open_span: None,
+            relations: None,
+            relation_model: String::new(),
         };
         let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();
         let mut events = Vec::new();
@@ -222,6 +225,9 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             pii_output: None,
             operation_key: String::new(),
             pii_redaction: None,
+            open_span: None,
+            relations: None,
+            relation_model: String::new(),
         })
         .await
         .unwrap_err();
@@ -246,6 +252,9 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             pii_output: None,
             operation_key: String::new(),
             pii_redaction: None,
+            open_span: None,
+            relations: None,
+            relation_model: String::new(),
         })
         .await
         .unwrap_err();
@@ -268,6 +277,9 @@ async fn missing_bundle_for_profile_is_refused_naming_the_missing_bundle() {
             pii_output: None,
             operation_key: String::new(),
             pii_redaction: None,
+            open_span: None,
+            relations: None,
+            relation_model: String::new(),
         })
         .await
         .unwrap_err();
@@ -326,6 +338,9 @@ async fn end_to_end_normalize_tokenize_subwords_chunk_embed_projects_bidirection
         pii_output: None,
         operation_key: String::new(),
         pii_redaction: None,
+        open_span: None,
+        relations: None,
+        relation_model: String::new(),
     };
 
     let mut stream = client.analyze_document_progressive(req).await.unwrap().into_inner();

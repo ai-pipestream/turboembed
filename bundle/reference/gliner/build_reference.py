@@ -37,22 +37,30 @@ if (root / "model.safetensors").exists():
 else:
     weights = torch.load(root / "pytorch_model.bin", map_location="cpu", weights_only=True)
 ec = json.loads((root / "encoder-config.json").read_text())
+gc = json.loads((root / "gliner_config.json").read_text())
+hidden = gc["hidden_size"]
+width = gc["max_width"]
 vocab_size = weights["token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight"].shape[0]
 ec["vocab_size"] = vocab_size
 cfg = DebertaV2Config(**ec)
 encoder = DebertaV2Model(cfg).eval()
 encoder.load_state_dict({k.removeprefix("token_rep_layer.bert_layer.model."): v for k, v in weights.items() if k.startswith("token_rep_layer.bert_layer.model.")}, strict=True)
-projection = torch.nn.Linear(768, 512).eval()
-projection.load_state_dict({k.removeprefix("token_rep_layer.projection."): v for k,v in weights.items() if k.startswith("token_rep_layer.projection.")}, strict=True)
-rnn = LstmSeq2SeqEncoder(types.SimpleNamespace(hidden_size=512)).eval()
+projection_weights = {k.removeprefix("token_rep_layer.projection."): v for k,v in weights.items() if k.startswith("token_rep_layer.projection.")}
+if projection_weights:
+    projection = torch.nn.Linear(ec["hidden_size"], hidden).eval()
+    projection.load_state_dict(projection_weights, strict=True)
+else:
+    assert ec["hidden_size"] == hidden
+    projection = torch.nn.Identity()
+rnn = LstmSeq2SeqEncoder(types.SimpleNamespace(hidden_size=hidden)).eval()
 rnn.load_state_dict({k.removeprefix("rnn."):v for k,v in weights.items() if k.startswith("rnn.")}, strict=True)
-span = SpanMarkerV0(512, 12).eval()
+span = SpanMarkerV0(hidden, width).eval()
 span.load_state_dict({k.removeprefix("span_rep_layer.span_rep_layer."):v for k,v in weights.items() if k.startswith("span_rep_layer.span_rep_layer.")}, strict=True)
-prompt = create_projection_layer(512, 0.4).eval()
+prompt = create_projection_layer(hidden, 0.4).eval()
 prompt.load_state_dict({k.removeprefix("prompt_rep_layer."):v for k,v in weights.items() if k.startswith("prompt_rep_layer.")}, strict=True)
 tok = DebertaV2TokenizerFast(vocab_file=str(root / "spm.model"))
-tok.add_tokens(["[FLERT]", "<<ENT>>", "<<SEP>>"])
-ent_id = vocab_size - 2
+tok.add_tokens((["[FLERT]"] if vocab_size in [128004, 250105] else []) + ["<<ENT>>", "<<SEP>>"])
+ent_id = gc.get("class_token_index", vocab_size - 2)
 assert tok.convert_tokens_to_ids("<<ENT>>") == ent_id
 if vocab_size == 250105:
     checkpoint_id = "urchade/gliner_multi-v2.1"
@@ -73,6 +81,8 @@ else:
         (["emoji", "person"], ["Zoë", "😀🧬", "𐍈", "."]),
         (["organization", "location", "university"], ["University", "of", "California", "is", "in", "California", "."]),
     ]
+checkpoint_id = sys.argv[3] if len(sys.argv) > 3 else checkpoint_id
+revision = sys.argv[4] if len(sys.argv) > 4 else revision
 out=[]
 with torch.no_grad():
     for labels, words in cases:
@@ -85,11 +95,11 @@ with torch.no_grad():
         h=projection(encoder(input_ids=batch["input_ids"],attention_mask=batch["attention_mask"]).last_hidden_state)
         w=rnn(h[:,positions], torch.ones((1,len(words)),dtype=torch.bool))
         p=prompt(h[:,markers])
-        indices=torch.tensor([[(i,min(i+k,len(words)-1)) for i in range(len(words)) for k in range(12)]])
+        indices=torch.tensor([[(i,min(i+k,len(words)-1)) for i in range(len(words)) for k in range(width)]])
         logits=torch.einsum("blkd,bcd->blkc",span(w,indices),p)[0]
         scores=[]
         for i in range(len(words)):
-            for k in range(min(12,len(words)-i)):
+            for k in range(min(width,len(words)-i)):
                 for l in range(len(labels)):
                     scores.append(float(logits[i,k,l]))
         decoded={}
