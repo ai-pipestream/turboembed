@@ -3,8 +3,8 @@
 //! `Puerto Rico`), as written in the table or all in capitals, at word
 //! boundaries, with single spaces between its words. `Washington, D.C.`
 //! and `Washington DC` are the District, `New York City` is a city, not
-//! the state, and a name before a county word (`Washington County`) is
-//! the county's. A two-letter USPS code (`IL`) is a common word or
+//! the state, and a name before a county word that makes a county of the
+//! list (`Washington County`) is the county's. A two-letter USPS code (`IL`) is a common word or
 //! abbreviation too (`IN`, `OR`, `ME`, `OK`), so it is a mention only in
 //! capitals and only after a state label (`State: IL`) or before a ZIP
 //! code (`Springfield, IL 62704`). The normalized form is the USPS code.
@@ -14,7 +14,7 @@ use turbo_analysis_layers::{PiiEvidence, PiiKind};
 use super::national::on_number_end;
 use super::us_labelled::STATES;
 use crate::hits::Hits;
-use crate::tables::us_counties::SUFFIXES;
+use crate::tables::us_counties::{SUFFIXES, county};
 use crate::tables::us_states::US_STATES;
 use crate::text::{on_end, on_word_start};
 use crate::window::find_any_label;
@@ -62,11 +62,15 @@ fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
     if *code == "NY" && b.get(end..end + 5).is_some_and(|w| w.eq_ignore_ascii_case(b" city")) && on_end(text, end + 5) {
         return None;
     }
-    // `Washington County` is a county, and the county scanner reads it.
+    // `Washington County` is a county, and the county scanner reads it;
+    // a suffix word that makes no county (`the Texas area`, `Illinois
+    // County`) leaves the state.
     if b.get(end) == Some(&b' ')
         && SUFFIXES.iter().any(|s| {
             let at = end + 1;
-            b.get(at..at + s.len()).is_some_and(|w| w.eq_ignore_ascii_case(s.as_bytes())) && on_end(text, at + s.len())
+            b.get(at..at + s.len()).is_some_and(|w| w.eq_ignore_ascii_case(s.as_bytes()))
+                && on_end(text, at + s.len())
+                && county(&text[i..at + s.len()]).is_some()
         })
     {
         return None;
