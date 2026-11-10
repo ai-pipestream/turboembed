@@ -101,7 +101,7 @@ pub fn train_events(
 ) -> Result<(TrainedModel, TrainingReport)> {
     Ok(match event_trainer(params)? {
         Algorithm::MaxentQn => {
-            let (model, report) = qn::train_events(events, params)?;
+            let (model, report) = qn::train_events_with(events, params, config)?;
             (TrainedModel::Qn(model), report)
         }
         Algorithm::Perceptron => {
@@ -126,7 +126,7 @@ pub fn train(
     config: &mut TrainingConfiguration,
 ) -> Result<TrainedModel> {
     Ok(match event_trainer(params)? {
-        Algorithm::MaxentQn => TrainedModel::Qn(qn::train(index, params)?),
+        Algorithm::MaxentQn => TrainedModel::Qn(qn::train_with(index, params, config)?),
         Algorithm::Perceptron => TrainedModel::Perceptron(perceptron::train(index, params, config)?),
         Algorithm::NaiveBayes => TrainedModel::NaiveBayes(naive_bayes::train(index, params)?),
         _ => TrainedModel::Gis(gis::train(index, params, config)?),

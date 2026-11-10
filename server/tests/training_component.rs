@@ -4,7 +4,8 @@
 //! trainer the component would not run as asked among them; progress in
 //! its documented order; a perceptron categorizer that categorizes; one
 //! training at a time; and a training whose client goes away, during the
-//! upload or the training, stopping and freeing its slot.
+//! upload or the training, stopping and freeing its slot; and samples
+//! past the 256 MiB a training holds refused.
 
 mod common;
 
@@ -14,7 +15,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Code;
 use tonic::transport::Channel;
-use turbo_kserve::api::{TURBO_E_BUSY, TURBO_E_INVALID_ARGUMENT, TURBO_E_UNSUPPORTED};
+use turbo_kserve::api::{TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT, TURBO_E_UNSUPPORTED};
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::training::train_component_request::Part;
 use turbo_kserve::proto::training::train_component_update::Update;
@@ -314,5 +315,29 @@ async fn a_client_that_drops_the_answer_mid_upload_frees_the_slot() {
     .expect("the slot is freed while the upload is still open");
     assert!(matches!(updates.last(), Some(Update::Trained(_))), "{updates:?}");
     drop(tx);
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn samples_past_256_mib_are_refused_and_free_the_slot() {
+    let (s, mut c) = server(true).await;
+    // 256 chunks of 1 MiB fill the limit; the 257th byte over is refused.
+    let chunk = vec![b'a'; 1 << 20];
+    let requests = std::iter::once(start(ComponentKind::DocumentCategorizer, "en", &[]))
+        .chain((0..256).map(move |_| samples(&chunk)))
+        .chain(std::iter::once(samples(b"a")));
+    let e = async {
+        let mut stream = c.train_component(tokio_stream::iter(requests)).await?.into_inner();
+        while stream.message().await?.is_some() {}
+        Ok::<(), tonic::Status>(())
+    }
+    .await
+    .unwrap_err();
+    assert_eq!(refusal(&e), (Code::OutOfRange, TURBO_E_CAPACITY), "{e:?}");
+    assert!(e.message().contains("more than 268435456 bytes"), "{e:?}");
+    // The slot is free again.
+    let docs = start(ComponentKind::DocumentCategorizer, "en", &[("Cutoff", "0")]);
+    let updates = train(&mut c, vec![docs, samples(DOCS.as_bytes())]).await.unwrap();
+    assert!(matches!(updates.last(), Some(Update::Trained(_))), "{updates:?}");
     s.stop().await;
 }
