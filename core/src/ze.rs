@@ -218,6 +218,13 @@ fn decide(read_keys: Option<&std::ffi::OsStr>, faults: Option<&std::ffi::OsStr>)
     }
 }
 
+/// What [`page_faults_off`] decided, if it has run: None before any
+/// loader was found.
+#[cfg_attr(not(feature = "levelzero"), allow(dead_code))]
+pub fn page_faults_peek() -> Option<&'static Faults> {
+    FAULTS.get()
+}
+
 /// Turns the runtime's recoverable page faults off, once the loader is
 /// open and before any driver starts, unless the caller set
 /// EnableRecoverablePageFaults itself (to anything: -1 is the runtime's

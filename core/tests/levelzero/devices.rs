@@ -20,8 +20,9 @@ fn the_backend_is_linked_before_the_cpu_and_names_itself() {
 #[test]
 fn listing_turns_the_runtime_s_page_faults_off() {
     let Some(_) = gpu_device("listing_turns_the_runtime_s_page_faults_off") else { return };
-    if !turbo::ze::page_faults_off() {
-        println!("listing_turns_the_runtime_s_page_faults_off: skipped: the caller set EnableRecoverablePageFaults");
+    let faults = turbo::ze::page_faults_off();
+    if *faults != turbo::ze::Faults::Off {
+        println!("listing_turns_the_runtime_s_page_faults_off: skipped: {}", faults.describe());
         return;
     }
     assert_eq!(std::env::var("EnableRecoverablePageFaults").as_deref(), Ok("0"));
