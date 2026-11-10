@@ -306,9 +306,20 @@ fn a_ciphertext_decrypts_under_its_key_and_kind_only() {
     assert_ne!(sealed.ciphertext, c.seal(KIND, PLANTED).unwrap().ciphertext, "a fresh nonce each time");
     let text = String::from_utf8(sealed.ciphertext).unwrap();
     let dec = AesGcmEncryptor::new(&key).unwrap().with_context(CONTEXT);
-    assert_eq!(dec.decrypt(&text).unwrap(), ("BUILTIN:1".to_owned(), PLANTED.to_owned()));
-    let moved = text.replacen("BUILTIN:1", "BUILTIN:2", 1);
+    assert_eq!(dec.decrypt(&text).unwrap(), ("builtin:1".to_owned(), PLANTED.to_owned()));
+    let moved = text.replacen("builtin:1", "builtin:2", 1);
     assert!(dec.decrypt(&moved).is_err(), "another kind fails authentication");
+    // Custom kind names are case-sensitive: neither of a pair that differs
+    // only by case decrypts as the other, in the pair's own or any case.
+    let badge = String::from_utf8(c.seal("custom:Badge", PLANTED).unwrap().ciphertext).unwrap();
+    assert_eq!(dec.decrypt(&badge).unwrap(), ("custom:Badge".to_owned(), PLANTED.to_owned()));
+    for other in ["custom:badge", "custom:BADGE", "CUSTOM:BADGE", "Custom:Badge"] {
+        let moved = badge.replacen("custom:Badge", other, 1);
+        assert_ne!(moved, badge);
+        assert!(dec.decrypt(&moved).is_err(), "{other} is another kind");
+    }
+    let lower = String::from_utf8(c.seal("custom:badge", PLANTED).unwrap().ciphertext).unwrap();
+    assert!(dec.decrypt(&lower.replacen("custom:badge", "custom:Badge", 1)).is_err());
     assert!(AesGcmEncryptor::new(&key).unwrap().decrypt(&text).is_err(), "another context fails");
     assert!(AesGcmEncryptor::new(&[6u8; 32]).unwrap().with_context(CONTEXT).decrypt(&text).is_err());
     let debug = format!("{c:?}");

@@ -763,12 +763,14 @@ encryption strategies name, each exactly 32 bytes). With several keys,
 made under; it is refused without a grant that includes ciphertext.
 `PiiValueCiphertext` carries the scheme `turbo-pii-aes-256-gcm-v1`, the
 key's id and version, and as `ciphertext` the UTF-8 text of a
-`turbo-pii` AES-256-GCM token: the kind code in capitals (`BUILTIN:3`,
-`CUSTOM:BADGE`), `:`, and the unpadded base64url of a 12-byte nonce, the
-encrypted normalized value and the 16-byte tag. The associated data binds
-the kind code and the context `turbo-kserve.pii-release.v1`, so a holder
-of the key decrypts it with `AesGcmEncryptor` under that context, and a
-ciphertext moved to another kind fails authentication. Each release
+`turbo-pii` AES-256-GCM token: the kind code as it is, its case kept
+(`builtin:3`, `custom:Badge`), `:`, and the unpadded base64url of a
+12-byte nonce, the encrypted normalized value and the 16-byte tag. The
+associated data binds the exact kind code and the context
+`turbo-kserve.pii-release.v1`, so a holder of the key decrypts it with
+`AesGcmEncryptor` under that context, and a ciphertext moved to another
+kind fails authentication. Custom kind names are case-sensitive, so that
+holds for `custom:Badge` and `custom:badge` too. Each release
 draws a fresh nonce, so, unlike tokens, equal values give different
 ciphertexts. A grant with no ciphertext kind gives the policy digest it
 gave before ciphertext release.
