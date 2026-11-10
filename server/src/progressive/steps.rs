@@ -282,6 +282,10 @@ fn compile_pipeline_with(
     if total_norms > NORM_VIEWS.len() {
         return Err(bad(format!("pipeline exceeds maximum chained normalizer steps ({})", NORM_VIEWS.len())));
     }
+    // The cased branch is built only for a step that reads cased text.
+    let has_cased_reader = step_names
+        .iter()
+        .any(|&s| matches!(s, "turbo-sentdetect:rules" | "turbo:sentences" | "turbo-geo:names" | "turbo:entities"));
     let post_fold_norms = step_names
         .iter()
         .copied()
@@ -324,6 +328,8 @@ fn compile_pipeline_with(
                 None
             } else if !folded {
                 cased_norm_view = Some(write_v);
+                None
+            } else if !has_cased_reader {
                 None
             } else {
                 let cased_read_v = cased_norm_view.unwrap_or("");

@@ -236,3 +236,24 @@ async fn tokens_and_subwords_still_read_the_folded_view() {
     }
     assert_eq!(doc.get::<Subwords>().unwrap().spans.view(), ViewId::SOURCE);
 }
+
+#[test]
+fn the_cased_view_is_built_only_for_a_step_that_reads_it() {
+    let built = |norms: &[&str], readers: &[&str]| {
+        let mut doc = Document::new(DIRTY);
+        let steps: Vec<&str> = norms.iter().chain(readers).copied().collect();
+        let analyzer = compile_analyzer(&doc, &steps).unwrap();
+        analyzer.run(std::slice::from_mut(&mut doc)).into_iter().for_each(Result::unwrap);
+        // The folded chain is whole either way.
+        assert!(doc.require(&Key::<View>::named("normalized")).is_ok(), "{steps:?}");
+        ["cased", "cased_1"].map(|name| doc.get_key(&Key::<View>::named(name)).is_some())
+    };
+    let fold_first = ["turbo:normalize:case-fold", "turbo:normalize:invisible", "turbo:normalize"];
+    // Tokens read the folded view: no cased branch, not even its first view.
+    assert_eq!(built(&fold_first, &["turbo-tokenize:uax29-untyped"]), [false, false]);
+    assert_eq!(built(&fold_first, &[]), [false, false]);
+    // Each reader of cased text, under either of its names, asks for it.
+    for reader in ["turbo-sentdetect:rules", "turbo:sentences", "turbo-geo:names", "turbo:entities"] {
+        assert_eq!(built(&fold_first, &["turbo-tokenize:uax29-untyped", reader]), [true, true], "{reader}");
+    }
+}

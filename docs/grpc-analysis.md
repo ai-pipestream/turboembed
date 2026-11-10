@@ -219,7 +219,8 @@ rule sentence step (`turbo-sentdetect:rules`) and the place-name step
 out (or the source when the fold is the only normalizer), so every
 non-fold normalizer in the chain still reaches them wherever the fold
 sits, and their spans are in source offsets as always. No extra view is
-built when the chain has no fold or has the fold last. A full fold also
+built when the chain has no fold, has the fold last, or the request has
+no step that reads cased text. A full fold also
 rewrites spellings (`ﬁ` to `fi`, `ſ` to `s`), as NFKC (`turbo:normalize`,
 `turbo:normalize:nfkc`) does, which would otherwise turn words the text
 does not write into place names. Tokens, subwords and the steps that read
