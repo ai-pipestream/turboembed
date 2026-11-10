@@ -90,15 +90,27 @@ impl Error {
     }
 
     /// The limit and counts of an [`Error::over_limit`] error, or `None`
-    /// for any other. A detail that has the prefix but holds anything
-    /// besides lower case ASCII letters, digits, spaces, `_` and `,` is
-    /// not one, so no other detail is mistaken for it.
+    /// for any other. A detail that has the prefix but not the exact
+    /// shape [`limit_detail`] reads is not one, so no other detail is
+    /// mistaken for it.
     pub fn limit_detail(&self) -> Option<&str> {
         let Error::Annotator { detail, .. } = self else { return None };
-        let rest = detail.strip_prefix(LIMIT_PREFIX)?;
-        let plain = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b" _,".contains(&b);
-        (!rest.is_empty() && rest.bytes().all(plain)).then_some(rest)
+        limit_detail(detail)
     }
+}
+
+/// [`Error::limit_detail`] on an annotator detail string, such as the one
+/// an exported error record carries. Only the exact shape
+/// [`Error::over_limit`] writes reads back: a name of lower case ASCII
+/// letters, digits, spaces and `_`, then two counts.
+pub fn limit_detail(detail: &str) -> Option<&str> {
+    let rest = detail.strip_prefix(LIMIT_PREFIX)?;
+    let count = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let (head, got) = rest.rsplit_once(", got ")?;
+    let (name, max) = head.rsplit_once(' ')?;
+    let plain = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit() || b" _".contains(&b);
+    let named = !name.trim().is_empty() && name.bytes().all(plain);
+    (named && count(max) && count(got)).then_some(rest)
 }
 
 #[cfg(test)]
@@ -110,7 +122,18 @@ mod tests {
         let e = Error::over_limit("gliner2", "encoder max_sequence", 512, 528);
         assert_eq!(e.limit_detail(), Some("encoder max_sequence 512, got 528"));
         assert_eq!(e.to_string(), "gliner2: limit: encoder max_sequence 512, got 528");
-        for detail in ["limit: ", "limit: Jane Doe 3", "limit: a\nb", "panic: x", "over 3"] {
+        let glirel = Error::over_limit("glirel", "glirel max_len", 384, 400);
+        assert_eq!(glirel.limit_detail(), Some("glirel max_len 384, got 400"));
+        for detail in [
+            "limit: ",
+            "limit: Jane Doe 3",
+            "limit: a\nb",
+            "panic: x",
+            "over 3",
+            "limit: some lower case words here 3",
+            "limit: a 1, got x",
+            "limit:  1, got 2",
+        ] {
             let e = Error::Annotator { annotator: "x", detail: detail.to_owned() };
             assert_eq!(e.limit_detail(), None, "{detail:?}");
         }

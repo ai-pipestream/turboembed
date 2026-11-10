@@ -25,9 +25,7 @@ use tonic::{Request, Response, Status};
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Analyzer, Document};
 
-use crate::api::{
-    Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
-};
+use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
 use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
 use crate::metrics::{DocGuard, StreamGuard};
@@ -35,7 +33,7 @@ use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
     AnalysisLayerBatch, AnalysisStarted, AnalysisStepFailure, AnalyzeFailure, AnalyzePipelineRequest,
-    AnalyzeProgressiveEvent, DocumentGraphResponse, InputBinding,
+    AnalyzeProgressiveEvent, DocumentGraphResponse, InputBinding, LayerErrorKind,
 };
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
@@ -85,25 +83,6 @@ fn plain(f: Failure) -> Status {
 
 fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
-}
-
-fn step_error_code(err: &turbo_analysis::Error) -> i32 {
-    match err {
-        turbo_analysis::Error::Annotator { detail, .. } if detail.starts_with("panic:") => TURBO_E_PANIC,
-        e @ turbo_analysis::Error::Annotator { .. } if e.limit_detail().is_some() => TURBO_E_CAPACITY,
-        turbo_analysis::Error::Annotator { .. } => TURBO_E_INTERNAL,
-        turbo_analysis::Error::Missing(_)
-        | turbo_analysis::Error::Duplicate(_)
-        | turbo_analysis::Error::Clash(_)
-        | turbo_analysis::Error::Misaligned { .. }
-        | turbo_analysis::Error::Unaligned { .. }
-        | turbo_analysis::Error::Pipeline(_) => TURBO_E_INVALID_STATE,
-        turbo_analysis::Error::Bounds { .. }
-        | turbo_analysis::Error::Invalid { .. }
-        | turbo_analysis::Error::Offset { .. }
-        | turbo_analysis::Error::Source(_) => TURBO_E_INVALID_ARGUMENT,
-        turbo_analysis::Error::Skipped(_) => 0,
-    }
 }
 
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
@@ -357,7 +336,7 @@ fn run_progressive_task(
                 .map(|r| layer_info(&snap_graph, r))
                 .collect();
             let error = of_error(&err);
-            let kind = crate::proto::result::LayerErrorKind::try_from(error.kind).unwrap_or_default();
+            let kind = LayerErrorKind::try_from(error.kind).unwrap_or_default();
             AnalyzeProgressiveEvent {
                 sequence: seq,
                 event: Some(Event::StepFailed(AnalysisStepFailure {
@@ -365,7 +344,7 @@ fn run_progressive_task(
                     stage: ev.timing.stage as u32,
                     duration_us: ev.timing.duration_us,
                     failure: Some(AnalyzeFailure {
-                        turbo_code: step_error_code(&err),
+                        turbo_code: error.turbo_code,
                         field: 0,
                         // A code name, never the error's text: an annotator's
                         // detail can quote the document (issue #1908). An

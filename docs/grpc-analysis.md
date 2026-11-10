@@ -195,6 +195,8 @@ pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
 fails that step with `TURBO_E_CAPACITY`, and the failure message names
 the limit and both counts, for example `step 'turbo:zero-shot-relations'
 failed: over its encoder max_sequence 512, got 528`; never the text.
+The step's layer error, in the step failure, the complete graph and
+the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
