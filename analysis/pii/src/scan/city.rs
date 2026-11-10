@@ -7,10 +7,14 @@
 //!   name or USPS code (`Springfield, IL`, `Mobile, Alabama`,
 //!   `San Juan, PR`), when the gazetteer holds a place of that name there;
 //! - directly after a city label (`city of Phoenix`, `City: Mobile`,
-//!   `place of birth: Lyon`), as any place of that name, or in the
-//!   state after it when a state name or code follows (`City: Mobile
-//!   Alabama`, `City: Springfield IL 62704`), unless another
-//!   capitalized word follows it (`City: San Foo`).
+//!   `place of birth: Lyon`), as any place of that name when no state
+//!   follows (unless another capitalized word follows it, `City: San Foo`),
+//!   or in the state after it when a state name or code follows (`City:
+//!   Springfield, IL`, `City: Mobile Alabama`, `City: Springfield IL
+//!   62704`), with no fallback to a record outside that state, so a
+//!   mismatched state (`City: Mobile, IL`) is refused at the cost of
+//!   smaller US homonyms missing from the 1:10m table under that state
+//!   (`City: Dublin, OH`, `City: Rome, NY`).
 //!
 //! A bare name with neither is no mention. The name has at most
 //! [`MAX_WORDS`] words with single spaces between them, its first and last
@@ -159,10 +163,12 @@ fn before_state(text: &str, comma: usize, code: &str) -> Option<(usize, usize, &
 }
 
 /// The longest city name that starts at `at`, after a label: any place of
-/// that name, or one in the state after it when one follows (`City:
-/// Springfield, IL`, `City: Springfield IL 62704`, `City: Mobile
-/// Alabama`). A name that another capitalized word follows is part of a
-/// longer one (`City: San Foo`), so it is no mention.
+/// that name when no state follows, or one in the state after it when one
+/// follows (`City: Springfield, IL`, `City: Springfield IL 62704`, `City:
+/// Mobile Alabama`), with no fallback to a place outside that state
+/// (`City: Mobile, IL` is no mention). A name that another capitalized
+/// word follows is part of a longer one (`City: San Foo`), so it is no
+/// mention.
 fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str)> {
     let mut ends = [0; MAX_WORDS];
     let n = word_ends(text, at, &mut ends);

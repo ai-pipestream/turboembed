@@ -54,6 +54,13 @@ stubs must be regenerated.
   (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`), a registry of exactly 32-byte keys
   kept apart from the token keys. A server built without the feature
   does not know the arms (#1885).
+- Ciphertext value release: `--pii-grant FINGERPRINT:ciphertext:KINDS`
+  releases `PII_VALUE_FORM_CIPHERTEXT` from `InspectDocumentGraph` as
+  `PiiValueCiphertext` (scheme `turbo-pii-aes-256-gcm-v1`), AES-256-GCM
+  under the active encryption key (`--pii-encryption-key-active`,
+  `TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`, among several), bound to the
+  kind. `--pii-output-allow` accepts `ciphertext`. Needs the
+  `pii-reversible` feature (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -178,9 +185,14 @@ stubs must be regenerated.
   `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
   `Places` pack: a populated place of the bundled Natural Earth gazetteer
   directly before its US state or territory (`Springfield, IL`,
-  `San Juan, PR`) or after a city label
-  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
-  (#1886).
+  `San Juan, PR`) or after a city label (`City: Phoenix`, `the city of
+  Mobile`, `City: Springfield IL 62704`, `City: Mobile Alabama`). When a
+  state follows a labelled city, the gazetteer must hold that place in
+  that state rather than falling back to any place of that name,
+  refusing 395,983 of 396,760 canonical `(name, state)` pairs (99.80%,
+  such as `City: Mobile, IL`) at the cost of smaller US homonyms absent
+  from the 1:10m table under that state (`City: Dublin, OH`). A bare
+  city name is no mention (#1886, #2107).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
@@ -352,9 +364,11 @@ stubs must be regenerated.
   (#2026).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
-  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
-  or redistribute the model. The 772-byte struct is still accepted, and
-  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
+  `TURBO_LICENSE_CLASS_*`), and `ModelMetadata` serves them as
+  `model_info.license` and `model_info.license_class`, so a caller can
+  check whether it may serve or redistribute the model. The 772-byte
+  struct is still accepted, and a `model.license` of 128 bytes or more
+  is `BUNDLE_INVALID` (#2019, #2041).
 
 ### Changed
 
@@ -376,10 +390,27 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `AnalyzeDocumentProgressive`: a document over a limit of
+  `turbo:zero-shot-relations` (such as the GLiNER2 encoder's 512 word
+  pieces) fails the step with `TURBO_E_CAPACITY` and a message naming the
+  limit and the counts, instead of `TURBO_E_INTERNAL` with no detail.
+  The layer's error has the new kind `LAYER_ERROR_KIND_LIMIT` with the
+  same code (#2125).
 - `AnalyzeDocumentProgressive`: in a step chain that folds case,
   `turbo-sentdetect:rules` reads the last view before the fold, so a
   folded document keeps its sentence boundaries instead of becoming one
   sentence (#2086).
+- `--pii-token-key`, `--pii-token-key-active` and `--pii-encryption-key`
+  (and their variables):
+  a value that does not parse is described by its length and parts, never
+  repeated, and a key file that cannot be loaded is named by its reference
+  and the path's length, so key text pasted into the flag does not reach
+  stderr (#2093).
+- `turbo-kserve`: an argument no flag claims is named without its value.
+  A misspelled `--flag=value` reads `unknown argument --flag=...`, and a
+  stray non-flag word, or `--` followed by text no flag could be, is
+  described by its length, so key text pasted there does not reach stderr
+  (#2102).
 - `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
   client goes away stops at its next iteration and frees the training
   slot, as GIS and the perceptron do (#2067).

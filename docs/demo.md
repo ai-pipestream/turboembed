@@ -404,10 +404,21 @@ for any refused call.
   (writes), `DownloadVocabulary` streamed into a file, and
   `DeleteVocabularyArtifact` (write).
 - Server: the server's name, version and readiness (`ServerLive`,
-  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
-  profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
-- Models: `ListModelCatalog` for the demo's user, each artifact's
-  licence terms still to accept shown with the licence, its class and
+  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, with task
+  and prompt roles in plain words, analysis profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
+- Models: `ListModelCatalog` for the demo's user as a list, an entry
+  per artifact with its id, kind in plain words (model, head, dataset,
+  lexicon), language, licence and size. A filter box narrows the list
+  to the entries whose id, kind, language or licence holds every word
+  typed, whatever the case (words are parted by any Unicode white space,
+  the next-line control included; `ß`, `ẞ` and `SS` compare equal, as
+  do a final and a medial sigma; and a kind also matches in its enum
+  spelling), and a chip per kind with its count shows
+  only that kind; both work in the page on the catalog already read
+  (demo/web/src/catalogfilter.ts) and stay set when the catalog is read
+  again after a change. Installed models and accepted terms are listed
+  above the catalog. Each artifact's
+  licence terms still to accept are shown with the licence, its class and
   what that class means in plain words, the attribution, the training
   data and a link to the terms text. An "I have read and accept"
   control enables `RecordLicenceAcceptance` (write), which sends the
@@ -417,8 +428,8 @@ for any refused call.
   which artifact's page, each with `RevokeLicenceAcceptance` (write).
   An artifact whose licence, or any data it was trained on, is
   non-commercial (`CC-BY-NC-*`) says "Non-commercial use only" beside
-  its licence. Once the user may have an artifact, a Save button per
-  file reads it through `ReadModelFile` (a read, the same stream the
+  its licence. Once the user may have an artifact, its files open under
+  a disclosure with a Save button per file, which reads it through `ReadModelFile` (a read, the same stream the
   library reads), hashes it as it arrives, and hands the browser the
   file only when its size and SHA-256 are the ones the catalog lists
   (demo/web/src/tabs/download.ts). The file is held in the page's
@@ -509,6 +520,10 @@ the page makes goes through the demo to the server.
   error in the page.
 - Embed answers with a card per served model and no error, the header
   shows the server up, and the arrow keys move between the tabs.
+- The catalog read from the server narrows to the entries matching the
+  words typed and to one kind by its chip, says how many of how many
+  are shown, names no kind by its enum, and says so when nothing
+  matches.
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

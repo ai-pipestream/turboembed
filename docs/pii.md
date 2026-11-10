@@ -949,15 +949,29 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
     there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
     `Mobile, IL`). The gazetteer files the territories under their own
     country codes, which are their USPS codes;
-  - directly after a city label, as any place of that name, or one in
-    the state after it when a state follows (`City: Springfield, IL`,
-    `City: Springfield IL 62704`, `City: Mobile Alabama`): `city of
-    residence`, `place of birth`, `city of` and `town of` with or without
-    a colon, and `birthplace`, `city/town`, `city` and `town` only with
-    one (`City: Phoenix`, `the city of Mobile`), as `the city Council`
-    names none. A known name that a space and another capitalized word
-    follow is the start of a longer name (`City: San Foo`), so it is no
-    mention.
+  - directly after a city label, as any place of that name when no state
+    follows, or as a place of that state when a state follows (`City:
+    Springfield, IL`, `City: Springfield IL 62704`, `City: Mobile
+    Alabama`): `city of residence`, `place of birth`, `city of` and
+    `town of` with or without a colon, and `birthplace`, `city/town`,
+    `city` and `town` only with one (`City: Phoenix`, `the city of
+    Mobile`), as `the city Council` names none. When a state follows
+    (after `, ` by name or USPS code, or after a space by state name or
+    by a capital USPS code before a ZIP code, #2107), the gazetteer must
+    hold a place of that name in that state rather than falling back to
+    any place of that name: across the 7,085 distinct canonical place
+    names of `BundledGazetteer` and the 56 US states and territories
+    (396,760 pairs), only 777 pairs are in-state matches and 395,983
+    mismatched pairs (99.80%, or 40,719 of 41,496 pairs, 98.13%, across
+    the 741 distinct US and territory city names, such as `City: Mobile,
+    IL`, `City: Mobile Illinois` and `City: Mobile IL 62704`) are
+    refused, at the cost of smaller US homonyms below Natural Earth's
+    1:10m population floor under that state (`City: Dublin, OH`, `City:
+    Rome, NY`, `City: Moscow, ID`, which match the foreign capital only
+    when no conflicting US state follows). When no state follows, a
+    known name that a space and another capitalized word follow is the
+    start of a longer name (`City: San Foo`, `the city of Paris
+    Hilton`), so it is no mention.
 
   A bare name (`Chicago is large`) is no mention. The name has at most
   five words with single spaces between them, and its first and last
