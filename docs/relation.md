@@ -160,8 +160,11 @@ Stage status for the full document graph:
 - Included in the preview: the dependency-path rules (`RelationAnnotator`,
   with the default libraries as starting rules) and the GLiNER2 scorer in
   `AnalyzeDocumentProgressive`.
-- Experimental: GLiREL, available in process only, and any trained relation
-  head. Neither is served.
+- Experimental: a trained relation classifier head. It is served, as the
+  `turbo-tagger:relations` step of `AnalyzeDocumentProgressive` for a bundle
+  that carries `head.relations` (see [grpc-analysis.md](grpc-analysis.md)),
+  but no release corpus has measured its quality yet.
+- Experimental and in process only: GLiREL. No serving step runs it.
 
 `analysis/relation/tests/release_acceptance.rs` runs the rules and the GLiREL
 scorer in one analyzer over one shared `Entities` layer, the scorer writing
