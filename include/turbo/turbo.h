@@ -705,10 +705,11 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * checked against the model before the device. Only then is above 1 on a
  * device whose turbo_capability.options_honored lacks field 9's bit, on a
  * static model (its table is its one layer), or on a model whose device
- * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu
- * and metal backends set the bit and read the earlier layers of their BERT,
- * RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders. count times layers
- * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
+ * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu,
+ * levelzero and metal backends set the bit and read the earlier layers of
+ * their BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders.
+ * count times layers over the session's max_ranges is TURBO_E_CAPACITY.
+ * Everything else is as
  * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
                                        const turbo_token_range *ranges, uint32_t count,

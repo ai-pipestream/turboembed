@@ -267,6 +267,7 @@ fn street(text: &str, start: usize) -> Option<usize> {
     let year = digits == 4 && p == start + 4 && matches!(b[start..start + 2], [b'1', b'9'] | [b'2', b'0']);
     let year_safe = is_street_only_suffix(suffix_word)
         && !suffix_word.eq_ignore_ascii_case("Court")
+        && !suffix_word.eq_ignore_ascii_case("Ct")
         && !suffix_word.eq_ignore_ascii_case("Loop");
     if year && end == words[suffix].1 && !year_safe && !comma_city(text, end) {
         return None;

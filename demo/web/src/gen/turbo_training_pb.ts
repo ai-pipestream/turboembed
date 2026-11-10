@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file turbo_training.proto.
  */
 export const file_turbo_training: GenFile = /*@__PURE__*/
-  fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiXgoLTW9kZWxTb3VyY2USDAoEbmFtZRgBIAEoCRIPCgdhZGRyZXNzGAIgASgJEjAKB3NpZ25faW4YAyABKA4yHy50dXJiby50cmFpbmluZy52MS5Tb3VyY2VTaWduSW4iJwoXTGlzdE1vZGVsU291cmNlc1JlcXVlc3QSDAoEdXNlchgBIAEoCSJ/ChhMaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USDAoEdXNlchgBIAEoCRIvCgdzb3VyY2VzGAIgAygLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2USDQoFYWRtaW4YAyABKAgSFQoNZHJpdmVfc2lnbl9pbhgEIAEoCCKGAQoaUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QSDAoEdXNlchgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2FkZHJlc3MYAyABKAkSDwoHYXBpX2tleRgEIAEoCRIqCgdzM19rZXlzGAUgASgLMhkudHVyYm8udHJhaW5pbmcudjEuUzNLZXlzInMKBlMzS2V5cxIVCg1hY2Nlc3Nfa2V5X2lkGAEgASgJEhkKEXNlY3JldF9hY2Nlc3Nfa2V5GAIgASgJEhUKDXNlc3Npb25fdG9rZW4YAyABKAkSDgoGcmVnaW9uGAQgASgJEhAKCGVuZHBvaW50GAUgASgJIlsKG1JlZ2lzdGVyTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEi4KBnNvdXJjZRgCIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsU291cmNlIjYKGFJlbW92ZU1vZGVsU291cmNlUmVxdWVzdBIMCgR1c2VyGAEgASgJEgwKBG5hbWUYAiABKAkiQQoZUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEhYKDndhc19yZWdpc3RlcmVkGAIgASgIIkYKF1N0YXJ0RHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdhZGRyZXNzGAMgASgJIlQKGFN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRIVCg1hdXRob3JpemVfdXJsGAEgASgJEg0KBXN0YXRlGAIgASgJEhIKCmV4cGlyZXNfaW4YAyABKA0iRQoYRmluaXNoRHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDQoFc3RhdGUYAiABKAkSDAoEY29kZRgDIAEoCSJZChlGaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlEgwKBHVzZXIYASABKAkSLgoGc291cmNlGAIgASgLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2UiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqhAQoMU291cmNlU2lnbkluEh4KGlNPVVJDRV9TSUdOX0lOX1VOU1BFQ0lGSUVEEAASHgoaU09VUkNFX1NJR05fSU5fRU5WSVJPTk1FTlQQARIZChVTT1VSQ0VfU0lHTl9JTl9HT09HTEUQAhIaChZTT1VSQ0VfU0lHTl9JTl9BUElfS0VZEAMSGgoWU09VUkNFX1NJR05fSU5fUzNfS0VZUxAEKqIBCgxJbnN0YWxsU3RhZ2USHQoZSU5TVEFMTF9TVEFHRV9VTlNQRUNJRklFRBAAEhoKFklOU1RBTExfU1RBR0VfQURNSVRURUQQARIdChlJTlNUQUxMX1NUQUdFX0RPV05MT0FESU5HEAISHAoYSU5TVEFMTF9TVEFHRV9ET1dOTE9BREVEEAMSGgoWSU5TVEFMTF9TVEFHRV9WRVJJRklFRBAEKlcKC1N0YXRpY0R0eXBlEhwKGFNUQVRJQ19EVFlQRV9VTlNQRUNJRklFRBAAEhQKEFNUQVRJQ19EVFlQRV9GMzIQARIUChBTVEFUSUNfRFRZUEVfRjE2EAIq1wEKClRyYWluU3RhZ2USGwoXVFJBSU5fU1RBR0VfVU5TUEVDSUZJRUQQABIYChRUUkFJTl9TVEFHRV9BRE1JVFRFRBABEhQKEFRSQUlOX1NUQUdFX0tFUFQQAhIZChVUUkFJTl9TVEFHRV9FTUJFRERJTkcQAxIXChNUUkFJTl9TVEFHRV9SRURVQ0VEEAQSGAoUVFJBSU5fU1RBR0VfTUVBU1VSRUQQBRIWChJUUkFJTl9TVEFHRV9TRUFMRUQQBhIWChJUUkFJTl9TVEFHRV9MT0FERUQQBzKyDAoTVHVyYm9DYXRhbG9nU2VydmljZRJrChBMaXN0TW9kZWxDYXRhbG9nEioudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1JlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USdAoTTGlzdEluc3RhbGxlZE1vZGVscxItLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXF1ZXN0Gi4udHVyYm8udHJhaW5pbmcudjEuTGlzdEluc3RhbGxlZE1vZGVsc1Jlc3BvbnNlEoABChdSZWNvcmRMaWNlbmNlQWNjZXB0YW5jZRIxLnR1cmJvLnRyYWluaW5nLnYxLlJlY29yZExpY2VuY2VBY2NlcHRhbmNlUmVxdWVzdBoyLnR1cmJvLnRyYWluaW5nLnYxLlJlY29yZExpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USXwoMSW5zdGFsbE1vZGVsEiYudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbE1vZGVsUmVxdWVzdBolLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFVwZGF0ZTABEmIKDURlc2NyaWJlTW9kZWwSJy50dXJiby50cmFpbmluZy52MS5EZXNjcmliZU1vZGVsUmVxdWVzdBooLnR1cmJvLnRyYWluaW5nLnYxLkRlc2NyaWJlTW9kZWxSZXNwb25zZRJfCgxSZXNvbHZlTW9kZWwSJi50dXJiby50cmFpbmluZy52MS5SZXNvbHZlTW9kZWxSZXF1ZXN0GicudHVyYm8udHJhaW5pbmcudjEuUmVzb2x2ZU1vZGVsUmVzcG9uc2USXQoNUmVhZE1vZGVsRmlsZRInLnR1cmJvLnRyYWluaW5nLnYxLlJlYWRNb2RlbEZpbGVSZXF1ZXN0GiEudHVyYm8udHJhaW5pbmcudjEuTW9kZWxGaWxlQ2h1bmswARKAAQoXUmV2b2tlTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEn0KFkxpc3RMaWNlbmNlQWNjZXB0YW5jZXMSMC50dXJiby50cmFpbmluZy52MS5MaXN0TGljZW5jZUFjY2VwdGFuY2VzUmVxdWVzdBoxLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXNwb25zZRJrChBMaXN0TW9kZWxTb3VyY2VzEioudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsU291cmNlc1JlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USdAoTUmVnaXN0ZXJNb2RlbFNvdXJjZRItLnR1cmJvLnRyYWluaW5nLnYxLlJlZ2lzdGVyTW9kZWxTb3VyY2VSZXF1ZXN0Gi4udHVyYm8udHJhaW5pbmcudjEuUmVnaXN0ZXJNb2RlbFNvdXJjZVJlc3BvbnNlEm4KEVJlbW92ZU1vZGVsU291cmNlEisudHVyYm8udHJhaW5pbmcudjEuUmVtb3ZlTW9kZWxTb3VyY2VSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRJrChBTdGFydERyaXZlU2lnbkluEioudHVyYm8udHJhaW5pbmcudjEuU3RhcnREcml2ZVNpZ25JblJlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5TdGFydERyaXZlU2lnbkluUmVzcG9uc2USbgoRRmluaXNoRHJpdmVTaWduSW4SKy50dXJiby50cmFpbmluZy52MS5GaW5pc2hEcml2ZVNpZ25JblJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5GaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlMsEDChRUdXJib1RyYWluaW5nU2VydmljZRJfCgxMaXN0VGVhY2hlcnMSJi50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXF1ZXN0GicudHVyYm8udHJhaW5pbmcudjEuTGlzdFRlYWNoZXJzUmVzcG9uc2USawoQVHJhaW5TdGF0aWNNb2RlbBIqLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxSZXF1ZXN0GikudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFVwZGF0ZTABEmsKEExpc3RTdGF0aWNNb2RlbHMSKi50dXJiby50cmFpbmluZy52MS5MaXN0U3RhdGljTW9kZWxzUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRJuChFEZWxldGVTdGF0aWNNb2RlbBIrLnR1cmJvLnRyYWluaW5nLnYxLkRlbGV0ZVN0YXRpY01vZGVsUmVxdWVzdBosLnR1cmJvLnRyYWluaW5nLnYxLkRlbGV0ZVN0YXRpY01vZGVsUmVzcG9uc2ViBnByb3RvMw");
+  fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiXgoLTW9kZWxTb3VyY2USDAoEbmFtZRgBIAEoCRIPCgdhZGRyZXNzGAIgASgJEjAKB3NpZ25faW4YAyABKA4yHy50dXJiby50cmFpbmluZy52MS5Tb3VyY2VTaWduSW4iJwoXTGlzdE1vZGVsU291cmNlc1JlcXVlc3QSDAoEdXNlchgBIAEoCSJ/ChhMaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USDAoEdXNlchgBIAEoCRIvCgdzb3VyY2VzGAIgAygLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2USDQoFYWRtaW4YAyABKAgSFQoNZHJpdmVfc2lnbl9pbhgEIAEoCCKGAQoaUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QSDAoEdXNlchgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2FkZHJlc3MYAyABKAkSDwoHYXBpX2tleRgEIAEoCRIqCgdzM19rZXlzGAUgASgLMhkudHVyYm8udHJhaW5pbmcudjEuUzNLZXlzInMKBlMzS2V5cxIVCg1hY2Nlc3Nfa2V5X2lkGAEgASgJEhkKEXNlY3JldF9hY2Nlc3Nfa2V5GAIgASgJEhUKDXNlc3Npb25fdG9rZW4YAyABKAkSDgoGcmVnaW9uGAQgASgJEhAKCGVuZHBvaW50GAUgASgJIlsKG1JlZ2lzdGVyTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEi4KBnNvdXJjZRgCIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsU291cmNlIjYKGFJlbW92ZU1vZGVsU291cmNlUmVxdWVzdBIMCgR1c2VyGAEgASgJEgwKBG5hbWUYAiABKAkiQQoZUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEhYKDndhc19yZWdpc3RlcmVkGAIgASgIIkYKF1N0YXJ0RHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdhZGRyZXNzGAMgASgJIlQKGFN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRIVCg1hdXRob3JpemVfdXJsGAEgASgJEg0KBXN0YXRlGAIgASgJEhIKCmV4cGlyZXNfaW4YAyABKA0iRQoYRmluaXNoRHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDQoFc3RhdGUYAiABKAkSDAoEY29kZRgDIAEoCSJZChlGaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlEgwKBHVzZXIYASABKAkSLgoGc291cmNlGAIgASgLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2UiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCLuAQoTVHJhaW5Db21wb25lbnRTdGFydBIzCgljb21wb25lbnQYASABKA4yIC50dXJiby50cmFpbmluZy52MS5Db21wb25lbnRLaW5kEhAKCGxhbmd1YWdlGAIgASgJEkoKCnBhcmFtZXRlcnMYAyADKAsyNi50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFN0YXJ0LlBhcmFtZXRlcnNFbnRyeRIRCgluYW1lX3R5cGUYBCABKAkaMQoPUGFyYW1ldGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiawoVVHJhaW5Db21wb25lbnRSZXF1ZXN0EjcKBXN0YXJ0GAEgASgLMiYudHVyYm8udHJhaW5pbmcudjEuVHJhaW5Db21wb25lbnRTdGFydEgAEhEKB3NhbXBsZXMYAiABKAxIAEIGCgRwYXJ0Iq8BChZUcmFpbkNvbXBvbmVudFByb2dyZXNzEjAKBXN0YWdlGAEgASgOMiEudHVyYm8udHJhaW5pbmcudjEuQ29tcG9uZW50U3RhZ2USDwoHc2FtcGxlcxgCIAEoBBIRCglpdGVyYXRpb24YAyABKA0SDwoHY29ycmVjdBgEIAEoBBIOCgZldmVudHMYBSABKAQSDwoHbWVhc3VyZRgGIAEoCRINCgV2YWx1ZRgHIAEoASJ2ChBUcmFpbmVkQ29tcG9uZW50EjMKCWNvbXBvbmVudBgBIAEoDjIgLnR1cmJvLnRyYWluaW5nLnYxLkNvbXBvbmVudEtpbmQSDwoHc2FtcGxlcxgCIAEoBBIMCgRzaXplGAMgASgEEg4KBnNoYTI1NhgEIAEoCSKoAQoUVHJhaW5Db21wb25lbnRVcGRhdGUSPQoIcHJvZ3Jlc3MYASABKAsyKS50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFByb2dyZXNzSAASDwoFbW9kZWwYAiABKAxIABI2Cgd0cmFpbmVkGAMgASgLMiMudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZENvbXBvbmVudEgAQggKBnVwZGF0ZSqhAQoMU291cmNlU2lnbkluEh4KGlNPVVJDRV9TSUdOX0lOX1VOU1BFQ0lGSUVEEAASHgoaU09VUkNFX1NJR05fSU5fRU5WSVJPTk1FTlQQARIZChVTT1VSQ0VfU0lHTl9JTl9HT09HTEUQAhIaChZTT1VSQ0VfU0lHTl9JTl9BUElfS0VZEAMSGgoWU09VUkNFX1NJR05fSU5fUzNfS0VZUxAEKqIBCgxJbnN0YWxsU3RhZ2USHQoZSU5TVEFMTF9TVEFHRV9VTlNQRUNJRklFRBAAEhoKFklOU1RBTExfU1RBR0VfQURNSVRURUQQARIdChlJTlNUQUxMX1NUQUdFX0RPV05MT0FESU5HEAISHAoYSU5TVEFMTF9TVEFHRV9ET1dOTE9BREVEEAMSGgoWSU5TVEFMTF9TVEFHRV9WRVJJRklFRBAEKlcKC1N0YXRpY0R0eXBlEhwKGFNUQVRJQ19EVFlQRV9VTlNQRUNJRklFRBAAEhQKEFNUQVRJQ19EVFlQRV9GMzIQARIUChBTVEFUSUNfRFRZUEVfRjE2EAIq1wEKClRyYWluU3RhZ2USGwoXVFJBSU5fU1RBR0VfVU5TUEVDSUZJRUQQABIYChRUUkFJTl9TVEFHRV9BRE1JVFRFRBABEhQKEFRSQUlOX1NUQUdFX0tFUFQQAhIZChVUUkFJTl9TVEFHRV9FTUJFRERJTkcQAxIXChNUUkFJTl9TVEFHRV9SRURVQ0VEEAQSGAoUVFJBSU5fU1RBR0VfTUVBU1VSRUQQBRIWChJUUkFJTl9TVEFHRV9TRUFMRUQQBhIWChJUUkFJTl9TVEFHRV9MT0FERUQQByq8AgoNQ29tcG9uZW50S2luZBIeChpDT01QT05FTlRfS0lORF9VTlNQRUNJRklFRBAAEiQKIENPTVBPTkVOVF9LSU5EX1NFTlRFTkNFX0RFVEVDVE9SEAESHAoYQ09NUE9ORU5UX0tJTkRfVE9LRU5JWkVSEAISHQoZQ09NUE9ORU5UX0tJTkRfUE9TX1RBR0dFUhADEh0KGUNPTVBPTkVOVF9LSU5EX0xFTU1BVElaRVIQBBIaChZDT01QT05FTlRfS0lORF9DSFVOS0VSEAUSHgoaQ09NUE9ORU5UX0tJTkRfTkFNRV9GSU5ERVIQBhInCiNDT01QT05FTlRfS0lORF9ET0NVTUVOVF9DQVRFR09SSVpFUhAHEiQKIENPTVBPTkVOVF9LSU5EX0xBTkdVQUdFX0RFVEVDVE9SEAgqpgEKDkNvbXBvbmVudFN0YWdlEh8KG0NPTVBPTkVOVF9TVEFHRV9VTlNQRUNJRklFRBAAEhwKGENPTVBPTkVOVF9TVEFHRV9BRE1JVFRFRBABEhgKFENPTVBPTkVOVF9TVEFHRV9SRUFEEAISHQoZQ09NUE9ORU5UX1NUQUdFX0lURVJBVElPThADEhwKGENPTVBPTkVOVF9TVEFHRV9QQUNLQUdFRBAEMrIMChNUdXJib0NhdGFsb2dTZXJ2aWNlEmsKEExpc3RNb2RlbENhdGFsb2cSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxDYXRhbG9nUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXNwb25zZRJ0ChNMaXN0SW5zdGFsbGVkTW9kZWxzEi0udHVyYm8udHJhaW5pbmcudjEuTGlzdEluc3RhbGxlZE1vZGVsc1JlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USgAEKF1JlY29yZExpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJfCgxJbnN0YWxsTW9kZWwSJi50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxSZXF1ZXN0GiUudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbE1vZGVsVXBkYXRlMAESYgoNRGVzY3JpYmVNb2RlbBInLnR1cmJvLnRyYWluaW5nLnYxLkRlc2NyaWJlTW9kZWxSZXF1ZXN0GigudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlc3BvbnNlEl8KDFJlc29sdmVNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5SZXNvbHZlTW9kZWxSZXNwb25zZRJdCg1SZWFkTW9kZWxGaWxlEicudHVyYm8udHJhaW5pbmcudjEuUmVhZE1vZGVsRmlsZVJlcXVlc3QaIS50dXJiby50cmFpbmluZy52MS5Nb2RlbEZpbGVDaHVuazABEoABChdSZXZva2VMaWNlbmNlQWNjZXB0YW5jZRIxLnR1cmJvLnRyYWluaW5nLnYxLlJldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVxdWVzdBoyLnR1cmJvLnRyYWluaW5nLnYxLlJldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USfQoWTGlzdExpY2VuY2VBY2NlcHRhbmNlcxIwLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0GjEudHVyYm8udHJhaW5pbmcudjEuTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEmsKEExpc3RNb2RlbFNvdXJjZXMSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxTb3VyY2VzUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbFNvdXJjZXNSZXNwb25zZRJ0ChNSZWdpc3Rlck1vZGVsU291cmNlEi0udHVyYm8udHJhaW5pbmcudjEuUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5SZWdpc3Rlck1vZGVsU291cmNlUmVzcG9uc2USbgoRUmVtb3ZlTW9kZWxTb3VyY2USKy50dXJiby50cmFpbmluZy52MS5SZW1vdmVNb2RlbFNvdXJjZVJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5SZW1vdmVNb2RlbFNvdXJjZVJlc3BvbnNlEmsKEFN0YXJ0RHJpdmVTaWduSW4SKi50dXJiby50cmFpbmluZy52MS5TdGFydERyaXZlU2lnbkluUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLlN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRJuChFGaW5pc2hEcml2ZVNpZ25JbhIrLnR1cmJvLnRyYWluaW5nLnYxLkZpbmlzaERyaXZlU2lnbkluUmVxdWVzdBosLnR1cmJvLnRyYWluaW5nLnYxLkZpbmlzaERyaXZlU2lnbkluUmVzcG9uc2UyqgQKFFR1cmJvVHJhaW5pbmdTZXJ2aWNlEl8KDExpc3RUZWFjaGVycxImLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1JlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXNwb25zZRJrChBUcmFpblN0YXRpY01vZGVsEioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QaKS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsVXBkYXRlMAESawoQTGlzdFN0YXRpY01vZGVscxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEm4KEURlbGV0ZVN0YXRpY01vZGVsEisudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRJnCg5UcmFpbkNvbXBvbmVudBIoLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluQ29tcG9uZW50UmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluQ29tcG9uZW50VXBkYXRlKAEwAWIGcHJvdG8z");
 
 /**
  * One registered source, without its secrets.
@@ -1761,6 +1761,205 @@ export const DeleteStaticModelResponseSchema: GenMessage<DeleteStaticModelRespon
   messageDesc(file_turbo_training, 52);
 
 /**
+ * The first message of a TrainComponent call.
+ *
+ * @generated from message turbo.training.v1.TrainComponentStart
+ */
+export type TrainComponentStart = Message<"turbo.training.v1.TrainComponentStart"> & {
+  /**
+   * @generated from field: turbo.training.v1.ComponentKind component = 1;
+   */
+  component: ComponentKind;
+
+  /**
+   * The language the model records (ISO 639). Required except for the
+   * language detector, which learns its languages from the samples.
+   *
+   * @generated from field: string language = 2;
+   */
+  language: string;
+
+  /**
+   * Training parameters as a parameters file names them (Iterations,
+   * Cutoff, Algorithm, ...), each value a string. Unset keys take the
+   * trainer's defaults: MAXENT, 100 iterations, cutoff 5.
+   *
+   * @generated from field: map<string, string> parameters = 3;
+   */
+  parameters: { [key: string]: string };
+
+  /**
+   * The name finder: the type given to names the samples leave untyped.
+   * Empty: "default".
+   *
+   * @generated from field: string name_type = 4;
+   */
+  nameType: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.TrainComponentStart.
+ * Use `create(TrainComponentStartSchema)` to create a new message.
+ */
+export const TrainComponentStartSchema: GenMessage<TrainComponentStart> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 53);
+
+/**
+ * @generated from message turbo.training.v1.TrainComponentRequest
+ */
+export type TrainComponentRequest = Message<"turbo.training.v1.TrainComponentRequest"> & {
+  /**
+   * @generated from oneof turbo.training.v1.TrainComponentRequest.part
+   */
+  part: {
+    /**
+     * First, and only first.
+     *
+     * @generated from field: turbo.training.v1.TrainComponentStart start = 1;
+     */
+    value: TrainComponentStart;
+    case: "start";
+  } | {
+    /**
+     * The samples as UTF-8, in any number of chunks cut anywhere. The end
+     * of the client's stream starts the training.
+     *
+     * @generated from field: bytes samples = 2;
+     */
+    value: Uint8Array;
+    case: "samples";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message turbo.training.v1.TrainComponentRequest.
+ * Use `create(TrainComponentRequestSchema)` to create a new message.
+ */
+export const TrainComponentRequestSchema: GenMessage<TrainComponentRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 54);
+
+/**
+ * @generated from message turbo.training.v1.TrainComponentProgress
+ */
+export type TrainComponentProgress = Message<"turbo.training.v1.TrainComponentProgress"> & {
+  /**
+   * @generated from field: turbo.training.v1.ComponentStage stage = 1;
+   */
+  stage: ComponentStage;
+
+  /**
+   * @generated from field: uint64 samples = 2;
+   */
+  samples: bigint;
+
+  /**
+   * @generated from field: uint32 iteration = 3;
+   */
+  iteration: number;
+
+  /**
+   * @generated from field: uint64 correct = 4;
+   */
+  correct: bigint;
+
+  /**
+   * @generated from field: uint64 events = 5;
+   */
+  events: bigint;
+
+  /**
+   * "Training Accuracy" or "Log Likelihood".
+   *
+   * @generated from field: string measure = 6;
+   */
+  measure: string;
+
+  /**
+   * @generated from field: double value = 7;
+   */
+  value: number;
+};
+
+/**
+ * Describes the message turbo.training.v1.TrainComponentProgress.
+ * Use `create(TrainComponentProgressSchema)` to create a new message.
+ */
+export const TrainComponentProgressSchema: GenMessage<TrainComponentProgress> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 55);
+
+/**
+ * @generated from message turbo.training.v1.TrainedComponent
+ */
+export type TrainedComponent = Message<"turbo.training.v1.TrainedComponent"> & {
+  /**
+   * @generated from field: turbo.training.v1.ComponentKind component = 1;
+   */
+  component: ComponentKind;
+
+  /**
+   * @generated from field: uint64 samples = 2;
+   */
+  samples: bigint;
+
+  /**
+   * The model file sent in the chunks before this message: its size and
+   * lowercase hex SHA-256.
+   *
+   * @generated from field: uint64 size = 3;
+   */
+  size: bigint;
+
+  /**
+   * @generated from field: string sha256 = 4;
+   */
+  sha256: string;
+};
+
+/**
+ * Describes the message turbo.training.v1.TrainedComponent.
+ * Use `create(TrainedComponentSchema)` to create a new message.
+ */
+export const TrainedComponentSchema: GenMessage<TrainedComponent> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 56);
+
+/**
+ * @generated from message turbo.training.v1.TrainComponentUpdate
+ */
+export type TrainComponentUpdate = Message<"turbo.training.v1.TrainComponentUpdate"> & {
+  /**
+   * @generated from oneof turbo.training.v1.TrainComponentUpdate.update
+   */
+  update: {
+    /**
+     * @generated from field: turbo.training.v1.TrainComponentProgress progress = 1;
+     */
+    value: TrainComponentProgress;
+    case: "progress";
+  } | {
+    /**
+     * The next bytes of the model file.
+     *
+     * @generated from field: bytes model = 2;
+     */
+    value: Uint8Array;
+    case: "model";
+  } | {
+    /**
+     * @generated from field: turbo.training.v1.TrainedComponent trained = 3;
+     */
+    value: TrainedComponent;
+    case: "trained";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message turbo.training.v1.TrainComponentUpdate.
+ * Use `create(TrainComponentUpdateSchema)` to create a new message.
+ */
+export const TrainComponentUpdateSchema: GenMessage<TrainComponentUpdate> = /*@__PURE__*/
+  messageDesc(file_turbo_training, 57);
+
+/**
  * How a registered source signs in.
  *
  * @generated from enum turbo.training.v1.SourceSignIn
@@ -1944,6 +2143,129 @@ export enum TrainStage {
  */
 export const TrainStageSchema: GenEnum<TrainStage> = /*@__PURE__*/
   enumDesc(file_turbo_training, 3);
+
+/**
+ * The classical components TrainComponent trains, and the sample format
+ * each reads (docs/grpc-training.md, Component training).
+ *
+ * @generated from enum turbo.training.v1.ComponentKind
+ */
+export enum ComponentKind {
+  /**
+   * @generated from enum value: COMPONENT_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * One sentence a line, a blank line between documents.
+   *
+   * @generated from enum value: COMPONENT_KIND_SENTENCE_DETECTOR = 1;
+   */
+  SENTENCE_DETECTOR = 1,
+
+  /**
+   * One sentence a line, tokens split by whitespace or <SPLIT>.
+   *
+   * @generated from enum value: COMPONENT_KIND_TOKENIZER = 2;
+   */
+  TOKENIZER = 2,
+
+  /**
+   * One sentence a line of word_TAG tokens.
+   *
+   * @generated from enum value: COMPONENT_KIND_POS_TAGGER = 3;
+   */
+  POS_TAGGER = 3,
+
+  /**
+   * word, tag and lemma, tab separated, a line a token, a blank line
+   * between sentences.
+   *
+   * @generated from enum value: COMPONENT_KIND_LEMMATIZER = 4;
+   */
+  LEMMATIZER = 4,
+
+  /**
+   * word, tag and chunk tag, space separated, a line a token, a blank
+   * line between sentences.
+   *
+   * @generated from enum value: COMPONENT_KIND_CHUNKER = 5;
+   */
+  CHUNKER = 5,
+
+  /**
+   * One sentence a line with <START:type> ... <END> around names.
+   *
+   * @generated from enum value: COMPONENT_KIND_NAME_FINDER = 6;
+   */
+  NAME_FINDER = 6,
+
+  /**
+   * A category then the document's tokens, separated by whitespace, a
+   * line each.
+   *
+   * @generated from enum value: COMPONENT_KIND_DOCUMENT_CATEGORIZER = 7;
+   */
+  DOCUMENT_CATEGORIZER = 7,
+
+  /**
+   * A language code, a tab, then the text, a line each.
+   *
+   * @generated from enum value: COMPONENT_KIND_LANGUAGE_DETECTOR = 8;
+   */
+  LANGUAGE_DETECTOR = 8,
+}
+
+/**
+ * Describes the enum turbo.training.v1.ComponentKind.
+ */
+export const ComponentKindSchema: GenEnum<ComponentKind> = /*@__PURE__*/
+  enumDesc(file_turbo_training, 4);
+
+/**
+ * @generated from enum turbo.training.v1.ComponentStage
+ */
+export enum ComponentStage {
+  /**
+   * @generated from enum value: COMPONENT_STAGE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The start passed its checks and holds the training slot.
+   *
+   * @generated from enum value: COMPONENT_STAGE_ADMITTED = 1;
+   */
+  ADMITTED = 1,
+
+  /**
+   * Every sample is read: samples of them.
+   *
+   * @generated from enum value: COMPONENT_STAGE_READ = 2;
+   */
+  READ = 2,
+
+  /**
+   * An iteration finished: iteration, with correct of events classified
+   * and the measure the trainer reports.
+   *
+   * @generated from enum value: COMPONENT_STAGE_ITERATION = 3;
+   */
+  ITERATION = 3,
+
+  /**
+   * The model file is packaged; its chunks follow.
+   *
+   * @generated from enum value: COMPONENT_STAGE_PACKAGED = 4;
+   */
+  PACKAGED = 4,
+}
+
+/**
+ * Describes the enum turbo.training.v1.ComponentStage.
+ */
+export const ComponentStageSchema: GenEnum<ComponentStage> = /*@__PURE__*/
+  enumDesc(file_turbo_training, 5);
 
 /**
  * @generated from service turbo.training.v1.TurboCatalogService
@@ -2151,6 +2473,19 @@ export const TurboTrainingService: GenService<{
     methodKind: "unary";
     input: typeof DeleteStaticModelRequestSchema;
     output: typeof DeleteStaticModelResponseSchema;
+  },
+  /**
+   * Admin. Trains a classical component from samples the client streams
+   * in their native format, one training at a time (with
+   * TrainStaticModel). Progress, the model file in chunks, then one
+   * trained. Nothing is kept on the server.
+   *
+   * @generated from rpc turbo.training.v1.TurboTrainingService.TrainComponent
+   */
+  trainComponent: {
+    methodKind: "bidi_streaming";
+    input: typeof TrainComponentRequestSchema;
+    output: typeof TrainComponentUpdateSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_turbo_training, 1);
