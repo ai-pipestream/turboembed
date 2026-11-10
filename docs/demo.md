@@ -410,7 +410,10 @@ for any refused call.
   per artifact with its id, kind in plain words (model, head, dataset,
   lexicon), language, licence and size. A filter box narrows the list
   to the entries whose id, kind, language or licence holds every word
-  typed, whatever the case, and a chip per kind with its count shows
+  typed, whatever the case (words are parted by any Unicode white space,
+  the next-line control included; `ß`, `ẞ` and `SS` compare equal, as
+  do a final and a medial sigma; and a kind also matches in its enum
+  spelling), and a chip per kind with its count shows
   only that kind; both work in the page on the catalog already read
   (demo/web/src/catalogfilter.ts) and stay set when the catalog is read
   again after a change. Installed models and accepted terms are listed

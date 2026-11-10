@@ -7915,12 +7915,30 @@ function plain(value, prefix2) {
   const name = value.startsWith(prefix2) ? value.slice(prefix2.length) : value;
   return name.toLowerCase().split("_").join(" ");
 }
+function fold(text) {
+  const cased = text.toLowerCase().toUpperCase().toLowerCase();
+  return cased.split("i\u0307").join("i").split("\u03C2").join("\u03C3");
+}
+function space(ch) {
+  return ch.trim() === "" || ch === "\x85";
+}
 function words(text) {
-  return text.toLowerCase().split(" ").map((w) => w.trim()).filter((w) => w.length > 0);
+  const out = [];
+  let word = "";
+  for (const ch of text) {
+    if (!space(ch)) {
+      word += ch;
+      continue;
+    }
+    if (word) out.push(fold(word));
+    word = "";
+  }
+  if (word) out.push(fold(word));
+  return out;
 }
 function matches(e, kind, text) {
   if (kind && e.kind !== kind) return false;
-  const hay = `${e.id} ${kindName(e.kind)} ${e.language} ${e.licence}`.toLowerCase();
+  const hay = fold(`${e.id} ${kindName(e.kind)} ${e.kind} ${e.language} ${e.licence}`);
   return words(text).every((w) => hay.includes(w));
 }
 function kinds(entries) {

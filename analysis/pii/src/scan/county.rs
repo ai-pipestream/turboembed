@@ -5,16 +5,19 @@
 //! single spaces between its words. Each word is read as the table
 //! writes it or all in capitals, the last also in small letters
 //! (`Cook county`), and a right single quotation mark reads as an
-//! apostrophe (`Prince George’s County`). The longest name ending at a
-//! suffix wins. The normalized form is the table's spelling.
+//! apostrophe (`Prince George’s County`). A name is compared in
+//! normalization form C, so a decomposed spelling (`Doña Ana County` with
+//! `n` + U+0303) reads as the precomposed one. The longest name ending at
+//! a suffix wins. The normalized form is the table's spelling.
+
+use std::borrow::Cow;
 
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
-
-use turbo_unicode::category::general_category;
+use turbo_unicode::normalize::{Form, is_normalized, normalize};
 
 use crate::hits::Hits;
 use crate::tables::us_counties::{MAX_WORDS, SUFFIXES, county};
-use crate::text::{on_end, on_word_start};
+use crate::text::{name_char, on_name_end, on_name_start, on_word_start};
 
 pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
@@ -39,7 +42,7 @@ fn suffix_at(text: &str, i: usize) -> Option<usize> {
     }
     SUFFIXES.iter().find_map(|s| {
         let end = i + s.len();
-        (b.get(i..end).is_some_and(|w| w.eq_ignore_ascii_case(s.as_bytes())) && on_end(text, end)).then_some(end)
+        (b.get(i..end).is_some_and(|w| w.eq_ignore_ascii_case(s.as_bytes())) && on_name_end(text, end)).then_some(end)
     })
 }
 
@@ -60,7 +63,7 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         let mut start = text[..word_end]
             .char_indices()
             .rev()
-            .find(|&(_, c)| !(word_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
             .map_or(0, |(p, c)| p + c.len_utf8());
         // Leading punctuation (`(Cook County`) is not part of the name.
         let Some(lead) = text[start..word_end].find(|c: char| c.is_alphanumeric()) else { break };
@@ -70,15 +73,22 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         at = start;
     }
     starts[..n].iter().rev().find_map(|&start| {
-        let written = &text[start..end];
-        let name = county(written)?;
-        (on_word_start(text, start) && cased_like(written, name)).then_some((start, name))
+        let written = nfc(&text[start..end]);
+        let name = county(&written)?;
+        (on_name_start(text, start) && cased_like(&written, name)).then_some((start, name))
     })
 }
 
-/// A letter, digit, combining mark or `_`: what a word is made of.
-fn word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_' || general_category(c).is_mark()
+/// `written` in normalization form C, as the table is written, so a
+/// decomposed spelling (`n` + U+0303 for `ñ`) finds its name. The mention
+/// keeps the bytes of the source; text already in NFC is not copied.
+fn nfc(written: &str) -> Cow<'_, str> {
+    if written.is_ascii() || is_normalized(Form::Nfc, written) {
+        return Cow::Borrowed(written);
+    }
+    let mut out = String::new();
+    normalize(Form::Nfc, written, &mut out);
+    Cow::Owned(out)
 }
 
 /// Whether each word of `written` is the word of `name` as the table
