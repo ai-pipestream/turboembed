@@ -208,8 +208,10 @@ if (Test-Path $CpuDumps) {
       # CPU first, as the committed reports/cuts-cpu-<backend>-*.txt read: A is the CPU, B the NPU.
       "== $name (A cpu, B npu)" | Add-Content $CutReport
       $null = Step "cuts-$name" {
+        # Add-Content, not Tee-Object: on Windows PowerShell 5.1 Tee-Object -Append writes
+        # UTF-16, which would follow the header line above in another encoding.
         cargo run --release -p turbo-eval --features turbo/npu -- cuts $cpuDump $npuDump |
-          Tee-Object -Append -FilePath $CutReport
+          Add-Content -Path $CutReport -PassThru
       }
     } else {
       Problem "cuts-$name" "skipped: no NPU dump at $npuDump or no CPU dump at $cpuDump"
