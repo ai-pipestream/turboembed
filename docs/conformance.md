@@ -123,7 +123,7 @@ The F32 bound is the one `core/tests/rerank.rs` and
 `core/tests/qa_inference.rs` hold the CPU to. The F16, BF16 and I8
 bounds were set from each format's precision; the measurements below
 are the largest difference each device gave, as a fraction of the
-scale, at FASTEST. A bound is kept at least five times the largest
+scale, at FASTEST. A bound is kept at least four times the largest
 difference measured for its dtype; a device run that fails one is to be
 looked at before the bound is changed.
 
