@@ -91,7 +91,7 @@ impl TokenKeyFile {
     /// [`KeyRef::parse`], an error never repeats the input, not even an id
     /// that has the right shape: pasted key text can. Errors after a
     /// complete parse, such as a file that does not read, name the
-    /// reference and the path.
+    /// reference and the path's length in bytes, never the path.
     pub fn parse(s: &str) -> Result<TokenKeyFile, String> {
         let mut parts = s.splitn(3, ':');
         let (Some(id), Some(version), Some(path)) = (parts.next(), parts.next(), parts.next()) else {
