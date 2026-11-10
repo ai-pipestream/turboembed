@@ -1,0 +1,9 @@
+MASKED	Send it to first.last@example.com... then wait.
+
+MASK_ALL	Send it to first.last@example.com... then wait.
+
+REWRITE	pseudonymize	OK	Send it to first.last@example.com... then wait.
+
+REWRITE	hmac	OK	Send it to first.last@example.com... then wait.
+
+AUDIT_REPORT	no pii found

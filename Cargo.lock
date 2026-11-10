@@ -2730,6 +2730,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-glossary",
  "turbo-goldens",
+ "turbo-numeric",
  "turbo-sha256",
  "turbo-unicode",
 ]
