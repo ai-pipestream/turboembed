@@ -102,10 +102,10 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
 /// the end of an address, by what comes before it: a comma
 /// (`Springfield, IL 62704`), a city of that state and one space
 /// (`Springfield IL 62704 is`), or only blanks back to the start of a line
-/// when only blanks follow the ZIP code to the line's end (`IL 62704`). A
-/// word that is no city there (`Order IN 12345`, `PART OR 90210`), or a
-/// word after a line's code and number (`IN 12345 units`), makes the
-/// number a count.
+/// when only blanks, or blanks and a clause's end, follow the ZIP code
+/// (`IL 62704`, `IL 62704.`). A word that is no city there
+/// (`Order IN 12345`, `PART OR 90210`), or a word after a line's code and
+/// number (`IN 12345 units`), makes the number a count.
 fn address_like(text: &str, code: usize, end: usize) -> bool {
     let before = &text.as_bytes()[..code];
     if before.ends_with(b", ") {
@@ -124,12 +124,13 @@ fn address_like(text: &str, code: usize, end: usize) -> bool {
         && city_before(text, code - 1, &text[code..code + 2])
 }
 
-/// Whether only blanks follow `end` to the end of its line or the text.
+/// Whether only blanks follow `end` to the end of its line or the text,
+/// or blanks and then a mark that ends a clause (`IL 62704.`,
+/// `IL 62704, USA`), not a word (`IN 12345 units`).
 fn line_ends_after(text: &str, end: usize) -> bool {
-    text[end..]
-        .chars()
-        .find(|&c| !matches!(c, ' ' | '\t' | '\r' | '\u{a0}'))
-        .is_none_or(|c| matches!(c, '\n' | '\u{b}' | '\u{c}' | '\u{85}' | '\u{2028}' | '\u{2029}'))
+    text[end..].chars().find(|&c| !matches!(c, ' ' | '\t' | '\r' | '\u{a0}')).is_none_or(|c| {
+        matches!(c, '\n' | '\u{b}' | '\u{c}' | '\u{85}' | '\u{2028}' | '\u{2029}' | ',' | '.' | ';' | ')')
+    })
 }
 
 /// The end of a whole ZIP or ZIP+4 token at `at` (`62704`, `62704-1234`),

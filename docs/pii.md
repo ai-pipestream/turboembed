@@ -920,7 +920,8 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   by what comes before the code: a comma (`Springfield, IL 62704`), a
   city of that state in the bundled gazetteer and one space
   (`Springfield IL 62704 is`), or the start of a line when only blanks
-  follow the ZIP code to the line's end (`IL 62704`). After any other
+  follow the ZIP code to the line's end or a clause's end (`IL 62704`,
+  `IL 62704, USA`). After any other
   word (`Order IN 12345.`, `PART OR 90210`), or with a word after a line's
   code and number (`IN 12345 units`), the number is a count, not a
   state. The normalized form is the USPS code (`IL`).

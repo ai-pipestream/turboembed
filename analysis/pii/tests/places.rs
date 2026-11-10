@@ -86,6 +86,8 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         "IL 62704",
         "Name\n  IL 62704 \nx",
         "IL 62704  \r\nUSA",
+        "IL 62704.",
+        "Name\nIL 62704, USA",
         "IL 62704\u{a0}",
         "\tIL 62704-1234\t",
         "Springfield IL 62704 ",
