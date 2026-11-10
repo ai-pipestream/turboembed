@@ -319,6 +319,16 @@ stubs must be regenerated.
   their native format, streams each iteration as progress, and sends
   the model file back; admin only, sharing the training slot with
   `TrainStaticModel`, and stopped when the client goes away (#2012).
+- `TurboTrainingService.StreamingTraining` runs one training over a
+  stream the client feeds. A corpus job learns a vocabulary from the
+  streamed documents, distils a static model with its terms and indexes
+  the documents with that model, keeping all three or none: the
+  vocabulary is stored and the index published in one last step, and a
+  failure or a client that goes away removes the model. A component job
+  trains the feed-forward dependency parser from CoNLL-U samples,
+  streams each epoch's loss, and sends the model file back. Admin only,
+  sharing the training slot with `TrainStaticModel` and `TrainComponent`
+  (#2026).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
   `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
