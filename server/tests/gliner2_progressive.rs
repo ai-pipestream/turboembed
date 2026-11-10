@@ -81,6 +81,7 @@ async fn serve() -> (Server, AnalysisServiceClient<tonic::transport::Channel>, B
             max_seq: 0,
             select_device: false,
             user: String::new(),
+            vocabulary: None,
         })
         .await
         .unwrap()
