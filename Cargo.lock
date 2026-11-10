@@ -2397,6 +2397,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
+ "turbo-entity-linker",
  "turbo-pins",
  "turbo-zoo",
 ]
