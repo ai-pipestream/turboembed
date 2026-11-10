@@ -79,3 +79,27 @@ impl Drop for Fixture {
         let _ = fs::remove_dir_all(&self.dir);
     }
 }
+
+/// The largest difference between two runs of scores. A score or a
+/// difference that is not finite fails here: `f32::max` drops a NaN, so a
+/// fold of differences alone would hold a run of NaN scores to any bound.
+pub fn worst(a: &[f32], b: &[f32]) -> f32 {
+    assert_eq!(a.len(), b.len());
+    a.iter().zip(b).fold(0f32, |m, (x, y)| {
+        let d = (x - y).abs();
+        assert!(x.is_finite() && y.is_finite() && d.is_finite(), "a score is not finite: {x} against {y}");
+        m.max(d)
+    })
+}
+
+#[test]
+fn worst_fails_on_a_score_that_is_not_finite() {
+    assert_eq!(worst(&[1.0, -2.0], &[1.5, -2.0]), 0.5);
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        for (a, b) in [([1.0, bad], [1.0, 2.0]), ([1.0, 2.0], [1.0, bad]), ([bad, bad], [bad, bad])] {
+            assert!(std::panic::catch_unwind(|| worst(&a, &b)).is_err(), "{a:?} against {b:?}");
+        }
+    }
+    // Finite scores whose difference overflows.
+    assert!(std::panic::catch_unwind(|| worst(&[f32::MAX], &[f32::MIN])).is_err());
+}
