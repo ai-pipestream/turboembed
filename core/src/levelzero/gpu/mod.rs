@@ -317,8 +317,8 @@ pub(crate) fn append_failure_recovers(
         let old = q.list;
         unsafe { c.copy(&mut q, dst, src, n * 4) }.map_err(text)?;
         // The general attention kernel's last argument is its local memory.
-        let mut args = [Arg::U64(0); 9];
-        args[8] = Arg::Local(c.max_local as usize + 4096);
+        let mut args = [Arg::U64(0); 10];
+        args[9] = Arg::Local(c.max_local as usize + 4096);
         if k.launch(&c, &mut q, "the refused launch", &args, [1, 1, 1]).is_ok() {
             return Err("the driver took a launch with more local memory than the device has".into());
         }

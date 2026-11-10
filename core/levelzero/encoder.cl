@@ -817,7 +817,7 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
 #define FLASH(NAME, HD, CT, STORE4)                                                                                \
     __kernel __attribute__((reqd_work_group_size(QUERIES, 1, 1))) void NAME(                                          \
         __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,    \
-        __global CT *ctx) {                                                                                     \
+        __global CT *ctx, int ahead) {                                                                          \
         __local float4 ks[KEYS][HD / 4];                                                                           \
         __local float4 vs[KEYS][HD / 4];                                                                           \
         __local int live[KEYS];                                                                                    \
@@ -835,8 +835,10 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
             acc[d] = (float4)(0.0f);                                                                               \
         }                                                                                                          \
         float m = -INFINITY, l = 0.0f;                                                                             \
-        for (int j0 = 0; j0 < len; j0 += KEYS) {                                                                   \
-            const int n = min(KEYS, len - j0);                                                                     \
+        /* The keys the group's last query sees. */                                                                \
+        const int keys = min(len, (int)(get_group_id(0) + 1) * QUERIES + ahead);                                  \
+        for (int j0 = 0; j0 < keys; j0 += KEYS) {                                                                  \
+            const int n = min(KEYS, keys - j0);                                                                    \
             for (int e = lid; e < n * (HD / 4); e += QUERIES) {                                                       \
                 const int j = e / (HD / 4), d = e % (HD / 4);                                                      \
                 __global const float *kv = qkv + (size_t)(start + j0 + j) * stride + col;                          \
@@ -847,7 +849,7 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void add_layer_norm_
             barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
             if (mine) {                                                                                            \
                 for (int j = 0; j < n; j++) {                                                                      \
-                    if (live[j] == 0) continue;                                                                    \
+                    if (live[j] == 0 || j0 + j > i + ahead) continue;                                              \
                     float4 s4 = q[0] * ks[j][0];                                                                   \
                     __attribute__((opencl_unroll_hint)) for (int d = 1; d < HD / 4; d++) s4 = fma(q[d], ks[j][d], s4); \
                     const float s = (s4.x + s4.y) + (s4.z + s4.w);                                                 \
@@ -910,11 +912,18 @@ int8 pack_probabilities(float8 lo, float8 hi) {
     return pb;
 }
 
+/* Limited lookahead: every score of keys past `last` masked, in the
+ * layout of the XMX kernels' s[4] (s[2c + h], m: key j0 + 16c + 8h + m). */
+void band(float8 *s, int j0, int last) {
+    __attribute__((opencl_unroll_hint)) for (int h = 0; h < 4; h++)
+        __attribute__((opencl_unroll_hint)) for (int m = 0; m < 8; m++) if (j0 + 8 * h + m > last) s[h][m] = -INFINITY;
+}
+
 #define FLASH_XMX(HD)                                                                                              \
     __kernel __attribute__((intel_reqd_sub_group_size(16)))                                                        \
     __attribute__((reqd_work_group_size(16 * ATT_SUBGROUPS, 1, 1))) void                                           \
     attention_xmx_##HD(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden,   \
-                       float scale, __global half *ctx) {                                                          \
+                       float scale, __global half *ctx, int ahead) {                                               \
         const int lane = get_sub_group_local_id();                                                                 \
         const int q0 = (get_group_id(0) * ATT_SUBGROUPS + get_sub_group_id()) * 16;                                \
         const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                                                     \
@@ -930,7 +939,8 @@ int8 pack_probabilities(float8 lo, float8 hi) {
         float8 acc[HD / 8];                                                                                        \
         __attribute__((opencl_unroll_hint)) for (int b = 0; b < HD / 8; b++) acc[b] = (float8)(0.0f);              \
         float mx = -INFINITY, l = 0.0f;                                                                            \
-        for (int j0 = 0; j0 < len; j0 += 32) {                                                                     \
+        const int keys = min(len, q0 + 16 + ahead);                                                                \
+        for (int j0 = 0; j0 < keys; j0 += 32) {                                                                    \
             /* s[2c + h]: keys j0 + 16c + 8h .. + 7. */                                                            \
             float8 s[4] = {(float8)(0.0f), (float8)(0.0f), (float8)(0.0f), (float8)(0.0f)};                       \
             __attribute__((opencl_unroll_hint)) for (int c = 0; c < 2; c++)                                        \
@@ -956,6 +966,7 @@ int8 pack_probabilities(float8 lo, float8 hi) {
                     if (!live) s[h][m] = -INFINITY;                                                                \
                 }                                                                                                  \
             }                                                                                                      \
+            if (j0 + 31 > q0 + ahead) band(s, j0, q0 + lane + ahead);                                              \
             const float8 top = fmax(fmax(s[0], s[1]), fmax(s[2], s[3]));                                           \
             const float4 t4 = fmax(top.lo, top.hi);                                                                \
             const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));                                           \
@@ -1008,7 +1019,7 @@ FLASH_XMX(64)
 #define ATT2_SG 8
 __kernel __attribute__((intel_reqd_sub_group_size(16))) __attribute__((reqd_work_group_size(16 * ATT2_SG, 1, 1))) void
 attention_xmx2_64(__global const half *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,
-                     __global half *ctx) {
+                     __global half *ctx, int ahead) {
     /* A tile: K as 4 blocks of 4 short8 a lane (keys 0-7 and 8-15 of a half, dims 0-15 and 16-31 of a 32-dim
      * column block), V as 8 blocks of 2 short8 a lane (a key a lane, 8 dims each). */
     __local ushort Ks[2][4 * 4 * 128];
@@ -1058,8 +1069,10 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
     ATT2_STORE(0);
     barrier(CLK_LOCAL_MEM_FENCE);
     int cur = 0;
-    for (int j0 = 0; j0 < len; j0 += 32) {
-        const bool more = j0 + 32 < len;
+    /* The keys the group's last query sees; every sub-group walks them. */
+    const int keys = min(len, (int)(get_group_id(0) + 1) * ATT2_SG * 16 + ahead);
+    for (int j0 = 0; j0 < keys; j0 += 32) {
+        const bool more = j0 + 32 < keys;
         if (more) ATT2_LOAD(j0 + 32);
         if (live_queries) {
             float8 s[4] = {(float8)(0.0f), (float8)(0.0f), (float8)(0.0f), (float8)(0.0f)};
@@ -1085,6 +1098,7 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
                         if (!live) s[h][m] = -INFINITY;
                     }
             }
+            if (j0 + 31 > q0 + ahead) band(s, j0, q0 + lane + ahead);
             const float8 top = fmax(fmax(s[0], s[1]), fmax(s[2], s[3]));
             const float4 t4 = fmax(top.lo, top.hi);
             const float cmax = fmax(fmax(t4.x, t4.y), fmax(t4.z, t4.w));
@@ -1134,10 +1148,12 @@ attention_xmx2_64(__global const half *qkv, __global const int *mask, __global c
  * goes to ctx_half in F16 instead where that is given, at FASTEST. */
 __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
     __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
-    float scale, __global float *ctx, __global half *ctx_half, __local float *sm) {
+    float scale, __global float *ctx, __global half *ctx_half, int ahead, __local float *sm) {
     const int i = get_group_id(0), head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
-    const int start = rows[2 * r], len = rows[2 * r + 1];
-    if (i >= len) return;
+    const int start = rows[2 * r], whole = rows[2 * r + 1];
+    if (i >= whole) return;
+    /* The keys query i sees: those before it and at most ahead after. */
+    const int len = min(whole, i + 1 + ahead);
     __local float *qi = sm;
     __local float *score = qi + head_dim;
     __local float *part = score + len;

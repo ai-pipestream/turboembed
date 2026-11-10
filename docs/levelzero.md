@@ -219,7 +219,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   packed rows from the staging over the bus, and its LayerNorm in one
   kernel; per layer one projection for Q, K and V with their biases, one
   attention kernel (scaled dot products over the keys whose mask is 1,
-  with an online softmax), the attention output projection, a residual
+  with an online softmax; for a model of limited lookahead,
+  `architecture.lookahead`, a query's keys stop that many past it, each
+  kernel's walk over the keys ending at its last query's band), the
+  attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
   epilogue, the feed-forward output (its sums split four ways over its
   terms where the kernels below split them), and a kernel that adds the

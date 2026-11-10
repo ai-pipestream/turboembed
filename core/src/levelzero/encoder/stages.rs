@@ -107,10 +107,20 @@ impl Session {
             return dk.general.launch(c, q, "attention", &args, [self.longest, d.heads, batch]);
         }
         let scale = 1.0 / (head_dim as f32).sqrt();
+        // Limited lookahead: the keys a query sees past itself, at most a
+        // row's length, so the kernels' sums stay in range.
+        let ahead = I32(if d.lookahead == 0 { self.max_seq } else { d.lookahead.min(self.max_seq) } as i32);
         match &k.attention {
             Attention::Xmx(a, staged) => {
-                let args =
-                    [Ptr(self.qkv), Ptr(self.packed_mask), Ptr(self.rows), I32(h as i32), F32(scale), Ptr(self.att)];
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    F32(scale),
+                    Ptr(self.att),
+                    ahead,
+                ];
                 // The staged kernel where the longest row fills its group.
                 let (a, sgs) = match staged {
                     Some(s) if self.longest >= 16 * ATT2_SUBGROUPS => (s, ATT2_SUBGROUPS),
@@ -120,8 +130,15 @@ impl Session {
                 a.launch(c, q, "attention", &args, groups)
             }
             Attention::Tiled(a) => {
-                let args =
-                    [Ptr(self.qkv), Ptr(self.packed_mask), Ptr(self.rows), I32(h as i32), F32(scale), Ptr(self.att)];
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    F32(scale),
+                    Ptr(self.att),
+                    ahead,
+                ];
                 a.launch(c, q, "attention", &args, [self.longest.div_ceil(QUERIES), d.heads, batch])
             }
             Attention::General(a) => {
@@ -134,6 +151,7 @@ impl Session {
                     F32(scale),
                     Ptr(if xmx { 0 } else { self.att }),
                     Ptr(if xmx { self.att } else { 0 }),
+                    ahead,
                     Local(attention_local_bytes(self.longest, head_dim) as usize),
                 ];
                 a.launch(c, q, "attention", &args, [self.longest, d.heads, batch])
