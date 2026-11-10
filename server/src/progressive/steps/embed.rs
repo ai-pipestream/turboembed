@@ -79,7 +79,7 @@ pub(super) fn resolve_embed_context(
         let trimmed = model_name.trim();
         if !trimmed.is_empty() && !other_model {
             let has_vocab =
-                state.and_then(|st| st.ready(trimmed, "").ok()).is_some_and(|(_, l)| !l.vocabulary.is_empty());
+                state.and_then(|st| st.ready_served(trimmed).ok()).is_some_and(|s| !s.vocabulary.is_empty());
             if !has_vocab {
                 return Err(super::bad(format!(
                     "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",

@@ -39,9 +39,8 @@ fn tiny_bundle_path() -> std::path::PathBuf {
 }
 
 fn model_cfg(name: &str) -> ModelConfig {
-    let bundle = tiny_bundle_path().to_str().unwrap().into();
     ModelConfig {
-        bundle,
+        bundle: tiny_bundle_path().to_str().unwrap().into(),
         name: Some(name.into()),
         device: Device::Index(0),
         precision: 0,
@@ -100,19 +99,16 @@ async fn run_progressive(
     text: &str,
     vocabulary: Option<VocabularyBinding>,
 ) -> (DocumentGraphResponse, ProcessingReceipt, Document) {
-    run_progressive_req(
-        ac,
-        AnalyzePipelineRequest {
-            doc_id: "doc-vocab".into(),
-            text: text.into(),
-            offsets: OffsetMode::Utf8 as i32,
-            profile: "default".into(),
-            model: model.into(),
-            vocabulary,
-            ..Default::default()
-        },
-    )
-    .await
+    let req = AnalyzePipelineRequest {
+        doc_id: "doc-vocab".into(),
+        text: text.into(),
+        offsets: OffsetMode::Utf8 as i32,
+        profile: "default".into(),
+        model: model.into(),
+        vocabulary,
+        ..Default::default()
+    };
+    run_progressive_req(ac, req).await
 }
 
 async fn run_stream_graph(
@@ -407,6 +403,9 @@ async fn load_bundle_binds_default_vocabulary_and_request_overrides_it() {
         vocabulary,
         ..Default::default()
     };
+    let (_, _, gliner_prof_doc) = run_progressive(&mut ac, "bound-gliner", TEXT, None).await;
+    assert_eq!(flagged_tokens(&gliner_prof_doc), vec!["Quixotl".to_owned()]);
+    assert_eq!(matched_glossary(&gliner_prof_doc), vec![("G_ZEP".to_owned(), "Zephyr".to_owned())]);
     let (_, _, gliner_default_doc) = run_progressive_req(&mut ac, gliner_req(None)).await;
     let (_, _, gliner_explicit_doc) = run_progressive_req(&mut ac, gliner_req(Some(bundle_vocab))).await;
     assert_eq!(flagged_tokens(&gliner_default_doc), vec!["Quixotl".to_owned()]);
