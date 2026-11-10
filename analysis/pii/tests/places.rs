@@ -210,3 +210,21 @@ fn decomposed_county_spellings_read_as_the_table_writes_them() {
         assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
     }
 }
+
+#[test]
+fn every_county_of_the_table_is_found_and_suffix_words_in_prose_are_not() {
+    let d = pack(Pack::Places);
+    for name in include_str!("../src/tables/us_counties.txt").lines() {
+        let (head, last) = name.rsplit_once(' ').unwrap();
+        for written in [name.to_owned(), name.to_uppercase(), format!("{head} {}", last.to_lowercase())] {
+            let text = format!("records of {written}.");
+            let counties: Vec<_> = rows(&d, &text).into_iter().filter(|r| r.2 == "county").collect();
+            assert_eq!(counties.len(), 1, "{text:?}: {counties:?}");
+            assert_eq!((counties[0].1 as usize, counties[0].3.as_str()), (text.len() - 1, name), "{text:?}");
+        }
+    }
+    // A suffix word after a small word is no county, and no search.
+    for text in ["In the area.", "in the county", "the parish hall", "a borough", "the municipality"] {
+        assert!(found(text).iter().all(|m| m.1 != "county"), "{text:?}");
+    }
+}
