@@ -1,6 +1,6 @@
 //! Case folding does not cost sentence boundaries (#2086). The rule
 //! sentence detector decides on case, so in a chain that folds it reads
-//! the last view that keeps case; tokens and the other lexical stages
+//! the chain with the folds left out; tokens and the other lexical stages
 //! still read the folded view.
 
 use turbo_analysis::{Document, Layer};
@@ -47,15 +47,17 @@ fn a_fold_after_normalize_keeps_the_unfolded_sentences() {
 }
 
 #[test]
-fn a_fold_first_reads_sentences_on_the_source() {
-    let unnormalized = analyzed(LEXICAL);
+fn a_fold_first_reads_sentences_on_the_chain_without_it() {
+    // A fold alone leaves the source; a normalizer after it still reaches
+    // the sentences, as it does with no fold in the chain (#2141).
     for norms in [
         &["turbo:normalize:case-fold"][..],
         &["turbo:normalize:case-fold", "turbo:normalize:whitespace"][..],
         &["turbo:normalize:nfc", "turbo:normalize:case-fold", "turbo:normalize:invisible"][..],
     ] {
-        let doc = analyzed(&chain(norms));
-        assert_eq!(sentences(&doc), sentences(&unnormalized), "{norms:?}: {:?}", texts(&doc));
+        let unfolded: Vec<&str> = norms.iter().copied().filter(|n| *n != "turbo:normalize:case-fold").collect();
+        let (doc, expected) = (analyzed(&chain(norms)), analyzed(&chain(&unfolded)));
+        assert_eq!(sentences(&doc), sentences(&expected), "{norms:?}: {:?}", texts(&doc));
     }
 }
 

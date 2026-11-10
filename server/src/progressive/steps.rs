@@ -61,6 +61,9 @@ pub(crate) const CHUNKING_STEPS: &[&str] = &[
 ];
 
 const NORM_VIEWS: &[&str] = &["norm_1", "norm_2", "norm_3", "norm_4", "norm_5", "norm_6", "norm_7", "normalized"];
+/// The views of the cased branch a fold forks off; one fewer than the
+/// chain, since the fold itself is not on it.
+const CASED_VIEWS: &[&str] = &["cased_1", "cased_2", "cased_3", "cased_4", "cased_5", "cased_6", "cased_7"];
 
 fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
@@ -146,6 +149,31 @@ use embed::resolve_embed_context;
 
 fn add_norm<N: Normalizer>(builder: Builder, n: N, read_view: &'static str, write_view: &'static str) -> Builder {
     builder.step(Bound::new(NormalizeStep::new(n)).read(0, read_view).write(0, write_view))
+}
+
+/// Adds the normalizer step `name`, reading `read_view` and writing
+/// `write_view`.
+fn add_normalizer(builder: Builder, name: &str, read_v: &'static str, write_v: &'static str) -> Builder {
+    match name {
+        "turbo:normalize" | "turbo:normalize:chain" | "normalize" => add_norm(
+            builder,
+            Chain::new().then(Invisible).then(UnicodeForm::nfkc()).then(Whitespace::keep_line_breaks()),
+            read_v,
+            write_v,
+        ),
+        "turbo:normalize:unicode-form" | "turbo:normalize:nfkc" | "unicode_normalize" => {
+            add_norm(builder, UnicodeForm::nfkc(), read_v, write_v)
+        }
+        "turbo:normalize:nfc" => add_norm(builder, UnicodeForm::nfc(), read_v, write_v),
+        "turbo:normalize:case-fold" | "case_fold" => add_norm(builder, CaseFold::full(), read_v, write_v),
+        "turbo:normalize:whitespace" | "whitespace" => {
+            add_norm(builder, Whitespace::keep_paragraphs(), read_v, write_v)
+        }
+        "turbo:normalize:invisible" | "turbo:normalize:clean-text" | "clean_text" => {
+            add_norm(builder, Invisible, read_v, write_v)
+        }
+        _ => unreachable!(),
+    }
 }
 
 #[derive(Default)]
@@ -269,10 +297,16 @@ fn compile_pipeline_with(
     let mut norm_index = 0usize;
     let mut norm_chain: Vec<&'static str> = Vec::new();
     let mut active_norm_view: Option<&'static str> = None;
-    // Rule sentences and place names read text as written: after a fold
-    // they read the last view that still has its case (None is the source).
+    // Rule sentences and place names read text as written: the chain with
+    // its folds left out (None is the source). Up to the first fold that
+    // is the chain itself; after it, each further normalizer also runs on
+    // a branch of cased views, when a step reads one.
     let mut cased_norm_view: Option<&'static str> = None;
     let mut folded = false;
+    let mut cased_index = 0usize;
+    let has_cased_reader = step_names
+        .iter()
+        .any(|s| matches!(*s, "turbo-sentdetect:rules" | "turbo:sentences" | "turbo-geo:names" | "turbo:entities"));
 
     for &name in step_names {
         if name == "turbo:gliner" {
@@ -291,30 +325,20 @@ fn compile_pipeline_with(
             norm_index += 1;
             norm_chain.push(write_v);
             active_norm_view = Some(write_v);
-            folded |= matches!(name, "turbo:normalize:case-fold" | "case_fold");
+            let is_fold = matches!(name, "turbo:normalize:case-fold" | "case_fold");
+            folded |= is_fold;
             if !folded {
                 cased_norm_view = Some(write_v);
             }
-            builder = match name {
-                "turbo:normalize" | "turbo:normalize:chain" | "normalize" => add_norm(
-                    builder,
-                    Chain::new().then(Invisible).then(UnicodeForm::nfkc()).then(Whitespace::keep_line_breaks()),
-                    read_v,
-                    write_v,
-                ),
-                "turbo:normalize:unicode-form" | "turbo:normalize:nfkc" | "unicode_normalize" => {
-                    add_norm(builder, UnicodeForm::nfkc(), read_v, write_v)
-                }
-                "turbo:normalize:nfc" => add_norm(builder, UnicodeForm::nfc(), read_v, write_v),
-                "turbo:normalize:case-fold" | "case_fold" => add_norm(builder, CaseFold::full(), read_v, write_v),
-                "turbo:normalize:whitespace" | "whitespace" => {
-                    add_norm(builder, Whitespace::keep_paragraphs(), read_v, write_v)
-                }
-                "turbo:normalize:invisible" | "turbo:normalize:clean-text" | "clean_text" => {
-                    add_norm(builder, Invisible, read_v, write_v)
-                }
-                _ => unreachable!(),
-            };
+            builder = add_normalizer(builder, name, read_v, write_v);
+            if folded && !is_fold && has_cased_reader {
+                // The fold forked the chain: the readers of cased text get
+                // this normalizer too, on their own branch of views.
+                let cased = CASED_VIEWS[cased_index];
+                cased_index += 1;
+                builder = add_normalizer(builder, name, cased_norm_view.unwrap_or(""), cased);
+                cased_norm_view = Some(cased);
+            }
             continue;
         }
 

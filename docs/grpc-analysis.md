@@ -212,15 +212,20 @@ offset modes.
 Two of those steps match text as written and so read the cased view: the
 rule sentence step (`turbo-sentdetect:rules`) and the place-name step
 (`turbo-geo:names`, `turbo:entities`). In a chain with
-`turbo:normalize:case-fold` they read the last view written before the
-fold, or the source when the fold comes first, and their spans are in
-source offsets as always. A full fold also rewrites spellings (`ﬁ` to
-`fi`, `ſ` to `s`), which would otherwise turn words the text does not
-write into place names. Tokens, subwords and the steps that read them
+`turbo:normalize:case-fold` they read the chain with its folds left out,
+and their spans are in source offsets as always. Up to the first fold
+that is the chain itself. A normalizer placed after a fold is also run
+on the cased text, into a view of its own (`cased_1`, `cased_2`, ...),
+so where the fold sits among the normalizers does not change what the
+two steps find; those views are built only when a request has both such
+a normalizer and one of the two steps. A full fold also rewrites
+spellings (`ﬁ` to `fi`, `ſ` to `s`), as NFKC does, which would otherwise
+turn words the text does not write into place names. Tokens, subwords and the steps that read them
 keep reading the last view, folded. Structure blocks read it too and do
 not depend on case. Every other step reads the source.
-`server/tests/case_fold_sentences.rs` and
-`server/tests/progressive_case_fold_names.rs` hold the two steps to the
+`server/tests/case_fold_sentences.rs`,
+`server/tests/progressive_case_fold_names.rs` and
+`server/tests/progressive_fold_position.rs` hold the two steps to the
 results of the same request without the fold.
 
 Span offsets cross in the unit a message names (`OffsetMode` on
