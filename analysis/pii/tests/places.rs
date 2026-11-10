@@ -9,10 +9,12 @@ use support::*;
 use turbo_pii::rewrite::mask_by_kind;
 use turbo_pii::{Pack, PiiKind};
 
-/// The written text, kind and normalized value of each mention.
+/// The written text, kind and normalized value of each state or county
+/// mention (cities are `places_city.rs`).
 fn found(text: &str) -> Vec<(String, &'static str, String)> {
     rows(&pack(Pack::Places), text)
         .into_iter()
+        .filter(|r| r.2 != "city")
         .map(|(s, e, kind, value)| (text[s as usize..e as usize].to_owned(), kind, value))
         .collect()
 }

@@ -157,6 +157,13 @@ stubs must be regenerated.
   either end of a place name, so `x_Illinois` and `Cook County_x` hold
   none (#2089). A county name is compared in NFC, so a decomposed
   spelling finds its county (#2081).
+- `city` 45, appended to `PiiKindId` (`TURBO_PII_KIND_CITY`, Java
+  `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
+  `Places` pack: a populated place of the bundled Natural Earth gazetteer
+  directly before its US state or territory (`Springfield, IL`,
+  `San Juan, PR`) or after a city label
+  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
+  (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three

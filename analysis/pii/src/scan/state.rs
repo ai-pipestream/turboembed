@@ -45,7 +45,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
 }
 
 /// The end and code of the state name at `i`.
-fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
+pub(super) fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
     let b = text.as_bytes();
     let (name, code) = US_STATES.iter().find(|(name, _)| {
         let n = name.as_bytes();
