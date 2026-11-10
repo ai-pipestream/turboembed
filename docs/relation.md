@@ -174,5 +174,13 @@ spans keep their byte offsets, and the re-export is byte-identical. The
 GLiREL weights there are the seeded reduced fixture, so that test shows
 wiring, not quality.
 
+The served steps are measured on the Re-DocRED test split with gold
+entity mentions given, at document scope, by the `relations_corpus`
+example of `turbo-kserve`: `turbo-tagger:relations` reaches micro F1
+0.4492, and `turbo:zero-shot-relations` (GLiNER2, ten property labels)
+0.0971 on those ten properties. GLiNER2 refuses a document longer than
+its 512-piece encoder. The record is
+`analysis/eval/records/relations-1952/README.md`.
+
 Predicate-argument events with N-ary, anchored arguments are in
 [events.md](events.md).
