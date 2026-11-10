@@ -4236,7 +4236,8 @@ function append(e, children) {
 function stat(value, key2) {
   return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key2 }));
 }
-function table(head, rows2, cls = "") {
+function table(head, rows2, cls = "", none = "None.") {
+  if (!rows2.length) return el("p", { class: "muted empty", text: none });
   return el(
     "table",
     { class: cls || void 0 },
@@ -9107,10 +9108,10 @@ async function status() {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
-    s.className = "muted";
+    s.className = ready.ready ? "muted status up" : "muted status";
   } catch (e) {
     s.textContent = `The server is not reachable through the demo: ${describe(e)}`;
-    s.className = "error";
+    s.className = "error status down";
   }
 }
 function renderCapabilities(c) {
@@ -9703,7 +9704,18 @@ function show2(name) {
   if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
 }
 function start2() {
-  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => show2(b.dataset.tab ?? "embed"));
+  const tabs = [...document.querySelectorAll("nav.tabs button")];
+  tabs.forEach((b, i) => {
+    b.addEventListener("click", () => show2(b.dataset.tab ?? "embed"));
+    b.addEventListener("keydown", (ev) => {
+      const step = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      ev.preventDefault();
+      const next = tabs[(i + step + tabs.length) % tabs.length];
+      next.focus();
+      show2(next.dataset.tab ?? "embed");
+    });
+  });
   init11();
   init5();
   init10();
