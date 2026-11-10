@@ -170,9 +170,9 @@ byte), a refused sample line, or no samples are `INVALID_ARGUMENT`;
 more than 256 MiB of samples, or an upload that sends no message for a
 minute (`Serve::upload_idle`), is `OUT_OF_RANGE` (`TURBO_E_CAPACITY`);
 a call while another training runs is `UNAVAILABLE` (`TURBO_E_BUSY`).
-A client that goes away stops the training at its next iteration (a
-trainer that tests no stop criterion each iteration, such as the
-quasi-Newton one, stops when it finishes) and frees the slot. A client
+A client that goes away stops the training at its next iteration, the
+quasi-Newton trainer's included, and frees the slot; naive Bayes counts
+in one pass and is not stopped. A client
 that drops the answer but keeps its upload open looks to the server
 like a slow one, so the upload idle limit is what frees the slot then.
 
