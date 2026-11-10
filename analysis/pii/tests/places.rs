@@ -223,8 +223,21 @@ fn every_county_of_the_table_is_found_and_suffix_words_in_prose_are_not() {
             assert_eq!((counties[0].1 as usize, counties[0].3.as_str()), (text.len() - 1, name), "{text:?}");
         }
     }
-    // A suffix word after a small word is no county, and no search.
-    for text in ["In the area.", "in the county", "the parish hall", "a borough", "the municipality"] {
+    // A suffix word after a small word or a capitalized non-county word is no
+    // county, and no search.
+    for text in [
+        "In the area.",
+        "in the county",
+        "the parish hall",
+        "a borough",
+        "the municipality",
+        "In The Area.",
+        "IN THE COUNTY OF",
+        "The Parish Hall",
+        "A Borough Office",
+        "THE MUNICIPALITY OF",
+        "In The Municipio",
+    ] {
         assert!(found(text).iter().all(|m| m.1 != "county"), "{text:?}");
     }
 }

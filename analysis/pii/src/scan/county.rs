@@ -16,7 +16,7 @@ use turbo_analysis_layers::{PiiEvidence, PiiKind};
 use turbo_unicode::normalize::{Form, is_normalized, normalize};
 
 use crate::hits::Hits;
-use crate::tables::us_counties::{MAX_WORDS, SUFFIXES, county};
+use crate::tables::us_counties::{MAX_WORDS, SUFFIXES, before_suffix, county};
 use crate::text::{name_char, on_name_end, on_name_start, on_word_start};
 
 pub(crate) fn scan(text: &str, hits: &mut Hits) {
@@ -68,17 +68,21 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         // Leading punctuation (`(Cook County`) is not part of the name.
         let Some(lead) = text[start..word_end].find(|c: char| c.is_alphanumeric()) else { break };
         start += lead;
+        if n == 0 {
+            // Every name of the table starts with a capital, and so does its
+            // word before the suffix but for `and` (`Juneau City and Borough`).
+            // A word is read as the table writes it or in capitals, so a
+            // suffix whose preceding word breaks that or is not in the table's
+            // next-to-last words (`In the area`, `In The Area`, `IN THE COUNTY`)
+            // is no name, with no further walk or search.
+            let word = &text[start..word_end];
+            if (!capital_at(text, start) && !word.eq_ignore_ascii_case("and")) || !before_suffix(&nfc(word)) {
+                return None;
+            }
+        }
         starts[n] = start;
         n += 1;
         at = start;
-    }
-    // Every name of the table starts with a capital, and so does its word
-    // before the suffix but for `and` (`Juneau City and Borough`). A word
-    // is read as the table writes it or in capitals, so text that breaks
-    // this (`In the area`, `the county`) is no name, with no search.
-    let nearest = *starts[..n].first()?;
-    if !capital_at(text, nearest) && !text.as_bytes()[nearest..suffix - 1].eq_ignore_ascii_case(b"and") {
-        return None;
     }
     starts[..n].iter().rev().filter(|&&start| capital_at(text, start)).find_map(|&start| {
         let written = nfc(&text[start..end]);
