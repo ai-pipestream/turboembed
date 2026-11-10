@@ -5,8 +5,16 @@
 /// `flag` is the part before any `=`; `inline` says whether a value
 /// followed it.
 pub(crate) fn unknown_argument(flag: &str, inline: bool) -> String {
-    if !flag.starts_with("--") {
+    let Some(name) = flag.strip_prefix("--") else {
         return format!("unknown argument ({} bytes, not a --flag, not shown)", flag.len());
+    };
+    // Every flag is lower case letters, digits and `-`. Anything else
+    // after `--` (say `--` and a base64 key) is not repeated.
+    let flag_shaped = !name.is_empty()
+        && name.len() <= 64
+        && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if !flag_shaped {
+        return format!("unknown argument ({} bytes, not shaped like a --flag, not shown)", flag.len());
     }
     match inline {
         true => format!("unknown argument {flag}=... (the value is not shown)"),
@@ -34,6 +42,7 @@ mod tests {
             ),
             (key.to_owned(), "unknown argument (44 bytes, not a --flag, not shown)"),
             (format!("tok:1:{key}"), "unknown argument (50 bytes, not a --flag, not shown)"),
+            (format!("--{key}"), "unknown argument (45 bytes, not shaped like a --flag, not shown)"),
         ];
         for (arg, want) in cases {
             let e = err(&[base[0], base[1], &arg]);

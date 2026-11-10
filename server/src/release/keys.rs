@@ -124,16 +124,18 @@ pub struct TokenKey {
 }
 
 impl TokenKey {
-    /// Reads `file`. An error names the reference and the path, never the
-    /// bytes.
+    /// Reads `file`. An error names the reference and the path's length,
+    /// never the path or the bytes: key text pasted where the path belongs
+    /// would otherwise be printed.
     pub fn load(file: &TokenKeyFile) -> Result<TokenKey, String> {
-        let bytes = std::fs::read(&file.path)
-            .map_err(|e| format!("--pii-token-key {}: {}: {e}", file.key, file.path.display()))?;
+        let bytes = std::fs::read(&file.path).map_err(|e| {
+            let n = file.path.as_os_str().len();
+            format!("--pii-token-key {}: the key file (a path of {n} bytes, not shown) cannot be read: {e}", file.key)
+        })?;
         if !(MIN_KEY_BYTES..=MAX_KEY_BYTES).contains(&bytes.len()) {
             return Err(format!(
-                "--pii-token-key {}: {} holds {} bytes, not {MIN_KEY_BYTES} to {MAX_KEY_BYTES}",
+                "--pii-token-key {}: the key file holds {} bytes, not {MIN_KEY_BYTES} to {MAX_KEY_BYTES}",
                 file.key,
-                file.path.display(),
                 bytes.len()
             ));
         }

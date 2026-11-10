@@ -72,6 +72,16 @@ fn key_flag_parse_errors_never_repeat_the_input() {
     assert_not_echoed(&err, id_shaped);
     let ok = TokenKeyFile::parse("tok:3:/keys/a:b").unwrap();
     assert_eq!((ok.key.to_string(), ok.path), ("tok:3".to_owned(), PathBuf::from("/keys/a:b")));
+    // Key text pasted as the path parses, then fails to load: the load
+    // error names the reference, not the path.
+    for bad in [format!("tok:1:{key}"), format!("tok:1:/run/keys/{key}")] {
+        let err = TokenKey::load(&TokenKeyFile::parse(&bad).unwrap()).unwrap_err();
+        assert!(err.starts_with("--pii-token-key tok:1: the key file (a path of"), "{err}");
+        assert_not_echoed(&err, key);
+    }
+    let short = key_file(key, b"short");
+    let err = TokenKey::load(&short).unwrap_err();
+    assert_eq!(err, "--pii-token-key tok:3: the key file holds 5 bytes, not 32 to 1024");
 }
 
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {

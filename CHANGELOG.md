@@ -333,11 +333,14 @@ stubs must be regenerated.
 
 - `--pii-token-key` and `--pii-token-key-active` (and their variables):
   a value that does not parse is described by its length and parts, never
-  repeated, so key text pasted into the flag does not reach stderr (#2093).
+  repeated, and a key file that cannot be loaded is named by its reference
+  and the path's length, so key text pasted into the flag does not reach
+  stderr (#2093).
 - `turbo-kserve`: an argument no flag claims is named without its value.
   A misspelled `--flag=value` reads `unknown argument --flag=...`, and a
-  stray non-flag word is described by its length, so key text pasted
-  there does not reach stderr (#2102).
+  stray non-flag word, or `--` followed by text no flag could be, is
+  described by its length, so key text pasted there does not reach stderr
+  (#2102).
 - `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
   client goes away stops at its next iteration and frees the training
   slot, as GIS and the perceptron do (#2067).
