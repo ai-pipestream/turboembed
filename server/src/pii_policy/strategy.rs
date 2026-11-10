@@ -233,6 +233,8 @@ pub(crate) fn strategy(
             AgeSafeHarbor::new().with_mask(mask_char(at, c, AgeSafeHarbor::DEFAULT_MASK)?),
         ),
         Strategy::Date(d) => date(at, d, resolver)?,
+        Strategy::Aes256Gcm(a) => return super::reversible::aes_gcm(at, a, resolver),
+        Strategy::Ff1(f) => return super::reversible::ff1(at, f, resolver),
     }))
 }
 
@@ -259,6 +261,8 @@ pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
             Some(Mode::SafeHarbor(_)) => PiiStrategy::DateSafeHarbor,
             Some(Mode::Year(_)) | None => PiiStrategy::DateYear,
         },
+        Strategy::Aes256Gcm(_) => PiiStrategy::Aes256Gcm,
+        Strategy::Ff1(_) => PiiStrategy::Ff1,
     }
 }
 
@@ -269,8 +273,8 @@ fn char_string(c: char, default: char) -> String {
 /// The message for `s`, where the native value says all its message does:
 /// mask, truncate (a kept end is written as last-N), format, SHA-256,
 /// pseudonym, ZIP Safe Harbor, age Safe Harbor and an unkeyed date
-/// strategy. A keyed token or keyed date shift holds key bytes and no
-/// reference, a map its table, a static replacer per-kind
+/// strategy. A keyed token, a keyed date shift, an AES-256-GCM or an FF1
+/// strategy holds key bytes and no reference, a map its table, a static replacer per-kind
 /// texts and an abbreviator private punctuation, so those give `None`; a strategy that refuses overlaps has
 /// no message field and gives `None` too.
 pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
@@ -331,6 +335,9 @@ pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
         | RewriteStrategy::Map(_)
         | RewriteStrategy::Static(_)
         | RewriteStrategy::Abbreviate(_) => return None,
+        // Each holds key bytes and no reference.
+        #[cfg(feature = "pii-reversible")]
+        RewriteStrategy::AesGcm(_) | RewriteStrategy::Ff1(_) => return None,
     };
     Some(PiiRewriteStrategy { strategy: Some(arm) })
 }

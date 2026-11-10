@@ -79,6 +79,8 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       - name: clippy (pii reversible)
         run: cargo clippy -p turbo-pii --features reversible --all-targets
+      - name: clippy (server pii-reversible)
+        run: cargo clippy -p turbo-kserve --features pii-reversible --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
       # through ureq or rustls, whose build script needs an aarch64 C
@@ -290,6 +292,10 @@ jobs:
       # RustCrypto AES-GCM and FF1 crates.
       - name: test (pii reversible)
         run: cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
+      - name: test (server pii-reversible)
+        run: >-
+          cargo test -p turbo-kserve --features pii-reversible --lib
+          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host

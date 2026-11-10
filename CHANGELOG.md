@@ -47,6 +47,13 @@ stubs must be regenerated.
 - With `reversible`, `RewriteStrategy::AesGcm` and `RewriteStrategy::Ff1`
   put both encryptors in a `RewritePolicy`, per kind. Their key enters the
   policy's configuration hash only as an HMAC under a fixed label (#1885).
+- The server's `pii-reversible` cargo feature: the redaction policy arms
+  `aes_256_gcm` (`PiiAesGcmStrategy`, field 14) and `ff1`
+  (`PiiFf1Strategy`, field 15, with `PiiFf1Alphabet`), each naming a key
+  registered with `--pii-encryption-key ID:VERSION:PATH`
+  (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`), a registry of exactly 32-byte keys
+  kept apart from the token keys. A server built without the feature
+  does not know the arms (#1885).
 - The result envelope: `InputIdentity`, `ResultIdentity`,
   `LayerProvenance`, `ViewChain`, `EditRun` and `MappingPayload` on
   `TypedDocumentResult`, so a result names what it was computed from
@@ -357,6 +364,10 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `AnalyzeDocumentProgressive`: in a step chain that folds case,
+  `turbo-sentdetect:rules` reads the last view before the fold, so a
+  folded document keeps its sentence boundaries instead of becoming one
+  sentence (#2086).
 - `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
   client goes away stops at its next iteration and frees the training
   slot, as GIS and the perceptron do (#2067).
