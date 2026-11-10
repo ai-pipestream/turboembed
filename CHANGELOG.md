@@ -312,6 +312,9 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
+  client goes away stops at its next iteration and frees the training
+  slot, as GIS and the perceptron do (#2067).
 - levelzero: a context on an Intel GPU under the `xe` driver no longer
   loses its device (`0x70000001`) when a desktop client draws while the
   device pages an evicted buffer back in. The backend sets
