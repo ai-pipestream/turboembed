@@ -38,6 +38,14 @@ fn state_names_read_as_written_or_in_capitals() {
         ("works in Washington DC now", "Washington DC", "DC"),
         ("the District of Columbia office", "District of Columbia", "DC"),
         ("Texas's border", "Texas", "TX"),
+        // A county word that makes no county leaves the state.
+        ("We live in the Texas area now.", "Texas", "TX"),
+        ("Moved to the Washington area last year.", "Washington", "WA"),
+        ("The Ohio area office", "Ohio", "OH"),
+        ("Illinois County does not exist.", "Illinois", "IL"),
+        ("Florida Parish records", "Florida", "FL"),
+        ("New York borough presidents", "New York", "NY"),
+        ("the Virginia municipality rules", "Virginia", "VA"),
     ] {
         assert_eq!(one(text), (written.to_owned(), "state", code.to_owned()), "{text:?}");
     }

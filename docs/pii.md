@@ -913,7 +913,8 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   capitals, at word boundaries, single spaces between its words.
   `Washington, D.C.` and `Washington DC` are the District. `New York
   City` is a city and `Washington County` a county, so neither is a
-  state. A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
+  state; a county word that makes no county of the list leaves the state
+  (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
   `OK`), so it is a mention only in capitals and only directly after a
   state label (`State: OR`) or before a ZIP code (`Springfield, IL
   62704`). The normalized form is the USPS code (`IL`).
