@@ -969,6 +969,17 @@ and detector lists, with a typed `PolicyError` naming the field.
   `relative`: relative to a `yyyy-MM-dd` reference date; each mode
   records its own `PiiStrategy`). A rule for `date` or `currency` turns
   on the opt-in `Dates` or `Money` pack of the `turbo-pii:pii` step.
+  Two reversible arms need a server built with the `pii-reversible`
+  cargo feature: `aes_256_gcm` (an authenticated AES-256-GCM token of the
+  mention as written, bound to the kind and a `context` string; a fresh
+  nonce each time, so tokens are not linkable) and `ff1` (FF1
+  format-preserving encryption of the mention's digits or letters under
+  an alphabet and a `tweak`, every other character kept in place). Each
+  names a key registered with `--pii-encryption-key`. A mention FF1
+  cannot take, such as an email under the digit alphabet, fails the
+  rewrite. A server without the feature does not know either arm, so the
+  policy is refused, or the entry masked and flagged under
+  `redact_and_flag_unknown`. No rpc decrypts.
 - **Default**: a kind with no rule, or no entry that applies, gets
   `default_strategy`, which is a mask or a keyed token only; unset, a
   whole-value `*` mask. The native `RewriteStrategy::default()` is the
@@ -1053,7 +1064,14 @@ An unknown name is refused without echoing it.
   position, never the path, a term or a key.
 - **References**: a keyed-token key (`PiiPolicyKeyRef`) resolves through
   the token keys registered with `--pii-token-key` (PII value release);
-  an unregistered key refuses the policy. A dictionary reference
+  an unregistered key refuses the policy. The keys of the `aes_256_gcm`
+  and `ff1` arms resolve through `--pii-encryption-key ID:VERSION:PATH`
+  (repeated, or `TURBO_KSERVE_PII_ENCRYPTION_KEYS`), whose file must hold
+  exactly 32 bytes. That flag needs `--pii-grant`, as the token keys do,
+  and a server built with `pii-reversible`; without the feature it fails
+  start-up. The two registries are separate: a token key never answers
+  for an encryption reference, or the reverse, and an encryption key
+  file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store
   (`--vocabulary-dir`, docs/grpc-vocabulary.md), pinned by content: the
   stored dictionary must have exactly the reference's SHA-256 and the
