@@ -7,10 +7,13 @@
 //! list (`Washington County`) is the county's. A two-letter USPS code (`IL`) is a common word or
 //! abbreviation too (`IN`, `OR`, `ME`, `OK`), so it is a mention only in
 //! capitals and only after a state label (`State: IL`) or before a ZIP
-//! code that ends an address: after a comma (`Springfield, IL 62704`),
-//! after a capitalized word when the ZIP code's three-digit prefix
-//! belongs to that state (`Springfield IL 62704`, `Reading PA 19601`),
-//! or alone on a line with its ZIP code, not after another word or with
+//! code that ends an address: after a comma (`Springfield, IL 62704`,
+//! `Springfield,IL 62704`), in brackets with its ZIP code (`(IL 62704)`),
+//! after a colon label (`Address: IL 62704`), after a capitalized word and
+//! horizontal blanks when the ZIP code's three-digit prefix belongs to that
+//! state (`Springfield IL 62704`, `Springfield\tIL 62704`,
+//! `Saint Louis MO 63101`, `Reading PA 19601`), or alone on a line with its
+//! ZIP code (`IL 62704`, `\u{a0}IL 62704`), not after another word or with
 //! another state's prefix (`Order IN 12345`, `PART OR 90210`). The
 //! normalized form is the USPS code.
 
@@ -21,7 +24,7 @@ use super::us_labelled::STATES;
 use crate::hits::Hits;
 use crate::tables::us_counties::{SUFFIXES, county};
 use crate::tables::us_states::US_STATES;
-use crate::text::{name_char, on_end, on_name_end, on_name_start};
+use crate::text::{before, name_char, on_end, on_name_end, on_name_start};
 use crate::window::find_any_label;
 
 /// The labels a code is read after, longest first.
@@ -102,32 +105,63 @@ fn code_at(text: &str, i: usize) -> Option<usize> {
 
 /// Whether a code at `code` before the ZIP code ending at `end` reads as
 /// the end of an address, by what comes before it: a comma
-/// (`Springfield, IL 62704`), a capitalized word and one space when the
-/// ZIP code's three-digit prefix belongs to that state
-/// (`Springfield IL 62704 is`, `Reading PA 19601`), or only blanks back
-/// to the start of a line when only blanks, or blanks and a clause's
-/// end, follow the ZIP code (`IL 62704`, `IL 62704.`). A small word or a
-/// prefix from another state (`(see IN 12345)`, `Order IN 12345`,
+/// (`Springfield, IL 62704`, `Springfield,IL 62704`), brackets around the
+/// code and ZIP code (`(IL 62704)`), a colon label (`Address: IL 62704`),
+/// a capitalized word and horizontal blanks when the ZIP code's
+/// three-digit prefix belongs to that state (`Springfield IL 62704 is`,
+/// `Springfield  IL 62704`, `Springfield\tIL 62704`,
+/// `Saint Louis MO 63101`, `Reading PA 19601`), or only blanks back to the
+/// start of a line when only blanks, or blanks and a clause's end, follow
+/// the ZIP code (`IL 62704`, `\u{a0}IL 62704`, `IL 62704.`). A small word
+/// or a prefix from another state (`(see IN 12345)`, `Order IN 12345`,
 /// `PART OR 90210`), or a word after a line's code and number
 /// (`IN 12345 units`), makes the number a count.
 fn address_like(text: &str, code: usize, end: usize) -> bool {
     let b = text.as_bytes();
-    let before = &b[..code];
-    if before.ends_with(b", ") {
-        return true;
-    }
     // Only the blanks directly before the code and after the ZIP code are
     // walked, so each byte is looked at once however many codes a line
     // holds.
-    let blanks = before.iter().rev().take_while(|&&c| c == b' ' || c == b'\t').count();
-    if matches!(before.len().checked_sub(blanks + 1).map(|p| before[p]), None | Some(b'\n')) {
+    let p = skip_blanks_back(b, code);
+    if p > 0 && b[p - 1] == b',' && (p < code || before(text, p - 1).is_some_and(name_char)) {
+        return true;
+    }
+    if p == 0 || b[p - 1] == b'\n' {
         return line_ends_after(text, end);
     }
-    before.len() >= 2
-        && before.ends_with(b" ")
-        && before[before.len() - 2] != b' '
-        && zip_prefix_in_state(&b[code..code + 2], &b[code + 3..code + 6])
-        && capitalized_word_before(text, code - 1)
+    let after = skip_blanks(b, end);
+    if (b[p - 1] == b'(' && b.get(after) == Some(&b')')) || (b[p - 1] == b'[' && b.get(after) == Some(&b']')) {
+        return true;
+    }
+    if p < code && b[p - 1] == b':' && before(text, p - 1).is_some_and(name_char) {
+        return line_ends_after(text, end);
+    }
+    p < code && zip_prefix_in_state(&b[code..code + 2], &b[code + 3..code + 6]) && capitalized_word_before(text, p)
+}
+
+/// Steps back over horizontal blanks (`' '`, `'\t'` and U+00A0) ending at `i`.
+fn skip_blanks_back(b: &[u8], mut i: usize) -> usize {
+    loop {
+        if i > 0 && matches!(b[i - 1], b' ' | b'\t') {
+            i -= 1;
+        } else if i >= 2 && b[i - 2..i] == [0xC2, 0xA0] {
+            i -= 2;
+        } else {
+            return i;
+        }
+    }
+}
+
+/// Steps forward over horizontal blanks (`' '`, `'\t'` and U+00A0) starting at `i`.
+fn skip_blanks(b: &[u8], mut i: usize) -> usize {
+    loop {
+        if i < b.len() && matches!(b[i], b' ' | b'\t') {
+            i += 1;
+        } else if b.get(i..i + 2) == Some(&[0xC2, 0xA0]) {
+            i += 2;
+        } else {
+            return i;
+        }
+    }
 }
 
 /// Whether the word ending at `end` is shaped like the last word of a
