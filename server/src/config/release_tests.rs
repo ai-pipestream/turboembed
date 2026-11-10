@@ -146,3 +146,30 @@ fn requiring_the_recorded_policy_is_off_by_default_and_set_by_its_flag_or_variab
     let set = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| "1".to_owned());
     assert!(args_env(MTLS, set).unwrap_err().contains("need --pii-grant"));
 }
+
+#[test]
+fn encryption_keys_repeat_need_a_grant_and_a_reversible_build() {
+    let grant = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
+    let cmd = format!("{grant} --pii-encryption-key vault:1:/k/one --pii-encryption-key vault:2:/k/two:x");
+    if cfg!(feature = "pii-reversible") {
+        let r = args(&cmd).unwrap().pii_release.unwrap();
+        assert_eq!(r.encryption_keys.len(), 2);
+        assert_eq!(r.encryption_keys[1].key, KeyRef { id: "vault".into(), version: 2 });
+        assert_eq!(r.encryption_keys[1].path, std::path::PathBuf::from("/k/two:x"));
+        assert!(r.token_keys.is_empty(), "an encryption key is not a token key");
+        let env = |k: &str| (k == ENV_PII_ENCRYPTION_KEYS).then(|| "vault:3:/k/three; vault:4:/k/four".to_owned());
+        assert_eq!(args_env(&grant, env).unwrap().pii_release.unwrap().encryption_keys.len(), 2);
+        for (cmd, want) in [
+            (format!("{grant} --pii-encryption-key a:1:/k --pii-encryption-key a:1:/j"), "given twice"),
+            (format!("{grant} --pii-encryption-key a:0:/k"), "not a number from 1"),
+            (format!("{grant} --pii-encryption-key a:1:"), "path is empty"),
+            (format!("{MTLS} --pii-encryption-key a:1:/k"), "need --pii-grant"),
+        ] {
+            let e = args(&cmd).unwrap_err();
+            assert!(e.contains(want), "{cmd}: {e}");
+        }
+    } else {
+        let e = args(&cmd).unwrap_err();
+        assert!(e.contains("pii-reversible"), "{e}");
+    }
+}
