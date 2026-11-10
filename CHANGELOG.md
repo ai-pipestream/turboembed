@@ -331,6 +331,9 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `--pii-token-key` and `--pii-token-key-active` (and their variables):
+  a value that does not parse is described by its length and parts, never
+  repeated, so key text pasted into the flag does not reach stderr (#2093).
 - `TurboTrainingService.TrainComponent`: a `MAXENT_QN` training whose
   client goes away stops at its next iteration and frees the training
   slot, as GIS and the perceptron do (#2067).

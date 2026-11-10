@@ -35,6 +35,41 @@ fn wire_key_references_follow_the_cli_id_contract() {
     }
 }
 
+/// No window of four bytes or more of `secret` is in `err`.
+fn assert_not_echoed(err: &str, secret: &str) {
+    let b = secret.as_bytes();
+    for w in b.windows(4) {
+        let w = std::str::from_utf8(w).unwrap();
+        assert!(!err.contains(w), "{err:?} repeats {w:?} of the input");
+    }
+}
+
+#[test]
+fn key_flag_parse_errors_never_repeat_the_input() {
+    // A base64 AES-256 key, and key-like text, pasted where a reference
+    // and a path belong.
+    let key = "q8ZrVx3T0bWmJ2kYp7LdN9fHcE4sGuA6oRiK1tXyQwM=";
+    let with_colons = format!("{key}:{key}:/keys/k");
+    for bad in
+        [key.to_owned(), format!("{key}:1"), with_colons.clone(), format!("tok:{key}:/keys/k"), format!("tok:{key}")]
+    {
+        let err = TokenKeyFile::parse(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    for bad in [key.to_owned(), format!("{key}:1"), format!("tok:{key}")] {
+        let err = KeyRef::parse(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    // The errors still say which part is wrong.
+    assert!(TokenKeyFile::parse(key).unwrap_err().contains("is not ID:VERSION:PATH"));
+    assert!(TokenKeyFile::parse(&with_colons).unwrap_err().contains("key id (44 bytes"));
+    assert!(KeyRef::parse(&format!("tok:{key}")).unwrap_err().contains("key version (44 bytes"));
+    // A reference that parsed is named, as later errors name it.
+    assert_eq!(TokenKeyFile::parse("tok:3:").unwrap_err(), "tok:3: the path is empty");
+    let ok = TokenKeyFile::parse("tok:3:/keys/a:b").unwrap();
+    assert_eq!((ok.key.to_string(), ok.path), ("tok:3".to_owned(), PathBuf::from("/keys/a:b")));
+}
+
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {
     let dir = std::env::temp_dir().join(format!("turbo-release-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();

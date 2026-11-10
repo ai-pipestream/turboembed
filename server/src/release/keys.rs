@@ -29,19 +29,22 @@ impl KeyRef {
     }
 
     /// `ID:VERSION`; the id is ASCII letters, digits, `-`, `_` and `.`,
-    /// and the version a number from 1.
+    /// and the version a number from 1. An error never repeats the input,
+    /// which may be key text pasted in the wrong place: it names the part
+    /// that is wrong and its length.
     pub fn parse(s: &str) -> Result<KeyRef, String> {
-        let (id, version) = s.split_once(':').ok_or_else(|| format!("`{s}` is not ID:VERSION"))?;
+        let (id, version) = s.split_once(':').ok_or_else(|| shape("ID:VERSION", s))?;
         KeyRef::new(id, version)
     }
 
     fn new(id: &str, version: &str) -> Result<KeyRef, String> {
         if !Self::valid_id(id) {
-            return Err(format!("key id `{id}` is not 1 to 64 of A-Z, a-z, 0-9, -, _ and ."));
+            let n = id.len();
+            return Err(format!("the key id ({n} bytes, not shown) is not 1 to 64 of A-Z, a-z, 0-9, -, _ and ."));
         }
         match version.parse::<u32>() {
             Ok(v) if v > 0 => Ok(KeyRef { id: id.to_owned(), version: v }),
-            _ => Err(format!("key version `{version}` is not a number from 1")),
+            _ => Err(format!("the key version ({} bytes, not shown) is not a number from 1", version.len())),
         }
     }
 
@@ -79,17 +82,27 @@ pub struct TokenKeyFile {
 }
 
 impl TokenKeyFile {
-    /// `ID:VERSION:PATH`; the path may hold `:`.
+    /// `ID:VERSION:PATH`; the path may hold `:`. As with
+    /// [`KeyRef::parse`], an error never repeats the input. Once the
+    /// reference parses, later errors name it and the path.
     pub fn parse(s: &str) -> Result<TokenKeyFile, String> {
         let mut parts = s.splitn(3, ':');
         let (Some(id), Some(version), Some(path)) = (parts.next(), parts.next(), parts.next()) else {
-            return Err(format!("`{s}` is not ID:VERSION:PATH"));
+            return Err(shape("ID:VERSION:PATH", s));
         };
+        let key = KeyRef::new(id, version)?;
         if path.is_empty() {
-            return Err(format!("`{s}`: the path is empty"));
+            return Err(format!("{key}: the path is empty"));
         }
-        Ok(TokenKeyFile { key: KeyRef::new(id, version)?, path: PathBuf::from(path) })
+        Ok(TokenKeyFile { key, path: PathBuf::from(path) })
     }
+}
+
+/// A value that does not split into `form`, described without its text.
+fn shape(form: &str, s: &str) -> String {
+    let parts = s.split(':').count();
+    let n = s.len();
+    format!("the value ({n} bytes in {parts} `:`-separated parts, not shown) is not {form}")
 }
 
 /// Key material. Its `Debug` names its length only.
