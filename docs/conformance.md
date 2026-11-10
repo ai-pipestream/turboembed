@@ -116,14 +116,23 @@ scale, the largest reference value in magnitude
 |---|---|
 | F32 | 1e-4 |
 | F16 | 1e-2 |
+| F16 on Metal | 1e-3 |
 | BF16 | 4e-2 |
 | I8 | 0.15 |
 
 The F32 bound is the one `core/tests/rerank.rs` and
 `core/tests/qa_inference.rs` hold the CPU to. The F16, BF16 and I8
 bounds are set from each format's precision and have not yet been
-measured on a device; a device run that fails one is to be looked at
-before the bound is changed.
+measured on a device, except F16 on Metal; a device run that fails one
+is to be looked at before the bound is changed.
+
+F16 on Metal is FASTEST's compute dtype there, measured on an M2 over
+`testdata/tiny-rerank-reference` and `testdata/tiny-qa-reference`: the
+largest rerank difference is 2.3e-5 of the scale and the largest QA
+logit difference 1.0e-5, the same with every linear and attention
+kernel `TURBO_METAL_CHOICES` can force. The bound is about F16's
+machine epsilon (9.8e-4), some 40 times the larger. Metal offers
+neither BF16 nor I8.
 
 The decisions are checked too:
 
