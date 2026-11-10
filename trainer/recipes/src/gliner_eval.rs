@@ -92,6 +92,9 @@ pub fn decode_candidates(
             turbo_gliner::decode_with_thresholds(found.clone(), &decode_schema, thresholds).map_err(Error)?;
         let mut bio = vec!["O".to_owned(); sentence.words.len()];
         for candidate in selected {
+            if candidate.start >= candidate.end || candidate.end > sentence.words.len() {
+                return Err(Error("GLiNER candidate span is outside its sentence".into()));
+            }
             let kind = labels.get(candidate.label).ok_or_else(|| Error("GLiNER label index is out of range".into()))?;
             bio[candidate.start] = format!("B-{kind}");
             for tag in &mut bio[candidate.start + 1..candidate.end] {
@@ -239,6 +242,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.0.contains("invalid candidate"));
+        let error = decode_candidates(&sentence, &labels, &[vec![candidate(0, 2, 0, 0.9)]], &[0.5]).unwrap_err();
+        assert!(error.0.contains("outside its sentence"));
     }
 
     #[test]

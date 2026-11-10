@@ -46,6 +46,12 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let started = Instant::now();
     let mut corpora = read_corpora(corpus_id, dir, unrecorded)?;
     let (all_types, declared) = type_schema(&corpora)?;
+    if let Some(guidelines) = &guidelines {
+        let unknown: Vec<&str> = guidelines.keys().filter(|x| !all_types.contains(*x)).map(String::as_str).collect();
+        if !unknown.is_empty() {
+            return Err(Error(format!("--guidelines names labels outside the corpus: {unknown:?}")));
+        }
+    }
     let hold_out: Vec<String> = hold_out_arg.split(',').map(|x| x.trim().to_owned()).collect();
     if hold_out.iter().any(|x| x.is_empty() || !all_types.contains(x)) {
         return Err(Error(format!("--hold-out must name corpus entity types, got {hold_out:?}")));
@@ -110,6 +116,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         let mut epoch_loss = 0.0;
         for (corpus, declared) in corpora.iter().zip(&declared) {
             let active = turbo_trainer_recipes::open_span_mix::corpus_active_types(declared, &seen_types);
+            if active.is_empty() {
+                continue;
+            }
             let schema = gliner_eval::schema(&active, threshold, guidelines.as_ref())?;
             let mut order: Vec<usize> = (0..corpus.splits.train.len()).collect();
             rng.shuffle(&mut order);

@@ -127,6 +127,9 @@ fn measure(
     for (raw, expected) in candidates.iter().zip(gold) {
         let selected = turbo_gliner::decode_with_thresholds(raw.clone(), decode, values).map_err(Error)?;
         for candidate in selected {
+            if candidate.label >= values.len() {
+                return Err(Error("GLiNER calibration candidate label is outside its schema".into()));
+            }
             found[candidate.label] += 1;
             if expected.get(&candidate.label).is_some_and(|x| x.contains(&(candidate.start, candidate.end))) {
                 correct[candidate.label] += 1;
