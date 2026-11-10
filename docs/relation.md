@@ -157,9 +157,11 @@ production-quality.
 
 Stage status for the full document graph:
 
-- Included in the preview: the dependency-path rules (`RelationAnnotator`,
-  with the default libraries as starting rules) and the GLiNER2 scorer in
-  `AnalyzeDocumentProgressive`.
+- Included in the preview and served: the GLiNER2 scorer, as the
+  `turbo:zero-shot-relations` step of `AnalyzeDocumentProgressive`.
+- Included in the preview, in process only: the dependency-path rules
+  (`RelationAnnotator`, with the default libraries as starting rules). No
+  serving step runs them.
 - Experimental: a trained relation classifier head. It is served, as the
   `turbo-tagger:relations` step of `AnalyzeDocumentProgressive` for a bundle
   that carries `head.relations` (see [grpc-analysis.md](grpc-analysis.md)),
