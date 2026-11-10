@@ -9,6 +9,7 @@
 //! a check is asked about follows or precedes an ASCII character, so it is
 //! a character boundary.
 
+use turbo_unicode::category::general_category;
 use turbo_unicode::java::code_point;
 
 /// `Character.isLetterOrDigit(int)`.
@@ -65,6 +66,32 @@ pub fn on_end(text: &str, end: usize) -> bool {
     text.is_char_boundary(end) && !after(text, end).is_some_and(letter_or_digit)
 }
 
+/// A letter, digit, combining mark or `_`: what a word of a place name
+/// is made of. The place scanners (`state`, `county`) read a name only
+/// where no such character touches either end, so `x_Illinois`,
+/// `Cook County_x` and `e\u{301}Illinois` hold no name. The other
+/// scanners keep the shared letter-or-digit rule ([`on_word_start`],
+/// [`on_end`]) so their output stays that of the port.
+#[inline]
+pub fn name_char(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric() || c == '_';
+    }
+    c.is_alphanumeric() || general_category(c).is_mark()
+}
+
+/// `start` is a character boundary with no [`name_char`] before it.
+#[inline]
+pub fn on_name_start(text: &str, start: usize) -> bool {
+    text.is_char_boundary(start) && !before(text, start).is_some_and(name_char)
+}
+
+/// `end` is a character boundary with no [`name_char`] after it.
+#[inline]
+pub fn on_name_end(text: &str, end: usize) -> bool {
+    text.is_char_boundary(end) && !after(text, end).is_some_and(name_char)
+}
+
 /// `Boundaries.onEndBefore`: [`on_end`], and a run of `separator` at
 /// `end` is not followed by a letter or digit.
 pub fn on_end_before(text: &str, end: usize, separator: u8) -> bool {
@@ -108,6 +135,20 @@ mod tests {
         // U+1D400, a supplementary letter, as codePointBefore reads it.
         assert!(!on_word_start("\u{1D400}x", 4));
         assert!(on_word_start("\u{1F600}x", 4));
+    }
+
+    #[test]
+    fn name_ends_refuse_marks_and_underscores_too() {
+        for joined in ["x_", "e\u{301}", "\u{e9}", "9"] {
+            assert!(!on_name_start(&format!("{joined}x"), joined.len()), "{joined:?}");
+            assert!(!on_name_end(&format!("x{joined}"), 1), "{joined:?}");
+        }
+        for apart in [" ", "-", ".", "\u{a0}", "\u{2019}"] {
+            assert!(on_name_start(&format!("{apart}x"), apart.len()), "{apart:?}");
+            assert!(on_name_end(&format!("x{apart}"), 1), "{apart:?}");
+        }
+        // The letter-or-digit rule reads `_` and a mark as no word.
+        assert!(on_word_start("_x", 1) && on_end("x\u{301}", 1));
     }
 
     #[test]

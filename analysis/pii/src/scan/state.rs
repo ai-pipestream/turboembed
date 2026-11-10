@@ -16,7 +16,7 @@ use super::us_labelled::STATES;
 use crate::hits::Hits;
 use crate::tables::us_counties::SUFFIXES;
 use crate::tables::us_states::US_STATES;
-use crate::text::{on_end, on_word_start};
+use crate::text::{on_end, on_name_end, on_name_start};
 use crate::window::find_any_label;
 
 /// The labels a code is read after, longest first.
@@ -28,7 +28,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i < b.len() {
-        if !b[i].is_ascii_uppercase() || !on_word_start(text, i) {
+        if !b[i].is_ascii_uppercase() || !on_name_start(text, i) {
             i += 1;
             continue;
         }
@@ -50,12 +50,12 @@ fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
         let n = name.as_bytes();
         b.get(i..i + n.len())
             .is_some_and(|w| w == n || (w.eq_ignore_ascii_case(n) && !w.iter().any(u8::is_ascii_lowercase)))
-            && on_end(text, i + n.len())
+            && on_name_end(text, i + n.len())
     })?;
     let end = i + name.len();
     if *code == "WA"
         && let Some(d) = DISTRICT.iter().find(|d| b.get(end..end + d.len()).is_some_and(|w| w == **d))
-        && on_end(text, end + d.len())
+        && on_name_end(text, end + d.len())
     {
         return Some((end + d.len(), "DC"));
     }
@@ -63,6 +63,8 @@ fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
         return None;
     }
     // `Washington County` is a county, and the county scanner reads it.
+    // Here, as for `New York City`, only a letter or digit after the word
+    // makes it another word, so `Washington County_x` is no state either.
     if b.get(end) == Some(&b' ')
         && SUFFIXES.iter().any(|s| {
             let at = end + 1;
@@ -79,7 +81,9 @@ fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
 fn code_at(text: &str, i: usize) -> Option<usize> {
     let b = text.as_bytes();
     let code = b.get(i..i + 2)?;
-    if !code.iter().all(u8::is_ascii_uppercase) || !on_end(text, i + 2) || !STATES.iter().any(|s| s.as_slice() == code)
+    if !code.iter().all(u8::is_ascii_uppercase)
+        || !on_name_end(text, i + 2)
+        || !STATES.iter().any(|s| s.as_slice() == code)
     {
         return None;
     }

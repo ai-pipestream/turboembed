@@ -146,3 +146,40 @@ fn places_are_low_opt_in_and_masked_keeping_their_spaces() {
     assert_eq!(PiiKind::State.builtin_name(), Some("state"));
     assert_eq!(PiiKind::County.builtin_name(), Some("county"));
 }
+
+#[test]
+fn no_word_character_touches_either_end_of_a_place_name() {
+    // #2089: a letter, digit, combining mark or `_` at either end joins the
+    // name to another word, for states and counties alike.
+    for text in [
+        "x_Illinois",
+        "Illinois_x",
+        "e\u{301}Illinois",
+        "Illinois\u{301}",
+        "x_Cook County",
+        "Cook County_x",
+        "e\u{301}Cook County",
+        "Cook County\u{301}",
+        "Washington_County",
+        "Washington County_x",
+        "New York City_x",
+        "x_IL 62704",
+        "State: IL_x",
+        "State: IL\u{301}",
+        "State: e\u{301}IL",
+    ] {
+        assert!(found(text).is_empty(), "{text:?}: {:?}", found(text));
+    }
+    // Punctuation is no word character, at either end.
+    for (text, written, kind) in [
+        ("Illinois-based", "Illinois", "state"),
+        ("pre-Illinois", "Illinois", "state"),
+        ("(Illinois)", "Illinois", "state"),
+        ("Cook County-based", "Cook County", "county"),
+        ("\"Cook County\"", "Cook County", "county"),
+        ("State: IL.", "IL", "state"),
+    ] {
+        let (w, k, _) = one(text);
+        assert_eq!((w.as_str(), k), (written, kind), "{text:?}");
+    }
+}
