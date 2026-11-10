@@ -39,11 +39,21 @@ public final class RepoRootStaging {
                             "weights/model.safetensors",
                             "reference/reference.safetensors"));
 
+    /** Relative paths of every file the sealed tiny BERT segment bundle carries. */
+    public static final List<String> TINY_BERT_SEGMENT_FILES =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "manifest.json",
+                            "tokenizer.json",
+                            "weights/model.safetensors",
+                            "reference/reference.safetensors"));
+
     /** Marker file {@code Testdata.looksLikeRepoRoot} requires beside the bundles. */
     public static final String CONFORMANCE_POM = "clients/java-conformance/pom.xml";
 
     private static final String TINY_BERT = "tiny-bert-bundle";
     private static final String TINY_BERT_HEADS = "tiny-bert-heads-bundle";
+    private static final String TINY_BERT_SEGMENT = "tiny-bert-segment-bundle";
     private static final String STUB_POM =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
                     + "<project xmlns=\"http://maven.apache.org/POM/4.0.0\">\n"
@@ -84,6 +94,7 @@ public final class RepoRootStaging {
         Files.createDirectories(root);
         copyBundle(root, source, TINY_BERT, TINY_BERT_FILES);
         copyBundle(root, source, TINY_BERT_HEADS, TINY_BERT_HEADS_FILES);
+        copyBundle(root, source, TINY_BERT_SEGMENT, TINY_BERT_SEGMENT_FILES);
         Path pom = root.resolve(CONFORMANCE_POM);
         Files.createDirectories(pom.getParent());
         Files.write(pom, STUB_POM.getBytes(StandardCharsets.UTF_8));
@@ -122,6 +133,7 @@ public final class RepoRootStaging {
     public static boolean looksLikeRepoRoot(Path dir) {
         return Files.isDirectory(dir.resolve("testdata").resolve(TINY_BERT))
                 && Files.isDirectory(dir.resolve("testdata").resolve(TINY_BERT_HEADS))
+                && Files.isDirectory(dir.resolve("testdata").resolve(TINY_BERT_SEGMENT))
                 && Files.isRegularFile(dir.resolve(CONFORMANCE_POM));
     }
 
