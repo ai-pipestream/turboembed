@@ -33,16 +33,27 @@ impl Model {
     }
 
     pub fn apply_output(&mut self, trainer: &OutputTrainer) -> Result<(), String> {
-        if self.config.hidden != trainer.hidden || self.config.projection_factor != trainer.factor {
+        if self.config.hidden != trainer.hidden
+            || self.config.projection_factor != trainer.factor
+            || (trainer.prompt && self.config.prompt_factor != trainer.prompt_factor)
+        {
             return Err("gliner output trainer does not match the model".into());
         }
-        self.heads.set_output(&trainer.params)
+        self.heads.set_output(&trainer.params, trainer.boundaries, trainer.prompt)
     }
 }
 
 pub struct OutputTrainer {
     hidden: usize,
     factor: usize,
+    /// The prompt MLP's own width factor; it need not equal `factor`.
+    prompt_factor: usize,
+    /// The output projection is one dense layer, not an MLP.
+    linear: bool,
+    /// The two boundary MLPs follow the output tensors.
+    boundaries: bool,
+    /// The prompt MLP comes last.
+    prompt: bool,
     params: Vec<Vec<f32>>,
     base: Vec<Vec<f32>>,
     anchor: f32,
@@ -59,7 +70,7 @@ impl OutputTrainer {
 
     pub fn load_with_heads(config: &Config, bytes: &[u8], boundaries: bool, prompt: bool) -> Result<Self, String> {
         let file = File::parse("gliner heads", bytes).map_err(|e| e.message)?;
-        let (h, f) = (config.hidden, config.projection_factor);
+        let (h, f, pf) = (config.hidden, config.projection_factor, config.prompt_factor);
         let mut specs: Vec<(String, Vec<usize>)> = if config.out_project_mlp {
             vec![
                 ("span_rep_layer.span_rep_layer.out_project.0.weight".into(), vec![f * h, 2 * h]),
@@ -95,9 +106,9 @@ impl OutputTrainer {
                 specs.extend([
                     (
                         format!("prompt_rep_layer.{stem}.weight"),
-                        if stem == "0" { vec![f * h, h] } else { vec![h, f * h] },
+                        if stem == "0" { vec![pf * h, h] } else { vec![h, pf * h] },
                     ),
-                    (format!("prompt_rep_layer.{stem}.bias"), if stem == "0" { vec![f * h] } else { vec![h] }),
+                    (format!("prompt_rep_layer.{stem}.bias"), if stem == "0" { vec![pf * h] } else { vec![h] }),
                 ]);
             }
         }
@@ -110,7 +121,9 @@ impl OutputTrainer {
             }
             params.push(tensor.f32s());
         }
-        Ok(Self { hidden: h, factor: f, base: params.clone(), params, anchor: 0.0 })
+        let linear = !config.out_project_mlp;
+        let base = params.clone();
+        Ok(Self { hidden: h, factor: f, prompt_factor: pf, linear, boundaries, prompt, base, params, anchor: 0.0 })
     }
 
     pub fn set_anchor(&mut self, weight: f32) -> Result<(), String> {
@@ -130,24 +143,21 @@ impl OutputTrainer {
         &self.params
     }
 
+    fn output_len(&self) -> usize {
+        if self.linear { 2 } else { 4 }
+    }
+
     fn boundary_offset(&self) -> Option<usize> {
-        match self.params.len() {
-            10 | 14 => Some(2),
-            12 | 16 => Some(4),
-            _ => None,
-        }
+        self.boundaries.then(|| self.output_len())
     }
 
     fn prompt_offset(&self) -> Option<usize> {
-        match self.params.len() {
-            8 | 14 | 16 => Some(self.params.len() - 4),
-            _ => None,
-        }
+        self.prompt.then(|| self.output_len() + if self.boundaries { 8 } else { 0 })
     }
 
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
         let file = File::parse("gliner heads", original).map_err(|e| e.message)?;
-        let mut names: Vec<String> = if matches!(self.params.len(), 2 | 10 | 14) {
+        let mut names: Vec<String> = if self.linear {
             vec![
                 "span_rep_layer.span_rep_layer.out_project.weight".into(),
                 "span_rep_layer.span_rep_layer.out_project.bias".into(),
@@ -195,13 +205,14 @@ impl OutputTrainer {
         gold: &[(usize, usize, usize)],
         grads: &mut [Vec<f32>],
     ) -> Result<f64, String> {
-        let (h, f, labels) = (self.hidden, self.factor, input.prompts.len() / self.hidden);
+        let (h, f, pf, labels) = (self.hidden, self.factor, self.prompt_factor, input.prompts.len() / self.hidden);
         let boundary = self.boundary_offset();
         let prompt_offset = self.prompt_offset();
         let valid_words = boundary.is_none()
             || (input.words.len().is_multiple_of(h)
                 && input.pairs.iter().all(|&(start, end)| start < end && end <= input.words.len() / h));
-        if !matches!(grads.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16)
+        // The buffer is this trainer's own: every tensor, each of its length.
+        if grads.len() != self.params.len()
             || grads.iter().zip(&self.params).any(|(a, b)| a.len() != b.len())
             || input.spans.len() != input.pairs.len() * 2 * h
             || candidates.len() != input.pairs.len() * labels
@@ -219,10 +230,10 @@ impl OutputTrainer {
             )
         });
         let prompt_features =
-            prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, f));
+            prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, pf));
         let prompt_values = prompt_features.as_ref().map_or(&input.prompts, |(_, values)| values);
         let mut dprompt = if prompt_offset.is_some() { vec![0.0; labels * h] } else { Vec::new() };
-        let linear = matches!(self.params.len(), 2 | 10 | 14);
+        let linear = self.linear;
         let positive: BTreeSet<(usize, usize, usize)> = gold.iter().copied().collect();
         let mut selected: BTreeSet<usize> = input
             .pairs
@@ -339,7 +350,7 @@ impl OutputTrainer {
             ends.backward(&self.params[offset + 4..], &input.words, &dends, &mut grads[offset + 4..], h, f);
         }
         if let (Some(offset), Some((features, _))) = (prompt_offset, &prompt_features) {
-            features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, f);
+            features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, pf);
         }
         let mut total = -loss * scale;
         if self.anchor > 0.0 {
@@ -367,102 +378,5 @@ pub fn output_optimizer(settings: Settings, trainer: &OutputTrainer) -> Result<A
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
-        let params = vec![vec![0.2, -0.1, 0.3, 0.4], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]];
-        let trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
-        let input = TrainingInput {
-            words: vec![0.6, -0.2],
-            spans: vec![0.5, -0.3, 0.2, 0.8],
-            prompts: vec![0.7],
-            prompt_inputs: vec![0.4],
-            pairs: vec![(0, 1), (1, 2)],
-        };
-        let candidates = vec![
-            Candidate { start: 0, end: 1, label: 0, logit: 0.1, score: 0.6 },
-            Candidate { start: 1, end: 2, label: 0, logit: 0.2, score: 0.7 },
-        ];
-        (trainer, input, candidates)
-    }
-
-    fn check_gradients(trainer: &mut OutputTrainer, input: &TrainingInput, candidates: &[Candidate]) {
-        trainer.set_anchor(0.25).unwrap();
-        for tensor in 0..trainer.params.len() {
-            for at in 0..trainer.params[tensor].len() {
-                let original = trainer.params[tensor][at];
-                let mut grads = trainer.zero_grads();
-                let loss = trainer.gradients(input, candidates, &[(0, 1, 0)], &mut grads).unwrap();
-                assert!(loss.is_finite());
-                trainer.params[tensor][at] = original + 0.001;
-                let plus = trainer.gradients(input, candidates, &[(0, 1, 0)], &mut trainer.zero_grads()).unwrap();
-                trainer.params[tensor][at] = original - 0.001;
-                let minus = trainer.gradients(input, candidates, &[(0, 1, 0)], &mut trainer.zero_grads()).unwrap();
-                trainer.params[tensor][at] = original;
-                let expected = (plus - minus) / 0.002;
-                assert!(
-                    (grads[tensor][at] as f64 - expected).abs() < 0.002,
-                    "tensor {tensor} at {at}: {} != {expected}",
-                    grads[tensor][at]
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn output_gradients_match_finite_differences() {
-        let (mut trainer, input, candidates) = fixture();
-        check_gradients(&mut trainer, &input, &candidates);
-    }
-
-    #[test]
-    fn linear_output_gradients_match_finite_differences() {
-        let (_, input, candidates) = fixture();
-        let params = vec![vec![0.3, -0.4], vec![0.2]];
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
-        check_gradients(&mut trainer, &input, &candidates);
-    }
-
-    #[test]
-    fn boundary_gradients_match_finite_differences() {
-        let (output, input, candidates) = fixture();
-        let mut params = output.params;
-        for _ in 0..2 {
-            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
-        }
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
-        check_gradients(&mut trainer, &input, &candidates);
-    }
-
-    #[test]
-    fn linear_boundary_gradients_match_finite_differences() {
-        let (_, input, candidates) = fixture();
-        let mut params = vec![vec![0.3, -0.4], vec![0.2]];
-        for _ in 0..2 {
-            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
-        }
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
-        check_gradients(&mut trainer, &input, &candidates);
-    }
-
-    #[test]
-    fn prompt_gradients_match_finite_differences() {
-        let (output, input, candidates) = fixture();
-        let mut params = output.params;
-        params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
-        check_gradients(&mut trainer, &input, &candidates);
-    }
-
-    #[test]
-    fn all_head_gradients_match_finite_differences() {
-        let (output, input, candidates) = fixture();
-        let mut params = output.params;
-        for _ in 0..3 {
-            params.extend([vec![0.2, -0.1], vec![0.1, -0.2], vec![0.3, -0.4], vec![0.2]]);
-        }
-        let mut trainer = OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0 };
-        check_gradients(&mut trainer, &input, &candidates);
-    }
-}
+#[path = "train_tests.rs"]
+mod tests;

@@ -357,16 +357,24 @@ impl Heads {
         Ok((input, candidates))
     }
 
-    pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
-        let (h, f) = match &self.head {
-            SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
+    /// Installs trained tensors: the output projection in this model's own
+    /// form, then the two boundary MLPs and the prompt MLP when the flags
+    /// say they follow. The prompt MLP keeps its own width.
+    pub(crate) fn set_output(&mut self, params: &[Vec<f32>], boundaries: bool, prompt: bool) -> Result<(), String> {
+        let (h, f, linear) = match &self.head {
+            SpanHead::Marker { start, span, .. } => (self.hidden, start.first.n, matches!(span, OutputHead::Linear(_))),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        if !matches!(params.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16) {
-            return Err("gliner output training requires output tensors with optional boundary and prompt MLPs".into());
-        }
-        let linear = matches!(params.len(), 2 | 10 | 14);
+        let prompt_width = match (&self.prompt, prompt) {
+            (PromptHead::Mlp(head), true) => head.first.n,
+            (PromptHead::Identity, true) => return Err("gliner prompt training requires a prompt projection".into()),
+            (_, false) => 0,
+        };
         let output_len = if linear { 2 } else { 4 };
+        let prompt_at = output_len + if boundaries { 8 } else { 0 };
+        if params.len() != prompt_at + if prompt { 4 } else { 0 } {
+            return Err("gliner output training tensors do not match the model's heads".into());
+        }
         let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
@@ -375,22 +383,18 @@ impl Heads {
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
             _ => unreachable!(),
         };
-        let mlp = |values: &[Vec<f32>]| -> Result<Box<Mlp>, String> {
+        let mlp = |values: &[Vec<f32>], width: usize| -> Result<Box<Mlp>, String> {
             Ok(Box::new(Mlp {
-                first: Dense::new(&values[0], values[1].clone(), f, h)?,
-                last: Dense::new(&values[2], values[3].clone(), h, f)?,
+                first: Dense::new(&values[0], values[1].clone(), width, h)?,
+                last: Dense::new(&values[2], values[3].clone(), h, width)?,
             }))
         };
-        let boundaries = if matches!(params.len(), 10 | 12 | 14 | 16) {
-            Some((mlp(&params[output_len..output_len + 4])?, mlp(&params[output_len + 4..output_len + 8])?))
+        let boundaries = if boundaries {
+            Some((mlp(&params[output_len..output_len + 4], f)?, mlp(&params[output_len + 4..output_len + 8], f)?))
         } else {
             None
         };
-        let prompt = if matches!(params.len(), 8 | 14 | 16) {
-            Some(PromptHead::Mlp(mlp(&params[params.len() - 4..])?))
-        } else {
-            None
-        };
+        let prompt = if prompt { Some(PromptHead::Mlp(mlp(&params[prompt_at..], prompt_width)?)) } else { None };
         let SpanHead::Marker { start, end, span: current } = &mut self.head else { unreachable!() };
         *current = span;
         if let Some((new_start, new_end)) = boundaries {
