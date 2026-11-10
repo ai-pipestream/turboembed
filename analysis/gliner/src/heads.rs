@@ -358,6 +358,9 @@ impl Heads {
         Ok((input, candidates))
     }
 
+    /// Installs trained tensors: the output projection in this model's own
+    /// form, then the head groups the flags name, in the trainer's order
+    /// (two boundary MLPs, the prompt MLP at its own width, the BiLSTM).
     pub(crate) fn set_output(
         &mut self,
         params: &[Vec<f32>],
@@ -365,15 +368,21 @@ impl Heads {
         prompt: bool,
         recurrent: bool,
     ) -> Result<(), String> {
-        let (h, f) = match &self.head {
-            SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
+        let (h, f, linear) = match &self.head {
+            SpanHead::Marker { start, span, .. } => (self.hidden, start.first.n, matches!(span, OutputHead::Linear(_))),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        if !matches!(params.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 24) {
-            return Err("gliner output training requires output tensors with optional head groups".into());
-        }
-        let linear = matches!(params.len(), 2 | 10 | 14 | 18);
+        let prompt_width = match (&self.prompt, prompt) {
+            (PromptHead::Mlp(head), true) => head.first.n,
+            (PromptHead::Identity, true) => return Err("gliner prompt training requires a prompt projection".into()),
+            (_, false) => 0,
+        };
         let output_len = if linear { 2 } else { 4 };
+        let prompt_offset = output_len + if boundaries { 8 } else { 0 };
+        let recurrent_offset = prompt_offset + if prompt { 4 } else { 0 };
+        if params.len() != recurrent_offset + if recurrent { 8 } else { 0 } {
+            return Err("gliner output training tensors do not match the model's heads".into());
+        }
         let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
@@ -382,21 +391,24 @@ impl Heads {
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
             _ => unreachable!(),
         };
-        let mlp = |values: &[Vec<f32>]| -> Result<Box<Mlp>, String> {
+        let mlp = |values: &[Vec<f32>], width: usize| -> Result<Box<Mlp>, String> {
             Ok(Box::new(Mlp {
-                first: Dense::new(&values[0], values[1].clone(), f, h)?,
-                last: Dense::new(&values[2], values[3].clone(), h, f)?,
+                first: Dense::new(&values[0], values[1].clone(), width, h)?,
+                last: Dense::new(&values[2], values[3].clone(), h, width)?,
             }))
         };
         let boundaries = if boundaries {
-            Some((mlp(&params[output_len..output_len + 4])?, mlp(&params[output_len + 4..output_len + 8])?))
+            Some((mlp(&params[output_len..output_len + 4], f)?, mlp(&params[output_len + 4..output_len + 8], f)?))
         } else {
             None
         };
-        let prompt_offset = output_len + if boundaries.is_some() { 8 } else { 0 };
-        let prompt = if prompt { Some(PromptHead::Mlp(mlp(&params[prompt_offset..prompt_offset + 4])?)) } else { None };
+        let prompt = if prompt {
+            Some(PromptHead::Mlp(mlp(&params[prompt_offset..prompt_offset + 4], prompt_width)?))
+        } else {
+            None
+        };
         let recurrent = if recurrent {
-            let values = &params[params.len() - 8..];
+            let values = &params[recurrent_offset..];
             let forward: Vec<f32> = values[2].iter().zip(&values[3]).map(|(a, b)| a + b).collect();
             let reverse: Vec<f32> = values[6].iter().zip(&values[7]).map(|(a, b)| a + b).collect();
             let dirs = [

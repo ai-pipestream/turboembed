@@ -35,7 +35,10 @@ impl Model {
     }
 
     pub fn apply_output(&mut self, trainer: &OutputTrainer) -> Result<(), String> {
-        if self.config.hidden != trainer.hidden || self.config.projection_factor != trainer.factor {
+        if self.config.hidden != trainer.hidden
+            || self.config.projection_factor != trainer.factor
+            || (trainer.prompt && self.config.prompt_factor != trainer.prompt_factor)
+        {
             return Err("gliner output trainer does not match the model".into());
         }
         self.heads.set_output(&trainer.params, trainer.boundaries, trainer.prompt, trainer.recurrent)
@@ -45,9 +48,15 @@ impl Model {
 pub struct OutputTrainer {
     hidden: usize,
     factor: usize,
+    /// The prompt MLP's own width factor; it need not equal `factor`.
+    prompt_factor: usize,
     params: Vec<Vec<f32>>,
     base: Vec<Vec<f32>>,
     anchor: f32,
+    /// The output projection is one dense layer, not an MLP.
+    linear: bool,
+    /// The trained head groups, in the order their tensors follow the
+    /// output tensors: two boundary MLPs, the prompt MLP, the BiLSTM.
     boundaries: bool,
     prompt: bool,
     recurrent: bool,
@@ -70,7 +79,7 @@ impl OutputTrainer {
         recurrent: bool,
     ) -> Result<Self, String> {
         let file = File::parse("gliner heads", bytes).map_err(|e| e.message)?;
-        let (h, f) = (config.hidden, config.projection_factor);
+        let (h, f, pf) = (config.hidden, config.projection_factor, config.prompt_factor);
         let mut specs: Vec<(String, Vec<usize>)> = if config.out_project_mlp {
             vec![
                 ("span_rep_layer.span_rep_layer.out_project.0.weight".into(), vec![f * h, 2 * h]),
@@ -89,6 +98,9 @@ impl OutputTrainer {
         }
         if recurrent && !boundaries {
             return Err("gliner recurrent training requires boundary training".into());
+        }
+        if recurrent && (h == 0 || !h.is_multiple_of(2)) {
+            return Err("gliner recurrent training requires an even hidden size".into());
         }
         if boundaries {
             for stem in ["project_start", "project_end"] {
@@ -109,19 +121,19 @@ impl OutputTrainer {
                 specs.extend([
                     (
                         format!("prompt_rep_layer.{stem}.weight"),
-                        if stem == "0" { vec![f * h, h] } else { vec![h, f * h] },
+                        if stem == "0" { vec![pf * h, h] } else { vec![h, pf * h] },
                     ),
-                    (format!("prompt_rep_layer.{stem}.bias"), if stem == "0" { vec![f * h] } else { vec![h] }),
+                    (format!("prompt_rep_layer.{stem}.bias"), if stem == "0" { vec![pf * h] } else { vec![h] }),
                 ]);
             }
         }
         if recurrent {
             for suffix in ["", "_reverse"] {
                 for (name, shape) in [
-                    ("weight_ih", vec![4 * h / 2, h]),
-                    ("weight_hh", vec![4 * h / 2, h / 2]),
-                    ("bias_ih", vec![4 * h / 2]),
-                    ("bias_hh", vec![4 * h / 2]),
+                    ("weight_ih", vec![2 * h, h]),
+                    ("weight_hh", vec![2 * h, h / 2]),
+                    ("bias_ih", vec![2 * h]),
+                    ("bias_hh", vec![2 * h]),
                 ] {
                     specs.push((format!("rnn.lstm.{name}_l0{suffix}"), shape));
                 }
@@ -136,7 +148,19 @@ impl OutputTrainer {
             }
             params.push(tensor.f32s());
         }
-        Ok(Self { hidden: h, factor: f, base: params.clone(), params, anchor: 0.0, boundaries, prompt, recurrent })
+        let (linear, base) = (!config.out_project_mlp, params.clone());
+        Ok(Self {
+            hidden: h,
+            factor: f,
+            prompt_factor: pf,
+            base,
+            params,
+            anchor: 0.0,
+            linear,
+            boundaries,
+            prompt,
+            recurrent,
+        })
     }
 
     pub fn set_anchor(&mut self, weight: f32) -> Result<(), String> {
@@ -156,29 +180,26 @@ impl OutputTrainer {
         &self.params
     }
 
-    fn linear(&self) -> bool {
-        matches!(self.params.len(), 2 | 10 | 14 | 18)
-    }
-
     fn output_len(&self) -> usize {
-        if self.linear() { 2 } else { 4 }
+        if self.linear { 2 } else { 4 }
     }
 
     fn boundary_offset(&self) -> Option<usize> {
-        self.boundaries.then_some(self.output_len())
+        self.boundaries.then(|| self.output_len())
     }
 
     fn prompt_offset(&self) -> Option<usize> {
-        self.prompt.then_some(self.output_len() + if self.boundaries { 8 } else { 0 })
+        self.prompt.then(|| self.output_len() + if self.boundaries { 8 } else { 0 })
     }
 
     fn recurrent_offset(&self) -> Option<usize> {
-        self.recurrent.then(|| self.params.len() - 8)
+        let before = self.output_len() + if self.boundaries { 8 } else { 0 } + if self.prompt { 4 } else { 0 };
+        self.recurrent.then_some(before)
     }
 
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
         let file = File::parse("gliner heads", original).map_err(|e| e.message)?;
-        let mut names: Vec<String> = if self.linear() {
+        let mut names: Vec<String> = if self.linear {
             vec![
                 "span_rep_layer.span_rep_layer.out_project.weight".into(),
                 "span_rep_layer.span_rep_layer.out_project.bias".into(),
@@ -233,14 +254,15 @@ impl OutputTrainer {
         gold: &[(usize, usize, usize)],
         grads: &mut [Vec<f32>],
     ) -> Result<f64, String> {
-        let (h, f, labels) = (self.hidden, self.factor, input.prompts.len() / self.hidden);
+        let (h, f, pf, labels) = (self.hidden, self.factor, self.prompt_factor, input.prompts.len() / self.hidden);
         let boundary = self.boundary_offset();
         let prompt_offset = self.prompt_offset();
         let recurrent_offset = self.recurrent_offset();
         let valid_words = boundary.is_none()
             || (input.words.len().is_multiple_of(h)
                 && input.pairs.iter().all(|&(start, end)| start < end && end <= input.words.len() / h));
-        if !matches!(grads.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 24)
+        // The buffer is this trainer's own: every tensor, each of its length.
+        if grads.len() != self.params.len()
             || grads.iter().zip(&self.params).any(|(a, b)| a.len() != b.len())
             || input.spans.len() != input.pairs.len() * 2 * h
             || candidates.len() != input.pairs.len() * labels
@@ -262,11 +284,11 @@ impl OutputTrainer {
             )
         });
         let prompt_features =
-            prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, f));
+            prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, pf));
         let prompt_values = prompt_features.as_ref().map_or(&input.prompts, |(_, values)| values);
         let mut dprompt = if prompt_offset.is_some() { vec![0.0; labels * h] } else { Vec::new() };
         let mut dlstm = if recurrent_offset.is_some() { vec![0.0; n * h] } else { Vec::new() };
-        let linear = self.linear();
+        let linear = self.linear;
         let positive: BTreeSet<(usize, usize, usize)> = gold.iter().copied().collect();
         let mut selected: BTreeSet<usize> = input
             .pairs
@@ -383,7 +405,7 @@ impl OutputTrainer {
             ends.backward(&self.params[offset + 4..], word_values, &dends, &mut dlstm, &mut grads[offset + 4..], h, f);
         }
         if let (Some(offset), Some((features, _))) = (prompt_offset, &prompt_features) {
-            features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, f);
+            features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, pf);
         }
         if let (Some(offset), Some(recurrent)) = (recurrent_offset, &recurrent) {
             recurrent.backward(&self.params[offset..], &input.projected_words, &dlstm, &mut grads[offset..], h);
@@ -403,8 +425,16 @@ impl OutputTrainer {
         Ok(total)
     }
 
+    /// Which tensors take weight decay: the matrices, never a bias. Dense
+    /// layers alternate weight and bias; each BiLSTM direction is two
+    /// matrices and then two biases.
+    fn decay(&self) -> Vec<bool> {
+        let dense = self.recurrent_offset().unwrap_or(self.params.len());
+        (0..self.params.len()).map(|i| if i < dense { i % 2 == 0 } else { (i - dense) % 4 < 2 }).collect()
+    }
+
     pub fn step(&mut self, optimizer: &mut AdamW<f32>, grads: &mut [Vec<f32>]) -> Result<f64, String> {
-        let decay: Vec<bool> = (0..self.params.len()).map(|i| i % 2 == 0).collect();
+        let decay = self.decay();
         optimizer.step(&mut self.params, grads, &decay).map_err(|e| e.message)
     }
 }
