@@ -6,6 +6,7 @@ mod address;
 mod age;
 mod br;
 mod card;
+mod county;
 mod crypto;
 mod date;
 mod email;
@@ -22,6 +23,7 @@ mod national;
 mod network;
 mod phone;
 mod secrets;
+mod state;
 mod url;
 mod us;
 mod us_labelled;
@@ -76,6 +78,10 @@ pub enum Extractor {
     Temporal,
     /// `MoneyPiiExtractor`: amounts of money with their currency.
     Money,
+    /// `UsStatePiiExtractor`: United States states and territories.
+    UsState,
+    /// `UsCountyPiiExtractor`: United States counties of the Census list.
+    UsCounty,
     /// A caller-defined extractor (`PiiExtractor`).
     Custom(&'static str),
 }
@@ -105,6 +111,8 @@ impl Extractor {
             Extractor::Age => PiiKinds::of(&[Age]),
             Extractor::Temporal => PiiKinds::of(&[Date]),
             Extractor::Money => PiiKinds::of(&[Currency]),
+            Extractor::UsState => PiiKinds::of(&[State]),
+            Extractor::UsCounty => PiiKinds::of(&[County]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
@@ -129,6 +137,8 @@ impl Extractor {
             Extractor::Age => "AgePiiExtractor",
             Extractor::Temporal => "TemporalPiiExtractor",
             Extractor::Money => "MoneyPiiExtractor",
+            Extractor::UsState => "UsStatePiiExtractor",
+            Extractor::UsCounty => "UsCountyPiiExtractor",
             Extractor::Custom(name) => name,
         }
     }
@@ -155,6 +165,8 @@ impl Extractor {
             Extractor::Age => "turbo-pii:age",
             Extractor::Temporal => "turbo-pii:temporal",
             Extractor::Money => "turbo-pii:money",
+            Extractor::UsState => "turbo-pii:us-state",
+            Extractor::UsCounty => "turbo-pii:us-county",
             Extractor::Custom(name) => name,
         }
     }
@@ -179,6 +191,8 @@ impl Extractor {
             Extractor::Age => 15,
             Extractor::Temporal => 16,
             Extractor::Money => 17,
+            Extractor::UsState => 18,
+            Extractor::UsCounty => 19,
         }
     }
 }
@@ -442,6 +456,8 @@ impl Scanner {
             Extractor::Age => age::scan(text, hits),
             Extractor::Temporal => date::scan(text, hits),
             Extractor::Money => money::scan(text, hits),
+            Extractor::UsState => state::scan(text, hits),
+            Extractor::UsCounty => county::scan(text, hits),
             Extractor::Custom(_) => {}
         }
     }

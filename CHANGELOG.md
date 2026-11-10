@@ -163,6 +163,14 @@ stubs must be regenerated.
   `Money` packs, which `AllStructured` does not include: a calendar date
   naming a day or month, and an amount with its currency, read by
   the numeric crate's scanners (#1886).
+- `state` 43 and `county` 44, appended to `PiiKindId`
+  (`TURBO_PII_KIND_STATE`, `TURBO_PII_KIND_COUNTY`, Java `STATE`,
+  `COUNTY`), with the `UsState` and `UsCounty` extractors
+  (`turbo-pii:us-state`, `turbo-pii:us-county`) and the opt-in `Places`
+  pack, which `AllStructured` does not include: a US state, District or
+  territory by name, or by its USPS code after a state label or before a
+  ZIP code, and a county or county equivalent of the Census Bureau's 2020
+  county list (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three

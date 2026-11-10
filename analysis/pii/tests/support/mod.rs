@@ -131,11 +131,15 @@ pub fn ratio_text(a: usize, b: usize) -> String {
 /// Per-kind true/false/missed counts of the widest pack over `set`.
 /// PII_SHOW_FALSE=1 lists each false mention.
 pub fn measure(set: &[Labelled]) -> BTreeMap<&'static str, Counts> {
-    let d = wide();
+    measure_with(&wide(), set)
+}
+
+/// Per-kind true/false/missed counts of `d` over `set`.
+pub fn measure_with(d: &PiiDetector, set: &[Labelled]) -> BTreeMap<&'static str, Counts> {
     let show_false = std::env::var("PII_SHOW_FALSE").is_ok_and(|v| v == "1");
     let mut by_kind: BTreeMap<&'static str, Counts> = BTreeMap::new();
     for l in set {
-        let found: Vec<(u32, u32, &'static str)> = rows(&d, &l.text).into_iter().map(|r| (r.0, r.1, r.2)).collect();
+        let found: Vec<(u32, u32, &'static str)> = rows(d, &l.text).into_iter().map(|r| (r.0, r.1, r.2)).collect();
         for f in &found {
             let c = by_kind.entry(f.2).or_default();
             if l.labels.contains(f) {
@@ -283,3 +287,33 @@ pub fn assert_offset_and_span_maps(text: &str, sources: &[Span], rewrite: &PiiRe
         }
     }
 }
+
+/// One document of the human-written evaluation set (`tests/data/human-eval/`): id, whether the file is
+/// `turbo_goldens::escape`-encoded, file name, and expected UTF-8 SHA-256 digest.
+pub const HUMAN_DOCS: [(&str, bool, &str, &str); 10] = [
+    ("masc-att2", true, "masc-att2.escaped", "f8f2cfd3ca288dcb9728092365b5c6d315de7b8b399f9f34bfc1da15302750ee"),
+    ("masc-hsus4", true, "masc-hsus4.escaped", "88f06a9dc3c1338f01959b2599c0a3b6b10058c77a1c5e5811c5ff9f0aa0d700"),
+    ("masc-united1", true, "masc-united1.escaped", "f9f0a966371aadd4ea29166109700d0ff77cc9e6d2899da90b204d945756ffaf"),
+    ("masc-nyt6", true, "masc-nyt6.escaped", "d380182bfb346fb3e73bcf2189964dbab1adf1b269abe5b4c77ff0befba3bb2f"),
+    (
+        "masc-lsc-access",
+        true,
+        "masc-lsc-access.escaped",
+        "ec16a1e1e8d0deca3db0d6e25800e815e518441c29b7187b4bed6fd2773275f3",
+    ),
+    ("eip-55", false, "eip-55.txt", "5359191d91cf2c6e707bc4a790ef90155da0499e788b386805ba10022ef6b848"),
+    ("bip-173-350", false, "bip-173-350.txt", "a8d1e9b7621ff57df9a51e67fe636cd08cd7bd14ed1ef7014473a0402a9d14ae"),
+    (
+        "operational-memos",
+        false,
+        "operational-memos.txt",
+        "260fc461b579030279741b25a1b1c7f03c4fa5c3929fb5585bf12ee38dc3fe9c",
+    ),
+    (
+        "us-identifiers-memos",
+        false,
+        "us-identifiers-memos.txt",
+        "248776341fb8d0d4759f319e758a5c42453ee9c80da5ac3d0628286301c02232",
+    ),
+    ("intake-memos", false, "intake-memos.txt", "5fdc30947b05300e1d392a941232cfb2718f72e318f2c92481111000646297c0"),
+];
