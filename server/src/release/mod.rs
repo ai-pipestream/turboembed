@@ -49,6 +49,9 @@ pub struct ReleaseConfig {
     pub grants: Grants,
     pub token_keys: Vec<TokenKeyFile>,
     pub active_token_key: Option<KeyRef>,
+    /// `--pii-encryption-key` (#1885): the keys a redaction policy's
+    /// AES-256-GCM and FF1 strategies name.
+    pub encryption_keys: Vec<TokenKeyFile>,
     pub audit_endpoint: String,
     pub audit_timeout: Duration,
     /// `--pii-require-recorded-policy` (#1977): refuse a values request
@@ -69,6 +72,7 @@ impl ReleaseConfig {
             return Err("--pii-audit-timeout-ms must be over 0".into());
         }
         let active = keys::active(&self.token_keys, self.active_token_key.as_ref())?;
+        keys::distinct("--pii-encryption-key", &self.encryption_keys)?;
         if self.grants.any(Form::Token) && active.is_none() {
             return Err("a --pii-grant with token needs --pii-token-key".into());
         }
