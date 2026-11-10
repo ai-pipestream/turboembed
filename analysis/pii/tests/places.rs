@@ -86,6 +86,10 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         ("New Hope PA 18938", "PA"),
         ("Amherst MA 01002", "MA"),
         ("Sedona AZ 86336", "AZ"),
+        ("APO AA 34002", "AA"),
+        ("Austin TX 73301", "TX"),
+        ("Andover MA 05501", "MA"),
+        ("Reston VA 20190", "VA"),
     ] {
         let states: Vec<_> = found(text).into_iter().filter(|m| m.1 == "state").collect();
         assert_eq!(states, [(code.to_owned(), "state", code.to_owned())], "{text:?}");
@@ -125,6 +129,10 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         "Lot IN 12345; ship",
         "(see IN 12345)",
         "(see IN 46201)",
+        "Order FL 34002.",
+        "Order OK 73301.",
+        "Order VT 05501.",
+        "Order DC 20190.",
         "We need OR 90210, now",
         "PART OR 90210",
         "x_Springfield IL 62704",
