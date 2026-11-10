@@ -1,0 +1,7 @@
+[test-groups.serial-latency]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = "package(turbo-query) & test(query_analysis_latency_stays_within_10ms_budget)"
+test-group = "serial-latency"
+threads-required = "num-cpus"

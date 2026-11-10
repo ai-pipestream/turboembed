@@ -40,6 +40,7 @@ async fn serve_package(
             max_seq: 0,
             select_device: false,
             user: String::new(),
+            vocabulary: None,
         })
         .await
         .unwrap()
@@ -56,6 +57,23 @@ async fn serve_package(
 
 async fn serve() -> (Server, AnalysisServiceClient<tonic::transport::Channel>, BundleCapabilities) {
     serve_package(package()).await
+}
+
+#[tokio::test]
+async fn loaded_gliner_package_reports_serving_health() {
+    use turbo_kserve::proto::health::HealthCheckRequest;
+    use turbo_kserve::proto::health::health_check_response::ServingStatus;
+    use turbo_kserve::proto::health::health_client::HealthClient;
+
+    let (server, _client, _) = serve().await;
+    let mut health = HealthClient::connect(format!("http://{}", server.local_addr())).await.unwrap();
+    for service in ["gliner", ""] {
+        let response = health.check(HealthCheckRequest { service: service.into() }).await.unwrap().into_inner();
+        assert_eq!(response.status(), ServingStatus::Serving, "{service}");
+    }
+    let mut watch = health.watch(HealthCheckRequest { service: "gliner".into() }).await.unwrap().into_inner();
+    assert_eq!(watch.message().await.unwrap().unwrap().status(), ServingStatus::Serving);
+    server.stop().await;
 }
 
 fn request(text: &str, with_gliner: bool) -> AnalyzePipelineRequest {
@@ -358,6 +376,7 @@ async fn serve_relation_models(
                 max_seq: 0,
                 select_device: false,
                 user: String::new(),
+                vocabulary: None,
             })
             .await
             .unwrap();

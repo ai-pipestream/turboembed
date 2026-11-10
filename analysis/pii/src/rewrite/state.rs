@@ -87,6 +87,27 @@ impl<'a> RewriteState<'a> {
                 abbr.write_abbreviated(&text[m.span.range()], out);
                 Ok(())
             }
+            RewriteStrategy::ZipSafeHarbor(zip) => {
+                zip.write_mention(m.kind, &text[m.span.range()], out);
+                Ok(())
+            }
+            RewriteStrategy::AgeSafeHarbor(age) => {
+                age.write_mention(m.kind, &text[m.span.range()], out);
+                Ok(())
+            }
+            RewriteStrategy::Date(date) => {
+                date.write_mention(m.kind, &text[m.span.range()], out);
+                Ok(())
+            }
+            // Both encrypt the surface, so decryption gives back the text.
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::AesGcm(aes) => aes
+                .write_token(kind_name(self.kinds, m.kind), &text[m.span.range()], out)
+                .map_err(|e| RewriteError::Encrypt(m.span, e.to_string())),
+            #[cfg(feature = "reversible")]
+            RewriteStrategy::Ff1(ff1) => ff1
+                .write_encrypted(&text[m.span.range()], out)
+                .map_err(|e| RewriteError::Encrypt(m.span, e.to_string())),
         }
     }
 
@@ -166,6 +187,22 @@ impl<'a> RewriteState<'a> {
                     },
                     out,
                 );
+                Ok(())
+            }
+            // Overlapping mentions are not one ZIP code, and another
+            // member's strategy may keep none of its characters.
+            RewriteStrategy::ZipSafeHarbor(zip) => {
+                zip.write_masked(piece, out);
+                Ok(())
+            }
+            // Overlapping mentions are not one age either.
+            RewriteStrategy::AgeSafeHarbor(age) => {
+                age.write_masked(piece, out);
+                Ok(())
+            }
+            // Nor are they one date.
+            RewriteStrategy::Date(date) => {
+                date.write_masked(piece, out);
                 Ok(())
             }
             other => self.write_strategy(other, text, winner, out),

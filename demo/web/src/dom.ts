@@ -43,8 +43,9 @@ export function stat(value: string, key: string): HTMLElement {
   return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key }));
 }
 
-/** A table from a header row and rows of cells. */
-export function table(head: string[], rows: Child[][], cls = ""): HTMLTableElement {
+/** A table from a header row and rows of cells; with no rows, a line saying so in place of bare headings. */
+export function table(head: string[], rows: Child[][], cls = "", none = "None."): HTMLElement {
+  if (!rows.length) return el("p", { class: "muted empty", text: none });
   return el(
     "table",
     { class: cls || undefined },

@@ -6,7 +6,7 @@ use super::open_span::{LEAKY_SLOPE, OpenSpanMatcher, OpenSpanWork, label_words, 
 use super::span::Span;
 use super::tagger::NO_WORD;
 use super::words::Work;
-use crate::manifest::{Decode, HeadKind, HeadSpec, SpanShape};
+use crate::manifest::{Decode, HeadKind, HeadSpec, LayerMix, SpanShape};
 
 fn open_span_spec(decode: Decode, max_words: u32) -> HeadSpec {
     let mut s = spec(HeadKind::OpenSpan, &["person", "organization"], decode);
@@ -145,6 +145,23 @@ fn an_open_span_spec_forbids_o_and_requires_span_shape_and_span_decode() {
     no_shape.span = None;
     assert!(no_shape.validate("h").is_err());
     assert!(open_span_spec(Decode::Argmax, 4).validate("h").is_err());
+}
+
+/// The matcher reads the final layer alone and lists no mix tensors, so a
+/// spec with `layer_mix` is refused at validation instead of passing it and
+/// failing every load. A span classifier still takes one.
+#[test]
+fn an_open_span_spec_takes_no_layer_mix() {
+    for mix in [LayerMix { layers: 2, layer: None }, LayerMix { layers: 2, layer: Some(3) }] {
+        let mut s = open_span_spec(Decode::SpansFlat, 4);
+        s.layer_mix = Some(mix);
+        let err = s.validate("h").unwrap_err();
+        assert!(err.to_string().contains("HEAD_OPEN_SPAN reads the encoder's final layer"), "{err}");
+        let mut spans = spec(HeadKind::SpanClassifier, &["O", "PER"], Decode::SpansFlat);
+        spans.span = Some(SpanShape { max_words: 4, width_dim: 3 });
+        spans.layer_mix = Some(mix);
+        assert!(spans.validate("h").is_ok());
+    }
 }
 
 #[test]

@@ -241,7 +241,7 @@ fn check(name: &str, sp: &SentencePiece) -> (usize, usize) {
         h.update(format!("{} {} {}\n", p.id, p.begin, p.end).as_bytes());
     }
     assert_eq!(pieces.len(), g.long_count, "{name}: pieces of the long text");
-    assert_eq!(hex(&h.finish()), g.long_sha256, "{name}: the long text's pieces");
+    assert_eq!(h.finish().to_hex(), g.long_sha256, "{name}: the long text's pieces");
     (g.lines.len() + 1, count + pieces.len())
 }
 

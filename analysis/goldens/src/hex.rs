@@ -1,17 +1,8 @@
 //! Lowercase hex, as the golden format writes commits, digests and the
 //! bits of an f64.
 
-const DIGITS: &[u8; 16] = b"0123456789abcdef";
-
 /// Bytes as lowercase hex, two digits each.
-pub fn to_hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for &b in bytes {
-        s.push(DIGITS[(b >> 4) as usize] as char);
-        s.push(DIGITS[(b & 15) as usize] as char);
-    }
-    s
-}
+pub use turbo_sha256::to_hex;
 
 /// Exactly `2 * N` lowercase hex digits as `N` bytes. Uppercase digits are
 /// refused: the format writes lowercase only, so a file with uppercase
@@ -44,7 +35,7 @@ mod tests {
     #[test]
     fn round_trip() {
         let bytes = [0x00, 0x0f, 0xa5, 0xff];
-        assert_eq!(to_hex(&bytes), "000fa5ff");
+        assert_eq!(to_hex(bytes), "000fa5ff");
         assert_eq!(parse_hex::<4>("000fa5ff"), Some(bytes));
     }
 

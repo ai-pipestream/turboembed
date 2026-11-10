@@ -73,7 +73,7 @@ fn extracted_pdf_exact_span_report() {
         let mut counts = [[0usize; 3]; 11];
         for (id, encoded, digest) in SAMPLES {
             let text = unescape(encoded.trim_end_matches('\n')).unwrap();
-            assert_eq!(to_hex(&sha256(text.as_bytes())), digest);
+            assert_eq!(to_hex(sha256(text.as_bytes())), digest);
             let gold = labels(id, &text);
             let found = detector.detect(&text);
             for (i, kind) in ArtifactKind::ALL.iter().enumerate() {

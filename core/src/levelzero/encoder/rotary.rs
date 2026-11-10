@@ -467,6 +467,17 @@ impl Session {
                 let (nw, nb) = (lw(l, TURBO_NOMIC_FFN_LN_WEIGHT), lw(l, TURBO_NOMIC_FFN_LN_BIAS));
                 norm(q, self.x, self.x, nw, nb, "the feed-forward LayerNorm")?;
             }
+            // A tap reads ModernBERT's states through its final norm, as
+            // the last layer's are.
+            if self.tapped(l) {
+                let fin = t(TURBO_MODERNBERT_FINAL_NORM_WEIGHT);
+                let from = if modern {
+                    norm(q, self.x, self.xn, fin, 0, "a tap's final norm").map(|()| self.xn)?
+                } else {
+                    self.x
+                };
+                self.tap(q, l, from)?;
+            }
         }
         if modern && layers >= d.layers {
             norm(q, self.x, self.x, t(TURBO_MODERNBERT_FINAL_NORM_WEIGHT), 0, "the final norm")?;

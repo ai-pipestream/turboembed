@@ -4,7 +4,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha2::Digest as _;
 
 /// A digest of `N` bytes. `Hex<32>` is a SHA-256, `Hex<64>` a SHA-512.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -15,13 +14,13 @@ pub type Sha512 = Hex<64>;
 
 impl Sha256 {
     pub fn of(bytes: &[u8]) -> Sha256 {
-        Hex(sha2::Sha256::digest(bytes).into())
+        Hex(turbo_sha256::sha256(bytes).0)
     }
 }
 
 impl Sha512 {
     pub fn of(bytes: &[u8]) -> Sha512 {
-        Hex(sha2::Sha512::digest(bytes).into())
+        Hex(turbo_sha256::sha512(bytes))
     }
 }
 

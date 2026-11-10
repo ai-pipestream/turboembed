@@ -1,0 +1,25 @@
+MASKED	Lives in **** ******, ********, near Springfield, ** 62704; moved from ******* ******, ********* and *** ****. State: **. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+MASK_ALL	Lives in ###########, ########, near Springfield, ## 62704; moved from ##############, ######### and ########. State: ##. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+REWRITE	pseudonymize	OK	Lives in COUNTY-1, STATE-1, near Springfield, STATE-1 62704; moved from COUNTY-2, STATE-2 and STATE-3. State: STATE-4. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+LABEL	pseudonymize	9	20	9	17	COUNTY-1
+LABEL	pseudonymize	22	30	19	26	STATE-1
+LABEL	pseudonymize	50	52	46	53	STATE-1
+LABEL	pseudonymize	71	85	72	80	COUNTY-2
+LABEL	pseudonymize	87	96	82	89	STATE-2
+LABEL	pseudonymize	101	109	94	101	STATE-3
+LABEL	pseudonymize	118	120	110	117	STATE-4
+REWRITE	hmac	OK	Lives in COUNTY-4e0604fc31aa6993, STATE-84549c8ff7f8cfff, near Springfield, STATE-84549c8ff7f8cfff 62704; moved from COUNTY-d43c04b27407fce5, STATE-13de9f58ac52ffb4 and STATE-35e2dfb14fa86e9d. State: STATE-4898995743e6ba77. Not places: IN the morning, OR later, the county fair, Gotham County, New York City, Indianapolis.
+
+LABEL	hmac	9	20	9	32	COUNTY-4e0604fc31aa6993
+LABEL	hmac	22	30	34	56	STATE-84549c8ff7f8cfff
+LABEL	hmac	50	52	76	98	STATE-84549c8ff7f8cfff
+LABEL	hmac	71	85	117	140	COUNTY-d43c04b27407fce5
+LABEL	hmac	87	96	142	164	STATE-13de9f58ac52ffb4
+LABEL	hmac	101	109	169	191	STATE-35e2dfb14fa86e9d
+LABEL	hmac	118	120	200	222	STATE-4898995743e6ba77
+AUDIT	county	2	2	COUNTY-4e0604fc31aa6993, COUNTY-d43c04b27407fce5
+AUDIT	state	5	4	STATE-84549c8ff7f8cfff, STATE-13de9f58ac52ffb4, STATE-35e2dfb14fa86e9d
+AUDIT_REPORT	county: 2 mentions, 2 distinct [COUNTY-4e0604fc31aa6993, COUNTY-d43c04b27407fce5]\nstate: 5 mentions, 4 distinct [STATE-84549c8ff7f8cfff, STATE-13de9f58ac52ffb4, STATE-35e2dfb14fa86e9d]

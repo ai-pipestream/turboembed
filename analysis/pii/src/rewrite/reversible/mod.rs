@@ -17,8 +17,6 @@ pub use ff1::{Ff1Alphabet, Ff1Encryptor};
 
 use std::fmt;
 
-use crate::checksum::sha256;
-
 /// The key length both encryptors take: an AES-256 key.
 pub const KEY_BYTES: usize = 32;
 
@@ -73,6 +71,13 @@ fn check_key(key: &[u8]) -> Result<(), CryptError> {
     if key.len() == KEY_BYTES { Ok(()) } else { Err(CryptError::KeyLength(key.len())) }
 }
 
+/// What a policy's configuration hash and equality see of a key: an
+/// HMAC-SHA-256 under a fixed label, as [`crate::rewrite::HmacTokenizer`]
+/// folds its key, never the key itself.
+fn key_check(key: &[u8]) -> [u8; 32] {
+    turbo_sha256::hmac_sha256(key, b"turbo-pii:redacted config key").0
+}
+
 const BASE64URL: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 /// Appends `bytes` to `out` as unpadded base64url (RFC 4648 section 5).
@@ -124,7 +129,7 @@ fn random_seed() -> [u8; 32] {
         }
     }
     use std::hash::{BuildHasher, Hasher};
-    let mut seed = sha256::Sha256::default();
+    let mut seed = turbo_sha256::Sha256::new();
     for i in 0..8u64 {
         let mut h = std::collections::hash_map::RandomState::new().build_hasher();
         h.write_u64(i);
@@ -132,7 +137,7 @@ fn random_seed() -> [u8; 32] {
     }
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     seed.update(&now.to_le_bytes());
-    out.copy_from_slice(&seed.finish());
+    out.copy_from_slice(&seed.finish().0);
     out
 }
 

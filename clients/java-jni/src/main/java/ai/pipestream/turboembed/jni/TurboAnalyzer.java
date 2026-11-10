@@ -50,7 +50,8 @@ public final class TurboAnalyzer implements ai.pipestream.turboembed.TurboAnalyz
                 Utf8.bytes(config.language()),
                 Utf8.bytes(config.bundlePath() == null ? "" : config.bundlePath().toString()),
                 (config.piiValues() ? TurboLibrary.TURBO_ANALYZER_PII_VALUES : 0)
-                        | TurboLibrary.TURBO_ANALYZER_PII_KIND_IDS);
+                        | TurboLibrary.TURBO_ANALYZER_PII_KIND_IDS
+                        | (config.piiDetail() ? TurboLibrary.TURBO_ANALYZER_PII_DETAIL : 0));
         return new TurboAnalyzer(requireHandle(created, "turbo_analyzer_create"), new ReentrantLock(true));
     }
 

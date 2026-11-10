@@ -91,6 +91,7 @@ async fn send_typed(
                 options,
                 output: output as i32,
                 offsets: offsets as i32,
+                vocabulary: None,
             })),
         })
         .await

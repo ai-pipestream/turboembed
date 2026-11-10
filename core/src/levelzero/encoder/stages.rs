@@ -107,22 +107,42 @@ impl Session {
             return dk.general.launch(c, q, "attention", &args, [self.longest, d.heads, batch]);
         }
         let scale = 1.0 / (head_dim as f32).sqrt();
+        // Limited lookahead: a banded model's kernels take the most keys a
+        // query sees past itself, at most a row's length, so their sums
+        // stay in range; the whole-row kernels take nothing more.
+        let banded = usize::from(d.lookahead > 0);
+        let ahead = I32(d.lookahead.min(self.max_seq) as i32);
         match &k.attention {
             Attention::Xmx(a, staged) => {
-                let args =
-                    [Ptr(self.qkv), Ptr(self.packed_mask), Ptr(self.rows), I32(h as i32), F32(scale), Ptr(self.att)];
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    F32(scale),
+                    Ptr(self.att),
+                    ahead,
+                ];
+                let args = &args[..6 + banded];
                 // The staged kernel where the longest row fills its group.
                 let (a, sgs) = match staged {
                     Some(s) if self.longest >= 16 * ATT2_SUBGROUPS => (s, ATT2_SUBGROUPS),
                     _ => (a, ATT_SUBGROUPS),
                 };
                 let groups = [self.longest.div_ceil(16 * sgs), d.heads, batch];
-                a.launch(c, q, "attention", &args, groups)
+                a.launch(c, q, "attention", args, groups)
             }
             Attention::Tiled(a) => {
-                let args =
-                    [Ptr(self.qkv), Ptr(self.packed_mask), Ptr(self.rows), I32(h as i32), F32(scale), Ptr(self.att)];
-                a.launch(c, q, "attention", &args, [self.longest.div_ceil(QUERIES), d.heads, batch])
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    F32(scale),
+                    Ptr(self.att),
+                    ahead,
+                ];
+                a.launch(c, q, "attention", &args[..6 + banded], [self.longest.div_ceil(QUERIES), d.heads, batch])
             }
             Attention::General(a) => {
                 let args = [
@@ -134,9 +154,14 @@ impl Session {
                     F32(scale),
                     Ptr(if xmx { 0 } else { self.att }),
                     Ptr(if xmx { self.att } else { 0 }),
-                    Local(attention_local_bytes(self.longest, head_dim) as usize),
+                    ahead,
                 ];
-                a.launch(c, q, "attention", &args, [self.longest, d.heads, batch])
+                // The local memory is the last argument either way.
+                let local = Local(attention_local_bytes(self.longest, head_dim) as usize);
+                let mut all = [local; 10];
+                all[..9].copy_from_slice(&args);
+                all[8 + banded] = local;
+                a.launch(c, q, "attention", &all[..9 + banded], [self.longest, d.heads, batch])
             }
         }
     }

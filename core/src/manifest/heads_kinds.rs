@@ -217,6 +217,13 @@ impl HeadSpec {
             check_span(at, s)?;
         }
         self.validate_seen_lookup(at)?;
+        // the open-span matcher's callers read the final layer alone
+        if self.layer_mix.is_some() && self.kind == HeadKind::OpenSpan {
+            return Err(invalid(format!(
+                "manifest.json: {}: a HEAD_OPEN_SPAN reads the encoder's final layer and takes no layer_mix",
+                at("layer_mix")
+            )));
+        }
         match self.kind {
             HeadKind::SentenceBoundary if self.labels != BOUNDARY_LABELS => Err(invalid(format!(
                 "manifest.json: {}: {:?}; a HEAD_SENTENCE_BOUNDARY's labels are {BOUNDARY_LABELS:?}",

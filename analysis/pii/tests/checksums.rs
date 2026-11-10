@@ -4,7 +4,7 @@
 mod support;
 
 use support::*;
-use turbo_pii::checksum::{bic, es, fr, icao9303, keccak, luhn, mod11, sha256};
+use turbo_pii::checksum::{bic, es, fr, icao9303, keccak, luhn, mod11};
 use turbo_pii::{Extractor, Pack, PiiDetector, PiiKind};
 
 const DOUBLED: [u32; 10] = [0, 2, 4, 6, 8, 1, 3, 5, 7, 9];
@@ -68,7 +68,10 @@ fn keccak_around_the_block_size() {
     assert_ne!(keccak::digest(b"opennlp"), keccak::digest(b"opennlq"));
     // SHA3-256("abc") differs: Keccak keeps the original padding.
     assert_ne!(hex(&keccak::digest(b"abc")), "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532");
-    assert_eq!(hex(&sha256::digest(b"abc")), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    assert_eq!(
+        hex(&turbo_sha256::sha256(b"abc").0),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
 }
 
 const BASE58: &[u8] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
