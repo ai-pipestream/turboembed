@@ -56,7 +56,17 @@ pub(crate) struct Job {
 }
 
 /// The training slot, given back when dropped.
-struct Slot(Arc<AtomicBool>);
+pub(super) struct Slot(Arc<AtomicBool>);
+
+impl Slot {
+    /// Takes the one slot, or refuses BUSY while another training has it.
+    pub(super) fn take(training: Arc<AtomicBool>) -> Result<Slot, Status> {
+        if training.swap(true, Ordering::AcqRel) {
+            return Err(plain(Failure::new(TURBO_E_BUSY, 0, "another training is running; try again when it ends")));
+        }
+        Ok(Slot(training))
+    }
+}
 
 impl Drop for Slot {
     fn drop(&mut self) {
@@ -65,8 +75,8 @@ impl Drop for Slot {
 }
 
 /// A request with its defaults filled in and its checks passed.
-struct Plan {
-    name: String,
+pub(super) struct Plan {
+    pub(super) name: String,
     base: PathBuf,
     options: Options,
     terms: Vec<String>,
@@ -74,7 +84,54 @@ struct Plan {
     sessions: u32,
 }
 
+impl Plan {
+    /// The static vectors' width.
+    pub(super) fn dims(&self) -> u32 {
+        self.options.pca_dims
+    }
+
+    /// Puts a learned vocabulary's terms before the request's own, as a
+    /// request naming the vocabulary would have them.
+    /// Too many terms is refused at `field`. The count of the vocabulary's.
+    pub(super) fn learned(&mut self, id: String, sha256: String, tsv: &[u8], field: u32) -> Result<usize, Status> {
+        let mut terms = vocabulary_terms(tsv).map_err(|e| runtime(format!("vocabulary {id}: {e}")))?;
+        let learned = terms.len();
+        terms.append(&mut self.terms);
+        check_terms(&terms, field)?;
+        (self.terms, self.vocabulary) = (terms, (id, sha256));
+        Ok(learned)
+    }
+}
+
 type Tx = mpsc::Sender<Result<TrainStaticModelUpdate, Status>>;
+
+/// Where a training's steps go, and whether anyone still waits for them.
+pub(super) trait Watch {
+    fn step(&self, p: TrainStaticModelProgress);
+    fn gone(&self) -> bool;
+}
+
+impl Watch for Tx {
+    fn step(&self, p: TrainStaticModelProgress) {
+        let _ = self.blocking_send(Ok(update(p)));
+    }
+
+    fn gone(&self) -> bool {
+        self.is_closed()
+    }
+}
+
+/// A training adds at most [`MAX_TERMS`] learned terms.
+fn check_terms(terms: &[String], field: u32) -> Result<(), Status> {
+    if terms.len() > MAX_TERMS {
+        return Err(plain(Failure::new(
+            TURBO_E_CAPACITY,
+            field,
+            format!("{} learned terms is over the most one training adds, {MAX_TERMS}", terms.len()),
+        )));
+    }
+    Ok(())
+}
 
 fn progress(stage: TrainStage) -> TrainStaticModelProgress {
     TrainStaticModelProgress { stage: stage as i32, ..Default::default() }
@@ -127,16 +184,21 @@ fn vocabulary_terms(tsv: &[u8]) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// The request's checks, its defaults, and the vocabulary's terms.
-fn plan(job: &Job, r: TrainStaticModelRequest) -> Result<Plan, Status> {
-    check_name(1, &r.name)?;
+/// The request's checks, its defaults, and the vocabulary's terms. A
+/// refusal names the request's field, or `at` when the request is itself
+/// a field of the message refused.
+pub(super) fn plan(job: &Job, r: TrainStaticModelRequest, at: Option<u32>) -> Result<Plan, Status> {
+    let at = |field: u32| at.unwrap_or(field);
+    let invalid = |field: u32, m: String| invalid(at(field), m);
+    let failed = |code: i32, field: u32, m: String| plain(Failure::new(code, at(field), m));
+    check_name(at(1), &r.name)?;
     if job.dir.join(&r.name).exists() {
-        return Err(plain(Failure::new(TURBO_E_INVALID_STATE, 1, format!("static model {} already exists", r.name))));
+        return Err(failed(TURBO_E_INVALID_STATE, 1, format!("static model {} already exists", r.name)));
     }
     if job.state.peek(&r.name).is_ok() {
         return Err(invalid(1, format!("a model named {} is already served", r.name)));
     }
-    let served = job.state.peek(&r.teacher).map_err(|f| plain(Failure { field: 2, ..f }))?.0;
+    let served = job.state.peek(&r.teacher).map_err(|f| plain(Failure { field: at(2), ..f }))?.0;
     let (t, base) = teacher(&served).ok_or_else(|| {
         invalid(2, format!("model {} is not a loaded encoder a static model is distilled from", r.teacher))
     })?;
@@ -162,32 +224,25 @@ fn plan(job: &Job, r: TrainStaticModelRequest) -> Result<Plan, Status> {
     };
     let sessions = r.sessions.max(1);
     if sessions > MAX_SESSIONS_PER_MODEL {
-        return Err(plain(Failure::new(
+        return Err(failed(
             TURBO_E_CAPACITY,
             10,
             format!("sessions {sessions} is over max_sessions_per_model {MAX_SESSIONS_PER_MODEL}"),
-        )));
+        ));
     }
     let (mut terms, mut vocabulary) = (Vec::new(), (String::new(), String::new()));
     if !r.vocabulary_artifact_id.is_empty() {
         let id = &r.vocabulary_artifact_id;
         let store = job.vocabulary.as_ref().ok_or_else(|| {
-            plain(Failure::new(TURBO_E_INVALID_STATE, 7, "no vocabulary store: start the server with --vocabulary-dir"))
+            failed(TURBO_E_INVALID_STATE, 7, "no vocabulary store: start the server with --vocabulary-dir".into())
         })?;
-        let not_found =
-            || plain(Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 7, format!("no learned vocabulary {id:?} in the store")));
+        let not_found = || failed(TURBO_E_BUNDLE_NOT_FOUND, 7, format!("no learned vocabulary {id:?} in the store"));
         let Some(Stored::Vocabulary(d, bytes)) = store.read(id).map_err(runtime)? else { return Err(not_found()) };
         terms = vocabulary_terms(&bytes).map_err(|e| invalid(7, format!("vocabulary {id}: {e}")))?;
         vocabulary = (d.artifact_id, d.sha256);
     }
     terms.extend(r.terms);
-    if terms.len() > MAX_TERMS {
-        return Err(plain(Failure::new(
-            TURBO_E_CAPACITY,
-            8,
-            format!("{} learned terms is over the most one training adds, {MAX_TERMS}", terms.len()),
-        )));
-    }
+    check_terms(&terms, at(8))?;
     let options = Options {
         id: r.name.clone(),
         revision: if r.revision.is_empty() { "1".into() } else { r.revision },
@@ -211,14 +266,11 @@ pub(super) async fn start(
     // model is published.
     let job = Arc::new(job);
     let j = job.clone();
-    let plan = blocking(move || plan(&j, req)).await?;
-    if training.swap(true, Ordering::AcqRel) {
-        return Err(plain(Failure::new(TURBO_E_BUSY, 0, "another training is running; try again when it ends")));
-    }
-    let slot = Slot(training);
+    let plan = blocking(move || plan(&j, req, None)).await?;
+    let slot = Slot::take(training)?;
     let (tx, rx) = mpsc::channel(16);
     let _ = tx.send(Ok(update(progress(TrainStage::Admitted)))).await;
-    let staging = job.dir.join(format!("{STAGING}{}-{}", plan.name, SEQ.fetch_add(1, Ordering::Relaxed)));
+    let staging = staging(&job.dir, &plan.name);
     tokio::spawn(async move {
         let (t, s) = (tx.clone(), staging.clone());
         // A panic in the distillation is the stream's INTERNAL status, not
@@ -235,6 +287,11 @@ pub(super) async fn start(
         let _ = tx.send(last).await;
     });
     Ok(Box::pin(ReceiverStream::new(rx)))
+}
+
+/// A staging directory for a training of `name`, not yet made.
+pub(super) fn staging(dir: &Path, name: &str) -> PathBuf {
+    dir.join(format!("{STAGING}{name}-{}", SEQ.fetch_add(1, Ordering::Relaxed)))
 }
 
 /// The CPU's runtime index: a static model runs on the CPU backend.
@@ -255,19 +312,17 @@ fn cpu(state: &State) -> Result<u32, Status> {
 
 /// Distils, seals, moves and serves the model. The client going away is
 /// seen between steps: before the move, the training stops there.
-fn run(job: &Job, plan: &Plan, staging: &Path, tx: &Tx) -> Result<TrainedStaticModel, Status> {
-    let gone = || if tx.is_closed() { Err(runtime("the client cancelled the training")) } else { Ok(()) };
+pub(super) fn run(job: &Job, plan: &Plan, staging: &Path, tx: &dyn Watch) -> Result<TrainedStaticModel, Status> {
+    let gone = || if tx.gone() { Err(runtime("the client cancelled the training")) } else { Ok(()) };
     let fail = |what: &'static str| move |e: String| runtime(format!("{what}: {e}"));
     let mut recipe =
         from_base::recipe(&plan.base, &plan.options, &staging.join("work")).map_err(fail("the static recipe"))?;
     let bundle = staging.join("bundle");
-    let staged = distill::stage_with(&recipe, &plan.base, &bundle, &plan.terms, &mut |p| {
-        let _ = tx.blocking_send(Ok(update(step(p))));
-    })
-    .map_err(fail("distillation"))?;
+    let staged = distill::stage_with(&recipe, &plan.base, &bundle, &plan.terms, &mut |p| tx.step(step(p)))
+        .map_err(fail("distillation"))?;
     gone()?;
     distill::seal(&mut recipe, &bundle).map_err(fail("sealing"))?;
-    let _ = tx.blocking_send(Ok(update(progress(TrainStage::Sealed))));
+    tx.step(progress(TrainStage::Sealed));
     let config = ModelConfig {
         bundle: job.dir.join(&plan.name).to_string_lossy().into_owned(),
         name: Some(plan.name.clone()),
@@ -306,7 +361,7 @@ fn run(job: &Job, plan: &Plan, staging: &Path, tx: &Tx) -> Result<TrainedStaticM
         }
         published?
     };
-    let _ = tx.blocking_send(Ok(update(progress(TrainStage::Loaded))));
+    tx.step(progress(TrainStage::Loaded));
     Ok(TrainedStaticModel {
         model: Some(model),
         added_terms: staged.added,
