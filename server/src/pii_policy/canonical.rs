@@ -242,6 +242,7 @@ fn date(e: &mut Enc, d: &pb::PiiDateStrategy) {
             e.str(6, &s.context);
         }),
         Some(Mode::Relative(r)) => e.arm(3, r, |e, r| e.str(1, &r.reference)),
+        Some(Mode::SafeHarbor(r)) => e.arm(5, r, |e, r| e.str(1, &r.reference)),
     }
     e.str(4, &d.mask_char);
 }

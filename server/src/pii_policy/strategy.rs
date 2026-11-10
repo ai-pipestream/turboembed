@@ -8,10 +8,11 @@ use turbo_pii::rewrite::{
 use super::error::{At, PolicyError};
 use super::resolve::{PolicyResolver, check_dictionary, check_key_id};
 use crate::proto::result::{
-    PiiAgeSafeHarborStrategy, PiiDateRelative, PiiDateShift, PiiDateStrategy, PiiDateYear, PiiFormatStrategy,
-    PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy, PiiMapTarget, PiiMaskStrategy,
-    PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy, PiiStrategy, PiiTruncateStrategy,
-    PiiZipSafeHarborStrategy, pii_date_strategy::Mode, pii_map_strategy::Table, pii_rewrite_strategy::Strategy,
+    PiiAgeSafeHarborStrategy, PiiDateRelative, PiiDateSafeHarbor, PiiDateShift, PiiDateStrategy, PiiDateYear,
+    PiiFormatStrategy, PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy, PiiMapTarget,
+    PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy, PiiStrategy,
+    PiiTruncateStrategy, PiiZipSafeHarborStrategy, pii_date_strategy::Mode, pii_map_strategy::Table,
+    pii_rewrite_strategy::Strategy,
 };
 
 /// A whole-value mask with `'*'`: the conservative default, and what
@@ -144,18 +145,24 @@ fn date_shift(at: At, s: &PiiDateShift, resolver: &dyn PolicyResolver) -> Result
     fixed.keyed(bytes, &s.context, max_days).map_err(|e| invalid(at, e))
 }
 
+/// The required `yyyy-MM-dd` reference date in `field`.
+fn reference_date(at: At, field: &'static str, reference: &str) -> Result<turbo_pii::rewrite::Date, PolicyError> {
+    if reference.is_empty() {
+        return Err(PolicyError::Missing { at, field });
+    }
+    turbo_pii::rewrite::Date::parse(reference)
+        .ok_or_else(|| invalid(at, format!("{field} is not a yyyy-MM-dd date: {reference:?}")))
+}
+
 fn date(at: At, d: &PiiDateStrategy, resolver: &dyn PolicyResolver) -> Result<RewriteStrategy, PolicyError> {
     let mode = match d.mode.as_ref().ok_or(PolicyError::Missing { at, field: "date.mode" })? {
         Mode::Year(PiiDateYear {}) => DateMode::Year,
         Mode::Shift(s) => DateMode::Shift(date_shift(at, s, resolver)?),
         Mode::Relative(PiiDateRelative { reference }) => {
-            if reference.is_empty() {
-                return Err(PolicyError::Missing { at, field: "date.relative.reference" });
-            }
-            let r = turbo_pii::rewrite::Date::parse(reference).ok_or_else(|| {
-                invalid(at, format!("date.relative.reference is not a yyyy-MM-dd date: {reference:?}"))
-            })?;
-            DateMode::Relative(r)
+            DateMode::Relative(reference_date(at, "date.relative.reference", reference)?)
+        }
+        Mode::SafeHarbor(PiiDateSafeHarbor { reference }) => {
+            DateMode::SafeHarbor(reference_date(at, "date.safe_harbor.reference", reference)?)
         }
     };
     let c = mask_char(at, &d.mask_char, DateRewrite::DEFAULT_MASK)?;
@@ -249,6 +256,7 @@ pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
         Strategy::Date(d) => match d.mode {
             Some(Mode::Shift(_)) => PiiStrategy::DateShift,
             Some(Mode::Relative(_)) => PiiStrategy::DateRelative,
+            Some(Mode::SafeHarbor(_)) => PiiStrategy::DateSafeHarbor,
             Some(Mode::Year(_)) | None => PiiStrategy::DateYear,
         },
     }
@@ -314,6 +322,7 @@ pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
                     ..PiiDateShift::default()
                 }),
                 DateMode::Relative(r) => Mode::Relative(PiiDateRelative { reference: r.to_string() }),
+                DateMode::SafeHarbor(r) => Mode::SafeHarbor(PiiDateSafeHarbor { reference: r.to_string() }),
             }),
             mask_char: char_string(d.mask(), DateRewrite::DEFAULT_MASK),
         }),

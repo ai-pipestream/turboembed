@@ -1,4 +1,4 @@
-//! The `PiiDateStrategy` arm (issue #1884): each mode converts to the
+//! The `PiiDateStrategy` arm (issue #1884), Safe Harbor mode included: each mode converts to the
 //! native strategy and back, its fields are checked and in the digest, a
 //! date rule turns the opt-in date pack on, and the redact step reduces
 //! dates with edits that record the mode's `PiiStrategy` on the wire.
@@ -39,6 +39,10 @@ fn relative(reference: &str) -> Mode {
     Mode::Relative(pb::PiiDateRelative { reference: reference.to_owned() })
 }
 
+fn safe_harbor(reference: &str) -> Mode {
+    Mode::SafeHarbor(pb::PiiDateSafeHarbor { reference: reference.to_owned() })
+}
+
 /// One rule for dates with `s` as its only strategy.
 fn date_policy(s: Strategy) -> pb::RedactionPolicy {
     policy(vec![rule("date", builtin(pb::PiiKindId::Date), vec![entry(s)])])
@@ -69,6 +73,12 @@ fn each_mode_converts_and_round_trips() {
             DateRewrite::relative(d(2026, 7, 14)),
             PiiStrategyKind::DateRelative,
             pb::PiiStrategy::DateRelative,
+        ),
+        (
+            date(safe_harbor("2026-07-14"), "#"),
+            DateRewrite::safe_harbor(d(2026, 7, 14)).with_mask('#'),
+            PiiStrategyKind::DateSafeHarbor,
+            pb::PiiStrategy::DateSafeHarbor,
         ),
     ];
     for (arm, want, kind, value) in cases {
@@ -115,8 +125,12 @@ fn bad_fields_are_refused() {
     assert!(matches!(missing, PolicyError::Missing { field: "date.mode", .. }), "{missing:?}");
     let no_ref = native(date(relative(""), "")).unwrap_err();
     assert!(matches!(no_ref, PolicyError::Missing { field: "date.relative.reference", .. }), "{no_ref:?}");
+    let no_ref = native(date(safe_harbor(""), "")).unwrap_err();
+    assert!(matches!(no_ref, PolicyError::Missing { field: "date.safe_harbor.reference", .. }), "{no_ref:?}");
     for bad in ["2026-7-14", "2026-02-30", "July 14, 2026", "20260714"] {
         assert!(matches!(native(date(relative(bad), "")), Err(PolicyError::Invalid { .. })), "{bad}");
+        let err = native(date(safe_harbor(bad), "")).unwrap_err();
+        assert!(err.to_string().contains("date.safe_harbor.reference"), "{bad}: {err}");
     }
     assert!(matches!(native(date(year(), "**")), Err(PolicyError::Invalid { .. })));
     let unkeyed = shift(pb::PiiDateShift { max_days: 5, ..Default::default() });
@@ -135,6 +149,10 @@ fn the_digest_covers_the_mode_and_its_fields() {
     assert_ne!(days(1), days(-1));
     assert_ne!(days(0), base, "a shift by nothing is still another mode");
     assert_ne!(digest(date(relative("2026-07-14"), "")), digest(date(relative("2026-07-15"), "")));
+    let harbor = digest(date(safe_harbor("2026-07-14"), ""));
+    assert_ne!(harbor, digest(date(safe_harbor("2026-07-15"), "")));
+    assert_ne!(harbor, digest(date(relative("2026-07-14"), "")), "same reference, another mode");
+    assert_ne!(harbor, base);
 }
 
 #[test]
@@ -161,6 +179,8 @@ fn the_redact_step_reduces_dates_and_the_wire_edits_say_so() {
             pb::PiiStrategy::DateShift,
         ),
         (relative("2026-07-20"), "Admitted 6 days ago and born 74 years ago.", pb::PiiStrategy::DateRelative),
+        (safe_harbor("2026-07-20"), "Admitted 2026 and born 1952.", pb::PiiStrategy::DateSafeHarbor),
+        (safe_harbor("2042-07-20"), "Admitted 2026 and born 1952 or earlier.", pb::PiiStrategy::DateSafeHarbor),
     ] {
         let p = convert(&date_policy(date(mode, "")), &NoRegistry);
         let doc = run_with(text, p.clone(), false);
