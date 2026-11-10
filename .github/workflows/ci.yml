@@ -79,6 +79,8 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       - name: clippy (pii reversible)
         run: cargo clippy -p turbo-pii --features reversible --all-targets
+      - name: clippy (server pii-reversible)
+        run: cargo clippy -p turbo-kserve --features pii-reversible --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
       # through ureq or rustls, whose build script needs an aarch64 C
@@ -101,7 +103,8 @@ jobs:
   # that touch server/proto/ for wire or file-level breaking changes against
   # main (issue #1296), and verifies that the published Java Maven and Python
   # wheel client stubs call Capabilities and AnalyzeStream against a running
-  # server (issue #1297, docs/grpc.md, docs/release.md).
+  # server (issue #1297, docs/grpc.md, docs/release.md). Its last steps run
+  # the demo page in a browser (issue #2149).
   proto:
     runs-on: ubuntu-24.04
     steps:
@@ -132,8 +135,14 @@ jobs:
             echo "server/proto unchanged from origin/main"
             exit 0
           fi
+          # Compare against the main this HEAD was built on, as the skip
+          # above does. The tip of origin/main can be newer than the merge
+          # ref (main moved after the push), and then a proto change merged
+          # since reads as a deletion in every proto pull request.
+          base=$(git merge-base origin/main HEAD)
+          echo "comparing against merge base $base"
           mkdir -p "$RUNNER_TEMP/base"
-          git archive origin/main server/proto | tar -x -C "$RUNNER_TEMP/base"
+          git archive "$base" server/proto | tar -x -C "$RUNNER_TEMP/base"
           if [ ! -f "$RUNNER_TEMP/base/server/proto/buf.yaml" ]; then
             cp server/proto/buf.yaml "$RUNNER_TEMP/base/server/proto/buf.yaml"
             sed -i \
@@ -181,6 +190,47 @@ jobs:
           target/debug/turbo-kserve health --addr 127.0.0.1:18089
           bash scripts/package-proto-stubs.sh v0.1.0 "$RUNNER_TEMP/proto-stubs-dist" 127.0.0.1:18089
           ls -la "$RUNNER_TEMP/proto-stubs-dist"
+      # The demo page itself in a browser against the real server (issue
+      # #2149, docs/demo.md): layout at two widths, the tab keys and the
+      # catalog filter. It reuses this job's Node and its build of
+      # turbo-kserve, and runs only when what it serves or tests changed: on
+      # a pull request against its base, in the merge queue against the main
+      # the group is stacked on. The daily run always runs it; a push to
+      # main does not, since the merge queue ran that commit.
+      - name: whether the demo page's browser test runs
+        id: page
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          GROUP_BASE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          case "$EVENT" in
+            pull_request) changed=$(git diff --name-only "origin/$BASE_REF...HEAD") ;;
+            merge_group) changed=$(git diff --name-only "$GROUP_BASE" HEAD) ;;
+            schedule) echo "run=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            *) exit 0 ;;
+          esac
+          if grep -qE '^(demo/|server/|testdata/tiny-(bert|modernbert)-bundle/|scripts/(e2e-web|build-web)\.sh$|\.github/workflows/ci\.yml$)' <<<"$changed"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      # The browser build belongs to the Playwright version the lock file
+      # pins, so that version is the cache key. Only the headless shell is
+      # fetched: the test never opens a window.
+      - name: the pinned Playwright's version
+        id: playwright
+        if: steps.page.outputs.run
+        run: echo "version=$(node -p 'require("./demo/web/node_modules/playwright/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        if: steps.page.outputs.run
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - name: headless Chromium for the pinned Playwright
+        if: steps.page.outputs.run
+        run: demo/web/node_modules/.bin/playwright install chromium-headless-shell
+      - name: the demo page in a browser against turbo-kserve
+        if: steps.page.outputs.run
+        run: bash scripts/e2e-web.sh
 
   # turbo-bench's throughput CLI across Cargo profile settings. A job of
   # its own, not steps in lint: its record test pins counts over the
@@ -290,6 +340,10 @@ jobs:
       # RustCrypto AES-GCM and FF1 crates.
       - name: test (pii reversible)
         run: cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
+      - name: test (server pii-reversible)
+        run: >-
+          cargo test -p turbo-kserve --features pii-reversible --lib
+          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host
@@ -334,8 +388,9 @@ jobs:
   # and static runtime), for the default architecture alone; Level Zero
   # compiles its OpenCL C kernels with clang 20; Metal builds on macOS.
   # Hailo is left out: HailoRT's headers are not published as a package
-  # this runner can install. Each lane runs only when the core, the
-  # headers, the lock file or this file changed, and in the merge queue.
+  # this runner can install. Each lane runs only when the core,
+  # analysis/, the headers, the root Cargo.toml, the lock file or this
+  # file changed, and in the merge queue.
   backends-linux:
     if: github.event_name != 'push'
     runs-on: ubuntu-24.04
@@ -351,7 +406,7 @@ jobs:
         id: changed
         run: |
           if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|include/|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: dtolnay/rust-toolchain@stable
@@ -396,7 +451,7 @@ jobs:
         id: changed
         run: |
           if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|include/|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: dtolnay/rust-toolchain@stable

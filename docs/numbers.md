@@ -169,3 +169,5 @@ and region-aware fallback, alongside the `num` snapshot suite in both notations.
 `analysis/query/tests/rule_entities_gold.rs` test rule-to-`Entities`
 projection, provenance preservation, consensus merging with learned NER
 heads, and exact-span F1 against reviewed gold spans.
+The `"percent"` row beside spaCy `en_core_web_trf` and Stanza on the same
+text is in `analysis/eval/records/rule-entities-1731/README.md` (#1731).

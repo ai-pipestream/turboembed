@@ -342,7 +342,7 @@ enum Kernel {
     GEMM_H32N32 = GEMM_H128 + 4, GEMM_H64N32 = GEMM_H32N32 + 4, GEMM_H32N32A = GEMM_H64N32 + 4,
     GEMM_SMALL_H = GEMM_H32N32A + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED,
     DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, ROTARY_EMBED, LAYER_NORM_INTO, PACK_ROWS, QUANTIZE_INT8, QUANTIZE_UBINARY,
-    KERNELS
+    SPAN_HEAD, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
@@ -355,7 +355,8 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h32n32a_ff",  "gemm_h32n32a_fh", "gemm_h32n32a_hf", "gemm_h32n32a_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
     "attention_h128",   "attention_hr128", "deberta_embed",  "deberta_layer_norm_rows", "deberta_relative",
-    "deberta_attention", "lstm_project",   "lstm_step",       "rotary_embed",    "layer_norm_into", "pack_rows", "quantize_int8", "quantize_ubinary"};
+    "deberta_attention", "lstm_project",   "lstm_step",       "rotary_embed",    "layer_norm_into", "pack_rows", "quantize_int8", "quantize_ubinary",
+    "span_head"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -844,6 +845,11 @@ struct Model {
      * empty entries. */
     id<MTLBuffer> paired_narrowed = nil;
     std::vector<Ref> paired_h;
+    /* The token head (turbo_backend.h, token_head), [head_out, hidden] F32
+     * then its [head_out] bias, copied at load; nil with head_out 0 for a
+     * model without one. */
+    id<MTLBuffer> head = nil;
+    uint32_t head_out = 0;
 };
 
 /* A rotary layer's linear weights, as rotary_half narrows them and
@@ -1023,12 +1029,34 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         if (lookahead && (deberta || rotary))
             return refuse(err, TURBO_E_UNSUPPORTED, "lookahead %u: the metal backend bands BERT and RoBERTa attention alone",
                           lookahead);
+        // The core hands a head only to a table that sets token_head, and
+        // only in a description that holds the field.
+        const bool has_head = desc->struct_size >= offsetof(turbo_backend_model, head_out) + sizeof(uint32_t) &&
+                              desc->head != nullptr;
+        if (has_head && (desc->head_out == 0 || desc->head[0].bytes != (uint64_t)desc->head_out * desc->hidden * 4 ||
+                         desc->head[1].bytes != (uint64_t)desc->head_out * 4))
+            return refuse(err, TURBO_E_INTERNAL, "a token head of %u outputs whose tensors are not F32 [%u, %u] and [%u]",
+                          desc->head_out, desc->head_out, desc->hidden, desc->head_out);
         const size_t elem = desc->dtype == TURBO_DTYPE_F32 ? 4 : 2;
         Model *m = make<Model>();
         m->ctx = c;
         m->desc = *desc;
         m->desc.tensors = nullptr;
         m->desc.lookahead = lookahead;
+        m->desc.head = nullptr;
+        if (has_head) {
+            // The weight, then the bias, in one buffer, as span_head reads
+            // them.
+            const size_t w = desc->head[0].bytes, b = desc->head[1].bytes;
+            m->head = new_buffer(c->device, w + b, MTLResourceStorageModeShared | WEIGHTS);
+            if (!m->head) {
+                delete m;
+                return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the token head", w + b);
+            }
+            memcpy(m->head.contents, desc->head[0].data, w);
+            memcpy(static_cast<char *>(m->head.contents) + w, desc->head[1].data, b);
+            m->head_out = desc->head_out;
+        }
         const int64_t copied = map_weights(m, desc);
         if (copied < 0) {
             delete m;
@@ -1268,6 +1296,9 @@ struct PackParams {
 };
 struct PoolParams {
     uint32_t hidden, output_dim, pooling, l2;
+};
+struct HeadParams {
+    uint32_t hidden, head_out;
 };
 
 struct RelativeParams {
@@ -1614,6 +1645,12 @@ struct Session {
      * a vector per row after embed_write, per range after
      * embed_write_ranges, each output_dim values, packed. */
     Buffer output;
+    /* [max_ranges, head_out] F32, the token head's outputs, handed out in
+     * place of output after a range write that asks for the head; empty on
+     * a model without one. */
+    Buffer head_output;
+    /* Whether the last write asked for the head. */
+    bool head = false;
     bool written = false;
     /* What the last write left: the rows, the tokens packed and rounded
      * up, the attention blocks, the ranges (0 after embed_write), and the
@@ -1840,6 +1877,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         // checked above.
         const uint64_t vectors = (uint64_t)std::max(max_batch, max_ranges) * d.hidden * 4;
         id<MTLBuffer> output = new_buffer(c->device, vectors, MTLResourceStorageModeShared);
+        const uint64_t logits = (uint64_t)max_ranges * m->head_out * 4;
+        id<MTLBuffer> head_output = logits ? new_buffer(c->device, logits, MTLResourceStorageModeShared) : nil;
         if (deberta) {
             const size_t spans = 2 * (size_t)max_seq - 1;
             s->buckets = new_buffer(c->device, spans * 4, MTLResourceStorageModeShared);
@@ -1850,10 +1889,10 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                                        d.max_relative_positions);
             }
         }
-        if (!s->rows || !s->scratch || !output || !s->queue || (deberta && !s->buckets)) {
+        if (!s->rows || !s->scratch || !output || !s->queue || (deberta && !s->buckets) || (logits && !head_output)) {
             delete s;
             return refuse(err, TURBO_E_OUT_OF_MEMORY, "%llu bytes for the session", (unsigned long long)(
-                          4 * ints + pairs + block_pairs + triples + 6 * wide + ffn + xh + vectors));
+                          4 * ints + pairs + block_pairs + triples + 6 * wide + ffn + xh + vectors + logits));
         }
         s->ids = 0;
         s->types = ints;
@@ -1876,6 +1915,12 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         s->output.placement = TURBO_PLACE_SHARED;
         s->output.bytes = vectors;
         s->output.owned = false;
+        s->head_output.ctx = c;
+        s->head_output.mtl = head_output;
+        s->head_output.host = head_output ? head_output.contents : nullptr;
+        s->head_output.placement = TURBO_PLACE_SHARED;
+        s->head_output.bytes = logits;
+        s->head_output.owned = false;
         s->linear = linear;
         s->forced = forced >= 0;
         s->attn = forced_attn >= 0 ? (Attn)forced_attn : ATTN_DEFAULT;
@@ -1981,11 +2026,13 @@ void pack(Session &s, const turbo_backend_embed_rows *r) {
     s.pooling = r->pooling;
     s.normalize = r->normalize;
     s.output_dim = r->output_dim;
+    s.head = false;
     s.written = true;
 }
 
 int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
+        if (r->head) return refuse(err, TURBO_E_INTERNAL, "a head asked of embed_write: the core asks it of ranges");
         Session &s = *static_cast<Session *>(session);
         pack(s, r);
         s.nranges = 0;
@@ -2003,10 +2050,19 @@ int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, con
         if (count == 0 || count > s.max_ranges)
             return refuse(err, TURBO_E_INTERNAL, "%u ranges for a metal session of max_ranges %u", count,
                           s.max_ranges);
+        if (r->head && (!s.model->head || r->output_dim != s.model->head_out))
+            return refuse(err, TURBO_E_INTERNAL, "a head of %u outputs asked of a metal model whose head has %u",
+                          r->output_dim, s.model->head_out);
         pack(s, r);
         memcpy(static_cast<char *>(s.rows.contents) + s.ranges, ranges, (size_t)count * sizeof(turbo_token_range));
         s.nranges = count;
         s.pooling = TURBO_POOLING_MEAN;
+        // The head reads each range's whole vector, unnormalized.
+        if (r->head) {
+            s.head = true;
+            s.output_dim = s.model->desc.hidden;
+            s.normalize = TURBO_NORMALIZE_NONE;
+        }
         return TURBO_OK;
     });
 }
@@ -2363,6 +2419,18 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:s.output.mtl offset:0 atIndex:4];
         [enc setBytes:&pp length:sizeof pp atIndex:5];
         [enc dispatchThreadgroups:MTLSizeMake(s.nranges, 1, 1) threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+        if (s.head) {
+            // One SIMD group per output value: the range's vector through
+            // the token head, into head_output.
+            const HeadParams hp{h, s.model->head_out};
+            [enc setComputePipelineState:kn.k[SPAN_HEAD]];
+            [enc setBuffer:s.output.mtl offset:0 atIndex:0];
+            [enc setBuffer:s.model->head offset:0 atIndex:1];
+            [enc setBuffer:s.head_output.mtl offset:0 atIndex:2];
+            [enc setBytes:&hp length:sizeof hp atIndex:3];
+            [enc dispatchThreadgroups:MTLSizeMake(s.nranges * s.model->head_out, 1, 1)
+                threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+        }
         return;
     }
     [enc setComputePipelineState:kn.k[POOL]];
@@ -2395,8 +2463,8 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
             memcpy(tp.last, s.peaks.contents, sizeof tp.last);
         }
         out->placement = TURBO_PLACE_SHARED;
-        out->output = &s.output;
-        out->host = s.output.host;
+        out->output = s.head ? &s.head_output : &s.output;
+        out->host = s.head ? s.head_output.host : s.output.host;
         out->h2d_bytes = 0;
         out->d2h_bytes = 0;
         out->host_allocs = host_here - host0;
@@ -2687,7 +2755,7 @@ const turbo_backend turbo_metal_backend = {
     nullptr,
     session_open,
     embed_write_ranges,
-    0,
+    1,
     0,
     buffer_quantize,
 };

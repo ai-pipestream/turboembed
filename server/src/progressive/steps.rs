@@ -4,24 +4,18 @@
 use std::marker::PhantomData;
 use std::sync::OnceLock;
 
-use turbo_abbrev::AbbreviationAnnotator;
 use turbo_analysis::analyzer::Builder;
 use turbo_analysis::{Analyzer, Bound, Document, Key};
 use turbo_analysis_embed::{ChunkVectors, LevelVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors};
 use turbo_analysis_layers::{
     Boundaries, Chunks, Entities, Levels, Sentences, Stems, Structure, Subwords, Terms, Tokens,
 };
-use turbo_chunker::levels::LevelBuilder;
-use turbo_chunker::terms::TermIndexer;
-use turbo_chunker::{Budget, Chunker, Costs, LexicalBoundaries, StructureBoundaries};
+use turbo_chunker::{Budget, Chunker};
 use turbo_geo::{BundledGazetteer, NameAnnotator, NameFinder};
 use turbo_gliner::ExtractionSchema;
-use turbo_keywords::{Stopwords as KeywordStopwords, YakeAnnotator};
 use turbo_normalize::{CaseFold, Chain, Invisible, NormalizeStep, Normalizer, UnicodeForm, Whitespace};
 use turbo_relation::ZeroShotRelationConfig;
 use turbo_sentdetect::RuleSentenceDetector;
-use turbo_stem::{Algorithm, StemAnnotator, TermAnnotator};
-use turbo_stopword::{ListChoice, StopwordAnnotator, StopwordLanguage};
 use turbo_stopword_layers::Stopwords;
 use turbo_structure::{StructureAnnotator, Syntax};
 use turbo_tokenize::uax29::UntypedWordTokenizer;
@@ -37,9 +31,11 @@ mod relations;
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::pii_policy::Redaction;
+use crate::proto::result::VocabularyBinding;
 use crate::state::State;
+use crate::vocabulary::ResolvedVocabulary;
 
-pub(super) const DEFAULT_STEPS: &[&str] = &[
+pub(crate) const DEFAULT_STEPS: &[&str] = &[
     "turbo-structure:blocks",
     "turbo-sentdetect:rules",
     "turbo-tokenize:uax29-untyped",
@@ -52,9 +48,9 @@ pub(super) const DEFAULT_STEPS: &[&str] = &[
     "turbo:lexical-boundaries",
 ];
 
-pub(super) const MINIMAL_STEPS: &[&str] = &["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"];
+pub(crate) const MINIMAL_STEPS: &[&str] = &["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped"];
 
-pub(super) const CHUNKING_STEPS: &[&str] = &[
+pub(crate) const CHUNKING_STEPS: &[&str] = &[
     "turbo-structure:blocks",
     "turbo-sentdetect:rules",
     "turbo-tokenize:uax29-untyped",
@@ -145,7 +141,7 @@ pub(super) fn register_given_layers(mut builder: Builder, initial_doc: &Document
 mod embed;
 mod gliner;
 
-pub(super) use embed::EmbedContext;
+pub(crate) use embed::EmbedContext;
 use embed::resolve_embed_context;
 
 fn add_norm<N: Normalizer>(builder: Builder, n: N, read_view: &'static str, write_view: &'static str) -> Builder {
@@ -158,6 +154,7 @@ pub(crate) struct StepOptions<'a> {
     pub(crate) open_span: Option<ExtractionSchema>,
     pub(crate) relations: Option<ZeroShotRelationConfig>,
     pub(crate) relation_model: &'a str,
+    pub(crate) vocabulary: Option<&'a VocabularyBinding>,
 }
 
 /// Builds an [`Analyzer`] from `initial_doc` and the requested `step_names`
@@ -178,6 +175,7 @@ pub fn compile_analyzer_with_redaction(
 
 /// Builds an [`Analyzer`] from `initial_doc`, resolving model-backed steps and
 /// required profile bundles against `state`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn compile_analyzer_with_state(
     initial_doc: &Document,
     step_names: &[&str],
@@ -187,16 +185,15 @@ pub(crate) fn compile_analyzer_with_state(
     required_bundles: &[&str],
     options: StepOptions<'_>,
 ) -> Result<Analyzer, Failure> {
-    let StepOptions { redaction, open_span, relations, relation_model } = options;
+    let StepOptions { redaction, open_span, relations, relation_model, vocabulary } = options;
     let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
     if redaction.is_some() && !redacts {
         return Err(bad("pii_redaction is set but the steps do not include turbo-pii:redact"));
     }
     // A step named by a legacy layer id runs as the step its current id names.
     let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
-    let step_names: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
-    let step_names = step_names.as_slice();
-    let wants_gliner = step_names.contains(&"turbo:gliner");
+    let step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    let wants_gliner = step_vec.contains(&"turbo:gliner");
     let gliner = if wants_gliner {
         let schema = open_span.ok_or_else(|| bad("turbo:gliner requires open_span labels"))?;
         Some((gliner::open(state, model_name)?, schema))
@@ -206,7 +203,7 @@ pub(crate) fn compile_analyzer_with_state(
         }
         None
     };
-    let wants_relations = step_names.contains(&"turbo:zero-shot-relations");
+    let wants_relations = step_vec.contains(&"turbo:zero-shot-relations");
     let relation = if wants_relations {
         let config = relations.ok_or_else(|| bad("turbo:zero-shot-relations requires relation labels"))?;
         Some((relations::open(state, relation_model)?, config))
@@ -216,8 +213,48 @@ pub(crate) fn compile_analyzer_with_state(
         }
         None
     };
-    let mut embed_cx =
-        resolve_embed_context(state, model_name, profile_name, required_bundles, step_names, gliner.is_some())?;
+    let embed_cx =
+        resolve_embed_context(state, model_name, profile_name, required_bundles, &step_vec, gliner.is_some())?;
+    let vocab = block5::resolve_vocabulary(
+        state,
+        model_name,
+        relation_model,
+        embed_cx.as_ref().map(|cx| &*cx.loaded),
+        vocabulary,
+    )?;
+    compile_pipeline_with(initial_doc, step_names, embed_cx, gliner, relation, profile_name, redaction, &vocab)
+}
+
+pub(crate) fn compile_pipeline(
+    initial_doc: &Document,
+    step_names: &[&str],
+    embed_cx: Option<EmbedContext>,
+    profile_name: &str,
+    redaction: Option<&Redaction>,
+    vocabulary: &ResolvedVocabulary,
+) -> Result<Analyzer, Failure> {
+    compile_pipeline_with(initial_doc, step_names, embed_cx, None, None, profile_name, redaction, vocabulary)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compile_pipeline_with(
+    initial_doc: &Document,
+    step_names: &[&str],
+    mut embed_cx: Option<EmbedContext>,
+    gliner: Option<(std::sync::Arc<turbo_gliner::Model>, ExtractionSchema)>,
+    relation: Option<(std::sync::Arc<turbo_relation::Gliner2Relations>, ZeroShotRelationConfig)>,
+    profile_name: &str,
+    redaction: Option<&Redaction>,
+    vocabulary: &ResolvedVocabulary,
+) -> Result<Analyzer, Failure> {
+    let redacts = step_names.iter().any(|&s| block5::is_redact_step(s));
+    if redaction.is_some() && !redacts {
+        return Err(bad("pii_redaction is set but the steps do not include turbo-pii:redact"));
+    }
+    let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
+    let mut step_vec: Vec<&str> = canonical.iter().map(|s| s.as_ref()).collect();
+    block5::append_bound_glossary(&mut step_vec, vocabulary);
+    let step_names = step_vec.as_slice();
     let step_names = &heads::expand(step_names, embed_cx.as_ref())?[..];
     let who = if profile_name.is_empty() { "pipeline".to_string() } else { format!("profile '{profile_name}'") };
     let head_plan = heads::plan(embed_cx.as_ref(), step_names, &who)?;
@@ -232,8 +269,8 @@ pub(crate) fn compile_analyzer_with_state(
     let mut norm_index = 0usize;
     let mut norm_chain: Vec<&'static str> = Vec::new();
     let mut active_norm_view: Option<&'static str> = None;
-    // Rule sentences decide boundaries on case: after a fold they read the
-    // last view that still has it (None is the source).
+    // Rule sentences and place names read text as written: after a fold
+    // they read the last view that still has its case (None is the source).
     let mut cased_norm_view: Option<&'static str> = None;
     let mut folded = false;
 
@@ -282,7 +319,7 @@ pub(crate) fn compile_analyzer_with_state(
         }
 
         let (next_builder, handled) =
-            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction)?;
+            block5::add_step(builder, name, embed_cx.as_ref(), &norm_chain, step_names, redaction, vocabulary)?;
         let (next_builder, handled) = match handled {
             true => (next_builder, true),
             false => heads::add_step(next_builder, name, head_plan.as_ref()),
@@ -334,8 +371,9 @@ pub(crate) fn compile_analyzer_with_state(
                 }
             }
             "turbo-geo:names" | "turbo:entities" => {
+                // Place names are matched as written, like rule sentences.
                 let ann = NameAnnotator::new(bundled_name_finder());
-                if let Some(nv) = active_norm_view {
+                if let Some(nv) = cased_norm_view {
                     builder.step(NormalizedNameStep { annotator: ann, norm_view: nv })
                 } else {
                     builder.add(ann)
@@ -359,22 +397,6 @@ pub(crate) fn compile_analyzer_with_state(
                     }
                 }
             }
-            "turbo-abbrev:schwartz-hearst" | "turbo-abbrev:abbreviations" | "turbo:abbreviations" => {
-                builder.add(AbbreviationAnnotator)
-            }
-            "turbo-stem:terms" | "turbo:terms" => builder.add(TermAnnotator::default()),
-            "turbo-stem:stemmer" | "turbo:stems" => builder.add(StemAnnotator::new(Algorithm::Porter)),
-            "turbo-stopword:bundled" | "turbo-stopword:stopwords" | "turbo:stopwords" => {
-                builder.add(StopwordAnnotator::new(ListChoice::Fixed(StopwordLanguage::English)))
-            }
-            "turbo-keywords:yake" | "turbo:keywords" => {
-                builder.add(YakeAnnotator::new(KeywordStopwords::bundled(StopwordLanguage::English)))
-            }
-            "turbo:structure-boundaries" | "turbo:boundaries" => {
-                builder.add(StructureBoundaries { costs: Costs::default() })
-            }
-            "turbo:lexical-boundaries" => builder.step(LexicalBoundaries::default().bound()),
-            "turbo:term-indexer" | "turbo:term-index" => builder.add(TermIndexer),
             "turbo:chunker" | "turbo:chunks" => {
                 let budget = if let Some(cx) = embed_cx.as_mut() {
                     let va = cx.vector_annotator()?;
@@ -386,7 +408,6 @@ pub(crate) fn compile_analyzer_with_state(
                 };
                 builder.add(Chunker { budget })
             }
-            "turbo:level-builder" | "turbo:levels" => builder.add(LevelBuilder),
             "turbo:sentence-vectors" | "sentence_vectors" => {
                 let va = embed_cx.as_mut().expect("embed context resolved").vector_annotator()?;
                 builder.add(SentenceVectors(va))

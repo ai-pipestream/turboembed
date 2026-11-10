@@ -88,7 +88,9 @@ fn strategy_ids_are_stable_and_round_trip() {
     assert_eq!(PiiStrategyKind::from_id(15), Some(PiiStrategyKind::DateShift));
     assert_eq!(PiiStrategyKind::from_id(16), Some(PiiStrategyKind::DateRelative));
     assert_eq!(PiiStrategyKind::DateRelative.name(), "date-relative");
-    assert_eq!(PiiStrategyKind::from_id(17), None);
+    assert_eq!(PiiStrategyKind::from_id(17), Some(PiiStrategyKind::DateSafeHarbor));
+    assert_eq!(PiiStrategyKind::DateSafeHarbor.name(), "date-safe-harbor");
+    assert_eq!(PiiStrategyKind::from_id(18), None);
     assert_eq!(PiiRule::Default.code(), 0);
     assert_eq!(PiiRule::Kind(PiiKind::Phone).code(), PiiKind::Phone.code());
 }

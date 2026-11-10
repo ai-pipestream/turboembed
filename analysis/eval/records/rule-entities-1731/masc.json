@@ -1,0 +1,82 @@
+{
+  "bootstrap": {
+    "draws": 1000,
+    "interval": "2.5th to 97.5th percentile",
+    "seed": 1731,
+    "unit": "document"
+  },
+  "facts": {
+    "corpus": "MASC 3.0.0",
+    "corpus_files": 4425,
+    "corpus_sha256": "445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd",
+    "documents_with_entities": 39,
+    "gold_date_entities_discontinuous_or_empty": 0,
+    "gold_date_entities_unplaced_in_sentences": 85,
+    "gold_entity_kinds": {
+      "date": 443,
+      "location": 508,
+      "org": 364,
+      "person": 2263
+    },
+    "split": "held out at 9 modulo 10, Twitter genre excluded"
+  },
+  "gate": "#1731",
+  "gold_spans": 443,
+  "match": "exact UTF-8 byte span and type, distinct spans per document",
+  "rules_seconds": 0.0254,
+  "set": "masc",
+  "systems": [
+    {
+      "predictions_sha256": null,
+      "scores": {
+        "date": {
+          "f1": 0.2394,
+          "fn": 375,
+          "fp": 57,
+          "precision": 0.544,
+          "recall": 0.1535,
+          "tp": 68
+        }
+      },
+      "system": "rules"
+    },
+    {
+      "predictions_sha256": "468c98b2298e360ca8cace4ff985144cb643563646ad5cadbb2d3ecb1410096a",
+      "scores": {
+        "date": {
+          "f1": 0.5176,
+          "fn": 201,
+          "fp": 250,
+          "precision": 0.4919,
+          "recall": 0.5463,
+          "tp": 242,
+          "vs_rules": {
+            "delta_f1": 0.2782,
+            "high": 0.4465,
+            "low": 0.1485
+          }
+        }
+      },
+      "system": "spacy-trf"
+    },
+    {
+      "predictions_sha256": "f6bf0bbca64870f003bc55fc737f1aec36a1c15c1d204525b3d22b9d40717fa1",
+      "scores": {
+        "date": {
+          "f1": 0.4806,
+          "fn": 245,
+          "fp": 183,
+          "precision": 0.5197,
+          "recall": 0.447,
+          "tp": 198,
+          "vs_rules": {
+            "delta_f1": 0.2411,
+            "high": 0.3878,
+            "low": 0.1479
+          }
+        }
+      },
+      "system": "stanza"
+    }
+  ]
+}

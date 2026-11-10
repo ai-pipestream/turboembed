@@ -56,8 +56,10 @@ fn verify_reference(model: Arc<Model>, reference_path: &Path) {
         assert_eq!(serde_json::to_value(&p.prompts).unwrap(), case["prompts"]);
         assert_eq!(serde_json::to_value(&p.words).unwrap(), case["positions"]);
         let scores = model.score_packed(&p, &schema).unwrap();
-        let (_, training_scores) = model.training_input(&words, &schema).unwrap();
-        assert_eq!(training_scores, scores);
+        if !model.config().token_level {
+            let (_, training_scores) = model.training_input(&words, &schema).unwrap();
+            assert_eq!(training_scores, scores);
+        }
         assert_eq!(scores.len(), case["logits"].as_array().unwrap().len());
         for (name, mode) in [("flat", Decode::Flat), ("nested", Decode::Nested)] {
             let schema = ExtractionSchema::new(schema.labels().to_vec(), 0.5, mode).unwrap();
@@ -145,6 +147,16 @@ fn nuner_zero_span_checkpoint_matches_python() {
     let root = std::env::var_os("GLINER_NUNER_PACKAGE").expect("GLINER_NUNER_PACKAGE must name the converted package");
     let reference =
         std::env::var_os("GLINER_NUNER_REFERENCE").expect("GLINER_NUNER_REFERENCE must name the reference JSON");
+    let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
+    verify_reference(model, Path::new(&reference));
+}
+
+#[test]
+#[ignore = "loads the local Apache-2.0 token-level GLiNER checkpoint and generated Python reference"]
+fn token_level_checkpoint_matches_python() {
+    let root = std::env::var_os("GLINER_TOKEN_PACKAGE").expect("GLINER_TOKEN_PACKAGE must name the converted package");
+    let reference =
+        std::env::var_os("GLINER_TOKEN_REFERENCE").expect("GLINER_TOKEN_REFERENCE must name the reference JSON");
     let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
     verify_reference(model, Path::new(&reference));
 }

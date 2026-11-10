@@ -8,7 +8,7 @@ use turbo_analysis_layers::{PiiKind, Sensitive};
 
 use super::audit::{EventKey, event_id};
 use super::caps::{Fingerprint, Form, Forms, Grant, Grants, effective};
-use super::keys::{KeyRef, TokenKey, TokenKeyFile, active};
+use super::keys::{EncryptionKey, KeyRef, TokenKey, TokenKeyFile, active};
 use super::*;
 use crate::proto::audit::{PiiAccessKindGrant, PiiAccessMention};
 
@@ -33,6 +33,61 @@ fn wire_key_references_follow_the_cli_id_contract() {
         assert_eq!(KeyRef::of_policy(&policy).unwrap(), parsed);
         assert_eq!(parsed.policy(), policy);
     }
+}
+
+/// No window of four bytes or more of `secret` is in `err`.
+fn assert_not_echoed(err: &str, secret: &str) {
+    let b = secret.as_bytes();
+    for w in b.windows(4) {
+        let w = std::str::from_utf8(w).unwrap();
+        assert!(!err.contains(w), "{err:?} repeats {w:?} of the input");
+    }
+}
+
+#[test]
+fn key_flag_parse_errors_never_repeat_the_input() {
+    // A base64 AES-256 key, and key-like text, pasted where a reference
+    // and a path belong.
+    let key = "q8ZrVx3T0bWmJ2kYp7LdN9fHcE4sGuA6oRiK1tXyQwM=";
+    let with_colons = format!("{key}:{key}:/keys/k");
+    for bad in
+        [key.to_owned(), format!("{key}:1"), with_colons.clone(), format!("tok:{key}:/keys/k"), format!("tok:{key}")]
+    {
+        let err = TokenKeyFile::parse(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    for bad in [key.to_owned(), format!("{key}:1"), format!("tok:{key}")] {
+        let err = KeyRef::parse(&bad).unwrap_err();
+        assert_not_echoed(&err, key);
+    }
+    // The errors still say which part is wrong.
+    assert!(TokenKeyFile::parse(key).unwrap_err().contains("is not ID:VERSION:PATH"));
+    assert!(TokenKeyFile::parse(&with_colons).unwrap_err().contains("key id (44 bytes"));
+    assert!(KeyRef::parse(&format!("tok:{key}")).unwrap_err().contains("key version (44 bytes"));
+    // Key text in the shape of an id, with no path, is not repeated
+    // either.
+    let id_shaped = "FAKEkeyMATERIAL0123456789abcdXYZ";
+    let err = TokenKeyFile::parse(&format!("{id_shaped}:1:")).unwrap_err();
+    assert_eq!(err, "the path is empty (nothing after ID:VERSION:)");
+    assert_not_echoed(&err, id_shaped);
+    let ok = TokenKeyFile::parse("tok:3:/keys/a:b").unwrap();
+    assert_eq!((ok.key.to_string(), ok.path), ("tok:3".to_owned(), PathBuf::from("/keys/a:b")));
+    // Key text pasted as the path parses, then fails to load: the load
+    // error names the reference, not the path.
+    for bad in [format!("tok:1:{key}"), format!("tok:1:/run/keys/{key}")] {
+        let err = TokenKey::load(&TokenKeyFile::parse(&bad).unwrap()).unwrap_err();
+        assert!(err.starts_with("--pii-token-key tok:1: the key file (a path of"), "{err}");
+        assert_not_echoed(&err, key);
+    }
+    let short = key_file(key, b"short");
+    let err = TokenKey::load(&short).unwrap_err();
+    assert_eq!(err, "--pii-token-key tok:3: the key file holds 5 bytes, not 32 to 1024");
+    // The encryption keys load the same way.
+    let err = EncryptionKey::load(&TokenKeyFile::parse(&format!("tok:1:{key}")).unwrap()).unwrap_err();
+    assert!(err.starts_with("--pii-encryption-key tok:1: the key file (a path of"), "{err}");
+    assert_not_echoed(&err, key);
+    let err = EncryptionKey::load(&short).unwrap_err();
+    assert_eq!(err, "--pii-encryption-key tok:3: the key file holds 5 bytes, not 32");
 }
 
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {
@@ -275,4 +330,60 @@ fn a_token_is_bound_to_the_kind_it_was_found_as() {
     // Length prefixes keep the kind and the value apart.
     assert_ne!(k.token("ab", "c").token, k.token("a", "bc").token);
     assert_ne!(k.token("", "ab").token, k.token("a", "b").token);
+}
+
+#[test]
+fn a_grant_without_ciphertext_keeps_its_canonical_line() {
+    let mut grants = Grants::default();
+    grants.add(&format!("{FP}:token+clear:email")).unwrap();
+    let fp = Fingerprint::parse(FP).unwrap();
+    let before = grants.of(Some(&fp)).canonical();
+    assert!(before.starts_with("token=") && !before.contains("ciphertext"), "{before}");
+    grants.add(&format!("{FP}:ciphertext:phone")).unwrap();
+    let g = grants.of(Some(&fp));
+    assert!(g.canonical().starts_with(&before) && g.canonical().contains(";ciphertext="));
+    assert_eq!(g.forms(PiiKind::Phone), Forms::of(Form::Ciphertext));
+    assert!(g.allows_any(Form::Ciphertext) && grants.any(Form::Ciphertext));
+}
+
+#[cfg(feature = "pii-reversible")]
+#[test]
+fn a_ciphertext_decrypts_under_its_key_and_kind_only() {
+    use turbo_pii::rewrite::AesGcmEncryptor;
+
+    use super::cipher::{CONTEXT, ReleaseCipher, SCHEME};
+    let key = [5u8; 32];
+    let file = key_file("enc32", &key);
+    let c = ReleaseCipher::load(&file).unwrap();
+    let sealed = c.seal(KIND, PLANTED).unwrap();
+    assert_eq!((sealed.scheme.as_str(), sealed.key_id.as_str(), sealed.key_version), (SCHEME, "tok", 3));
+    assert!(!holds(&sealed.ciphertext, PLANTED.as_bytes()));
+    assert_ne!(sealed.ciphertext, c.seal(KIND, PLANTED).unwrap().ciphertext, "a fresh nonce each time");
+    let text = String::from_utf8(sealed.ciphertext).unwrap();
+    let dec = AesGcmEncryptor::new(&key).unwrap().with_context(CONTEXT);
+    assert_eq!(dec.decrypt(&text).unwrap(), ("builtin:1".to_owned(), PLANTED.to_owned()));
+    let moved = text.replacen("builtin:1", "builtin:2", 1);
+    assert!(dec.decrypt(&moved).is_err(), "another kind fails authentication");
+    // Custom kind names are case-sensitive: neither of a pair that differs
+    // only by case decrypts as the other, in the pair's own or any case.
+    let badge = String::from_utf8(c.seal("custom:Badge", PLANTED).unwrap().ciphertext).unwrap();
+    assert_eq!(dec.decrypt(&badge).unwrap(), ("custom:Badge".to_owned(), PLANTED.to_owned()));
+    for other in ["custom:badge", "custom:BADGE", "CUSTOM:BADGE", "Custom:Badge"] {
+        let moved = badge.replacen("custom:Badge", other, 1);
+        assert_ne!(moved, badge);
+        assert!(dec.decrypt(&moved).is_err(), "{other} is another kind");
+    }
+    let lower = String::from_utf8(c.seal("custom:badge", PLANTED).unwrap().ciphertext).unwrap();
+    assert!(dec.decrypt(&lower.replacen("custom:badge", "custom:Badge", 1)).is_err());
+    assert!(AesGcmEncryptor::new(&key).unwrap().decrypt(&text).is_err(), "another context fails");
+    assert!(AesGcmEncryptor::new(&[6u8; 32]).unwrap().with_context(CONTEXT).decrypt(&text).is_err());
+    let debug = format!("{c:?}");
+    assert!(!debug.contains("5, 5") && debug.contains("tok"), "{debug}");
+    let e = ReleaseCipher::load(&key_file("enc31", &[5u8; 31])).unwrap_err();
+    assert!(e.contains("not 32") && !e.contains("5, 5"), "{e}");
+}
+
+#[cfg(feature = "pii-reversible")]
+fn holds(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
 }

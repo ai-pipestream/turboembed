@@ -75,6 +75,29 @@ impl OutputHead {
     }
 }
 
+enum PromptHead {
+    Mlp(Box<Mlp>),
+    Identity,
+}
+
+impl PromptHead {
+    fn run(&self, x: &[f32], rows: usize, mid: &mut Vec<f32>, y: &mut Vec<f32>) -> Result<(), String> {
+        match self {
+            Self::Mlp(head) => head.run(x, rows, mid, y),
+            Self::Identity => {
+                y.clear();
+                y.extend_from_slice(x);
+                Ok(())
+            }
+        }
+    }
+}
+
+enum SpanHead {
+    Marker { start: Box<Mlp>, end: Box<Mlp>, span: OutputHead },
+    Token { proj_token: Dense, proj_label: Dense, out: Box<Mlp> },
+}
+
 /// The buffers of one call.
 #[derive(Default)]
 pub(crate) struct Work {
@@ -91,10 +114,8 @@ pub(crate) struct Work {
 }
 pub(crate) struct Heads {
     projection: Dense,
-    prompt: Mlp,
-    start: Mlp,
-    end: Mlp,
-    span: OutputHead,
+    prompt: PromptHead,
+    head: SpanHead,
     /// The forward and reverse directions over projected words, h =
     /// hidden / 2 each, bias_ih and bias_hh summed.
     lstm: Lstm,
@@ -134,16 +155,31 @@ impl Heads {
         let dirs =
             [Weights { w: &wf, u: &uf, b: &bf, reverse: false }, Weights { w: &wr, u: &ur, b: &br, reverse: true }];
         let lstm = Lstm::new(k, c.hidden / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?;
+        let head = if c.token_level {
+            SpanHead::Token {
+                proj_token: linear("scorer.proj_token")?,
+                proj_label: linear("scorer.proj_label")?,
+                out: Box::new(mlp("scorer.out_mlp")?),
+            }
+        } else {
+            SpanHead::Marker {
+                start: Box::new(mlp("span_rep_layer.span_rep_layer.project_start")?),
+                end: Box::new(mlp("span_rep_layer.span_rep_layer.project_end")?),
+                span: if c.out_project_mlp {
+                    OutputHead::Mlp(mlp("span_rep_layer.span_rep_layer.out_project")?)
+                } else {
+                    OutputHead::Linear(linear("span_rep_layer.span_rep_layer.out_project")?)
+                },
+            }
+        };
         Ok(Self {
             projection: linear("token_rep_layer.projection")?,
-            prompt: mlp("prompt_rep_layer")?,
-            start: mlp("span_rep_layer.span_rep_layer.project_start")?,
-            end: mlp("span_rep_layer.span_rep_layer.project_end")?,
-            span: if c.out_project_mlp {
-                OutputHead::Mlp(mlp("span_rep_layer.span_rep_layer.out_project")?)
+            prompt: if c.prompt_projection {
+                PromptHead::Mlp(Box::new(mlp("prompt_rep_layer")?))
             } else {
-                OutputHead::Linear(linear("span_rep_layer.span_rep_layer.out_project")?)
+                PromptHead::Identity
             },
+            head,
             lstm,
             hidden: c.hidden,
         })
@@ -187,8 +223,14 @@ impl Heads {
         let result = self.words(&projected[labels * d..], n, w);
         w.projected = projected;
         result?;
-        self.start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
-        self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
+        if matches!(self.head, SpanHead::Token { .. }) {
+            let words = std::mem::take(&mut w.words);
+            let prompts = std::mem::take(&mut w.prompts);
+            return self.score_token(&words, &prompts, max_width, w);
+        }
+        let SpanHead::Marker { start, end, span } = &self.head else { unreachable!() };
+        start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
+        end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
         // out_project reads relu([start, end]).
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
@@ -201,7 +243,7 @@ impl Heads {
                 w.x.extend_from_slice(&w.starts[i * d..(i + 1) * d]);
                 w.x.extend_from_slice(&w.ends[j * d..(j + 1) * d]);
             }
-            self.span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
+            span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
             let logits = size(&mut w.logits, block.len(), labels);
             scorer.apply(&w.spans, d, block.len(), None, logits, labels, Mode::Plain);
             finite(logits, "span score")?;
@@ -213,6 +255,50 @@ impl Heads {
         }
         Ok(out)
     }
+    fn score_token(
+        &self,
+        words: &[f32],
+        prompts: &[f32],
+        max_width: usize,
+        w: &mut Work,
+    ) -> Result<Vec<Candidate>, String> {
+        let SpanHead::Token { proj_token, proj_label, out: output } = &self.head else { unreachable!() };
+        let (d, labels, n) = (self.hidden, prompts.len() / self.hidden, words.len() / self.hidden);
+        proj_token.run(words, n, &mut w.starts)?;
+        proj_label.run(prompts, labels, &mut w.ends)?;
+        w.x.clear();
+        for i in 0..n {
+            let token = &w.starts[i * 2 * d..(i + 1) * 2 * d];
+            for label in 0..labels {
+                let prompt = &w.ends[label * 2 * d..(label + 1) * 2 * d];
+                w.x.extend_from_slice(&token[..d]);
+                w.x.extend_from_slice(&prompt[..d]);
+                w.x.extend(token[d..].iter().zip(&prompt[d..]).map(|(a, b)| a * b));
+            }
+        }
+        output.run(&w.x, n * labels, &mut w.mid, &mut w.logits)?;
+        finite(&w.logits, "token score")?;
+        let pair_count = (0..n).map(|start| n.min(start + max_width) - start).sum::<usize>();
+        let mut out = Vec::new();
+        out.try_reserve_exact(pair_count * labels).map_err(|_| memory(pair_count * labels * size_of::<Candidate>()))?;
+        w.spans.clear();
+        w.spans.resize(labels, f32::INFINITY);
+        for start in 0..n {
+            w.spans.fill(f32::INFINITY);
+            for end in start..n.min(start + max_width) {
+                for label in 0..labels {
+                    let start_score = w.logits[(start * labels + label) * 3];
+                    let end_score = w.logits[(end * labels + label) * 3 + 1];
+                    let inside = &mut w.spans[label];
+                    *inside = inside.min(w.logits[(end * labels + label) * 3 + 2]);
+                    let logit = start_score.min(end_score).min(*inside);
+                    out.push(Candidate { start, end: end + 1, label, logit, score: sigmoid(logit) });
+                }
+            }
+        }
+        Ok(out)
+    }
+
     /// Frozen encoder, prompt and boundary features for output-head training,
     /// plus the ordinary inference candidates used to mine hard negatives.
     pub(crate) fn training(
@@ -235,8 +321,11 @@ impl Heads {
         self.prompt.run(&w.projected[..labels * d], labels, &mut w.mid, &mut w.prompts)?;
         let projected = std::mem::take(&mut w.projected);
         self.words(&projected[labels * d..], n, &mut w)?;
-        self.start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
-        self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
+        let SpanHead::Marker { start, end, span } = &self.head else {
+            return Err("gliner token-level output training is not supported".into());
+        };
+        start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
+        end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
         let mut input = crate::train::TrainingInput {
@@ -253,7 +342,7 @@ impl Heads {
                 w.x.extend_from_slice(&w.ends[j * d..(j + 1) * d]);
             }
             input.spans.extend_from_slice(&w.x);
-            self.span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
+            span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
             let logits = size(&mut w.logits, block.len(), labels);
             scorer.apply(&w.spans, d, block.len(), None, logits, labels, Mode::Plain);
             finite(logits, "span score")?;
@@ -267,8 +356,11 @@ impl Heads {
     }
 
     pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
-        let (h, f) = (self.hidden, self.start.first.n);
-        self.span = match params {
+        let (h, f) = match &self.head {
+            SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
+            SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
+        };
+        let span = match params {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
                 last: Dense::new(w1, b1.clone(), h, f)?,
@@ -276,6 +368,8 @@ impl Heads {
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
             _ => return Err("gliner output training requires two linear or four MLP tensors".into()),
         };
+        let SpanHead::Marker { span: current, .. } = &mut self.head else { unreachable!() };
+        *current = span;
         Ok(())
     }
 
