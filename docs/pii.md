@@ -915,8 +915,12 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   state; a county word that makes no county of the list leaves the state
   (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
   `OK`), so it is a mention only in capitals and only directly after a
-  state label (`State: OR`) or before a ZIP code (`Springfield, IL
-  62704`). The normalized form is the USPS code (`IL`).
+  state label (`State: OR`) or before a ZIP code that ends an address:
+  after a comma (`Springfield, IL 62704`), at the start of a line
+  (`IL 62704`), or after a name with the line or clause ending at the ZIP
+  code (`Springfield IL 62704.`). A word after the number (`Order IN 12345
+  units`) makes it a count, not a state. The normalized form is the USPS
+  code (`IL`).
 - `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
   `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
   county equivalent of the Census Bureau's 2020 county list
