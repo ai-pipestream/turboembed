@@ -1,6 +1,7 @@
 // Server: liveness and metadata, Capabilities (bundles, profiles,
 // limits), and bundle load and unload. The catalog is the Models tab.
 
+import { plain } from "../catalogfilter.js";
 import { $, el, input, say, table } from "../dom.js";
 import { describe, inference, setToken, token } from "../rpc.js";
 import { analysis } from "../rpc.js";
@@ -26,12 +27,12 @@ function renderCapabilities(c: CapabilitiesResponse): void {
     ["name", "task", "model", "widths", "context", "batch", "roles", ""],
     c.bundles.map((b) => [
       b.name,
-      b.task,
+      plain(b.task, "TASK_"),
       b.model ? `${b.model.id}@${b.model.revision}` : "",
       b.widths.join(", "),
       String(b.contextLimit),
       String(b.batchLimit),
-      b.roles.join(" "),
+      b.roles.map((r) => plain(r, "PROMPT_")).join(", "),
       unloadButton(b.name),
     ]),
   );
