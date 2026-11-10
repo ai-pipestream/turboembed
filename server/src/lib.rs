@@ -167,6 +167,10 @@ pub struct Serve {
     /// Google sign-in for users' Drive sources (docs/grpc-catalog.md).
     pub drive: Option<catalog::DriveSignIn>,
     pub training: Option<PathBuf>,
+    /// How long a TrainComponent upload may go without a message before
+    /// it is refused and the training slot freed (docs/grpc-training.md);
+    /// one minute when `None`.
+    pub upload_idle: Option<std::time::Duration>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
     /// What a request's PiiOutputOptions may turn on
@@ -218,7 +222,8 @@ impl Server {
             None => None,
         };
         let token_keys = serve.pii_release.as_ref().map_or(&[][..], |r| &r.token_keys[..]);
-        let resolver = pii_policy::ServerResolver::load(token_keys, store.clone())?;
+        let encryption_keys = serve.pii_release.as_ref().map_or(&[][..], |r| &r.encryption_keys[..]);
+        let resolver = pii_policy::ServerResolver::load(token_keys, encryption_keys, store.clone())?;
         let policies = pii_policy::NamedPolicies::from_files(&serve.pii_policies, &resolver)?;
         let state = Arc::new(State::new(names, models).with_pii_policies(policies, resolver.shared()));
         let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
@@ -280,8 +285,10 @@ impl Server {
         let training = TurboTrainingServiceServer::new(training::TrainingService::new(
             state.clone(),
             store.clone(),
+            search_registry.clone(),
             training,
             serve.admin,
+            serve.upload_idle.unwrap_or(training::component::UPLOAD_IDLE),
         ))
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);

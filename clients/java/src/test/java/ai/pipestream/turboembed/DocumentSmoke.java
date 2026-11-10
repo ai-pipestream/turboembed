@@ -27,6 +27,8 @@ import turbo.result.v1.TurboAnalysis.CapabilitiesResponse;
 import turbo.result.v1.TurboAnalysis.ProfileCapabilities;
 import turbo.result.v1.TurboPiiPolicy.PiiAbbreviateStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiAgeSafeHarborStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiDateStrategy;
+import turbo.result.v1.TurboPiiPolicy.PiiDateYear;
 import turbo.result.v1.TurboPiiPolicy.PiiDefaultStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiFormatStrategy;
 import turbo.result.v1.TurboPiiPolicy.PiiKeepSide;
@@ -1492,7 +1494,10 @@ final class Redaction {
         return set.apply(PiiRewriteStrategy.newBuilder()).build();
     }
 
-    /** Every arm the server knows but the keyed token, which needs a registered key. */
+    /**
+     * Every arm the server knows but those that need a registered key: the keyed token, and the AES-256-GCM
+     * and FF1 arms of a server built with reversible protection.
+     */
     static List<PiiRewriteStrategy> everyArm() {
         return List.of(
                 arm(b -> b.setMask(PiiMaskStrategy.newBuilder().setMaskChar("#"))),
@@ -1508,7 +1513,8 @@ final class Redaction {
                 arm(b -> b.setStaticText(PiiStaticStrategy.newBuilder().setReplacement("[E]"))),
                 arm(b -> b.setPseudonym(PiiPseudonymStrategy.newBuilder().setPrefix("[").setSuffix("]"))),
                 arm(b -> b.setZipSafeHarbor(PiiZipSafeHarborStrategy.newBuilder().setMaskChar("#"))),
-                arm(b -> b.setAgeSafeHarbor(PiiAgeSafeHarborStrategy.newBuilder().setMaskChar("#"))));
+                arm(b -> b.setAgeSafeHarbor(PiiAgeSafeHarborStrategy.newBuilder().setMaskChar("#"))),
+                arm(b -> b.setDate(PiiDateStrategy.newBuilder().setYear(PiiDateYear.getDefaultInstance()))));
     }
 
     static RedactionPolicy policy(long revision, PiiRewriteStrategy email) {

@@ -160,7 +160,8 @@ bundle-head table:
 | `turbo:gliner` | `model`, `open_span` | `Entities`, `Decisions`, `Evidence<Entities>` |
 | `turbo:zero-shot-relations` | `relation_model`, `relations` | `Relations`, `Edges<Entities, Entities>`, `Evidence<Relations>` |
 
-`open_span` carries caller labels, threshold, and flat or nested decoding.
+`open_span` carries caller labels, optional parallel aliases or guideline
+prompts, threshold, and flat or nested decoding.
 `relations` carries labels with optional thresholds, symmetry, domain/range
 entity kinds, and sentence scoping. Separate model fields let one request run
 GLiNER entities and GLiNER2 relations. `turbo:subwords` uses the GLiNER
@@ -170,7 +171,25 @@ smart chunking works without another embedding bundle.
 Remaining limits: a step runs over the source view only; under
 `annotate-v2` a bundle with two heads for one step is refused as
 ambiguous rather than run twice; a learned sentence step cannot follow a
-normalizer.
+normalizer; and the rule sentence step after `turbo:normalize:case-fold`
+reads the folded view, whose sentences start in lower case, so it finds
+no boundary after the first.
+
+`server/tests/full_text_graph.rs` is the in-process acceptance of the
+model-free stages: `compile_analyzer` with normalization, structure,
+sentences, tokens, abbreviations, terms, stems, stopwords, keywords, the
+place-name gazetteer (`turbo-geo:names`), PII, numbers, money, dates and
+both boundary layers, over UTF-8 text with a heading, two paragraphs, a
+ligature NFKC unfolds, two characters outside the Basic Multilingual
+Plane, a combining mark, sharp s and dotted capital I. It checks each
+layer's source slices, UTF-16 and code point offsets against counts
+made from the text itself (one more UTF-16 unit per surrogate pair) and
+their round trips, projection into the normalized and the case-folded
+view and back, a byte-identical export, import and re-export,
+deterministic runs, empty input and a 600-sentence document. A stage the request cannot run is
+refused by name: `turbo:chunker` without a bundle (it reads
+`turbo:subwords`), `turbo:gliner` without `open_span`,
+`turbo:zero-shot-relations` without relation labels, and an unknown step.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -961,9 +980,25 @@ and detector lists, with a typed `PolicyError` naming the field.
   guessing for low-entropy values, never a default), static text,
   pseudonym (per-document numbers, never a default), ZIP Safe Harbor
   (first three digits kept, `000` for a restricted area, the rest masked;
-  the bundled HHS 2000 Census table or the caller's own prefixes) and age
+  the bundled HHS 2000 Census table or the caller's own prefixes), age
   Safe Harbor (an age of 89 or under kept, every older age written as
-  `90+`).
+  `90+`) and date (`year`: the year alone; `shift`: moved by fixed
+  years, months and days plus an optional offset a registered key
+  chooses from a context string, in the form it was written in;
+  `relative`: relative to a `yyyy-MM-dd` reference date; each mode
+  records its own `PiiStrategy`). A rule for `date` or `currency` turns
+  on the opt-in `Dates` or `Money` pack of the `turbo-pii:pii` step.
+  Two reversible arms need a server built with the `pii-reversible`
+  cargo feature: `aes_256_gcm` (an authenticated AES-256-GCM token of the
+  mention as written, bound to the kind and a `context` string; a fresh
+  nonce each time, so tokens are not linkable) and `ff1` (FF1
+  format-preserving encryption of the mention's digits or letters under
+  an alphabet and a `tweak`, every other character kept in place). Each
+  names a key registered with `--pii-encryption-key`. A mention FF1
+  cannot take, such as an email under the digit alphabet, fails the
+  rewrite. A server without the feature does not know either arm, so the
+  policy is refused, or the entry masked and flagged under
+  `redact_and_flag_unknown`. No rpc decrypts.
 - **Default**: a kind with no rule, or no entry that applies, gets
   `default_strategy`, which is a mask or a keyed token only; unset, a
   whole-value `*` mask. The native `RewriteStrategy::default()` is the
@@ -1048,7 +1083,14 @@ An unknown name is refused without echoing it.
   position, never the path, a term or a key.
 - **References**: a keyed-token key (`PiiPolicyKeyRef`) resolves through
   the token keys registered with `--pii-token-key` (PII value release);
-  an unregistered key refuses the policy. A dictionary reference
+  an unregistered key refuses the policy. The keys of the `aes_256_gcm`
+  and `ff1` arms resolve through `--pii-encryption-key ID:VERSION:PATH`
+  (repeated, or `TURBO_KSERVE_PII_ENCRYPTION_KEYS`), whose file must hold
+  exactly 32 bytes. That flag needs `--pii-grant`, as the token keys do,
+  and a server built with `pii-reversible`; without the feature it fails
+  start-up. The two registries are separate: a token key never answers
+  for an encryption reference, or the reverse, and an encryption key
+  file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store
   (`--vocabulary-dir`, docs/grpc-vocabulary.md), pinned by content: the
   stored dictionary must have exactly the reference's SHA-256 and the

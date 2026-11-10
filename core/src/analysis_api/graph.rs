@@ -12,16 +12,15 @@ use std::any::TypeId;
 
 use turbo_analysis::{Document, Ix, Key, KeyId, Layer, OffsetTable, Span, Spans, ViewId};
 use turbo_analysis_layers::{
-    Confidence, Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiConfidence, PosTags, Sentences, Tokens,
+    Confidence, Dependencies, Entities, Lemmas, MorphFeatures, Pii, PiiCandidates, PosTags, Sentences, Tokens,
 };
 
+use super::pii::{extract_pii_candidates_layer, extract_pii_layer};
 use super::{
     AnalysisResultInner, CoordRange, LayerRef, PiiRows, PoolRef, SpanDraft, SpanPoolBuilder,
     TURBO_ANALYSIS_LAYER_DEPENDENCIES, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
-    TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS,
-    TURBO_ANALYSIS_LAYER_SENTENCES, TURBO_ANALYSIS_LAYER_TOKENS, TURBO_PII_CONFIDENCE_CHECKSUM,
-    TURBO_PII_CONFIDENCE_FORMAT, TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
-    coordinate_range,
+    TURBO_ANALYSIS_LAYER_MORPHOLOGY, TURBO_ANALYSIS_LAYER_POS, TURBO_ANALYSIS_LAYER_SENTENCES,
+    TURBO_ANALYSIS_LAYER_TOKENS, coordinate_range,
 };
 use crate::status::{BUNDLE_INVALID, CAPACITY, Error, INVALID_ARGUMENT, Result};
 
@@ -388,41 +387,48 @@ fn extract_entities(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Do
 
 fn extract_pii(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
     let Some(layer) = get_by_id::<Pii>(doc, id) else { return Ok(()) };
-    let layer_ref = layer_ref(builder, TURBO_ANALYSIS_LAYER_PII, id, layer.spans.view())?;
-    for item in 0..layer.spans.len() {
-        let mention = layer.get(Ix::new(index_u32(item, "graph PII count")?));
-        let name = layer.kind_name(mention.kind).ok_or_else(|| {
-            Error::new(INVALID_ARGUMENT, format!("PII mention {item} has a custom kind outside its layer's table"))
-        })?;
-        let label = builder.string_ref(name)?;
-        let value = if mapper.pii.values { Some(builder.string_ref(mention.normalized)?) } else { None };
-        let classification = match mention.confidence() {
-            PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
-            PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
-            PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM,
-            PiiConfidence::Labelled => TURBO_PII_CONFIDENCE_LABELLED,
-        };
-        push_fragments(
-            builder,
-            mapper,
-            layer_ref,
-            &layer.spans,
-            item,
-            ItemFields {
-                tokens: None,
-                label: Some(label),
-                value,
-                classification,
-                prob: None,
-                pii_kind: mapper.pii.kind_ids.then(|| mention.kind.code()),
-            },
-        )?;
+    let view = layer.spans.view();
+    extract_pii_layer(
+        builder,
+        layer,
+        id.name,
+        view.0 as u32,
+        mapper.pii,
+        |msg| mapper.invalid(msg),
+        |span| mapper.coordinates(view, span),
+    )
+}
+
+fn extract_pii_candidates(builder: &mut SpanPoolBuilder, mapper: &Mapper<'_>, doc: &Document, id: KeyId) -> Result<()> {
+    let Some(layer) = get_by_id::<PiiCandidates>(doc, id) else { return Ok(()) };
+    let pii_id = doc
+        .made_on(id)
+        .iter()
+        .copied()
+        .find(|k| k.ty == TypeId::of::<Pii>())
+        .ok_or_else(|| mapper.invalid("pii candidates need their pii layer".into()))?;
+    let pii = get_by_id::<Pii>(doc, pii_id).ok_or_else(|| mapper.invalid(format!("missing {pii_id}")))?;
+    if pii.spans.view() != layer.spans.view() {
+        return Err(mapper.invalid(format!(
+            "pii candidates over view {} but their pii layer over view {}",
+            layer.spans.view().0,
+            pii.spans.view().0
+        )));
     }
-    Ok(())
+    layer.check_against(pii).map_err(|msg| mapper.invalid(msg))?;
+    let view = layer.spans.view();
+    extract_pii_candidates_layer(
+        builder,
+        layer,
+        (id.name, pii_id.name),
+        view.0 as u32,
+        |msg| mapper.invalid(msg),
+        |span| mapper.coordinates(view, span),
+    )
 }
 
 /// The rows of every layer of `doc` this ABI knows; a PII row's value and
-/// numeric kind only as `pii` asks (#1904, #1940).
+/// numeric kind, and candidate rows, only as `pii` asks (#1904, #1940, #1941).
 pub(crate) fn extract_graph(
     doc: &Document,
     graph: Vec<u8>,
@@ -448,6 +454,8 @@ pub(crate) fn extract_graph(
             extract_entities(&mut builder, &mapper, doc, id)?;
         } else if id.ty == TypeId::of::<Pii>() {
             extract_pii(&mut builder, &mapper, doc, id)?;
+        } else if pii.detail && id.ty == TypeId::of::<PiiCandidates>() {
+            extract_pii_candidates(&mut builder, &mapper, doc, id)?;
         } else if id.ty == TypeId::of::<turbo_analysis_layers::Words>() {
             words::extract_words(&mut builder, &mapper, doc, id)?;
         }

@@ -29,7 +29,7 @@ with zipfile.ZipFile(wheel) as z:
         sys.modules[mod.__name__] = mod
         exec(compile(z.read(f"gliner/{'decoding' if name in ['utils','decoder'] else 'modeling'}/{name}.py"), f"gliner/{name}.py", "exec"), mod.__dict__)
 from gliner_reference.layers import create_projection_layer, LstmSeq2SeqEncoder
-from gliner_reference.span_rep import SpanMarkerV0
+from gliner_reference.span_rep import SpanMarker, SpanMarkerV0
 from gliner_reference.decoder import SpanDecoder
 
 if (root / "model.safetensors").exists():
@@ -54,7 +54,8 @@ else:
     projection = torch.nn.Identity()
 rnn = LstmSeq2SeqEncoder(types.SimpleNamespace(hidden_size=hidden)).eval()
 rnn.load_state_dict({k.removeprefix("rnn."):v for k,v in weights.items() if k.startswith("rnn.")}, strict=True)
-span = SpanMarkerV0(hidden, width).eval()
+span_class = SpanMarker if gc["span_mode"] == "marker" else SpanMarkerV0
+span = span_class(hidden, width).eval()
 span.load_state_dict({k.removeprefix("span_rep_layer.span_rep_layer."):v for k,v in weights.items() if k.startswith("span_rep_layer.span_rep_layer.")}, strict=True)
 prompt = create_projection_layer(hidden, 0.4).eval()
 prompt.load_state_dict({k.removeprefix("prompt_rep_layer."):v for k,v in weights.items() if k.startswith("prompt_rep_layer.")}, strict=True)

@@ -299,13 +299,15 @@ fn banded_bundle() -> PathBuf {
 fn limited_lookahead_matches_wtpsplit() {
     let dir = banded_bundle();
     if encoder().device != Device::Cpu {
-        // Only the CPU's attention takes a band (`turbo::model::runs_band`):
-        // rule 6 skips the artifact on a device rather than read whole rows.
+        // A device whose attention takes no band (`turbo::model::runs_band`)
+        // has the artifact skipped by rule 6 rather than read whole rows;
+        // one that takes it (Level Zero) is held to wtpsplit as the CPU is.
         let o = SatOptions { encoder: encoder(), ..SatOptions::default() };
-        let Err(e) = SatAnnotator::open(&dir, &o) else { panic!("a device opened a model of limited lookahead") };
-        assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");
-        std::fs::remove_dir_all(dir).unwrap();
-        return;
+        if let Err(e) = SatAnnotator::open(&dir, &o) {
+            assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");
+            std::fs::remove_dir_all(dir).unwrap();
+            return;
+        }
     }
     for (name, near) in [("la8-t0.5-s16-b62.jsonl", 0), ("la8-t0.025-s7-b30.jsonl", 0)] {
         let s = compare_at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name), &dir);

@@ -6,12 +6,14 @@ use std::ffi::c_char;
 use super::sys::{JNIEnv, jbyteArray, jclass, jdoubleArray, jint, jintArray, jlong};
 use super::{check, count, error, handle, java_array, run, split, text};
 use crate::analysis_api::{
-    TURBO_ANALYZER_DESC_SIZE_V1, turbo_analysis_result, turbo_analysis_result_graph, turbo_analysis_result_release,
-    turbo_analysis_result_retain, turbo_analysis_result_spans, turbo_analysis_result_strings, turbo_analyzer,
-    turbo_analyzer_analyze_graph, turbo_analyzer_create, turbo_analyzer_desc, turbo_analyzer_detect_pii,
-    turbo_analyzer_detect_sentences, turbo_analyzer_find_text, turbo_analyzer_find_tokens,
-    turbo_analyzer_inspect_graph, turbo_analyzer_lemmatize, turbo_analyzer_morphology, turbo_analyzer_pos_tag,
-    turbo_analyzer_retain, turbo_analyzer_tokenize, turbo_span,
+    PII_CANDIDATE_INTS, PII_FACT_INTS, PII_SPAN_INTS, TURBO_ANALYZER_DESC_SIZE_V1, turbo_analysis_result,
+    turbo_analysis_result_graph, turbo_analysis_result_pii_candidates, turbo_analysis_result_pii_facts,
+    turbo_analysis_result_pii_spans, turbo_analysis_result_release, turbo_analysis_result_retain,
+    turbo_analysis_result_spans, turbo_analysis_result_strings, turbo_analyzer, turbo_analyzer_analyze_graph,
+    turbo_analyzer_create, turbo_analyzer_desc, turbo_analyzer_detect_pii, turbo_analyzer_detect_sentences,
+    turbo_analyzer_find_text, turbo_analyzer_find_tokens, turbo_analyzer_inspect_graph, turbo_analyzer_lemmatize,
+    turbo_analyzer_morphology, turbo_analyzer_pos_tag, turbo_analyzer_retain, turbo_analyzer_tokenize,
+    turbo_pii_candidate, turbo_pii_fact, turbo_pii_span, turbo_span,
 };
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_HANDLE, Result};
 use crate::turbo_text;
@@ -256,6 +258,83 @@ fn spans<'a>(r: jlong) -> Result<&'a [turbo_span]> {
         return Ok(&[]);
     }
     Ok(unsafe { std::slice::from_raw_parts(ptr, n as usize) })
+}
+
+/// `static native int[] resultPiiSpans(long result)`: every `turbo_pii_span`'s
+/// 14 32-bit words (`score_value` as IEEE-754 float bits in the 14th word).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_resultPiiSpans(
+    env: *mut JNIEnv,
+    _class: jclass,
+    r: jlong,
+) -> jintArray {
+    run(env, std::ptr::null_mut(), |env| {
+        let r = result(r)?;
+        let mut ptr: *const turbo_pii_span = std::ptr::null();
+        let mut n: u32 = 0;
+        let mut e = error();
+        check(unsafe { turbo_analysis_result_pii_spans(r, &mut ptr, &mut n, &mut e) }, &e)?;
+        let items = if n == 0 || ptr.is_null() { &[] } else { unsafe { std::slice::from_raw_parts(ptr, n as usize) } };
+        let mut words = Vec::with_capacity(items.len() * PII_SPAN_INTS);
+        for item in items {
+            let prefix =
+                unsafe { std::slice::from_raw_parts((item as *const turbo_pii_span).cast::<u32>(), PII_SPAN_INTS - 1) };
+            words.extend(prefix.iter().map(|&w| w as i32));
+            words.push(item.score_value.to_bits() as i32);
+        }
+        java_array(env.new_int_array(&words), "PII spans")
+    })
+}
+
+/// `static native int[] resultPiiFacts(long result)`: every `turbo_pii_fact`'s
+/// 4 `uint32_t` fields.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_resultPiiFacts(
+    env: *mut JNIEnv,
+    _class: jclass,
+    r: jlong,
+) -> jintArray {
+    run(env, std::ptr::null_mut(), |env| {
+        let r = result(r)?;
+        let mut ptr: *const turbo_pii_fact = std::ptr::null();
+        let mut n: u32 = 0;
+        let mut e = error();
+        check(unsafe { turbo_analysis_result_pii_facts(r, &mut ptr, &mut n, &mut e) }, &e)?;
+        let items = if n == 0 || ptr.is_null() { &[] } else { unsafe { std::slice::from_raw_parts(ptr, n as usize) } };
+        let mut words = Vec::with_capacity(items.len() * PII_FACT_INTS);
+        for item in items {
+            words.extend_from_slice(&[item.kind as i32, item.a as i32, item.b as i32, item.c as i32]);
+        }
+        java_array(env.new_int_array(&words), "PII facts")
+    })
+}
+
+/// `static native int[] resultPiiCandidates(long result)`: every
+/// `turbo_pii_candidate`'s 37 32-bit words (`score_value` as IEEE-754 float
+/// bits in the 37th word).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ai_pipestream_turboembed_jni_TurboJni_resultPiiCandidates(
+    env: *mut JNIEnv,
+    _class: jclass,
+    r: jlong,
+) -> jintArray {
+    run(env, std::ptr::null_mut(), |env| {
+        let r = result(r)?;
+        let mut ptr: *const turbo_pii_candidate = std::ptr::null();
+        let mut n: u32 = 0;
+        let mut e = error();
+        check(unsafe { turbo_analysis_result_pii_candidates(r, &mut ptr, &mut n, &mut e) }, &e)?;
+        let items = if n == 0 || ptr.is_null() { &[] } else { unsafe { std::slice::from_raw_parts(ptr, n as usize) } };
+        let mut words = Vec::with_capacity(items.len() * PII_CANDIDATE_INTS);
+        for item in items {
+            let prefix = unsafe {
+                std::slice::from_raw_parts((item as *const turbo_pii_candidate).cast::<u32>(), PII_CANDIDATE_INTS - 1)
+            };
+            words.extend(prefix.iter().map(|&w| w as i32));
+            words.push(item.score_value.to_bits() as i32);
+        }
+        java_array(env.new_int_array(&words), "PII candidates")
+    })
 }
 
 /// `static native byte[] resultStrings(long result)`: the UTF-8 string pool.

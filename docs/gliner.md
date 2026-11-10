@@ -278,7 +278,11 @@ cargo +1.99 test --release --locked -p turbo-gliner --test precision_eval -- --n
 `LoadBundle` accepts the converted package directory directly and advertises
 `TASK_OPEN_SPAN`. `AnalyzeDocumentProgressive` runs `turbo:gliner` when
 `model` names that package and `open_span` supplies 1 to 32 labels, a threshold,
-and flat or nested decoding. The step writes `Entities`, `Decisions`, and
+and flat or nested decoding. Optional parallel `prompts` carry aliases,
+descriptions, or annotation guidelines without changing output labels. Empty
+prompts use the labels. Schema digests cover labels, prompts, threshold, and
+mode. The complete prompt prefix must fit the encoder context; an oversized
+request is refused rather than truncated. The step writes `Entities`, `Decisions`, and
 `Evidence<Entities>` in one step. `turbo:subwords` uses the same checkpoint's
 SentencePiece tokenizer, including fused byte fallback and source-safe piece
 offsets, so `turbo:chunker` needs no second embedding bundle. Case folding is
@@ -398,7 +402,10 @@ writes the upstream identity operation exactly. The converter rejects
 unsupported switches or mismatched `spm.model` vocabularies. Shapes and finite
 values are checked for every required encoder, recurrent and head tensor. It
 does not substitute random weights for missing tensors. Source revision and
-licence must be supplied.
+licence must be supplied. The `marker` alias is accepted alongside `markerV0`.
+Prompt and start/end projection factors may independently be 2 or 4, and
+`out_project` may be a two-layer MLP or one linear layer. NuNER Zero-span uses
+the latter combination and is converted and parity-checked locally before use.
 
 ```
 turbo-bundle gliner-convert config.json gliner_config.json pytorch_model.bin spm.model urchade/gliner_small-v2.1 4e091416cf7c3481db542c2a3d26156916f3a47f Apache-2.0 new-gliner-small
@@ -432,7 +439,9 @@ reports independent per-dataset metrics in mixed-corpus runs and writes
 `predictions.bio` with its digest in the receipt. Schemas over 32 labels are
 scored in label batches and decoded together rather than truncated. `--threads N`
 evaluates contiguous partitions on independent model sessions and restores
-their original order.
+their original order. Per-sentence prompt batches fit the encoder context and
+decode together when guidelines are long. `train-gliner` uses the same batches
+and remaps gold label indexes for each batch.
 A type is held out from this recipe, not proven absent from the pretrained
 checkpoint's own training data.
 This is an evaluation path, not evidence that the checkpoint passes a corpus's

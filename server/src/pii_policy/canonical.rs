@@ -15,7 +15,7 @@
 //!   oneof, whatever its value. Unknown fields are dropped by decoding and
 //!   so never encoded. A field added later is absent in every older policy,
 //!   which keeps that policy's digest.
-//! - Values: `uint32` and enums (their `i32` bits) as `u32`; `uint64` as
+//! - Values: `uint32`, and `int32` and enums by their `i32` bits, as `u32`; `uint64` as
 //!   `u64`; `bool` as one byte `1`; `float` as the `u32` of its IEEE 754
 //!   bits, with `-0.0` written as `0.0` (and so absent as a field); a
 //!   string as its byte length (`u64`) and its bytes; a nested message as
@@ -58,6 +58,10 @@ impl Enc {
     }
 
     fn enm(&mut self, n: u32, v: i32) {
+        self.u32(n, v as u32);
+    }
+
+    fn i32(&mut self, n: u32, v: i32) {
         self.u32(n, v as u32);
     }
 
@@ -213,12 +217,35 @@ fn mask(e: &mut Enc, m: &pb::PiiMaskStrategy) {
     e.bool(2, m.keep_format);
 }
 
+fn key_ref(e: &mut Enc, r: &pb::PiiPolicyKeyRef) {
+    e.str(1, &r.id);
+    e.u32(2, r.version);
+}
+
 fn keyed_token(e: &mut Enc, k: &pb::PiiKeyedTokenStrategy) {
-    e.msg(1, k.key.as_ref(), |e, r: &pb::PiiPolicyKeyRef| {
-        e.str(1, &r.id);
-        e.u32(2, r.version);
-    });
+    e.msg(1, k.key.as_ref(), key_ref);
     e.u32(2, k.length);
+}
+
+fn date(e: &mut Enc, d: &pb::PiiDateStrategy) {
+    use pb::pii_date_strategy::Mode;
+    match &d.mode {
+        None => {}
+        Some(Mode::Year(y)) => e.arm(1, y, |_, _| {}),
+        Some(Mode::Shift(s)) => e.arm(2, s, |e, s| {
+            e.i32(1, s.years);
+            e.i32(2, s.months);
+            e.i32(3, s.days);
+            e.msg(4, s.key.as_ref(), |e, r: &pb::PiiPolicyKeyRef| {
+                e.str(1, &r.id);
+                e.u32(2, r.version);
+            });
+            e.u32(5, s.max_days);
+            e.str(6, &s.context);
+        }),
+        Some(Mode::Relative(r)) => e.arm(3, r, |e, r| e.str(1, &r.reference)),
+    }
+    e.str(4, &d.mask_char);
 }
 
 fn dictionary(e: &mut Enc, d: &pb::PiiDictionaryRef) {
@@ -274,6 +301,16 @@ fn strategy(e: &mut Enc, s: &pb::PiiRewriteStrategy) {
             e.rep_str(2, &prefixes);
         }),
         Some(S::AgeSafeHarbor(a)) => e.arm(12, a, |e, a| e.str(1, &a.mask_char)),
+        Some(S::Date(d)) => e.arm(13, d, date),
+        Some(S::Aes256Gcm(a)) => e.arm(14, a, |e, a| {
+            e.msg(1, a.key.as_ref(), key_ref);
+            e.str(2, &a.context);
+        }),
+        Some(S::Ff1(f)) => e.arm(15, f, |e, f| {
+            e.msg(1, f.key.as_ref(), key_ref);
+            e.enm(2, f.alphabet);
+            e.str(3, &f.tweak);
+        }),
     }
 }
 

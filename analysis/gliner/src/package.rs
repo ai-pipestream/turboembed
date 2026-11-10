@@ -82,6 +82,20 @@ impl Manifest {
         Ok((m, meta, heads, tokenizer))
     }
 
+    /// Writes a package with the original encoder and tokenizer and tuned heads.
+    pub fn write_tuned(source: &Path, dest: &Path, heads: &[u8]) -> Result<(), String> {
+        let (mut manifest, _, _, _) = Self::read_checked(source)?;
+        fs::create_dir(dest).map_err(|e| e.to_string())?;
+        fs::create_dir(dest.join("encoder")).map_err(|e| e.to_string())?;
+        for file in ["encoder/deberta.json", "encoder/weights.safetensors", "spm.model"] {
+            fs::copy(source.join(file), dest.join(file)).map_err(|e| e.to_string())?;
+        }
+        fs::write(dest.join("heads.safetensors"), heads).map_err(|e| e.to_string())?;
+        manifest.heads_sha256 = digest(heads);
+        let meta = serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?;
+        fs::write(dest.join("gliner.json"), meta).map_err(|e| e.to_string())
+    }
+
     pub fn load(dir: &Path) -> Result<Model, String> {
         let (m, meta, heads, tokenizer) = Self::read_checked(dir)?;
         let (e, encoder) = PackageManifest::load(&dir.join("encoder")).map_err(|e| e.message)?;
