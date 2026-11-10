@@ -15,8 +15,16 @@ public interface TurboRuntime {
         return createAnalyzer(new TurboAnalyzer.Config(language, bundlePath));
     }
 
-    /** Opens a CPU embedding or reranking session. The caller owns and closes it. */
-    TurboSession openSession(Path bundleDir);
+    /** Opens an embedding or reranking session on device 0 (the CPU) with the model's defaults. */
+    default TurboSession openSession(Path bundleDir) {
+        return openSession(bundleDir, TurboSessionOptions.DEFAULT);
+    }
+
+    /**
+     * Opens an embedding or reranking session on the device, and with the precision, shape and
+     * threads, {@code options} name. The caller owns and closes it.
+     */
+    TurboSession openSession(Path bundleDir, TurboSessionOptions options);
 
     /**
      * Selects Panama on Java 25+ with the foreign API, JNI otherwise or on Android.

@@ -200,6 +200,7 @@
           "weights/model.safetensors"
         ],
         "backends": [
+          "levelzero",
           "cpu"
         ],
         "graph_input": "INPUT_TOKEN_IDS",

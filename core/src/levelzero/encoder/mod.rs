@@ -95,6 +95,7 @@ fn elementwise_groups(n: u64) -> u32 {
 
 mod deberta;
 mod encode;
+mod head;
 mod kernels;
 mod model;
 mod rotary;

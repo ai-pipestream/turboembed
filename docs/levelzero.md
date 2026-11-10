@@ -221,7 +221,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   packed rows from the staging over the bus, and its LayerNorm in one
   kernel; per layer one projection for Q, K and V with their biases, one
   attention kernel (scaled dot products over the keys whose mask is 1,
-  with an online softmax), the attention output projection, a residual
+  with an online softmax; for a model of limited lookahead,
+  `architecture.lookahead`, a query's keys stop that many past it, each
+  kernel's walk over the keys ending at its last query's band), the
+  attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
   epilogue, the feed-forward output (its sums split four ways over its
   terms where the kernels below split them), and a kernel that adds the
@@ -331,6 +334,18 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   Normalization then runs over the T blocks at once. T times the ranges
   is at most `max_ranges`, which the core checks
   (`core/tests/ranges/layers.rs`).
+- **The span head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head (`turbo_backend_model.head`: the
+  `[2, hidden]` weight and then the bias, F32, copied to the device in an
+  allocation of their own), and a range write to it asks for the head
+  (`rows.head`). The run then pools each range's whole vector,
+  unnormalized, into the projections' scratch, which is free after the
+  last layer and holds `max_batch * max_seq` vectors, and `span_head`
+  computes each range's start and end logits from it, a sub-group per
+  logit, the products and sums in F64 as the CPU path's head does, into
+  the output buffer as `[ranges, 2]` F32. A window's read is then 8 bytes
+  a token, where the hidden states were 3 KB a token at RoBERTa-base's
+  768 (`core/tests/levelzero_qa.rs`).
 - **Failures.** The driver's immediate list cannot finish or be destroyed
   after an append to it fails. Every append signals an event of the
   context's, so when one fails the call waits for the event of the last

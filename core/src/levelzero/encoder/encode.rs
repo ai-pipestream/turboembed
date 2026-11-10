@@ -397,8 +397,16 @@ impl Session {
         let (batch, h) = (self.batch, self.model().desc.hidden);
         // A vector per row, or per range after embed_write_ranges, whose
         // ranges the kernel reads from the staging after the row table.
-        // With taps, into the last block, after the taps' blocks.
+        // With taps, into the last block, after the taps' blocks. With the
+        // head (never with taps: the core refuses both), each range's whole
+        // vector, into the projections' scratch, free after the last layer
+        // and max_batch * max_seq vectors wide; the head then writes the
+        // output.
         let vectors = if self.ranges > 0 {
+            if self.head {
+                self.pool_ranges_into(q, self.x, h, self.qkv)?;
+                return self.apply_head(q, self.qkv);
+            }
             self.pool_ranges_into(q, self.x, self.output_dim, self.block(self.taps - 1))?;
             self.taps * self.ranges
         } else {

@@ -140,6 +140,10 @@ impl Session {
                 format!("{} ranges from {taps} layers: the levelzero session holds {}", ranges.len(), self.max_ranges),
             ));
         }
+        let head = !ranges.is_empty() && r.head == 1;
+        if head && self.model().head.is_null() {
+            return Err(fail(INVALID_ARGUMENT, "rows.head is 1 on a model loaded without a token head"));
+        }
         // No crossing yet: the lookup kernel reads the packed rows, and the
         // pooling kernel the ranges, from the staging when the run starts.
         let (tokens, longest, sent) = unsafe { self.pack(r)? };
@@ -149,6 +153,7 @@ impl Session {
         self.batch = r.batch;
         self.ranges = ranges.len() as u32;
         self.taps = taps;
+        self.head = head;
         self.tokens = tokens;
         self.longest = longest;
         // The core writes a range run's pooling as TURBO_POOLING_MEAN.

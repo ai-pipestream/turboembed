@@ -53,7 +53,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     session_create_tuned: Some(encoder::session_create_tuned),
     session_open: Some(encoder::session_open),
     embed_write_ranges: Some(encoder::embed_write_ranges),
-    token_head: 0,
+    token_head: 1,
     reserved3: 0,
     buffer_quantize: Some(gpu::buffer_quantize),
 };
