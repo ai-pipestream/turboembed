@@ -74,9 +74,22 @@ pub struct Upstream {
     /// reference pipeline (the upstream model's configuration).
     #[serde(default)]
     pub to: Option<String>,
+    /// The `https://` repository this file is fetched from, when it comes
+    /// from another repository than `manifest.model.source` (such as a
+    /// base model's `tokenizer.json`). Given together with `commit`.
+    #[serde(default)]
+    pub repository: Option<String>,
+    /// The 40-hex commit in `repository` this file is fetched at. Given
+    /// together with `repository`.
+    #[serde(default)]
+    pub commit: Option<String>,
     /// When present, the fetched bytes must have this SHA-256.
     #[serde(default)]
     pub sha256: Option<String>,
+}
+
+fn is_hex40(s: &str) -> bool {
+    s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
 }
 
 impl Recipe {
@@ -98,7 +111,7 @@ impl Recipe {
             return Err(format!("{}: manifest.files is written by the tool, not the recipe", path.display()));
         }
         let (_, commit) = r.source()?;
-        if commit.len() != 40 || !commit.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()) {
+        if !is_hex40(commit) {
             return Err(format!("model.source.commit {commit:?} is not a 40-hex commit"));
         }
         // Every path the manifest names, and every conversion, before
@@ -117,6 +130,18 @@ impl Recipe {
             check_rel(&u.path)?;
             if let Some(to) = &u.to {
                 check_rel(to)?;
+            }
+            match (&u.repository, &u.commit) {
+                (None, None) => {}
+                (Some(repo), Some(commit)) => {
+                    if !repo.starts_with("https://") || repo.len() <= "https://".len() {
+                        return Err(format!("upstream {}: repository {repo:?} is not an https:// address", u.path));
+                    }
+                    if !is_hex40(commit) {
+                        return Err(format!("upstream {}: commit {commit:?} is not a 40-hex commit", u.path));
+                    }
+                }
+                _ => return Err(format!("upstream {}: repository and commit must be given together", u.path)),
             }
             if let Some(h) = &u.sha256
                 && (h.len() != 64 || !h.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
@@ -139,6 +164,16 @@ impl Recipe {
         match (s["repository"].as_str(), s["commit"].as_str()) {
             (Some(r), Some(c)) => Ok((r, c)),
             _ => Err("manifest.model.source needs repository and commit".into()),
+        }
+    }
+
+    /// Where `u` is fetched from: its own `repository` and `commit` when
+    /// given, otherwise `manifest.model.source`.
+    pub fn upstream_source<'a>(&'a self, u: &'a Upstream) -> Result<(&'a str, &'a str)> {
+        match (&u.repository, &u.commit) {
+            (Some(r), Some(c)) => Ok((r.as_str(), c.as_str())),
+            (None, None) => self.source(),
+            _ => Err(format!("upstream {}: repository and commit must be given together", u.path)),
         }
     }
 
