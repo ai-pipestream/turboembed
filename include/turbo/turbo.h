@@ -713,7 +713,7 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * device whose turbo_capability.options_honored lacks field 9's bit, on a
  * static model (its table is its one layer), or on a model whose device
  * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu,
- * cuda and levelzero backends set the bit and read the earlier layers of
+ * cuda, levelzero and metal backends set the bit and read the earlier layers of
  * their BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders.
  * count times layers over the session's max_ranges is TURBO_E_CAPACITY.
  * Everything else is as
