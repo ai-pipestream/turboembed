@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { kindName, kinds, matches, plain, words } from "../src/catalogfilter.js";
+import { kindName, kinds, matches, plain, purpose, words } from "../src/catalogfilter.js";
 
 const entries = [
   { id: "baai-bge-small-en-v1.5", kind: "KIND_MODEL", language: "en", licence: "MIT" },
@@ -83,4 +83,16 @@ test("every word must match, in id, kind, language or licence", () => {
 
 test("kinds are counted in the order first seen", () => {
   assert.deepEqual(kinds(entries), [["KIND_MODEL", 2], ["KIND_DATASET", 1], ["KIND_HEAD", 1], ["KIND_LEXICON", 1]]);
+});
+
+test("an entry's purpose comes from its component, else its kind, and the filter reads it", () => {
+  const e = (kind: string, component = "") => ({ id: "x", kind, language: "en", licence: "MIT", component });
+  assert.equal(purpose(e("KIND_MODEL", "COMPONENT_DENSE_ENCODER")), "Embeds text for semantic search");
+  assert.equal(purpose(e("KIND_HEAD", "COMPONENT_POS")), "Tags parts of speech");
+  assert.equal(purpose(e("KIND_MODEL", "COMPONENT_SOMETHING_NEW")), "Something new");
+  assert.equal(purpose(e("KIND_DATASET")), "Data to train and evaluate with");
+  assert.equal(purpose(e("KIND_OTHER_THING")), "Other thing");
+  assert.equal(purpose({ id: "x", kind: "KIND_LEXICON", language: "en", licence: "MIT" }), "Word list");
+  assert.equal(matches(e("KIND_MODEL", "COMPONENT_DENSE_ENCODER"), "", "semantic search"), true);
+  assert.equal(matches(e("KIND_MODEL", "COMPONENT_EXTRACTIVE_QA"), "", "semantic search"), false);
 });

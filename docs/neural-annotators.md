@@ -65,11 +65,12 @@ Face hub):
   config's `lookahead` among the layers (`sat-3l`: 48 over 3 layers, 16
   keys ahead a layer), and a bundle carries that per-layer value as
   `architecture.lookahead` (docs/bundle.md); `turbo-bundle` seal holds a
-  recipe's value to the upstream `config.json`. The CPU, Level Zero and
-  Metal backends run the band; on the other backends the loader skips the
-  artifact, so a load there is `TURBO_E_BUNDLE_NO_ARTIFACT`, naming the
-  backend, before any weights are read, and `bundle/recipes/sat-3l.json`
-  lists `metal`, `levelzero` and `cpu`.
+  recipe's value to the upstream `config.json`. The CPU, CUDA, Level Zero
+  and Metal backends run the band; on the other backends the loader skips
+  the artifact, so a load there is `TURBO_E_BUNDLE_NO_ARTIFACT`, naming
+  the backend, before any weights are read, and
+  `bundle/recipes/sat-3l.json` lists `cuda`, `metal`, `levelzero` and
+  `cpu`.
   They are trained on mC4
   alone, so they are permissive; `sat-3l` at
   `a3b7ba6b61881d619989757aea971cde7d3d6a98` is in the zoo index
@@ -337,10 +338,10 @@ different machine from the 4-core rows above.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead on CUDA: the loader skips the artifact of a bundle
-  with `architecture.lookahead` on every backend but the CPU, Level Zero
-  and Metal (`turbo::model::runs_band`). On Level Zero and Metal the tiny
-  banded bundle matches wtpsplit at MODEL as the CPU does
+- A sealed `sat-3l` on Level Zero and Metal: the CPU, CUDA, Level Zero
+  and Metal backends run the band (`turbo::model::runs_band`), and on
+  Level Zero and Metal the tiny banded bundle matches wtpsplit at MODEL
+  as the CPU does
   (`TURBO_TEST_DEVICE=levelzero cargo test -p turbo-sat --features
   turbo/levelzero --test parity`, and the same with `metal`); a sealed
   `sat-3l` has not been run on either.

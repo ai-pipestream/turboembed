@@ -175,6 +175,9 @@ pii_kinds! {
     /// A United States county or county equivalent of the Census list
     /// (`Cook County`, `Orleans Parish`, `Bethel Census Area`).
     County = 44, "county", 440;
+    /// A city or town of the bundled gazetteer, named before its state
+    /// (`Springfield, IL`) or after a city label (`City: Phoenix`).
+    City = 45, "city", 450;
 }
 
 /// The first codec kind code of a custom kind: code `CUSTOM_CODE_BASE + i`
@@ -183,7 +186,7 @@ pub const CUSTOM_CODE_BASE: u32 = 1 << 16;
 
 impl PiiKind {
     /// The largest built-in id; a [`PiiKinds`] bit set holds ids up to 127.
-    pub const MAX_BUILTIN_ID: u16 = 44;
+    pub const MAX_BUILTIN_ID: u16 = 45;
 
     /// Every built-in kind, in id order.
     pub fn builtins() -> impl Iterator<Item = PiiKind> {

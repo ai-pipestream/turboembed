@@ -4,7 +4,6 @@
 //! and debug renderings never reach the wire: an annotator's detail or a
 //! bounds message can quote the document.
 
-use turbo_analysis::error::limit_detail;
 use turbo_analysis::export::{ErrorRecord, LayerRef, StatusRecord};
 use turbo_analysis::{Document, Error, KeyId, Status};
 
@@ -77,8 +76,11 @@ pub fn of_error(e: &Error) -> LayerError {
         Error::Invalid { layer, .. } => make(K::Invalid, Some(key_ref(*layer)), ""),
         Error::Pipeline(_) => make(K::Pipeline, None, ""),
         Error::Annotator { annotator, detail } if panicked(detail) => make(K::Panic, None, annotator),
-        Error::Annotator { annotator, detail } if limit_detail(detail).is_some() => make(K::Limit, None, annotator),
         Error::Annotator { annotator, .. } => make(K::Annotator, None, annotator),
+        Error::OverLimit { annotator, limit, .. } if turbo_analysis::error::known_limit(limit).is_some() => {
+            make(K::Limit, None, annotator)
+        }
+        Error::OverLimit { annotator, .. } => make(K::Annotator, None, annotator),
         Error::Skipped(_) => make(K::Declined, None, ""),
         Error::Offset { .. } => make(K::Offset, None, ""),
         Error::Source(_) => make(K::Source, None, ""),
@@ -98,10 +100,11 @@ pub fn of_record(e: &ErrorRecord) -> LayerError {
         ErrorRecord::Invalid { layer, .. } => make(K::Invalid, Some(record_ref(layer)), ""),
         ErrorRecord::Pipeline(_) => make(K::Pipeline, None, ""),
         ErrorRecord::Annotator { annotator, detail } if panicked(detail) => make(K::Panic, None, annotator),
-        ErrorRecord::Annotator { annotator, detail } if limit_detail(detail).is_some() => {
+        ErrorRecord::Annotator { annotator, .. } => make(K::Annotator, None, annotator),
+        ErrorRecord::OverLimit { annotator, limit, .. } if turbo_analysis::error::known_limit(limit).is_some() => {
             make(K::Limit, None, annotator)
         }
-        ErrorRecord::Annotator { annotator, .. } => make(K::Annotator, None, annotator),
+        ErrorRecord::OverLimit { annotator, .. } => make(K::Annotator, None, annotator),
         ErrorRecord::Skipped(_) => make(K::Declined, None, ""),
         ErrorRecord::Offset { .. } => make(K::Offset, None, ""),
         ErrorRecord::Source(_) => make(K::Source, None, ""),

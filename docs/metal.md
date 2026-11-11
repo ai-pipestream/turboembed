@@ -54,8 +54,8 @@ frameworks and libc++, which every macOS has.
   against (`Metal, macOS SDK 27.0`); `driver_version` is the macOS
   version and build, since Metal ships with it (`macOS 27.0 (26A428)`).
 - **Capability.** Embed runs at every precision, honoring every field
-  of `turbo_embed_options` but `layers` (field 9), which it takes as 0
-  or 1 alone (its bit is clear): in F32 at EXACT and MODEL, and in F16 at
+  of `turbo_embed_options`, `layers` (field 9) included (Range pooling;
+  its cells read 0b111111111): in F32 at EXACT and MODEL, and in F16 at
   FASTEST, whose linear layers take F16 operands (Numerics). A model
   stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
@@ -207,6 +207,20 @@ frameworks and libc++, which every macOS has.
   vector bit for bit. The session's output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, made with the
   session, so a range run allocates nothing either.
+  With `layers` above 1 (`turbo_embed_write_layer_ranges`), the same
+  kernel pools the ranges after each of the last L layers but the last,
+  in the one compute pass, into the next block of `[layers, ranges,
+  output_dim]`, and the final layer's block, the last, is the plain range
+  write's bit for bit. As on the CPU (docs/cpu.md), a ModernBERT's
+  final_norm is applied to each earlier layer's states first, into the
+  scratch the next layer overwrites only after the pool has read it; a
+  BERT's, RoBERTa's, nomic-bert's or DeBERTa-v2's are pooled where the
+  layer leaves them. The core holds layers times ranges to `max_ranges`,
+  so the output buffer holds every block, and asks the token head (below)
+  of a write with `layers` 0 or 1 alone; the backend refuses the two
+  together, as CUDA's does. `core/tests/ranges/layers.rs`
+  holds every block to the CPU's: on the M2 within 1.3e-6 at MODEL on
+  each family, and within 2.9e-3 (cosine 1 - 5.7e-7) at FASTEST.
 - **Limited lookahead.** A BERT or RoBERTa model with
   `architecture.lookahead` (SaT's `sat-3l`, docs/neural-annotators.md)
   runs its attention with every key before a query and at most

@@ -9,10 +9,12 @@ use support::*;
 use turbo_pii::rewrite::mask_by_kind;
 use turbo_pii::{Pack, PiiKind};
 
-/// The written text, kind and normalized value of each mention.
+/// The written text, kind and normalized value of each state or county
+/// mention (cities are `places_city.rs`).
 fn found(text: &str) -> Vec<(String, &'static str, String)> {
     rows(&pack(Pack::Places), text)
         .into_iter()
+        .filter(|r| r.2 != "city")
         .map(|(s, e, kind, value)| (text[s as usize..e as usize].to_owned(), kind, value))
         .collect()
 }
@@ -74,7 +76,48 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("state of residence: ME"), ("ME".to_owned(), "state", "ME".to_owned()));
     assert_eq!(one("Springfield, IL 62704-1234."), ("IL".to_owned(), "state", "IL".to_owned()));
     assert_eq!(one("Portland, OR 97201."), ("OR".to_owned(), "state", "OR".to_owned()));
+    let states: Vec<_> = found("PORTLAND OR 97201").into_iter().filter(|m| m.1 == "state").collect();
+    assert_eq!(states, [("OR".to_owned(), "state", "OR".to_owned())]);
+    // A code before a ZIP code ends an address by what comes before it:
+    // a comma, a city of that state, or the start of a line with only
+    // blanks after the ZIP code to the line's end.
     for text in [
+        "Springfield, IL 62704 is the address",
+        "IL 62704",
+        "Name\n  IL 62704 \nx",
+        "IL 62704  \r\nUSA",
+        "IL 62704.",
+        "Name\nIL 62704, USA",
+        "IL 62704\u{a0}",
+        "\tIL 62704-1234\t",
+        "Springfield IL 62704 ",
+        "Springfield IL 62704-1234 \nUSA",
+        "Springfield IL 62704",
+        "Springfield IL 62704.",
+        "Springfield IL 62704 is",
+        "Send it to Springfield IL 62704 by Friday",
+        "1 Main St\nSpringfield IL 62704\nUSA",
+        "(Springfield IL 62704)",
+        "SPRINGFIELD IL 62704",
+    ] {
+        let states: Vec<_> = found(text).into_iter().filter(|m| m.1 == "state").collect();
+        assert_eq!(states, [("IL".to_owned(), "state", "IL".to_owned())], "{text:?}");
+    }
+    for text in [
+        "Order IN 12345 units",
+        "We ship OR 90210 boxes",
+        "sold ME 12345 more",
+        "Order IN 12345.",
+        "Order IN 12345",
+        "Lot IN 12345; ship",
+        "(see IN 12345)",
+        "We need OR 90210, now",
+        "PART OR 90210",
+        "IN 12345 units",
+        "\tOR 90210 boxes",
+        "Order\nIN 12345 units",
+        "Order\r\n  ME 12345 more",
+        "Springfield  IL 62704",
         "IN the morning, OR later, ME too, OK?",
         "Springfield, IL",
         "IL 627041",

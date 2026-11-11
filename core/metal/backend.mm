@@ -277,8 +277,9 @@ int32_t device_info(uint32_t ordinal, turbo_device_info *out, turbo_error *err) 
 }
 
 /* Fields of turbo_embed_options a run honors: normalize (4), pooling (5)
- * and output_dim (6), every value of each. */
-constexpr uint32_t EMBED_HONORED = 0x38;
+ * and output_dim (6), every value of each, and layers (9), whose range
+ * writes take taps above 1 (turbo_backend.h, taps). */
+constexpr uint32_t EMBED_HONORED = 0x138;
 
 /* Why the device runs no kernels of this backend, or NULL when it runs
  * them: the linear layers need SIMD-group matrices (Apple7, the M1's
@@ -1656,6 +1657,9 @@ struct Session {
      * up, the attention blocks, the ranges (0 after embed_write), and the
      * options. */
     uint32_t batch = 0, tokens = 0, padded = 0, nblocks = 0, longest = 0, nranges = 0;
+    /* The layers each range is pooled from, the last taps of the model's:
+     * 1 but after a range write with taps above 1. */
+    uint32_t taps = 1;
     uint32_t pooling = 0, normalize = 0, output_dim = 0;
     Linear linear = LINEAR_F32;
     /* Whether TURBO_METAL_CHOICES named the linear layers' kernels. */
@@ -2026,6 +2030,7 @@ void pack(Session &s, const turbo_backend_embed_rows *r) {
     s.pooling = r->pooling;
     s.normalize = r->normalize;
     s.output_dim = r->output_dim;
+    s.taps = 1;
     s.head = false;
     s.written = true;
 }
@@ -2053,9 +2058,15 @@ int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, con
         if (r->head && (!s.model->head || r->output_dim != s.model->head_out))
             return refuse(err, TURBO_E_INTERNAL, "a head of %u outputs asked of a metal model whose head has %u",
                           r->output_dim, s.model->head_out);
+        const uint32_t taps = std::max(r->taps, 1u);
+        if (taps > s.model->desc.layers || (uint64_t)count * taps > s.max_ranges || (taps > 1 && r->head))
+            return refuse(err, TURBO_E_INTERNAL, "%u ranges from %u layers%s for a metal session of max_ranges %u "
+                          "and a model of %u layers", count, taps, taps > 1 && r->head ? " through a head" : "",
+                          s.max_ranges, s.model->desc.layers);
         pack(s, r);
         memcpy(static_cast<char *>(s.rows.contents) + s.ranges, ranges, (size_t)count * sizeof(turbo_token_range));
         s.nranges = count;
+        s.taps = taps;
         s.pooling = TURBO_POOLING_MEAN;
         // The head reads each range's whole vector, unnormalized.
         if (r->head) {
@@ -2189,6 +2200,25 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:sc offset:f16 ? s.xh : s.x atIndex:8];
         per_token();
     };
+
+    // A range write's vectors from the hidden states at src into block k
+    // of the output, one SIMD group per range: the run's output is
+    // [taps, ranges, output_dim], block k from layer L - taps + k + 1.
+    const PoolParams pp{h, s.output_dim, s.pooling, s.normalize == TURBO_NORMALIZE_L2 ? 1u : 0u};
+    auto pool_ranges = [&](uint64_t src, uint32_t k) {
+        [enc setComputePipelineState:kn.k[POOL_RANGES]];
+        [enc setBuffer:sc offset:src atIndex:0];
+        [enc setBuffer:rows offset:s.mask atIndex:1];
+        [enc setBuffer:rows offset:s.starts atIndex:2];
+        [enc setBuffer:rows offset:s.ranges atIndex:3];
+        [enc setBuffer:s.output.mtl offset:(uint64_t)k * s.nranges * s.output_dim * 4 atIndex:4];
+        [enc setBytes:&pp length:sizeof pp atIndex:5];
+        [enc dispatchThreadgroups:MTLSizeMake(s.nranges, 1, 1) threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+    };
+    // Whether layer l (from 0) is read before the last, and as which
+    // block: the last is pooled after the encoder, as without taps.
+    const uint32_t first_tap = d.layers - s.taps;
+    auto early_tap = [&](uint32_t l) { return s.nranges > 0 && l >= first_tap && l + 1 < d.layers; };
 
     if (deberta) {
         // The word row alone, LayerNormed, or 0 for a masked position.
@@ -2348,6 +2378,13 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                 splits = gemm(f16l, s.ffn, inter, h, EPILOGUE_NONE, {{&lw[RL_FFN_OUT], s.tmp}}, {}, f16l);
                 add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_FFN_LN_WEIGHT), t(l, TURBO_NOMIC_FFN_LN_BIAS));
             }
+            if (early_tap(l)) {
+                // ModernBERT's final norm applies to every layer read, so
+                // each block is on the final states' scale; the norm goes
+                // to tmp, which the next layer writes before it reads.
+                if (modern) norm_into(w[TURBO_MODERNBERT_FINAL_NORM_WEIGHT], s.x, s.tmp);
+                pool_ranges(modern ? s.tmp : s.x, l - first_tap);
+            }
         }
         rope_at = 0;
         if (modern) norm_into(w[TURBO_MODERNBERT_FINAL_NORM_WEIGHT], s.x, s.x);
@@ -2406,19 +2443,12 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         splits = gemm(f16l, s.ffn, inter, h, EPILOGUE_NONE, {{weight(TURBO_BERT_FFN_OUT_WEIGHT), s.tmp}}, {}, f16l);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                layer(l, TURBO_BERT_FFN_LN_BIAS));
+        if (early_tap(l)) pool_ranges(s.x, l - first_tap);
     }
 
-    const PoolParams pp{h, s.output_dim, s.pooling, s.normalize == TURBO_NORMALIZE_L2 ? 1u : 0u};
     if (s.nranges > 0) {
-        // One SIMD group per range, after embed_write_ranges.
-        [enc setComputePipelineState:kn.k[POOL_RANGES]];
-        [enc setBuffer:sc offset:s.x atIndex:0];
-        [enc setBuffer:rows offset:s.mask atIndex:1];
-        [enc setBuffer:rows offset:s.starts atIndex:2];
-        [enc setBuffer:rows offset:s.ranges atIndex:3];
-        [enc setBuffer:s.output.mtl offset:0 atIndex:4];
-        [enc setBytes:&pp length:sizeof pp atIndex:5];
-        [enc dispatchThreadgroups:MTLSizeMake(s.nranges, 1, 1) threadsPerThreadgroup:MTLSizeMake(32, 1, 1)];
+        // After embed_write_ranges, the final layer's block, the last.
+        pool_ranges(s.x, s.taps - 1);
         if (s.head) {
             // One SIMD group per output value: the range's vector through
             // the token head, into head_output.

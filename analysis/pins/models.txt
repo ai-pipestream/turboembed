@@ -191,7 +191,7 @@ blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  b
 blobs/sha256/34314634641f8e9a4ecb674c70bf043a4e21af2d34b021a3b2286c77e2dfad38  tree  gliner2-base-v1 progressive graph release test
 blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
 blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)
-blobs/sha256/eb105aa1888c478620791501634ae8aad6a72e6d28200f8fdb9522ea641ac14a  bundle  SaT 3l, bge-m3 tokenizer bundle (4080 machine)
+blobs/sha256/c6d7bff85891d6b8d36e2e0b2c8572fde5062f76457fbd35898120212f8421fb  bundle  SaT 3l, bge-m3 tokenizer bundle (4080 machine)
 blobs/sha256/b5285611dd564973d4b90ce148a5f62aef766ad11859cc62bcb801157309c146  bundle  sentence-transformers/all-MiniLM-L6-v2 static distillation, 256 dims (B70 machine)
 blobs/sha256/311365014225a874972577dabf2fac85f26141613ce42d726a707257038055d4  bundle  BAAI/bge-base-en-v1.5 static distillation, 256 dims (B70 machine)
 blobs/sha256/bec30f885845797c7be22bac5e731de8d30971c8343b2dd41ebb5b2c451e2cf4  bundle  minishlab/potion-base-2M static-1024 build (B70 machine)

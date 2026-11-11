@@ -36,6 +36,14 @@ stubs must be regenerated.
 - `InspectDocumentGraph` refuses a graph whose layers name a view the
   graph does not hold, and validates PII layers and view chains before
   projecting (#1911).
+- `DocumentGraph` binary export (`TGRF`) bumps `FORMAT_VERSION` from 2
+  to 3 for the typed `ErrorRecord::OverLimit` wire tag (error tag 12),
+  and `TypedDocumentResult.result_identity.graph_format_version` reports
+  3. Format 1 and 2 `.tgrf` / `.bin` graphs are refused with
+  `ExportError::UnsupportedVersion` by the gRPC services
+  (`AnalyzePipelineRequest.initial_graph`, `RoundTripDocumentGraph`,
+  `InspectDocumentGraph`), the C ABI TGRF entry points and the Rust
+  readers; stored v2 graphs must be regenerated (#2134, #2140, #2155).
 
 ### Added: PII and the result envelope (#1879)
 
@@ -181,6 +189,13 @@ stubs must be regenerated.
   either end of a place name, so `x_Illinois` and `Cook County_x` hold
   none (#2089). A county name is compared in NFC, so a decomposed
   spelling finds its county (#2081).
+- `city` 45, appended to `PiiKindId` (`TURBO_PII_KIND_CITY`, Java
+  `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
+  `Places` pack: a populated place of the bundled Natural Earth gazetteer
+  directly before its US state or territory (`Springfield, IL`,
+  `San Juan, PR`) or after a city label
+  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
+  (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
@@ -366,6 +381,14 @@ stubs must be regenerated.
 
 ### Changed
 
+- Over-limit step failures are carried as the typed
+  `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
+  variants (`{ annotator, limit, max, got }`, with `Display` changed
+  from `"{annotator}: limit: {limit} {max}, got {got}"` to
+  `"{annotator}: over its {limit} {max}, got {got}"`) instead of an
+  `Error::Annotator` detail string, and an imported
+  `ErrorRecord::OverLimit` keeps its typed form only when `limit` is in
+  `turbo_analysis::error::known_limit` (#2134, #2140, #2155).
 - The in-process analyzer (`turbo_analyzer_desc`) loads a bundle:
   `bundle_path` names a bundle whose heads write the part-of-speech,
   lemma, dependency and entity layers from one encoder pass a sentence,

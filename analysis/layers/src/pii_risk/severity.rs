@@ -69,7 +69,7 @@ impl PiiSeverity {
                 PiiSeverity::Medium
             }
             EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting | UsEin | TrackingNumber | Url | UsZip
-            | PhoneExtension | Age | Date | Currency | State | County => PiiSeverity::Low,
+            | PhoneExtension | Age | Date | Currency | State | County | City => PiiSeverity::Low,
         }
     }
 }
@@ -114,7 +114,7 @@ impl PiiSuggestedRewrite {
         use PiiKind::*;
         match kind {
             Jwt | AwsAccessKey | GithubToken | UrlCredential | Email | Phone | Mac | Ipv4 | Ipv6 | BtcAddress
-            | EthAddress | Url | StreetAddress | Age | Date | Currency | State | County | Custom(_) => {
+            | EthAddress | Url | StreetAddress | Age | Date | Currency | State | County | City | Custom(_) => {
                 PiiSuggestedRewrite::Label
             }
             Card | Iban => PiiSuggestedRewrite::KeepLastFour,
