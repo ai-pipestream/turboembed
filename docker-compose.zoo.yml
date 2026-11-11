@@ -40,7 +40,8 @@ services:
     restart: unless-stopped
 
   bucket:
-    image: turbo-zoo
+    # TURBO_ZOO_IMAGE runs a published image instead of the local build.
+    image: ${TURBO_ZOO_IMAGE:-turbo-zoo}
     build:
       context: .
       dockerfile: server/Dockerfile.zoo
@@ -51,7 +52,7 @@ services:
     restart: "no"
 
   zoo:
-    image: turbo-zoo
+    image: ${TURBO_ZOO_IMAGE:-turbo-zoo}
     environment:
       <<: *store
       TURBO_DEMO_TOKEN: ${TURBO_DEMO_TOKEN:-}
