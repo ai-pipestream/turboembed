@@ -295,9 +295,9 @@ stubs must be regenerated.
   `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`,
   `turbo-tagger:relations`, and `turbo-tagger:heads` for every one the
   bundle provides), the word-level ones from one encoder pass; the
-  `annotate-v1` profile runs the part-of-speech, entity, dependency and
-  lemma heads, and `BundleCapabilities.head_steps` lists each loaded
-  bundle's head steps (docs/grpc-analysis.md). (#1775)
+  `annotate-v1` profile runs every head the bundle carries, so a bundle
+  with some of the heads runs what it has, and
+  `BundleCapabilities.head_steps` lists each loaded bundle's head steps (docs/grpc-analysis.md). (#1775, #1832, #2176)
 - The C interface's reranking (#759) and extractive QA (#767) tasks.
 - In `turbo-kserve`: the analysis service (docs/grpc-analysis.md), the
   search, vocabulary, catalog and sink services, and `grpc.health.v1`;
