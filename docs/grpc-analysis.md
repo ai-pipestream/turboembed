@@ -49,11 +49,10 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 | `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
 | `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
-| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas` | `turbo:structure`, `Sentences`, `Tokens`, `PosTags`, `Entities`, `Dependencies`, `Lemmas` | `TASK_EMBED`, `head.pos`, `head.entities`, `head.dependencies`, `head.lemmas` |
-| `annotate-v2` | `"2"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
+| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
 
-`annotate-v1` keeps its fixed four heads. `annotate-v2` (#1832) is
-capability driven: it runs every head step the selected bundle lists in
+`annotate-v1` (#1775, #1832) is capability driven: it runs every head
+step the selected bundle lists in
 `head_steps`, so a partial bundle (a span-classifier-only entity bundle,
 say) runs what it carries, and `head.any` is met by any bundle with a
 head. When the bundle has a learned sentence head, `turbo-tagger:sentences`
@@ -107,7 +106,7 @@ The refusals are named in the message:
 |---|---|---|
 | `requires bundle 'head.*'` | the bundle has no head the step takes | `TURBO_E_BUNDLE_NOT_FOUND` |
 | `missing head` | the selected name is no head of the bundle | `TURBO_E_BUNDLE_NOT_FOUND` |
-| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v2`) | `TURBO_E_INVALID_ARGUMENT` |
+| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v1`) | `TURBO_E_INVALID_ARGUMENT` |
 | `unsupported head` | the selected head is of another kind, layer or scheme | `TURBO_E_UNSUPPORTED_TASK` |
 | `ambiguous output` | two steps write one output: a step named twice, `turbo-tagger:sentences` beside `turbo-sentdetect:rules`, or `turbo-tagger:entities` beside `turbo-geo:names` | `TURBO_E_INVALID_ARGUMENT` |
 
@@ -127,7 +126,8 @@ and the most layer taps any head reads. The windows follow one plan:
 - With no whole-view head among the steps, the source view's `Tokens` are
   read a sentence at a time (the `Sentences` layer, or the tokens'
   sentence column), each sentence in windows of whole words when it is
-  longer than a row. This is the `annotate-v1` read.
+  longer than a row. This is the `annotate-v1` read on a bundle of
+  word-level heads.
 - With `turbo-tagger:sentences` or `turbo-tagger:coref`, the view's
   tokens are read once as one sequence, in windows of whole words. Those
   heads decode from it, and every sentence-scoped head decodes from its
@@ -169,7 +169,7 @@ package's own tokenizer when present, including normalized-view projection, so
 smart chunking works without another embedding bundle.
 
 Remaining limits: a step runs over the source view only; under
-`annotate-v2` a bundle with two heads for one step is refused as
+`annotate-v1` a bundle with two heads for one step is refused as
 ambiguous rather than run twice; and a learned sentence step cannot follow a
 normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
 the source, or the last view written before the fold, so its boundaries
@@ -1329,7 +1329,7 @@ and `ANALYZE_OUTPUT_TOKEN_VECTORS` over `AnalyzeStream` against in-process
 `ColBERT` projection bundles in all three `OffsetMode`s.
 `server/tests/progressive_heads.rs`, `progressive_heads_all.rs` and
 `progressive_heads_rows.rs` prove the head steps on sealed tiny bundles:
-`annotate-v1` and `annotate-v2` layers field for field against the
+`annotate-v1` layers field for field against the
 tagger crate's annotators (partial bundles, morphology, BIO and span
 entities, relations, learned sentences, word splits, coreference) on
 Unicode text read in several windows, every head layer's offsets in all

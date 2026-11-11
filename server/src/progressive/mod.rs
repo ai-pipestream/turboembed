@@ -47,8 +47,7 @@ use crate::status::to_status;
 
 use crate::pii_policy;
 pub use profiles::{
-    ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
-    profile_capabilities,
+    ANNOTATE_V1, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile, profile_capabilities,
 };
 pub(crate) use steps::{
     CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, StepOptions, compile_analyzer_with_state, compile_pipeline,
@@ -204,7 +203,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
             "chunking" => (CHUNKING_STEPS.to_vec(), req.profile.as_str(), &[]),
             other => {
                 return Err(plain(bad(format!(
-                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'annotate-v1', 'annotate-v2', 'default', 'minimal', or 'chunking'"
+                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'annotate-v1', 'default', 'minimal', or 'chunking'"
                 ))));
             }
         }
