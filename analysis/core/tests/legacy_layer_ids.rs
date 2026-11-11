@@ -39,6 +39,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
+use turbo_scratch::Scratch;
 
 use turbo_analysis::ids::{LEGACY_NAMESPACE, legacy_ids, legacy_model_ids};
 
@@ -235,8 +236,7 @@ fn no_committed_source_writes_a_legacy_layer_id() {
 
 #[test]
 fn scanner_rejects_known_and_unseen_legacy_ids_and_new_sources_in_record_dirs() {
-    let dir = std::env::temp_dir().join(format!("turbo-legacy-layer-guard-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-legacy-layer-guard-{}", std::process::id())));
     let write = |rel: &str, content: &str| {
         let p = dir.join(rel);
         fs::create_dir_all(p.parent().unwrap()).unwrap();

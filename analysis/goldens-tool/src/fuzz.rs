@@ -395,8 +395,9 @@ mod tests {
 
     #[test]
     fn the_inputs_are_written_once_per_set_with_the_corpus_ids() {
-        let dir = std::env::temp_dir().join(format!("turbo-goldens-fuzz-test-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-fuzz-test-{}", std::process::id())),
+        );
         let n = write_inputs(&dir, 5, 3, &["edge".to_string(), "en".to_string()]).unwrap();
         assert_eq!(n, 3);
         for set in ["edge", "en"] {

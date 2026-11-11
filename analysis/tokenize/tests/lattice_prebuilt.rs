@@ -2,6 +2,7 @@
 mod common;
 use std::sync::Arc;
 use turbo_analysis::Annotator;
+use turbo_scratch::Scratch;
 use turbo_tokenize::lattice::{DictionaryLimits, PrebuiltImage};
 use turbo_tokenize::{LatticeTokenizer, MecabDictionary};
 
@@ -63,7 +64,7 @@ fn round_trip_identity_and_shared_storage() {
 
 #[test]
 fn load_accepts_both_forms() {
-    let path = std::env::temp_dir().join(format!("turbo-lattice-{}.bin", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-lattice-{}.bin", std::process::id())));
     let dictionary = source();
     dictionary.write_prebuilt(&path).unwrap();
     let loaded = MecabDictionary::load(&path).unwrap();

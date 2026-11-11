@@ -606,13 +606,13 @@ fn malformed_utf8() {
 
 #[test]
 fn path_loading() {
-    let dir = std::env::temp_dir().join(format!("turbo-numeric-ecb-{}", std::process::id()));
+    let name = format!("turbo-numeric-ecb-{}", std::process::id());
+    let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(name));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("rates.csv");
     std::fs::write(&path, "Date,USD\n2026-07-14,1.2\n").unwrap();
     assert_rate("1.2", EcbRates::load(&path).unwrap().rate(cur("EUR"), cur("USD"), day(DATE)).unwrap());
     assert!(matches!(EcbRates::load(dir.join("missing.csv")), Err(EcbError::Io(_))));
-    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 // FxRatesContractTest

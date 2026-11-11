@@ -31,5 +31,6 @@ turbo-sha256 = { path = "../sha256" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 # The goldens of the packs, made by OpenNLP on a JVM.
 turbo-goldens = { path = "../goldens" }

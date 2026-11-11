@@ -294,10 +294,23 @@ jobs:
       # nextest runs the shard's test binaries side by side, where cargo
       # test runs them one after another; it does not run doctests, so
       # those run after it.
+      # The tests get a temp directory of their own, made after the build
+      # so that only they write to it; the step after this one fails when
+      # a test left something there (#2183).
       - name: test
         run: |
-          cargo nextest run --no-tests=warn $PACKAGES
+          cargo nextest run --no-run --no-tests=warn $PACKAGES
+          rm -rf "$RUNNER_TEMP/test-scratch" && mkdir -p "$RUNNER_TEMP/test-scratch"
+          TMPDIR="$RUNNER_TEMP/test-scratch" cargo nextest run --no-tests=warn $PACKAGES
           cargo test --doc $PACKAGES
+      - name: no test leaves files in the temp directory
+        run: |
+          left=$(ls -A "$RUNNER_TEMP/test-scratch")
+          if [ -n "$left" ]; then
+            echo "tests left these in the temp directory; hold them in turbo_scratch::Scratch:"
+            echo "$left"
+            exit 1
+          fi
 
   # turbo-fuzz's tests run every annotator run over every corpus and
   # golden text, about 20 minutes unoptimized. Here they are built
@@ -364,8 +377,18 @@ jobs:
         env:
           CARGO_TARGET_DIR: target/core
         run: |
-          cargo nextest run -p turbo
+          cargo nextest run --no-run -p turbo
+          rm -rf "$RUNNER_TEMP/core-scratch" && mkdir -p "$RUNNER_TEMP/core-scratch"
+          TMPDIR="$RUNNER_TEMP/core-scratch" cargo nextest run -p turbo
           cargo test --doc -p turbo
+      - name: no core test leaves files in the temp directory
+        run: |
+          left=$(ls -A "$RUNNER_TEMP/core-scratch")
+          if [ -n "$left" ]; then
+            echo "tests left these in the temp directory; hold them in turbo_scratch::Scratch:"
+            echo "$left"
+            exit 1
+          fi
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs

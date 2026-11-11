@@ -224,7 +224,9 @@ fn the_example_artifacts_parse() {
 #[cfg(unix)]
 #[test]
 fn a_link_out_of_the_bundle_is_invalid() {
-    let outside = std::env::temp_dir().join(format!("turbo-test-{}-outside.json", std::process::id()));
+    let outside = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-test-{}-outside.json", std::process::id())),
+    );
     fs::copy(upstream_tokenizer_json(), &outside).unwrap();
     let f = Fixture::standard("symlink-out");
     fs::remove_file(f.dir.join("tokenizer.json")).unwrap();

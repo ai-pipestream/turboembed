@@ -28,7 +28,8 @@ fn staged_quality_ids_keep_static_cut_and_special_token_rules() {
     let median = median_chars(&vocab);
     let source = root().join("testdata/tiny-static-bundle");
     assert_eq!(bytes, fs::read(source.join("tokenizer.json")).unwrap());
-    let work = std::env::temp_dir().join(format!("turbo-bundle-quality-{}", std::process::id()));
+    let work =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bundle-quality-{}", std::process::id())));
     copy_tree(&source, &work);
     let mut manifest: Value = serde_json::from_slice(&fs::read(work.join("manifest.json")).unwrap()).unwrap();
     manifest.as_object_mut().unwrap().remove("files");

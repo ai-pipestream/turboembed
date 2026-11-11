@@ -9,6 +9,7 @@ mod common;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use common::*;
 use serde_json::Value;
@@ -289,10 +290,9 @@ fn a_large_batch_gives_what_one_text_at_a_time_gives() {
 
 /// The bundle copied with `tensors` as its table file, and its manifest's
 /// hashes, sizes and tensor names made to match.
-fn restored(name: &str, tensors: &[Tensor]) -> PathBuf {
+fn restored(name: &str, tensors: &[Tensor]) -> Scratch {
     let src = bundle();
-    let dir = std::env::temp_dir().join(format!("turbo-static-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-static-{name}-{}", std::process::id())));
     for sub in ["", "weights", "reference", "quality"] {
         fs::create_dir_all(dir.join(sub)).unwrap();
     }
@@ -501,8 +501,7 @@ fn every_reference_case_matches_the_reference() {
 /// refuses the load, and the file as it was loads.
 #[test]
 fn a_changed_table_is_refused() {
-    let dir = std::env::temp_dir().join(format!("turbo-static-changed-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-static-changed-{}", std::process::id())));
     for sub in ["", "weights", "reference", "quality"] {
         fs::create_dir_all(dir.join(sub)).unwrap();
     }

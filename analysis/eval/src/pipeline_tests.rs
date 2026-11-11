@@ -180,8 +180,7 @@ fn toy(_: &str, _: &Path) -> Result<LoadedSet> {
 
 #[test]
 fn run_writes_a_record_per_set_and_the_gate_reads_them() {
-    let dir = std::env::temp_dir().join(format!("turbo-eval-run-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-eval-run-{}", std::process::id())));
     let source =
         Source { commit: "0123456789abcdef0123456789abcdef01234567".into(), pushed_to: vec!["origin/main".into()] };
     let mut p = pipeline(windows(), Titles::Ignore);

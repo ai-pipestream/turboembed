@@ -4,6 +4,7 @@
 //! baseline receipts, and 4 Stanza peer receipts.
 
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use turbo::manifest::{HeadKind, LicenseClass};
 use turbo_trainer_recipes::eval::Metrics;
@@ -302,8 +303,7 @@ fn lemma_sweep_receipts_name_no_machine_or_host_path() {
 
 #[test]
 fn lemma_baseline_command_replays_through_cli() {
-    let tmp = std::env::temp_dir().join(format!("turbo-lemma-base-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&tmp);
+    let tmp = Scratch::at(std::env::temp_dir().join(format!("turbo-lemma-base-{}", std::process::id())));
     let corpus = tmp.join("corpus");
     let out = tmp.join("out");
     std::fs::create_dir_all(&corpus).unwrap();

@@ -45,6 +45,7 @@ protox = "0.9"
 tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
 
 [dev-dependencies]
+turbo-scratch = { path = "../analysis/scratch" }
 # The tests read files from a real server started in-process.
 turbo-kserve = { path = "../server" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

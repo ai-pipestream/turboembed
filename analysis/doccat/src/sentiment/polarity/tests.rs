@@ -351,8 +351,9 @@ fn fit_handles_oversized_and_usize_max_batch_size_without_capacity_overflow() {
 #[test]
 fn polarity_zoo_loader_resolves_bound_head_and_validates_builtin_modernbert_entry() {
     use turbo_zoo::{Acceptances, Index, Offline, Policy, Sha256, Sha512, UserId, Zoo};
-    let dir = std::env::temp_dir().join(format!("turbo-polarity-zoo-test-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-polarity-zoo-test-{}", std::process::id())),
+    );
     std::fs::create_dir_all(&dir).unwrap();
     let enc = encoder_ref("answerdotai/ModernBERT-base");
     let head =
@@ -404,7 +405,7 @@ fn polarity_zoo_loader_resolves_bound_head_and_validates_builtin_modernbert_entr
         sha512 = sha512,
     );
     let index = Index::parse(index_json.as_bytes()).unwrap();
-    let zoo = Zoo::new(index, dir.clone(), Policy::default(), &Offline);
+    let zoo = Zoo::new(index, dir.to_path_buf(), Policy::default(), &Offline);
     let user: UserId = "test".parse().unwrap();
     let loaded =
         PolarityVectorHead::from_zoo(&zoo, MASC_MODERNBERT_POLARITY_HEAD, &user, || Ok(Acceptances::default()))

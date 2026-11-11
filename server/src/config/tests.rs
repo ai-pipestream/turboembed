@@ -320,8 +320,8 @@ fn admin_allows_empty_models_and_bundle_dir_discovers_manifests() {
     assert!(a.admin);
     assert!(a.models.is_empty());
 
-    let dir = std::env::temp_dir().join(format!("turbo-kserve-bundles-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-bundles-{}", std::process::id())));
     std::fs::create_dir_all(dir.join("alpha")).unwrap();
     std::fs::create_dir_all(dir.join("beta")).unwrap();
     std::fs::create_dir_all(dir.join("not-a-bundle")).unwrap();

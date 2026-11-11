@@ -335,9 +335,9 @@ fn c_program_reads_evidence_detector_score_and_candidates_from_header() {
     let cdylib = build_cdylib();
     let lib_dir = cdylib.parent().unwrap();
 
-    let mut tmp = std::env::temp_dir();
-    tmp.push(format!("turbo_c_pii_evidence_test_{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&tmp);
+    let tmp = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo_c_pii_evidence_test_{}", std::process::id())),
+    );
     std::fs::create_dir_all(&tmp).unwrap();
 
     let graph_path = tmp.join("fixture.tgrf");

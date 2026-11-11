@@ -4,6 +4,7 @@
 //! small BERT of testdata/tiny-bert-bundle standing in for the device.
 
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use turbo_analysis_embed::calibrate::{
     Calibration, CalibrationOptions, DEFAULT_MARGIN, MAX_MARGIN, OFFLOAD_BACKENDS, PREFER_VAR, Point, Preference,
@@ -101,8 +102,7 @@ fn offload_takes_the_device_inside_its_margin_and_the_cpu_at_or_past_it() {
 
 #[test]
 fn a_measured_call_runs_on_the_side_its_preference_picks() {
-    let dir = std::env::temp_dir().join(format!("turbo-dispatch-prefer-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-dispatch-prefer-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let o = CalibrationOptions {
         device: Device::Cpu,

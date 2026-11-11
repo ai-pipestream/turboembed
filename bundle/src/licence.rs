@@ -221,8 +221,9 @@ mod tests {
     }
 
     fn store(name: &str) -> (PathBuf, UserId) {
-        let dir = std::env::temp_dir().join(format!("turbo-bundle-consent-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-bundle-consent-{name}-{}", std::process::id())),
+        );
         (dir.join("home").join("acceptances.json"), "alice".parse().unwrap())
     }
 

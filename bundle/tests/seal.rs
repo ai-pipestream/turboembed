@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use serde_json::{Value, json};
 use turbo_bundle::recipe::Recipe;
@@ -13,9 +14,8 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-bundle-test-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-bundle-test-{}-{name}", std::process::id())));
     fs::create_dir_all(&d).unwrap();
     d
 }
@@ -133,7 +133,7 @@ const CONTAINER: &str = "turbo-reference@sha256:0123456789abcdef0123456789abcdef
 /// Stage, put the reference in, and seal: everything `make` does after the
 /// container has run.
 fn sealed(name: &str, edit: impl FnOnce(&mut Recipe)) -> (PathBuf, Result<(), String>) {
-    let d = scratch(name);
+    let d = scratch(name).until_exit();
     let mut r = Recipe::load(&tiny_recipe(&d)).unwrap();
     edit(&mut r);
     let bundle = d.join("bundle");

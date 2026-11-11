@@ -24,6 +24,7 @@ memmap2 = { version = "0.9.11", optional = true }
 mmap = ["dep:memmap2"]
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 turbo-normalize = { path = "../normalize" }
 turbo-stem = { path = "../stem" }
 # The UAX #29 word boundaries and word tokenizer OpenNLP's matchers use.

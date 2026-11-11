@@ -235,8 +235,9 @@ mod tests {
 
     #[test]
     fn digest_is_a_sorted_sha256sum_manifest() {
-        let dir = std::env::temp_dir().join(format!("turbo-eval-masc-digest-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-eval-masc-digest-{}", std::process::id())),
+        );
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(dir.join("b.txt"), b"two").unwrap();
         std::fs::write(dir.join("sub/a.txt"), b"one").unwrap();

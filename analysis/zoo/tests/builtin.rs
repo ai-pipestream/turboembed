@@ -1,6 +1,7 @@
 //! The catalogue preserves neural checkpoints, learned heads, datasets and their licences.
 
 use std::collections::BTreeSet;
+use turbo_scratch::Scratch;
 
 use turbo_zoo::{Http, Index, Licence, LicenceClass, Policy};
 
@@ -222,7 +223,7 @@ fn the_remaining_artifacts_keep_their_licence_requirements() {
 #[ignore]
 #[cfg(feature = "http")]
 fn every_builtin_artifact_fetches_and_verifies() {
-    let cache = std::env::temp_dir().join(format!("turbo-zoo-builtin-{}", std::process::id()));
+    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-builtin-{}", std::process::id())));
     let user: turbo_zoo::UserId = "turbo-zoo-test".parse().unwrap();
     let mut acc = turbo_zoo::Acceptances::default();
     acc.accept(&user, Licence::CcBySa40, 0).unwrap();
@@ -230,7 +231,7 @@ fn every_builtin_artifact_fetches_and_verifies() {
     let index = Index::builtin();
     let ids: Vec<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     let transport = Http::new();
-    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &transport);
+    let zoo = turbo_zoo::Zoo::new(index, cache.to_path_buf(), Policy::default(), &transport);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
         assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");

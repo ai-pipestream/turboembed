@@ -17,6 +17,7 @@ mod cuda_support;
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::Mutex;
+use turbo_scratch::Scratch;
 
 use common::*;
 use cuda_support::*;
@@ -46,8 +47,7 @@ fn caching<T>(dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
 
 /// An empty directory of the test's own for a tuning cache.
 fn cache_dir(name: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-{name}-{}", std::process::id())));
     std::fs::create_dir_all(&d).unwrap();
     d
 }

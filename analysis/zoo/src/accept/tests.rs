@@ -148,7 +148,7 @@ fn parse_is_strict() {
 
 #[test]
 fn a_missing_file_is_no_acceptances() {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-{}", std::process::id()));
+    let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-accept-{}", std::process::id())));
     let path = dir.join("absent").join("acceptances.json");
     assert_eq!(Acceptances::load(&path).unwrap(), Acceptances::default());
     let mut a = Acceptances::default();
@@ -160,7 +160,8 @@ fn a_missing_file_is_no_acceptances() {
 
 #[test]
 fn an_unusable_entry_is_named_with_the_file() {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-bad-{}", std::process::id()));
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-accept-bad-{}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     let path = dir.join("acceptances.json");
     let text = r#"{"acceptances_version":1,"accepted":[{"user":"a","license":"CC-BY-SA-4.0","license_text":"https://creativecommons.org/licenses/by-sa/4.0/legalcode","accepted_at":1},{"user":"a","license":"MIT","license_text":"https://opensource.org/license/mit","accepted_at":2}]}"#;
@@ -175,8 +176,8 @@ fn an_unusable_entry_is_named_with_the_file() {
 #[cfg(unix)]
 #[test]
 fn save_never_writes_through_a_symlinked_temporary_file() {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-accept-link-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-accept-link-{}", std::process::id())));
     fs::create_dir_all(dir.join("home")).unwrap();
     let victim = dir.join("victim");
     fs::write(&victim, b"untouched").unwrap();

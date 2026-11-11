@@ -5,6 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use serde_json::Value;
 use turbo::head::CorefRanker;
@@ -23,10 +24,8 @@ fn moonstone_fixture() -> &'static [u8] {
     include_bytes!("../../../analysis/train-recipes/tests/data/litbank/155_the_moonstone_brat.conll")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-litbank-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-litbank-{}-{name}", std::process::id())))
 }
 
 fn row(doc: &str, tok: usize, word: &str, coref: &str) -> String {

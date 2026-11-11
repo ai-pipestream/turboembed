@@ -2,12 +2,13 @@
 
 use std::fs;
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 mod common;
 
 #[test]
 fn committed_tables_match_the_generator_output() {
-    let out = std::env::temp_dir().join(format!("turbo-unicode-tables-{}", std::process::id()));
+    let out = Scratch::at(std::env::temp_dir().join(format!("turbo-unicode-tables-{}", std::process::id())));
     let files = turbo_unicode_gen::generate(&common::ucd_dir(), &out).expect("the generator writes its files");
     let committed = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("tables");
     for file in &files {
