@@ -7,6 +7,7 @@
 
 use std::time::Duration;
 
+use super::refused;
 use crate::release::ReleaseConfig;
 use crate::release::audit::DEFAULT_AUDIT_TIMEOUT;
 use crate::release::caps::Grants;
@@ -97,11 +98,7 @@ impl ReleaseFlags {
             (None, Some(v)) => match v.as_str() {
                 "" | "0" | "false" | "no" => false,
                 "1" | "true" | "yes" => true,
-                _ => {
-                    return Err(format!(
-                        "{ENV_PII_REQUIRE_RECORDED_POLICY}={v}: not one of 1, true, yes, 0, false, no"
-                    ));
-                }
+                _ => return Err(refused(ENV_PII_REQUIRE_RECORDED_POLICY, &v, super::refused::SWITCH)),
             },
         };
         if grants.is_empty() {
@@ -142,7 +139,7 @@ impl ReleaseFlags {
             None => DEFAULT_AUDIT_TIMEOUT,
             Some(v) => match v.parse::<u64>() {
                 Ok(n) if n > 0 => Duration::from_millis(n),
-                _ => return Err(format!("--pii-audit-timeout-ms {v}: not a count of milliseconds over 0")),
+                _ => return Err(refused("--pii-audit-timeout-ms", &v, "a count of milliseconds over 0")),
             },
         };
         let config = ReleaseConfig {

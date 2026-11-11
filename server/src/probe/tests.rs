@@ -28,12 +28,21 @@ fn the_address_comes_from_the_flag_else_the_listen_variable() {
 #[test]
 fn bad_arguments_are_refused() {
     assert_eq!(parse(&[], None).unwrap_err(), "--addr or TURBO_KSERVE_LISTEN is required");
-    assert_eq!(parse(&[], Some("nowhere")).unwrap_err(), "TURBO_KSERVE_LISTEN=nowhere: not ADDR:PORT");
-    assert_eq!(parse(&["--addr", "x"], None).unwrap_err(), "--addr x: not ADDR:PORT");
+    assert_eq!(
+        parse(&[], Some("nowhere")).unwrap_err(),
+        "TURBO_KSERVE_LISTEN: the value (7 bytes, not shown) is not ADDR:PORT"
+    );
+    assert_eq!(parse(&["--addr", "x"], None).unwrap_err(), "--addr: the value (1 bytes, not shown) is not ADDR:PORT");
     assert_eq!(parse(&["--addr"], None).unwrap_err(), "--addr needs a value");
-    assert_eq!(parse(&["--timeout-ms", "0"], Some("127.0.0.1:1")).unwrap_err(), "--timeout-ms 0: not a count over 0");
+    assert_eq!(
+        parse(&["--timeout-ms", "0"], Some("127.0.0.1:1")).unwrap_err(),
+        "--timeout-ms: the value (1 bytes, not shown) is not a count over 0"
+    );
     assert_eq!(parse(&["--service", "a", "--service", "b"], Some("127.0.0.1:1")).unwrap_err(), "--service given twice");
-    assert_eq!(parse(&["--nope", "1"], Some("127.0.0.1:1")).unwrap_err(), "unknown argument --nope");
+    assert_eq!(
+        parse(&["--nope", "1"], Some("127.0.0.1:1")).unwrap_err(),
+        "unknown argument (6 bytes, not shown); the flags are --addr, --service, --timeout-ms, --tls-ca, --tls-cert, --tls-key and --tls-name"
+    );
 }
 
 #[tokio::test]

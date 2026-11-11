@@ -2,6 +2,7 @@
 //! the queue bounds, forwarding AnalyzeDocumentProgressive graphs, and the
 //! typed projection. Every one but the endpoint needs the endpoint.
 
+use super::refused;
 use crate::proto::result::OffsetMode;
 use crate::results::disclosure::Disclosure;
 use crate::sink::{DEFAULT_SINK_QUEUE_BYTES, DEFAULT_SINK_QUEUE_ITEMS, SinkConfig, SinkTyped};
@@ -69,7 +70,7 @@ impl SinkFlags {
             (None, Some(v)) => match v.as_str() {
                 "1" | "true" | "yes" => true,
                 "0" | "false" | "no" => false,
-                _ => return Err(format!("{ENV_SINK_DOCUMENTS}={v}: not one of 1, true, yes, 0, false, no")),
+                _ => return Err(refused(ENV_SINK_DOCUMENTS, &v, super::refused::SWITCH)),
             },
         };
         let Some(endpoint) = from_env(self.endpoint, ENV_SINK_ENDPOINT) else {
@@ -89,7 +90,7 @@ impl SinkFlags {
                 None => Ok(default),
                 Some(v) => match v.parse::<u64>() {
                     Ok(n) if n > 0 => Ok(n),
-                    _ => Err(format!("{name} {v}: not a count over 0")),
+                    _ => Err(refused(name, &v, "a count over 0")),
                 },
             }
         };
@@ -106,7 +107,7 @@ impl SinkFlags {
             typed,
             pii_output: match pii_output {
                 None => Disclosure::FINDINGS,
-                Some(v) => Disclosure::parse(&v).map_err(|e| format!("--sink-pii-output {v}: {e}"))?,
+                Some(v) => Disclosure::parse(&v).map_err(|e| format!("--sink-pii-output: {e}"))?,
             },
         }))
     }
@@ -117,7 +118,7 @@ fn offset_mode(v: &str) -> Result<OffsetMode, String> {
         "utf8" => Ok(OffsetMode::Utf8),
         "utf16" => Ok(OffsetMode::Utf16),
         "code-point" => Ok(OffsetMode::CodePoint),
-        _ => Err(format!("--sink-typed-offsets {v}: not one of utf8, utf16, code-point")),
+        _ => Err(refused("--sink-typed-offsets", v, "one of utf8, utf16, code-point")),
     }
 }
 
@@ -126,6 +127,6 @@ fn typed_view_of(v: Option<String>) -> Result<u32, String> {
     let Some(v) = v else { return Ok(0) };
     match v.parse::<u16>() {
         Ok(n) => Ok(u32::from(n)),
-        Err(_) => Err(format!("--sink-typed-view {v}: not a view index from 0 to 65535")),
+        Err(_) => Err(refused("--sink-typed-view", &v, "a view index from 0 to 65535")),
     }
 }
