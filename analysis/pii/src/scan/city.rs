@@ -57,6 +57,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let mut found: Vec<(usize, usize, &'static str)> = Vec::new();
     let mut at = 0;
     while at < b.len() {
+        super::step((b.len() - at).min(LANES));
         // A whole lane is tested with no branch, so the test vectorizes;
         // the lanes of most text hold no anchor.
         if let Some(w) = b.get(at..at + LANES + 2).and_then(|w| <&[u8; LANES + 2]>::try_from(w).ok())
@@ -109,6 +110,7 @@ fn at_anchor(text: &str, i: usize, found: &mut Vec<(usize, usize, &'static str)>
             // (`:::` costs no more than `:`).
             let mut end = i;
             for (at, c) in text[..i].char_indices().rev() {
+                super::step(1);
                 if c == ':' {
                     return;
                 }
@@ -190,6 +192,7 @@ fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str
 /// like a name with no word character touching either end.
 fn lookup(text: &str, start: usize, end: usize) -> Option<Vec<Entry<'static>>> {
     let written = &text[start..end];
+    super::step(written.len());
     if !on_name_start(text, start) || !on_name_end(text, end) || !capitals_like_a_name(written) {
         return None;
     }
@@ -211,6 +214,7 @@ fn after_label(text: &str, i: usize) -> Option<usize> {
     let mut at = i + label.len();
     let mut saw_colon = false;
     while let Some(c) = text[at..].chars().next() {
+        super::step(1);
         if !(whitespace(c) || matches!(c, ':' | '#' | '=')) {
             break;
         }
@@ -230,9 +234,17 @@ fn word_starts_before(text: &str, end: usize, starts: &mut [usize]) -> usize {
         let mut start = text[..at]
             .char_indices()
             .rev()
-            .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| {
+                super::step(1);
+                !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-'))
+            })
             .map_or(0, |(p, c)| p + c.len_utf8());
-        let Some(lead) = text[start..at].find(|c: char| c.is_alphanumeric()) else { break };
+        let Some(lead) = text[start..at].find(|c: char| {
+            super::step(1);
+            c.is_alphanumeric()
+        }) else {
+            break;
+        };
         start += lead;
         // The last word starts with a capital; an inner one may be small
         // (`Truth or Consequences`, `Fond du Lac`), and `lookup` holds each
@@ -261,9 +273,18 @@ fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
     while n < ends.len() {
         let run = text[at..]
             .char_indices()
-            .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| {
+                super::step(1);
+                !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-'))
+            })
             .map_or(text.len(), |(p, _)| at + p);
-        let end = text[at..run].trim_end_matches(|c: char| !name_char(c)).len() + at;
+        let end = text[at..run]
+            .trim_end_matches(|c: char| {
+                super::step(1);
+                !name_char(c)
+            })
+            .len()
+            + at;
         if end == at || !on_name_end(text, end) {
             break;
         }

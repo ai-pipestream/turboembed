@@ -119,9 +119,11 @@ fn a_city_and_its_state_are_two_mentions() {
 
 #[test]
 fn a_run_of_separators_is_walked_once() {
-    // Each colon of a run used to look back over the whole run, so a
-    // megabyte of them took minutes; now it is one pass.
-    let n = 1 << 20;
+    // Linear step scaling across state, county and city is checked at n and 8n
+    // in `scan::places_tests` (#2112); here we check the separator forms
+    // themselves at a bounded length so a regression fails fast rather than
+    // hanging until the CI job timeout.
+    let n = 4_000;
     for text in [":".repeat(n), format!("City{}", ":".repeat(n)), " : ".repeat(n / 3), "City #= ".repeat(n / 8)] {
         assert!(cities(&text).is_empty());
     }

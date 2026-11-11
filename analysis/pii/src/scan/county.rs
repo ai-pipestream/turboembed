@@ -23,6 +23,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i < b.len() {
+        super::step(1);
         let Some(end) = suffix_at(text, i) else {
             i += 1;
             continue;
@@ -63,10 +64,18 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         let mut start = text[..word_end]
             .char_indices()
             .rev()
-            .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| {
+                super::step(1);
+                !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-'))
+            })
             .map_or(0, |(p, c)| p + c.len_utf8());
         // Leading punctuation (`(Cook County`) is not part of the name.
-        let Some(lead) = text[start..word_end].find(|c: char| c.is_alphanumeric()) else { break };
+        let Some(lead) = text[start..word_end].find(|c: char| {
+            super::step(1);
+            c.is_alphanumeric()
+        }) else {
+            break;
+        };
         start += lead;
         starts[n] = start;
         n += 1;
@@ -81,6 +90,7 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         return None;
     }
     starts[..n].iter().rev().filter(|&&start| capital_at(text, start)).find_map(|&start| {
+        super::step(end - start);
         let written = nfc(&text[start..end]);
         let name = county(&written)?;
         (on_name_start(text, start) && cased_like(&written, name)).then_some((start, name))

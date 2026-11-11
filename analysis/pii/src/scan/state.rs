@@ -31,6 +31,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i < b.len() {
+        super::step(1);
         if !b[i].is_ascii_uppercase() || !on_name_start(text, i) {
             i += 1;
             continue;
