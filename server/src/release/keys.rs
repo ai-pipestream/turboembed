@@ -106,7 +106,7 @@ impl TokenKeyFile {
 }
 
 /// A value that does not split into `form`, described without its text.
-fn shape(form: &str, s: &str) -> String {
+pub(super) fn shape(form: &str, s: &str) -> String {
     let parts = s.split(':').count();
     let n = s.len();
     format!("the value ({n} bytes in {parts} `:`-separated parts, not shown) is not {form}")
