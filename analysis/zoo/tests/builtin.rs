@@ -1,7 +1,6 @@
 //! The catalogue preserves neural checkpoints, learned heads, datasets and their licences.
 
 use std::collections::BTreeSet;
-use turbo_scratch::Scratch;
 
 use turbo_zoo::{Http, Index, Licence, LicenceClass, Policy};
 
@@ -223,7 +222,8 @@ fn the_remaining_artifacts_keep_their_licence_requirements() {
 #[ignore]
 #[cfg(feature = "http")]
 fn every_builtin_artifact_fetches_and_verifies() {
-    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-builtin-{}", std::process::id())));
+    let cache =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-builtin-{}", std::process::id())));
     let user: turbo_zoo::UserId = "turbo-zoo-test".parse().unwrap();
     let mut acc = turbo_zoo::Acceptances::default();
     acc.accept(&user, Licence::CcBySa40, 0).unwrap();
