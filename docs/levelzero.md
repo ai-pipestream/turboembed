@@ -531,6 +531,42 @@ refuses it. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
 with `TURBO_TEST_REQUIRE_LEVELZERO=1` (or `TURBO_TEST_DEVICE=levelzero`),
 and fails when the LSTM cannot be made there.
 
+## Benchmark records
+
+`benchmarks/records/b70.levelzero.embed.*.2cb395364fa9.json` are the
+levelzero backend's records (docs/benchmarks.md) for all-MiniLM-L6-v2
+(manifest `0f17adc4`) and bge-base-en-v1.5 (manifest `0ecbae3e`), made at
+library commit `2cb39536` with the `levelzero-onednn` feature on an Intel
+Arc Pro B70, Linux 7.3 with the xe driver, Level Zero driver `1.3.39122`
+(the `libze-intel-gpu1` and `intel-opencl-icd` 26.27.39122.14 packages,
+IGC 2.40.14) and loader 1.32.0, oneDNN 3.9 from oneAPI 2025.3. The GPU
+clock was pinned at 2200 MHz for the runs (`min_freq` and `max_freq`
+under the xe driver's `tile0/gt0/freq0` set to 2200), which a record
+does not carry. 32 rows of 256 tokens, 20 untimed and 200 timed runs,
+oneDNN's linear layers at every precision (`linear=onednn`). The
+reference is OpenVINO 2026.4's `benchmark_app` on the same GPU
+(`openvino/ubuntu24_dev@sha256:91a9411e9c8aecdbb8a35426c9d1f1938c5680eca977da9e7b9cf519e5e0f21a`);
+TEI was not run. p50 in ms, with the earlier records at `b63bd467`
+(driver `1.3.37020`) beside them:
+
+| Model | Rows | FASTEST | MODEL | EXACT | OpenVINO at FASTEST | at `b63bd467`: FASTEST, MODEL, EXACT |
+|---|---|---|---|---|---|---|
+| all-MiniLM-L6-v2 | mixed | 0.905 | 2.844 | 2.823 | 4.44 | 0.902, 2.839, 2.844 |
+| all-MiniLM-L6-v2 | dense | 3.106 | 13.711 | 13.710 | 4.37 | 3.035, 13.635, 13.626 |
+| bge-base-en-v1.5 | mixed | 2.480 | 9.769 | 9.813 | 18.09 | 2.491, 9.865, 9.871 |
+| bge-base-en-v1.5 | dense | 16.943 | 94.395 | 94.269 | 18.24 | 16.678, 94.026, 94.098 |
+
+The library's lowest cosine against each bundle's reference vectors is
+at least 0.99999885 at FASTEST, the same values as at `b63bd467`, and
+0.9999999999 at MODEL and EXACT. The dense FASTEST rows are 2.3%
+(MiniLM) and 1.6% (bge-base) slower than at `b63bd467` and the rest
+within 1%. In one interleaved session on this driver and clock,
+`b63bd467` was no faster than main at dense FASTEST, which is
+consistent with a driver or runtime effect rather than a library
+change; those paired runs are not committed as records. On this
+machine a p50 moves by up to 4% between sessions at the same clock, so
+a comparison between builds is made interleaved in one session.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test

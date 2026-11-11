@@ -165,7 +165,7 @@ fn a_date_rule_turns_the_date_pack_on() {
     for (pack, want) in [
         (Pack::Dates, &[PiiKind::Date][..]),
         (Pack::Money, &[PiiKind::Currency]),
-        (Pack::Places, &[PiiKind::State, PiiKind::County]),
+        (Pack::Places, &[PiiKind::State, PiiKind::County, PiiKind::City]),
     ] {
         let kinds: Vec<PiiKind> = pack.scanners().iter().flat_map(|s| s.kinds().iter()).collect();
         assert_eq!(kinds, want, "{pack:?}");
@@ -253,8 +253,10 @@ fn the_canonical_date_arm_keeps_ascending_field_order() {
 }
 
 #[test]
-fn a_state_or_county_rule_turns_the_places_pack_on() {
-    for (name, id) in [("state", pb::PiiKindId::State), ("county", pb::PiiKindId::County)] {
+fn a_state_county_or_city_rule_turns_the_places_pack_on() {
+    for (name, id) in
+        [("state", pb::PiiKindId::State), ("county", pb::PiiKindId::County), ("city", pb::PiiKindId::City)]
+    {
         let mask = Strategy::Mask(pb::PiiMaskStrategy::default());
         let p = RedactionPolicy::from_proto(&policy(vec![rule(name, builtin(id), vec![entry(mask)])]), &NoRegistry)
             .unwrap();

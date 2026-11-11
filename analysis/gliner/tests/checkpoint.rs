@@ -130,15 +130,38 @@ fn small_v2_5_checkpoint_matches_python() {
             .unwrap();
     let words = ["Alice", "works", "at", "Microsoft", "in", "Paris", "."];
     let (input, candidates) = model.training_input(&words, &schema).unwrap();
-    let trainer = turbo_gliner::train::OutputTrainer::load(
-        model.config(),
-        &std::fs::read(turbo_pins::require(&root).join("heads.safetensors")).unwrap(),
-    )
-    .unwrap();
+    let original = std::fs::read(turbo_pins::require(&root).join("heads.safetensors")).unwrap();
+    let trainer = turbo_gliner::train::OutputTrainer::load(model.config(), &original).unwrap();
     let mut grads = trainer.zero_grads();
-    let loss = trainer.gradients(&input, &candidates, &[(words.len() - 1, words.len(), 0)], &mut grads).unwrap();
+    let gold = [(words.len() - 1, words.len(), 0)];
+    let loss = trainer.gradients(&input, &candidates, &gold, &mut grads).unwrap();
     assert!(loss > 0.0, "a one-word span at the sentence end must train");
     assert!(grads[0].iter().any(|&x| x != 0.0));
+
+    let mut boundary =
+        turbo_gliner::train::OutputTrainer::load_with_heads(model.config(), &original, true, true, true).unwrap();
+    let mut grads = boundary.zero_grads();
+    let boundary_loss = boundary.gradients(&input, &candidates, &gold, &mut grads).unwrap();
+    assert!((boundary_loss - loss).abs() < 1e-4);
+    assert!(grads[4..12].iter().flatten().any(|&x| x != 0.0));
+    assert!(grads[12..16].iter().flatten().any(|&x| x != 0.0));
+    assert!(grads[16..].iter().flatten().any(|&x| x != 0.0));
+    let mut optimizer = turbo_gliner::train::output_optimizer(
+        turbo_trainer::adamw::Settings { lr: 1e-6, total: 1, ..turbo_trainer::adamw::Settings::default() },
+        &boundary,
+    )
+    .unwrap();
+    boundary.step(&mut optimizer, &mut grads).unwrap();
+    let mut tuned = Manifest::load(&turbo_pins::require(&root)).unwrap();
+    tuned.apply_output(&boundary).unwrap();
+    let expected = tuned.training_input(&words, &schema).unwrap().1;
+    let heads = boundary.write_heads(&original).unwrap();
+    let out = std::env::temp_dir().join(format!("turbo-gliner-boundary-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    Manifest::write_tuned(&turbo_pins::require(&root), &out, &heads).unwrap();
+    let reloaded = Manifest::load(&out).unwrap();
+    assert_eq!(reloaded.training_input(&words, &schema).unwrap().1, expected);
+    let _ = std::fs::remove_dir_all(&out);
 }
 
 #[test]

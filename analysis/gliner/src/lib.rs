@@ -3,6 +3,7 @@
 mod codec;
 mod config;
 mod device;
+mod features;
 mod heads;
 pub mod open_span;
 mod output;
@@ -13,6 +14,7 @@ mod precision_codec;
 mod precision_eval;
 mod precision_evidence;
 mod precision_rules;
+mod recurrent;
 mod schema;
 mod subwords;
 pub mod train;

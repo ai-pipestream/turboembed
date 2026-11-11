@@ -299,7 +299,7 @@ impl Heads {
         Ok(out)
     }
 
-    /// Frozen encoder, prompt and boundary features for output-head training,
+    /// Frozen word and prompt features for output and boundary training,
     /// plus the ordinary inference candidates used to mine hard negatives.
     pub(crate) fn training(
         &self,
@@ -329,8 +329,11 @@ impl Heads {
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
         let mut input = crate::train::TrainingInput {
+            words: w.words.clone(),
+            projected_words: projected[labels * d..].to_vec(),
             spans: Vec::new(),
             prompts: w.prompts.clone(),
+            prompt_inputs: projected[..labels * d].to_vec(),
             pairs: pairs.iter().map(|&(start, end)| (start, end + 1)).collect(),
         };
         let scorer = Matrix::from_rows(&[&w.prompts], d).map_err(memory)?;
@@ -355,21 +358,79 @@ impl Heads {
         Ok((input, candidates))
     }
 
-    pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
-        let (h, f) = match &self.head {
-            SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
+    /// Installs trained tensors: the output projection in this model's own
+    /// form, then the head groups the flags name, in the trainer's order
+    /// (two boundary MLPs, the prompt MLP at its own width, the BiLSTM).
+    pub(crate) fn set_output(
+        &mut self,
+        params: &[Vec<f32>],
+        boundaries: bool,
+        prompt: bool,
+        recurrent: bool,
+    ) -> Result<(), String> {
+        let (h, f, linear) = match &self.head {
+            SpanHead::Marker { start, span, .. } => (self.hidden, start.first.n, matches!(span, OutputHead::Linear(_))),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        let span = match params {
+        let prompt_width = match (&self.prompt, prompt) {
+            (PromptHead::Mlp(head), true) => head.first.n,
+            (PromptHead::Identity, true) => return Err("gliner prompt training requires a prompt projection".into()),
+            (_, false) => 0,
+        };
+        let output_len = if linear { 2 } else { 4 };
+        let prompt_offset = output_len + if boundaries { 8 } else { 0 };
+        let recurrent_offset = prompt_offset + if prompt { 4 } else { 0 };
+        if params.len() != recurrent_offset + if recurrent { 8 } else { 0 } {
+            return Err("gliner output training tensors do not match the model's heads".into());
+        }
+        let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
                 last: Dense::new(w1, b1.clone(), h, f)?,
             }),
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
-            _ => return Err("gliner output training requires two linear or four MLP tensors".into()),
+            _ => unreachable!(),
         };
-        let SpanHead::Marker { span: current, .. } = &mut self.head else { unreachable!() };
+        let mlp = |values: &[Vec<f32>], width: usize| -> Result<Box<Mlp>, String> {
+            Ok(Box::new(Mlp {
+                first: Dense::new(&values[0], values[1].clone(), width, h)?,
+                last: Dense::new(&values[2], values[3].clone(), h, width)?,
+            }))
+        };
+        let boundaries = if boundaries {
+            Some((mlp(&params[output_len..output_len + 4], f)?, mlp(&params[output_len + 4..output_len + 8], f)?))
+        } else {
+            None
+        };
+        let prompt = if prompt {
+            Some(PromptHead::Mlp(mlp(&params[prompt_offset..prompt_offset + 4], prompt_width)?))
+        } else {
+            None
+        };
+        let recurrent = if recurrent {
+            let values = &params[recurrent_offset..];
+            let forward: Vec<f32> = values[2].iter().zip(&values[3]).map(|(a, b)| a + b).collect();
+            let reverse: Vec<f32> = values[6].iter().zip(&values[7]).map(|(a, b)| a + b).collect();
+            let dirs = [
+                Weights { w: &values[0], u: &values[1], b: &forward, reverse: false },
+                Weights { w: &values[4], u: &values[5], b: &reverse, reverse: true },
+            ];
+            Some(Lstm::new(h, h / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?)
+        } else {
+            None
+        };
+        let SpanHead::Marker { start, end, span: current } = &mut self.head else { unreachable!() };
         *current = span;
+        if let Some((new_start, new_end)) = boundaries {
+            *start = new_start;
+            *end = new_end;
+        }
+        if let Some(prompt) = prompt {
+            self.prompt = prompt;
+        }
+        if let Some(recurrent) = recurrent {
+            self.lstm = recurrent;
+        }
         Ok(())
     }
 
