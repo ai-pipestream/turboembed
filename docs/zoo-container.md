@@ -102,6 +102,35 @@ those arguments. The image defaults are:
 | `TURBO_DEMO_ALLOW` | `RecordLicenceAcceptance`, `RevokeLicenceAcceptance` and `InstallModel` |
 | `TURBO_DEMO_USER` | `zoo`, set by `zoo-start` when unset |
 
+## Several zoos on one data directory
+
+To run several zoos behind a load balancer, or one zoo whose models and
+acceptances outlive its volume, mount one persistent directory into
+each container and name it with `TURBO_KSERVE_CATALOG_DATA` in place of
+a store (docs/grpc-catalog.md, The data directory). How the directory
+is kept is the admin's choice: an NFS export, a replicated or synced
+disk, a volume. Each container keeps its own `/zoo` for its cache.
+
+```
+docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo-a:/zoo \
+    -v /srv/turbo-data:/data -e TURBO_KSERVE_CATALOG_DATA=/data turbo-zoo
+docker run -d -p 9080:8080 -p 9081:8081 -v turbo-zoo-b:/zoo \
+    -v /srv/turbo-data:/data -e TURBO_KSERVE_CATALOG_DATA=/data turbo-zoo
+```
+
+- A file one zoo fetched is served by the others from the directory,
+  with no second fetch, and two zoos fetching it at once both succeed.
+- An acceptance recorded through one zoo is honoured, and its revoke
+  seen, by every other, so a user may land on any of them.
+- The directory must be writable by the image's user, 10001; with an
+  NFS export that squashes users, map them to an owner of the
+  directory. `private/` must not be open to other users, or the zoo
+  exits at start naming it.
+- Clients with the directory mounted may read `public/` directly
+  (docs/zoo.md); export only that side to them, read-only.
+- A zoo that mounts the directory read-only serves what it holds and
+  fetches nothing, so one writable zoo can fill it for read-only ones.
+
 ## What runs in the image
 
 The entrypoint, `zoo-start` (server/zoo/zoo-start), starts `turbo-kserve`

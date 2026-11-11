@@ -155,6 +155,8 @@ pub struct Args {
     /// The store the catalog reads first and fills: `file:///dir` or
     /// `s3://bucket/prefix`.
     pub catalog_store: Option<String>,
+    /// The data directory, in place of a store, that also holds the acceptances.
+    pub catalog_data: Option<String>,
     /// Zoo mode: any user records their own acceptance and installs what
     /// they are permitted, a read fetches a permitted artifact not yet in
     /// the cache, and the server may start with no model.
@@ -215,6 +217,7 @@ pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
 pub const ENV_CATALOG_STORE: &str = "TURBO_KSERVE_CATALOG_STORE";
+pub const ENV_CATALOG_DATA: &str = "TURBO_KSERVE_CATALOG_DATA";
 pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub use pii::ENV_PII_OUTPUT_ALLOW;
 pub use release::{
@@ -232,14 +235,14 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL] [--catalog-prefetch permissive] [--zoo]] \
+[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] \
 [--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
 [--pii-output-allow none|rewritten-text,full-text,detail] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT] [--pii-policy PATH ...]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
-TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_DATA, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_SINK_DOCUMENTS, TURBO_KSERVE_SINK_TYPED_OFFSETS, \
 TURBO_KSERVE_SINK_TYPED_VIEW, TURBO_KSERVE_SINK_PII_OUTPUT, TURBO_KSERVE_PII_OUTPUT_ALLOW, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
@@ -278,7 +281,7 @@ impl Args {
         let (mut admin, mut zoo) = (None, None);
         let mut vocabulary_dir = None;
         let (mut sink_flags, mut release_flags) = (sink::SinkFlags::default(), release::ReleaseFlags::default());
-        let (mut catalog_dir, mut catalog_index, mut catalog_store) = (None, None, None);
+        let (mut catalog_dir, mut catalog_index, mut catalog_store, mut catalog_data) = (None, None, None, None);
         let mut catalog_prefetch = None;
         let mut training_dir = None;
         let mut bundle_dir = None;
@@ -332,6 +335,7 @@ impl Args {
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
                 "--catalog-store" => once(&flag, value()?, &mut catalog_store)?,
+                "--catalog-data" => path_once(&flag, value()?, &mut catalog_data)?,
                 "--catalog-prefetch" => once(&flag, value()?, &mut catalog_prefetch)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
                 "--pii-output-allow" => once(&flag, value()?, &mut pii_output_allow)?,
@@ -412,22 +416,21 @@ impl Args {
         catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
         training_dir = training_dir.or_else(|| env(ENV_TRAINING_DIR).filter(|v| !v.is_empty()));
         catalog_store = catalog_store.or_else(|| env(ENV_CATALOG_STORE).filter(|v| !v.is_empty()));
-        if catalog_index.is_some() && catalog_dir.is_none() {
-            return Err("--catalog-index needs --catalog-dir".into());
-        }
-        if catalog_store.is_some() && catalog_dir.is_none() {
-            return Err("--catalog-store needs --catalog-dir".into());
-        }
+        catalog_data = catalog_data.or_else(|| env(ENV_CATALOG_DATA).filter(|v| !v.is_empty()));
         let catalog_prefetch = match catalog_prefetch.or_else(|| env(ENV_CATALOG_PREFETCH).filter(|v| !v.is_empty())) {
             None => false,
             Some(v) if v == "permissive" => true,
             Some(v) => return Err(refused("--catalog-prefetch", &v, "permissive, the one mode")),
         };
-        if catalog_prefetch && catalog_dir.is_none() {
-            return Err("--catalog-prefetch needs --catalog-dir".into());
-        }
-        if zoo && catalog_dir.is_none() {
-            return Err("--zoo needs --catalog-dir".into());
+        let needs_dir = [
+            ("--catalog-index", catalog_index.is_some()),
+            ("--catalog-store", catalog_store.is_some()),
+            ("--catalog-data", catalog_data.is_some()),
+            ("--catalog-prefetch", catalog_prefetch),
+            ("--zoo", zoo),
+        ];
+        if let Some((flag, _)) = needs_dir.iter().find(|(_, set)| *set && catalog_dir.is_none()) {
+            return Err(format!("{flag} needs --catalog-dir"));
         }
         let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         let sink = sink_flags.resolve(&env)?;
@@ -472,6 +475,7 @@ impl Args {
             catalog_dir,
             catalog_index,
             catalog_store,
+            catalog_data,
             zoo,
             catalog_prefetch,
             training_dir,

@@ -8,6 +8,7 @@
 //! every call refuses UNIMPLEMENTED.
 
 mod accept;
+mod data;
 mod disk;
 mod entry;
 mod gate;
@@ -16,6 +17,7 @@ mod read;
 mod sources;
 mod through;
 
+pub use data::{ByClass, DataDir};
 pub(crate) use gate::check_load;
 pub use read::READ_CHUNK_BYTES;
 pub use sources::{DriveSignIn, ENV_DRIVE_CLIENT_ID, ENV_DRIVE_CLIENT_SECRET, ENV_DRIVE_REDIRECT, SIGN_IN_SECONDS};
@@ -48,11 +50,14 @@ use crate::status::to_status;
 /// What the catalog serves: a zoo index, the zoo's home directory, and how
 /// files are fetched. The home holds the cache under `artifacts/` and the
 /// acceptance file `acceptances.json`, as the turbo-zoo command keeps them.
+/// With a data directory, the acceptances are the directory's instead,
+/// shared by every server that opens it (data.rs).
 #[derive(Clone)]
 pub struct Catalog {
     pub home: PathBuf,
     pub index: Arc<Index>,
     pub transport: Arc<dyn Transport + Send + Sync>,
+    pub data: Option<Arc<DataDir>>,
 }
 
 impl fmt::Debug for Catalog {
@@ -67,8 +72,15 @@ impl Catalog {
     /// each file is read from the store first, and the store keeps every
     /// file fetched from its index address, so a store several servers
     /// share, or one seeded ahead, saves the fetch.
+    /// With `data` in place of a store, each file is read from and kept in
+    /// that data directory, which also holds the acceptances.
     #[cfg(feature = "catalog-http")]
-    pub fn http(home: PathBuf, index: Option<&std::path::Path>, store: Option<&str>) -> Result<Catalog, String> {
+    pub fn http(
+        home: PathBuf,
+        index: Option<&std::path::Path>,
+        store: Option<&str>,
+        data: Option<&std::path::Path>,
+    ) -> Result<Catalog, String> {
         let index = match index {
             Some(p) => {
                 let bytes = std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -77,11 +89,20 @@ impl Catalog {
             None => Index::builtin(),
         };
         let origin = turbo_zoo::Http::new();
-        let transport: Arc<dyn Transport + Send + Sync> = match store {
-            None => Arc::new(origin),
-            Some(store) => Arc::new(store_first(store, origin)?),
+        let transport: Arc<dyn Transport + Send + Sync> = match (store, data) {
+            (Some(_), Some(_)) => return Err("--catalog-store and --catalog-data are two stores; give one".into()),
+            (None, Some(dir)) => return Ok(Catalog::on_data(home, index, Arc::new(origin), DataDir::open(dir)?)),
+            (None, None) => Arc::new(origin),
+            (Some(store), None) => Arc::new(store_first(store, origin)?),
         };
-        Ok(Catalog { home, index: Arc::new(index), transport })
+        Ok(Catalog { home, index: Arc::new(index), transport, data: None })
+    }
+
+    /// The catalog on the data directory `data`, fetching what it lacks
+    /// from the index's addresses through `origin`.
+    pub fn on_data(home: PathBuf, index: Index, origin: Arc<dyn Transport + Send + Sync>, data: DataDir) -> Catalog {
+        let transport = Arc::new(data.transport(origin));
+        Catalog { home, index: Arc::new(index), transport, data: Some(Arc::new(data)) }
     }
 
     fn cache(&self) -> PathBuf {
@@ -92,8 +113,12 @@ impl Catalog {
         self.home.join("acceptances.json")
     }
 
-    /// The acceptance file, empty when there is none yet.
+    /// The acceptances: the data directory's when there is one, else the
+    /// home's acceptance file, empty when there is none yet.
     pub(crate) fn acceptances(&self) -> Result<Acceptances, ZooError> {
+        if let Some(d) = &self.data {
+            return d.acceptances();
+        }
         let p = self.acceptances_path();
         if p.exists() { Acceptances::load(&p) } else { Ok(Acceptances::default()) }
     }

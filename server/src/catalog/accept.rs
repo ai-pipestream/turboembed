@@ -6,7 +6,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::Status;
 use turbo_zoo::{Acceptance, Acceptances, Policy, Requirement, Sha256, Shown, UserId, ZooError};
 
-use super::{Catalog, invalid, terms, zoo_status};
+use super::{Catalog, DataDir, invalid, plain, terms, zoo_status};
+use crate::api::{Failure, TURBO_E_INVALID_STATE};
 use crate::proto::training::{
     LicenceAcceptance, ListLicenceAcceptancesResponse, RecordLicenceAcceptanceResponse, RevokeLicenceAcceptanceResponse,
 };
@@ -37,6 +38,19 @@ pub(super) fn shown(catalog: &Catalog, r: &Requirement, artifact: &str, sha256: 
     Ok(Shown { artifact, text_sha256 })
 }
 
+/// Refuses a change to the acceptances of a data directory this server
+/// cannot write.
+fn writable(d: &DataDir) -> Result<(), Status> {
+    if d.writable() {
+        return Ok(());
+    }
+    let m = format!(
+        "the data directory {} is read-only: acceptances are recorded on a server that can write it",
+        d.root().display()
+    );
+    Err(plain(Failure::new(TURBO_E_INVALID_STATE, 0, m)))
+}
+
 fn save(catalog: &Catalog, acceptances: &Acceptances) -> Result<(), Status> {
     std::fs::create_dir_all(&catalog.home)
         .map_err(|e| zoo_status(ZooError::Io { path: catalog.home.clone(), message: e.to_string() }))?;
@@ -50,6 +64,11 @@ pub(super) fn record(
     r: &Requirement,
     shown: &Shown,
 ) -> Result<RecordLicenceAcceptanceResponse, Status> {
+    if let Some(d) = &catalog.data {
+        writable(d)?;
+        let accepted_at = d.record(who, r, shown).map_err(zoo_status)?;
+        return Ok(RecordLicenceAcceptanceResponse { user: who.to_string(), accepted: Some(terms(r)), accepted_at });
+    }
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let mut acceptances = catalog.acceptances().map_err(zoo_status)?;
     acceptances.accept_shown(who, r, shown, now).map_err(zoo_status)?;
@@ -68,6 +87,11 @@ pub(super) fn revoke(
     who: &UserId,
     r: &Requirement,
 ) -> Result<RevokeLicenceAcceptanceResponse, Status> {
+    if let Some(d) = &catalog.data {
+        writable(d)?;
+        let was_accepted = d.revoke(who, r).map_err(zoo_status)?;
+        return Ok(RevokeLicenceAcceptanceResponse { user: who.to_string(), revoked: Some(terms(r)), was_accepted });
+    }
     let mut acceptances = catalog.acceptances().map_err(zoo_status)?;
     let was_accepted = acceptances.revoke(who, r);
     if was_accepted {

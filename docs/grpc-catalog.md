@@ -28,6 +28,51 @@ read. A file the store cannot keep is still installed. A
 from its publisher on each install and never kept there, since the class
 allows no copy beyond the cache it is installed into.
 
+## The data directory
+
+`--catalog-data DIR` (or `TURBO_KSERVE_CATALOG_DATA`) gives the catalog
+one persistent directory in place of `--catalog-store`: it is the
+store, and it holds the licence acceptances too. Several servers may
+open the same directory, each with its own `--catalog-dir` for its
+cache and its users' sources. The server assumes only that what it
+writes there stays; whether that is an NFS mount, a replicated or
+synced disk or a volume is the admin's choice. The two stores are
+exclusive: a server given both exits at start.
+
+```
+DIR/public/blobs/sha256/<hex>     permissive files that need no acceptance
+DIR/private/blobs/sha256/<hex>    every other file that may be redistributed
+DIR/private/acceptances/<key>.json  one acceptance per file
+```
+
+- `public/` is in the store layout docs/zoo.md describes, so a client
+  may read it directly, `TURBO_ZOO_SOURCE=file:///mount/public`, with
+  no server in between. Only a `CLASS_PERMISSIVE` artifact that needs
+  no acceptance is kept there. Give clients `public/` read-only, or have
+  them name a local store first, since a library keeps what it reads in
+  the first `file://` store it names (docs/zoo.md).
+- `private/` holds the files of share-alike, LGPL and other accept-first
+  artifacts, which reach a user only through a server after its licence
+  check, and the acceptances. The server makes it readable by its own
+  user alone and refuses to start when users other than its owner and
+  group may read or enter it. Export or mount only `public/` to clients.
+- A `CLASS_LOCAL_ONLY` file is never written to the directory, as with
+  any store: each server fetches it from its publisher.
+- Each acceptance is its own file, named by the SHA-256 of the user and
+  the terms, so servers that record at once never rewrite each other's
+  file; a revoke removes it. An acceptance recorded through one server
+  is honoured, listed and revoked through every other. The home's
+  `acceptances.json` is not read while a data directory is set.
+- Every file is written whole under a temporary name and renamed into
+  place, so a reader never sees part of one, and two servers fetching
+  the same file both succeed and leave one verified copy.
+
+A server that cannot write the directory when it starts serves the
+files already there and fetches nothing from the index's addresses: a
+read or install of a file the directory lacks fails naming the
+read-only directory, and recording or revoking an acceptance is refused
+`FAILED_PRECONDITION` (`TURBO_E_INVALID_STATE`).
+
 ## The service
 
 | RPC | Admin | Answer |

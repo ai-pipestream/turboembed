@@ -87,6 +87,7 @@ no way to stop a load part way.
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
 | `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
 | `--catalog-store URL` | The store installs read first and fill: `file:///dir` or `s3://bucket/prefix` (docs/grpc-catalog.md). Needs `--catalog-dir`. | No store: each file is fetched from its address. |
+| `--catalog-data DIR` | A persistent data directory several servers may share, in place of `--catalog-store`: the store, with a `public/` side clients may read directly, and the licence acceptances (docs/grpc-catalog.md, The data directory). Needs `--catalog-dir`. | No data directory. |
 | `--zoo` | Zoo mode (docs/grpc-catalog.md, Zoo mode): any caller records an acceptance and installs, a `ReadModelFile` of a permitted artifact not yet installed fetches it first, and the server may start with zero models. Needs `--catalog-dir`. | Off. |
 | `--catalog-prefetch permissive` | Install every permissive artifact in the background at start (docs/grpc-catalog.md, Prefetch). Needs `--catalog-dir`. | Off. |
 | `--training-dir PATH` | The directory static models are trained into, one sealed bundle per child, made when it does not exist (docs/grpc-training.md). | No training directory: every training call but `ListTeachers`, `TrainComponent` and a `StreamingTraining` component job refuses with `UNIMPLEMENTED`. |
@@ -173,6 +174,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
 | `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
 | `TURBO_KSERVE_CATALOG_STORE` | `--catalog-store` |
+| `TURBO_KSERVE_CATALOG_DATA` | `--catalog-data` |
 | `TURBO_KSERVE_CATALOG_PREFETCH` | `--catalog-prefetch` |
 | `TURBO_KSERVE_ZOO` | `--zoo` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_TRAINING_DIR` | `--training-dir` |
