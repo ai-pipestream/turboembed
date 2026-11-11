@@ -99,8 +99,8 @@ h2 = "0.4"
 # The tests read the bundle's manifest and reference.
 serde_json = "1"
 turbo-pins = { path = "../analysis/pins" }
-# The sink tests relay a call over TCP and cut it.
-tokio = { version = "1", features = ["io-util"] }
+# The sink tests relay a call over TCP and cut it; the stream tests pause the clock.
+tokio = { version = "1", features = ["io-util", "test-util"] }
 # The TrainComponent tests tag with the POS model a call trains.
 turbo-postag = { path = "../analysis/postag" }
 
