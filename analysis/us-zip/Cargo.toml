@@ -9,6 +9,8 @@ publish = false
 name = "turbo_us_zip"
 
 [dependencies]
+# GeoPoint, GeoBoundingBox and the gazetteer record a ZCTA becomes.
+turbo-geo = { path = "../geo" }
 
 [dev-dependencies]
 # The input digests the table builder writes into each table's header.

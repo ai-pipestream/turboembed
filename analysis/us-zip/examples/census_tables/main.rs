@@ -55,7 +55,10 @@ fn main() {
     let zc =
         shares(&Table::parse(&zc, '|', &[&need[..], &["GEOID_COUNTY_20"]].concat(), ZCTA_COUNTY), "GEOID_COUNTY_20");
     let zp = load(ZCTA_PLACE);
-    let zp = shares(&Table::parse(&zp, '|', &[&need[..], &["GEOID_PLACE_20"]].concat(), ZCTA_PLACE), "GEOID_PLACE_20");
+    let zp = Table::parse(&zp, '|', &[&need[..], &["GEOID_PLACE_20", "NAMELSAD_PLACE_20"]].concat(), ZCTA_PLACE);
+    let place_names: BTreeMap<String, String> =
+        zp.rows().map(|r| (r.get("GEOID_PLACE_20").to_string(), r.get("NAMELSAD_PLACE_20").to_string())).collect();
+    let zp = shares(&zp, "GEOID_PLACE_20");
     let place_gaz = load(PLACE_GAZ);
     let place_gaz = Table::parse(&place_gaz, '\t', &["USPS", "GEOID", "NAME", "INTPTLAT", "INTPTLONG"], PLACE_GAZ);
     let (boxes, shp_digest) = shape_boxes(&census.join(SHP), &census.join(DBF), "GEOID20");
@@ -91,20 +94,24 @@ fn main() {
     }
     write(out, "us-zcta.txt", &head, ZCTA_HEADER, &zcta);
 
-    let mut places = String::new();
-    let mut prow: Vec<_> = place_gaz.rows().collect();
-    prow.sort_by(|a, b| a.get("GEOID").cmp(b.get("GEOID")));
-    for r in &prow {
+    // The Gazetteer leaves out the places of the island areas; their
+    // names come from the relationship file, with no point.
+    let mut prow: BTreeMap<String, String> = BTreeMap::new();
+    for r in place_gaz.rows() {
         let (name, kind) = split_kind(r.get("NAME"));
-        writeln!(
-            places,
-            "{}\t{}\t{name}\t{kind}\t{}\t{}",
-            r.get("GEOID"),
-            r.get("USPS"),
-            fixed(r.fixed("INTPTLAT", 4), 4),
-            fixed(r.fixed("INTPTLONG", 4), 4)
-        )
-        .unwrap();
+        let (lat, lon) = (fixed(r.fixed("INTPTLAT", 4), 4), fixed(r.fixed("INTPTLONG", 4), 4));
+        prow.insert(r.get("GEOID").to_string(), format!("{}\t{name}\t{kind}\t{lat}\t{lon}", r.get("USPS")));
+    }
+    let gazetteer_places = prow.len();
+    for (geoid, full) in &place_names {
+        if !geoid.is_empty() && !prow.contains_key(geoid) {
+            let (name, kind) = split_kind(full);
+            prow.insert(geoid.clone(), format!("{}\t{name}\t{kind}\t\t", states[&geoid[..2]]));
+        }
+    }
+    let mut places = String::new();
+    for (geoid, row) in &prow {
+        writeln!(places, "{geoid}\t{row}").unwrap();
     }
     write(out, "us-places.txt", &head, PLACE_HEADER, &places);
 
@@ -124,9 +131,10 @@ fn main() {
     }
     write(out, "us-counties.txt", &head, COUNTY_HEADER, &county);
     println!(
-        "{} ZCTAs ({missing_box} without a box), {} places, {} counties, {} prefixes",
+        "{} ZCTAs ({missing_box} without a box), {} places ({} from the Gazetteer), {} counties, {} prefixes",
         rows.len(),
         prow.len(),
+        gazetteer_places,
         crow.len(),
         zip3.len()
     );
@@ -137,7 +145,8 @@ const ZCTA_HEADER: &str = "# zcta\tstate\tland_km2\tlat\tlon\twest\tsouth\teast\
 # lat, lon: the Census internal point; west..north: the box of the 1:500,000 shape, rounded outward\n\
 # counties, places: county and place GEOIDs with their share of the ZCTA's land in thousandths, largest first";
 const PLACE_HEADER: &str = "# geoid\tstate\tname\tkind\tlat\tlon\n\
-# kind: the Census legal or statistical area description (city, town, village, CDP, ...)";
+# kind: the Census legal or statistical area description (city, town, village, CDP, ...)\n\
+# lat, lon: the Census internal point; empty for the places of the island areas, which the Gazetteer leaves out";
 const COUNTY_HEADER: &str = "# geoid\tstate\tname";
 const ZIP3_HEADER: &str = "# prefix\tstates\n\
 # states: the USPS code of each state holding ZCTAs of the prefix, with how many";
