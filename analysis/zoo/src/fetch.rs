@@ -19,6 +19,8 @@ mod drive;
 #[cfg(feature = "http")]
 mod oauth;
 #[cfg(feature = "http")]
+mod oci;
+#[cfg(feature = "http")]
 mod s3;
 #[cfg(feature = "http")]
 pub mod sigv4;
@@ -30,6 +32,8 @@ mod transport;
 pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
 #[cfg(feature = "http")]
 pub use oauth::{DRIVE_READONLY, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleOAuth, Grant, Pkce, Renewing};
+#[cfg(feature = "http")]
+pub use oci::OciRegistry;
 #[cfg(feature = "http")]
 pub use s3::S3Bucket;
 pub use sources::{Blobs, Directory, Keep, Sources};

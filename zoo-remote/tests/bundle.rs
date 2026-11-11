@@ -13,7 +13,7 @@ use turbo_kserve::config::DEFAULT_MAX_MESSAGE_BYTES as MAX;
 use turbo_kserve::proto::training::ListModelCatalogRequest;
 use turbo_kserve::proto::training::turbo_catalog_service_client::TurboCatalogServiceClient;
 use turbo_kserve::{Serve, Server};
-use turbo_zoo::import::{BundleImport, bundle};
+use turbo_zoo::import::{BundleImport, Described, bundle};
 use turbo_zoo::{Acceptances, Directory, Index, ModelType, Offline, Policy, Transport, UserId, Zoo, ZooError};
 use turbo_zoo_remote::ZooServer;
 
@@ -26,12 +26,14 @@ fn index() -> Index {
     let spec = BundleImport {
         id: "tiny".parse().unwrap(),
         base: "https://models.example.org/bundles/tiny".parse().unwrap(),
-        license_terms: "https://models.example.org/bundles/tiny/LICENSE".parse().unwrap(),
-        trained_on: Vec::new(),
-        attribution: Some("Example attribution for tiny.".into()),
-        origin: None,
-        component: None,
-        language: None,
+        described: Described {
+            license_terms: "https://models.example.org/bundles/tiny/LICENSE".parse().unwrap(),
+            trained_on: Vec::new(),
+            attribution: Some("Example attribution for tiny.".into()),
+            origin: None,
+            component: None,
+            language: None,
+        },
     };
     let entry = bundle(&sealed(), spec).unwrap();
     Index::parse(Index::to_canonical_json(&[entry]).as_bytes()).unwrap()

@@ -193,6 +193,7 @@ pub(crate) fn zoo_status(e: ZooError) -> Status {
         ZooError::Index(_)
         | ZooError::Acceptances(_)
         | ZooError::Holders(_)
+        | ZooError::Import { .. }
         | ZooError::Refused { .. }
         | ZooError::NotAccepted { .. }
         | ZooError::LocalOnly { .. } => TURBO_E_INVALID_STATE,
