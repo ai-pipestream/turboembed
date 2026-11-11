@@ -1056,6 +1056,7 @@ enum PiiKindId
   PII_KIND_ID_CURRENCY = 42;
   PII_KIND_ID_STATE = 43;
   PII_KIND_ID_COUNTY = 44;
+  PII_KIND_ID_CITY = 45;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C
@@ -1298,11 +1299,11 @@ message PiiValueToken
 // The value encrypted under a registered encryption key with a named
 // scheme (#1885). The server's one scheme is turbo-pii-aes-256-gcm-v1:
 // `ciphertext` is the UTF-8 text of a turbo-pii AES-256-GCM token, the
-// kind code in capitals (BUILTIN:3, CUSTOM:BADGE), ':', and the unpadded
-// base64url of a 12-byte nonce, the encrypted normalized value and the
-// 16-byte tag, its associated data binding the kind code and the context
-// turbo-kserve.pii-release.v1. Each release draws a fresh nonce, so equal
-// values give different ciphertexts.
+// kind code with its case kept (builtin:3, custom:Badge), ':', and the
+// unpadded base64url of a 12-byte nonce, the encrypted normalized value
+// and the 16-byte tag, its associated data binding the exact kind code
+// and the context turbo-kserve.pii-release.v1. Each release draws a fresh
+// nonce, so equal values give different ciphertexts.
 message PiiValueCiphertext
 {
   // The encrypted bytes, in `scheme`'s encoding.
@@ -1488,6 +1489,9 @@ enum PiiStrategy
   PII_STRATEGY_DATE_SHIFT = 15;
   // A date relative to a reference date (PiiDateStrategy.relative).
   PII_STRATEGY_DATE_RELATIVE = 16;
+  // A date truncated to its year, with years indicating an age over 89 as
+  // one category (PiiDateStrategy.safe_harbor).
+  PII_STRATEGY_DATE_SAFE_HARBOR = 17;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

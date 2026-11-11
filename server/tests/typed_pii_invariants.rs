@@ -252,7 +252,7 @@ fn pii_payloads_need_a_known_kind_ref_and_a_known_confidence_tier() {
         ("no kind", |m| m.kind_ref = None),
         ("an empty kind ref", |m| m.kind_ref = Some(PiiKindRef { kind: None })),
         ("unspecified kind", |m| m.kind_ref = builtin(0)),
-        ("kind past the table", |m| m.kind_ref = builtin(45)),
+        ("kind past the table", |m| m.kind_ref = builtin(46)),
         ("negative kind", |m| m.kind_ref = builtin(-7)),
         ("custom kind with no table", |m| m.kind_ref = custom(0)),
         ("unspecified tier", |m| m.confidence = 0),
@@ -311,7 +311,7 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     validate_typed_document(&pii_message(token)).unwrap();
     let clear = |m: &mut WirePii| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())));
     validate_typed_document(&pii_message(clear)).unwrap();
-    validate_typed_document(&pii_message(|m| m.value = cipher(b"BUILTIN:1:AAAA", "vault", 1, SCHEME))).unwrap();
+    validate_typed_document(&pii_message(|m| m.value = cipher(b"builtin:1:AAAA", "vault", 1, SCHEME))).unwrap();
     // Everything else is refused, and the error names the form, never the
     // token, the ciphertext or the key.
     let secrets = ["planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];

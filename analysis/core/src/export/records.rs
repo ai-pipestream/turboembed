@@ -3,7 +3,7 @@ use super::*;
 /// The version of this boundary: the record shapes and byte encoding.
 /// Bumped when either changes meaning; older bytes are refused, not
 /// migrated.
-pub const FORMAT_VERSION: u16 = 2;
+pub const FORMAT_VERSION: u16 = 3;
 
 pub(super) const MAGIC: &[u8] = b"TGRF";
 
@@ -91,6 +91,7 @@ pub enum ErrorRecord {
     Invalid { layer: LayerRef, detail: String },
     Pipeline(String),
     Annotator { annotator: String, detail: String },
+    OverLimit { annotator: String, limit: String, max: usize, got: usize },
     Skipped(String),
     Offset { unit: crate::offsets::OffsetUnit, at: u32, reason: crate::offsets::OffsetError },
     Source(crate::bytes::SourceError),

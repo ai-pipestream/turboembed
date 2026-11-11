@@ -110,17 +110,29 @@ fn evaluate_toxic_spans_computes_token_and_codepoint_prf1() {
 
 #[test]
 fn fusion_gate_and_severe_toxicity_rule_and_per_label_thresholds() {
-    struct FixedHead(IncivilityScores);
-    impl IncivilityVectorScorer for FixedHead {
-        fn score_incivility(&self, _vec: &[f32]) -> Result<IncivilityScores, String> {
-            Ok(self.0)
-        }
-    }
+    // A real 1-D head whose `bias + weight * 1.0` equals the exact f64
+    // logit for `insult = 0.30` and `threat = 0.60`, and `-800.0` (sigmoid
+    // underflows to `0.0`) on the other four labels.
+    let split_logit = |p: f64| {
+        let logit = (p / (1.0 - p)).ln();
+        let bias = logit as f32;
+        let weight = (logit - f64::from(bias)) as f32;
+        (weight, bias)
+    };
+    let (w_insult, b_insult) = split_logit(0.30);
+    let (w_threat, b_threat) = split_logit(0.60);
+    let head = Arc::new(
+        IncivilityVectorHead::new(
+            1,
+            vec![w_insult, 0.0, w_threat, 0.0, 0.0, 0.0],
+            [b_insult, -800.0, b_threat, -800.0, -800.0, -800.0],
+        )
+        .unwrap(),
+    );
 
     // "idiot" has lexicon insult = 0.85; head insult = 0.30.
     // At default fusion_gate = 0.25, noisy-or gives 1 - (1 - 0.85)*(1 - 0.30) = 0.895.
     // At fusion_gate = 0.50 (or 1.0), max gives 0.85.
-    let head = Arc::new(FixedHead(IncivilityScores { insult: 0.30, threat: 0.60, ..Default::default() }));
     let tokens = vec!["idiot".to_owned()];
     let default_ann = IncivilityAnnotator::new().with_vector_scorer(head.clone());
     let (s_def, _) = default_ann.score_unit(&tokens, 0, 1, None, Some(&[1.0])).unwrap();

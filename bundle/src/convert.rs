@@ -21,10 +21,10 @@
 //! In the recipe an F16 file's and an IR's `produced_by` names only
 //! `from`, the artifact it is made from, a HEF's names `from`,
 //! `container` and `inputs`, and may name `compiler_optimization`, and
-//! the weights' names only `upstream`, the
-//! checkpoint's upstream path, which is fetched and not carried. The rest
-//! comes from the run: what the container reports, the container itself,
-//! the files and settings, and whether a second run gave the same bytes.
+//! the weights' names `upstream` (the checkpoint's upstream path, fetched
+//! and not carried) and may name `dtype` and `container`. The rest comes
+//! from the run: what the container reports, the container itself, the
+//! files and settings, and whether a second run gave the same bytes.
 
 use std::fs;
 use std::path::Path;
@@ -73,41 +73,35 @@ pub struct Conversion {
 }
 
 fn one_file(a: &Value, name: &str) -> Result<String> {
-    match a["files"].as_array().map(Vec::as_slice) {
-        Some([f]) => {
-            let f = f.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
-            check_rel(f)?;
-            Ok(f.to_owned())
-        }
-        _ => Err(format!("artifact {name}: a converted artifact is one file")),
-    }
+    let Some([f]) = a["files"].as_array().map(Vec::as_slice) else {
+        return Err(format!("artifact {name}: a converted artifact is one file"));
+    };
+    let f = f.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
+    check_rel(f)?;
+    Ok(f.to_owned())
 }
 
 fn two_files(a: &Value, name: &str) -> Result<(String, String)> {
-    match a["files"].as_array().map(Vec::as_slice) {
-        Some([x, w]) => {
-            let x = x.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
-            let w = w.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
-            check_rel(x)?;
-            check_rel(w)?;
-            Ok((x.to_owned(), w.to_owned()))
-        }
-        _ => Err(format!("artifact {name}: an OpenVINO IR is two files, the xml then its weights")),
-    }
+    let Some([x, w]) = a["files"].as_array().map(Vec::as_slice) else {
+        return Err(format!("artifact {name}: an OpenVINO IR is two files, the xml then its weights"));
+    };
+    let x = x.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
+    let w = w.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
+    check_rel(x)?;
+    check_rel(w)?;
+    Ok((x.to_owned(), w.to_owned()))
 }
 
 /// A FORMAT_ONNX source's graph: its first file, the others being the
 /// graph's external data beside it, which the converters read from the
 /// bundle where they are staged.
 fn graph_file(a: &Value, name: &str) -> Result<String> {
-    match a["files"].as_array().map(Vec::as_slice) {
-        Some([f, ..]) => {
-            let f = f.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
-            check_rel(f)?;
-            Ok(f.to_owned())
-        }
-        _ => Err(format!("artifact {name}: a source artifact has files")),
-    }
+    let Some([f, ..]) = a["files"].as_array().map(Vec::as_slice) else {
+        return Err(format!("artifact {name}: a source artifact has files"));
+    };
+    let f = f.as_str().ok_or(format!("artifact {name}: files are not paths"))?;
+    check_rel(f)?;
+    Ok(f.to_owned())
 }
 
 /// The recipe's artifacts with a `produced_by`, each one the tool can
@@ -126,27 +120,20 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
         let name = a["name"].as_str().ok_or("an artifact has no name")?;
         let mut keys: Vec<&str> = pb.as_object().map(|o| o.keys().map(String::as_str).collect()).unwrap_or_default();
         keys.sort_unstable();
-        let hef = a["format"] == "FORMAT_HEF";
+        let (hef, weights) = (a["format"] == "FORMAT_HEF", a["format"] == "FORMAT_SAFETENSORS");
         if hef {
             keys.retain(|k| *k != "compiler_optimization");
-        }
-        let weights = a["format"] == "FORMAT_SAFETENSORS";
-        let cast = weights && keys == ["dtype", "upstream"];
-        let named = if hef {
-            &["container", "from", "inputs"][..]
         } else if weights {
-            &["upstream"][..]
+            keys.retain(|k| *k != "dtype" && *k != "container");
+        }
+        let (named, names) = if hef {
+            (&["container", "from", "inputs"][..], "from, container and inputs, and optionally compiler_optimization")
+        } else if weights {
+            (&["upstream"][..], "upstream, and optionally dtype and container")
         } else {
-            &["from"][..]
+            (&["from"][..], "only from")
         };
-        if keys != named && !cast {
-            let names = if hef {
-                "from, container and inputs, and optionally compiler_optimization"
-            } else if weights {
-                "upstream, and optionally dtype"
-            } else {
-                "only from"
-            };
+        if keys != named {
             return Err(format!(
                 "artifact {name}: the recipe's produced_by names {names}; the rest comes from the run, not {keys:?}"
             ));
@@ -198,7 +185,8 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
 /// A FORMAT_SAFETENSORS artifact written from an upstream PyTorch
 /// checkpoint: `produced_by.upstream` is the checkpoint's path in the
 /// recipe's upstream list, fetched (so pinned or hashed) and not carried
-/// (no `to`); the tensors come out as stored, in the reference container.
+/// (no `to`); the tensors come out as stored, in `produced_by.container`
+/// or the reference container.
 fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Result<Conversion> {
     let refuse = |why: &str| format!("artifact {name}: {why}");
     let path = pb["upstream"].as_str().ok_or(refuse("produced_by.upstream is not a path"))?;
@@ -214,6 +202,14 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
     if a.get("compute_dtype").is_some() || a["graph_input"] != "INPUT_TOKEN_IDS" {
         return Err(refuse("raw weights have no compute_dtype and start at INPUT_TOKEN_IDS"));
     }
+    let container = match pb.get("container") {
+        None => None,
+        Some(v) => {
+            let c = v.as_str().ok_or(refuse("produced_by.container is not a string"))?;
+            crate::reference::check_pinned(c)?;
+            Some(c.to_owned())
+        }
+    };
     let args = match pb.get("dtype") {
         None => Vec::new(),
         Some(d) if d.as_str() == Some("DTYPE_F32") => vec!["float32".to_owned()],
@@ -229,7 +225,7 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
         from_file: path.to_owned(),
         from_upstream: true,
         script: BIN_TO_SAFETENSORS,
-        container: None,
+        container,
         inputs: Vec::new(),
         args,
     })
@@ -285,14 +281,9 @@ fn ir_conversion(
             .ok_or(refuse("an embeddings cut needs manifest.architecture.heads"))?,
         false => 0,
     };
-    let seq = a["fixed_seq"]
-        .as_u64()
-        .filter(|&s| s > 0)
-        .ok_or(refuse("the NPU compiles static shapes: an OpenVINO IR gives fixed_seq"))?;
-    let batch = a["fixed_batch"]
-        .as_u64()
-        .filter(|&b| b > 0)
-        .ok_or(refuse("the NPU compiles static shapes: an OpenVINO IR gives fixed_batch"))?;
+    let pos_u64 = |k: &str, why: &str| a[k].as_u64().filter(|&n| n > 0).ok_or_else(|| refuse(why));
+    let seq = pos_u64("fixed_seq", "the NPU compiles static shapes: an OpenVINO IR gives fixed_seq")?;
+    let batch = pos_u64("fixed_batch", "the NPU compiles static shapes: an OpenVINO IR gives fixed_batch")?;
     let (xml, weights) = two_files(a, name)?;
     // 11 is what the Arrow Lake compiler reports as
     // maxOVOpsetVersionSupported. The script's default is the same cap.
@@ -359,14 +350,12 @@ fn hef_conversion(
     }
     let container = pb["container"].as_str().ok_or(refuse("produced_by.container is not a string"))?;
     crate::reference::check_pinned(container)?;
-    let inputs: Vec<String> = match pb["inputs"].as_array().map(Vec::as_slice) {
-        Some([f]) => {
-            let f = f.as_str().ok_or(refuse("produced_by.inputs are not paths"))?;
-            check_rel(f)?;
-            vec![f.to_owned()]
-        }
-        _ => return Err(refuse("produced_by.inputs is the one file of calibration texts")),
+    let Some([f]) = pb["inputs"].as_array().map(Vec::as_slice) else {
+        return Err(refuse("produced_by.inputs is the one file of calibration texts"));
     };
+    let f = f.as_str().ok_or(refuse("produced_by.inputs are not paths"))?;
+    check_rel(f)?;
+    let inputs = vec![f.to_owned()];
     let heads = recipe.manifest["architecture"]["heads"].as_u64().ok_or("manifest.architecture.heads: missing")?;
     let tokenizer = recipe.str_at("/tokenizer/file")?;
     let optimization = match pb.get("compiler_optimization") {
@@ -374,6 +363,21 @@ fn hef_conversion(
         Some(v) if v == "max" => Some("max"),
         Some(v) => return Err(refuse(&format!("produced_by.compiler_optimization is \"max\" or absent, not {v}"))),
     };
+    let mut args = vec![
+        "--tokenizer".into(),
+        format!("/bundle/{tokenizer}"),
+        "--calibration".into(),
+        format!("/bundle/{}", inputs[0]),
+        "--target".into(),
+        target.to_owned(),
+        "--seq".into(),
+        seq.to_string(),
+        "--heads".into(),
+        heads.to_string(),
+    ];
+    if let Some(o) = optimization {
+        args.extend(["--compiler-optimization".into(), o.into()]);
+    }
     Ok(Conversion {
         name: name.to_owned(),
         file: one_file(a, name)?,
@@ -383,21 +387,7 @@ fn hef_conversion(
         from_upstream: false,
         script: HEF_COMPILE,
         container: Some(container.to_owned()),
-        args: vec![
-            "--tokenizer".into(),
-            format!("/bundle/{tokenizer}"),
-            "--calibration".into(),
-            format!("/bundle/{}", inputs[0]),
-            "--target".into(),
-            target.to_owned(),
-            "--seq".into(),
-            seq.to_string(),
-            "--heads".into(),
-            heads.to_string(),
-        ]
-        .into_iter()
-        .chain(optimization.into_iter().flat_map(|o| ["--compiler-optimization".to_owned(), o.to_owned()]))
-        .collect(),
+        args,
         inputs,
     })
 }

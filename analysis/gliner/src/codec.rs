@@ -36,6 +36,7 @@ impl LayerCodec for Decisions {
 /// entities it is aligned to cross with `turbo_analysis_layers`' codecs.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs.register::<Decisions>();
+    crate::precision::register_codecs(codecs);
 }
 
 /// The shared layers' codecs plus this crate's.

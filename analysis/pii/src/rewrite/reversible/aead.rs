@@ -134,21 +134,39 @@ impl AesGcmEncryptor {
 
     /// Appends the token of `value`, of the kind named `kind`, to `out`.
     pub fn write_token(&self, kind: &str, value: &str, out: &mut String) -> Result<(), CryptError> {
-        if value.is_empty() {
-            return Err(CryptError::EmptyValue);
-        }
         let start = out.len();
         out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
+        self.seal(start, value, out)
+    }
+
+    /// Appends the token of `value` with `kind` written as given, its case
+    /// kept, so two kinds that differ only by case bind different tokens.
+    pub fn write_exact_token(&self, kind: &str, value: &str, out: &mut String) -> Result<(), CryptError> {
+        let start = out.len();
+        out.push_str(kind);
+        self.seal(start, value, out)
+    }
+
+    /// Appends `:` and the sealed `value` after the kind `out` holds from
+    /// `start`, binding that kind as written. A refusal leaves `out` as it
+    /// was before the kind.
+    fn seal(&self, start: usize, value: &str, out: &mut String) -> Result<(), CryptError> {
+        if value.is_empty() {
+            out.truncate(start);
+            return Err(CryptError::EmptyValue);
+        }
         let aad = self.aad(&out[start..]);
-        out.push(':');
         let nonce = self.next_nonce();
         let mut sealed = Vec::with_capacity(NONCE_BYTES + value.len() + TAG_BYTES);
         sealed.extend_from_slice(&nonce);
         sealed.extend_from_slice(value.as_bytes());
-        let tag = self
-            .cipher
-            .encrypt_inout_detached(&Nonce::from(nonce), &aad, (&mut sealed[NONCE_BYTES..]).into())
-            .map_err(|_| CryptError::TooLong)?;
+        let Ok(tag) =
+            self.cipher.encrypt_inout_detached(&Nonce::from(nonce), &aad, (&mut sealed[NONCE_BYTES..]).into())
+        else {
+            out.truncate(start);
+            return Err(CryptError::TooLong);
+        };
+        out.push(':');
         sealed.extend_from_slice(&tag);
         base64url(&sealed, out);
         Ok(())
@@ -161,7 +179,16 @@ impl AesGcmEncryptor {
         Ok(out)
     }
 
-    /// The kind as the token writes it (`EMAIL`) and the value of `token`,
+    /// The token of `value` with `kind` written as given, its case kept
+    /// ([`AesGcmEncryptor::write_exact_token`]).
+    pub fn exact_token(&self, kind: &str, value: &str) -> Result<String, CryptError> {
+        let mut out = String::new();
+        self.write_exact_token(kind, value, &mut out)?;
+        Ok(out)
+    }
+
+    /// The kind as the token writes it (`EMAIL`, or as given by
+    /// [`AesGcmEncryptor::write_exact_token`]) and the value of `token`,
     /// made by an encryptor with this key and context.
     pub fn decrypt(&self, token: &str) -> Result<(String, String), CryptError> {
         let (tag, body) = token.rsplit_once(':').ok_or(CryptError::Malformed)?;

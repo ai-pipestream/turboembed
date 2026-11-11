@@ -132,7 +132,9 @@ impl Pack {
             Pack::Web => vec![Scanner::all(Extractor::Web)],
             Pack::Dates => vec![Scanner::all(Extractor::Temporal)],
             Pack::Money => vec![Scanner::all(Extractor::Money)],
-            Pack::Places => vec![Scanner::all(Extractor::UsState), Scanner::all(Extractor::UsCounty)],
+            Pack::Places => {
+                vec![Scanner::all(Extractor::UsState), Scanner::all(Extractor::UsCounty), Scanner::all(Extractor::City)]
+            }
             Pack::AllStructured => [
                 Extractor::Cursor,
                 Extractor::Secrets,

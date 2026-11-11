@@ -1,8 +1,57 @@
 //! The heads' BiLSTM on turbo::cpu::lstm (#859) against PyTorch's LSTM
 //! formula in f64, its two biases added separately, on the real-weight
 //! head slice: one sequence of 1, 2 and 40 projected words.
-use super::{Heads, Work};
+use super::{Dense, Heads, Mlp, SpanHead, Work};
 use turbo::safetensors::{Dtype, File};
+
+fn token_heads() -> Heads {
+    let config = crate::Config {
+        hidden: 16,
+        projection_factor: 4,
+        prompt_factor: 4,
+        out_project_mlp: true,
+        token_level: false,
+        prompt_projection: true,
+        max_width: 3,
+        entity_token: 12,
+        separator_token: 13,
+        cls_token: 1,
+        eos_token: 2,
+    };
+    let ec = turbo::deberta::Config {
+        hidden: 32,
+        heads: 2,
+        intermediate: 48,
+        layers: 2,
+        vocabulary: 16,
+        max_sequence: 32,
+        position_buckets: 8,
+        max_relative_positions: 32,
+        layer_norm_eps: 1e-7,
+    };
+    let mut heads = Heads::load(&config, &ec, HEADS).unwrap();
+    heads.hidden = 1;
+    heads.head = SpanHead::Token {
+        proj_token: Dense::new(&[1.0, 1.0], vec![0.0; 2], 2, 1).unwrap(),
+        proj_label: Dense::new(&[1.0, 1.0], vec![0.0; 2], 2, 1).unwrap(),
+        out: Box::new(Mlp {
+            first: Dense::new(&[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], vec![0.0; 4], 4, 3)
+                .unwrap(),
+            last: Dense::new(&[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0], vec![0.0; 3], 3, 4)
+                .unwrap(),
+        }),
+    };
+    heads
+}
+
+#[test]
+fn token_spans_use_the_running_inside_minimum() {
+    let candidates = token_heads().score_token(&[3.0, 2.0, 1.0], &[1.0], 3, &mut Work::default()).unwrap();
+    let spans: Vec<(usize, usize)> = candidates.iter().map(|x| (x.start, x.end)).collect();
+    let logits: Vec<f32> = candidates.iter().map(|x| x.logit).collect();
+    assert_eq!(spans, [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]);
+    assert_eq!(logits, [3.0, 2.0, 1.0, 2.0, 1.0, 1.0]);
+}
 
 const HEADS: &[u8] = include_bytes!("../tests/fixtures/heads.safetensors");
 
@@ -43,6 +92,8 @@ fn the_bilstm_matches_torch_at_1_2_and_40_words() {
         projection_factor: 4,
         prompt_factor: 4,
         out_project_mlp: true,
+        token_level: false,
+        prompt_projection: true,
         max_width: 3,
         entity_token: 12,
         separator_token: 13,

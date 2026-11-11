@@ -271,7 +271,13 @@ impl RedactionPolicy {
             };
             let mut strategies = Vec::with_capacity(r.strategies.len());
             for (j, e) in r.strategies.iter().enumerate() {
-                strategies.push(cx.entry(at.inner("strategies", j), &id, e)?);
+                let entry_at = at.inner("strategies", j);
+                strategies.push(cx.entry(entry_at, &id, e)?);
+                if let Some(pb::pii_rewrite_strategy::Strategy::Ff1(f)) =
+                    e.strategy.as_ref().and_then(|s| s.strategy.as_ref())
+                {
+                    super::reversible::check_ff1_kind(entry_at, f, k)?;
+                }
             }
             let allow = allow(at, r.allow.as_ref(), resolver)?;
             let labels = r.labels.as_ref().map(|l| labels(at, l)).transpose()?;
