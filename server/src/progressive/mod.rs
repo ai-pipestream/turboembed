@@ -53,7 +53,7 @@ pub use profiles::{
 pub(crate) use steps::{
     CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, StepOptions, compile_analyzer_with_state, compile_pipeline,
 };
-pub use steps::{compile_analyzer, compile_analyzer_with_redaction, heads};
+pub use steps::{Models, compile_analyzer, compile_analyzer_with_models, compile_analyzer_with_redaction, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
