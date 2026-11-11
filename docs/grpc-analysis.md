@@ -771,6 +771,13 @@ encryption strategies name, each exactly 32 bytes). With several keys,
 `--pii-encryption-key-active ID:VERSION`
 (`TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`) names the one ciphertexts are
 made under; it is refused without a grant that includes ciphertext.
+Like the token keys, `--pii-encryption-key` is refused without
+`--pii-grant`, even for a server that only runs the `aes_256_gcm` and
+`ff1` redaction strategies and never releases a ciphertext. Whoever holds
+the key can reverse those values, so the server takes one only under the
+release configuration, which also requires mTLS and
+`--pii-audit-endpoint`: a server that can write reversible values always
+knows its callers and audits what it releases.
 `PiiValueCiphertext` carries the scheme `turbo-pii-aes-256-gcm-v1`, the
 key's id and version, and as `ciphertext` the UTF-8 text of a
 `turbo-pii` AES-256-GCM token: the kind code as it is, its case kept
