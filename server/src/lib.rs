@@ -232,9 +232,18 @@ impl Server {
                 return Err("encryption keys go in the release config when there is one".into());
             }
             Some(r) => &r.encryption_keys[..],
-            None => &serve.pii_encryption_keys[..],
+            None => {
+                release::keys::distinct("--pii-encryption-key", &serve.pii_encryption_keys)?;
+                &serve.pii_encryption_keys[..]
+            }
         };
-        let resolver = pii_policy::ServerResolver::load(token_keys, encryption_keys, store.clone())?;
+        let mut resolver = pii_policy::ServerResolver::load(token_keys, encryption_keys, store.clone())?;
+        // Without a release no caller need be authenticated, so a key
+        // loaded on its own serves the operator's named policies only: an
+        // inline FF1 arm choosing its own tweak would be an oracle (#2111).
+        if serve.pii_release.is_none() {
+            resolver = resolver.named_only_encryption();
+        }
         let policies = pii_policy::NamedPolicies::from_files(&serve.pii_policies, &resolver)?;
         let state = Arc::new(
             State::new(names, models).with_pii_policies(policies, resolver.shared()).with_vocabulary(store.clone()),

@@ -1150,7 +1150,15 @@ An unknown name is refused without echoing it.
   no value, it only writes ciphertext into the redacted view, so a server
   with no grant still loads its encryption keys for these arms (#2111).
   `--pii-encryption-key-active` still needs a grant with ciphertext, since
-  it only picks the key releases are made under. The two registries are separate: a token key never answers
+  it only picks the key releases are made under.
+  Without a grant no caller need be authenticated, so those keys serve
+  the named `--pii-policy` policies only: an inline `pii_redaction`
+  policy naming one is refused (`INVALID_ARGUMENT`, "serves named
+  --pii-policy policies only"). Otherwise a caller could send its own
+  `ff1` arm with a tweak of its choosing and use the server as a
+  deterministic encryption oracle under the operator's key, matching
+  guesses over a small domain such as SSNs against stored ciphertext.
+  With a grant (and so mTLS) inline policies may name them as before. The two registries are separate: a token key never answers
   for an encryption reference, or the reverse, and an encryption key
   file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store

@@ -27,6 +27,11 @@ pub enum ResolveError {
     /// this use. `reason` is the parser's, which names a line or a byte
     /// offset and never a term.
     Unparsable { format: String, reason: String },
+    /// An inline policy named an encryption key the server loaded without
+    /// `--pii-grant` (#2111): such a key serves named `--pii-policy`
+    /// policies only, since a caller choosing its own FF1 tweak would
+    /// otherwise get a deterministic encryption oracle under it.
+    NamedPoliciesOnly,
 }
 
 impl ResolveError {
@@ -39,6 +44,9 @@ impl ResolveError {
                 format!("the stored dictionary's format {format} is not taken here")
             }
             ResolveError::Unreadable => "the stored dictionary cannot be read".to_owned(),
+            ResolveError::NamedPoliciesOnly => {
+                "a key loaded without --pii-grant serves named --pii-policy policies only".to_owned()
+            }
             ResolveError::Unparsable { format, reason } => {
                 format!("the stored dictionary does not parse as {format}: {reason}")
             }
@@ -63,6 +71,39 @@ pub trait PolicyResolver {
     /// The `(value, replacement)` entries of the `headword-definition-tsv`
     /// dictionary `artifact_id` whose stored bytes hash to `sha256`.
     fn map_entries(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[(String, String)]>, ResolveError>;
+    /// Whether a request's inline policy may use the encryption keys.
+    /// False on a server that loaded them without `--pii-grant` (#2111):
+    /// there callers need not be authenticated, so only the operator's
+    /// named policies may encrypt under them.
+    fn inline_encryption(&self) -> bool {
+        true
+    }
+}
+
+/// `inner` as an inline policy sees it on a server whose encryption keys
+/// serve named policies only: every encryption reference is refused.
+pub(crate) struct NamedOnlyEncryption<'a>(pub &'a dyn PolicyResolver);
+
+impl PolicyResolver for NamedOnlyEncryption<'_> {
+    fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError> {
+        self.0.hmac_key(id, version)
+    }
+
+    fn encryption_key(&self, _: &str, _: u32) -> Result<&[u8], ResolveError> {
+        Err(ResolveError::NamedPoliciesOnly)
+    }
+
+    fn terms(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[String]>, ResolveError> {
+        self.0.terms(artifact_id, sha256)
+    }
+
+    fn map_entries(&self, artifact_id: &str, sha256: &str) -> Result<Arc<[(String, String)]>, ResolveError> {
+        self.0.map_entries(artifact_id, sha256)
+    }
+
+    fn inline_encryption(&self) -> bool {
+        false
+    }
 }
 
 /// A resolver with no registry: every reference is refused. A policy of
