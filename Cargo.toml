@@ -66,6 +66,7 @@ members = [
     "analysis/train-recipes",
     "analysis/formats",
     "analysis/geo",
+    "analysis/us-zip",
     "analysis/fuzz",
     "analysis/grammar",
     "analysis/group",
