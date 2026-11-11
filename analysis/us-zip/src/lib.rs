@@ -10,7 +10,7 @@
 //! - the counties and the Census places (cities, towns, villages, CDPs)
 //!   it overlaps, each with its share of the ZCTA's land, largest first,
 //!
-//! and the 31,909 places and 3,235 counties those name, and for every
+//! and the 32,188 places and 3,235 counties those name, and for every
 //! three-digit prefix the states that hold its ZCTAs. `data/README.md`
 //! says which Census files they are built from and how.
 //!
@@ -265,7 +265,8 @@ impl<'a> Zcta<'a> {
     }
 
     /// The bounding box of its 1:500,000 shape, rounded outward to a
-    /// thousandth of a degree.
+    /// thousandth of a degree and widened, where needed, to hold
+    /// [`Zcta::point`].
     pub fn bounding_box(&self) -> GeoBoundingBox {
         let [w, s, e, n] = self.row.bbox.map(|v| f64::from(v) / 1e3);
         GeoBoundingBox::new(w, s, e, n).expect("boxes are checked when parsed")

@@ -70,13 +70,15 @@ fn main() {
     let mut rows: Vec<_> = zcta_gaz.rows().collect();
     rows.sort_by(|a, b| a.get("GEOID").cmp(b.get("GEOID")));
     let mut missing_box = 0;
+    let mut widened = 0;
     for r in &rows {
         let id = r.get("GEOID");
         let county = zc.get(id).map_or(&[][..], Vec::as_slice);
         let Some((top, _)) = county.first() else { panic!("ZCTA {id} has no county") };
         let state = states[&top[..2]];
         *zip3.entry(id[..3].to_string()).or_default().entry(state).or_default() += 1;
-        let b = boxes.get(id);
+        let (lat, lon) = (r.fixed("INTPTLAT", 4), r.fixed("INTPTLONG", 4));
+        let b = boxes.get(id).map(|&b| widen(b, lat, lon, &mut widened));
         missing_box += usize::from(b.is_none());
         let bbox = b.map_or_else(|| "\t\t\t".to_string(), |b| b.map(|v| fixed(v, 3)).join("\t"));
         let land = (r.int("ALAND") + 5000) / 10000;
@@ -85,8 +87,8 @@ fn main() {
             zcta,
             "{id}\t{state}\t{}\t{}\t{}\t{bbox}\t{}\t{}",
             fixed(land, 2),
-            fixed(r.fixed("INTPTLAT", 4), 4),
-            fixed(r.fixed("INTPTLONG", 4), 4),
+            fixed(lat, 4),
+            fixed(lon, 4),
             list(county),
             list(place)
         )
@@ -131,7 +133,7 @@ fn main() {
     }
     write(out, "us-counties.txt", &head, COUNTY_HEADER, &county);
     println!(
-        "{} ZCTAs ({missing_box} without a box), {} places ({} from the Gazetteer), {} counties, {} prefixes",
+        "{} ZCTAs ({missing_box} without a box, {widened} boxes widened to their point), {} places ({} from the Gazetteer), {} counties, {} prefixes",
         rows.len(),
         prow.len(),
         gazetteer_places,
@@ -142,7 +144,7 @@ fn main() {
 
 const ZCTA_HEADER: &str = "# zcta\tstate\tland_km2\tlat\tlon\twest\tsouth\teast\tnorth\tcounties\tplaces\n\
 # state: the USPS code of the state holding most of the ZCTA's land\n\
-# lat, lon: the Census internal point; west..north: the box of the 1:500,000 shape, rounded outward\n\
+# lat, lon: the Census internal point; west..north: the box of the 1:500,000 shape, rounded outward and widened to hold the point\n\
 # counties, places: county and place GEOIDs with their share of the ZCTA's land in thousandths, largest first";
 const PLACE_HEADER: &str = "# geoid\tstate\tname\tkind\tlat\tlon\n\
 # kind: the Census legal or statistical area description (city, town, village, CDP, ...)\n\
@@ -150,6 +152,17 @@ const PLACE_HEADER: &str = "# geoid\tstate\tname\tkind\tlat\tlon\n\
 const COUNTY_HEADER: &str = "# geoid\tstate\tname";
 const ZIP3_HEADER: &str = "# prefix\tstates\n\
 # states: the USPS code of each state holding ZCTAs of the prefix, with how many";
+
+/// A box in thousandths of a degree grown, when it must be, to hold the
+/// point `lat`, `lon` in ten-thousandths: a 2024 internal point can lie
+/// just outside the generalized 2020 shape of a small coastal ZCTA.
+fn widen([w, s, e, n]: [i64; 4], lat: i64, lon: i64, widened: &mut usize) -> [i64; 4] {
+    let (lat_lo, lat_hi) = (lat.div_euclid(10), (lat + 9).div_euclid(10));
+    let (lon_lo, lon_hi) = (lon.div_euclid(10), (lon + 9).div_euclid(10));
+    let out = [w.min(lon_lo), s.min(lat_lo), e.max(lon_hi), n.max(lat_hi)];
+    *widened += usize::from(out != [w, s, e, n]);
+    out
+}
 
 /// Each ZCTA's parts by `key`, as (GEOID, thousandths of the ZCTA's land),
 /// largest first; parts with no land are left out.
