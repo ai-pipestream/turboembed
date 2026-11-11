@@ -5,6 +5,7 @@
 # tab20_zcta520_place20_natl.txt sha256 698a5dad71ed419411677d0ffd8ecd9331067f59c472cdd239b92c12f698285d
 # 2020_Gaz_place_national.txt sha256 aba21bc4138ae2d45f79bf4fd2cb8f969f4cd21a7ca79163447265cab9b8c7b3
 # cb_2020_us_zcta520_500k.shp sha256 95e3395a492f39ebabc638f1c114309b1dd72223282d95f2a2f83977d4c58acf
+# cb_2020_us_zcta520_500k.dbf sha256 8a327454efc033cbc28e87ffaea8a6c9ffd22950a74b62e03256877c0bfb3452
 # geoid	state	name	kind	lat	lon
 # kind: the Census legal or statistical area description (city, town, village, CDP, ...)
 # lat, lon: the Census internal point; empty for the places of the island areas, which the Gazetteer leaves out
