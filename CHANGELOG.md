@@ -386,6 +386,15 @@ stubs must be regenerated.
 
 ### Changed
 
+- `--pii-encryption-key` (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`) no longer
+  needs `--pii-grant` or mTLS: encrypting during redaction releases no
+  value, so a server with no grant loads its encryption keys for the
+  redaction policies' `aes_256_gcm` and `ff1` arms.
+  `--pii-encryption-key-active` still needs a grant with ciphertext.
+  Keys loaded without a grant serve named `--pii-policy` policies only;
+  an inline policy naming one is refused. A named `ff1` policy still
+  encrypts any text a caller sends, so such a server must sit behind an
+  authenticating ingress or run with mTLS (#2111, #2164).
 - Over-limit step failures are carried as the typed
   `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
   variants (`{ annotator, limit, max, got }`, with `Display` changed

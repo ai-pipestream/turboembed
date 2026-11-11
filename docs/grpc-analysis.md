@@ -1166,9 +1166,29 @@ An unknown name is refused without echoing it.
   an unregistered key refuses the policy. The keys of the `aes_256_gcm`
   and `ff1` arms resolve through `--pii-encryption-key ID:VERSION:PATH`
   (repeated, or `TURBO_KSERVE_PII_ENCRYPTION_KEYS`), whose file must hold
-  exactly 32 bytes. That flag needs `--pii-grant`, as the token keys do,
-  and a server built with `pii-reversible`; without the feature it fails
-  start-up. The two registries are separate: a token key never answers
+  exactly 32 bytes. That flag needs a server built with `pii-reversible`;
+  without the feature it fails start-up. It does not need `--pii-grant`
+  or mTLS, unlike the token keys: encrypting during redaction releases
+  no value, it only writes ciphertext into the redacted view, so a server
+  with no grant still loads its encryption keys for these arms (#2111).
+  `--pii-encryption-key-active` still needs a grant with ciphertext, since
+  it only picks the key releases are made under.
+  Without a grant no caller need be authenticated, so those keys serve
+  the named `--pii-policy` policies only: an inline `pii_redaction`
+  policy naming one is refused (`INVALID_ARGUMENT`, "serves named
+  --pii-policy policies only"). Otherwise a caller could send its own
+  `ff1` arm with a tweak of its choosing and use the server as a
+  deterministic encryption oracle under the operator's key, matching
+  guesses over a small domain such as SSNs against stored ciphertext.
+  That narrows the oracle but does not close it: a named policy with a
+  deterministic arm (`ff1`) still encrypts whatever text a caller sends,
+  under the operator's key and tweak, and the caller reads the result
+  back. So a server with such a policy and no client authentication must
+  sit behind an ingress that authenticates callers (a sidecar, a service
+  mesh or a private network), or run with mTLS (`--tls-client-ca`); see
+  docs/grpc.md, Starting it, on putting the listener behind what a
+  deployment uses for authentication. With a grant (and so mTLS) inline
+  policies may name them as before. The two registries are separate: a token key never answers
   for an encryption reference, or the reverse, and an encryption key
   file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store

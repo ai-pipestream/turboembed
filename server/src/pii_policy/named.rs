@@ -105,6 +105,8 @@ impl std::error::Error for SelectError {}
 
 /// The policy `sel` selects: an inline policy converted now, or a named
 /// one of `named`. An unknown name is refused, and the name is not echoed.
+/// An inline policy may not use encryption keys the resolver keeps for
+/// named policies only (#2111).
 pub fn select(
     sel: &PiiRedactionSelection,
     named: &NamedPolicies,
@@ -114,6 +116,8 @@ pub fn select(
         None => return Err(SelectError::Unset),
         Some(pii_redaction_selection::Policy::Name(n)) => Arc::clone(named.get(n).ok_or(SelectError::UnknownName)?),
         Some(pii_redaction_selection::Policy::Inline(p)) => {
+            let named_only = super::resolve::NamedOnlyEncryption(resolver);
+            let resolver: &dyn PolicyResolver = if resolver.inline_encryption() { resolver } else { &named_only };
             Arc::new(RedactionPolicy::from_proto(p, resolver).map_err(SelectError::Policy)?)
         }
     };

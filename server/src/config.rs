@@ -148,6 +148,10 @@ pub struct Args {
     pub pii_output: crate::results::disclosure::PiiOutputPolicy,
     /// PII value release to granted services (`--pii-grant`, #1909).
     pub pii_release: Option<crate::release::ReleaseConfig>,
+    /// `--pii-encryption-key` without a grant (#2111): the keys of the
+    /// redaction policies' AES-256-GCM and FF1 arms. With a grant they are
+    /// `pii_release`'s and this is empty.
+    pub pii_encryption_keys: Vec<crate::release::keys::TokenKeyFile>,
     /// The model catalog's zoo home, and the index it serves when not the
     /// built-in one.
     pub catalog_dir: Option<String>,
@@ -448,7 +452,7 @@ impl Args {
             (None, None, Some(_)) => return Err("--tls-client-ca needs --tls-cert and --tls-key".into()),
             _ => return Err("--tls-cert and --tls-key must be given together".into()),
         };
-        let pii_release = release_flags.resolve(&env, tls.as_ref())?;
+        let (pii_release, pii_encryption_keys) = release_flags.resolve(&env, tls.as_ref())?;
         if metrics_listen.is_none()
             && let Some(v) = env(ENV_METRICS_LISTEN).filter(|v| !v.is_empty())
         {
@@ -469,6 +473,7 @@ impl Args {
             sink,
             pii_output,
             pii_release,
+            pii_encryption_keys,
             catalog_dir,
             catalog_index,
             catalog_store,
