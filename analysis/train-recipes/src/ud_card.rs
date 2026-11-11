@@ -241,6 +241,8 @@ impl UdModelCard {
             class: self.class,
             attribution: Some(self.attribution.clone()),
             origin: None,
+            model_type: Default::default(),
+            bundle: None,
             files: vec![File {
                 path: self.file.name.parse().map_err(|e| bad("file name", e))?,
                 url: url.parse().map_err(|e| bad("url", e))?,

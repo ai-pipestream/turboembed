@@ -54,8 +54,10 @@ macro_rules! constant_enum {
 }
 
 mod component;
+mod model_type;
 
 pub use component::Component;
+pub use model_type::{Bundle, MANIFEST, ModelType, Task, check_manifest};
 
 constant_enum! {
     /// What an artifact is.
@@ -94,6 +96,9 @@ constant_enum! {
         Sentencepiece => "FORMAT_SENTENCEPIECE",
         /// A binary classifier head (`TEVH`, `TIVH`, or `THEAD001`).
         Head => "FORMAT_HEAD",
+        /// A sealed bundle directory (docs/bundle.md): its manifest and
+        /// every file the manifest names, whatever each one's format.
+        Bundle => "FORMAT_BUNDLE",
     }
 }
 
@@ -201,6 +206,9 @@ pub struct TrainingData {
 #[serde(deny_unknown_fields)]
 pub struct Artifact {
     pub id: ArtifactId,
+    /// Which schema the entry follows; left out for an analysis artifact.
+    #[serde(rename = "type", default, skip_serializing_if = "ModelType::is_default")]
+    pub model_type: ModelType,
     pub kind: Kind,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub component: Option<Component>,
@@ -251,6 +259,10 @@ pub struct Artifact {
     /// redirect leads.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<Url>,
+    /// For a `TYPE_ENCODER_BUNDLE` entry, and only for one: what its
+    /// manifest records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bundle: Option<Bundle>,
     pub files: Vec<File>,
 }
 
@@ -353,6 +365,7 @@ impl Index {
             if a.files.is_empty() {
                 return Err(ZooError::Index(format!("{}: no files", a.id)));
             }
+            model_type::check(&a).map_err(|e| ZooError::Index(format!("{}: {e}", a.id)))?;
             match (&a.origin, computed == LicenceClass::LocalOnly) {
                 (None, true) => {
                     return Err(ZooError::Index(format!(

@@ -189,7 +189,7 @@ pub(crate) fn invalid(field: u32, m: impl Into<String>) -> Status {
 pub(crate) fn zoo_status(e: ZooError) -> Status {
     let code = match &e {
         ZooError::NotFound(_) => TURBO_E_BUNDLE_NOT_FOUND,
-        ZooError::Integrity { .. } => TURBO_E_BUNDLE_INTEGRITY,
+        ZooError::Integrity { .. } | ZooError::Bundle { .. } => TURBO_E_BUNDLE_INTEGRITY,
         ZooError::Index(_)
         | ZooError::Acceptances(_)
         | ZooError::Holders(_)
