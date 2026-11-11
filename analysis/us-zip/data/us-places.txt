@@ -7,6 +7,7 @@
 # cb_2020_us_zcta520_500k.shp sha256 95e3395a492f39ebabc638f1c114309b1dd72223282d95f2a2f83977d4c58acf
 # geoid	state	name	kind	lat	lon
 # kind: the Census legal or statistical area description (city, town, village, CDP, ...)
+# lat, lon: the Census internal point; empty for the places of the island areas, which the Gazetteer leaves out
 0100100	AL	Abanda	CDP	33.0916	-85.5270
 0100124	AL	Abbeville	city	31.5647	-85.2591
 0100460	AL	Adamsville	city	33.6023	-86.9715
@@ -31624,6 +31625,275 @@
 5685015	WY	Wright	town	43.7492	-105.4948
 5686665	WY	Yoder	town	41.9170	-104.2954
 5686737	WY	Y-O Ranch	CDP	42.0352	-104.9230
+6000100	AS	Aasu	village		
+6002500	AS	Afao	village		
+6003300	AS	Afono	village		
+6004500	AS	Agugulu	village		
+6004900	AS	Alao	village		
+6006500	AS	Alega	village		
+6007300	AS	Alofau	village		
+6008100	AS	Amaluia	village		
+6008900	AS	Amanave	village		
+6009700	AS	Amaua	village		
+6010500	AS	Amouli	village		
+6011300	AS	Anua	village		
+6012100	AS	Aoa	village		
+6012800	AS	Aoloau	village		
+6013700	AS	Asili	village		
+6014500	AS	Atu'u	village		
+6015300	AS	Aua	village		
+6016100	AS	Auasi	village		
+6016900	AS	Auma	village		
+6017700	AS	Aumi	village		
+6018500	AS	Aunu'u	village		
+6020100	AS	Auto	village		
+6020900	AS	Avaio	village		
+6022500	AS	Faga'alu	village		
+6023300	AS	Faga'itua	village		
+6024900	AS	Fagali'i	village		
+6025700	AS	Fagamalo	village		
+6026500	AS	Faganeanea	village		
+6027300	AS	Fagasa	village		
+6028900	AS	Fagatogo	village		
+6029700	AS	Failolo	village		
+6030500	AS	Faleasao	village		
+6032100	AS	Faleniu	village		
+6032900	AS	Fatumafuti	village		
+6036100	AS	Futiga	village		
+6036900	AS	Ili'ili	village		
+6040800	AS	Lauli'i	village		
+6044100	AS	Leloaloa	village		
+6044900	AS	Leone	village		
+6045700	AS	Leusoali'i	village		
+6046500	AS	Luma	village		
+6047300	AS	Maia	village		
+6048100	AS	Malaeimi	village		
+6048920	AS	Malaeloa/Aitulagi	village		
+6049400	AS	Malaeloa/Ituau	village		
+6050500	AS	Maloata	village		
+6052900	AS	Mapusagafou	village		
+6053700	AS	Masausi	village		
+6054500	AS	Masefau	village		
+6055300	AS	Matu'u	village		
+6056100	AS	Mesepa	village		
+6056900	AS	Nua	village		
+6057700	AS	Nu'uuli	village		
+6058500	AS	Ofu	village		
+6060100	AS	Olosega	village		
+6061700	AS	Onenoa	village		
+6062230	AS	Pagai	village		
+6062500	AS	Pago Pago	village		
+6064100	AS	Pava'ia'i	village		
+6064900	AS	Poloa	village		
+6065300	AS	Puapua	village		
+6066500	AS	Sa'ilele	village		
+6068100	AS	Satala	village		
+6068900	AS	Se'etaga	village		
+6069700	AS	Sili	village		
+6071300	AS	Si'ufaga	village		
+6072900	AS	Swains	village		
+6075300	AS	Tafuna	village		
+6076900	AS	Taputimu	village		
+6081700	AS	Tula	village		
+6082500	AS	Utulei	village		
+6083300	AS	Utumea East	village		
+6084100	AS	Utumea West	village		
+6084900	AS	Utusia	village		
+6087300	AS	Vailoatai	village		
+6088100	AS	Vaitogi	village		
+6089700	AS	Vatia	village		
+6600100	GU	Adacao	CDP		
+6600850	GU	Afame	CDP		
+6604000	GU	Agana Heights	CDP		
+6606600	GU	Agat	CDP		
+6607600	GU	Anao	CDP		
+6607900	GU	Andersen AFB	CDP		
+6609500	GU	Apotgan	CDP		
+6609850	GU	Apra Harbor	CDP		
+6612450	GU	Asan	CDP		
+6615800	GU	Astumbo	CDP		
+6617000	GU	Barrigada	CDP		
+6618300	GU	Barrigada Heights	CDP		
+6624500	GU	Chaguian	CDP		
+6625450	GU	Chalan Pago	CDP		
+6627400	GU	Dededo	CDP		
+6629350	GU	Finegayan Station	CDP		
+6634750	GU	Hagåtña	CDP		
+6635000	GU	Harmon Industrial Park	CDP		
+6635850	GU	Inarajan	CDP		
+6636600	GU	Ipan	CDP		
+6641300	GU	Liguan	CDP		
+6642470	GU	Machananao East	CDP		
+6642480	GU	Machananao West	CDP		
+6642490	GU	Machanao	CDP		
+6643300	GU	Macheche	CDP		
+6643650	GU	Maina	CDP		
+6644300	GU	Maite	CDP		
+6644500	GU	Malojloj	CDP		
+6645600	GU	Mangilao	CDP		
+6647800	GU	Mataguac	CDP		
+6649500	GU	Merizo	CDP		
+6650500	GU	Mogfog	CDP		
+6650800	GU	Mongmong	CDP		
+6652200	GU	Naval Hospital	CDP		
+6652500	GU	Nimitz Hill	CDP		
+6652750	GU	Nimitz Hill Annex	CDP		
+6653000	GU	North Gayinero	CDP		
+6654800	GU	Oka	CDP		
+6655350	GU	Ordot	CDP		
+6656300	GU	Pagat	CDP		
+6658600	GU	Piti	CDP		
+6661850	GU	Santa Rita	CDP		
+6665100	GU	Sinajana	CDP		
+6666800	GU	South Gayinero	CDP		
+6669000	GU	Talofofo	CDP		
+6670950	GU	Tamuning	CDP		
+6673550	GU	Toto	CDP		
+6675500	GU	Tumon	CDP		
+6677200	GU	Ukudu	CDP		
+6677450	GU	Umatac	CDP		
+6679600	GU	University of Guam	CDP		
+6680100	GU	Upper Tumon	CDP		
+6681600	GU	Windward Hills	CDP		
+6681850	GU	Wusstig	CDP		
+6683950	GU	Yona	CDP		
+6685000	GU	Y Papao	CDP		
+6686000	GU	Y Sengsong	CDP		
+6900300	MP	Achugao	village		
+6900400	MP	Afatung	village		
+6900450	MP	Afetnas	village		
+6900500	MP	Agatasi	(Payapai) village		
+6900600	MP	Agingan	village		
+6901100	MP	Agrihan	village		
+6901150	MP	Aguijan	village		
+6901170	MP	Agusan	village		
+6901200	MP	Alaguan	village		
+6901220	MP	Alamagan	village		
+6901250	MP	American Memorial Park	village		
+6901280	MP	Anatahan	village		
+6901300	MP	Annex F	village		
+6901350	MP	Apanon	village		
+6901400	MP	As Akina	village		
+6901450	MP	As Akoddo	village		
+6901500	MP	As Dudo	village		
+6901600	MP	As Falipe	village		
+6901650	MP	As Gonna	village		
+6901700	MP	As Lito	village		
+6901750	MP	As Mahetog	village		
+6901800	MP	As Matuis	village		
+6901850	MP	As Niebes	(Nieves) village		
+6901900	MP	As Palacios	village		
+6901950	MP	As Perdido	village		
+6902000	MP	As Rabagau	village		
+6902500	MP	As Teo	village		
+6903000	MP	As Terlaje	village		
+6903100	MP	Asuncion	village		
+6903500	MP	Banaderu	village		
+6904000	MP	Bird Island	village		
+6906000	MP	Capitol Hill	village		
+6906500	MP	Carolinas	village		
+6907000	MP	Carolinas Heights	village		
+6907500	MP	Chacha	village		
+6908000	MP	Chalan Galaide	village		
+6911820	MP	Chalan Kanoa I	village		
+6911850	MP	Chalan Kanoa II	village		
+6911860	MP	Chalan Kanoa III	village		
+6911870	MP	Chalan Kanoa IV	village		
+6912000	MP	Chalan Kiya	village		
+6913000	MP	Chalan Laulau	village		
+6913500	MP	Chalan Piao	village		
+6913600	MP	Chalan Rueda	village		
+6913610	MP	China Town	village		
+6913620	MP	Dagu	village		
+6913690	MP	Dandan	village		
+6914550	MP	Duge	village		
+6914650	MP	Eastern Tinian (Marpo Valley)	village		
+6914700	MP	Fananganan	village		
+6914750	MP	Fanlagon	village		
+6914800	MP	Fanonchuluyan	village		
+6914850	MP	Farallon de Medinilla	village		
+6914900	MP	Finasisu	village		
+6914950	MP	Finata	village		
+6915000	MP	Forbidden Island	village		
+6915500	MP	Gagani	village		
+6915550	MP	Gampapa	village		
+6916000	MP	Gaonan	village		
+6917750	MP	Garapan	village		
+6917800	MP	Gayaugan	(Kaan) village		
+6917850	MP	Ginalangan	(Chudan) village		
+6917900	MP	Gualo Rai	village		
+6917950	MP	Guguan	village		
+6918000	MP	Hilaihai	village		
+6918020	MP	I Akgak	village		
+6918050	MP	I Chenchon	village		
+6918100	MP	I Denni	village		
+6918150	MP	I Fadang	village		
+6918200	MP	I Koridot	village		
+6918250	MP	I Liyang	village		
+6918300	MP	I Maddok	village		
+6918350	MP	I Naftan	village		
+6918400	MP	I Pitot	village		
+6919510	MP	Kagman	village		
+6919520	MP	Kagman I	village		
+6919530	MP	Kagman II	village		
+6919540	MP	Kagman III	village		
+6919550	MP	Kagman IV	village		
+6919560	MP	Kalabera	village		
+6919570	MP	Kannat Tabla	village		
+6919580	MP	Koblerville	village		
+6919650	MP	Laulau Bay	village		
+6919700	MP	Lempanai	village		
+6919750	MP	Liyu	village		
+6919800	MP	Lower Base	village		
+6919850	MP	Makmak	village		
+6919900	MP	Managaha	village		
+6919950	MP	Mananana	village		
+6922430	MP	Marpi	village		
+6922440	MP	Marpo Heights	village		
+6922450	MP	Matansa	village		
+6922460	MP	Matpo	village		
+6922470	MP	Maturana Hill	village		
+6922500	MP	Maug	village		
+6922530	MP	Mochong	village		
+6922550	MP	Mount Sabana	(Minachage) village		
+6922575	MP	Mount Taipingot	village		
+6922600	MP	Nanasu	village		
+6922650	MP	Navy Hill	village		
+6923100	MP	Northern Tinian	village		
+6923900	MP	Opyan	village		
+6923950	MP	Pagan	village		
+6923980	MP	Papago	village		
+6923990	MP	Pekngasu	village		
+6924000	MP	Pidos Kahalo	village		
+6924100	MP	Puerto Rico	village		
+6925100	MP	Sabaneta	village		
+6925200	MP	Sadog Tasi	village		
+6925300	MP	Sailigai Papa	village		
+6942000	MP	San Antonio	village		
+6947205	MP	San Jose	(Oleai) village		
+6947210	MP	San Jose (Tinian Municipality)	village		
+6953100	MP	San Roque	village		
+6959000	MP	San Vicente	village		
+6960500	MP	Sarigan	village		
+6961000	MP	Sayan Gigani	village		
+6962000	MP	Sinapalo	village		
+6964900	MP	Songsong	village		
+6970800	MP	Susupe	village		
+6970900	MP	Tagolo Ogso	village		
+6971000	MP	Taimama	village		
+6972000	MP	Talafofo	village		
+6973000	MP	Talakhaya	village		
+6974000	MP	Talo	village		
+6976700	MP	Tanapag	village		
+6976900	MP	Tangke	village		
+6977000	MP	Tapochao	village		
+6977100	MP	Tatachok	village		
+6977200	MP	Tatgua	village		
+6977300	MP	Tenetu	village		
+6989000	MP	Tottotville	village		
+6989100	MP	Ugis	village		
+6989200	MP	Uracus (Farallon de Pajaros)	village		
+6989300	MP	Western Tinian	village		
 7200186	PR	Aceitunas	comunidad	18.4455	-67.0669
 7200358	PR	Adjuntas	zona urbana	18.1638	-66.7235
 7200616	PR	Aguada	zona urbana	18.3803	-67.1884
@@ -31916,3 +32186,13 @@
 7288035	PR	Yauco	zona urbana	18.0348	-66.8621
 7288121	PR	Yaurel	comunidad	18.0301	-66.0560
 7288293	PR	Yeguada	comunidad	18.4839	-66.8802
+7816300	VI	Charlotte Amalie	town		
+7818100	VI	Charlotte Amalie East	CDP		
+7819000	VI	Charlotte Amalie West	CDP		
+7819900	VI	Christiansted	town		
+7827000	VI	Coral Bay	CDP		
+7828000	VI	Cruz Bay	CDP		
+7837900	VI	Frederiksted	town		
+7839700	VI	Frederiksted Southeast	CDP		
+7865530	VI	Red Hook	CDP		
+7878300	VI	Tutu	CDP		
