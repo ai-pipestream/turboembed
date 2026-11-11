@@ -6,11 +6,13 @@ use turbo::safetensors::{Dtype, File};
 use turbo_trainer::adamw::{AdamW, Settings};
 
 use crate::features::{Boundary, Prompt};
+use crate::recurrent::Recurrent;
 use crate::{Candidate, Config, ExtractionSchema, Model};
 
 #[derive(Clone, Debug)]
 pub struct TrainingInput {
     pub(crate) words: Vec<f32>,
+    pub(crate) projected_words: Vec<f32>,
     pub(crate) spans: Vec<f32>,
     pub(crate) prompts: Vec<f32>,
     pub(crate) prompt_inputs: Vec<f32>,
@@ -39,7 +41,7 @@ impl Model {
         {
             return Err("gliner output trainer does not match the model".into());
         }
-        self.heads.set_output(&trainer.params, trainer.boundaries, trainer.prompt)
+        self.heads.set_output(&trainer.params, trainer.boundaries, trainer.prompt, trainer.recurrent)
     }
 }
 
@@ -48,27 +50,34 @@ pub struct OutputTrainer {
     factor: usize,
     /// The prompt MLP's own width factor; it need not equal `factor`.
     prompt_factor: usize,
-    /// The output projection is one dense layer, not an MLP.
-    linear: bool,
-    /// The two boundary MLPs follow the output tensors.
-    boundaries: bool,
-    /// The prompt MLP comes last.
-    prompt: bool,
     params: Vec<Vec<f32>>,
     base: Vec<Vec<f32>>,
     anchor: f32,
+    /// The output projection is one dense layer, not an MLP.
+    linear: bool,
+    /// The trained head groups, in the order their tensors follow the
+    /// output tensors: two boundary MLPs, the prompt MLP, the BiLSTM.
+    boundaries: bool,
+    prompt: bool,
+    recurrent: bool,
 }
 
 impl OutputTrainer {
     pub fn load(config: &Config, bytes: &[u8]) -> Result<Self, String> {
-        Self::load_with_heads(config, bytes, false, false)
+        Self::load_with_heads(config, bytes, false, false, false)
     }
 
     pub fn load_with_boundaries(config: &Config, bytes: &[u8], boundaries: bool) -> Result<Self, String> {
-        Self::load_with_heads(config, bytes, boundaries, false)
+        Self::load_with_heads(config, bytes, boundaries, false, false)
     }
 
-    pub fn load_with_heads(config: &Config, bytes: &[u8], boundaries: bool, prompt: bool) -> Result<Self, String> {
+    pub fn load_with_heads(
+        config: &Config,
+        bytes: &[u8],
+        boundaries: bool,
+        prompt: bool,
+        recurrent: bool,
+    ) -> Result<Self, String> {
         let file = File::parse("gliner heads", bytes).map_err(|e| e.message)?;
         let (h, f, pf) = (config.hidden, config.projection_factor, config.prompt_factor);
         let mut specs: Vec<(String, Vec<usize>)> = if config.out_project_mlp {
@@ -84,8 +93,14 @@ impl OutputTrainer {
                 ("span_rep_layer.span_rep_layer.out_project.bias".into(), vec![h]),
             ]
         };
-        if (boundaries || prompt) && config.token_level {
+        if (boundaries || prompt || recurrent) && config.token_level {
             return Err("gliner token-level output training is not supported".into());
+        }
+        if recurrent && !boundaries {
+            return Err("gliner recurrent training requires boundary training".into());
+        }
+        if recurrent && (h == 0 || !h.is_multiple_of(2)) {
+            return Err("gliner recurrent training requires an even hidden size".into());
         }
         if boundaries {
             for stem in ["project_start", "project_end"] {
@@ -112,6 +127,18 @@ impl OutputTrainer {
                 ]);
             }
         }
+        if recurrent {
+            for suffix in ["", "_reverse"] {
+                for (name, shape) in [
+                    ("weight_ih", vec![2 * h, h]),
+                    ("weight_hh", vec![2 * h, h / 2]),
+                    ("bias_ih", vec![2 * h]),
+                    ("bias_hh", vec![2 * h]),
+                ] {
+                    specs.push((format!("rnn.lstm.{name}_l0{suffix}"), shape));
+                }
+            }
+        }
         let mut params = Vec::new();
         for (name, shape) in specs {
             let tensor = file.get(&name, Dtype::F32, shape.len()).map_err(|e| e.message)?;
@@ -121,9 +148,19 @@ impl OutputTrainer {
             }
             params.push(tensor.f32s());
         }
-        let linear = !config.out_project_mlp;
-        let base = params.clone();
-        Ok(Self { hidden: h, factor: f, prompt_factor: pf, linear, boundaries, prompt, base, params, anchor: 0.0 })
+        let (linear, base) = (!config.out_project_mlp, params.clone());
+        Ok(Self {
+            hidden: h,
+            factor: f,
+            prompt_factor: pf,
+            base,
+            params,
+            anchor: 0.0,
+            linear,
+            boundaries,
+            prompt,
+            recurrent,
+        })
     }
 
     pub fn set_anchor(&mut self, weight: f32) -> Result<(), String> {
@@ -155,6 +192,11 @@ impl OutputTrainer {
         self.prompt.then(|| self.output_len() + if self.boundaries { 8 } else { 0 })
     }
 
+    fn recurrent_offset(&self) -> Option<usize> {
+        let before = self.output_len() + if self.boundaries { 8 } else { 0 } + if self.prompt { 4 } else { 0 };
+        self.recurrent.then_some(before)
+    }
+
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
         let file = File::parse("gliner heads", original).map_err(|e| e.message)?;
         let mut names: Vec<String> = if self.linear {
@@ -182,10 +224,17 @@ impl OutputTrainer {
                 names.push(format!("prompt_rep_layer.{suffix}"));
             }
         }
+        if self.recurrent_offset().is_some() {
+            for suffix in ["", "_reverse"] {
+                for name in ["weight_ih", "weight_hh", "bias_ih", "bias_hh"] {
+                    names.push(format!("rnn.lstm.{name}_l0{suffix}"));
+                }
+            }
+        }
         let mut out = original.to_vec();
         for (name, values) in names.into_iter().zip(&self.params) {
             let tensor =
-                file.get(&name, Dtype::F32, if name.ends_with("bias") { 1 } else { 2 }).map_err(|e| e.message)?;
+                file.get(&name, Dtype::F32, if name.contains("bias") { 1 } else { 2 }).map_err(|e| e.message)?;
             if values.len() * 4 != tensor.data.len() {
                 return Err(format!("gliner {name}: tuned tensor length mismatch"));
             }
@@ -208,6 +257,7 @@ impl OutputTrainer {
         let (h, f, pf, labels) = (self.hidden, self.factor, self.prompt_factor, input.prompts.len() / self.hidden);
         let boundary = self.boundary_offset();
         let prompt_offset = self.prompt_offset();
+        let recurrent_offset = self.recurrent_offset();
         let valid_words = boundary.is_none()
             || (input.words.len().is_multiple_of(h)
                 && input.pairs.iter().all(|&(start, end)| start < end && end <= input.words.len() / h));
@@ -219,20 +269,25 @@ impl OutputTrainer {
             || labels == 0
             || !valid_words
             || (prompt_offset.is_some() && input.prompt_inputs.len() != input.prompts.len())
+            || (recurrent_offset.is_some() && input.projected_words.len() != input.words.len())
         {
             return Err("gliner output training input or gradient shape mismatch".into());
         }
-        let n = if boundary.is_some() { input.words.len() / h } else { 0 };
+        let n = if boundary.is_some() || recurrent_offset.is_some() { input.words.len() / h } else { 0 };
+        let recurrent =
+            recurrent_offset.map(|offset| Recurrent::forward(&self.params[offset..], &input.projected_words, h));
+        let word_values = recurrent.as_ref().map_or(&input.words, |recurrent| &recurrent.words);
         let boundaries = boundary.map(|offset| {
             (
-                Boundary::forward(&self.params[offset..], &input.words, n, h, f),
-                Boundary::forward(&self.params[offset + 4..], &input.words, n, h, f),
+                Boundary::forward(&self.params[offset..], word_values, n, h, f),
+                Boundary::forward(&self.params[offset + 4..], word_values, n, h, f),
             )
         });
         let prompt_features =
             prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, pf));
         let prompt_values = prompt_features.as_ref().map_or(&input.prompts, |(_, values)| values);
         let mut dprompt = if prompt_offset.is_some() { vec![0.0; labels * h] } else { Vec::new() };
+        let mut dlstm = if recurrent_offset.is_some() { vec![0.0; n * h] } else { Vec::new() };
         let linear = self.linear;
         let positive: BTreeSet<(usize, usize, usize)> = gold.iter().copied().collect();
         let mut selected: BTreeSet<usize> = input
@@ -346,11 +401,14 @@ impl OutputTrainer {
             }
         }
         if let (Some(offset), Some((starts, ends))) = (boundary, &boundaries) {
-            starts.backward(&self.params[offset..], &input.words, &dstarts, &mut grads[offset..], h, f);
-            ends.backward(&self.params[offset + 4..], &input.words, &dends, &mut grads[offset + 4..], h, f);
+            starts.backward(&self.params[offset..], word_values, &dstarts, &mut dlstm, &mut grads[offset..], h, f);
+            ends.backward(&self.params[offset + 4..], word_values, &dends, &mut dlstm, &mut grads[offset + 4..], h, f);
         }
         if let (Some(offset), Some((features, _))) = (prompt_offset, &prompt_features) {
             features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, pf);
+        }
+        if let (Some(offset), Some(recurrent)) = (recurrent_offset, &recurrent) {
+            recurrent.backward(&self.params[offset..], &input.projected_words, &dlstm, &mut grads[offset..], h);
         }
         let mut total = -loss * scale;
         if self.anchor > 0.0 {
@@ -367,8 +425,16 @@ impl OutputTrainer {
         Ok(total)
     }
 
+    /// Which tensors take weight decay: the matrices, never a bias. Dense
+    /// layers alternate weight and bias; each BiLSTM direction is two
+    /// matrices and then two biases.
+    fn decay(&self) -> Vec<bool> {
+        let dense = self.recurrent_offset().unwrap_or(self.params.len());
+        (0..self.params.len()).map(|i| if i < dense { i % 2 == 0 } else { (i - dense) % 4 < 2 }).collect()
+    }
+
     pub fn step(&mut self, optimizer: &mut AdamW<f32>, grads: &mut [Vec<f32>]) -> Result<f64, String> {
-        let decay: Vec<bool> = (0..self.params.len()).map(|i| i % 2 == 0).collect();
+        let decay = self.decay();
         optimizer.step(&mut self.params, grads, &decay).map_err(|e| e.message)
     }
 }

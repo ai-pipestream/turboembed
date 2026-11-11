@@ -1,5 +1,5 @@
 //! Head training through the public API on the tiny CPU encoder, for every
-//! combination of output form, boundary heads and prompt head, and with a
+//! combination of output form, boundary heads, prompt head and BiLSTM, and with a
 //! prompt width that differs from the output width: the trainer loads, its
 //! own gradient buffer trains, the tuned heads install, and the written
 //! heads reload to the same scores.
@@ -89,19 +89,20 @@ fn scores(model: &Model) -> Vec<Candidate> {
 }
 
 /// One optimizer step of the chosen heads, installed and reloaded.
-fn train_install_reload(config: &Config, boundaries: bool, prompt: bool) {
-    let label = format!("mlp {} prompt factor {} boundaries {boundaries} prompt {prompt}", config.out_project_mlp, {
-        config.prompt_factor
-    });
+fn train_install_reload(config: &Config, boundaries: bool, prompt: bool, recurrent: bool) {
+    let label = format!(
+        "mlp {} prompt factor {} boundaries {boundaries} prompt {prompt} recurrent {recurrent}",
+        config.out_project_mlp, config.prompt_factor
+    );
     let original = heads(config);
     let mut tuned = model(config, &original);
     let before = scores(&tuned);
-    let mut trainer = OutputTrainer::load_with_heads(config, &original, boundaries, prompt).expect(&label);
+    let mut trainer = OutputTrainer::load_with_heads(config, &original, boundaries, prompt, recurrent).expect(&label);
     let output = if config.out_project_mlp { 4 } else { 2 };
-    let expected = output + if boundaries { 8 } else { 0 } + if prompt { 4 } else { 0 };
-    assert_eq!(trainer.params().len(), expected, "{label}");
+    let dense = output + if boundaries { 8 } else { 0 } + if prompt { 4 } else { 0 };
+    assert_eq!(trainer.params().len(), dense + if recurrent { 8 } else { 0 }, "{label}");
     if prompt {
-        let first = &trainer.params()[expected - 4];
+        let first = &trainer.params()[dense - 4];
         assert_eq!(first.len(), config.prompt_factor * config.hidden * config.hidden, "{label}");
     }
 
@@ -129,7 +130,10 @@ fn every_head_combination_trains_installs_and_reloads() {
     for out_project_mlp in [true, false] {
         for boundaries in [false, true] {
             for prompt in [false, true] {
-                train_install_reload(&config(out_project_mlp, 4), boundaries, prompt);
+                train_install_reload(&config(out_project_mlp, 4), boundaries, prompt, false);
+                if boundaries {
+                    train_install_reload(&config(out_project_mlp, 4), boundaries, prompt, true);
+                }
             }
         }
     }
@@ -140,7 +144,7 @@ fn a_prompt_width_other_than_the_output_width_trains() {
     // Output and boundary factor four, prompt factor two.
     for out_project_mlp in [true, false] {
         for boundaries in [false, true] {
-            train_install_reload(&config(out_project_mlp, 2), boundaries, true);
+            train_install_reload(&config(out_project_mlp, 2), boundaries, true, boundaries);
         }
     }
 }
@@ -148,11 +152,23 @@ fn a_prompt_width_other_than_the_output_width_trains() {
 #[test]
 fn a_trainer_of_another_form_is_not_installed() {
     let (mlp, linear) = (config(true, 4), config(false, 4));
-    let trainer = OutputTrainer::load_with_heads(&linear, &heads(&linear), true, true).unwrap();
+    let trainer = OutputTrainer::load_with_heads(&linear, &heads(&linear), true, true, true).unwrap();
     let mut other = model(&mlp, &heads(&mlp));
     assert!(other.apply_output(&trainer).is_err());
     // A prompt trainer of another prompt width is refused too.
     let narrow = config(true, 2);
-    let trainer = OutputTrainer::load_with_heads(&narrow, &heads(&narrow), false, true).unwrap();
+    let trainer = OutputTrainer::load_with_heads(&narrow, &heads(&narrow), false, true, false).unwrap();
     assert!(other.apply_output(&trainer).unwrap_err().contains("does not match"));
+}
+
+#[test]
+fn recurrent_training_needs_boundaries_and_an_even_hidden_size() {
+    let even = config(true, 4);
+    let bytes = heads(&even);
+    let refused = |config: &Config, boundaries| {
+        OutputTrainer::load_with_heads(config, &bytes, boundaries, false, true).map(|_| ()).unwrap_err()
+    };
+    assert!(refused(&even, false).contains("requires boundary training"));
+    let odd = Config { hidden: 15, ..even.clone() };
+    assert!(refused(&odd, true).contains("even hidden size"));
 }

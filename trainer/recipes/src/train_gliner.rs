@@ -31,6 +31,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let balance = a.flag("--balance");
     let boundaries = a.flag("--train-boundaries");
     let train_prompt = a.flag("--train-prompt");
+    let train_recurrent = a.flag("--train-recurrent");
     let guidelines = a.value("--guidelines")?.map(read_guidelines).transpose()?;
     let max_train: usize = a.parsed("--max-train", 0)?;
     let anchor: f32 = a.parsed("--anchor", 0.0)?;
@@ -89,7 +90,8 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let original_heads = turbo_gliner::package::read(&package.join("heads.safetensors"), 256 << 20).map_err(Error)?;
     let mut model = Manifest::load(&package).map_err(Error)?;
     let mut trainer =
-        OutputTrainer::load_with_heads(model.config(), &original_heads, boundaries, train_prompt).map_err(Error)?;
+        OutputTrainer::load_with_heads(model.config(), &original_heads, boundaries, train_prompt, train_recurrent)
+            .map_err(Error)?;
     trainer.set_anchor(anchor).map_err(Error)?;
     let total: usize = corpora.iter().map(|x| x.splits.train.len().div_ceil(c.batch)).sum();
     let steps = (total * c.epochs as usize) as u64;
@@ -219,7 +221,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
     let identity = model.identity();
     let peer_name = format!(
-        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt}",
+        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent}",
         identity.id, identity.revision, manifest_record.sha256
     );
     let evaluation = score_parts(&combined, &all_types, &seen_types, &hold_out, &best_predictions)?;
