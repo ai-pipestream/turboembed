@@ -123,7 +123,7 @@ mod tiny {
     const BIAS: [f32; 3] = [0.0, 2.0, 0.0];
     include!("../../tests/offline/support.rs");
 
-    pub fn bundle(name: &str) -> PathBuf {
+    pub fn bundle(name: &str) -> Scratch {
         let dir = write_bundle(name, &["O", "B-PER", "I-PER"]);
         let path = dir.join("manifest.json");
         let mut m: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();

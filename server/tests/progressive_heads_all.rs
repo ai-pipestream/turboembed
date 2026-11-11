@@ -258,7 +258,7 @@ async fn annotate_v1_writes_morphology_both_entity_heads_and_relations() {
     server.stop().await;
 }
 
-fn whole_bundle(name: &str) -> std::path::PathBuf {
+fn whole_bundle(name: &str) -> turbo_scratch::Scratch {
     bundle(name, |m| {
         m["heads"] = serde_json::json!([heads()[0].clone(), span_head(), sentence_head(), split_head(), coref_head()])
     })

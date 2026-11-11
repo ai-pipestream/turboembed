@@ -24,7 +24,7 @@ const BIAS: [f32; 3] = [0.0, 2.0, 0.0];
 /// The tiny bundle with a `[O, B-PER, I-PER]` token head appended.
 fn bundle() -> PathBuf {
     static DIR: OnceLock<PathBuf> = OnceLock::new();
-    DIR.get_or_init(|| write_bundle("per", &["O", "B-PER", "I-PER"])).clone()
+    DIR.get_or_init(|| write_bundle("per", &["O", "B-PER", "I-PER"]).until_exit()).clone()
 }
 
 include!("offline/support.rs");

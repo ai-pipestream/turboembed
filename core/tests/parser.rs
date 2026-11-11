@@ -5,7 +5,6 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
 
 use common::*;
 use serde_json::{Value, json};
@@ -15,6 +14,7 @@ use turbo::head::tagger::NO_WORD;
 use turbo::head::{BiaffineParser, TokenTagger};
 use turbo::manifest::HeadSpec;
 use turbo::status::*;
+use turbo_scratch::Scratch;
 
 fn head_json() -> Value {
     json!({
@@ -61,9 +61,8 @@ fn head_weights() -> Vec<(String, Vec<u64>, Vec<f32>)> {
 
 /// The tiny bundle with the parser's tensors appended and `edit` applied
 /// to its manifest, files[] updated to match.
-fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-parser-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-parser-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();
@@ -99,7 +98,8 @@ fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
 
 #[test]
 fn loaded_parser_matches_the_one_built_from_the_same_weights() {
-    let b = Bundle::open(&bundle("load", |_| {})).unwrap();
+    let dir = bundle("load", |_| {});
+    let b = Bundle::open(&dir).unwrap();
     assert_eq!(b.manifest.heads, [spec()]);
     let loaded = BiaffineParser::load(&b, "deps").unwrap();
     let w = head_weights();
