@@ -21,8 +21,8 @@ use turbo_structure::{StructureAnnotator, Syntax};
 use turbo_tokenize::uax29::UntypedWordTokenizer;
 
 use super::normalize::{
-    NormalizedNameStep, NormalizedSourceStep, NormalizedStructureProjectStep, NormalizedSubwordsStep,
-    NormalizedTokensStep,
+    CasedNormalizeStep, NormalizedNameStep, NormalizedSourceStep, NormalizedStructureProjectStep,
+    NormalizedSubwordsStep, NormalizedTokensStep,
 };
 
 mod block5;
@@ -61,6 +61,11 @@ pub(crate) const CHUNKING_STEPS: &[&str] = &[
 ];
 
 const NORM_VIEWS: &[&str] = &["norm_1", "norm_2", "norm_3", "norm_4", "norm_5", "norm_6", "norm_7", "normalized"];
+const CASED_VIEWS: &[&str] = &["cased_1", "cased_2", "cased_3", "cased_4", "cased_5", "cased_6", "cased"];
+
+fn is_case_fold_step(name: &str) -> bool {
+    matches!(name, "turbo:normalize:case-fold" | "case_fold")
+}
 
 fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
@@ -144,8 +149,23 @@ mod gliner;
 pub(crate) use embed::EmbedContext;
 use embed::resolve_embed_context;
 
-fn add_norm<N: Normalizer>(builder: Builder, n: N, read_view: &'static str, write_view: &'static str) -> Builder {
-    builder.step(Bound::new(NormalizeStep::new(n)).read(0, read_view).write(0, write_view))
+fn add_norm<N: Normalizer>(
+    builder: Builder,
+    n: N,
+    read_view: &'static str,
+    write_view: &'static str,
+    cased: Option<(&'static str, &'static str)>,
+) -> Builder {
+    match cased {
+        None => builder.step(Bound::new(NormalizeStep::new(n)).read(0, read_view).write(0, write_view)),
+        Some((cased_read, cased_write)) => builder.step(
+            Bound::new(CasedNormalizeStep { normalizer: n })
+                .read(0, read_view)
+                .read(1, cased_read)
+                .write(0, write_view)
+                .write(1, cased_write),
+        ),
+    }
 }
 
 #[derive(Default)]
@@ -297,15 +317,27 @@ fn compile_pipeline_with(
     if total_norms > NORM_VIEWS.len() {
         return Err(bad(format!("pipeline exceeds maximum chained normalizer steps ({})", NORM_VIEWS.len())));
     }
+    // The cased branch is built only for a step that reads cased text.
+    let has_cased_reader = step_names
+        .iter()
+        .any(|&s| matches!(s, "turbo-sentdetect:rules" | "turbo:sentences" | "turbo-geo:names" | "turbo:entities"));
+    let post_fold_norms = step_names
+        .iter()
+        .copied()
+        .filter(|&s| is_normalizer_step(s))
+        .skip_while(|&s| !is_case_fold_step(s))
+        .filter(|&s| !is_case_fold_step(s))
+        .count();
     let has_structure_project = step_names.iter().copied().any(is_structure_project_step);
     let has_structure_blocks = step_names.iter().copied().any(is_structure_blocks_step);
 
     let mut builder = register_given_layers(Analyzer::builder(), initial_doc);
     let mut norm_index = 0usize;
+    let mut cased_index = 0usize;
     let mut norm_chain: Vec<&'static str> = Vec::new();
     let mut active_norm_view: Option<&'static str> = None;
-    // Rule sentences and place names read text as written: after a fold
-    // they read the last view that still has its case (None is the source).
+    // Rule sentences and place names read the cased view: the normalizer
+    // chain with the fold steps left out (None is the source).
     let mut cased_norm_view: Option<&'static str> = None;
     let mut folded = false;
 
@@ -326,27 +358,41 @@ fn compile_pipeline_with(
             norm_index += 1;
             norm_chain.push(write_v);
             active_norm_view = Some(write_v);
-            folded |= matches!(name, "turbo:normalize:case-fold" | "case_fold");
-            if !folded {
+            let cased = if is_case_fold_step(name) {
+                folded = true;
+                None
+            } else if !folded {
                 cased_norm_view = Some(write_v);
-            }
+                None
+            } else if !has_cased_reader {
+                None
+            } else {
+                let cased_read_v = cased_norm_view.unwrap_or("");
+                let cased_write_v = if cased_index + 1 == post_fold_norms { "cased" } else { CASED_VIEWS[cased_index] };
+                cased_index += 1;
+                cased_norm_view = Some(cased_write_v);
+                Some((cased_read_v, cased_write_v))
+            };
             builder = match name {
                 "turbo:normalize" | "turbo:normalize:chain" | "normalize" => add_norm(
                     builder,
                     Chain::new().then(Invisible).then(UnicodeForm::nfkc()).then(Whitespace::keep_line_breaks()),
                     read_v,
                     write_v,
+                    cased,
                 ),
                 "turbo:normalize:unicode-form" | "turbo:normalize:nfkc" | "unicode_normalize" => {
-                    add_norm(builder, UnicodeForm::nfkc(), read_v, write_v)
+                    add_norm(builder, UnicodeForm::nfkc(), read_v, write_v, cased)
                 }
-                "turbo:normalize:nfc" => add_norm(builder, UnicodeForm::nfc(), read_v, write_v),
-                "turbo:normalize:case-fold" | "case_fold" => add_norm(builder, CaseFold::full(), read_v, write_v),
+                "turbo:normalize:nfc" => add_norm(builder, UnicodeForm::nfc(), read_v, write_v, cased),
+                "turbo:normalize:case-fold" | "case_fold" => {
+                    add_norm(builder, CaseFold::full(), read_v, write_v, cased)
+                }
                 "turbo:normalize:whitespace" | "whitespace" => {
-                    add_norm(builder, Whitespace::keep_paragraphs(), read_v, write_v)
+                    add_norm(builder, Whitespace::keep_paragraphs(), read_v, write_v, cased)
                 }
                 "turbo:normalize:invisible" | "turbo:normalize:clean-text" | "clean_text" => {
-                    add_norm(builder, Invisible, read_v, write_v)
+                    add_norm(builder, Invisible, read_v, write_v, cased)
                 }
                 _ => unreachable!(),
             };
