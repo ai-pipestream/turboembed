@@ -1158,7 +1158,15 @@ An unknown name is refused without echoing it.
   `ff1` arm with a tweak of its choosing and use the server as a
   deterministic encryption oracle under the operator's key, matching
   guesses over a small domain such as SSNs against stored ciphertext.
-  With a grant (and so mTLS) inline policies may name them as before. The two registries are separate: a token key never answers
+  That narrows the oracle but does not close it: a named policy with a
+  deterministic arm (`ff1`) still encrypts whatever text a caller sends,
+  under the operator's key and tweak, and the caller reads the result
+  back. So a server with such a policy and no client authentication must
+  sit behind an ingress that authenticates callers (a sidecar, a service
+  mesh or a private network), or run with mTLS (`--tls-client-ca`); see
+  docs/grpc.md, Starting it, on putting the listener behind what a
+  deployment uses for authentication. With a grant (and so mTLS) inline
+  policies may name them as before. The two registries are separate: a token key never answers
   for an encryption reference, or the reverse, and an encryption key
   file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store
