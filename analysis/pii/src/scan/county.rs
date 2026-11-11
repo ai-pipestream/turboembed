@@ -72,7 +72,15 @@ fn name_before(text: &str, suffix: usize, end: usize) -> Option<(usize, &'static
         n += 1;
         at = start;
     }
-    starts[..n].iter().rev().find_map(|&start| {
+    // Every name of the table starts with a capital, and so does its word
+    // before the suffix but for `and` (`Juneau City and Borough`). A word
+    // is read as the table writes it or in capitals, so text that breaks
+    // this (`In the area`, `the county`) is no name, with no search.
+    let nearest = *starts[..n].first()?;
+    if !capital_at(text, nearest) && !text.as_bytes()[nearest..suffix - 1].eq_ignore_ascii_case(b"and") {
+        return None;
+    }
+    starts[..n].iter().rev().filter(|&&start| capital_at(text, start)).find_map(|&start| {
         let written = nfc(&text[start..end]);
         let name = county(&written)?;
         (on_name_start(text, start) && cased_like(&written, name)).then_some((start, name))
@@ -99,4 +107,9 @@ fn cased_like(written: &str, name: &str) -> bool {
         let w = w.replace('\u{2019}', "'");
         w == n || w == n.to_uppercase() || (k + 1 == words && w == n.to_lowercase())
     })
+}
+
+/// Whether a capital letter starts at `i`.
+fn capital_at(text: &str, i: usize) -> bool {
+    text[i..].chars().next().is_some_and(char::is_uppercase)
 }

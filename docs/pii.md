@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting and relative dates |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting, relative dates and Safe Harbor date years |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -535,14 +535,31 @@ the source text into the rewritten text and back
     months, then years. The temporal scanner reads each phrase back with
     the same reference. Edits record `DateRelative`
     (`PII_STRATEGY_DATE_RELATIVE`).
+  - `SafeHarbor(reference)`: the year alone, as `Year` writes it, except
+    that every year 90 or more years before the reference year is written
+    as one category, `1936 or earlier` for a 2026 reference
+    (`safe_harbor_category`). Someone born in such a year can be older
+    than 89 on the reference date, so Safe Harbor
+    (45 CFR 164.514(b)(2)(i)(C)) counts the year as an element of a date
+    indicative of an age over 89, which may be kept only aggregated into
+    one category of age 90 or older. The cutoff is by year alone
+    (`safe_harbor_cutoff`), so the category also takes a year whose
+    people are 89 on part of it, and no year whose people may be 90 is
+    left ungrouped.
+    The reference is passed in, usually the release date of the record,
+    never the clock. The rule does not know which date is a birth date,
+    so it groups every old enough date; pair it with `AgeSafeHarbor` for
+    the `age` kind. Edits record `DateSafeHarbor`
+    (`PII_STRATEGY_DATE_SAFE_HARBOR`).
 
   A mention of another kind, a text that is not one whole absolute day or
   month mention (the scanner reads four-digit years only, so `7/14/26` or
   `July 14, 26`), a date shifted out of the years `0001` to `9999`, and a
   cluster of overlapping mentions are masked whole (`*` by default). The
   gRPC arm is `PiiDateStrategy`, with `year`, `shift` (a keyed offset
-  names a registered key; `max_days` 0 means 30) and `relative`
-  (`reference` as `yyyy-MM-dd`) (#1884).
+  names a registered key; `max_days` 0 means 30), `relative` and
+  `safe_harbor` (each with a required `reference` as `yyyy-MM-dd`)
+  (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
@@ -915,25 +932,29 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   state, the District of Columbia or an inhabited territory (`Illinois`,
   `New York`, `Puerto Rico`, `U.S. Virgin Islands`), as written or all in
   capitals, at word boundaries, single spaces between its words.
-  `Washington, D.C.` and `Washington DC` are the District. `New York
+  `Washington, D.C.` and `Washington DC` are the District; with a word
+  character joined to that suffix (`Washington DC_x`) the text names
+  neither the District nor the state. `New York
   City` is a city and `Washington County` a county, so neither is a
   state; a county word that makes no county of the list leaves the state
   (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
   `OK`), so it is a mention only in capitals and only directly after a
   state label (`State: OR`) or before a ZIP code that ends an address,
-  by what comes before the code: a comma (`Springfield, IL 62704`,
-  `Springfield,IL 62704`), brackets around the code and ZIP code
-  (`(IL 62704)`), a colon label (`Address: IL 62704`), a capitalized
-  word and horizontal blanks when the ZIP code's three-digit prefix
-  belongs to that state (`Springfield IL 62704 is`,
+  by what comes before the code: a comma and horizontal blanks
+  (`Springfield, IL 62704`), the start of a line when only blanks follow
+  the ZIP code to the line's end or a clause's end (`IL 62704`,
+  `\u{a0}IL 62704`, `IL 62704, USA`), or, when the ZIP code's
+  three-digit prefix belongs to that state, a capitalized word and a
+  bare comma (`Springfield,IL 62704`), brackets around the code and ZIP
+  code (`(IL 62704)`), a colon label (`Address: IL 62704`), or a
+  capitalized word and horizontal blanks (`Springfield IL 62704 is`,
   `Springfield  IL 62704`, `Springfield\tIL 62704`,
-  `Saint Louis MO 63101`, `Reading PA 19601`), or the start of a line
-  when only blanks follow the ZIP code to the line's end or a clause's
-  end (`IL 62704`, `\u{a0}IL 62704`, `IL 62704, USA`). After a small
-  word or with another state's prefix (`(see IN 12345)`,
-  `Order IN 12345.`, `PART OR 90210`), or with a word after a line's
-  code and number (`IN 12345 units`), the number is a count, not a
-  state. The normalized form is the USPS code (`IL`).
+  `Saint Louis MO 63101`, `Reading PA 19601`). After a small word or
+  with another state's prefix (`(see IN 12345)`, `(IN 12345)`,
+  `Order: IN 12345`, `Order,IN 12345`, `Order IN 12345.`,
+  `PART OR 90210`), or with a word after a line's code and number
+  (`IN 12345 units`), the number is a count, not a state. The
+  normalized form is the USPS code (`IL`).
 - `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
   `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
   county equivalent of the Census Bureau's 2020 county list
