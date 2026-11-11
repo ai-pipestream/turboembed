@@ -56,6 +56,8 @@ pub enum ZooError {
     Integrity { id: ArtifactId, path: String, check: Check, expected: String, actual: String },
     /// An encoder bundle's manifest is not the one its entry describes.
     Bundle { id: ArtifactId, message: String },
+    /// A model in another layout cannot be imported as it is.
+    Import { id: ArtifactId, message: String },
     /// The transport could not fetch an address.
     Transport { url: String, message: String },
     /// Reading or writing a local file failed.
@@ -95,6 +97,7 @@ impl fmt::Display for ZooError {
                 write!(f, "{id}/{path}: {check} is {actual}, the index says {expected}")
             }
             ZooError::Bundle { id, message } => write!(f, "{id}: {message}"),
+            ZooError::Import { id, message } => write!(f, "{id}: {message}"),
             ZooError::Transport { url, message } => write!(f, "GET {url}: {message}"),
             ZooError::Io { path, message } => write!(f, "{}: {message}", path.display()),
         }

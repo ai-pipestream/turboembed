@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use turbo_scratch::Scratch;
-use turbo_zoo::import::{BundleImport, add_to, bundle, component_of};
+use turbo_zoo::import::{BundleImport, Described, add_to, bundle, component_of};
 use turbo_zoo::{
     Acceptances, Component, Directory, Index, Licence, LicenceClass, ModelType, Policy, Sha256, Sha512, Task,
     TrainingData, UserId, Zoo, ZooError,
@@ -37,12 +37,14 @@ fn spec(id: &str) -> BundleImport {
     BundleImport {
         id: id.parse().unwrap(),
         base: "https://models.example.org/bundles/tiny/".parse().unwrap(),
-        license_terms: "https://models.example.org/bundles/tiny/LICENSE".parse().unwrap(),
-        trained_on: Vec::new(),
-        attribution: Some("Example attribution for tiny.".into()),
-        origin: None,
-        component: None,
-        language: None,
+        described: Described {
+            license_terms: "https://models.example.org/bundles/tiny/LICENSE".parse().unwrap(),
+            trained_on: Vec::new(),
+            attribution: Some("Example attribution for tiny.".into()),
+            origin: None,
+            component: None,
+            language: None,
+        },
     }
 }
 
@@ -164,25 +166,25 @@ fn the_class_comes_from_the_licences_and_the_index_rules_hold() {
     };
     // Trained on restricted data: local-only, so it needs its origin.
     let mut local = spec("tiny");
-    local.trained_on = vec![marco];
+    local.described.trained_on = vec![marco];
     let e = bundle(&dir, local.clone()).unwrap_err().to_string();
     assert!(e.contains("CLASS_LOCAL_ONLY needs origin"), "{e}");
-    local.origin = Some("https://models.example.org/bundles".parse().unwrap());
+    local.described.origin = Some("https://models.example.org/bundles".parse().unwrap());
     let entry = bundle(&dir, local.clone()).unwrap();
     assert_eq!(entry.class, LicenceClass::LocalOnly);
-    local.origin = Some("https://elsewhere.example.org/bundles".parse().unwrap());
+    local.described.origin = Some("https://elsewhere.example.org/bundles".parse().unwrap());
     let e = bundle(&dir, local).unwrap_err().to_string();
     assert!(e.contains("is not under its origin"), "{e}");
 
     // The manifest's licence asks for attribution.
     let mut bare = spec("tiny");
-    bare.attribution = None;
+    bare.described.attribution = None;
     let e = bundle(&dir, bare).unwrap_err().to_string();
     assert!(e.contains("requires attribution"), "{e}");
 
     // A refused licence among the training data.
     let mut refused = spec("tiny");
-    refused.trained_on = vec![TrainingData {
+    refused.described.trained_on = vec![TrainingData {
         name: "A research-only corpus".into(),
         license: "LicenseRef-ResearchOnly".parse().unwrap(),
         license_terms: "https://models.example.org/corpus/TERMS".parse().unwrap(),
@@ -192,7 +194,7 @@ fn the_class_comes_from_the_licences_and_the_index_rules_hold() {
     assert_eq!(component_of(Task::Rerank), None);
     assert_eq!(component_of(Task::ExtractiveQa), Some(Component::ExtractiveQa));
     let mut named = spec("tiny");
-    named.component = Some(Component::SparseEncoder);
+    named.described.component = Some(Component::SparseEncoder);
     assert_eq!(bundle(&dir, named).unwrap().component, Some(Component::SparseEncoder));
 }
 
