@@ -198,6 +198,24 @@ pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
 fails that step with `TURBO_E_CAPACITY`, and the failure message names
 the limit and both counts, for example `step 'turbo:zero-shot-relations'
 failed: over its encoder max_sequence 512, got 528`; never the text.
+
+`server/tests/full_text_graph_served.rs` runs the same text through a
+real server with the release packages: GLiNER small v2.5 for
+`turbo:gliner` and GLiNER2 base v1 for `turbo:zero-shot-relations`, both
+loaded with `LoadBundle` and named by `turbo_pins::require` (set
+`GLINER_PACKAGE` and `GLINER2_PACKAGE`, run with `--ignored`). Its steps
+are the model-free stages above without the gazetteer, whose `Entities`
+GLiNER writes, then `turbo:subwords`, both model stages and
+`turbo:chunker`. The served graph is byte-identical to the graph
+`compile_analyzer_with_models` writes in process from the same packages,
+for that text, for empty text, and for a sentence whose word pieces are
+over the relation encoder's 512, where the relation step fails with
+`TURBO_E_CAPACITY` in both and every other layer is the same. The test
+also checks entity and PII source slices, UTF-16 offsets past the
+astral characters, relation mentions that link entities in the graph,
+deduplicated edges, verified evidence, model provenance equal to the
+digests `Capabilities` reports, a byte-identical second run and a
+byte-identical `RoundTripDocumentGraph`.
 The step's layer error, in the step failure, the complete graph and
 the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 
