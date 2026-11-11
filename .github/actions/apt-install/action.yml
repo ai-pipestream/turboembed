@@ -1,50 +1,69 @@
 name: apt-install
 description: >
   apt-get install on a GitHub-hosted Ubuntu runner that keeps working when
-  a mirror in the runner's mirror list cannot be reached, with retries.
+  the Ubuntu mirrors in the runner's mirror list cannot be resolved, with
+  retries.
 inputs:
   packages:
     description: The packages to install, separated by spaces.
     required: true
+  fallback-mirrors:
+    description: >
+      Ubuntu archive mirrors outside ubuntu.com, separated by spaces, tried
+      after the runner's own mirrors and only when their host resolves.
+    default: https://mirrors.edge.kernel.org/ubuntu/ https://mirror.math.princeton.edu/pub/ubuntu/
 runs:
   using: composite
   steps:
     # The runner's Ubuntu sources go through a mirror list,
-    # /etc/apt/apt-mirrors.txt, whose first entry is the cloud's own Ubuntu
-    # mirror. When that host stops resolving, apt does not recover through
-    # the later entries: they fail at once with the first host's DNS error,
-    # so every Ubuntu fetch fails (merge-queue run 43045747818). A mirror
-    # whose host does not resolve is dropped from the list before apt runs.
-    # The packages are still the archive's signed packages: apt checks every
-    # index against the Ubuntu archive key whichever mirror serves it.
-    - name: Drop unresolvable mirrors and install
+    # /etc/apt/apt-mirrors.txt: the cloud's own Ubuntu mirror, then
+    # archive.ubuntu.com and security.ubuntu.com. When the runner's resolver
+    # cannot resolve those hosts, every Ubuntu fetch fails while other
+    # repositories still download (merge-queue run 43045747818). So each
+    # listed mirror whose host does not resolve is dropped, and the
+    # fallback mirrors, which are not under ubuntu.com, are appended when
+    # they resolve. The packages are still the archive's signed packages:
+    # apt checks every index against the Ubuntu archive key whichever
+    # mirror serves it.
+    - name: Drop unresolvable mirrors, add fallbacks, install
       shell: bash
       env:
         PACKAGES: ${{ inputs.packages }}
+        FALLBACK_MIRRORS: ${{ inputs.fallback-mirrors }}
       run: |
         set -euo pipefail
+        resolves() {
+          local host=${1#*://}
+          host=${host%%/*}
+          for attempt in 1 2 3; do
+            if getent ahosts "$host" >/dev/null; then return 0; fi
+            sleep 2
+          done
+          echo "$host does not resolve"
+          return 1
+        }
         list=/etc/apt/apt-mirrors.txt
         if [ -f "$list" ]; then
           kept=$(mktemp)
           while read -r url rest || [ -n "${url:-}" ]; do
             [ -n "${url:-}" ] || continue
-            host=${url#*://}
-            host=${host%%/*}
-            resolved=false
-            for attempt in 1 2 3; do
-              if getent ahosts "$host" >/dev/null; then resolved=true; break; fi
-              sleep 2
-            done
-            if [ "$resolved" = true ]; then
+            if resolves "$url"; then
               if [ -n "${rest:-}" ]; then printf '%s\t%s\n' "$url" "$rest"; else printf '%s\n' "$url"; fi >>"$kept"
             else
-              echo "dropping mirror $url: $host does not resolve"
+              echo "dropping mirror $url"
             fi
           done <"$list"
+          for url in $FALLBACK_MIRRORS; do
+            if resolves "$url"; then
+              printf '%s\n' "$url" >>"$kept"
+            else
+              echo "skipping fallback mirror $url"
+            fi
+          done
           if [ -s "$kept" ]; then
             sudo cp "$kept" "$list"
           else
-            echo "no mirror in $list resolves; keeping the list as it is"
+            echo "no mirror resolves; keeping $list as it is"
           fi
           cat "$list"
         fi
