@@ -41,7 +41,7 @@ test("the fixture reads to its end, every part inside its parent", () => {
   assert.equal(at, FIXTURE.length);
   nested(g);
   assert.equal(find(g, "magic").value, "TGRF");
-  assert.equal(find(g, "format version").value, "2");
+  assert.equal(find(g, "format version").value, "3");
 });
 
 test("the fixture's views, alignment and statuses are where the export put them", () => {

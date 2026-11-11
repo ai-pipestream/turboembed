@@ -28,6 +28,11 @@ use crate::segment::sentence_ranges;
 use crate::words::WordEncoder;
 
 /// A loaded head and the label set its layer names.
+// A model holds a handful of heads, loaded once and read in place: boxing
+// the larger ones would add a pointer hop to every run to save bytes that
+// do not matter. The variants' sizes differ by target, so the lint fires
+// on some and not on others.
+#[allow(clippy::large_enum_variant)]
 pub enum Head {
     /// A token tagger, `set` its tags or, under BIO and BILOU, its kinds.
     Tagger {

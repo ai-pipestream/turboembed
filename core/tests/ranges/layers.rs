@@ -51,13 +51,18 @@ fn the_last_layer_read_is_the_plain_range_write() {
     agree(&testdata().join("tiny-modernbert-bundle"), 3);
     agree(&testdata().join("tiny-deberta-bundle"), 2);
     agree(&testdata().join("tiny-nomic-bundle"), 2);
-    // The small BERT as RoBERTa, its positions read from row 2 of the table.
+    let f = roberta("layers-roberta");
+    agree(f.write(), 2);
+}
+
+/// The small BERT as RoBERTa, its positions read from row 2 of the table.
+fn roberta(name: &str) -> Fixture {
     let mut m = model_manifest();
     m["architecture"]["family"] = json!("FAMILY_ROBERTA");
     m["architecture"]["position_offset"] = json!(2);
-    let mut f = Fixture::new("layers-roberta", m);
+    let mut f = Fixture::new(name, m);
     f.weights("weights/model.safetensors", &tiny_weights(0));
-    agree(f.write(), 2);
+    f
 }
 
 #[test]
@@ -114,7 +119,7 @@ fn a_layer_range_write_refuses_what_it_cannot_take() {
 }
 
 /// The backends whose embed cell sets field 9's bit.
-const READS_LAYERS: [&str; 3] = ["cpu", "cuda", "levelzero"];
+const READS_LAYERS: [&str; 4] = ["cpu", "cuda", "metal", "levelzero"];
 
 /// The device backends this build lists, failing where
 /// TURBO_TEST_REQUIRE_<BACKEND>=1 names one it does not.
@@ -201,6 +206,8 @@ fn every_layer_on_a_device_matches_the_cpu() {
             agree_on(backend, precision, &testdata().join("tiny-modernbert-bundle"), 3);
             agree_on(backend, precision, &testdata().join("tiny-deberta-bundle"), 2);
             agree_on(backend, precision, &testdata().join("tiny-nomic-bundle"), 2);
+            let f = roberta("layers-roberta-devices");
+            agree_on(backend, precision, f.write(), 2);
         }
     }
 }

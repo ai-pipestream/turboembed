@@ -337,9 +337,9 @@ different machine from the 4-core rows above.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead on CUDA and Metal: the loader skips the artifact of
-  a bundle with `architecture.lookahead` on every backend but the CPU and
-  Level Zero (`turbo::model::runs_band`). On Level Zero the tiny banded
+- Limited lookahead on Metal: the loader skips the artifact of
+  a bundle with `architecture.lookahead` on every backend but the CPU,
+  CUDA and Level Zero (`turbo::model::runs_band`). On Level Zero the tiny banded
   bundle matches wtpsplit at MODEL as the CPU does
   (`TURBO_TEST_DEVICE=levelzero cargo test -p turbo-sat --features
   turbo/levelzero --test parity`); a sealed `sat-3l` has not been run

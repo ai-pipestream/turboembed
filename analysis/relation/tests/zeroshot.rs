@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{
-    Analyzer, Annotator, Document, Evidence, EvidenceStep, IxRange, Key, Provenance, Span, Spans, TagSet, View, ViewId,
+    Analyzer, Annotator, Document, Error, Evidence, EvidenceStep, IxRange, Key, Provenance, Span, Spans, TagSet, View,
+    ViewId,
 };
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_relation::{
@@ -273,5 +274,13 @@ fn a_limit_reaches_the_analyzer_as_counts_only() {
         Analyzer::builder().given(Key::<Entities>::DEFAULT).add(a).step(EvidenceStep::new(Key::<Relations>::DEFAULT));
     let mut docs = vec![doc];
     let err = analyzer.build().unwrap().run(&mut docs).into_iter().find_map(Result::err).expect("the step fails");
-    assert_eq!(err.limit_detail(), Some("max_mentions 4, got 5"), "{err}");
+    assert_eq!(
+        err,
+        Error::OverLimit {
+            annotator: ZeroShotRelationAnnotator::<LexicalRelationScorer>::ID,
+            limit: "max_mentions",
+            max: 4,
+            got: 5,
+        }
+    );
 }

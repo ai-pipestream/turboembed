@@ -14,7 +14,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use tokio_stream::StreamExt as _;
-use turbo_kserve::api::TURBO_E_CAPACITY;
+use turbo_analysis::export::{Codecs, ErrorRecord, StatusRecord, export};
+use turbo_analysis::{Document, Error, Key, Provenance};
+use turbo_analysis_layers::Tokens;
+use turbo_kserve::api::{TURBO_E_CAPACITY, TURBO_E_INTERNAL};
 use turbo_kserve::config::DEFAULT_MAX_MESSAGE_BYTES as MAX;
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
@@ -116,4 +119,49 @@ async fn a_document_over_the_encoder_limit_is_a_capacity_refusal_with_counts_onl
     }
     let shown = format!("{failures:?}");
     assert!(!shown.contains(secret) && !shown.contains("Paris"), "{shown}");
+}
+
+#[tokio::test]
+async fn an_imported_over_limit_record_with_an_unlisted_limit_name_is_not_published() {
+    let (_server, mut client) = serve().await;
+    let mut doc = Document::new("hello world");
+    doc.fail(
+        Key::<Tokens>::DEFAULT.id(),
+        Error::over_limit("custom", "encoder max_sequence", 1, 2),
+        Provenance::by("custom"),
+    )
+    .unwrap();
+    let mut codecs = Codecs::new();
+    turbo_analysis_layers::export::register_codecs(&mut codecs);
+    let mut graph = export(&doc, &codecs).unwrap();
+    graph.layers[0].status = StatusRecord::Failed(ErrorRecord::OverLimit {
+        annotator: "custom".into(),
+        limit: "patient jane doe".into(),
+        max: 1,
+        got: 2,
+    });
+    let request = AnalyzePipelineRequest {
+        doc_id: "imported-limit".into(),
+        initial_graph: graph.to_bytes().unwrap(),
+        steps: vec!["turbo-tokenize:uax29-untyped".into()],
+        ..Default::default()
+    };
+    let mut stream = client.analyze_document_progressive(request).await.unwrap().into_inner();
+    let mut events = Vec::new();
+    let mut failures = Vec::new();
+    while let Some(event) = stream.next().await {
+        let event = event.unwrap();
+        if let Some(Event::StepFailed(f)) = &event.event {
+            failures.push(f.clone());
+        }
+        events.push(event);
+    }
+    let [failure] = &failures[..] else { panic!("one failed step: {failures:?}") };
+    let wire = failure.failure.as_ref().unwrap();
+    assert_eq!(wire.turbo_code, TURBO_E_INTERNAL, "{wire:?}");
+    assert_eq!(wire.message, "step 'turbo-tokenize:uax29-untyped' failed: annotator failure");
+    let error = failure.error.as_ref().unwrap();
+    assert_eq!((error.kind, error.turbo_code), (LayerErrorKind::Annotator as i32, TURBO_E_INTERNAL));
+    let shown = format!("{events:?}");
+    assert!(!shown.contains("patient jane doe"), "{shown}");
 }
