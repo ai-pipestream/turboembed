@@ -157,6 +157,17 @@ async fn teeing(endpoint: String, max_queue_items: usize) -> Server {
     s
 }
 
+/// An address that refuses every connection while the socket is held: the
+/// port is bound and never listens. A port bound and released at once can be
+/// handed to another test in this binary, and a forwarder still retrying
+/// that address would then deliver its queue to that test's sink.
+fn refusing() -> (tokio::net::TcpSocket, SocketAddr) {
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = socket.local_addr().unwrap();
+    (socket, addr)
+}
+
 /// Streams `n` documents through one AnalyzeStream call and waits for
 /// every answer. Their ids are `tag` and a number.
 async fn analyze(s: &Server, tag: &str, n: usize) {
@@ -208,8 +219,7 @@ async fn concurrent_streams_reach_the_sink_numbered_in_the_order_sent() {
 
 #[tokio::test]
 async fn items_a_sink_cannot_take_wait_in_the_queue_and_are_counted_there() {
-    // An address nothing listens on.
-    let gone = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    let (_held, gone) = refusing();
     let s = teeing(format!("http://{gone}"), 2).await;
     analyze(&s, "d", 5).await;
     let stats = until(&s, |st| st.failed_calls > 0).await;
@@ -269,9 +279,7 @@ async fn a_call_cut_while_idle_is_counted_failed_without_waiting_for_the_next_it
 
 #[tokio::test]
 async fn items_offered_before_the_sink_starts_reach_it_once_it_does() {
-    let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let addr = free.local_addr().unwrap();
-    drop(free);
+    let (held, addr) = refusing();
     let s = teeing(format!("http://{addr}"), 16).await;
     analyze(&s, "early", 3).await;
     let stats = until(&s, |st| st.failed_calls > 0).await;
@@ -280,20 +288,22 @@ async fn items_offered_before_the_sink_starts_reach_it_once_it_does() {
     let keep = got.clone();
     let receiver = SinkReceiver::new(move |item| keep.lock().unwrap().push(item));
     let serve = Serve { sink_receiver: Some(receiver), ..Serve::default() };
+    drop(held);
     let sink = Server::start(addr, vec![model()], MAX, serve).await.unwrap();
     let stats = until(&s, |st| st.forwarded == 3).await;
     assert_eq!((stats.forwarded, stats.queued, stats.dropped), (3, 0, 0), "{stats:?}");
     let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
     let summary = stats.last_summary.unwrap();
     assert_eq!((summary.accepted_count, summary.rejected_count), (3, 0), "{:?}", summary.errors);
-    assert_eq!(got.lock().unwrap().len(), 3);
+    let ids: Vec<String> = got.lock().unwrap().iter().map(|i| i.doc_id.clone()).collect();
+    assert_eq!(ids, ["early0", "early1", "early2"]);
     s.stop().await;
     sink.stop().await;
 }
 
 #[tokio::test]
 async fn closing_with_the_sink_down_stops_the_drain_at_the_deadline() {
-    let gone = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    let (_held, gone) = refusing();
     let s = teeing(format!("http://{gone}"), 4).await;
     analyze(&s, "d", 3).await;
     until(&s, |s| s.failed_calls > 0).await;
