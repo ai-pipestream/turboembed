@@ -78,11 +78,42 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
     assert_eq!(one("Portland, OR 97201."), ("OR".to_owned(), "state", "OR".to_owned()));
     let states: Vec<_> = found("PORTLAND OR 97201").into_iter().filter(|m| m.1 == "state").collect();
     assert_eq!(states, [("OR".to_owned(), "state", "OR".to_owned())]);
+    // Towns the bundled gazetteer lacks still give their state before a
+    // ZIP code of that state (#2126).
+    for (text, code) in [
+        ("Reading PA 19601", "PA"),
+        ("Send it to Reading PA 19601-1234 by Friday", "PA"),
+        ("New Hope PA 18938", "PA"),
+        ("Amherst MA 01002", "MA"),
+        ("Sedona AZ 86336", "AZ"),
+        ("APO AA 34002", "AA"),
+        ("Austin TX 73301", "TX"),
+        ("Andover MA 05501", "MA"),
+        ("Reston VA 20190", "VA"),
+        ("Saint Louis MO 63101", "MO"),
+    ] {
+        let states: Vec<_> = found(text).into_iter().filter(|m| m.1 == "state").collect();
+        assert_eq!(states, [(code.to_owned(), "state", code.to_owned())], "{text:?}");
+    }
     // A code before a ZIP code ends an address by what comes before it:
-    // a comma, a city of that state, or the start of a line with only
-    // blanks after the ZIP code to the line's end.
+    // a comma and blanks, the start of a line with only blanks after the
+    // ZIP code to the line's or clause's end, or, with a ZIP prefix of
+    // that state, a capitalized word and bare comma, brackets around the
+    // code and ZIP code, a colon label, or a capitalized word and
+    // horizontal blanks.
     for text in [
         "Springfield, IL 62704 is the address",
+        "Springfield,   IL 62704",
+        "Springfield,IL 62704",
+        "Springfield  IL 62704",
+        "Springfield\tIL 62704",
+        "Springfield\u{a0}IL 62704",
+        "(IL 62704)",
+        "( IL 62704 )",
+        "[IL 62704]",
+        "Address: IL 62704",
+        "\u{a0}IL 62704",
+        "Name\n\u{a0}IL 62704",
         "IL 62704",
         "Name\n  IL 62704 \nx",
         "IL 62704  \r\nUSA",
@@ -109,15 +140,51 @@ fn a_code_needs_a_state_label_or_a_zip_code() {
         "sold ME 12345 more",
         "Order IN 12345.",
         "Order IN 12345",
+        "Order  IN 12345",
+        "Order\tIN 12345",
         "Lot IN 12345; ship",
         "(see IN 12345)",
+        "(see IN 46201)",
+        "(see IN 46204)",
+        "(IL 62704 units)",
+        "[IL 62704)",
+        "(IN 12345)",
+        "(OR 90210)",
+        "Order (IN 12345)",
+        "[OR 12345]",
+        "( IN 12345 )",
+        "x(IN 12345)y",
+        "Part: OR 90210",
+        "Order: IN 12345",
+        "Qty: IN 12345",
+        "Size: ME 12345",
+        "Item 4: IN 12345",
+        "Ref: IN 12345.",
+        "Note: OR 12345 units",
+        "Address: IN 12345 units",
+        "Address: IL 62704 units",
+        "Address:IL 62704",
+        "Order,IN 12345",
+        "a,IN 12345",
+        "1,IN 12345",
+        "a,IN 46204",
+        "1,IN 46204",
+        ",IL 62704",
+        ",IN 12345",
+        "Springfield ,IL 62704",
+        "\u{a0}IN 12345 units",
+        "Order FL 34002.",
+        "Order OK 73301.",
+        "Order VT 05501.",
+        "Order DC 20190.",
         "We need OR 90210, now",
         "PART OR 90210",
+        "x_Springfield IL 62704",
+        "e\u{301}Springfield IL 62704",
         "IN 12345 units",
         "\tOR 90210 boxes",
         "Order\nIN 12345 units",
         "Order\r\n  ME 12345 more",
-        "Springfield  IL 62704",
         "IN the morning, OR later, ME too, OK?",
         "Springfield, IL",
         "IL 627041",
