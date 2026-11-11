@@ -23,6 +23,8 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-glossary = { path = "../glossary" }
 # The bundled gazetteer the city kind reads.
 turbo-geo = { path = "../geo" }
+# Which states a three-digit ZIP prefix belongs to (`zip3_in_state`).
+turbo-us-zip = { path = "../us-zip" }
 # The temporal and money scanners the date and currency kinds read.
 turbo-numeric = { path = "../numeric" }
 turbo-sha256 = { path = "../sha256" }

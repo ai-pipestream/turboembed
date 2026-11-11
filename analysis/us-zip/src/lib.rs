@@ -11,7 +11,10 @@
 //!   it overlaps, each with its share of the ZCTA's land, largest first,
 //!
 //! and the 32,188 places and 3,235 counties those name, and for every
-//! three-digit prefix the states that hold its ZCTAs. `data/README.md`
+//! three-digit prefix the states that hold its ZCTAs. [`zip3_in_state`]
+//! says whether a prefix belongs to a state, from the prefix table and
+//! the prefixes the Postal Service assigns that hold no ZCTA, without
+//! parsing the larger tables. `data/README.md`
 //! says which Census files they are built from and how.
 //!
 //! A ZCTA is the Census Bureau's area for the ZIP Code most addresses in
@@ -33,6 +36,7 @@
 
 mod entry;
 mod parse;
+mod prefix;
 
 use std::fmt;
 use std::ops::Range;
@@ -41,6 +45,7 @@ use std::sync::OnceLock;
 use turbo_geo::{GeoBoundingBox, GeoPoint};
 
 pub use entry::{SOURCE_CENSUS_ZCTA, zcta_entry};
+pub use prefix::{PREFIX_EXTRA_TABLE, zip3_in_state};
 
 /// The bundled ZCTA table (`data/us-zcta.txt`).
 pub const ZCTA_TABLE: &str = include_str!("../data/us-zcta.txt");
