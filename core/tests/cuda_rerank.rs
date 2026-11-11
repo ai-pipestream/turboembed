@@ -18,6 +18,7 @@ mod rerank_common;
 use std::path::Path;
 
 use cuda_support::*;
+use rerank_common::worst;
 use turbo::bundle::Bundle;
 use turbo::rerank::{RerankOptions, RerankSessionOptions, Reranker};
 use turbo::safetensors::{Dtype, File};
@@ -34,11 +35,6 @@ fn fixture() -> rerank_common::Fixture {
 fn on(dir: &Path, backend: &str, precision: u32) -> Reranker {
     let o = RerankSessionOptions { backend: Some(backend.into()), precision, cpu_threads: 0 };
     Reranker::open_with(dir, &o).unwrap_or_else(|e| panic!("{backend}: {e:?}"))
-}
-
-fn worst(a: &[f32], b: &[f32]) -> f32 {
-    assert_eq!(a.len(), b.len());
-    a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0f32, f32::max)
 }
 
 /// The tiny model's pairs on CUDA within 1e-4 of the reference and 1e-5 of
