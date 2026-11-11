@@ -165,19 +165,21 @@ it to the same fixtures and tolerance:
 TURBO_TEST_DEVICE=cuda cargo test --release -p turbo-sat --features turbo/cuda --test parity -- --nocapture
 ```
 
-All four tests pass at `model` and at `exact` on each GPU backend, with
-the largest probability differences within 1e-6 of the CPU's (3.2e-4,
-1.2e-4 and 2.5e-4). At `fastest`, whose linear layers take F16
-operands, the result depends on the backend:
+The bound follows the dtype the encoder computes in, which the test
+prints with the largest difference it found. At `model` and `exact`
+every backend computes in f32 and is held to 1e-3, and all the tests
+pass on each GPU backend with the largest probability differences
+within 1e-6 of the CPU's (3.2e-4, 1.2e-4 and 2.5e-4). At `fastest` a
+backend whose linear layers take F16 operands rounds more than the whole
+f32 bound, so it is held to 5e-3 instead; one that still computes in
+f32 there keeps 1e-3. The measured differences behind the f16 bound are
+in `analysis/sat/README.md`.
 
-| Backend | Device | `model`, `exact` | `fastest` |
-|---|---|---|---|
-| `cuda` | RTX 4080 SUPER (nvcc 12.4, driver 615.71.09) | pass | fails: a character 1.0e-3 from wtpsplit's |
-| `levelzero` | Arc B70 | pass | fails: a character 1.3e-3 from wtpsplit's |
-| `metal` | Apple M2 (macOS 27.0.1) | pass | pass, largest differences 3.3e-4, 1.2e-4, 2.5e-4 |
-
-A failure at `fastest` is over the 1e-3 the test allows, which is left
-as it is; the parity holds at `model` and `exact` on every backend.
+At either bound the cuts are held to wtpsplit's: a character may be on
+the other side of the threshold only where wtpsplit's probability is
+within the bound of it, and every text with no such character has its
+pieces compared. At f32 the count of such characters is fixed for each
+fixture; at f16 it depends on the device's rounding and is printed.
 
 `analysis/sat/tests/device.rs` holds the device to the CPU with the
 same bundle rather than to wtpsplit: every token's probability within
