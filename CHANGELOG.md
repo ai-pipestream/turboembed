@@ -407,6 +407,9 @@ stubs must be regenerated.
 
 ### Fixed
 
+- Server flags and variables, `--model` settings and `turbo-kserve health`:
+  a value that is refused, or an unknown `health` argument, is described
+  by its length in the error and never repeated (#2196).
 - `AnalyzeDocumentProgressive`: a document over a limit of
   `turbo:zero-shot-relations` (such as the GLiNER2 encoder's 512 word
   pieces) fails the step with `TURBO_E_CAPACITY` and a message naming the

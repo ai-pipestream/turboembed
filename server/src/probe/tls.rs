@@ -29,7 +29,7 @@ impl Settings {
             "--tls-cert" => &mut self.cert,
             "--tls-key" => &mut self.key,
             "--tls-name" => &mut self.name,
-            _ => return Err(format!("unknown argument {flag}")),
+            _ => return Err(format!("unknown argument ({} bytes, not shown)", flag.len())),
         };
         if value.trim().is_empty() {
             return Err(format!("{flag} needs a value"));
