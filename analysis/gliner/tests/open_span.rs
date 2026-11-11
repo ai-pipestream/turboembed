@@ -203,6 +203,7 @@ fn open_span_loads_from_zoo_by_id_and_language_and_builtin_index_pins_permissive
             size: bytes.len() as u64,
             sha256: Sha256::of(&bytes),
             sha512: Sha512::of(&bytes),
+            also: Vec::new(),
             download: None,
         });
     }
