@@ -8,6 +8,8 @@ use turbo_zoo::{
     UserId, Zoo, ZooError,
 };
 
+mod import_cmd;
+
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
   show <id>            one artifact: licences, training data, files
@@ -21,6 +23,11 @@ const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   accepted             the licences you have accepted
   fetch <id>           fetch and verify an artifact; prints its local files
   hash <file>...       size, SHA-256 and SHA-512 of files, for an index entry
+  index                the index in its canonical form, to start an index file from
+  import-bundle <bundle-dir> --id <id> --base <url> --license-terms <url> [...]
+                       a sealed bundle directory as an index entry, every file
+                       verified against its manifest; with --into <zoo.json>,
+                       added to that index file (`turbo-zoo import-bundle` lists the flags)
 
 The zoo keeps its cache and acceptance file in $TURBO_ZOO_HOME, else
 $XDG_DATA_HOME/turbo-zoo, else ~/.local/share/turbo-zoo. The user is $USER
@@ -64,6 +71,9 @@ fn acceptable(licence: &str, verb: &str) -> Result<Licence, String> {
 }
 
 fn run(mut args: Vec<String>) -> Result<(), String> {
+    if args.first().map(String::as_str) == Some("import-bundle") {
+        return import_cmd::run(&args[1..].iter().map(String::as_str).collect::<Vec<_>>());
+    }
     let index = if args.first().map(String::as_str) == Some("--index") {
         if args.len() < 2 {
             return Err(USAGE.into());
@@ -181,6 +191,10 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             for f in &fetched.files {
                 println!("{}", f.display());
             }
+            Ok(())
+        }
+        ["index"] => {
+            print!("{}", Index::to_canonical_json(index.list()));
             Ok(())
         }
         ["hash", files @ ..] if !files.is_empty() => {
