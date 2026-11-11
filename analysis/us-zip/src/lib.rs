@@ -19,6 +19,10 @@
 //! parsing the larger tables. `data/README.md`
 //! says which Census files they are built from and how.
 //!
+//! [`ZipLocationAnnotator`] reads the `turbo:pii` layer and writes the
+//! record of each detected ZIP Code's ZCTA into `turbo:locations` under the
+//! key [`ZIP_LOCATIONS`], beside the geocoder's own locations.
+//!
 //! A ZCTA is the Census Bureau's area for the ZIP Code most addresses in
 //! it use, so not every ZIP Code has one: a ZIP Code of post office boxes
 //! only, one of a single organization and a military ZIP Code have none,
@@ -36,6 +40,7 @@
 //! assert_eq!(z.places().next().unwrap().0.name(), "Springfield");
 //! ```
 
+mod annotate;
 mod entry;
 mod parse;
 mod prefix;
@@ -46,6 +51,7 @@ use std::sync::OnceLock;
 
 use turbo_geo::{GeoBoundingBox, GeoPoint};
 
+pub use annotate::{ZIP_LOCATIONS, ZipLocationAnnotator};
 pub use entry::{SOURCE_CENSUS_ZCTA, zcta_entry};
 pub use prefix::{PREFIX_EXTRA_TABLE, zip3_in_state};
 
