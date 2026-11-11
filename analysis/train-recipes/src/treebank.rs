@@ -320,6 +320,8 @@ impl Treebank {
             class: class_of([LICENCE]),
             attribution: Some(self.attribution()),
             origin: None,
+            model_type: Default::default(),
+            bundle: None,
             files,
         })
     }
