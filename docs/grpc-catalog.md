@@ -55,14 +55,20 @@ DIR/private/acceptances/<key>.json  one acceptance per file
   artifacts, which reach a user only through a server after its licence
   check, and the acceptances. The server makes it readable by its own
   user alone and refuses to start when users other than its owner and
-  group may read or enter it. Export or mount only `public/` to clients.
+  group may read or enter it; its group may, so an admin group can
+  back it up (on Unix; elsewhere the file system's own access control
+  applies). Export or mount only `public/` to clients.
 - A `CLASS_LOCAL_ONLY` file is never written to the directory, as with
   any store: each server fetches it from its publisher.
 - Each acceptance is its own file, named by the SHA-256 of the user and
   the terms, so servers that record at once never rewrite each other's
   file; a revoke removes it. An acceptance recorded through one server
   is honoured, listed and revoked through every other. The home's
-  `acceptances.json` is not read while a data directory is set.
+  `acceptances.json` is not read while a data directory is set. A
+  record that does not parse, or is not named for the acceptance it
+  holds, fails every licence check with an error naming the file, so a
+  tool that copies the directory must rename each file into place
+  whole, as the server does; remove such a file and accept again.
 - Every file is written whole under a temporary name and renamed into
   place, so a reader never sees part of one, and two servers fetching
   the same file both succeed and leave one verified copy.

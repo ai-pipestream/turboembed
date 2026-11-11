@@ -17,7 +17,7 @@ use turbo_kserve::proto::training::model_file_chunk::Frame;
 use turbo_kserve::proto::training::turbo_catalog_service_client::TurboCatalogServiceClient;
 use turbo_kserve::proto::training::*;
 use turbo_kserve::{Serve, Server};
-use turbo_zoo::{Index, Sha256, Sha512, Transport, Url};
+use turbo_zoo::{Index, Licence, Requirement, Sha256, Sha512, Shown, Transport, Url, UserId};
 
 type Client = TurboCatalogServiceClient<Channel>;
 
@@ -292,4 +292,41 @@ async fn a_read_only_data_directory_serves_what_it_holds_and_fetches_nothing() {
     drop(b);
     sb.stop().await;
     set(false);
+}
+
+/// A record revoked on one server while another lists the acceptances is
+/// gone, never a bad record: the listing keeps working for every user.
+#[test]
+fn a_record_revoked_while_another_server_reads_is_simply_gone() {
+    let data = Dir::new("revoke-race");
+    let (writer, reader) = (DataDir::open(&data.0).unwrap(), DataDir::open(&data.0).unwrap());
+    let r = Requirement::of(Licence::CcBySa40).unwrap();
+    let (alice, bob): (UserId, UserId) = ("alice".parse().unwrap(), "bob".parse().unwrap());
+    writer.record(&bob, &r, &Shown::default()).unwrap();
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flips = {
+        let (done, r, alice) = (done.clone(), r.clone(), alice.clone());
+        std::thread::spawn(move || {
+            for _ in 0..2000 {
+                writer.record(&alice, &r, &Shown::default()).unwrap();
+                assert!(writer.revoke(&alice, &r).unwrap());
+            }
+            done.store(true, std::sync::atomic::Ordering::SeqCst);
+        })
+    };
+    let mut reads = 0;
+    while !done.load(std::sync::atomic::Ordering::SeqCst) {
+        let a = reader.acceptances().unwrap_or_else(|e| panic!("read {reads}: {e}"));
+        assert!(a.has(&bob, &r));
+        reads += 1;
+    }
+    flips.join().unwrap();
+    assert!(!reader.acceptances().unwrap().has(&alice, &r));
+}
+
+#[test]
+fn a_store_and_a_data_directory_together_are_refused() {
+    let (data, home) = (Dir::new("both"), Dir::new("both-home"));
+    let e = Catalog::http(home.0.clone(), None, Some("s3://models/zoo"), Some(&data.0)).unwrap_err();
+    assert_eq!(e, "--catalog-store and --catalog-data are two stores; give one");
 }

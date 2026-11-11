@@ -176,7 +176,13 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() }),
     }
-    let one = Acceptances::load(path)?;
+    // Read once: a record revoked since the check above is gone, not bad.
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() }),
+    };
+    let one = Acceptances::parse(&bytes).map_err(|e| bad(e.to_string()))?;
     let mut all = one.iter();
     let (Some(a), None) = (all.next(), all.next()) else {
         return Err(bad("a record holds one acceptance".into()));
