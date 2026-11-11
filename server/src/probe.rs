@@ -64,6 +64,14 @@ impl Probe {
                 Some((f, v)) if f.starts_with("--") => (f.to_string(), Some(v.to_string())),
                 _ => (a.clone(), None),
             };
+            // Checked before a value is taken: an unknown last argument
+            // would otherwise come back in "needs a value".
+            if !matches!(
+                flag.as_str(),
+                "--addr" | "--service" | "--timeout-ms" | "--tls-ca" | "--tls-cert" | "--tls-key" | "--tls-name"
+            ) {
+                return Err(format!("unknown argument ({} bytes, not shown); the flags are {FLAGS}", flag.len()));
+            }
             let v = inline.or_else(|| it.next()).ok_or_else(|| format!("{flag} needs a value"))?;
             let twice = || Err(format!("{flag} given twice"));
             match flag.as_str() {
@@ -86,7 +94,7 @@ impl Probe {
                     }
                 }
                 "--tls-ca" | "--tls-cert" | "--tls-key" | "--tls-name" => tls.flag(&flag, v)?,
-                _ => return Err(format!("unknown argument ({} bytes, not shown); the flags are {FLAGS}", flag.len())),
+                _ => unreachable!("every flag is checked above"),
             }
         }
         let addr = match addr {
