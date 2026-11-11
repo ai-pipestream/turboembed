@@ -5,7 +5,6 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
 
 use common::*;
 use serde_json::{Value, json};
@@ -14,6 +13,7 @@ use turbo::head::TokenTagger;
 use turbo::head::tagger::{NO_WORD, Work, tensors};
 use turbo::manifest::{HeadSpec, Manifest};
 use turbo::status::*;
+use turbo_scratch::Scratch;
 
 const LABELS: [&str; 5] = ["O", "B-PER", "I-PER", "B-LOC", "I-LOC"];
 
@@ -63,9 +63,8 @@ fn head_weights(spec: &HeadSpec) -> Vec<(String, Vec<u64>, Vec<f32>)> {
 
 /// The tiny bundle with the tensors `extra` appended to its weights and
 /// `edit` applied to its manifest, files[] updated to match.
-fn bundle(name: &str, extra: &[(String, Vec<u64>, Vec<f32>)], edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn bundle(name: &str, extra: &[(String, Vec<u64>, Vec<f32>)], edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();
@@ -133,7 +132,8 @@ fn heads_round_trip_through_the_manifest() {
 fn loaded_tagger_matches_the_one_built_from_the_same_weights() {
     let s = spec();
     let w = head_weights(&s);
-    let b = Bundle::open(&bundle("load", &w, |_| {})).unwrap();
+    let dir = bundle("load", &w, |_| {});
+    let b = Bundle::open(&dir).unwrap();
     let loaded = TokenTagger::load(&b, "ner").unwrap();
     let get = |suffix: &str| w.iter().find(|(k, _, _)| k == suffix).map(|(_, _, v)| v.clone());
     let built = TokenTagger::from_tensors(&s, 32, &get).unwrap();
@@ -200,14 +200,16 @@ fn loader_refuses_missing_and_misshapen_tensors() {
     let s = spec();
     let mut w = head_weights(&s);
     w.retain(|(k, _, _)| k != "crf.end");
-    let b = Bundle::open(&bundle("missing", &w, |_| {})).unwrap();
+    let dir = bundle("missing", &w, |_| {});
+    let b = Bundle::open(&dir).unwrap();
     let e = TokenTagger::load(&b, "ner").unwrap_err();
     assert!(e.message.contains("heads.ner.crf.end"), "{e:?}");
 
     let mut w = head_weights(&s);
     let out = w.iter_mut().find(|(k, _, _)| k == "out.weight").unwrap();
     out.1 = vec![out.1[1], out.1[0]];
-    let b = Bundle::open(&bundle("shape", &w, |_| {})).unwrap();
+    let dir = bundle("shape", &w, |_| {});
+    let b = Bundle::open(&dir).unwrap();
     let e = TokenTagger::load(&b, "ner").unwrap_err();
     assert!(e.message.contains("heads.ner.out.weight"), "{e:?}");
 }
