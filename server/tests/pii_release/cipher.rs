@@ -45,7 +45,7 @@ async fn a_ciphertext_grant_releases_values_the_encryption_key_decrypts() {
     assert_eq!((sealed.scheme.as_str(), sealed.key_id.as_str(), sealed.key_version), (SCHEME, "vault", 2));
     let text = std::str::from_utf8(&sealed.ciphertext).unwrap();
     let dec = AesGcmEncryptor::new(&ENCRYPTION_KEY).unwrap().with_context(CONTEXT);
-    let kind = format!("BUILTIN:{}", PiiKind::Email.builtin_id().unwrap());
+    let kind = format!("builtin:{}", PiiKind::Email.builtin_id().unwrap());
     assert_eq!(dec.decrypt(text).unwrap(), (kind, EMAIL.to_owned()));
     assert_eq!(reason(&got[1]), Some(PiiWithheldReason::NotGranted), "the phone kind is not granted");
     let wire = typed.encode_to_vec();

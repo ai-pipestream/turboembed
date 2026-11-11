@@ -178,8 +178,14 @@ canvas.plot { width: 100%; max-width: 640px; border: 1px solid var(--line); bord
 .leaf { padding: 1px 0; }
 progress { width: 100%; }
 .filter input { flex: 1; min-width: 12em; }
-.catalog .entry { border-top: 1px solid var(--line); padding: 8px 0; }
+.catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 10px; }
+.catalog[hidden] { display: none; }
+.catalog .entry { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; background: var(--bg); }
 .catalog .entry[hidden] { display: none; }
+.catalog .entry:has(details[open]) { grid-column: 1 / -1; }
+.catalog .purpose { font-size: 13px; }
+.catalog .acts { margin-top: auto; padding-top: 6px; }
+.catalog .acts button.primary { width: auto; margin-top: 0; padding: 3px 10px; }
 .catalog .facts { display: flex; gap: 4px 8px; flex-wrap: wrap; align-items: baseline; }
 .catalog .id { font-weight: 600; overflow-wrap: anywhere; }
 .catalog .tag { margin-left: 0; }

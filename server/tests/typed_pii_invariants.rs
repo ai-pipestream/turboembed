@@ -311,7 +311,7 @@ fn a_pii_value_is_withheld_a_keyed_token_or_a_clear_value() {
     validate_typed_document(&pii_message(token)).unwrap();
     let clear = |m: &mut WirePii| m.value = value(Some(Form::Clear("planted.clear@example.com".to_owned())));
     validate_typed_document(&pii_message(clear)).unwrap();
-    validate_typed_document(&pii_message(|m| m.value = cipher(b"BUILTIN:1:AAAA", "vault", 1, SCHEME))).unwrap();
+    validate_typed_document(&pii_message(|m| m.value = cipher(b"builtin:1:AAAA", "vault", 1, SCHEME))).unwrap();
     // Everything else is refused, and the error names the form, never the
     // token, the ciphertext or the key.
     let secrets = ["planted-token", "planted-cipher", "planted-key-id", "planted-scheme"];

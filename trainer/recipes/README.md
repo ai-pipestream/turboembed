@@ -263,15 +263,19 @@ whose version, labels, schema, or thresholds do not match. Every run writes
 this artifact, including uniform-threshold runs, and its SHA-256 is part of
 the peer identity. Calibration never reads test labels. The per-label filter
 runs before flat overlap resolution across all labels. New artifacts also carry
-`held_thresholds`, fitted independently on the held-out schema's dev
-candidates and used only for held-out decoding. Older artifacts without that
-map use the all-label thresholds for held-out decoding. Candidate tensors are
+`held_thresholds` and `held_schema`, fitted independently on the ordered
+held-out prompt schema's dev candidates and used only for held-out decoding.
+Evaluation refuses a held map fitted under a different held-out ordering or
+prompt schema. Older artifacts without that map use the all-label thresholds
+for held-out decoding. Candidate tensors are
 reused for calibrated all-label and held-out predictions; only seen labels are
 scored again.
 
 `train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP or NuNER's
 single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and
-boundary features. Each training span
+boundary features. `--train-boundaries` also trains the marker start and end
+MLPs, with their exact gradients through `out_project`, while the encoder,
+prompt encoder and BiLSTM remain frozen. Each training span
 keeps its gold labels and at most four highest-logit negative labels; gold
 spans are accompanied by up to two hard-negative spans per positive span,
 with a minimum of four. Positive BCE terms have weight 4. `--balance` repeats
@@ -287,8 +291,9 @@ computes at most N sentences per batch concurrently and reduces their
 gradients in original sentence order; 0 uses the whole batch. Set
 `TURBO_CPU_THREADS=1` when using multiple sentence workers so encoder calls
 do not create nested thread pools. `--anchor W` adds `W * ||params - base||^2`
-to the output-head loss and its exact gradient, limiting drift from the
-pretrained MLP. The default is 0, and the peer identity records the value.
+to the loss and its exact gradient, limiting drift from every pretrained
+tensor selected for training. The default is 0, and the peer identity records
+the anchor and whether boundary training was enabled.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,

@@ -207,7 +207,8 @@ message PiiRewriteStrategy
     PiiZipSafeHarborStrategy zip_safe_harbor = 11;
     // PII_STRATEGY_AGE_SAFE_HARBOR
     PiiAgeSafeHarborStrategy age_safe_harbor = 12;
-    // PII_STRATEGY_DATE_YEAR, PII_STRATEGY_DATE_SHIFT or
+    // PII_STRATEGY_DATE_YEAR, PII_STRATEGY_DATE_SHIFT,
+    // PII_STRATEGY_DATE_SAFE_HARBOR or
     // PII_STRATEGY_DATE_RELATIVE: one per mode
     PiiDateStrategy date = 13;
     // PII_STRATEGY_AES_256_GCM. Needs a server built with reversible
@@ -345,6 +346,8 @@ message PiiDateStrategy
     PiiDateShift shift = 2;
     // PII_STRATEGY_DATE_RELATIVE
     PiiDateRelative relative = 3;
+    // PII_STRATEGY_DATE_SAFE_HARBOR
+    PiiDateSafeHarbor safe_harbor = 5;
   }
   // One character; empty means '*'.
   string mask_char = 4;
@@ -387,6 +390,20 @@ message PiiDateShift
 message PiiDateRelative
 {
   // The reference date, yyyy-MM-dd. Required: the clock is never read.
+  string reference = 1;
+}
+
+// The year alone, as PiiDateYear writes it, except that every year 90 or
+// more years before the reference year is written as one category,
+// "1936 or earlier" for a 2026 reference: someone born in such a year can
+// be older than 89 on the reference date. HIPAA Safe Harbor
+// (45 CFR 164.514(b)(2)(i)(C)) counts such a year as an element of a date
+// indicative of an age over 89 and lets it be aggregated into one category
+// of age 90 or older.
+message PiiDateSafeHarbor
+{
+  // The reference date, yyyy-MM-dd, usually the record's release date.
+  // Required: the clock is never read.
   string reference = 1;
 }
 
