@@ -1,6 +1,7 @@
 //! #1886: cities (`CityPiiExtractor`) in the opt-in Places pack. A city
 //! is a place of the bundled gazetteer named before its state or after a
-//! city label. Places are real; the sentences are made up.
+//! city label, or a bare name that is no common word
+//! (`places_city_bare.rs`). Places are real; the sentences are made up.
 
 mod support;
 
@@ -81,10 +82,10 @@ fn a_city_after_a_city_label_is_a_mention() {
 #[test]
 fn what_is_no_city_mention() {
     for text in [
-        // A bare name, however well known, needs a state or a label.
+        // A bare name that is a common word needs a state or a label
+        // (bare names are in `places_city_bare.rs`).
         "Phoenix rose from the ashes",
         "my Mobile phone",
-        "Chicago is large",
         // The state must hold a place of that name.
         "Springfield, Alaska",
         "Mobile, IL",
@@ -100,9 +101,11 @@ fn what_is_no_city_mention() {
         "Springfield_x, IL",
         "Gotham, NY",
         "City: Gotham",
-        "Springfield, ILL",
-        "Springfield,IL",
-        "Springfield , IL",
+        // A malformed state anchors nothing; Mobile is a common word, so
+        // no bare reading takes it either.
+        "Mobile, ALA",
+        "Mobile,AL",
+        "Mobile , AL",
         "Kansas  City, MO",
         "the Kansas City Chiefs",
         "City, MO",

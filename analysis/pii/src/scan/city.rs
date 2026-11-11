@@ -16,7 +16,8 @@
 //!   smaller US homonyms missing from the 1:10m table under that state
 //!   (`City: Dublin, OH`, `City: Rome, NY`).
 //!
-//! A bare name with neither is no mention. The name has at most
+//! A bare name with neither is read only where it is unlikely to be a
+//! word, a person or part of a longer name (`city_bare`, #2097). The name has at most
 //! [`MAX_WORDS`] words with single spaces between them, its first and last
 //! word start with a capital (`Rio de Janeiro`), no word character touches
 //! either end ([`name_char`]), and it is matched by the gazetteer's own
@@ -80,6 +81,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
         }
         at += LANES;
     }
+    super::city_bare::scan(text, &mut found);
     found.sort_unstable_by_key(|&(start, end, _)| (start, usize::MAX - end));
     let mut last = 0;
     for (start, end, name) in found {
@@ -149,7 +151,7 @@ fn in_state(entry: &Entry<'static>, code: &str) -> bool {
 }
 
 /// Whether a capital letter starts at `i`.
-fn capital_at(text: &str, i: usize) -> bool {
+pub(super) fn capital_at(text: &str, i: usize) -> bool {
     text.get(i..).and_then(|t| t.chars().next()).is_some_and(char::is_uppercase)
 }
 
@@ -190,7 +192,7 @@ fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str
 
 /// The gazetteer's places named `text[start..end]`, when it is written
 /// like a name with no word character touching either end.
-fn lookup(text: &str, start: usize, end: usize) -> Option<Vec<Entry<'static>>> {
+pub(super) fn lookup(text: &str, start: usize, end: usize) -> Option<Vec<Entry<'static>>> {
     let written = &text[start..end];
     super::step(written.len());
     if !on_name_start(text, start) || !on_name_end(text, end) || !capitals_like_a_name(written) {
@@ -267,7 +269,7 @@ fn word_starts_before(text: &str, end: usize, starts: &mut [usize]) -> usize {
 /// single spaces between them; a word runs over word characters and the
 /// marks inside a name (`St. Louis`, `O'Fallon`, `Winston-Salem`), and
 /// ends before trailing ones (`Springfield.`).
-fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
+pub(super) fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
     let mut n = 0;
     let mut at = i;
     while n < ends.len() {
@@ -300,7 +302,7 @@ fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
 
 /// Whether the first and last words of `written` start with a capital, as
 /// a name does whose inner words may be small (`Rio de Janeiro`).
-fn capitals_like_a_name(written: &str) -> bool {
+pub(super) fn capitals_like_a_name(written: &str) -> bool {
     let first = written.split(' ').next().is_some_and(|w| w.chars().next().is_some_and(char::is_uppercase));
     let last = written.rsplit(' ').next().is_some_and(|w| w.chars().next().is_some_and(char::is_uppercase));
     first && last
@@ -309,7 +311,7 @@ fn capitals_like_a_name(written: &str) -> bool {
 /// The USPS code of the state named directly after `end`: after `, ` by
 /// name or USPS code (`, Illinois`, `, IL`), or after ` ` by name or by a
 /// capital USPS code before a ZIP code (` Alabama`, ` IL 62704`).
-fn state_after(text: &str, end: usize) -> Option<&'static str> {
+pub(super) fn state_after(text: &str, end: usize) -> Option<&'static str> {
     let b = text.as_bytes();
     let (comma, at) = if b.get(end..end + 2) == Some(b", ") {
         (true, end + 2)
