@@ -207,7 +207,9 @@ this is wtpsplit as it ships, read through `PreTrainedTokenizerFast`
 `a_released_checkpoint_matches_wtpsplit` in
 `analysis/sat/tests/parity.rs` runs the comparison when
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
-the fixtures. On the 90 texts:
+the fixtures, separated by commas. A fixture written `path=n` has `n`
+characters on the other side of the threshold at f32; without it the
+test expects none. On the 90 texts:
 
 | Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | On Level Zero (`model`) | Characters near the threshold |
 |---|---|---|---|---|

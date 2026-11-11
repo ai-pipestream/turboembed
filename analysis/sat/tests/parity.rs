@@ -44,7 +44,7 @@ const F32_TOLERANCE: f64 = 1e-3;
 /// The bound where the encoder computes in f16 or bf16, as a device does
 /// at `fastest`: the encoder's own rounding is then larger than the f32
 /// bound. The largest difference measured is in analysis/sat/README.md,
-/// and this is about 2.8 times it.
+/// and this is about twice it.
 const F16_TOLERANCE: f64 = 5e-3;
 
 /// The bound for the dtype the step computes in.
@@ -368,9 +368,11 @@ fn limited_lookahead_matches_wtpsplit() {
 /// bundle sealed from it, and TURBO_TEST_SAT_FIXTURES the fixtures,
 /// separated by commas, that the reference's `segment` made from the same
 /// weights over tests/data/texts.jsonl (analysis/sat/README.md). Each is
-/// held to the tiny model's checks, with no character on the other side
-/// of the threshold at f32 and no more than the one text with a pad token in it left out. With
-/// neither variable set it says it was skipped; one alone is an error.
+/// held to the tiny model's checks, with no more than the one text with a
+/// pad token in it left out. A fixture is a path, or `path=n` where the
+/// checkpoint has n characters on the other side of the threshold at f32
+/// (none when not given). With neither variable set it says it was
+/// skipped; one alone is an error.
 #[test]
 fn a_released_checkpoint_matches_wtpsplit() {
     use std::env::VarError::NotPresent;
@@ -383,9 +385,13 @@ fn a_released_checkpoint_matches_wtpsplit() {
         (b, f) => panic!("TURBO_TEST_SAT_BUNDLE ({b:?}) and TURBO_TEST_SAT_FIXTURES ({f:?}) go together"),
     };
     let bundle = turbo_pins::require(&bundle);
-    for path in fixtures.split(',') {
+    for entry in fixtures.split(',') {
+        let (path, near) = match entry.rsplit_once('=') {
+            Some((path, n)) => (path, n.parse().unwrap_or_else(|e| panic!("{entry}: {e}"))),
+            None => (entry, 0),
+        };
         let s = compare_at(Path::new(path), &bundle);
-        check(path, &s, 0);
+        check(path, &s, near);
         assert!(s.pad_in_text <= 1, "{path}: {} texts compared for their tokens only", s.pad_in_text);
     }
 }
