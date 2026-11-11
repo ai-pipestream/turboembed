@@ -268,7 +268,7 @@ fn line_ends_after(text: &str, end: usize) -> bool {
 /// with no letter, digit, `-` or `_` joined to it and not the start of a
 /// decimal, grouped or split number (`12345abc`, `12345.67`, `12345,678`
 /// and `12345/6` are none).
-fn zip_end(text: &str, at: usize) -> Option<usize> {
+pub(super) fn zip_end(text: &str, at: usize) -> Option<usize> {
     let b = text.as_bytes();
     let digits = |from: usize, n: usize| b.get(from..from + n).is_some_and(|d| d.iter().all(u8::is_ascii_digit));
     if !digits(at, 5) {

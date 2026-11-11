@@ -193,9 +193,14 @@ stubs must be regenerated.
   `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
   `Places` pack: a populated place of the bundled Natural Earth gazetteer
   directly before its US state or territory (`Springfield, IL`,
-  `San Juan, PR`) or after a city label
-  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
-  (#1886).
+  `San Juan, PR`) or after a city label (`City: Phoenix`, `the city of
+  Mobile`, `City: Springfield IL 62704`, `City: Mobile Alabama`). When a
+  state follows a labelled city, the gazetteer must hold that place in
+  that state rather than falling back to any place of that name,
+  refusing 395,983 of 396,760 canonical `(name, state)` pairs (99.80%,
+  such as `City: Mobile, IL`) at the cost of smaller US homonyms absent
+  from the 1:10m table under that state (`City: Dublin, OH`). A bare
+  city name is no mention (#1886, #2107).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
