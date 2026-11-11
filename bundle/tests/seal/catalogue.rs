@@ -62,7 +62,7 @@ fn a_fetch_records_its_provenance_and_asks_for_terms() {
     assert_eq!(got["terms_accepted"], json!(true));
 }
 
-fn append_safetensors(bytes: &[u8], extra: &[(&str, &[u64], &[f32])]) -> Vec<u8> {
+pub(super) fn append_safetensors(bytes: &[u8], extra: &[(&str, &[u64], &[f32])]) -> Vec<u8> {
     let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
     let raw_header: serde_json::Map<String, Value> = serde_json::from_slice(&bytes[8..8 + n]).unwrap();
     let data = &bytes[8 + n..];
