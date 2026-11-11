@@ -11,14 +11,17 @@ use crate::Zcta;
 pub const SOURCE_CENSUS_ZCTA: &str = "census-zcta";
 
 /// The record of a ZCTA: its code as the name and record id, its point and
-/// box, country `US`, the containment state, county and (when it has one)
-/// place of most of its land, outermost first, and as attributes the
+/// box, country `US`, the containment state, then the county and (when it
+/// has one) the place holding most of its land in that state, outermost
+/// first, and as attributes the
 /// ZCTA code (`zcta`), that county's FIPS code (`fips`) and that place's
 /// GEOID (`geoid`). The feature class is `POSTAL`.
 pub fn zcta_entry(z: &Zcta<'_>) -> GazetteerEntry {
     let code = z.code();
-    let county = z.counties().next().map(|(c, _)| c);
-    let place = z.places().next().map(|(p, _)| p);
+    // A border ZCTA can overlap a county or place across the line; the
+    // record names those of its own state only, so it never mixes two.
+    let county = z.counties().map(|(c, _)| c).find(|c| c.state() == z.state());
+    let place = z.places().map(|(p, _)| p).find(|p| p.state() == z.state());
     let mut containment = vec![z.state().to_string()];
     let attr = |v: String| AttributeValue::new(v, SOURCE_CENSUS_ZCTA, "").expect("a code is never blank");
     let mut attributes = vec![(ATTRIBUTE_KEY_ZCTA.to_string(), attr(code.clone()))];

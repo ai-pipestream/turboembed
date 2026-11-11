@@ -67,10 +67,19 @@ impl<'t> Fields<'t> {
             return Ok(None);
         }
         let bad = |what: &str, v: &str| self.err(&format!("{what} is not a decimal with 4 places: {v:?}"));
-        let la = fixed(lat, 4).ok_or_else(|| bad("lat", lat))? as i32;
-        let lo = fixed(lon, 4).ok_or_else(|| bad("lon", lon))? as i32;
+        let la = degrees(fixed(lat, 4), 4).ok_or_else(|| bad("lat", lat))?;
+        let lo = degrees(fixed(lon, 4), 4).ok_or_else(|| bad("lon", lon))?;
         GeoPoint::new(f64::from(la) / 1e4, f64::from(lo) / 1e4).map_err(|e| self.err(&e.to_string()))?;
         Ok(Some([la, lo]))
+    }
+
+    /// A coordinate in degrees with `places` decimals, as an integer of
+    /// `10^-places` degrees, refused past 180 degrees either way before
+    /// it is narrowed.
+    fn degrees(&mut self, what: &str, places: usize) -> Result<i32, TableError> {
+        let f = self.next(what)?;
+        degrees(fixed(f, places), places)
+            .ok_or_else(|| self.err(&format!("{what} is not a coordinate with {places} decimal places: {f:?}")))
     }
 
     fn text(&mut self, what: &str) -> Result<&'t str, TableError> {
@@ -109,6 +118,12 @@ fn fixed(s: &str, places: usize) -> Option<i64> {
     Some(if neg { -v } else { v })
 }
 
+/// `v` (in `10^-places` degrees) when it is within 180 degrees of zero.
+fn degrees(v: Option<i64>, places: usize) -> Option<i32> {
+    let limit = 180 * 10i64.pow(places as u32);
+    v.filter(|v| v.abs() <= limit).and_then(|v| i32::try_from(v).ok())
+}
+
 /// A list of `geoid:share` parts (`17167:988,17001:12`), each GEOID
 /// `len` digits and each share 1 to 1000, appended to `parts`.
 fn parts(f: &mut Fields<'_>, what: &str, len: usize, parts: &mut Vec<Part>) -> Result<Range<u32>, TableError> {
@@ -120,6 +135,13 @@ fn parts(f: &mut Fields<'_>, what: &str, len: usize, parts: &mut Vec<Part>) -> R
             let (g, share) = p.split_once(':').ok_or_else(bad)?;
             let geoid = digits(g, len).ok_or_else(bad)?;
             let share = share.parse::<u16>().ok().filter(|s| (1..=1000).contains(s)).ok_or_else(bad)?;
+            let list = &parts[start as usize..];
+            if list.iter().any(|q| q.geoid == geoid) {
+                return Err(f.err(&format!("{what} names {g} twice")));
+            }
+            if list.last().is_some_and(|q| q.share < share) {
+                return Err(f.err(&format!("{what} shares are not largest first")));
+            }
             parts.push(Part { geoid, share });
         }
     }
@@ -132,11 +154,11 @@ pub(crate) fn zctas(text: &str, out: &mut Vec<ZctaRow>, all: &mut Vec<Part>) -> 
         let code = f.digits("zcta", 5)?;
         let state = f.state()?;
         let land = f.fixed("land_km2", 2)?;
-        let lat = f.fixed("lat", 4)?;
-        let lon = f.fixed("lon", 4)?;
+        let lat = f.degrees("lat", 4)?;
+        let lon = f.degrees("lon", 4)?;
         let mut bbox = [0i32; 4];
         for (v, what) in bbox.iter_mut().zip(["west", "south", "east", "north"]) {
-            *v = f.fixed(what, 3)? as i32;
+            *v = f.degrees(what, 3)?;
         }
         let counties = parts(&mut f, "counties", 5, all)?;
         let places = parts(&mut f, "places", 7, all)?;
@@ -148,10 +170,13 @@ pub(crate) fn zctas(text: &str, out: &mut Vec<ZctaRow>, all: &mut Vec<Part>) -> 
             return Err(f.err("ZCTAs out of order"));
         }
         let land = u32::try_from(land).map_err(|_| f.err("negative land area"))?;
-        GeoPoint::new(lat as f64 / 1e4, lon as f64 / 1e4).map_err(|e| f.err(&e.to_string()))?;
         let [w, s, e, no] = bbox.map(|v| f64::from(v) / 1e3);
-        GeoBoundingBox::new(w, s, e, no).map_err(|e| f.err(&e.to_string()))?;
-        out.push(ZctaRow { line: n, code, state, land, lat: lat as i32, lon: lon as i32, bbox, counties, places });
+        let bx = GeoBoundingBox::new(w, s, e, no).map_err(|e| f.err(&e.to_string()))?;
+        let pt = GeoPoint::new(f64::from(lat) / 1e4, f64::from(lon) / 1e4).map_err(|e| f.err(&e.to_string()))?;
+        if !bx.contains(pt) {
+            return Err(f.err("the point is outside the box"));
+        }
+        out.push(ZctaRow { line: n, code, state, land, lat, lon, bbox, counties, places });
     }
     Ok(())
 }

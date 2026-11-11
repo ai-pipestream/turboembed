@@ -1,7 +1,9 @@
 # Three-digit ZIP prefixes the Postal Service assigns to a state, territory or armed forces designation that holds no ZCTA of
 # the prefix: armed forces (AA, AE, AP), the freely associated states (FM, MH, PW), the minor outlying islands (UM) and
-# prefixes of post office boxes, single organizations or mail processing only. These are facts kept from the state
-# scanner's earlier hand table; zip3-states.txt holds every prefix that has ZCTAs.
+# prefixes of post office boxes, single organizations or mail processing only. They are the pairs of the state scanner's
+# earlier hand table that no ZCTA holds; that table was written by hand, names no USPS document or version, and is not
+# checked against a pinned list. Nothing here was taken from a USPS database product. zip3-states.txt holds every prefix
+# that has ZCTAs.
 # prefix	states
 005	NY
 055	MA

@@ -61,8 +61,9 @@ fn main() {
     let zp = shares(&zp, "GEOID_PLACE_20");
     let place_gaz = load(PLACE_GAZ);
     let place_gaz = Table::parse(&place_gaz, '\t', &["USPS", "GEOID", "NAME", "INTPTLAT", "INTPTLONG"], PLACE_GAZ);
-    let (boxes, shp_digest) = shape_boxes(&census.join(SHP), &census.join(DBF), "GEOID20");
+    let (boxes, shp_digest, dbf_digest) = shape_boxes(&census.join(SHP), &census.join(DBF), "GEOID20");
     sources.push(format!("# {SHP} sha256 {shp_digest}"));
+    sources.push(format!("# {DBF} sha256 {dbf_digest}"));
     let head = sources.join("\n");
 
     let mut zcta = String::new();
@@ -71,11 +72,36 @@ fn main() {
     rows.sort_by(|a, b| a.get("GEOID").cmp(b.get("GEOID")));
     let mut missing_box = 0;
     let mut widened = 0;
+    let mut moved = 0;
+    // The state holding most of each ZCTA's land, and the state holding
+    // most of each prefix's ZCTAs by that count.
+    let land_state = |id: &str| {
+        let county = zc.get(id).map_or(&[][..], Vec::as_slice);
+        let Some((top, _)) = county.first() else { panic!("ZCTA {id} has no county") };
+        states[&top[..2]]
+    };
+    let mut by_land: BTreeMap<&str, BTreeMap<&str, usize>> = BTreeMap::new();
+    for r in &rows {
+        let id = r.get("GEOID");
+        *by_land.entry(&id[..3]).or_default().entry(land_state(id)).or_default() += 1;
+    }
+    let majority = |prefix: &str| {
+        by_land[prefix].iter().max_by(|a, b| a.1.cmp(b.1).then_with(|| b.0.cmp(a.0))).map(|(s, _)| *s).unwrap()
+    };
     for r in &rows {
         let id = r.get("GEOID");
         let county = zc.get(id).map_or(&[][..], Vec::as_slice);
-        let Some((top, _)) = county.first() else { panic!("ZCTA {id} has no county") };
-        let state = states[&top[..2]];
+        // A border ZCTA whose land lies mostly across the line keeps the
+        // state of its prefix when that state holds some of its land too
+        // (82930, Evanston, is Wyoming's though most of it is in Utah); a
+        // ZCTA with no land in its prefix's state keeps its own (96799 is
+        // American Samoa's, in prefix 967 of Hawaii).
+        let mut state = land_state(id);
+        let m = majority(&id[..3]);
+        if m != state && county.iter().any(|(c, _)| states[&c[..2]] == m) {
+            state = m;
+            moved += 1;
+        }
         *zip3.entry(id[..3].to_string()).or_default().entry(state).or_default() += 1;
         let (lat, lon) = (r.fixed("INTPTLAT", 4), r.fixed("INTPTLONG", 4));
         let b = boxes.get(id).map(|&b| widen(b, lat, lon, &mut widened));
@@ -133,7 +159,7 @@ fn main() {
     }
     write(out, "us-counties.txt", &head, COUNTY_HEADER, &county);
     println!(
-        "{} ZCTAs ({missing_box} without a box, {widened} boxes widened to their point), {} places ({} from the Gazetteer), {} counties, {} prefixes",
+        "{} ZCTAs ({missing_box} without a box, {widened} boxes widened to their point, {moved} given their prefix's state), {} places ({} from the Gazetteer), {} counties, {} prefixes",
         rows.len(),
         prow.len(),
         gazetteer_places,
@@ -143,7 +169,7 @@ fn main() {
 }
 
 const ZCTA_HEADER: &str = "# zcta\tstate\tland_km2\tlat\tlon\twest\tsouth\teast\tnorth\tcounties\tplaces\n\
-# state: the USPS code of the state holding most of the ZCTA's land\n\
+# state: the USPS code of the state holding most of the ZCTA's land, or of its prefix's main state when that holds some\n\
 # lat, lon: the Census internal point; west..north: the box of the 1:500,000 shape, rounded outward and widened to hold the point\n\
 # counties, places: county and place GEOIDs with their share of the ZCTA's land in thousandths, largest first";
 const PLACE_HEADER: &str = "# geoid\tstate\tname\tkind\tlat\tlon\n\

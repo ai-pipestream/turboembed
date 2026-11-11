@@ -4,7 +4,9 @@
 //! [`UsZipTable::bundled`] holds the 33,791 ZCTAs of the 2020 Census (as
 //! the 2024 Gazetteer lists them), each with
 //!
-//! - the state that holds most of its land, as a USPS code (`IL`),
+//! - its state, as a USPS code (`IL`): the one holding most of its land,
+//!   or, for a border ZCTA with land in its prefix's main state, that
+//!   state,
 //! - its land area, a point inside it (the Census internal point) and the
 //!   bounding box of its 1:500,000 shape,
 //! - the counties and the Census places (cities, towns, villages, CDPs)
@@ -253,7 +255,9 @@ impl<'a> Zcta<'a> {
         format!("{:05}", self.row.code)
     }
 
-    /// The USPS code of the state that holds most of its land.
+    /// The USPS code of its state: the one holding most of its land, or,
+    /// for a border ZCTA that holds land in its prefix's main state, that
+    /// state.
     pub fn state(&self) -> &'a str {
         code(&self.row.state)
     }

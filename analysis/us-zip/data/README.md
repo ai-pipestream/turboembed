@@ -13,7 +13,10 @@ then its columns.
 | `zip3-states.txt` | 896 prefixes | prefix, states |
 
 - **state** is the USPS code of the state whose counties hold most of
-  the ZCTA's land.
+  the ZCTA's land, except for a border ZCTA that also holds land in the
+  state most of its prefix's ZCTAs are in: that one takes its prefix's
+  state (82930, Evanston, is Wyoming's though most of its land is in
+  Utah).
 - **lat, lon** is the Census internal point, a point inside the area near
   its centre, to four decimal places. The places of the island areas
   (American Samoa, Guam, the Northern Mariana Islands, the US Virgin

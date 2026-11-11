@@ -99,8 +99,10 @@ fn a_prefix_of_another_state_is_refused() {
     assert!(!zip3_in_state(b"123", b"IN"));
     assert!(!zip3_in_state(b"902", b"OR"));
     assert!(!zip3_in_state(b"000", b"NY"));
-    // A ZCTA of prefix 422 lies mostly in Tennessee.
-    assert!(zip3_in_state(b"422", b"TN"));
+    // 73960, of Oklahoma's prefix 739, lies wholly in Texas.
+    assert!(zip3_in_state(b"739", b"TX"));
+    // 82930, of Wyoming's prefix 829, lies mostly in Utah but is Wyoming's.
+    assert!(!zip3_in_state(b"829", b"UT"));
 }
 
 #[test]

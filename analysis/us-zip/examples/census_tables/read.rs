@@ -72,8 +72,8 @@ impl Row<'_> {
 /// of the attribute `key` (`GEOID20`) of its record in the `.dbf` table,
 /// as west, south, east, north in thousandths of a degree, rounded
 /// outward so the box still holds the shape.
-pub fn shape_boxes(shp: &Path, dbf: &Path, key: &str) -> (HashMap<String, [i64; 4]>, String) {
-    let keys = dbf_column(dbf, key);
+pub fn shape_boxes(shp: &Path, dbf: &Path, key: &str) -> (HashMap<String, [i64; 4]>, String, String) {
+    let (keys, dbf_digest) = dbf_column(dbf, key);
     let bytes = std::fs::read(shp).unwrap_or_else(|e| panic!("{}: {e}", shp.display()));
     let digest = turbo_sha256::sha256(&bytes).to_hex();
     assert_eq!(be_u32(&bytes, 0), 9994, "{}: not a shapefile", shp.display());
@@ -95,12 +95,14 @@ pub fn shape_boxes(shp: &Path, dbf: &Path, key: &str) -> (HashMap<String, [i64; 
         at = body + 2 * words;
     }
     assert_eq!(n, keys.len(), "the .shp and .dbf hold different record counts");
-    (out, digest)
+    (out, digest, dbf_digest)
 }
 
-/// The trimmed values of one character column of a dBASE table.
-fn dbf_column(path: &Path, name: &str) -> Vec<String> {
+/// The trimmed values of one character column of a dBASE table, and the
+/// table's SHA-256.
+fn dbf_column(path: &Path, name: &str) -> (Vec<String>, String) {
     let b = std::fs::read(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    let digest = turbo_sha256::sha256(&b).to_hex();
     let records = le_u32(&b, 4) as usize;
     let header = usize::from(u16::from_le_bytes([b[8], b[9]]));
     let width = usize::from(u16::from_le_bytes([b[10], b[11]]));
@@ -117,12 +119,13 @@ fn dbf_column(path: &Path, name: &str) -> Vec<String> {
         at += 32;
     }
     let (start, len) = field.unwrap_or_else(|| panic!("{}: no field {name}", path.display()));
-    (0..records)
+    let keys = (0..records)
         .map(|r| {
             let rec = header + r * width;
             String::from_utf8_lossy(&b[rec + start..rec + start + len]).trim().to_string()
         })
-        .collect()
+        .collect();
+    (keys, digest)
 }
 
 fn be_u32(b: &[u8], at: usize) -> u32 {

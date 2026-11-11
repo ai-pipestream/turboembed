@@ -76,8 +76,8 @@ fn prefixes_list_their_states() {
     let s: Vec<(&str, u32)> = t.prefix_states("627").collect();
     assert_eq!(s.len(), 1);
     assert_eq!(s[0].0, "IL");
-    let border: Vec<&str> = t.prefix_states("422").map(|(s, _)| s).collect();
-    assert_eq!(border, ["KY", "TN"]);
+    let border: Vec<&str> = t.prefix_states("739").map(|(s, _)| s).collect();
+    assert_eq!(border, ["OK", "TX"]);
     assert_eq!(t.prefix_states("000").count(), 0);
     assert_eq!(t.prefix_states("62").count(), 0);
 }
@@ -103,4 +103,38 @@ fn a_zcta_becomes_a_gazetteer_record() {
     assert_eq!(e.attribute(ATTRIBUTE_KEY_FIPS).unwrap().value(), "17167");
     assert_eq!(e.attribute(ATTRIBUTE_KEY_GEOID).unwrap().value(), "1772000");
     assert!(e.bounding_box().unwrap().contains(e.location()));
+}
+
+#[test]
+fn a_border_zcta_record_names_one_state() {
+    let t = UsZipTable::bundled();
+    for z in t.zctas() {
+        let e = zcta_entry(&z);
+        let c = e.containment();
+        if let Some(county) = c.get(1) {
+            let found = z.counties().find(|(k, _)| k.name() == county).unwrap().0;
+            assert_eq!(found.state(), z.state(), "{z:?}");
+        }
+    }
+}
+
+#[test]
+fn a_border_zcta_keeps_its_prefix_state() {
+    let t = UsZipTable::bundled();
+    // Evanston, Wyoming: most of the ZCTA's land is in Utah.
+    let z = t.zcta("82930").unwrap();
+    assert_eq!(z.state(), "WY");
+    assert_eq!(zcta_entry(&z).containment()[0], "WY");
+    assert_eq!(zcta_entry(&z).containment()[1], "Uinta County");
+    // American Samoa's ZCTA in Hawaii's prefix 967 has no land in Hawaii.
+    assert_eq!(t.zcta("96799").unwrap().state(), "AS");
+    // Each ZCTA's state is the main state of its prefix, unless it holds
+    // no land there.
+    for z in t.zctas() {
+        let code = z.code();
+        let main = t.prefix_states(&code[..3]).max_by_key(|&(_, n)| n).unwrap().0;
+        if z.state() != main {
+            assert!(z.counties().all(|(c, _)| c.state() != main), "{z:?}");
+        }
+    }
 }
