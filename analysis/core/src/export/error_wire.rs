@@ -81,6 +81,13 @@ pub(super) fn put_error(w: &mut Writer, error: &ErrorRecord) -> Result<(), Expor
                 }
             }
         }
+        ErrorRecord::OverLimit { annotator, limit, max, got } => {
+            w.u8(12);
+            w.str(annotator)?;
+            w.str(limit)?;
+            w.usize(*max)?;
+            w.usize(*got)?;
+        }
     }
     Ok(())
 }
@@ -126,6 +133,7 @@ pub(super) fn get_error(r: &mut Reader<'_>) -> Result<ErrorRecord, ExportError> 
             1 => SourceError::Misaligned(r.string()?),
             tag => return Err(malformed(format!("a source error tag of {tag}"))),
         }),
+        12 => ErrorRecord::OverLimit { annotator: r.string()?, limit: r.string()?, max: r.usize()?, got: r.usize()? },
         tag => return Err(malformed(format!("an error tag of {tag}"))),
     })
 }

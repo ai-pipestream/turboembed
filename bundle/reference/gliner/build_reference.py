@@ -23,14 +23,15 @@ pkg = types.ModuleType("gliner_reference")
 pkg.__path__ = []
 sys.modules[pkg.__name__] = pkg
 with zipfile.ZipFile(wheel) as z:
-    for name in ["layers", "span_rep", "utils", "decoder"]:
+    for name in ["layers", "span_rep", "scorers", "utils", "decoder"]:
         mod = types.ModuleType(f"gliner_reference.{name}")
         mod.__package__ = "gliner_reference"
         sys.modules[mod.__name__] = mod
         exec(compile(z.read(f"gliner/{'decoding' if name in ['utils','decoder'] else 'modeling'}/{name}.py"), f"gliner/{name}.py", "exec"), mod.__dict__)
 from gliner_reference.layers import create_projection_layer, LstmSeq2SeqEncoder
 from gliner_reference.span_rep import SpanMarker, SpanMarkerV0
-from gliner_reference.decoder import SpanDecoder
+from gliner_reference.scorers import Scorer
+from gliner_reference.decoder import SpanDecoder, TokenDecoder
 
 if (root / "model.safetensors").exists():
     weights = load_file(root / "model.safetensors")
@@ -54,11 +55,20 @@ else:
     projection = torch.nn.Identity()
 rnn = LstmSeq2SeqEncoder(types.SimpleNamespace(hidden_size=hidden)).eval()
 rnn.load_state_dict({k.removeprefix("rnn."):v for k,v in weights.items() if k.startswith("rnn.")}, strict=True)
-span_class = SpanMarker if gc["span_mode"] == "marker" else SpanMarkerV0
-span = span_class(hidden, width).eval()
-span.load_state_dict({k.removeprefix("span_rep_layer.span_rep_layer."):v for k,v in weights.items() if k.startswith("span_rep_layer.span_rep_layer.")}, strict=True)
-prompt = create_projection_layer(hidden, 0.4).eval()
-prompt.load_state_dict({k.removeprefix("prompt_rep_layer."):v for k,v in weights.items() if k.startswith("prompt_rep_layer.")}, strict=True)
+span = None
+if gc["span_mode"] != "token_level":
+    span_class = SpanMarker if gc["span_mode"] == "marker" else SpanMarkerV0
+    span = span_class(hidden, width).eval()
+    span.load_state_dict({k.removeprefix("span_rep_layer.span_rep_layer."):v for k,v in weights.items() if k.startswith("span_rep_layer.span_rep_layer.")}, strict=True)
+scorer = Scorer(hidden, gc.get("dropout", 0.1)).eval() if gc["span_mode"] == "token_level" else None
+if scorer is not None:
+    scorer.load_state_dict({k.removeprefix("scorer."):v for k,v in weights.items() if k.startswith("scorer.")}, strict=True)
+prompt_weights = {k.removeprefix("prompt_rep_layer."):v for k,v in weights.items() if k.startswith("prompt_rep_layer.")}
+if prompt_weights:
+    prompt = create_projection_layer(hidden, 0.4).eval()
+    prompt.load_state_dict(prompt_weights, strict=True)
+else:
+    prompt = torch.nn.Identity()
 tok = DebertaV2TokenizerFast(vocab_file=str(root / "spm.model"))
 tok.add_tokens((["[FLERT]"] if vocab_size in [128004, 250105] else []) + ["<<ENT>>", "<<SEP>>"])
 ent_id = gc.get("class_token_index", vocab_size - 2)
@@ -96,16 +106,30 @@ with torch.no_grad():
         h=projection(encoder(input_ids=batch["input_ids"],attention_mask=batch["attention_mask"]).last_hidden_state)
         w=rnn(h[:,positions], torch.ones((1,len(words)),dtype=torch.bool))
         p=prompt(h[:,markers])
-        indices=torch.tensor([[(i,min(i+k,len(words)-1)) for i in range(len(words)) for k in range(width)]])
-        logits=torch.einsum("blkd,bcd->blkc",span(w,indices),p)[0]
-        scores=[]
-        for i in range(len(words)):
-            for k in range(min(width,len(words)-i)):
-                for l in range(len(labels)):
-                    scores.append(float(logits[i,k,l]))
+        if scorer is not None:
+            triplets=scorer(w,p)[0]
+            scores=[]
+            for i in range(len(words)):
+                for k in range(min(width,len(words)-i)):
+                    for l in range(len(labels)):
+                        start=float(triplets[i,l,0])
+                        end=float(triplets[i+k,l,1])
+                        inside=min(float(x) for x in triplets[i:i+k+1,l,2])
+                        scores.append(min(start,end,inside))
+        else:
+            indices=torch.tensor([[(i,min(i+k,len(words)-1)) for i in range(len(words)) for k in range(width)]])
+            logits=torch.einsum("blkd,bcd->blkc",span(w,indices),p)[0]
+            scores=[]
+            for i in range(len(words)):
+                for k in range(min(width,len(words)-i)):
+                    for l in range(len(labels)):
+                        scores.append(float(logits[i,k,l]))
         decoded={}
         for mode in ["flat","nested"]:
-            selected=SpanDecoder(None).decode([words], {i+1:l for i,l in enumerate(labels)}, logits.unsqueeze(0), flat_ner=mode=="flat",threshold=0.5)[0]
+            if scorer is not None:
+                selected=TokenDecoder(None).decode([words], {i+1:l for i,l in enumerate(labels)}, triplets.unsqueeze(0), flat_ner=mode=="flat",threshold=0.5)[0]
+            else:
+                selected=SpanDecoder(None).decode([words], {i+1:l for i,l in enumerate(labels)}, logits.unsqueeze(0), flat_ner=mode=="flat",threshold=0.5)[0]
             decoded[mode]=[[a,b+1,labels.index(l),score] for a,b,l,score in selected]
         out.append(dict(labels=labels,words=words,ids=ids,prompts=markers,positions=positions,logits=scores,decoded=decoded))
 result=dict(checkpoint=checkpoint_id,revision=revision,license="Apache-2.0",wheel_sha256=hashlib.sha256(wheel.read_bytes()).hexdigest(),cases=out)

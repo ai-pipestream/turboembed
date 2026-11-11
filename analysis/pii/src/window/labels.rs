@@ -67,6 +67,7 @@ pub const fn default_labels(kind: PiiKind) -> &'static [&'static str] {
         PiiKind::Currency => &["amount", "balance", "salary", "payment"],
         PiiKind::State => &["state", "state of residence"],
         PiiKind::County => &["county", "county of residence"],
+        PiiKind::City => &["city", "city of residence", "town"],
         PiiKind::Custom(_) => &[],
     }
 }
@@ -156,6 +157,7 @@ pub(super) const fn default_label_phrases(kind: PiiKind) -> &'static [&'static [
         PiiKind::Currency => &[&["amount"], &["balance"], &["salary"], &["payment"]],
         PiiKind::State => &[&["state"], &["state", "of", "residence"]],
         PiiKind::County => &[&["county"], &["county", "of", "residence"]],
+        PiiKind::City => &[&["city"], &["city", "of", "residence"], &["town"]],
         PiiKind::Custom(_) => &[],
     }
 }

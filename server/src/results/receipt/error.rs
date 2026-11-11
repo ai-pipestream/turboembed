@@ -7,7 +7,7 @@
 use turbo_analysis::export::{ErrorRecord, LayerRef, StatusRecord};
 use turbo_analysis::{Document, Error, KeyId, Status};
 
-use crate::api::{TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC};
+use crate::api::{TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC};
 use crate::proto::result::{LayerError, LayerErrorKind, LayerInstanceRef, LayerWireStatus};
 
 fn key_ref(key: KeyId) -> LayerInstanceRef {
@@ -28,6 +28,7 @@ pub fn kind_code(kind: LayerErrorKind) -> i32 {
     match kind {
         K::Unspecified | K::Declined | K::Upstream => 0,
         K::Annotator => TURBO_E_INTERNAL,
+        K::Limit => TURBO_E_CAPACITY,
         K::Panic => TURBO_E_PANIC,
         K::Missing | K::Duplicate | K::Clash | K::Misaligned | K::Unaligned | K::Pipeline => TURBO_E_INVALID_STATE,
         K::Bounds | K::Invalid | K::Offset | K::Source => TURBO_E_INVALID_ARGUMENT,
@@ -54,6 +55,7 @@ pub fn kind_name(kind: LayerErrorKind) -> &'static str {
         K::Panic => "annotator panic",
         K::Offset => "offset",
         K::Source => "source bytes",
+        K::Limit => "over a limit",
     }
 }
 
@@ -75,6 +77,10 @@ pub fn of_error(e: &Error) -> LayerError {
         Error::Pipeline(_) => make(K::Pipeline, None, ""),
         Error::Annotator { annotator, detail } if panicked(detail) => make(K::Panic, None, annotator),
         Error::Annotator { annotator, .. } => make(K::Annotator, None, annotator),
+        Error::OverLimit { annotator, limit, .. } if turbo_analysis::error::known_limit(limit).is_some() => {
+            make(K::Limit, None, annotator)
+        }
+        Error::OverLimit { annotator, .. } => make(K::Annotator, None, annotator),
         Error::Skipped(_) => make(K::Declined, None, ""),
         Error::Offset { .. } => make(K::Offset, None, ""),
         Error::Source(_) => make(K::Source, None, ""),
@@ -95,6 +101,10 @@ pub fn of_record(e: &ErrorRecord) -> LayerError {
         ErrorRecord::Pipeline(_) => make(K::Pipeline, None, ""),
         ErrorRecord::Annotator { annotator, detail } if panicked(detail) => make(K::Panic, None, annotator),
         ErrorRecord::Annotator { annotator, .. } => make(K::Annotator, None, annotator),
+        ErrorRecord::OverLimit { annotator, limit, .. } if turbo_analysis::error::known_limit(limit).is_some() => {
+            make(K::Limit, None, annotator)
+        }
+        ErrorRecord::OverLimit { annotator, .. } => make(K::Annotator, None, annotator),
         ErrorRecord::Skipped(_) => make(K::Declined, None, ""),
         ErrorRecord::Offset { .. } => make(K::Offset, None, ""),
         ErrorRecord::Source(_) => make(K::Source, None, ""),

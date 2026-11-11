@@ -8,6 +8,49 @@ export interface Filterable {
   kind: string;
   language: string;
   licence: string;
+  /** The catalog's component name, such as `COMPONENT_DENSE_ENCODER`; empty when the entry names none. */
+  component?: string;
+}
+
+/** What each component the catalog names is for, in a visitor's words. */
+const PURPOSES: Record<string, string> = {
+  COMPONENT_DENSE_ENCODER: "Embeds text for semantic search",
+  COMPONENT_SPARSE_ENCODER: "Sparse embeddings for term-weighted search",
+  COMPONENT_LATE_INTERACTION_ENCODER: "Per-token embeddings for late-interaction search",
+  COMPONENT_ENTITY_EXTRACTOR: "Finds named entities",
+  COMPONENT_SCHEMA_EXTRACTOR: "Extracts the fields of a schema",
+  COMPONENT_RELATION_EXTRACTOR: "Finds relations between entities",
+  COMPONENT_ZERO_SHOT_CATEGORIZER: "Classifies text into labels given at request time",
+  COMPONENT_EXTRACTIVE_QA: "Answers questions from a passage",
+  COMPONENT_SENTENCE_DETECTOR: "Splits text into sentences",
+  COMPONENT_ASPECT_SENTIMENT: "Sentiment by aspect",
+  COMPONENT_DOCUMENT_CATEGORIZER: "Classifies documents",
+  COMPONENT_POS: "Tags parts of speech",
+  COMPONENT_COREFERENCE_RESOLVER: "Links mentions of the same thing",
+};
+
+/** What a kind with no component is for. */
+const KIND_PURPOSES: Record<string, string> = {
+  KIND_DATASET: "Data to train and evaluate with",
+  KIND_LEXICON: "Word list",
+  KIND_MODEL: "Model files",
+  KIND_HEAD: "Head on a shared encoder",
+};
+
+/**
+ * What an entry is for, in a line: from its component when the catalog
+ * names one, else from its kind. A component this page has no line for
+ * reads as its name in plain words.
+ */
+export function purpose(e: Filterable): string {
+  const c = e.component ?? "";
+  if (c) return PURPOSES[c] ?? sentence(plain(c, "COMPONENT_"));
+  return KIND_PURPOSES[e.kind] ?? sentence(kindName(e.kind));
+}
+
+function sentence(text: string): string {
+  const first = [...text][0] ?? "";
+  return first.toUpperCase() + text.slice(first.length);
 }
 
 /** A catalog kind in plain words: `KIND_MODEL` is "model". */
@@ -22,18 +65,52 @@ export function plain(value: string, prefix: string): string {
   return name.toLowerCase().split("_").join(" ");
 }
 
-/** The words of a typed filter, lower case. */
+/**
+ * Text folded for comparing whatever the case: lower, upper, then
+ * lower case, so `ß`, `ẞ` and `SS` all read "ss"; the dot that lower
+ * casing a dotted capital I leaves on the `i` is dropped, so
+ * "istanbul" finds it; and a final sigma reads as any other sigma.
+ * Folding a folded code point changes nothing; each side of a
+ * comparison is folded once.
+ */
+export function fold(text: string): string {
+  const cased = text.toLowerCase().toUpperCase().toLowerCase();
+  return cased.split("i\u0307").join("i").split("\u03c2").join("\u03c3");
+}
+
+/** Whether `ch` is Unicode white space: what `trim` drops, and the next-line control U+0085. */
+function space(ch: string): boolean {
+  return ch.trim() === "" || ch === "\u0085";
+}
+
+/**
+ * The words of a typed filter, folded. Any white space parts two
+ * words: a tab, a no-break space and an ideographic space as much as
+ * a space.
+ */
 export function words(text: string): string[] {
-  return text.toLowerCase().split(" ").map((w) => w.trim()).filter((w) => w.length > 0);
+  const out: string[] = [];
+  let word = "";
+  for (const ch of text) {
+    if (!space(ch)) {
+      word += ch;
+      continue;
+    }
+    if (word) out.push(fold(word));
+    word = "";
+  }
+  if (word) out.push(fold(word));
+  return out;
 }
 
 /**
  * Whether `e` is of `kind` (any when empty) and every word typed is in
- * its id, kind, language or licence, whatever the case.
+ * its id, kind, purpose, language or licence, whatever the case. The kind
+ * matches in plain words and in its enum spelling.
  */
 export function matches(e: Filterable, kind: string, text: string): boolean {
   if (kind && e.kind !== kind) return false;
-  const hay = `${e.id} ${kindName(e.kind)} ${e.language} ${e.licence}`.toLowerCase();
+  const hay = fold(`${e.id} ${kindName(e.kind)} ${e.kind} ${purpose(e)} ${e.language} ${e.licence}`);
   return words(text).every((w) => hay.includes(w));
 }
 

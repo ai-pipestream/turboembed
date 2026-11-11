@@ -3,12 +3,14 @@
 //! (`--pii-encryption-key`, `--pii-encryption-key-active`), never in clear.
 //!
 //! The ciphertext is the UTF-8 text of a `turbo-pii` AES-256-GCM token
-//! ([`SCHEME`]): the kind code in capitals (`BUILTIN:3`, `CUSTOM:BADGE`),
-//! `:`, and the unpadded base64url of a 12-byte nonce, the encrypted
-//! normalized value and the 16-byte tag. The associated data binds the
-//! kind code and [`CONTEXT`], so a holder of the key decrypts it with
+//! ([`SCHEME`]): the kind code as it is, its case kept (`builtin:3`,
+//! `custom:Badge`), `:`, and the unpadded base64url of a 12-byte nonce,
+//! the encrypted normalized value and the 16-byte tag. The associated
+//! data binds the exact kind code and [`CONTEXT`], so a holder of the key
+//! decrypts it with
 //! `AesGcmEncryptor::new(key)?.with_context(CONTEXT).decrypt(token)`, and
-//! a ciphertext moved to another kind fails authentication. Each release
+//! a ciphertext moved to another kind fails authentication, also to a
+//! custom kind whose name differs only by case (#2087). Each release
 //! draws a fresh nonce: equal values give different ciphertexts, unlike
 //! tokens. A server built without the `pii-reversible` feature loads no
 //! cipher, and so releases no ciphertext.
@@ -65,7 +67,7 @@ impl ReleaseCipher {
     pub fn seal(&self, kind: &str, value: &str) -> Result<PiiValueCiphertext, String> {
         #[cfg(feature = "pii-reversible")]
         {
-            let token = self.enc.token(kind, value).map_err(|e| format!("a ciphertext release failed: {e}"))?;
+            let token = self.enc.exact_token(kind, value).map_err(|e| format!("a ciphertext release failed: {e}"))?;
             Ok(PiiValueCiphertext {
                 ciphertext: token.into_bytes(),
                 key_id: self.key.id.clone(),

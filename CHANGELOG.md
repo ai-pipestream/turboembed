@@ -36,6 +36,14 @@ stubs must be regenerated.
 - `InspectDocumentGraph` refuses a graph whose layers name a view the
   graph does not hold, and validates PII layers and view chains before
   projecting (#1911).
+- `DocumentGraph` binary export (`TGRF`) bumps `FORMAT_VERSION` from 2
+  to 3 for the typed `ErrorRecord::OverLimit` wire tag (error tag 12),
+  and `TypedDocumentResult.result_identity.graph_format_version` reports
+  3. Format 1 and 2 `.tgrf` / `.bin` graphs are refused with
+  `ExportError::UnsupportedVersion` by the gRPC services
+  (`AnalyzePipelineRequest.initial_graph`, `RoundTripDocumentGraph`,
+  `InspectDocumentGraph`), the C ABI TGRF entry points and the Rust
+  readers; stored v2 graphs must be regenerated (#2134, #2140, #2155).
 
 ### Added: PII and the result envelope (#1879)
 
@@ -177,7 +185,17 @@ stubs must be regenerated.
   pack, which `AllStructured` does not include: a US state, District or
   territory by name, or by its USPS code after a state label or before a
   ZIP code, and a county or county equivalent of the Census Bureau's 2020
-  county list (#1886).
+  county list (#1886). No letter, digit, combining mark or `_` may touch
+  either end of a place name, so `x_Illinois` and `Cook County_x` hold
+  none (#2089). A county name is compared in NFC, so a decomposed
+  spelling finds its county (#2081).
+- `city` 45, appended to `PiiKindId` (`TURBO_PII_KIND_CITY`, Java
+  `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
+  `Places` pack: a populated place of the bundled Natural Earth gazetteer
+  directly before its US state or territory (`Springfield, IL`,
+  `San Juan, PR`) or after a city label
+  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
+  (#1886).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
@@ -197,6 +215,12 @@ stubs must be regenerated.
   `PII_STRATEGY_DATE_RELATIVE` (16). A policy rule for `date` or
   `currency` turns on the opt-in `Dates` or `Money` pack of the
   `turbo-pii:pii` step (#1884).
+- Safe Harbor date years: the `safe_harbor` mode of `PiiDateStrategy`
+  (field 5, `PiiDateSafeHarbor` with a required `reference` date) and
+  native `DateMode::SafeHarbor` keep a date's year, as the `year` mode
+  does, but write every year 90 or more years before the reference year
+  as one category (`1936 or earlier` for a 2026 reference), recording
+  `PII_STRATEGY_DATE_SAFE_HARBOR` (17) (#2114).
 
 ### Changed: PII and the result envelope (#1879)
 
@@ -349,12 +373,22 @@ stubs must be regenerated.
   (#2026).
 - `turbo_model_info` reports the manifest's `model.license` (`license`)
   and the bundle's licence tier (`license_class`, a
-  `TURBO_LICENSE_CLASS_*`), so a caller can check whether it may serve
-  or redistribute the model. The 772-byte struct is still accepted, and
-  a `model.license` of 128 bytes or more is `BUNDLE_INVALID` (#2019).
+  `TURBO_LICENSE_CLASS_*`), and `ModelMetadata` serves them as
+  `model_info.license` and `model_info.license_class`, so a caller can
+  check whether it may serve or redistribute the model. The 772-byte
+  struct is still accepted, and a `model.license` of 128 bytes or more
+  is `BUNDLE_INVALID` (#2019, #2041).
 
 ### Changed
 
+- Over-limit step failures are carried as the typed
+  `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
+  variants (`{ annotator, limit, max, got }`, with `Display` changed
+  from `"{annotator}: limit: {limit} {max}, got {got}"` to
+  `"{annotator}: over its {limit} {max}, got {got}"`) instead of an
+  `Error::Annotator` detail string, and an imported
+  `ErrorRecord::OverLimit` keeps its typed form only when `limit` is in
+  `turbo_analysis::error::known_limit` (#2134, #2140, #2155).
 - The in-process analyzer (`turbo_analyzer_desc`) loads a bundle:
   `bundle_path` names a bundle whose heads write the part-of-speech,
   lemma, dependency and entity layers from one encoder pass a sentence,
@@ -373,6 +407,17 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `AnalyzeDocumentProgressive`: a document over a limit of
+  `turbo:zero-shot-relations` (such as the GLiNER2 encoder's 512 word
+  pieces) fails the step with `TURBO_E_CAPACITY` and a message naming the
+  limit and the counts, instead of `TURBO_E_INTERNAL` with no detail.
+  The layer's error has the new kind `LAYER_ERROR_KIND_LIMIT` with the
+  same code (#2125).
+- PII policies: an `ff1` arm whose alphabet cannot hold a character
+  every value of its rule's kind has (the digit alphabet on `email`, for
+  one) is refused when the policy loads, naming the entry and the kind,
+  instead of failing every document with such a mention. A stored policy
+  with such a pair, which loaded before, now fails to load (#2111).
 - `AnalyzeDocumentProgressive`: in a step chain that folds case,
   `turbo-sentdetect:rules` reads the last view before the fold, so a
   folded document keeps its sentence boundaries instead of becoming one

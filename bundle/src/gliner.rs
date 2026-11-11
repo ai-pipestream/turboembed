@@ -12,10 +12,10 @@ use turbo_gliner::{
 };
 
 pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
-    if !matches!(v.get("span_mode").and_then(Value::as_str), Some("markerV0" | "marker"))
+    if !matches!(v.get("span_mode").and_then(Value::as_str), Some("markerV0" | "marker" | "token_level"))
         || v.get("subtoken_pooling").and_then(Value::as_str) != Some("first")
     {
-        return Err("gliner requires a supported markerV0/first profile".into());
+        return Err("gliner requires a supported span_mode/first profile".into());
     }
     let legacy_vocab = match v.get("model_name").and_then(Value::as_str) {
         Some("microsoft/deberta-v3-small" | "microsoft/deberta-v3-base" | "microsoft/deberta-v3-large") => 128_004,
@@ -27,18 +27,20 @@ pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
         v.get("class_token_index").and_then(Value::as_u64).and_then(|x| usize::try_from(x).ok()),
     ) {
         (None, None) => (legacy_vocab, legacy_vocab - 2),
-        (Some(vocab), Some(entity)) if vocab == legacy_vocab - 1 && entity == vocab - 2 => (vocab, entity),
+        (Some(vocab), Some(entity)) if (vocab == legacy_vocab || vocab == legacy_vocab - 1) && entity == vocab - 2 => {
+            (vocab, entity)
+        }
         _ => return Err("gliner unsupported special-token profile".into()),
     };
-    for (name, expected) in [
-        ("has_rnn", json!(true)),
-        ("embed_ent_token", json!(true)),
-        ("labels_encoder", Value::Null),
-        ("post_fusion_schema", Value::Null),
-    ] {
+    for (name, expected) in
+        [("has_rnn", json!(true)), ("embed_ent_token", json!(true)), ("labels_encoder", Value::Null)]
+    {
         if v.get(name).is_some_and(|x| x != &expected) {
             return Err(format!("gliner unsupported {name}"));
         }
+    }
+    if v.get("post_fusion_schema").is_some_and(|x| !x.is_null() && x.as_str() != Some("")) {
+        return Err("gliner unsupported post_fusion_schema".into());
     }
     if vocab != expected_vocab {
         return Err(format!("gliner vocabulary must have {expected_vocab} entries"));
@@ -48,6 +50,8 @@ pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
         projection_factor: 4,
         prompt_factor: 4,
         out_project_mlp: true,
+        token_level: v.get("span_mode").and_then(Value::as_str) == Some("token_level"),
+        prompt_projection: true,
         max_width: v.get("max_width").and_then(Value::as_u64).ok_or("gliner missing max_width")? as usize,
         entity_token: entity_token as u32,
         separator_token: (entity_token + 1) as u32,
@@ -119,19 +123,25 @@ pub fn convert_files(
     ec["vocab_size"] = embedding.shape[0].into();
     let encoder = crate::deberta::from_huggingface(&ec)?;
     let mut config = from_huggingface(&gc, encoder.vocabulary)?;
-    let start = f.get("span_rep_layer.span_rep_layer.project_start.0.weight", Dtype::F32, 2).map_err(|e| e.message)?;
-    let factor = start.shape[0] / config.hidden as u64;
-    if start.shape[0] % config.hidden as u64 != 0 || !matches!(factor, 2 | 4) {
-        return Err("gliner projection factor must be 2 or 4".into());
+    if !config.token_level {
+        let start =
+            f.get("span_rep_layer.span_rep_layer.project_start.0.weight", Dtype::F32, 2).map_err(|e| e.message)?;
+        let factor = start.shape[0] / config.hidden as u64;
+        if start.shape[0] % config.hidden as u64 != 0 || !matches!(factor, 2 | 4) {
+            return Err("gliner projection factor must be 2 or 4".into());
+        }
+        config.projection_factor = factor as usize;
+        config.out_project_mlp = f.tensor("span_rep_layer.span_rep_layer.out_project.0.weight").is_some();
     }
-    config.projection_factor = factor as usize;
-    let prompt = f.get("prompt_rep_layer.0.weight", Dtype::F32, 2).map_err(|e| e.message)?;
-    let prompt_factor = prompt.shape[0] / config.hidden as u64;
-    if prompt.shape[0] % config.hidden as u64 != 0 || !matches!(prompt_factor, 2 | 4) {
-        return Err("gliner prompt factor must be 2 or 4".into());
+    config.prompt_projection = f.tensor("prompt_rep_layer.0.weight").is_some();
+    if config.prompt_projection {
+        let prompt = f.get("prompt_rep_layer.0.weight", Dtype::F32, 2).map_err(|e| e.message)?;
+        let prompt_factor = prompt.shape[0] / config.hidden as u64;
+        if prompt.shape[0] % config.hidden as u64 != 0 || !matches!(prompt_factor, 2 | 4) {
+            return Err("gliner prompt factor must be 2 or 4".into());
+        }
+        config.prompt_factor = prompt_factor as usize;
     }
-    config.prompt_factor = prompt_factor as usize;
-    config.out_project_mlp = f.tensor("span_rep_layer.span_rep_layer.out_project.0.weight").is_some();
     let heads = convert_heads(&config, &encoder, &bytes)?;
     let tokenizer = read(spm, 16 << 20)?;
     let parsed_spm = turbo::sentencepiece::SentencePiece::parse(&tokenizer).map_err(|e| e.message)?;
@@ -177,6 +187,11 @@ mod tests {
         let mut marker_alias = base.clone();
         marker_alias["span_mode"] = "marker".into();
         assert!(from_huggingface(&marker_alias, 128004).is_ok());
+        marker_alias["span_mode"] = "token_level".into();
+        marker_alias["max_width"] = 100.into();
+        marker_alias["vocab_size"] = 128004.into();
+        marker_alias["class_token_index"] = 128002.into();
+        assert_eq!(from_huggingface(&marker_alias, 128004).unwrap().max_width, 100);
         for model_name in ["microsoft/deberta-v3-base", "microsoft/deberta-v3-large"] {
             let mut english = base.clone();
             english["model_name"] = model_name.into();
@@ -215,6 +230,8 @@ mod tests {
             projection_factor: 4,
             prompt_factor: 4,
             out_project_mlp: true,
+            token_level: false,
+            prompt_projection: true,
             max_width: 3,
             entity_token: 12,
             separator_token: 13,
