@@ -1,0 +1,58 @@
+name: apt-install
+description: >
+  apt-get install on a GitHub-hosted Ubuntu runner that keeps working when
+  a mirror in the runner's mirror list cannot be reached, with retries.
+inputs:
+  packages:
+    description: The packages to install, separated by spaces.
+    required: true
+runs:
+  using: composite
+  steps:
+    # The runner's Ubuntu sources go through a mirror list,
+    # /etc/apt/apt-mirrors.txt, whose first entry is the cloud's own Ubuntu
+    # mirror. When that host stops resolving, apt does not recover through
+    # the later entries: they fail at once with the first host's DNS error,
+    # so every Ubuntu fetch fails (merge-queue run 43045747818). A mirror
+    # whose host does not resolve is dropped from the list before apt runs.
+    # The packages are still the archive's signed packages: apt checks every
+    # index against the Ubuntu archive key whichever mirror serves it.
+    - name: Drop unresolvable mirrors and install
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        set -euo pipefail
+        list=/etc/apt/apt-mirrors.txt
+        if [ -f "$list" ]; then
+          kept=$(mktemp)
+          while read -r url rest || [ -n "${url:-}" ]; do
+            [ -n "${url:-}" ] || continue
+            host=${url#*://}
+            host=${host%%/*}
+            resolved=false
+            for attempt in 1 2 3; do
+              if getent ahosts "$host" >/dev/null; then resolved=true; break; fi
+              sleep 2
+            done
+            if [ "$resolved" = true ]; then
+              if [ -n "${rest:-}" ]; then printf '%s\t%s\n' "$url" "$rest"; else printf '%s\n' "$url"; fi >>"$kept"
+            else
+              echo "dropping mirror $url: $host does not resolve"
+            fi
+          done <"$list"
+          if [ -s "$kept" ]; then
+            sudo cp "$kept" "$list"
+          else
+            echo "no mirror in $list resolves; keeping the list as it is"
+          fi
+          cat "$list"
+        fi
+        apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30)
+        sudo apt-get "${apt_opts[@]}" update
+        for attempt in 1 2 3; do
+          if sudo apt-get "${apt_opts[@]}" install -y --no-install-recommends $PACKAGES; then exit 0; fi
+          echo "apt-get install failed (attempt $attempt of 3)"
+          sleep $((attempt * 15))
+        done
+        exit 1
