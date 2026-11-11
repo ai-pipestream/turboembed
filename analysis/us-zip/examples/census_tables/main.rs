@@ -12,7 +12,7 @@
 //! `tab20_zcta520_place20_natl.txt`), the 2020 county list
 //! (`national_county2020.txt`) and the 2020 cartographic boundary ZCTA
 //! shapefile (`cb_2020_us_zcta520_500k.shp` and `.dbf`). It writes
-//! `us-zcta.txt`, `us-places.txt` and `zip3-states.txt` to `<out dir>`;
+//! `us-zcta.txt`, `us-places.txt`, `us-counties.txt` and `zip3-states.txt` to `<out dir>`;
 //! each file's header names the inputs and their SHA-256 digests.
 
 mod read;
@@ -46,7 +46,8 @@ fn main() {
     };
 
     let counties = load(COUNTIES);
-    let states = state_codes(&Table::parse(&counties, '|', &["STATE", "STATEFP"], COUNTIES));
+    let counties = Table::parse(&counties, '|', &["STATE", "STATEFP", "COUNTYFP", "COUNTYNAME"], COUNTIES);
+    let states = state_codes(&counties);
     let zcta_gaz = load(ZCTA_GAZ);
     let zcta_gaz = Table::parse(&zcta_gaz, '\t', &["GEOID", "ALAND", "INTPTLAT", "INTPTLONG"], ZCTA_GAZ);
     let need = ["GEOID_ZCTA5_20", "AREALAND_ZCTA5_20", "AREALAND_PART"];
@@ -113,7 +114,22 @@ fn main() {
         writeln!(z3, "{p}\t{}", s.join(",")).unwrap();
     }
     write(out, "zip3-states.txt", &head, ZIP3_HEADER, &z3);
-    println!("{} ZCTAs ({missing_box} without a box), {} places, {} prefixes", rows.len(), prow.len(), zip3.len());
+
+    let mut county = String::new();
+    let mut crow: Vec<_> = counties.rows().collect();
+    crow.sort_by(|a, b| (a.get("STATEFP"), a.get("COUNTYFP")).cmp(&(b.get("STATEFP"), b.get("COUNTYFP"))));
+    for r in &crow {
+        let geoid = format!("{}{}", r.get("STATEFP"), r.get("COUNTYFP"));
+        writeln!(county, "{geoid}\t{}\t{}", r.get("STATE"), r.get("COUNTYNAME")).unwrap();
+    }
+    write(out, "us-counties.txt", &head, COUNTY_HEADER, &county);
+    println!(
+        "{} ZCTAs ({missing_box} without a box), {} places, {} counties, {} prefixes",
+        rows.len(),
+        prow.len(),
+        crow.len(),
+        zip3.len()
+    );
 }
 
 const ZCTA_HEADER: &str = "# zcta\tstate\tland_km2\tlat\tlon\twest\tsouth\teast\tnorth\tcounties\tplaces\n\
@@ -122,6 +138,7 @@ const ZCTA_HEADER: &str = "# zcta\tstate\tland_km2\tlat\tlon\twest\tsouth\teast\
 # counties, places: county and place GEOIDs with their share of the ZCTA's land in thousandths, largest first";
 const PLACE_HEADER: &str = "# geoid\tstate\tname\tkind\tlat\tlon\n\
 # kind: the Census legal or statistical area description (city, town, village, CDP, ...)";
+const COUNTY_HEADER: &str = "# geoid\tstate\tname";
 const ZIP3_HEADER: &str = "# prefix\tstates\n\
 # states: the USPS code of each state holding ZCTAs of the prefix, with how many";
 
@@ -177,6 +194,7 @@ fn split_kind(name: &str) -> (&str, &str) {
 
 fn write(out: &Path, name: &str, sources: &str, header: &str, body: &str) {
     let note = "# Built by `cargo run --release -p turbo-us-zip --example census_tables` from US Census Bureau files (public domain):";
+    std::fs::create_dir_all(out).unwrap_or_else(|e| panic!("{}: {e}", out.display()));
     let all = format!("{note}\n{sources}\n{header}\n{body}");
     std::fs::write(out.join(name), all).unwrap_or_else(|e| panic!("{name}: {e}"));
 }
