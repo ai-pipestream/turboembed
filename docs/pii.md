@@ -29,6 +29,8 @@ checksum is validated with it:
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
+| `nemotron`, `NEMOTRON_TYPES`, `resolve_nemotron_kind`, `resolve_model_with_rules` | Mapping of all 55 `Nemotron-PII` entity types to `PiiKind` (15 built-ins, 40 custom kinds) and rule-overlap precedence |
+| `turbo_tagger::PiiTagger` | Neural `HEAD_TOKEN_TAGGER` (`SCHEME_BIO`) annotator writing `(Pii, PiiCandidates)` with calibrated `PiiScore` (`analysis/tagger/src/pii.rs`) |
 
 The crate depends on `turbo-analysis`, `turbo-analysis-layers`,
 `turbo-glossary` and `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
@@ -375,6 +377,101 @@ annotation has no span. The typed validator refuses a level its score
 does not give, an unknown or unspecified enum, kinds out of order or
 outside the table, a mention count that is not their sum, a non-finite
 number, a span and a second annotation.
+
+## Neural BIO PII head
+
+`turbo_tagger::PiiTagger` (`analysis/tagger/src/pii.rs`, step id
+`turbo-tagger-pii`) runs a bundle's `HEAD_TOKEN_TAGGER` (`SCHEME_BIO`,
+layer `turboembed:pii`) over `(View, Tokens, Option<Subwords>)` and writes
+`(Pii, PiiCandidates)`. The default-tier zoo head
+`turbo-en-nemotron-pii-modernbert-base-1` (`COMPONENT_PII_DETECTOR`) is
+trained in pure Rust (`turbo-trainer`) on `nvidia/Nemotron-PII` over
+`answerdotai/ModernBERT-base` (`trainer/recipes/src/nemotron_pii.rs`) to
+cover contextual PII that format and checksum scanners cannot recognize
+(person names, medical record and health-plan numbers, free-form
+addresses, credentials, occupations, and identifiers without check
+digits).
+
+```rust
+use turbo_analysis::{Analyzer, Document};
+use turbo_analysis_embed::EncoderOptions;
+use turbo_pii::{Pack, Pii, PiiDetector};
+use turbo_tagger::{NEMOTRON_PII_TEMPERATURE, PiiTagger};
+use turbo_tokenize::SimpleTokenizer;
+
+let tagger = PiiTagger::open(&bundle_dir, None, &EncoderOptions::default())?
+    .with_temperature(NEMOTRON_PII_TEMPERATURE)?
+    .with_score_threshold(0.50)?
+    .with_rules(PiiDetector::pack(Pack::AllStructured));
+
+let analyzer = Analyzer::builder()
+    .add(SimpleTokenizer::default())
+    .add(tagger)
+    .build()?;
+let mut docs = vec![Document::new("Patient Jane Doe, SSN 123-45-6789, MRN 884210.")];
+for r in analyzer.run(&mut docs) {
+    r?;
+}
+let pii = docs[0].get::<Pii>().unwrap();
+```
+
+### Label mapping (`turbo_pii::nemotron`)
+
+All 55 `Nemotron-PII` entity types map deterministically through
+`NEMOTRON_TYPES` (`analysis/pii/src/nemotron.rs`):
+
+- **15 built-in `PiiKind` variants**: `age` (`Age`), `bank_routing_number`
+  (`AbaRouting`), `county` (`County`), `credit_debit_card` (`Card`), `date`
+  (`Date`), `email` (`Email`), `ipv4` (`Ipv4`), `ipv6` (`Ipv6`),
+  `mac_address` (`Mac`), `phone_number` (`Phone`), `ssn` (`UsSsn`), `state`
+  (`State`), `street_address` (`StreetAddress`), `swift_bic` (`Bic`), and
+  `url` (`Url`).
+- **40 kebab-case `CustomKinds` entries** (registered automatically in
+  canonical order): `account-number`, `api-key`, `biometric-identifier`,
+  `blood-type`, `certificate-license-number`, `city`, `company-name`,
+  `coordinate`, `country`, `customer-id`, `cvv`, `date-of-birth`,
+  `date-time`, `device-identifier`, `education-level`, `employee-id`,
+  `employment-status`, `fax-number`, `first-name`, `gender`,
+  `health-plan-beneficiary-number`, `http-cookie`, `language`, `last-name`,
+  `license-plate`, `medical-record-number`, `national-id`, `occupation`,
+  `password`, `pin`, `political-view`, `postcode`, `race-ethnicity`,
+  `religious-belief`, `sexuality`, `tax-id`, `time`, `unique-id`,
+  `user-name`, and `vehicle-identifier` (40 custom + 15 built-in = 55
+  total; structured kinds outside `Nemotron-PII`'s 55 types such as `iban`
+  are covered directly by `PiiDetector` packs).
+
+If any custom kind is promoted to a built-in `PiiKind` in a future schema
+revision, `resolve_nemotron_kind` automatically resolves its kebab-case
+wire name via `PiiKind::parse` first.
+
+### Rule-overlap precedence, `PiiScore`, and policy integration
+
+- **Rules win on overlap**: `PiiTagger::with_rules(PiiDetector)` runs the
+  configured scanner pack alongside the BIO head in one `Annotator` step
+  (respecting `Analyzer`'s single-producer invariant on `turbo:pii`).
+  Whenever a neural span overlaps an admitted rule mention, the rule
+  mention wins so checksum and format guarantees (`Checksum`, `Format`,
+  `LabelledChecksum`) are never diluted by a neural span:
+  - Exact `(span, kind)` twins appear in `turbo:pii-candidates` with
+    `PiiDisposition::Repeats` pointing to the kept rule mention.
+  - Neural spans strictly inside a kept rule mention record
+    `PiiDisposition::NestedIn` pointing to that rule mention.
+  - Enclosing, partially overlapping, or cross-kind neural spans (`postcode`
+    on a `us-zip` span) yield to the kept rule mention.
+- **Scores and temperature calibration**: Rule mentions record
+  `score: None`; neural mentions record
+  `Some(PiiScore { value, kind: PiiScoreKind::Probability, model, calibrated })`
+  with mean token probability in `[0.0, 1.0]` (`Some(0.0)` is distinct from
+  `None`), detector id `turbo-tagger-pii` on `mention.detector`, and model
+  id/version in `score.model` (`PiiDetectors`). Calling
+  `PiiTagger::with_temperature(T)` scales token logits by `1 / T` (fitted on
+  held-out `dev` via `turbo-train-head calibrate`, never `test`) and sets
+  `calibrated: true`.
+- **Policy integration (`#1882`)**: `RedactionPolicy` rules in
+  `turbo-kserve` evaluate `ScoreAtLeast` (`PiiScoreKind::Probability`,
+  `min`, `calibrated`), `Detector` (`turbo-tagger-pii`), and
+  `ChecksumPassed` uniformly across rule and neural mentions in the same
+  `turbo:pii` layer.
 
 ## Masking and labels
 
