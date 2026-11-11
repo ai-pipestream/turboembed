@@ -5,7 +5,14 @@ use turbo_analysis::{Annotator, Error, Key, KeyId, Refs, Span, View};
 use turbo_analysis_layers::{Pii, PiiKind};
 use turbo_geo::{GeoResolution, Locations};
 
-use crate::{UsZipTable, zcta_entry};
+use turbo_geo::{AttributeValue, GazetteerEntry};
+
+use crate::{UsZipTable, UspsLocales, Zcta, zcta_entry};
+
+/// The attribute key of a ZIP Code's postal locale names, `|` separated.
+pub const ATTRIBUTE_KEY_USPS_LOCALE: &str = "usps-locale";
+/// The source of that attribute.
+pub const SOURCE_USPS_LOCALES: &str = "usps-zip-locale";
 
 /// The key of the layer it writes, so it sits beside the geocoder's
 /// default `turbo:locations` rather than replacing it.
@@ -22,17 +29,44 @@ pub const ZIP_LOCATIONS: Key<Locations> = Key::named("zip");
 /// step only where the locations layer may disclose the ZIP Code.
 pub struct ZipLocationAnnotator {
     table: &'static UsZipTable,
+    usps: Option<UspsLocales>,
 }
 
 impl ZipLocationAnnotator {
     /// Over the bundled tables.
     pub fn new() -> ZipLocationAnnotator {
-        ZipLocationAnnotator { table: UsZipTable::bundled() }
+        ZipLocationAnnotator { table: UsZipTable::bundled(), usps: None }
     }
 
     /// Over other tables, such as ones built from later Census files.
     pub fn with_table(table: &'static UsZipTable) -> ZipLocationAnnotator {
-        ZipLocationAnnotator { table }
+        ZipLocationAnnotator { table, usps: None }
+    }
+
+    /// Adds the caller's USPS locale list: a ZIP Code's locale names
+    /// become its record's alternate names and its `usps-locale`
+    /// attribute. It places no ZIP Code that has no ZCTA, since the list
+    /// holds no point.
+    pub fn with_usps(mut self, locales: UspsLocales) -> ZipLocationAnnotator {
+        self.usps = Some(locales);
+        self
+    }
+
+    fn entry(&self, z: &Zcta<'_>, zip: &str) -> GazetteerEntry {
+        let e = zcta_entry(z);
+        let Some(names) = self.usps.as_ref().map(|u| u.locales(zip).map(|(l, _)| l.to_string()).collect::<Vec<_>>())
+        else {
+            return e;
+        };
+        if names.is_empty() {
+            return e;
+        }
+        let mut parts = e.into_parts();
+        let value =
+            AttributeValue::new(names.join("|"), SOURCE_USPS_LOCALES, "").expect("locale names are never blank");
+        parts.attributes.push((ATTRIBUTE_KEY_USPS_LOCALE.to_string(), value));
+        parts.alternate_names = names;
+        GazetteerEntry::new(parts).expect("locale names are never blank")
     }
 
     /// The locations of the ZIP Codes in `pii`, over the view `pii` is on.
@@ -43,7 +77,7 @@ impl ZipLocationAnnotator {
         let mut out = Locations::new(pii.spans.view());
         for (span, zip) in found {
             if let Some(z) = self.table.zcta(zip) {
-                let r = GeoResolution::new(span, zcta_entry(&z), 1.0).expect("confidence 1 is in range");
+                let r = GeoResolution::new(span, self.entry(&z, zip), 1.0).expect("confidence 1 is in range");
                 out.push(r);
             }
         }
@@ -78,7 +112,7 @@ impl Annotator for ZipLocationAnnotator {
 
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
-        h.usize(self.table.len());
+        h.usize(self.table.len()).usize(self.usps.as_ref().map_or(0, UspsLocales::len));
         h.finish()
     }
 }

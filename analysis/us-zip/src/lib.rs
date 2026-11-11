@@ -23,6 +23,11 @@
 //! record of each detected ZIP Code's ZCTA into `turbo:locations` under the
 //! key [`ZIP_LOCATIONS`], beside the geocoder's own locations.
 //!
+//! [`UspsLocales`] reads a caller's own copy of the Postal Service's ZIP
+//! Code locale list, which may not be redistributed and so is never
+//! bundled; with it, the annotator adds each ZIP Code's postal locale
+//! names to its record.
+//!
 //! A ZCTA is the Census Bureau's area for the ZIP Code most addresses in
 //! it use, so not every ZIP Code has one: a ZIP Code of post office boxes
 //! only, one of a single organization and a military ZIP Code have none,
@@ -44,6 +49,7 @@ mod annotate;
 mod entry;
 mod parse;
 mod prefix;
+mod usps;
 
 use std::fmt;
 use std::ops::Range;
@@ -51,9 +57,10 @@ use std::sync::OnceLock;
 
 use turbo_geo::{GeoBoundingBox, GeoPoint};
 
-pub use annotate::{ZIP_LOCATIONS, ZipLocationAnnotator};
+pub use annotate::{ATTRIBUTE_KEY_USPS_LOCALE, SOURCE_USPS_LOCALES, ZIP_LOCATIONS, ZipLocationAnnotator};
 pub use entry::{SOURCE_CENSUS_ZCTA, zcta_entry};
 pub use prefix::{PREFIX_EXTRA_TABLE, zip3_in_state};
+pub use usps::UspsLocales;
 
 /// The bundled ZCTA table (`data/us-zcta.txt`).
 pub const ZCTA_TABLE: &str = include_str!("../data/us-zcta.txt");
@@ -192,12 +199,7 @@ impl UsZipTable {
     /// The ZCTA of a ZIP Code written as five ASCII digits, or as ZIP+4
     /// (`62704-1234`), when it has one.
     pub fn zcta(&self, zip: &str) -> Option<Zcta<'_>> {
-        let five = match zip.as_bytes() {
-            [_, _, _, _, _] => zip,
-            [_, _, _, _, _, b'-', rest @ ..] if rest.len() == 4 && rest.iter().all(u8::is_ascii_digit) => &zip[..5],
-            _ => return None,
-        };
-        let code = parse::digits(five, 5)?;
+        let code = zip5(zip)?;
         let i = self.zctas.binary_search_by_key(&code, |r| r.code).ok()?;
         Some(Zcta { table: self, row: &self.zctas[i] })
     }
@@ -233,6 +235,17 @@ impl UsZipTable {
     fn county_ix(&self, geoid: u32) -> Option<usize> {
         self.counties.binary_search_by_key(&geoid, |r| r.geoid).ok()
     }
+}
+
+/// The five-digit code of a ZIP Code written as five ASCII digits or as
+/// ZIP+4 (`62704-1234`).
+pub(crate) fn zip5(zip: &str) -> Option<u32> {
+    let five = match zip.as_bytes() {
+        [_, _, _, _, _] => zip,
+        [_, _, _, _, _, b'-', rest @ ..] if rest.len() == 4 && rest.iter().all(u8::is_ascii_digit) => &zip[..5],
+        _ => return None,
+    };
+    parse::digits(five, 5)
 }
 
 fn range(r: &Range<u32>) -> Range<usize> {
