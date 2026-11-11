@@ -384,7 +384,8 @@ number, a span and a second annotation.
 `turbo-tagger-pii`) runs a bundle's `HEAD_TOKEN_TAGGER` (`SCHEME_BIO`,
 layer `turboembed:pii`) over `(View, Tokens, Option<Subwords>)` and writes
 `(Pii, PiiCandidates)`. The default-tier zoo head
-`turbo-en-nemotron-pii-modernbert-base-1` (`COMPONENT_PII_DETECTOR`) is
+`turbo-en-nemotron-pii-modernbert-base-1` (`COMPONENT_PII_DETECTOR`, resolved
+by `PiiTagger::from_zoo` or `PiiTagger::from_zoo_language(zoo, "en", ...)`) is
 trained in pure Rust (`turbo-trainer`) on `nvidia/Nemotron-PII` over
 `answerdotai/ModernBERT-base` (`trainer/recipes/src/nemotron_pii.rs`) to
 cover contextual PII that format and checksum scanners cannot recognize
@@ -420,25 +421,25 @@ let pii = docs[0].get::<Pii>().unwrap();
 All 55 `Nemotron-PII` entity types map deterministically through
 `NEMOTRON_TYPES` (`analysis/pii/src/nemotron.rs`):
 
-- **15 built-in `PiiKind` variants**: `age` (`Age`), `bank_routing_number`
-  (`AbaRouting`), `county` (`County`), `credit_debit_card` (`Card`), `date`
-  (`Date`), `email` (`Email`), `ipv4` (`Ipv4`), `ipv6` (`Ipv6`),
-  `mac_address` (`Mac`), `phone_number` (`Phone`), `ssn` (`UsSsn`), `state`
-  (`State`), `street_address` (`StreetAddress`), `swift_bic` (`Bic`), and
-  `url` (`Url`).
-- **40 kebab-case `CustomKinds` entries** (registered automatically in
+- **16 built-in `PiiKind` variants**: `age` (`Age`), `bank_routing_number`
+  (`AbaRouting`), `city` (`City`), `county` (`County`), `credit_debit_card`
+  (`Card`), `date` (`Date`), `email` (`Email`), `ipv4` (`Ipv4`), `ipv6`
+  (`Ipv6`), `mac_address` (`Mac`), `phone_number` (`Phone`), `ssn` (`UsSsn`),
+  `state` (`State`), `street_address` (`StreetAddress`), `swift_bic` (`Bic`),
+  and `url` (`Url`).
+- **39 kebab-case `CustomKinds` entries** (registered automatically in
   canonical order): `account-number`, `api-key`, `biometric-identifier`,
-  `blood-type`, `certificate-license-number`, `city`, `company-name`,
-  `coordinate`, `country`, `customer-id`, `cvv`, `date-of-birth`,
-  `date-time`, `device-identifier`, `education-level`, `employee-id`,
-  `employment-status`, `fax-number`, `first-name`, `gender`,
-  `health-plan-beneficiary-number`, `http-cookie`, `language`, `last-name`,
-  `license-plate`, `medical-record-number`, `national-id`, `occupation`,
-  `password`, `pin`, `political-view`, `postcode`, `race-ethnicity`,
-  `religious-belief`, `sexuality`, `tax-id`, `time`, `unique-id`,
-  `user-name`, and `vehicle-identifier` (40 custom + 15 built-in = 55
-  total; structured kinds outside `Nemotron-PII`'s 55 types such as `iban`
-  are covered directly by `PiiDetector` packs).
+  `blood-type`, `certificate-license-number`, `company-name`, `coordinate`,
+  `country`, `customer-id`, `cvv`, `date-of-birth`, `date-time`,
+  `device-identifier`, `education-level`, `employee-id`, `employment-status`,
+  `fax-number`, `first-name`, `gender`, `health-plan-beneficiary-number`,
+  `http-cookie`, `language`, `last-name`, `license-plate`,
+  `medical-record-number`, `national-id`, `occupation`, `password`, `pin`,
+  `political-view`, `postcode`, `race-ethnicity`, `religious-belief`,
+  `sexuality`, `tax-id`, `time`, `unique-id`, `user-name`, and
+  `vehicle-identifier` (39 custom + 16 built-in = 55 total; structured kinds
+  outside `Nemotron-PII`'s 55 types such as `iban` are covered directly by
+  `PiiDetector` packs).
 
 If any custom kind is promoted to a built-in `PiiKind` in a future schema
 revision, `resolve_nemotron_kind` automatically resolves its kebab-case
@@ -462,16 +463,48 @@ wire name via `PiiKind::parse` first.
   `score: None`; neural mentions record
   `Some(PiiScore { value, kind: PiiScoreKind::Probability, model, calibrated })`
   with mean token probability in `[0.0, 1.0]` (`Some(0.0)` is distinct from
-  `None`), detector id `turbo-tagger-pii` on `mention.detector`, and model
+  `None`), detector id `turbo-tagger:pii` (`PII_TAGGER_DETECTOR`) on
+  `mention.detector`, and model
   id/version in `score.model` (`PiiDetectors`). Calling
   `PiiTagger::with_temperature(T)` scales token logits by `1 / T` (fitted on
-  held-out `dev` via `turbo-train-head calibrate`, never `test`) and sets
+  held-out `dev` via `turbo-train-head calibrate`, never `test`;
+  `NEMOTRON_PII_TEMPERATURE = 1.093_758`) and sets
   `calibrated: true`.
 - **Policy integration (`#1882`)**: `RedactionPolicy` rules in
   `turbo-kserve` evaluate `ScoreAtLeast` (`PiiScoreKind::Probability`,
-  `min`, `calibrated`), `Detector` (`turbo-tagger-pii`), and
+  `min`, `calibrated`), `Detector` (`turbo-tagger:pii`), and
   `ChecksumPassed` uniformly across rule and neural mentions in the same
   `turbo:pii` layer.
+
+### Held-out evaluation and calibration (`#1888`)
+
+Receipts under `trainer/recipes/records/nemotron-pii-1888/` score
+`turbo-en-nemotron-pii-modernbert-base-1` (`answerdotai/ModernBERT-base`
+layer 22, `WORD_POOLING_FIRST`, 128-wide hashed word features) on the
+100,000-document held-out `test` split of `nvidia/Nemotron-PII`
+(`b70ffaf5ff39e079776134c5bf4381f00a9fd1ed`, 18,710,937 words, 848,257 gold
+spans across 55 types):
+
+- **Full 55-type micro span F1**: `0.6096` (`P = 0.5299`, `R = 0.7176`) vs
+  majority baseline `0.1677` (`+0.4419`, paired bootstrap 95% CI
+  `[+0.4404, +0.4434]`).
+- **Shared OntoNotes 4-type subset** (`company_name`, `date`, `time`,
+  `language`; 161,289 gold test spans): micro span F1 `0.6127` vs
+  `Stanza 1.10.1-en` `0.4832`, `spaCy en_core_web_lg 3.8.0` `0.2909`, and
+  majority `0.0809`, beating both peers on all four shared types
+  (`company_name` `0.5425`, `date` `0.6621`, `time` `0.5323`, `language`
+  `0.9002`).
+- **Coarse group highlights**: `person` `0.8794` (`first_name` `0.9243`,
+  `last_name` `0.8905`), `financial` `0.7723`, `location` `0.7714`,
+  `temporal_demographic` `0.6652`, and `medical_phi` `0.6554`. Punctuation-split
+  structured identifiers (`email`, `url`, `ssn`, `ipv6`) are covered by
+  `PiiDetector::pack(Pack::AllStructured)` winning on overlap via
+  `PiiTagger::with_rules`.
+- **Held-out `dev` calibration (`calibration.json`)**: fitted on the
+  10,000-document persona-disjoint `dev` split (1,969,973 tokens, 380,348
+  entity tokens), yielding `NEMOTRON_PII_TEMPERATURE = 1.093_758` (NLL
+  `0.09079 -> 0.09005`, ECE `0.00246 -> 0.00197`, entity ECE
+  `0.04808 -> 0.03848`).
 
 ## Masking and labels
 

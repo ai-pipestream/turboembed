@@ -8,13 +8,13 @@ use turbo_analysis_layers::{
     AllowRule, AllowScope, CustomKinds, PiiCandidate, PiiDisposition, PiiKind, PiiScoreKind, RejectReason,
 };
 use turbo_pii::nemotron::{
-    ModelCandidate, ModelProvenance, NEMOTRON_TYPES, nemotron_custom_kinds, nemotron_wire_name, normalize_model_value,
-    resolve_model_with_rules, resolve_nemotron_kind,
+    ModelCandidate, ModelProvenance, ModelResolution, NEMOTRON_TYPES, nemotron_custom_kinds, nemotron_wire_name,
+    normalize_model_value, resolve_model_with_rules, resolve_nemotron_kind,
 };
 use turbo_pii::{AllowList, Case, Pack, PiiDetector};
 
 const PROVENANCE: ModelProvenance<'static> = ModelProvenance {
-    detector_id: "turbo-tagger-pii",
+    detector_id: "turbo-tagger:pii",
     detector_version: "0.1.0",
     model_id: "turbo-en-nemotron-pii-modernbert-base-1",
     model_version: "1",
@@ -47,10 +47,10 @@ fn all_55_nemotron_types_are_sorted_unique_and_resolve_cleanly() {
             assert_eq!(custom_kinds.name(kind), Some(canonical));
         }
     }
-    assert_eq!(builtins.len(), 15, "15 Nemotron types map to built-in PiiKinds");
-    assert_eq!(customs.len(), 40, "40 Nemotron types map to CustomKinds");
-    assert_eq!(custom_kinds.len(), 40);
-    assert_eq!(nemotron_custom_kinds().len(), 40);
+    assert_eq!(builtins.len(), 16, "16 Nemotron types map to built-in PiiKinds");
+    assert_eq!(customs.len(), 39, "39 Nemotron types map to CustomKinds");
+    assert_eq!(custom_kinds.len(), 39);
+    assert_eq!(nemotron_custom_kinds().len(), 39);
 
     for kind in kinds {
         custom_kinds.check(kind).unwrap();
@@ -112,17 +112,14 @@ fn rules_win_across_exact_nested_enclosing_and_cross_kind_overlaps() {
         ModelCandidate { span: span_of("884210"), kind: mrn, probability: 0.0 },
     ];
 
-    let (pii, candidates) = resolve_model_with_rules(
-        text,
-        ViewId::SOURCE,
-        Some(&rules),
-        &model_kinds,
-        PROVENANCE,
-        None,
-        None,
-        &model_candidates,
-    )
-    .unwrap();
+    let opts = ModelResolution {
+        rules: Some(&rules),
+        model_kinds: &model_kinds,
+        provenance: PROVENANCE,
+        min_score: None,
+        extra_allow: None,
+    };
+    let (pii, candidates) = resolve_model_with_rules(text, ViewId::SOURCE, &opts, &model_candidates).unwrap();
 
     pii.check().unwrap();
     candidates.check().unwrap();
@@ -144,12 +141,12 @@ fn rules_win_across_exact_nested_enclosing_and_cross_kind_overlaps() {
     assert_eq!(
         kept,
         vec![
-            ("Jane", "first-name", "turbo-tagger-pii", Some((0.96, PiiScoreKind::Probability, true))),
-            ("Doe", "last-name", "turbo-tagger-pii", Some((0.94, PiiScoreKind::Probability, true))),
+            ("Jane", "first-name", "turbo-tagger:pii", Some((0.96, PiiScoreKind::Probability, true))),
+            ("Doe", "last-name", "turbo-tagger:pii", Some((0.94, PiiScoreKind::Probability, true))),
             ("123-45-6789", "us-ssn", "turbo-pii:us-identity", None),
             ("4111-1111-1111-1111", "card", "turbo-pii:cursor", None),
             ("94107", "us-zip", "turbo-pii:us-identity", None),
-            ("884210", "medical-record-number", "turbo-tagger-pii", Some((0.0, PiiScoreKind::Probability, true))),
+            ("884210", "medical-record-number", "turbo-tagger:pii", Some((0.0, PiiScoreKind::Probability, true))),
         ]
     );
 
@@ -194,17 +191,14 @@ fn score_threshold_and_allow_list_apply_to_neural_candidates_without_dropping_ru
         ModelCandidate { span: span_of("Secret"), kind: last_name, probability: 0.91 },
     ];
 
-    let (pii, candidates) = resolve_model_with_rules(
-        text,
-        ViewId::SOURCE,
-        Some(&rules),
-        &model_kinds,
-        uncalibrated,
-        Some(0.75),
-        Some(&allow),
-        &model_candidates,
-    )
-    .unwrap();
+    let opts = ModelResolution {
+        rules: Some(&rules),
+        model_kinds: &model_kinds,
+        provenance: uncalibrated,
+        min_score: Some(0.75),
+        extra_allow: Some(&allow),
+    };
+    let (pii, candidates) = resolve_model_with_rules(text, ViewId::SOURCE, &opts, &model_candidates).unwrap();
 
     pii.check().unwrap();
     candidates.check().unwrap();

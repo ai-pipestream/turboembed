@@ -22,10 +22,10 @@ use crate::scan::BUILTIN_VERSION;
 /// canonical `turbo:pii` wire names (`kebab-case`), sorted by `Nemotron-PII`
 /// label name.
 ///
-/// The 15 labels whose wire name matches a built-in [`PiiKind`] (`age`,
-/// `aba-routing`, `county`, `card`, `date`, `email`, `ipv4`, `ipv6`, `mac`,
-/// `phone`, `us-ssn`, `state`, `street-address`, `bic`, `url`) resolve to
-/// that built-in variant; the remaining 40 personal, demographic,
+/// The 16 labels whose wire name matches a built-in [`PiiKind`] (`age`,
+/// `aba-routing`, `city`, `county`, `card`, `date`, `email`, `ipv4`, `ipv6`,
+/// `mac`, `phone`, `us-ssn`, `state`, `street-address`, `bic`, `url`) resolve
+/// to that built-in variant; the remaining 39 personal, demographic,
 /// credential, financial and medical/PHI labels resolve via [`CustomKinds`]
 /// (or automatically to a built-in [`PiiKind`] if promoted later).
 pub const NEMOTRON_TYPES: [(&str, &str); 55] = [
@@ -199,6 +199,18 @@ pub struct ModelProvenance<'a> {
     pub calibrated: bool,
 }
 
+/// Resolution options pairing optional structured `rules`, custom-kind table,
+/// detector/model provenance, score threshold, and allow list for
+/// [`resolve_model_with_rules`].
+#[derive(Copy, Clone, Debug)]
+pub struct ModelResolution<'a> {
+    pub rules: Option<&'a PiiDetector>,
+    pub model_kinds: &'a CustomKinds,
+    pub provenance: ModelProvenance<'a>,
+    pub min_score: Option<f32>,
+    pub extra_allow: Option<&'a AllowList>,
+}
+
 /// Resolves neural `model_candidates` alongside optional checksum/format
 /// `rules` into `(turbo:pii, turbo:pii-candidates)`.
 ///
@@ -216,13 +228,10 @@ pub struct ModelProvenance<'a> {
 pub fn resolve_model_with_rules(
     text: &str,
     view: ViewId,
-    rules: Option<&PiiDetector>,
-    model_kinds: &CustomKinds,
-    provenance: ModelProvenance<'_>,
-    min_score: Option<f32>,
-    extra_allow: Option<&AllowList>,
+    opts: &ModelResolution<'_>,
     model_candidates: &[ModelCandidate],
 ) -> Result<(Pii, PiiCandidates), String> {
+    let ModelResolution { rules, model_kinds, provenance, min_score, extra_allow } = *opts;
     if u32::try_from(text.len()).is_err() {
         return Err(format!("a text of {} bytes is past the u32 offset range", text.len()));
     }

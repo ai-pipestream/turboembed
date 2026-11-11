@@ -39,8 +39,8 @@ pub use detector::{DENY_LIST_DETECTOR, Pack, PiiDetector};
 pub use hits::{PiiSink, SinkError};
 pub use lists::{AllowList, Case, DenyList, ListError, Pattern, PatternKind};
 pub use nemotron::{
-    ModelCandidate, ModelProvenance, NEMOTRON_TYPES, nemotron_custom_kinds, nemotron_wire_name, normalize_model_value,
-    register_nemotron_kinds, resolve_model_with_rules, resolve_nemotron_kind,
+    ModelCandidate, ModelProvenance, ModelResolution, NEMOTRON_TYPES, nemotron_custom_kinds, nemotron_wire_name,
+    normalize_model_value, register_nemotron_kinds, resolve_model_with_rules, resolve_nemotron_kind,
 };
 pub use risk::PiiRiskScorer;
 pub use scan::{BUILTIN_VERSION, CustomExtractor, Extractor, Scanner, ScannerError};

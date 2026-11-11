@@ -13,14 +13,19 @@ use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Re
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Pii, PiiCandidates, Subwords, Tokens};
 use turbo_pii::{
-    AllowList, CustomKinds, ModelCandidate, ModelProvenance, PiiDetector, PiiKind, register_nemotron_kinds,
-    resolve_model_with_rules, resolve_nemotron_kind,
+    AllowList, CustomKinds, ModelCandidate, ModelProvenance, ModelResolution, PiiDetector, PiiKind,
+    register_nemotron_kinds, resolve_model_with_rules, resolve_nemotron_kind,
 };
 
 use crate::annotate::HeadRunner;
 
 /// Detector id recorded in `Pii::detectors` for [`PiiTagger`] candidates.
 pub const PII_TAGGER_DETECTOR: &str = "turbo-tagger:pii";
+
+/// Temperature scalar (`T = 1.0938`) fitted on the 10,000-document held-out
+/// `dev` split of `nvidia/Nemotron-PII`
+/// (`trainer/recipes/records/nemotron-pii-1888/calibration.json`).
+pub const NEMOTRON_PII_TEMPERATURE: f32 = 1.093_758;
 
 /// Writes `turbo:pii` and `turbo:pii-candidates` from a bundle's
 /// `SCHEME_BIO` or `SCHEME_BILOU` token-classification head, optionally
@@ -179,16 +184,14 @@ impl PiiTagger {
             calibrated: self.temperature.is_some(),
         };
         let extra_allow = (!self.allow.is_empty()).then_some(&self.allow);
-        resolve_model_with_rules(
-            view.text(),
-            view.id(),
-            self.rules.as_ref(),
-            &self.custom_kinds,
+        let opts = ModelResolution {
+            rules: self.rules.as_ref(),
+            model_kinds: &self.custom_kinds,
             provenance,
-            self.min_score,
+            min_score: self.min_score,
             extra_allow,
-            &raw,
-        )
+        };
+        resolve_model_with_rules(view.text(), view.id(), &opts, &raw)
     }
 }
 

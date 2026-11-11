@@ -10,7 +10,9 @@ use turbo_analysis::{Document, Layer, Span, View, ViewId};
 use turbo_analysis_layers::CustomKinds;
 use turbo_kserve::pii_policy::{NoRegistry, RedactStep, RedactionPolicy};
 use turbo_kserve::proto::result as pb;
-use turbo_pii::nemotron::{ModelCandidate, ModelProvenance, resolve_model_with_rules, resolve_nemotron_kind};
+use turbo_pii::nemotron::{
+    ModelCandidate, ModelProvenance, ModelResolution, resolve_model_with_rules, resolve_nemotron_kind,
+};
 use turbo_pii::{Pack, PiiDetector};
 
 #[test]
@@ -24,7 +26,7 @@ fn redaction_policy_evaluates_calibrated_scores_detector_and_rule_checksums() {
         custom_kinds: vec!["first-name".to_owned(), "medical-record-number".to_owned()],
         kind_rules: vec![
             // Custom kind 0 ("first-name"): full [NAME] redaction when calibrated probability >= 0.80
-            // from turbo-tagger-pii; otherwise abbreviate to initial.
+            // from turbo-tagger:pii; otherwise abbreviate to initial.
             rule(
                 "first-name",
                 custom(0),
@@ -33,7 +35,7 @@ fn redaction_policy_evaluates_calibrated_scores_detector_and_rule_checksums() {
                         when: vec![
                             pb::PiiStrategyCondition {
                                 test: Some(Test::Detector(pb::PiiDetectorCondition {
-                                    id: "turbo-tagger-pii".to_owned(),
+                                    id: "turbo-tagger:pii".to_owned(),
                                     version: String::new(),
                                 })),
                             },
@@ -110,20 +112,23 @@ fn redaction_policy_evaluates_calibrated_scores_detector_and_rule_checksums() {
         Span::new(s as u32, (s + needle.len()) as u32)
     };
 
-    let (pii, candidates) = resolve_model_with_rules(
-        text,
-        ViewId::SOURCE,
-        Some(&rules),
-        &model_kinds,
-        ModelProvenance {
-            detector_id: "turbo-tagger-pii",
+    let opts = ModelResolution {
+        rules: Some(&rules),
+        model_kinds: &model_kinds,
+        provenance: ModelProvenance {
+            detector_id: "turbo-tagger:pii",
             detector_version: "0.1.0",
             model_id: "turbo-en-nemotron-pii-modernbert-base-1",
             model_version: "1",
             calibrated: true,
         },
-        None,
-        None,
+        min_score: None,
+        extra_allow: None,
+    };
+    let (pii, candidates) = resolve_model_with_rules(
+        text,
+        ViewId::SOURCE,
+        &opts,
         &[
             ModelCandidate { span: span_of("Jane"), kind: first_name, probability: 0.94 },
             ModelCandidate { span: span_of("Bob"), kind: first_name, probability: 0.55 },

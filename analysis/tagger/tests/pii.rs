@@ -8,7 +8,7 @@ use turbo_analysis::{Analyzer, Annotator, Document, Layer};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Pii, PiiCandidates, PiiKind, PiiScoreKind};
 use turbo_pii::{Pack, PiiDetector};
-use turbo_tagger::{PII_TAGGER_DETECTOR, PiiTagger};
+use turbo_tagger::{NEMOTRON_PII_TEMPERATURE, PII_TAGGER_DETECTOR, PiiTagger};
 use turbo_tokenize::SimpleTokenizer;
 
 fn pii_bundle(name: &str) -> std::path::PathBuf {
@@ -130,6 +130,66 @@ fn pii_tagger_validates_temperature_and_score_threshold_bounds() {
     assert!(PiiTagger::open(&dir, None, &EncoderOptions::default()).unwrap().with_score_threshold(1.1).is_err());
 
     let t1 = PiiTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
-    let t2 = PiiTagger::open(&dir, None, &EncoderOptions::default()).unwrap().with_temperature(1.5).unwrap();
+    let t2 = PiiTagger::open(&dir, None, &EncoderOptions::default())
+        .unwrap()
+        .with_temperature(NEMOTRON_PII_TEMPERATURE)
+        .unwrap();
+    assert!((NEMOTRON_PII_TEMPERATURE - 1.093_758).abs() < 1e-6);
     assert_ne!(t1.config_hash(), t2.config_hash());
+}
+
+#[test]
+fn assembled_nemotron_pii_bundle_detects_contextual_and_structured_pii() {
+    let Some(bundle_path) = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE") else {
+        return;
+    };
+    let bundle_dir = turbo_pins::require(std::path::Path::new(&bundle_path));
+    let requested = std::env::var("TURBO_TEST_DEVICE").unwrap_or_else(|_| "cpu".to_owned());
+    let device = match requested.as_str() {
+        "cpu" => turbo_analysis_embed::Device::Cpu,
+        other => turbo_analysis_embed::Device::Backend(other.to_owned()),
+    };
+    let tagger = PiiTagger::open(&bundle_dir, None, &EncoderOptions { device, ..EncoderOptions::default() })
+        .unwrap()
+        .with_model_identity("turbo-en-nemotron-pii-modernbert-base-1", "1")
+        .unwrap()
+        .with_temperature(NEMOTRON_PII_TEMPERATURE)
+        .unwrap()
+        .with_score_threshold(0.50)
+        .unwrap()
+        .with_rules(PiiDetector::pack(Pack::AllStructured));
+    let exec = Annotator::execution(&tagger).expect("execution");
+    assert_eq!(exec.backend, requested, "no fallback from requested backend {requested:?}");
+    println!("PiiTagger execution: backend={} device={}", exec.backend, exec.device);
+    let analyzer = Analyzer::builder().add(SimpleTokenizer::default()).add(tagger).build().unwrap();
+    let text = "Patient Sarah Jenkins (DOB 1984-05-19, MRN 99482104) lives at 742 Evergreen Terrace, Springfield, IL 62704. Contact sarah.jenkins@example.org or SSN 123-45-6789.";
+    let mut docs = vec![Document::new(text)];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    let pii = docs[0].get::<Pii>().unwrap();
+    let cand = docs[0].get::<PiiCandidates>().unwrap();
+    pii.check().unwrap();
+    cand.check().unwrap();
+    cand.check_against(pii).unwrap();
+
+    let found: Vec<(&str, &str, bool)> =
+        pii.mentions().map(|m| (pii.kind_name(m.kind).unwrap(), &text[m.span.range()], m.score.is_some())).collect();
+    println!("PiiTagger mentions: {found:?}");
+    assert!(
+        found.iter().any(|&(k, v, scored)| k == "first-name" && v == "Sarah" && scored),
+        "expected neural first-name mention in {found:?}"
+    );
+    assert!(
+        found.iter().any(|&(k, v, scored)| k == "last-name" && v == "Jenkins" && scored),
+        "expected neural last-name mention in {found:?}"
+    );
+    assert!(
+        found.iter().any(|&(k, v, scored)| k == "us-ssn" && v == "123-45-6789" && !scored),
+        "expected structured rule us-ssn mention (score == None) in {found:?}"
+    );
+    assert!(
+        found.iter().any(|&(k, v, scored)| k == "email" && v == "sarah.jenkins@example.org" && !scored),
+        "expected structured rule email mention (score == None) in {found:?}"
+    );
 }
