@@ -227,6 +227,71 @@ alongside `turbo_analysis_layers::export::codecs()` to export the entire graph.
 The annotator hash includes the ordered labels, threshold, decoding mode,
 checkpoint configuration and model identity.
 
+### Hybrid precision
+
+`HybridPrecision` is a separate annotator over the high-recall `Entities` and
+`Decisions` outputs. It can trim leading articles and non-entity edge tokens,
+reject non-alphanumeric candidates, apply label-specific PII negative rules,
+and require a compatible entity-linker candidate. Trimming repeats until
+neither rule applies, so punctuation an article stood before goes with it
+(`the "Acme"` becomes `Acme`), and a candidate that is an article and nothing
+else once trimmed is rejected as a non-entity. A PII layer must be valid,
+over the same view as the other inputs, and have every mention inside the text
+on character boundaries, since a negative rule compares byte offsets. A
+required link is a candidate whose types are compatible with the label and
+whose blended score reaches the threshold: no candidate, or only candidates of
+an incompatible type, is no link at any threshold. A negative rule may name a
+custom PII kind; the precision layer carries a copy of the PII layer's
+custom-kind table, so the rejection keeps its kind's name through export and
+import, and a custom kind outside that table is refused. `require_link` restricts that
+last requirement to the named labels; labels outside the explicit set retain
+their model candidates, so a gazetteer does not erase an unseen type. With no
+explicit set, every label is subject to linking when a provider is present.
+
+`PrecisionCandidates` retains every input row with its original and final byte
+spans and token ranges, kind, raw logit, sigmoid score, and accepted, changed,
+or rejected decision. `accepted_entities` projects only the surviving rows.
+The original `Entities` and `Decisions` layers remain unchanged, preserving
+their model provenance; the precision layer's provenance reads them.
+`precision_evidence` adds raw logits, support links to all three input layers,
+and an explicit abstention reason for every rejection. The graph codecs retain
+these fields and the evidence after export and import. The stage has no model
+of its own, so each evidence record names the model that produced the entities
+it read. Empty or malformed token ranges return an error rather than indexing
+outside the input layers.
+
+A document accepts a `PrecisionCandidates` layer, on `add` and on import, only
+when every original and final span is exactly the span of its non-empty token
+range in the tokens the layer was made on, in the same view, and the final
+span lies within the original. A span outside the text, inside a character, or
+detached from its tokens is refused.
+
+`PrecisionEvaluation` reports exact span-and-label precision, recall, F1,
+candidate counts, and false-positive rows independently for model-only,
+dictionary-only, and hybrid arms. The receipt at
+`docs/receipts/gliner-precision-2052/receipt.json` is a deterministic synthetic
+behavioral fixture, not a learned-quality result. Its gazetteer contains Tokyo,
+Jobs, and Apple, but not the held-out `FAC` entry Museum. The hybrid preserves
+Museum while removing punctuation, an email conflict, and a supplementary-plane
+non-alphanumeric candidate, and trims `The 東京` to the exact gold span.
+
+| Synthetic arm | Candidates | Accepted | TP | FP | FN | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Model-only | 7 | 7 | 3 | 4 | 1 | 0.4286 | 0.7500 | 0.5455 |
+| Dictionary-only | 3 | 3 | 3 | 0 | 1 | 1.0000 | 0.7500 | 0.8571 |
+| Hybrid | 7 | 4 | 4 | 0 | 0 | 1.0000 | 1.0000 | 1.0000 |
+
+The long-document case repeats the fixture 256 times: 14,592 UTF-8 bytes,
+1,792 candidates, 1,024 accepted rows, and 768 explicit rejections. One release
+run took 0.695 ms for the precision pass and preserved every accepted source
+span and all evidence through a graph round-trip. The timing is a receipt for
+that run, not a performance gate or a model-inference benchmark. Reproduce the
+metrics and current timing with:
+
+```
+cargo +1.99 test --release --locked -p turbo-gliner --test precision_eval -- --nocapture
+```
+
 ## Progressive serving
 
 `LoadBundle` accepts the converted package directory directly and advertises
@@ -338,9 +403,11 @@ Packing sentences into shared windows is 1.3x to 1.6x faster than one window
 per sentence. The native annotator is 2.3x to 2.7x faster than the Python
 reference on one thread.
 
-knowledgator/gliner-multitask-large-v0.5 (Apache-2.0) cannot be converted. It
-uses `span_mode: token_level` on DeBERTa-v3-large with max_width 100, while
-the converter and the heads support only the markerV0 profile.
+knowledgator/gliner-multitask-large-v0.5 uses `span_mode: token_level` on
+DeBERTa-v3-large with max_width 100. Its token scorer produces start, end, and
+inside logits for every token-label pair. A span logit is the minimum of its
+boundary and inside logits. The native converter supports this profile,
+including checkpoints without a prompt projection, with widths up to 100.
 
 ## Conversion and loading
 

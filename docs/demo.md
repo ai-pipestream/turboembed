@@ -404,10 +404,24 @@ for any refused call.
   (writes), `DownloadVocabulary` streamed into a file, and
   `DeleteVocabularyArtifact` (write).
 - Server: the server's name, version and readiness (`ServerLive`,
-  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
-  profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
-- Models: `ListModelCatalog` for the demo's user, each artifact's
-  licence terms still to accept shown with the licence, its class and
+  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, with task
+  and prompt roles in plain words, analysis profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
+- Models: `ListModelCatalog` for the demo's user as cards, one per
+  artifact: its id, a line saying what it is for (from the catalog's
+  component, such as "Embeds text for semantic search", else from its
+  kind), its kind in plain words (model, head, dataset, lexicon),
+  language, licence and size, and its actions. A card whose terms or
+  files are opened takes the full row. A filter box narrows the cards
+  to the entries whose id, purpose, kind, language or licence holds every word
+  typed, whatever the case (words are parted by any Unicode white space,
+  the next-line control included; `ß`, `ẞ` and `SS` compare equal, as
+  do a final and a medial sigma; and a kind also matches in its enum
+  spelling), and a chip per kind with its count shows
+  only that kind; both work in the page on the catalog already read
+  (demo/web/src/catalogfilter.ts) and stay set when the catalog is read
+  again after a change. Installed models and accepted terms are listed
+  above the catalog. Each artifact's
+  licence terms still to accept are shown with the licence, its class and
   what that class means in plain words, the attribution, the training
   data and a link to the terms text. An "I have read and accept"
   control enables `RecordLicenceAcceptance` (write), which sends the
@@ -417,8 +431,8 @@ for any refused call.
   which artifact's page, each with `RevokeLicenceAcceptance` (write).
   An artifact whose licence, or any data it was trained on, is
   non-commercial (`CC-BY-NC-*`) says "Non-commercial use only" beside
-  its licence. Once the user may have an artifact, a Save button per
-  file reads it through `ReadModelFile` (a read, the same stream the
+  its licence. Once the user may have an artifact, its files open under
+  a disclosure with a Save button per file, which reads it through `ReadModelFile` (a read, the same stream the
   library reads), hashes it as it arrives, and hands the browser the
   file only when its size and SHA-256 are the ones the catalog lists
   (demo/web/src/tabs/download.ts). The file is held in the page's
@@ -509,6 +523,11 @@ the page makes goes through the demo to the server.
   error in the page.
 - Embed answers with a card per served model and no error, the header
   shows the server up, and the arrow keys move between the tabs.
+- The catalog read from the server narrows to the entries matching the
+  words typed and to one kind by its chip, says how many of how many
+  are shown, names no kind or component by its enum, and says so when
+  nothing matches. The entries are cards, several to a row at 1280
+  pixels, each saying what it is for.
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in
@@ -516,9 +535,15 @@ of every tab at each width there, at the device scale factor in
 index of the CPU (default 0). The binaries started are the ones that
 build wrote, in the target directory `cargo metadata` names, so
 `CARGO_TARGET_DIR` and a configured target directory are followed. The
-run needs a Chromium the pinned
-Playwright can launch; `npx --prefix demo/web playwright install
-chromium` fetches one. Playwright 1.63.0 is pinned exactly in
+run needs a headless Chromium the pinned Playwright can launch; after
+`npm ci --prefix demo/web`,
+`demo/web/node_modules/.bin/playwright install chromium-headless-shell`
+fetches one. Playwright 1.63.0 is pinned exactly in
 `demo/web/package.json` as a development dependency of this run alone:
-the page's bundle, the demo and the library do not use it, and no CI
-job runs it yet.
+the page's bundle, the demo and the library do not use it.
+
+CI runs it in the `proto` job (.github/workflows/ci.yml), after the
+steps that check the generated code and the bundle. On a pull request
+and in the merge queue it runs when `demo/`, `server/`, the two test
+bundles, `scripts/e2e-web.sh`, `scripts/build-web.sh` or the workflow
+changed; the daily run always runs it.

@@ -22,6 +22,11 @@ use turbo::bundle::Bundle;
 use turbo::rerank::{RerankOptions, RerankSessionOptions, Reranker};
 use turbo::safetensors::{Dtype, File};
 
+/// The largest difference allowed between an F16 score and the
+/// reference's, as a fraction of the largest reference score in magnitude
+/// (docs/conformance.md, Scores).
+const F16_SCORE_BOUND: f32 = 1e-2;
+
 fn fixture() -> rerank_common::Fixture {
     rerank_common::Fixture::new(Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap())
 }
@@ -111,8 +116,10 @@ fn open_stays_on_the_cpu_and_cuda_reports_experimental() {
 
 /// With `TURBO_TEST_RERANK_BUNDLES` naming real rerank bundles, comma
 /// separated (docs/reranking.md), each one's reference pairs on CUDA at
-/// EXACT and MODEL within 1e-4 of the reference scores and the CPU path;
-/// skipped without it.
+/// EXACT and MODEL within 1e-4 of the reference scores and the CPU path,
+/// and at FASTEST, which computes in F16, each score within the F16 score
+/// bound of docs/conformance.md times the largest reference score in
+/// magnitude; skipped without it.
 #[test]
 fn real_rerank_bundles_on_cuda_match_their_reference_and_the_cpu_path() {
     let _t = turn();
@@ -140,5 +147,10 @@ fn real_rerank_bundles_on_cuda_match_their_reference_and_the_cpu_path() {
             );
             assert!(to_reference < 1e-4 && to_cpu < 1e-4, "{}: precision {precision}", dir.display());
         }
+        let got = on(dir, "cuda", turbo::TURBO_PRECISION_FASTEST).score(&cases, RerankOptions::default()).unwrap();
+        let scale = reference.iter().fold(0f32, |m, v| m.max(v.abs()));
+        let of_scale = worst(&got.scores, &reference) / scale;
+        println!("{}: FASTEST: max diff {of_scale:e} of the scale {scale} to the reference", dir.display());
+        assert!(of_scale <= F16_SCORE_BOUND, "{}: FASTEST: {of_scale:e} of the scale", dir.display());
     }
 }

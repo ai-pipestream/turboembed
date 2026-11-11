@@ -10,8 +10,10 @@
 # there (TURBO_E2E_SCALE sets the device scale factor, default 1).
 #
 # TURBO_E2E_DEVICE is the server's device index of the CPU (default 0).
-# Needs Node, npm and a Chromium that the pinned Playwright can launch:
-# `npx --prefix demo/web playwright install chromium` fetches one.
+# Needs Node, npm and a headless Chromium that the pinned Playwright can
+# launch: after `npm ci --prefix demo/web`,
+# `demo/web/node_modules/.bin/playwright install chromium-headless-shell`
+# fetches one. The `proto` job of .github/workflows/ci.yml runs this.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

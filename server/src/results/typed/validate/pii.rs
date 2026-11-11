@@ -184,10 +184,10 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
         return Err(row.refuse("pii mention sets the retired normalized value; use value"));
     }
     // Every mention says how its value was released (#1909): withheld
-    // with a known reason (#1931), a
-    // token of 32 bytes naming its key id and version, or a clear value
-    // that is not empty. A ciphertext waits for #1885. The error names the
-    // form, never its contents.
+    // with a known reason (#1931), a token of 32 bytes naming its key id
+    // and version, a ciphertext of this server's scheme naming its key id
+    // and version (#1885), or a clear value that is not empty. The error
+    // names the form, never its contents.
     let refused = match m.value.as_ref().map(|v| v.form.as_ref()) {
         Some(Some(Form::Withheld(w))) => match PiiWithheldReason::try_from(w.reason) {
             Ok(PiiWithheldReason::Unspecified) | Err(_) => Some("is withheld without a known reason"),
@@ -201,7 +201,14 @@ pub(super) fn mention(ctx: &LayerCtx<'_>, i: usize, ann: &TypedAnnotation, m: &P
             Some("is a token without a key id and version")
         }
         Some(Some(Form::Token(_))) => None,
-        Some(Some(Form::Ciphertext(_))) => Some("is a ciphertext, which waits for #1885"),
+        Some(Some(Form::Ciphertext(c))) if c.ciphertext.is_empty() => Some("is an empty ciphertext"),
+        Some(Some(Form::Ciphertext(c))) if c.key_id.is_empty() || c.key_version == 0 => {
+            Some("is a ciphertext without a key id and version")
+        }
+        Some(Some(Form::Ciphertext(c))) if c.scheme != crate::release::cipher::SCHEME => {
+            Some("is a ciphertext of an unknown scheme")
+        }
+        Some(Some(Form::Ciphertext(_))) => None,
     };
     if let Some(why) = refused {
         return Err(row.refuse(&format!("pii mention value {why}")));

@@ -193,3 +193,46 @@ fn directory_and_owned_parser_refuse_the_same_invalid_offset_unit() {
     assert!(DocumentGraph::from_bytes(&wire).is_err());
     assert!(DocumentGraphRef::parse(&wire).is_err());
 }
+
+#[test]
+fn an_over_limit_error_round_trips_through_records_and_wire() {
+    let mut doc = Document::new("aa bb");
+    let key = Key::<Tokens>::DEFAULT.id();
+    let over = Error::over_limit("turbo-relation:zero-shot", "encoder max_sequence", 512, 528);
+    doc.fail(key, over.clone(), Provenance::by("turbo-relation:zero-shot")).unwrap();
+    let mut codecs = Codecs::new();
+    turbo_analysis_layers::export::register_codecs(&mut codecs);
+    let graph = export(&doc, &codecs).unwrap();
+    assert_eq!(
+        graph.layers[0].status,
+        StatusRecord::Failed(ErrorRecord::OverLimit {
+            annotator: "turbo-relation:zero-shot".into(),
+            limit: "encoder max_sequence".into(),
+            max: 512,
+            got: 528,
+        })
+    );
+    let wire = graph.to_bytes().unwrap();
+    let parsed = DocumentGraph::from_bytes(&wire).unwrap();
+    assert_eq!(parsed, graph);
+    let dir = DocumentGraphRef::parse(&wire).unwrap();
+    let restored = dir.import_selected(&codecs, &[("turbo:tokens", "")]).unwrap();
+    assert_eq!(restored.status(key), Some(&Status::Failed(over)));
+
+    // An imported OverLimit record whose limit name is not in the closed
+    // static table is downgraded to a generic Annotator error without
+    // interning or retaining the caller-supplied string.
+    let mut forged = graph;
+    forged.layers[0].status = StatusRecord::Failed(ErrorRecord::OverLimit {
+        annotator: "custom".into(),
+        limit: "patient jane doe".into(),
+        max: 1,
+        got: 2,
+    });
+    let forged_wire = forged.to_bytes().unwrap();
+    let forged_doc = import(&DocumentGraph::from_bytes(&forged_wire).unwrap(), &codecs).unwrap();
+    assert_eq!(
+        forged_doc.status(key),
+        Some(&Status::Failed(Error::Annotator { annotator: "custom", detail: String::new() }))
+    );
+}

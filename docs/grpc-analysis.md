@@ -170,10 +170,13 @@ smart chunking works without another embedding bundle.
 
 Remaining limits: a step runs over the source view only; under
 `annotate-v2` a bundle with two heads for one step is refused as
-ambiguous rather than run twice; a learned sentence step cannot follow a
-normalizer; and the rule sentence step after `turbo:normalize:case-fold`
-reads the folded view, whose sentences start in lower case, so it finds
-no boundary after the first.
+ambiguous rather than run twice; and a learned sentence step cannot follow a
+normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
+the source, or the last view written before the fold, so its boundaries
+match the same request without the fold. When the fold comes first, that
+is the unnormalized request; after another normalizer, such as
+`turbo:normalize` then the fold, it is the request with that normalizer
+and no fold.
 
 `server/tests/full_text_graph.rs` is the in-process acceptance of the
 model-free stages: `compile_analyzer` with normalization, structure,
@@ -190,6 +193,13 @@ deterministic runs, empty input and a 600-sentence document. A stage the request
 refused by name: `turbo:chunker` without a bundle (it reads
 `turbo:subwords`), `turbo:gliner` without `open_span`,
 `turbo:zero-shot-relations` without relation labels, and an unknown step.
+A document over `turbo:zero-shot-relations`' limits (its mention and
+pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
+fails that step with `TURBO_E_CAPACITY`, and the failure message names
+the limit and both counts, for example `step 'turbo:zero-shot-relations'
+failed: over its encoder max_sequence 512, got 528`; never the text.
+The step's layer error, in the step failure, the complete graph and
+the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -201,6 +211,20 @@ layers bi-directionally back to `ViewId::SOURCE` at their default keys so
 1-to-1 `Ix<L>` alignment with `Vectors<Sentences>`, `Vectors<Chunks>`, and
 `SparseTerms<View>` is preserved across UTF-8, UTF-16, and Unicode code-point
 offset modes.
+
+Two of those steps match text as written and so read the cased view: the
+rule sentence step (`turbo-sentdetect:rules`) and the place-name step
+(`turbo-geo:names`, `turbo:entities`). In a chain with
+`turbo:normalize:case-fold` they read the last view written before the
+fold, or the source when the fold comes first, and their spans are in
+source offsets as always. A full fold also rewrites spellings (`ﬁ` to
+`fi`, `ſ` to `s`), which would otherwise turn words the text does not
+write into place names. Tokens, subwords and the steps that read them
+keep reading the last view, folded. Structure blocks read it too and do
+not depend on case. Every other step reads the source.
+`server/tests/case_fold_sentences.rs` and
+`server/tests/progressive_case_fold_names.rs` hold the two steps to the
+results of the same request without the fold.
 
 Span offsets cross in the unit a message names (`OffsetMode` on
 `ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and
@@ -568,7 +592,9 @@ carry the view's words (sentence text, token surfaces, lemmas), so while
 the text is withheld they are listed with their status and no
 annotations. A typed result is refused on validation when a mention's
 value is missing or has no form, is an empty clear value, a token that is
-not 32 bytes or names no key id and version, or a ciphertext (#1885).
+not 32 bytes or names no key id and version, or a ciphertext that is
+empty, names no key id and version, or names a scheme other than
+`turbo-pii-aes-256-gcm-v1` (#1885).
 The result envelope (#1907) is kept: it carries digests and lengths of
 the texts and the edit chain's offsets, never a text.
 
@@ -611,18 +637,19 @@ and the stacks are built from the projected view's tokens.
 - `full_text`: source and view texts and graph bytes, as for a document
   without PII.
 - `detail`: candidates and evidence detail (#1903).
-- `values`: `UNSPECIFIED` or `WITHHELD` withholds them. `TOKEN` and
-  `CLEAR` are released by `InspectDocumentGraph` only, as the next section
-  says; `CIPHERTEXT` (#1885), and a value form on any other call or on a
-  server without PII release, are refused with
-  `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
+- `values`: `UNSPECIFIED` or `WITHHELD` withholds them. `TOKEN`,
+  `CIPHERTEXT` and `CLEAR` are released by `InspectDocumentGraph` only,
+  as the next section says. A value form on any other call or on a
+  server without PII release, and `CIPHERTEXT` on a server that releases
+  no ciphertext, are refused with `TURBO_E_UNSUPPORTED_OPTION`
+  (`UNIMPLEMENTED`).
   A token or ciphertext names its key in `key_id` and `key_version`, the
   identity (id, version) of a `PiiPolicyKeyRef`.
 
 The server caps the options with `--pii-output-allow`
 (`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
-`rewritten-text`, `full-text`, `detail`, and the value forms `token` and
-`clear`. Unset, the three text options are allowed, since a caller of
+`rewritten-text`, `full-text`, `detail`, and the value forms `token`,
+`ciphertext` and `clear`. Unset, the three text options are allowed, since a caller of
 these calls sent the text it asks back, and no value form is. A request for an
 option the server does not allow is refused with `TURBO_E_INVALID_STATE`
 (`FAILED_PRECONDITION`) naming it; nothing is dropped silently. Sink items
@@ -654,12 +681,13 @@ needed.
 
 `--pii-grant FINGERPRINT:FORMS:KINDS` (repeated, or
 `TURBO_KSERVE_PII_GRANTS` as a `;`-separated list) grants the service
-with that fingerprint the forms in `FORMS` (`token`, `clear`, or
-`token+clear`) for the built-in kinds in `KINDS` (comma-separated names,
-or `*` for every kind, caller-defined kinds included). Grants of one
-fingerprint add up. A grant needs `--tls-cert`, `--tls-key` and
-`--tls-client-ca`, and `--pii-audit-endpoint`; `ciphertext` is refused
-until #1885.
+with that fingerprint the forms in `FORMS` (`token`, `ciphertext` and
+`clear`, joined by `+`) for the built-in kinds in `KINDS`
+(comma-separated names, or `*` for every kind, caller-defined kinds
+included). Grants of one fingerprint add up. A grant needs `--tls-cert`,
+`--tls-key` and `--tls-client-ca`, and `--pii-audit-endpoint`. A grant
+with `ciphertext` also needs a server built with the `pii-reversible`
+feature and an encryption key (#1885), as below.
 
 For each mention the forms in effect are the request's form ∩ the forms
 `--pii-output-allow` lists ∩ the release ceiling of the request's
@@ -736,6 +764,26 @@ prefixed with its length as 4 big-endian bytes (#1930). Equal values of
 one kind under one key give equal tokens; one value under two kinds
 gives two, so tokens never show that two kinds share a value. `clear`
 carries the normalized value.
+
+Ciphertexts (#1885) are AES-256-GCM under a registered encryption key,
+`--pii-encryption-key ID:VERSION:PATH` (the keys a redaction policy's
+encryption strategies name, each exactly 32 bytes). With several keys,
+`--pii-encryption-key-active ID:VERSION`
+(`TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`) names the one ciphertexts are
+made under; it is refused without a grant that includes ciphertext.
+`PiiValueCiphertext` carries the scheme `turbo-pii-aes-256-gcm-v1`, the
+key's id and version, and as `ciphertext` the UTF-8 text of a
+`turbo-pii` AES-256-GCM token: the kind code as it is, its case kept
+(`builtin:3`, `custom:Badge`), `:`, and the unpadded base64url of a
+12-byte nonce, the encrypted normalized value and the 16-byte tag. The
+associated data binds the exact kind code and the context
+`turbo-kserve.pii-release.v1`, so a holder of the key decrypts it with
+`AesGcmEncryptor` under that context, and a ciphertext moved to another
+kind fails authentication. Custom kind names are case-sensitive, so that
+holds for `custom:Badge` and `custom:badge` too. Each release
+draws a fresh nonce, so, unlike tokens, equal values give different
+ciphertexts. A grant with no ciphertext kind gives the policy digest it
+gave before ciphertext release.
 
 Before any value leaves, the server records one `PiiAccessEvent` with
 `turbo.audit.v1.TurboAuditService.RecordPiiAccess`
@@ -1000,9 +1048,13 @@ and detector lists, with a typed `PolicyError` naming the field.
   nonce each time, so tokens are not linkable) and `ff1` (FF1
   format-preserving encryption of the mention's digits or letters under
   an alphabet and a `tweak`, every other character kept in place). Each
-  names a key registered with `--pii-encryption-key`. A mention FF1
-  cannot take, such as an email under the digit alphabet, fails the
-  rewrite. A server without the feature does not know either arm, so the
+  names a key registered with `--pii-encryption-key`. An `ff1` alphabet
+  that cannot hold a character every value of the rule's kind has is
+  refused when the policy loads: the digit alphabet on `email`, `url`,
+  `iban`, `bic`, `eth-address`, `aws-access-key`, `es-dni`, `es-nie` or
+  `github-token`, and the upper case alphabet on `github-token`. Any other
+  mention FF1 cannot take fails the rewrite. A server without the feature
+  does not know either arm, so the
   policy is refused, or the entry masked and flagged under
   `redact_and_flag_unknown`. No rpc decrypts.
 - **Default**: a kind with no rule, or no entry that applies, gets
