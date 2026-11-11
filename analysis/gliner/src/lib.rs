@@ -3,6 +3,7 @@
 mod codec;
 mod config;
 mod device;
+mod features;
 mod heads;
 pub mod open_span;
 mod output;

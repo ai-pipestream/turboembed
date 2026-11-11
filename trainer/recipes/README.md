@@ -275,7 +275,9 @@ scored again.
 single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and
 boundary features. `--train-boundaries` also trains the marker start and end
 MLPs, with their exact gradients through `out_project`, while the encoder,
-prompt encoder and BiLSTM remain frozen. Each training span
+prompt encoder and BiLSTM remain frozen. `--train-prompt` also trains the
+`prompt_rep_layer` MLP with its exact gradient through span-label scoring,
+while the encoder and BiLSTM remain frozen. Each training span
 keeps its gold labels and at most four highest-logit negative labels; gold
 spans are accompanied by up to two hard-negative spans per positive span,
 with a minimum of four. Positive BCE terms have weight 4. `--balance` repeats
@@ -293,7 +295,7 @@ gradients in original sentence order; 0 uses the whole batch. Set
 do not create nested thread pools. `--anchor W` adds `W * ||params - base||^2`
 to the loss and its exact gradient, limiting drift from every pretrained
 tensor selected for training. The default is 0, and the peer identity records
-the anchor and whether boundary training was enabled.
+the anchor and whether boundary and prompt training were enabled.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
