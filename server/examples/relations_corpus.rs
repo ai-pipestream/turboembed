@@ -159,11 +159,18 @@ fn graph(d: &Doc, sentences: bool) -> Result<Vec<u8>, Fail> {
 
 async fn analyze(client: &mut Client, req: AnalyzePipelineRequest) -> Result<Document, Fail> {
     let mut stream = client.analyze_document_progressive(req).await?.into_inner();
-    let mut complete = None;
+    let (mut complete, mut failed) = (None, None);
     while let Some(ev) = stream.next().await {
-        if let Some(Event::Complete(c)) = ev?.event {
-            complete = Some(c);
+        match ev?.event {
+            Some(Event::Complete(c)) => complete = Some(c),
+            Some(Event::StepFailed(f)) => failed = failed.or(f.failure),
+            _ => {}
         }
+    }
+    // A refused step is reported by its code and message, which name the
+    // limit and both counts and never the text.
+    if let Some(f) = failed {
+        return Err(format!("code {}: {}", f.turbo_code, f.message).into());
     }
     let c = complete.ok_or("no Complete event")?;
     if let Some(bad) = c.layers.iter().find(|l| l.status != LayerWireStatus::Ok as i32) {

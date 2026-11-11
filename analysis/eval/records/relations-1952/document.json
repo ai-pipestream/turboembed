@@ -82,7 +82,7 @@
       "documents_refused": 0,
       "predictions_sha256": "787c35ad2e82abd54af25d807942364b85f967a67d4c6843b4b840fbf8fcf9d1",
       "refused": [],
-      "seconds": 689.099,
+      "seconds": 602.6702,
       "step": "turbo-tagger:relations",
       "subset": {
         "f1": 0.5438,
@@ -204,96 +204,96 @@
       "refused": [
         {
           "document": 30,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 528",
           "title": "Amambanda"
         },
         {
           "document": 35,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 530",
           "title": "List of longest rivers of Canada"
         },
         {
           "document": 43,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 621",
           "title": "ITS launch vehicle"
         },
         {
           "document": 55,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 638",
           "title": "Consort Mei"
         },
         {
           "document": 57,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 618",
           "title": "Intelligent design"
         },
         {
           "document": 60,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 613",
           "title": "Booker T. Washington"
         },
         {
           "document": 82,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 547",
           "title": "Ten Commandments for Drivers"
         },
         {
           "document": 93,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 548",
           "title": "Il Gobbo di Rialto"
         },
         {
           "document": 146,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 572",
           "title": "Imam khatib (Sunni Islam)"
         },
         {
           "document": 214,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 533",
           "title": "Pokémon (anime)"
         },
         {
           "document": 216,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 567",
           "title": "Ferrous metallurgy"
         },
         {
           "document": 218,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 645",
           "title": "Taft–Katsura agreement"
         },
         {
           "document": 226,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 597",
           "title": "Milton Friedman Institute for Research in Economics"
         },
         {
           "document": 277,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 551",
           "title": "Liangzi Lake"
         },
         {
           "document": 300,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 712",
           "title": "Fugue"
         },
         {
           "document": 333,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 636",
           "title": "Clandestine literature"
         },
         {
           "document": 349,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 571",
           "title": "Henry Halleck"
         },
         {
           "document": 372,
-          "error": "layer turbo:relations failed: Some(LayerError { kind: Annotator, turbo_code: 1536, layer: None, annotator: \"turbo:zero-shot-relations\" })",
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 707",
           "title": "María de Buenos Aires"
         }
       ],
-      "seconds": 59.0144,
+      "seconds": 48.6285,
       "step": "turbo:zero-shot-relations",
       "subset": {
         "f1": 0.0971,

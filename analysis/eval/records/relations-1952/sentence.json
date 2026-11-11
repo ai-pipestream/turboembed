@@ -1,0 +1,406 @@
+{
+  "bootstrap": {
+    "draws": 1000,
+    "seed": 1952,
+    "unit": "document"
+  },
+  "corpus": {
+    "documents": 500,
+    "file": "data/test_revised.json",
+    "gold_triples": 17448,
+    "mentions": 12949,
+    "mentions_dropped_shared_or_empty_span": 69,
+    "sha256": "ea673b7ef91e16510d7eb88863d3903e47318dc5653ef361266f27ae3b84723c"
+  },
+  "device": "AMD Ryzen 9 9950X 16-Core Processor",
+  "issue": "#1952",
+  "scope": "sentence",
+  "served_models": [
+    {
+      "name": "head",
+      "sha256": "1a25ecb2066a096a4c70bdd8daa95c82e506c12f8d407eabac2d5448ea76d3b7",
+      "task": "TASK_EMBED"
+    },
+    {
+      "name": "gliner2",
+      "sha256": "845fc4bd93c525b86124c58ab4f56c9eacf8587953086b14c501fab25957c007",
+      "task": "TASK_RELATION"
+    }
+  ],
+  "subset": [
+    [
+      "P131",
+      "located in the administrative territorial entity"
+    ],
+    [
+      "P17",
+      "country"
+    ],
+    [
+      "P27",
+      "country of citizenship"
+    ],
+    [
+      "P150",
+      "contains the administrative territorial entity"
+    ],
+    [
+      "P800",
+      "notable work"
+    ],
+    [
+      "P527",
+      "has part(s)"
+    ],
+    [
+      "P361",
+      "part of"
+    ],
+    [
+      "P175",
+      "performer"
+    ],
+    [
+      "P577",
+      "publication date"
+    ],
+    [
+      "P463",
+      "member of"
+    ]
+  ],
+  "systems": [
+    {
+      "all_labels": {
+        "f1": 0.165,
+        "found": 2165,
+        "gold": 17448,
+        "precision": 0.7473,
+        "recall": 0.0927,
+        "right": 1618
+      },
+      "documents_refused": 0,
+      "predictions_sha256": "b76316b9d973a9a9c58da35eb7807e93bb3390ecb8746f1feb23a3ca4ab53871",
+      "refused": [],
+      "seconds": 596.7026,
+      "step": "turbo-tagger:relations",
+      "subset": {
+        "f1": 0.2207,
+        "found": 1892,
+        "gold": 10842,
+        "precision": 0.7426,
+        "recall": 0.1296,
+        "right": 1405
+      },
+      "subset_per_label": {
+        "P131": {
+          "f1": 0.2939,
+          "found": 1042,
+          "gold": 4048,
+          "label": "located in the administrative territorial entity",
+          "precision": 0.7179,
+          "recall": 0.1848,
+          "right": 748
+        },
+        "P150": {
+          "f1": 0.2045,
+          "found": 118,
+          "gold": 733,
+          "label": "contains the administrative territorial entity",
+          "precision": 0.7373,
+          "recall": 0.1187,
+          "right": 87
+        },
+        "P17": {
+          "f1": 0.2579,
+          "found": 538,
+          "gold": 2766,
+          "label": "country",
+          "precision": 0.7918,
+          "recall": 0.154,
+          "right": 426
+        },
+        "P175": {
+          "f1": 0.0548,
+          "found": 9,
+          "gold": 283,
+          "label": "performer",
+          "precision": 0.8889,
+          "recall": 0.0283,
+          "right": 8
+        },
+        "P27": {
+          "f1": 0.1762,
+          "found": 93,
+          "gold": 781,
+          "label": "country of citizenship",
+          "precision": 0.828,
+          "recall": 0.0986,
+          "right": 77
+        },
+        "P361": {
+          "f1": 0.0129,
+          "found": 9,
+          "gold": 456,
+          "label": "part of",
+          "precision": 0.3333,
+          "recall": 0.0066,
+          "right": 3
+        },
+        "P463": {
+          "f1": 0.0189,
+          "found": 7,
+          "gold": 310,
+          "label": "member of",
+          "precision": 0.4286,
+          "recall": 0.0097,
+          "right": 3
+        },
+        "P527": {
+          "f1": 0.0076,
+          "found": 2,
+          "gold": 525,
+          "label": "has part(s)",
+          "precision": 1.0,
+          "recall": 0.0038,
+          "right": 2
+        },
+        "P577": {
+          "f1": 0.1173,
+          "found": 33,
+          "gold": 342,
+          "label": "publication date",
+          "precision": 0.6667,
+          "recall": 0.0643,
+          "right": 22
+        },
+        "P800": {
+          "f1": 0.0908,
+          "found": 41,
+          "gold": 598,
+          "label": "notable work",
+          "precision": 0.7073,
+          "recall": 0.0485,
+          "right": 29
+        }
+      },
+      "subset_vs_head": {
+        "delta_f1": 0.0,
+        "high": 0.0,
+        "low": 0.0
+      }
+    },
+    {
+      "all_labels": {
+        "f1": 0.0485,
+        "found": 1256,
+        "gold": 17448,
+        "precision": 0.3615,
+        "recall": 0.026,
+        "right": 454
+      },
+      "documents_refused": 18,
+      "predictions_sha256": "e19618bf41ac00b69bd0f0dda452be856586a1c4b6e81a3ada16ef553c60c8ff",
+      "refused": [
+        {
+          "document": 30,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 528",
+          "title": "Amambanda"
+        },
+        {
+          "document": 35,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 530",
+          "title": "List of longest rivers of Canada"
+        },
+        {
+          "document": 43,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 621",
+          "title": "ITS launch vehicle"
+        },
+        {
+          "document": 55,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 638",
+          "title": "Consort Mei"
+        },
+        {
+          "document": 57,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 618",
+          "title": "Intelligent design"
+        },
+        {
+          "document": 60,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 613",
+          "title": "Booker T. Washington"
+        },
+        {
+          "document": 82,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 547",
+          "title": "Ten Commandments for Drivers"
+        },
+        {
+          "document": 93,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 548",
+          "title": "Il Gobbo di Rialto"
+        },
+        {
+          "document": 146,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 572",
+          "title": "Imam khatib (Sunni Islam)"
+        },
+        {
+          "document": 214,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 533",
+          "title": "Pokémon (anime)"
+        },
+        {
+          "document": 216,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 567",
+          "title": "Ferrous metallurgy"
+        },
+        {
+          "document": 218,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 645",
+          "title": "Taft–Katsura agreement"
+        },
+        {
+          "document": 226,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 597",
+          "title": "Milton Friedman Institute for Research in Economics"
+        },
+        {
+          "document": 277,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 551",
+          "title": "Liangzi Lake"
+        },
+        {
+          "document": 300,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 712",
+          "title": "Fugue"
+        },
+        {
+          "document": 333,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 636",
+          "title": "Clandestine literature"
+        },
+        {
+          "document": 349,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 571",
+          "title": "Henry Halleck"
+        },
+        {
+          "document": 372,
+          "error": "code 771: step 'turbo:zero-shot-relations' failed: over its encoder max_sequence 512, got 707",
+          "title": "María de Buenos Aires"
+        }
+      ],
+      "seconds": 45.9765,
+      "step": "turbo:zero-shot-relations",
+      "subset": {
+        "f1": 0.0751,
+        "found": 1256,
+        "gold": 10842,
+        "precision": 0.3615,
+        "recall": 0.0419,
+        "right": 454
+      },
+      "subset_per_label": {
+        "P131": {
+          "f1": 0.0637,
+          "found": 219,
+          "gold": 4048,
+          "label": "located in the administrative territorial entity",
+          "precision": 0.621,
+          "recall": 0.0336,
+          "right": 136
+        },
+        "P150": {
+          "f1": 0.0071,
+          "found": 117,
+          "gold": 733,
+          "label": "contains the administrative territorial entity",
+          "precision": 0.0256,
+          "recall": 0.0041,
+          "right": 3
+        },
+        "P17": {
+          "f1": 0.0616,
+          "found": 188,
+          "gold": 2766,
+          "label": "country",
+          "precision": 0.484,
+          "recall": 0.0329,
+          "right": 91
+        },
+        "P175": {
+          "f1": 0.0488,
+          "found": 45,
+          "gold": 283,
+          "label": "performer",
+          "precision": 0.1778,
+          "recall": 0.0283,
+          "right": 8
+        },
+        "P27": {
+          "f1": 0.2058,
+          "found": 259,
+          "gold": 781,
+          "label": "country of citizenship",
+          "precision": 0.4131,
+          "recall": 0.137,
+          "right": 107
+        },
+        "P361": {
+          "f1": 0.0696,
+          "found": 90,
+          "gold": 456,
+          "label": "part of",
+          "precision": 0.2111,
+          "recall": 0.0417,
+          "right": 19
+        },
+        "P463": {
+          "f1": 0.1043,
+          "found": 112,
+          "gold": 310,
+          "label": "member of",
+          "precision": 0.1964,
+          "recall": 0.071,
+          "right": 22
+        },
+        "P527": {
+          "f1": 0.0626,
+          "found": 82,
+          "gold": 525,
+          "label": "has part(s)",
+          "precision": 0.2317,
+          "recall": 0.0362,
+          "right": 19
+        },
+        "P577": {
+          "f1": 0.1801,
+          "found": 91,
+          "gold": 342,
+          "label": "publication date",
+          "precision": 0.4286,
+          "recall": 0.114,
+          "right": 39
+        },
+        "P800": {
+          "f1": 0.0307,
+          "found": 53,
+          "gold": 598,
+          "label": "notable work",
+          "precision": 0.1887,
+          "recall": 0.0167,
+          "right": 10
+        }
+      },
+      "subset_vs_head": {
+        "delta_f1": -0.1456,
+        "high": -0.1271,
+        "low": -0.1653
+      }
+    }
+  ],
+  "zero_shot_threshold": 0.5
+}
