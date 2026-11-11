@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "issue": 2052,
+  "profile": "release",
+  "rust": "1.99",
+  "command": "cargo +1.99 test --release --locked -p turbo-gliner --test precision_eval -- --nocapture",
+  "fixture": {
+    "kind": "deterministic synthetic behavioral fixture",
+    "learned_quality_claim": false,
+    "text": "The 東京 !!!!! Jobs Apple test@example.com Museum 😀",
+    "gazetteer": ["東京", "Jobs", "Apple"],
+    "held_out": {"label": "FAC", "text": "Museum", "in_gazetteer": false},
+    "matching": "exact UTF-8 byte span and label"
+  },
+  "evaluation": {
+    "model_only": {
+      "candidates": 7,
+      "accepted": 7,
+      "rejected": 0,
+      "true_positives": 3,
+      "false_negatives": 1,
+      "precision": 0.42857142857142855,
+      "recall": 0.75,
+      "f1": 0.5454545454545454,
+      "false_positives": [
+        {"start": 0, "end": 10, "label": "LOC", "score": 0.8, "analysis": "leading article makes the exact span incorrect"},
+        {"start": 11, "end": 16, "label": "PERSON", "score": 0.8, "analysis": "punctuation-only candidate"},
+        {"start": 28, "end": 44, "label": "PERSON", "score": 0.8, "analysis": "email conflicts with the PERSON negative rule"},
+        {"start": 52, "end": 56, "label": "PERSON", "score": 0.8, "analysis": "supplementary-plane non-alphanumeric candidate"}
+      ]
+    },
+    "dictionary_only": {
+      "candidates": 3,
+      "accepted": 3,
+      "rejected": 0,
+      "true_positives": 3,
+      "false_negatives": 1,
+      "precision": 1.0,
+      "recall": 0.75,
+      "f1": 0.8571428571428571,
+      "false_positives": [],
+      "false_positive_analysis": "no false positives; the dictionary-free held-out FAC entry is the sole false negative"
+    },
+    "hybrid": {
+      "candidates": 7,
+      "accepted": 4,
+      "rejected": 3,
+      "true_positives": 4,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "false_positives": [],
+      "false_positive_analysis": "article trimming corrects one boundary and three negative filters reject the other false positives without using a held-out FAC dictionary entry"
+    }
+  },
+  "long_document": {
+    "repetitions": 256,
+    "utf8_bytes": 14592,
+    "candidates": 1792,
+    "accepted": 1024,
+    "rejected": 768,
+    "precision_ms": 0.694634,
+    "timing_runs": 1,
+    "graph_round_trip": true,
+    "latency_is_a_gate": false
+  }
+}

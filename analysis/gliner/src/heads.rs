@@ -75,6 +75,29 @@ impl OutputHead {
     }
 }
 
+enum PromptHead {
+    Mlp(Box<Mlp>),
+    Identity,
+}
+
+impl PromptHead {
+    fn run(&self, x: &[f32], rows: usize, mid: &mut Vec<f32>, y: &mut Vec<f32>) -> Result<(), String> {
+        match self {
+            Self::Mlp(head) => head.run(x, rows, mid, y),
+            Self::Identity => {
+                y.clear();
+                y.extend_from_slice(x);
+                Ok(())
+            }
+        }
+    }
+}
+
+enum SpanHead {
+    Marker { start: Box<Mlp>, end: Box<Mlp>, span: OutputHead },
+    Token { proj_token: Dense, proj_label: Dense, out: Box<Mlp> },
+}
+
 /// The buffers of one call.
 #[derive(Default)]
 pub(crate) struct Work {
@@ -91,10 +114,8 @@ pub(crate) struct Work {
 }
 pub(crate) struct Heads {
     projection: Dense,
-    prompt: Mlp,
-    start: Mlp,
-    end: Mlp,
-    span: OutputHead,
+    prompt: PromptHead,
+    head: SpanHead,
     /// The forward and reverse directions over projected words, h =
     /// hidden / 2 each, bias_ih and bias_hh summed.
     lstm: Lstm,
@@ -134,16 +155,31 @@ impl Heads {
         let dirs =
             [Weights { w: &wf, u: &uf, b: &bf, reverse: false }, Weights { w: &wr, u: &ur, b: &br, reverse: true }];
         let lstm = Lstm::new(k, c.hidden / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?;
+        let head = if c.token_level {
+            SpanHead::Token {
+                proj_token: linear("scorer.proj_token")?,
+                proj_label: linear("scorer.proj_label")?,
+                out: Box::new(mlp("scorer.out_mlp")?),
+            }
+        } else {
+            SpanHead::Marker {
+                start: Box::new(mlp("span_rep_layer.span_rep_layer.project_start")?),
+                end: Box::new(mlp("span_rep_layer.span_rep_layer.project_end")?),
+                span: if c.out_project_mlp {
+                    OutputHead::Mlp(mlp("span_rep_layer.span_rep_layer.out_project")?)
+                } else {
+                    OutputHead::Linear(linear("span_rep_layer.span_rep_layer.out_project")?)
+                },
+            }
+        };
         Ok(Self {
             projection: linear("token_rep_layer.projection")?,
-            prompt: mlp("prompt_rep_layer")?,
-            start: mlp("span_rep_layer.span_rep_layer.project_start")?,
-            end: mlp("span_rep_layer.span_rep_layer.project_end")?,
-            span: if c.out_project_mlp {
-                OutputHead::Mlp(mlp("span_rep_layer.span_rep_layer.out_project")?)
+            prompt: if c.prompt_projection {
+                PromptHead::Mlp(Box::new(mlp("prompt_rep_layer")?))
             } else {
-                OutputHead::Linear(linear("span_rep_layer.span_rep_layer.out_project")?)
+                PromptHead::Identity
             },
+            head,
             lstm,
             hidden: c.hidden,
         })
@@ -187,8 +223,14 @@ impl Heads {
         let result = self.words(&projected[labels * d..], n, w);
         w.projected = projected;
         result?;
-        self.start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
-        self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
+        if matches!(self.head, SpanHead::Token { .. }) {
+            let words = std::mem::take(&mut w.words);
+            let prompts = std::mem::take(&mut w.prompts);
+            return self.score_token(&words, &prompts, max_width, w);
+        }
+        let SpanHead::Marker { start, end, span } = &self.head else { unreachable!() };
+        start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
+        end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
         // out_project reads relu([start, end]).
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
@@ -201,7 +243,7 @@ impl Heads {
                 w.x.extend_from_slice(&w.starts[i * d..(i + 1) * d]);
                 w.x.extend_from_slice(&w.ends[j * d..(j + 1) * d]);
             }
-            self.span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
+            span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
             let logits = size(&mut w.logits, block.len(), labels);
             scorer.apply(&w.spans, d, block.len(), None, logits, labels, Mode::Plain);
             finite(logits, "span score")?;
@@ -213,7 +255,51 @@ impl Heads {
         }
         Ok(out)
     }
-    /// Frozen encoder, prompt and boundary features for output-head training,
+    fn score_token(
+        &self,
+        words: &[f32],
+        prompts: &[f32],
+        max_width: usize,
+        w: &mut Work,
+    ) -> Result<Vec<Candidate>, String> {
+        let SpanHead::Token { proj_token, proj_label, out: output } = &self.head else { unreachable!() };
+        let (d, labels, n) = (self.hidden, prompts.len() / self.hidden, words.len() / self.hidden);
+        proj_token.run(words, n, &mut w.starts)?;
+        proj_label.run(prompts, labels, &mut w.ends)?;
+        w.x.clear();
+        for i in 0..n {
+            let token = &w.starts[i * 2 * d..(i + 1) * 2 * d];
+            for label in 0..labels {
+                let prompt = &w.ends[label * 2 * d..(label + 1) * 2 * d];
+                w.x.extend_from_slice(&token[..d]);
+                w.x.extend_from_slice(&prompt[..d]);
+                w.x.extend(token[d..].iter().zip(&prompt[d..]).map(|(a, b)| a * b));
+            }
+        }
+        output.run(&w.x, n * labels, &mut w.mid, &mut w.logits)?;
+        finite(&w.logits, "token score")?;
+        let pair_count = (0..n).map(|start| n.min(start + max_width) - start).sum::<usize>();
+        let mut out = Vec::new();
+        out.try_reserve_exact(pair_count * labels).map_err(|_| memory(pair_count * labels * size_of::<Candidate>()))?;
+        w.spans.clear();
+        w.spans.resize(labels, f32::INFINITY);
+        for start in 0..n {
+            w.spans.fill(f32::INFINITY);
+            for end in start..n.min(start + max_width) {
+                for label in 0..labels {
+                    let start_score = w.logits[(start * labels + label) * 3];
+                    let end_score = w.logits[(end * labels + label) * 3 + 1];
+                    let inside = &mut w.spans[label];
+                    *inside = inside.min(w.logits[(end * labels + label) * 3 + 2]);
+                    let logit = start_score.min(end_score).min(*inside);
+                    out.push(Candidate { start, end: end + 1, label, logit, score: sigmoid(logit) });
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Frozen word and prompt features for output and boundary training,
     /// plus the ordinary inference candidates used to mine hard negatives.
     pub(crate) fn training(
         &self,
@@ -235,13 +321,19 @@ impl Heads {
         self.prompt.run(&w.projected[..labels * d], labels, &mut w.mid, &mut w.prompts)?;
         let projected = std::mem::take(&mut w.projected);
         self.words(&projected[labels * d..], n, &mut w)?;
-        self.start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
-        self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
+        let SpanHead::Marker { start, end, span } = &self.head else {
+            return Err("gliner token-level output training is not supported".into());
+        };
+        start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
+        end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
         w.starts.iter_mut().chain(w.ends.iter_mut()).for_each(|v| *v = v.max(0.0));
         let pairs: Vec<(usize, usize)> = (0..n).flat_map(|i| (i..n.min(i + max_width)).map(move |j| (i, j))).collect();
         let mut input = crate::train::TrainingInput {
+            words: w.words.clone(),
+            projected_words: projected[labels * d..].to_vec(),
             spans: Vec::new(),
             prompts: w.prompts.clone(),
+            prompt_inputs: projected[..labels * d].to_vec(),
             pairs: pairs.iter().map(|&(start, end)| (start, end + 1)).collect(),
         };
         let scorer = Matrix::from_rows(&[&w.prompts], d).map_err(memory)?;
@@ -253,7 +345,7 @@ impl Heads {
                 w.x.extend_from_slice(&w.ends[j * d..(j + 1) * d]);
             }
             input.spans.extend_from_slice(&w.x);
-            self.span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
+            span.run(&w.x, block.len(), &mut w.mid, &mut w.spans)?;
             let logits = size(&mut w.logits, block.len(), labels);
             scorer.apply(&w.spans, d, block.len(), None, logits, labels, Mode::Plain);
             finite(logits, "span score")?;
@@ -266,16 +358,79 @@ impl Heads {
         Ok((input, candidates))
     }
 
-    pub(crate) fn set_output(&mut self, params: &[Vec<f32>]) -> Result<(), String> {
-        let (h, f) = (self.hidden, self.start.first.n);
-        self.span = match params {
+    /// Installs trained tensors: the output projection in this model's own
+    /// form, then the head groups the flags name, in the trainer's order
+    /// (two boundary MLPs, the prompt MLP at its own width, the BiLSTM).
+    pub(crate) fn set_output(
+        &mut self,
+        params: &[Vec<f32>],
+        boundaries: bool,
+        prompt: bool,
+        recurrent: bool,
+    ) -> Result<(), String> {
+        let (h, f, linear) = match &self.head {
+            SpanHead::Marker { start, span, .. } => (self.hidden, start.first.n, matches!(span, OutputHead::Linear(_))),
+            SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
+        };
+        let prompt_width = match (&self.prompt, prompt) {
+            (PromptHead::Mlp(head), true) => head.first.n,
+            (PromptHead::Identity, true) => return Err("gliner prompt training requires a prompt projection".into()),
+            (_, false) => 0,
+        };
+        let output_len = if linear { 2 } else { 4 };
+        let prompt_offset = output_len + if boundaries { 8 } else { 0 };
+        let recurrent_offset = prompt_offset + if prompt { 4 } else { 0 };
+        if params.len() != recurrent_offset + if recurrent { 8 } else { 0 } {
+            return Err("gliner output training tensors do not match the model's heads".into());
+        }
+        let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
                 first: Dense::new(w0, b0.clone(), f, 2 * h)?,
                 last: Dense::new(w1, b1.clone(), h, f)?,
             }),
             [weight, bias] => OutputHead::Linear(Dense::new(weight, bias.clone(), h, 2 * h)?),
-            _ => return Err("gliner output training requires two linear or four MLP tensors".into()),
+            _ => unreachable!(),
         };
+        let mlp = |values: &[Vec<f32>], width: usize| -> Result<Box<Mlp>, String> {
+            Ok(Box::new(Mlp {
+                first: Dense::new(&values[0], values[1].clone(), width, h)?,
+                last: Dense::new(&values[2], values[3].clone(), h, width)?,
+            }))
+        };
+        let boundaries = if boundaries {
+            Some((mlp(&params[output_len..output_len + 4], f)?, mlp(&params[output_len + 4..output_len + 8], f)?))
+        } else {
+            None
+        };
+        let prompt = if prompt {
+            Some(PromptHead::Mlp(mlp(&params[prompt_offset..prompt_offset + 4], prompt_width)?))
+        } else {
+            None
+        };
+        let recurrent = if recurrent {
+            let values = &params[recurrent_offset..];
+            let forward: Vec<f32> = values[2].iter().zip(&values[3]).map(|(a, b)| a + b).collect();
+            let reverse: Vec<f32> = values[6].iter().zip(&values[7]).map(|(a, b)| a + b).collect();
+            let dirs = [
+                Weights { w: &values[0], u: &values[1], b: &forward, reverse: false },
+                Weights { w: &values[4], u: &values[5], b: &reverse, reverse: true },
+            ];
+            Some(Lstm::new(h, h / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?)
+        } else {
+            None
+        };
+        let SpanHead::Marker { start, end, span: current } = &mut self.head else { unreachable!() };
+        *current = span;
+        if let Some((new_start, new_end)) = boundaries {
+            *start = new_start;
+            *end = new_end;
+        }
+        if let Some(prompt) = prompt {
+            self.prompt = prompt;
+        }
+        if let Some(recurrent) = recurrent {
+            self.lstm = recurrent;
+        }
         Ok(())
     }
 

@@ -77,6 +77,7 @@ pub(super) fn evaluate_command(
     if hold_out.iter().any(|h| h.is_empty() || !all_types.contains(h)) {
         return Err(Error(format!("--hold-out must name corpus entity types, got {hold_out:?}")));
     }
+    let held_schema_digest = gliner_eval::digest(&hold_out, threshold, guidelines.as_ref());
     let seen_types: Vec<String> = all_types.iter().filter(|kind| !hold_out.contains(*kind)).cloned().collect();
     if seen_types.is_empty() {
         return Err(Error("--hold-out leaves no seen entity types".into()));
@@ -93,11 +94,17 @@ pub(super) fn evaluate_command(
     let options = EncoderOptions { device, precision, ..EncoderOptions::default() };
     let model = open_model(&package, encoder_bundle.as_deref(), &options)?;
     let (calibration, raw) = if calibrate {
-        let all = gliner_eval::candidates(&model, evaluation, &all_types, threshold, guidelines.as_ref())?;
-        let held = gliner_eval::candidates(&model, evaluation, &hold_out, threshold, guidelines.as_ref())?;
+        let (all, held) = std::thread::scope(|scope| {
+            let all_task =
+                scope.spawn(|| gliner_eval::candidates(&model, evaluation, &all_types, threshold, guidelines.as_ref()));
+            let held = gliner_eval::candidates(&model, evaluation, &hold_out, threshold, guidelines.as_ref())?;
+            let all = all_task.join().map_err(|_| Error("a GLiNER calibration worker panicked".into()))??;
+            Ok::<_, Error>((all, held))
+        })?;
         let mut calibration = Calibration::fit(evaluation, &all_types, &all, threshold, schema_digest.clone())?;
         calibration.held_thresholds =
-            Some(Calibration::fit(evaluation, &hold_out, &held, threshold, schema_digest.clone())?.thresholds);
+            Some(Calibration::fit(evaluation, &hold_out, &held, threshold, held_schema_digest.clone())?.thresholds);
+        calibration.held_schema = Some(held_schema_digest.clone());
         (calibration, Some(Reuse { all, held }))
     } else if let Some(path) = calibration_path {
         let calibration = Calibration::read(
@@ -105,6 +112,7 @@ pub(super) fn evaluate_command(
             &all_types,
             &hold_out,
             &schema_digest,
+            &held_schema_digest,
         )?;
         (calibration, None)
     } else {
