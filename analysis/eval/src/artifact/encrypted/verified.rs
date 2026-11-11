@@ -19,6 +19,8 @@ impl Snapshot {
         SystemRandom::new().fill(&mut random).map_err(|_| Error::Entropy)?;
         let name: String = random.iter().map(|b| format!("{b:02x}")).collect();
         let directory = root.join(format!(".artifact-{name}"));
+        // Only the Unix mode call below changes the builder.
+        #[cfg_attr(not(unix), allow(unused_mut))]
         let mut builder = DirBuilder::new();
         #[cfg(unix)]
         {

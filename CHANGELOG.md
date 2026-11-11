@@ -36,6 +36,14 @@ stubs must be regenerated.
 - `InspectDocumentGraph` refuses a graph whose layers name a view the
   graph does not hold, and validates PII layers and view chains before
   projecting (#1911).
+- `DocumentGraph` binary export (`TGRF`) bumps `FORMAT_VERSION` from 2
+  to 3 for the typed `ErrorRecord::OverLimit` wire tag (error tag 12),
+  and `TypedDocumentResult.result_identity.graph_format_version` reports
+  3. Format 1 and 2 `.tgrf` / `.bin` graphs are refused with
+  `ExportError::UnsupportedVersion` by the gRPC services
+  (`AnalyzePipelineRequest.initial_graph`, `RoundTripDocumentGraph`,
+  `InspectDocumentGraph`), the C ABI TGRF entry points and the Rust
+  readers; stored v2 graphs must be regenerated (#2134, #2140, #2155).
 
 ### Added: PII and the result envelope (#1879)
 
@@ -212,6 +220,12 @@ stubs must be regenerated.
   `PII_STRATEGY_DATE_RELATIVE` (16). A policy rule for `date` or
   `currency` turns on the opt-in `Dates` or `Money` pack of the
   `turbo-pii:pii` step (#1884).
+- Safe Harbor date years: the `safe_harbor` mode of `PiiDateStrategy`
+  (field 5, `PiiDateSafeHarbor` with a required `reference` date) and
+  native `DateMode::SafeHarbor` keep a date's year, as the `year` mode
+  does, but write every year 90 or more years before the reference year
+  as one category (`1936 or earlier` for a 2026 reference), recording
+  `PII_STRATEGY_DATE_SAFE_HARBOR` (17) (#2114).
 
 ### Changed: PII and the result envelope (#1879)
 
@@ -372,6 +386,14 @@ stubs must be regenerated.
 
 ### Changed
 
+- Over-limit step failures are carried as the typed
+  `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
+  variants (`{ annotator, limit, max, got }`, with `Display` changed
+  from `"{annotator}: limit: {limit} {max}, got {got}"` to
+  `"{annotator}: over its {limit} {max}, got {got}"`) instead of an
+  `Error::Annotator` detail string, and an imported
+  `ErrorRecord::OverLimit` keeps its typed form only when `limit` is in
+  `turbo_analysis::error::known_limit` (#2134, #2140, #2155).
 - The in-process analyzer (`turbo_analyzer_desc`) loads a bundle:
   `bundle_path` names a bundle whose heads write the part-of-speech,
   lemma, dependency and entity layers from one encoder pass a sentence,
@@ -396,6 +418,11 @@ stubs must be regenerated.
   limit and the counts, instead of `TURBO_E_INTERNAL` with no detail.
   The layer's error has the new kind `LAYER_ERROR_KIND_LIMIT` with the
   same code (#2125).
+- PII policies: an `ff1` arm whose alphabet cannot hold a character
+  every value of its rule's kind has (the digit alphabet on `email`, for
+  one) is refused when the policy loads, naming the entry and the kind,
+  instead of failing every document with such a mention. A stored policy
+  with such a pair, which loaded before, now fails to load (#2111).
 - `AnalyzeDocumentProgressive`: in a step chain that folds case,
   `turbo-sentdetect:rules` reads the last view before the fold, so a
   folded document keeps its sentence boundaries instead of becoming one

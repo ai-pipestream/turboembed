@@ -881,6 +881,9 @@ struct Model {
      * the device; NULL with head_out 0 for a model without one. */
     float *head = nullptr;
     uint32_t head_out = 0;
+    /* Limited lookahead (turbo_backend.h, lookahead): the keys a query
+     * reads past itself, in every layer; 0 for the whole row. */
+    uint32_t lookahead = 0;
     /* A DeBERTa-v2 model's relative table LayerNormed, then each layer's
      * relative rows through its fused projection, [2 * position_buckets,
      * 3 * hidden] (deberta.h), made by the first session; empty for any
@@ -1042,6 +1045,15 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
                          desc->head[1].bytes != (uint64_t)desc->head_out * 4))
             return refuse(err, TURBO_E_INTERNAL, "a token head of %u outputs whose tensors are not F32 [%u, %u] and [%u]",
                           desc->head_out, desc->head_out, desc->hidden, desc->head_out);
+        // A band is BERT's and RoBERTa's attention's alone, as the manifest
+        // allows it; a description without the field has none.
+        const uint32_t lookahead =
+            desc->struct_size >= offsetof(turbo_backend_model, lookahead) + sizeof(uint32_t) ? desc->lookahead : 0;
+        if (lookahead && (deberta || rotary))
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "lookahead %u on family %u: the cuda backend's banded attention is its BERT and RoBERTa "
+                          "encoders'",
+                          lookahead, desc->family);
         const turbo_backend_model *const original = desc;
         if (rotary) {
             rotary_slots(*desc, slots, reordered);
@@ -1058,6 +1070,7 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         m->desc.head = nullptr;
         m->desc.rope_table = nullptr;
         m->rotary = rotary;
+        m->lookahead = lookahead;
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
         const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets, layer_base(*desc));
         const int32_t rc = [&]() -> int32_t {
@@ -2059,6 +2072,12 @@ int32_t encode(Session &s, int bin, bool taps, turbo_error *err) {
     aa.chunk = plan.attn_chunk;
     aa.queries = plan.attn_queries;
     aa.scale = 1.0f / sqrtf((float)hd);
+    // Limited lookahead: every key before a query and at most lookahead
+    // after it, in every layer. A row holds max_seq keys at most.
+    if (mo.lookahead) {
+        aa.window = (int)std::min(mo.lookahead, s.max_seq);
+        aa.back = BAND_ALL;
+    }
     // The F16 residual stream, where every LayerNorm is the kernel of its
     // own: the fused epilogues read the F32 one. The F16 product likewise,
     // in the first half of the F32 product's buffer.
@@ -2252,6 +2271,7 @@ int32_t encode_rotary(Session &s, int bin, bool taps, turbo_error *err) {
         g.k = h;
         TRY_CUDA(gemm_as(GEMM_QKV, layer_epilogue(GEMM_QKV, false, sh), g), "the rotated query, key and value");
         aa.window = global ? -1 : (int)(d.attention_window / 2);
+        aa.back = aa.window;
         TRY_CUDA(attention(st, aa, sh, plan), "attention");
 
         g.a = s.att;

@@ -201,12 +201,18 @@
     {
       "path": "tokenizer.json",
       "to": "tokenizer.json",
+      "repository": "https://huggingface.co/FacebookAI/xlm-roberta-base",
+      "commit": "e73636d4f797dec63c3081bb6ed5c7b0bb3f2089",
       "sha256": "a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c"
     },
     {
       "path": "model.safetensors",
       "to": "weights/model.safetensors",
       "sha256": "81eb7a4fcd4dab85c50866c7e2cf58f3d848e1c830c9207d132277110489ea0c"
+    },
+    {
+      "path": "config.json",
+      "sha256": "52252a4c239327ba46ee2843ca95017c2effc9abfb2163c121f1ee66ca9e1ddc"
     }
   ]
 }

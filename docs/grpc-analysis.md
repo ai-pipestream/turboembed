@@ -173,7 +173,10 @@ Remaining limits: a step runs over the source view only; under
 ambiguous rather than run twice; and a learned sentence step cannot follow a
 normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
 the source, or the last view written before the fold, so its boundaries
-match an unnormalized request.
+match the same request without the fold. When the fold comes first, that
+is the unnormalized request; after another normalizer, such as
+`turbo:normalize` then the fold, it is the request with that normalizer
+and no fold.
 
 `server/tests/full_text_graph.rs` is the in-process acceptance of the
 model-free stages: `compile_analyzer` with normalization, structure,
@@ -770,12 +773,14 @@ encryption strategies name, each exactly 32 bytes). With several keys,
 made under; it is refused without a grant that includes ciphertext.
 `PiiValueCiphertext` carries the scheme `turbo-pii-aes-256-gcm-v1`, the
 key's id and version, and as `ciphertext` the UTF-8 text of a
-`turbo-pii` AES-256-GCM token: the kind code in capitals (`BUILTIN:3`,
-`CUSTOM:BADGE`), `:`, and the unpadded base64url of a 12-byte nonce, the
-encrypted normalized value and the 16-byte tag. The associated data binds
-the kind code and the context `turbo-kserve.pii-release.v1`, so a holder
-of the key decrypts it with `AesGcmEncryptor` under that context, and a
-ciphertext moved to another kind fails authentication. Each release
+`turbo-pii` AES-256-GCM token: the kind code as it is, its case kept
+(`builtin:3`, `custom:Badge`), `:`, and the unpadded base64url of a
+12-byte nonce, the encrypted normalized value and the 16-byte tag. The
+associated data binds the exact kind code and the context
+`turbo-kserve.pii-release.v1`, so a holder of the key decrypts it with
+`AesGcmEncryptor` under that context, and a ciphertext moved to another
+kind fails authentication. Custom kind names are case-sensitive, so that
+holds for `custom:Badge` and `custom:badge` too. Each release
 draws a fresh nonce, so, unlike tokens, equal values give different
 ciphertexts. A grant with no ciphertext kind gives the policy digest it
 gave before ciphertext release.
@@ -1043,9 +1048,13 @@ and detector lists, with a typed `PolicyError` naming the field.
   nonce each time, so tokens are not linkable) and `ff1` (FF1
   format-preserving encryption of the mention's digits or letters under
   an alphabet and a `tweak`, every other character kept in place). Each
-  names a key registered with `--pii-encryption-key`. A mention FF1
-  cannot take, such as an email under the digit alphabet, fails the
-  rewrite. A server without the feature does not know either arm, so the
+  names a key registered with `--pii-encryption-key`. An `ff1` alphabet
+  that cannot hold a character every value of the rule's kind has is
+  refused when the policy loads: the digit alphabet on `email`, `url`,
+  `iban`, `bic`, `eth-address`, `aws-access-key`, `es-dni`, `es-nie` or
+  `github-token`, and the upper case alphabet on `github-token`. Any other
+  mention FF1 cannot take fails the rewrite. A server without the feature
+  does not know either arm, so the
   policy is refused, or the entry masked and flagged under
   `redact_and_flag_unknown`. No rpc decrypts.
 - **Default**: a kind with no rule, or no entry that applies, gets

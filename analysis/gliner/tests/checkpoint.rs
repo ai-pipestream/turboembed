@@ -56,8 +56,10 @@ fn verify_reference(model: Arc<Model>, reference_path: &Path) {
         assert_eq!(serde_json::to_value(&p.prompts).unwrap(), case["prompts"]);
         assert_eq!(serde_json::to_value(&p.words).unwrap(), case["positions"]);
         let scores = model.score_packed(&p, &schema).unwrap();
-        let (_, training_scores) = model.training_input(&words, &schema).unwrap();
-        assert_eq!(training_scores, scores);
+        if !model.config().token_level {
+            let (_, training_scores) = model.training_input(&words, &schema).unwrap();
+            assert_eq!(training_scores, scores);
+        }
         assert_eq!(scores.len(), case["logits"].as_array().unwrap().len());
         for (name, mode) in [("flat", Decode::Flat), ("nested", Decode::Nested)] {
             let schema = ExtractionSchema::new(schema.labels().to_vec(), 0.5, mode).unwrap();
@@ -128,15 +130,38 @@ fn small_v2_5_checkpoint_matches_python() {
             .unwrap();
     let words = ["Alice", "works", "at", "Microsoft", "in", "Paris", "."];
     let (input, candidates) = model.training_input(&words, &schema).unwrap();
-    let trainer = turbo_gliner::train::OutputTrainer::load(
-        model.config(),
-        &std::fs::read(turbo_pins::require(&root).join("heads.safetensors")).unwrap(),
-    )
-    .unwrap();
+    let original = std::fs::read(turbo_pins::require(&root).join("heads.safetensors")).unwrap();
+    let trainer = turbo_gliner::train::OutputTrainer::load(model.config(), &original).unwrap();
     let mut grads = trainer.zero_grads();
-    let loss = trainer.gradients(&input, &candidates, &[(words.len() - 1, words.len(), 0)], &mut grads).unwrap();
+    let gold = [(words.len() - 1, words.len(), 0)];
+    let loss = trainer.gradients(&input, &candidates, &gold, &mut grads).unwrap();
     assert!(loss > 0.0, "a one-word span at the sentence end must train");
     assert!(grads[0].iter().any(|&x| x != 0.0));
+
+    let mut boundary =
+        turbo_gliner::train::OutputTrainer::load_with_heads(model.config(), &original, true, true, true).unwrap();
+    let mut grads = boundary.zero_grads();
+    let boundary_loss = boundary.gradients(&input, &candidates, &gold, &mut grads).unwrap();
+    assert!((boundary_loss - loss).abs() < 1e-4);
+    assert!(grads[4..12].iter().flatten().any(|&x| x != 0.0));
+    assert!(grads[12..16].iter().flatten().any(|&x| x != 0.0));
+    assert!(grads[16..].iter().flatten().any(|&x| x != 0.0));
+    let mut optimizer = turbo_gliner::train::output_optimizer(
+        turbo_trainer::adamw::Settings { lr: 1e-6, total: 1, ..turbo_trainer::adamw::Settings::default() },
+        &boundary,
+    )
+    .unwrap();
+    boundary.step(&mut optimizer, &mut grads).unwrap();
+    let mut tuned = Manifest::load(&turbo_pins::require(&root)).unwrap();
+    tuned.apply_output(&boundary).unwrap();
+    let expected = tuned.training_input(&words, &schema).unwrap().1;
+    let heads = boundary.write_heads(&original).unwrap();
+    let out = std::env::temp_dir().join(format!("turbo-gliner-boundary-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&out);
+    Manifest::write_tuned(&turbo_pins::require(&root), &out, &heads).unwrap();
+    let reloaded = Manifest::load(&out).unwrap();
+    assert_eq!(reloaded.training_input(&words, &schema).unwrap().1, expected);
+    let _ = std::fs::remove_dir_all(&out);
 }
 
 #[test]
@@ -145,6 +170,16 @@ fn nuner_zero_span_checkpoint_matches_python() {
     let root = std::env::var_os("GLINER_NUNER_PACKAGE").expect("GLINER_NUNER_PACKAGE must name the converted package");
     let reference =
         std::env::var_os("GLINER_NUNER_REFERENCE").expect("GLINER_NUNER_REFERENCE must name the reference JSON");
+    let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
+    verify_reference(model, Path::new(&reference));
+}
+
+#[test]
+#[ignore = "loads the local Apache-2.0 token-level GLiNER checkpoint and generated Python reference"]
+fn token_level_checkpoint_matches_python() {
+    let root = std::env::var_os("GLINER_TOKEN_PACKAGE").expect("GLINER_TOKEN_PACKAGE must name the converted package");
+    let reference =
+        std::env::var_os("GLINER_TOKEN_REFERENCE").expect("GLINER_TOKEN_REFERENCE must name the reference JSON");
     let model = Arc::new(Manifest::load(&turbo_pins::require(&root)).unwrap());
     verify_reference(model, Path::new(&reference));
 }
