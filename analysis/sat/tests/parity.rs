@@ -7,8 +7,9 @@
 //! For every text the tokens must be the same ids at the same offsets
 //! (upstream's trimmed of whitespace, as the core's spans are), every
 //! character's boundary probability within the bound for the dtype the
-//! encoder computes in (`tolerance`) of wtpsplit's, the same characters over the threshold except those
-//! whose probability in wtpsplit is within that tolerance of it, and,
+//! encoder computes in (`tolerance`) of wtpsplit's, the same characters
+//! over the threshold except those whose probability in wtpsplit is
+//! within that bound of it, and,
 //! where the same characters are over it, the pieces `split` returned.
 //! Two known differences are allowed, and each fixture's count of them
 //! and of the characters near the threshold is checked:

@@ -27,14 +27,16 @@ The tiny bundle, largest difference at f16 (at f32 every device gives the CPU's 
 | `la8-t0.5-s16-b62` | 1.76e-3 | 1.88e-3 | no band on this device |
 | `la8-t0.025-s7-b30` | 1.76e-3 | 1.88e-3 | no band on this device |
 
-The released checkpoints, largest difference over each one's three fixtures:
+The released checkpoints, over each one's three fixtures: the largest difference, then the characters within the bound of the threshold and how many of them fell on the other side, summed over the three, then the fewest texts of the 90 whose pieces were compared. The CPU computes in f32 at either precision.
 
 | Checkpoint | Device | f32 | f16 |
-|---|---|---:|---:|
-| `sat-1l-sm` | Level Zero | 4.22e-4 | 5.81e-4 |
-| `sat-1l-sm` | CUDA | 4.22e-4 | 2.15e-3 |
-| `sat-3l` | CUDA | 1.58e-4 | 2.49e-3 |
+|---|---|---|---|
+| `sat-1l-sm` | Level Zero | 4.22e-4; 0, 0; 89 | 5.81e-4; 0, 0; 89 |
+| `sat-1l-sm` | CUDA | 4.22e-4; 0, 0; 89 | 2.15e-3; 0, 0; 89 |
+| `sat-3l` | CPU | 1.58e-4; 50, 1; 88 | computes in f32 |
+| `sat-3l` | Level Zero | 1.58e-4; 50, 1; 88 | 7.86e-4; 211, 2; 88 |
+| `sat-3l` | CUDA | 1.58e-4; 50, 1; 88 | 2.49e-3; 211, 15; 87 |
 
-The cuts are held at both bounds. A character may fall on the other side of the threshold only where wtpsplit's probability is within the bound of it, and every text with no such character has its pieces compared with wtpsplit's. On the tiny bundle at f16 that leaves 88 or 89 of the 90 texts compared on every device, and on `sat-3l` on CUDA 87 or 88, where at most 8 of the 82 characters within the bound of the 0.025 threshold fell on the other side. Each test prints the bound it used, the dtype, the largest difference, the characters within the bound of the threshold and how many of them fell on the other side.
+The cuts are held at both bounds. A character may fall on the other side of the threshold only where wtpsplit's probability is within the bound of it, and every text with no such character has its pieces compared with wtpsplit's. On the tiny bundle at f16 that leaves 88 or 89 of the 90 texts compared on every device, and on `sat-3l` 87 to 89. Each test prints the bound it used, the dtype, the largest difference, the characters within the bound of the threshold and how many of them fell on the other side.
 
 `sat-3l` at threshold 0.025, stride 64 and block 510 has one character on the other side of the threshold at f32 on every device; its fixture is named `path=1` in `TURBO_TEST_SAT_FIXTURES`.
