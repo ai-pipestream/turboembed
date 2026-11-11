@@ -284,6 +284,45 @@ for any artifact, so a bundle of a model trained on restricted data is
 `CLASS_LOCAL_ONLY` and fetched only under its `origin`. The artifact's
 directory in the cache is the bundle directory.
 
+### Importing a sealed bundle
+
+The zoo reads only its own index. A model that exists in another layout
+gets an entry through an importer (`turbo_zoo::import`), which reads the
+model, verifies it, and writes the entry; nothing is taken on trust from
+the layout it came in.
+
+`turbo-zoo import-bundle <bundle-dir>` (`import::bundle`) writes the
+`TYPE_ENCODER_BUNDLE` entry of a sealed bundle directory, one the bundle
+tool made or sealed. It reads `manifest.json` and every file the
+manifest names, holds each to the size and SHA-256 the manifest pins,
+and records its SHA-512. The model id, revision, task and licence are
+the manifest's; `version` is the revision. The flags give what a bundle
+does not say of itself:
+
+| Flag | Entry field |
+|---|---|
+| `--id <id>` | `id`. Required. |
+| `--base <https url>` | Where the directory is published: each file's `url` is `<base>/<path>`. Required. |
+| `--license-terms <https url>` | `license_terms`. Required. |
+| `--trained-on <name> <licence> <https url>` | One `trained_on` entry; repeat it for each dataset. The entry's class is the most restrictive of the manifest's licence and these. |
+| `--attribution <text>` | `attribution`, required whenever a licence asks for it. |
+| `--origin <https url>` | `origin`, for a class of `CLASS_LOCAL_ONLY`; `--base` must lie under it. |
+| `--component <COMPONENT_*>` | `component`. Without it an embedding bundle is `COMPONENT_DENSE_ENCODER`, an extractive QA bundle `COMPONENT_EXTRACTIVE_QA`, and a reranker names none. |
+| `--language <tag>` | `language`. |
+| `--into <zoo.json>` | Adds the entry to that index file, last or in the place of the entry of the same id, and writes the file in the canonical form through a temporary name. A file that is absent is made holding the one entry. Without the flag the entry is printed as an index of its own. |
+
+A file that is absent, a symlink, or not the bytes its manifest pins
+refuses the import, and so does an entry the index would not load: a
+class that needs an `origin` and has none, a missing attribution, a
+refused licence. `turbo-zoo index` prints the index the command reads
+(the built-in one, or `--index <zoo.json>`) in the canonical form, to
+start an index file that also lists the built-in entries.
+
+A zoo server lists the imported bundles when it is started with that
+file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
+from its store or from a directory that holds the bundle at
+`<root>/<id>/` (`Directory`), each verified against the entry.
+
 ## Acceptance file
 
 Which user accepted which licence, in the zoo's home directory as
