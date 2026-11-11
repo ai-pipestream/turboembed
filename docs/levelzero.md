@@ -560,11 +560,12 @@ The library's lowest cosine against each bundle's reference vectors is
 at least 0.99999885 at FASTEST, the same values as at `b63bd467`, and
 0.9999999999 at MODEL and EXACT. The dense FASTEST rows are 2.3%
 (MiniLM) and 1.6% (bge-base) slower than at `b63bd467` and the rest
-within 1%. `b63bd467` built and timed on this driver and clock is no
-faster at dense FASTEST, so the change comes with the driver and its
-compiler, not the library. On this machine a p50 moves by up to 4% between sessions at
-the same clock, so a comparison between builds is made interleaved in
-one session.
+within 1%. In one interleaved session on this driver and clock,
+`b63bd467` was no faster than main at dense FASTEST, which is
+consistent with a driver or runtime effect rather than a library
+change; those paired runs are not committed as records. On this
+machine a p50 moves by up to 4% between sessions at the same clock, so
+a comparison between builds is made interleaved in one session.
 
 ## Testing on a machine with an Intel GPU
 
