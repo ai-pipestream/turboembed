@@ -1,4 +1,4 @@
-//! The `PiiDateStrategy` arm (issue #1884): each mode converts to the
+//! The `PiiDateStrategy` arm (issue #1884), Safe Harbor mode included: each mode converts to the
 //! native strategy and back, its fields are checked and in the digest, a
 //! date rule turns the opt-in date pack on, and the redact step reduces
 //! dates with edits that record the mode's `PiiStrategy` on the wire.
@@ -39,6 +39,10 @@ fn relative(reference: &str) -> Mode {
     Mode::Relative(pb::PiiDateRelative { reference: reference.to_owned() })
 }
 
+fn safe_harbor(reference: &str) -> Mode {
+    Mode::SafeHarbor(pb::PiiDateSafeHarbor { reference: reference.to_owned() })
+}
+
 /// One rule for dates with `s` as its only strategy.
 fn date_policy(s: Strategy) -> pb::RedactionPolicy {
     policy(vec![rule("date", builtin(pb::PiiKindId::Date), vec![entry(s)])])
@@ -69,6 +73,12 @@ fn each_mode_converts_and_round_trips() {
             DateRewrite::relative(d(2026, 7, 14)),
             PiiStrategyKind::DateRelative,
             pb::PiiStrategy::DateRelative,
+        ),
+        (
+            date(safe_harbor("2026-07-14"), "#"),
+            DateRewrite::safe_harbor(d(2026, 7, 14)).with_mask('#'),
+            PiiStrategyKind::DateSafeHarbor,
+            pb::PiiStrategy::DateSafeHarbor,
         ),
     ];
     for (arm, want, kind, value) in cases {
@@ -115,8 +125,12 @@ fn bad_fields_are_refused() {
     assert!(matches!(missing, PolicyError::Missing { field: "date.mode", .. }), "{missing:?}");
     let no_ref = native(date(relative(""), "")).unwrap_err();
     assert!(matches!(no_ref, PolicyError::Missing { field: "date.relative.reference", .. }), "{no_ref:?}");
+    let no_ref = native(date(safe_harbor(""), "")).unwrap_err();
+    assert!(matches!(no_ref, PolicyError::Missing { field: "date.safe_harbor.reference", .. }), "{no_ref:?}");
     for bad in ["2026-7-14", "2026-02-30", "July 14, 2026", "20260714"] {
         assert!(matches!(native(date(relative(bad), "")), Err(PolicyError::Invalid { .. })), "{bad}");
+        let err = native(date(safe_harbor(bad), "")).unwrap_err();
+        assert!(err.to_string().contains("date.safe_harbor.reference"), "{bad}: {err}");
     }
     assert!(matches!(native(date(year(), "**")), Err(PolicyError::Invalid { .. })));
     let unkeyed = shift(pb::PiiDateShift { max_days: 5, ..Default::default() });
@@ -135,6 +149,10 @@ fn the_digest_covers_the_mode_and_its_fields() {
     assert_ne!(days(1), days(-1));
     assert_ne!(days(0), base, "a shift by nothing is still another mode");
     assert_ne!(digest(date(relative("2026-07-14"), "")), digest(date(relative("2026-07-15"), "")));
+    let harbor = digest(date(safe_harbor("2026-07-14"), ""));
+    assert_ne!(harbor, digest(date(safe_harbor("2026-07-15"), "")));
+    assert_ne!(harbor, digest(date(relative("2026-07-14"), "")), "same reference, another mode");
+    assert_ne!(harbor, base);
 }
 
 #[test]
@@ -143,10 +161,14 @@ fn a_date_rule_turns_the_date_pack_on() {
     assert_eq!(p.opted_in_packs().collect::<Vec<_>>(), [Pack::Dates]);
     let none = RedactionPolicy::from_proto(&one(Strategy::Mask(pb::PiiMaskStrategy::default())), &NoRegistry).unwrap();
     assert_eq!(none.opted_in_packs().count(), 0, "a policy without a date rule keeps the default packs");
-    // Each opt-in pack scans the one kind its rule is matched on.
-    for (pack, kind) in [(Pack::Dates, PiiKind::Date), (Pack::Money, PiiKind::Currency)] {
+    // Each opt-in pack scans the kinds its rules are matched on.
+    for (pack, want) in [
+        (Pack::Dates, &[PiiKind::Date][..]),
+        (Pack::Money, &[PiiKind::Currency]),
+        (Pack::Places, &[PiiKind::State, PiiKind::County, PiiKind::City]),
+    ] {
         let kinds: Vec<PiiKind> = pack.scanners().iter().flat_map(|s| s.kinds().iter()).collect();
-        assert_eq!(kinds, [kind], "{pack:?}");
+        assert_eq!(kinds, want, "{pack:?}");
     }
 }
 
@@ -161,6 +183,8 @@ fn the_redact_step_reduces_dates_and_the_wire_edits_say_so() {
             pb::PiiStrategy::DateShift,
         ),
         (relative("2026-07-20"), "Admitted 6 days ago and born 74 years ago.", pb::PiiStrategy::DateRelative),
+        (safe_harbor("2026-07-20"), "Admitted 2026 and born 1952.", pb::PiiStrategy::DateSafeHarbor),
+        (safe_harbor("2042-07-20"), "Admitted 2026 and born 1952 or earlier.", pb::PiiStrategy::DateSafeHarbor),
     ] {
         let p = convert(&date_policy(date(mode, "")), &NoRegistry);
         let doc = run_with(text, p.clone(), false);
@@ -175,5 +199,67 @@ fn the_redact_step_reduces_dates_and_the_wire_edits_say_so() {
             assert_eq!(e.strategy, value as i32);
             assert_eq!(e.policy_digest, p.digest.as_bytes().to_vec());
         }
+    }
+}
+
+/// The canonical bytes of a date arm written by hand from the contract at
+/// the top of `canonical.rs`: fields in ascending number order, so
+/// `mask_char` (4) comes before `safe_harbor` (5) but after `year` (1).
+fn arm_bytes(fields: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut inner = Vec::new();
+    for (n, value) in fields {
+        inner.extend_from_slice(&n.to_le_bytes());
+        inner.extend_from_slice(value);
+    }
+    let mut out = 13u32.to_le_bytes().to_vec();
+    out.extend_from_slice(&(inner.len() as u64).to_le_bytes());
+    out.extend_from_slice(&inner);
+    out
+}
+
+fn string_value(s: &str) -> Vec<u8> {
+    let mut v = (s.len() as u64).to_le_bytes().to_vec();
+    v.extend_from_slice(s.as_bytes());
+    v
+}
+
+fn nested_value(fields: &[(u32, Vec<u8>)]) -> Vec<u8> {
+    let mut inner = Vec::new();
+    for (n, value) in fields {
+        inner.extend_from_slice(&n.to_le_bytes());
+        inner.extend_from_slice(value);
+    }
+    let mut v = (inner.len() as u64).to_le_bytes().to_vec();
+    v.extend_from_slice(&inner);
+    v
+}
+
+#[test]
+fn the_canonical_date_arm_keeps_ascending_field_order() {
+    use turbo_kserve::pii_policy::canonical;
+    let contains = |hay: &[u8], needle: &[u8]| hay.windows(needle.len()).any(|w| w == needle);
+    let reference = nested_value(&[(1, string_value("2026-07-14"))]);
+    let harbor = canonical::encode(&date_policy(date(safe_harbor("2026-07-14"), "#")));
+    let want = arm_bytes(&[(4, string_value("#")), (5, reference.clone())]);
+    assert!(contains(&harbor, &want), "mask_char (4) is written before safe_harbor (5)");
+    let unmasked = canonical::encode(&date_policy(date(safe_harbor("2026-07-14"), "")));
+    assert!(contains(&unmasked, &arm_bytes(&[(5, reference)])));
+    // The older modes keep their bytes: the mode arm, then mask_char.
+    let year_bytes = canonical::encode(&date_policy(date(year(), "#")));
+    assert!(contains(&year_bytes, &arm_bytes(&[(1, nested_value(&[])), (4, string_value("#"))])));
+    let rel = canonical::encode(&date_policy(date(relative("2026-07-14"), "#")));
+    let rel_ref = nested_value(&[(1, string_value("2026-07-14"))]);
+    assert!(contains(&rel, &arm_bytes(&[(3, rel_ref), (4, string_value("#"))])));
+}
+
+#[test]
+fn a_state_county_or_city_rule_turns_the_places_pack_on() {
+    for (name, id) in
+        [("state", pb::PiiKindId::State), ("county", pb::PiiKindId::County), ("city", pb::PiiKindId::City)]
+    {
+        let mask = Strategy::Mask(pb::PiiMaskStrategy::default());
+        let p = RedactionPolicy::from_proto(&policy(vec![rule(name, builtin(id), vec![entry(mask)])]), &NoRegistry)
+            .unwrap();
+        assert_eq!(p.opted_in_packs().collect::<Vec<_>>(), [Pack::Places], "{name}");
     }
 }

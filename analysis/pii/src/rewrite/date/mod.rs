@@ -20,6 +20,13 @@
 //! - [`DateMode::Relative`] writes the date relative to a reference date
 //!   the caller passes (`3 months ago`), never the clock, so the same
 //!   input gives the same output.
+//! - [`DateMode::SafeHarbor`] writes the year alone, as [`DateMode::Year`]
+//!   does, except that a year that could make someone born in it older
+//!   than 89 on a reference date the caller passes (90 or more years
+//!   before the reference year) is written as one category for all of
+//!   them, `1936 or earlier` for a 2026 reference. Safe Harbor (C) counts
+//!   such a year as an element of a date indicative of an age over 89 and
+//!   lets it be aggregated into one category of age 90 or older.
 //!
 //! A mention of another kind than `date`, a text that is not one whole
 //! absolute day or month mention (a caller's `7/14/26`), a date shifted
@@ -200,6 +207,23 @@ pub enum DateMode {
     Shift(DateShift),
     /// The date relative to the reference date.
     Relative(Date),
+    /// The year alone, or [`safe_harbor_category`] for a year 90 or more
+    /// years before the reference date's.
+    SafeHarbor(Date),
+}
+
+/// The latest year [`DateMode::SafeHarbor`] writes as one category under
+/// `reference`: 90 years before the reference year. Someone born in that
+/// year can be 90 on the reference date, and someone born later is 89 at
+/// most.
+pub fn safe_harbor_cutoff(reference: Date) -> i32 {
+    reference.year() - 90
+}
+
+/// The text [`DateMode::SafeHarbor`] writes for every year up to
+/// [`safe_harbor_cutoff`]: `1936 or earlier` for a 2026 reference.
+pub fn safe_harbor_category(reference: Date) -> String {
+    format!("{:04} or earlier", safe_harbor_cutoff(reference))
 }
 
 /// Truncates, shifts or relates every `date` mention ([`DateMode`]).
@@ -233,6 +257,11 @@ impl DateRewrite {
         DateRewrite::new(DateMode::Relative(reference))
     }
 
+    /// [`DateMode::SafeHarbor`] under `reference`.
+    pub fn safe_harbor(reference: Date) -> DateRewrite {
+        DateRewrite::new(DateMode::SafeHarbor(reference))
+    }
+
     /// Sets the character written for each character of what is masked.
     pub fn with_mask(mut self, mask: char) -> DateRewrite {
         self.mask = mask;
@@ -264,6 +293,7 @@ impl DateRewrite {
             DateMode::Year => PiiStrategyKind::DateYear,
             DateMode::Shift(_) => PiiStrategyKind::DateShift,
             DateMode::Relative(_) => PiiStrategyKind::DateRelative,
+            DateMode::SafeHarbor(_) => PiiStrategyKind::DateSafeHarbor,
         }
     }
 
@@ -278,6 +308,9 @@ impl DateRewrite {
             }
             DateMode::Relative(r) => {
                 h.u8(3).u32(r.year() as u32).u8(r.month()).u8(r.day());
+            }
+            DateMode::SafeHarbor(r) => {
+                h.u8(4).u32(r.year() as u32).u8(r.month()).u8(r.day());
             }
         }
         h.u32(u32::from(self.mask)).u8(u8::from(self.refuse_overlaps));
@@ -300,6 +333,14 @@ impl DateRewrite {
             }
             DateMode::Relative(r) => {
                 relative::write_relative(was, *r, out);
+                true
+            }
+            DateMode::SafeHarbor(r) => {
+                if was.year() <= safe_harbor_cutoff(*r) {
+                    out.push_str(&safe_harbor_category(*r));
+                } else {
+                    out.push_str(&form::year_digits(was));
+                }
                 true
             }
         };

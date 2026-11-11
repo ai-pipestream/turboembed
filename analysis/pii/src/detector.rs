@@ -55,10 +55,13 @@ pub enum Pack {
     Dates,
     /// Amounts of money with their currency. Opt-in, as dates are.
     Money,
+    /// Places: United States states and counties. Opt-in, as dates are: most texts
+    /// name places, and only some of them are where a person is.
+    Places,
 }
 
 impl Pack {
-    pub const ALL: [Pack; 15] = [
+    pub const ALL: [Pack; 16] = [
         Pack::Payment,
         Pack::Contact,
         Pack::Network,
@@ -74,6 +77,7 @@ impl Pack {
         Pack::AllStructured,
         Pack::Dates,
         Pack::Money,
+        Pack::Places,
     ];
 
     /// The name of the `PiiPacks` factory method, in kebab case
@@ -95,6 +99,7 @@ impl Pack {
             Pack::AllStructured => "all-structured",
             Pack::Dates => "dates",
             Pack::Money => "money",
+            Pack::Places => "places",
         }
     }
 
@@ -127,6 +132,9 @@ impl Pack {
             Pack::Web => vec![Scanner::all(Extractor::Web)],
             Pack::Dates => vec![Scanner::all(Extractor::Temporal)],
             Pack::Money => vec![Scanner::all(Extractor::Money)],
+            Pack::Places => {
+                vec![Scanner::all(Extractor::UsState), Scanner::all(Extractor::UsCounty), Scanner::all(Extractor::City)]
+            }
             Pack::AllStructured => [
                 Extractor::Cursor,
                 Extractor::Secrets,

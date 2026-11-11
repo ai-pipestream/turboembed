@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use turbo_zoo::{
-    Acceptances, Artifact, Blobs, Directory, File, Index, Licence, Policy, Requirement, Sha256, Sha512, Sources,
-    Transport, Url, UserId, Zoo, ZooError,
+    Acceptances, Artifact, Blobs, File, Index, Licence, Policy, Requirement, Sha256, Sha512, Sources, Transport, Url,
+    UserId, Zoo, ZooError,
 };
 
 const TEXT: &[u8] = b"hello hello hello\n";
@@ -294,6 +294,7 @@ fn the_keeping_store_neither_serves_nor_keeps_a_local_only_file() {
 #[test]
 fn directory_transport_refuses_symlinked_intermediate_directories_and_files() {
     use std::os::unix::fs::symlink;
+    use turbo_zoo::Directory;
     let (dir, outside) = (Dir::new("dir-link"), Dir::new("dir-link-outside"));
     fs::create_dir_all(&dir.0).unwrap();
     fs::create_dir_all(&outside.0).unwrap();

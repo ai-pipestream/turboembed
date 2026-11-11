@@ -4,6 +4,7 @@
 // monitor, the teachers it can use and the static models it made.
 
 import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
+import { kindName, kinds, matches, purpose } from "../catalogfilter.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { catalog, describe, training } from "../rpc.js";
 import { refresh } from "../state.js";
@@ -14,6 +15,9 @@ import * as sources from "./sources.js";
 let installing: AbortController | null = null;
 let saving: AbortController | null = null;
 let trainingRun: AbortController | null = null;
+// The catalog filter, kept while the catalog is read again after a change.
+let filterKind = "";
+let filterText = "";
 
 const note = () => $("models-note");
 
@@ -33,28 +37,93 @@ async function act(change: () => Promise<string>): Promise<void> {
   }
 }
 
-function entryRow(e: CatalogEntry, w: Who): HTMLElement[] {
+/**
+ * A catalog entry as a card: its name, what it is for, its licence and
+ * size, and one action. With terms still to accept the action is
+ * reading them, since Install stays off until they are accepted.
+ */
+function entryRow(e: CatalogEntry, w: Who): HTMLElement {
   const terms = e.missingTerms.map((t) => termsBlock(e, t, w, (t: LicenceTerms) => act(() => accept(e, t))));
   let install: HTMLElement | string = "";
   if (w.canChange) {
-    const b = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
+    const b = el("button", { type: "button", class: e.missingTerms.length ? "" : "primary", text: e.installed ? "Reinstall" : "Install" });
     b.disabled = e.missingTerms.length > 0;
     b.title = b.disabled ? "Accept the licence terms first" : "";
     b.addEventListener("click", () => void installModel(e));
     install = b;
   }
-  const licence = el("span", { text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
-  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), licence, el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install, saveButtons(e, w))];
+  const licence = el("span", { class: "licence", text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
+  return el(
+    "div",
+    { class: "entry" },
+    el("div", { class: "id", text: e.id }),
+    el("div", { class: "purpose", text: purpose(e) }),
+    el(
+      "div",
+      { class: "facts" },
+      el("span", { class: "tag kind", text: kindName(e.kind) }),
+      e.language ? el("span", { class: "tag", title: "language", text: e.language }) : null,
+      e.installed ? el("span", { class: "tag installed", text: "installed" }) : null,
+    ),
+    el("div", { class: "facts" }, licence, el("span", { class: "muted", text: size(e.totalBytes) })),
+    el("div", { class: "acts" }, install, saveButtons(e, w), terms),
+  );
+}
+
+/**
+ * The catalog as cards under a filter: a chip per kind with its count
+ * and a box for words, which hide the cards that do not match.
+ */
+function catalogTable(entries: CatalogEntry[], w: Who): HTMLElement {
+  if (!entries.length) return el("p", { class: "muted", text: "The catalog lists nothing." });
+  const rows = entries.map((e) => entryRow(e, w));
+  const list = el("div", { class: "catalog" }, rows);
+  const count = el("span", { class: "muted", id: "models-count", role: "status" });
+  const box = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
+  box.value = filterText;
+  if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
+  const chips: [string, HTMLButtonElement][] = [["", "all", entries.length] as const, ...kinds(entries).map(([k, n]) => [k, kindName(k), n] as const)].map(([k, name, n]) => {
+    const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n}` });
+    chip.addEventListener("click", () => {
+      filterKind = k;
+      apply();
+    });
+    return [k, chip];
+  });
+  const none = el("p", { class: "muted", text: "No entry matches.", hidden: "" });
+  function apply(): void {
+    let shown = 0;
+    entries.forEach((e, i) => {
+      const on = matches(e, filterKind, filterText);
+      rows[i].hidden = !on;
+      if (on) shown++;
+    });
+    for (const [k, chip] of chips) {
+      chip.classList.toggle("on", k === filterKind);
+      chip.setAttribute("aria-pressed", String(k === filterKind));
+    }
+    count.textContent = shown === entries.length ? `${entries.length} entries` : `${shown} of ${entries.length} entries`;
+    list.hidden = shown === 0;
+    none.hidden = shown !== 0;
+  }
+  box.addEventListener("input", () => {
+    filterText = box.value;
+    apply();
+  });
+  apply();
+  return el("div", {}, el("div", { class: "row filter" }, box, count), el("div", { class: "chips" }, chips.map(([, c]) => c)), list, none);
 }
 
 /** A save button per file, once the user may have the artifact. */
 function saveButtons(e: CatalogEntry, w: Who): HTMLElement | null {
   if (!w.user || e.missingTerms.length > 0) return null;
+  if (!e.files.length) return null;
   return el(
-    "div",
-    {},
+    "details",
+    { class: "files" },
+    el("summary", { text: e.files.length === 1 ? "1 file" : `${e.files.length} files` }),
     e.files.map((f) => {
-      const b = el("button", { type: "button", text: `Save ${f.path}` });
+      const b = el("button", { type: "button", text: `Save ${f.path}`, title: size(f.size) });
       b.addEventListener("click", () => void saveFile(e, f));
       return b;
     }),
@@ -84,13 +153,13 @@ async function loadCatalog(): Promise<void> {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
     const w = who(acc);
     box.replaceChildren(
-      el("h3", { text: "Catalog" }),
-      el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
-      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map((e) => entryRow(e, w))),
+      el("h3", { text: "Installed" }),
+      table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]), "", "Nothing is installed."),
       el("h3", { text: "Accepted terms" }),
       acceptedTable(acc, w, (t: LicenceTerms) => act(() => revoke(t))),
-      el("h3", { text: "Installed" }),
-      table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir])),
+      el("h3", { text: "Catalog" }),
+      el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
+      catalogTable(cat.entries, w),
     );
     say(note(), "");
   } catch (e) {

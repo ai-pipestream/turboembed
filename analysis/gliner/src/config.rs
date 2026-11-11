@@ -12,6 +12,10 @@ pub struct Config {
     pub prompt_factor: usize,
     #[serde(default = "default_out_project_mlp")]
     pub out_project_mlp: bool,
+    #[serde(default)]
+    pub token_level: bool,
+    #[serde(default = "default_prompt_projection")]
+    pub prompt_projection: bool,
     pub max_width: usize,
     pub entity_token: u32,
     pub separator_token: u32,
@@ -27,6 +31,10 @@ fn default_out_project_mlp() -> bool {
     true
 }
 
+fn default_prompt_projection() -> bool {
+    true
+}
+
 impl Config {
     pub fn check(&self, encoder: &turbo::deberta::Config) -> Result<(), String> {
         encoder.check().map_err(|e| e.message)?;
@@ -36,8 +44,8 @@ impl Config {
         if self.hidden == 0 || self.hidden > 1024 || !self.hidden.is_multiple_of(2) {
             return Err("gliner hidden limit: positive even width <= 1024".into());
         }
-        if self.max_width == 0 || self.max_width > 32 {
-            return Err("max_width limit: 1..=32".into());
+        if self.max_width == 0 || self.max_width > 100 {
+            return Err("max_width limit: 1..=100".into());
         }
         let ids = [self.entity_token, self.separator_token, self.cls_token, self.eos_token];
         if ids.iter().any(|&i| i as usize >= encoder.vocabulary)
@@ -57,17 +65,26 @@ impl Config {
             out.push((format!("{stem}.bias"), vec![output]));
         };
         linear("token_rep_layer.projection", encoder.hidden as u64, h);
-        linear("prompt_rep_layer.0", h, self.prompt_factor as u64 * h);
-        linear("prompt_rep_layer.3", self.prompt_factor as u64 * h, h);
-        for stem in ["span_rep_layer.span_rep_layer.project_start", "span_rep_layer.span_rep_layer.project_end"] {
-            linear(&format!("{stem}.0"), h, self.projection_factor as u64 * h);
-            linear(&format!("{stem}.3"), self.projection_factor as u64 * h, h);
+        if self.prompt_projection {
+            linear("prompt_rep_layer.0", h, self.prompt_factor as u64 * h);
+            linear("prompt_rep_layer.3", self.prompt_factor as u64 * h, h);
         }
-        if self.out_project_mlp {
-            linear("span_rep_layer.span_rep_layer.out_project.0", 2 * h, self.projection_factor as u64 * h);
-            linear("span_rep_layer.span_rep_layer.out_project.3", self.projection_factor as u64 * h, h);
+        if self.token_level {
+            linear("scorer.proj_token", h, 2 * h);
+            linear("scorer.proj_label", h, 2 * h);
+            linear("scorer.out_mlp.0", 3 * h, 4 * h);
+            linear("scorer.out_mlp.3", 4 * h, 3);
         } else {
-            linear("span_rep_layer.span_rep_layer.out_project", 2 * h, h);
+            for stem in ["span_rep_layer.span_rep_layer.project_start", "span_rep_layer.span_rep_layer.project_end"] {
+                linear(&format!("{stem}.0"), h, self.projection_factor as u64 * h);
+                linear(&format!("{stem}.3"), self.projection_factor as u64 * h, h);
+            }
+            if self.out_project_mlp {
+                linear("span_rep_layer.span_rep_layer.out_project.0", 2 * h, self.projection_factor as u64 * h);
+                linear("span_rep_layer.span_rep_layer.out_project.3", self.projection_factor as u64 * h, h);
+            } else {
+                linear("span_rep_layer.span_rep_layer.out_project", 2 * h, h);
+            }
         }
         for suffix in ["", "_reverse"] {
             for (name, shape) in [

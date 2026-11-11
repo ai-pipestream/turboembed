@@ -65,22 +65,35 @@ impl CustomExtractor for Identifiers {
     }
 }
 
+/// The opt-in packs and the kinds their scanners find.
+const OPT_IN: [(Pack, &[PiiKind]); 3] = [
+    (Pack::Dates, &[PiiKind::Date]),
+    (Pack::Money, &[PiiKind::Currency]),
+    (Pack::Places, &[PiiKind::State, PiiKind::County, PiiKind::City]),
+];
+
+/// Whether `kind` is one of the [`OPT_IN`] kinds, as one comparison.
+const fn opt_in_kind(kind: PiiKind) -> bool {
+    matches!(kind, PiiKind::Date | PiiKind::Currency | PiiKind::State | PiiKind::County | PiiKind::City)
+}
+
 impl RedactionPolicy {
     /// The kinds this policy turns off.
     pub fn disabled_kinds(&self) -> impl Iterator<Item = PiiKind> + '_ {
         self.rules.iter().filter(|r| !r.enabled).map(|r| r.kind)
     }
 
-    /// The opt-in packs ([`Pack::Dates`], [`Pack::Money`]) this policy
-    /// turns on: those with a kind an enabled rule names. Dates and amounts
-    /// are in most texts and only some are a person's, so `AllStructured`
-    /// leaves them out until a policy asks for them.
+    /// The opt-in packs ([`Pack::Dates`], [`Pack::Money`], [`Pack::Places`])
+    /// this policy turns on: those with a kind an enabled rule names.
+    /// Dates, amounts and places are in most texts and only some are a
+    /// person's, so `AllStructured` leaves them out until a policy asks
+    /// for them.
     pub fn opted_in_packs(&self) -> impl Iterator<Item = Pack> + '_ {
-        // The rule kinds against each pack's one kind: nothing is built
-        // for a policy that names neither.
-        [(Pack::Dates, PiiKind::Date), (Pack::Money, PiiKind::Currency)]
+        // The rule kinds against each pack's kinds: nothing is built for a
+        // policy that names none of them.
+        OPT_IN
             .into_iter()
-            .filter(|&(_, kind)| self.rules.iter().any(|r| r.enabled && r.kind == kind))
+            .filter(|&(_, kinds)| self.rules.iter().any(|r| r.enabled && kinds.contains(&r.kind)))
             .map(|(pack, _)| pack)
     }
 
@@ -94,7 +107,7 @@ impl RedactionPolicy {
         }
         // One look at the rule kinds: a policy that names no opt-in kind
         // builds what it built before the opt-in packs existed.
-        if self.rules.iter().any(|r| r.enabled && matches!(r.kind, PiiKind::Date | PiiKind::Currency)) {
+        if self.rules.iter().any(|r| r.enabled && opt_in_kind(r.kind)) {
             for s in self.opted_in_packs().filter(|p| *p != pack).flat_map(Pack::scanners) {
                 keep_enabled(s, &off, &mut scanners)?;
             }
@@ -147,4 +160,17 @@ fn keep_enabled(s: Scanner, off: &[PiiKind], scanners: &mut Vec<Scanner>) -> Res
         Scanner::with_kinds(s.extractor(), kept).map_err(|e| e.to_string())?
     });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_one_comparison_names_the_opt_in_kinds() {
+        let listed: Vec<PiiKind> = OPT_IN.iter().flat_map(|(_, kinds)| kinds.iter().copied()).collect();
+        for kind in PiiKind::builtins() {
+            assert_eq!(opt_in_kind(kind), listed.contains(&kind), "{kind:?}");
+        }
+    }
 }

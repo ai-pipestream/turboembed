@@ -1,0 +1,207 @@
+{
+  "bootstrap": {
+    "draws": 1000,
+    "interval": "2.5th to 97.5th percentile",
+    "seed": 1731,
+    "unit": "document"
+  },
+  "facts": {
+    "documents": 4,
+    "source": "analysis/query/tests/support/rule_entities_corpus.rs"
+  },
+  "gate": "#1731",
+  "gold_spans": 32,
+  "match": "exact UTF-8 byte span and type, distinct spans per document",
+  "rules_seconds": 0.0007,
+  "set": "reviewed",
+  "systems": [
+    {
+      "predictions_sha256": null,
+      "scores": {
+        "date": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 12
+        },
+        "micro": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 32
+        },
+        "money": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 8
+        },
+        "percent": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 6
+        },
+        "time": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 6
+        }
+      },
+      "system": "rules"
+    },
+    {
+      "predictions_sha256": "b97a3f2d62036a1024fc5e78b5332fcf0a622c11f3a4acb1af5947ee3e9e6863",
+      "scores": {
+        "date": {
+          "f1": 0.9167,
+          "fn": 1,
+          "fp": 1,
+          "precision": 0.9167,
+          "recall": 0.9167,
+          "tp": 11,
+          "vs_rules": {
+            "delta_f1": -0.0833,
+            "high": 0.0,
+            "low": -0.2727
+          }
+        },
+        "micro": {
+          "f1": 0.6269,
+          "fn": 11,
+          "fp": 14,
+          "precision": 0.6,
+          "recall": 0.6563,
+          "tp": 21,
+          "vs_rules": {
+            "delta_f1": -0.3731,
+            "high": -0.2063,
+            "low": -0.5
+          }
+        },
+        "money": {
+          "f1": 0.2353,
+          "fn": 6,
+          "fp": 7,
+          "precision": 0.2222,
+          "recall": 0.25,
+          "tp": 2,
+          "vs_rules": {
+            "delta_f1": -0.7647,
+            "high": -0.5556,
+            "low": -1.0
+          }
+        },
+        "percent": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 6,
+          "vs_rules": {
+            "delta_f1": 0.0,
+            "high": 0.0,
+            "low": 0.0
+          }
+        },
+        "time": {
+          "f1": 0.2857,
+          "fn": 4,
+          "fp": 6,
+          "precision": 0.25,
+          "recall": 0.3333,
+          "tp": 2,
+          "vs_rules": {
+            "delta_f1": -0.7143,
+            "high": -0.2,
+            "low": -1.0
+          }
+        }
+      },
+      "system": "spacy-trf"
+    },
+    {
+      "predictions_sha256": "a49f222190ea022d896fb53e9c8c1fcb90f49e4c8f7a8ebb78c34b5e98e8ffc2",
+      "scores": {
+        "date": {
+          "f1": 0.8696,
+          "fn": 2,
+          "fp": 1,
+          "precision": 0.9091,
+          "recall": 0.8333,
+          "tp": 10,
+          "vs_rules": {
+            "delta_f1": -0.1304,
+            "high": 0.0,
+            "low": -0.4737
+          }
+        },
+        "micro": {
+          "f1": 0.7419,
+          "fn": 9,
+          "fp": 7,
+          "precision": 0.7667,
+          "recall": 0.7188,
+          "tp": 23,
+          "vs_rules": {
+            "delta_f1": -0.2581,
+            "high": -0.0714,
+            "low": -0.4
+          }
+        },
+        "money": {
+          "f1": 0.375,
+          "fn": 5,
+          "fp": 5,
+          "precision": 0.375,
+          "recall": 0.375,
+          "tp": 3,
+          "vs_rules": {
+            "delta_f1": -0.625,
+            "high": -0.125,
+            "low": -1.0
+          }
+        },
+        "percent": {
+          "f1": 1.0,
+          "fn": 0,
+          "fp": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "tp": 6,
+          "vs_rules": {
+            "delta_f1": 0.0,
+            "high": 0.0,
+            "low": 0.0
+          }
+        },
+        "time": {
+          "f1": 0.7273,
+          "fn": 2,
+          "fp": 1,
+          "precision": 0.8,
+          "recall": 0.6667,
+          "tp": 4,
+          "vs_rules": {
+            "delta_f1": -0.2727,
+            "high": 0.0,
+            "low": -0.75
+          }
+        }
+      },
+      "system": "stanza"
+    }
+  ]
+}

@@ -76,6 +76,8 @@ async function visit(page: Page, tab: string): Promise<void> {
     await page.waitForSelector("#vocab-lists > *");
   } else if (tab === "models") {
     await page.waitForSelector("#models-static > *");
+    await page.click("#models-catalog-load");
+    await page.waitForSelector("#models-filter");
   } else {
     await page.waitForSelector("#server-caps table");
   }
@@ -120,6 +122,60 @@ test("the embed tab answers with a card per model and the tabs take the arrow ke
     await page.keyboard.press("ArrowLeft");
     await page.keyboard.press("ArrowLeft");
     assert.equal(await page.getAttribute("nav.tabs button[data-tab=server]", "aria-selected"), "true");
+  } finally {
+    await browser.close();
+  }
+});
+
+test("the catalog narrows by words typed and by kind", async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await open(browser, 1280, 900);
+    await page.click("nav.tabs button[data-tab=models]");
+    await page.click("#models-catalog-load");
+    await page.waitForSelector("#models-filter");
+    const shown = () => page.locator(".catalog .entry:not([hidden]) .id").allTextContents();
+    const all = await shown();
+    assert.equal(all.length > 10, true);
+    assert.equal(await page.textContent("#models-count"), `${all.length} entries`);
+    // No kind or component is shown by its enum name.
+    const text = await page.locator(".catalog").innerText();
+    assert.equal(text.includes("KIND_") || text.includes("COMPONENT_"), false);
+    // The entries are cards: several to a row at this width, each saying
+    // what it is for and inside the catalog's box.
+    const cards = await page.locator(".catalog .entry").evaluateAll((els) =>
+      els.map((e) => {
+        const r = e.getBoundingClientRect();
+        const box = e.parentElement!.getBoundingClientRect();
+        return { top: Math.round(r.top), inside: r.left >= box.left - 1 && r.right <= box.right + 1, purpose: e.querySelector(".purpose")?.textContent ?? "" };
+      }),
+    );
+    assert.equal(cards.length, all.length);
+    assert.equal(cards.filter((c) => c.top === cards[0].top).length > 1, true);
+    assert.deepEqual(cards.filter((c) => !c.inside || c.purpose.trim() === ""), []);
+
+    await page.fill("#models-filter", "semantic search");
+    const search = await shown();
+    assert.equal(search.length > 0 && search.length < all.length, true);
+
+    await page.fill("#models-filter", "BGE small");
+    const bge = await shown();
+    assert.equal(bge.length > 0 && bge.length < all.length, true);
+    assert.deepEqual(bge.filter((id) => !(id.includes("bge") && id.includes("small"))), []);
+    assert.equal(await page.textContent("#models-count"), `${bge.length} of ${all.length} entries`);
+
+    await page.fill("#models-filter", "");
+    const chip = page.locator(".chips button[data-kind=KIND_DATASET]");
+    const label = (await chip.textContent()) ?? "";
+    await chip.click();
+    assert.equal(await chip.getAttribute("aria-pressed"), "true");
+    assert.equal(label, `dataset ${(await shown()).length}`);
+    const kindsShown = await page.locator(".catalog .entry:not([hidden]) .kind").allTextContents();
+    assert.deepEqual(kindsShown.filter((k) => k !== "dataset"), []);
+
+    await page.fill("#models-filter", "no such entry anywhere");
+    assert.deepEqual(await shown(), []);
+    assert.equal(await page.isVisible("text=No entry matches."), true);
   } finally {
     await browser.close();
   }

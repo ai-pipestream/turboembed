@@ -367,6 +367,8 @@ pub fn string(b: &[c_char]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The one test that reads it is not built on Windows.
+    #[cfg(not(windows))]
     use std::ffi::OsStr;
 
     /// The caller's own NEOReadDebugKeys, other than 1, leaves both

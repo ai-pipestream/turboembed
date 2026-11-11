@@ -251,20 +251,10 @@ fn multi_label_co_occurrence_and_evidence_spans_per_label() {
 
 #[test]
 fn vector_scorer_and_chunk_unit_guarantee_evidence_spans() {
-    struct FixedScorer;
-    impl IncivilityVectorScorer for FixedScorer {
-        fn score_incivility(&self, vec: &[f32]) -> Result<IncivilityScores, String> {
-            let mut s = IncivilityScores::default();
-            if vec.first().copied().unwrap_or(0.0) > 0.5 {
-                s.intolerance = 0.88;
-            }
-            Ok(s)
-        }
-
-        fn model(&self) -> Option<ModelRef> {
-            Some(ModelRef { id: "fixed-head".into(), revision: "1".into(), sha256: "00".into() })
-        }
-    }
+    let model = ModelRef { id: "fixed-head".into(), revision: "1".into(), sha256: "00".into() };
+    let mut weights = vec![0.0; 12];
+    weights[IncivilityLabel::Intolerance as usize * 2] = 6.0;
+    let head = IncivilityVectorHead::new(2, weights, [-3.0; 6]).unwrap().with_model(model.clone()).unwrap();
 
     // Sentence with no lexicon hits, scored positive on `Intolerance` by the vector head.
     let text = "Exclude every outsider from civic life.";
@@ -282,15 +272,10 @@ fn vector_scorer_and_chunk_unit_guarantee_evidence_spans() {
     };
     doc.add(&Key::<Chunks>::DEFAULT, chunks, Provenance::by("test")).unwrap();
 
-    let vecs = Vectors::<Chunks>::new(
-        2,
-        vec![0.9, 0.1],
-        vec![],
-        ModelRef { id: "fixed-head".into(), revision: "1".into(), sha256: "00".into() },
-    );
+    let vecs = Vectors::<Chunks>::new(2, vec![0.9, 0.1], vec![], model);
     doc.add(&Key::<Vectors<Chunks>>::DEFAULT, vecs, Provenance::by("test")).unwrap();
 
-    let ann = IncivilityAnnotator::new().with_unit(IncivilityUnit::Chunks).with_vector_scorer(Arc::new(FixedScorer));
+    let ann = IncivilityAnnotator::new().with_unit(IncivilityUnit::Chunks).with_vector_scorer(Arc::new(head));
     let pipe = Analyzer::builder()
         .given(Key::<Sentences>::DEFAULT)
         .given(Key::<Tokens>::DEFAULT)
@@ -317,16 +302,10 @@ fn vector_scorer_and_chunk_unit_guarantee_evidence_spans() {
 
 #[test]
 fn sentence_vectors_from_another_encoder_are_refused() {
-    struct NamedScorer;
-    impl IncivilityVectorScorer for NamedScorer {
-        fn score_incivility(&self, _vec: &[f32]) -> Result<IncivilityScores, String> {
-            Ok(IncivilityScores::default())
-        }
-
-        fn model(&self) -> Option<ModelRef> {
-            Some(ModelRef { id: "head-encoder".into(), revision: "1".into(), sha256: "00".into() })
-        }
-    }
+    let head = IncivilityVectorHead::new(2, vec![0.0; 12], [-3.0; 6])
+        .unwrap()
+        .with_model(ModelRef { id: "head-encoder".into(), revision: "1".into(), sha256: "00".into() })
+        .unwrap();
 
     let text = "The patch fixes the parser.";
     let mut doc = make_doc_with_sentences(text, &[(0, text.len() as u32)]);
@@ -341,7 +320,7 @@ fn sentence_vectors_from_another_encoder_are_refused() {
         .given(Key::<Sentences>::DEFAULT)
         .given(Key::<Tokens>::DEFAULT)
         .given(Key::<Vectors<Sentences>>::DEFAULT)
-        .add(IncivilityAnnotator::new().with_vector_scorer(Arc::new(NamedScorer)))
+        .add(IncivilityAnnotator::new().with_vector_scorer(Arc::new(head)))
         .build()
         .unwrap();
     let err = pipe.run(std::slice::from_mut(&mut doc)).remove(0).unwrap_err();

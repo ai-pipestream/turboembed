@@ -25,7 +25,7 @@ checksum is validated with it:
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking (with `keeping_format`, `keeping_leading`, `keeping_trailing`, `first_n`, `last_n`) |
 | `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
 | `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
-| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting and relative dates |
+| `rewrite::FormatRedactor`, `StaticReplacer`, `Sha256Tokenizer`, `MapReplacer`, `Truncate`, `Abbreviator`, `ZipSafeHarbor`, `AgeSafeHarbor`, `DateRewrite` | Template redaction, static replacement, unkeyed SHA-256 hex digest, lookup-table replacement, partial character retention, initials abbreviation, HIPAA Safe Harbor ZIP generalization, HIPAA Safe Harbor age aggregation, and date truncation, shifting, relative dates and Safe Harbor date years |
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
@@ -75,12 +75,14 @@ not find (`ScannerError`).
 | `Device` | `device()` | device | `imei` |
 | `Logistics` | (none) | logistics | `vin`, `tracking-number` |
 | `Web` | (none) | web | `url` |
-| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date` and `currency` |
+| `AllStructured` | `allStructured()` | cursor, secrets, crypto, network, US, EU, BR and CA identity, device, banking, logistics, web, phone extension, US address, age | every kind but `date`, `currency`, `state` and `county` |
 | `Dates` | (none) | temporal | `date` |
 | `Money` | (none) | money | `currency` |
+| `Places` | (none) | US state, US county | `state`, `county` |
 
-`Dates` and `Money` are opt-in and not in `AllStructured`: dates and
-amounts are in most texts, and only some of them are a person's.
+`Dates`, `Money` and `Places` are opt-in and not in `AllStructured`:
+dates, amounts and places are in most texts, and only some of them are
+a person's.
 
 `PiiDetector::cursor()` is the default `CursorPiiExtractor`: e-mail,
 phone, IBAN and card.
@@ -533,14 +535,31 @@ the source text into the rewritten text and back
     months, then years. The temporal scanner reads each phrase back with
     the same reference. Edits record `DateRelative`
     (`PII_STRATEGY_DATE_RELATIVE`).
+  - `SafeHarbor(reference)`: the year alone, as `Year` writes it, except
+    that every year 90 or more years before the reference year is written
+    as one category, `1936 or earlier` for a 2026 reference
+    (`safe_harbor_category`). Someone born in such a year can be older
+    than 89 on the reference date, so Safe Harbor
+    (45 CFR 164.514(b)(2)(i)(C)) counts the year as an element of a date
+    indicative of an age over 89, which may be kept only aggregated into
+    one category of age 90 or older. The cutoff is by year alone
+    (`safe_harbor_cutoff`), so the category also takes a year whose
+    people are 89 on part of it, and no year whose people may be 90 is
+    left ungrouped.
+    The reference is passed in, usually the release date of the record,
+    never the clock. The rule does not know which date is a birth date,
+    so it groups every old enough date; pair it with `AgeSafeHarbor` for
+    the `age` kind. Edits record `DateSafeHarbor`
+    (`PII_STRATEGY_DATE_SAFE_HARBOR`).
 
   A mention of another kind, a text that is not one whole absolute day or
   month mention (the scanner reads four-digit years only, so `7/14/26` or
   `July 14, 26`), a date shifted out of the years `0001` to `9999`, and a
   cluster of overlapping mentions are masked whole (`*` by default). The
   gRPC arm is `PiiDateStrategy`, with `year`, `shift` (a keyed offset
-  names a registered key; `max_days` 0 means 30) and `relative`
-  (`reference` as `yyyy-MM-dd`) (#1884).
+  names a registered key; `max_days` 0 means 30), `relative` and
+  `safe_harbor` (each with a required `reference` as `yyyy-MM-dd`)
+  (#1884).
 - **Per-kind policy (`RewritePolicy`, `RewriteStrategy`):** assigns a
   `RewriteStrategy` per built-in or `PiiKind::Custom` kind with a default
   fallback strategy (`RewriteStrategy::default()`, and so
@@ -898,10 +917,117 @@ birth`, `dob` and `born`, and `amount`, `balance`, `salary` and
 `payment`, are their label phrases for the context window. They are the
 kinds the date rewrites of #1884 act on.
 
-A redaction policy over gRPC turns `Dates` or `Money` on itself: an
-enabled rule for `date` or `currency` adds that pack's scanner to the
-`turbo-pii:pii` step, which otherwise runs `AllStructured`
-(`RedactionPolicy::opted_in_packs`).
+A redaction policy over gRPC turns `Dates`, `Money` or `Places` on
+itself: an enabled rule for `date`, `currency`, `state` or `county`
+adds that pack's scanners to the `turbo-pii:pii` step, which otherwise
+runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
+
+### States, counties and cities
+
+`state`, `county` and `city` take ids 43, 44 and 45, in the opt-in
+`Places` pack.
+
+- `state` (new `UsState` extractor, `UsStatePiiExtractor`,
+  `turbo-pii:us-state`; `analysis/pii/src/scan/state.rs`): the name of a
+  state, the District of Columbia or an inhabited territory (`Illinois`,
+  `New York`, `Puerto Rico`, `U.S. Virgin Islands`), as written or all in
+  capitals, at word boundaries, single spaces between its words.
+  `Washington, D.C.` and `Washington DC` are the District; with a word
+  character joined to that suffix (`Washington DC_x`) the text names
+  neither the District nor the state. `New York
+  City` is a city and `Washington County` a county, so neither is a
+  state; a county word that makes no county of the list leaves the state
+  (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
+  `OK`), so it is a mention only in capitals and only directly after a
+  state label (`State: OR`) or before a ZIP code that ends an address,
+  by what comes before the code: a comma (`Springfield, IL 62704`), a
+  city of that state in the bundled gazetteer and one space
+  (`Springfield IL 62704 is`), or the start of a line when only blanks
+  follow the ZIP code to the line's end or a clause's end (`IL 62704`,
+  `IL 62704, USA`). After any other
+  word (`Order IN 12345.`, `PART OR 90210`), or with a word after a line's
+  code and number (`IN 12345 units`), the number is a count, not a
+  state. The normalized form is the USPS code (`IL`).
+- `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
+  `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
+  county equivalent of the Census Bureau's 2020 county list
+  (`national_county2020.txt`, public domain, SHA-256
+  `9f6e5f6eb6ac2f5e9a36d5fd01dec77991bddc75118f748a069441a4782970d6`),
+  with its own last word: `County`, `Parish`, `Borough`, `Census Area`,
+  `Municipality` or `Municipio` (`Cook County`, `Orleans Parish`,
+  `Matanuska-Susitna Borough`, `Mayagüez Municipio`). Each word reads as
+  the list writes it or in capitals, and the last also in small letters
+  (`Cook county`); a right single quotation mark reads as an apostrophe.
+  The independent cities (`Baltimore city`) are cities, not counties. A
+  name shared by several states (`Washington County`) is one mention,
+  normalized as the list spells it; a state named beside it (`Cook
+  County, Illinois`) is a mention of its own.
+  The 1,918 names are in `analysis/pii/src/tables/us_counties.txt`.
+- `city` (new `City` extractor, `CityPiiExtractor`, `turbo-pii:city`;
+  `analysis/pii/src/scan/city.rs`): a populated place of the bundled
+  gazetteer (`turbo_geo::BundledGazetteer`, Natural Earth's 7,342
+  populated places, public domain), matched by the gazetteer's own rule
+  (case, accents and punctuation folded). Many city names are also
+  common words or given names (`Mobile`, `Phoenix`, `Jackson`), so a name
+  is a mention only in one of two settings:
+  - directly before a comma, a space and a US state's or territory's
+    name or USPS code, when the gazetteer holds a place of that name
+    there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
+    `Mobile, IL`). The gazetteer files the territories under their own
+    country codes, which are their USPS codes;
+  - directly after a city label, as any place of that name: `city of
+    residence`, `place of birth`, `city of` and `town of` with or without
+    a colon, and `birthplace`, `city/town`, `city` and `town` only with
+    one (`City: Phoenix`, `the city of Mobile`), as `the city Council`
+    names none. A known name that a space and a capitalized word follow
+    is the start of a longer name (`City: San Foo`), so it is no mention.
+
+  A bare name (`Chicago is large`) is no mention. The name has at most
+  five words with single spaces between them, and its first and last
+  words start with a capital (`Rio de Janeiro`). The longest name wins,
+  and the normalized form is the gazetteer's name (`Sao Paulo` for
+  `São Paulo`). A city and the state after it are two mentions.
+
+A place name starts and ends where no letter, digit, combining mark or
+`_` touches it (`text::name_char`, `on_name_start`, `on_name_end`), at
+both ends of a state name, a county name, a city name and a USPS code. So
+`x_Illinois`, `Illinois_x`, `e` + U+0301 + `Illinois`, `Cook County_x`
+and `Washington_County` hold no place, while `Illinois-based` and
+`(Cook County)` do. The other scanners keep the shared letter-or-digit
+rule (`on_word_start`, `on_end`), so their spans and pack snapshots stay
+those of the port.
+
+A county name is compared in Unicode normalization form C, as the
+Census list is written. A decomposed spelling (`Doña Ana County` with
+`n` + U+0303, `Mayagüez Municipio` with `u` + U+0308) is the same
+county: its mention keeps the source's bytes and its value is the
+list's spelling. A candidate that is ASCII or already NFC is compared in
+place, with no copy. Every state name is ASCII, so the state scanner
+needs no folding.
+
+Both are low severity, suggested a label rewrite and masked keeping
+spaces (`**** ******`). Neither needs a label; `state`, `state of
+residence`, `county` and `county of residence` are their label phrases.
+HIPAA Safe Harbor removes every geographic subdivision smaller than a
+state, so `county` is an identifier and `state` is not; the state kind
+is there for policies that want the whole place gone.
+
+Scored on its own (`places_eval.rs`, gold in
+`analysis/pii/tests/data/human-eval/labels-places.tsv`), the `Places`
+pack over the ten documents of the human-written set and a
+project-authored memo of places and near misses (`places-memos.txt`):
+
+| Kind | Source | TP | FP | FN | Precision | Recall |
+|---|---|---:|---:|---:|---:|---:|
+| `state` | third-party MASC (`29`) + project-authored (`11`) | 40 | 0 | 0 | 1.000 | 1.000 |
+| `county` | project-authored (`places-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
+| `city` | third-party MASC (`24`) + project-authored (`12`) | 9 | 0 | 27 | 1.000 | 0.250 |
+
+The MASC documents name no county, so the county figures are only those
+of the memo written for it. The `city` gold marks every reference to a
+city, bare names in running prose included (`in Rouen`, `the Boston
+area`), so its recall counts what the two settings above leave out: all
+27 misses are names with no state after them and no label before them.
 
 ## Custom extractors and scanner rules
 

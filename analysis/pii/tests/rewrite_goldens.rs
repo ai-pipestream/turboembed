@@ -176,4 +176,5 @@ pack_tests! {
     all_structured_rewrite_snapshots: Pack::AllStructured, 126, 22;
     dates_rewrite_snapshots: Pack::Dates, 8, 0;
     money_rewrite_snapshots: Pack::Money, 10, 0;
+    places_rewrite_snapshots: Pack::Places, 6, 0;
 }
