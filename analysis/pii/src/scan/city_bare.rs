@@ -20,7 +20,8 @@
 //!   Rouen`, `The Boston area`), so `Harry Denton` is a person, and is not
 //!   `of` after such a word (`University of Bristol`);
 //! - no verb of speech follows it ([`SPEECH_VERBS`], `Madison said`), as
-//!   a person's name does;
+//!   a person's name does, unless a [`LEAD_WORDS`] word stands before it
+//!   (`people in Paris said so`);
 //! - it is not joined to an address, a path or a word (`example.com/Paris`,
 //!   `Paris.example`, `Grand-Rouen`).
 //!
@@ -232,13 +233,20 @@ fn accepted(text: &str, start: usize, end: usize) -> bool {
     state_after(text, end).is_none()
         && free_end(text, end)
         && !after_name_word(text, start)
-        && !before_speech(text, end)
+        && !(before_speech(text, end) && !after_lead_word(text, start))
 }
 
 /// The verbs of speech and address a person's name stands before and a
 /// city's seldom does (`Madison said`, `Paris told her`).
 const SPEECH_VERBS: [&str; 12] =
     ["added", "asked", "replied", "said", "says", "smiled", "nodded", "told", "tells", "wrote", "writes", "laughed"];
+
+/// Whether one of [`LEAD_WORDS`] stands one space before `start`, in any
+/// case, so the name is a place in its sentence (`people in Paris said`,
+/// `a source in Boston told`), whatever verb follows it.
+fn after_lead_word(text: &str, start: usize) -> bool {
+    word_before(text, start).is_some_and(|(_, w)| LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w)))
+}
 
 /// Whether one of [`SPEECH_VERBS`] follows the name at `end` after one
 /// space, so the name is a person's (`Columbus said`, `Salem wrote`).

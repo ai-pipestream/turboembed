@@ -1036,7 +1036,9 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
       (`Harry Denton`, `Mr. Lincoln`, `University of Bristol`);
     - no verb of speech or address follows it after one space (`said`,
       `told`, `wrote` and a few more: `Madison said`, `Columbus wrote`),
-      as a person's name does;
+      as a person's name does, unless one of the sentence-start words
+      above stands before it (`people in Paris said so`, `a source in
+      Boston told reporters`);
     - no word, path or address touches it (`Grand-Rouen`,
       `example.com/Rouen`, `Rouen.example.com`, `Rouen@example.com`,
       `#Rouen`). A possessive name ends before its `'s` (`San

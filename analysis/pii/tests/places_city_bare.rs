@@ -41,8 +41,12 @@ fn a_bare_name_in_prose_is_a_mention() {
         ("a trip to Kansas City last May", "Kansas City"),
         ("born in S\u{e3}o Paulo in 1990", "S\u{e3}o Paulo"),
         ("Indianapolis traffic", "Indianapolis"),
-        // A verb of speech after a place is not one after the name.
-        ("people in Paris say so", "Paris"),
+        // A verb of speech after a name in a place phrase leaves it a
+        // place (#2225 review).
+        ("people in Paris said so", "Paris"),
+        ("a source in Boston told reporters", "Boston"),
+        ("they wrote from Rouen", "Rouen"),
+        ("letters to Chicago wrote back", "Chicago"),
         // A hyphenated name is one name, never its last word alone.
         ("a Winston-Salem address", "Winston-Salem"),
     ] {
