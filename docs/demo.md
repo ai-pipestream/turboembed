@@ -576,6 +576,25 @@ either: every call the page makes goes through the demo to the server.
   on disk has the size and SHA-256 the catalog lists. The Server tab
   loads the installed directory into the running server, and Semantic
   ranks passages with it, with no restart and no page reload.
+- An address change, a link, Back and Forward each open the tab they
+  name, every tab click is one history entry, and an address naming no
+  tab opens the first.
+- Embed, Run, Analyze, Format and Round trip are each off and count the
+  time while their call runs, Analyze's Stop is on only then, and every
+  Stop starts off.
+- Delete index, Delete collection and Unload each ask in place, with
+  focus on Cancel; Cancel and Escape put the button back, and only Yes
+  calls the server. A delete the demo refuses says why beside its own
+  row and leaves the rest of the page alone.
+- The header turns red within one status interval after the server
+  stops, with the notice and Retry, and green again with no reload once
+  it is back, the tabs refilled. A page opened with the server stopped
+  says on each tab that the server is not reachable, and fills on Retry.
+
+The tests that stop the server, or need writes forwarded, start a
+server and demo of their own from the same binaries
+(`demo/web/e2e/stack.ts`, given the binaries' directory in
+`TURBO_E2E_BIN`).
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in
