@@ -170,12 +170,12 @@ fn is_gone(e: &std::io::Error) -> bool {
     matches!(e.kind(), ErrorKind::NotFound | ErrorKind::StaleNetworkFileHandle)
 }
 
-fn is_symlink_or_dir(e: &std::io::Error) -> bool {
+fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {
     #[cfg(unix)]
     if e.raw_os_error() == Some(libc::ELOOP) {
         return true;
     }
-    e.kind() == ErrorKind::IsADirectory
+    e.kind() == ErrorKind::IsADirectory || fs::symlink_metadata(path).is_ok_and(|m| !m.is_file())
 }
 
 /// The acceptance in the record file `path`, named `name`; none when it is
@@ -187,13 +187,13 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     let mut opts = fs::OpenOptions::new();
     opts.read(true);
     #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::custom_flags(&mut opts, libc::O_NOFOLLOW);
-    // Open once without following symlinks: a record revoked since read_dir
-    // (NotFound, or ESTALE on NFS) is gone, not bad.
+    std::os::unix::fs::OpenOptionsExt::custom_flags(&mut opts, libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    // Open once without following symlinks or blocking on a FIFO: a record
+    // revoked since read_dir (NotFound, or ESTALE on NFS) is gone, not bad.
     let mut file = match opts.open(path) {
         Ok(f) => f,
         Err(e) if is_gone(&e) => return Ok(None),
-        Err(e) if is_symlink_or_dir(&e) => return Err(bad("not a plain file".into())),
+        Err(e) if is_not_plain_file(&e, path) => return Err(bad("not a plain file".into())),
         Err(e) => return Err(io(e)),
     };
     match file.metadata() {
@@ -201,6 +201,15 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
         Ok(_) => {}
         Err(e) if is_gone(&e) => return Ok(None),
         Err(e) => return Err(io(e)),
+    }
+    #[cfg(unix)]
+    {
+        use std::os::fd::AsRawFd;
+        let fd = file.as_raw_fd();
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if flags >= 0 {
+            unsafe { libc::fcntl(fd, libc::F_SETFL, flags & !libc::O_NONBLOCK) };
+        }
     }
     let mut bytes = Vec::new();
     match file.read_to_end(&mut bytes) {
@@ -375,6 +384,16 @@ mod tests {
             std::os::unix::fs::symlink(&rec_path, &link).unwrap();
             let e = data.acceptances().unwrap_err().to_string();
             assert!(e.contains("not a plain file"), "{e}");
+            fs::remove_file(&link).unwrap();
+
+            let fifo = data.records().join("fifo.json");
+            let c_fifo = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
+            assert_eq!(unsafe { libc::mkfifo(c_fifo.as_ptr(), 0o600) }, 0);
+            let e = record(&fifo, "fifo.json").unwrap_err().to_string();
+            assert!(e.contains("not a plain file"), "{e}");
+            let e = data.acceptances().unwrap_err().to_string();
+            assert!(e.contains("not a plain file"), "{e}");
+            fs::remove_file(&fifo).unwrap();
         }
     }
 }
