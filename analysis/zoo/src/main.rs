@@ -96,6 +96,9 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                 println!("language: {l}");
             }
             println!("class: {}", a.class);
+            if let Some(b) = &a.bundle {
+                println!("type: {} of {} revision {} for {}", a.model_type, b.model, b.revision, b.task);
+            }
             println!("license: {} ({})", a.license, a.license_terms);
             for t in &a.trained_on {
                 println!("trained on: {} under {} ({})", t.name, t.license, t.license_terms);

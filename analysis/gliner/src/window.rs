@@ -23,6 +23,12 @@ pub(crate) enum Refusal {
         max: usize,
         got: usize,
     },
+    /// The schema prompt alone leaves no room for a piece of text in
+    /// the encoder's sequence: fewer or shorter labels fit, no text does.
+    Prompt {
+        max: usize,
+        got: usize,
+    },
     Other(String),
 }
 
@@ -43,6 +49,7 @@ impl From<Refusal> for String {
         match r {
             Refusal::Tokens { got } => format!("max_tokens limit: {MAX_TOKENS}, got {got}"),
             Refusal::Sequence { max, got } => format!("max_sequence limit: {max}, got {got}"),
+            Refusal::Prompt { max, got } => format!("label prompt max_sequence limit: {max}, got {got}"),
             Refusal::Other(detail) => detail,
         }
     }

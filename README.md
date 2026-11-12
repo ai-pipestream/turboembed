@@ -390,7 +390,7 @@ Clients in other languages are generated from `server/proto`
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/scratch` | the model zoo, the pins of tested models, golden fixtures, fuzzing, and test scratch directories |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/scratch`, `analysis/sha256` | the model zoo, the pins of tested models, golden fixtures, fuzzing, test scratch directories, and the SHA-256, SHA-512 and HMAC-SHA-256 implementation every crate hashes with |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types
@@ -404,8 +404,16 @@ them: no regex crate (pattern work goes through `turbo-matcher`), no
 external NLP dependencies, every Rust file under 500 lines, model
 settings in the bundle rather than in code, and no result called working
 until it has run on the real device. CI runs formatting, clippy, an
-aarch64 check, four test shards, fuzzing, feature builds, reference
-conformance checks, and Windows lint and tests.
+aarch64 check, four test shards, fuzzing, feature builds and their
+tests, proto lint and breaking-change checks with the generated client
+stubs, the Java JNI binding, and reference conformance checks. The
+feature tests run with a temporary directory of their own, and the run
+fails when a test leaves anything there (`scripts/test-in-scratch.sh`;
+tests hold such files in `turbo_scratch::Scratch`). The CUDA and Level
+Zero clippy lane and the Metal clippy lane run for a pull request or
+the merge queue only when the change touches a path they build from
+(`scripts/backend-lanes.sh`), and in the daily run. The Windows lint, test, fuzz and core lanes run on
+pushes to main.
 
 ## Documentation
 

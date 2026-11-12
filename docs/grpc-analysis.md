@@ -203,7 +203,9 @@ over its limits fails that step the same way: `max_tokens` (384 tokens in
 one sentence) and `encoder max_sequence` (the schema prompt, the
 sentence's word pieces and the end token against the encoder's
 positions). A long document of ordinary sentences is not over either: it
-is read in windows. The other steps that run an encoder (the sentence,
+is read in windows. Labels whose prompt alone leaves no room for a piece
+of text fail the step as `label prompt max_sequence`: there the fix is
+fewer or shorter labels, and no shorter text helps. The other steps that run an encoder (the sentence,
 subword, sparse, vector and head steps, and `turbo:gliner` on a
 `HEAD_OPEN_SPAN` bundle) window their input and have no length limit of
 their own.

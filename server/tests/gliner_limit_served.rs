@@ -7,6 +7,8 @@
 //! 32 positions. The step never splits a sentence, so one sentence whose
 //! pieces do not fit beside the schema prompt is over the encoder's
 //! sequence, and one of more than 384 tokens is over the token limit.
+//! Labels that leave no room for any text are over a limit of their own
+//! (#2268), so a caller can tell fewer labels from a shorter sentence.
 
 #[path = "gliner_progressive/fixture.rs"]
 mod fixture;
@@ -47,6 +49,7 @@ async fn serve() -> (Server, AnalysisServiceClient<tonic::transport::Channel>) {
 async fn refused(
     client: &mut AnalysisServiceClient<tonic::transport::Channel>,
     text: String,
+    labels: Vec<String>,
 ) -> (AnalysisStepFailure, Vec<LayerError>) {
     let request = AnalyzePipelineRequest {
         doc_id: "gliner-limit".into(),
@@ -58,12 +61,7 @@ async fn refused(
             "turbo:subwords".into(),
             "turbo:gliner".into(),
         ],
-        open_span: Some(OpenSpanSchema {
-            labels: vec!["person".into(), "location".into()],
-            threshold: Some(0.0),
-            nested: false,
-            prompts: Vec::new(),
-        }),
+        open_span: Some(OpenSpanSchema { labels, threshold: Some(0.0), nested: false, prompts: Vec::new() }),
         ..Default::default()
     };
     let mut stream = client.analyze_document_progressive(request).await.unwrap().into_inner();
@@ -96,7 +94,7 @@ async fn a_sentence_over_a_gliner_limit_is_a_capacity_refusal_with_counts_only()
     // against the 384 one window holds.
     for (words, says) in [(40, "over its encoder max_sequence 32, got "), (400, "over its max_tokens 384, got 4")] {
         let text = format!("{secret} {}.", vec!["Ann met Bob"; words / 3].join(" "));
-        let (failure, failed) = refused(&mut client, text).await;
+        let (failure, failed) = refused(&mut client, text, vec!["person".into(), "location".into()]).await;
         let wire = failure.failure.as_ref().unwrap();
         assert_eq!(wire.turbo_code, TURBO_E_CAPACITY, "{wire:?}");
         assert!(wire.message.contains(says), "{}", wire.message);
@@ -109,5 +107,22 @@ async fn a_sentence_over_a_gliner_limit_is_a_capacity_refusal_with_counts_only()
         let shown = format!("{failure:?} {failed:?}");
         assert!(!shown.contains(secret) && !shown.contains("Ann"), "{shown}");
     }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn labels_that_leave_no_room_for_text_are_over_a_limit_of_their_own() {
+    let (server, mut client) = serve().await;
+    let labels: Vec<String> = (0..20).map(|i| format!("kind{i}")).collect();
+    let (failure, failed) = refused(&mut client, "Ann met Bob.".into(), labels).await;
+    let wire = failure.failure.as_ref().unwrap();
+    assert_eq!(wire.turbo_code, TURBO_E_CAPACITY, "{wire:?}");
+    assert!(wire.message.contains("over its label prompt max_sequence 32, got "), "{}", wire.message);
+    assert!(!wire.message.contains("encoder max_sequence"), "{}", wire.message);
+    for e in &failed {
+        assert_eq!((e.kind, e.turbo_code), (LayerErrorKind::Limit as i32, TURBO_E_CAPACITY), "{e:?}");
+    }
+    let shown = format!("{failure:?} {failed:?}");
+    assert!(!shown.contains("Ann") && !shown.contains("kind1"), "{shown}");
     server.stop().await;
 }

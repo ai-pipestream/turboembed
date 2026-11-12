@@ -9,5 +9,17 @@
 set -euo pipefail
 : "${TEST_SCRATCH:?set TEST_SCRATCH to an existing directory}"
 [ -d "$TEST_SCRATCH" ] || { echo "$TEST_SCRATCH is not a directory" >&2; exit 2; }
-"$@" --no-run
+# --no-run is a cargo option: it goes before a `--`, which starts the
+# test binaries' own arguments.
+build=()
+placed=0
+for arg in "$@"; do
+  if [ "$placed" = 0 ] && [ "$arg" = -- ]; then
+    build+=(--no-run)
+    placed=1
+  fi
+  build+=("$arg")
+done
+[ "$placed" = 1 ] || build+=(--no-run)
+"${build[@]}"
 TMPDIR="$TEST_SCRATCH" "$@"
