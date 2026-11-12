@@ -354,24 +354,33 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      # The feature tests below get a temp directory of their own, as the
+      # test shards do, and a later step fails when one left something
+      # there. scripts/test-in-scratch.sh builds first, so that only the
+      # tests write to it.
+      - name: the feature tests' temp directory
+        run: echo "TEST_SCRATCH=$(mktemp -d /tmp/turbo-features-scratch.XXXXXX)" >> "$GITHUB_ENV"
       # TurboQuant storage is behind a feature that brings in turbovec.
       - name: test (turboquant)
-        run: cargo test -p turbo-vector-index --features turboquant
+        run: scripts/test-in-scratch.sh cargo test -p turbo-vector-index --features turboquant
       # Reversible PII protection is behind a feature that brings in the
       # RustCrypto AES-GCM and FF1 crates.
       - name: test (pii reversible)
-        run: cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
+        run: >-
+          scripts/test-in-scratch.sh
+          cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
       - name: test (server pii-reversible)
         run: >-
+          scripts/test-in-scratch.sh
           cargo test -p turbo-kserve --features pii-reversible --lib
           --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest --test pii_encryption_keys
       - name: test (fuzz command)
-        run: cargo test -p turbo-goldens-tool --features fuzz
+        run: scripts/test-in-scratch.sh cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host
       # (trainer/cuda/shim.h), against the CPU encoder. A green step is
       # not a device run: docs/cuda.md, "The trainer's kernels".
       - name: test (trainer cuda-shim)
-        run: cargo test -p turbo-trainer --features cuda-shim --test encoder_cuda
+        run: scripts/test-in-scratch.sh cargo test -p turbo-trainer --features cuda-shim --test encoder_cuda
       # The core's own tests build it with its `internals` feature, and
       # the core is a cdylib as well, so its rlib has no hash in its name:
       # one run building both the core's tests and the crates that use the
@@ -411,7 +420,19 @@ jobs:
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo nextest run -p turbo --features npu
+        run: scripts/test-in-scratch.sh cargo nextest run -p turbo --features npu
+      - name: no feature test leaves files in the temp directory
+        run: |
+          left=$(ls -A "$TEST_SCRATCH")
+          if [ -n "$left" ]; then
+            echo "tests left these in the temp directory; hold them in turbo_scratch::Scratch:"
+            echo "$left"
+            exit 1
+          fi
+      - name: remove the feature tests' temp directory
+        if: always()
+        run: |
+          if [ -n "${TEST_SCRATCH:-}" ]; then rm -rf "$TEST_SCRATCH"; fi
       - name: a benchmark record end to end, from the pushed commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
