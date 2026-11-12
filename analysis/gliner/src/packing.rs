@@ -107,7 +107,7 @@ impl<'a> Packer<'a> {
         out.ids.push(c.separator_token);
         // Reserve an EOS and at least one document piece.
         if out.ids.len() + 2 > max_sequence {
-            return Err(Refusal::Sequence { max: max_sequence, got: out.ids.len() + 2 });
+            return Err(Refusal::Prompt { max: max_sequence, got: out.ids.len() + 2 });
         }
         Ok(out)
     }
