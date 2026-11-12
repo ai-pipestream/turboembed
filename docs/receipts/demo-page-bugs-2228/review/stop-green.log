@@ -1,0 +1,8 @@
+PASS Stop is off while nothing runs
+PASS Learn is running and Stop is on
+PASS Import started beside it (learn running true, import running true)
+PASS Stop is still on while a call is in flight
+PASS starting Import did not end Learn
+PASS Stop ends every call: both buttons are back and Stop is off (learn off false, import off false, stop off true)
+PASS no script error on the page
+7 of 7 pass

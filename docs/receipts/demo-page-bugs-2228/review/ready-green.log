@@ -1,0 +1,5 @@
+PASS the page opened while the server was live and still loading (turboembed 0.1.0 cpu: live, still loading)
+PASS while it loads, the Analyze tab has no model to offer (none)
+PASS once the server is ready the Analyze tab lists its models, with no reload (61 options: none|m1|m2|m3|m4|m5|m6|m7|m8|m9|m10|m11|m12|m13|m1)
+PASS and the Server tab lists the bundles (61 rows)
+4 of 4 pass

@@ -1,0 +1,25 @@
+FAIL opened with the server stopped: no select is left blank (xray-from, xray-to, drawer-view, search-rerank, vocab-format, vocab-seed, train-teacher)
+FAIL and no list or note shows a raw connection error (sources-note, card, models-static, error)
+FAIL the teachers box says the server is not reachable (unavailable: tcp connect error)
+FAIL the sources list says so too, and is not left loading (Loading the sources.)
+FAIL the teacher select says why it is empty
+PASS after the server starts: the notice is gone
+FAIL the sources list loaded with no reload (Loading the sources.)
+FAIL the sources note holds no old error
+PASS the teacher select lists the served model (tiny-bert-bundle (hidden 32, 30522 words))
+PASS the vocabulary formats are listed (9)
+PASS the rerank select offers no rerank
+PASS nothing still says the server is not reachable
+FAIL the server stopped under the open page: lists say so, none blank, none raw (sources-note, xray-from, xray-to, drawer-view)
+FAIL a demo that refuses for want of a token is not shown as unreachable (unauthenticated: a bearer token is required (the demo wants its token:)
+PASS with the token typed, the tabs fill (none|tiny-bert-bundle)
+PASS opened while the server loads (turboembed 0.1.0 cpu: live, still loading)
+FAIL once ready, the teacher select lists the models, with no reload (0 options)
+FAIL and so does the Teachers table (0 rows)
+FAIL Escape while Yes is running does not bring Delete back
+FAIL the delete was sent once (2 calls)
+FAIL Add on the Embed tab is off and counting while its call runs
+FAIL Accept is off and counting while its call runs
+FAIL Install is off and counting while its call runs
+PASS no script error on the page
+8 of 24 pass
