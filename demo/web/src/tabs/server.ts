@@ -15,6 +15,9 @@ import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 const EVERY_MS = 10_000;
 
 let checking: Promise<void> | null = null;
+// Whether the last answered check said ready: null before the first and
+// after a check nothing answered.
+let wasReady: boolean | null = null;
 
 /** Whether `e` says nothing answered, rather than an answer that refuses. */
 function unreached(e: unknown): boolean {
@@ -30,8 +33,14 @@ async function check(): Promise<void> {
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
     setReachable(true);
+    // A server that answers while it loads lists nothing yet. When it
+    // turns ready, read what it serves again, so every tab refills.
+    const becameReady = ready.ready && wasReady === false;
+    wasReady = ready.ready;
+    if (becameReady) void reload();
   } catch (e) {
     if (unreached(e)) {
+      wasReady = null;
       s.textContent = "server not reachable";
       s.className = "error status down";
       $("down-why").textContent = describe(e);

@@ -11,26 +11,33 @@ import { onBack, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
 import { put } from "../upload.js";
 
-let busy: AbortController | null = null;
+// Every call in flight: an import, a learn and downloads can run side
+// by side, each with its own signal, and Stop ends them all.
+const inFlight = new Set<AbortController>();
 
 const select = (id: string) => $(id) as HTMLSelectElement;
 
-function start(): AbortController {
-  busy?.abort();
-  busy = new AbortController();
-  return busy;
+/** Runs `job` with a signal of its own, which Stop aborts while the job runs. */
+async function stoppable(job: (signal: AbortSignal) => Promise<void>): Promise<void> {
+  const ac = new AbortController();
+  inFlight.add(ac);
+  try {
+    await job(ac.signal);
+  } finally {
+    inFlight.delete(ac);
+  }
 }
 
 export function stop(): void {
-  busy?.abort();
-  busy = null;
+  for (const ac of inFlight) ac.abort();
+  inFlight.clear();
 }
 
 const stopButton = () => $("vocab-stop") as HTMLButtonElement;
 
 function actions(id: string): HTMLElement {
   const get = el("button", { type: "button", text: "Download" });
-  get.addEventListener("click", () => void working(get, () => fetchArtifact(id), stopButton()));
+  get.addEventListener("click", () => void working(get, () => stoppable((signal) => fetchArtifact(id, signal)), stopButton()));
   const del = confirmed("Delete", `Delete ${id}?`, async () => {
     await vocabulary.deleteVocabularyArtifact({ artifactId: id });
     await list();
@@ -79,8 +86,7 @@ async function importDictionary(ev: Event): Promise<void> {
     say(note, "Pick a dictionary file.", "error");
     return;
   }
-  const ac = start();
-  await working(submitter(ev), async () => {
+  await working(submitter(ev), () => stoppable(async (signal) => {
     try {
       const sha = await sha256Blob(file, (done) => say(note, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
       say(note, `Uploading ${size(file.size)}\u2026`, "busy");
@@ -97,14 +103,14 @@ async function importDictionary(ev: Event): Promise<void> {
           },
           file,
         ),
-        ac.signal,
+        signal,
       );
       say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list();
     } catch (e) {
       say(note, describe(e), "error");
     }
-  }, stopButton());
+  }), stopButton());
 }
 
 async function learn(ev: Event): Promise<void> {
@@ -119,8 +125,7 @@ async function learn(ev: Event): Promise<void> {
     say(note, "Type documents (a blank line between) or pick files.", "error");
     return;
   }
-  const ac = start();
-  await working(submitter(ev), async () => {
+  await working(submitter(ev), () => stoppable(async (signal) => {
     try {
       const body = learnBody(
         {
@@ -136,23 +141,22 @@ async function learn(ev: Event): Promise<void> {
         docs,
       );
       say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
-      const v = await put(TurboVocabularyService.method.learnVocabulary, body, ac.signal);
+      const v = await put(TurboVocabularyService.method.learnVocabulary, body, signal);
       say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list();
     } catch (e) {
       say(note, describe(e), "error");
     }
-  }, stopButton());
+  }), stopButton());
 }
 
-async function fetchArtifact(id: string): Promise<void> {
+async function fetchArtifact(id: string, signal: AbortSignal): Promise<void> {
   const note = $("vocab-note");
-  const ac = start();
   const parts: Uint8Array<ArrayBuffer>[] = [];
   let name = id;
   let got = 0;
   try {
-    for await (const c of vocabulary.downloadVocabulary({ artifactId: id }, { signal: ac.signal })) {
+    for await (const c of vocabulary.downloadVocabulary({ artifactId: id }, { signal })) {
       const f = c.frame;
       if (f.case === "dictionary") name = `${f.value.name || id}.dictionary`;
       else if (f.case === "vocabulary") name = `${id}.vocabulary`;

@@ -6,11 +6,21 @@ import { el, elapsed } from "./dom.js";
 import { describe } from "./rpc.js";
 
 const running = new WeakSet<HTMLButtonElement>();
+// How many jobs each Stop button stands for: one button may serve
+// several actions, and it stays on until the last of them ends.
+const stoppable = new WeakMap<HTMLButtonElement, number>();
+
+function hold(stop: HTMLButtonElement, by: number): void {
+  const n = Math.max(0, (stoppable.get(stop) ?? 0) + by);
+  stoppable.set(stop, n);
+  stop.disabled = n === 0;
+}
 
 /**
  * Runs `job` with `button` off and showing the elapsed time, and `stop`
- * (when given) on. Both go back when the job ends, however it ends. A
- * second call while the first runs does nothing.
+ * (when given) on. Both go back when the job ends, however it ends,
+ * except that a `stop` shared with another job still running stays on.
+ * A second call for the same button while the first runs does nothing.
  */
 export async function busy(button: HTMLButtonElement, job: () => Promise<void>, stop?: HTMLButtonElement): Promise<void> {
   if (running.has(button)) return;
@@ -20,7 +30,7 @@ export async function busy(button: HTMLButtonElement, job: () => Promise<void>, 
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
   button.append(clock);
-  if (stop) stop.disabled = false;
+  if (stop) hold(stop, 1);
   const tick = setInterval(() => (clock.textContent = ` ${elapsed(performance.now() - t0)}`), 100);
   try {
     await job();
@@ -30,7 +40,7 @@ export async function busy(button: HTMLButtonElement, job: () => Promise<void>, 
     button.disabled = false;
     button.removeAttribute("aria-busy");
     running.delete(button);
-    if (stop) stop.disabled = true;
+    if (stop) hold(stop, -1);
   }
 }
 

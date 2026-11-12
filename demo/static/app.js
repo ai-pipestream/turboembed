@@ -915,11 +915,11 @@ var BinaryWriter = class {
     this.ensureCapacity(len * 3 + 5);
     const lenPrefixSizeGuess = varint32Size(len);
     const buf = this.buffer;
-    const start3 = this.pos;
-    const { written } = this.encodeUtf8Into(value, buf.subarray(start3 + lenPrefixSizeGuess));
+    const start2 = this.pos;
+    const { written } = this.encodeUtf8Into(value, buf.subarray(start2 + lenPrefixSizeGuess));
     const lenPrefixSize = varint32Size(written);
     if (lenPrefixSize != lenPrefixSizeGuess) {
-      buf.copyWithin(start3 + lenPrefixSize, start3 + lenPrefixSizeGuess, start3 + lenPrefixSizeGuess + written);
+      buf.copyWithin(start2 + lenPrefixSize, start2 + lenPrefixSizeGuess, start2 + lenPrefixSizeGuess + written);
     }
     this.uint32(written);
     this.pos += written;
@@ -1090,9 +1090,9 @@ var BinaryReader = class {
    * that do not fit in uint32 are rejected.
    */
   tag() {
-    const start3 = this.pos;
+    const start2 = this.pos;
     const tag = this.uint32();
-    const bytesRead = this.pos - start3;
+    const bytesRead = this.pos - start2;
     if (bytesRead > 5 || bytesRead == 5 && this.buf[this.pos - 1] > 15) {
       throw new Error("illegal tag: varint overflows uint32");
     }
@@ -1112,7 +1112,7 @@ var BinaryReader = class {
    * this method throws.
    */
   skip(wireType, fieldNo, recursionLimit = 100) {
-    let start3 = this.pos;
+    let start2 = this.pos;
     switch (wireType) {
       case WireType.Varint:
         while (this.buf[this.pos++] & 128) {
@@ -1147,7 +1147,7 @@ var BinaryReader = class {
         throw new Error("cant skip wire type " + wireType);
     }
     this.assertBounds();
-    return this.buf.subarray(start3, this.pos);
+    return this.buf.subarray(start2, this.pos);
   }
   /**
    * Throws error if position in byte array is out of range.
@@ -1247,10 +1247,10 @@ var BinaryReader = class {
    * Read a `bytes` field, length-delimited arbitrary data.
    */
   bytes() {
-    let len = this.uint32(), start3 = this.pos;
+    let len = this.uint32(), start2 = this.pos;
     this.pos += len;
     this.assertBounds();
-    return this.buf.subarray(start3, start3 + len);
+    return this.buf.subarray(start2, start2 + len);
   }
   /**
    * Read a `string` field, length-delimited data converted to UTF-8 text. If
@@ -7032,6 +7032,12 @@ function refusedWhy(code) {
 
 // demo/web/src/act.ts
 var running = /* @__PURE__ */ new WeakSet();
+var stoppable = /* @__PURE__ */ new WeakMap();
+function hold(stop6, by) {
+  const n = Math.max(0, (stoppable.get(stop6) ?? 0) + by);
+  stoppable.set(stop6, n);
+  stop6.disabled = n === 0;
+}
 async function busy(button, job, stop6) {
   if (running.has(button)) return;
   running.add(button);
@@ -7040,7 +7046,7 @@ async function busy(button, job, stop6) {
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
   button.append(clock);
-  if (stop6) stop6.disabled = false;
+  if (stop6) hold(stop6, 1);
   const tick = setInterval(() => clock.textContent = ` ${elapsed(performance.now() - t0)}`, 100);
   try {
     await job();
@@ -7050,7 +7056,7 @@ async function busy(button, job, stop6) {
     button.disabled = false;
     button.removeAttribute("aria-busy");
     running.delete(button);
-    if (stop6) stop6.disabled = true;
+    if (stop6) hold(stop6, -1);
   }
 }
 function submitter(ev) {
@@ -9368,6 +9374,7 @@ function init10() {
 // demo/web/src/tabs/server.ts
 var EVERY_MS = 1e4;
 var checking = null;
+var wasReady = null;
 function unreached(e) {
   const c = ConnectError.from(e).code;
   return c !== Code.Unauthenticated && c !== Code.PermissionDenied;
@@ -9380,8 +9387,12 @@ async function check() {
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
     setReachable(true);
+    const becameReady = ready.ready && wasReady === false;
+    wasReady = ready.ready;
+    if (becameReady) void reload();
   } catch (e) {
     if (unreached(e)) {
+      wasReady = null;
       s.textContent = "server not reachable";
       s.className = "error status down";
       $("down-why").textContent = describe(e);
@@ -9481,21 +9492,25 @@ function init11() {
 }
 
 // demo/web/src/tabs/vocabulary.ts
-var busy2 = null;
+var inFlight = /* @__PURE__ */ new Set();
 var select4 = (id) => $(id);
-function start() {
-  busy2?.abort();
-  busy2 = new AbortController();
-  return busy2;
+async function stoppable2(job) {
+  const ac = new AbortController();
+  inFlight.add(ac);
+  try {
+    await job(ac.signal);
+  } finally {
+    inFlight.delete(ac);
+  }
 }
 function stop5() {
-  busy2?.abort();
-  busy2 = null;
+  for (const ac of inFlight) ac.abort();
+  inFlight.clear();
 }
 var stopButton = () => $("vocab-stop");
 function actions(id) {
   const get = el("button", { type: "button", text: "Download" });
-  get.addEventListener("click", () => void busy(get, () => fetchArtifact(id), stopButton()));
+  get.addEventListener("click", () => void busy(get, () => stoppable2((signal) => fetchArtifact(id, signal)), stopButton()));
   const del = confirmed("Delete", `Delete ${id}?`, async () => {
     await vocabulary.deleteVocabularyArtifact({ artifactId: id });
     await list4();
@@ -9538,8 +9553,7 @@ async function importDictionary(ev) {
     say(note5, "Pick a dictionary file.", "error");
     return;
   }
-  const ac = start();
-  await busy(submitter(ev), async () => {
+  await busy(submitter(ev), () => stoppable2(async (signal) => {
     try {
       const sha = await sha256Blob(file, (done) => say(note5, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
       say(note5, `Uploading ${size(file.size)}\u2026`, "busy");
@@ -9556,14 +9570,14 @@ async function importDictionary(ev) {
           },
           file
         ),
-        ac.signal
+        signal
       );
       say(note5, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list4();
     } catch (e) {
       say(note5, describe(e), "error");
     }
-  }, stopButton());
+  }), stopButton());
 }
 async function learn(ev) {
   ev.preventDefault();
@@ -9574,8 +9588,7 @@ async function learn(ev) {
     say(note5, "Type documents (a blank line between) or pick files.", "error");
     return;
   }
-  const ac = start();
-  await busy(submitter(ev), async () => {
+  await busy(submitter(ev), () => stoppable2(async (signal) => {
     try {
       const body2 = learnBody(
         {
@@ -9591,22 +9604,21 @@ async function learn(ev) {
         docs
       );
       say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-      const v = await put(TurboVocabularyService.method.learnVocabulary, body2, ac.signal);
+      const v = await put(TurboVocabularyService.method.learnVocabulary, body2, signal);
       say(note5, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list4();
     } catch (e) {
       say(note5, describe(e), "error");
     }
-  }, stopButton());
+  }), stopButton());
 }
-async function fetchArtifact(id) {
+async function fetchArtifact(id, signal) {
   const note5 = $("vocab-note");
-  const ac = start();
   const parts = [];
   let name = id;
   let got = 0;
   try {
-    for await (const c of vocabulary.downloadVocabulary({ artifactId: id }, { signal: ac.signal })) {
+    for await (const c of vocabulary.downloadVocabulary({ artifactId: id }, { signal })) {
       const f = c.frame;
       if (f.case === "dictionary") name = `${f.value.name || id}.dictionary`;
       else if (f.case === "vocabulary") name = `${id}.vocabulary`;
@@ -9679,12 +9691,12 @@ var Cursor = class {
     return v;
   }
   str() {
-    const start3 = this.at;
+    const start2 = this.at;
     const b = this.take(this.u32());
     try {
       return this.utf8.decode(b);
     } catch {
-      throw new WireError("a string that is not UTF-8", start3);
+      throw new WireError("a string that is not UTF-8", start2);
     }
   }
 };
@@ -10007,7 +10019,7 @@ function go(name) {
   if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);
   show2(name);
 }
-function start2() {
+function start() {
   const tabs = [...document.querySelectorAll("nav.tabs button")];
   tabs.forEach((b, i) => {
     b.addEventListener("click", () => go(b.dataset.tab ?? "embed"));
@@ -10038,4 +10050,4 @@ function start2() {
   if (location.hash !== `#${first}`) history.replaceState(null, "", `#${first}`);
   show2(first);
 }
-start2();
+start();

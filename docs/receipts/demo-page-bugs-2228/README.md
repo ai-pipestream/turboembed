@@ -24,3 +24,24 @@ under the open page, and prints one line per check. Browser tests for
 | `confirm-delete-index.png` | After one click on Delete: "Delete demo?" with Yes and Cancel; the index is still there. |
 | `refused-delete-beside-row.png` | A delete refused by a demo with no `--allow`: the reason is beside the row. |
 | `confirm-unload.png` | After one click on Unload on the Server tab. |
+
+## Two fixes after review (`review/`)
+
+Two faults found in review of this change, each with its own driving
+script, run against the page before the fix (red) and after (green).
+
+- A page opened while the server was live and still loading stayed
+  empty after the server turned ready. The check starts `turbo-kserve`
+  with 60 names of `testdata/tiny-bert-bundle` at 8 sessions each, which
+  takes about ten seconds to load, opens the page at once and waits for
+  the header to say ready. `ready-red.log`: 2 of 4 pass, the Analyze
+  model list and the Server tab stay empty. `ready-green.log`: all 4
+  pass. `loading.png` and `ready.png` are the same page a few seconds
+  apart, with no reload between them.
+- Vocabulary's Import, Learn and Download shared one cancel signal and
+  one Stop button, so starting a second ended the first and turned Stop
+  off under the call still running. The check uploads a 4 MB file to
+  Learn and then to Import over a link held to 48 KiB a second.
+  `stop-red.log`: 4 of 7 pass. `stop-green.log`: all 7 pass: both run
+  side by side, Stop stays on, and one press ends both.
+  `two-running.png` shows both buttons counting with Stop on.
