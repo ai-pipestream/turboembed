@@ -52,11 +52,20 @@ impl OciRegistry {
     }
 
     /// As [`OciRegistry::new`], with every request for the registry
-    /// `host` sent to `base` (`scheme://host[:port]`) in its place. A
-    /// plain `http://` base sends tokens in clear text and is only for a
-    /// stand-in on loopback in tests.
-    pub fn with(host: &str, base: &str) -> OciRegistry {
-        OciRegistry::build(Some((format!("https://{host}"), base.trim_end_matches('/').to_owned())))
+    /// `host` sent to `base` in its place: `https://host[:port]`, or
+    /// `http://` on this machine alone (`127.0.0.1` or `localhost` with a
+    /// port), where a token crosses no network. Any other base is
+    /// refused.
+    pub fn with(host: &str, base: &str) -> Result<OciRegistry, String> {
+        let base = base.trim_end_matches('/');
+        let local = ["http://127.0.0.1:", "http://localhost:"].iter().any(|l| {
+            base.strip_prefix(l).is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+        });
+        let named = base.strip_prefix("https://").is_some_and(|h| !h.is_empty() && !h.contains(['/', '?', '#', '@']));
+        if !(local || named) {
+            return Err(format!("{base}: a registry's address is https://host[:port], or http:// on this machine"));
+        }
+        Ok(OciRegistry::build(Some((format!("https://{host}"), base.to_owned()))))
     }
 
     fn build(stand_in: Option<(String, String)>) -> OciRegistry {
@@ -235,7 +244,27 @@ fn encode(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::token_request;
+    use super::{OciRegistry, token_request};
+
+    #[test]
+    fn a_registry_is_asked_in_clear_text_on_this_machine_alone() {
+        for base in ["https://mirror.example.org", "https://mirror.example.org:5000/", "http://127.0.0.1:5000"] {
+            assert!(OciRegistry::with("registry.example.org", base).is_ok(), "{base}");
+        }
+        for base in [
+            "http://mirror.example.org",
+            "http://mirror.example.org:5000",
+            "http://127.0.0.1.example.org:5000",
+            "http://127.0.0.1:5000@mirror.example.org",
+            "http://localhost",
+            "https://mirror.example.org/path",
+            "ftp://127.0.0.1:21",
+            "",
+        ] {
+            let e = OciRegistry::with("registry.example.org", base).err().expect(base);
+            assert!(e.contains("or http:// on this machine"), "{base}: {e}");
+        }
+    }
 
     #[test]
     fn a_bearer_challenge_names_the_token_request() {

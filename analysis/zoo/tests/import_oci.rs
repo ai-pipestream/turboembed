@@ -175,7 +175,7 @@ fn serve(registry: Registry) -> (OciRegistry, Arc<Registry>) {
             conn.write_all(&body).unwrap();
         }
     });
-    (OciRegistry::with(HOST, &base), registry)
+    (OciRegistry::with(HOST, &base).unwrap(), registry)
 }
 
 fn described() -> Described {

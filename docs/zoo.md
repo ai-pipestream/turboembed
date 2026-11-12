@@ -385,7 +385,9 @@ Most registries ask for such a
 token for public repositories too, so a file at a blob address is
 fetched through it: `turbo-zoo fetch` asks the address plainly and then
 through `OciRegistry`. `OciRegistry::with` sends a registry's requests
-to another address, for a stand-in on loopback in tests.
+to another address: an `https://` one, such as a pull-through mirror,
+or `http://` on this machine alone (`127.0.0.1` or `localhost`), and
+refuses any other.
 `analysis/zoo/tests/import_oci.rs` runs the importer against an
 in-process registry that issues the challenge, the token and the
 redirect.
