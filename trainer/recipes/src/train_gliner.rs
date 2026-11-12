@@ -29,10 +29,19 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let package = PathBuf::from(a.required("--package")?);
     let hold_out_arg = a.required("--hold-out")?;
     let balance = a.flag("--balance");
-    let boundaries = a.flag("--train-boundaries");
-    let train_prompt = a.flag("--train-prompt");
-    let train_recurrent = a.flag("--train-recurrent");
-    let train_projection = a.flag("--train-projection");
+    let lora_rank: usize = a.parsed("--lora", 0)?;
+    let lora_alpha = a.value("--lora-alpha")?;
+    if lora_rank == 0 && lora_alpha.is_some() {
+        return Err(Error("--lora-alpha requires --lora".into()));
+    }
+    let lora_alpha: f64 = match lora_alpha {
+        Some(value) => value.parse().map_err(|_| Error(format!("--lora-alpha {value:?} is not a valid value")))?,
+        None => 2.0 * lora_rank as f64,
+    };
+    let boundaries = a.flag("--train-boundaries") || lora_rank > 0;
+    let train_prompt = a.flag("--train-prompt") || lora_rank > 0;
+    let train_recurrent = a.flag("--train-recurrent") || lora_rank > 0;
+    let train_projection = a.flag("--train-projection") || lora_rank > 0;
     let guidelines = a.value("--guidelines")?.map(read_guidelines).transpose()?;
     let max_train: usize = a.parsed("--max-train", 0)?;
     let anchor: f32 = a.parsed("--anchor", 0.0)?;
@@ -41,6 +50,14 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         return Err(Error("train-gliner takes neither token-tagging adapters nor CRF".into()));
     }
     let c = head.config;
+    let lora_lr = a.value("--lora-lr")?;
+    if lora_rank == 0 && lora_lr.is_some() {
+        return Err(Error("--lora-lr requires --lora".into()));
+    }
+    let lora_lr: f64 = match lora_lr {
+        Some(value) => value.parse().map_err(|_| Error(format!("--lora-lr {value:?} is not a valid value")))?,
+        None => c.lr,
+    };
     let out = OutDir::claim(&a.required("--out")?)?;
     let commit = commit(a.value("--commit")?);
     a.done()?;
@@ -89,7 +106,19 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let read = started.elapsed().as_secs_f64();
 
     let original_heads = turbo_gliner::package::read(&package.join("heads.safetensors"), 256 << 20).map_err(Error)?;
+    let original_encoder = (lora_rank > 0)
+        .then(|| {
+            turbo_gliner::package::read(
+                &package.join("encoder/weights.safetensors"),
+                turbo::deberta::package::MAX_WEIGHT_BYTES,
+            )
+        })
+        .transpose()
+        .map_err(Error)?;
     let mut model = Manifest::load(&package).map_err(Error)?;
+    if let Some(original) = original_encoder.as_deref() {
+        model.enable_lora(original, lora_rank, lora_alpha, c.seed).map_err(Error)?;
+    }
     let mut trainer = OutputTrainer::load_with_heads(
         model.config(),
         &original_heads,
@@ -111,11 +140,22 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         ..Settings::default()
     };
     let mut optimizer = output_optimizer(settings, &trainer).map_err(Error)?;
+    let mut lora_optimizer = if lora_rank > 0 {
+        let grads = model.lora_zero_grads().map_err(Error)?;
+        let lens: Vec<usize> = grads.iter().map(Vec::len).collect();
+        Some(
+            turbo_trainer::adamw::AdamW::new(Settings { lr: lora_lr, ..settings }, &lens)
+                .map_err(|e| Error(e.message))?,
+        )
+    } else {
+        None
+    };
     let threshold = 0.8;
     let (initial, initial_eval) =
         score(&model, &combined, &all_types, &seen_types, &hold_out, threshold, guidelines.as_ref())?;
     let mut best_score = initial_eval.model.score();
     let mut best_heads = original_heads.clone();
+    let mut best_encoder = original_encoder.clone().unwrap_or_default();
     let mut best_predictions = initial;
     let mut best_epoch = 0;
     let mut dev = vec![best_score];
@@ -141,7 +181,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
                 let mut results = Vec::with_capacity(batch.len());
                 for lane in batch.chunks(lanes) {
                     if lane.len() == 1 {
-                        results.push(sentence_gradients(
+                        results.push(crate::train_gliner_lora::sentence(
                             &model,
                             &trainer,
                             &corpus.splits.train[lane[0]],
@@ -159,7 +199,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
                             let active = &active;
                             let guidelines = guidelines.as_ref();
                             handles.push(scope.spawn(move || {
-                                sentence_gradients(
+                                crate::train_gliner_lora::sentence(
                                     model,
                                     trainer,
                                     &corpus.splits.train[index],
@@ -179,16 +219,28 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
                     results.append(&mut computed);
                 }
                 let mut grads = trainer.zero_grads();
-                for (loss, local) in results {
+                let mut lora_grads =
+                    if lora_optimizer.is_some() { Some(model.lora_zero_grads().map_err(Error)?) } else { None };
+                for (loss, local, lora) in results {
                     epoch_loss += loss;
                     for (sum, part) in grads.iter_mut().zip(local) {
                         for (a, b) in sum.iter_mut().zip(part) {
                             *a += b;
                         }
                     }
+                    if let (Some(sum), Some(part)) = (lora_grads.as_mut(), lora) {
+                        for (sum, part) in sum.iter_mut().zip(part) {
+                            for (a, b) in sum.iter_mut().zip(part) {
+                                *a += b;
+                            }
+                        }
+                    }
                 }
                 trainer.step(&mut optimizer, &mut grads).map_err(Error)?;
                 model.apply_output(&trainer).map_err(Error)?;
+                if let (Some(optimizer), Some(grads)) = (lora_optimizer.as_mut(), lora_grads.as_mut()) {
+                    model.lora_step(optimizer, grads).map_err(Error)?;
+                }
                 completed += 1;
                 if completed % 100 == 0 {
                     eprintln!("epoch {} steps {completed}/{total}", epoch + 1);
@@ -206,6 +258,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         if score > best_score {
             best_score = score;
             best_heads = trainer.write_heads(&original_heads).map_err(Error)?;
+            if let Some(original) = original_encoder.as_deref() {
+                best_encoder = model.write_lora(original).map_err(Error)?;
+            }
             best_predictions = predictions;
             best_epoch = (epoch + 1) as usize;
         }
@@ -220,7 +275,11 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     }
 
     let tuned = out.path.join("model");
-    Manifest::write_tuned(&package, &tuned, &best_heads).map_err(Error)?;
+    if lora_rank > 0 {
+        Manifest::write_tuned_encoder(&package, &tuned, &best_heads, &best_encoder).map_err(Error)?;
+    } else {
+        Manifest::write_tuned(&package, &tuned, &best_heads).map_err(Error)?;
+    }
     let manifest_bytes = std::fs::read(tuned.join("gliner.json")).map_err(|e| Error(e.to_string()))?;
     let manifest_record = file_record("model/gliner.json", &manifest_bytes);
     let prediction_bytes =
@@ -228,7 +287,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
     let identity = model.identity();
     let peer_name = format!(
-        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent};projection={train_projection}",
+        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent};projection={train_projection};lora={lora_rank};lora_alpha={lora_alpha};lora_lr={lora_lr}",
         identity.id, identity.revision, manifest_record.sha256
     );
     let evaluation = score_parts(&combined, &all_types, &seen_types, &hold_out, &best_predictions)?;
@@ -263,6 +322,10 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         against: None,
         by_language: Vec::new(),
     };
+    let mut outputs = vec![manifest_record, prediction_record.clone()];
+    if lora_rank > 0 {
+        outputs.push(file_record("model/encoder/weights.safetensors", &best_encoder));
+    }
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
@@ -295,7 +358,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         training: Some(TrainingRecord { train_loss, dev, best_epoch, epoch_seconds }),
         eval,
         timing_s: Timing { read, train: started.elapsed().as_secs_f64(), ..Timing::default() },
-        outputs: vec![manifest_record, prediction_record],
+        outputs,
     };
     finish(out, receipt)
 }
@@ -337,27 +400,7 @@ fn score_parts(
     evaluate_predictions(corpus, all, seen, held, &predictions.all, Some(&predictions.held), "dev", 0, 1)
 }
 
-fn sentence_gradients(
-    model: &turbo_gliner::Model,
-    trainer: &OutputTrainer,
-    sentence: &Sentence,
-    labels: &[String],
-    threshold: f32,
-    guidelines: Option<&BTreeMap<String, String>>,
-) -> Result<(f64, Vec<Vec<f32>>)> {
-    let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();
-    let mut grads = trainer.zero_grads();
-    let mut loss = 0.0;
-    for batch in gliner_eval::batches(model, &words, labels, threshold, guidelines)? {
-        let schema = gliner_eval::schema(&batch, threshold, guidelines)?;
-        let (input, candidates) = model.training_input(&words, &schema).map_err(Error)?;
-        let gold = gold_spans(sentence, &batch)?;
-        loss += trainer.gradients(&input, &candidates, &gold, &mut grads).map_err(Error)?;
-    }
-    Ok((loss, grads))
-}
-
-fn gold_spans(sentence: &Sentence, labels: &[String]) -> Result<Vec<(usize, usize, usize)>> {
+pub(super) fn gold_spans(sentence: &Sentence, labels: &[String]) -> Result<Vec<(usize, usize, usize)>> {
     let mut out = Vec::new();
     let mut open: Option<(usize, usize)> = None;
     for (at, tag) in sentence.labels.iter().map(String::as_str).chain(["O"]).enumerate() {
@@ -380,75 +423,5 @@ fn file_record(path: &str, bytes: &[u8]) -> FileRecord {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[ignore = "loads the real small-v2.5 package and MultiCoNER corpus"]
-    fn long_guidelines_train_in_batches_with_exclusive_gold_spans() {
-        let root = std::env::var_os("GLINER_V2_5_PACKAGE").expect("GLINER_V2_5_PACKAGE");
-        let dir = std::env::var_os("TURBO_MULTICONER_DIR").expect("TURBO_MULTICONER_DIR");
-        let corpus = turbo_trainer_recipes::multiconer::read(Path::new(&dir), true).unwrap();
-        let (labels, _) = type_schema(std::slice::from_ref(&corpus)).unwrap();
-        let held = ["location", "VisualWork", "Scientist", "Clothing"];
-        let labels: Vec<String> = labels.into_iter().filter(|x| !held.contains(&x.as_str())).collect();
-        let sentence = corpus
-            .splits
-            .train
-            .iter()
-            .find(|s| s.labels.iter().any(|tag| tag.strip_prefix("B-").is_some_and(|x| labels.iter().any(|y| y == x))))
-            .expect("a sentence with a seen entity");
-        let model = Manifest::load(&turbo_pins::require(&root)).unwrap();
-        let guidelines = read_guidelines(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("records/open-span-guidelines-v1.json").display().to_string(),
-        )
-        .unwrap();
-        let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();
-        assert!(gliner_eval::batches(&model, &words, &labels, 0.8, Some(&guidelines)).unwrap().len() > 1);
-        let trainer = OutputTrainer::load(
-            model.config(),
-            &std::fs::read(turbo_pins::require(&root).join("heads.safetensors")).unwrap(),
-        )
-        .unwrap();
-        let (loss, grads) = sentence_gradients(&model, &trainer, sentence, &labels, 0.8, Some(&guidelines)).unwrap();
-        assert!(loss > 0.0);
-        assert!(grads[0].iter().any(|&x| x != 0.0));
-    }
-
-    #[test]
-    #[ignore = "loads the real NuNER package and WNUT corpus"]
-    fn nuner_linear_output_step_serializes_and_reloads() {
-        let root = std::env::var_os("GLINER_NUNER_PACKAGE").expect("GLINER_NUNER_PACKAGE");
-        let dir = std::env::var_os("TURBO_WNUT_DIR").expect("TURBO_WNUT_DIR");
-        let corpus = turbo_trainer_recipes::wnut17::read(Path::new(&dir), true).unwrap();
-        let labels: Vec<String> =
-            turbo_trainer_recipes::wnut17::TYPES.iter().filter(|&&x| x != "location").map(|&x| x.to_owned()).collect();
-        let sentence = corpus
-            .splits
-            .train
-            .iter()
-            .find(|s| s.labels.iter().any(|tag| tag.strip_prefix("B-").is_some_and(|x| labels.iter().any(|y| y == x))))
-            .expect("a sentence with a seen entity");
-        let original = std::fs::read(turbo_pins::require(&root).join("heads.safetensors")).unwrap();
-        let mut model = Manifest::load(&turbo_pins::require(&root)).unwrap();
-        let mut trainer = OutputTrainer::load(model.config(), &original).unwrap();
-        assert_eq!(trainer.params().len(), 2);
-        let (_, mut grads) = sentence_gradients(&model, &trainer, sentence, &labels, 0.8, None).unwrap();
-        let mut optimizer = output_optimizer(Settings { lr: 1e-6, total: 1, ..Settings::default() }, &trainer).unwrap();
-        trainer.step(&mut optimizer, &mut grads).unwrap();
-        model.apply_output(&trainer).unwrap();
-        let heads = trainer.write_heads(&original).unwrap();
-        let out = turbo_scratch::Scratch::at(
-            std::env::temp_dir().join(format!("turbo-nuner-linear-test-{}", std::process::id())),
-        );
-        Manifest::write_tuned(&turbo_pins::require(&root), &out, &heads).unwrap();
-        let reloaded = Manifest::load(&out).unwrap();
-        let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();
-        let schema = gliner_eval::schema(&labels, 0.8, None).unwrap();
-        assert_eq!(
-            model.training_input(&words, &schema).unwrap().1,
-            reloaded.training_input(&words, &schema).unwrap().1
-        );
-        let _ = std::fs::remove_dir_all(&out);
-    }
-}
+#[path = "train_gliner_tests.rs"]
+mod tests;
