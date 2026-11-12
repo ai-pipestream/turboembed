@@ -7,6 +7,7 @@ import * as analyze from "./tabs/analyze.js";
 import * as collections from "./tabs/collections.js";
 import * as drawer from "./tabs/drawer.js";
 import * as embed from "./tabs/embed.js";
+import * as hints from "./tabs/hints.js";
 import * as models from "./tabs/models.js";
 import * as projection from "./tabs/projection.js";
 import * as searchTab from "./tabs/search.js";
@@ -15,6 +16,7 @@ import * as server from "./tabs/server.js";
 import * as vocabularyTab from "./tabs/vocabulary.js";
 import * as wire from "./tabs/wire.js";
 import * as xray from "./tabs/xray.js";
+import * as keep from "./keep.js";
 import { permits } from "./state.js";
 
 const stops: Record<string, () => void> = {
@@ -58,6 +60,9 @@ async function start(): Promise<void> {
   });
   // First what the demo forwards, so no control is drawn live and then turned off.
   await permits();
+  // What was typed before a reload, before any tab reads its inputs.
+  keep.init();
+  hints.init();
   server.init();
   embed.init();
   semantic.init();

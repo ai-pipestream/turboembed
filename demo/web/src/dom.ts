@@ -1,6 +1,7 @@
 // DOM helpers. Text is always set as text, never as markup.
 
 import type { Explained } from "./errors.js";
+import { restore } from "./keep.js";
 
 export type Child = Node | string | null | undefined | false | Child[];
 
@@ -65,6 +66,8 @@ export function options(select: HTMLSelectElement, values: string[], labels?: st
   if (!values.length && none) return void select.replaceChildren(el("option", { value: "", text: none }));
   select.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
   if (values.includes(keep)) select.value = keep;
+  // What the visitor picked before a reload wins, when it is still offered.
+  restore(select);
 }
 
 /** The children that show a failure: its sentence, then its details behind a toggle. */
@@ -86,6 +89,25 @@ export function say(box: HTMLElement, what: string | Explained, kind: "" | "busy
   // A call the visitor stopped is said plainly, not as an error.
   box.className = what.text === "Cancelled." ? "note" : "note error";
   box.hidden = false;
+}
+
+/**
+ * A status line for an upload: a bar and "3.1 MiB of 12.0 MiB (26%)"
+ * while the body goes out, then that the server is working on it.
+ * Returns the function to hand to `put`.
+ */
+export function sending(box: HTMLElement, what: string): (sent: number, total: number) => void {
+  const bar = el("progress", { max: "1", value: "0", "aria-label": "Upload progress" }) as HTMLProgressElement;
+  const line = el("span", {});
+  box.replaceChildren(line, bar);
+  box.className = "note busy upload";
+  box.hidden = false;
+  return (sent, total) => {
+    bar.max = Math.max(1, total);
+    bar.value = sent;
+    const share = total ? Math.floor((100 * sent) / total) : 100;
+    line.textContent = sent < total ? `Uploading ${what}: ${size(sent)} of ${size(total)} (${share}%)` : `Sent ${size(total)} (${what}). The server is working on it\u2026`;
+  };
 }
 
 /** A failure from `explain` as a line of its own. */
@@ -119,6 +141,11 @@ export function reveal(box: Element | null): () => void {
   return () => {
     if (!moved) show();
   };
+}
+
+/** A count with its noun: `1 document`, `3 documents`. */
+export function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /** Bytes as a short human size. */

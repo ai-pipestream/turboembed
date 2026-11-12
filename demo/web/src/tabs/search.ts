@@ -4,7 +4,8 @@
 
 import { DistanceMetric, NormalizationMode, TurboSearchService, VectorStorageKind, type SearchResponse } from "../gen/turbo_search_pb.js";
 import { busy, confirmed, submitter } from "../act.js";
-import { $, el, failed, heatKey, input, options, reveal, say, size, table } from "../dom.js";
+import { $, count, el, failed, heatKey, input, options, reveal, say, sending, table } from "../dom.js";
+import { take } from "./take.js";
 import { indexBody, type Text } from "../frames.js";
 import { pieces, unplaced, type Match } from "../highlight.js";
 import { lock, off, onChange } from "../permit.js";
@@ -109,8 +110,7 @@ async function addDocuments(): Promise<void> {
     indexing = ac;
     try {
       const body = indexBody(index, docs);
-      say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
-      const r = await put(TurboSearchService.method.indexDocuments, body, ac.signal);
+      const r = await put(TurboSearchService.method.indexDocuments, body, ac.signal, sending(note, count(docs.length, "document")));
       say(note, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
       await list();
     } catch (e) {
@@ -118,7 +118,7 @@ async function addDocuments(): Promise<void> {
     } finally {
       if (indexing === ac) indexing = null;
     }
-  });
+  }, $("search-add-stop") as HTMLButtonElement);
 }
 
 function heatView(r: SearchResponse): HTMLElement {
@@ -193,6 +193,12 @@ async function runSearch(ev: Event): Promise<void> {
         el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
         key ?? "",
         ...hits,
+        r.hits.length
+          ? take(`Search hits ${r.resolvedIndex}`, () => [
+              ["rank", "document", "chunk", "score", "text", "signals"],
+              ...r.hits.map((h, i) => [String(i + 1), h.docId, h.chunkId, h.score.toFixed(6), h.text, Object.entries(h.attribution?.signalScores ?? {}).map(([k, v]) => `${k} ${v.toFixed(6)}`).join("; ")]),
+            ])
+          : "",
         r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
         r.documentHeat.length ? heatKey("One cell per chunk, in reading order. Stronger colour is a higher score, relative to that document's best (max).") : "",
         heatView(r),
@@ -214,6 +220,7 @@ export function init(): void {
   lock($("search-create"), TurboSearchService.method.createIndex);
   lock($("search-add-box"), TurboSearchService.method.indexDocuments);
   $("search-add").addEventListener("click", addDocuments);
+  $("search-add-stop").addEventListener("click", stop);
   $("search-form").addEventListener("submit", runSearch);
   const refreshButton = $("search-refresh") as HTMLButtonElement;
   refreshButton.addEventListener("click", () => void busy(refreshButton, list));

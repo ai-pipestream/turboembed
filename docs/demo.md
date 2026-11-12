@@ -252,14 +252,21 @@ framework.
 
 In `demo/web/src`, `rpc.ts` makes the one Connect transport (binary,
 POST only, the bearer token from the page's token field) and a client
-per service, and `upload.ts` makes the one `fetch`, the upload PUT;
+per service, and `upload.ts` makes the one request outside them, the
+upload PUT, as an `XMLHttpRequest` because that reports how much of the
+body has gone out;
 `frames.ts` builds the upload bodies as Blobs, so a picked file is sent
 from disk without being read into memory, and `sha256.ts` hashes a
 dictionary for its import header. The tree test
 (`bench/tests/tree/front_end.rs`) holds the page's own TypeScript to
 this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
-`connect+json`, no JSON or GET transport, and no `fetch` outside
-`upload.ts`.
+`connect+json`, no JSON or GET transport, and no `fetch` or
+`XMLHttpRequest` outside `upload.ts`.
+
+While an upload's body goes out the page shows a bar and the bytes sent
+of the total, then that the server is working on it, and every upload
+(documents to an index, a dictionary, documents to learn from) has a
+Stop that aborts it.
 
 The page keeps to a few layout rules, which the browser run (Tests,
 below) checks on every tab at 1280 and 390 CSS pixels: the page never
@@ -405,6 +412,29 @@ Results are drawn so they can be read without the numbers
 - Where the layout is one column (820 px and narrower), a finished
   run brings its results into view, without animation when the
   visitor asked for less motion.
+
+Each tab opens with one line on what it does. When the server serves
+nothing a tab can use, Embed, Semantic and Search say what they need
+and where to get it (`demo/web/src/about.ts`); a model the server no
+longer serves leaves the Embed list.
+
+What is typed or picked on Embed, Semantic, Analyze, Search and
+Vocabulary is kept in the browser's `localStorage` and put back after a
+reload, the models picked on Embed included; "Reset to sample" under a
+tab's form puts that tab back and forgets what was kept
+(`demo/web/src/keep.ts`). A password, a picked file, and everything on
+Models and Server are never kept, and the bearer token stays in
+`sessionStorage`. With storage blocked the page works the same and
+keeps nothing.
+
+The similarity matrices, the vectors, the side-by-side table, the
+nearest neighbours, the rerank scores and the search hits each have
+"Copy" and "Download CSV" (`demo/web/src/csv.ts`). The file is CSV as
+RFC 4180 writes it, with the full texts and six decimals (the vectors
+as the server sent them); Copy puts the same rows on the clipboard
+separated by tabs, which a spreadsheet pastes into cells. Both are
+built in the page from values it already has; nothing is asked of the
+server and there is no JSON.
 
 - Embed: each served embedding bundle (from `Capabilities`) with its
   tier, model id, dimensions, compute type and device from
