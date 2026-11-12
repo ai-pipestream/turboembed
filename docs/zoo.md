@@ -231,6 +231,7 @@ is in that form and a test keeps it there.
 | `.files[]` | message | yes | At least one. |
 | `.files[].path` | path | yes | Where the file goes in the artifact's directory: relative, `/` separated, no empty, `.` or `..` component, no backslash, no control character. Unique in the artifact. |
 | `.files[].url` | https URL | yes | Where it is fetched from. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), a repository path at a commit, or an asset of a release of this repository (the models the recipes train, `analysis/train-recipes`). A release asset can be deleted or replaced by the repository's maintainers, so the models releases are made once and their assets are never replaced; a replaced file fails the digests below. |
+| `.files[].also[]` | https URL | no | Further locations of the same bytes, tried in order after `url` (fetch rule 4), each held to the rule `url` is: a repository path at a commit, never a branch. Only on a `CLASS_PERMISSIVE` artifact: a file fetched after acceptance, or only under its `origin`, has one address, and a further location on it rejects the index. An address that repeats `url` or another entry rejects it too. For a file with a `download` entry a location serves either the compressed bytes or the file itself. Left out when there is none. |
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
 | `.files[].sha512` | 128 lowercase hex | yes | Checked against the published 512-bit digest. |
@@ -240,7 +241,8 @@ is in that form and a test keeps it there.
 | `.files[].download.download_sha256` | 64 lowercase hex | yes | The compressed bytes' SHA-256. |
 
 Every field of type https URL (`.license_terms`,
-`.trained_on[].license_terms`, `.origin` and `.files[].url` here, and
+`.trained_on[].license_terms`, `.origin`, `.files[].url` and
+`.files[].also[]` here, and
 `accepted[].license_text` in the acceptance file) is an `https://`
 address that names a host, in printable ASCII with no space and no
 backslash. `https:///x`, `https://user@/x` and `https://:443/x` name no
@@ -319,7 +321,12 @@ For `fetch(id, user)`:
    creates, reads or writes anything elsewhere on disk.
 4. A file already in the cache is read and checked by size, SHA-256 and
    SHA-512 on every call. One that is absent or fails is fetched from
-   its `url`. The HTTP transport follows the redirects the server
+   its `url`. A file that lists further locations (`also`) is asked for
+   at `url` first and then at each of them in order: a location that
+   fails, or serves bytes that are not the file by the checks of step
+   5, passes the request to the next, and the first whose bytes are the
+   file is the one kept. When none serves it the error names what each
+   location said, and nothing is written. The HTTP transport follows the redirects the server
    issues, up to 10, over HTTPS only: a redirect to an `http://` address
    is an error. Where a redirect leads is not checked against the index
    or the `origin` (a GitHub release redirects to another host), so the
@@ -387,7 +394,8 @@ Two knobs in `turbo_zoo` cover the cases plain HTTPS does not:
   public ones and the custom transport for the mirror.
 - `Mirror::new(base, inner)` rewrites every fetch to
   `<base>/<original host>/<original path>`, so one mirror of several
-  origins keeps them apart. The base cannot include a query or fragment.
+  origins keeps them apart, and a file's further locations (`also`) are
+  rewritten the same way. The base cannot include a query or fragment.
   Digest checks run unchanged on what the mirror serves.
 
 An OCI registry also works: blobs are served by digest over HTTPS
@@ -580,6 +588,19 @@ with a Google grant.
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.
 
+### The Hugging Face copies of the published models
+
+The permissive models this project trains and publishes are release
+assets of this repository (`url`) and are also kept on Hugging Face, one
+model repository per artifact named by its id under `pipestream-ai`,
+holding each indexed file at its `path`. Each such file lists
+`https://huggingface.co/pipestream-ai/<id>/resolve/<commit>/<path>` in
+`also`, at the 40-digit commit that holds those bytes, so the artifact
+installs when either host is unreachable. `turbo-zoo show <id>` prints
+every location. `analysis/zoo/tests/builtin/hugging_face.rs` keeps the
+list, and its ignored test installs each model from Hugging Face alone
+(`cargo test -p turbo-zoo -- --ignored hugging_face`).
+
 ## Reading the index from external clients
 
 The index is structured so external tools can query it without scraping HTML
@@ -634,6 +655,7 @@ directories:
 - Encoder bundles. They have their own recipes and catalogue
   (docs/bundle.md); their `model.license` maps to a class by the same
   table when the bundle tool learns to check it.
-- Fallback mirrors. One address per file; a whole-index mirror rewrites
-  every address to one host with `Mirror` ("Self-hosted mirrors",
-  above).
+- Further locations for anything but a permissive artifact. A file of
+  any other class has one address (`.files[].also[]`); a whole-index
+  mirror rewrites every address to one host with `Mirror`
+  ("Self-hosted mirrors", above).
