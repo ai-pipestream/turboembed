@@ -34,3 +34,26 @@ fn places_precision_and_recall_on_human_written_text() {
     let got: Vec<(&str, usize, usize, usize)> = by_kind.iter().map(|(k, c)| (*k, c.tp, c.fp, c.fn_)).collect();
     assert_eq!(got, [("city", 35, 0, 1), ("county", 9, 0, 0), ("state", 40, 0, 0)]);
 }
+
+/// #2295: a project-authored memo of people who share a city's name
+/// (`we met Madison`, `Salem, who`, `Paris's mother`) and city uses of the
+/// same names (`from Madison to Columbus`, `people in Paris who`), gold in
+/// `labels-places-person.tsv`. Every person use stays no city; the counts
+/// are pinned.
+#[test]
+fn person_names_that_share_a_city_name_are_no_city() {
+    let docs = [(
+        "places-person-names",
+        false,
+        "places-person-names.txt",
+        "ea89b17f21b74fa2ae5fae6ae0a87d535df9b1aac7574140598936e11c67951f",
+    )];
+    let set = load_labelled(&docs, "labels-places-person.tsv", false);
+    let by_kind = measure_with(&pack(Pack::Places), &set);
+    eprintln!("\nplaces on the person-name memo:");
+    for (name, c) in &by_kind {
+        eprintln!("{name:<8} tp {} fp {} fn {}", c.tp, c.fp, c.fn_);
+    }
+    let got: Vec<(&str, usize, usize, usize)> = by_kind.iter().map(|(k, c)| (*k, c.tp, c.fp, c.fn_)).collect();
+    assert_eq!(got, [("city", 10, 0, 0)]);
+}

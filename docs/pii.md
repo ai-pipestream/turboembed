@@ -1174,6 +1174,20 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
       as a person's name does, unless one of the sentence-start words
       above stands before it (`people in Paris said so`, `a source in
       Boston told reporters`);
+    - no person context stands around it (#2295,
+      `analysis/pii/src/scan/city_person.rs`): a verb that takes a person
+      as its object right before it (`met`, `asked`, `thanked`, `hired`,
+      `invited` and a few more: `we met Madison`, `ask Columbus`), or
+      after it `who` (`Salem, who`), a reflexive pronoun (`Madison
+      herself`), `she` or `he` after a verb of thought or speech (`knew`,
+      `thought`, `felt`, `hoped` and a few more: `Dayton knew she`), or a
+      possessive before a kin or body noun (`Paris's mother`). The rules
+      after the name give way to a sentence-start word before it, on the
+      same line or the line before (`a donor in Columbus who`, `people
+      in` / `Paris who`). A verb as ready to take a place (`visited`,
+      `left`, `called`) is not one of them, and any other word between
+      the name and the pronoun leaves it a place (`we left Atlanta then
+      she moved`, `Boston where he lived`);
     - no word, path or address touches it (`Grand-Rouen`,
       `example.com/Rouen`, `Rouen.example.com`, `Rouen@example.com`,
       `#Rouen`). A possessive name ends before its `'s` (`San
@@ -1238,11 +1252,28 @@ the name finder corpora) found the bare names there to be places, apart
 from country names, which the country rule then removed, and names after
 `University of` or `Bank of`, which the `of` rule removed.
 
-The bare reading still tags a person who shares a city's name when
-nothing beside the name says so. Names outside the Census top 1,000
-first names and surnames (`Madison`, `Paris`, `Dayton`, `Salem`,
-`Columbus`) are not in the common-word list, so one alone as a subject
-or object (`we met Madison`, `Paris won the race`) is read as the city.
+A second project-authored memo (`places-person-names.txt`, gold in
+`labels-places-person.tsv`, scored by `places_eval.rs`) holds people who
+share a city's name with no Census-list entry (`Madison`, `Paris`,
+`Dayton`, `Salem`, `Columbus`) beside city uses of the same names. Before
+the person rules (#2295) the Places pack read 12 of the people as cities
+(10 TP, 12 FP, 0 FN); with them it reads none (10 TP, 0 FP, 0 FN). The
+rules were written against that memo, so these are not held-out figures.
+The rules read the word before the name once for every rule that looks at
+it, and test a word's first letter and length before its spelling. On
+`places_bench.rs -- 256 100` (256 KB with city names, release builds, one
+shared container, 11 interleaved pairs against the commit before them)
+the pack took a median 3.25 ms before and 3.22 ms after, with 2 of 11
+pairs slower, and it ran 64.8 million instructions a round after against
+65.3 million before (valgrind). City-free prose (`-- 256 20 plain`) took
+2.7 to 2.8 ms both ways. These compare runs on the same machine and text
+and are not timing claims.
+
+The bare reading still tags a person who shares a city's name when no
+rule above sees person context: a name alone as a subject before a verb
+that takes no pronoun one word on (`Paris won the race`), or after a
+verb the rules leave out (`we saw Madison`). The trained PII token head
+(#1888), once served, can drop a city span inside a person span instead.
 A policy that needs higher precision on person-heavy text can leave
 `city` out and keep `state` and `county`.
 

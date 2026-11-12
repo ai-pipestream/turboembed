@@ -8,6 +8,7 @@ mod br;
 mod card;
 mod city;
 mod city_bare;
+mod city_person;
 mod county;
 mod crypto;
 mod date;
