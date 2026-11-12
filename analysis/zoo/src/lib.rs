@@ -47,7 +47,10 @@ pub use fetch::{
 };
 pub use holders::{HOLDERS_VERSION, Holder, Holders, SignIn};
 pub use home::Home;
-pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
+pub use index::{
+    Artifact, ArtifactId, Bundle, Component, File, Format, Index, Kind, Language, ModelType, Task, TrainingData, Url,
+    check_manifest,
+};
 pub use licence::{
     GplAcceptance, Licence, LicenceClass, LocalOnlyReason, Policy, RefusalReason, Requirement, class_of,
 };

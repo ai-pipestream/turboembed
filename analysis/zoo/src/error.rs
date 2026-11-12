@@ -54,6 +54,8 @@ pub enum ZooError {
     NotAccepted { id: ArtifactId, class: LicenceClass, user: String, missing: Vec<Requirement> },
     /// A fetched or cached file is not the one the index describes.
     Integrity { id: ArtifactId, path: String, check: Check, expected: String, actual: String },
+    /// An encoder bundle's manifest is not the one its entry describes.
+    Bundle { id: ArtifactId, message: String },
     /// The transport could not fetch an address.
     Transport { url: String, message: String },
     /// Reading or writing a local file failed.
@@ -92,6 +94,7 @@ impl fmt::Display for ZooError {
             ZooError::Integrity { id, path, check, expected, actual } => {
                 write!(f, "{id}/{path}: {check} is {actual}, the index says {expected}")
             }
+            ZooError::Bundle { id, message } => write!(f, "{id}: {message}"),
             ZooError::Transport { url, message } => write!(f, "GET {url}: {message}"),
             ZooError::Io { path, message } => write!(f, "{}: {message}", path.display()),
         }
