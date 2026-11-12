@@ -700,6 +700,18 @@ either: every call the page makes goes through the demo to the server.
   each mark naming its signal and the legend naming every signal.
 - At 390 pixels, Run on Embed, Semantic, Analyze and Search brings the
   results into view.
+- Text typed on Embed, Semantic and Analyze is back after a reload,
+  the bearer token is never in localStorage, and Reset to sample puts
+  one tab back for good while the others keep theirs.
+- Each Embed matrix, its vectors and the side-by-side table offer Copy
+  and Download CSV; the files hold the rows the page shows, Copy puts
+  tab-separated rows on the clipboard, and Semantic's neighbours CSV
+  has rank, passage number, passage and cosine.
+- A 3 MiB upload held to a slow link shows a moving bar and its bytes
+  sent, then the server's answer; Stop on the Search upload ends it,
+  says so, and nothing reaches the index.
+- Every tab opens with a line on what it does; with the only model
+  unloaded, Embed, Semantic and Search say what they need.
 
 `demo/web/e2e/permits.test.ts` starts a demo with a token and one
 `--allow`: nothing is off before the token is typed, and after it the
