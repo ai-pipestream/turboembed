@@ -3,9 +3,10 @@ name: Zoo image
 # The model zoo image (docs/zoo-container.md): server/Dockerfile.zoo built
 # from the tree, then docker-compose.zoo.yml with RustFS and the smoke test
 # in scripts/test-zoo-image.sh. On a push to main or a release tag, the image
-# that passed the smoke test is pushed to Docker Hub when the repository has
-# the DOCKERHUB_USERNAME and DOCKERHUB_TOKEN secrets. The Docker Hub
-# repository is the DOCKERHUB_REPOSITORY variable, or <username>/turbo-zoo.
+# that passed the smoke test is pushed to Docker Hub when the repository or
+# its organisation has the DOCKER_USER and DOCKER_TOKEN secrets. The Docker
+# Hub repository is the DOCKERHUB_REPOSITORY variable, or
+# pipestreamai/turbo-zoo.
 # Pull requests never log in or push.
 
 on:
@@ -79,27 +80,27 @@ jobs:
       - name: push the tested image to Docker Hub
         if: github.event_name == 'push'
         env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
           DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
         run: |
-          if [ -z "$DOCKERHUB_USERNAME" ] || [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::notice::DOCKERHUB_USERNAME or DOCKERHUB_TOKEN is not set; the image is not pushed"
+          if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_TOKEN" ]; then
+            echo "::notice::DOCKER_USER or DOCKER_TOKEN is not set; the image is not pushed"
             exit 0
           fi
-          repo="${DOCKERHUB_REPOSITORY:-$DOCKERHUB_USERNAME/turbo-zoo}"
+          repo="${DOCKERHUB_REPOSITORY:-pipestreamai/turbo-zoo}"
           tags="sha-${GITHUB_SHA::12}"
           case "$GITHUB_REF" in
             refs/heads/main) tags="$tags main" ;;
-            refs/tags/v*)
+            refs/tags/v[0-9]*)
               version="${GITHUB_REF#refs/tags/v}"
               tags="$tags $version"
               # A pre-release such as 0.2.0-rc.1 does not move latest.
               case "$version" in *-*) ;; *) tags="$tags latest" ;; esac
               ;;
-            *) echo "::notice::$GITHUB_REF is not main or a release tag; the image is not pushed"; exit 0 ;;
+            *) echo "::notice::$GITHUB_REF is not main or a v<digit> release tag; the image is not pushed"; exit 0 ;;
           esac
-          echo "$DOCKERHUB_TOKEN" | docker login docker.io -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "$DOCKER_TOKEN" | docker login docker.io -u "$DOCKER_USER" --password-stdin
           trap 'docker logout docker.io' EXIT
           for t in $tags; do
             docker tag turbo-zoo:ci "docker.io/$repo:$t"

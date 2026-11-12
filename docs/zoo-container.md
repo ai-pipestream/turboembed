@@ -39,7 +39,7 @@ carries these tags:
 |---|---|
 | `sha-<12 hex>` | Every push, naming the commit it was built from. |
 | `main` | Each change to `main` that touches the image, the catalog or the demo. |
-| `<version>`, such as `0.2.0` | The release tag `v<version>`. |
+| `<version>`, such as `0.2.0` | The release tag `v<version>`, where the version starts with a digit. |
 | `latest` | The newest release tag that is not a pre-release (no `-` in the version). |
 
 The image is built for `linux/amd64`. The job summary of each run names
@@ -47,24 +47,24 @@ the pushed digest; pin the digest (`turbo-zoo@sha256:...`) where the
 same bytes must run every time.
 
 ```
-docker pull docker.io/OWNER/turbo-zoo:main
-docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo docker.io/OWNER/turbo-zoo:main
+docker pull docker.io/pipestreamai/turbo-zoo:main
+docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo docker.io/pipestreamai/turbo-zoo:main
 ```
 
-`OWNER/turbo-zoo` stands for the Docker Hub repository the project
-publishes to. With compose, name the published image in `TURBO_ZOO_IMAGE`
+With compose, name the published image in `TURBO_ZOO_IMAGE`
 and leave out `--build`:
 
 ```
-export TURBO_ZOO_IMAGE=docker.io/OWNER/turbo-zoo:main
+export TURBO_ZOO_IMAGE=docker.io/pipestreamai/turbo-zoo:main
 docker compose -f docker-compose.zoo.yml pull zoo
 docker compose -f docker-compose.zoo.yml up -d
 ```
 
-A fork publishes its own copy by setting the repository secrets
-`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` (a Docker Hub access token
-with write access) and, for a repository name other than
-`<username>/turbo-zoo`, the repository variable `DOCKERHUB_REPOSITORY`.
+The workflow logs in with the secrets `DOCKER_USER` and `DOCKER_TOKEN`
+(a Docker Hub access token with write access), set on the repository or
+its organisation. A fork publishes its own copy by setting the same
+secrets and the repository variable `DOCKERHUB_REPOSITORY` to its own
+Docker Hub repository.
 Without the secrets the workflow builds and tests the image and pushes
 nothing. A pull request never logs in or pushes.
 
