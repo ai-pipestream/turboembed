@@ -7,10 +7,11 @@
 import { LayerErrorKind, LayerWireStatus, OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
+import { busy } from "../act.js";
 import { $, download, el, options, say, table } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
 import { analysis, describe } from "../rpc.js";
-import { bundles, capabilities, onCapabilities } from "../state.js";
+import { bundles, capabilities, onBack, onCapabilities, onReachable, reachable } from "../state.js";
 
 let running: AbortController | null = null;
 let page = 0;
@@ -250,14 +251,16 @@ async function loadFormats(): Promise<void> {
     const f = await analysis.listOutputFormats({});
     options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`));
   } catch (e) {
-    say($("analyze-note"), describe(e), "error");
+    if (reachable() !== false) say($("analyze-note"), describe(e), "error");
   }
 }
 
 export function init(): void {
-  $("analyze-run").addEventListener("click", run);
+  const go = $("analyze-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, run, $("analyze-stop") as HTMLButtonElement));
   $("analyze-stop").addEventListener("click", stop);
-  $("analyze-export").addEventListener("click", exportDoc);
+  const format = $("analyze-export") as HTMLButtonElement;
+  format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
     filter = new Set();
@@ -271,6 +274,14 @@ export function init(): void {
     options(select("analyze-model"), ["", ...models], ["none", ...models]);
     options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
   });
+  // Before the first answer, the selects say that there is no server to ask.
+  let filled = false;
+  onCapabilities(() => (filled = true));
+  onReachable((up) => {
+    if (filled || up) return;
+    for (const id of ["analyze-profile", "analyze-model", "analyze-relation-model", "analyze-format"]) options(select(id), [], undefined, "the server is not reachable");
+  });
+  onBack(() => void loadFormats());
   capabilities().catch(() => undefined);
   void loadFormats();
 }

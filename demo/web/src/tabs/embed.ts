@@ -9,9 +9,10 @@ import {
   type ModelInferResponse,
   type ModelMetadataResponse,
 } from "../gen/open_inference_grpc_pb.js";
+import { busy } from "../act.js";
 import { $, after, el, input, say, stat } from "../dom.js";
 import { describe, inference } from "../rpc.js";
-import { bundles, capabilities, onCapabilities } from "../state.js";
+import { bundles, capabilities, onCapabilities, onReachable, reachable } from "../state.js";
 
 type Model = { meta: ModelMetadataResponse | null; error: string; checked: boolean };
 type Result = { name: string; meta: ModelMetadataResponse | null; ms: number; vectors?: number[][]; reply?: ModelInferResponse; error?: string };
@@ -49,7 +50,10 @@ async function loadMeta(name: string): Promise<void> {
 function renderModels(): void {
   const box = $("embed-models");
   box.replaceChildren();
-  if (models.size === 0) box.append(el("p", { class: "muted", text: "No embedding model is served: add a name below." }));
+  if (models.size === 0) {
+    const down = reachable() === false;
+    box.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
+  }
   for (const [name, m] of models) {
     const cb = el("input", { type: "checkbox" });
     cb.checked = m.checked;
@@ -68,7 +72,8 @@ function renderModels(): void {
 }
 
 async function addModels(names: string[]): Promise<void> {
-  const fresh = names.filter((n) => !models.has(n));
+  // Names not seen yet, and those whose metadata could not be read before.
+  const fresh = names.filter((n) => !models.get(n)?.meta);
   for (const n of fresh) models.set(n, { meta: null, error: "", checked: true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
@@ -164,9 +169,6 @@ async function run(): Promise<void> {
     say(err, !texts.length ? "Enter at least one text." : "Pick at least one model.", "error");
     return;
   }
-  const btn = $("embed-run") as HTMLButtonElement;
-  btn.disabled = true;
-  btn.textContent = "Embedding\u2026";
   const encoder = new TextEncoder();
   const results: Result[] = [];
   // One request at a time, so no call waits behind another.
@@ -184,8 +186,6 @@ async function run(): Promise<void> {
       results.push({ name, meta, ms: performance.now() - t0, error: describe(e) });
     }
   }
-  btn.disabled = false;
-  btn.textContent = "Embed";
   render(texts, results);
 }
 
@@ -332,7 +332,15 @@ export function init(): void {
     await addModels([name]);
     input("embed-add-name").value = "";
   });
-  $("embed-run").addEventListener("click", run);
-  onCapabilities((c) => void addModels(bundles(c, "TASK_EMBED")));
-  capabilities().catch((e) => say($("embed-error"), describe(e), "error"));
+  const go = $("embed-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, run));
+  onCapabilities((c) => {
+    say($("embed-error"), "");
+    void addModels(bundles(c, "TASK_EMBED"));
+  });
+  onReachable(renderModels);
+  capabilities().catch((e) => {
+    renderModels();
+    if (reachable() !== false) say($("embed-error"), describe(e), "error");
+  });
 }

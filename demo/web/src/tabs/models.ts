@@ -5,9 +5,10 @@
 
 import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
 import { kindName, kinds, matches, purpose } from "../catalogfilter.js";
+import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { catalog, describe, training } from "../rpc.js";
-import { refresh } from "../state.js";
+import { onBack, refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
 import { download, nonCommercial } from "./download.js";
 import * as sources from "./sources.js";
@@ -156,7 +157,11 @@ async function loadCatalog(): Promise<void> {
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]), "", "Nothing is installed."),
       el("h3", { text: "Accepted terms" }),
-      acceptedTable(acc, w, (t: LicenceTerms) => act(() => revoke(t))),
+      acceptedTable(acc, w, async (t: LicenceTerms) => {
+        const done = await revoke(t);
+        await loadCatalog();
+        say(note(), done);
+      }),
       el("h3", { text: "Catalog" }),
       el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
       catalogTable(cat.entries, w),
@@ -229,16 +234,10 @@ async function loadTraining(): Promise<void> {
 }
 
 function deleteButton(name: string): HTMLElement {
-  const b = el("button", { type: "button", text: "Delete" });
-  b.addEventListener("click", async () => {
-    try {
-      await training.deleteStaticModel({ name });
-      await Promise.all([loadTraining(), refresh()]);
-    } catch (e) {
-      say($("train-note"), describe(e), "error");
-    }
+  return confirmed("Delete", `Delete ${name}?`, async () => {
+    await training.deleteStaticModel({ name });
+    await Promise.all([loadTraining(), refresh()]);
   });
-  return b;
 }
 
 async function train(ev: Event): Promise<void> {
@@ -253,45 +252,47 @@ async function train(ev: Event): Promise<void> {
   say($("train-note"), "Training\u2026", "busy");
   const t0 = performance.now();
   let last = -1;
-  try {
-    const req = {
-      name: input("train-name").value.trim(),
-      teacher: ($("train-teacher") as HTMLSelectElement).value,
-      pcaDims: parseInt(input("train-dims").value, 10) || 0,
-      dtype: ($("train-dtype") as HTMLSelectElement).value === "F16" ? StaticDtype.F16 : StaticDtype.F32,
-      vocabularyArtifactId: input("train-vocabulary").value.trim(),
-      terms: ($("train-terms") as HTMLTextAreaElement).value.split("\n").map((t) => t.trim()).filter((t) => t.length),
-    };
-    for await (const u of training.trainStaticModel(req, { signal: ac.signal })) {
-      const ms = `${((performance.now() - t0) / 1000).toFixed(1)} s`;
-      if (u.update.case === "progress") {
-        const p = u.update.value;
-        progress.max = Math.max(1, Number(p.totalItems));
-        progress.value = Number(p.completedItems);
-        const facts = [
-          p.totalItems ? `${p.completedItems} of ${p.totalItems}` : "",
-          p.addedTerms || p.refusedTerms ? `${p.addedTerms} terms added, ${p.refusedTerms} refused` : "",
-          p.explainedVariance ? `explained variance ${(p.explainedVariance * 100).toFixed(1)}%` : "",
-          p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : "",
-        ].filter(Boolean);
-        const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts.length ? `: ${facts.join(", ")}` : ""}`);
-        if (p.stage === last && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
-        else steps.append(line);
-        last = p.stage;
-      } else if (u.update.case === "trained") {
-        const t = u.update.value;
-        progress.value = progress.max;
-        const refused = t.refusedTerms.map((r) => `${r.term} (${r.reason})`).join(", ");
-        steps.append(el("li", {}, el("span", { class: "badge", text: ms }), ` trained ${t.model?.name ?? ""}: ${t.model?.dims ?? 0} dims, ${t.model?.vocabSize ?? 0} words${t.addedTerms.length ? `, added ${t.addedTerms.join(" ")}` : ""}${refused ? `; refused ${refused}` : ""}`));
+  await busy(submitter(ev), async () => {
+    try {
+      const req = {
+        name: input("train-name").value.trim(),
+        teacher: ($("train-teacher") as HTMLSelectElement).value,
+        pcaDims: parseInt(input("train-dims").value, 10) || 0,
+        dtype: ($("train-dtype") as HTMLSelectElement).value === "F16" ? StaticDtype.F16 : StaticDtype.F32,
+        vocabularyArtifactId: input("train-vocabulary").value.trim(),
+        terms: ($("train-terms") as HTMLTextAreaElement).value.split("\n").map((t) => t.trim()).filter((t) => t.length),
+      };
+      for await (const u of training.trainStaticModel(req, { signal: ac.signal })) {
+        const ms = `${((performance.now() - t0) / 1000).toFixed(1)} s`;
+        if (u.update.case === "progress") {
+          const p = u.update.value;
+          progress.max = Math.max(1, Number(p.totalItems));
+          progress.value = Number(p.completedItems);
+          const facts = [
+            p.totalItems ? `${p.completedItems} of ${p.totalItems}` : "",
+            p.addedTerms || p.refusedTerms ? `${p.addedTerms} terms added, ${p.refusedTerms} refused` : "",
+            p.explainedVariance ? `explained variance ${(p.explainedVariance * 100).toFixed(1)}%` : "",
+            p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : "",
+          ].filter(Boolean);
+          const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts.length ? `: ${facts.join(", ")}` : ""}`);
+          if (p.stage === last && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
+          else steps.append(line);
+          last = p.stage;
+        } else if (u.update.case === "trained") {
+          const t = u.update.value;
+          progress.value = progress.max;
+          const refused = t.refusedTerms.map((r) => `${r.term} (${r.reason})`).join(", ");
+          steps.append(el("li", {}, el("span", { class: "badge", text: ms }), ` trained ${t.model?.name ?? ""}: ${t.model?.dims ?? 0} dims, ${t.model?.vocabSize ?? 0} words${t.addedTerms.length ? `, added ${t.addedTerms.join(" ")}` : ""}${refused ? `; refused ${refused}` : ""}`));
+        }
       }
+      await Promise.all([loadTraining(), refresh()]);
+      say($("train-note"), "");
+    } catch (e) {
+      say($("train-note"), describe(e), "error");
+    } finally {
+      if (trainingRun === ac) trainingRun = null;
     }
-    await Promise.all([loadTraining(), refresh()]);
-    say($("train-note"), "");
-  } catch (e) {
-    say($("train-note"), describe(e), "error");
-  } finally {
-    if (trainingRun === ac) trainingRun = null;
-  }
+  }, $("train-stop") as HTMLButtonElement);
 }
 
 function stopTraining(): void {
@@ -309,10 +310,13 @@ export function stop(): void {
 }
 
 export function init(): void {
-  $("models-catalog-load").addEventListener("click", () => void loadCatalog());
+  const read = $("models-catalog-load") as HTMLButtonElement;
+  read.addEventListener("click", () => void busy(read, loadCatalog));
   $("train-form").addEventListener("submit", train);
   $("train-stop").addEventListener("click", stopTraining);
-  $("train-refresh").addEventListener("click", () => void loadTraining());
+  const again = $("train-refresh") as HTMLButtonElement;
+  again.addEventListener("click", () => void busy(again, loadTraining));
+  onBack(() => void loadTraining());
   void loadTraining();
   sources.init();
 }

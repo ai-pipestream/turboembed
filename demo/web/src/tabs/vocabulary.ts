@@ -3,9 +3,11 @@
 // uploads, DownloadVocabulary as a stream to a file, and delete.
 
 import { TurboVocabularyService } from "../gen/turbo_vocabulary_pb.js";
+import { busy as working, confirmed, submitter } from "../act.js";
 import { $, download, el, input, options, say, size, table } from "../dom.js";
 import { importBody, learnBody, type Text } from "../frames.js";
 import { describe, vocabulary } from "../rpc.js";
+import { onBack, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
 import { put } from "../upload.js";
 
@@ -24,17 +26,14 @@ export function stop(): void {
   busy = null;
 }
 
+const stopButton = () => $("vocab-stop") as HTMLButtonElement;
+
 function actions(id: string): HTMLElement {
   const get = el("button", { type: "button", text: "Download" });
-  get.addEventListener("click", () => void fetchArtifact(id));
-  const del = el("button", { type: "button", text: "Delete" });
-  del.addEventListener("click", async () => {
-    try {
-      await vocabulary.deleteVocabularyArtifact({ artifactId: id });
-      await list();
-    } catch (e) {
-      say($("vocab-note"), describe(e), "error");
-    }
+  get.addEventListener("click", () => void working(get, () => fetchArtifact(id), stopButton()));
+  const del = confirmed("Delete", `Delete ${id}?`, async () => {
+    await vocabulary.deleteVocabularyArtifact({ artifactId: id });
+    await list();
   });
   return el("span", {}, get, " ", del);
 }
@@ -68,7 +67,7 @@ async function list(): Promise<void> {
       ),
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
   }
 }
 
@@ -81,29 +80,31 @@ async function importDictionary(ev: Event): Promise<void> {
     return;
   }
   const ac = start();
-  try {
-    const sha = await sha256Blob(file, (done) => say(note, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-    say(note, `Uploading ${size(file.size)}\u2026`, "busy");
-    const d = await put(
-      TurboVocabularyService.method.importDictionary,
-      importBody(
-        {
-          formatId: select("vocab-format").value,
-          language: input("vocab-language").value.trim(),
-          name: input("vocab-name").value.trim() || file.name,
-          byteSize: BigInt(file.size),
-          sha256: sha,
-          hasHeaderRow: input("vocab-header").checked,
-        },
-        file,
-      ),
-      ac.signal,
-    );
-    say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
-    await list();
-  } catch (e) {
-    say(note, describe(e), "error");
-  }
+  await working(submitter(ev), async () => {
+    try {
+      const sha = await sha256Blob(file, (done) => say(note, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
+      say(note, `Uploading ${size(file.size)}\u2026`, "busy");
+      const d = await put(
+        TurboVocabularyService.method.importDictionary,
+        importBody(
+          {
+            formatId: select("vocab-format").value,
+            language: input("vocab-language").value.trim(),
+            name: input("vocab-name").value.trim() || file.name,
+            byteSize: BigInt(file.size),
+            sha256: sha,
+            hasHeaderRow: input("vocab-header").checked,
+          },
+          file,
+        ),
+        ac.signal,
+      );
+      say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
+      await list();
+    } catch (e) {
+      say(note, describe(e), "error");
+    }
+  }, stopButton());
 }
 
 async function learn(ev: Event): Promise<void> {
@@ -119,27 +120,29 @@ async function learn(ev: Event): Promise<void> {
     return;
   }
   const ac = start();
-  try {
-    const body = learnBody(
-      {
-        minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
-        maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
-        lowercase: input("vocab-lowercase").checked,
-        filterStopwords: input("vocab-stopwords").checked,
-        includeNgrams: input("vocab-ngrams").checked,
-        minNgramSize: 2,
-        maxNgramSize: 3,
-        dictionaryArtifactId: select("vocab-seed").value,
-      },
-      docs,
-    );
-    say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
-    const v = await put(TurboVocabularyService.method.learnVocabulary, body, ac.signal);
-    say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
-    await list();
-  } catch (e) {
-    say(note, describe(e), "error");
-  }
+  await working(submitter(ev), async () => {
+    try {
+      const body = learnBody(
+        {
+          minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
+          maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
+          lowercase: input("vocab-lowercase").checked,
+          filterStopwords: input("vocab-stopwords").checked,
+          includeNgrams: input("vocab-ngrams").checked,
+          minNgramSize: 2,
+          maxNgramSize: 3,
+          dictionaryArtifactId: select("vocab-seed").value,
+        },
+        docs,
+      );
+      say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
+      const v = await put(TurboVocabularyService.method.learnVocabulary, body, ac.signal);
+      say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
+      await list();
+    } catch (e) {
+      say(note, describe(e), "error");
+    }
+  }, stopButton());
 }
 
 async function fetchArtifact(id: string): Promise<void> {
@@ -169,7 +172,9 @@ async function fetchArtifact(id: string): Promise<void> {
 export function init(): void {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
-  $("vocab-refresh").addEventListener("click", list);
+  const again = $("vocab-refresh") as HTMLButtonElement;
+  again.addEventListener("click", () => void working(again, list));
+  onBack(() => void list());
   $("vocab-stop").addEventListener("click", stop);
   void list();
 }

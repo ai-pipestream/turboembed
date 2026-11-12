@@ -7,9 +7,10 @@
 import { create } from "@bufbuild/protobuf";
 import { InferParameterSchema, type InferParameter, type ModelInferResponse } from "../gen/open_inference_grpc_pb.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
+import { busy } from "../act.js";
 import { $, el, input, options, say, table } from "../dom.js";
 import { describe, inference } from "../rpc.js";
-import { capabilities, onCapabilities } from "../state.js";
+import { capabilities, onCapabilities, onReachable, reachable, whyNone } from "../state.js";
 import { cosine, heat, matrix, short, vectorsOf } from "./embed.js";
 
 const utf8 = new TextEncoder();
@@ -128,15 +129,34 @@ async function run(): Promise<void> {
 }
 
 export function init(): void {
-  $("sem-run").addEventListener("click", () => void run());
+  const go = $("sem-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, run));
+  const kinds = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
+  // With nothing to pick, each select says why: no server, or none served.
+  const served = (): void => {
+    for (const [id, task, what] of kinds) {
+      const names = caps?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
+      if (!names.length) {
+        options(select(id), [], undefined, whyNone(what));
+        continue;
+      }
+      // The first time a task has models, its first one is picked.
+      const first = !select(id).dataset.filled;
+      options(select(id), ["", ...names], ["none", ...names]);
+      select(id).dataset.filled = "yes";
+      if (first) select(id).value = names[0];
+    }
+  };
   onCapabilities((c) => {
     caps = c;
-    for (const [id, task] of [["sem-embed", "TASK_EMBED"], ["sem-rerank", "TASK_RERANK"], ["sem-qa", "TASK_EXTRACTIVE_QA"]]) {
-      const names = c.bundles.filter((b) => b.task === task).map((b) => b.name);
-      const first = select(id).options.length === 0;
-      options(select(id), ["", ...names], ["none", ...names]);
-      if (first && names.length) select(id).value = names[0];
-    }
+    say($("sem-note"), "");
+    served();
   });
-  capabilities().catch((err) => say($("sem-note"), describe(err), "error"));
+  onReachable(() => {
+    if (!caps) served();
+  });
+  capabilities().catch((err) => {
+    served();
+    if (reachable() !== false) say($("sem-note"), describe(err), "error");
+  });
 }

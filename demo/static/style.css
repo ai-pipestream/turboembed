@@ -123,7 +123,15 @@ button {
   cursor: pointer;
 }
 button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); width: 100%; margin-top: 16px; padding: 8px; }
-button:disabled { opacity: 0.6; cursor: progress; }
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+button[aria-busy="true"] { cursor: progress; }
+button .elapsed { font-family: var(--mono); font-size: 12px; }
+button.danger { background: var(--error); color: var(--accent-text); border-color: var(--error); }
+.confirm { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.confirm .error { margin: 0; font-size: 13px; }
+.banner { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--error); border-radius: 8px; color: var(--error); background: var(--panel); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.banner[hidden] { display: none; }
+.banner .why { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
 .error { color: var(--error); white-space: pre-wrap; margin: 8px 0 0; }
 .tag {

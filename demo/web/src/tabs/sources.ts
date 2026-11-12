@@ -6,6 +6,7 @@
 // page hands to the server and then clears.
 
 import type { ListModelSourcesResponse, ModelSource } from "../gen/turbo_training_pb.js";
+import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
 import { catalog, describe } from "../rpc.js";
 import { readOnly, redirected, s3KeysOf, signInText } from "../sourcetext.js";
@@ -21,12 +22,11 @@ function sourcesTable(r: ListModelSourcesResponse, changed: () => Promise<void>)
     r.sources.map((s: ModelSource) => {
       let control: HTMLElement | string = "";
       if (!why) {
-        const b = el("button", { type: "button", text: "Remove" });
-        b.addEventListener("click", () => void act(async () => {
+        control = confirmed("Remove", `Remove ${s.name}?`, async () => {
           const gone = await catalog.removeModelSource({ name: s.name });
-          return gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`;
-        }, changed));
-        control = b;
+          await changed();
+          say(note(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
+        });
       }
       return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
     }),
@@ -69,13 +69,14 @@ function add(ev: Event): void {
     region: input("sources-s3-region").value,
     endpoint: input("sources-s3-endpoint").value,
   });
-  void act(async () => {
+  const register = async (): Promise<string> => {
     const r = await catalog.registerModelSource({ name, address, apiKey, s3Keys });
     input("sources-key").value = "";
     input("sources-s3-key-id").value = "";
     input("sources-s3-secret").value = "";
     return `Registered ${r.source?.name ?? name}.`;
-  }, load);
+  };
+  void busy(submitter(ev), () => act(register, load));
 }
 
 /** Sends the user to Google's consent page for a Drive folder. */
@@ -107,7 +108,8 @@ async function finish(back: { code: string; state: string; error: string }): Pro
 export function init(): boolean {
   $("sources-form").addEventListener("submit", add);
   $("sources-connect").addEventListener("click", connect);
-  $("sources-refresh").addEventListener("click", () => void load());
+  const again = $("sources-refresh") as HTMLButtonElement;
+  again.addEventListener("click", () => void busy(again, load));
   const back = redirected(location.search);
   if (back) void finish(back);
   else void load();

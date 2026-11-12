@@ -3069,8 +3069,8 @@ function writeTypeOfScalar(type) {
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect-check.js
 function checkField(field2, value) {
-  const check = field2.fieldKind == "list" ? isReflectList(value, field2) : field2.fieldKind == "map" ? isReflectMap(value, field2) : checkSingular(field2, value);
-  if (check === true) {
+  const check2 = field2.fieldKind == "list" ? isReflectList(value, field2) : field2.fieldKind == "map" ? isReflectMap(value, field2) : checkSingular(field2, value);
+  if (check2 === true) {
     return void 0;
   }
   let reason;
@@ -3082,15 +3082,15 @@ function checkField(field2, value) {
       reason = `expected ${formatReflectMap(field2)}, got ${formatVal(value)}`;
       break;
     default: {
-      reason = reasonSingular(field2, value, check);
+      reason = reasonSingular(field2, value, check2);
     }
   }
   return new FieldError(field2, reason);
 }
 function checkListItem(field2, index, value) {
-  const check = checkSingular(field2, value);
-  if (check !== true) {
-    return new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check)}`);
+  const check2 = checkSingular(field2, value);
+  if (check2 !== true) {
+    return new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
   }
   return void 0;
 }
@@ -3294,8 +3294,8 @@ function scalarTypeDescription(scalar2) {
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect.js
-function reflect(messageDesc2, message, check = true) {
-  return new ReflectMessageImpl(messageDesc2, message, check);
+function reflect(messageDesc2, message, check2 = true) {
+  return new ReflectMessageImpl(messageDesc2, message, check2);
 }
 var messageSortedFields = /* @__PURE__ */ new WeakMap();
 var ReflectMessageImpl = class {
@@ -3308,10 +3308,10 @@ var ReflectMessageImpl = class {
     messageSortedFields.set(this.desc, sortedFields);
     return sortedFields;
   }
-  constructor(messageDesc2, message, check = true) {
+  constructor(messageDesc2, message, check2 = true) {
     this.lists = /* @__PURE__ */ new Map();
     this.maps = /* @__PURE__ */ new Map();
-    this.check = check;
+    this.check = check2;
     this.desc = messageDesc2;
     this.message = this[unsafeLocal] = message !== null && message !== void 0 ? message : create(messageDesc2);
     this.fields = messageDesc2.fields;
@@ -3405,10 +3405,10 @@ var ReflectListImpl = class {
   get size() {
     return this._arr.length;
   }
-  constructor(field2, unsafeInput, check) {
+  constructor(field2, unsafeInput, check2) {
     this._field = field2;
     this._arr = this[unsafeLocal] = unsafeInput;
-    this.check = check;
+    this.check = check2;
   }
   get(index) {
     const item = this._arr[index];
@@ -3457,9 +3457,9 @@ var ReflectListImpl = class {
   }
 };
 var ReflectMapImpl = class {
-  constructor(field2, unsafeInput, check = true) {
+  constructor(field2, unsafeInput, check2 = true) {
     this.obj = this[unsafeLocal] = unsafeInput !== null && unsafeInput !== void 0 ? unsafeInput : {};
-    this.check = check;
+    this.check = check2;
     this._field = field2;
   }
   field() {
@@ -3540,7 +3540,7 @@ function messageToLocal(field2, value) {
   }
   return value.message;
 }
-function messageToReflect(field2, value, check) {
+function messageToReflect(field2, value, check2) {
   if (value !== void 0) {
     if (isWrapperDesc(field2.message) && !field2.oneof && field2.fieldKind == "message") {
       value = {
@@ -3551,7 +3551,7 @@ function messageToReflect(field2, value, check) {
       value = wktStructToReflect(value);
     }
   }
-  return new ReflectMessageImpl(field2.message, value, check);
+  return new ReflectMessageImpl(field2.message, value, check2);
 }
 function listItemToLocal(field2, value) {
   if (field2.listKind == "message") {
@@ -3559,9 +3559,9 @@ function listItemToLocal(field2, value) {
   }
   return longToLocal(field2, value);
 }
-function listItemToReflect(field2, value, check) {
+function listItemToReflect(field2, value, check2) {
   if (field2.listKind == "message") {
-    return messageToReflect(field2, value, check);
+    return messageToReflect(field2, value, check2);
   }
   return longToReflect(field2, value);
 }
@@ -3571,9 +3571,9 @@ function mapValueToLocal(field2, value) {
   }
   return longToLocal(field2, value);
 }
-function mapValueToReflect(field2, value, check) {
+function mapValueToReflect(field2, value, check2) {
   if (field2.mapKind == "message") {
-    return messageToReflect(field2, value, check);
+    return messageToReflect(field2, value, check2);
   }
   return value;
 }
@@ -4246,8 +4246,9 @@ function table(head, rows2, cls = "", none = "None.") {
     rows2.map((r) => el("tr", {}, r.map((c) => el("td", {}, c))))
   );
 }
-function options(select5, values, labels) {
+function options(select5, values, labels, none = "") {
   const keep = select5.value;
+  if (!values.length && none) return void select5.replaceChildren(el("option", { value: "", text: none }));
   select5.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
   if (values.includes(keep)) select5.value = keep;
 }
@@ -4262,6 +4263,11 @@ function size(n) {
   if (v < 1 << 20) return `${(v / 1024).toFixed(1)} KiB`;
   if (v < 1 << 30) return `${(v / (1 << 20)).toFixed(1)} MiB`;
   return `${(v / (1 << 30)).toFixed(2)} GiB`;
+}
+function elapsed(ms) {
+  if (ms < 6e4) return `${(ms / 1e3).toFixed(1)} s`;
+  const s = Math.floor(ms / 1e3);
+  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
 }
 function download(name, data, type) {
   const url = URL.createObjectURL(new Blob(data, { type }));
@@ -4289,20 +4295,6 @@ function lazy(details, render6) {
       render6();
     }
   };
-}
-
-// demo/web/src/doc.ts
-var current = null;
-var listeners = [];
-function doc() {
-  return current;
-}
-function setDoc(d) {
-  current = d;
-  for (const l of listeners) l(d);
-}
-function onDoc(l) {
-  listeners.push(l);
 }
 
 // demo/web/node_modules/@connectrpc/connect/dist/esm/code.js
@@ -5181,9 +5173,9 @@ function compileEnumFieldReader2(field2) {
       if (value === tokenIgnoredUnknownEnum) {
         return;
       }
-      const check = checkEnum(value);
-      if (check !== true) {
-        throw new FieldError(field2, reasonSingular(field2, value, check));
+      const check2 = checkEnum(value);
+      if (check2 !== true) {
+        throw new FieldError(field2, reasonSingular(field2, value, check2));
       }
       message[oneofLocalName] = { case: localName, value };
     };
@@ -5198,9 +5190,9 @@ function compileEnumFieldReader2(field2) {
     if (value === tokenIgnoredUnknownEnum) {
       return;
     }
-    const check = checkEnum(value);
-    if (check !== true) {
-      throw new FieldError(field2, reasonSingular(field2, value, check));
+    const check2 = checkEnum(value);
+    if (check2 !== true) {
+      throw new FieldError(field2, reasonSingular(field2, value, check2));
     }
     message[localName] = value;
   };
@@ -5265,9 +5257,9 @@ function compileListItemReader(field2) {
           throw new FieldError(field2, "list item must not be null");
         }
         const value = parseScalar(json);
-        const check = checkValue(value);
-        if (check !== true) {
-          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check)}`);
+        const check2 = checkValue(value);
+        if (check2 !== true) {
+          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
         }
         return toLocal(value);
       };
@@ -5284,9 +5276,9 @@ function compileListItemReader(field2) {
         if (value === tokenIgnoredUnknownEnum) {
           return value;
         }
-        const check = checkEnum(value);
-        if (check !== true) {
-          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check)}`);
+        const check2 = checkEnum(value);
+        if (check2 !== true) {
+          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
         }
         return value;
       };
@@ -5371,9 +5363,9 @@ function compileMapFieldReader2(field2) {
         throw new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: mapKey }, key2, checkKey)}`);
       }
       if (checkValue !== void 0) {
-        const check = checkValue(value);
-        if (check !== true) {
-          throw new FieldError(field2, `map entry ${formatVal(key2)}: ${reasonSingular(field2, value, check)}`);
+        const check2 = checkValue(value);
+        if (check2 !== true) {
+          throw new FieldError(field2, `map entry ${formatVal(key2)}: ${reasonSingular(field2, value, check2)}`);
         }
       }
       setOwn(record, key2, toLocalValue(value));
@@ -5427,9 +5419,9 @@ function compileScalarConverter(field2) {
   const toLocal = compileScalarToLocal(field2);
   return (json) => {
     const value = parseScalar(json);
-    const check = checkValue(value);
-    if (check !== true) {
-      throw new FieldError(field2, reasonSingular(field2, value, check));
+    const check2 = checkValue(value);
+    if (check2 !== true) {
+      throw new FieldError(field2, reasonSingular(field2, value, check2));
     }
     return toLocal(value);
   };
@@ -7038,6 +7030,81 @@ function refusedWhy(code) {
   return "";
 }
 
+// demo/web/src/act.ts
+var running = /* @__PURE__ */ new WeakSet();
+async function busy(button, job, stop6) {
+  if (running.has(button)) return;
+  running.add(button);
+  const t0 = performance.now();
+  const clock = el("span", { class: "elapsed", text: ` ${elapsed(0)}` });
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.append(clock);
+  if (stop6) stop6.disabled = false;
+  const tick = setInterval(() => clock.textContent = ` ${elapsed(performance.now() - t0)}`, 100);
+  try {
+    await job();
+  } finally {
+    clearInterval(tick);
+    clock.remove();
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+    running.delete(button);
+    if (stop6) stop6.disabled = true;
+  }
+}
+function submitter(ev) {
+  const by = ev.submitter;
+  if (by instanceof HTMLButtonElement) return by;
+  return ev.target.querySelector("button[type=submit]");
+}
+function confirmed(label, question, act3) {
+  const box5 = el("span", { class: "confirm" });
+  const first = (why = "") => {
+    const b = el("button", { type: "button", text: label });
+    b.addEventListener("click", ask);
+    box5.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
+    return b;
+  };
+  const ask = () => {
+    const yes = el("button", { type: "button", class: "danger", text: "Yes" });
+    const no = el("button", { type: "button", text: "Cancel" });
+    no.addEventListener("click", () => first().focus());
+    yes.addEventListener("click", () => {
+      no.disabled = true;
+      void busy(yes, async () => {
+        try {
+          await act3();
+          if (box5.isConnected) first();
+        } catch (e) {
+          first(describe(e)).focus();
+        }
+      });
+    });
+    box5.replaceChildren(el("span", { class: "ask", text: question }), " ", yes, " ", no);
+    no.focus();
+  };
+  box5.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && box5.querySelector(".ask")) first().focus();
+  });
+  first();
+  return box5;
+}
+
+// demo/web/src/doc.ts
+var current = null;
+var listeners = [];
+function doc() {
+  return current;
+}
+function setDoc(d) {
+  current = d;
+  for (const l of listeners) l(d);
+}
+function onDoc(l) {
+  listeners.push(l);
+}
+
 // demo/web/src/state.ts
 var current2 = null;
 var listeners2 = [];
@@ -7058,9 +7125,31 @@ function onCapabilities(l) {
 function bundles(c, task) {
   return c.bundles.filter((b) => b.task === task).map((b) => b.name);
 }
+var up = null;
+var watchers = [];
+function reachable() {
+  return up;
+}
+function setReachable(now) {
+  if (now === up) return;
+  const was = up;
+  up = now;
+  watchers.forEach((l) => l(now, was));
+}
+function onReachable(l) {
+  watchers.push(l);
+}
+function onBack(l) {
+  watchers.push((now, was) => {
+    if (now && was === false) l();
+  });
+}
+function whyNone(what) {
+  return up === false ? "the server is not reachable" : `no ${what} is served`;
+}
 
 // demo/web/src/tabs/analyze.ts
-var running = null;
+var running2 = null;
 var page = 0;
 var filter = /* @__PURE__ */ new Set();
 var openSpanModels = /* @__PURE__ */ new Set();
@@ -7082,13 +7171,13 @@ function layerRows(layers) {
   );
 }
 function stop() {
-  running?.abort();
-  running = null;
+  running2?.abort();
+  running2 = null;
 }
 async function run() {
   stop();
   const ac = new AbortController();
-  running = ac;
+  running2 = ac;
   const note5 = $("analyze-note");
   const steps = $("analyze-steps");
   const layersBox = $("analyze-layers");
@@ -7181,7 +7270,7 @@ async function run() {
   } catch (e) {
     say(note5, describe(e), "error");
   } finally {
-    if (running === ac) running = null;
+    if (running2 === ac) running2 = null;
   }
 }
 function segmentsView(w) {
@@ -7285,13 +7374,15 @@ async function loadFormats() {
     const f = await analysis.listOutputFormats({});
     options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`));
   } catch (e) {
-    say($("analyze-note"), describe(e), "error");
+    if (reachable() !== false) say($("analyze-note"), describe(e), "error");
   }
 }
 function init() {
-  $("analyze-run").addEventListener("click", run);
+  const go2 = $("analyze-run");
+  go2.addEventListener("click", () => void busy(go2, run, $("analyze-stop")));
   $("analyze-stop").addEventListener("click", stop);
-  $("analyze-export").addEventListener("click", exportDoc);
+  const format = $("analyze-export");
+  format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
     filter = /* @__PURE__ */ new Set();
@@ -7305,6 +7396,13 @@ function init() {
     options(select("analyze-model"), ["", ...models2], ["none", ...models2]);
     options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
   });
+  let filled = false;
+  onCapabilities(() => filled = true);
+  onReachable((up2) => {
+    if (filled || up2) return;
+    for (const id of ["analyze-profile", "analyze-model", "analyze-relation-model", "analyze-format"]) options(select(id), [], void 0, "the server is not reachable");
+  });
+  onBack(() => void loadFormats());
   capabilities().catch(() => void 0);
   void loadFormats();
 }
@@ -7331,36 +7429,32 @@ async function list() {
       ) : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." })
     );
   } catch (e) {
-    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box5.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }
 function remove(name) {
-  const b = el("button", { type: "button", text: "Delete" });
-  b.addEventListener("click", async () => {
-    try {
-      await search.deleteCollection({ collectionName: name });
-      await list();
-    } catch (e) {
-      say(note(), describe(e), "error");
-    }
+  return confirmed("Delete", `Delete ${name}?`, async () => {
+    await search.deleteCollection({ collectionName: name });
+    await list();
   });
-  return b;
 }
 async function set(ev) {
   ev.preventDefault();
   const name = input("coll-name").value.trim();
   if (!name) return say(note(), "Name the collection.", "error");
-  try {
-    const r = await search.setCollection({
-      collectionName: name,
-      baselineTerms: input("coll-baseline").value.split(" ").map((t) => t.trim()).filter((t) => t.length),
-      oovAlertThreshold: Math.min(1, Math.max(0, parseFloat(input("coll-threshold").value) || 0))
-    });
-    say(note(), `Set ${r.collection?.collectionName ?? name}.`);
-    await list();
-  } catch (e) {
-    say(note(), describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      const r = await search.setCollection({
+        collectionName: name,
+        baselineTerms: input("coll-baseline").value.split(" ").map((t) => t.trim()).filter((t) => t.length),
+        oovAlertThreshold: Math.min(1, Math.max(0, parseFloat(input("coll-threshold").value) || 0))
+      });
+      say(note(), `Set ${r.collection?.collectionName ?? name}.`);
+      await list();
+    } catch (e) {
+      say(note(), describe(e), "error");
+    }
+  });
 }
 function event(ev) {
   const r = ev.report;
@@ -7382,18 +7476,20 @@ async function watch() {
   watching = ac;
   const log = $("coll-events");
   say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
-  try {
-    for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
-      log.prepend(event(ev));
-      void list();
+  await busy($("coll-watch"), async () => {
+    try {
+      for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
+        log.prepend(event(ev));
+        void list();
+      }
+      say(note(), "The server ended the watch.");
+    } catch (e) {
+      const why = describe(e);
+      say(note(), why === "cancelled" ? "Stopped watching." : why, why === "cancelled" ? "" : "error");
+    } finally {
+      if (watching === ac) watching = null;
     }
-    say(note(), "The server ended the watch.");
-  } catch (e) {
-    const why = describe(e);
-    say(note(), why === "cancelled" ? "Stopped watching." : why, why === "cancelled" ? "" : "error");
-  } finally {
-    if (watching === ac) watching = null;
-  }
+  }, $("coll-stop"));
 }
 function stop2() {
   watching?.abort();
@@ -7401,7 +7497,9 @@ function stop2() {
 }
 function init2() {
   $("coll-set").addEventListener("submit", set);
-  $("coll-refresh").addEventListener("click", () => void list());
+  const again = $("coll-refresh");
+  again.addEventListener("click", () => void busy(again, list));
+  onBack(() => void list());
   $("coll-watch").addEventListener("click", () => void watch());
   $("coll-stop").addEventListener("click", stop2);
   void list();
@@ -7654,7 +7752,10 @@ async function loadMeta(name) {
 function renderModels() {
   const box5 = $("embed-models");
   box5.replaceChildren();
-  if (models.size === 0) box5.append(el("p", { class: "muted", text: "No embedding model is served: add a name below." }));
+  if (models.size === 0) {
+    const down = reachable() === false;
+    box5.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
+  }
   for (const [name, m] of models) {
     const cb = el("input", { type: "checkbox" });
     cb.checked = m.checked;
@@ -7672,7 +7773,7 @@ function renderModels() {
   }
 }
 async function addModels(names) {
-  const fresh = names.filter((n) => !models.has(n));
+  const fresh = names.filter((n) => !models.get(n)?.meta);
   for (const n of fresh) models.set(n, { meta: null, error: "", checked: true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
@@ -7751,9 +7852,6 @@ async function run2() {
     say(err, !texts2.length ? "Enter at least one text." : "Pick at least one model.", "error");
     return;
   }
-  const btn = $("embed-run");
-  btn.disabled = true;
-  btn.textContent = "Embedding\u2026";
   const encoder = new TextEncoder();
   const results = [];
   for (const name of chosen) {
@@ -7770,8 +7868,6 @@ async function run2() {
       results.push({ name, meta, ms: performance.now() - t0, error: describe(e) });
     }
   }
-  btn.disabled = false;
-  btn.textContent = "Embed";
   render3(texts2, results);
 }
 function heat(v) {
@@ -7901,9 +7997,17 @@ function init5() {
     await addModels([name]);
     input("embed-add-name").value = "";
   });
-  $("embed-run").addEventListener("click", run2);
-  onCapabilities((c) => void addModels(bundles(c, "TASK_EMBED")));
-  capabilities().catch((e) => say($("embed-error"), describe(e), "error"));
+  const go2 = $("embed-run");
+  go2.addEventListener("click", () => void busy(go2, run2));
+  onCapabilities((c) => {
+    say($("embed-error"), "");
+    void addModels(bundles(c, "TASK_EMBED"));
+  });
+  onReachable(renderModels);
+  capabilities().catch((e) => {
+    renderModels();
+    if (reachable() !== false) say($("embed-error"), describe(e), "error");
+  });
 }
 
 // demo/web/src/catalogfilter.ts
@@ -8218,9 +8322,7 @@ function acceptedTable(r, w, revoked) {
       const t = a.terms;
       let control = "";
       if (t && w.canChange) {
-        const b = el("button", { type: "button", text: "Revoke" });
-        b.addEventListener("click", () => void revoked(t));
-        control = b;
+        control = confirmed("Revoke", `Revoke ${t.licence}?`, () => revoked(t));
       }
       return [t?.licence ?? "", t ? address(t.text) : "", when(a.acceptedAt), a.artifactId, control];
     })
@@ -8308,12 +8410,11 @@ function sourcesTable(r, changed) {
     r.sources.map((s) => {
       let control = "";
       if (!why) {
-        const b = el("button", { type: "button", text: "Remove" });
-        b.addEventListener("click", () => void act(async () => {
+        control = confirmed("Remove", `Remove ${s.name}?`, async () => {
           const gone = await catalog.removeModelSource({ name: s.name });
-          return gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`;
-        }, changed));
-        control = b;
+          await changed();
+          say(note2(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
+        });
       }
       return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
     })
@@ -8352,13 +8453,14 @@ function add(ev) {
     region: input("sources-s3-region").value,
     endpoint: input("sources-s3-endpoint").value
   });
-  void act(async () => {
+  const register = async () => {
     const r = await catalog.registerModelSource({ name, address: address2, apiKey, s3Keys });
     input("sources-key").value = "";
     input("sources-s3-key-id").value = "";
     input("sources-s3-secret").value = "";
     return `Registered ${r.source?.name ?? name}.`;
-  }, load);
+  };
+  void busy(submitter(ev), () => act(register, load));
 }
 function connect() {
   const name = input("sources-drive-name").value.trim() || "Google Drive";
@@ -8384,7 +8486,8 @@ async function finish(back) {
 function init6() {
   $("sources-form").addEventListener("submit", add);
   $("sources-connect").addEventListener("click", connect);
-  $("sources-refresh").addEventListener("click", () => void load());
+  const again = $("sources-refresh");
+  again.addEventListener("click", () => void busy(again, load));
   const back = redirected(location.search);
   if (back) void finish(back);
   else void load();
@@ -8517,7 +8620,11 @@ async function loadCatalog() {
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]), "", "Nothing is installed."),
       el("h3", { text: "Accepted terms" }),
-      acceptedTable(acc, w, (t) => act2(() => revoke(t))),
+      acceptedTable(acc, w, async (t) => {
+        const done = await revoke(t);
+        await loadCatalog();
+        say(note3(), done);
+      }),
       el("h3", { text: "Catalog" }),
       el("p", { class: "muted", text: w.user ? `Licence terms still to accept are those for ${w.user}; read them before accepting.${w.why ? ` (${w.why})` : ""}` : w.why }),
       catalogTable(cat.entries, w)
@@ -8587,16 +8694,10 @@ async function loadTraining() {
   }
 }
 function deleteButton(name) {
-  const b = el("button", { type: "button", text: "Delete" });
-  b.addEventListener("click", async () => {
-    try {
-      await training.deleteStaticModel({ name });
-      await Promise.all([loadTraining(), refresh()]);
-    } catch (e) {
-      say($("train-note"), describe(e), "error");
-    }
+  return confirmed("Delete", `Delete ${name}?`, async () => {
+    await training.deleteStaticModel({ name });
+    await Promise.all([loadTraining(), refresh()]);
   });
-  return b;
 }
 async function train(ev) {
   ev.preventDefault();
@@ -8610,45 +8711,47 @@ async function train(ev) {
   say($("train-note"), "Training\u2026", "busy");
   const t0 = performance.now();
   let last = -1;
-  try {
-    const req = {
-      name: input("train-name").value.trim(),
-      teacher: $("train-teacher").value,
-      pcaDims: parseInt(input("train-dims").value, 10) || 0,
-      dtype: $("train-dtype").value === "F16" ? 2 /* F16 */ : 1 /* F32 */,
-      vocabularyArtifactId: input("train-vocabulary").value.trim(),
-      terms: $("train-terms").value.split("\n").map((t) => t.trim()).filter((t) => t.length)
-    };
-    for await (const u of training.trainStaticModel(req, { signal: ac.signal })) {
-      const ms = `${((performance.now() - t0) / 1e3).toFixed(1)} s`;
-      if (u.update.case === "progress") {
-        const p = u.update.value;
-        progress.max = Math.max(1, Number(p.totalItems));
-        progress.value = Number(p.completedItems);
-        const facts2 = [
-          p.totalItems ? `${p.completedItems} of ${p.totalItems}` : "",
-          p.addedTerms || p.refusedTerms ? `${p.addedTerms} terms added, ${p.refusedTerms} refused` : "",
-          p.explainedVariance ? `explained variance ${(p.explainedVariance * 100).toFixed(1)}%` : "",
-          p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : ""
-        ].filter(Boolean);
-        const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts2.length ? `: ${facts2.join(", ")}` : ""}`);
-        if (p.stage === last && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
-        else steps.append(line);
-        last = p.stage;
-      } else if (u.update.case === "trained") {
-        const t = u.update.value;
-        progress.value = progress.max;
-        const refused = t.refusedTerms.map((r) => `${r.term} (${r.reason})`).join(", ");
-        steps.append(el("li", {}, el("span", { class: "badge", text: ms }), ` trained ${t.model?.name ?? ""}: ${t.model?.dims ?? 0} dims, ${t.model?.vocabSize ?? 0} words${t.addedTerms.length ? `, added ${t.addedTerms.join(" ")}` : ""}${refused ? `; refused ${refused}` : ""}`));
+  await busy(submitter(ev), async () => {
+    try {
+      const req = {
+        name: input("train-name").value.trim(),
+        teacher: $("train-teacher").value,
+        pcaDims: parseInt(input("train-dims").value, 10) || 0,
+        dtype: $("train-dtype").value === "F16" ? 2 /* F16 */ : 1 /* F32 */,
+        vocabularyArtifactId: input("train-vocabulary").value.trim(),
+        terms: $("train-terms").value.split("\n").map((t) => t.trim()).filter((t) => t.length)
+      };
+      for await (const u of training.trainStaticModel(req, { signal: ac.signal })) {
+        const ms = `${((performance.now() - t0) / 1e3).toFixed(1)} s`;
+        if (u.update.case === "progress") {
+          const p = u.update.value;
+          progress.max = Math.max(1, Number(p.totalItems));
+          progress.value = Number(p.completedItems);
+          const facts2 = [
+            p.totalItems ? `${p.completedItems} of ${p.totalItems}` : "",
+            p.addedTerms || p.refusedTerms ? `${p.addedTerms} terms added, ${p.refusedTerms} refused` : "",
+            p.explainedVariance ? `explained variance ${(p.explainedVariance * 100).toFixed(1)}%` : "",
+            p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : ""
+          ].filter(Boolean);
+          const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts2.length ? `: ${facts2.join(", ")}` : ""}`);
+          if (p.stage === last && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
+          else steps.append(line);
+          last = p.stage;
+        } else if (u.update.case === "trained") {
+          const t = u.update.value;
+          progress.value = progress.max;
+          const refused = t.refusedTerms.map((r) => `${r.term} (${r.reason})`).join(", ");
+          steps.append(el("li", {}, el("span", { class: "badge", text: ms }), ` trained ${t.model?.name ?? ""}: ${t.model?.dims ?? 0} dims, ${t.model?.vocabSize ?? 0} words${t.addedTerms.length ? `, added ${t.addedTerms.join(" ")}` : ""}${refused ? `; refused ${refused}` : ""}`));
+        }
       }
+      await Promise.all([loadTraining(), refresh()]);
+      say($("train-note"), "");
+    } catch (e) {
+      say($("train-note"), describe(e), "error");
+    } finally {
+      if (trainingRun === ac) trainingRun = null;
     }
-    await Promise.all([loadTraining(), refresh()]);
-    say($("train-note"), "");
-  } catch (e) {
-    say($("train-note"), describe(e), "error");
-  } finally {
-    if (trainingRun === ac) trainingRun = null;
-  }
+  }, $("train-stop"));
 }
 function stopTraining() {
   trainingRun?.abort();
@@ -8662,10 +8765,13 @@ function stop3() {
   stopTraining();
 }
 function init7() {
-  $("models-catalog-load").addEventListener("click", () => void loadCatalog());
+  const read = $("models-catalog-load");
+  read.addEventListener("click", () => void busy(read, loadCatalog));
   $("train-form").addEventListener("submit", train);
   $("train-stop").addEventListener("click", stopTraining);
-  $("train-refresh").addEventListener("click", () => void loadTraining());
+  const again = $("train-refresh");
+  again.addEventListener("click", () => void busy(again, loadTraining));
+  onBack(() => void loadTraining());
   void loadTraining();
   init6();
 }
@@ -8835,7 +8941,8 @@ async function render4() {
 function init8() {
   const again = lazy($("analyze-projection"), () => void render4());
   onDoc(() => again());
-  $("projection-run").addEventListener("click", () => void render4());
+  const go2 = $("projection-run");
+  go2.addEventListener("click", () => void busy(go2, render4));
 }
 
 // demo/web/src/frames.ts
@@ -8947,7 +9054,7 @@ async function list3() {
   const box5 = $("search-indexes");
   try {
     const r = await search.listIndexes({});
-    options(select2("search-index"), r.indexes.map((i) => i.indexName));
+    options(select2("search-index"), r.indexes.map((i) => i.indexName), void 0, "no index yet");
     box5.replaceChildren(
       r.indexes.length ? table(
         ["index", "model", "dim", "metric", "storage", "documents", "chunks", ""],
@@ -8964,48 +9071,47 @@ async function list3() {
       ) : el("p", { class: "muted", text: "No index yet: create one from an embedding bundle." })
     );
   } catch (e) {
-    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    const down = reachable() === false;
+    if (down) options(select2("search-index"), [], void 0, "the server is not reachable");
+    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
   }
 }
 function deleteButton2(name) {
-  const b = el("button", { type: "button", text: "Delete" });
-  b.addEventListener("click", async () => {
-    try {
-      await search.deleteIndex({ indexName: name });
-      await list3();
-    } catch (e) {
-      say($("search-create-note"), describe(e), "error");
-    }
+  return confirmed("Delete", `Delete ${name}?`, async () => {
+    await search.deleteIndex({ indexName: name });
+    await list3();
   });
-  return b;
 }
 async function createIndex(ev) {
   ev.preventDefault();
   const note5 = $("search-create-note");
   const name = input("search-create-name").value.trim();
   const bundle = caps?.bundles.find((b) => b.name === select2("search-create-bundle").value);
-  if (!name || !bundle?.model) {
+  const model = bundle?.model;
+  if (!name || !bundle || !model) {
     say(note5, "Name the index and pick an embedding bundle.", "error");
     return;
   }
-  try {
-    await search.createIndex({
-      spec: {
-        indexName: name,
-        space: { model: { id: bundle.model.id, revision: bundle.model.revision, sha256: bundle.model.sha256 }, dim: bundle.widths[0] ?? 0, normalization: 1 /* UNIT */ },
-        metric: 0 /* COSINE */,
-        storage: 0 /* FLAT_F32 */,
-        embedBundle: bundle.name,
-        collectionName: input("search-create-collection").value.trim(),
-        chunkBudgetTokens: 0
-      }
-    });
-    say(note5, `Created ${name}.`);
-    await list3();
-    select2("search-index").value = name;
-  } catch (e) {
-    say(note5, describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      await search.createIndex({
+        spec: {
+          indexName: name,
+          space: { model: { id: model.id, revision: model.revision, sha256: model.sha256 }, dim: bundle.widths[0] ?? 0, normalization: 1 /* UNIT */ },
+          metric: 0 /* COSINE */,
+          storage: 0 /* FLAT_F32 */,
+          embedBundle: bundle.name,
+          collectionName: input("search-create-collection").value.trim(),
+          chunkBudgetTokens: 0
+        }
+      });
+      say(note5, `Created ${name}.`);
+      await list3();
+      select2("search-index").value = name;
+    } catch (e) {
+      say(note5, describe(e), "error");
+    }
+  });
 }
 async function addDocuments() {
   const note5 = $("search-add-note");
@@ -9023,17 +9129,19 @@ async function addDocuments() {
   indexing?.abort();
   const ac = new AbortController();
   indexing = ac;
-  try {
-    const body2 = indexBody(index, docs);
-    say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-    const r = await put(TurboSearchService.method.indexDocuments, body2, ac.signal);
-    say(note5, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
-    await list3();
-  } catch (e) {
-    say(note5, describe(e), "error");
-  } finally {
-    if (indexing === ac) indexing = null;
-  }
+  await busy($("search-add"), async () => {
+    try {
+      const body2 = indexBody(index, docs);
+      say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
+      const r = await put(TurboSearchService.method.indexDocuments, body2, ac.signal);
+      say(note5, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
+      await list3();
+    } catch (e) {
+      say(note5, describe(e), "error");
+    } finally {
+      if (indexing === ac) indexing = null;
+    }
+  });
 }
 function heatView(r) {
   return el(
@@ -9062,35 +9170,37 @@ function heatView(r) {
 async function runSearch(ev) {
   ev.preventDefault();
   const out = $("search-results");
-  try {
-    const r = await search.search({
-      indexName: select2("search-index").value,
-      naturalQuery: input("search-query").value,
-      topK: Math.max(1, parseInt(input("search-k").value, 10) || 10),
-      rerankBundle: select2("search-rerank").value
-    });
-    const hits = r.hits.map((h, i) => {
-      const a = h.attribution;
-      const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
-      const spans = (a?.matchedSpans ?? []).map((m) => `${m.source}${m.label ? `:${m.label}` : ""} ${m.span?.start ?? 0}..${m.span?.end ?? 0}`);
-      return el(
-        "div",
-        { class: "hit" },
-        el("div", { class: "head" }, el("b", { text: `${i + 1}. ${h.docId}` }), el("span", { class: "tag", text: h.score.toFixed(4) }), el("span", { class: "muted", text: ` ${h.chunkId}` })),
-        el("p", { text: h.text }),
-        signals ? el("p", { class: "muted", text: `signals: ${signals}` }) : null,
-        spans.length ? el("p", { class: "muted", text: `matched: ${spans.join("; ")}` }) : null
+  await busy(submitter(ev), async () => {
+    try {
+      const r = await search.search({
+        indexName: select2("search-index").value,
+        naturalQuery: input("search-query").value,
+        topK: Math.max(1, parseInt(input("search-k").value, 10) || 10),
+        rerankBundle: select2("search-rerank").value
+      });
+      const hits = r.hits.map((h, i) => {
+        const a = h.attribution;
+        const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
+        const spans = (a?.matchedSpans ?? []).map((m) => `${m.source}${m.label ? `:${m.label}` : ""} ${m.span?.start ?? 0}..${m.span?.end ?? 0}`);
+        return el(
+          "div",
+          { class: "hit" },
+          el("div", { class: "head" }, el("b", { text: `${i + 1}. ${h.docId}` }), el("span", { class: "tag", text: h.score.toFixed(4) }), el("span", { class: "muted", text: ` ${h.chunkId}` })),
+          el("p", { text: h.text }),
+          signals ? el("p", { class: "muted", text: `signals: ${signals}` }) : null,
+          spans.length ? el("p", { class: "muted", text: `matched: ${spans.join("; ")}` }) : null
+        );
+      });
+      out.replaceChildren(
+        el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
+        ...hits,
+        r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
+        heatView(r)
       );
-    });
-    out.replaceChildren(
-      el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
-      ...hits,
-      r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
-      heatView(r)
-    );
-  } catch (e) {
-    out.replaceChildren(el("p", { class: "error", text: describe(e) }));
-  }
+    } catch (e) {
+      out.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    }
+  });
 }
 function stop4() {
   indexing?.abort();
@@ -9100,11 +9210,19 @@ function init9() {
   $("search-create").addEventListener("submit", createIndex);
   $("search-add").addEventListener("click", addDocuments);
   $("search-form").addEventListener("submit", runSearch);
-  $("search-refresh").addEventListener("click", list3);
+  const refreshButton = $("search-refresh");
+  refreshButton.addEventListener("click", () => void busy(refreshButton, list3));
+  const served = () => {
+    const embed2 = caps?.bundles.filter((b) => b.task === "TASK_EMBED") ?? [];
+    options(select2("search-create-bundle"), embed2.map((b) => b.name), embed2.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`), whyNone("embedding model"));
+  };
+  onReachable(() => {
+    if (!caps) served();
+  });
+  onBack(() => void list3());
   onCapabilities((c) => {
     caps = c;
-    const embed2 = c.bundles.filter((b) => b.task === "TASK_EMBED");
-    options(select2("search-create-bundle"), embed2.map((b) => b.name), embed2.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`));
+    served();
     const rerank2 = c.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name);
     options(select2("search-rerank"), ["", ...rerank2], ["no rerank", ...rerank2]);
   });
@@ -9217,31 +9335,79 @@ async function run3() {
   say(note5, "");
 }
 function init10() {
-  $("sem-run").addEventListener("click", () => void run3());
+  const go2 = $("sem-run");
+  go2.addEventListener("click", () => void busy(go2, run3));
+  const kinds2 = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
+  const served = () => {
+    for (const [id, task, what] of kinds2) {
+      const names = caps2?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
+      if (!names.length) {
+        options(select3(id), [], void 0, whyNone(what));
+        continue;
+      }
+      const first = !select3(id).dataset.filled;
+      options(select3(id), ["", ...names], ["none", ...names]);
+      select3(id).dataset.filled = "yes";
+      if (first) select3(id).value = names[0];
+    }
+  };
   onCapabilities((c) => {
     caps2 = c;
-    for (const [id, task] of [["sem-embed", "TASK_EMBED"], ["sem-rerank", "TASK_RERANK"], ["sem-qa", "TASK_EXTRACTIVE_QA"]]) {
-      const names = c.bundles.filter((b) => b.task === task).map((b) => b.name);
-      const first = select3(id).options.length === 0;
-      options(select3(id), ["", ...names], ["none", ...names]);
-      if (first && names.length) select3(id).value = names[0];
-    }
+    say($("sem-note"), "");
+    served();
   });
-  capabilities().catch((err) => say($("sem-note"), describe(err), "error"));
+  onReachable(() => {
+    if (!caps2) served();
+  });
+  capabilities().catch((err) => {
+    served();
+    if (reachable() !== false) say($("sem-note"), describe(err), "error");
+  });
 }
 
 // demo/web/src/tabs/server.ts
-async function status() {
+var EVERY_MS = 1e4;
+var checking = null;
+function unreached(e) {
+  const c = ConnectError.from(e).code;
+  return c !== Code.Unauthenticated && c !== Code.PermissionDenied;
+}
+async function check() {
   const s = $("server");
   try {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
+    setReachable(true);
   } catch (e) {
-    s.textContent = `The server is not reachable through the demo: ${describe(e)}`;
-    s.className = "error status down";
+    if (unreached(e)) {
+      s.textContent = "server not reachable";
+      s.className = "error status down";
+      $("down-why").textContent = describe(e);
+      setReachable(false);
+    } else {
+      s.textContent = describe(e);
+      s.className = "error status";
+    }
   }
+}
+function status() {
+  checking ??= check().finally(() => checking = null);
+  return checking;
+}
+function watch2() {
+  setInterval(() => {
+    if (!document.hidden) void status();
+  }, EVERY_MS);
+  addEventListener("focus", () => void status());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) void status();
+  });
+  const retry = $("down-retry");
+  retry.addEventListener("click", () => void busy(retry, status));
+  onReachable((up2) => $("down").hidden = up2);
+  onBack(() => void reload());
 }
 function renderCapabilities(c) {
   const box5 = $("server-caps");
@@ -9267,42 +9433,38 @@ function renderCapabilities(c) {
   box5.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
 }
 function unloadButton(name) {
-  const b = el("button", { type: "button", text: "Unload" });
-  b.addEventListener("click", async () => {
-    const note5 = $("server-load-note");
-    try {
-      await analysis.unloadBundle({ name });
-      say(note5, `Unloaded ${name}.`);
-      await reload();
-    } catch (e) {
-      say(note5, describe(e), "error");
-    }
+  return confirmed("Unload", `Unload ${name}?`, async () => {
+    await analysis.unloadBundle({ name });
+    say($("server-load-note"), `Unloaded ${name}.`);
+    await reload();
   });
-  return b;
 }
 async function reload() {
   try {
     renderCapabilities(await refresh());
   } catch (e) {
-    $("server-caps").replaceChildren(el("p", { class: "error", text: describe(e) }));
+    const why = reachable() === false ? "The server is not reachable, so what it serves cannot be listed." : describe(e);
+    $("server-caps").replaceChildren(el("p", { class: "error", text: why }));
   }
 }
 async function load2(ev) {
   ev.preventDefault();
   const note5 = $("server-load-note");
   say(note5, "Loading\u2026", "busy");
-  try {
-    const r = await analysis.loadBundle({
-      name: input("server-load-name").value.trim(),
-      bundle: input("server-load-path").value.trim(),
-      sessions: Math.max(1, parseInt(input("server-load-sessions").value, 10) || 1),
-      selectDevice: input("server-load-select").checked
-    });
-    say(note5, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
-    await reload();
-  } catch (e) {
-    say(note5, describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      const r = await analysis.loadBundle({
+        name: input("server-load-name").value.trim(),
+        bundle: input("server-load-path").value.trim(),
+        sessions: Math.max(1, parseInt(input("server-load-sessions").value, 10) || 1),
+        selectDevice: input("server-load-select").checked
+      });
+      say(note5, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
+      await reload();
+    } catch (e) {
+      say(note5, describe(e), "error");
+    }
+  });
 }
 function init11() {
   const t = input("token");
@@ -9313,33 +9475,30 @@ function init11() {
     void reload();
   });
   $("server-load").addEventListener("submit", load2);
+  watch2();
   void status();
   void reload();
 }
 
 // demo/web/src/tabs/vocabulary.ts
-var busy = null;
+var busy2 = null;
 var select4 = (id) => $(id);
 function start() {
-  busy?.abort();
-  busy = new AbortController();
-  return busy;
+  busy2?.abort();
+  busy2 = new AbortController();
+  return busy2;
 }
 function stop5() {
-  busy?.abort();
-  busy = null;
+  busy2?.abort();
+  busy2 = null;
 }
+var stopButton = () => $("vocab-stop");
 function actions(id) {
   const get = el("button", { type: "button", text: "Download" });
-  get.addEventListener("click", () => void fetchArtifact(id));
-  const del = el("button", { type: "button", text: "Delete" });
-  del.addEventListener("click", async () => {
-    try {
-      await vocabulary.deleteVocabularyArtifact({ artifactId: id });
-      await list4();
-    } catch (e) {
-      say($("vocab-note"), describe(e), "error");
-    }
+  get.addEventListener("click", () => void busy(get, () => fetchArtifact(id), stopButton()));
+  const del = confirmed("Delete", `Delete ${id}?`, async () => {
+    await vocabulary.deleteVocabularyArtifact({ artifactId: id });
+    await list4();
   });
   return el("span", {}, get, " ", del);
 }
@@ -9368,7 +9527,7 @@ async function list4() {
       )
     );
   } catch (e) {
-    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box5.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
   }
 }
 async function importDictionary(ev) {
@@ -9380,29 +9539,31 @@ async function importDictionary(ev) {
     return;
   }
   const ac = start();
-  try {
-    const sha = await sha256Blob(file, (done) => say(note5, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-    say(note5, `Uploading ${size(file.size)}\u2026`, "busy");
-    const d = await put(
-      TurboVocabularyService.method.importDictionary,
-      importBody(
-        {
-          formatId: select4("vocab-format").value,
-          language: input("vocab-language").value.trim(),
-          name: input("vocab-name").value.trim() || file.name,
-          byteSize: BigInt(file.size),
-          sha256: sha,
-          hasHeaderRow: input("vocab-header").checked
-        },
-        file
-      ),
-      ac.signal
-    );
-    say(note5, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
-    await list4();
-  } catch (e) {
-    say(note5, describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      const sha = await sha256Blob(file, (done) => say(note5, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
+      say(note5, `Uploading ${size(file.size)}\u2026`, "busy");
+      const d = await put(
+        TurboVocabularyService.method.importDictionary,
+        importBody(
+          {
+            formatId: select4("vocab-format").value,
+            language: input("vocab-language").value.trim(),
+            name: input("vocab-name").value.trim() || file.name,
+            byteSize: BigInt(file.size),
+            sha256: sha,
+            hasHeaderRow: input("vocab-header").checked
+          },
+          file
+        ),
+        ac.signal
+      );
+      say(note5, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
+      await list4();
+    } catch (e) {
+      say(note5, describe(e), "error");
+    }
+  }, stopButton());
 }
 async function learn(ev) {
   ev.preventDefault();
@@ -9414,27 +9575,29 @@ async function learn(ev) {
     return;
   }
   const ac = start();
-  try {
-    const body2 = learnBody(
-      {
-        minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
-        maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
-        lowercase: input("vocab-lowercase").checked,
-        filterStopwords: input("vocab-stopwords").checked,
-        includeNgrams: input("vocab-ngrams").checked,
-        minNgramSize: 2,
-        maxNgramSize: 3,
-        dictionaryArtifactId: select4("vocab-seed").value
-      },
-      docs
-    );
-    say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-    const v = await put(TurboVocabularyService.method.learnVocabulary, body2, ac.signal);
-    say(note5, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
-    await list4();
-  } catch (e) {
-    say(note5, describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      const body2 = learnBody(
+        {
+          minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
+          maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
+          lowercase: input("vocab-lowercase").checked,
+          filterStopwords: input("vocab-stopwords").checked,
+          includeNgrams: input("vocab-ngrams").checked,
+          minNgramSize: 2,
+          maxNgramSize: 3,
+          dictionaryArtifactId: select4("vocab-seed").value
+        },
+        docs
+      );
+      say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
+      const v = await put(TurboVocabularyService.method.learnVocabulary, body2, ac.signal);
+      say(note5, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
+      await list4();
+    } catch (e) {
+      say(note5, describe(e), "error");
+    }
+  }, stopButton());
 }
 async function fetchArtifact(id) {
   const note5 = $("vocab-note");
@@ -9462,7 +9625,9 @@ async function fetchArtifact(id) {
 function init12() {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
-  $("vocab-refresh").addEventListener("click", list4);
+  const again = $("vocab-refresh");
+  again.addEventListener("click", () => void busy(again, list4));
+  onBack(() => void list4());
   $("vocab-stop").addEventListener("click", stop5);
   void list4();
 }
@@ -9813,7 +9978,8 @@ async function open() {
 function init13() {
   const again = lazy($("analyze-wire"), render5);
   onDoc(() => again());
-  $("wire-roundtrip").addEventListener("click", () => void roundTrip());
+  const go2 = $("wire-roundtrip");
+  go2.addEventListener("click", () => void busy(go2, roundTrip));
   $("wire-file").addEventListener("change", () => void open());
   $("wire-save").addEventListener("click", () => {
     const d = doc();
@@ -9832,19 +9998,26 @@ function show2(name) {
   for (const [tab, stop6] of Object.entries(stops)) if (tab !== name) stop6();
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   for (const p of document.querySelectorAll("section.panel")) p.hidden = p.id !== `tab-${name}`;
-  if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
+}
+function named() {
+  const want = location.hash.slice(1);
+  return document.getElementById(`tab-${want}`) ? want : "embed";
+}
+function go(name) {
+  if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);
+  show2(name);
 }
 function start2() {
   const tabs = [...document.querySelectorAll("nav.tabs button")];
   tabs.forEach((b, i) => {
-    b.addEventListener("click", () => show2(b.dataset.tab ?? "embed"));
+    b.addEventListener("click", () => go(b.dataset.tab ?? "embed"));
     b.addEventListener("keydown", (ev) => {
       const step = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
       if (!step) return;
       ev.preventDefault();
       const next = tabs[(i + step + tabs.length) % tabs.length];
       next.focus();
-      show2(next.dataset.tab ?? "embed");
+      go(next.dataset.tab ?? "embed");
     });
   });
   init11();
@@ -9859,7 +10032,10 @@ function start2() {
   init2();
   init12();
   init7();
-  const want = location.hash.slice(1);
-  show2(document.getElementById(`tab-${want}`) ? want : "embed");
+  addEventListener("hashchange", () => show2(named()));
+  addEventListener("popstate", () => show2(named()));
+  const first = named();
+  if (location.hash !== `#${first}`) history.replaceState(null, "", `#${first}`);
+  show2(first);
 }
 start2();

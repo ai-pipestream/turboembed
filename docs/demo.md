@@ -258,8 +258,24 @@ control leaves the box it is in, a long select or file picker shrinking
 to the box's width; a card with nothing in it is not drawn; and a list
 with no rows says "None." in place of bare column headings. The tabs
 are an ARIA tab list: the left and right arrow keys move between them.
+Each tab is an address (`#search`) and a history entry: a link opens its
+tab, and Back and Forward move between the tabs visited.
 The header shows the server's name, version and state with a dot, green
-once `ServerReady` says ready and red when the demo cannot reach it.
+once `ServerReady` says ready and red when the demo cannot reach it. The
+state is read again every 10 seconds while the page is in view and when
+it comes back into view. While the server does not answer, a notice
+under the tabs says so and offers "Retry now", and a list with nothing
+in it says why: the server is not reachable, or it serves none of that
+kind. When the server answers again the page reads `Capabilities` and
+its lists again, with no reload.
+
+Every action follows one pattern. A button that calls the server is off
+and shows the elapsed time while its call runs, and a Stop button is on
+only while there is something to stop. Anything that removes state
+(delete an index, a collection, a vocabulary artifact or a static
+model, unload a bundle, revoke a licence acceptance, remove a model
+source) asks in place first, "Delete demo?" with Yes and Cancel, and
+reports a refusal beside the row it concerns.
 
 ## Starting it
 
