@@ -141,6 +141,29 @@ fn token(file: Option<&PathBuf>) -> Result<Option<String>, String> {
     }
 }
 
+/// Waits for the first stop signal: SIGINT or, on Unix, SIGTERM as well.
+async fn stop_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut term = match signal(SignalKind::terminate()) {
+            Ok(s) => s,
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = term.recv() => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = match parse(std::env::args().skip(1)) {
@@ -182,7 +205,7 @@ async fn main() -> ExitCode {
         }
     };
     eprintln!("turbo-kserve-demo: open {scheme}://{} (calling {})", demo.local_addr(), args.server);
-    let _ = tokio::signal::ctrl_c().await;
+    stop_signal().await;
     demo.stop().await;
     ExitCode::SUCCESS
 }

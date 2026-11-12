@@ -2518,6 +2518,7 @@ dependencies = [
  "protox",
  "serde_json",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tonic",
  "tonic-prost",
@@ -2569,6 +2570,7 @@ dependencies = [
  "turbo-vector-index",
  "turbo-wordnet",
  "turbo-zoo",
+ "ureq",
 ]
 
 [[package]]

@@ -60,13 +60,13 @@ docker compose -f docker-compose.zoo.yml pull zoo
 docker compose -f docker-compose.zoo.yml up -d
 ```
 
-The workflow logs in with the secrets `DOCKER_USER` and `DOCKER_TOKEN`
-(a Docker Hub access token with write access), set on the repository or
-its organisation. A fork publishes its own copy by setting the same
-secrets and the repository variable `DOCKERHUB_REPOSITORY` to its own
-Docker Hub repository.
-Without the secrets the workflow builds and tests the image and pushes
-nothing. A pull request never logs in or pushes.
+The workflow logs in to `dhi.io` to pull the hardened base images and,
+on a push, to `docker.io` to publish the tested image, using the secrets
+`DOCKER_USER` and `DOCKER_TOKEN` (a Docker Hub access token), set on the
+repository or its organisation. A fork publishes its own copy by setting
+the same secrets and the repository variable `DOCKERHUB_REPOSITORY` to
+its own Docker Hub repository. Without the secrets the workflow skips
+the `dhi.io` build and pushes nothing. A pull request never pushes.
 
 ## With RustFS: docker compose
 
@@ -78,7 +78,12 @@ nothing. A pull request never logs in or pushes.
   fetches in that bucket under `blobs/sha256/<hex>` (docs/zoo.md,
   Stores).
 
+Building from source pulls Docker Hardened Images from `dhi.io`, so log
+in once with `docker login dhi.io` (using your Docker Hub account)
+before `--build` or `docker build`:
+
 ```
+docker login dhi.io
 export TURBO_ZOO_S3_ACCESS_KEY=... TURBO_ZOO_S3_SECRET_KEY=...
 docker compose -f docker-compose.zoo.yml up -d --build
 ```
@@ -105,7 +110,7 @@ them.
 
 The image alone keeps its cache and acceptances in the `/zoo` volume.
 With nothing else set, each model is fetched from its origin into that
-cache:
+cache (after `docker login dhi.io` when building locally):
 
 ```
 docker build -f server/Dockerfile.zoo -t turbo-zoo .
@@ -114,8 +119,8 @@ docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo turbo-zoo
 
 To keep models in a bucket you already run, name it as the catalog's
 store and pass the usual AWS variables. The bucket must already exist.
-`zoo-bucket`, which is in the image, makes it at an S3-compatible
-endpoint.
+`turbo-kserve zoo-bucket` (`zoo-bucket` in `/opt/turbo/bin`), which is
+in the image, makes it at an S3-compatible endpoint.
 
 ```
 docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo \
@@ -173,13 +178,28 @@ docker run -d -p 9080:8080 -p 9081:8081 -v turbo-zoo-b:/zoo \
 
 ## What runs in the image
 
-The entrypoint, `zoo-start` (server/zoo/zoo-start), starts `turbo-kserve`
-and `turbo-kserve-demo` side by side. When either one ends, it stops the
-other, so the container ends and its restart policy applies. The image
-runs as user 10001. Its health check, `zoo-health`, passes once the
-server answers SERVING (`turbo-kserve health`) and the page answers on
-the port `TURBO_DEMO_LISTEN` names, over HTTPS when `TURBO_DEMO_TLS_CERT`
-is set. It checks liveness on loopback, so it does not check the page
+`server/Dockerfile.zoo` builds on `dhi.io/rust:1.99-debian13-dev` and
+runs on `dhi.io/static:20250419-glibc-debian13`, both Docker Hardened
+Images pinned by digest. Building the Dockerfile needs a `dhi.io` login
+(`docker login dhi.io`). Only the compiled `turbo-kserve` and
+`turbo-kserve-demo` binaries, `libstdc++` and the CA bundle from the
+build stage are copied into the runtime stage. The final image runs as
+`10001:10001` and has no `/bin/sh`, no `bash`, no `curl` and no `apt`.
+To inspect a running container or image interactively, attach with
+`docker debug` or build temporarily with a `-dev` runtime variant
+(`--build-arg RUNTIME_BASE=dhi.io/debian-base:trixie-dev`).
+
+The container helpers are subcommands of `turbo-kserve` (`zoo-start`,
+`zoo-health` and `zoo-bucket` under `server/src/zoo/`), with matching
+symlinks in `/opt/turbo/bin` so direct invocations such as `zoo-health`
+work without a shell. The entrypoint (`turbo-kserve zoo-start`,
+`server/src/zoo/start.rs`) starts `turbo-kserve` and `turbo-kserve-demo`
+side by side. When either one ends, it stops the other, so the container
+ends and its restart policy applies. Its health check (`turbo-kserve
+zoo-health`, `server/src/zoo/health.rs`) passes once the server answers
+SERVING (`turbo-kserve health`) and the page answers on the port
+`TURBO_DEMO_LISTEN` names, over HTTPS when `TURBO_DEMO_TLS_CERT` is set.
+It checks liveness on loopback, so it does not check the page
 certificate's name, which is the zoo's own host.
 
 ## Who can do what
@@ -239,8 +259,8 @@ client defaults per binary. To use separate identities, set both the certificate
 and key for each client. For server-only TLS, omit the client CA and client
 identities. Incomplete credentials fail before either server or page launches.
 
-Both `zoo-start` and `zoo-health` source the same resolver
-(server/zoo/zoo-env); the health check does not depend on environment exports
+Both `zoo-start` and `zoo-health` run the same resolver
+(`server/src/zoo/env.rs`); the health check does not depend on environment exports
 made in another process. Explicit `TURBO_DEMO_SERVER` must use the listener's
 TLS scheme. This does not enable HTTPS for the page itself: use the separate
 `TURBO_DEMO_TLS_CERT` and `TURBO_DEMO_TLS_KEY` settings for that. External gRPC
