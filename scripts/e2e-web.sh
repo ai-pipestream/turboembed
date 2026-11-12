@@ -2,7 +2,7 @@
 # Runs the demo page in a real browser against the real server
 # (docs/demo.md, Tests): builds turbo-kserve and turbo-kserve-demo, starts
 # the server on the CPU with test bundles and the demo in front of it,
-# and runs demo/web/e2e with Playwright. Nothing is stubbed.
+# and runs every test file in demo/web/e2e with Playwright. Nothing is stubbed.
 #
 #   scripts/e2e-web.sh [SCREENSHOT_DIR]
 #
@@ -96,4 +96,7 @@ OUT="$ROOT/demo/web/node_modules/.e2e"
 rm -rf "$OUT"
 "$BIN/esbuild" demo/web/e2e/*.test.ts --bundle --platform=node --format=esm \
   --packages=external --outdir="$OUT" --out-extension:.js=.mjs --log-level=warning
-TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test "$OUT"/*.test.mjs
+# One file at a time: each model is served with one session, which
+# refuses a second call while one runs, so files run side by side would
+# fail each other's calls.
+TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test --test-concurrency=1 "$OUT"/*.test.mjs
