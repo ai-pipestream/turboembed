@@ -386,11 +386,11 @@ Clients in other languages are generated from `server/proto`
 | `analysis/structure`, `analysis/sentdetect`, `analysis/sat`, `analysis/tokenize`, `analysis/langdetect`, `analysis/langspan` | structure, segmentation and language |
 | `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | tagging, parsing, entity extraction, document categorization and coreference |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
-| `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
+| `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/us-zip`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, US ZIP Codes, PII and pattern matching |
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz` | the model zoo, the pins of tested models, golden fixtures and fuzzing |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/scratch` | the model zoo, the pins of tested models, golden fixtures, fuzzing, and test scratch directories |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types
