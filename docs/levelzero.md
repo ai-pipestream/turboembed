@@ -573,6 +573,42 @@ change; those paired runs are not committed as records. On this
 machine a p50 moves by up to 4% between sessions at the same clock, so
 a comparison between builds is made interleaved in one session.
 
+### Per-kernel profile
+
+`benchmarks/logs/2204-levelzero/` holds `TURBO_LEVELZERO_PROFILE` runs of
+`the_profile_of_a_real_bundle` (core/tests/levelzero/conformance.rs) at
+FASTEST, 32 rows of 256 tokens, 5 untimed and 20 timed runs, for the same
+two bundles. They were made at library commit `7f7d61a2` with `levelzero-onednn`
+on the same B70, on Intel's compute-runtime 26.40.40196.8 (Level Zero
+driver `1.18.40196`, IGC 2.42.6, gmmlib 22.10.2, loader 1.35.0) and
+oneDNN 3.9.1. The clock was pinned at 2200 MHz, and `act_freq`, sampled
+every 20 ms during each run, never read below 2200. Each log's header
+names its versions and command. `summary.tsv` has every line of the
+three rounds. Device milliseconds per run, the median of three rounds
+(the 20 timed runs and the 5 untimed ones together, divided by 25):
+
+| Line | all-MiniLM-L6-v2 | bge-base-en-v1.5 |
+|---|---|---|
+| oneDNN matmul, feed-forward in + GELU | 0.842 | 5.064 |
+| oneDNN matmul, feed-forward out + residual | 0.721 | 3.694 |
+| oneDNN matmul, Q K V | 0.440 | 2.920 |
+| oneDNN matmul, attention output + residual | 0.291 | 1.352 |
+| attention | 0.474 | 2.151 |
+| oneDNN LayerNorm | 0.127 | 0.721 |
+| copies (`zeCommandListAppendMemoryCopy`, with the first run's uploads) | 0.146 | 0.672 |
+| the embedding lookup | 0.077 | 0.208 |
+| the last feed-forward output and LayerNorm | 0.034 | 0.090 |
+| pooling, normalization | 0.029 | 0.008 |
+| sum | about 3.20 | about 16.40 |
+| wall time of a profiled run | 3.606 | 17.995 |
+
+A profiled run is slower than an unprofiled one: timing every
+primitive costs time on the host (MiniLM's record p50 is about 3.1 ms).
+So the gap between the sum and a profiled run's wall time is an upper
+bound on the time the device spends between kernels, not a measure of
+it. Lines move by under 0.01 ms between rounds, apart from the
+LayerNorms.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
