@@ -430,8 +430,8 @@ function unsafeSet(target, field2, value) {
     target[field2.localName] = value;
   }
 }
-function setOwn(obj, key2, value) {
-  if (key2 === "__proto__") {
+function setOwn(obj, key3, value) {
+  if (key3 === "__proto__") {
     Object.defineProperty(obj, "__proto__", {
       value,
       writable: true,
@@ -439,11 +439,11 @@ function setOwn(obj, key2, value) {
       configurable: true
     });
   } else {
-    obj[key2] = value;
+    obj[key3] = value;
   }
 }
-function getOwn(obj, key2) {
-  return Object.prototype.hasOwnProperty.call(obj, key2) ? obj[key2] : void 0;
+function getOwn(obj, key3) {
+  return Object.prototype.hasOwnProperty.call(obj, key3) ? obj[key3] : void 0;
 }
 function unsafeClear(target, field2) {
   const name = field2.localName;
@@ -1850,8 +1850,8 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
     const mapEntry = type == TYPE_MESSAGE ? mapEntries === null || mapEntries === void 0 ? void 0 : mapEntries.get(trimLeadingDot(proto.typeName)) : void 0;
     if (mapEntry) {
       field2.fieldKind = "map";
-      const { key: key2, value } = findMapEntryFields(mapEntry);
-      field2.mapKey = key2.scalar;
+      const { key: key3, value } = findMapEntryFields(mapEntry);
+      field2.mapKey = key3.scalar;
       field2.mapKind = value.fieldKind;
       field2.message = value.message;
       field2.delimitedEncoding = false;
@@ -2046,10 +2046,10 @@ function isPackedField(proto, parent) {
   });
 }
 function findMapEntryFields(mapEntry) {
-  const key2 = mapEntry.fields.find((f) => f.number === 1);
+  const key3 = mapEntry.fields.find((f) => f.number === 1);
   const value = mapEntry.fields.find((f) => f.number === 2);
-  assert(key2 && key2.fieldKind == "scalar" && key2.scalar != ScalarType.BYTES && key2.scalar != ScalarType.FLOAT && key2.scalar != ScalarType.DOUBLE && value && value.fieldKind != "list" && value.fieldKind != "map");
-  return { key: key2, value };
+  assert(key3 && key3.fieldKind == "scalar" && key3.scalar != ScalarType.BYTES && key3.scalar != ScalarType.FLOAT && key3.scalar != ScalarType.DOUBLE && value && value.fieldKind != "list" && value.fieldKind != "map");
+  return { key: key3, value };
 }
 function isEnumOpen(desc) {
   var _a;
@@ -2916,11 +2916,11 @@ function compileMapField(field2) {
       const record = message[localName];
       const keys = Object.keys(record);
       for (let i = 0; i < keys.length; i++) {
-        const key2 = keys[i];
+        const key3 = keys[i];
         writer.tag(fieldNo, WireType.LengthDelimited).fork();
-        writeKey(writer, key2);
+        writeKey(writer, key3);
         writer.tag(2, WireType.LengthDelimited).fork();
-        writeMessage(writer, opts, toMessage(record[key2]));
+        writeMessage(writer, opts, toMessage(record[key3]));
         writer.join();
         writer.join();
       }
@@ -2933,11 +2933,11 @@ function compileMapField(field2) {
     const record = message[localName];
     const keys = Object.keys(record);
     for (let i = 0; i < keys.length; i++) {
-      const key2 = keys[i];
+      const key3 = keys[i];
       writer.tag(fieldNo, WireType.LengthDelimited).fork();
-      writeKey(writer, key2);
+      writeKey(writer, key3);
       writer.tag(2, valueWireType);
-      writeScalar(writer, record[key2]);
+      writeScalar(writer, record[key3]);
       writer.join();
     }
   };
@@ -2946,40 +2946,40 @@ function compileMapKey(field2) {
   const wireType = writeTypeOfScalar(field2.mapKey);
   const writeScalar = compileScalarValue(field2.mapKey, field2.parent.typeName, field2.name);
   const convertKey = compileMapKeyConverter(field2.mapKey);
-  return (writer, key2) => {
+  return (writer, key3) => {
     writer.tag(1, wireType);
-    writeScalar(writer, convertKey(key2));
+    writeScalar(writer, convertKey(key3));
   };
 }
 function compileMapKeyConverter(type) {
   switch (type) {
     case ScalarType.STRING:
-      return (key2) => key2;
+      return (key3) => key3;
     case ScalarType.BOOL:
-      return (key2) => key2 === "true" ? true : key2 === "false" ? false : key2;
+      return (key3) => key3 === "true" ? true : key3 === "false" ? false : key3;
     case ScalarType.UINT64:
     case ScalarType.FIXED64:
-      return (key2) => {
+      return (key3) => {
         try {
-          return protoInt64.uParse(key2);
+          return protoInt64.uParse(key3);
         } catch (_a) {
-          return key2;
+          return key3;
         }
       };
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      return (key2) => {
+      return (key3) => {
         try {
-          return protoInt64.parse(key2);
+          return protoInt64.parse(key3);
         } catch (_a) {
-          return key2;
+          return key3;
         }
       };
     default:
-      return (key2) => {
-        const n = Number.parseInt(key2);
-        return Number.isFinite(n) ? n : key2;
+      return (key3) => {
+        const n = Number.parseInt(key3);
+        return Number.isFinite(n) ? n : key3;
       };
   }
 }
@@ -3094,14 +3094,14 @@ function checkListItem(field2, index, value) {
   }
   return void 0;
 }
-function checkMapEntry(field2, key2, value) {
-  const checkKey = checkScalarValue(field2.mapKey)(key2);
+function checkMapEntry(field2, key3, value) {
+  const checkKey = checkScalarValue(field2.mapKey)(key3);
   if (checkKey !== true) {
-    return new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: field2.mapKey }, key2, checkKey)}`);
+    return new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: field2.mapKey }, key3, checkKey)}`);
   }
   const checkVal = checkSingular(field2, value);
   if (checkVal !== true) {
-    return new FieldError(field2, `map entry ${formatVal(key2)}: ${reasonSingular(field2, value, checkVal)}`);
+    return new FieldError(field2, `map entry ${formatVal(key3)}: ${reasonSingular(field2, value, checkVal)}`);
   }
   return void 0;
 }
@@ -3465,18 +3465,18 @@ var ReflectMapImpl = class {
   field() {
     return this._field;
   }
-  set(key2, value) {
+  set(key3, value) {
     if (this.check) {
-      const err = checkMapEntry(this._field, key2, value);
+      const err = checkMapEntry(this._field, key3, value);
       if (err) {
         throw err;
       }
     }
-    setOwn(this.obj, mapKeyToLocal(key2), mapValueToLocal(this._field, value));
+    setOwn(this.obj, mapKeyToLocal(key3), mapValueToLocal(this._field, value));
     return this;
   }
-  delete(key2) {
-    const k = mapKeyToLocal(key2);
+  delete(key3) {
+    const k = mapKeyToLocal(key3);
     const has = Object.prototype.hasOwnProperty.call(this.obj, k);
     if (has) {
       delete this.obj[k];
@@ -3484,19 +3484,19 @@ var ReflectMapImpl = class {
     return has;
   }
   clear() {
-    for (const key2 of Object.keys(this.obj)) {
-      delete this.obj[key2];
+    for (const key3 of Object.keys(this.obj)) {
+      delete this.obj[key3];
     }
   }
-  get(key2) {
-    let val = getOwn(this.obj, mapKeyToLocal(key2));
+  get(key3) {
+    let val = getOwn(this.obj, mapKeyToLocal(key3));
     if (val !== void 0) {
       val = mapValueToReflect(this._field, val, this.check);
     }
     return val;
   }
-  has(key2) {
-    return Object.prototype.hasOwnProperty.call(this.obj, mapKeyToLocal(key2));
+  has(key3) {
+    return Object.prototype.hasOwnProperty.call(this.obj, mapKeyToLocal(key3));
   }
   *keys() {
     for (const objKey of Object.keys(this.obj)) {
@@ -3577,26 +3577,26 @@ function mapValueToReflect(field2, value, check2) {
   }
   return value;
 }
-function mapKeyToLocal(key2) {
-  return typeof key2 == "string" || typeof key2 == "number" ? key2 : String(key2);
+function mapKeyToLocal(key3) {
+  return typeof key3 == "string" || typeof key3 == "number" ? key3 : String(key3);
 }
-function mapKeyToReflect(key2, type) {
+function mapKeyToReflect(key3, type) {
   switch (type) {
     case ScalarType.STRING:
-      return key2;
+      return key3;
     case ScalarType.INT32:
     case ScalarType.FIXED32:
     case ScalarType.UINT32:
     case ScalarType.SFIXED32:
     case ScalarType.SINT32: {
-      const n = Number.parseInt(key2);
+      const n = Number.parseInt(key3);
       if (Number.isFinite(n)) {
         return n;
       }
       break;
     }
     case ScalarType.BOOL:
-      switch (key2) {
+      switch (key3) {
         case "true":
           return true;
         case "false":
@@ -3606,18 +3606,18 @@ function mapKeyToReflect(key2, type) {
     case ScalarType.UINT64:
     case ScalarType.FIXED64:
       try {
-        return protoInt64.uParse(key2);
+        return protoInt64.uParse(key3);
       } catch (_a) {
       }
       break;
     default:
       try {
-        return protoInt64.parse(key2);
+        return protoInt64.parse(key3);
       } catch (_b) {
       }
       break;
   }
-  return key2;
+  return key3;
 }
 function longToReflect(field2, value) {
   switch (field2.scalar) {
@@ -4084,7 +4084,7 @@ function compileMapFieldReader(field2) {
   }
   return (message, reader, ctx) => {
     const record = message[localName];
-    let key2;
+    let key3;
     let val;
     const len = reader.uint32();
     const end = reader.pos + len;
@@ -4092,20 +4092,20 @@ function compileMapFieldReader(field2) {
       const [fieldNo] = reader.tag();
       switch (fieldNo) {
         case 1:
-          key2 = readKey(reader);
+          key3 = readKey(reader);
           break;
         case 2:
           val = readValue(reader, ctx, val);
           break;
       }
     }
-    if (key2 === void 0) {
-      key2 = keyZero;
+    if (key3 === void 0) {
+      key3 = keyZero;
     }
     if (val === void 0) {
       val = valueDefault();
     }
-    setOwn(record, key2, val);
+    setOwn(record, key3, val);
   };
 }
 function compileScalarReader(type, utf8Validation, longAsString) {
@@ -4234,8 +4234,8 @@ function append(e, children) {
     else e.append(c);
   }
 }
-function stat(value, key2) {
-  return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key2 }));
+function stat(value, key3) {
+  return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key3 }));
 }
 function table(head, rows2, cls = "", none = "None.") {
   if (!rows2.length) return el("p", { class: "muted empty", text: none });
@@ -4527,8 +4527,8 @@ function writeOwnKeys(writeField2) {
   return (opts, message, json) => {
     const tmp = /* @__PURE__ */ Object.create(null);
     writeField2(opts, message, tmp);
-    for (const key2 of Object.keys(tmp)) {
-      setOwn(json, key2, tmp[key2]);
+    for (const key3 of Object.keys(tmp)) {
+      setOwn(json, key3, tmp[key3]);
     }
   };
 }
@@ -4720,8 +4720,8 @@ function compileMapValue(field2) {
     }
     const jsonObject = {};
     for (let i = 0; i < keys.length; i++) {
-      const key2 = keys[i];
-      setOwn(jsonObject, key2, writeMapValue(opts, record[key2]));
+      const key3 = keys[i];
+      setOwn(jsonObject, key3, writeMapValue(opts, record[key3]));
     }
     return jsonObject;
   };
@@ -4916,8 +4916,8 @@ function structToJson(val) {
   const json = {};
   const keys = Object.keys(val.fields);
   for (let i = 0; i < keys.length; i++) {
-    const key2 = keys[i];
-    setOwn(json, key2, valueToJson(val.fields[key2]));
+    const key3 = keys[i];
+    setOwn(json, key3, valueToJson(val.fields[key3]));
   }
   return json;
 }
@@ -5360,11 +5360,11 @@ function compileMapFieldReader2(field2) {
     for (let i = 0; i < jsonMapKeys.length; i++) {
       const jsonMapKey = jsonMapKeys[i];
       const jsonMapValue = json[jsonMapKey];
-      const key2 = parseMapKey(jsonMapKey);
-      if (seen.has(key2)) {
+      const key3 = parseMapKey(jsonMapKey);
+      if (seen.has(key3)) {
         throw new FieldError(field2, `duplicate map key "${jsonMapKey}"`);
       }
-      seen.add(key2);
+      seen.add(key3);
       if (jsonMapValue === null && nullResets) {
         throw new FieldError(field2, "map value must not be null");
       }
@@ -5372,17 +5372,17 @@ function compileMapFieldReader2(field2) {
       if (value === tokenIgnoredUnknownEnum) {
         continue;
       }
-      const checkKey = checkMapKey(key2);
+      const checkKey = checkMapKey(key3);
       if (checkKey !== true) {
-        throw new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: mapKey }, key2, checkKey)}`);
+        throw new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: mapKey }, key3, checkKey)}`);
       }
       if (checkValue !== void 0) {
         const check2 = checkValue(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `map entry ${formatVal(key2)}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field2, `map entry ${formatVal(key3)}: ${reasonSingular(field2, value, check2)}`);
         }
       }
-      setOwn(record, key2, toLocalValue(value));
+      setOwn(record, key3, toLocalValue(value));
     }
   };
 }
@@ -5673,9 +5673,9 @@ function anyFromJson(any, json, ctx) {
     compiledReader2(desc)(message, json.value, ctx);
   } else {
     const copy = {};
-    for (const key2 of Object.keys(json)) {
-      if (key2 !== "@type") {
-        setOwn(copy, key2, json[key2]);
+    for (const key3 of Object.keys(json)) {
+      if (key3 !== "@type") {
+        setOwn(copy, key3, json[key3]);
       }
     }
     compiledReader2(desc)(message, copy, ctx);
@@ -5748,10 +5748,10 @@ function structFromJson(struct, json, ctx) {
   }
   const keys = Object.keys(json);
   for (let i = 0; i < keys.length; i++) {
-    const key2 = keys[i];
+    const key3 = keys[i];
     const parsedValue = create(ValueSchema);
-    valueFromJson(parsedValue, json[key2], ctx);
-    setOwn(struct.fields, key2, parsedValue);
+    valueFromJson(parsedValue, json[key3], ctx);
+    setOwn(struct.fields, key3, parsedValue);
   }
 }
 function valueFromJson(value, json, ctx) {
@@ -5904,8 +5904,8 @@ function createMessage(message, code) {
 function appendHeaders(...headers) {
   const h = new Headers();
   for (const e of headers) {
-    e.forEach((value, key2) => {
-      h.append(key2, value);
+    e.forEach((value, key3) => {
+      h.append(key3, value);
     });
   }
   return h;
@@ -6343,15 +6343,15 @@ function getAbortSignalReason(signal) {
 // demo/web/node_modules/@connectrpc/connect/dist/esm/context-values.js
 function createContextValues() {
   return {
-    get(key2) {
-      return key2.id in this ? this[key2.id] : key2.defaultValue;
+    get(key3) {
+      return key3.id in this ? this[key3.id] : key3.defaultValue;
     },
-    set(key2, value) {
-      this[key2.id] = value;
+    set(key3, value) {
+      this[key3.id] = value;
       return this;
     },
-    delete(key2) {
-      delete this[key2.id];
+    delete(key3) {
+      delete this[key3.id];
       return this;
     }
   };
@@ -6490,7 +6490,7 @@ function parseContentType(contentType) {
 function errorFromJson(jsonValue, metadata, fallback) {
   var _a;
   if (metadata) {
-    new Headers(metadata).forEach((value, key2) => fallback.metadata.append(key2, value));
+    new Headers(metadata).forEach((value, key3) => fallback.metadata.append(key3, value));
   }
   if (typeof jsonValue !== "object" || jsonValue == null || Array.isArray(jsonValue)) {
     throw fallback;
@@ -6542,12 +6542,12 @@ function endStreamFromJson(data) {
     if (typeof jsonValue.metadata != "object" || jsonValue.metadata == null || Array.isArray(jsonValue.metadata)) {
       throw parseErr;
     }
-    for (const [key2, values] of Object.entries(jsonValue.metadata)) {
+    for (const [key3, values] of Object.entries(jsonValue.metadata)) {
       if (!Array.isArray(values) || values.some((value) => typeof value != "string")) {
         throw parseErr;
       }
       for (const value of values) {
-        metadata.append(key2, value);
+        metadata.append(key3, value);
       }
     }
   }
@@ -6582,11 +6582,11 @@ function codeFromHttpStatus(httpStatus) {
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol-connect/trailer-mux.js
 function trailerDemux(header) {
   const h = new Headers(), t = new Headers();
-  header.forEach((value, key2) => {
-    if (key2.toLowerCase().startsWith("trailer-")) {
-      t.append(key2.substring(8), value);
+  header.forEach((value, key3) => {
+    if (key3.toLowerCase().startsWith("trailer-")) {
+      t.append(key3.substring(8), value);
     } else {
-      h.append(key2, value);
+      h.append(key3, value);
     }
   });
   return [h, t];
@@ -6865,12 +6865,12 @@ function createConnectTransport(options2) {
               const endStream = endStreamFromJson(data);
               if (endStream.error) {
                 const error2 = endStream.error;
-                header2.forEach((value, key2) => {
-                  error2.metadata.append(key2, value);
+                header2.forEach((value, key3) => {
+                  error2.metadata.append(key3, value);
                 });
                 throw error2;
               }
-              endStream.metadata.forEach((value, key2) => trailerTarget.set(key2, value));
+              endStream.metadata.forEach((value, key3) => trailerTarget.set(key3, value));
               continue;
             }
             yield yield __await3(parse(data));
@@ -7211,13 +7211,22 @@ var writes = null;
 var user = true;
 var FOR_A_USER = "turbo.training.v1.TurboCatalogService";
 var locked = [];
+var changed = [];
 function path(m) {
   return `/${m.parent.typeName}/${m.name}`;
 }
 function set(forwarded, hasUser = true) {
+  const was = key();
   writes = forwarded ? new Set(forwarded) : null;
   user = forwarded === null || hasUser;
   for (const [box5, m] of locked) apply(box5, m);
+  if (key() !== was) changed.forEach((l) => l());
+}
+function key() {
+  return writes ? `${user} ${[...writes].sort().join(" ")}` : "none";
+}
+function onChange(l) {
+  changed.push(l);
 }
 function off(m) {
   if (!writes) return "";
@@ -7671,9 +7680,16 @@ function stop2() {
 function init2() {
   $("coll-set").addEventListener("submit", set2);
   const setButton = $("coll-set").querySelector("button[type=submit]");
-  const why = off(TurboSearchService.method.setCollection);
-  setButton.disabled = why !== "";
-  setButton.title = why;
+  const gate = () => {
+    const why = off(TurboSearchService.method.setCollection);
+    setButton.disabled = why !== "";
+    setButton.title = why;
+  };
+  gate();
+  onChange(() => {
+    gate();
+    void list();
+  });
   const again = $("coll-refresh");
   again.addEventListener("click", () => void busy(again, list));
   onServed(() => void list());
@@ -7817,7 +7833,7 @@ var picked = "";
 var shown = PAGE;
 var box2 = () => $("drawer-out");
 var viewSelect = () => $("drawer-view");
-function key(l) {
+function key2(l) {
   return `${l.id}#${l.instance}`;
 }
 function kindOf(name) {
@@ -7848,18 +7864,18 @@ function draw() {
     const bad = l.status !== 1 /* OK */;
     const b = el("button", {
       type: "button",
-      class: `chip${key(l) === picked ? " on" : ""}${bad ? " bad" : ""}`,
+      class: `chip${key2(l) === picked ? " on" : ""}${bad ? " bad" : ""}`,
       title: bad ? `${LayerWireStatus[l.status]}: ${l.error ? LayerErrorKind[l.error.kind] : ""}` : "",
       text: `${l.id}${l.instance ? `#${l.instance}` : ""} ${l.annotations.length}`
     });
     b.addEventListener("click", () => {
-      picked = key(l);
+      picked = key2(l);
       shown = PAGE;
       draw();
     });
     return b;
   });
-  const layer = r.layers.find((l) => key(l) === picked);
+  const layer = r.layers.find((l) => key2(l) === picked);
   box2().replaceChildren(
     el("p", { class: "muted", text: `${r.layers.length} layers on view ${r.view}. Pick one to open its annotations.` }),
     el("div", { class: "chips" }, chips),
@@ -7876,9 +7892,9 @@ async function render2() {
   if (!d) return void box2().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
     result = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: 1 /* UTF16 */ });
-    if (!result.layers.some((l) => key(l) === picked)) {
+    if (!result.layers.some((l) => key2(l) === picked)) {
       const first = result.layers.find((l) => l.annotations.length);
-      picked = first ? key(first) : "";
+      picked = first ? key2(first) : "";
     }
     shown = PAGE;
     draw();
@@ -8584,7 +8600,7 @@ function redirected(search2) {
 // demo/web/src/tabs/sources.ts
 var note2 = () => $("sources-note");
 var saidWhy = "";
-function sourcesTable(r, changed) {
+function sourcesTable(r, changed2) {
   const why = readOnly(r);
   if (!r.user) return el("p", { class: "muted", text: why });
   if (!r.sources.length) return el("p", { class: "muted", text: `${r.user} has no sources: installs read the catalog's own.` });
@@ -8595,7 +8611,7 @@ function sourcesTable(r, changed) {
       if (!why) {
         control = confirmed("Remove", `Remove ${s.name}?`, async () => {
           const gone = await catalog.removeModelSource({ name: s.name });
-          await changed();
+          await changed2();
           say(note2(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
         }, off(TurboCatalogService.method.removeModelSource));
       }
@@ -8688,6 +8704,9 @@ function init6() {
       finishing = true;
       void finish(b).finally(() => finishing = false);
     } else if (!finishing) void load();
+  });
+  onChange(() => {
+    if (!pending && !finishing) void load();
   });
   return back !== null;
 }
@@ -8989,6 +9008,10 @@ function init7() {
   };
   onServed(teachers);
   onCapabilities(teachers);
+  onChange(() => {
+    teachers();
+    if ($("models-catalog").childElementCount) void loadCatalog();
+  });
   init6();
 }
 
@@ -9443,6 +9466,7 @@ function init9() {
     if (!caps) served();
   });
   onServed(() => void list3());
+  onChange(() => void list3());
   onCapabilities((c) => {
     caps = c;
     served();
@@ -9858,6 +9882,7 @@ function init12() {
   const again = $("vocab-refresh");
   again.addEventListener("click", () => void busy(again, list4));
   onServed(() => void list4());
+  onChange(() => void list4());
   $("vocab-stop").addEventListener("click", stop5);
 }
 

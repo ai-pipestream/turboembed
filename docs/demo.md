@@ -365,6 +365,9 @@ demo which writes it forwards (`DemoService/Describe`) before it draws
 anything: a form whose write is not forwarded is off, with a line
 naming the `--allow` that enables it, and so is each delete, unload,
 install, accept and revoke control.
+A demo that wants a token answers only once the token is typed: until
+then nothing is off, and when the answer arrives every form and control
+follows it.
 
 A refused or failed call is reported as one plain sentence that says
 what to do where that is known ("Pick or create an index first."), with
@@ -615,7 +618,12 @@ either: every call the page makes goes through the demo to the server.
   it is back, the tabs refilled. A page opened with the server stopped
   says on each tab that the server is not reachable, and fills on Retry.
 
-The tests that stop the server, or need writes forwarded, start a
+`demo/web/e2e/permits.test.ts` starts a demo with a token and one
+`--allow`: nothing is off before the token is typed, and after it the
+other writes are off, the Set button of a collection and each row's
+Delete and Unload among them.
+
+The tests that stop the server, or need writes forwarded or a token, start a
 server and demo of their own from the same binaries
 (`demo/web/e2e/stack.ts`, given the binaries' directory in
 `TURBO_E2E_BIN`).

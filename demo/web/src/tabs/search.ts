@@ -6,7 +6,7 @@ import { DistanceMetric, NormalizationMode, TurboSearchService, VectorStorageKin
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, failed, input, options, say, size, table } from "../dom.js";
 import { indexBody, type Text } from "../frames.js";
-import { lock, off } from "../permit.js";
+import { lock, off, onChange } from "../permit.js";
 import { describe, explain, search } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, onServed, reachable, whyNone } from "../state.js";
 import { put } from "../upload.js";
@@ -209,6 +209,8 @@ export function init(): void {
     if (!caps) served();
   });
   onServed(() => void list());
+  // Each row's Delete is drawn from what the demo forwards.
+  onChange(() => void list());
   onCapabilities((c) => {
     caps = c;
     served();

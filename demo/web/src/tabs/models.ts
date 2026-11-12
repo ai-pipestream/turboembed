@@ -7,7 +7,7 @@ import { InstallStage, StaticDtype, TrainStage, TurboCatalogService, TurboTraini
 import { kindName, kinds, matches, purpose } from "../catalogfilter.js";
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, failed, input, options, say, size, table } from "../dom.js";
-import { lock, off } from "../permit.js";
+import { lock, off, onChange } from "../permit.js";
 import { catalog, describe, explain, training } from "../rpc.js";
 import { onCapabilities, onServed, reachable, refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
@@ -342,5 +342,10 @@ export function init(): void {
   };
   onServed(teachers);
   onCapabilities(teachers);
+  // Delete, Install, Accept and Revoke are drawn from what the demo forwards.
+  onChange(() => {
+    teachers();
+    if ($("models-catalog").childElementCount) void loadCatalog();
+  });
   sources.init();
 }

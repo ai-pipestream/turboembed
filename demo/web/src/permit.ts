@@ -15,6 +15,7 @@ let user = true;
 // The service whose writes act for the demo's user (--user).
 const FOR_A_USER = "turbo.training.v1.TurboCatalogService";
 const locked: [HTMLElement, Named][] = [];
+const changed: (() => void)[] = [];
 
 /** `/<package>.<Service>/<Method>`. */
 export function path(m: Named): string {
@@ -27,9 +28,25 @@ export function path(m: Named): string {
  * so far.
  */
 export function set(forwarded: string[] | null, hasUser = true): void {
+  const was = key();
   writes = forwarded ? new Set(forwarded) : null;
   user = forwarded === null || hasUser;
   for (const [box, m] of locked) apply(box, m);
+  if (key() !== was) changed.forEach((l) => l());
+}
+
+/** The answer in force, as one string to compare. */
+function key(): string {
+  return writes ? `${user} ${[...writes].sort().join(" ")}` : "none";
+}
+
+/**
+ * Calls `l` after each `set` that changed the answer (a token typed
+ * later brings the first real one). A control drawn with `off` is not a
+ * locked form: whoever drew it draws it again here.
+ */
+export function onChange(l: () => void): void {
+  changed.push(l);
 }
 
 /** Why the write `m` cannot be made from this page, or "" when it can. */

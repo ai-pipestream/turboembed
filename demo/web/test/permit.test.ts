@@ -3,7 +3,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { off, path, set } from "../src/permit.js";
+import { off, onChange, path, set } from "../src/permit.js";
 
 const create = { name: "CreateIndex", parent: { typeName: "turbo.search.v1.TurboSearchService" } };
 const remove = { name: "DeleteIndex", parent: { typeName: "turbo.search.v1.TurboSearchService" } };
@@ -33,4 +33,20 @@ test("a catalog write also needs the demo's user", () => {
   assert.equal(off(create), "");
   set([path(accept)], true);
   assert.equal(off(accept), "");
+});
+
+test("a changed answer is told to those who drew controls from the old one, an equal one is not", () => {
+  set(null);
+  let told = 0;
+  onChange(() => told++);
+  set(null);
+  assert.equal(told, 0);
+  set([path(create)]);
+  assert.equal(told, 1);
+  set([path(create)]);
+  assert.equal(told, 1);
+  set([path(create)], false);
+  assert.equal(told, 2);
+  set(null);
+  assert.equal(told, 3);
 });

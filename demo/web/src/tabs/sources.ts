@@ -6,7 +6,7 @@
 // page hands to the server and then clears.
 
 import { TurboCatalogService, type ListModelSourcesResponse, type ModelSource } from "../gen/turbo_training_pb.js";
-import { lock, off } from "../permit.js";
+import { lock, off, onChange } from "../permit.js";
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, failed, input, say, table } from "../dom.js";
 import { catalog, explain } from "../rpc.js";
@@ -135,6 +135,10 @@ export function init(): boolean {
       finishing = true;
       void finish(b).finally(() => (finishing = false));
     } else if (!finishing) void load();
+  });
+  // Each row's Remove is drawn from what the demo forwards.
+  onChange(() => {
+    if (!pending && !finishing) void load();
   });
   return back !== null;
 }

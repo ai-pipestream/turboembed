@@ -5,7 +5,7 @@
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
 import { TurboSearchService, type CollectionEvent } from "../gen/turbo_search_pb.js";
-import { lock, off } from "../permit.js";
+import { off, onChange } from "../permit.js";
 import { cancelled, describe, explain, search } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 
@@ -112,9 +112,17 @@ export function init(): void {
   $("coll-set").addEventListener("submit", set);
   // Watching is a read: only the Set button is the write.
   const setButton = $("coll-set").querySelector("button[type=submit]") as HTMLButtonElement;
-  const why = off(TurboSearchService.method.setCollection);
-  setButton.disabled = why !== "";
-  setButton.title = why;
+  const gate = (): void => {
+    const why = off(TurboSearchService.method.setCollection);
+    setButton.disabled = why !== "";
+    setButton.title = why;
+  };
+  gate();
+  // The answer can come later (a token typed): Set and each row's Delete follow it.
+  onChange(() => {
+    gate();
+    void list();
+  });
   const again = $("coll-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void busy(again, list));
   onServed(() => void list());

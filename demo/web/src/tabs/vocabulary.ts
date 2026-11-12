@@ -6,7 +6,7 @@ import { TurboVocabularyService } from "../gen/turbo_vocabulary_pb.js";
 import { busy as working, confirmed, submitter } from "../act.js";
 import { $, download, el, input, options, say, size, table } from "../dom.js";
 import { importBody, learnBody, type Text } from "../frames.js";
-import { lock, off } from "../permit.js";
+import { lock, off, onChange } from "../permit.js";
 import { describe, explain, vocabulary } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
@@ -185,5 +185,7 @@ export function init(): void {
   const again = $("vocab-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void working(again, list));
   onServed(() => void list());
+  // Each row's Delete is drawn from what the demo forwards.
+  onChange(() => void list());
   $("vocab-stop").addEventListener("click", stop);
 }
