@@ -168,3 +168,41 @@ fn large_finite_representable_projections_are_preserved() {
         }
     }
 }
+
+#[test]
+fn place_puts_a_vector_where_its_row_is() {
+    // Fewer rows than dimensions (the Gram path) and more (the covariance
+    // path): a row placed again lands on its own point, and the mean
+    // lands on the origin.
+    let wide: Vec<Vec<f32>> =
+        (0..5).map(|i| (0..9).map(|j| ((i * 5 + j * 3) as f32 * 0.41).sin() + 0.2 * i as f32).collect()).collect();
+    let tall: Vec<Vec<f32>> =
+        (0..7).map(|i| (0..3).map(|j| ((i * 3 + j * 7) as f32 * 0.29).cos() - 0.1 * j as f32).collect()).collect();
+    for rows in [wide, tall] {
+        let dim = rows[0].len() as u32;
+        let v = vectors::<Chunks>(dim, &rows.iter().map(|r| &r[..]).collect::<Vec<_>>(), &[]);
+        for dims in [ProjectionDims::D2, ProjectionDims::D3] {
+            let p = VectorProjection::compute(&v, dims).unwrap();
+            for (i, row) in rows.iter().enumerate() {
+                let placed = p.place(row).unwrap();
+                for (a, b) in placed.iter().zip(p.row(Ix::new(i as u32))) {
+                    assert!((a - b).abs() < 1e-5, "row {i}: placed {a}, projected {b}");
+                }
+            }
+            let mean: Vec<f32> = p.mean.iter().map(|&x| x as f32).collect();
+            assert!(p.place(&mean).unwrap().iter().all(|x| x.abs() < 1e-5));
+            for comp in p.components.chunks_exact(dim as usize) {
+                let norm: f64 = comp.iter().map(|x| x * x).sum::<f64>().sqrt();
+                assert!((norm - 1.0).abs() < 1e-9, "component length {norm}");
+            }
+            assert!(p.place(&rows[0][1..]).unwrap_err().contains("values"));
+            let mut bad = rows[0].clone();
+            bad[1] = f32::NAN;
+            assert!(p.place(&bad).unwrap_err().contains("not finite"));
+        }
+    }
+    // One row: no direction of variance, so everything lands on the origin.
+    let one = vectors::<Chunks>(2, &[&[1.0, 2.0]], &[]);
+    let p = VectorProjection::compute(&one, ProjectionDims::D2).unwrap();
+    assert_eq!(p.place(&[5.0, -3.0]).unwrap(), vec![0.0, 0.0]);
+}

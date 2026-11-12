@@ -252,9 +252,15 @@ impl AnalysisService for Analysis {
     async fn project_chunks(&self, req: Request<ProjectChunksRequest>) -> Reply<ProjectChunksResponse> {
         let req = req.into_inner();
         let policy = self.pii_policy;
-        let out = tokio::task::spawn_blocking(move || crate::inspect::project::project_chunks_under(&req, policy))
-            .await
-            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_chunks task failed: {e}"))))?;
+        let state = self.state.clone();
+        let out = tokio::task::spawn_blocking(move || {
+            let embed = |space: &crate::inspect::query::Space<'_>, text: &str| {
+                crate::inspect::query::embed_with(&state, space, text)
+            };
+            crate::inspect::project::project_chunks_with(&req, policy, Some(&embed))
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_chunks task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))
     }
 

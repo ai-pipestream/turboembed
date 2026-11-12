@@ -53,7 +53,12 @@ impl ProjectionDims {
 /// `dims`. `adjacent_cosine` has one entry per row: entry `i` is the
 /// cosine between the original vectors of rows `i` and `i + 1`, or
 /// `None` for the last row, when either row is empty, or when either
-/// vector has zero norm.
+/// vector has zero norm. `mean` (one value per vector dimension) and
+/// `components` (row-major `[dims, vector dimension]`, unit length, in
+/// the canonical sign) are the basis the coordinates were taken in, so
+/// [`VectorProjection::place`] can put another vector of the same model
+/// in the same picture; both are all zeros when fewer than two rows
+/// carry a vector.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VectorProjection<L> {
     pub model: ModelRef,
@@ -62,6 +67,8 @@ pub struct VectorProjection<L> {
     pub empty: Vec<Ix<L>>,
     pub explained_variance: [f32; 3],
     pub adjacent_cosine: Vec<Option<f32>>,
+    pub mean: Vec<f64>,
+    pub components: Vec<f64>,
     pub _of: PhantomData<fn() -> L>,
 }
 
@@ -70,6 +77,32 @@ impl<L: Layer> VectorProjection<L> {
     pub fn row(&self, i: Ix<L>) -> &[f32] {
         let d = self.dims.get();
         &self.coords[i.get() * d..(i.get() + 1) * d]
+    }
+
+    /// The coordinates `vector` would have in this projection: it is
+    /// centred on the rows' mean and laid on the same components, so a
+    /// vector equal to a projected row lands on that row's point up to
+    /// rounding. Refuses a vector of another dimension or with a
+    /// non-finite value or coordinate.
+    pub fn place(&self, vector: &[f32]) -> Result<Vec<f32>, String> {
+        let d = self.mean.len();
+        if vector.len() != d {
+            return Err(format!("vector has {} values and the projection has {d}", vector.len()));
+        }
+        if let Some(at) = vector.iter().position(|x| !x.is_finite()) {
+            return Err(format!("vector coordinate {at} is not finite"));
+        }
+        let mut out = Vec::with_capacity(self.dims.get());
+        for (c, comp) in self.components.chunks_exact(d.max(1)).enumerate() {
+            let v: f64 = vector.iter().zip(&self.mean).zip(comp).map(|((&x, mu), w)| (f64::from(x) - mu) * w).sum();
+            let coordinate = v as f32;
+            if !coordinate.is_finite() {
+                return Err(format!("projection coordinate {c} is not finite"));
+            }
+            out.push(coordinate);
+        }
+        out.resize(self.dims.get(), 0.0);
+        Ok(out)
     }
 
     /// Computes the projection, refusing an invalid `vectors` layer
@@ -96,6 +129,8 @@ impl<L: Layer> VectorProjection<L> {
             empty: vectors.empty.clone(),
             explained_variance: [0.0; 3],
             adjacent_cosine: adjacent_cosines(vectors),
+            mean: vec![0.0; d],
+            components: vec![0.0; k * d],
             _of: PhantomData,
         };
         let mut centred = Vec::with_capacity(present.len() * d);
@@ -131,6 +166,25 @@ impl<L: Layer> VectorProjection<L> {
         for v in &mut values {
             *v = v.max(0.0);
         }
+        for c in 0..k {
+            let Some(&col) = order.get(c) else { break };
+            let slot = &mut out.components[c * d..(c + 1) * d];
+            if !dual {
+                if let Some(comp) = comps.get(c * d..(c + 1) * d) {
+                    slot.copy_from_slice(comp);
+                }
+            } else if values[col] > 0.0 {
+                // u = X^T v / sqrt(lambda), in the sign the coordinates use.
+                let scale = comps[c] / values[col].sqrt();
+                for r in 0..m {
+                    let w = scale * vecs[r * m + col];
+                    for (u, x) in slot.iter_mut().zip(&centred[r * d..(r + 1) * d]) {
+                        *u += w * x;
+                    }
+                }
+            }
+        }
+        out.mean = mean;
         let total: f64 = values.iter().sum();
         if total > 0.0 {
             for (c, slot) in out.explained_variance.iter_mut().enumerate() {

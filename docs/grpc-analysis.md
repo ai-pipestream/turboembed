@@ -22,7 +22,7 @@ own file; generate a client from it in any language with gRPC.
 | `RoundTripDocumentGraph` | The document, imported and re-exported, with its layers and views listed. |
 | `AnalyzeStream` | Bulk document analysis over one bidirectional stream. |
 | `InspectDocumentWindow` | Viewport segments, chips, heatmaps and optional normalization differences. |
-| `ProjectChunks` | Vector projection, term stacks and optional drift/strategy comparisons. |
+| `ProjectChunks` | Vector projection, term stacks and optional drift/strategy comparisons, pairwise cosines for one level (`pairwise`) and a query text placed among the points (`query`). |
 | `ListOutputFormats` | The standard document formatter descriptors. |
 | `FormatDocument` | A binary document graph exported in a requested format. |
 | `AnalyzeDocumentProgressive` | Progressive server-streaming document analysis by step list or named profile. |
