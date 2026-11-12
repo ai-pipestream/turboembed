@@ -216,7 +216,7 @@ is in that form and a test keeps it there.
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
 | `.type` | enum | no | Which schema the entry follows beside the fields every entry has ("Model types", below): `TYPE_ANALYSIS_ARTIFACT` or `TYPE_ENCODER_BUNDLE`. An entry without the field is an analysis artifact, and the canonical form leaves that default out. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
-| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_COREFERENCE_RESOLVER` (mentions grouped into chains by an antecedent-ranking head), `COMPONENT_DENSE_ENCODER` (one pooled vector per text, the BGE v1.5 encoders), `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
+| `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_COREFERENCE_RESOLVER` (mentions grouped into chains by an antecedent-ranking head), `COMPONENT_DENSE_ENCODER` (one pooled vector per text, the BGE v1.5 encoders), `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors), `COMPONENT_PII_DETECTOR` (personally identifiable information spans, `turbo:pii`) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
 | `.format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`), `FORMAT_BUNDLE` (a sealed bundle directory, docs/bundle.md, whatever format each of its files has), or a packaged `.bin` archive. |
 | `.version` | string | yes | The publisher's version. Not empty. |
@@ -283,6 +283,45 @@ name. The entry's class comes from its licences by the table above, as
 for any artifact, so a bundle of a model trained on restricted data is
 `CLASS_LOCAL_ONLY` and fetched only under its `origin`. The artifact's
 directory in the cache is the bundle directory.
+
+### Importing a sealed bundle
+
+The zoo reads only its own index. A model that exists in another layout
+gets an entry through an importer (`turbo_zoo::import`), which reads the
+model, verifies it, and writes the entry; nothing is taken on trust from
+the layout it came in.
+
+`turbo-zoo import-bundle <bundle-dir>` (`import::bundle`) writes the
+`TYPE_ENCODER_BUNDLE` entry of a sealed bundle directory, one the bundle
+tool made or sealed. It reads `manifest.json` and every file the
+manifest names, holds each to the size and SHA-256 the manifest pins,
+and records its SHA-512. The model id, revision, task and licence are
+the manifest's; `version` is the revision. The flags give what a bundle
+does not say of itself:
+
+| Flag | Entry field |
+|---|---|
+| `--id <id>` | `id`. Required. |
+| `--base <https url>` | Where the directory is published: each file's `url` is `<base>/<path>`. Required. |
+| `--license-terms <https url>` | `license_terms`. Required. |
+| `--trained-on <name> <licence> <https url>` | One `trained_on` entry; repeat it for each dataset. The entry's class is the most restrictive of the manifest's licence and these. |
+| `--attribution <text>` | `attribution`, required whenever a licence asks for it. |
+| `--origin <https url>` | `origin`, for a class of `CLASS_LOCAL_ONLY`; `--base` must lie under it. |
+| `--component <COMPONENT_*>` | `component`. Without it an embedding bundle is `COMPONENT_DENSE_ENCODER`, an extractive QA bundle `COMPONENT_EXTRACTIVE_QA`, and a reranker names none. |
+| `--language <tag>` | `language`. |
+| `--into <zoo.json>` | Adds the entry to that index file, last or in the place of the entry of the same id, and writes the file in the canonical form through a temporary name. A file that is absent is made holding the one entry. Without the flag the entry is printed as an index of its own. |
+
+A file that is absent, a symlink, or not the bytes its manifest pins
+refuses the import, and so does an entry the index would not load: a
+class that needs an `origin` and has none, a missing attribution, a
+refused licence. `turbo-zoo index` prints the index the command reads
+(the built-in one, or `--index <zoo.json>`) in the canonical form, to
+start an index file that also lists the built-in entries.
+
+A zoo server lists the imported bundles when it is started with that
+file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
+from its store or from a directory that holds the bundle at
+`<root>/<id>/` (`Directory`), each verified against the entry.
 
 ## Acceptance file
 
@@ -443,7 +482,10 @@ bucket is the simpler host.
 `Zoo::cache_status(id)` reads and checks the cached files as step 4
 does, and reports `Cached`, `Missing` (the first absent file) or
 `Corrupt` (the first file that fails, and why), with no fetch, no write
-and no directory made. It checks no licence and hands out no path:
+and no directory made. An encoder bundle whose files all verify and
+whose manifest does not describe its entry is `Corrupt` at
+`manifest.json`, with the reason a fetch refuses it for, and a zoo
+server does not list such a bundle as installed. It checks no licence and hands out no path:
 `fetch` does that. `Home::from_env` finds the directory the `turbo-zoo`
 command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
 `~/.local/share/turbo-zoo`), with the cache at `Home::artifacts` and the

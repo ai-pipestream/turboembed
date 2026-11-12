@@ -30,6 +30,7 @@ pub mod error;
 pub mod fetch;
 pub mod holders;
 pub mod home;
+pub mod import;
 pub mod index;
 pub mod licence;
 pub mod transfer;
