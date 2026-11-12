@@ -72,6 +72,7 @@ pub const TURBO_PII_ALLOW_RULE_PATTERN: u32 = 2;
 
 pub const TURBO_PII_REJECT_LABEL_REQUIRED: u32 = 1;
 pub const TURBO_PII_REJECT_THRESHOLD: u32 = 2;
+pub const TURBO_PII_REJECT_RULE_PRECEDENCE: u32 = 3;
 
 /// What PII rows and candidate tables carry beyond the default kind name,
 /// derived confidence tier, evidence facts, detector identity and score.
@@ -223,10 +224,10 @@ fn disposition_fields(disposition: PiiDisposition) -> (u32, u32, u32, u32) {
         }
         PiiDisposition::NestedIn { mention } => (TURBO_PII_DISPOSITION_NESTED_IN, mention.get() as u32, 0, 0),
         PiiDisposition::RejectedByRule { reason } => {
-            let id = if matches!(reason, RejectReason::LabelRequired) {
-                TURBO_PII_REJECT_LABEL_REQUIRED
-            } else {
-                TURBO_PII_REJECT_THRESHOLD
+            let id = match reason {
+                RejectReason::LabelRequired => TURBO_PII_REJECT_LABEL_REQUIRED,
+                RejectReason::Threshold => TURBO_PII_REJECT_THRESHOLD,
+                RejectReason::RulePrecedence => TURBO_PII_REJECT_RULE_PRECEDENCE,
             };
             (TURBO_PII_DISPOSITION_REJECTED_BY_RULE, id, 0, 0)
         }

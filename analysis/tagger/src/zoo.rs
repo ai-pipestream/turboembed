@@ -15,6 +15,7 @@ use turbo_zoo::{Acceptances, Component, Format, Kind, UserId, Zoo, ZooError};
 use crate::lemma::Lemmatizer;
 use crate::multi::{MultiTask, Outputs};
 use crate::parse::DependencyParser;
+use crate::pii::PiiTagger;
 use crate::segment::{SentenceTagger, SpanTagger};
 use crate::words_lang::{LanguageTagger, WordSplitter};
 use crate::{EntityTagger, PosTagger};
@@ -323,6 +324,34 @@ impl LanguageTagger {
     ) -> Result<LanguageTagger, TaggerZooError> {
         let dir = ensure_component(zoo, language, Component::LanguageDetector, user, acceptances)?;
         Ok(LanguageTagger::open(&dir, name, o)?)
+    }
+}
+
+impl PiiTagger {
+    /// Fetches and opens `id` from `zoo`.
+    pub fn from_zoo(
+        zoo: &Zoo<'_>,
+        id: &str,
+        name: Option<&str>,
+        o: &EncoderOptions,
+        user: &UserId,
+        acceptances: &Acceptances,
+    ) -> Result<PiiTagger, TaggerZooError> {
+        let dir = ensure_bundle(zoo, id, user, acceptances)?;
+        Ok(PiiTagger::open(&dir, name, o)?)
+    }
+
+    /// Opens the preferred `COMPONENT_PII_DETECTOR` entry for `language` from `zoo`.
+    pub fn from_zoo_language(
+        zoo: &Zoo<'_>,
+        language: &str,
+        name: Option<&str>,
+        o: &EncoderOptions,
+        user: &UserId,
+        acceptances: &Acceptances,
+    ) -> Result<PiiTagger, TaggerZooError> {
+        let dir = ensure_component(zoo, language, Component::PiiDetector, user, acceptances)?;
+        Ok(PiiTagger::open(&dir, name, o)?)
     }
 }
 

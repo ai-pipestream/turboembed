@@ -1955,6 +1955,55 @@
           "sha512": "194a4e2226bef8a6638608e87996bd49ca53a1696292fb5cbd46eb250b5ab80eb9806d6005509697761e929ba784fbae3908ff793aa7d85f7889a63a2d1b780e"
         }
       ]
+    },
+    {
+      "id": "turbo-en-nemotron-pii-modernbert-base-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_PII_DETECTOR",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
+      "trained_on": [
+        {
+          "name": "NVIDIA Nemotron-PII",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://creativecommons.org/licenses/by/4.0/legalcode"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on Nemotron-PII (Amy Steier, Andre Manoel, Alexa Haushalter and Maarten Van Segbroeck, \"Nemotron-PII: Synthesized Data for Privacy-Preserving AI\", NVIDIA Corporation, 2025, https://huggingface.co/datasets/nvidia/Nemotron-PII, revision b70ffaf5ff39e079776134c5bf4381f00a9fd1ed), synthetic data generated with NVIDIA NeMo Data Designer grounded on Nemotron-Personas, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode). (pii): test span_f1 0.6096 (baseline 0.1677, nemotron-pii)",
+      "files": [
+        {
+          "path": "manifest.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-nemotron-pii-modernbert-base-1/manifest.json",
+          "size": 100159,
+          "sha256": "19d3fb87daac08f0361390809b747af638bc2dbb93e447695c3f5609fc735b6d",
+          "sha512": "f1c715bb718610230b2c1b8a31926df76b724e57f41e5ca9958bd22b7961bfe003616a21b11280759b0a9d57e4beca892218ff9a30de309c7217de2d967fe5cf"
+        },
+        {
+          "path": "reference/reference.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-nemotron-pii-modernbert-base-1/reference.safetensors",
+          "size": 430352,
+          "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
+          "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-nemotron-pii-modernbert-base-1/tokenizer.json",
+          "size": 2132967,
+          "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
+          "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
+        },
+        {
+          "path": "weights/model.safetensors",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-nemotron-pii-modernbert-base-1/model.safetensors",
+          "size": 604836336,
+          "sha256": "942c5aca5fa5c4cd0ee8f837ac3c5137c30d29245b876fcfac1597a25c05d9c8",
+          "sha512": "e743aa2d2779c6bfff047232562bf8079e4744f4bf4f3a2ea0652a0d822b6fbc828eb80f2e0ee446fdf2b171d444de1227921dd8d334f03f8b7f7c29b4ac8fad"
+        }
+      ]
     }
   ]
 }

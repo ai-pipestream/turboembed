@@ -937,6 +937,7 @@ void    turbo_result_release(turbo_result *r);
 
 #define TURBO_PII_REJECT_LABEL_REQUIRED 1
 #define TURBO_PII_REJECT_THRESHOLD      2
+#define TURBO_PII_REJECT_RULE_PRECEDENCE 3
 
 /* Stable PII kind ids, the same numbers as the Rust kind registry, the
  * proto PiiKindId enum, Java TurboPiiKind and the binary layer codec. An
