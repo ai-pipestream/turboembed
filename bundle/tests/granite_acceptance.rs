@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use turbo_scratch::Scratch;
 
 use serde_json::Value;
 use turbo_bundle::{fetch, licence::Consent, recipe::Recipe};
@@ -9,8 +10,7 @@ const GRANITE_TERMS: &str = "https://huggingface.co/ibm-granite/granite-embeddin
 
 #[test]
 fn granite_fetch_requires_acceptance_even_with_no_files_to_download() {
-    let root = std::env::temp_dir().join(format!("granite-acceptance-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
+    let root = Scratch::at(std::env::temp_dir().join(format!("granite-acceptance-{}", std::process::id())));
     fs::create_dir(&root).unwrap();
     let dir = root.join("upstream");
     let mut recipe = Recipe::load(Path::new("ibm-granite/granite-embedding-30m-english")).unwrap();
@@ -33,8 +33,7 @@ fn granite_fetch_requires_acceptance_even_with_no_files_to_download() {
 
 #[test]
 fn granite_fetch_succeeds_without_flag_once_accepted_on_the_page_and_fails_when_not() {
-    let root = std::env::temp_dir().join(format!("granite-page-store-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
+    let root = Scratch::at(std::env::temp_dir().join(format!("granite-page-store-{}", std::process::id())));
     fs::create_dir_all(root.join("home")).unwrap();
     let store_path = root.join("home/acceptances.json");
     let alice: UserId = "alice".parse().unwrap();
@@ -102,8 +101,7 @@ fn granite_fetch_succeeds_without_flag_once_accepted_on_the_page_and_fails_when_
 
 #[test]
 fn cli_fetch_and_make_require_consent_for_path_and_catalogue_id() {
-    let root = std::env::temp_dir().join(format!("granite-cli-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&root);
+    let root = Scratch::at(std::env::temp_dir().join(format!("granite-cli-{}", std::process::id())));
     fs::create_dir(&root).unwrap();
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("recipes/granite-embedding-30m-english.json");
     for (i, recipe) in [Path::new("ibm-granite/granite-embedding-30m-english"), path.as_path()].iter().enumerate() {

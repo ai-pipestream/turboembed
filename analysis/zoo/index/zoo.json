@@ -906,6 +906,9 @@
         {
           "path": "turbo-en-masc-3.0.0-modernbert-base-polarity-head-1.tpvh",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-masc-3.0.0-modernbert-base-polarity-head-1.tpvh",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-3.0.0-modernbert-base-polarity-head-1/resolve/c1be62ddcbf4d10ff5c6882d0a699d09f3d8f537/turbo-en-masc-3.0.0-modernbert-base-polarity-head-1.tpvh"
+          ],
           "size": 9349,
           "sha256": "5fb54814d92530072e90fa9d0e701792a4cbb7487353ae1a3ddb4cb60b196909",
           "sha512": "b6b8a45249342ecfe14ab9bbc19444eb8d655a4c0b2f74911457bd0dc5d8d5c18629c7a45c63f7387c7a217ea443975ef64700c208c4f99eb90a06304d54973e"
@@ -1388,6 +1391,9 @@
         {
           "path": "turbo-en-goemotions-modernbert-base-head-1.tevh",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-goemotions-modernbert-base-head-1.tevh",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-goemotions-modernbert-base-head-1/resolve/d5c044091ac2a655404f34a6143f35c6f0873ee3/turbo-en-goemotions-modernbert-base-head-1.tevh"
+          ],
           "size": 86248,
           "sha256": "e5e54e034221c36b5f89715e09c7c5ef08488ecac71151f2b43acdc4b3913919",
           "sha512": "a0a01ae683e15305f6409d35da6828274a020de6b3ac14f39f424496a7ba15fe9029222e7c818443cf289ae6b1b377f6419cc716876aaed24c30e00927c58509"
@@ -1661,6 +1667,9 @@
         {
           "path": "turbo-en-civil-comments-modernbert-base-head-1.tivh",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-civil-comments-modernbert-base-head-1.tivh",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-civil-comments-modernbert-base-head-1/resolve/e5442f56eb13771d5e466469d91efaec5dd1f460/turbo-en-civil-comments-modernbert-base-head-1.tivh"
+          ],
           "size": 18576,
           "sha256": "dff23f93bc24e36e48f0da8cb3cca7201cb3a34f7124492bb02137cf963a9260",
           "sha512": "abf51abcaba007a0ba1987c7b67f8a49d682ded16dd01567a61043a799d1f52627d0df9e834190f90cec0b184d81a7e5eacdc7305e12bcfdc382c3b69e7534d7"
@@ -1694,6 +1703,9 @@
         {
           "path": "turbo-en-civil-comments-modernbert-base-context-head-1.tivh",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/turbo-en-civil-comments-modernbert-base-context-head-1.tivh",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-civil-comments-modernbert-base-context-head-1/resolve/d889545c3117fab305801f819c973acc30413fbd/turbo-en-civil-comments-modernbert-base-context-head-1.tivh"
+          ],
           "size": 37008,
           "sha256": "465cb98642303556687fd397ea508cf92b9f001c33701bc842b0ba33f45a3330",
           "sha512": "dbdf7386ee668f8ac35fb92fb7f6c46d18ec4af1d4d286f26f894716339343fe70cc5dee307c9a04e5f025e2009c2d12b2696bd1f912de3618fe75a6efb7f238"
@@ -1722,6 +1734,9 @@
         {
           "path": "manifest.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-manifest.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-wnut17-modernbert-base-l12-open-span-1/resolve/12bf5f641b2af47d4dcee403962292ef77a94e3a/manifest.json"
+          ],
           "size": 97235,
           "sha256": "58e0883ec7007357520932a5cdf52c43314c2620bf0230909d7da20decb43039",
           "sha512": "3b63fdcc09a2e3d85b537380cae8541bd41c2990c5451832930fdd9d4d5d81458dc5ae026c2ec2a3dc519de15f65db19f84b5e624211fa6e2d572f9f0dbe98c1"
@@ -1729,6 +1744,9 @@
         {
           "path": "reference/reference.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-reference-reference.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-wnut17-modernbert-base-l12-open-span-1/resolve/12bf5f641b2af47d4dcee403962292ef77a94e3a/reference/reference.safetensors"
+          ],
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
           "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
@@ -1736,6 +1754,9 @@
         {
           "path": "tokenizer.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-tokenizer.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-wnut17-modernbert-base-l12-open-span-1/resolve/12bf5f641b2af47d4dcee403962292ef77a94e3a/tokenizer.json"
+          ],
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
           "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
@@ -1743,6 +1764,9 @@
         {
           "path": "weights/model.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-open-span-1735-1/turbo-en-wnut17-modernbert-base-l12-open-span-1-weights-model.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-wnut17-modernbert-base-l12-open-span-1/resolve/12bf5f641b2af47d4dcee403962292ef77a94e3a/weights/model.safetensors"
+          ],
           "size": 599250608,
           "sha256": "7bb4da57692d560c72d1c9cddf9851c8c4a2e4f112e30bc64eb34e9b815035e7",
           "sha512": "5c1b6bd0e0d1e48acebfdaf39fc9b9849d0d39abd0cbad1f787af75f265b1e51455931f538abd7a108d284894b2bdb78fac723d70d22f9b481ef23136d1240f5"
@@ -1771,6 +1795,9 @@
         {
           "path": "manifest.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-manifest.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-litbank-modernbert-base-coref-2/resolve/d8def155bd40e5b14c138d4ed504e6914c78cc16/manifest.json"
+          ],
           "size": 97343,
           "sha256": "7c8d02e4a91a58969dba37008f2559d935a0924ead4a8b1a47b914d6a1764f7a",
           "sha512": "4333fc66ae7b67900ad7970f7b88637e71ae9334052ef3f0270e8c65d25274d84d9b36346057eab1abd3f611911821ee23e504dae2e7a15ba42f50c08d3eba74"
@@ -1778,6 +1805,9 @@
         {
           "path": "reference/reference.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-reference-reference.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-litbank-modernbert-base-coref-2/resolve/d8def155bd40e5b14c138d4ed504e6914c78cc16/reference/reference.safetensors"
+          ],
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
           "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
@@ -1785,6 +1815,9 @@
         {
           "path": "tokenizer.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-tokenizer.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-litbank-modernbert-base-coref-2/resolve/d8def155bd40e5b14c138d4ed504e6914c78cc16/tokenizer.json"
+          ],
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
           "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
@@ -1792,6 +1825,9 @@
         {
           "path": "weights/model.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-coref-litbank-2/turbo-en-litbank-modernbert-base-coref-2-weights-model.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-litbank-modernbert-base-coref-2/resolve/d8def155bd40e5b14c138d4ed504e6914c78cc16/weights/model.safetensors"
+          ],
           "size": 599500288,
           "sha256": "1926080cb8050685b01d830d5ff9f70e2df77600f053f880238f52b5465e6cd4",
           "sha512": "6e2a59e4ccea848a4d46a46c93219022700dbd01409a5655860ca0490febedfd4e5e38fe9f69d456710cd9195ebf8c74bd6c3a24e9fc87bc9e3bc1bd25f9f8ea"
@@ -1820,6 +1856,9 @@
         {
           "path": "manifest.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/manifest.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/manifest.json"
+          ],
           "size": 98165,
           "sha256": "068a2664cd0b968425cf85bd98ad5d40122e9c4b1645fd4ddcab6a5dfac32200",
           "sha512": "0ad64dd61cb00f52693785c4db6ff37f86df4b4db8c7cac24b2556d8b51fb0f8e091fed0b5ac49f1624d2c1271d972d71737b7bac2655fb2458a0564f798d32d"
@@ -1827,6 +1866,9 @@
         {
           "path": "reference/reference.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/reference.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/reference/reference.safetensors"
+          ],
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
           "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
@@ -1834,6 +1876,9 @@
         {
           "path": "tokenizer.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/tokenizer.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/tokenizer.json"
+          ],
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
           "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
@@ -1841,6 +1886,9 @@
         {
           "path": "weights/model.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/model.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/weights/model.safetensors"
+          ],
           "size": 612061000,
           "sha256": "d1e925ab465de45d37b7b5fa0f0cbb2814f1ce37bd46e4b8d956a205007b9be9",
           "sha512": "d30437d352bce70765b2f306a032870e5a3e853393e04d9137fd613e454bf409ddee560b3b25f91745b22d9e017d36120920b96f0863d647782f6aa8037729ca"
@@ -1869,6 +1917,9 @@
         {
           "path": "manifest.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/manifest.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/resolve/68c03ef3ca2731c282a8e51c64de0e21172afa8e/manifest.json"
+          ],
           "size": 98166,
           "sha256": "66db65ee286b91274b12dba3963ad78780ef7e0ef589ca2dbed01343c449565d",
           "sha512": "f81ca0a26c80715e2fc4080389659bc360da5314864a7eeaaa9c9d26ff3a818628de1a7e2c8c05b1be7ec1289d2688970dd925a7196929ad87cb15437cd2b3aa"
@@ -1876,6 +1927,9 @@
         {
           "path": "reference/reference.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/reference.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/resolve/68c03ef3ca2731c282a8e51c64de0e21172afa8e/reference/reference.safetensors"
+          ],
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
           "sha512": "ad06484372fdda5e914ba5e5b175eb4259bc4f1c5e31fbd101daaa0b650ca377f639016ede341f1a371ef542356dbe9ef49e8f335868e98e045e2b35891d56de"
@@ -1883,6 +1937,9 @@
         {
           "path": "tokenizer.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/tokenizer.json",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/resolve/68c03ef3ca2731c282a8e51c64de0e21172afa8e/tokenizer.json"
+          ],
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
           "sha512": "115b41a3c59e202fa881d7356e0bf3e848720ebc9add975389216fd4494091048a02cd1cd9f5c1eeaa86ccaa29c3c9fea78e955202e07aedaabbec33559fc5d8"
@@ -1890,6 +1947,9 @@
         {
           "path": "weights/model.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/model.safetensors",
+          "also": [
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-bilstm256x2-1/resolve/68c03ef3ca2731c282a8e51c64de0e21172afa8e/weights/model.safetensors"
+          ],
           "size": 618361224,
           "sha256": "6eb7de0197ccfe5f4f2ab6fb85fe41b17137d24834f149047c0c21a8eda2ad09",
           "sha512": "194a4e2226bef8a6638608e87996bd49ca53a1696292fb5cbd46eb250b5ab80eb9806d6005509697761e929ba784fbae3908ff793aa7d85f7889a63a2d1b780e"

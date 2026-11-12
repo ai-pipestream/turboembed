@@ -4,10 +4,12 @@ use std::{
     sync::{Arc, Barrier},
 };
 use turbo_eval::artifact::{ArtifactKey, EvaluationArtifactStore, StorageError, TemporaryFileStore};
+use turbo_scratch::Scratch;
 
-fn store(name: &str) -> (std::path::PathBuf, TemporaryFileStore) {
-    let dir = std::env::temp_dir().join(format!("eval-storage-{}-{name}", std::process::id()));
-    (dir.clone(), TemporaryFileStore::new(dir))
+fn store(name: &str) -> (Scratch, TemporaryFileStore) {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("eval-storage-{}-{name}", std::process::id())));
+    let store = TemporaryFileStore::new(dir.to_path_buf());
+    (dir, store)
 }
 fn key() -> ArtifactKey {
     ArtifactKey::new("sample.binary").unwrap()
@@ -123,7 +125,7 @@ fn applications_choose_isolated_directories_for_the_same_logical_key() {
         let mut pending = store.begin(&key()).unwrap();
         let staging: Vec<_> = fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
         assert_eq!(staging.len(), 1);
-        assert_eq!(staging[0].parent(), Some(dir.as_path()));
+        assert_eq!(staging[0].parent(), Some(dir.path()));
         assert!(staging[0].file_name().unwrap().to_str().unwrap().ends_with(".partial"));
         assert!(store.list().unwrap().is_empty());
         pending.write_all(value).unwrap();

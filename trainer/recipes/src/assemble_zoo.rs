@@ -73,6 +73,7 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
             size: bytes.len() as u64,
             sha256: Sha256::of(&bytes),
             sha512: Sha512::of(&bytes),
+            also: Vec::new(),
             download: None,
         });
     }
@@ -119,6 +120,8 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
         class: LicenceClass::Permissive,
         attribution: (!attributions.is_empty()).then(|| attributions.join(" | ")),
         origin: None,
+        model_type: Default::default(),
+        bundle: None,
         files,
     };
     artifact.class = artifact.computed_class();

@@ -5,6 +5,7 @@ mod common;
 
 use std::collections::HashMap;
 use std::time::Duration;
+use turbo_scratch::Scratch;
 
 use tokio_stream::StreamExt;
 use tonic::Code;
@@ -200,8 +201,7 @@ async fn embed_bundle_and_rerank_bundle_with_real_models() {
 
 #[tokio::test]
 async fn admin_gate_snapshot_confinement_and_error_codes() {
-    let snap_dir = std::env::temp_dir().join(format!("turbo-search-sec-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&snap_dir);
+    let snap_dir = Scratch::at(std::env::temp_dir().join(format!("turbo-search-sec-{}", std::process::id())));
     std::fs::create_dir_all(&snap_dir).unwrap();
     let srv_no_admin = Server::start(
         "127.0.0.1:0".parse().unwrap(),

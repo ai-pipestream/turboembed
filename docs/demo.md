@@ -362,8 +362,9 @@ for any refused call.
 - Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
   its time and layers and any failed step with what it skipped; then
   the finished graph through `InspectDocumentWindow`, the text with its
-  annotations marked, a chip per layer to show only some, paging, and
-  heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
+  annotations marked, a chip per layer instance to filter text annotations, paging, and
+  heatmap lanes (unfiltered). Named chips show `[instance]` and select that
+  instance independently through `filter_layer_instances`; and `FormatDocument` in any format `ListOutputFormats`
   names, shown when it is text and offered as a download. An open-span model
   enables caller entity labels, optional label=prompt guidelines, threshold,
   and flat or nested decoding. A
@@ -513,9 +514,9 @@ the server's prost types. Nothing is mocked.
 `scripts/e2e-web.sh` runs the page itself in a browser: it builds both
 binaries, starts the server on the CPU with `testdata/tiny-bert-bundle`
 at each tier and `testdata/tiny-modernbert-bundle`, starts the demo in
-front of it, and runs `demo/web/e2e/page.test.ts` under Node with
-Playwright driving Chromium. Nothing is stubbed here either: every call
-the page makes goes through the demo to the server.
+front of it, and runs each file in `demo/web/e2e` under Node, one file
+at a time, with Playwright driving Chromium. Nothing is stubbed here
+either: every call the page makes goes through the demo to the server.
 
 - Each tab at 1280 and 390 pixels wide, after the first thing a visitor
   does there (Embed, Run, Analyze, or the lists a tab reads when it
@@ -528,6 +529,34 @@ the page makes goes through the demo to the server.
   are shown, names no kind or component by its enum, and says so when
   nothing matches. The entries are cards, several to a row at 1280
   pixels, each saying what it is for.
+- Analyze lists one line per step of the profile and ends complete,
+  every layer OK, and shows the whole source text with a chip per
+  layer. The annotation drawer opens a layer's annotations, each span
+  quoting the source text it covers, with the model that made it. A
+  document with one view says it has nothing to X-ray.
+- Every output format downloads a file, and a text format shows in the
+  page exactly as downloaded.
+- The graph comes back from the server byte for byte, saves at the size
+  the stream reported, and a fresh page opens the saved file and shows
+  the same document; a file that is not a graph is refused with a
+  reason.
+- Semantic ranks distinct passages by cosine for the number of
+  neighbours asked, on each model, and fills a symmetric passage
+  matrix with ones on its diagonal.
+- The Server tab lists every served bundle and profile, and the Analyze
+  and Embed tabs offer the same ones.
+- The install flow, against a second server and demo the script starts
+  for it: a catalog of one share-alike bundle (the tiny bundle with its
+  licence set to CC-BY-SA-4.0) whose files are in a `file://` store, a
+  server with `--admin`, and a demo with `--user e2e` that forwards
+  `RecordLicenceAcceptance`, `InstallModel` and `LoadBundle`. The Models
+  tab shows the terms still to accept with the licence, its class and
+  the address of its text, and Install stays off. Once the box is
+  ticked and the terms accepted, the acceptance is listed with the
+  artifact it was made on, Install installs the model, and every file
+  on disk has the size and SHA-256 the catalog lists. The Server tab
+  loads the installed directory into the running server, and Semantic
+  ranks passages with it, with no restart and no page reload.
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

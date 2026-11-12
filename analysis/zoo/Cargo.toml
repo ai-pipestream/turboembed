@@ -34,3 +34,6 @@ ureq = { version = "3", optional = true, default-features = false, features = ["
 # and CRC-32 for gzip, and the zstd decoder.
 turbo-maxent = { path = "../maxent" }
 turbo-zstd = { path = "../zstd" }
+
+[dev-dependencies]
+turbo-scratch = { path = "../scratch" }

@@ -214,10 +214,11 @@ is in that form and a test keeps it there.
 |---|---|---|---|
 | `zoo_version` | uint32 | yes | 1. Anything else is rejected. |
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
+| `.type` | enum | no | Which schema the entry follows beside the fields every entry has ("Model types", below): `TYPE_ANALYSIS_ARTIFACT` or `TYPE_ENCODER_BUNDLE`. An entry without the field is an analysis artifact, and the canonical form leaves that default out. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
 | `.component` | enum | no | The component a model serves: `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER`, `COMPONENT_PARSER`, `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA`, `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder), `COMPONENT_DEPENDENCY_PARSER`, `COMPONENT_COREFERENCE_RESOLVER` (mentions grouped into chains by an antecedent-ranking head), `COMPONENT_DENSE_ENCODER` (one pooled vector per text, the BGE v1.5 encoders), `COMPONENT_SPARSE_ENCODER` (SPLADE term weights), `COMPONENT_LATE_INTERACTION_ENCODER` (ColBERT token vectors), `COMPONENT_PII_DETECTOR` (personally identifiable information spans, `turbo:pii`) and `COMPONENT_ASPECT_SENTIMENT` (aspect spans with a polarity each). Every listed model names one, except a tokenizer fetched beside a model by id. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
-| `.format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`), or a packaged `.bin` archive. |
+| `.format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_TSV`, `FORMAT_CSV`, `FORMAT_PARQUET`, `FORMAT_ZIP`, `FORMAT_TAR_BZ2`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`), `FORMAT_HEAD` (a binary classifier head over an encoder, `TEVH`, `TIVH` or `THEAD001`), `FORMAT_BUNDLE` (a sealed bundle directory, docs/bundle.md, whatever format each of its files has), or a packaged `.bin` archive. |
 | `.version` | string | yes | The publisher's version. Not empty. |
 | `.license` | SPDX string | yes | The artifact's own licence. |
 | `.license_terms` | https URL | yes | Where the artifact's publisher states that licence. |
@@ -228,9 +229,14 @@ is in that form and a test keeps it there.
 | `.class` | enum | yes | The class `license` and every `trained_on[].license` give. Written out so a reader that does not know a licence still sees the class; a value that differs from the computed one rejects the index. |
 | `.attribution` | string | when any licence asks for it | The copyright and attribution notice for the artifact and its training data. Required whenever `license` or any `trained_on[].license` requires attribution (`Licence::requires_attribution`, true for every licence except `CC0-1.0`, `PDDL-1.0`, `LicenseRef-PublicDomain`, `LicenseRef-RestrictedPublic`, and the `LicenseRef-` refusal terms); optional otherwise, and rejected if empty, whitespace-only, or containing control characters. Printed by `turbo-zoo show <id>`. For models trained by `turbo-train-recipes`, it equals the model card's `attribution` field (`<id>.card.json`). |
 | `.origin` | https URL | for `CLASS_LOCAL_ONLY`, and only for it | The original publisher's own location: for a dataset the data's own place on its host (a treebank's repository path on `raw.githubusercontent.com`), for a model the model publisher's. Its path has at least one non-empty segment, so it is never a whole host (`https://raw.githubusercontent.com/` is rejected); a file at the root of a host is named as the origin by its own address. Every `files[].url` must lie under it: the same host, compared without regard to case, and a path that is the origin's or continues it after a `/`, so `.../UD_English-GUM` holds `.../UD_English-GUM/r2.16/...` but not `.../UD_English-GUM-copy/...`; a trailing `/` on the origin makes no difference. No user information, query or fragment in the origin. In its path and a file's: no `.` or `..` segment (plain or percent-encoded); no `\` or `;`, plain or percent-encoded (some servers read `\` as `/`, and strip a `;` with what follows it, so `..;` reads as `..`); no percent-encoded `/`, `%` or NUL (`%2f`, `%25`, `%00`, in either case); every `%` followed by two hex digits, so malformed escapes such as `%%32%65` and IIS's `%u002e` are rejected; and percent-encoded bytes that decode to valid UTF-8 (RFC 3629), so no overlong form (`%c0%ae`), surrogate, five- or six-byte form, byte from `%f5` up, or lone or missing continuation byte. A query or fragment on a file's address is not checked. The rule covers the addresses the index names; fetch rule 4 says how redirects are treated. |
+| `.bundle` | message | for `TYPE_ENCODER_BUNDLE`, and only for it | What the bundle's manifest records, so a reader picks a bundle without fetching it. |
+| `.bundle.model` | string | yes | The manifest's `model.id`. Not empty, no leading or trailing whitespace, no control character. |
+| `.bundle.revision` | string | yes | The manifest's `model.revision`, under the same rule. |
+| `.bundle.task` | enum | yes | The manifest's `task`: `TASK_EMBED`, `TASK_RERANK` or `TASK_EXTRACTIVE_QA`. |
 | `.files[]` | message | yes | At least one. |
 | `.files[].path` | path | yes | Where the file goes in the artifact's directory: relative, `/` separated, no empty, `.` or `..` component, no backslash, no control character. Unique in the artifact. |
 | `.files[].url` | https URL | yes | Where it is fetched from. The address must serve the same bytes for as long as the entry exists: a release archive (`archive.apache.org/dist`, not the mirror network, which drops old releases), a repository path at a commit, or an asset of a release of this repository (the models the recipes train, `analysis/train-recipes`). A release asset can be deleted or replaced by the repository's maintainers, so the models releases are made once and their assets are never replaced; a replaced file fails the digests below. |
+| `.files[].also[]` | https URL | no | Further locations of the same bytes, tried in order after `url` (fetch rule 4), each held to the rule `url` is: a repository path at a commit, never a branch. Only on a `CLASS_PERMISSIVE` artifact: a file fetched after acceptance, or only under its `origin`, has one address, and a further location on it rejects the index. An address that repeats `url` or another entry rejects it too. For a file with a `download` entry a location serves either the compressed bytes or the file itself. Left out when there is none. |
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
 | `.files[].sha512` | 128 lowercase hex | yes | Checked against the published 512-bit digest. |
@@ -240,7 +246,8 @@ is in that form and a test keeps it there.
 | `.files[].download.download_sha256` | 64 lowercase hex | yes | The compressed bytes' SHA-256. |
 
 Every field of type https URL (`.license_terms`,
-`.trained_on[].license_terms`, `.origin` and `.files[].url` here, and
+`.trained_on[].license_terms`, `.origin`, `.files[].url` and
+`.files[].also[]` here, and
 `accepted[].license_text` in the acceptance file) is an `https://`
 address that names a host, in printable ASCII with no space and no
 backslash. `https:///x`, `https://user@/x` and `https://:443/x` name no
@@ -251,6 +258,31 @@ is read: it is not listed, and asking for it is an error naming the
 refused licences. The built-in index holds none; a test keeps it so.
 Refused artifacts are listed in docs/licences.md instead, with the
 reason.
+
+## Model types
+
+Every entry has the fields above: an id, files pinned by size, SHA-256
+and SHA-512, the licences and the class they give. `type` names the
+schema an entry follows beside them. A reader that does not know a type
+still has every shared field, and this build rejects a type it does not
+know.
+
+| Type | Entries | Beside the shared fields |
+|---|---|---|
+| `TYPE_ANALYSIS_ARTIFACT` | The models, heads, lexicons, centroid sets and datasets the analysis add-ons read. The type of an entry with no `type`. | Nothing. `bundle` is rejected. |
+| `TYPE_ENCODER_BUNDLE` | A sealed encoder bundle (docs/bundle.md): an embedding model, a reranker or an extractive QA model as the core loads it. | `bundle`, required. `kind` is `KIND_MODEL`, `format` is `FORMAT_BUNDLE`, and `files` lists `manifest.json` and every file the manifest names, each at its path in the bundle directory. |
+
+An encoder bundle is pinned twice. The index pins every file, the
+manifest among them, and the manifest pins every other file by size and
+SHA-256. Once the files are fetched and verified (fetch rule 6) the
+manifest must describe the entry: its `model.id`, `model.revision` and
+`task` are the entry's `bundle`, its `model.license` is the entry's
+`license`, every file it names is listed in the entry with that size and
+SHA-256, and the entry lists no file but the manifest that it does not
+name. The entry's class comes from its licences by the table above, as
+for any artifact, so a bundle of a model trained on restricted data is
+`CLASS_LOCAL_ONLY` and fetched only under its `origin`. The artifact's
+directory in the cache is the bundle directory.
 
 ## Acceptance file
 
@@ -319,7 +351,12 @@ For `fetch(id, user)`:
    creates, reads or writes anything elsewhere on disk.
 4. A file already in the cache is read and checked by size, SHA-256 and
    SHA-512 on every call. One that is absent or fails is fetched from
-   its `url`. The HTTP transport follows the redirects the server
+   its `url`. A file that lists further locations (`also`) is asked for
+   at `url` first and then at each of them in order: a location that
+   fails, or serves bytes that are not the file by the checks of step
+   5, passes the request to the next, and the first whose bytes are the
+   file is the one kept. When none serves it the error names what each
+   location said, and nothing is written. The HTTP transport follows the redirects the server
    issues, up to 10, over HTTPS only: a redirect to an `http://` address
    is an error. Where a redirect leads is not checked against the index
    or the `origin` (a GitHub release redirects to another host), so the
@@ -347,6 +384,12 @@ For `fetch(id, user)`:
    but verify as the file itself are kept: a server encoded the file
    anyway (`Content-Encoding: gzip`) and the transport decoded it. The
    zoo's own HTTP transport is built without that decoding.
+
+6. For a `TYPE_ENCODER_BUNDLE` entry the cached `manifest.json`, verified
+   in steps 4 and 5 as the entry's file, is read and checked against the
+   entry ("Model types", above). A manifest that describes another
+   model, or names other files than the entry lists, is
+   `ZooError::Bundle` and the artifact is not handed out.
 
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
@@ -387,7 +430,8 @@ Two knobs in `turbo_zoo` cover the cases plain HTTPS does not:
   public ones and the custom transport for the mirror.
 - `Mirror::new(base, inner)` rewrites every fetch to
   `<base>/<original host>/<original path>`, so one mirror of several
-  origins keeps them apart. The base cannot include a query or fragment.
+  origins keeps them apart, and a file's further locations (`also`) are
+  rewritten the same way. The base cannot include a query or fragment.
   Digest checks run unchanged on what the mirror serves.
 
 An OCI registry also works: blobs are served by digest over HTTPS
@@ -479,8 +523,16 @@ another way overrides it (#1613).
   against an in-process stand-in that answers the Drive API calls.
 
 A zoo server keeps its files in such a store with
-`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
-(docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
+`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`,
+or in a data directory several servers share with `--catalog-data DIR`
+(docs/grpc-catalog.md, The data directory). That directory's `public/`
+side is a store of its own holding only files that need no acceptance,
+so a library with the directory mounted reads it directly, with no
+server running. Mount it read-only, or name a local store before it,
+`TURBO_ZOO_SOURCE=file:///local/store,file:///mount/public,origin`,
+since the first `file://` store named keeps what later sources serve.
+An accept-first file is never there and is read through a server.
+Started with `--zoo`, a server fetches an artifact on
 its first read, so a library pointed at it with `grpc(s)://` needs no
 separate install step. docs/zoo-container.md packs that server, the
 page and a RustFS store into one `docker compose`. `turbo-zoo-remote`
@@ -572,6 +624,19 @@ with a Google grant.
 Whatever the source, the licence check runs first: no source is asked
 for an artifact whose terms the user has not accepted.
 
+### The Hugging Face copies of the published models
+
+The permissive models this project trains and publishes are release
+assets of this repository (`url`) and are also kept on Hugging Face, one
+model repository per artifact named by its id under `pipestream-ai`,
+holding each indexed file at its `path`. Each such file lists
+`https://huggingface.co/pipestream-ai/<id>/resolve/<commit>/<path>` in
+`also`, at the 40-digit commit that holds those bytes, so the artifact
+installs when either host is unreachable. `turbo-zoo show <id>` prints
+every location. `analysis/zoo/tests/builtin/hugging_face.rs` keeps the
+list, and its ignored test installs each model from Hugging Face alone
+(`cargo test -p turbo-zoo -- --ignored hugging_face`).
+
 ## Reading the index from external clients
 
 The index is structured so external tools can query it without scraping HTML
@@ -623,9 +688,12 @@ directories:
 ## Left out
 
 - Signatures. Hashes catch corruption; signing belongs to distribution.
-- Encoder bundles. They have their own recipes and catalogue
-  (docs/bundle.md); their `model.license` maps to a class by the same
-  table when the bundle tool learns to check it.
-- Fallback mirrors. One address per file; a whole-index mirror rewrites
-  every address to one host with `Mirror` ("Self-hosted mirrors",
-  above).
+- Encoder bundles in the built-in index. `TYPE_ENCODER_BUNDLE` is the
+  schema of one ("Model types", above), and an index given to the zoo
+  may list them; the built-in index lists none. The bundle tool's
+  recipes and catalogue (docs/bundle.md) make a bundle from its upstream
+  files.
+- Further locations for anything but a permissive artifact. A file of
+  any other class has one address (`.files[].also[]`); a whole-index
+  mirror rewrites every address to one host with `Mirror`
+  ("Self-hosted mirrors", above).

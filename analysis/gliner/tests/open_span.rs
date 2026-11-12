@@ -203,6 +203,7 @@ fn open_span_loads_from_zoo_by_id_and_language_and_builtin_index_pins_permissive
             size: bytes.len() as u64,
             sha256: Sha256::of(&bytes),
             sha512: Sha512::of(&bytes),
+            also: Vec::new(),
             download: None,
         });
     }
@@ -223,6 +224,8 @@ fn open_span_loads_from_zoo_by_id_and_language_and_builtin_index_pins_permissive
         class: LicenceClass::Permissive,
         attribution: Some("Trained on WNUT-17 (CC BY 4.0)".into()),
         origin: None,
+        model_type: Default::default(),
+        bundle: None,
         files,
     };
     let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();

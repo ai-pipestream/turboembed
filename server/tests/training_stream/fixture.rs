@@ -7,6 +7,7 @@ pub use std::fs;
 use super::common;
 pub use std::path::{Path, PathBuf};
 pub use std::time::Duration;
+use turbo_scratch::Scratch;
 
 pub use tokio::sync::mpsc;
 pub use tokio_stream::wrappers::ReceiverStream;
@@ -42,9 +43,8 @@ pub const DOCS: [(&str, &str); 3] = [
     ("c", "The scans were clear."),
 ];
 
-pub fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-kserve-streaming-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
+pub fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-streaming-{}-{name}", std::process::id())));
     fs::create_dir_all(&d).unwrap();
     d
 }

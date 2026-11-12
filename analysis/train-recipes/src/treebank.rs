@@ -303,6 +303,7 @@ impl Treebank {
                 size: f.size,
                 sha256: f.sha256.parse().map_err(bad("sha256", f.sha256.to_owned()))?,
                 sha512: f.sha512.parse().map_err(bad("sha512", f.sha512.to_owned()))?,
+                also: Vec::new(),
                 download: None,
             });
         }
@@ -319,6 +320,8 @@ impl Treebank {
             class: class_of([LICENCE]),
             attribution: Some(self.attribution()),
             origin: None,
+            model_type: Default::default(),
+            bundle: None,
             files,
         })
     }

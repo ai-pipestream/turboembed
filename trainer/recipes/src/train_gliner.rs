@@ -431,8 +431,9 @@ mod tests {
         trainer.step(&mut optimizer, &mut grads).unwrap();
         model.apply_output(&trainer).unwrap();
         let heads = trainer.write_heads(&original).unwrap();
-        let out = std::env::temp_dir().join(format!("turbo-nuner-linear-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&out);
+        let out = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-nuner-linear-test-{}", std::process::id())),
+        );
         Manifest::write_tuned(&turbo_pins::require(&root), &out, &heads).unwrap();
         let reloaded = Manifest::load(&out).unwrap();
         let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();

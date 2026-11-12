@@ -87,6 +87,7 @@ no way to stop a load part way.
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
 | `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
 | `--catalog-store URL` | The store installs read first and fill: `file:///dir` or `s3://bucket/prefix` (docs/grpc-catalog.md). Needs `--catalog-dir`. | No store: each file is fetched from its address. |
+| `--catalog-data DIR` | A persistent data directory several servers may share, in place of `--catalog-store`: the store, with a `public/` side clients may read directly, and the licence acceptances (docs/grpc-catalog.md, The data directory). Needs `--catalog-dir`. | No data directory. |
 | `--zoo` | Zoo mode (docs/grpc-catalog.md, Zoo mode): any caller records an acceptance and installs, a `ReadModelFile` of a permitted artifact not yet installed fetches it first, and the server may start with zero models. Needs `--catalog-dir`. | Off. |
 | `--catalog-prefetch permissive` | Install every permissive artifact in the background at start (docs/grpc-catalog.md, Prefetch). Needs `--catalog-dir`. | Off. |
 | `--training-dir PATH` | The directory static models are trained into, one sealed bundle per child, made when it does not exist (docs/grpc-training.md). | No training directory: every training call but `ListTeachers`, `TrainComponent` and a `StreamingTraining` component job refuses with `UNIMPLEMENTED`. |
@@ -96,6 +97,14 @@ no way to stop a load part way.
 | `--sink-documents` | Also forward the complete graph of every `AnalyzeDocumentProgressive` call that ends with one (docs/grpc-sink.md). Needs `--sink-endpoint`. | Off. |
 | `--sink-typed-offsets utf8\|utf16\|code-point` | Add the typed document projection, as `InspectDocumentGraph` answers it in these offsets, to every forwarded item carrying a graph. Needs `--sink-endpoint`. | No projection. |
 | `--sink-typed-view N` | The view the typed projection is in, 0 to 65535. Needs `--sink-typed-offsets`. | 0, the source view. |
+| `--sink-pii-output LIST` | What forwarded sink items about documents with PII findings carry: `none`, or a comma-separated list of `rewritten-text`, `full-text` and `detail`, within `--pii-output-allow`. Value forms are refused: values leave only through `InspectDocumentGraph` (docs/grpc-sink.md). Needs `--sink-endpoint`. | Findings only; every value withheld. |
+| `--pii-output-allow LIST` | The PII output options any request may ask for: `none`, or a comma-separated list of `rewritten-text`, `full-text`, `detail`, `token`, `ciphertext` and `clear` (docs/grpc-analysis.md). | The three text options, no value form. |
+| `--pii-policy PATH` | A named redaction policy, one binary `RedactionPolicy` message; repeat for more (docs/grpc-analysis.md). | None. |
+| `--pii-grant FINGERPRINT:FORMS:KINDS` | Grant the client certificate with that SHA-256 fingerprint the PII value forms in `FORMS` for the kinds in `KINDS`; repeat for more (docs/grpc-analysis.md, PII value release). | No value is released. |
+| `--pii-token-key ID:VERSION:PATH` | A key PII tokens are made under; repeat for more. `--pii-token-key-active ID:VERSION` picks the one tokens are issued under. Needs `--pii-grant`. | None. |
+| `--pii-encryption-key ID:VERSION:PATH` | A 32-byte key for the reversible redaction strategies and ciphertext release; repeat for more. Needs a server built with `--features pii-reversible`. Without `--pii-grant` the keys serve the named `--pii-policy` policies only. `--pii-encryption-key-active ID:VERSION` picks the one ciphertexts are made under and needs `--pii-grant`. | None. |
+| `--pii-audit-endpoint URI` | The `turbo.audit.v1.TurboAuditService` that records every PII value release before it leaves. `--pii-audit-timeout-ms N` bounds the wait (5000 by default). Needs `--pii-grant`, and a grant needs it. | None. |
+| `--pii-require-recorded-policy` | Apply the redaction policy a graph records to every PII values request (docs/grpc-analysis.md). Needs `--pii-grant`. | Off. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -173,9 +182,20 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
 | `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
 | `TURBO_KSERVE_CATALOG_STORE` | `--catalog-store` |
+| `TURBO_KSERVE_CATALOG_DATA` | `--catalog-data` |
 | `TURBO_KSERVE_CATALOG_PREFETCH` | `--catalog-prefetch` |
 | `TURBO_KSERVE_ZOO` | `--zoo` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_TRAINING_DIR` | `--training-dir` |
+| `TURBO_KSERVE_SINK_PII_OUTPUT` | `--sink-pii-output` |
+| `TURBO_KSERVE_PII_OUTPUT_ALLOW` | `--pii-output-allow` |
+| `TURBO_KSERVE_PII_GRANTS` | `--pii-grant`, one or more values separated by `;` |
+| `TURBO_KSERVE_PII_TOKEN_KEYS` | `--pii-token-key`, one or more values separated by `;` |
+| `TURBO_KSERVE_PII_TOKEN_KEY_ACTIVE` | `--pii-token-key-active` |
+| `TURBO_KSERVE_PII_ENCRYPTION_KEYS` | `--pii-encryption-key`, one or more values separated by `;` |
+| `TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE` | `--pii-encryption-key-active` |
+| `TURBO_KSERVE_PII_AUDIT_ENDPOINT` | `--pii-audit-endpoint` |
+| `TURBO_KSERVE_PII_AUDIT_TIMEOUT_MS` | `--pii-audit-timeout-ms` |
+| `TURBO_KSERVE_PII_REQUIRE_RECORDED_POLICY` | `--pii-require-recorded-policy` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
@@ -208,7 +228,13 @@ load and during drain.
 makes one `Check` against a running server (the address
 `TURBO_KSERVE_LISTEN`, on loopback when it is `0.0.0.0` or `::`, when
 `--addr` is absent) and exits 0 on `SERVING`, 1 otherwise: the release
-image's health check. The image, its `/bundles` volume, its variables
+image's health check. Against a TLS listener, pass `--tls-ca FILE` (the
+CA the server's certificate is checked against), `--tls-name NAME` when
+the certificate's name is not the address, and `--tls-cert FILE` with
+`--tls-key FILE` when the server requires a client certificate
+(`TURBO_KSERVE_HEALTH_TLS_CA`, `TURBO_KSERVE_HEALTH_TLS_NAME`,
+`TURBO_KSERVE_HEALTH_TLS_CERT`, `TURBO_KSERVE_HEALTH_TLS_KEY`). These
+are the probe's client credentials, not the listener's. The image, its `/bundles` volume, its variables
 and the Kubernetes probes for it are in docs/release.md, Images.
 
 A `ModelInfer` carries either `texts` (BYTES, `[batch]`) or token rows
@@ -364,8 +390,8 @@ Every pull request that touches `server/proto/` runs `buf lint` and
 #### PII and result envelope freeze (#1882)
 
 While the PII work (#1901 to #1909 and #1882) was in flight, and before any
-client existed, the 2026-11-07 ruling allowed the new PII and result envelope
-messages to be changed in place. That allowance ends with #1882 part C. From
+client existed, the new PII and result envelope messages could be changed
+in place. That allowance ends with #1882 part C. From
 then on `turbo.result.v1` and `turbo.audit.v1` follow the policy above with
 no exceptions. `turbo.result.v1` covers the typed annotations, the analysis
 service and the redaction policy messages (`turbo_typed_annotations.proto`,
@@ -407,7 +433,8 @@ encoding. The audit of these rules, message by message, is in the body of
 release ceiling in the redaction policy (#1943), added after the freeze
 as new fields only: `PiiKindRule.release_ceiling` (7, `PiiReleaseCeiling`)
 and `InspectDocumentGraphRequest.pii_policy` (8, `PiiReleasePolicy`).
-Ciphertext values still wait for #1885.
+Ciphertext release (#1885, `PiiValueCiphertext`) was added the same way,
+as new fields only.
 
 The audit event id keeps its `turbo-pii-access-v1` domain while its
 inputs grew with the per-mention redaction policy fields. A release

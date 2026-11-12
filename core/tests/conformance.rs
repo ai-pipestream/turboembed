@@ -25,6 +25,7 @@ mod tasks;
 
 use std::path::{Path, PathBuf};
 use std::ptr;
+use turbo_scratch::Scratch;
 
 use common::*;
 use serde_json::Value;
@@ -121,8 +122,7 @@ fn a_fixed_shape_refuses_the_cases_it_cannot_hold() {
         eprintln!("skipped: the {backend} backend does not load FORMAT_SAFETENSORS");
         return;
     }
-    let dir = std::env::temp_dir().join(format!("turbo-conformance-{}-fixed", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-conformance-{}-fixed", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors", "weights/model.safetensors"] {
         std::fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         std::fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();

@@ -90,7 +90,7 @@ mod tests {
         let model = train_langid(&samples, &languages, model_ref.clone()).unwrap();
         assert_eq!(model.predict("hello"), Some("eng"));
         assert_eq!(model.predict("hallo"), Some("deu"));
-        let dir = std::env::temp_dir().join(format!("langid-test-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("langid-test-{}", std::process::id())));
         std::fs::create_dir_all(&dir).unwrap();
         let path = write_langid(&model, &dir).unwrap();
         assert_eq!(path.file_name().unwrap(), MODEL_ENTRY);

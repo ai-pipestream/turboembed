@@ -109,6 +109,7 @@ pub const KNOWN_LIMITS: &[&str] = &[
     "max_prompt_subwords",
     "max_structures",
     "max_text_bytes",
+    "max_tokens",
     "max_words",
     "scorer max_labels",
     "scorer max_mentions",

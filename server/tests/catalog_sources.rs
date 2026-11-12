@@ -70,7 +70,8 @@ impl Drop for Home {
 }
 
 async fn start(home: &Path, serve: Serve) -> (Server, Client) {
-    let catalog = Catalog { home: home.join("zoo"), index: Arc::new(index()), transport: Arc::new(Nothing) };
+    let catalog =
+        Catalog { home: home.join("zoo"), index: Arc::new(index()), transport: Arc::new(Nothing), data: None };
     let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
     let model = ModelConfig {
         bundle: bundle.to_str().unwrap().into(),

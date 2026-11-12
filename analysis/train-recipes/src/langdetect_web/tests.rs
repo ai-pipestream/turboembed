@@ -60,7 +60,8 @@ fn train_and_score_reject_mismatched_web_and_tatoeba_languages() {
 #[test]
 fn classical_web_run_is_retired() {
     let export = Export::read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/tatoeba")).unwrap();
-    let dir = std::env::temp_dir().join(format!("langdetect-web-retired-{}", std::process::id()));
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("langdetect-web-retired-{}", std::process::id())));
     let store = Store::new(&dir, None);
     let input = WebInput { web: WEB, files: &[], ranges: &[], recorded: false, store: &store };
     let error = run(&LANGDETECT_WEB, &export, false, &input, &[], &[]).unwrap_err();

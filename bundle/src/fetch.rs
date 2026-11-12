@@ -154,9 +154,10 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
 mod tests {
     use super::*;
 
-    fn dir(label: &str) -> std::path::PathBuf {
-        let d = std::env::temp_dir().join(format!("turbo-bundle-fetch-{}-{label}", std::process::id()));
-        let _ = fs::remove_dir_all(&d);
+    fn dir(label: &str) -> turbo_scratch::Scratch {
+        let d = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-bundle-fetch-{}-{label}", std::process::id())),
+        );
         fs::create_dir_all(&d).unwrap();
         d
     }

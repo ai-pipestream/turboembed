@@ -1,8 +1,8 @@
 use super::*;
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-pins-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn scratch(name: &str) -> turbo_scratch::Scratch {
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-pins-{name}-{}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -107,7 +107,7 @@ fn a_bundle_changed_after_a_passing_require_is_refused() {
     let dir = scratch("changed");
     let manifest = fs::read(tiny.join("manifest.json")).unwrap();
     fs::write(dir.join("manifest.json"), &manifest).unwrap();
-    assert_eq!(require(&dir), dir);
+    assert_eq!(require(&dir), dir.path());
     let mut changed = manifest;
     changed.push(b'\n');
     fs::write(dir.join("manifest.json"), changed).unwrap();
@@ -152,7 +152,7 @@ fn a_directory_of_pinned_files_passes_and_one_unpinned_file_fails_it() {
 
 /// A GLiREL-shaped package: glirel.json beside encoder/, whose deberta.json
 /// glirel.json does not name.
-fn glirel_package(name: &str, encoder: &[u8]) -> PathBuf {
+fn glirel_package(name: &str, encoder: &[u8]) -> turbo_scratch::Scratch {
     let dir = scratch(name);
     fs::write(dir.join("glirel.json"), br#"{"version": 1}"#).unwrap();
     fs::write(dir.join("heads.safetensors"), b"heads").unwrap();

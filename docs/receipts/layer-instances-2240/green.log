@@ -1,0 +1,21 @@
+✔ analyze streams every step of the profile and shows the document it built (348.106984ms)
+✔ the annotation drawer opens a layer's annotations on the source text (484.461698ms)
+✔ every output format downloads the file the page shows (1180.797187ms)
+✔ the graph survives a server round trip, a save and a reopen (723.079802ms)
+✔ a file that is not a graph is refused with a reason (310.150132ms)
+✔ Analyze selects default and named boundary instances independently (733.681702ms)
+✔ Analyze filters the named/default token graph through the real server (634.156202ms)
+✔ every tab lays out cleanly at 1280 px (1691.609771ms)
+✔ every tab lays out cleanly at 390 px (1651.170702ms)
+✔ the embed tab answers with a card per model and the tabs take the arrow keys (409.748582ms)
+✔ the catalog narrows by words typed and by kind (508.254806ms)
+✔ semantic ranks the passages by cosine and fills a symmetric matrix (710.135107ms)
+✔ the server tab lists every served bundle and every analysis profile (327.95484ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10787.164382

@@ -4,6 +4,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use turbo_scratch::Scratch;
 
 use turbo::manifest::PromptRole;
 use turbo_analysis::*;
@@ -63,7 +64,7 @@ fn run(ann: Arc<VectorAnnotator>, recorded: u32) -> Result<(), Error> {
 #[test]
 fn dispatch_prompt_overhead_keeps_batch_slots_and_backend() {
     use turbo_analysis_embed::calibrate::{Calibration, CalibrationOptions, Point, Side};
-    let dir = std::env::temp_dir().join(format!("dispatch-overhead-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("dispatch-overhead-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let options = CalibrationOptions {
         device: Device::Cpu,

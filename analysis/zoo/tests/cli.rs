@@ -190,3 +190,21 @@ fn show_prints_attribution_for_builtin_entries() {
         assert!(shown.contains(expected), "{id}: {shown}");
     }
 }
+
+#[test]
+fn show_prints_every_location_of_a_file() {
+    let home = TempDir::new("locations");
+    let id = "turbo-en-goemotions-modernbert-base-head-1";
+    let out = zoo(&home.0, &["show", id]);
+    assert!(out.status.success(), "{out:?}");
+    let shown = text(&out.stdout);
+    let also = format!(
+        "file: {id}.tevh also from \
+         https://huggingface.co/pipestream-ai/{id}/resolve/d5c044091ac2a655404f34a6143f35c6f0873ee3/{id}.tevh\n"
+    );
+    let from = format!(
+        "from https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-1732-1/{id}.tevh\n"
+    );
+    let at = shown.find(&from).unwrap_or_else(|| panic!("{shown}"));
+    assert!(shown[at + from.len()..].starts_with(&also), "{shown}");
+}

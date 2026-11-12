@@ -44,6 +44,13 @@ The response contains:
 list includes all supported positional layers. It filters `segments`
 only: chips, heatmaps and summary metadata are not filtered or paginated.
 
+`filter_layer_instances` selects exact `LayerInstanceFilter` pairs of
+`layer` and `instance`. An empty instance selects the default instance;
+an empty selector list adds no restriction. Multiple selectors are a union.
+When both filter fields are supplied, a layer must match both constraints.
+Unknown pairs produce no annotations. Text, offsets, summary metadata,
+document chips and heatmaps retain the same behavior as `filter_layers`.
+
 ### Heatmaps
 
 Heatmaps come from `turbo_analysis_layers::DocumentHeatmap::build_instances`.
