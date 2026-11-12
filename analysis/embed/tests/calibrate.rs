@@ -7,6 +7,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use turbo_scratch::Scratch;
 
 use turbo_analysis_embed::calibrate::{
     Calibration, CalibrationOptions, Point, Side, Text, lowest_cosine, time, vectors,
@@ -144,8 +145,7 @@ fn the_device_runs_where_it_is_faster_within_the_floor() {
 
 #[test]
 fn a_configuration_not_asked_is_refused_before_anything_is_measured() {
-    let dir = std::env::temp_dir().join(format!("turbo-calibrate-unasked-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-calibrate-unasked-{}", std::process::id())));
     for (w, b) in [(96, 4), (24, 8), (0, 0)] {
         let e = Calibration::annotator(&dir, &bert(), &options(None), &texts(), &at(w, b)).err().unwrap().to_string();
         assert!(e.contains("no calibration point") && e.contains("24x1, 24x4, 64x1, 64x4"), "{e}");
@@ -255,8 +255,7 @@ fn the_key_names_what_was_asked() {
 
 #[test]
 fn a_kept_calibration_is_read_back_not_measured_again() {
-    let dir = std::env::temp_dir().join(format!("turbo-calibrate-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-calibrate-{}", std::process::id())));
     let o = options(None);
     let first = Calibration::load_or_measure(&dir, &bert(), &o, &texts()).unwrap();
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
@@ -333,8 +332,7 @@ fn on_the_device_turbo_test_device_names() {
     let c = Calibration::measure(bundle, &o, &texts).unwrap();
     print!("{}", c.to_text());
     assert!(c.points.iter().all(|p| p.min_cosine > 0.0));
-    let dir = std::env::temp_dir().join(format!("turbo-calibrate-device-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-calibrate-device-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(Calibration::file(&dir, &c.key), c.to_text()).unwrap();
     println!("window\tbatch\tmin cosine\tdevice ms\tcpu ms\tchosen\tchosen ms\tone sentence: chosen ms\tother ms");

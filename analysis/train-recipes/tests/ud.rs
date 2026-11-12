@@ -7,7 +7,8 @@
 //! binary's refusals. The sentences are written for the project and are
 //! not treebank text.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use turbo_scratch::Scratch;
 
 use turbo_train_components::lemmatize::lemma_class;
 use turbo_train_recipes::card::TagCount;
@@ -112,9 +113,8 @@ fn leak(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
 }
 
-fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-train-recipes-ud-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+fn temp_dir(name: &str) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-train-recipes-ud-{name}-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }

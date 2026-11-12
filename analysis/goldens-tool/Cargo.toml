@@ -25,6 +25,7 @@ turbo-goldens = { path = "../goldens", optional = true }
 turbo-fuzz = { path = "../fuzz", optional = true }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 # Every file fetch-models fetches has a SHA-256 pin, which
 # turbo_goldens::published_model checks at load.
 turbo-pins = { path = "../pins" }

@@ -9,6 +9,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use turbo_scratch::Scratch;
 
 use turbo_zoo::{
     Acceptances, DRIVE_READONLY, DriveAuth, GoogleDrive, GoogleOAuth, Index, Pkce, Policy, Renewing, Sha256, Sha512,
@@ -130,9 +131,8 @@ fn index() -> Index {
 
 /// Fetches `hello` through `drive` into a fresh cache.
 fn fetch(drive: &GoogleDrive, name: &str) -> Result<Vec<u8>, String> {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-oauth-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let zoo = Zoo::new(index(), dir.clone(), Policy::default(), drive);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-oauth-{name}-{}", std::process::id())));
+    let zoo = Zoo::new(index(), dir.to_path_buf(), Policy::default(), drive);
     let alice: UserId = "alice".parse().unwrap();
     let got = zoo.fetch("hello", &alice, &Acceptances::default()).map(|f| std::fs::read(&f.files[0]).unwrap());
     let _ = std::fs::remove_dir_all(&dir);

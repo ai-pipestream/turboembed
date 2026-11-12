@@ -48,4 +48,5 @@ metal = ["turbo/metal"]
 hailo = ["turbo/hailo"]
 
 [dev-dependencies]
+turbo-scratch = { path = "../analysis/scratch" }
 turbo-pins = { path = "../analysis/pins" }

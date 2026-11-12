@@ -263,7 +263,9 @@ mod tests {
 
     #[test]
     fn a_file_with_another_hash_is_refused() {
-        let dir = std::env::temp_dir().join(format!("turbo-goldens-models-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-models-{}", std::process::id())),
+        );
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("model.bin");
         fs::write(&path, b"abc").unwrap();
@@ -281,7 +283,9 @@ mod tests {
     #[test]
     fn the_checked_in_fixtures_are_the_recipes() {
         check_fixtures(&crate::paths::fixtures_dir()).unwrap();
-        let dir = std::env::temp_dir().join(format!("turbo-goldens-fixtures-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-fixtures-{}", std::process::id())),
+        );
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("extra.bin"), b"x").unwrap();
         let err = check_fixtures(&dir).unwrap_err();

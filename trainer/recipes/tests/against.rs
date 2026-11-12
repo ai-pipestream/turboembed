@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_trainer_recipes::receipt::Receipt;
 
@@ -14,10 +15,8 @@ fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-against-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-against-{}-{name}", std::process::id())))
 }
 
 fn run(args: &[&str]) -> std::process::Output {

@@ -54,6 +54,7 @@ flate2 = "1"
 turbo-zstd = { path = "../zstd" }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 # Reuse provider authentication in the explicit RustFS integration probe.
 turbo-zoo = { path = "../zoo" }
 turbo-pins = { path = "../pins" }

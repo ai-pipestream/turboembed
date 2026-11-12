@@ -6,6 +6,7 @@
 mod kserve;
 
 use kserve::*;
+use turbo_scratch::Scratch;
 
 #[tokio::test]
 async fn readiness_before_and_after_load() {
@@ -50,8 +51,7 @@ async fn server_metadata() {
 #[tokio::test]
 async fn model_metadata() {
     let src = tiny();
-    let dir = std::env::temp_dir().join(format!("turbo-server-metadata-licence-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-server-metadata-licence-{}", std::process::id())));
     std::fs::create_dir_all(dir.join("weights")).unwrap();
     std::fs::create_dir_all(dir.join("reference")).unwrap();
     for p in ["tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {

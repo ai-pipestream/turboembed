@@ -408,7 +408,7 @@ pub(crate) mod tests {
 
     #[test]
     fn write_and_read_a_file() {
-        let dir = std::env::temp_dir().join(format!("turbo-eval-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-eval-{}", std::process::id())));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("record.json");
         let _ = fs::remove_file(&path);

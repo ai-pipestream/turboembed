@@ -94,8 +94,9 @@ fn sparse_speed_on_the_cpu() {
     let docs: Vec<String> = (0..4).flat_map(|_| texts.chunks(10).map(|c| c.join("\n"))).collect();
     let bytes: usize = docs.iter().map(|d| d.len()).sum();
     let runs: u32 = std::env::var("TURBO_SPEED_RUNS").ok().and_then(|r| r.parse().ok()).unwrap_or(5);
-    let a = SparseAnnotator::open(&bundle(), &SparseOptions::default()).unwrap();
-    let sub = SubwordAnnotator::open(&bundle()).unwrap();
+    let bundle = bundle();
+    let a = SparseAnnotator::open(&bundle, &SparseOptions::default()).unwrap();
+    let sub = SubwordAnnotator::open(&bundle).unwrap();
     let mut built: Vec<(Document, _)> = Vec::with_capacity(docs.len());
     for t in &docs {
         let d = Document::new(t.as_str());
@@ -125,7 +126,7 @@ fn sparse_speed_on_the_cpu() {
     let secs = start.elapsed().as_secs_f64() / f64::from(runs);
     eprintln!(
         "{}: {} documents, {bytes} bytes, {pieces} pieces, {terms} terms: {:.1} ms a pass, {:.1} texts/s, {:.0} pieces/s, {:.0} terms/s",
-        bundle().display(),
+        bundle.display(),
         docs.len(),
         secs * 1e3,
         docs.len() as f64 / secs,

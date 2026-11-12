@@ -16,14 +16,14 @@ mod quantized;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 fn include() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../include")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-abi-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-abi-{}-{name}", std::process::id())));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
@@ -42,7 +42,7 @@ fn run(cmd: &mut Command) -> String {
 
 /// `source` built as a C11 program linked against libturbo as it is now,
 /// in a scratch directory, which is returned with the program's path.
-fn compile(name: &str, source: &str) -> (PathBuf, PathBuf) {
+fn compile(name: &str, source: &str) -> (Scratch, PathBuf) {
     // target/<profile>/deps/abi-* -> target/<profile>/libturbo.{so,dylib}
     let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
     // `cargo test` builds the rlib the tests link, not the cdylib; build

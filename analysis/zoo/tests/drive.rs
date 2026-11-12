@@ -7,6 +7,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
+use turbo_scratch::Scratch;
 
 use turbo_zoo::{
     Acceptances, Blobs, DriveAuth, GoogleDrive, Index, Policy, Sha256, Sha512, Sources, Transport, UserId, Zoo,
@@ -169,10 +170,8 @@ fn blob_tree(bytes: &[u8]) -> Vec<Entry> {
     ]
 }
 
-fn cache(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-drive-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
+fn cache(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-drive-{name}-{}", std::process::id())))
 }
 
 fn alice() -> UserId {
@@ -200,7 +199,7 @@ fn a_file_is_read_from_the_blob_layout_with_the_bearer_token() {
     let (endpoint, seen) = stand_in(blob_tree(TEXT));
     let drive = GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::Token("tok-1".into())).unwrap();
     let dir = cache("blob");
-    let zoo = Zoo::new(index(), dir.clone(), Policy::default(), &drive);
+    let zoo = Zoo::new(index(), dir.to_path_buf(), Policy::default(), &drive);
     let got = zoo.fetch("hello", &alice(), &Acceptances::default()).map(|f| std::fs::read(&f.files[0]).unwrap());
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(got.unwrap(), TEXT);
@@ -274,25 +273,26 @@ fn what_the_folder_lacks_or_serves_wrong_falls_through_to_the_next_source() {
         let drive = || GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::Token("t".into())).unwrap();
         let empty = cache("empty");
         let lacking = Sources::new().then("gdrive://top", drive()).then("empty", Blobs::new(&empty));
-        let alone = Zoo::new(index(), cache("alone"), Policy::default(), &lacking);
+        let alone_dir = cache("alone");
+        let alone = Zoo::new(index(), alone_dir.to_path_buf(), Policy::default(), &lacking);
         let err = alone.fetch("hello", &alice(), &Acceptances::default()).unwrap_err().to_string();
         assert!(err.contains(why) && err.contains("empty: "), "{err}");
         let sources = Sources::new().then("gdrive://top", drive()).then("store", Blobs::new(&store));
         let dir = cache("through");
-        let zoo = Zoo::new(index(), dir.clone(), Policy::default(), &sources);
+        let zoo = Zoo::new(index(), dir.to_path_buf(), Policy::default(), &sources);
         let got = zoo.fetch("hello", &alice(), &Acceptances::default()).map(|f| std::fs::read(&f.files[0]).unwrap());
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(got.unwrap(), TEXT);
     }
     let _ = std::fs::remove_dir_all(&store);
-    let _ = std::fs::remove_dir_all(cache("alone"));
 }
 
 #[test]
 fn terms_not_accepted_are_refused_before_drive_is_asked() {
     let (endpoint, seen) = stand_in(blob_tree(TEXT));
     let drive = GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::Token("t".into())).unwrap();
-    let zoo = Zoo::new(index(), cache("refused"), Policy::default(), &drive);
+    let dir = cache("refused");
+    let zoo = Zoo::new(index(), dir.to_path_buf(), Policy::default(), &drive);
     let err = zoo.fetch("sa", &alice(), &Acceptances::default()).unwrap_err();
     assert!(matches!(err, ZooError::NotAccepted { .. }), "{err}");
     assert!(seen.lock().unwrap().is_empty());

@@ -3,6 +3,7 @@
 //! unknown scheme or a sign-in a kind does not take is refused.
 
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 use turbo_zoo::{Acceptances, Blobs, Holder, Holders, Index, Offline, Policy, Sha256, Sha512, SignIn, UserId, Zoo};
 use turbo_zoo_remote::{Kind, Opened, Registry};
@@ -23,10 +24,8 @@ fn index() -> Index {
     Index::parse(json.as_bytes()).unwrap()
 }
 
-fn temp(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-registry-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
+fn temp(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-registry-{name}-{}", std::process::id())))
 }
 
 fn alice() -> UserId {
@@ -81,7 +80,8 @@ fn an_unknown_scheme_names_the_ones_the_registry_knows() {
     let holder = Holder::new("t", "team://nlp", SignIn::Environment).unwrap();
     let e = registry.open(&holder, &alice()).err().unwrap();
     assert!(e.contains("a source is file://, grpc://, grpcs://, s3://, gdrive:// or origin"), "{e}");
-    registry.register(Team(temp("unknown")));
+    let dir = temp("unknown");
+    registry.register(Team(dir.to_path_buf()));
     assert_eq!(registry.schemes().collect::<Vec<_>>(), ["file", "grpc", "grpcs", "s3", "gdrive", "team"]);
     assert!(registry.open(&holder, &alice()).is_ok());
     let e = registry.spec("team://a/b", &alice(), Offline).err().unwrap();
