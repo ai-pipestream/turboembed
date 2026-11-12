@@ -89,18 +89,20 @@ fn scores(model: &Model) -> Vec<Candidate> {
 }
 
 /// One optimizer step of the chosen heads, installed and reloaded.
-fn train_install_reload(config: &Config, boundaries: bool, prompt: bool, recurrent: bool) {
+fn train_install_reload(config: &Config, boundaries: bool, prompt: bool, recurrent: bool, projection: bool) {
     let label = format!(
-        "mlp {} prompt factor {} boundaries {boundaries} prompt {prompt} recurrent {recurrent}",
+        "mlp {} prompt factor {} boundaries {boundaries} prompt {prompt} recurrent {recurrent} projection {projection}",
         config.out_project_mlp, config.prompt_factor
     );
     let original = heads(config);
     let mut tuned = model(config, &original);
     let before = scores(&tuned);
-    let mut trainer = OutputTrainer::load_with_heads(config, &original, boundaries, prompt, recurrent).expect(&label);
+    let mut trainer =
+        OutputTrainer::load_with_heads(config, &original, boundaries, prompt, recurrent, projection).expect(&label);
     let output = if config.out_project_mlp { 4 } else { 2 };
     let dense = output + if boundaries { 8 } else { 0 } + if prompt { 4 } else { 0 };
-    assert_eq!(trainer.params().len(), dense + if recurrent { 8 } else { 0 }, "{label}");
+    let expected = dense + if recurrent { 8 } else { 0 } + if projection { 2 } else { 0 };
+    assert_eq!(trainer.params().len(), expected, "{label}");
     if prompt {
         let first = &trainer.params()[dense - 4];
         assert_eq!(first.len(), config.prompt_factor * config.hidden * config.hidden, "{label}");
@@ -130,12 +132,13 @@ fn every_head_combination_trains_installs_and_reloads() {
     for out_project_mlp in [true, false] {
         for boundaries in [false, true] {
             for prompt in [false, true] {
-                train_install_reload(&config(out_project_mlp, 4), boundaries, prompt, false);
+                train_install_reload(&config(out_project_mlp, 4), boundaries, prompt, false, false);
                 if boundaries {
-                    train_install_reload(&config(out_project_mlp, 4), boundaries, prompt, true);
+                    train_install_reload(&config(out_project_mlp, 4), boundaries, prompt, true, false);
                 }
             }
         }
+        train_install_reload(&config(out_project_mlp, 4), true, true, true, true);
     }
 }
 
@@ -144,20 +147,21 @@ fn a_prompt_width_other_than_the_output_width_trains() {
     // Output and boundary factor four, prompt factor two.
     for out_project_mlp in [true, false] {
         for boundaries in [false, true] {
-            train_install_reload(&config(out_project_mlp, 2), boundaries, true, boundaries);
+            train_install_reload(&config(out_project_mlp, 2), boundaries, true, boundaries, false);
         }
+        train_install_reload(&config(out_project_mlp, 2), true, true, true, true);
     }
 }
 
 #[test]
 fn a_trainer_of_another_form_is_not_installed() {
     let (mlp, linear) = (config(true, 4), config(false, 4));
-    let trainer = OutputTrainer::load_with_heads(&linear, &heads(&linear), true, true, true).unwrap();
+    let trainer = OutputTrainer::load_with_heads(&linear, &heads(&linear), true, true, true, false).unwrap();
     let mut other = model(&mlp, &heads(&mlp));
     assert!(other.apply_output(&trainer).is_err());
     // A prompt trainer of another prompt width is refused too.
     let narrow = config(true, 2);
-    let trainer = OutputTrainer::load_with_heads(&narrow, &heads(&narrow), false, true, false).unwrap();
+    let trainer = OutputTrainer::load_with_heads(&narrow, &heads(&narrow), false, true, false, false).unwrap();
     assert!(other.apply_output(&trainer).unwrap_err().contains("does not match"));
 }
 
@@ -166,7 +170,7 @@ fn recurrent_training_needs_boundaries_and_an_even_hidden_size() {
     let even = config(true, 4);
     let bytes = heads(&even);
     let refused = |config: &Config, boundaries| {
-        OutputTrainer::load_with_heads(config, &bytes, boundaries, false, true).map(|_| ()).unwrap_err()
+        OutputTrainer::load_with_heads(config, &bytes, boundaries, false, true, false).map(|_| ()).unwrap_err()
     };
     assert!(refused(&even, false).contains("requires boundary training"));
     let odd = Config { hidden: 15, ..even.clone() };

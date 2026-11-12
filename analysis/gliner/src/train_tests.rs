@@ -12,6 +12,7 @@ struct Heads {
     boundaries: bool,
     prompt: bool,
     recurrent: bool,
+    projection: bool,
     /// Zero stands for the output factor.
     prompt_factor: usize,
 }
@@ -53,6 +54,9 @@ fn trainer(heads: Heads) -> OutputTrainer {
             params.extend([2 * H * H, 2 * H * (H / 2), 2 * H, 2 * H].map(|len| values.tensor(len)));
         }
     }
+    if heads.projection {
+        params.extend([values.tensor(3 * H), values.tensor(H)]);
+    }
     OutputTrainer {
         hidden: H,
         factor: F,
@@ -64,6 +68,7 @@ fn trainer(heads: Heads) -> OutputTrainer {
         boundaries: heads.boundaries,
         prompt: heads.prompt,
         recurrent: heads.recurrent,
+        projection: heads.projection,
     }
 }
 
@@ -71,6 +76,7 @@ fn fixture() -> (TrainingInput, Vec<Candidate>) {
     let input = TrainingInput {
         words: vec![0.6, -0.2, 0.4, 0.3],
         projected_words: vec![0.5, -0.3, 0.2, 0.7],
+        encoder_inputs: Vec::new(),
         spans: vec![0.5, -0.3, 0.2, 0.8, 0.1, 0.4, -0.2, 0.6],
         prompts: vec![0.7, 0.2],
         prompt_inputs: vec![0.4, -0.1],
@@ -84,7 +90,10 @@ fn fixture() -> (TrainingInput, Vec<Candidate>) {
 }
 
 fn check_gradients(heads: Heads) {
-    let (input, candidates) = fixture();
+    let (mut input, candidates) = fixture();
+    if heads.projection {
+        input.encoder_inputs = vec![0.4, -0.1, 0.3, 0.6, -0.2, 0.4, 0.3, 0.2, 0.5];
+    }
     let mut trainer = trainer(heads);
     trainer.set_anchor(0.25).unwrap();
     let mut grads = trainer.zero_grads();
@@ -116,7 +125,7 @@ fn combinations() -> Vec<Heads> {
             for prompt in [false, true] {
                 for recurrent in [false, true] {
                     if !recurrent || boundaries {
-                        out.push(Heads { linear, boundaries, prompt, recurrent, prompt_factor: 0 });
+                        out.push(Heads { linear, boundaries, prompt, recurrent, prompt_factor: 0, ..Heads::default() });
                     }
                 }
             }
@@ -156,6 +165,7 @@ fn the_layout_follows_the_heads_not_the_tensor_count() {
         assert_eq!(trainer.prompt_offset(), heads.prompt.then_some(before_prompt));
         let before_recurrent = before_prompt + if heads.prompt { 4 } else { 0 };
         assert_eq!(trainer.recurrent_offset(), heads.recurrent.then_some(before_recurrent));
+        assert_eq!(trainer.projection_offset(), None);
         assert_eq!(trainer.params.len(), before_recurrent + if heads.recurrent { 8 } else { 0 });
     }
 }
@@ -202,6 +212,22 @@ fn weight_decay_reaches_every_matrix_and_no_bias() {
             // weight_ih, weight_hh, bias_ih, bias_hh.
             let matrix = if at < recurrent { at % 2 == 0 } else { (at - recurrent) % 4 < 2 };
             assert_eq!(old != new, matrix, "{heads:?} tensor {at}");
+        }
+    }
+}
+
+#[test]
+fn projection_gradients_match_finite_differences() {
+    for linear in [false, true] {
+        for prompt_factor in [0, 4] {
+            let heads =
+                Heads { linear, boundaries: true, prompt: true, recurrent: true, projection: true, prompt_factor };
+            let built = trainer(heads);
+            let output = if linear { 2 } else { 4 };
+            assert_eq!(built.recurrent_offset(), Some(output + 12));
+            assert_eq!(built.projection_offset(), Some(output + 20));
+            assert_eq!(built.params.len(), output + 22);
+            check_gradients(heads);
         }
     }
 }
