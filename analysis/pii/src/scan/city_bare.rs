@@ -32,10 +32,10 @@ use std::sync::OnceLock;
 
 use turbo_geo::{BUNDLED_TABLE, Folder};
 
-use super::city::{capital_at, capitals_like_a_name, lookup, state_after, word_ends};
+use super::city::{capital_at, lookup, state_after, word_ends};
 use crate::tables::city_common_words;
 use crate::tables::us_states::US_STATES;
-use crate::text::{name_char, on_name_end};
+use crate::text::name_char;
 
 /// The capitalized words that may stand right before a bare city name:
 /// the prepositions, articles, conjunctions and determiners a sentence
@@ -109,19 +109,15 @@ pub(super) fn scan(text: &str, found: &mut Vec<(usize, usize, &'static str)>) {
                 }
             }
         }
-        // The longest name written like one, as `lookup` would take it;
-        // the gazetteer is asked only for one the context accepts.
-        let Some(&end) =
-            full[..m].iter().rev().find(|&&end| on_name_end(text, end) && capitals_like_a_name(&text[start..end]))
-        else {
+        // The longest name the gazetteer holds as written (its capitals
+        // where the gazetteer's name has them), with enough people.
+        let Some((end, entry)) = full[..m].iter().rev().find_map(|&end| {
+            let entry = lookup(text, start, end)?.into_iter().find(|e| e.population() >= MIN_POPULATION)?;
+            Some((end, entry))
+        }) else {
             continue;
         };
-        if !accepted(text, start, end) {
-            continue;
-        }
-        if let Some(entry) =
-            lookup(text, start, end).and_then(|f| f.into_iter().find(|e| e.population() >= MIN_POPULATION))
-        {
+        if accepted(text, start, end) {
             found.push((start, end, entry.name()));
             at = end;
         }

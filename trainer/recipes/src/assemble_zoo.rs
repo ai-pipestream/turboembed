@@ -73,6 +73,7 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
             size: bytes.len() as u64,
             sha256: Sha256::of(&bytes),
             sha512: Sha512::of(&bytes),
+            also: Vec::new(),
             download: None,
         });
     }

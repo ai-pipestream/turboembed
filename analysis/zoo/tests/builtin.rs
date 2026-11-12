@@ -10,6 +10,8 @@ mod checkpoints;
 mod components;
 #[path = "builtin/coref_head.rs"]
 mod coref_head;
+#[path = "builtin/hugging_face.rs"]
+mod hugging_face;
 
 #[test]
 fn the_builtin_index_parses_and_is_canonical() {

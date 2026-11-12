@@ -33,6 +33,8 @@ fn place_scanners_scale_linearly_across_adversarial_shapes() {
         ("one long word before ', IL'", |n| format!("{}, IL", "A".repeat(n))),
         ("one long dotted word before ', IL'", |n| format!("A{}, IL", "a.".repeat(n / 2))),
         ("capital words before ', IL'", |n| format!("{}, IL", "A ".repeat(n / 2).trim_end())),
+        ("lowercase words after capital before ', IL'", |n| format!("A {}, IL", "a ".repeat(n / 2).trim_end())),
+        ("long lowercase word after capital before ', IL'", |n| format!("A {}, IL", "a".repeat(n))),
         ("City: before capital words", |n| format!("City: {}", "A ".repeat(n / 2))),
         ("City: before one long word", |n| format!("City: {}", "A".repeat(n))),
         ("Cook County County County", |n| format!("Cook{}", " County".repeat(n / 7))),

@@ -34,12 +34,18 @@ fn a_city_before_its_state_is_a_mention() {
         ("in Salt Lake City, Utah", "Salt Lake City", "Salt Lake City"),
         ("St. Louis, Missouri", "St. Louis", "St. Louis"),
         ("Winston-Salem, NC", "Winston-Salem", "Winston-Salem"),
+        ("Winston Salem, NC", "Winston Salem", "Winston-Salem"),
+        ("Nashville-Davidson, TN", "Nashville-Davidson", "Nashville"),
+        ("Phoenix-Mesa, AZ", "Phoenix-Mesa", "Phoenix"),
         ("(Kansas City, MO)", "Kansas City", "Kansas City"),
         ("City: Springfield, IL", "Springfield", "Springfield"),
         ("Truth or Consequences, NM", "Truth or Consequences", "Truth or Consequences"),
         ("in Truth or Consequences, New Mexico", "Truth or Consequences", "Truth or Consequences"),
         ("Fond du Lac, WI", "Fond du Lac", "Fond du Lac"),
         ("moved to Fond du Lac, Wisconsin", "Fond du Lac", "Fond du Lac"),
+        ("Coeur d'Alene, ID", "Coeur d'Alene", "Coeur d'Alene"),
+        ("in Coeur d'Alene, Idaho", "Coeur d'Alene", "Coeur d'Alene"),
+        ("COEUR D'ALENE, ID", "COEUR D'ALENE", "Coeur d'Alene"),
         // The territories, which the gazetteer files under their own codes.
         ("San Juan, PR", "San Juan", "San Juan"),
         ("in San Juan, Puerto Rico", "San Juan", "San Juan"),
@@ -63,6 +69,15 @@ fn a_city_after_a_city_label_is_a_mention() {
         ("Place of birth: Lyon", "Lyon", "Lyon"),
         ("town of Springfield", "Springfield", "Springfield"),
         ("City: Rio de Janeiro", "Rio de Janeiro", "Rio de Janeiro"),
+        ("City: Coeur d'Alene", "Coeur d'Alene", "Coeur d'Alene"),
+        ("town of Coeur d'Alene", "Coeur d'Alene", "Coeur d'Alene"),
+        ("City: Val d'Or", "Val d'Or", "Val d'Or"),
+        ("City: Winston Salem", "Winston Salem", "Winston-Salem"),
+        ("City: Beersheba", "Beersheba", "Beer Sheva"),
+        ("City: Dhahran", "Dhahran", "Az Zahran"),
+        ("City: Southend", "Southend", "Southend-on-Sea"),
+        ("City: Nashville-Davidson", "Nashville-Davidson", "Nashville"),
+        ("City: Phoenix-Mesa", "Phoenix-Mesa", "Phoenix"),
         ("Birthplace: S\u{e3}o Paulo", "S\u{e3}o Paulo", "Sao Paulo"),
         ("place of birth Lyon", "Lyon", "Lyon"),
         ("CITY OF MOBILE", "MOBILE", "Mobile"),
@@ -73,6 +88,8 @@ fn a_city_after_a_city_label_is_a_mention() {
         ("City: Mobile Alabama", "Mobile", "Mobile"),
         ("Birthplace: Chicago Illinois", "Chicago", "Chicago"),
         ("City: Truth or Consequences New Mexico", "Truth or Consequences", "Truth or Consequences"),
+        ("City: Coeur d'Alene ID 83814", "Coeur d'Alene", "Coeur d'Alene"),
+        ("City: Coeur d'Alene Idaho", "Coeur d'Alene", "Coeur d'Alene"),
         ("City: San Juan PR 00901", "San Juan", "San Juan"),
     ] {
         assert_eq!(one(text), (written.to_owned(), name.to_owned()), "{text:?}");
@@ -92,11 +109,20 @@ fn what_is_no_city_mention() {
         "City: Mobile, IL",
         "City: Mobile Illinois",
         "City: Mobile IL 62704",
+        "City: Coeur d'Alene IL 62704",
         // No label without its colon.
         "the city Council met",
         "town Hall",
         // Small letters, joined characters and a gazetteer miss.
         "springfield, IL",
+        "coeur d'alene, ID",
+        "City: coeur d'Alene",
+        "Fond du lac, WI",
+        "Salt lake City, Utah",
+        "Winston salem, NC",
+        "Winston-salem, NC",
+        "Nashville-davidson, TN",
+        "Phoenix-mesa, AZ",
         "x_Springfield, IL",
         "Springfield_x, IL",
         "Gotham, NY",
@@ -117,6 +143,8 @@ fn what_is_no_city_mention() {
         "City: San Foo",
         "the city of Paris Hilton",
         "City: Springfield IL",
+        "City: Coeur d'Alene ID",
+        "City: coeur d'Alene ID 83814",
     ] {
         assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
     }
@@ -126,8 +154,10 @@ fn what_is_no_city_mention() {
 fn a_city_and_its_state_are_two_mentions() {
     for (text, city, state) in [
         ("Springfield, Illinois", "Springfield", "IL"),
+        ("Coeur d'Alene, Idaho", "Coeur d'Alene", "ID"),
         ("City: Springfield IL 62704", "Springfield", "IL"),
         ("City: Mobile Alabama", "Mobile", "AL"),
+        ("City: Coeur d'Alene Idaho", "Coeur d'Alene", "ID"),
     ] {
         let rows = rows(&pack(Pack::Places), text);
         let kinds: Vec<_> = rows.iter().map(|r| (r.2, r.3.as_str())).collect();

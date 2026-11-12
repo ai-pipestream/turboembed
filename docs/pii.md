@@ -1043,8 +1043,8 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
       Francisco's`), and a hyphenated name is one name (`Winston-Salem`).
 
   The name has at most five words with single spaces between them, and
-  its first and last words start with a capital (`Rio de Janeiro`). The
-  longest name wins, and the normalized form is the gazetteer's name
+  each word starts with a capital where the gazetteer's name has one
+  (`Rio de Janeiro`, `Coeur d'Alene`). The longest name wins, and the normalized form is the gazetteer's name
   (`Sao Paulo` for `São Paulo`). A city and the state after it are two
   mentions. The bare reading costs one probe of a table of the eligible
   names' first words per capitalized word, so prose with no city adds
