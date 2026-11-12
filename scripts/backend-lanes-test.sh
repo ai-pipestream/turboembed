@@ -66,4 +66,13 @@ else
   echo "ok   unreadable paths need both lanes"
 fi
 
+# A pull request or merge group without both ends is a usage error: it
+# prints no lane lines, so a caller cannot take silence for "skip".
+if got="$("$lanes" pull_request 2>/dev/null)" || [ -n "$got" ]; then
+  echo "FAIL a missing base: got '$got' and no error" >&2
+  failed=1
+else
+  echo "ok   a missing base is an error with no lane lines"
+fi
+
 exit "$failed"
