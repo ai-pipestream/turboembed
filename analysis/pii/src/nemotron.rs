@@ -16,7 +16,9 @@ use turbo_analysis_layers::{
 use crate::detector::{DENY_LIST_DETECTOR, PiiDetector};
 use crate::hits::{AllowDecision, Hits};
 use crate::lists::AllowList;
-use crate::scan::BUILTIN_VERSION;
+use crate::scan::{BUILTIN_VERSION, Extractor};
+
+mod person_city;
 
 /// All 55 `Nemotron-PII` label names (`snake_case`) paired with their
 /// canonical `turbo:pii` wire names (`kebab-case`), sorted by `Nemotron-PII`
@@ -225,6 +227,11 @@ pub struct ModelResolution<'a> {
 /// - If a neural candidate partially overlaps, encloses, or shares a span
 ///   under a different kind with an admitted rule mention, the neural span
 ///   yields to the rule mention so the checksum/format rule wins cleanly.
+///
+/// The one exception is a bare city name (no state after it, no city
+/// label before it) inside an admitted `first-name` or `last-name`
+/// candidate (#2312): the city candidate is taken out and the person
+/// candidate stands, so `Paris won the race` names a person.
 pub fn resolve_model_with_rules(
     text: &str,
     view: ViewId,
@@ -243,7 +250,7 @@ pub fn resolve_model_with_rules(
         }
     }
 
-    let admitted_rules: Vec<(Span, PiiKind, String)> = if let Some(det) = rules {
+    let mut admitted_rules: Vec<(Span, PiiKind, String)> = if let Some(det) = rules {
         let rule_pii = det.layer(text, view);
         rule_pii
             .mentions()
@@ -257,9 +264,13 @@ pub fn resolve_model_with_rules(
     };
 
     let mut hits = Hits::default();
+    let mut city_detector = None;
     if let Some(det) = rules {
         for s in &det.scanners {
             hits.begin_detector(s.extractor().id(), s.version());
+            if s.extractor() == Extractor::City {
+                city_detector = Some(hits.current_detector());
+            }
             s.scan(text, &merged_kinds, &mut hits);
         }
         if !det.deny_lists.is_empty() {
@@ -274,15 +285,26 @@ pub fn resolve_model_with_rules(
         }
     }
 
-    let model_ref =
-        hits.detectors_mut().add(provenance.model_id, provenance.model_version).map_err(|e| e.to_string())?;
-    hits.begin_detector(provenance.detector_id, provenance.detector_version);
-
     let threshold = match (min_score, rules.and_then(|r| r.min_score)) {
         (Some(a), Some(b)) => Some(a.max(b)),
         (Some(a), None) | (None, Some(a)) => Some(a),
         (None, None) => None,
     };
+    // A bare city name inside a person span of the head is the person's
+    // (#2312): the city candidate is taken out, so the person candidate
+    // does not yield to it.
+    if let Some(city) = city_detector {
+        let dropped = person_city::bare_cities_in_persons(text, &hits, city, model_candidates, model_kinds, threshold);
+        if !dropped.is_empty() {
+            hits.drop_spans(city, &dropped);
+            admitted_rules.retain(|(span, kind, _)| !(*kind == PiiKind::City && dropped.contains(span)));
+        }
+    }
+
+    let model_ref =
+        hits.detectors_mut().add(provenance.model_id, provenance.model_version).map_err(|e| e.to_string())?;
+    hits.begin_detector(provenance.detector_id, provenance.detector_version);
+
     let keep_nested = rules.is_some_and(PiiDetector::keeps_nested);
 
     for mc in model_candidates {

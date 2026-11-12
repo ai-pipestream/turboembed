@@ -6,7 +6,7 @@ mod address;
 mod age;
 mod br;
 mod card;
-mod city;
+pub(crate) mod city;
 mod city_bare;
 mod city_person;
 mod county;

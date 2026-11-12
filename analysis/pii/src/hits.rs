@@ -150,6 +150,30 @@ impl Hits {
         true
     }
 
+    /// The detector the candidates added from now on belong to.
+    pub(crate) const fn current_detector(&self) -> PiiDetectorRef {
+        self.current
+    }
+
+    /// The spans of `detector`'s candidates that no rule rejected.
+    pub(crate) fn admitted_spans(&self, detector: PiiDetectorRef) -> impl Iterator<Item = Span> + '_ {
+        self.hits
+            .iter()
+            .filter(move |h| h.detector == detector && h.rejected.is_none())
+            .map(|h| Span::new(h.start, h.end))
+    }
+
+    /// Whether a candidate of another detector than `detector`, not
+    /// rejected, covers exactly `span`.
+    pub(crate) fn other_at(&self, detector: PiiDetectorRef, span: Span) -> bool {
+        self.hits.iter().any(|h| h.detector != detector && h.rejected.is_none() && Span::new(h.start, h.end) == span)
+    }
+
+    /// Takes out `detector`'s candidates whose span is one of `spans`.
+    pub(crate) fn drop_spans(&mut self, detector: PiiDetectorRef, spans: &[Span]) {
+        self.hits.retain(|h| h.detector != detector || !spans.contains(&Span::new(h.start, h.end)));
+    }
+
     /// Marks the candidate added last as rejected for `reason`: it gets
     /// its row in the candidates layer and becomes no mention.
     pub(crate) fn reject_last(&mut self, reason: RejectReason) {

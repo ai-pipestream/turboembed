@@ -1269,13 +1269,23 @@ pairs slower, and it ran 64.8 million instructions a round after against
 2.7 to 2.8 ms both ways. These compare runs on the same machine and text
 and are not timing claims.
 
-The bare reading still tags a person who shares a city's name when no
-rule above sees person context: a name alone as a subject before a verb
-that takes no pronoun one word on (`Paris won the race`), or after a
-verb the rules leave out (`we saw Madison`). The trained PII token head
-(#1888), once served, can drop a city span inside a person span instead.
-A policy that needs higher precision on person-heavy text can leave
-`city` out and keep `state` and `county`.
+With rules alone, the bare reading still tags a person who shares a
+city's name when no rule above sees person context: a name alone as a
+subject before a verb that takes no pronoun one word on (`Paris won the
+race`), or after a verb the rules leave out (`we saw Madison`). With the
+trained PII token head (#1888) loaded and the Places pack as its rules
+(`PiiTagger::with_rules`, or `resolve_model_with_rules` with the head's
+candidates), a bare city name inside a `first-name` or `last-name` span
+the head admits (at or above the score threshold) is the person's
+(#2312, `analysis/pii/src/nemotron/person_city.rs`): the city candidate
+is taken out and the person candidate stands. A name before a state or
+after a city label (`Columbus, Ohio`, `City: Columbus`) stays a city
+whatever the head says, and so does a city another scanner finds on the
+same span. On the person-name memo the rules alone score `13` true, `5`
+false and `0` missed cities; with person spans on every person use, `13`,
+`0` and `0` (`places_eval.rs`). Without the head, a policy that needs
+higher precision on person-heavy text can leave `city` out and keep
+`state` and `county`.
 
 ## Custom extractors and scanner rules
 
