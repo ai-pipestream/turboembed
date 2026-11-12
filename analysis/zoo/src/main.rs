@@ -74,14 +74,17 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
     if args.first().map(String::as_str) == Some("import-bundle") {
         return import_cmd::run(&args[1..].iter().map(String::as_str).collect::<Vec<_>>());
     }
+    // The index's own text is kept: it holds the entries the zoo refuses
+    // and does not list, which `index` prints with the rest.
+    let mut text = turbo_zoo::index::BUILTIN.as_bytes().to_vec();
     let index = if args.first().map(String::as_str) == Some("--index") {
         if args.len() < 2 {
             return Err(USAGE.into());
         }
         let path = args.remove(1);
         args.remove(0);
-        let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
-        Index::parse(&bytes).map_err(|e| e.to_string())?
+        text = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+        Index::parse(&text).map_err(|e| e.to_string())?
     } else {
         Index::builtin()
     };
@@ -194,7 +197,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         ["index"] => {
-            print!("{}", Index::to_canonical_json(index.list()));
+            print!("{}", Index::to_canonical_json(&Index::written(&text).map_err(e)?));
             Ok(())
         }
         ["hash", files @ ..] if !files.is_empty() => {
