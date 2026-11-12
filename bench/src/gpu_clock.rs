@@ -94,10 +94,15 @@ mod tests {
     }
 
     #[test]
-    fn a_second_intel_card_is_no_reading_even_without_the_xe_files() {
+    fn a_second_intel_card_is_no_reading_with_or_without_the_xe_files() {
+        // Both cards have the files, so the answer cannot depend on which
+        // one the directory lists first.
         let drm = scratch("two");
-        write_card(&drm, "card0", INTEL, None);
+        write_card(&drm, "card0", INTEL, Some(["1200", "2800", "2400"]));
         write_card(&drm, "card1", INTEL, Some(["2200", "2200", "2150"]));
+        assert_eq!(xe_freq_dir(&drm), None);
+        // One of them without the files, as under i915, is still two.
+        std::fs::remove_dir_all(drm.join("card0").join("device/tile0")).unwrap();
         assert_eq!(xe_freq_dir(&drm), None);
         std::fs::remove_dir_all(&drm).unwrap();
     }
