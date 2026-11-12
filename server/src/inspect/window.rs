@@ -12,7 +12,9 @@ use turbo_analysis_layers::{Categories, EmotionDimension, EmotionLayer, Incivili
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::Offsetter;
-use crate::proto::result::{CombinedSegmentProto, DocumentChipProto, DocumentWindowProto, SegmentAnnotationProto};
+use crate::proto::result::{
+    CombinedSegmentProto, DocumentChipProto, DocumentWindowProto, LayerInstanceFilter, SegmentAnnotationProto,
+};
 use crate::results::{MAX_FRAGMENTS, MAX_WINDOWS, over};
 
 /// Default viewport window size in UTF-8 bytes when `page_size == 0`.
@@ -81,8 +83,17 @@ struct ClippedFrag {
     ann: SegmentAnnotationProto,
 }
 
-fn layer_allowed(filter_layers: &[String], layer_id: &str) -> bool {
-    filter_layers.is_empty() || filter_layers.iter().any(|f| f.trim() == layer_id)
+#[derive(Clone, Copy)]
+pub(crate) struct LayerFilter<'a> {
+    pub layers: &'a [String],
+    pub instances: &'a [LayerInstanceFilter],
+}
+
+impl LayerFilter<'_> {
+    fn allows(self, layer: &str, instance: &str) -> bool {
+        (self.layers.is_empty() || self.layers.iter().any(|f| f.trim() == layer))
+            && (self.instances.is_empty() || self.instances.iter().any(|f| f.layer == layer && f.instance == instance))
+    }
 }
 
 /// Binary-searches a strictly non-overlapping (`Overlap::None`) [`Spans`]
@@ -134,9 +145,9 @@ pub(crate) fn combined_segments(
     text: &str,
     window: Span,
     offsetter: &Offsetter,
-    filter_layers: &[String],
+    filter: LayerFilter<'_>,
 ) -> Result<Vec<CombinedSegmentProto>, Failure> {
-    combine_with_budget(doc, view, text, window, offsetter, filter_layers, MAX_FRAGMENTS)
+    combine_with_budget(doc, view, text, window, offsetter, filter, MAX_FRAGMENTS)
 }
 
 fn combine_with_budget(
@@ -145,13 +156,13 @@ fn combine_with_budget(
     text: &str,
     window: Span,
     offsetter: &Offsetter,
-    filter_layers: &[String],
+    filter: LayerFilter<'_>,
     max_memberships: u64,
 ) -> Result<Vec<CombinedSegmentProto>, Failure> {
     if window.is_empty() {
         return Ok(Vec::new());
     }
-    let clipped = layers::collect_fragments(doc, view, window, filter_layers)?;
+    let clipped = layers::collect_fragments(doc, view, window, filter)?;
 
     if clipped.len() as u64 > MAX_FRAGMENTS {
         return Err(over("max_fragments", "clipped window fragments", clipped.len() as u64));
