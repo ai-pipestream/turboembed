@@ -72,3 +72,11 @@ fn a_point_outside_its_box_or_disordered_shares_are_refused() {
         assert!(err.contains(want), "{err:?} lacks {want:?}");
     }
 }
+
+#[test]
+fn tables_of_one_size_with_other_text_digest_apart() {
+    let a = parse(&format!("{ROW}\n")).unwrap();
+    let b = parse(&format!("{}\n", ROW.replace("53.17", "53.18"))).unwrap();
+    assert_eq!(a.len(), b.len());
+    assert_ne!(a.digest(), b.digest());
+}
