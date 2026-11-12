@@ -156,6 +156,15 @@ fn a_person_who_shares_a_city_name_is_no_mention() {
         "then Columbus thought he could help",
         "Salem realized she was late",
         "we will introduce Madison tomorrow",
+        // A verb of each first letter the verb rule looks for.
+        "we congratulated Madison",
+        "we emailed Madison",
+        "they fired Madison",
+        "we greeted Madison",
+        "they kissed Madison",
+        "please remind Madison",
+        "we texted Madison",
+        "they phoned Madison",
         "they promote Dayton next year",
         // A possessive before a kin or body noun.
         "Paris's mother called",

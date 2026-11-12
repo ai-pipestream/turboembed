@@ -235,13 +235,18 @@ fn left_out(key: &str, states: &[String]) -> bool {
 }
 
 /// Whether the name `text[start..end]` that [`Names::prefixes`] holds is read
-/// bare.
+/// bare. Kept out of line, as it runs only on a name the gazetteer holds,
+/// so the scan's loop over every capital stays small.
+#[inline(never)]
 fn accepted(text: &str, start: usize, end: usize) -> bool {
-    state_after(text, end).is_none()
-        && free_end(text, end)
-        && !after_name_word(text, start)
-        && !after_person_verb(text, start)
-        && !((before_speech(text, end) || person_after(text, end)) && !after_lead_word(text, start))
+    if state_after(text, end).is_some() || !free_end(text, end) {
+        return false;
+    }
+    // The word before the name, read once for every rule that looks at it.
+    let before = word_before(text, start);
+    !after_name_word(text, before)
+        && !before.is_some_and(|(_, w)| after_person_verb(w))
+        && !((before_speech(text, end) || person_after(text, end)) && !after_lead_word(text, start, before))
 }
 
 /// The verbs of speech and address a person's name stands before and a
@@ -252,12 +257,12 @@ const SPEECH_VERBS: [&str; 12] =
 /// Whether one of [`LEAD_WORDS`] stands one space or one line break
 /// before `start`, in any case, so the name is a place in its sentence
 /// (`people in Paris said`, `a source in Boston told`, `people in` and
-/// `Paris who` on two lines), whatever verb follows it.
-fn after_lead_word(text: &str, start: usize) -> bool {
+/// `Paris who` on two lines), whatever verb follows it. `word` is the word one space before `start`.
+fn after_lead_word(text: &str, start: usize, word: Option<(usize, &str)>) -> bool {
     let lead = |w: &str| LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w));
     let before = &text[..start];
     let Some(line) = before.strip_suffix("\r\n").or_else(|| before.strip_suffix('\n')) else {
-        return word_before(text, start).is_some_and(|(_, w)| lead(w));
+        return word.is_some_and(|(_, w)| lead(w));
     };
     let from = line.char_indices().rfind(|&(_, c)| !c.is_ascii_alphabetic()).map_or(0, |(p, c)| p + c.len_utf8());
     lead(&line[from..])
@@ -298,15 +303,15 @@ fn free_end(text: &str, end: usize) -> bool {
     }
 }
 
-/// Whether the word before `start`, after one space, is capitalized and
+/// Whether `word`, the word one space before a name, is capitalized and
 /// not a [`LEAD_WORDS`] word, so the name is part of a longer one or a
 /// person's (`Harry Denton`, `Alex Van`, `Mr. Lincoln`), or is `of` after
 /// such a word (`University of Bristol`, `Bank of Rome`).
-fn after_name_word(text: &str, start: usize) -> bool {
+fn after_name_word(text: &str, word: Option<(usize, &str)>) -> bool {
     let name_word = |w: Option<(usize, &str)>| {
         w.is_some_and(|(at, w)| capital_at(text, at) && !LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w)))
     };
-    match word_before(text, start) {
+    match word {
         Some((at, "of")) => name_word(word_before(text, at)),
         w => name_word(w),
     }
@@ -315,7 +320,7 @@ fn after_name_word(text: &str, start: usize) -> bool {
 /// The start and text of the word that ends one space before `at`, its
 /// inner marks included (`Mr.`, `O'Neil`); the word is empty after two
 /// spaces or a mark.
-pub(super) fn word_before(text: &str, at: usize) -> Option<(usize, &str)> {
+fn word_before(text: &str, at: usize) -> Option<(usize, &str)> {
     let before = text[..at].strip_suffix(' ')?;
     let start = before
         .char_indices()

@@ -1259,11 +1259,15 @@ share a city's name with no Census-list entry (`Madison`, `Paris`,
 the person rules (#2295) the Places pack read 12 of the people as cities
 (10 TP, 12 FP, 0 FN); with them it reads none (10 TP, 0 FP, 0 FN). The
 rules were written against that memo, so these are not held-out figures.
-On 256 KB of city-free prose (`places_bench.rs -- 256 20 plain`, release
-builds, one shared container) the pack took 2.7 to 2.9 ms before and 2.9
-ms after; the person rules run only on a name the bare reading would
-take, so city-free prose pays nothing for them (a comparison on the same
-machine and text, not a timing claim).
+The rules read the word before the name once for every rule that looks at
+it, and test a word's first letter and length before its spelling. On
+`places_bench.rs -- 256 100` (256 KB with city names, release builds, one
+shared container, 11 interleaved pairs against the commit before them)
+the pack took a median 3.25 ms before and 3.22 ms after, with 2 of 11
+pairs slower, and it ran 64.8 million instructions a round after against
+65.3 million before (valgrind). City-free prose (`-- 256 20 plain`) took
+2.7 to 2.8 ms both ways. These compare runs on the same machine and text
+and are not timing claims.
 
 The bare reading still tags a person who shares a city's name when no
 rule above sees person context: a name alone as a subject before a verb
