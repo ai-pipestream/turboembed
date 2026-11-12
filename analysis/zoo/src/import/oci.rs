@@ -2,12 +2,13 @@
 //! as an index entry: each layer that names a file is one file of the
 //! entry, at its blob's own address.
 
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use super::{Described, described, manifest_record};
 use crate::digest::{Sha256, Sha512};
 use crate::error::{Check, ZooError};
-use crate::fetch::{OciRegistry, Transport};
+use crate::fetch::{Kept, OciRegistry, Transport};
 use crate::index::{Artifact, ArtifactId, File, Format, Kind, MANIFEST, ModelType, RelPath, Url};
 use crate::licence::Licence;
 
@@ -39,6 +40,11 @@ pub struct OciImport {
     pub version: Option<String>,
     pub license: Licence,
     pub described: Described,
+    /// A cache directory, the one a [`crate::Zoo`] fetches into. Each
+    /// file the importer reads is kept there as the entry's file, so a
+    /// fetch of the entry downloads nothing more, and a file already
+    /// there under the digest the source names is not downloaded again.
+    pub keep: Option<PathBuf>,
 }
 
 /// `sha256:<64 hex>` as its digest.
@@ -97,6 +103,7 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         .filter(|l| !l.is_empty())
         .ok_or_else(|| fail("the artifact's manifest lists no layers".into()))?;
 
+    let kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
     let mut files = Vec::with_capacity(layers.len());
     let mut bundle_manifest = None;
     for (i, layer) in layers.iter().enumerate() {
@@ -115,8 +122,17 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         let named = layer.get("digest").and_then(|d| d.as_str()).unwrap_or_default();
         let sha256 = digest(named).ok_or_else(|| bad(&format!("has the digest {named:?}, not a SHA-256 one")))?;
         let url = Url::from_str(&format!("{at}/blobs/sha256:{sha256}")).map_err(fail)?;
-        let bytes =
-            registry.get(&url, size).map_err(|message| ZooError::Transport { url: url.to_string(), message })?;
+        let cached = match &kept {
+            Some(k) => k.held(path.as_str(), size, &sha256)?,
+            None => None,
+        };
+        let fresh = cached.is_none();
+        let bytes = match cached {
+            Some(bytes) => bytes,
+            None => {
+                registry.get(&url, size).map_err(|message| ZooError::Transport { url: url.to_string(), message })?
+            }
+        };
         let differs = |check, expected: String, actual: String| ZooError::Integrity {
             id: id.clone(),
             path: path.to_string(),
@@ -130,6 +146,9 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         let held = Sha256::of(&bytes);
         if held != sha256 {
             return Err(differs(Check::Sha256, sha256.to_string(), held.to_string()));
+        }
+        if let Some(k) = kept.as_ref().filter(|_| fresh) {
+            k.keep(path.as_str(), &bytes)?;
         }
         let is_manifest = path.as_str() == MANIFEST;
         files.push(File { path, url, also: Vec::new(), size, sha256, sha512: Sha512::of(&bytes), download: None });

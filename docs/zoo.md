@@ -389,6 +389,26 @@ to another address, for a stand-in on loopback in tests.
 in-process registry that issues the challenge, the token and the
 redirect.
 
+### What an import keeps
+
+`import-hf` and `import-oci` read every file to pin it, and keep each
+one in the cache as the entry's file (`<cache>/<id>/<path>`, the
+directory `fetch` uses), so the `fetch` that follows downloads nothing
+more. Run again, the same import takes from the cache every file whose
+SHA-256 its source names beforehand: every layer of an OCI artifact, and
+each file a Hugging Face repository keeps in large file storage. A kept
+file is held to that size and SHA-256 before it is used, and one that
+holds other bytes is downloaded again and replaced. A Hugging Face file
+outside large file storage has no digest in the listing, so it is read
+from the repository each time. `--no-keep` imports without keeping
+anything. In the library the importers take the cache directory as
+`keep` (`RepoImport::keep`, `OciImport::keep`), and keep nothing
+without it.
+
+The two network tests keep their downloads in the directory
+`TURBO_TEST_ZOO_CACHE` names when it is set, and leave it in place, so
+a later run on the same machine does not download the files again.
+
 A zoo server lists the imported bundles when it is started with that
 file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
 from its store or from a directory that holds the bundle at

@@ -1,12 +1,12 @@
 //! `turbo-zoo import-bundle`, `import-hf` and `import-oci`: a model in another layout
 //! written as an index entry, printed or added to an index file.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use turbo_zoo::import::{
     BundleImport, Described, HUGGING_FACE, OciImport, RepoImport, add_to, bundle, hugging_face, oci,
 };
-use turbo_zoo::{Artifact, Format, Http, Index, Kind, OciRegistry, TrainingData};
+use turbo_zoo::{Artifact, Format, Home, Http, Index, Kind, OciRegistry, TrainingData};
 
 pub const USAGE: &str =
     "usage: turbo-zoo import-bundle <bundle-dir> --id <id> --base <https url> --license-terms <https url> [...]
@@ -16,7 +16,9 @@ pub const USAGE: &str =
            (--bundle | --kind <KIND_*> --format <FORMAT_*>) [--version <text>] [...]
   each takes:
     [--trained-on <name> <licence> <https url>]... [--attribution <text>] [--origin <https url>]
-    [--component <COMPONENT_*>] [--language <tag>] [--into <zoo.json>]";
+    [--component <COMPONENT_*>] [--language <tag>] [--into <zoo.json>]
+    import-hf and import-oci keep each file they download in the cache, where `fetch` finds it and
+    the same import finds it again; --no-keep downloads without keeping";
 
 /// Each flag and how many values follow it.
 const FLAGS: &[(&str, usize)] = &[
@@ -35,6 +37,7 @@ const FLAGS: &[(&str, usize)] = &[
     ("--version", 1),
     ("--file", 1),
     ("--bundle", 0),
+    ("--no-keep", 0),
 ];
 
 /// The flags of one command line, each with its values, in order.
@@ -95,6 +98,15 @@ impl<'a> Flags<'a> {
     }
 }
 
+/// The cache an importer keeps its downloads in: the one `fetch` uses,
+/// or none with `--no-keep`.
+fn keep(flags: &Flags) -> Result<Option<PathBuf>, String> {
+    if flags.has("--no-keep") {
+        return Ok(None);
+    }
+    Ok(Some(Home::from_env().ok_or("set TURBO_ZOO_HOME or HOME")?.artifacts()))
+}
+
 /// Prints `entry` as an index of its own, or adds it to the index file
 /// `into` names: last, or in the place of the entry of the same id.
 fn deliver(entry: Artifact, into: Option<&str>) -> Result<(), String> {
@@ -117,7 +129,7 @@ fn deliver(entry: Artifact, into: Option<&str>) -> Result<(), String> {
 /// Runs `import-bundle` with the arguments after the command's name.
 pub fn bundle_dir(args: &[&str]) -> Result<(), String> {
     let [dir, flags @ ..] = args else { return Err(USAGE.into()) };
-    let only_hf = ["--license", "--kind", "--format", "--version", "--file", "--bundle"];
+    let only_hf = ["--license", "--kind", "--format", "--version", "--file", "--bundle", "--no-keep"];
     let flags = Flags::parse(flags, |f| !only_hf.contains(&f))?;
     let spec = BundleImport {
         id: flags.need("--id")?.parse()?,
@@ -154,6 +166,7 @@ pub fn artifact(args: &[&str]) -> Result<(), String> {
         version: flags.one("--version")?.map(str::to_owned),
         license: flags.need("--license")?.parse()?,
         described: flags.described()?,
+        keep: keep(&flags)?,
     };
     let into = flags.one("--into")?;
     deliver(oci(&OciRegistry::new(), spec).map_err(|e| e.to_string())?, into)
@@ -175,6 +188,7 @@ pub fn repo(args: &[&str]) -> Result<(), String> {
         version: flags.one("--version")?.map(str::to_owned),
         license: flags.need("--license")?.parse()?,
         described: flags.described()?,
+        keep: keep(&flags)?,
     };
     let into = flags.one("--into")?;
     let entry = hugging_face(&Http::new(), HUGGING_FACE, spec).map_err(|e| e.to_string())?;

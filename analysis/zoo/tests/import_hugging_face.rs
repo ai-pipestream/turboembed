@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use turbo_scratch::Scratch;
 use turbo_zoo::import::{BundleImport, Described, HUGGING_FACE, RepoImport, bundle, hugging_face};
 use turbo_zoo::{Check, Format, Index, Kind, Licence, ModelType, Sha256, Sha512, Transport, Url, ZooError};
 
@@ -105,6 +106,7 @@ fn spec(files: &[&str]) -> RepoImport {
         version: None,
         license: Licence::Apache2,
         described: described(),
+        keep: None,
     }
 }
 
@@ -181,6 +183,35 @@ fn a_repository_that_holds_a_sealed_bundle_imports_as_an_encoder_bundle() {
     mit.license = Licence::Mit;
     let e = hugging_face(&Hub::new(), HUGGING_FACE, mit).unwrap_err().to_string();
     assert!(e.contains("at /model/license, the index says MIT"), "{e}");
+}
+
+#[test]
+fn an_import_that_keeps_its_files_downloads_a_pinned_file_once() {
+    let hub = Hub::new();
+    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-hf-keep-{}", std::process::id())));
+    let mut keeping = spec(&["weights/model.safetensors", "tokenizer.json"]);
+    keeping.keep = Some(cache.to_path_buf());
+    let entry = hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap();
+    for p in ["weights/model.safetensors", "tokenizer.json"] {
+        assert_eq!(fs::read(cache.join("tiny").join(p)).unwrap(), bytes_of(p), "{p}");
+    }
+    // Again: the listing, and the one file the repository records no
+    // SHA-256 for. The weights, which it pins, come from the cache.
+    hub.asked.lock().unwrap().clear();
+    assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap(), entry);
+    let asked = hub.asked.lock().unwrap().clone();
+    assert_eq!(asked.len(), 2, "{asked:?}");
+    assert!(asked[0].contains("/tree/") && asked[1].ends_with("/tokenizer.json"), "{asked:?}");
+
+    // Kept weights that hold other bytes are read again and put right.
+    let weights = cache.join("tiny").join("weights").join("model.safetensors");
+    let mut other = bytes_of("weights/model.safetensors");
+    other[0] ^= 1;
+    fs::write(&weights, &other).unwrap();
+    hub.asked.lock().unwrap().clear();
+    assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping).unwrap(), entry);
+    assert_eq!(hub.asked.lock().unwrap().len(), 3);
+    assert_eq!(fs::read(&weights).unwrap(), bytes_of("weights/model.safetensors"));
 }
 
 #[test]
@@ -265,14 +296,31 @@ fn a_listing_the_importer_cannot_take_is_refused() {
 
 /// Imports `BAAI/bge-small-en-v1.5` at the commit the built-in index pins
 /// and expects the built-in entry, file for file:
+/// The cache a network test keeps its downloads in: the directory
+/// `TURBO_TEST_ZOO_CACHE` names, which is left in place so the next run
+/// downloads nothing it holds, or else a directory of the test's own.
+#[cfg(feature = "http")]
+fn network_cache(name: &str) -> (PathBuf, Option<Scratch>) {
+    match std::env::var_os("TURBO_TEST_ZOO_CACHE") {
+        Some(dir) => (PathBuf::from(dir), None),
+        None => {
+            let own = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-{name}-{}", std::process::id())));
+            (own.to_path_buf(), Some(own))
+        }
+    }
+}
+
 /// `cargo test -p turbo-zoo --test import_hugging_face -- --ignored`.
-/// Needs the network.
+/// Needs the network. With `TURBO_TEST_ZOO_CACHE=<dir>` the files are
+/// kept there, and a later run does not download again a file whose
+/// SHA-256 the repository records (the weights).
 #[test]
 #[ignore]
 #[cfg(feature = "http")]
 fn a_real_repository_imports_as_the_entry_the_builtin_index_holds() {
     let index = Index::builtin();
     let held = index.get("baai-bge-small-en-v1.5").unwrap();
+    let (cache, _own) = network_cache("import-hf-real");
     let spec = RepoImport {
         id: held.id.clone(),
         repo: "BAAI/bge-small-en-v1.5".into(),
@@ -291,6 +339,7 @@ fn a_real_repository_imports_as_the_entry_the_builtin_index_holds() {
             component: held.component,
             language: held.language.clone(),
         },
+        keep: Some(cache),
     };
     let http = turbo_zoo::Http::new();
     assert_eq!(&hugging_face(&http, HUGGING_FACE, spec.clone()).unwrap(), held);

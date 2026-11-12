@@ -62,7 +62,7 @@ pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Resu
 /// Whether `<cache>/<id>` and the directories of `path` under it are all
 /// there, each a plain directory. A symlink or a non-directory on the way
 /// is an error, as in `make_dirs`; nothing is made.
-fn dirs_exist(cache: &Path, id: &str, path: &str) -> Result<bool, ZooError> {
+pub(super) fn dirs_exist(cache: &Path, id: &str, path: &str) -> Result<bool, ZooError> {
     let mut dir = cache.to_path_buf();
     if !dir.is_dir() {
         return Ok(false);

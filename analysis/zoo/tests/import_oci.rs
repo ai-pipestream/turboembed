@@ -16,8 +16,8 @@ use std::sync::{Arc, Mutex};
 use turbo_scratch::Scratch;
 use turbo_zoo::import::{BundleImport, Described, OciImport, bundle, oci};
 use turbo_zoo::{
-    Acceptances, Check, Format, Index, Kind, Licence, ModelType, OciRegistry, Policy, Sha256, Sha512, UserId, Zoo,
-    ZooError,
+    Acceptances, Check, Format, Index, Kind, Licence, ModelType, OciRegistry, Offline, Policy, Sha256, Sha512, UserId,
+    Zoo, ZooError,
 };
 
 const HOST: &str = "registry.example.org";
@@ -190,6 +190,7 @@ fn spec(pin: &Sha256) -> OciImport {
         version: None,
         license: Licence::Apache2,
         described: described(),
+        keep: None,
     }
 }
 
@@ -258,6 +259,41 @@ fn layers_that_are_a_sealed_bundle_import_as_an_encoder_bundle() {
         f.url = format!("https://{HOST}/v2/{NAME}/blobs/sha256:{}", f.sha256).parse().unwrap();
     }
     assert_eq!(imported, expected);
+}
+
+#[test]
+fn an_import_that_keeps_its_files_downloads_each_once() {
+    let (registry, pin) = Registry::with_bundle();
+    let (client, registry) = serve(registry);
+    let blobs = || registry.seen.lock().unwrap().iter().filter(|(t, _)| t.contains("/blobs/")).count();
+    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-oci-keep-{}", std::process::id())));
+    let mut keeping = spec(&pin);
+    keeping.keep = Some(cache.to_path_buf());
+    let entry = oci(&client, keeping.clone()).unwrap();
+    assert_eq!(entry, oci(&client, spec(&pin)).unwrap(), "keeping changes nothing of the entry");
+    for p in PATHS {
+        assert_eq!(fs::read(cache.join("tiny").join(p)).unwrap(), bytes_of(p), "{p}");
+    }
+
+    // The same import again asks for the manifest and no blob.
+    let asked = blobs();
+    assert_eq!(oci(&client, keeping.clone()).unwrap(), entry);
+    assert_eq!(blobs(), asked);
+
+    // A fetch of the entry finds every file, with no source to ask.
+    let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&entry)).as_bytes()).unwrap();
+    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &Offline);
+    let user: UserId = "alice".parse().unwrap();
+    assert_eq!(zoo.fetch("tiny", &user, &Acceptances::default()).unwrap().files.len(), PATHS.len());
+
+    // A kept file that holds other bytes is read again and put right.
+    let tokenizer = cache.join("tiny").join("tokenizer.json");
+    let mut other = bytes_of("tokenizer.json");
+    other[0] ^= 1;
+    fs::write(&tokenizer, &other).unwrap();
+    assert_eq!(oci(&client, keeping).unwrap(), entry);
+    assert_eq!(blobs(), asked + 1);
+    assert_eq!(fs::read(&tokenizer).unwrap(), bytes_of("tokenizer.json"));
 }
 
 #[test]
@@ -363,12 +399,26 @@ fn a_manifest_the_importer_cannot_take_is_refused() {
     assert!(e.contains("a bundle needs manifest.json among its layers"), "{e}");
 }
 
+/// The cache a network test keeps its downloads in: the directory
+/// `TURBO_TEST_ZOO_CACHE` names, which is left in place so the next run
+/// downloads nothing it holds, or else a directory of the test's own.
+fn network_cache(name: &str) -> (PathBuf, Option<Scratch>) {
+    match std::env::var_os("TURBO_TEST_ZOO_CACHE") {
+        Some(dir) => (PathBuf::from(dir), None),
+        None => {
+            let own = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-{name}-{}", std::process::id())));
+            (own.to_path_buf(), Some(own))
+        }
+    }
+}
+
 /// Imports the artifact `TURBO_TEST_OCI_REFERENCE` names
 /// (`<registry>/<name>@sha256:<digest>`, each layer a file with its
 /// title) from its real registry, with an anonymous token where the
 /// registry asks for one, and fetches the entry back through the zoo:
 /// `TURBO_TEST_OCI_REFERENCE=... cargo test -p turbo-zoo --test import_oci -- --ignored`.
-/// Needs the network.
+/// Needs the network. With `TURBO_TEST_ZOO_CACHE=<dir>` the files are
+/// kept there and a later run downloads none of them again.
 #[test]
 #[ignore]
 fn a_real_artifact_imports_and_fetches_from_its_registry() {
@@ -377,11 +427,13 @@ fn a_real_artifact_imports_and_fetches_from_its_registry() {
     let client = OciRegistry::new();
     let mut real = spec(&Sha256::of(b""));
     real.reference = reference;
+    // The import keeps what it reads, so the fetch below downloads nothing.
+    let (cache, _own) = network_cache("import-oci-real");
+    real.keep = Some(cache.clone());
     let entry = oci(&client, real).unwrap();
     assert!(!entry.files.is_empty());
     let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&entry)).as_bytes()).unwrap();
-    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-oci-real-{}", std::process::id())));
-    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &client);
+    let zoo = Zoo::new(index, cache, Policy::default(), &Offline);
     let user: UserId = "turbo-zoo-test".parse().unwrap();
     let fetched = zoo.fetch("tiny", &user, &Acceptances::default()).unwrap();
     for (local, file) in fetched.files.iter().zip(&entry.files) {

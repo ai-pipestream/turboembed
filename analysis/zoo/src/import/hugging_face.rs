@@ -3,12 +3,13 @@
 //! and their sizes, every file is fetched at the commit and held to it,
 //! and the entry pins what was read.
 
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use super::{Described, described, manifest_record};
 use crate::digest::{Sha256, Sha512};
 use crate::error::{Check, ZooError};
-use crate::fetch::Transport;
+use crate::fetch::{Kept, Transport};
 use crate::index::{Artifact, ArtifactId, File, Format, Kind, MANIFEST, ModelType, RelPath, Url};
 use crate::licence::Licence;
 
@@ -47,6 +48,11 @@ pub struct RepoImport {
     /// `described.license_terms`.
     pub license: Licence,
     pub described: Described,
+    /// A cache directory, the one a [`crate::Zoo`] fetches into. Each
+    /// file the importer reads is kept there as the entry's file, so a
+    /// fetch of the entry downloads nothing more, and a file already
+    /// there under the digest the source names is not downloaded again.
+    pub keep: Option<PathBuf>,
 }
 
 /// One file of the listing: its path, its size, and for a file kept in
@@ -160,11 +166,22 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         return Err(fail("the commit holds no file".into()));
     }
 
+    let kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
     let mut files = Vec::with_capacity(listed.len());
     let mut manifest = None;
     for l in listed {
         let url = address(format!("{endpoint}/{}/resolve/{}/{}", spec.repo, spec.commit, l.path))?;
-        let bytes = get(&url, l.size)?;
+        // Only a file whose SHA-256 the repository records can be taken
+        // from the cache: the cached bytes are then held to it.
+        let held = match (&kept, &l.sha256) {
+            (Some(k), Some(recorded)) => k.held(l.path.as_str(), l.size, recorded)?,
+            _ => None,
+        };
+        let fresh = held.is_none();
+        let bytes = match held {
+            Some(bytes) => bytes,
+            None => get(&url, l.size)?,
+        };
         let differs = |check, expected: String, actual: String| ZooError::Integrity {
             id: id.clone(),
             path: l.path.to_string(),
@@ -178,6 +195,9 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         let sha256 = Sha256::of(&bytes);
         if let Some(recorded) = l.sha256.filter(|r| *r != sha256) {
             return Err(differs(Check::Sha256, recorded.to_string(), sha256.to_string()));
+        }
+        if let Some(k) = kept.as_ref().filter(|_| fresh) {
+            k.keep(l.path.as_str(), &bytes)?;
         }
         files.push(File {
             path: l.path,
