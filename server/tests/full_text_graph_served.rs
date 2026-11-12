@@ -324,6 +324,8 @@ async fn the_inspection_apis_read_the_served_graph_as_it_is() {
     let bytes: Vec<u8> = graph.to_vec();
     let doc = import(&DocumentGraph::from_bytes(&graph).unwrap(), codecs()).unwrap();
     let (entities, relations) = (doc.get::<Entities>().unwrap(), doc.get::<Relations>().unwrap());
+    // Empty layers would let every check below pass on nothing.
+    assert!(!entities.spans.is_empty() && !relations.spans.is_empty(), "the graph has entities and relations");
 
     // InspectDocumentGraph in UTF-16 units: every entity at the offsets the
     // graph maps it to, every relation linking the graph's entity rows.
