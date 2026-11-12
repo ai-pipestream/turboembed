@@ -6,7 +6,7 @@ impl OutputTrainer {
         let dense = self.recurrent_offset().unwrap_or(self.params.len());
         let projection = self.projection_offset().unwrap_or(self.params.len());
         (0..self.params.len())
-            .map(|i| if i >= dense && i < projection { (i - dense) % 4 < 2 } else { i % 2 == 0 })
+            .map(|i| if i >= dense && i < projection { (i - dense) % 4 < 2 } else { i.is_multiple_of(2) })
             .collect()
     }
 

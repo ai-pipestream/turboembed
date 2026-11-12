@@ -220,9 +220,9 @@ fn weight_decay_reaches_every_matrix_and_no_bias() {
             // Dense and projection layers are weight then bias; a BiLSTM
             // direction is weight_ih, weight_hh, bias_ih, bias_hh.
             let matrix = if at >= projection {
-                (at - projection) % 2 == 0
+                (at - projection).is_multiple_of(2)
             } else if at < recurrent {
-                at % 2 == 0
+                at.is_multiple_of(2)
             } else {
                 (at - recurrent) % 4 < 2
             };
