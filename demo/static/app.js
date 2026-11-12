@@ -1262,11 +1262,11 @@ var BinaryReader = class {
     if (len <= ASCII_MAX_LENGTH) {
       const codes = new Array(len);
       for (let i = 0; i < len; i++) {
-        const byte = bytes2[i];
-        if (byte > 127) {
+        const byte2 = bytes2[i];
+        if (byte2 > 127) {
           return this.decodeUtf8(bytes2, strict);
         }
-        codes[i] = byte;
+        codes[i] = byte2;
       }
       return String.fromCharCode.apply(String, codes);
     }
@@ -1325,7 +1325,7 @@ function createFileRegistry(...args) {
         if (registry.getFile(protoFileName) != void 0) {
           continue;
         }
-        if (seen.has(protoFileName)) {
+        if (seen2.has(protoFileName)) {
           continue;
         }
         const dep = resolve(protoFileName);
@@ -1335,7 +1335,7 @@ function createFileRegistry(...args) {
         if ("kind" in dep) {
           registry.addFile(dep, false, true);
         } else {
-          seen.add(dep.name);
+          seen2.add(dep.name);
           deps.push(dep);
         }
       }
@@ -1343,7 +1343,7 @@ function createFileRegistry(...args) {
     };
     const input2 = args[0];
     const resolve = args[1];
-    const seen = /* @__PURE__ */ new Set();
+    const seen2 = /* @__PURE__ */ new Set();
     for (const file of [input2, ...recurseDeps(input2)].reverse()) {
       addFile(file, registry);
     }
@@ -4385,8 +4385,8 @@ function sending(box6, what) {
   return (sent, total) => {
     bar3.max = Math.max(1, total);
     bar3.value = sent;
-    const share = total ? Math.floor(100 * sent / total) : 100;
-    line.textContent = sent < total ? `Uploading ${what}: ${size(sent)} of ${size(total)} (${share}%)` : `Sent ${size(total)} (${what}). The server is working on it\u2026`;
+    const share2 = total ? Math.floor(100 * sent / total) : 100;
+    line.textContent = sent < total ? `Uploading ${what}: ${size(sent)} of ${size(total)} (${share2}%)` : `Sent ${size(total)} (${what}). The server is working on it\u2026`;
   };
 }
 function failed(x) {
@@ -5185,9 +5185,9 @@ function compileMessage4(desc) {
           continue;
         }
         if (entry.oneof) {
-          const seen = oneofSeen.get(entry.oneof);
-          if (seen !== void 0) {
-            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen.name} and ${field3.name}`);
+          const seen2 = oneofSeen.get(entry.oneof);
+          if (seen2 !== void 0) {
+            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen2.name} and ${field3.name}`);
           }
           oneofSeen.set(entry.oneof, field3);
         }
@@ -5496,16 +5496,16 @@ function compileMapFieldReader2(field3) {
       throw new FieldError(field3, "expected object, got " + formatVal(json));
     }
     const record = message[localName];
-    const seen = /* @__PURE__ */ new Set();
+    const seen2 = /* @__PURE__ */ new Set();
     const jsonMapKeys = Object.keys(json);
     for (let i = 0; i < jsonMapKeys.length; i++) {
       const jsonMapKey = jsonMapKeys[i];
       const jsonMapValue = json[jsonMapKey];
       const key3 = parseMapKey(jsonMapKey);
-      if (seen.has(key3)) {
+      if (seen2.has(key3)) {
         throw new FieldError(field3, `duplicate map key "${jsonMapKey}"`);
       }
-      seen.add(key3);
+      seen2.add(key3);
       if (jsonMapValue === null && nullResets) {
         throw new FieldError(field3, "map value must not be null");
       }
@@ -5772,13 +5772,13 @@ function checkDuplicateKeys(jsonString, typeName) {
           i++;
         }
         const close = i++;
-        const seen = stack[stack.length - 1];
-        if (expectKey && seen) {
+        const seen2 = stack[stack.length - 1];
+        if (expectKey && seen2) {
           const name = escaped ? JSON.parse(jsonString.substring(open2, close + 1)) : jsonString.substring(open2 + 1, close);
-          if (seen.has(name)) {
+          if (seen2.has(name)) {
             throw new Error(`cannot decode message ${typeName} from JSON: duplicate object key "${name}"`);
           }
-          seen.add(name);
+          seen2.add(name);
         }
         expectKey = false;
         break;
@@ -7308,11 +7308,11 @@ function confirmed(label, question, act3, off2 = "") {
   const first = (why = "") => {
     const b = el("button", { type: "button", text: label, title: off2 || void 0 });
     b.disabled = off2 !== "";
-    b.addEventListener("click", ask);
+    b.addEventListener("click", ask2);
     box6.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
     return b;
   };
-  const ask = () => {
+  const ask2 = () => {
     const yes = el("button", { type: "button", class: "danger", text: "Yes" });
     const no = el("button", { type: "button", text: "Cancel" });
     no.addEventListener("click", () => first().focus());
@@ -7392,7 +7392,7 @@ function leadOf(segs) {
 function legend(segs, filter2) {
   const any = leadOf(segs);
   const out = /* @__PURE__ */ new Map();
-  const seen = /* @__PURE__ */ new Set();
+  const seen2 = /* @__PURE__ */ new Set();
   for (const s2 of segs) {
     for (const a of painted(s2.annotations, filter2, any)) {
       const c = colourOf(a);
@@ -7402,8 +7402,8 @@ function legend(segs, filter2) {
         out.set(c.key, sw);
       }
       const item = `${layerKey(a.layer, a.instance)}#${a.item}`;
-      if (!seen.has(`${c.key} ${item}`)) {
-        seen.add(`${c.key} ${item}`);
+      if (!seen2.has(`${c.key} ${item}`)) {
+        seen2.add(`${c.key} ${item}`);
         sw.items++;
       }
     }
@@ -8593,7 +8593,7 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
     if (v[0].length !== baseV[0].length) return "n/a";
     return Math.min(...v.map((row, i) => cosine(row, baseV[i]))).toFixed(6);
   });
-  const pairs = () => {
+  const pairs2 = () => {
     const out = [["text a", "text b", ...ok.map((r) => `${r.name} (${tier(r.meta)})`), "spread"]];
     for (let i = 0; i < texts2.length; i++) {
       for (let j = i + 1; j < texts2.length; j++) {
@@ -8619,7 +8619,7 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
       text: "Each pair of texts, scored by every model picked. The spread is how much the tiers disagree; the last row is how close each model's vector for a text is to the first model's."
     }),
     tableEl,
-    take("Side by side", pairs),
+    take("Side by side", pairs2),
     widest === 0 ? el("p", { class: "note", text: "Every model gave the same numbers: on this device these tiers compute alike. A device that runs FASTEST in a narrower type shows the difference here." }) : null
   );
 }
@@ -8759,19 +8759,19 @@ function layout(n2, edges, w, h, pad = 40) {
   return at;
 }
 function together(mentions, of, sentences) {
-  const pairs = /* @__PURE__ */ new Map();
+  const pairs2 = /* @__PURE__ */ new Map();
   for (const s2 of sentences) {
     const inside = [...new Set(mentions.flatMap((m, i) => m.start >= s2.start && m.end <= s2.end && of[i] >= 0 ? [of[i]] : []))].sort((a, b) => a - b);
     for (let i = 0; i < inside.length; i++) {
       for (let j = i + 1; j < inside.length; j++) {
         const key3 = `${inside[i]}\0${inside[j]}`;
-        const p = pairs.get(key3) ?? { from: inside[i], to: inside[j], count: 0 };
+        const p = pairs2.get(key3) ?? { from: inside[i], to: inside[j], count: 0 };
         p.count += 1;
-        pairs.set(key3, p);
+        pairs2.set(key3, p);
       }
     }
   }
-  return [...pairs.values()];
+  return [...pairs2.values()];
 }
 function finest(spans) {
   return spans.filter((a) => a.end > a.start && !spans.some((b) => b !== a && b.end > b.start && b.start >= a.start && b.end <= a.end && (b.start !== a.start || b.end !== a.end))).filter((a, i, all) => all.findIndex((b) => b.start === a.start && b.end === a.end) === i).sort((a, b) => a.start - b.start);
@@ -8822,9 +8822,9 @@ function scale(lo, hi, a, b) {
   return hi === lo ? () => (a + b) / 2 : (v) => a + (v - lo) / (hi - lo) * (b - a);
 }
 function spread(chunks) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const c of chunks) for (const t of new Set(c.map((x) => x.term))) seen.set(t, (seen.get(t) ?? 0) + 1);
-  return seen;
+  const seen2 = /* @__PURE__ */ new Map();
+  for (const c of chunks) for (const t of new Set(c.map((x) => x.term))) seen2.set(t, (seen2.get(t) ?? 0) + 1);
+  return seen2;
 }
 function telling(here, there, listedIn, count2) {
   const rare = count2 > 1 ? Math.log(count2 / Math.max(1, listedIn)) : 1;
@@ -8920,8 +8920,8 @@ function n(v) {
   return String(Math.round(v * 100) / 100);
 }
 function ordered(i, count2) {
-  const share = count2 > 1 ? Math.round(100 * i / (count2 - 1)) : 50;
-  return `color-mix(in oklab, var(--seq-from), var(--seq-to) ${share}%)`;
+  const share2 = count2 > 1 ? Math.round(100 * i / (count2 - 1)) : 50;
+  return `color-mix(in oklab, var(--seq-from), var(--seq-to) ${share2}%)`;
 }
 
 // demo/web/src/tabs/entities.ts
@@ -9073,8 +9073,8 @@ function show(r) {
   const slots = kindSlots(all.entities.map((e) => e.kind), KINDS);
   const spansOf = (kind) => r.layers.filter((l) => has(l, kind)).flatMap((l) => l.annotations.flatMap((a) => a.spans.length ? [{ start: a.spans[0].start, end: a.spans[a.spans.length - 1].end }] : []));
   const sentences = spansOf("sentence");
-  const pairs = together(mentions, all.of, sentences).filter((p) => p.from < MOST && p.to < MOST);
-  const seen = { entities, mentions, edges, pairs, slots, text: r.rawText, sentences, chunks: finest(spansOf("chunk")) };
+  const pairs2 = together(mentions, all.of, sentences).filter((p) => p.from < MOST && p.to < MOST);
+  const seen2 = { entities, mentions, edges, pairs: pairs2, slots, text: r.rawText, sentences, chunks: finest(spansOf("chunk")) };
   const listeners3 = [];
   const light = (e) => listeners3.forEach((l) => l(e));
   const onLight = (l) => void listeners3.push(l);
@@ -9086,14 +9086,14 @@ function show(r) {
     shownKinds.map(([kind, slot]) => el("span", { class: "swatch", style: `--mark: var(--m${slot})` }, el("i", {}), ` ${slot === KINDS - 1 && slots.size > KINDS ? "other kinds" : kind}`)),
     el("span", { class: "muted", text: "size: how often it is mentioned" }),
     edges.length ? el("span", { class: "swatch arrow-key" }, el("i", {}), " a relation, from subject to object") : null,
-    pairs.length ? el("span", { class: "swatch together-key" }, el("i", {}), " mentioned in the same sentence") : null
+    pairs2.length ? el("span", { class: "swatch together-key" }, el("i", {}), " mentioned in the same sentence") : null
   );
   box3().replaceChildren(
     el("p", { class: "muted", text: `${count(all.entities.length, "entity", "entities")} from ${count(mentions.length, "mention")} in ${nameOf(layer)}${edgesAll.length ? `, ${count(edgesAll.length, "relation")}` : "; no relation layer indexes it, so there are no arrows (a relation model adds them)"}.${all.entities.length > MOST ? ` The ${MOST} most mentioned are drawn.` : ""}` }),
     el("h3", { text: "Entity constellation" }),
-    el("div", { class: "figure" }, constellation(seen, info, light, onLight), legend2),
+    el("div", { class: "figure" }, constellation(seen2, info, light, onLight), legend2),
     el("h3", { text: "Mention strips" }),
-    el("div", { class: "figure" }, strips(seen, info, light, onLight), info),
+    el("div", { class: "figure" }, strips(seen2, info, light, onLight), info),
     el(
       "details",
       { class: "tables" },
@@ -10003,21 +10003,86 @@ function linker() {
   };
 }
 
+// demo/web/src/viz/matrix.ts
+function cosineAt(upper, n2, a, b) {
+  if (a === b) return 1;
+  const [i, j] = a < b ? [a, b] : [b, a];
+  return upper[i * (2 * n2 - i - 1) / 2 + (j - i - 1)];
+}
+function extent(values) {
+  if (!values.length) return [0, 1];
+  let lo = values[0];
+  let hi = values[0];
+  for (const v of values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+function share(v, lo, hi) {
+  if (hi === lo) return 0.5;
+  return Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+}
+function blocks(groups2, rowOf) {
+  const out = [];
+  for (const g of groups2) {
+    const rows2 = g.flatMap((leaf) => rowOf.has(leaf) ? [rowOf.get(leaf)] : []);
+    if (rows2.length >= 2) out.push({ from: Math.min(...rows2), to: Math.max(...rows2) });
+  }
+  return out;
+}
+function nearest(cosines, k) {
+  const all = cosines.flatMap((c, at) => c === void 0 ? [] : [{ at, cosine: c }]);
+  return all.sort((a, b) => b.cosine - a.cosine || a.at - b.at).slice(0, Math.max(0, k));
+}
+function labelled(n2) {
+  const every = n2 <= 24 ? 1 : n2 <= 60 ? 5 : n2 <= 140 ? 10 : n2 <= 300 ? 25 : 50;
+  const out = [];
+  for (let i = 0; i < n2; i++) if (i === 0 || (i + 1) % every === 0) out.push(i);
+  return out;
+}
+function channel(hex2, at) {
+  const v = parseInt(hex2.slice(at, at + 2), 16) / 255;
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+function toLab(hex2) {
+  const h = hex2.trim();
+  if (h.length !== 7 || h[0] !== "#" || Number.isNaN(parseInt(h.slice(1), 16))) return null;
+  const [r, g, b] = [channel(h, 1), channel(h, 3), channel(h, 5)];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s2 = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s2, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s2, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s2];
+}
+function byte(linear) {
+  const v = linear <= 31308e-7 ? 12.92 * linear : 1.055 * Math.pow(linear, 1 / 2.4) - 0.055;
+  return Math.round(255 * Math.min(1, Math.max(0, v)));
+}
+function mix(from2, to2, t) {
+  const [a, b] = [toLab(from2), toLab(to2)];
+  if (!a || !b) return "rgb(128 128 128)";
+  const [L, A, B] = [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * Math.min(1, Math.max(0, t)));
+  const l = Math.pow(L + 0.3963377774 * A + 0.2158037573 * B, 3);
+  const m = Math.pow(L - 0.1055613458 * A - 0.0638541728 * B, 3);
+  const s2 = Math.pow(L - 0.0894841775 * A - 1.291485548 * B, 3);
+  return `rgb(${byte(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s2)} ${byte(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s2)} ${byte(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s2)})`;
+}
+
 // demo/web/src/tabs/chunktext.ts
-function chunkText(text, chunks, link2, marks) {
+function chunkText(text, chunks, link2, marks, near = /* @__PURE__ */ new Map()) {
   const box6 = el("div", { class: "doc chunked", tabindex: "0", "aria-label": "The document, by chunk" });
   let drawn;
   link2.on((f) => {
     if (f.term !== drawn) {
       drawn = f.term;
-      const seen = /* @__PURE__ */ new Set();
+      const seen2 = /* @__PURE__ */ new Set();
       box6.replaceChildren(
         ...pieces(text, chunks, f.term === null ? [] : marks(f.term)).map((p) => {
           const body2 = p.marked ? el("mark", { class: "occ", text: p.text }) : p.text;
           if (p.chunk === null) return el("span", {}, body2);
-          const first = !seen.has(p.chunk);
-          seen.add(p.chunk);
-          const span = el("span", { class: "ck", "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body2);
+          const first = !seen2.has(p.chunk);
+          seen2.add(p.chunk);
+          const span = el("span", { class: near.has(p.chunk) ? "ck near" : "ck", title: near.get(p.chunk), "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body2);
           span.addEventListener("mouseenter", () => link2.chunk(p.chunk));
           return span;
         })
@@ -10036,21 +10101,129 @@ function follow(box6, link2) {
   });
 }
 
+// demo/web/src/tabs/matrix.ts
+var SIDE = 520;
+function similarityMatrix(m, link2) {
+  const n2 = m.rows.length;
+  const [lo, hi] = extent(m.upper);
+  const cell = Math.max(1, Math.min(44, Math.floor(SIDE / n2)));
+  const side = n2 * cell;
+  const canvas = el("canvas", { role: "img", "aria-label": `Similarity matrix of ${n2} chunks: cosines from ${lo.toFixed(3)} to ${hi.toFixed(3)}` });
+  const draw2 = () => {
+    const ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const px = Math.max(1, Math.round(cell * ratio));
+    canvas.width = n2 * px;
+    canvas.height = n2 * px;
+    const g = canvas.getContext("2d");
+    if (!g) return;
+    const css = getComputedStyle(document.documentElement);
+    const [from2, to2] = [css.getPropertyValue("--seq-from"), css.getPropertyValue("--seq-to")];
+    const steps = Array.from({ length: 64 }, (_, i) => mix(from2, to2, i / 63));
+    for (let a = 0; a < n2; a++) {
+      for (let b = 0; b < n2; b++) {
+        g.fillStyle = steps[a === b ? 63 : Math.round(63 * share(cosineAt(m.upper, n2, a, b), lo, hi))];
+        g.fillRect(b * px, a * px, px, px);
+      }
+    }
+  };
+  draw2();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw2);
+  const over = s("svg", { viewBox: `0 0 ${n2} ${n2}`, preserveAspectRatio: "none", class: "viz over", "aria-hidden": "true" });
+  const rowOf = new Map(m.rows.map((leaf, row) => [leaf, row]));
+  for (const b of blocks(m.groups, rowOf)) over.append(s("rect", { x: b.from, y: b.from, width: b.to - b.from + 1, height: b.to - b.from + 1, class: "block" }));
+  const across = s("rect", { x: 0, width: n2, height: 1, class: "cross-band" });
+  const down = s("rect", { y: 0, width: 1, height: n2, class: "cross-band" });
+  const pick = s("rect", { width: 1, height: 1, class: "cross-cell" });
+  const cross = s("g", { class: "cross-on", visibility: "hidden" }, across, down, pick);
+  over.append(cross);
+  const name = (row) => `chunk ${m.rows[row] + 1}`;
+  const said = (row) => {
+    const c = m.chunks[m.rows[row]];
+    return short(m.text.slice(c.start, c.end), 90);
+  };
+  const rest = `Point at a cell to read its two chunks. Cosines here run from ${lo.toFixed(3)} to ${hi.toFixed(3)}.`;
+  const info = el("p", { class: "info", role: "status", text: rest });
+  let at = null;
+  const show4 = (row, col) => {
+    at = [row, col];
+    across.setAttribute("y", String(row));
+    down.setAttribute("x", String(col));
+    pick.setAttribute("x", String(col));
+    pick.setAttribute("y", String(row));
+    cross.setAttribute("visibility", "visible");
+    info.textContent = row === col ? `${name(row)} with itself: ${said(row)}` : `${name(row)} and ${name(col)}: cosine ${cosineAt(m.upper, n2, row, col).toFixed(3)}. ${name(row)}: ${said(row)} / ${name(col)}: ${said(col)}`;
+    link2.chunk(m.rows[row]);
+  };
+  const leave = () => {
+    at = null;
+    cross.setAttribute("visibility", "hidden");
+    info.textContent = rest;
+    link2.chunk(null);
+  };
+  const plot = el("div", { class: "plot", tabindex: "0", role: "application", "aria-label": "Similarity matrix: the arrow keys move from cell to cell", style: `width: ${side}px` }, canvas);
+  plot.append(over);
+  plot.addEventListener("mousemove", (e) => {
+    const box6 = plot.getBoundingClientRect();
+    const to2 = (v, size2) => Math.min(n2 - 1, Math.max(0, Math.floor(v / size2 * n2)));
+    show4(to2(e.clientY - box6.top, box6.height), to2(e.clientX - box6.left, box6.width));
+  });
+  plot.addEventListener("mouseleave", leave);
+  plot.addEventListener("blur", leave);
+  plot.addEventListener("keydown", (e) => {
+    const step = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    const d = step[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const [row, col] = at ?? [0, 0];
+    show4(at ? Math.min(n2 - 1, Math.max(0, row + d[0])) : 0, at ? Math.min(n2 - 1, Math.max(0, col + d[1])) : Math.min(1, n2 - 1));
+  });
+  link2.on((f) => {
+    if (at) return;
+    const row = f.chunk === null ? void 0 : rowOf.get(f.chunk);
+    cross.setAttribute("visibility", row === void 0 ? "hidden" : "visible");
+    if (row === void 0) return;
+    across.setAttribute("y", String(row));
+    down.setAttribute("x", String(row));
+    pick.setAttribute("x", String(row));
+    pick.setAttribute("y", String(row));
+  });
+  const marks = labelled(n2);
+  const top = el("div", { class: "ticks top", "aria-hidden": "true", style: `width: ${side}px` }, ...marks.map((i) => el("span", { style: `left: ${(i + 0.5) / n2 * 100}%`, text: String(m.rows[i] + 1) })));
+  const left = el("div", { class: "ticks left", "aria-hidden": "true" }, ...marks.map((i) => el("span", { style: `top: ${(i + 0.5) / n2 * 100}%`, text: String(m.rows[i] + 1) })));
+  const outlined = over.querySelector(".block") !== null;
+  const without = m.chunks.length - n2;
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    el("span", { class: "swatch ramp-key" }, `cosine ${lo.toFixed(3)} `, el("i", {}), ` ${hi.toFixed(3)}; a chunk with itself takes the far end`),
+    outlined ? el("span", { class: "swatch block-key" }, el("i", {}), " chunks one coarser unit holds") : null,
+    without > 0 ? el("span", { class: "muted", text: `${without} ${without === 1 ? "chunk has" : "chunks have"} no vector and no row` }) : null
+  );
+  const rows2 = () => {
+    const out = [["chunk", "other chunk", "cosine"]];
+    for (let a = 0; a < n2; a++) for (let b = a + 1; b < n2; b++) out.push([String(m.rows[a] + 1), String(m.rows[b] + 1), String(cosineAt(m.upper, n2, a, b))]);
+    return out;
+  };
+  return el("div", { class: "figure matrix" }, el("div", { class: "scroll" }, el("div", { class: "grid" }, el("div", {}), top, left, plot)), legend2, info, take("Similarity matrix", rows2));
+}
+
 // demo/web/src/tabs/meaningmap.ts
 var W2 = 640;
 var H = 340;
 var PAD = { l: 34, r: 16, t: 16, b: 34 };
 function meaningMap(m, link2) {
   const placed = m.chunks.map((c, i) => ({ c, i })).filter((p) => !p.c.empty);
-  const xs = placed.map((p) => p.c.x);
-  const ys = placed.map((p) => p.c.y);
+  const xs = [...placed.map((p) => p.c.x), ...m.spot ? [m.spot.x] : []];
+  const ys = [...placed.map((p) => p.c.y), ...m.spot ? [m.spot.y] : []];
   const zs = placed.map((p) => p.c.z);
   const sx = scale(Math.min(...xs), Math.max(...xs), PAD.l + 24, W2 - PAD.r - 24);
   const sy = scale(Math.min(...ys), Math.max(...ys), H - PAD.b - 24, PAD.t + 24);
   const sz = scale(Math.min(...zs), Math.max(...zs), 5, 11);
   const at = new Map(placed.map((p) => [p.i, [sx(p.c.x), sy(p.c.y)]]));
   const pct = (v) => v === void 0 ? "" : ` (${(v * 100).toFixed(0)}% of the variance)`;
-  const svg = figure(W2, H, `Meaning map of ${placed.length} chunks`);
+  const near = m.spot ? m.chunks.map((_, i) => m.spot.cosine(i)) : [];
+  const [lo, hi] = extent(near.flatMap((c) => c === void 0 ? [] : [c]));
+  const svg = figure(W2, H, `Meaning map of ${placed.length} chunks${m.spot ? `, with the query "${short(m.spot.text, 60)}" placed among them` : ""}`);
   svg.append(
     s("rect", { x: PAD.l, y: PAD.t, width: W2 - PAD.l - PAD.r, height: H - PAD.t - PAD.b, class: "frame" }),
     s("text", { x: (PAD.l + W2 - PAD.r) / 2, y: H - 10, class: "axis", "text-anchor": "middle" }, `first direction of meaning${pct(m.variance[0])}`),
@@ -10066,6 +10239,13 @@ function meaningMap(m, link2) {
     svg.append(g);
   }
   if (placed.length > 1) svg.append(s("polyline", { class: "trail", points: placed.map((p) => at.get(p.i).map(n).join(",")).join(" ") }));
+  if (m.spot) {
+    const [qx, qy] = [sx(m.spot.x), sy(m.spot.y)];
+    for (const hit of nearest(near, Math.min(3, Math.max(1, Math.floor(placed.length / 2))))) {
+      const to2 = at.get(hit.at);
+      if (to2) svg.append(s("line", { x1: n(qx), y1: n(qy), x2: n(to2[0]), y2: n(to2[1]), class: "ray" }));
+    }
+  }
   const info = el("p", { class: "info", role: "status", text: "Point at a dot to read its chunk; the same chunk lights up in the text." });
   const dots = /* @__PURE__ */ new Map();
   const few = placed.length <= 14;
@@ -10075,11 +10255,15 @@ function meaningMap(m, link2) {
     const names2 = m.terms(p.i);
     const left = x > W2 * 0.68;
     const label = `${p.i + 1}${few && names2.length ? ` \xB7 ${names2.slice(0, 2).join(", ")}` : ""}`;
+    const cos = near[p.i];
+    const warm = cos === void 0 ? 0 : share(cos, lo, hi);
     const g = s(
       "g",
-      { class: "dot", tabindex: 0, role: "button", "aria-label": `Chunk ${p.i + 1} of ${m.chunks.length}${names2.length ? `: ${names2.join(", ")}` : ""}` },
+      { class: "dot", tabindex: 0, role: "button", "aria-label": `Chunk ${p.i + 1} of ${m.chunks.length}${names2.length ? `: ${names2.join(", ")}` : ""}${cos === void 0 ? "" : `, cosine to the query ${cos.toFixed(3)}`}` },
       // A target larger than the mark.
       s("circle", { cx: n(x), cy: n(y), r: 18, class: "hit" }),
+      // The glow: wider and stronger the closer the chunk is to the query.
+      cos === void 0 ? null : s("circle", { cx: n(x), cy: n(y), r: n(r + 3 + 9 * warm), class: "glow", "fill-opacity": n(0.12 + 0.6 * warm) }),
       s("circle", { cx: n(x), cy: n(y), r: n(r), class: "mark", style: `fill: ${ordered(p.i, m.chunks.length)}` }),
       s("text", { x: n(x + (left ? -r - 5 : r + 5)), y: n(y + 4), class: "label", "text-anchor": left ? "end" : "start" }, label)
     );
@@ -10091,6 +10275,19 @@ function meaningMap(m, link2) {
     dots.set(p.i, g);
     svg.append(g);
   }
+  if (m.spot) {
+    const [qx, qy] = [sx(m.spot.x), sy(m.spot.y)];
+    const left = qx > W2 * 0.68;
+    svg.append(
+      s(
+        "g",
+        { class: "query", role: "img", "aria-label": `The query: ${short(m.spot.text, 80)}` },
+        s("path", { d: `M ${n(qx)} ${n(qy - 10)} L ${n(qx + 10)} ${n(qy)} L ${n(qx)} ${n(qy + 10)} L ${n(qx - 10)} ${n(qy)} Z`, class: "mark" }),
+        s("text", { x: n(qx + (left ? -14 : 14)), y: n(qy + 4), class: "label", "text-anchor": left ? "end" : "start" }, "query"),
+        s("title", {}, m.spot.text)
+      )
+    );
+  }
   link2.on((f) => {
     for (const [i, g] of dots) g.classList.toggle("lit", i === f.chunk);
     svg.classList.toggle("dim", f.chunk !== null);
@@ -10098,15 +10295,17 @@ function meaningMap(m, link2) {
     const c = m.chunks[f.chunk];
     const cos = m.toNext(f.chunk);
     const names2 = m.terms(f.chunk);
-    info.textContent = `Chunk ${f.chunk + 1} of ${m.chunks.length}, characters ${c.start} to ${c.end}${names2.length ? `, told apart by ${names2.join(", ")}` : ""}${cos === void 0 ? "" : `, cosine to the next ${cos.toFixed(3)}`}: ${short(m.text.slice(c.start, c.end), 140)}`;
+    info.textContent = `Chunk ${f.chunk + 1} of ${m.chunks.length}, characters ${c.start} to ${c.end}${names2.length ? `, told apart by ${names2.join(", ")}` : ""}${cos === void 0 ? "" : `, cosine to the next ${cos.toFixed(3)}`}${near[f.chunk] === void 0 ? "" : `, cosine to the query ${near[f.chunk].toFixed(3)}`}: ${short(m.text.slice(c.start, c.end), 140)}`;
   });
   const others = m.units.length - m.chunks.length;
   const legend2 = el(
     "div",
     { class: "legend" },
-    el("span", { class: "swatch ramp-key" }, el("i", {}), " a chunk, coloured from the first (light) to the last (dark)"),
+    el("span", { class: "swatch ramp-key" }, "a chunk, coloured from the first ", el("i", {}), " to the last"),
     el("span", { class: "swatch trail-key" }, el("i", {}), " reading order"),
     m.third ? el("span", { class: "muted", text: "size: the third direction" }) : null,
+    m.spot ? el("span", { class: "swatch query-key" }, el("i", {}), " the query") : null,
+    m.spot ? el("span", { class: "swatch glow-key" }, el("i", {}), ` glow: cosine to the query, from ${lo.toFixed(3)} to ${hi.toFixed(3)}; lines join it to the closest`) : null,
     others > 0 ? el("span", { class: "muted", text: `${others} coarser ${others === 1 ? "unit is" : "units are"} not drawn as dots; one holding some of the chunks is a shaded region` }) : null
   );
   return el("div", { class: "figure" }, el("div", { class: "scroll" }, svg), legend2, info);
@@ -10302,6 +10501,12 @@ function seismograph(m, link2) {
 
 // demo/web/src/tabs/projection.ts
 var box4 = () => $("projection-out");
+var MATRIX_ROWS = 512;
+var CLOSEST = 5;
+var seen = null;
+var pairs = null;
+var spot = null;
+var asked = 0;
 function budgets(s2) {
   const out = [];
   for (const item of s2.split(",")) {
@@ -10329,16 +10534,48 @@ function show2(r, text) {
   const parts = [];
   if (chunks.some((c) => !c.empty)) {
     const model = r.projection?.model;
-    const reader = chunkText(text, chunks, link2, (term) => {
-      const t = docTerms.find((d) => d.term === term);
-      return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a]);
-    });
+    const toQuery = spot ? chunks.map((c) => c.empty ? void 0 : spot.byItem.get(c.item)) : [];
+    const close = nearest(toQuery, Math.min(CLOSEST, Math.max(1, Math.floor(toQuery.filter((c) => c !== void 0).length / 2))));
+    const reader = chunkText(
+      text,
+      chunks,
+      link2,
+      (term) => {
+        const t = docTerms.find((d) => d.term === term);
+        return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a]);
+      },
+      new Map(close.map((h, rank2) => [h.at, `Closest to the query: number ${rank2 + 1}, cosine ${h.cosine.toFixed(3)}`]))
+    );
     follow(reader, link2);
     parts.push(
       el("h3", { text: "Meaning map" }),
       el("p", { class: "muted", text: `Each dot is one chunk's vector from ${model ? `${model.id}@${model.revision}` : "the graph"}, placed by its two main directions of meaning. The line follows reading order: a document that wanders draws a long trail, and one that stays on a topic stays in one place.` }),
-      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named2[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3 }, link2), el("div", {}, el("h4", { text: "The text, by chunk" }), reader))
+      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named2[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3, spot: spot ? { text: spot.text, x: spot.x, y: spot.y, cosine: (i) => toQuery[i] } : void 0 }, link2), el("div", {}, el("h4", { text: "The text, by chunk" }), reader))
     );
+    if (spot && close.length) {
+      const list5 = el("ol", { class: "closest", id: "projection-closest" });
+      for (const h of close) {
+        const c = chunks[h.at];
+        const row = el("li", { tabindex: "0", "data-chunk": String(h.at) }, el("b", { text: `chunk ${h.at + 1}` }), ` ${h.cosine.toFixed(3)} `, el("span", { class: "muted", text: short(text.slice(c.start, c.end), 110) }));
+        row.addEventListener("mouseenter", () => link2.chunk(h.at));
+        row.addEventListener("focus", () => link2.chunk(h.at));
+        row.addEventListener("mouseleave", () => link2.chunk(null));
+        row.addEventListener("blur", () => link2.chunk(null));
+        list5.append(row);
+      }
+      parts.push(el("h4", { text: `Closest to "${short(spot.text, 60)}" by cosine` }), list5, el("p", { class: "muted", text: "The glow and this list are the true cosines between the query's vector and each chunk's. Where the query sits is its shadow in the map's two directions, so the closest chunk is not always the nearest dot." }));
+    }
+    const place2 = new Map(chunks.map((c, i) => [c.item, i]));
+    const rows3 = pairs ? pairs.items.flatMap((item) => place2.has(item) ? [place2.get(item)] : []) : [];
+    if (pairs && rows3.length === pairs.items.length && rows3.length > 1) {
+      parts.push(
+        el("h3", { text: "Similarity matrix" }),
+        el("p", { class: "muted", text: "Every chunk against every other: a cell is the cosine between two chunks' vectors, shaded within this document's own range, so the picture has contrast even when every pair is close. A square in the diagonal's own colour around it is a run of chunks that say similar things; a cell of that colour far from the diagonal is the text coming back to something it said before." }),
+        similarityMatrix({ chunks, rows: rows3, upper: pairs.upper, groups: regions(units, chunks).map((g) => g.members), text }, link2)
+      );
+    } else if (chunks.filter((c) => !c.empty).length > MATRIX_ROWS) {
+      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: this document has ${chunks.filter((c) => !c.empty).length} chunks with a vector, and the server compares at most ${MATRIX_ROWS}.` }));
+    }
   } else {
     parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
   }
@@ -10390,6 +10627,53 @@ function show2(r, text) {
   );
   box4().replaceChildren(...parts);
 }
+var dims = () => $("projection-dims").value === "3" ? 3 : 2;
+async function compare() {
+  const now = seen;
+  if (!now) return;
+  const points = (now.r.projection?.points ?? []).filter((q) => !q.empty);
+  if (!points.length) return;
+  const level = Math.min(...points.map((q) => q.level));
+  const count2 = points.filter((q) => q.level === level).length;
+  if (count2 < 2 || count2 > MATRIX_ROWS) return;
+  try {
+    const r = await analysis.projectChunks({ graph: now.graph, offsets: 1 /* UTF16 */, pcaDims: dims(), maxStackSegments: 1, pairwise: { level, maxItems: MATRIX_ROWS } });
+    if (seen !== now || !r.pairwise) return;
+    pairs = { items: r.pairwise.items, upper: r.pairwise.cosines };
+    show2(now.r, now.text);
+  } catch {
+  }
+}
+async function ask() {
+  const now = seen;
+  const out = $("projection-query-out");
+  const text = input("projection-query").value.trim();
+  const mine = ++asked;
+  if (!now || !text) {
+    out.replaceChildren();
+    if (spot && now) {
+      spot = null;
+      show2(now.r, now.text);
+    }
+    spot = null;
+    return;
+  }
+  if (!(now.r.projection?.points ?? []).some((q) => !q.empty)) return void say(out, "This graph has no vectors to place a query among.");
+  say(out, "Placing the query\u2026", "busy");
+  try {
+    const r = await analysis.projectChunks({ graph: now.graph, offsets: 1 /* UTF16 */, pcaDims: dims(), maxStackSegments: 1, query: text });
+    if (mine !== asked || seen !== now) return;
+    const q = r.query;
+    if (!q) return void say(out, "The server answered without a query point: it is older than this page.", "error");
+    const order = r.projection?.points ?? [];
+    spot = { text, x: q.x, y: q.y, byItem: new Map(order.map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
+    show2(now.r, now.text);
+    say(out, `Embedded by ${q.modelName} as a query and placed among the chunks.`);
+  } catch (e) {
+    if (mine !== asked) return;
+    out.replaceChildren(failed(explain(e)));
+  }
+}
 var freshRender4 = latest();
 async function render5() {
   const mine = freshRender4();
@@ -10399,7 +10683,7 @@ async function render5() {
     const r = await analysis.projectChunks({
       graph: d.graph,
       offsets: 1 /* UTF16 */,
-      pcaDims: $("projection-dims").value === "3" ? 3 : 2,
+      pcaDims: dims(),
       // Enough of each stack to tell a chunk's own terms from the document's.
       maxStackSegments: 32,
       includeDriftCurve: true,
@@ -10407,9 +10691,14 @@ async function render5() {
       strategyBudgets: budgets(input("projection-budgets").value)
     });
     if (!mine()) return;
+    seen = { r, text: d.source, graph: d.graph };
+    pairs = null;
+    spot = null;
     show2(r, d.source);
+    await Promise.all([compare(), ask()]);
   } catch (e) {
     if (!mine()) return;
+    seen = null;
     box4().replaceChildren(failed(explain(e)));
   }
 }
@@ -10419,6 +10708,21 @@ function init11() {
   const go2 = $("projection-run");
   go2.addEventListener("click", () => void busy(go2, render5));
   $("projection-uneven").addEventListener("change", () => void render5());
+  const query = input("projection-query");
+  const place2 = $("projection-ask");
+  let wait;
+  const now = () => {
+    clearTimeout(wait);
+    void busy(place2, ask);
+  };
+  place2.addEventListener("click", now);
+  query.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") now();
+  });
+  query.addEventListener("input", () => {
+    clearTimeout(wait);
+    wait = setTimeout(() => void ask(), 500);
+  });
 }
 
 // demo/web/src/frames.ts
