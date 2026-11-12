@@ -6,6 +6,7 @@
 //! reads that here.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::TableError;
 use crate::parse::digits;
@@ -23,7 +24,7 @@ const STATE: &str = "PHYSICAL STATE";
 #[derive(Debug, Default)]
 pub struct UspsLocales {
     by_zip: HashMap<u32, Vec<Locale>>,
-    digest: u64,
+    digest: OnceLock<u64>,
 }
 
 impl UspsLocales {
@@ -42,10 +43,7 @@ impl UspsLocales {
             header.split('\t').position(|c| c.trim() == name).ok_or_else(|| err(1, format!("no {name} column")))
         };
         let (zc, lc, sc) = (col(ZIP)?, col(LOCALE)?, col(STATE)?);
-        let mut out = UspsLocales {
-            digest: turbo_analysis::Fnv1a::new().bytes(text.as_bytes()).finish(),
-            ..UspsLocales::default()
-        };
+        let mut out = UspsLocales::default();
         for (i, line) in lines {
             let n = i + 1;
             let f: Vec<&str> = line.split('\t').map(str::trim).collect();
@@ -79,10 +77,24 @@ impl UspsLocales {
         Ok(out)
     }
 
-    /// An FNV-1a digest of the text the list was read from, so lists that
-    /// differ in any byte differ here.
+    /// An FNV-1a digest of the parsed locales, so lists that hold other
+    /// names or states differ here. It is worked out on first use, so
+    /// parsing does not pay for it.
     pub fn digest(&self) -> u64 {
-        self.digest
+        *self.digest.get_or_init(|| {
+            let mut zips: Vec<&u32> = self.by_zip.keys().collect();
+            zips.sort_unstable();
+            let mut h = turbo_analysis::Fnv1a::new();
+            h.usize(zips.len());
+            for zip in zips {
+                h.u32(*zip);
+                for (name, state) in &self.by_zip[zip] {
+                    h.str(name).u8(0xff).bytes(state);
+                }
+                h.u8(0xfe);
+            }
+            h.finish()
+        })
     }
 
     /// The number of ZIP Codes listed.

@@ -143,7 +143,7 @@ pub struct UsZipTable {
     places: Vec<PlaceRow>,
     counties: Vec<CountyRow>,
     prefixes: Vec<PrefixRow>,
-    digest: u64,
+    digest: OnceLock<u64>,
 }
 
 impl UsZipTable {
@@ -167,13 +167,8 @@ impl UsZipTable {
             places: Vec::new(),
             counties: Vec::new(),
             prefixes: Vec::new(),
-            digest: 0,
+            digest: OnceLock::new(),
         };
-        let mut h = turbo_analysis::Fnv1a::new();
-        for text in [zctas, places, counties, prefixes] {
-            h.usize(text.len()).bytes(text.as_bytes());
-        }
-        t.digest = h.finish();
         parse::zctas(zctas, &mut t.zctas, &mut t.parts)?;
         parse::places(places, &mut t.places)?;
         parse::counties(counties, &mut t.counties)?;
@@ -194,10 +189,45 @@ impl UsZipTable {
         Ok(t)
     }
 
-    /// An FNV-1a digest of the four tables' text, so tables that differ in
-    /// any byte differ here.
+    /// An FNV-1a digest of every parsed row, so tables that differ in any
+    /// value differ here. It is computed on first use, so a caller that
+    /// never asks pays nothing at parse time.
     pub fn digest(&self) -> u64 {
-        self.digest
+        *self.digest.get_or_init(|| {
+            let mut h = turbo_analysis::Fnv1a::new();
+            h.usize(self.zctas.len());
+            for z in &self.zctas {
+                h.u32(z.code).bytes(&z.state).u32(z.land).u32(z.lat as u32).u32(z.lon as u32);
+                for v in z.bbox {
+                    h.u32(v as u32);
+                }
+                for p in &self.parts[range(&z.counties)] {
+                    h.u32(p.geoid).u16(p.share);
+                }
+                h.u8(0xfe);
+                for p in &self.parts[range(&z.places)] {
+                    h.u32(p.geoid).u16(p.share);
+                }
+                h.u8(0xff);
+            }
+            h.usize(self.places.len());
+            for p in &self.places {
+                h.u32(p.geoid).bytes(&p.state).str(&p.name).u8(0xff).str(&p.kind).u8(0xff);
+                match p.point {
+                    None => h.u8(0),
+                    Some([la, lo]) => h.u8(1).u32(la as u32).u32(lo as u32),
+                };
+            }
+            h.usize(self.counties.len());
+            for c in &self.counties {
+                h.u32(c.geoid).bytes(&c.state).str(&c.name).u8(0xff);
+            }
+            h.usize(self.prefixes.len());
+            for p in &self.prefixes {
+                h.u16(p.prefix).bytes(&p.state).u32(p.zctas);
+            }
+            h.finish()
+        })
     }
 
     /// The number of ZCTAs.
