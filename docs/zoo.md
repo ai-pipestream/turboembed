@@ -378,8 +378,9 @@ own), and a digest that is not SHA-256 are refused.
 credentials, answers a registry's `WWW-Authenticate: Bearer` challenge
 once per repository with an anonymous token from the service the
 challenge names, and follows a redirect to the registry's storage
-without the token, over HTTPS only. A manifest request that is sent
-on to another host is reported as that redirect and is not followed.
+without the token, over HTTPS only. Each redirect is followed one hop at a time, and a manifest
+request that any hop sends on to another host is reported as that
+redirect and is not followed.
 Most registries ask for such a
 token for public repositories too, so a file at a blob address is
 fetched through it: `turbo-zoo fetch` asks the address plainly and then

@@ -17,6 +17,15 @@ use crate::index::Url;
 const MANIFESTS: &str =
     "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json";
 
+/// The most redirects one request is followed through.
+const REDIRECTS: usize = 10;
+
+/// `url` as its `scheme://host[:port]` and the path and query after it.
+fn origin(url: &str) -> (&str, &str) {
+    let after = url.find("://").map_or(0, |at| at + 3);
+    url.split_at(url[after..].find('/').map_or(url.len(), |at| after + at))
+}
+
 /// The most a manifest or a token reply may be.
 const SMALL: u64 = 4 << 20;
 
@@ -88,10 +97,14 @@ impl OciRegistry {
             }
             _ => url.to_owned(),
         };
-        let repository = match target.find("/manifests/").or_else(|| target.find("/blobs/")) {
-            Some(at) => target[..at].to_owned(),
-            None => return Err(format!("{url}: not a manifest or a blob of a registry")),
-        };
+        // The API resource is the segment before the last: a repository's
+        // own name may hold `manifests` or `blobs` as a segment.
+        let (repository, resource) = target
+            .rsplit_once('/')
+            .and_then(|(head, _)| head.rsplit_once('/'))
+            .filter(|(repository, resource)| repository.contains("/v2/") && matches!(*resource, "manifests" | "blobs"))
+            .ok_or_else(|| format!("{url}: not a manifest or a blob of a registry"))?;
+        let (repository, is_manifest) = (repository.to_owned(), resource == "manifests");
         let held = self.tokens.lock().unwrap().get(&repository).cloned();
         let mut resp = self.ask(&target, accept, held.as_deref()).map_err(|e| format!("{url}: {e}"))?;
         if resp.status().as_u16() == 401 {
@@ -100,20 +113,30 @@ impl OciRegistry {
             resp = self.ask(&target, accept, Some(&token)).map_err(|e| format!("{url}: {e}"))?;
             self.tokens.lock().unwrap().insert(repository, token);
         }
-        if resp.status().is_redirection() {
+        // Each redirect is followed here, one hop at a time and without
+        // the token. A blob may be served from the registry's storage. A
+        // manifest is the registry's own answer: a hop that leaves the
+        // registry is reported as that, not read and found to have
+        // another digest.
+        let registry = origin(&target).0.to_owned();
+        let mut at = target;
+        let mut hops = 0;
+        while resp.status().is_redirection() {
             let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
             let to = to.ok_or_else(|| format!("{url}: a redirect with no Location"))?;
-            let origin = target.find("/v2/").unwrap_or(target.len());
-            let to = resolve(&target[..origin], &target[origin..], to);
-            // A blob may be served from the registry's storage. A manifest
-            // is the registry's own answer: one sent elsewhere is reported
-            // as that, not read and found to have another digest.
-            if target.contains("/manifests/") && !to.starts_with(&format!("{}/", &target[..origin])) {
+            let (base, path) = origin(&at);
+            let to = resolve(base, path, to);
+            if is_manifest && origin(&to).0 != registry {
                 return Err(format!(
                     "{url}: redirected to {to}, which is not the registry; name the registry's own host"
                 ));
             }
-            resp = self.plain.get(&to).call().map_err(|e| format!("{url}: following its redirect: {e}"))?;
+            hops += 1;
+            if hops > REDIRECTS {
+                return Err(format!("{url}: more than {REDIRECTS} redirects"));
+            }
+            resp = self.ask(&to, None, None).map_err(|e| format!("{url}: following its redirect: {e}"))?;
+            at = to;
         }
         if !resp.status().is_success() {
             return Err(format!("{url}: the registry answered {}", resp.status()));

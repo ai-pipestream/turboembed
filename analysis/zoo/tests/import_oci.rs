@@ -65,6 +65,11 @@ struct Registry {
     /// Where a manifest request is sent on, as a web host that is not a
     /// registry answers one.
     manifests_moved_to: Option<String>,
+    /// A path that is no part of the registry's API and where it sends a
+    /// request for it on.
+    hops: BTreeMap<String, String>,
+    /// The repository, when it is not [`NAME`].
+    name: Option<&'static str>,
     seen: Mutex<Vec<(String, bool)>>,
 }
 
@@ -95,11 +100,12 @@ impl Registry {
     /// redirected to `/storage/<digest>`, which refuses a request that
     /// carries a token, as a registry's object store does.
     fn answer(&self, base: &str, target: &str, token: Option<&str>) -> (&'static str, String, Vec<u8>) {
+        let name = self.name.unwrap_or(NAME);
         let ok = |body: Vec<u8>| ("200 OK", String::new(), body);
         let missing = ("404 Not Found", String::new(), b"{}".to_vec());
         if target.starts_with("/token?") {
             let asked =
-                target.contains("service=stand-in") && target.contains("scope=repository:models/tiny-bert:pull");
+                target.contains("service=stand-in") && target.contains(&format!("scope=repository:{name}:pull"));
             return if asked { ok(br#"{"token": "anonymous-pull"}"#.to_vec()) } else { missing };
         }
         if let Some(hex) = target.strip_prefix("/storage/") {
@@ -109,13 +115,16 @@ impl Registry {
                 (None, None) => missing,
             };
         }
+        if let Some(to) = self.hops.get(target) {
+            return ("302 Found", format!("Location: {to}\r\n"), Vec::new());
+        }
         if token != Some("anonymous-pull") {
             let challenge = format!(
-                "WWW-Authenticate: Bearer realm=\"{base}/token\",service=\"stand-in\",scope=\"repository:{NAME}:pull\"\r\n"
+                "WWW-Authenticate: Bearer realm=\"{base}/token\",service=\"stand-in\",scope=\"repository:{name}:pull\"\r\n"
             );
             return ("401 Unauthorized", challenge, b"{}".to_vec());
         }
-        let under = format!("/v2/{NAME}/");
+        let under = format!("/v2/{name}/");
         let Some(rest) = target.strip_prefix(under.as_str()) else { return missing };
         if let (Some(_), Some(to)) = (rest.strip_prefix("manifests/"), &self.manifests_moved_to) {
             return ("302 Found", format!("Location: {to}\r\n"), Vec::new());
@@ -323,6 +332,34 @@ fn a_manifest_request_sent_on_to_another_host_is_reported_as_a_redirect() {
     assert!(e.contains("redirected to https://www.example.org/, which is not the registry"), "{e}");
     assert!(!e.contains("SHA-256"), "{e}");
     assert!(registry.seen.lock().unwrap().iter().all(|(t, _)| !t.contains("/blobs/")));
+
+    // A hop that stays on the registry and a second one that leaves it.
+    let (mut registry, pin) = Registry::with_bundle();
+    registry.manifests_moved_to = Some("/moved/manifest".to_owned());
+    registry.hops.insert("/moved/manifest".to_owned(), "https://www.example.org/page".to_owned());
+    let (client, registry) = serve(registry);
+    let e = oci(&client, spec(&pin)).unwrap_err().to_string();
+    assert!(e.contains("redirected to https://www.example.org/page, which is not the registry"), "{e}");
+    let seen: Vec<String> = registry.seen.lock().unwrap().iter().map(|(t, _)| t.clone()).collect();
+    assert_eq!(seen.last().map(String::as_str), Some("/moved/manifest"), "{seen:?}");
+}
+
+#[test]
+fn a_repository_named_like_an_api_resource_is_read_as_any_other() {
+    // `manifests` and `blobs` as segments of the name: the weights' blob
+    // is still redirected to storage and followed there.
+    let name = "models/manifests/blobs/tiny";
+    let (mut registry, pin) = Registry::with_bundle();
+    registry.name = Some(name);
+    let (client, registry) = serve(registry);
+    let mut named = spec(&pin);
+    named.reference = format!("{HOST}/{name}@sha256:{pin}");
+    let entry = oci(&client, named).unwrap();
+    assert_eq!(entry.files.len(), PATHS.len());
+    assert!(entry.files.iter().all(|f| f.url.as_str().starts_with(&format!("https://{HOST}/v2/{name}/blobs/sha256:"))));
+    let seen = registry.seen.lock().unwrap();
+    assert_eq!(seen.iter().filter(|(t, _)| t.starts_with("/storage/")).count(), 1, "{seen:?}");
+    assert_eq!(seen.iter().filter(|(t, _)| t.starts_with("/token?")).count(), 1, "{seen:?}");
 }
 
 #[test]
