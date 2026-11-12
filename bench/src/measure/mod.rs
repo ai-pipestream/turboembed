@@ -256,6 +256,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
     drop(tokenizer);
     let session = model.session(batch, seq, plan.precision)?;
     let si = session.info()?;
+    crate::onednn::note_fallback(&backend_name, &field(&si.choices), &rt.warnings());
     let dim = mi.dim as usize;
 
     // Conformance: each reference case that fits the rows alone, then

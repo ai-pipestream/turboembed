@@ -38,6 +38,8 @@ cuda = ["turbo/cuda"]
 cuda-cublas = ["turbo/cuda-cublas"]
 # Links the Level Zero backend (docs/levelzero.md).
 levelzero = ["turbo/levelzero"]
+# oneDNN in that library as well, for linear=onednn on Level Zero.
+levelzero-onednn = ["levelzero", "turbo/levelzero-onednn"]
 # Links the NPU backend (docs/npu.md). OpenVINO is the kernel reference
 # (benchmark_app -d NPU); the library still loads through Level Zero.
 npu = ["turbo/npu"]

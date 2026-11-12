@@ -141,6 +141,11 @@ pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaR
         max_batch: plan.max_batch,
     };
     let mut qa = ExtractiveQa::open_with(&plan.bundle, &o).map_err(|e| e.message)?;
+    crate::onednn::note_fallback(
+        &field(&qa.device_info().map_err(|e| e.message)?.backend),
+        &crate::onednn::env_choices(),
+        &qa.warnings(),
+    );
     let mut out = Vec::new();
     for (i, set) in bins.iter().enumerate().filter(|(_, s)| !s.is_empty()) {
         let mut pass = || -> Result<u32> {

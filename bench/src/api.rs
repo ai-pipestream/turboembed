@@ -2,13 +2,18 @@
 //! handle owned by a Rust value that releases it once, and each failure
 //! as its status name and message.
 
-use std::ffi::{CStr, c_char};
+use std::ffi::{CStr, c_char, c_void};
 use std::path::Path;
 use std::ptr;
+use std::sync::{Arc, Mutex};
 
 use turbo::*;
 
 use crate::Result;
+
+const LOG_WARNING: u32 = 1;
+
+type Warnings = Arc<Mutex<Vec<String>>>;
 
 fn new_error() -> turbo_error {
     turbo_error {
@@ -46,25 +51,53 @@ pub fn version() -> String {
     unsafe { CStr::from_ptr(turbo_version()) }.to_string_lossy().into_owned()
 }
 
-pub struct Runtime(*mut turbo_runtime);
+pub struct Runtime {
+    raw: *mut turbo_runtime,
+    warnings: Warnings,
+}
+
+pub(crate) unsafe extern "C" fn collect_warning(user_data: *mut c_void, level: u32, message: turbo_text) {
+    if level > LOG_WARNING || user_data.is_null() {
+        return;
+    }
+    let bytes = if message.len == 0 {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(message.ptr.cast::<u8>(), message.len as usize) }
+    };
+    let lock = unsafe { &*(user_data as *const Mutex<Vec<String>>) };
+    lock.lock().unwrap_or_else(|p| p.into_inner()).push(String::from_utf8_lossy(bytes).into_owned());
+}
 
 impl Runtime {
     pub fn create() -> Result<Runtime> {
-        let mut rt = ptr::null_mut();
-        check("turbo_runtime_create", |e| unsafe { turbo_runtime_create(ptr::null(), &mut rt, e) })?;
-        Ok(Runtime(rt))
+        let warnings: Warnings = Arc::new(Mutex::new(Vec::new()));
+        let desc = turbo_runtime_desc {
+            struct_size: size_of::<turbo_runtime_desc>() as u32,
+            reserved: 0,
+            log: Some(collect_warning),
+            log_user_data: Arc::as_ptr(&warnings).cast_mut().cast(),
+        };
+        let mut raw = ptr::null_mut();
+        check("turbo_runtime_create", |e| unsafe { turbo_runtime_create(&desc, &mut raw, e) })?;
+        Ok(Runtime { raw, warnings })
+    }
+
+    /// Warning and error messages logged by the library on this runtime.
+    pub fn warnings(&self) -> Vec<String> {
+        self.warnings.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 
     pub fn device_count(&self) -> Result<u32> {
         let mut n = 0;
-        check("turbo_runtime_device_count", |e| unsafe { turbo_runtime_device_count(self.0, &mut n, e) })?;
+        check("turbo_runtime_device_count", |e| unsafe { turbo_runtime_device_count(self.raw, &mut n, e) })?;
         Ok(n)
     }
 
     pub fn device_info(&self, index: u32) -> Result<turbo_device_info> {
         let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_device_info>() as u32;
-        check("turbo_runtime_device_info", |e| unsafe { turbo_runtime_device_info(self.0, index, &mut info, e) })?;
+        check("turbo_runtime_device_info", |e| unsafe { turbo_runtime_device_info(self.raw, index, &mut info, e) })?;
         Ok(info)
     }
 
@@ -72,7 +105,7 @@ impl Runtime {
         let mut cap: turbo_capability = unsafe { std::mem::zeroed() };
         cap.struct_size = size_of::<turbo_capability>() as u32;
         check("turbo_runtime_capability", |e| unsafe {
-            turbo_runtime_capability(self.0, index, task, precision, &mut cap, e)
+            turbo_runtime_capability(self.raw, index, task, precision, &mut cap, e)
         })?;
         Ok(cap)
     }
@@ -105,31 +138,34 @@ impl Runtime {
 
     pub fn context(&self, device: u32) -> Result<Context> {
         let mut c = ptr::null_mut();
-        check("turbo_context_create", |e| unsafe { turbo_context_create(self.0, device, &mut c, e) })?;
-        Ok(Context(c))
+        check("turbo_context_create", |e| unsafe { turbo_context_create(self.raw, device, &mut c, e) })?;
+        Ok(Context { raw: c, warnings: Arc::clone(&self.warnings) })
     }
 
     pub fn tokenizer(&self, bundle: &Path) -> Result<Tokenizer> {
         let path = bundle.to_str().ok_or_else(|| format!("{}: not UTF-8", bundle.display()))?;
         let mut t = ptr::null_mut();
-        check("turbo_tokenizer_create", |e| unsafe { turbo_tokenizer_create(self.0, text(path), &mut t, e) })?;
-        Ok(Tokenizer(t))
+        check("turbo_tokenizer_create", |e| unsafe { turbo_tokenizer_create(self.raw, text(path), &mut t, e) })?;
+        Ok(Tokenizer { raw: t, _warnings: Arc::clone(&self.warnings) })
     }
 }
 
 impl Drop for Runtime {
     fn drop(&mut self) {
-        unsafe { turbo_runtime_release(self.0) };
+        unsafe { turbo_runtime_release(self.raw) };
     }
 }
 
-pub struct Tokenizer(*mut turbo_tokenizer);
+pub struct Tokenizer {
+    raw: *mut turbo_tokenizer,
+    _warnings: Warnings,
+}
 
 impl Tokenizer {
     pub fn info(&self) -> Result<turbo_tokenizer_info> {
         let mut info: turbo_tokenizer_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_tokenizer_info>() as u32;
-        check("turbo_tokenizer_get_info", |e| unsafe { turbo_tokenizer_get_info(self.0, &mut info, e) })?;
+        check("turbo_tokenizer_get_info", |e| unsafe { turbo_tokenizer_get_info(self.raw, &mut info, e) })?;
         Ok(info)
     }
 
@@ -153,7 +189,7 @@ impl Tokenizer {
             // values, types may be null, and `len` takes the one length.
             unsafe {
                 turbo_tokenizer_encode(
-                    self.0,
+                    self.raw,
                     &t,
                     1,
                     &opts,
@@ -173,34 +209,40 @@ impl Tokenizer {
 
 impl Drop for Tokenizer {
     fn drop(&mut self) {
-        unsafe { turbo_tokenizer_release(self.0) };
+        unsafe { turbo_tokenizer_release(self.raw) };
     }
 }
 
-pub struct Context(*mut turbo_context);
+pub struct Context {
+    raw: *mut turbo_context,
+    warnings: Warnings,
+}
 
 impl Context {
     pub fn load(&self, bundle: &Path) -> Result<Model> {
         let path = bundle.to_str().ok_or_else(|| format!("{}: not UTF-8", bundle.display()))?;
         let mut m = ptr::null_mut();
-        check("turbo_model_load", |e| unsafe { turbo_model_load(self.0, text(path), &mut m, e) })?;
-        Ok(Model(m))
+        check("turbo_model_load", |e| unsafe { turbo_model_load(self.raw, text(path), &mut m, e) })?;
+        Ok(Model { raw: m, warnings: Arc::clone(&self.warnings) })
     }
 }
 
 impl Drop for Context {
     fn drop(&mut self) {
-        unsafe { turbo_context_release(self.0) };
+        unsafe { turbo_context_release(self.raw) };
     }
 }
 
-pub struct Model(*mut turbo_model);
+pub struct Model {
+    raw: *mut turbo_model,
+    warnings: Warnings,
+}
 
 impl Model {
     pub fn info(&self) -> Result<turbo_model_info> {
         let mut info: turbo_model_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_model_info>() as u32;
-        check("turbo_model_get_info", |e| unsafe { turbo_model_get_info(self.0, &mut info, e) })?;
+        check("turbo_model_get_info", |e| unsafe { turbo_model_get_info(self.raw, &mut info, e) })?;
         Ok(info)
     }
 
@@ -229,14 +271,14 @@ impl Model {
             max_ranges,
         };
         let mut s = ptr::null_mut();
-        check("turbo_session_create", |e| unsafe { turbo_session_create(self.0, &desc, &mut s, e) })?;
-        Ok(Session(s))
+        check("turbo_session_create", |e| unsafe { turbo_session_create(self.raw, &desc, &mut s, e) })?;
+        Ok(Session { raw: s, _warnings: Arc::clone(&self.warnings) })
     }
 }
 
 impl Drop for Model {
     fn drop(&mut self) {
-        unsafe { turbo_model_release(self.0) };
+        unsafe { turbo_model_release(self.raw) };
     }
 }
 
@@ -265,13 +307,16 @@ fn token_batch(rows: &Batch) -> turbo_token_batch {
     }
 }
 
-pub struct Session(*mut turbo_session);
+pub struct Session {
+    raw: *mut turbo_session,
+    _warnings: Warnings,
+}
 
 impl Session {
     pub fn info(&self) -> Result<turbo_session_info> {
         let mut info: turbo_session_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_session_info>() as u32;
-        check("turbo_session_get_info", |e| unsafe { turbo_session_get_info(self.0, &mut info, e) })?;
+        check("turbo_session_get_info", |e| unsafe { turbo_session_get_info(self.raw, &mut info, e) })?;
         Ok(info)
     }
 
@@ -280,7 +325,7 @@ impl Session {
     /// info.
     pub fn embed_into(&self, rows: &Batch, out: &mut [f32]) -> Result<turbo_result_info> {
         let b = token_batch(rows);
-        check("turbo_embed_write_tokens", |e| unsafe { turbo_embed_write_tokens(self.0, &b, ptr::null(), e) })?;
+        check("turbo_embed_write_tokens", |e| unsafe { turbo_embed_write_tokens(self.raw, &b, ptr::null(), e) })?;
         self.read_into(out)
     }
 
@@ -294,7 +339,7 @@ impl Session {
     ) -> Result<turbo_result_info> {
         let views: Vec<turbo_text> = texts.iter().map(|s| text(s)).collect();
         let n = u32::try_from(views.len()).map_err(|_| "more texts than a u32 counts".to_owned())?;
-        check("turbo_embed_write_text", |e| unsafe { turbo_embed_write_text(self.0, views.as_ptr(), n, opts, e) })?;
+        check("turbo_embed_write_text", |e| unsafe { turbo_embed_write_text(self.raw, views.as_ptr(), n, opts, e) })?;
         self.read_into(out)
     }
 
@@ -310,14 +355,14 @@ impl Session {
         let b = token_batch(rows);
         let n = u32::try_from(ranges.len()).map_err(|_| "more ranges than a u32 counts".to_owned())?;
         check("turbo_embed_write_ranges", |e| unsafe {
-            turbo_embed_write_ranges(self.0, &b, ranges.as_ptr(), n, ptr::null(), e)
+            turbo_embed_write_ranges(self.raw, &b, ranges.as_ptr(), n, ptr::null(), e)
         })?;
         self.read_into(out)
     }
 
     fn read_into(&self, out: &mut [f32]) -> Result<turbo_result_info> {
         let mut r = ptr::null_mut();
-        check("turbo_session_run", |e| unsafe { turbo_session_run(self.0, &mut r, e) })?;
+        check("turbo_session_run", |e| unsafe { turbo_session_run(self.raw, &mut r, e) })?;
         let r = Output(r);
         let mut info: turbo_result_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_result_info>() as u32;
@@ -336,7 +381,7 @@ impl Session {
 
 impl Drop for Session {
     fn drop(&mut self) {
-        unsafe { turbo_session_release(self.0) };
+        unsafe { turbo_session_release(self.raw) };
     }
 }
 

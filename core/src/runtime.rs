@@ -182,3 +182,81 @@ pub(super) fn probe(b: &'static backend::turbo_backend, ordinal: u32) -> Result<
     write_str(&mut info.backend, b.name());
     Ok(info)
 }
+
+/// Warning and error messages collected from a `turbo_runtime`'s log callback
+/// for a safe Rust session wrapper (`ExtractiveQa`, `Reranker`).
+///
+/// Declare this field after the raw C handles on the owning struct and
+/// release `turbo_runtime` in the owner's `Drop::drop` impl so every handle
+/// referencing `log_user_data` is released before this allocation drops.
+pub(crate) struct RuntimeWarnings(*mut std::sync::Mutex<Vec<String>>);
+
+// SAFETY: the pointee is `Mutex<Vec<String>>`, which is `Send + Sync`.
+unsafe impl Send for RuntimeWarnings {}
+
+impl RuntimeWarnings {
+    pub(crate) fn new() -> Self {
+        Self(Box::into_raw(Box::new(std::sync::Mutex::new(Vec::new()))))
+    }
+
+    pub(crate) fn runtime_desc(&self) -> turbo_runtime_desc {
+        turbo_runtime_desc {
+            struct_size: size_of::<turbo_runtime_desc>() as u32,
+            reserved: 0,
+            log: Some(collect_runtime_warning),
+            log_user_data: self.0.cast(),
+        }
+    }
+
+    pub(crate) fn snapshot(&self) -> Vec<String> {
+        let lock = unsafe { &*self.0 };
+        lock.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+}
+
+impl Drop for RuntimeWarnings {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe { drop(Box::from_raw(self.0)) };
+        }
+    }
+}
+
+pub(crate) unsafe extern "C" fn collect_runtime_warning(user_data: *mut c_void, level: u32, message: turbo_text) {
+    if level > LOG_WARNING || user_data.is_null() {
+        return;
+    }
+    let bytes = if message.len == 0 {
+        &[][..]
+    } else {
+        unsafe { std::slice::from_raw_parts(message.ptr.cast::<u8>(), message.len as usize) }
+    };
+    let lock = unsafe { &*(user_data as *const std::sync::Mutex<Vec<String>>) };
+    lock.lock().unwrap_or_else(|p| p.into_inner()).push(String::from_utf8_lossy(bytes).into_owned());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ptr;
+
+    #[test]
+    fn runtime_warnings_collects_errors_and_warnings_only() {
+        let warnings = RuntimeWarnings::new();
+        let desc = warnings.runtime_desc();
+        let cb = desc.log.expect("log callback installed");
+        let send = |level: u32, s: &str| {
+            let t = turbo_text { ptr: s.as_ptr().cast(), len: s.len() as u64 };
+            unsafe { cb(desc.log_user_data, level, t) };
+        };
+        send(0, "error zero");
+        send(LOG_WARNING, "levelzero device 0: oneDNN not used");
+        send(LOG_INFO, "info ignored");
+        send(3, "debug ignored");
+        unsafe { cb(desc.log_user_data, LOG_WARNING, turbo_text { ptr: ptr::null(), len: 0 }) };
+        assert_eq!(
+            warnings.snapshot(),
+            vec!["error zero".to_owned(), "levelzero device 0: oneDNN not used".to_owned(), String::new(),]
+        );
+    }
+}
