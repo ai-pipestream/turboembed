@@ -135,3 +135,22 @@ fn without_the_city_scanner_nothing_changes() {
     assert_eq!(mentions, owned(&[("Paris", "first-name")]));
     assert_eq!(rows.len(), 1);
 }
+
+#[test]
+fn only_a_person_span_around_the_whole_name_overrules_the_city() {
+    let rules = PiiDetector::pack(Pack::Places);
+    let text = "We heard that Salt Lake City won the vote.";
+    let found: Vec<PiiKind> = rules.layer(text, ViewId::SOURCE).mentions().map(|m| m.kind).collect();
+    assert_eq!(found, [PiiKind::City], "the rules alone read the bare name");
+    // A span on part of the name, or one that starts on one side of it and
+    // ends inside it, leaves the city standing.
+    for part in ["Salt", "Lake", "that Salt", "City won"] {
+        let (mentions, _) = resolve(&rules, text, part, "first-name", 0.9);
+        assert!(mentions.contains(&("Salt Lake City".to_owned(), "city".to_owned())), "{part:?}: {mentions:?}");
+    }
+    // A span around the whole name, exactly or wider, overrules it.
+    for whole in ["Salt Lake City", "that Salt Lake City won"] {
+        let (mentions, _) = resolve(&rules, text, whole, "first-name", 0.9);
+        assert_eq!(mentions, owned(&[(whole, "first-name")]), "{whole:?}");
+    }
+}
