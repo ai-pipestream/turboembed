@@ -280,7 +280,9 @@ prompt encoder and BiLSTM remain frozen. `--train-prompt` also trains the
 while the encoder and BiLSTM remain frozen. `--train-recurrent` also trains
 both BiLSTM directions with exact gradients through the boundary MLPs and
 requires `--train-boundaries`; the encoder and token projection remain frozen.
-Each training span
+`--train-projection` also trains `token_rep_layer.projection`, combining exact
+prompt and word gradients, and requires `--train-recurrent` and `--train-prompt`;
+only the encoder remains frozen. Each training span
 keeps its gold labels and at most four highest-logit negative labels; gold
 spans are accompanied by up to two hard-negative spans per positive span,
 with a minimum of four. Positive BCE terms have weight 4. `--balance` repeats
@@ -298,7 +300,7 @@ gradients in original sentence order; 0 uses the whole batch. Set
 do not create nested thread pools. `--anchor W` adds `W * ||params - base||^2`
 to the loss and its exact gradient, limiting drift from every pretrained
 tensor selected for training. The default is 0, and the peer identity records
-the anchor and whether boundary, prompt and recurrent training were enabled.
+the anchor and whether boundary, prompt, recurrent and token projection training were enabled.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,
