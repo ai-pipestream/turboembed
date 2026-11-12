@@ -439,6 +439,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: the lane decision gives the right answer on known changes
+        run: scripts/backend-lanes-test.sh
       - name: which backend lanes the change needs
         id: lanes
         env:

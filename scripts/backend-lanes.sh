@@ -20,7 +20,9 @@ linux=true
 macos=true
 case "$event" in
   pull_request | merge_group)
-    if paths="$(git diff --name-only "${2:?base}...${3:?head}")"; then
+    # Without rename detection: a file moved out of a watched directory
+    # is then listed under its old path too.
+    if paths="$(git diff --name-only --no-renames "${2:?base}...${3:?head}")"; then
       linux=false
       macos=false
       if grep -qE "$both" <<<"$paths"; then
