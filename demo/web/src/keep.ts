@@ -74,7 +74,7 @@ const restored = new WeakSet<HTMLSelectElement>();
  */
 export function restore(select: HTMLSelectElement): void {
   if (restored.has(select)) return;
-  const v = select.id ? recall(select.id) : null;
+  const v = select.id && !select.hasAttribute("data-unkept") ? recall(select.id) : null;
   if (v === null || !select.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
   if (!offered(v, [...select.options].map((o) => o.value))) return;
   select.value = v;
