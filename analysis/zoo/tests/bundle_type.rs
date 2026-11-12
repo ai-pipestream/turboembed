@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 
 use turbo_scratch::Scratch;
 use turbo_zoo::{
-    Acceptances, Directory, Format, Index, Kind, ModelType, Policy, Sha256, Sha512, Task, UserId, Zoo, ZooError,
+    Acceptances, CacheStatus, Directory, Format, Index, Kind, ModelType, Policy, Sha256, Sha512, Task, UserId, Zoo,
+    ZooError,
 };
 
 fn testdata(bundle: &str) -> PathBuf {
@@ -181,6 +182,35 @@ fn a_manifest_that_describes_another_model_is_refused() {
     let mit = entry(&dir, "tiny", ENCODER, TINY_BERT).replace(r#""license": "Apache-2.0""#, r#""license": "MIT""#);
     let e = fetch("licence", &dir, index_of(&[mit]).unwrap()).unwrap_err().to_string();
     assert!(e.contains(r#""Apache-2.0" at /model/license, the index says MIT"#), "{e}");
+}
+
+#[test]
+fn a_refused_bundle_left_in_the_cache_is_not_reported_as_cached() {
+    let dir = testdata("tiny-bert-bundle");
+    let source = Directory::new(&dir);
+    let user: UserId = "alice".parse().unwrap();
+    let cache = cache("status");
+    let other = TINY_BERT.replace("turboembed/tiny-bert", "turboembed/other");
+    let other = index_of(&[entry(&dir, "tiny", ENCODER, &other)]).unwrap();
+    let zoo = Zoo::new(other, cache.clone(), Policy::default(), &source);
+    assert_eq!(zoo.cache_status("tiny").unwrap(), CacheStatus::Missing { file: "manifest.json".into() });
+
+    // Every file arrives and verifies, and the fetch refuses the bundle.
+    assert!(matches!(zoo.fetch("tiny", &user, &Acceptances::default()), Err(ZooError::Bundle { .. })));
+    assert!(cache.join("tiny").join("weights").join("model.safetensors").is_file());
+    match zoo.cache_status("tiny").unwrap() {
+        CacheStatus::Corrupt { file, reason: ZooError::Bundle { message, .. } } => {
+            assert_eq!(file, "manifest.json");
+            assert!(message.contains("at /model/id"), "{message}");
+        }
+        other => panic!("{other:?}"),
+    }
+
+    // The same files under the entry the manifest describes are held.
+    let index = index_of(&[entry(&dir, "tiny", ENCODER, TINY_BERT)]).unwrap();
+    let zoo = Zoo::new(index, cache.clone(), Policy::default(), &source);
+    assert_eq!(zoo.cache_status("tiny").unwrap(), CacheStatus::Cached);
+    fs::remove_dir_all(&cache).unwrap();
 }
 
 /// A copy of the sealed tiny BERT bundle a test may change.

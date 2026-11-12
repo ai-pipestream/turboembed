@@ -482,7 +482,10 @@ bucket is the simpler host.
 `Zoo::cache_status(id)` reads and checks the cached files as step 4
 does, and reports `Cached`, `Missing` (the first absent file) or
 `Corrupt` (the first file that fails, and why), with no fetch, no write
-and no directory made. It checks no licence and hands out no path:
+and no directory made. An encoder bundle whose files all verify and
+whose manifest does not describe its entry is `Corrupt` at
+`manifest.json`, with the reason a fetch refuses it for, and a zoo
+server does not list such a bundle as installed. It checks no licence and hands out no path:
 `fetch` does that. `Home::from_env` finds the directory the `turbo-zoo`
 command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
 `~/.local/share/turbo-zoo`), with the cache at `Home::artifacts` and the

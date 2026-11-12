@@ -144,6 +144,13 @@ async fn a_bundle_whose_manifest_is_not_the_entrys_is_not_handed_out() {
     let e = fetch(zoo_server(&address).await, other(), cache.0.clone()).await.unwrap_err();
     assert!(matches!(e, ZooError::Transport { .. }), "{e:?}");
     assert!(e.to_string().contains("/model/id"), "{e}");
+    // The files it fetched are on its disk, and it does not list the
+    // bundle as installed.
+    assert!(home.0.join("artifacts").join("tiny").join("manifest.json").is_file());
+    let mut client = TurboCatalogServiceClient::connect(address.replace("grpc://", "http://")).await.unwrap();
+    let listed = client.list_model_catalog(ListModelCatalogRequest::default()).await.unwrap().into_inner();
+    assert!(!listed.entries.iter().find(|e| e.id == "tiny").unwrap().installed);
+    drop(client);
     s.stop().await;
 
     // A library with that index refuses what a correct server serves.
