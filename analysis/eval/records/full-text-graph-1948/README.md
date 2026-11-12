@@ -7,7 +7,7 @@ with the packaged candidates. Machine B, CPU (AMD Ryzen 9 9950X).
 
 | step | package | pin (`analysis/pins/models.txt`) |
 |---|---|---|
-| `turbo:gliner` | `gliner-community/gliner_small-v2.5` at `f227d3cd637bd4e6757ae143935316d062393341` | package `8a1d791d...2d2f` |
+| `turbo:gliner` | `gliner-community/gliner_small-v2.5` at `f227d3cd637bd4e6757ae143935316d062393341` | package `8a1d791d...fa83` |
 | `turbo:zero-shot-relations` | `fastino/gliner2-base-v1` at `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | tree `34314634...ad38` |
 
 Both are loaded with `LoadBundle` into a running server and named by
