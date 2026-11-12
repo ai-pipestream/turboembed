@@ -337,3 +337,20 @@ fn a_kernel_time_goes_with_a_measurement_and_has_ordered_figures() {
     r.references[at].not_run = Some("not run".into());
     assert!(r.check().unwrap_err().contains("kernel_time goes with a measurement"));
 }
+
+#[test]
+fn a_device_clock_round_trips_and_a_record_without_one_still_parses() {
+    let (name, Ok(r)) = embedded().iter().find(|(n, _)| n.starts_with("b70.levelzero.")).unwrap() else {
+        panic!("no b70 record parses");
+    };
+    assert_eq!(r.device.clock, None, "{name}");
+    let json = serde_json::to_string(r).unwrap();
+    assert!(!json.contains("\"clock\""), "a record without a clock writes none");
+    let mut clocked = r.clone();
+    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+    clocked.device.clock = Some(GpuClock { before, after: ClockReading { act_mhz: 2150, ..before } });
+    let json = serde_json::to_string(&clocked).unwrap();
+    assert_eq!(serde_json::from_str::<Record>(&json).unwrap(), clocked);
+    let extra = json.replace("\"act_mhz\":2150", "\"act_mhz\":2150,\"gt\":0");
+    assert!(serde_json::from_str::<Record>(&extra).is_err(), "an unknown clock field is refused");
+}

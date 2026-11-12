@@ -541,8 +541,9 @@ Arc Pro B70, Linux 7.3 with the xe driver, Level Zero driver `1.3.39122`
 (the `libze-intel-gpu1` and `intel-opencl-icd` 26.27.39122.14 packages,
 IGC 2.40.14) and loader 1.32.0, oneDNN 3.9 from oneAPI 2025.3. The GPU
 clock was pinned at 2200 MHz for the runs (`min_freq` and `max_freq`
-under the xe driver's `tile0/gt0/freq0` set to 2200), which a record
-does not carry. 32 rows of 256 tokens, 20 untimed and 200 timed runs,
+under the xe driver's `tile0/gt0/freq0` set to 2200). These records were
+made before a record carried the clock; a record made since has it in
+`device.clock` (docs/benchmarks.md). 32 rows of 256 tokens, 20 untimed and 200 timed runs,
 oneDNN's linear layers at every precision (`linear=onednn`). The
 reference is OpenVINO 2026.4's `benchmark_app` on the same GPU
 (`openvino/ubuntu24_dev@sha256:91a9411e9c8aecdbb8a35426c9d1f1938c5680eca977da9e7b9cf519e5e0f21a`);
