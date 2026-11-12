@@ -241,8 +241,8 @@ test("a refused delete says why beside its own row", async () => {
     await row.locator(".confirm .error").waitFor();
     // A sentence first; the code stays behind the details toggle.
     const why = (await row.locator(".confirm .error").textContent()) ?? "";
-    assert.equal(why.trim().length > 0, true);
-    assert.equal(why.trim().startsWith("permission_denied"), false);
+    assert.equal(why.includes("Not served: UnloadBundle is admin-only: start the server with --admin to serve it."), true, why);
+    assert.equal(why.trim().startsWith("Not served"), true, why);
     // Only that row reports, Unload is back on it, and nothing was unloaded.
     assert.equal(await page.locator("#server-caps .confirm .error").count(), 1);
     assert.equal(await row.locator(".confirm button", { hasText: "Unload" }).count(), 1);
