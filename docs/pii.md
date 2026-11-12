@@ -1007,10 +1007,11 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
     Hilton`), so it is no mention.
 
   A bare name (`Chicago is large`) is no mention. The name has at most
-  five words with single spaces between them, and its first and last
-  words start with a capital (`Rio de Janeiro`). The longest name wins,
-  and the normalized form is the gazetteer's name (`Sao Paulo` for
-  `São Paulo`). A city and the state after it are two mentions.
+  five words with single spaces between them, and each word starts with a
+  capital where the gazetteer's name has one (`Rio de Janeiro`,
+  `Coeur d'Alene`). The longest name wins, and the normalized form is the
+  gazetteer's name (`Sao Paulo` for `São Paulo`). A city and the state
+  after it are two mentions.
 
 A place name starts and ends where no letter, digit, combining mark or
 `_` touches it (`text::name_char`, `on_name_start`, `on_name_end`), at
