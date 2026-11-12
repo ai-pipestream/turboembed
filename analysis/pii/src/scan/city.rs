@@ -7,8 +7,14 @@
 //!   name or USPS code (`Springfield, IL`, `Mobile, Alabama`,
 //!   `San Juan, PR`), when the gazetteer holds a place of that name there;
 //! - directly after a city label (`city of Phoenix`, `City: Mobile`,
-//!   `place of birth: Lyon`), as any place of that name, unless a
-//!   capitalized word follows it (`City: San Foo`).
+//!   `place of birth: Lyon`), as any place of that name when no state
+//!   follows (unless another capitalized word follows it, `City: San Foo`),
+//!   or in the state after it when a state name or code follows (`City:
+//!   Springfield, IL`, `City: Mobile Alabama`, `City: Springfield IL
+//!   62704`), with no fallback to a record outside that state, so a
+//!   mismatched state (`City: Mobile, IL`) is refused at the cost of
+//!   smaller US homonyms missing from the 1:10m table under that state
+//!   (`City: Dublin, OH`, `City: Rome, NY`).
 //!
 //! A bare name with neither is no mention. The name has at most
 //! [`MAX_WORDS`] words with single spaces between them, each word starts
@@ -21,7 +27,7 @@
 use turbo_analysis_layers::{PiiEvidence, PiiKind};
 use turbo_geo::{BundledGazetteer, Entry, Gazetteer};
 
-use super::state::name_at;
+use super::state::{name_at, zip_end};
 use crate::hits::Hits;
 use crate::tables::us_states::US_STATES;
 use crate::text::{name_char, on_end, on_name_end, on_name_start, on_word_start, whitespace};
@@ -58,6 +64,7 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     let mut found: Vec<(usize, usize, &'static str)> = Vec::new();
     let mut at = 0;
     while at < b.len() {
+        super::step((b.len() - at).min(LANES));
         // A whole lane is tested with no branch, so the test vectorizes;
         // the lanes of most text hold no anchor.
         if let Some(w) = b.get(at..at + LANES + 2).and_then(|w| <&[u8; LANES + 2]>::try_from(w).ok())
@@ -110,6 +117,7 @@ fn at_anchor(text: &str, i: usize, found: &mut Vec<(usize, usize, &'static str)>
             // (`:::` costs no more than `:`).
             let mut end = i;
             for (at, c) in text[..i].char_indices().rev() {
+                super::step(1);
                 if c == ':' {
                     return;
                 }
@@ -157,32 +165,26 @@ fn before_state(text: &str, comma: usize, code: &str) -> Option<(usize, usize, &
     })
 }
 
-/// Whether a city of the state with USPS code `code` ends at `end`, by
-/// the same words and gazetteer rule as a city before `, IL`. No city
-/// name holds a digit, so the words stop at one (`IL 62704 is. Order`).
-pub(super) fn city_before(text: &str, end: usize, code: &str) -> bool {
-    let mut starts = [0; MAX_WORDS];
-    let n = word_starts_before(text, end, &mut starts);
-    starts[..n]
-        .iter()
-        .take_while(|&&start| !text.as_bytes()[start..end].iter().any(u8::is_ascii_digit))
-        .any(|&start| lookup(text, start, end).is_some_and(|found| found.iter().any(|e| in_state(e, code))))
-}
-
 /// The longest city name that starts at `at`, after a label: any place of
-/// that name, or one in the state after it when one follows. A name that
-/// a capitalized word follows is part of a longer one (`City: San Foo`),
-/// so it is no mention.
+/// that name when no state follows, or one in the state after it when one
+/// follows (`City: Springfield, IL`, `City: Springfield IL 62704`, `City:
+/// Mobile Alabama`), with no fallback to a place outside that state
+/// (`City: Mobile, IL` is no mention). A name that another capitalized
+/// word follows is part of a longer one (`City: San Foo`), so it is no
+/// mention.
 fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str)> {
     let mut ends = [0; MAX_WORDS];
     let n = word_ends(text, at, &mut ends);
     ends[..n].iter().rev().find_map(|&end| {
-        if text.as_bytes().get(end) == Some(&b' ') && capital_at(text, end + 1) {
+        let state = state_after(text, end);
+        if state.is_none() && text.as_bytes().get(end) == Some(&b' ') && capital_at(text, end + 1) {
             return None;
         }
         let found = lookup(text, at, end)?;
-        let state = state_after(text, end);
-        let entry = found.iter().find(|e| state.is_some_and(|code| in_state(e, code))).or(found.first())?;
+        let entry = match state {
+            Some(code) => found.into_iter().find(|e| in_state(e, code))?,
+            None => found.into_iter().next()?,
+        };
         Some((at, end, entry.name()))
     })
 }
@@ -192,9 +194,11 @@ fn after_label_name(text: &str, at: usize) -> Option<(usize, usize, &'static str
 /// touching either end.
 fn lookup(text: &str, start: usize, end: usize) -> Option<Vec<Entry<'static>>> {
     let written = &text[start..end];
+    super::step(1);
     if !on_name_start(text, start) || !on_name_end(text, end) || !capital_at(text, start) {
         return None;
     }
+    super::step(written.len());
     let mut found = BundledGazetteer::get().lookup(written);
     found.retain(|e| {
         std::iter::once(e.name()).chain(e.alternate_names()).any(|name| capitals_like_a_name(written, name))
@@ -216,6 +220,7 @@ fn after_label(text: &str, i: usize) -> Option<usize> {
     let mut at = i + label.len();
     let mut saw_colon = false;
     while let Some(c) = text[at..].chars().next() {
+        super::step(1);
         if !(whitespace(c) || matches!(c, ':' | '#' | '=')) {
             break;
         }
@@ -236,9 +241,17 @@ fn word_starts_before(text: &str, end: usize, starts: &mut [usize]) -> usize {
         let mut start = text[..at]
             .char_indices()
             .rev()
-            .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| {
+                super::step(1);
+                !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-'))
+            })
             .map_or(0, |(p, c)| p + c.len_utf8());
-        let Some(lead) = text[start..at].find(|c: char| c.is_alphanumeric()) else { break };
+        let Some(lead) = text[start..at].find(|c: char| {
+            super::step(1);
+            c.is_alphanumeric()
+        }) else {
+            break;
+        };
         start += lead;
         starts[n] = start;
         n += 1;
@@ -261,9 +274,18 @@ fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
     while n < ends.len() {
         let run = text[at..]
             .char_indices()
-            .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-')))
+            .find(|&(_, c)| {
+                super::step(1);
+                !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '.' | '-'))
+            })
             .map_or(text.len(), |(p, _)| at + p);
-        let end = text[at..run].trim_end_matches(|c: char| !name_char(c)).len() + at;
+        let end = text[at..run]
+            .trim_end_matches(|c: char| {
+                super::step(1);
+                !name_char(c)
+            })
+            .len()
+            + at;
         if end == at || !on_name_end(text, end) {
             break;
         }
@@ -281,7 +303,7 @@ fn word_ends(text: &str, i: usize, ends: &mut [usize]) -> usize {
 /// gazetteer's `name` has one (`Springfield`, `Rio de Janeiro`,
 /// `Coeur d'Alene`, `Winston-Salem`, `Winston Salem`).
 fn capitals_like_a_name(written: &str, name: &str) -> bool {
-    let mut w = written.split([' ', '-']).filter(|s| !s.is_empty());
+    let mut w = written.split([' ', '-']).inspect(|_| super::step(1)).filter(|s| !s.is_empty());
     let mut g = name.split([' ', '-']).filter(|s| !s.is_empty());
     loop {
         match (w.next(), g.next()) {
@@ -296,19 +318,29 @@ fn capitals_like_a_name(written: &str, name: &str) -> bool {
     }
 }
 
-/// The USPS code of the state named directly after `end` by a comma and a
-/// space (`, Illinois`, `, IL`).
+/// The USPS code of the state named directly after `end`: after `, ` by
+/// name or USPS code (`, Illinois`, `, IL`), or after ` ` by name or by a
+/// capital USPS code before a ZIP code (` Alabama`, ` IL 62704`).
 fn state_after(text: &str, end: usize) -> Option<&'static str> {
     let b = text.as_bytes();
-    if b.get(end..end + 2) != Some(b", ") || !b.get(end + 2).is_some_and(u8::is_ascii_uppercase) {
+    let (comma, at) = if b.get(end..end + 2) == Some(b", ") {
+        (true, end + 2)
+    } else if b.get(end) == Some(&b' ') {
+        (false, end + 1)
+    } else {
+        return None;
+    };
+    if !b.get(at).is_some_and(u8::is_ascii_uppercase) {
         return None;
     }
-    let at = end + 2;
     if let Some((_, code)) = name_at(text, at) {
         return Some(code);
     }
     let code = b.get(at..at + 2)?;
     if !on_name_end(text, at + 2) {
+        return None;
+    }
+    if !comma && !(b.get(at + 2) == Some(&b' ') && zip_end(text, at + 3).is_some()) {
         return None;
     }
     US_STATES.iter().find(|(_, c)| c.as_bytes() == code).map(|(_, c)| *c)

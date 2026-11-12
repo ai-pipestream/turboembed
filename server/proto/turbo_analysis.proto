@@ -209,7 +209,7 @@ message BundleCapabilities
   // "turbo-tagger:relations", "turbo-tagger:sentences", "turbo-tagger:words",
   // "turbo-tagger:coref", "turbo:gliner", "turbo:zero-shot-relations"), in
   // that order; empty for a bundle without heads.
-  // "turbo-tagger:heads" and the annotate-v2 profile run every one listed.
+  // "turbo-tagger:heads" and the annotate-v1 profile run every one listed.
   repeated string head_steps = 9;
 
   // The stored vocabulary artifacts bound to this bundle at LoadBundle

@@ -252,7 +252,7 @@ export type BundleCapabilities = Message<"turbo.result.v1.BundleCapabilities"> &
    * "turbo-tagger:relations", "turbo-tagger:sentences", "turbo-tagger:words",
    * "turbo-tagger:coref", "turbo:gliner", "turbo:zero-shot-relations"), in
    * that order; empty for a bundle without heads.
-   * "turbo-tagger:heads" and the annotate-v2 profile run every one listed.
+   * "turbo-tagger:heads" and the annotate-v1 profile run every one listed.
    *
    * @generated from field: repeated string head_steps = 9;
    */

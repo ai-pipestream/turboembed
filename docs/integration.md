@@ -118,9 +118,10 @@ analysed document handed downstream.
    bundle capabilities it needs. `minimal-v1` is structure, sentences
    and tokens and needs no model; `default-v1` adds place names,
    subwords, the chunker, levels and a vector per chunk; `retrieval-v1`
-   adds learned sparse terms; `annotate-v1` adds part-of-speech tags,
-   entities, dependencies and lemmas from the bundle's heads in one
-   encoder pass. A bundle lists the head steps it serves under
+   adds learned sparse terms; `annotate-v1` runs every head the bundle
+   carries (part-of-speech tags, entities, dependencies, lemmas and the
+   rest), the word-level ones from one encoder pass. A bundle lists the
+   head steps it serves under
    `BundleCapabilities.head_steps`, and an explicit `steps` list can
    name any of them. A profile's layer set never changes within its
    version. The table is in [grpc-analysis.md](grpc-analysis.md).

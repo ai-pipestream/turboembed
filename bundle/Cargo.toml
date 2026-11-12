@@ -30,3 +30,6 @@ default = ["http"]
 # The fetch command's HTTPS downloads. Without it the library builds with
 # no TLS stack (what the gRPC server links), and a fetch is refused.
 http = ["dep:ureq"]
+
+[dev-dependencies]
+turbo-scratch = { path = "../analysis/scratch" }

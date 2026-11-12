@@ -12,6 +12,7 @@ use serde_json::{Map, Value, json};
 use turbo::bundle::sha256_hex;
 use turbo::turbo_token_range;
 use turbo_analysis_embed::encoder::{Encoder, EncoderOptions, Rows};
+use turbo_scratch::Scratch;
 
 fn testdata(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata").join(name)
@@ -32,9 +33,8 @@ fn states(dir: &Path) -> Vec<f32> {
 
 /// The bundle `src` copied to `name`, cut to `layers`, and with `strip`
 /// the tensors of the layers past the cut removed from its weights.
-fn cut(src: &Path, name: &str, layers: u32, strip: bool) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-layer-cut-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn cut(src: &Path, name: &str, layers: u32, strip: bool) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-layer-cut-{}-{name}", std::process::id())));
     let mut m: Value = serde_json::from_slice(&fs::read(src.join("manifest.json")).unwrap()).unwrap();
     for f in m["files"].as_array().unwrap() {
         let path = f["path"].as_str().unwrap();

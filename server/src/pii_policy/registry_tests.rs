@@ -231,3 +231,15 @@ fn encryption_keys_are_their_own_registry_of_exactly_32_bytes() {
     assert!(e.contains("one key, one use"), "{e}");
     let _ = std::fs::remove_dir_all(&d);
 }
+
+#[test]
+fn named_only_encryption_keeps_the_keys_from_inline_policies() {
+    let r = ServerResolver::load(&[], &[], None).unwrap();
+    assert!(r.inline_encryption(), "a release or no keys: inline policies resolve as named ones do");
+    let r = r.named_only_encryption();
+    assert!(!r.inline_encryption());
+    assert!(format!("{r:?}").contains("named_only_encryption: true"));
+    let inline = crate::pii_policy::resolve::NamedOnlyEncryption(&r);
+    assert_eq!(inline.encryption_key("vault", 1).unwrap_err(), ResolveError::NamedPoliciesOnly);
+    assert_eq!(inline.hmac_key("tok", 1).unwrap_err(), ResolveError::NotRegistered, "other references pass through");
+}

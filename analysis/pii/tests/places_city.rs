@@ -83,6 +83,13 @@ fn a_city_after_a_city_label_is_a_mention() {
         ("City : Phoenix", "Phoenix", "Phoenix"),
         ("Town:\tSpringfield", "Springfield", "Springfield"),
         ("the city of Mobile is on the bay", "Mobile", "Mobile"),
+        ("City: Springfield IL 62704", "Springfield", "Springfield"),
+        ("City: Mobile Alabama", "Mobile", "Mobile"),
+        ("Birthplace: Chicago Illinois", "Chicago", "Chicago"),
+        ("City: Truth or Consequences New Mexico", "Truth or Consequences", "Truth or Consequences"),
+        ("City: Coeur d'Alene ID 83814", "Coeur d'Alene", "Coeur d'Alene"),
+        ("City: Coeur d'Alene Idaho", "Coeur d'Alene", "Coeur d'Alene"),
+        ("City: San Juan PR 00901", "San Juan", "San Juan"),
     ] {
         assert_eq!(one(text), (written.to_owned(), name.to_owned()), "{text:?}");
     }
@@ -98,6 +105,10 @@ fn what_is_no_city_mention() {
         // The state must hold a place of that name.
         "Springfield, Alaska",
         "Mobile, IL",
+        "City: Mobile, IL",
+        "City: Mobile Illinois",
+        "City: Mobile IL 62704",
+        "City: Coeur d'Alene IL 62704",
         // No label without its colon.
         "the city Council met",
         "town Hall",
@@ -128,6 +139,9 @@ fn what_is_no_city_mention() {
         "City: San Germ\u{e1}n",
         "City: San Foo",
         "the city of Paris Hilton",
+        "City: Springfield IL",
+        "City: Coeur d'Alene ID",
+        "City: coeur d'Alene ID 83814",
     ] {
         assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
     }
@@ -135,16 +149,26 @@ fn what_is_no_city_mention() {
 
 #[test]
 fn a_city_and_its_state_are_two_mentions() {
-    let rows = rows(&pack(Pack::Places), "Springfield, Illinois");
-    let kinds: Vec<_> = rows.iter().map(|r| (r.2, r.3.as_str())).collect();
-    assert_eq!(kinds, [("city", "Springfield"), ("state", "IL")]);
+    for (text, city, state) in [
+        ("Springfield, Illinois", "Springfield", "IL"),
+        ("Coeur d'Alene, Idaho", "Coeur d'Alene", "ID"),
+        ("City: Springfield IL 62704", "Springfield", "IL"),
+        ("City: Mobile Alabama", "Mobile", "AL"),
+        ("City: Coeur d'Alene Idaho", "Coeur d'Alene", "ID"),
+    ] {
+        let rows = rows(&pack(Pack::Places), text);
+        let kinds: Vec<_> = rows.iter().map(|r| (r.2, r.3.as_str())).collect();
+        assert_eq!(kinds, [("city", city), ("state", state)], "{text:?}");
+    }
 }
 
 #[test]
 fn a_run_of_separators_is_walked_once() {
-    // Each colon of a run used to look back over the whole run, so a
-    // megabyte of them took minutes; now it is one pass.
-    let n = 1 << 20;
+    // Linear step scaling across state, county and city is checked at n and 8n
+    // in `scan::places_tests` (#2112); here we check the separator forms
+    // themselves at a bounded length so a regression fails fast rather than
+    // hanging until the CI job timeout.
+    let n = 4_000;
     for text in [":".repeat(n), format!("City{}", ":".repeat(n)), " : ".repeat(n / 3), "City #= ".repeat(n / 8)] {
         assert!(cities(&text).is_empty());
     }

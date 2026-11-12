@@ -11,13 +11,38 @@ use std::marker::PhantomData;
 
 use turbo_analysis::annotate::{AnchorUse, Step};
 use turbo_analysis::{
-    Annotator, Document, Error, Execution, Key, KeyId, ModelRef, ProjectableLayer, Provenance, Status, View, ViewId,
+    Annotator, Document, Error, Execution, Key, KeyId, ModelRef, ProjectableLayer, Provenance, Refs, Status, View,
+    ViewId,
 };
 use turbo_analysis_embed::{SubwordAnnotator, align};
 use turbo_analysis_layers::{Entities, Sentences, Structure, Subwords, Tokens};
 use turbo_geo::NameAnnotator;
+use turbo_normalize::{Normalizer, normalize};
 use turbo_structure::StructureProjector;
 use turbo_tokenize::uax29::UntypedWordTokenizer;
+
+/// Normalizes both the folded view and the cased view in one step when a
+/// non-fold normalizer follows `turbo:normalize:case-fold`.
+pub(super) struct CasedNormalizeStep<N> {
+    pub(super) normalizer: N,
+}
+
+impl<N: Normalizer> Annotator for CasedNormalizeStep<N> {
+    const ID: &'static str = N::ID;
+    const VERSION: &'static str = N::VERSION;
+    type Reads = (View, View);
+    type Writes = (View, View);
+
+    fn annotate(&self, (folded, cased): Refs<'_, Self>) -> Result<(View, View), Error> {
+        let (f_text, f_align) = normalize(&self.normalizer, folded.text());
+        let (c_text, c_align) = normalize(&self.normalizer, cased.text());
+        Ok((View::derived(folded, f_text, f_align), View::derived(cased, c_text, c_align)))
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.normalizer.config_hash()
+    }
+}
 
 pub(super) fn check_required_inputs(doc: &Document, keys: &[KeyId]) -> Option<String> {
     keys.iter().find_map(|&k| match doc.status(k) {
