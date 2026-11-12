@@ -6,9 +6,9 @@
 import { LayerErrorKind, LayerWireStatus, OffsetMode, TypedAnnotationSchema, type TypedDocumentResult, type TypedLayer } from "../gen/turbo_typed_annotations_pb.js";
 import type { DescMessage } from "@bufbuild/protobuf";
 import { brief } from "../brief.js";
-import { $, el, lazy, options, table } from "../dom.js";
+import { $, el, failed, lazy, options, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 import { viewName } from "./xray.js";
 
 const PAGE = 200;
@@ -92,7 +92,7 @@ async function render(): Promise<void> {
     draw();
   } catch (e) {
     result = null;
-    box().replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box().replaceChildren(failed(explain(e)));
   }
 }
 

@@ -8,8 +8,8 @@ import { create } from "@bufbuild/protobuf";
 import { InferParameterSchema, type InferParameter, type ModelInferResponse } from "../gen/open_inference_grpc_pb.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
-import { $, el, input, options, say, table } from "../dom.js";
-import { describe, inference } from "../rpc.js";
+import { $, el, failed, input, options, say, table } from "../dom.js";
+import { explain, inference } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, reachable, whyNone } from "../state.js";
 import { cosine, heat, matrix, short, vectorsOf } from "./embed.js";
 
@@ -123,7 +123,7 @@ async function run(): Promise<void> {
     [qa, "sem-qa-out", () => answer(qa, query, passages.join("\n"))],
   ];
   await Promise.all(
-    jobs.filter(([m]) => m).map(([, box, job]) => job().catch((err) => $(box).replaceChildren(el("p", { class: "error", text: describe(err) })))),
+    jobs.filter(([m]) => m).map(([, box, job]) => job().catch((err) => $(box).replaceChildren(failed(explain(err))))),
   );
   say(note, "");
 }
@@ -136,6 +136,9 @@ export function init(): void {
   const served = (): void => {
     for (const [id, task, what] of kinds) {
       const names = caps?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
+      // A task nothing serves has no select at all; the embedding model's stays, to say why it is empty.
+      if (id !== "sem-embed") $(`${id}-pick`).hidden = names.length === 0;
+      if (id === "sem-qa") $("sem-topk-pick").hidden = names.length === 0;
       if (!names.length) {
         options(select(id), [], undefined, whyNone(what));
         continue;
@@ -157,6 +160,7 @@ export function init(): void {
   });
   onCapabilitiesFailed((err) => {
     served();
-    say($("sem-note"), reachable() === false ? "" : describe(err), "error");
+    if (reachable() === false) say($("sem-note"), "");
+    else say($("sem-note"), explain(err));
   });
 }

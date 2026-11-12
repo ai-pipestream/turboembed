@@ -8,9 +8,9 @@ import type { BoundaryDriftCurveProto, ProjectChunksResponse, TermVectorStackPro
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { BudgetSpecSchema } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
-import { $, el, input, lazy, table } from "../dom.js";
+import { $, el, failed, input, lazy, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 import { short } from "./embed.js";
 
 const W = 640;
@@ -183,7 +183,7 @@ async function render(): Promise<void> {
     });
     show(r, d.source);
   } catch (e) {
-    box().replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box().replaceChildren(failed(explain(e)));
   }
 }
 

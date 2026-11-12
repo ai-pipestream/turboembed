@@ -154,6 +154,12 @@ impl Allow {
         self.allowed.iter().any(|m| m.write)
     }
 
+    /// The paths of the forwarded methods that change the server, in the
+    /// table's order.
+    pub fn forwarded_writes(&self) -> Vec<&'static str> {
+        METHODS.iter().filter(|m| m.write && self.allowed.contains(m)).map(|m| m.path).collect()
+    }
+
     /// The method at `path` when it is forwarded; else whether the demo
     /// knows the path at all.
     pub fn get(&self, path: &str) -> Result<Method, bool> {
@@ -181,5 +187,15 @@ mod tests {
         let a = Allow::with(&["/turbo.search.v1.TurboSearchService/IndexDocuments".into()]).unwrap();
         assert!(a.writes() && a.get("/turbo.search.v1.TurboSearchService/IndexDocuments").unwrap().upload);
         assert!(Allow::with(&["/turbo.result.v1.AnalysisService/AnalyzeStream".into()]).is_err());
+        assert!(Allow::default().forwarded_writes().is_empty());
+        let a = Allow::with(&[
+            "/turbo.search.v1.TurboSearchService/IndexDocuments".into(),
+            "/turbo.search.v1.TurboSearchService/CreateIndex".into(),
+        ])
+        .unwrap();
+        assert_eq!(
+            a.forwarded_writes(),
+            ["/turbo.search.v1.TurboSearchService/CreateIndex", "/turbo.search.v1.TurboSearchService/IndexDocuments"]
+        );
     }
 }

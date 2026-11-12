@@ -8,9 +8,9 @@ import { LayerErrorKind, LayerWireStatus, OffsetMode } from "../gen/turbo_typed_
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
 import { busy } from "../act.js";
-import { $, download, el, options, say, table } from "../dom.js";
+import { $, download, el, failed, options, say, table } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
 
 let running: AbortController | null = null;
@@ -63,9 +63,10 @@ async function run(): Promise<void> {
   const t0 = performance.now();
   say(note, "Analyzing\u2026", "busy");
   try {
+    if (!(document.getElementById("analyze-text") as HTMLTextAreaElement).value.trim()) throw new Error("Enter a document first.");
     const model = select("analyze-model").value;
     const open = openSpanModels.has(model);
-    const relationModel = select("analyze-relation-model").value;
+    const relationModel = relationModels.size ? select("analyze-relation-model").value : "";
     const labels = ($("analyze-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
     const relationLabels = ($("analyze-relation-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
     const threshold = ($("analyze-threshold") as HTMLInputElement).valueAsNumber;
@@ -140,7 +141,7 @@ async function run(): Promise<void> {
     say(note, "");
     if (graph) setDoc({ graph, views, source });
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note, explain(e));
   } finally {
     if (running === ac) running = null;
   }
@@ -225,7 +226,7 @@ async function showWindow(): Promise<void> {
       lanesView(heat),
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box.replaceChildren(failed(explain(e)));
   }
 }
 
@@ -244,7 +245,7 @@ async function exportDoc(): Promise<void> {
     const text = r.mediaType.startsWith("text/") || r.mediaType.includes("csv") || r.mediaType.includes("ld+");
     out.replaceChildren(save, text ? el("pre", { class: "export", text: new TextDecoder().decode(r.content) }) : el("p", { class: "muted", text: `${r.content.length} bytes of ${r.mediaType}` }));
   } catch (e) {
-    out.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    out.replaceChildren(failed(explain(e)));
   }
 }
 
@@ -261,8 +262,19 @@ async function loadFormats(): Promise<void> {
     const down = reachable() === false;
     if (!select("analyze-format").value) options(select("analyze-format"), [], undefined, down ? "the server is not reachable" : "the formats could not be listed");
     formatsFailed = !down;
-    if (!down) say($("analyze-note"), describe(e), "error");
+    if (!down) say($("analyze-note"), explain(e));
   }
+}
+
+/**
+ * Shows the open-span options only with an open-span model picked, the
+ * relation model only when one is served, and the relation options only
+ * with one picked. What is typed in a hidden group is kept.
+ */
+function groups(): void {
+  $("analyze-open-span").hidden = !openSpanModels.has(select("analyze-model").value);
+  $("analyze-relation-pick").hidden = relationModels.size === 0;
+  $("analyze-relation").hidden = relationModels.size === 0 || select("analyze-relation-model").value === "";
 }
 
 export function init(): void {
@@ -283,7 +295,10 @@ export function init(): void {
     options(select("analyze-profile"), ["", ...c.profiles.map((p) => p.name)], ["default", ...c.profiles.map((p) => `${p.name} v${p.version}`)]);
     options(select("analyze-model"), ["", ...models], ["none", ...models]);
     options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
+    groups();
   });
+  select("analyze-model").addEventListener("change", groups);
+  select("analyze-relation-model").addEventListener("change", groups);
   // Before the first answer, the selects say that there is no server to ask.
   let filled = false;
   onCapabilities(() => (filled = true));

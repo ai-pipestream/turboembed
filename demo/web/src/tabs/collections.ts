@@ -4,8 +4,9 @@
 
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
-import type { CollectionEvent } from "../gen/turbo_search_pb.js";
-import { describe, search } from "../rpc.js";
+import { TurboSearchService, type CollectionEvent } from "../gen/turbo_search_pb.js";
+import { lock, off } from "../permit.js";
+import { cancelled, describe, explain, search } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 
 let watching: AbortController | null = null;
@@ -41,7 +42,7 @@ function remove(name: string): HTMLElement {
   return confirmed("Delete", `Delete ${name}?`, async () => {
     await search.deleteCollection({ collectionName: name });
     await list();
-  });
+  }, off(TurboSearchService.method.deleteCollection));
 }
 
 async function set(ev: Event): Promise<void> {
@@ -58,7 +59,7 @@ async function set(ev: Event): Promise<void> {
       say(note(), `Set ${r.collection?.collectionName ?? name}.`);
       await list();
     } catch (e) {
-      say(note(), describe(e), "error");
+      say(note(), explain(e));
     }
   });
 }
@@ -93,8 +94,8 @@ async function watch(): Promise<void> {
       }
       say(note(), "The server ended the watch.");
     } catch (e) {
-      const why = describe(e);
-      say(note(), why === "cancelled" ? "Stopped watching." : why, why === "cancelled" ? "" : "error");
+      if (cancelled(e)) say(note(), "Stopped watching.");
+      else say(note(), explain(e));
     } finally {
       if (watching === ac) watching = null;
     }
@@ -109,6 +110,11 @@ export function stop(): void {
 
 export function init(): void {
   $("coll-set").addEventListener("submit", set);
+  // Watching is a read: only the Set button is the write.
+  const setButton = $("coll-set").querySelector("button[type=submit]") as HTMLButtonElement;
+  const why = off(TurboSearchService.method.setCollection);
+  setButton.disabled = why !== "";
+  setButton.title = why;
   const again = $("coll-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void busy(again, list));
   onServed(() => void list());

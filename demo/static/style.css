@@ -56,6 +56,14 @@ label.token input { width: 16em; max-width: 100%; }
 .status.down::before { background: var(--error); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; min-width: 0; }
 .row > select { flex: 0 1 auto; min-width: 0; }
+.row > label { display: flex; gap: 6px; align-items: center; min-width: 0; color: var(--muted); white-space: nowrap; }
+.row > label.grow { flex: 1 1 12em; }
+.row > label > input, .row > label > select { color: var(--text); min-width: 0; }
+.options.group { margin-top: 0; padding-left: 10px; border-left: 2px solid var(--line); }
+.options.group[hidden], .options label[hidden] { display: none; }
+.note details.why, .error details.why { display: inline; }
+details.why summary { display: inline; cursor: pointer; color: var(--muted); font-size: 12px; text-decoration: underline dotted; }
+details.why code { display: block; margin-top: 4px; font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
 .row .primary { width: auto; flex: 1; margin-top: 0; }
 .row input:not(.narrow):not([type="checkbox"]) { flex: 1; min-width: 8em; }
 .narrow { width: 6em; }
@@ -207,3 +215,5 @@ progress { width: 100%; }
 .acts button { font-size: 13px; padding: 3px 10px; }
 .files button { margin: 4px 4px 0 0; font-size: 13px; padding: 3px 8px; }
 button.chip { cursor: pointer; }
+.off { opacity: 0.55; }
+.off-why { margin: 6px 0 0; font-size: 13px; overflow-wrap: anywhere; }

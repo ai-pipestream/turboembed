@@ -6,7 +6,8 @@ import { TurboVocabularyService } from "../gen/turbo_vocabulary_pb.js";
 import { busy as working, confirmed, submitter } from "../act.js";
 import { $, download, el, input, options, say, size, table } from "../dom.js";
 import { importBody, learnBody, type Text } from "../frames.js";
-import { describe, vocabulary } from "../rpc.js";
+import { lock, off } from "../permit.js";
+import { describe, explain, vocabulary } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
 import { put } from "../upload.js";
@@ -41,7 +42,7 @@ function actions(id: string): HTMLElement {
   const del = confirmed("Delete", `Delete ${id}?`, async () => {
     await vocabulary.deleteVocabularyArtifact({ artifactId: id });
     await list();
-  });
+  }, off(TurboVocabularyService.method.deleteVocabularyArtifact));
   return el("span", {}, get, " ", del);
 }
 
@@ -111,7 +112,7 @@ async function importDictionary(ev: Event): Promise<void> {
       say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list();
     } catch (e) {
-      say(note, describe(e), "error");
+      say(note, explain(e));
     }
   }), stopButton());
 }
@@ -148,7 +149,7 @@ async function learn(ev: Event): Promise<void> {
       say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list();
     } catch (e) {
-      say(note, describe(e), "error");
+      say(note, explain(e));
     }
   }), stopButton());
 }
@@ -172,13 +173,15 @@ async function fetchArtifact(id: string, signal: AbortSignal): Promise<void> {
     download(name, parts, "application/octet-stream");
     say(note, `Downloaded ${name}, ${size(got)}.`);
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note, explain(e));
   }
 }
 
 export function init(): void {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
+  lock($("vocab-import"), TurboVocabularyService.method.importDictionary);
+  lock($("vocab-learn"), TurboVocabularyService.method.learnVocabulary);
   const again = $("vocab-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void working(again, list));
   onServed(() => void list());

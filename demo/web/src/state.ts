@@ -2,7 +2,8 @@
 // and whether the server answers at all.
 
 import type { CapabilitiesResponse } from "./gen/turbo_analysis_pb.js";
-import { analysis } from "./rpc.js";
+import * as permit from "./permit.js";
+import { analysis, demo } from "./rpc.js";
 import { stale, type Status } from "./status.js";
 
 let current: Promise<CapabilitiesResponse> | null = null;
@@ -85,4 +86,14 @@ export function onServed(l: () => void): void {
 /** Why a list of served things is empty: no server, or a server that serves none. */
 export function whyNone(what: string): string {
   return reachable() === false ? "the server is not reachable" : `no ${what} is served`;
+}
+
+/** Asks the demo which writes it forwards; with no answer, nothing is turned off. */
+export async function permits(): Promise<void> {
+  try {
+    const d = await demo.describe({});
+    permit.set(d.forwardedWrites, d.hasUser);
+  } catch {
+    permit.set(null);
+  }
 }

@@ -8,7 +8,7 @@ import { busy } from "../act.js";
 import { $, download, el, input, lazy, say, size } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
 import { WireError, hex, walkGraph, type Part } from "../graphwire.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 
 const box = () => $("wire-out");
 const note = () => $("wire-note");
@@ -57,7 +57,7 @@ async function roundTrip(): Promise<void> {
     const same = r.graph.length === d.graph.length && r.graph.every((b, i) => b === d.graph[i]);
     say(note(), `The server re-exported ${size(r.graph.length)}, ${r.layers.length} layers and ${r.views.length} views: ${same ? "byte for byte the same" : "different bytes"}.`, same ? "" : "error");
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 
@@ -71,7 +71,7 @@ async function open(): Promise<void> {
     setDoc({ graph, views: r.views, source: r.sourceText });
     say(note(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 

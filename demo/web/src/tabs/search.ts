@@ -4,9 +4,10 @@
 
 import { DistanceMetric, NormalizationMode, TurboSearchService, VectorStorageKind, type SearchResponse } from "../gen/turbo_search_pb.js";
 import { busy, confirmed, submitter } from "../act.js";
-import { $, el, input, options, say, size, table } from "../dom.js";
+import { $, el, failed, input, options, say, size, table } from "../dom.js";
 import { indexBody, type Text } from "../frames.js";
-import { describe, search } from "../rpc.js";
+import { lock, off } from "../permit.js";
+import { describe, explain, search } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, onServed, reachable, whyNone } from "../state.js";
 import { put } from "../upload.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
@@ -49,7 +50,7 @@ function deleteButton(name: string): HTMLElement {
   return confirmed("Delete", `Delete ${name}?`, async () => {
     await search.deleteIndex({ indexName: name });
     await list();
-  });
+  }, off(TurboSearchService.method.deleteIndex));
 }
 
 async function createIndex(ev: Event): Promise<void> {
@@ -79,7 +80,7 @@ async function createIndex(ev: Event): Promise<void> {
       await list();
       select("search-index").value = name;
     } catch (e) {
-      say(note, describe(e), "error");
+      say(note, explain(e));
     }
   });
 }
@@ -112,7 +113,7 @@ async function addDocuments(): Promise<void> {
       say(note, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
       await list();
     } catch (e) {
-      say(note, describe(e), "error");
+      say(note, explain(e));
     } finally {
       if (indexing === ac) indexing = null;
     }
@@ -147,6 +148,9 @@ function heatView(r: SearchResponse): HTMLElement {
 async function runSearch(ev: Event): Promise<void> {
   ev.preventDefault();
   const out = $("search-results");
+  // The obvious gaps are said here, before the server is asked.
+  const missing = !select("search-index").value ? "Pick or create an index first." : !input("search-query").value.trim() ? "Enter something to search for." : "";
+  if (missing) return void out.replaceChildren(el("p", { class: "error", text: missing }));
   await busy(submitter(ev), async () => {
     try {
       const r = await search.search({
@@ -175,7 +179,7 @@ async function runSearch(ev: Event): Promise<void> {
         heatView(r),
       );
     } catch (e) {
-      out.replaceChildren(el("p", { class: "error", text: describe(e) }));
+      out.replaceChildren(failed(explain(e)));
     }
   });
 }
@@ -187,6 +191,8 @@ export function stop(): void {
 
 export function init(): void {
   $("search-create").addEventListener("submit", createIndex);
+  lock($("search-create"), TurboSearchService.method.createIndex);
+  lock($("search-add-box"), TurboSearchService.method.indexDocuments);
   $("search-add").addEventListener("click", addDocuments);
   $("search-form").addEventListener("submit", runSearch);
   const refreshButton = $("search-refresh") as HTMLButtonElement;

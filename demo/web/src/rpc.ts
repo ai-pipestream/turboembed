@@ -4,8 +4,10 @@
 import { Code, ConnectError, createClient, type Client, type Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 import type { DescService } from "@bufbuild/protobuf";
+import { explain } from "./errors.js";
 import { GRPCInferenceService } from "./gen/open_inference_grpc_pb.js";
 import { AnalysisService } from "./gen/turbo_analysis_pb.js";
+import { DemoService } from "./gen/turbo_demo_pb.js";
 import { TurboSearchService } from "./gen/turbo_search_pb.js";
 import { TurboCatalogService, TurboTrainingService } from "./gen/turbo_training_pb.js";
 import { TurboVocabularyService } from "./gen/turbo_vocabulary_pb.js";
@@ -50,39 +52,12 @@ export const search = client(TurboSearchService);
 export const vocabulary = client(TurboVocabularyService);
 export const catalog = client(TurboCatalogService);
 export const training = client(TurboTrainingService);
+/** The demo itself, not the server behind it. */
+export const demo = client(DemoService);
 
-/** A Connect code as the protocol writes it: `permission_denied`. */
-export function codeName(code: Code): string {
-  const camel = Code[code] ?? String(code);
-  let out = "";
-  for (const ch of camel) {
-    const lower = ch.toLowerCase();
-    if (ch !== lower && out) out += "_";
-    out += lower;
-  }
-  return out;
-}
-
-/** What went wrong, from the code, the server's turbo-code and turbo-field, and the message. */
+/** What went wrong as one plain sentence; `explain` also gives the protocol's details. */
 export function describe(e: unknown): string {
-  if (e instanceof Error && e.name === "AbortError") return "cancelled";
-  const c = ConnectError.from(e);
-  if (c.code === Code.Canceled) return "cancelled";
-  const parts = [codeName(c.code)];
-  const tc = c.metadata.get("turbo-code");
-  const tf = c.metadata.get("turbo-field");
-  if (tc) parts.push(`turbo-code ${tc}`);
-  if (tf && tf !== "0") parts.push(`field ${tf}`);
-  const why = refusedWhy(c.code);
-  return `${parts.join(", ")}: ${c.rawMessage}${why ? ` (${why})` : ""}`;
-}
-
-/** Why a refusal happened, when it is the demo's gate or allowlist. */
-function refusedWhy(code: Code): string {
-  if (code === Code.PermissionDenied) return "not allowed: start the demo with --allow for this method";
-  if (code === Code.Unauthenticated) return "the demo wants its token: set it in the header";
-  if (code === Code.Unimplemented) return "not served";
-  return "";
+  return explain(e).text;
 }
 
 /** Whether `e` is a refusal by the demo or server rather than a failure. */
@@ -90,3 +65,5 @@ export function refused(e: unknown): boolean {
   const c = ConnectError.from(e).code;
   return c === Code.PermissionDenied || c === Code.Unauthenticated || c === Code.Unimplemented;
 }
+
+export { cancelled, explain } from "./errors.js";

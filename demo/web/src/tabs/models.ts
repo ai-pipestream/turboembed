@@ -3,11 +3,12 @@
 // and static model distillation with a streaming TrainStaticModel
 // monitor, the teachers it can use and the static models it made.
 
-import { InstallStage, StaticDtype, TrainStage, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
+import { InstallStage, StaticDtype, TrainStage, TurboCatalogService, TurboTrainingService, type CatalogEntry, type CatalogFile, type LicenceTerms } from "../gen/turbo_training_pb.js";
 import { kindName, kinds, matches, purpose } from "../catalogfilter.js";
 import { busy, confirmed, submitter } from "../act.js";
-import { $, el, input, options, say, size, table } from "../dom.js";
-import { catalog, describe, training } from "../rpc.js";
+import { $, el, failed, input, options, say, size, table } from "../dom.js";
+import { lock, off } from "../permit.js";
+import { catalog, describe, explain, training } from "../rpc.js";
 import { onCapabilities, onServed, reachable, refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
 import { download, nonCommercial } from "./download.js";
@@ -34,7 +35,7 @@ async function act(change: () => Promise<string>): Promise<void> {
     await loadCatalog();
     say(note(), done);
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 
@@ -48,8 +49,9 @@ function entryRow(e: CatalogEntry, w: Who): HTMLElement {
   let install: HTMLElement | string = "";
   if (w.canChange) {
     const b = el("button", { type: "button", class: e.missingTerms.length ? "" : "primary", text: e.installed ? "Reinstall" : "Install" });
-    b.disabled = e.missingTerms.length > 0;
-    b.title = b.disabled ? "Accept the licence terms first" : "";
+    const why = off(TurboCatalogService.method.installModel);
+    b.disabled = e.missingTerms.length > 0 || why !== "";
+    b.title = e.missingTerms.length > 0 ? "Accept the licence terms first" : why;
     b.addEventListener("click", () => void busy(b, () => installModel(e)));
     install = b;
   }
@@ -168,7 +170,8 @@ async function loadCatalog(): Promise<void> {
     );
     say(note(), "");
   } catch (e) {
-    say(note(), reachable() === false ? "The server is not reachable, so its catalog cannot be read." : describe(e), "error");
+    if (reachable() === false) say(note(), "The server is not reachable, so its catalog cannot be read.", "error");
+    else say(note(), explain(e));
   }
 }
 
@@ -225,13 +228,13 @@ async function loadTraining(): Promise<void> {
         ]),
       );
     } catch (e) {
-      made = el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its static models cannot be listed." : describe(e) });
+      made = reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so its static models cannot be listed." }) : failed(explain(e));
     }
     box.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
     const down = reachable() === false;
     options($("train-teacher") as HTMLSelectElement, [], undefined, down ? "the server is not reachable" : "the teachers could not be listed");
-    box.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its teachers and static models cannot be listed." : describe(e) }));
+    box.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));
   }
 }
 
@@ -239,7 +242,7 @@ function deleteButton(name: string): HTMLElement {
   return confirmed("Delete", `Delete ${name}?`, async () => {
     await training.deleteStaticModel({ name });
     await Promise.all([loadTraining(), refresh()]);
-  });
+  }, off(TurboTrainingService.method.deleteStaticModel));
 }
 
 async function train(ev: Event): Promise<void> {
@@ -291,7 +294,7 @@ async function train(ev: Event): Promise<void> {
       await Promise.all([loadTraining(), refresh()]);
       say($("train-note"), "");
     } catch (e) {
-      say($("train-note"), describe(e), "error");
+      say($("train-note"), explain(e));
     } finally {
       if (trainingRun === ac) trainingRun = null;
     }
@@ -316,6 +319,7 @@ export function init(): void {
   const read = $("models-catalog-load") as HTMLButtonElement;
   read.addEventListener("click", () => void busy(read, loadCatalog));
   $("train-form").addEventListener("submit", train);
+  lock($("train-form"), TurboTrainingService.method.trainStaticModel);
   $("train-stop").addEventListener("click", stopTraining);
   const again = $("train-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void busy(again, loadTraining));
