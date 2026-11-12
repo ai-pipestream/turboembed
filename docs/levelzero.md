@@ -599,15 +599,17 @@ three rounds. Device milliseconds per run, the median of three rounds
 | the embedding lookup | 0.077 | 0.208 |
 | the last feed-forward output and LayerNorm | 0.034 | 0.090 |
 | pooling, normalization | 0.029 | 0.008 |
-| sum | about 3.20 | about 16.40 |
+| `narrow_f16_transposed` (the weights' conversion at load, 48 launches for bge-base) | 0.016 | 0.122 |
+| sum of the lines | 3.20 | 17.00 |
 | wall time of a profiled run | 3.606 | 17.995 |
 
 A profiled run is slower than an unprofiled one: timing every
 primitive costs time on the host (MiniLM's record p50 is about 3.1 ms).
 So the gap between the sum and a profiled run's wall time is an upper
 bound on the time the device spends between kernels, not a measure of
-it. Lines move by under 0.01 ms between rounds, apart from the
-LayerNorms.
+it: about 0.41 ms for MiniLM and 1.0 ms for bge-base. Between rounds the
+matmuls, attention and the smaller kernels move by under 0.01 ms, the
+copies by 0.012 to 0.016 ms, and oneDNN's LayerNorms by up to 0.05 ms.
 
 ## Testing on a machine with an Intel GPU
 
