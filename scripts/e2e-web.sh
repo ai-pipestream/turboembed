@@ -52,14 +52,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Two ports nothing listens on.
-read -r SERVER_PORT DEMO_PORT < <(node -e '
+# Four ports nothing listens on.
+read -r SERVER_PORT DEMO_PORT INSTALL_SERVER_PORT INSTALL_DEMO_PORT < <(node -e '
   const net = require("node:net");
-  const a = net.createServer().listen(0, "127.0.0.1", () => {
-    const b = net.createServer().listen(0, "127.0.0.1", () => {
-      console.log(a.address().port, b.address().port);
-      a.close(); b.close();
-    });
+  const servers = [0, 1, 2, 3].map(() => net.createServer());
+  let open = 0;
+  for (const s of servers) s.listen(0, "127.0.0.1", () => {
+    if (++open < servers.length) return;
+    console.log(servers.map((x) => x.address().port).join(" "));
+    for (const x of servers) x.close();
   });')
 
 mkdir "$WORK/vocabulary" "$WORK/catalog" "$WORK/training"
@@ -75,22 +76,69 @@ PIDS+=($!)
   --server "http://127.0.0.1:$SERVER_PORT" >"$WORK/demo.log" 2>&1 &
 PIDS+=($!)
 
+# The install flow (demo/web/e2e/install.test.ts) has a server and a
+# demo of its own: a catalog of one share-alike bundle, the tiny test
+# bundle with its licence set to CC-BY-SA-4.0, whose files are in a
+# file:// store, and a demo that acts for the user e2e and forwards the
+# writes the flow makes.
+mkdir -p "$WORK/install/catalog" "$WORK/install/store"
+cp -r testdata/tiny-bert-bundle "$WORK/install/bundle"
+sed -i.orig 's/"license": "Apache-2.0"/"license": "CC-BY-SA-4.0"/' "$WORK/install/bundle/manifest.json"
+rm "$WORK/install/bundle/manifest.json.orig"
+node -e '
+  const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto");
+  const [dir, store, out] = process.argv.slice(1);
+  const files = [];
+  (function walk(d) {
+    for (const n of fs.readdirSync(d).sort()) {
+      const p = path.join(d, n);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else files.push(path.relative(dir, p).split(path.sep).join("/"));
+    }
+  })(dir);
+  fs.mkdirSync(path.join(store, "blobs", "sha256"), { recursive: true });
+  const entries = files.map((f) => {
+    const b = fs.readFileSync(path.join(dir, f));
+    const sha256 = crypto.createHash("sha256").update(b).digest("hex");
+    fs.writeFileSync(path.join(store, "blobs", "sha256", sha256), b);
+    const sha512 = crypto.createHash("sha512").update(b).digest("hex");
+    return { path: f, url: `https://example.org/tiny-bert-sa/${f}`, size: b.length, sha256, sha512 };
+  });
+  fs.writeFileSync(out, JSON.stringify({ zoo_version: 1, artifacts: [{
+    id: "tiny-bert-sa", kind: "KIND_MODEL", language: "en", format: "FORMAT_SAFETENSORS", version: "1",
+    license: "CC-BY-SA-4.0", license_terms: "https://creativecommons.org/licenses/by-sa/4.0/legalcode",
+    trained_on: [], class: "CLASS_SHARE_ALIKE", attribution: "The tiny test bundle under share-alike terms.",
+    files: entries }] }));
+' "$WORK/install/bundle" "$WORK/install/store" "$WORK/install/index.json"
+"$DEBUG/turbo-kserve" --listen "127.0.0.1:$INSTALL_SERVER_PORT" --admin \
+  --catalog-dir "$WORK/install/catalog" --catalog-index "$WORK/install/index.json" \
+  --catalog-store "file://$WORK/install/store" --model "$BERT" >"$WORK/install-server.log" 2>&1 &
+PIDS+=($!)
+"$DEBUG/turbo-kserve-demo" --listen "127.0.0.1:$INSTALL_DEMO_PORT" --server "http://127.0.0.1:$INSTALL_SERVER_PORT" \
+  --user e2e --allow /turbo.training.v1.TurboCatalogService/RecordLicenceAcceptance \
+  --allow /turbo.training.v1.TurboCatalogService/InstallModel \
+  --allow /turbo.result.v1.AnalysisService/LoadBundle >"$WORK/install-demo.log" 2>&1 &
+PIDS+=($!)
+
 for _ in $(seq 120); do
-  if grep -q "ready" "$WORK/server.log" && grep -q "open http" "$WORK/demo.log"; then break; fi
+  if grep -q "ready" "$WORK/server.log" && grep -q "open http" "$WORK/demo.log" \
+    && grep -q "ready" "$WORK/install-server.log" && grep -q "open http" "$WORK/install-demo.log"; then break; fi
   for pid in "${PIDS[@]}"; do
     if ! kill -0 "$pid" 2>/dev/null; then
-      cat "$WORK/server.log" "$WORK/demo.log" >&2
+      cat "$WORK/server.log" "$WORK/demo.log" "$WORK/install-server.log" "$WORK/install-demo.log" >&2
       echo "error: the server or the demo stopped before it was ready" >&2
       exit 1
     fi
   done
   sleep 0.5
 done
-if ! grep -q "ready" "$WORK/server.log"; then
-  cat "$WORK/server.log" >&2
-  echo "error: the server was not ready in 60 s" >&2
-  exit 1
-fi
+for log in server install-server; do
+  if ! grep -q "ready" "$WORK/$log.log"; then
+    cat "$WORK/$log.log" >&2
+    echo "error: the $log was not ready in 60 s" >&2
+    exit 1
+  fi
+done
 
 # The tests are bundled beside node_modules so Node finds Playwright there.
 OUT="$ROOT/demo/web/node_modules/.e2e"
@@ -100,4 +148,5 @@ rm -rf "$OUT"
 # One file at a time: each model is served with one session, which
 # refuses a second call while one runs, so files run side by side would
 # fail each other's calls.
-TURBO_E2E_LAYER_GRAPH="$WORK/layer-instances.graph" TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test --test-concurrency=1 "$OUT"/*.test.mjs
+TURBO_E2E_INSTALL_URL="http://127.0.0.1:$INSTALL_DEMO_PORT" TURBO_E2E_INSTALL_INDEX="$WORK/install/index.json" \
+  TURBO_E2E_LAYER_GRAPH="$WORK/layer-instances.graph" TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test --test-concurrency=1 "$OUT"/*.test.mjs
