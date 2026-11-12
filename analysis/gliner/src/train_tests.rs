@@ -136,13 +136,28 @@ fn combinations() -> Vec<Heads> {
 
 #[test]
 fn negative_only_sentences_train_and_empty_inputs_are_safe() {
-    for heads in combinations() {
-        let (input, candidates) = fixture();
+    let projected = [false, true].map(|linear| Heads {
+        linear,
+        boundaries: true,
+        prompt: true,
+        recurrent: true,
+        projection: true,
+        prompt_factor: 0,
+    });
+    for heads in combinations().into_iter().chain(projected) {
+        let (mut input, candidates) = fixture();
+        if heads.projection {
+            input.encoder_inputs = vec![0.4, -0.1, 0.3, 0.6, -0.2, 0.4, 0.3, 0.2, 0.5];
+        }
         let trainer = trainer(heads);
         let mut grads = trainer.zero_grads();
         let loss = trainer.gradients(&input, &candidates, &[], &mut grads).unwrap();
         assert!(loss.is_finite() && loss != 0.0, "{heads:?}");
         assert!(grads.iter().flatten().any(|&gradient| gradient != 0.0), "{heads:?}");
+        if heads.projection {
+            let offset = trainer.projection_offset().unwrap();
+            assert!(grads[offset].iter().any(|&gradient| gradient != 0.0), "{heads:?}");
+        }
     }
 
     let (mut input, _) = fixture();
