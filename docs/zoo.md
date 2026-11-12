@@ -363,16 +363,24 @@ which names its bytes. The flags are `import-hf`'s without `--file`;
 `version` is `sha256:<digest>` when left out, and `--bundle` reads a
 sealed bundle directory from the layers.
 
+Docker Hub's registry is `registry-1.docker.io`. A reference that names
+`docker.io` or `index.docker.io`, as image references spell it, is read
+as that host, and the entry's addresses name it.
+
 An image index, a layer that names no file (a container image's file
 system layer, so a model packed into an image's file system is not
-imported), and a digest that is not SHA-256 are refused.
+imported), a layer that is a directory packed as one archive (what
+`oras push` makes of a directory; push each file as a layer of its
+own), and a digest that is not SHA-256 are refused.
 
 `OciRegistry` (the `http` feature) is the registry client and a
 `Transport`: it reads manifests and blobs by digest without
 credentials, answers a registry's `WWW-Authenticate: Bearer` challenge
 once per repository with an anonymous token from the service the
 challenge names, and follows a redirect to the registry's storage
-without the token, over HTTPS only. Most registries ask for such a
+without the token, over HTTPS only. A manifest request that is sent
+on to another host is reported as that redirect and is not followed.
+Most registries ask for such a
 token for public repositories too, so a file at a blob address is
 fetched through it: `turbo-zoo fetch` asks the address plainly and then
 through `OciRegistry`. `OciRegistry::with` sends a registry's requests

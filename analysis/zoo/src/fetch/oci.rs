@@ -103,8 +103,16 @@ impl OciRegistry {
         if resp.status().is_redirection() {
             let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
             let to = to.ok_or_else(|| format!("{url}: a redirect with no Location"))?;
-            let origin = target.find("/v2/").map_or(target.len(), |at| at);
+            let origin = target.find("/v2/").unwrap_or(target.len());
             let to = resolve(&target[..origin], &target[origin..], to);
+            // A blob may be served from the registry's storage. A manifest
+            // is the registry's own answer: one sent elsewhere is reported
+            // as that, not read and found to have another digest.
+            if target.contains("/manifests/") && !to.starts_with(&format!("{}/", &target[..origin])) {
+                return Err(format!(
+                    "{url}: redirected to {to}, which is not the registry; name the registry's own host"
+                ));
+            }
             resp = self.plain.get(&to).call().map_err(|e| format!("{url}: following its redirect: {e}"))?;
         }
         if !resp.status().is_success() {
@@ -170,10 +178,14 @@ fn token_request(challenge: &str) -> Result<(String, String), String> {
         .or_else(|| challenge.strip_prefix("bearer "))
         .ok_or_else(|| format!("the registry needs a sign-in the zoo does not make ({challenge:?})"))?;
     let (mut realm, mut query) = (None, Vec::new());
-    // Each parameter is `name="value"`; a scope may hold commas.
-    let mut rest = rest.trim_start();
-    while let Some((name, after)) = rest.split_once("=\"") {
-        let (value, tail) = after.split_once('"').ok_or_else(|| format!("a malformed challenge ({challenge:?})"))?;
+    // Each parameter is `name="value"`, where a scope may hold commas, or
+    // `name=value` up to the next comma.
+    let mut rest = rest.trim_start_matches([',', ' ']);
+    while let Some((name, after)) = rest.split_once('=') {
+        let (value, tail) = match after.strip_prefix('"') {
+            Some(quoted) => quoted.split_once('"').ok_or_else(|| format!("a malformed challenge ({challenge:?})"))?,
+            None => after.split_once(',').unwrap_or((after, "")),
+        };
         match name.trim() {
             "realm" => realm = Some(value.to_owned()),
             name @ ("service" | "scope") => query.push(format!("{name}={}", encode(value))),
@@ -216,6 +228,11 @@ mod tests {
         assert_eq!(
             token_request(spaced).unwrap(),
             ("https://r.example.org/token".to_owned(), "scope=repository:a/b:pull%2Cpush".to_owned())
+        );
+        let unquoted = r#"Bearer error=invalid_token, realm="https://r.example.org/token",service=r.example.org"#;
+        assert_eq!(
+            token_request(unquoted).unwrap(),
+            ("https://r.example.org/token".to_owned(), "service=r.example.org".to_owned())
         );
         assert!(token_request(r#"Basic realm="registry""#).unwrap_err().contains("does not make"));
         assert!(token_request(r#"Bearer service="x""#).unwrap_err().contains("names no token service"));

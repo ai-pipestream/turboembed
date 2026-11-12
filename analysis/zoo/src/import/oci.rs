@@ -14,6 +14,15 @@ use crate::licence::Licence;
 /// The annotation a layer names its file with, as ORAS writes it.
 pub const TITLE: &str = "org.opencontainers.image.title";
 
+/// The annotation ORAS sets on a layer that is a directory packed as one
+/// archive, to be unpacked on pull. The media type does not tell such a
+/// layer from a file: ORAS gives a plain file a tar layer's type too.
+const UNPACK: &str = "io.deis.oras.content.unpack";
+
+/// Docker Hub's registry. `docker.io` and `index.docker.io`, as image
+/// references spell it, are web hosts that serve no artifact.
+const DOCKER_HUB: &str = "registry-1.docker.io";
+
 /// An artifact in a registry, and what an entry holds that it does not say.
 #[derive(Debug, Clone)]
 pub struct OciImport {
@@ -38,6 +47,7 @@ fn digest(s: &str) -> Option<Sha256> {
 }
 
 /// The registry, repository name and manifest digest `reference` names.
+/// Docker Hub under either of its other names is its registry's host.
 fn parse(reference: &str) -> Result<(&str, &str, Sha256), String> {
     let (repository, pin) = reference
         .split_once('@')
@@ -56,6 +66,7 @@ fn parse(reference: &str) -> Result<(&str, &str, Sha256), String> {
     if !host || name.is_empty() || !name.split('/').all(part) {
         return Err(format!("{reference:?} is not <registry>/<name>@sha256:<digest>, with the registry's host named"));
     }
+    let registry = if matches!(registry, "docker.io" | "index.docker.io") { DOCKER_HUB } else { registry };
     Ok((registry, name, pin))
 }
 
@@ -70,7 +81,7 @@ fn parse(reference: &str) -> Result<(&str, &str, Sha256), String> {
 pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError> {
     let id = spec.id.clone();
     let fail = |message: String| ZooError::Import { id: id.clone(), message };
-    let (host, name, pin) = parse(&spec.reference).map_err(&fail)?;
+    let (host, name, pin) = parse(&spec.reference).map_err(fail)?;
     let at = format!("https://{host}/v2/{name}");
     let manifest = registry
         .manifest(host, name, &pin)
@@ -93,11 +104,17 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         let title = layer.get("annotations").and_then(|a| a.get(TITLE)).and_then(|t| t.as_str()).ok_or_else(|| {
             bad("names no file (no org.opencontainers.image.title); a container image's layers are not model files")
         })?;
+        let unpack = layer.get("annotations").and_then(|a| a.get(UNPACK)).and_then(|u| u.as_str()) == Some("true");
+        if unpack {
+            return Err(bad(&format!(
+                "({title:?}) is an archive of a directory, not a file; push each file as a layer of its own"
+            )));
+        }
         let path = RelPath::from_str(title).map_err(|e| bad(&format!("names a file the zoo does not take: {e}")))?;
         let size = layer.get("size").and_then(|s| s.as_u64()).ok_or_else(|| bad("has no size"))?;
         let named = layer.get("digest").and_then(|d| d.as_str()).unwrap_or_default();
         let sha256 = digest(named).ok_or_else(|| bad(&format!("has the digest {named:?}, not a SHA-256 one")))?;
-        let url = Url::from_str(&format!("{at}/blobs/sha256:{sha256}")).map_err(&fail)?;
+        let url = Url::from_str(&format!("{at}/blobs/sha256:{sha256}")).map_err(fail)?;
         let bytes =
             registry.get(&url, size).map_err(|message| ZooError::Transport { url: url.to_string(), message })?;
         let differs = |check, expected: String, actual: String| ZooError::Integrity {
@@ -161,6 +178,11 @@ mod tests {
         let pinned = format!("registry.example.org:5000/models/tiny-bert@sha256:{hex}");
         let (registry, name, pin) = parse(&pinned).unwrap();
         assert_eq!((registry, name, pin.to_string()), ("registry.example.org:5000", "models/tiny-bert", hex.clone()));
+        for hub in ["docker.io", "index.docker.io", "registry-1.docker.io"] {
+            let reference = format!("{hub}/pipestreamai/tiny@sha256:{hex}");
+            let (registry, name, _) = parse(&reference).unwrap();
+            assert_eq!((registry, name), ("registry-1.docker.io", "pipestreamai/tiny"), "{hub}");
+        }
         for moving in ["registry.example.org/models/tiny:latest", "registry.example.org/models/tiny"] {
             assert!(parse(moving).unwrap_err().contains("a tag may move"), "{moving}");
         }

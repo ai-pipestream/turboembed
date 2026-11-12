@@ -36,7 +36,7 @@ fn bytes_of(path: &str) -> Vec<u8> {
 /// One layer as ORAS writes it for a file.
 fn layer(path: &str, bytes: &[u8]) -> String {
     format!(
-        r#"{{"mediaType": "application/octet-stream", "digest": "sha256:{}", "size": {},
+        r#"{{"mediaType": "application/vnd.oci.image.layer.v1.tar", "digest": "sha256:{}", "size": {},
             "annotations": {{"org.opencontainers.image.title": "{path}"}}}}"#,
         Sha256::of(bytes),
         bytes.len()
@@ -62,6 +62,9 @@ fn manifest_of(layers: &[String]) -> Vec<u8> {
 struct Registry {
     manifests: BTreeMap<String, Vec<u8>>,
     blobs: BTreeMap<String, Vec<u8>>,
+    /// Where a manifest request is sent on, as a web host that is not a
+    /// registry answers one.
+    manifests_moved_to: Option<String>,
     seen: Mutex<Vec<(String, bool)>>,
 }
 
@@ -114,6 +117,9 @@ impl Registry {
         }
         let under = format!("/v2/{NAME}/");
         let Some(rest) = target.strip_prefix(under.as_str()) else { return missing };
+        if let (Some(_), Some(to)) = (rest.strip_prefix("manifests/"), &self.manifests_moved_to) {
+            return ("302 Found", format!("Location: {to}\r\n"), Vec::new());
+        }
         if let Some(hex) = rest.strip_prefix("manifests/sha256:") {
             return self.manifests.get(hex).map_or(missing, |m| ok(m.clone()));
         }
@@ -270,6 +276,20 @@ fn a_reference_that_may_move_is_refused_before_anything_is_asked() {
 }
 
 #[test]
+fn a_manifest_request_sent_on_to_another_host_is_reported_as_a_redirect() {
+    // The page the request is sent on to is served, and is not read.
+    let (mut registry, pin) = Registry::with_bundle();
+    registry.manifests_moved_to = Some("https://www.example.org/".to_owned());
+    let (client, registry) = serve(registry);
+    let e = oci(&client, spec(&pin)).unwrap_err();
+    assert!(matches!(e, ZooError::Transport { .. }), "{e:?}");
+    let e = e.to_string();
+    assert!(e.contains("redirected to https://www.example.org/, which is not the registry"), "{e}");
+    assert!(!e.contains("SHA-256"), "{e}");
+    assert!(registry.seen.lock().unwrap().iter().all(|(t, _)| !t.contains("/blobs/")));
+}
+
+#[test]
 fn bytes_that_are_not_the_ones_a_digest_names_are_refused() {
     // A manifest served under another digest.
     let (mut registry, pin) = Registry::with_bundle();
@@ -313,9 +333,11 @@ fn a_manifest_the_importer_cannot_take_is_refused() {
     let file = layer("tokenizer.json", &bytes_of("tokenizer.json"));
     let untitled = file.replace("org.opencontainers.image.title", "org.example.other");
     let sha512 = file.replace("sha256:", "sha512:");
+    let packed = file.replace(r#""annotations": {"#, r#""annotations": {"io.deis.oras.content.unpack": "true", "#);
     let escaping = file.replace(r#""tokenizer.json""#, r#""../tokenizer.json""#);
     for (manifest, why) in [
         (manifest_of(&[untitled]), "layers[0] names no file"),
+        (manifest_of(&[packed]), "is an archive of a directory, not a file"),
         (manifest_of(&[sha512]), "not a SHA-256 one"),
         (manifest_of(&[escaping]), "names a file the zoo does not take"),
         (manifest_of(&[]), "lists no layers"),
