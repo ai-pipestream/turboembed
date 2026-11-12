@@ -381,6 +381,31 @@ relation model when one is served and its options when one is picked,
 and the reranker and QA selects on Semantic when the server serves that
 task. What is typed in a hidden group is kept.
 
+Results are drawn so they can be read without the numbers
+(`demo/web/src/heat.ts`, `marks.ts`, `highlight.ts`):
+
+- A similarity table is coloured by its own lowest and highest
+  off-diagonal cosine, which it names, so a model whose cosines all sit
+  in a narrow band still shows which pairs are closer. A switch goes
+  back to the absolute scale from 0 to 1, and each row's best match is
+  outlined.
+- Annotated text has a legend, a colour per picked layer: the first
+  fills, the next underlines, so layers over the same words stay
+  apart. With no layer picked the text marks what was named, or its
+  sentences when nothing was, or every layer when it has neither. A
+  marked stretch can be clicked, or reached with Tab, to list
+  every annotation on it with its layer, label and score. The legend
+  names a picked layer as its chip does, instance included.
+- A search hit marks the words that matched in place, each with the
+  signal that matched it, and the legend names the signals. Signals
+  whose spans the page cannot place in the chunk are named under the
+  hit.
+- The search heat and the Analyze heatmap each say what their colour
+  means and show the scale.
+- Where the layout is one column (820 px and narrower), a finished
+  run brings its results into view, without animation when the
+  visitor asked for less motion.
+
 - Embed: each served embedding bundle (from `Capabilities`) with its
   tier, model id, dimensions, compute type and device from
   `ModelMetadata`'s properties. For each model picked, one `ModelInfer`

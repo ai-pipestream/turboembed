@@ -10,8 +10,10 @@ import {
   type ModelMetadataResponse,
 } from "../gen/open_inference_grpc_pb.js";
 import { busy, submitter } from "../act.js";
-import { $, after, el, input, say, stat } from "../dom.js";
+import { $, after, el, input, reveal, say, stat } from "../dom.js";
 import { describe, explain, inference } from "../rpc.js";
+import { place, range } from "../heat.js";
+import { shade, simTable } from "./simtable.js";
 import { bundles, onCapabilities, onCapabilitiesFailed, onReachable, reachable } from "../state.js";
 
 type Model = { meta: ModelMetadataResponse | null; error: string; checked: boolean };
@@ -191,11 +193,6 @@ async function run(): Promise<void> {
 
 // ---- Results --------------------------------------------------------------
 
-export function heat(v: number): string {
-  const a = Math.max(0, Math.min(1, v));
-  return `background: rgba(var(--heat), ${(a * a * 0.85).toFixed(3)})`;
-}
-
 // Cuts `t` to at most `n` characters, the last an ellipsis when it was cut.
 // A character is a grapheme cluster where the browser has Intl.Segmenter,
 // else a code point, so a cut never splits a surrogate pair (and, with
@@ -215,20 +212,7 @@ function card(texts: string[], r: Result): HTMLElement {
   const v = r.vectors;
   const p = r.reply.parameters;
   const str = (k: string) => (p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "");
-  const sim = matrix(v);
-  const simTable = el(
-    "table",
-    { class: "sim" },
-    el("tr", {}, el("th", {}), texts.map((_, j) => el("th", { text: `#${j + 1}` }))),
-    texts.map((t, i) =>
-      el(
-        "tr",
-        {},
-        el("td", { class: "text", title: t, text: `#${i + 1} ${short(t, 22)}` }),
-        sim[i].map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) })),
-      ),
-    ),
-  );
+  const sim = simTable(texts.map((t) => ({ short: short(t, 22), full: t })), matrix(v));
   const previews = el(
     "table",
     {},
@@ -261,7 +245,7 @@ function card(texts: string[], r: Result): HTMLElement {
       str("compute_dtype") ? stat(after(str("compute_dtype"), "DTYPE_"), "computed in") : null,
     ),
     el("h2", { text: "Cosine similarity" }),
-    simTable,
+    sim,
     el("details", {}, el("summary", { text: "Vectors" }), previews),
   );
 }
@@ -270,6 +254,10 @@ function card(texts: string[], r: Result): HTMLElement {
 // and how far each model's vectors are from the first model's.
 function comparison(texts: string[], ok: Result[]): HTMLElement {
   const sims = ok.map((r) => matrix(r.vectors!));
+  // One scale for the whole table: the range of every model's pairs.
+  const all = sims.map((m) => range(m));
+  const lo = Math.min(...all.map((r) => r[0]));
+  const hi = Math.max(...all.map((r) => r[1]));
   const rows: HTMLElement[] = [];
   let widest = 0;
   for (let i = 0; i < texts.length; i++) {
@@ -282,8 +270,8 @@ function comparison(texts: string[], ok: Result[]): HTMLElement {
           "tr",
           {},
           el("td", { class: "text", title: `${texts[i]}\n${texts[j]}`, text: `#${i + 1} \u00b7 #${j + 1}` }),
-          vals.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(4) })),
-          el("td", { text: spread === 0 ? "0" : spread.toExponential(1) }),
+          vals.map((x) => el("td", { class: "cell", style: shade(place(x, lo, hi)), text: x.toFixed(4) })),
+          el("td", { text: spread.toFixed(4) }),
         ),
       );
     }
@@ -299,7 +287,7 @@ function comparison(texts: string[], ok: Result[]): HTMLElement {
     { class: "sim cmp" },
     el("tr", {}, el("th", { class: "text", text: "pair" }), ok.map((r) => el("th", { text: `${r.name} (${tier(r.meta)})` })), el("th", { text: "spread" })),
     rows,
-    el("tr", {}, el("th", { class: "text", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {})),
+    el("tr", {}, el("th", { class: "text wrap", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {})),
   );
   return el(
     "div",
@@ -322,6 +310,7 @@ function render(texts: string[], results: Result[]): void {
   const ok = results.filter((r) => r.vectors);
   if (ok.length > 1 && texts.length > 1) out.append(comparison(texts, ok));
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts, r))));
+  reveal(out);
 }
 
 export function init(): void {
