@@ -117,7 +117,8 @@ xlm-roberta-base; the GLiNER, GLiNER2 and GLiREL encoders; SaT 1l-sm and
 3l; and nine potion static models (`bundle/recipes/potion/`).
 
 `turbo-zoo` (`analysis/zoo`) is an index of models, heads, lexicons,
-centroid sets and datasets (`analysis/zoo/index/zoo.json`), each with
+centroid sets, datasets and sealed encoder bundles
+(`analysis/zoo/index/zoo.json`), each with
 its licence, attribution and training data. Its fetcher refuses an
 artifact whose licence class has not been accepted with `turbo-zoo
 accept` ([zoo.md](docs/zoo.md), [licences.md](docs/licences.md)).
