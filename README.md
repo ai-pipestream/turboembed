@@ -404,8 +404,16 @@ them: no regex crate (pattern work goes through `turbo-matcher`), no
 external NLP dependencies, every Rust file under 500 lines, model
 settings in the bundle rather than in code, and no result called working
 until it has run on the real device. CI runs formatting, clippy, an
-aarch64 check, four test shards, fuzzing, feature builds, reference
-conformance checks, and Windows lint and tests.
+aarch64 check, four test shards, fuzzing, feature builds and their
+tests, proto lint and breaking-change checks with the generated client
+stubs, the Java JNI binding, and reference conformance checks. The
+feature tests run with a temporary directory of their own, and the run
+fails when a test leaves anything there (`scripts/test-in-scratch.sh`;
+tests hold such files in `turbo_scratch::Scratch`). The CUDA and Level
+Zero clippy lane and the Metal clippy lane run for a pull request or
+the merge queue only when the change touches a path they build from
+(`scripts/backend-lanes.sh`), and in the daily run. The Windows lint, test, fuzz and core lanes run on
+pushes to main.
 
 ## Documentation
 
