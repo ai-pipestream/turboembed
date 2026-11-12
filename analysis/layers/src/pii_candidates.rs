@@ -39,14 +39,18 @@ pub enum RejectReason {
     LabelRequired,
     /// The score is below the detector's threshold.
     Threshold,
+    /// A model's candidate that overlaps a mention a rule found, other
+    /// than as its repeat or strictly inside it: the rule's mention stands.
+    RulePrecedence,
 }
 
 impl RejectReason {
-    /// The stable id: label required 1, threshold 2.
+    /// The stable id: label required 1, threshold 2, rule precedence 3.
     pub const fn id(self) -> u8 {
         match self {
             RejectReason::LabelRequired => 1,
             RejectReason::Threshold => 2,
+            RejectReason::RulePrecedence => 3,
         }
     }
 
@@ -54,6 +58,7 @@ impl RejectReason {
         match id {
             1 => Some(RejectReason::LabelRequired),
             2 => Some(RejectReason::Threshold),
+            3 => Some(RejectReason::RulePrecedence),
             _ => None,
         }
     }
@@ -62,6 +67,7 @@ impl RejectReason {
         match self {
             RejectReason::LabelRequired => "label-required",
             RejectReason::Threshold => "threshold",
+            RejectReason::RulePrecedence => "rule-precedence",
         }
     }
 }

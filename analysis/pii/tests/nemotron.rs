@@ -166,6 +166,61 @@ fn rules_win_across_exact_nested_enclosing_and_cross_kind_overlaps() {
             && c.disposition == PiiDisposition::NestedIn { mention: turbo_analysis::Ix::new(card_mention) }
     });
     assert!(has_card_nested, "strictly nested neural span must record PiiDisposition::NestedIn pointing to rule Card");
+
+    // Every model candidate has its row, and the two a rule beat by
+    // enclosing it or by another kind on its span say so.
+    let scored = candidates.candidates().filter(|c| c.score.is_some()).count();
+    assert_eq!(scored, model_candidates.len());
+    let lost = PiiDisposition::RejectedByRule { reason: RejectReason::RulePrecedence };
+    for needle in ["card 4111-1111-1111-1111", "94107"] {
+        let row = candidates.candidates().find(|c| c.span == span_of(needle) && c.score.is_some());
+        assert_eq!(row.map(|c| c.disposition), Some(lost), "{needle}");
+    }
+}
+
+/// A model candidate that loses to a rule's mention keeps a row whatever
+/// the overlap: another kind on the same span, a span around the rule's,
+/// a partial overlap from either side, and a span inside the rule's when
+/// nested mentions are kept. The rule's mention is the only one kept.
+#[test]
+fn a_model_candidate_that_loses_to_a_rule_keeps_its_row() {
+    let text = "Mail desk@example.com now";
+    let email = text.find("desk").unwrap() as u32;
+    let end = email + "desk@example.com".len() as u32;
+    let mut model_kinds = CustomKinds::new();
+    let user = resolve_nemotron_kind("user_name", &mut model_kinds).unwrap();
+    let overlaps = [
+        ("another kind on the span", Span::new(email, end)),
+        ("around the rule's span", Span::new(0, end + 4)),
+        ("over its start", Span::new(0, email + 4)),
+        ("over its end", Span::new(end - 3, end + 4)),
+    ];
+    for nested in [false, true] {
+        let rules = PiiDetector::pack(Pack::Contact);
+        let rules = if nested { rules.keeping_nested() } else { rules };
+        let opts = ModelResolution {
+            rules: Some(&rules),
+            model_kinds: &model_kinds,
+            provenance: PROVENANCE,
+            min_score: None,
+            extra_allow: None,
+        };
+        let inside = Span::new(email, email + 4);
+        let mut model_candidates: Vec<ModelCandidate> =
+            overlaps.iter().map(|&(_, span)| ModelCandidate { span, kind: user, probability: 0.95 }).collect();
+        model_candidates.push(ModelCandidate { span: inside, kind: user, probability: 0.95 });
+        let (pii, candidates) = resolve_model_with_rules(text, ViewId::SOURCE, &opts, &model_candidates).unwrap();
+        candidates.check_against(&pii).unwrap();
+        let kept: Vec<_> = pii.mentions().map(|m| (m.span, m.kind)).collect();
+        assert_eq!(kept, vec![(Span::new(email, end), PiiKind::Email)], "nested {nested}");
+        let row = |span: Span| candidates.candidates().find(|c| c.span == span && c.score.is_some());
+        let lost = PiiDisposition::RejectedByRule { reason: RejectReason::RulePrecedence };
+        for (what, span) in overlaps {
+            assert_eq!(row(span).map(|c| c.disposition), Some(lost), "{what}, nested {nested}");
+        }
+        let want = if nested { lost } else { PiiDisposition::NestedIn { mention: turbo_analysis::Ix::new(0) } };
+        assert_eq!(row(inside).map(|c| c.disposition), Some(want), "inside the rule's span, nested {nested}");
+    }
 }
 
 #[test]

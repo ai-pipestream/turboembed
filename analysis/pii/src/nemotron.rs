@@ -10,7 +10,7 @@
 
 use turbo_analysis::{Span, ViewId};
 use turbo_analysis_layers::{
-    AllowScope, CustomKinds, KindError, Pii, PiiCandidates, PiiEvidence, PiiKind, PiiScore, PiiScoreKind,
+    AllowScope, CustomKinds, KindError, Pii, PiiCandidates, PiiEvidence, PiiKind, PiiScore, PiiScoreKind, RejectReason,
 };
 
 use crate::detector::{DENY_LIST_DETECTOR, PiiDetector};
@@ -325,6 +325,15 @@ pub fn resolve_model_with_rules(
         {
             let norm = normalize_model_value(kind, covered);
             hits.add_candidate(start, end, kind, &[PiiEvidence::Shape], score, |s| s.push_str(&norm));
+        } else {
+            // Another kind on the rule's span, a partial overlap, a span
+            // around the rule's, or one inside it when nested mentions are
+            // kept: the rule's mention stands, and the candidate keeps its
+            // row with that decision.
+            let norm = normalize_model_value(kind, covered);
+            if hits.add_candidate(start, end, kind, &[PiiEvidence::Shape], score, |s| s.push_str(&norm)) {
+                hits.reject_last(RejectReason::RulePrecedence);
+            }
         }
     }
 

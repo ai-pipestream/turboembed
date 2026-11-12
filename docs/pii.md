@@ -289,8 +289,9 @@ confidence tier, the audit report and every policy decision read them.
   a `PiiDisposition`: `Kept { mention }` (its row in `turbo:pii`),
   `AllowedByRule { scope, rule }` (`AllowScope::Global` or `Kind`,
   `AllowRule::Term(i)` or `Pattern(i)` by registration index),
-  `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`
-  or `Threshold`) or `Repeats { mention }`. The layer has no value or
+  `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`,
+  `Threshold`, or `RulePrecedence` for a model's candidate that loses to
+  an overlapping rule mention) or `Repeats { mention }`. The layer has no value or
   normalized column by construction, so a suppressed candidate never
   carries text. `PiiAuditReport::with_candidates` counts suppressed
   candidates per kind from it, and `PiiCandidates::check_against` holds
@@ -458,7 +459,11 @@ wire name via `PiiKind::parse` first.
   - Neural spans strictly inside a kept rule mention record
     `PiiDisposition::NestedIn` pointing to that rule mention.
   - Enclosing, partially overlapping, or cross-kind neural spans (`postcode`
-    on a `us-zip` span) yield to the kept rule mention.
+    on a `us-zip` span) yield to the kept rule mention and keep a row in
+    `turbo:pii-candidates` with
+    `PiiDisposition::RejectedByRule { RejectReason::RulePrecedence }`, as
+    does a neural span inside a rule mention when nested mentions are
+    kept. Every scored candidate the head produced has a row.
 - **Scores and temperature calibration**: Rule mentions record
   `score: None`; neural mentions record
   `Some(PiiScore { value, kind: PiiScoreKind::Probability, model, calibrated })`
