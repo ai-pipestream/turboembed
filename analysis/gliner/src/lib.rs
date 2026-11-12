@@ -5,6 +5,7 @@ mod config;
 mod device;
 mod features;
 mod heads;
+mod lora;
 pub mod open_span;
 mod output;
 pub mod package;
@@ -50,6 +51,7 @@ pub struct Model {
     config: Config,
     tokenizer: SentencePiece,
     identity: ModelRef,
+    lora: Option<lora::State>,
 }
 /// Where the encoder runs: the CPU encoder itself, or a core bundle through
 /// the backend table on any device (device.rs).
@@ -105,7 +107,7 @@ impl Model {
         if tokenizer.len() > encoder.config().vocabulary {
             return Err("gliner tokenizer exceeds encoder vocabulary".into());
         }
-        Ok(Self { encoder, heads, config, tokenizer, identity })
+        Ok(Self { encoder, heads, config, tokenizer, identity, lora: None })
     }
     pub fn config(&self) -> &Config {
         &self.config
@@ -138,6 +140,9 @@ impl Model {
     /// row, then each word's first-subword row, [prompts + words, hidden].
     pub fn states(&self, p: &PackedInput, schema: &ExtractionSchema) -> Result<Vec<f32>, String> {
         p.check(&self.config, self.encoder.config(), schema.labels().len())?;
+        if let Some(out) = self.lora_selected(p)? {
+            return Ok(out);
+        }
         let mut out = Vec::new();
         match &self.encoder {
             Backend::Cpu(e) => {
@@ -163,6 +168,10 @@ impl Model {
     ) -> Result<Vec<Candidate>, String> {
         p.check(&self.config, self.encoder.config(), schema.labels().len())?;
         let width = self.encoder.config().hidden;
+        if self.lora.is_some() {
+            let (_, adapted) = self.lora_forward(&p.ids)?;
+            return self.heads.score_with_work(&adapted.out, width, &p.prompts, &p.words, self.config.max_width, work);
+        }
         match &self.encoder {
             Backend::Cpu(e) => {
                 let h = e.encode(&p.ids, &vec![true; p.ids.len()]).map_err(|e| e.message)?;

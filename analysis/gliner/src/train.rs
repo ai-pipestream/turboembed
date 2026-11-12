@@ -273,13 +273,13 @@ impl OutputTrainer {
     }
 
     /// Adds one sentence's balanced positive and hard-negative gradients.
-    pub fn gradients(
+    fn gradients_impl(
         &self,
         input: &TrainingInput,
         candidates: &[Candidate],
         gold: &[(usize, usize, usize)],
         grads: &mut [Vec<f32>],
-    ) -> Result<f64, String> {
+    ) -> Result<(f64, Vec<f32>), String> {
         let (h, f, pf, labels) = (self.hidden, self.factor, self.prompt_factor, input.prompts.len() / self.hidden);
         let boundary = self.boundary_offset();
         let prompt_offset = self.prompt_offset();
@@ -332,7 +332,7 @@ impl OutputTrainer {
             .map(|(i, _)| i)
             .collect();
         if selected.is_empty() {
-            return Ok(0.0);
+            return Ok((0.0, vec![0.0; input.encoder_inputs.len()]));
         }
         let want = (selected.len() * 2).max(4);
         let mut ranked: Vec<(f32, usize)> = (0..input.pairs.len())
@@ -449,12 +449,13 @@ impl OutputTrainer {
                 pf,
             );
         }
+        let mut dencoder = vec![0.0; input.encoder_inputs.len()];
         if let (Some(offset), Some(recurrent)) = (recurrent_offset, &recurrent) {
             let dprojected =
                 recurrent.backward(&self.params[offset..], projected_words, &dlstm, &mut grads[offset..], h);
             if let Some(offset) = projection_offset {
                 let combined = dprojected_prompt.iter().chain(&dprojected).copied().collect::<Vec<_>>();
-                crate::projection::backward(
+                dencoder = crate::projection::backward(
                     &self.params[offset..],
                     &input.encoder_inputs,
                     &combined,
@@ -475,7 +476,7 @@ impl OutputTrainer {
             }
             total += f64::from(self.anchor) * penalty;
         }
-        Ok(total)
+        Ok((total, dencoder))
     }
 
     /// Weight decay applies to matrices, never biases.
@@ -489,11 +490,10 @@ impl OutputTrainer {
         optimizer.step(&mut self.params, grads, &decay).map_err(|e| e.message)
     }
 }
-
 pub fn output_optimizer(settings: Settings, trainer: &OutputTrainer) -> Result<AdamW<f32>, String> {
     AdamW::new(settings, &trainer.params.iter().map(Vec::len).collect::<Vec<_>>()).map_err(|e| e.message)
 }
-
+mod encoder_train;
 #[cfg(test)]
 #[path = "train_tests.rs"]
 mod tests;

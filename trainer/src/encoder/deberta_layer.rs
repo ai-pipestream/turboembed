@@ -106,6 +106,68 @@ impl<R: Real> DebertaLayer<R> {
         Ok(Self { config, base, params, rank, scale: R::from_f64(alpha / rank as f64) })
     }
 
+    pub fn relative(config: &Config, file: &File<'_>) -> Result<Vec<R>> {
+        let (h, rows) = (config.hidden, 2 * config.position_buckets);
+        let get = |name: &str| -> Result<Vec<R>> {
+            let tensor = file.get(
+                name,
+                Dtype::F32,
+                if name.ends_with("weight") && !name.contains("LayerNorm") { 2 } else { 1 },
+            )?;
+            Ok(tensor.f32s().into_iter().map(|x| R::from_f64(x as f64)).collect())
+        };
+        let relative = get("encoder.rel_embeddings.weight")?;
+        if relative.len() != rows * h {
+            return Err(invalid("deberta relative embeddings: shape mismatch"));
+        }
+        let input = relative;
+        let mut out = vec![R::ZERO; input.len()];
+        norm::forward(
+            &input,
+            &get("encoder.LayerNorm.weight")?,
+            &get("encoder.LayerNorm.bias")?,
+            config.layer_norm_eps,
+            &mut out,
+            &mut norm::Cache::default(),
+        );
+        Ok(out)
+    }
+
+    pub fn write_merged(&self, original: &[u8], layer: usize) -> Result<Vec<u8>> {
+        let file = File::parse("deberta tuned encoder", original)?;
+        let (h, i) = (self.config.hidden, self.config.intermediate);
+        let prefix = format!("encoder.layer.{layer}");
+        let specs = [
+            (0, "attention.self.query_proj", h, h),
+            (0, "attention.self.key_proj", h, h),
+            (0, "attention.self.value_proj", h, h),
+            (1, "attention.output.dense", h, h),
+            (2, "intermediate.dense", h, i),
+            (3, "output.dense", i, h),
+        ];
+        let mut out = original.to_vec();
+        for (which, stem, inp, width) in specs {
+            let name = format!("{prefix}.{stem}.weight");
+            let tensor = file.get(&name, Dtype::F32, 2)?;
+            if tensor.shape != [width as u64, inp as u64] {
+                return Err(invalid(format!("deberta {name}: shape mismatch")));
+            }
+            let offset = tensor.data.as_ptr() as usize - original.as_ptr() as usize;
+            let (a, b) = (&self.params[2 * which], &self.params[2 * which + 1]);
+            for o in 0..width {
+                for r in 0..self.rank {
+                    for j in 0..inp {
+                        let delta = self.scale * b[o * self.rank + r] * a[r * inp + j];
+                        let at = offset + (o * inp + j) * 4;
+                        let old = f32::from_le_bytes(out[at..at + 4].try_into().expect("f32 bytes"));
+                        out[at..at + 4].copy_from_slice(&(old + delta.to_f64() as f32).to_le_bytes());
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
     pub fn params(&self) -> &[Vec<R>] {
         &self.params
     }

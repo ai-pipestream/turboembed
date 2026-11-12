@@ -176,3 +176,52 @@ fn recurrent_training_needs_boundaries_and_an_even_hidden_size() {
     let odd = Config { hidden: 15, ..even.clone() };
     assert!(refused(&odd, true).contains("even hidden size"));
 }
+
+#[test]
+fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
+    let config = config(true, 4);
+    let original = heads(&config);
+    let encoder_original =
+        std::fs::read(root().join("testdata/tiny-deberta-bundle/weights/model.safetensors")).unwrap();
+    let mut tuned = model(&config, &original);
+    let before = scores(&tuned);
+    let close = |a: &[Candidate], b: &[Candidate]| {
+        assert_eq!(a.len(), b.len());
+        for (a, b) in a.iter().zip(b) {
+            assert_eq!((a.start, a.end, a.label), (b.start, b.end, b.label));
+            assert!((a.logit - b.logit).abs() < 0.002, "logit {} != {}", a.logit, b.logit);
+        }
+    };
+    tuned.enable_lora(&encoder_original, 1, 2.0, 17).unwrap();
+    let initial = tuned.training_input_lora(&WORDS, &schema()).unwrap();
+    close(&initial.candidates, &before);
+
+    let mut trainer = OutputTrainer::load_with_heads(&config, &original, true, true, true, true).unwrap();
+    let mut head_grads = trainer.zero_grads();
+    let (_, dencoder) =
+        trainer.gradients_with_encoder(&initial.training, &initial.candidates, &GOLD, &mut head_grads).unwrap();
+    let mut encoder_grads = tuned.lora_zero_grads().unwrap();
+    tuned.lora_backward(&initial, &dencoder, &mut encoder_grads).unwrap();
+    assert!(head_grads.iter().flatten().any(|&x| x != 0.0));
+    assert!(encoder_grads.iter().flatten().any(|&x| x != 0.0));
+
+    let settings = Settings { lr: 1e-2, total: 1, ..Settings::default() };
+    let mut head_optimizer = output_optimizer(settings, &trainer).unwrap();
+    trainer.step(&mut head_optimizer, &mut head_grads).unwrap();
+    tuned.apply_output(&trainer).unwrap();
+    let lens: Vec<usize> = encoder_grads.iter().map(Vec::len).collect();
+    let mut encoder_optimizer = turbo_trainer::adamw::AdamW::new(settings, &lens).unwrap();
+    tuned.lora_step(&mut encoder_optimizer, &mut encoder_grads).unwrap();
+
+    let after = tuned.training_input_lora(&WORDS, &schema()).unwrap().candidates;
+    assert_ne!(after, before);
+    assert_eq!(tuned.training_input(&WORDS, &schema()).unwrap().1, after);
+    let merged = tuned.write_lora(&encoder_original).unwrap();
+    assert_ne!(merged, encoder_original);
+    let encoder = Encoder::from_safetensors(encoder_config(), &merged).unwrap().with_threads(1).unwrap();
+    let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
+    let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
+    let written = trainer.write_heads(&original).unwrap();
+    let reloaded = Model::new(encoder, config, &written, &spm, identity).unwrap();
+    close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after);
+}
