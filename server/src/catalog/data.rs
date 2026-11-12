@@ -20,9 +20,10 @@
 //! `CLASS_LOCAL_ONLY` file is never written here.
 
 use std::fs;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use turbo_zoo::{
@@ -165,23 +166,48 @@ fn terms_of(a: &Acceptance) -> Requirement {
     Requirement { licence: a.license, text: a.license_text.clone() }
 }
 
+fn is_gone(e: &std::io::Error) -> bool {
+    matches!(e.kind(), ErrorKind::NotFound | ErrorKind::StaleNetworkFileHandle)
+}
+
+fn is_symlink_or_dir(e: &std::io::Error) -> bool {
+    #[cfg(unix)]
+    if e.raw_os_error() == Some(libc::ELOOP) {
+        return true;
+    }
+    e.kind() == ErrorKind::IsADirectory
+}
+
 /// The acceptance in the record file `path`, named `name`; none when it is
 /// gone. A file that is not one record, or not the record its name says,
 /// is an error that names it.
 fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     let bad = |m: String| ZooError::Acceptances(format!("{}: {m}; remove it to accept again", path.display()));
-    match fs::symlink_metadata(path) {
+    let io = |e: std::io::Error| ZooError::Io { path: path.to_path_buf(), message: e.to_string() };
+    let mut opts = fs::OpenOptions::new();
+    opts.read(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::custom_flags(&mut opts, libc::O_NOFOLLOW);
+    // Open once without following symlinks: a record revoked since read_dir
+    // (NotFound, or ESTALE on NFS) is gone, not bad.
+    let mut file = match opts.open(path) {
+        Ok(f) => f,
+        Err(e) if is_gone(&e) => return Ok(None),
+        Err(e) if is_symlink_or_dir(&e) => return Err(bad("not a plain file".into())),
+        Err(e) => return Err(io(e)),
+    };
+    match file.metadata() {
         Ok(m) if !m.is_file() => return Err(bad("not a plain file".into())),
         Ok(_) => {}
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() }),
+        Err(e) if is_gone(&e) => return Ok(None),
+        Err(e) => return Err(io(e)),
     }
-    // Read once: a record revoked since the check above is gone, not bad.
-    let bytes = match fs::read(path) {
-        Ok(b) => b,
-        Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() }),
-    };
+    let mut bytes = Vec::new();
+    match file.read_to_end(&mut bytes) {
+        Ok(_) => {}
+        Err(e) if is_gone(&e) => return Ok(None),
+        Err(e) => return Err(io(e)),
+    }
     let one = Acceptances::parse(&bytes).map_err(|e| bad(e.to_string()))?;
     let mut all = one.iter();
     let (Some(a), None) = (all.next(), all.next()) else {
@@ -195,17 +221,25 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     Ok(Some(a.clone()))
 }
 
-/// Whether `root` takes a new file, found by making and removing one.
+static PROBES: AtomicU64 = AtomicU64::new(0);
+
+/// Whether `root` takes a new file, found by making and removing one. A
+/// file left by a killed process whose pid came round again is passed over.
 fn probe(root: &Path) -> Result<bool, String> {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
-    let p = root.join(format!(".turbo-probe.{}.{nanos}", std::process::id()));
-    match fs::OpenOptions::new().write(true).create_new(true).open(&p) {
-        Ok(_) => {
-            fs::remove_file(&p).map_err(|e| io(&p, e))?;
-            Ok(true)
+    loop {
+        let n = PROBES.fetch_add(1, Ordering::Relaxed);
+        let p = root.join(format!(".turbo-probe.{}.{n}", std::process::id()));
+        match fs::OpenOptions::new().write(true).create_new(true).open(&p) {
+            Ok(_) => {
+                fs::remove_file(&p).map_err(|e| io(&p, e))?;
+                return Ok(true);
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+            Err(e) if matches!(e.kind(), ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem) => {
+                return Ok(false);
+            }
+            Err(e) => return Err(io(&p, e)),
         }
-        Err(e) if matches!(e.kind(), ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem) => Ok(false),
-        Err(e) => Err(io(&p, e)),
     }
 }
 
@@ -285,5 +319,62 @@ impl Transport for ReadOnly {
             "{url}: the data directory {} is read-only, so this server serves only the files it already holds",
             self.0.display()
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_scratch::Scratch;
+    use turbo_zoo::Licence;
+
+    use super::*;
+
+    fn scratch(name: &str) -> Scratch {
+        let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-data-{name}-{}", std::process::id())));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn probe_passes_over_a_stale_probe_file() {
+        let dir = scratch("probe");
+        let n = PROBES.load(Ordering::Relaxed);
+        let stale = dir.join(format!(".turbo-probe.{}.{n}", std::process::id()));
+        fs::write(&stale, b"left by a killed container").unwrap();
+        let opened = DataDir::open(&*dir).unwrap();
+        assert!(opened.writable());
+        assert_eq!(fs::read(&stale).unwrap(), b"left by a killed container");
+        assert!(!dir.join(format!(".turbo-probe.{}.{}", std::process::id(), n + 1)).exists());
+    }
+
+    #[test]
+    fn record_refuses_symlinks_and_directories_and_treats_stale_handles_as_gone() {
+        assert!(is_gone(&std::io::Error::from(ErrorKind::NotFound)));
+        assert!(is_gone(&std::io::Error::from(ErrorKind::StaleNetworkFileHandle)));
+        #[cfg(unix)]
+        assert!(is_gone(&std::io::Error::from_raw_os_error(libc::ESTALE)));
+
+        let dir = scratch("record");
+        let data = DataDir::open(&*dir).unwrap();
+        let r = Requirement::of(Licence::CcBySa40).unwrap();
+        let alice: UserId = "alice".parse().unwrap();
+        data.record(&alice, &r, &Shown::default()).unwrap();
+        let (key, rec_path) = data.key(&alice, &r);
+        assert!(record(&rec_path, &key).unwrap().is_some());
+        assert!(record(&dir.join("absent.json"), "absent.json").unwrap().is_none());
+
+        let subdir = data.records().join("dir.json");
+        fs::create_dir(&subdir).unwrap();
+        let e = data.acceptances().unwrap_err().to_string();
+        assert!(e.contains("not a plain file"), "{e}");
+        fs::remove_dir(&subdir).unwrap();
+
+        #[cfg(unix)]
+        {
+            let link = data.records().join("link.json");
+            std::os::unix::fs::symlink(&rec_path, &link).unwrap();
+            let e = data.acceptances().unwrap_err().to_string();
+            assert!(e.contains("not a plain file"), "{e}");
+        }
     }
 }
