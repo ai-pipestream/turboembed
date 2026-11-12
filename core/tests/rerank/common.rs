@@ -11,20 +11,19 @@ use turbo::{
 };
 static SERIAL: AtomicUsize = AtomicUsize::new(0);
 /// As tests/common's settle_level_zero (#2203): the Level Zero driver
-/// starts before a fixture's files open.
+/// starts before a fixture's files open. Not behind the levelzero feature,
+/// since crates without that feature include this file too; a runtime
+/// without Level Zero is made and released at once.
 fn settle_level_zero() {
-    #[cfg(feature = "levelzero")]
-    {
-        static ONCE: std::sync::Once = std::sync::Once::new();
-        ONCE.call_once(|| {
-            let mut rt = std::ptr::null_mut();
-            let size = size_of::<turbo::turbo_error>() as u32;
-            let mut err = turbo::turbo_error { struct_size: size, code: -1, field: 0, message: [0; 496] };
-            if unsafe { turbo::turbo_runtime_create(std::ptr::null(), &mut rt, &mut err) } == 0 {
-                unsafe { turbo::turbo_runtime_release(rt) };
-            }
-        });
-    }
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let mut rt = std::ptr::null_mut();
+        let size = size_of::<turbo::turbo_error>() as u32;
+        let mut err = turbo::turbo_error { struct_size: size, code: -1, field: 0, message: [0; 496] };
+        if unsafe { turbo::turbo_runtime_create(std::ptr::null(), &mut rt, &mut err) } == 0 {
+            unsafe { turbo::turbo_runtime_release(rt) };
+        }
+    });
 }
 pub struct Fixture {
     pub dir: PathBuf,
