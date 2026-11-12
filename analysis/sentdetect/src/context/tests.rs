@@ -236,3 +236,19 @@ fn a_lone_period() {
     assert_eq!(features(".", 0, None), ["eos=.", "x=", "v=", "s=", "n="]);
     assert_eq!(features(" . ", 1, None), ["sp", "sn", "eos=.", "x=", "v=", "s=", "n="]);
 }
+
+#[test]
+fn releasing_large_lookup_buffers_frees_each_oversized_one_and_keeps_the_rest() {
+    let mut lookup = Lookup::default();
+    lookup.probe.reserve(4096);
+    lookup.lower.reserve(8);
+    let small = lookup.lower.capacity();
+    assert!(small <= 64);
+    lookup.release_large(64);
+    assert_eq!(lookup.probe.capacity(), 0, "the oversized probe buffer was kept");
+    assert_eq!(lookup.lower.capacity(), small, "a buffer under the limit was dropped");
+
+    lookup.lower.reserve(4096);
+    lookup.release_large(64);
+    assert_eq!(lookup.largest_capacity(), 0, "the oversized lowercase buffer was kept");
+}
