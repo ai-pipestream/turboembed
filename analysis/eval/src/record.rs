@@ -346,6 +346,7 @@ pub(crate) mod tests {
                     driver_version: String::new(),
                     runtime_version: String::new(),
                     memory_total: 1 << 34,
+                    clock: None,
                 },
                 bundle: BundleId {
                     model_id: "turboembed/tiny-bert".into(),

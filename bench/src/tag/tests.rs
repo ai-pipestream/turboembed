@@ -17,6 +17,7 @@ fn sample() -> TagRecord {
             driver_version: "".into(),
             runtime_version: "".into(),
             memory_total: 0,
+            clock: None,
         },
         library: Library {
             version: "0.1.0".into(),
