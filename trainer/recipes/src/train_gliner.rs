@@ -43,6 +43,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         return Err(Error("train-gliner takes neither token-tagging adapters nor CRF".into()));
     }
     let c = head.config;
+    let lora_lr: f64 = a.parsed("--lora-lr", c.lr)?;
     let out = OutDir::claim(&a.required("--out")?)?;
     let commit = commit(a.value("--commit")?);
     a.done()?;
@@ -121,7 +122,10 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let mut lora_optimizer = if lora_rank > 0 {
         let grads = model.lora_zero_grads().map_err(Error)?;
         let lens: Vec<usize> = grads.iter().map(Vec::len).collect();
-        Some(turbo_trainer::adamw::AdamW::new(settings, &lens).map_err(|e| Error(e.message))?)
+        Some(
+            turbo_trainer::adamw::AdamW::new(Settings { lr: lora_lr, ..settings }, &lens)
+                .map_err(|e| Error(e.message))?,
+        )
     } else {
         None
     };
@@ -262,7 +266,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
     let identity = model.identity();
     let peer_name = format!(
-        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent};projection={train_projection};lora={lora_rank};lora_alpha={lora_alpha}",
+        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent};projection={train_projection};lora={lora_rank};lora_alpha={lora_alpha};lora_lr={lora_lr}",
         identity.id, identity.revision, manifest_record.sha256
     );
     let evaluation = score_parts(&combined, &all_types, &seen_types, &hold_out, &best_predictions)?;
