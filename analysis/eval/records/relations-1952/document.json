@@ -25,6 +25,11 @@
       "name": "gliner2",
       "sha256": "845fc4bd93c525b86124c58ab4f56c9eacf8587953086b14c501fab25957c007",
       "task": "TASK_RELATION"
+    },
+    {
+      "name": "glirel",
+      "sha256": "840aa21bb68a676ebe17451aa2ce8a7e5b987af8db1c0e28850bf0e395b713de",
+      "task": "in process"
     }
   ],
   "subset": [
@@ -82,7 +87,7 @@
       "documents_refused": 0,
       "predictions_sha256": "787c35ad2e82abd54af25d807942364b85f967a67d4c6843b4b840fbf8fcf9d1",
       "refused": [],
-      "seconds": 602.6702,
+      "seconds": 587.2179,
       "step": "turbo-tagger:relations",
       "subset": {
         "f1": 0.5438,
@@ -293,7 +298,7 @@
           "title": "María de Buenos Aires"
         }
       ],
-      "seconds": 48.6285,
+      "seconds": 47.1204,
       "step": "turbo:zero-shot-relations",
       "subset": {
         "f1": 0.0971,
@@ -399,6 +404,167 @@
         "delta_f1": -0.4467,
         "high": -0.4145,
         "low": -0.4785
+      }
+    },
+    {
+      "all_labels": {
+        "f1": 0.0183,
+        "found": 9469,
+        "gold": 17448,
+        "precision": 0.026,
+        "recall": 0.0141,
+        "right": 246
+      },
+      "documents_refused": 8,
+      "predictions_sha256": "09a6c84cf93bc27b83c6bdc911b284dde81b2d63d5a5a8abe59f4c81b65d83a3",
+      "refused": [
+        {
+          "document": 43,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 531",
+          "title": "ITS launch vehicle"
+        },
+        {
+          "document": 55,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 514",
+          "title": "Consort Mei"
+        },
+        {
+          "document": 57,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 529",
+          "title": "Intelligent design"
+        },
+        {
+          "document": 60,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 515",
+          "title": "Booker T. Washington"
+        },
+        {
+          "document": 218,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 541",
+          "title": "Taft–Katsura agreement"
+        },
+        {
+          "document": 300,
+          "error": "turbo:zero-shot-relations: over its glirel max_len 512, got 520",
+          "title": "Fugue"
+        },
+        {
+          "document": 333,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 548",
+          "title": "Clandestine literature"
+        },
+        {
+          "document": 372,
+          "error": "turbo:zero-shot-relations: over its encoder max_sequence 512, got 591",
+          "title": "María de Buenos Aires"
+        }
+      ],
+      "seconds": 78.0071,
+      "step": "glirel (in process)",
+      "subset": {
+        "f1": 0.0242,
+        "found": 9469,
+        "gold": 10842,
+        "precision": 0.026,
+        "recall": 0.0227,
+        "right": 246
+      },
+      "subset_per_label": {
+        "P131": {
+          "f1": 0.0,
+          "found": 1,
+          "gold": 4048,
+          "label": "located in the administrative territorial entity",
+          "precision": 0.0,
+          "recall": 0.0,
+          "right": 0
+        },
+        "P150": {
+          "f1": 0.0,
+          "found": 0,
+          "gold": 733,
+          "label": "contains the administrative territorial entity",
+          "precision": 0.0,
+          "recall": 0.0,
+          "right": 0
+        },
+        "P17": {
+          "f1": 0.0298,
+          "found": 189,
+          "gold": 2766,
+          "label": "country",
+          "precision": 0.2328,
+          "recall": 0.0159,
+          "right": 44
+        },
+        "P175": {
+          "f1": 0.034,
+          "found": 11,
+          "gold": 283,
+          "label": "performer",
+          "precision": 0.4545,
+          "recall": 0.0177,
+          "right": 5
+        },
+        "P27": {
+          "f1": 0.0,
+          "found": 79,
+          "gold": 781,
+          "label": "country of citizenship",
+          "precision": 0.0,
+          "recall": 0.0,
+          "right": 0
+        },
+        "P361": {
+          "f1": 0.0133,
+          "found": 2098,
+          "gold": 456,
+          "label": "part of",
+          "precision": 0.0081,
+          "recall": 0.0373,
+          "right": 17
+        },
+        "P463": {
+          "f1": 0.0494,
+          "found": 6890,
+          "gold": 310,
+          "label": "member of",
+          "precision": 0.0258,
+          "recall": 0.5742,
+          "right": 178
+        },
+        "P527": {
+          "f1": 0.0,
+          "found": 2,
+          "gold": 525,
+          "label": "has part(s)",
+          "precision": 0.0,
+          "recall": 0.0,
+          "right": 0
+        },
+        "P577": {
+          "f1": 0.0074,
+          "found": 199,
+          "gold": 342,
+          "label": "publication date",
+          "precision": 0.0101,
+          "recall": 0.0058,
+          "right": 2
+        },
+        "P800": {
+          "f1": 0.0,
+          "found": 0,
+          "gold": 598,
+          "label": "notable work",
+          "precision": 0.0,
+          "recall": 0.0,
+          "right": 0
+        }
+      },
+      "subset_vs_head": {
+        "delta_f1": -0.5196,
+        "high": -0.4894,
+        "low": -0.5489
       }
     }
   ],

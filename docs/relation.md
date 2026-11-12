@@ -185,7 +185,9 @@ entity mentions given, by the `relations_corpus` example of
 F1 0.4492, and `turbo:zero-shot-relations` (GLiNER2, ten property
 labels) 0.0971 on those ten properties. Pairing only within a sentence
 gives 0.1650 and 0.0751, since most of the corpus's triples join
-entities that never share a sentence. GLiNER2 refuses a document whose
+entities that never share a sentence. GLiREL, which no serving step runs,
+scores 0.0242 and 0.0219 on the ten properties when the same annotator
+runs it in process. GLiNER2 refuses a document whose
 prompt is over its 512-piece encoder, at either scope, with
 `TURBO_E_CAPACITY`. The record, with each model's quality and
 redistribution gate, is `analysis/eval/records/relations-1952/README.md`.

@@ -18,6 +18,9 @@
 //!     --scope document --out receipt.json
 //! ```
 //!
+//! With `--glirel PACKAGE --glirel-spm SPM`, GLiREL is scored too, in
+//! process: no serving step runs it ([`glirel`]).
+//!
 //! GLiNER2 reads label names, not property ids, and takes a bounded label
 //! set, so it is given the ten properties commonest in training under
 //! their Wikidata English labels ([`SUBSET`]); both systems are also scored
@@ -40,6 +43,9 @@ use turbo_kserve::proto::result::*;
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::{Serve, Server};
 use turbo_relation::Relations;
+
+#[path = "relations_corpus/glirel.rs"]
+mod glirel;
 
 type Fail = Box<dyn std::error::Error>;
 type Triples = BTreeSet<(u32, u32, String)>;
@@ -128,6 +134,11 @@ fn str_of(v: &Value) -> Result<String, Fail> {
 /// The request's initial graph: the source, its tokens, its sentences
 /// when `sentences`, and one entity row a mention.
 fn graph(d: &Doc, sentences: bool) -> Result<Vec<u8>, Fail> {
+    Ok(export(&doc_of(d, sentences)?, codecs())?.to_bytes()?)
+}
+
+/// The initial graph as a document.
+fn doc_of(d: &Doc, sentences: bool) -> Result<Document, Fail> {
     let mut doc = Document::new(d.text.as_str());
     let mut tokens = Spans::new(ViewId::SOURCE);
     for &(a, b) in &d.words {
@@ -154,7 +165,7 @@ fn graph(d: &Doc, sentences: bool) -> Result<Vec<u8>, Fail> {
         score: vec![1.0; n],
     };
     doc.add(&Key::DEFAULT, entities, Provenance::by("re-docred"))?;
-    Ok(export(&doc, codecs())?.to_bytes()?)
+    Ok(doc)
 }
 
 async fn analyze(client: &mut Client, req: AnalyzePipelineRequest) -> Result<Document, Fail> {
@@ -374,6 +385,24 @@ async fn main() -> Result<(), Fail> {
         runs.push((system, pred, refused, started.elapsed().as_secs_f64()));
     }
     server.stop().await;
+    let mut models = models;
+    if let Some(package) = flag("--glirel") {
+        let spm = PathBuf::from(flag("--glirel-spm").ok_or("--glirel-spm FILE")?);
+        let (analyzer, digest) = glirel::analyzer(Path::new(&package), &spm, sentences, threshold)?;
+        models.push(json!({ "name": "glirel", "task": "in process", "sha256": digest }));
+        let started = Instant::now();
+        let (mut pred, mut refused) = (Vec::with_capacity(docs.len()), Vec::new());
+        for (i, d) in docs.iter().enumerate() {
+            match glirel::run(&analyzer, doc_of(d, sentences)?) {
+                Ok(doc) => pred.push(triples(d, &doc, &names)?),
+                Err(e) => {
+                    refused.push(json!({ "document": i, "title": d.title, "error": e.to_string() }));
+                    pred.push(Triples::new());
+                }
+            }
+        }
+        runs.push(("glirel (in process)", pred, refused, started.elapsed().as_secs_f64()));
+    }
 
     let in_subset = |p: &str| SUBSET.iter().any(|(id, _)| *id == p);
     let base = tallies(&docs, &runs[0].1, in_subset);
