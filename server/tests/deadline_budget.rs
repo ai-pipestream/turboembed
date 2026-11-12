@@ -9,8 +9,15 @@ use turbo_kserve::proto::ServerReadyRequest;
 
 #[test]
 fn positive_short_deadline_is_not_already_expired() {
-    let d = Deadline::with_timeout(Duration::from_millis(15));
-    assert!(!d.is_expired(), "a fresh 15 ms budget must allow work");
+    // A loaded machine can hold this thread for longer than the budget between
+    // the two calls, so an expiry only counts as a failure when less than the
+    // budget has passed since before the deadline was made.
+    let budget = Duration::from_millis(15);
+    let before = std::time::Instant::now();
+    let d = Deadline::with_timeout(budget);
+    let expired = d.is_expired();
+    let waited = before.elapsed();
+    assert!(!expired || waited >= budget, "a fresh 15 ms budget expired after {waited:?}");
 }
 
 #[tokio::test]
