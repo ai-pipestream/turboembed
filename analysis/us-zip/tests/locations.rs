@@ -1,6 +1,7 @@
 //! The ZIP Codes the PII detector finds, placed by the ZCTA tables.
 
-use turbo_analysis::{Annotator, Document, View};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Key, View};
+use turbo_geo::Locations;
 use turbo_pii::{Extractor, PiiDetector, Scanner};
 use turbo_us_zip::{SOURCE_CENSUS_ZCTA, ZIP_LOCATIONS, ZipLocationAnnotator};
 
@@ -54,6 +55,21 @@ fn text_outside_ascii_around_the_zip_code_keeps_its_span() {
 }
 
 #[test]
-fn it_writes_the_zip_locations_key() {
-    assert_eq!(ZipLocationAnnotator::new().produces(), &[ZIP_LOCATIONS.id()]);
+fn in_a_pipeline_it_writes_the_zip_key_beside_the_default_locations() {
+    // A second, unbound copy writes the default `turbo:locations`, as a
+    // geocoder would; the bound step must not claim that instance too.
+    let analyzer = Analyzer::builder()
+        .add(PiiDetector::new(vec![Scanner::all(Extractor::UsIdentity)]))
+        .step(ZipLocationAnnotator::new().bound())
+        .step(Bound::new(ZipLocationAnnotator::new()))
+        .build()
+        .unwrap();
+    let mut docs = [Document::new("Ship to Austin, TX 78701 today.")];
+    assert_eq!(analyzer.run(&mut docs)[0], Ok(()));
+    for key in [ZIP_LOCATIONS, Key::<Locations>::DEFAULT] {
+        let locations = docs[0].get_key(&key).unwrap();
+        assert_eq!(locations.spans.len(), 1);
+        let (_, entry, _) = locations.resolution(turbo_analysis::Ix::new(0));
+        assert_eq!(entry.record_id(), "78701");
+    }
 }

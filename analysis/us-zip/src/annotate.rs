@@ -1,7 +1,7 @@
 //! `ZipLocationAnnotator`: the place of each ZIP Code the PII detector
 //! found, as a `turbo:locations` layer under the key `zip`.
 
-use turbo_analysis::{Annotator, Error, Key, KeyId, Refs, Span, View};
+use turbo_analysis::{Annotator, Bound, Error, Key, Refs, Span, View};
 use turbo_analysis_layers::{Pii, PiiKind};
 use turbo_geo::{GeoResolution, Locations};
 
@@ -20,7 +20,8 @@ pub const ZIP_LOCATIONS: Key<Locations> = Key::named("zip");
 
 /// Reads `turbo:pii` and writes, for each `us-zip` mention whose ZIP Code
 /// has a ZCTA, that ZCTA's record ([`zcta_entry`]) over the mention's span
-/// with confidence 1, into `turbo:locations` keyed [`ZIP_LOCATIONS`]. A
+/// with confidence 1, into `turbo:locations` keyed [`ZIP_LOCATIONS`] when
+/// added through [`ZipLocationAnnotator::bound`]. A
 /// ZIP Code with no ZCTA (a PO box, single organization or military code)
 /// adds nothing.
 ///
@@ -69,6 +70,12 @@ impl ZipLocationAnnotator {
         GazetteerEntry::new(parts).expect("locale names are never blank")
     }
 
+    /// The step for an analyzer, writing its layer as [`ZIP_LOCATIONS`].
+    /// Added unbound, it writes the default `turbo:locations` instead.
+    pub fn bound(self) -> Bound<Self> {
+        Bound::new(self).write(0, ZIP_LOCATIONS.name)
+    }
+
     /// The locations of the ZIP Codes in `pii`, over the view `pii` is on.
     pub fn locations(&self, pii: &Pii) -> Locations {
         let mut found: Vec<(Span, &str)> =
@@ -103,11 +110,6 @@ impl Annotator for ZipLocationAnnotator {
         let out = self.locations(pii);
         turbo_analysis::Layer::check(&out).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((out,))
-    }
-
-    fn produces(&self) -> &[KeyId] {
-        const PRODUCES: &[KeyId] = &[ZIP_LOCATIONS.id()];
-        PRODUCES
     }
 
     fn config_hash(&self) -> u64 {
