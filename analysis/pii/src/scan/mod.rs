@@ -470,3 +470,22 @@ impl Scanner {
         }
     }
 }
+
+#[cfg(test)]
+thread_local! {
+    static PLACE_STEPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn step(n: usize) {
+    PLACE_STEPS.with(|c| c.set(c.get() + n));
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn step(_: usize) {}
+
+#[cfg(test)]
+#[path = "places_tests.rs"]
+mod places_tests;

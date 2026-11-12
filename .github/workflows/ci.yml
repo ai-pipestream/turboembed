@@ -343,7 +343,7 @@ jobs:
       - name: test (server pii-reversible)
         run: >-
           cargo test -p turbo-kserve --features pii-reversible --lib
-          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest
+          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest --test pii_encryption_keys
       - name: test (fuzz command)
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host
@@ -406,7 +406,7 @@ jobs:
         id: changed
         run: |
           if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
+            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$|\.github/actions/apt-install/)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: dtolnay/rust-toolchain@stable
@@ -417,14 +417,20 @@ jobs:
         if: steps.changed.outputs.run
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: the CUDA toolkit (nvcc, the runtime's headers and static library) and clang 20
+      - name: the CUDA package repository
         if: steps.changed.outputs.run
         run: |
-          curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 5 \
+            https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cuda-nvcc-$CUDA_PACKAGE cuda-cudart-dev-$CUDA_PACKAGE cuda-cccl-$CUDA_PACKAGE clang-20
+      - name: the CUDA toolkit (nvcc, the runtime's headers and static library) and clang 20
+        if: steps.changed.outputs.run
+        uses: ./.github/actions/apt-install
+        with:
+          packages: cuda-nvcc-${{ env.CUDA_PACKAGE }} cuda-cudart-dev-${{ env.CUDA_PACKAGE }} cuda-cccl-${{ env.CUDA_PACKAGE }} clang-20
+      - name: the installed nvcc and clang 20
+        if: steps.changed.outputs.run
+        run: |
           /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
           clang-20 --version | head -1
       - name: clippy (cuda)

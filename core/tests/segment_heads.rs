@@ -6,7 +6,6 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
 
 use common::*;
 use serde_json::{Value, json};
@@ -16,6 +15,7 @@ use turbo::head::tagger::{NO_WORD, Work};
 use turbo::head::{SentenceBoundary, SpanClassifier, TokenSplitter, TokenTagger, boundary, span, split};
 use turbo::manifest::HeadSpec;
 use turbo::status::*;
+use turbo_scratch::Scratch;
 
 const DEL: &str = "(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())";
 
@@ -81,9 +81,8 @@ fn head_weights(k: usize) -> Vec<(String, Vec<u64>, Vec<f32>)> {
 
 /// The tiny bundle with the three heads' tensors appended and `edit`
 /// applied to its manifest, files[] updated to match.
-fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-segment-heads-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-segment-heads-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();
@@ -129,7 +128,8 @@ const WORDS: [u32; 7] = [NO_WORD, 0, 1, 1, 2, 3, NO_WORD];
 
 #[test]
 fn each_loaded_head_matches_the_one_built_from_the_same_weights() {
-    let b = Bundle::open(&bundle("load", |_| {})).unwrap();
+    let dir = bundle("load", |_| {});
+    let b = Bundle::open(&dir).unwrap();
     let s = specs();
     assert_eq!(b.manifest.heads, s);
     let states = values(99, WORDS.len() * 32);

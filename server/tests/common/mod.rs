@@ -411,3 +411,59 @@ pub fn make_qa_bundle() -> BundleDir {
     std::fs::write(d.0.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
     d
 }
+
+// ---- Waiting on progress, not on elapsed time -------------------------------
+
+/// The most one look at a [`Budget`] charges.
+const BUDGET_STEP: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// A wait's budget in the test's own running time. Each look charges the
+/// time since the last look, at most [`BUDGET_STEP`], so a pause of the
+/// whole process (a VM snapshot, SIGSTOP) charges one step however long
+/// it lasts. Only a wait that really stops making progress runs it out
+/// (#2173).
+pub struct Budget {
+    left: std::time::Duration,
+    last: std::time::Instant,
+}
+
+impl Budget {
+    pub fn new(total: std::time::Duration) -> Budget {
+        Budget { left: total, last: std::time::Instant::now() }
+    }
+
+    /// Charges the time since the last look; false once the budget is spent.
+    pub fn has_left(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        self.left = self.left.saturating_sub((now - self.last).min(BUDGET_STEP));
+        self.last = now;
+        !self.left.is_zero()
+    }
+}
+
+/// Waits until `done` holds, yielding between looks and never sleeping:
+/// the test task stays ready, so under a paused clock time never
+/// auto-advances while it waits, and no server timer fires behind it.
+pub async fn wait_for(what: &str, total: std::time::Duration, mut done: impl FnMut() -> bool) {
+    let mut budget = Budget::new(total);
+    while !done() {
+        assert!(budget.has_left(), "{what}: not within {total:?} of running time");
+        tokio::task::yield_now().await;
+    }
+}
+
+/// Runs `fut` to its end within `total` of running time, checked every
+/// 10 ms; a pause of the process does not spend the budget.
+pub async fn within<F: std::future::Future>(what: &str, total: std::time::Duration, fut: F) -> F::Output {
+    let mut budget = Budget::new(total);
+    let mut fut = std::pin::pin!(fut);
+    loop {
+        tokio::select! {
+            biased;
+            out = &mut fut => return out,
+            () = tokio::time::sleep(std::time::Duration::from_millis(10)) => {
+                assert!(budget.has_left(), "{what}: not within {total:?} of running time");
+            }
+        }
+    }
+}

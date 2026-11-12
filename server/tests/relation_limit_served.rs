@@ -12,6 +12,7 @@ mod fixture;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use tokio_stream::StreamExt as _;
 use turbo_analysis::export::{Codecs, ErrorRecord, StatusRecord, export};
@@ -24,7 +25,14 @@ use turbo_kserve::proto::result::analyze_progressive_event::Event;
 use turbo_kserve::proto::result::*;
 use turbo_kserve::{Serve, Server};
 
+/// Staged once for the binary: tests run at once, and Windows refuses a
+/// copy onto a file another test has open.
 fn relation_package() -> PathBuf {
+    static PACKAGE: OnceLock<PathBuf> = OnceLock::new();
+    PACKAGE.get_or_init(stage_relation_package).clone()
+}
+
+fn stage_relation_package() -> PathBuf {
     let entity = fixture::package();
     let dir = std::env::temp_dir().join(format!("turbo-kserve-gliner2-package-{}", std::process::id()));
     fs::create_dir_all(dir.join("encoder")).unwrap();

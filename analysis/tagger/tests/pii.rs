@@ -11,7 +11,7 @@ use turbo_pii::{Pack, PiiDetector};
 use turbo_tagger::{NEMOTRON_PII_TEMPERATURE, PII_TAGGER_DETECTOR, PiiTagger};
 use turbo_tokenize::SimpleTokenizer;
 
-fn pii_bundle(name: &str) -> std::path::PathBuf {
+fn pii_bundle(name: &str) -> turbo_scratch::Scratch {
     bundle(name, |m| {
         m["heads"] = json!([{
             "name": "pii",

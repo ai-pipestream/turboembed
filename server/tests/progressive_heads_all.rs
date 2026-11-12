@@ -1,4 +1,4 @@
-//! The capability-driven `annotate-v2` profile and the head steps added
+//! The capability-driven `annotate-v1` profile and the head steps added
 //! by #1832 on sealed tiny bundles: partial bundles, morphology, BIO and
 //! span entities side by side, relations, learned sentences, syntactic
 //! word splits and coreference, on Unicode text read in several windows.
@@ -19,7 +19,7 @@ use serde_json::Value;
 use tonic::Code;
 use turbo_analysis::{Analyzer, Bound, Document, Edges, Groups, Key, View};
 use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Sentences, Tokens, Words};
-use turbo_kserve::progressive::ANNOTATE_V2;
+use turbo_kserve::progressive::ANNOTATE_V1;
 use turbo_kserve::progressive::heads::{
     COREF_INSTANCE, CorefStep, GroupStep, HeadGroup, HeadStep, SPANS_INSTANCE, SentenceStep, SpanStep,
 };
@@ -149,13 +149,10 @@ fn offsets_agree(complete: &DocumentGraphResponse, text: &str) {
 }
 
 #[tokio::test]
-async fn annotate_v2_runs_a_span_only_entity_bundle_that_annotate_v1_refuses() {
+async fn annotate_v1_runs_a_bundle_whose_only_entity_head_is_a_span_classifier() {
     let dir = bundle("v2-partial", |m| m["heads"][1] = span_head());
     let (server, mut client) = serve_models(vec![model(&dir, "spans", MAX_SEQ)]).await;
-    let err = client.analyze_document_progressive(request(DOC, "annotate-v1", &[])).await.unwrap_err();
-    assert!(err.message().contains("head.entities"), "{}", err.message());
-
-    let events = run(&mut client, request(DOC, "annotate-v2", &[])).await;
+    let events = run(&mut client, request(DOC, "annotate-v1", &[])).await;
     let mut want = vec![
         "turbo-structure:blocks",
         "turbo-sentdetect:rules",
@@ -188,15 +185,46 @@ async fn annotate_v2_runs_a_span_only_entity_bundle_that_annotate_v1_refuses() {
 }
 
 #[tokio::test]
-async fn annotate_v2_writes_morphology_both_entity_heads_and_relations() {
+async fn annotate_v1_runs_a_bundle_with_only_a_part_of_speech_head() {
+    let dir = bundle("pos-only", |m| m["heads"] = serde_json::json!([heads()[0].clone()]));
+    let (server, mut client) = serve_models(vec![model(&dir, "pos", MAX_SEQ)]).await;
+    let caps = client.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert_eq!(caps.bundles[0].head_steps, ["turbo-tagger:pos"]);
+    let events = run(&mut client, request(DOC, "annotate-v1", &[])).await;
+    let mut want =
+        vec!["turbo-structure:blocks", "turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped", "turbo-tagger:pos"];
+    want.sort_unstable();
+    assert_eq!(started(&events), want);
+    let complete = complete(&events);
+    let listed: Vec<String> = layers(complete).into_iter().map(|(layer, _)| layer).collect();
+    assert_eq!(listed, ["turbo:pos", "turbo:sentences", "turbo:structure", "turbo:tokens"]);
+    let doc = document(complete);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let (tokens, sentences) = (doc.get::<Tokens>().unwrap(), doc.get::<Sentences>().unwrap());
+    let (pos,) = MultiTask::<(PosTags,)>::open(&dir, &[None], &encoder_options(MAX_SEQ))
+        .unwrap()
+        .layers(view, tokens, Some(sentences), None)
+        .unwrap();
+    same(doc.get::<PosTags>().unwrap(), &pos, "pos");
+
+    // The profile has one name: no other annotate version is served.
+    let other = format!("annotate-v{}", 2);
+    let err = client.analyze_document_progressive(request(DOC, &other, &[])).await.unwrap_err();
+    assert_eq!(err.code(), Code::InvalidArgument);
+    assert!(err.message().contains("unknown pipeline profile"), "{}", err.message());
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn annotate_v1_writes_morphology_both_entity_heads_and_relations() {
     let dir = bundle("v2-sentences", |m| push(m, &[morph_head(), span_head(), relation_head(&["PER", "LOC"])]));
     let (server, mut client) = serve_models(vec![model(&dir, "heads", MAX_SEQ)]).await;
     let caps = client.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
-    let profile = caps.profiles.iter().find(|p| p.name == "annotate-v2").unwrap();
-    assert_eq!(profile.required_bundles, ANNOTATE_V2.required_bundles);
-    assert_eq!(profile.steps, ANNOTATE_V2.steps);
+    let profile = caps.profiles.iter().find(|p| p.name == "annotate-v1").unwrap();
+    assert_eq!(profile.required_bundles, ANNOTATE_V1.required_bundles);
+    assert_eq!(profile.steps, ANNOTATE_V1.steps);
 
-    let complete_events = run(&mut client, request(DOC, "annotate-v2", &[])).await;
+    let complete_events = run(&mut client, request(DOC, "annotate-v1", &[])).await;
     let complete = complete(&complete_events);
     let listed = layers(complete);
     for (layer, instance) in
@@ -230,7 +258,7 @@ async fn annotate_v2_writes_morphology_both_entity_heads_and_relations() {
     server.stop().await;
 }
 
-fn whole_bundle(name: &str) -> std::path::PathBuf {
+fn whole_bundle(name: &str) -> turbo_scratch::Scratch {
     bundle(name, |m| {
         m["heads"] = serde_json::json!([heads()[0].clone(), span_head(), sentence_head(), split_head(), coref_head()])
     })
@@ -251,7 +279,7 @@ async fn learned_sentences_word_splits_and_coreference_share_the_whole_view_read
             "turbo-tagger:coref"
         ]
     );
-    let events = run(&mut client, request(DOC, "annotate-v2", &[])).await;
+    let events = run(&mut client, request(DOC, "annotate-v1", &[])).await;
     let mut want = vec![
         "turbo-structure:blocks",
         "turbo-tokenize:uax29-untyped",
@@ -338,7 +366,7 @@ async fn competing_and_missing_head_selections_are_refused_by_name() {
         assert_eq!(err.code(), code, "{steps:?}: {}", err.message());
         assert!(err.message().contains(named), "{steps:?}: {}", err.message());
     }
-    let err = client.analyze_document_progressive(request(DOC, "annotate-v2", &[])).await.unwrap_err();
+    let err = client.analyze_document_progressive(request(DOC, "annotate-v1", &[])).await.unwrap_err();
     assert!(err.message().contains("ambiguous head"), "{}", err.message());
 
     // A selection picks one of the two.

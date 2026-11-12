@@ -2,16 +2,16 @@ use std::fs;
 
 use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
+use turbo_scratch::Scratch;
 
 fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
 }
 
 /// The tiny bundle with a zero-weight head of `labels`, the bias `BIAS`.
-fn write_bundle(name: &str, labels: &[&str; 3]) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-namefind-dl-{}-{name}", std::process::id()));
-    let tmp = dir.clone();
-    let _ = fs::remove_dir_all(&tmp);
+fn write_bundle(name: &str, labels: &[&str; 3]) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-namefind-dl-{}-{name}", std::process::id())));
+    let tmp = dir.to_path_buf();
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(tmp.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny().join(f), tmp.join(f)).unwrap();

@@ -38,5 +38,6 @@ cuda = ["turbo/cuda", "turbo-trainer/cuda"]
 cuda-shim = ["turbo-trainer/cuda-shim"]
 
 [dev-dependencies]
+turbo-scratch = { path = "../../analysis/scratch" }
 turbo-analysis-layers = { path = "../../analysis/layers" }
 turbo-pins = { path = "../../analysis/pins" }

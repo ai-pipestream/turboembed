@@ -16,7 +16,7 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::{EntityTagger, SentenceTagger, SpanTagger, WordEncoder, WordTagger};
 
 /// The tiny bundle carrying only the given heads.
-fn with_heads(name: &str, heads: Value) -> std::path::PathBuf {
+fn with_heads(name: &str, heads: Value) -> turbo_scratch::Scratch {
     bundle(name, |m| m["heads"] = heads)
 }
 
