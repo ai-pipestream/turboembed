@@ -424,11 +424,34 @@ jobs:
   # and static runtime), for the default architecture alone; Level Zero
   # compiles its OpenCL C kernels with clang 20; Metal builds on macOS.
   # Hailo is left out: HailoRT's headers are not published as a package
-  # this runner can install. Each lane runs only when the core,
-  # analysis/, the headers, the root Cargo.toml, the lock file or this
-  # file changed, and in the merge queue.
-  backends-linux:
+  # this runner can install. Each lane runs only when the commits under
+  # test change the core, analysis/, the headers, the root Cargo.toml,
+  # the lock file or this file, and in the daily run. `changes` decides
+  # that on a Linux runner first, so that a lane with nothing to do asks
+  # for no runner: a macOS runner that is never assigned fails the run.
+  changes:
     if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      linux: ${{ steps.lanes.outputs.linux }}
+      macos: ${{ steps.lanes.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: which backend lanes the change needs
+        id: lanes
+        env:
+          BASE: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || format('origin/{0}', github.base_ref) }}
+          HEAD_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || 'HEAD' }}
+        run: |
+          scripts/backend-lanes.sh "${{ github.event_name }}" "$BASE" "$HEAD_SHA" > lanes.txt
+          cat lanes.txt
+          cat lanes.txt >> "$GITHUB_OUTPUT"
+
+  backends-linux:
+    needs: changes
+    if: needs.changes.outputs.linux == 'true'
     runs-on: ubuntu-24.04
     env:
       CUDA_VERSION: "12.8"
@@ -436,76 +459,49 @@ jobs:
       CARGO_TARGET_DIR: target/core
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: what changed
-        id: changed
-        run: |
-          if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$|\.github/actions/apt-install/)'; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: dtolnay/rust-toolchain@stable
-        if: steps.changed.outputs.run
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-        if: steps.changed.outputs.run
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: the CUDA package repository
-        if: steps.changed.outputs.run
         run: |
           curl -fsSLO --retry 5 --retry-all-errors --retry-delay 5 \
             https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
       - name: the CUDA toolkit (nvcc, the runtime's headers and static library) and clang 20
-        if: steps.changed.outputs.run
         uses: ./.github/actions/apt-install
         with:
           packages: cuda-nvcc-${{ env.CUDA_PACKAGE }} cuda-cudart-dev-${{ env.CUDA_PACKAGE }} cuda-cccl-${{ env.CUDA_PACKAGE }} clang-20
       - name: the installed nvcc and clang 20
-        if: steps.changed.outputs.run
         run: |
           /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
           clang-20 --version | head -1
       - name: clippy (cuda)
-        if: steps.changed.outputs.run
         env:
           TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
         run: cargo clippy --locked -p turbo --features cuda --all-targets -- -D warnings
       - name: clippy (levelzero)
-        if: steps.changed.outputs.run
         env:
           TURBO_CLANG: clang-20
         run: cargo clippy --locked -p turbo --features levelzero --all-targets -- -D warnings
 
   backends-macos:
-    if: github.event_name != 'push'
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
     runs-on: macos-15
     env:
       CARGO_TARGET_DIR: target/core
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: what changed
-        id: changed
-        run: |
-          if [ "${{ github.event_name }}" != pull_request ] \
-            || git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qE '^(core/|analysis/|include/|Cargo\.toml$|Cargo\.lock$|\.github/workflows/ci\.yml$)'; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: dtolnay/rust-toolchain@stable
-        if: steps.changed.outputs.run
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-        if: steps.changed.outputs.run
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: clippy (metal)
-        if: steps.changed.outputs.run
         run: cargo clippy --locked -p turbo --features metal --all-targets -- -D warnings
 
   # Both Java bridges consume the same pure API and conformance modules.
@@ -614,7 +610,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, proto, bench-throughput, test, fuzz, features, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, changes, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04
