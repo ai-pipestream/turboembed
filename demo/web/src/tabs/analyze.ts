@@ -7,10 +7,11 @@
 import { LayerErrorKind, LayerWireStatus, OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
+import { busy } from "../act.js";
 import { $, download, el, options, say, table } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
 import { analysis, describe } from "../rpc.js";
-import { bundles, capabilities, onCapabilities } from "../state.js";
+import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
 
 let running: AbortController | null = null;
 let page = 0;
@@ -247,19 +248,29 @@ async function exportDoc(): Promise<void> {
   }
 }
 
+// Whether the note holds this list's own failure, to take it back on success.
+let formatsFailed = false;
+
 async function loadFormats(): Promise<void> {
   try {
     const f = await analysis.listOutputFormats({});
-    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`));
+    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
+    if (formatsFailed) say($("analyze-note"), "");
+    formatsFailed = false;
   } catch (e) {
-    say($("analyze-note"), describe(e), "error");
+    const down = reachable() === false;
+    if (!select("analyze-format").value) options(select("analyze-format"), [], undefined, down ? "the server is not reachable" : "the formats could not be listed");
+    formatsFailed = !down;
+    if (!down) say($("analyze-note"), describe(e), "error");
   }
 }
 
 export function init(): void {
-  $("analyze-run").addEventListener("click", run);
+  const go = $("analyze-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, run, $("analyze-stop") as HTMLButtonElement));
   $("analyze-stop").addEventListener("click", stop);
-  $("analyze-export").addEventListener("click", exportDoc);
+  const format = $("analyze-export") as HTMLButtonElement;
+  format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
     filter = [];
@@ -273,6 +284,12 @@ export function init(): void {
     options(select("analyze-model"), ["", ...models], ["none", ...models]);
     options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
   });
-  capabilities().catch(() => undefined);
-  void loadFormats();
+  // Before the first answer, the selects say that there is no server to ask.
+  let filled = false;
+  onCapabilities(() => (filled = true));
+  onReachable((up) => {
+    if (filled || up) return;
+    for (const id of ["analyze-profile", "analyze-model", "analyze-relation-model", "analyze-format"]) options(select(id), [], undefined, "the server is not reachable");
+  });
+  onServed(() => void loadFormats());
 }

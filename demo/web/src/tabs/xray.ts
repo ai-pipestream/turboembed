@@ -68,8 +68,8 @@ export function init(): void {
     const views = d?.views ?? [];
     const values = views.map((_, i) => String(i));
     const labels = views.map((v, i) => viewName(v.instance, i));
-    options(from(), values, labels);
-    options(to(), values, labels);
+    options(from(), values, labels, "analyze a document first");
+    options(to(), values, labels, "analyze a document first");
     from().value = "0";
     to().value = String(Math.max(0, views.length - 1));
     again();

@@ -90,8 +90,8 @@ fn the_zoo_serves_an_imported_bundle_from_its_directory() {
         let dir = testdata(name);
         let entry = bundle(&dir, spec("tiny")).unwrap();
         assert_eq!((entry.model_type, entry.component), (ModelType::EncoderBundle, Some(task_component)));
-        let empty = Index::parse(Index::to_canonical_json(&[]).as_bytes()).unwrap();
-        let index = Index::parse(add_to(&empty, entry).as_bytes()).unwrap();
+        let empty = Index::to_canonical_json(&[]);
+        let index = Index::parse(add_to(empty.as_bytes(), entry).unwrap().as_bytes()).unwrap();
         let cache = scratch(name);
         let source = Directory::new(&dir);
         let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &source);
@@ -266,4 +266,89 @@ fn the_command_adds_a_bundle_to_an_index_file_and_replaces_it_by_id() {
     }
     let (ok, _, err) = zoo(&home, &["import-bundle", bert, "--id", "tiny"]);
     assert!(!ok && err.contains("--base is required"), "{err}");
+}
+
+/// An index of one entry the zoo refuses (a no-derivatives licence) and
+/// does not list.
+fn an_index_with_a_refused_entry() -> String {
+    let text = b"hello hello hello\n";
+    let json = format!(
+        r#"{{"zoo_version": 1, "artifacts": [{{"id": "set-aside", "kind": "KIND_LEXICON", "format": "FORMAT_TEXT",
+          "version": "1", "license": "CC-BY-ND-4.0", "license_terms": "https://first.example.org/LICENSE",
+          "trained_on": [], "class": "CLASS_REFUSED", "attribution": "Example attribution.",
+          "files": [{{"path": "hello.txt", "url": "https://first.example.org/hello.txt", "size": {},
+          "sha256": "{}", "sha512": "{}"}}]}}]}}"#,
+        text.len(),
+        Sha256::of(text),
+        Sha512::of(text),
+    );
+    let index = Index::parse(json.as_bytes()).unwrap();
+    assert!(index.list().is_empty());
+    assert!(matches!(index.get("set-aside"), Err(ZooError::Refused { .. })));
+    json
+}
+
+#[test]
+fn an_import_into_an_index_keeps_the_entries_the_zoo_refuses() {
+    let held = an_index_with_a_refused_entry();
+    let entry = bundle(&testdata("tiny-bert-bundle"), spec("tiny")).unwrap();
+    let written = add_to(held.as_bytes(), entry.clone()).unwrap();
+    let all = Index::written(written.as_bytes()).unwrap();
+    assert_eq!(all.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["set-aside", "tiny"]);
+    assert_eq!(all[0], Index::written(held.as_bytes()).unwrap()[0]);
+    let index = Index::parse(written.as_bytes()).unwrap();
+    assert_eq!(index.list(), std::slice::from_ref(&entry));
+    assert!(matches!(index.get("set-aside"), Err(ZooError::Refused { .. })));
+    // Again by the same id: one entry of it, and the refused one is there.
+    let again = add_to(written.as_bytes(), entry).unwrap();
+    assert_eq!(again, written);
+    // An index that does not parse is not rewritten.
+    let spec_entry = bundle(&testdata("tiny-bert-bundle"), spec("tiny")).unwrap();
+    assert!(matches!(add_to(b"{}", spec_entry), Err(ZooError::Index(_))));
+
+    // The command: the file keeps the entry, and `index` prints the file.
+    let home = scratch("keeps");
+    fs::create_dir_all(&home).unwrap();
+    let file = home.join("zoo.json");
+    fs::write(&file, &held).unwrap();
+    let (bert, file) = (testdata("tiny-bert-bundle"), file.to_str().unwrap().to_owned());
+    let args = [
+        "import-bundle",
+        bert.to_str().unwrap(),
+        "--id",
+        "tiny",
+        "--base",
+        "https://models.example.org/bundles/tiny",
+        "--license-terms",
+        "https://models.example.org/bundles/tiny/LICENSE",
+        "--attribution",
+        "Example attribution for tiny.",
+        "--into",
+        &file,
+    ];
+    let (ok, _, err) = zoo(&home, &args);
+    assert!(ok, "{err}");
+    assert_eq!(fs::read_to_string(&file).unwrap(), written);
+    let (ok, printed, err) = zoo(&home, &["--index", &file, "index"]);
+    assert!(ok, "{err}");
+    assert_eq!(printed, written);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_directory_of_the_bundle_that_is_a_symlink_refuses_the_import() {
+    // The weights directory points outside the bundle directory, at a
+    // directory that holds the very bytes the manifest names.
+    let dir = copy_of_tiny_bert("linked");
+    let outside = scratch("linked-outside");
+    fs::create_dir_all(&outside).unwrap();
+    fs::rename(dir.join("weights"), outside.join("weights")).unwrap();
+    std::os::unix::fs::symlink(outside.join("weights"), dir.join("weights")).unwrap();
+    assert!(dir.join("weights/model.safetensors").is_file());
+    match bundle(&dir, spec("tiny")) {
+        Err(ZooError::Io { path, message }) => {
+            assert!(path.ends_with("weights") && message.contains("is not a plain directory"), "{path:?} {message}");
+        }
+        other => panic!("{other:?}"),
+    }
 }

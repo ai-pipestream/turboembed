@@ -5,6 +5,7 @@
 // without --admin or --zoo, the page is read-only.
 
 import type { CatalogEntry, LicenceTerms, ListLicenceAcceptancesResponse } from "../gen/turbo_training_pb.js";
+import { busy, confirmed } from "../act.js";
 import { el, table, type Child } from "../dom.js";
 import { catalog } from "../rpc.js";
 import { Sha256 } from "../sha256.js";
@@ -67,7 +68,7 @@ export function termsBlock(e: CatalogEntry, t: LicenceTerms, w: Who, accepted: (
     const button = el("button", { type: "button", text: `Accept ${t.licence}` });
     button.disabled = true;
     read.addEventListener("change", () => (button.disabled = !read.checked));
-    button.addEventListener("click", () => void accepted(t));
+    button.addEventListener("click", () => void busy(button, () => accepted(t)));
     body.push(el("label", {}, read, ` I have read the ${t.licence} terms above and accept them`), " ", button);
   } else {
     body.push(el("p", { class: "muted", text: w.why }));
@@ -90,7 +91,7 @@ function when(seconds: bigint): string {
   return new Date(Number(seconds) * 1000).toLocaleString();
 }
 
-/** The terms the user accepted, each with a revoke control when allowed. */
+/** The terms the user accepted, each with a revoke control when allowed; `revoked` throws when the server refuses. */
 export function acceptedTable(r: ListLicenceAcceptancesResponse, w: Who, revoked: (t: LicenceTerms) => Promise<void>): HTMLElement {
   if (!w.user) return el("p", { class: "muted", text: w.why });
   if (!r.accepted.length) return el("p", { class: "muted", text: `${w.user} has accepted no terms.` });
@@ -100,9 +101,7 @@ export function acceptedTable(r: ListLicenceAcceptancesResponse, w: Who, revoked
       const t = a.terms;
       let control: Child = "";
       if (t && w.canChange) {
-        const b = el("button", { type: "button", text: "Revoke" });
-        b.addEventListener("click", () => void revoked(t));
-        control = b;
+        control = confirmed("Revoke", `Revoke ${t.licence}?`, () => revoked(t));
       }
       return [t?.licence ?? "", t ? address(t.text) : "", when(a.acceptedAt), a.artifactId, control];
     }),

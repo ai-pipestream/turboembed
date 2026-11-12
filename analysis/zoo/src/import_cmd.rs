@@ -63,14 +63,13 @@ pub fn run(args: &[&str]) -> Result<(), String> {
         return Ok(());
     };
     let held = match std::fs::read(into) {
-        Ok(bytes) => Index::parse(&bytes).map_err(|e| format!("{into}: {e}"))?,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Index::parse(Index::to_canonical_json(&[]).as_bytes()).map_err(|e| e.to_string())?
-        }
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Index::to_canonical_json(&[]).into_bytes(),
         Err(e) => return Err(format!("{into}: {e}")),
     };
     let (id, class, files) = (entry.id.clone(), entry.class, entry.files.len());
-    turbo_zoo::import::write(Path::new(into), &add_to(&held, entry)).map_err(|e| e.to_string())?;
+    let written = add_to(&held, entry).map_err(|e| format!("{into}: {e}"))?;
+    turbo_zoo::import::write(Path::new(into), &written).map_err(|e| e.to_string())?;
     println!("{id}\t{class}\t{files} files\tin {into}");
     Ok(())
 }

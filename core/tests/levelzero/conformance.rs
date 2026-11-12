@@ -238,9 +238,13 @@ fn the_profile_of_a_real_bundle() {
     let _t = turn();
     let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
     let Some(_) = gpu_device("the_profile_of_a_real_bundle") else { return };
+    // The log's lines, kept to check the profile names oneDNN's work.
+    static LOG: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
     unsafe extern "C" fn say(_: *mut c_void, level: u32, m: turbo_text) {
         let s = unsafe { std::slice::from_raw_parts(m.ptr as *const u8, m.len as usize) };
-        println!("log {level}: {}", String::from_utf8_lossy(s));
+        let line = String::from_utf8_lossy(s).into_owned();
+        println!("log {level}: {line}");
+        LOG.lock().unwrap_or_else(|p| p.into_inner()).push(line);
     }
     let (batch, seq) = (32usize, 256usize);
     let vocab = Tok::create(&dir).unwrap().info().vocab_size as usize;
@@ -295,5 +299,13 @@ fn the_profile_of_a_real_bundle() {
         );
         drop(s);
         drop(l);
+        // With oneDNN running the linear layers, the profile counts its
+        // primitives too (#2204), not only the backend's own list.
+        let log = std::mem::take(&mut *LOG.lock().unwrap_or_else(|p| p.into_inner()));
+        let profiled = log.iter().any(|l| l.starts_with("levelzero profile: "));
+        let dnnl = log.iter().any(|l| l.contains("can run the linear layers"));
+        if profiled && dnnl {
+            assert!(log.iter().any(|l| l.starts_with("levelzero profile: onednn matmul ")), "{log:#?}");
+        }
     }
 }

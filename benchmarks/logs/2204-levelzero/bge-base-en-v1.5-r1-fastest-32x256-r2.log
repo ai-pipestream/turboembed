@@ -1,0 +1,61 @@
+# commit: 7f7d61a2c57f7a1c91f8944f6a142b272cec0ba3
+# compute-runtime: libze-intel-gpu1 26.40.40196.8-0 (OpenCL GPU driver 26.40.40196.8, Level Zero driver 1.18.40196)
+# IGC: intel-igc-core-2 2.42.6
+# Level Zero loader: libze1 1.35.0
+# oneDNN: 3.9.1
+# kernel: 7.3.0-10-generic
+# GPU: Intel Arc Pro B70 (Battlemage G31, 8086:e223), xe driver
+# clock before (min max act MHz): 2200 2200 2200
+# clock after  (min max act MHz): 2200 2200 2200
+# act_freq sampled every 20 ms during the run: 42 nonzero samples, lowest 2200 MHz (act_freq reads 0 while the GPU idles)
+# retries for clock: 0
+# command: TURBO_LEVELZERO_PROFILE=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_PRECISION=fastest TURBO_TEST_BUNDLE=bge-base-en-v1.5-r1 target/release/deps/levelzero-<hash> --ignored --exact conformance::the_profile_of_a_real_bundle --nocapture
+# built with: cargo test --release -p turbo --features levelzero-onednn --test levelzero --no-run
+# TURBO_TEST_BUNDLE: bge-base-en-v1.5-r1
+#
+
+running 1 test
+log 3: levelzero context on device 0 (Intel(R) Arc(TM) Pro B70 Graphics): one in-order queue, the runtime's page faults turned off
+log 3: levelzero device 0: a BERT of 12 layers, 435566592 bytes of F32 weights
+log 3: levelzero device 0: the encoder's kernels are built
+log 3: levelzero kernel attention_xmx2_64: group 128x1x1, spill 0 B, private 0 B, local 16384 B, group at most Some(512)
+log 3: levelzero kernel attention_xmx_64: group 64x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(512)
+log 3: levelzero kernel linear: group 16x16x1, spill 0 B, private 0 B, local 8320 B, group at most Some(1024)
+log 3: levelzero kernel linear_sg: group 16x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel linear_gemv: group 128x1x1, spill 0 B, private 0 B, local 8192 B, group at most Some(1024)
+log 3: levelzero kernel linear_sgemm: group 128x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel linear_dpas_layer_norm_32x64: group 192x1x1, spill 3968 B, private 0 B, local 33792 B, group at most Some(512)
+log 3: levelzero kernel linear_dpas_layer_norm_32x64: group 384x1x1, spill 3968 B, private 0 B, local 33792 B, group at most Some(512)
+log 3: levelzero kernel linear_dpas_32x64: group 64x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(512)
+log 3: levelzero kernel linear_dpas_32x64_to_half: group 64x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(512)
+log 3: levelzero kernel linear_dpas_few: group 64x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel linear_dpas_few_to_half: group 64x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel embed_layer_norm: group 128x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel widen_f16: group 256x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel add_layer_norm: group 128x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel add_layer_norm_v4: group 128x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel embed_layer_norm_group: group 128x1x1, spill 0 B, private 0 B, local 4096 B, group at most Some(1024)
+log 3: levelzero kernel add_layer_norm_group: group 128x1x1, spill 0 B, private 0 B, local 4096 B, group at most Some(1024)
+log 3: levelzero kernel pool: group 128x1x1, spill 0 B, private 0 B, local 544 B, group at most Some(1024)
+log 3: levelzero kernel pool_ranges: group 128x1x1, spill 0 B, private 0 B, local 544 B, group at most Some(1024)
+log 3: levelzero kernel normalize: group 128x1x1, spill 0 B, private 0 B, local 8192 B, group at most Some(1024)
+log 3: levelzero kernel span_head: group 128x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero kernel narrow_f16_transposed: group 256x1x1, spill 0 B, private 0 B, local 0 B, group at most Some(1024)
+log 3: levelzero device 0: oneDNN 3.9.1 can run the linear layers
+bge-base-en-v1.5-r1: precision 1: 18.551 ms a run of 32 x 256 (profile below if enabled)
+log 3: levelzero profile: attention: 300 times, 53.845 ms, 12.7%
+log 3: levelzero profile: narrow_f16_transposed: 48 times, 3.055 ms, 0.7%
+log 3: levelzero profile: normalization: 25 times, 0.070 ms, 0.0%
+log 3: levelzero profile: onednn layer norm 8192x768: 600 times, 18.391 ms, 4.3%
+log 3: levelzero profile: onednn matmul 8192x3072x768 bias residual: 300 times, 92.444 ms, 21.7%
+log 3: levelzero profile: onednn matmul 8192x768x2304 bias: 300 times, 73.002 ms, 17.2%
+log 3: levelzero profile: onednn matmul 8192x768x3072 bias gelu: 300 times, 126.581 ms, 29.7%
+log 3: levelzero profile: onednn matmul 8192x768x768 bias residual: 300 times, 33.755 ms, 7.9%
+log 3: levelzero profile: pooling: 25 times, 0.122 ms, 0.0%
+log 3: levelzero profile: the embedding lookup: 25 times, 5.150 ms, 1.2%
+log 3: levelzero profile: the feed-forward output and LayerNorm: 25 times, 2.262 ms, 0.5%
+log 3: levelzero profile: zeCommandListAppendMemoryCopy: 281 times, 16.808 ms, 4.0%
+test conformance::the_profile_of_a_real_bundle ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.97s
+
