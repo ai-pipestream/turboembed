@@ -239,7 +239,12 @@ from the cache. Each fetched file is checked as docs/zoo.md says, by its
 wire size and SHA-256 when served compressed, then unpacked and checked
 by size, SHA-256 and SHA-512, before it is written; it is written under
 its name only whole. A file that fails ends the stream with `DATA_LOSS`
-(`TURBO_E_BUNDLE_INTEGRITY`) naming the check, and is never cached. A
+(`TURBO_E_BUNDLE_INTEGRITY`) naming the check, and is never cached. For
+an encoder bundle entry (`TYPE_ENCODER_BUNDLE`, docs/zoo.md, Model
+types), once every file is verified the bundle's `manifest.json` must
+describe the entry; one that names another model or other files ends
+the stream with the same `DATA_LOSS` (`TURBO_E_BUNDLE_INTEGRITY`), and
+no `Installed` answer is sent. A
 transport or disk failure ends it with `INTERNAL` (`TURBO_E_RUNTIME`).
 An install the client abandons carries on to its end, so the files it
 fetched are cached for the next one.
