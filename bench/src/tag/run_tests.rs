@@ -31,7 +31,9 @@ fn native_bundle_load_preserves_source_identity_across_precisions() {
         None,
     )
     .unwrap();
-    let dir = std::env::temp_dir().join(format!("turbo-tag-native-bundle-{}", std::process::id()));
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-tag-native-bundle-{}", std::process::id())),
+    );
     assert!(!dir.exists());
     let source = turbo_bundle::postag::NativeSource { id: "turbo-native:tag-test".into(), revision: "v1".into() };
     turbo_bundle::postag::export(&model, &source, "Apache-2.0", &dir).unwrap();
@@ -50,7 +52,8 @@ fn native_bundle_load_preserves_source_identity_across_precisions() {
 
 #[test]
 fn archive_file_argument_is_rejected_before_reading() {
-    let path = std::env::temp_dir().join(format!("turbo-tag-absent-{}", std::process::id()));
+    let path =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-tag-absent-{}", std::process::id())));
     assert!(!path.exists());
     let error = load(&path, &["f64", "f32"]).err().unwrap();
     assert!(error.contains("archive loading is retired"), "{error}");

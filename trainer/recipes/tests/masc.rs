@@ -3,13 +3,14 @@
 //! release is refused either way.
 
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 use turbo_trainer_recipes::corpus::{Counts, Task};
 use turbo_trainer_recipes::masc_pos::read;
 
 #[test]
 fn a_directory_that_is_not_the_release_is_refused() {
-    let dir = std::env::temp_dir().join(format!("turbo-masc-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-masc-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("README.txt"), "not MASC").unwrap();
     let e = read(&dir, false).unwrap_err();

@@ -2,6 +2,7 @@
 //! what a held result holds.
 
 use std::ptr;
+use turbo_scratch::Scratch;
 
 use crate::common::*;
 use crate::support::*;
@@ -77,7 +78,8 @@ fn a_failed_run_takes_the_write() {
 fn a_bundle_without_a_pad_token_pads_text_rows_with_ids_in_the_vocabulary() {
     let mut tj: serde_json::Value = serde_json::from_slice(&std::fs::read(upstream_tokenizer_json()).unwrap()).unwrap();
     tj["added_tokens"].as_array_mut().unwrap().retain(|t| t["content"] != "[PAD]");
-    let tj_path = std::env::temp_dir().join(format!("turbo-test-{}-no-pad-tokenizer.json", std::process::id()));
+    let tj_path =
+        Scratch::at(std::env::temp_dir().join(format!("turbo-test-{}-no-pad-tokenizer.json", std::process::id())));
     std::fs::write(&tj_path, serde_json::to_vec(&tj).unwrap()).unwrap();
     let mut m = model_manifest();
     m["tokenizer"]["special_tokens"].as_array_mut().unwrap().retain(|t| t["role"] != "SPECIAL_PAD");

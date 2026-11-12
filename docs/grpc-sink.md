@@ -113,9 +113,11 @@ carrying an `AnalyzeStream` answer never carry one: they have no graph.
 ## PII output
 
 An item about a document holding PII findings (a `turbo:pii` layer)
-follows `--sink-pii-output LIST` (`TURBO_KSERVE_SINK_PII_OUTPUT`), the
-same list `--pii-output-allow` takes and within it (docs/grpc-analysis.md,
-PII output). Unset, it is findings only: the item carries no graph bytes,
+follows `--sink-pii-output LIST` (`TURBO_KSERVE_SINK_PII_OUTPUT`):
+`none`, or a comma-separated list of `rewritten-text`, `full-text` and
+`detail`, within `--pii-output-allow` (docs/grpc-analysis.md, PII
+output). The value forms are refused here, since values leave only
+through `InspectDocumentGraph` to granted services. Unset, it is findings only: the item carries no graph bytes,
 its layers and views listed with their typed errors, and
 the typed findings projection in the configured view, or on the source
 view in UTF-8 offsets when no projection is configured. Every value is

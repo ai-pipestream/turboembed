@@ -1,5 +1,6 @@
 use super::*;
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 pub fn tokenizer_json() -> PathBuf {
     testdata().join("tiny-bpe/tokenizer.json")
@@ -234,7 +235,7 @@ fn matches_upstream_with_each_option() {
                 m["tokenizer"]["bpe"]["ignore_merges"] = json!(true);
             }
         }
-        let path = std::env::temp_dir().join(format!("turbo-bpe-{variant}-{}.json", std::process::id()));
+        let path = Scratch::at(std::env::temp_dir().join(format!("turbo-bpe-{variant}-{}.json", std::process::id())));
         std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
         check(variant, m, &path);
         std::fs::remove_file(path).unwrap();
@@ -263,7 +264,7 @@ fn a_raw_token_inside_a_normalized_one_is_taken_first() {
     let mut json: serde_json::Value = serde_json::from_slice(&std::fs::read(tokenizer_json()).unwrap()).unwrap();
     let mut m = manifest_bpe();
     mixed(&mut json, &mut m);
-    let path = std::env::temp_dir().join(format!("turbo-bpe-raw-first-{}.json", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-bpe-raw-first-{}.json", std::process::id())));
     std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
     let tok = core_tokenizer(&fixture("raw-first", m, &path));
     let mut up = upstream_at(&path);

@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use serde_json::{Value, json};
 use turbo_bundle::recipe::Recipe;
@@ -12,9 +13,8 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-bundle-static-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-bundle-static-{}-{name}", std::process::id())));
     fs::create_dir_all(&d).unwrap();
     d
 }

@@ -383,6 +383,7 @@ impl Index {
             }
             let mut paths = BTreeSet::new();
             for f in &a.files {
+                f.check_also(computed).map_err(|e| ZooError::Index(format!("{}: {e}", a.id)))?;
                 let p = f.path.as_str();
                 if p.split('/').any(|part| part.ends_with(".partial") || part.contains(".partial.")) {
                     return Err(ZooError::Index(format!(

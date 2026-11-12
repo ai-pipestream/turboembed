@@ -1,11 +1,12 @@
 use std::fs;
 use std::path::Path;
+use turbo_scratch::Scratch;
 
 use turbo_bundle::{fetch, recipe::Recipe};
 
 #[test]
 fn nomic_fetch_requires_acceptance_for_its_ms_marco_lineage() {
-    let root = std::env::temp_dir().join(format!("nomic-acceptance-{}", std::process::id()));
+    let root = Scratch::at(std::env::temp_dir().join(format!("nomic-acceptance-{}", std::process::id())));
     fs::create_dir(&root).unwrap();
     let dir = root.join("upstream");
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("recipes/nomic-embed-text-v1.5.json");
@@ -22,7 +23,7 @@ fn nomic_fetch_requires_acceptance_for_its_ms_marco_lineage() {
 
 #[test]
 fn nomic_cli_fetch_and_make_require_consent() {
-    let root = std::env::temp_dir().join(format!("nomic-cli-{}", std::process::id()));
+    let root = Scratch::at(std::env::temp_dir().join(format!("nomic-cli-{}", std::process::id())));
     fs::create_dir(&root).unwrap();
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("recipes/nomic-embed-text-v1.5.json");
     for action in ["fetch", "make"] {

@@ -119,6 +119,9 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             }
             for f in &a.files {
                 println!("file: {} {} bytes sha256 {} from {}", f.path, f.size, f.sha256, f.url);
+                for u in &f.also {
+                    println!("file: {} also from {u}", f.path);
+                }
             }
             Ok(())
         }

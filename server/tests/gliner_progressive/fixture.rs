@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use turbo_scratch::Scratch;
 
 use turbo::deberta::package::{PackageManifest, digest};
 
@@ -46,7 +47,8 @@ pub fn package() -> PathBuf {
     PACKAGE
         .get_or_init(|| {
             let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-            let dir = std::env::temp_dir().join(format!("turbo-kserve-gliner-package-{}", std::process::id()));
+            let dir =
+                Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-gliner-package-{}", std::process::id())));
             fs::create_dir_all(dir.join("encoder")).unwrap();
             let weights = fs::read(root.join("core/tests/fixtures/deberta/weights.safetensors")).unwrap();
             let heads = fs::read(root.join("analysis/gliner/tests/fixtures/heads.safetensors")).unwrap();
@@ -95,7 +97,7 @@ pub fn package() -> PathBuf {
             fs::write(dir.join("heads.safetensors"), heads).unwrap();
             fs::write(dir.join("spm.model"), tokenizer).unwrap();
             fs::write(dir.join("gliner.json"), serde_json::to_vec(&gliner).unwrap()).unwrap();
-            dir
+            dir.until_exit()
         })
         .clone()
 }

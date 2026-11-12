@@ -17,6 +17,7 @@ fn sample() -> PosRecord {
             driver_version: "".into(),
             runtime_version: "".into(),
             memory_total: 0,
+            clock: None,
         },
         library: Library {
             version: "0.1.0".into(),
@@ -90,7 +91,8 @@ fn check_refuses_non_finite_latency_and_ratio() {
         assert!(check(&r).is_err(), "{why}");
         // write() refuses what check() refuses, so no record it saves holds a
         // JSON null where a number belongs.
-        let dir = std::env::temp_dir().join(format!("turbo-postag-check-{}", std::process::id()));
+        let dir =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-postag-check-{}", std::process::id())));
         assert!(write(&r, &dir).is_err(), "{why}: written");
     };
     for nan_or_inf in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {

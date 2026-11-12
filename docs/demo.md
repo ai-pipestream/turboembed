@@ -362,8 +362,9 @@ for any refused call.
 - Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
   its time and layers and any failed step with what it skipped; then
   the finished graph through `InspectDocumentWindow`, the text with its
-  annotations marked, a chip per layer to show only some, paging, and
-  heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
+  annotations marked, a chip per layer instance to filter text annotations, paging, and
+  heatmap lanes (unfiltered). Named chips show `[instance]` and select that
+  instance independently through `filter_layer_instances`; and `FormatDocument` in any format `ListOutputFormats`
   names, shown when it is text and offered as a download. An open-span model
   enables caller entity labels, optional label=prompt guidelines, threshold,
   and flat or nested decoding. A
@@ -544,6 +545,18 @@ either: every call the page makes goes through the demo to the server.
   matrix with ones on its diagonal.
 - The Server tab lists every served bundle and profile, and the Analyze
   and Embed tabs offer the same ones.
+- The install flow, against a second server and demo the script starts
+  for it: a catalog of one share-alike bundle (the tiny bundle with its
+  licence set to CC-BY-SA-4.0) whose files are in a `file://` store, a
+  server with `--admin`, and a demo with `--user e2e` that forwards
+  `RecordLicenceAcceptance`, `InstallModel` and `LoadBundle`. The Models
+  tab shows the terms still to accept with the licence, its class and
+  the address of its text, and Install stays off. Once the box is
+  ticked and the terms accepted, the acceptance is listed with the
+  artifact it was made on, Install installs the model, and every file
+  on disk has the size and SHA-256 the catalog lists. The Server tab
+  loads the installed directory into the running server, and Semantic
+  ranks passages with it, with no restart and no page reload.
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

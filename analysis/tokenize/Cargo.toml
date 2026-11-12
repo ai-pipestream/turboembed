@@ -18,4 +18,5 @@ turbo-tokenize-layers = { path = "../tokenize-layers" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 turbo-goldens = { path = "../goldens" }

@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::Path;
+use turbo_scratch::Scratch;
 
 use turbo_bundle::distill::{self, Progress};
 use turbo_bundle::recipe::Recipe;
@@ -9,7 +10,7 @@ use turbo_bundle::recipe::Recipe;
 #[test]
 fn base_only_distillation_reports_every_completed_row_before_reduction() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let work = std::env::temp_dir().join(format!("turbo-bundle-progress-{}", std::process::id()));
+    let work = Scratch::at(std::env::temp_dir().join(format!("turbo-bundle-progress-{}", std::process::id())));
     fs::create_dir_all(&work).unwrap();
     let bundle = work.join("bundle");
     let mut recipe = Recipe::load(&root.join("testdata/tiny-static-recipe/recipe.json")).unwrap();

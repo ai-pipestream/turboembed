@@ -34,10 +34,8 @@ fn header(set: &str, backend: &str, c: &TurboChunker) -> Header {
     }
 }
 
-fn dir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-eval-cuts-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn dir(name: &str) -> turbo_scratch::Scratch {
+    turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-eval-cuts-{}-{name}", std::process::id())))
 }
 
 /// Dumps the two-paragraph text, cut with `c`, as set `set` in `d`.

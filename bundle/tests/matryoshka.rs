@@ -8,6 +8,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use serde_json::{Value, json};
 use turbo::safetensors::{self, Dtype};
@@ -19,9 +20,8 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-bundle-test-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-bundle-test-{}-{name}", std::process::id())));
     fs::create_dir_all(&d).unwrap();
     d
 }
@@ -177,7 +177,7 @@ fn the_recipe_field_is_checked_before_anything_runs() {
 /// Seal a bundle from a recipe with `edit` applied, the real weights and
 /// the small BERT's reference, as `make` finishes after the container ran.
 fn sealed(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let d = scratch(name);
+    let d = scratch(name).until_exit();
     let p = tiny_recipe(&d, edit);
     let r = Recipe::load(&p).unwrap();
     let bundle = d.join("bundle");

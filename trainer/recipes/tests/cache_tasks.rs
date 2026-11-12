@@ -7,6 +7,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use serde_json::Value;
 use turbo::head::{BiaffineParser, EditTreeLemmatizer, TokenSplitter, TokenTagger};
@@ -27,10 +28,8 @@ fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-cache-tasks-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-cache-tasks-{}-{name}", std::process::id())))
 }
 
 /// 24 sentences with multiword contractions (`al` -> `a` + `el`, `del` -> `de` + `el`),

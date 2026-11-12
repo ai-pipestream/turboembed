@@ -193,6 +193,7 @@ impl TurboEmbedder {
                 driver_version: field(&d.driver_version),
                 runtime_version: field(&d.runtime_version),
                 memory_total: d.memory_total,
+                clock: None,
             },
             bundle: BundleId {
                 model_id: field(&m.model_id),
@@ -318,6 +319,7 @@ pub(crate) mod stub {
                 driver_version: String::new(),
                 runtime_version: String::new(),
                 memory_total: 1 << 34,
+                clock: None,
             },
             bundle: BundleId {
                 model_id: "stub".into(),

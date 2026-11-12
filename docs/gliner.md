@@ -320,8 +320,10 @@ long-document windows, and schema refusals without downloading a checkpoint.
 The annotator packs consecutive whole sentences into windows that fit both
 384 tokens and the encoder context length, including the complete label prompt
 and final separator. Empty sentences consume no window space. A supplied
-sentence that cannot fit is refused with its zero-based sentence index and
-`max_tokens` or `max_sequence`; it is never truncated. Sentence spans must be
+sentence that cannot fit is refused as an over-limit error that names
+`max_tokens` or `encoder max_sequence` with the limit and the count
+measured, and no text, so a server passes it on as a capacity refusal; it
+is never truncated. Sentence spans must be
 contiguous, in the input view, on UTF-8 boundaries, and cover every token.
 When token sentence indices exist, they must agree with those spans.
 

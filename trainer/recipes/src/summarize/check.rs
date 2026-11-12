@@ -83,7 +83,9 @@ mod tests {
 
     #[test]
     fn relative_walks_up_and_down_from_the_base() {
-        let root = std::env::temp_dir().join(format!("turbo-summarize-rel-{}", std::process::id()));
+        let root = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-summarize-rel-{}", std::process::id())),
+        );
         let (a, b) = (root.join("runs/a"), root.join("out"));
         std::fs::create_dir_all(&a).unwrap();
         std::fs::create_dir_all(&b).unwrap();

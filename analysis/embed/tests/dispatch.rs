@@ -10,6 +10,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
+use turbo_scratch::Scratch;
 
 use turbo_analysis::{Analyzer, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_embed::calibrate::{
@@ -155,8 +156,7 @@ fn a_cost_is_fitted_to_runs_rows_and_tokens() {
 
 #[test]
 fn what_dispatch_cannot_choose_from_is_refused_before_anything_is_measured() {
-    let dir = std::env::temp_dir().join(format!("turbo-dispatch-refused-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-dispatch-refused-{}", std::process::id())));
     let o = CalibrationOptions {
         device: Device::Cpu,
         precision: Precision::Model,
@@ -175,8 +175,7 @@ fn what_dispatch_cannot_choose_from_is_refused_before_anything_is_measured() {
 
 #[test]
 fn each_document_records_the_side_its_call_ran_on() {
-    let dir = std::env::temp_dir().join(format!("turbo-dispatch-placed-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-dispatch-placed-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let o = CalibrationOptions {
         device: Device::Cpu,
@@ -348,8 +347,7 @@ fn on_the_device_every_submission_runs_on_the_side_its_preference_picks() {
     let sentence: Vec<Text> = vec![(first[..spans[0].1 as usize].to_string(), vec![spans[0]])];
     let submissions: [(&str, &[Text], usize); 3] =
         [("one sentence", &sentence, 20), ("one document", &texts[..1], 10), ("all", &texts, 3)];
-    let dir = std::env::temp_dir().join(format!("turbo-dispatch-device-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-dispatch-device-{}", std::process::id())));
     println!(
         "window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)\tplan ms\tadded ms\tadded\town window"
     );

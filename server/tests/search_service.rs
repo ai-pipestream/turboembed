@@ -4,6 +4,7 @@ mod common;
 
 use std::collections::HashMap;
 use std::time::Duration;
+use turbo_scratch::Scratch;
 
 use tokio_stream::StreamExt;
 use tonic::Code;
@@ -46,8 +47,7 @@ fn vec16(axis: usize) -> Vec<f32> {
 
 #[tokio::test]
 async fn turbo_search_service_end_to_end() {
-    let snap_dir = std::env::temp_dir().join(format!("turbo-search-snaps-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&snap_dir);
+    let snap_dir = Scratch::at(std::env::temp_dir().join(format!("turbo-search-snaps-{}", std::process::id())));
     std::fs::create_dir_all(&snap_dir).unwrap();
     let srv =
         Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: true, ..Serve::default() })

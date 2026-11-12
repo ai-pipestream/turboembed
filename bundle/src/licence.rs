@@ -220,17 +220,21 @@ mod tests {
         assert!(check_fetch(&with("LicenseRef-Proprietary"), true).is_err());
     }
 
-    fn store(name: &str) -> (PathBuf, UserId) {
-        let dir = std::env::temp_dir().join(format!("turbo-bundle-consent-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        (dir.join("home").join("acceptances.json"), "alice".parse().unwrap())
+    /// The acceptance file's path and a user, with the guard that removes
+    /// the file's directory when the test ends.
+    fn store(name: &str) -> (turbo_scratch::Scratch, PathBuf, UserId) {
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-bundle-consent-{name}-{}", std::process::id())),
+        );
+        let path = dir.join("home").join("acceptances.json");
+        (dir, path, "alice".parse().unwrap())
     }
 
     /// The flag records the acceptance in the zoo's file; a later fetch
     /// passes without it, and another user's acceptance does not count.
     #[test]
     fn the_flag_records_in_the_zoo_file_and_a_later_fetch_needs_none() {
-        let (path, alice) = store("record");
+        let (_dir, path, alice) = store("record");
         let m = with("CC-BY-SA-4.0");
         let alone = Consent { flag: false, store: Some((path.clone(), alice.clone())) };
         assert!(check_fetch_with(&m, &alone).unwrap_err().contains("turbo-zoo accept"));
@@ -248,13 +252,12 @@ mod tests {
         let before = std::fs::read(&path).unwrap();
         assert_eq!(check_fetch_with(&with("MIT"), &flagged).unwrap(), LicenseClass::Permissive);
         assert_eq!(std::fs::read(&path).unwrap(), before);
-        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
     }
 
     /// An acceptance the zoo command made counts here.
     #[test]
     fn an_acceptance_made_elsewhere_counts() {
-        let (path, alice) = store("elsewhere");
+        let (_dir, path, alice) = store("elsewhere");
         let mut file = Acceptances::default();
         file.accept(&alice, Licence::CcByNc40, 1_792_000_000).unwrap();
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -265,7 +268,6 @@ mod tests {
         std::fs::write(&path, b"{}").unwrap();
         assert!(check_fetch_with(&with("CC-BY-NC-4.0"), &Consent { flag: true, ..consent }).is_err());
         assert_eq!(std::fs::read(&path).unwrap(), b"{}");
-        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
     }
 
     #[test]
@@ -276,7 +278,7 @@ mod tests {
             req,
             Requirement { licence: Licence::RestrictedPublic, text: "https://microsoft.github.io/msmarco/".into() }
         );
-        let (path, alice) = store("notice");
+        let (_dir, path, alice) = store("notice");
         let alone = Consent { flag: false, store: Some((path.clone(), alice.clone())) };
         let e = check_notice_with(&r, &alone).unwrap_err();
         assert!(e.contains("https://microsoft.github.io/msmarco/") && e.contains("--accept-terms"), "{e}");
@@ -288,6 +290,5 @@ mod tests {
         assert!(notice_requirement(&r).unwrap_err().contains("notice_terms:"));
         r.notice = None;
         assert_eq!(notice_requirement(&r).unwrap_err(), "notice_terms requires notice");
-        std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap()).unwrap();
     }
 }

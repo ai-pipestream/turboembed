@@ -2,7 +2,6 @@
 //! part C): pinned by content, typed refusals that name the reference and
 //! never the content, the format each use takes, and the cache.
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::*;
@@ -13,10 +12,8 @@ use crate::vocabulary::{Dictionary, Store};
 
 const SECRET: &str = "zebulon-planted";
 
-fn dir(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-pii-dict-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
-    d
+fn dir(name: &str) -> turbo_scratch::Scratch {
+    turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-pii-dict-{name}-{}", std::process::id())))
 }
 
 fn sha(bytes: &[u8]) -> String {
@@ -37,7 +34,7 @@ fn put(store: &Store, id: &str, format: &str, bytes: &[u8]) -> String {
 }
 
 fn resolver(name: &str) -> (ServerResolver, String, String, String) {
-    let store = Arc::new(Store::open(&dir(name)).unwrap());
+    let store = Arc::new(Store::open(&dir(name).until_exit()).unwrap());
     let words = put(&store, "dict-words", TERMS_FORMAT, format!("\u{feff}  {SECRET}  \r\nAcme Corp\n\n").as_bytes());
     let map = put(&store, "dict-map", MAP_FORMAT, format!("{SECRET}\tJ. Doe\nbob\t B \n").as_bytes());
     let csv = put(&store, "dict-csv", "glossary-csv", b"g1,New York\n");
@@ -87,7 +84,7 @@ fn a_store_whose_bytes_changed_under_the_descriptor_is_unreadable() {
 
 #[test]
 fn a_stored_dictionary_that_does_not_parse_says_which_line() {
-    let store = Arc::new(Store::open(&dir("unparsable")).unwrap());
+    let store = Arc::new(Store::open(&dir("unparsable").until_exit()).unwrap());
     // A blank replacement is a headword with an empty definition, which
     // the store takes, but a map table refuses it.
     let map = put(&store, "dict-map", MAP_FORMAT, format!("bob\tB\n{SECRET}\t \n").as_bytes());
@@ -171,7 +168,7 @@ fn map_policy(table: pb::pii_map_strategy::Table) -> pb::RedactionPolicy {
 /// the same entries redacted differently. Both now refuse the policy.
 #[test]
 fn map_keys_equal_once_normalized_are_refused_inline_and_from_a_dictionary() {
-    let store = Arc::new(Store::open(&dir("collide")).unwrap());
+    let store = Arc::new(Store::open(&dir("collide").until_exit()).unwrap());
     let rows = format!(" {SECRET} \tB\n{SECRET}\tA\n");
     let map = put(&store, "dict-collide", MAP_FORMAT, rows.as_bytes());
     let r = ServerResolver::load(&[], &[], Some(store)).unwrap();
