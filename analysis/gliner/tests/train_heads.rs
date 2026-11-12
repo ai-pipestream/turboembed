@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use turbo::deberta::{Config as EncoderConfig, Encoder};
 use turbo_analysis::ModelRef;
+use turbo_gliner::package::Manifest;
 use turbo_gliner::train::{OutputTrainer, output_optimizer};
 use turbo_gliner::{Candidate, Config, Decode, ExtractionSchema, Model};
 use turbo_trainer::adamw::Settings;
@@ -224,4 +225,25 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
     let written = trainer.write_heads(&original).unwrap();
     let reloaded = Model::new(encoder, config, &written, &spm, identity).unwrap();
     close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after);
+}
+
+#[test]
+#[ignore = "loads the real small-v2.5 package for LoRA parity"]
+fn real_lora_initialization_preserves_encoder_states_and_scores() {
+    let root = std::env::var_os("GLINER_V2_5_PACKAGE").expect("GLINER_V2_5_PACKAGE");
+    let encoder_original = std::fs::read(turbo_pins::require(&root).join("encoder/weights.safetensors")).unwrap();
+    let mut model = Manifest::load(&turbo_pins::require(&root)).unwrap();
+    let schema = ExtractionSchema::new(vec!["person".into(), "location".into()], 0.5, Decode::Flat).unwrap();
+    let packed = model.pack(&WORDS, &schema).unwrap();
+    let before = model.states(&packed, &schema).unwrap();
+    let baseline = model.training_input(&WORDS, &schema).unwrap().1;
+    model.enable_lora(&encoder_original, 1, 2.0, 17).unwrap();
+    let after = model.states(&packed, &schema).unwrap();
+    let maximum = before.iter().zip(&after).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+    let initial = model.training_input_lora(&WORDS, &schema).unwrap();
+    let candidates = initial.candidates.clone();
+    let logit = baseline.iter().zip(&candidates).map(|(a, b)| (a.logit - b.logit).abs()).fold(0.0, f32::max);
+    println!("real LoRA maximum state error {maximum}, logit error {logit}");
+    assert!(maximum < 0.002);
+    assert!(logit < 0.002);
 }

@@ -239,11 +239,11 @@ impl<R: Real> DebertaLayer<R> {
         let mut pos = vec![R::ZERO; rows * 3 * h];
         self.project(0, relative, h, 3 * h, &mut pos, &mut work.pos_h);
         work.pos.clear();
-        work.pos.extend_from_slice(&pos);
+        work.pos.extend(pos.chunks_exact(3 * h).flat_map(|row| row[..2 * h].iter().copied()));
         work.ctx.resize(x.len(), R::ZERO);
         deberta::forward(
             &work.qkv,
-            &pos,
+            &work.pos,
             h,
             self.config.heads,
             self.config.position_buckets,
@@ -318,10 +318,14 @@ impl<R: Real> DebertaLayer<R> {
             &mut dqkv,
             &mut dpos,
         );
+        let mut dpos_qkv = vec![R::ZERO; 2 * self.config.position_buckets * 3 * h];
+        for (out, input) in dpos_qkv.chunks_exact_mut(3 * h).zip(dpos.chunks_exact(2 * h)) {
+            out[..2 * h].copy_from_slice(input);
+        }
         let mut dx = vec![R::ZERO; work.x.len()];
         self.project_back(0, &work.x, &work.qkv_h, &dqkv, grads, &mut dx);
         let mut drelative = vec![R::ZERO; relative.len()];
-        self.project_back(0, relative, &work.pos_h, &dpos, grads, &mut drelative);
+        self.project_back(0, relative, &work.pos_h, &dpos_qkv, grads, &mut drelative);
         for (d, &r) in dx.iter_mut().zip(&dx_mid) {
             *d += r;
         }

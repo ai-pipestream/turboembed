@@ -123,3 +123,133 @@ fn an_optimizer_step_moves_only_the_adapters() {
     layer.forward(&x, &relative, &mut work);
     assert!(work.out.iter().all(|x| x.is_finite()));
 }
+
+#[test]
+#[ignore = "loads real small-v2.5 tensors for layer parity"]
+fn real_layer_inputs_match_native_products() {
+    let root = std::env::var_os("GLINER_V2_5_PACKAGE").expect("GLINER_V2_5_PACKAGE");
+    let (metadata, core) =
+        turbo::deberta::package::PackageManifest::load(&turbo_pins::require(&root).join("encoder")).unwrap();
+    let original = std::fs::read(turbo_pins::require(&root).join("encoder/weights.safetensors")).unwrap();
+    let file = turbo::safetensors::File::parse("encoder", &original).unwrap();
+    let layer =
+        DebertaLayer::load(metadata.config.clone(), &file, metadata.config.layers - 1, 1, 2.0, &mut Rng::new(17))
+            .unwrap();
+    let ids = [101, 30000, 12000, 30001, 12001, 12002, 12003, 12004, 12005, 12006, 12007, 12008, 102];
+    let trace = core.encode_layers(&ids, &vec![true; ids.len()]).unwrap();
+    let x = &trace[metadata.config.layers - 1];
+    let relative = DebertaLayer::relative(&metadata.config, &file).unwrap();
+    let mut work = Work::default();
+    layer.forward(x, &relative, &mut work);
+    let h = metadata.config.hidden;
+    let names = ["query_proj", "key_proj", "value_proj"];
+    let prefix = format!("encoder.layer.{}", metadata.config.layers - 1);
+    let weights: Vec<Vec<f32>> = names
+        .iter()
+        .map(|name| {
+            file.get(&format!("{prefix}.attention.self.{name}.weight"), turbo::safetensors::Dtype::F32, 2)
+                .unwrap()
+                .f32s()
+        })
+        .collect();
+    let parts: Vec<&[f32]> = weights.iter().map(Vec::as_slice).collect();
+    let matrix = turbo::cpu::Matrix::from_rows(&parts, h).unwrap();
+    let mut expected = vec![0.0; work.qkv.len()];
+    matrix.apply(x, h, ids.len(), Some(&layer.base.qkv_b), &mut expected, 3 * h, turbo::cpu::Mode::Plain);
+    let qkv_error = expected.iter().zip(&work.qkv).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+    let mut expected_pos = vec![0.0; 2 * metadata.config.position_buckets * 3 * h];
+    matrix.apply(
+        &relative,
+        h,
+        2 * metadata.config.position_buckets,
+        Some(&layer.base.qkv_b),
+        &mut expected_pos,
+        3 * h,
+        turbo::cpu::Mode::Plain,
+    );
+    let pos_error = expected_pos
+        .chunks_exact(3 * h)
+        .zip(work.pos.chunks_exact(2 * h))
+        .flat_map(|(a, b)| a[..2 * h].iter().zip(b).map(|(a, b)| (a - b).abs()))
+        .fold(0.0, f32::max);
+    let mut expected_ctx = vec![0.0; work.ctx.len()];
+    let d = h / metadata.config.heads;
+    let rr = 2 * metadata.config.position_buckets;
+    for head in 0..metadata.config.heads {
+        let o = head * d;
+        let mut mk = turbo::cpu::Matrix::empty();
+        let mut mv = turbo::cpu::Matrix::empty();
+        let mut mpk = turbo::cpu::Matrix::empty();
+        let mut mpq = turbo::cpu::Matrix::empty();
+        mk.pack_rows(&work.qkv[h + o..], 3 * h, ids.len(), d).unwrap();
+        mv.pack_cols(&work.qkv[2 * h + o..], 3 * h, d, ids.len()).unwrap();
+        mpk.pack_rows(&work.pos[h + o..], 2 * h, rr, d).unwrap();
+        mpq.pack_rows(&work.pos[o..], 2 * h, rr, d).unwrap();
+        let mut p2c = vec![0.0; ids.len() * rr];
+        mpq.apply(&work.qkv[h + o..], 3 * h, ids.len(), None, &mut p2c, rr, turbo::cpu::Mode::Plain);
+        let our_p2c = deberta::p2c(&work.qkv, &work.pos, h, head, d, rr);
+        let p2c_error = our_p2c.iter().zip(&p2c).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+        if head == 0 {
+            println!("head {head} p2c error {p2c_error}");
+        }
+        for i in 0..ids.len() {
+            let q = &work.qkv[i * 3 * h + o..];
+            let mut scores = vec![0.0; ids.len()];
+            mk.apply(q, 3 * h, 1, None, &mut scores, ids.len(), turbo::cpu::Mode::Plain);
+            let mut c2p = vec![0.0; rr];
+            mpk.apply(q, 3 * h, 1, None, &mut c2p, rr, turbo::cpu::Mode::Plain);
+            let our_c2p = deberta::c2p(&work.qkv, &work.pos, h, i, head, d, rr);
+            if head == 0 && i == 0 {
+                let error = our_c2p.iter().zip(&c2p).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+                println!("c2p error {error}");
+            }
+            for (j, score) in scores.iter_mut().enumerate() {
+                let r = deberta::bucket(
+                    i as isize - j as isize,
+                    metadata.config.position_buckets,
+                    metadata.config.max_relative_positions,
+                );
+                *score = (*score + c2p[r] + p2c[j * rr + r]) * (1.0 / (3.0 * d as f64).sqrt()) as f32;
+            }
+            let max = scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+            let mut sum = 0.0;
+            for score in &mut scores {
+                *score = (*score - max).exp();
+                sum += *score;
+            }
+            for score in &mut scores {
+                *score /= sum;
+            }
+            if head == 0 && i == 0 {
+                let mut row = vec![0.0; ids.len()];
+                deberta::probabilities(
+                    &work.qkv,
+                    &our_p2c,
+                    &our_c2p,
+                    h,
+                    i,
+                    head,
+                    d,
+                    metadata.config.position_buckets,
+                    metadata.config.max_relative_positions,
+                    &mut row,
+                );
+                let error = row.iter().zip(&scores).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+                println!("probability error {error}: ours {:?} expected {:?}", &row[..4], &scores[..4]);
+            }
+            for (j, &p) in scores.iter().enumerate() {
+                for k in 0..d {
+                    expected_ctx[i * h + o + k] += p * work.qkv[j * 3 * h + 2 * h + o + k];
+                }
+            }
+        }
+    }
+    let ctx_error = expected_ctx.iter().zip(&work.ctx).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+    println!("attention context error {ctx_error}");
+    let out_error = trace[metadata.config.layers].iter().zip(&work.out).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+    println!("qkv error {qkv_error}, relative error {pos_error}, output error {out_error}");
+    assert!(ctx_error < 0.002);
+    assert!(qkv_error < 0.002);
+    assert!(pos_error < 0.002);
+    assert!(out_error < 0.002);
+}

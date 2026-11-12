@@ -21,7 +21,7 @@ pub fn bucket(distance: isize, buckets: usize, maximum: usize) -> usize {
     (signed + buckets as isize).clamp(0, (2 * buckets - 1) as isize) as usize
 }
 
-fn p2c<R: Real>(qkv: &[R], pos: &[R], h: usize, head: usize, d: usize, rows: usize) -> Vec<R> {
+pub(crate) fn p2c<R: Real>(qkv: &[R], pos: &[R], h: usize, head: usize, d: usize, rows: usize) -> Vec<R> {
     let n = qkv.len() / (3 * h);
     let mut out = vec![R::ZERO; n * rows];
     for j in 0..n {
@@ -34,13 +34,13 @@ fn p2c<R: Real>(qkv: &[R], pos: &[R], h: usize, head: usize, d: usize, rows: usi
     out
 }
 
-fn c2p<R: Real>(qkv: &[R], pos: &[R], h: usize, i: usize, head: usize, d: usize, rows: usize) -> Vec<R> {
+pub(crate) fn c2p<R: Real>(qkv: &[R], pos: &[R], h: usize, i: usize, head: usize, d: usize, rows: usize) -> Vec<R> {
     let query = &qkv[i * 3 * h + head * d..i * 3 * h + (head + 1) * d];
     (0..rows).map(|r| dot(query, &pos[r * 2 * h + h + head * d..r * 2 * h + h + (head + 1) * d])).collect()
 }
 
 #[allow(clippy::too_many_arguments)]
-fn probabilities<R: Real>(
+pub(crate) fn probabilities<R: Real>(
     qkv: &[R],
     p2c: &[R],
     c2p: &[R],

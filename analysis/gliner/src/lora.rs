@@ -15,7 +15,7 @@ pub(crate) struct State {
 pub struct LoraInput {
     pub training: TrainingInput,
     pub candidates: Vec<Candidate>,
-    work: Work<f32>,
+    pub work: Work<f32>,
     positions: Vec<usize>,
 }
 
