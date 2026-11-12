@@ -1111,7 +1111,8 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   populated places, public domain), matched by the gazetteer's own rule
   (case, accents and punctuation folded). Many city names are also
   common words or given names (`Mobile`, `Phoenix`, `Jackson`), so a name
-  is a mention only in one of two settings:
+  is a mention in one of two anchored settings, or bare under the rules
+  further down:
   - directly before a comma, a space and a US state's or territory's
     name or USPS code, when the gazetteer holds a place of that name
     there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
@@ -1141,12 +1142,53 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
     start of a longer name (`City: San Foo`, `the city of Paris
     Hilton`), so it is no mention.
 
-  A bare name (`Chicago is large`) is no mention. The name has at most
-  five words with single spaces between them, and each word starts with a
-  capital where the gazetteer's name has one (`Rio de Janeiro`,
-  `Coeur d'Alene`). The longest name wins, and the normalized form is the
-  gazetteer's name (`Sao Paulo` for `São Paulo`). A city and the state
-  after it are two mentions.
+  - bare, in running prose with neither (#2097,
+    `analysis/pii/src/scan/city_bare.rs`; `lunch in Rouen`, `the Boston
+    area`, `a Pasadena native`, `SAN FRANCISCO --`), only where it is
+    unlikely to be a word, a person or part of a longer name:
+    - the gazetteer holds a place of that name with at least 100,000
+      people (smaller places' names are more often words of other
+      languages or surnames, and the Antarctic stations carry country
+      names: `Ende`, `Nord`, `Australia`), and the normalized form is that
+      place's name;
+    - it is not a US state's name (`Virginia`, `New York`, which the
+      state scanner reads), not a country's English name (`Luxembourg`,
+      `Kuwait`, `Djibouti`), and a one-word name has four letters or more
+      and is not in `analysis/pii/src/tables/city_common_words.txt`: the
+      268 one-word gazetteer names that are lower-case words in SCOWL's
+      lists of sizes 10 to 50 or among the 1,000 most frequent first names
+      or surnames of the US Census Bureau's 1990 name files (`Mobile`,
+      `Reading`, `Price`, `Nice`, `Jackson`, `Florence`, `Austin`), which
+      stay mentions only in the anchored settings;
+    - no state follows it, so the anchored rule's refusals stand (`Mobile,
+      IL`, `Paris, Alaska`);
+    - no capitalized word follows it after a space, past a possessive
+      `'s` (`The San Francisco Chronicle`, `Orleans Parish`, `Prince
+      George's County`, `New York City`, `the Paris Hilton story`);
+    - the word one space before it is not capitalized, or is one of a
+      short list of words that start a sentence before a place (`In`,
+      `The`, `From`, `Between`), and is not `of` after a capitalized word
+      (`Harry Denton`, `Mr. Lincoln`, `University of Bristol`);
+    - no verb of speech or address follows it after one space (`said`,
+      `told`, `wrote` and a few more: `Madison said`, `Columbus wrote`),
+      as a person's name does, unless one of the sentence-start words
+      above stands before it (`people in Paris said so`, `a source in
+      Boston told reporters`);
+    - no word, path or address touches it (`Grand-Rouen`,
+      `example.com/Rouen`, `Rouen.example.com`, `Rouen@example.com`,
+      `#Rouen`). A possessive name ends before its `'s` (`San
+      Francisco's`), and a hyphenated name is one name (`Winston-Salem`).
+
+  The name has at most five words with single spaces between them, and
+  each word starts with a capital where the gazetteer's name has one
+  (`Rio de Janeiro`, `Coeur d'Alene`). The longest name wins, and the normalized form is the gazetteer's name
+  (`Sao Paulo` for `São Paulo`). A city and the state after it are two
+  mentions. The bare reading costs one probe of a table of the eligible
+  names' first words per capitalized word, so prose with no city adds
+  that probe and nothing else (`analysis/pii/examples/places_bench.rs`:
+  on 256 KB of city-free prose, release build, both builds on one shared
+  container, the Places pack took 2.5 ms before and 3.5 ms after; a
+  comparison on the same machine and text, not a timing claim).
 
 A place name starts and ends where no letter, digit, combining mark or
 `_` touches it (`text::name_char`, `on_name_start`, `on_name_end`), at
@@ -1181,13 +1223,28 @@ project-authored memo of places and near misses (`places-memos.txt`):
 |---|---|---:|---:|---:|---:|---:|
 | `state` | third-party MASC (`29`) + project-authored (`11`) | 40 | 0 | 0 | 1.000 | 1.000 |
 | `county` | project-authored (`places-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
-| `city` | third-party MASC (`24`) + project-authored (`12`) | 9 | 0 | 27 | 1.000 | 0.250 |
+| `city` | third-party MASC (`24`) + project-authored (`12`) | 35 | 0 | 1 | 1.000 | 0.972 |
 
 The MASC documents name no county, so the county figures are only those
 of the memo written for it. The `city` gold marks every reference to a
 city, bare names in running prose included (`in Rouen`, `the Boston
-area`), so its recall counts what the two settings above leave out: all
-27 misses are names with no state after them and no label before them.
+area`). Before the bare reading (#2097) the anchored settings found 9
+and missed 27, every miss a bare name; the one miss left is `New York
+City`, which the gazetteer does not hold, so `New York` before `City` is
+part of a longer name. The bare rules were written against this set, so
+its figures are not held-out ones; a sweep over the other English test
+texts of the workspace (Wikipedia identifier articles, the PII inputs,
+the name finder corpora) found the bare names there to be places, apart
+from country names, which the country rule then removed, and names after
+`University of` or `Bank of`, which the `of` rule removed.
+
+The bare reading still tags a person who shares a city's name when
+nothing beside the name says so. Names outside the Census top 1,000
+first names and surnames (`Madison`, `Paris`, `Dayton`, `Salem`,
+`Columbus`) are not in the common-word list, so one alone as a subject
+or object (`we met Madison`, `Paris won the race`) is read as the city.
+A policy that needs higher precision on person-heavy text can leave
+`city` out and keep `state` and `county`.
 
 ## Custom extractors and scanner rules
 

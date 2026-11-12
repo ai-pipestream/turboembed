@@ -143,7 +143,7 @@ pub use names::{NameAnnotator, NameFinder, NameImageError, NameMatch, NameScratc
 pub use overlay::{EmptyOverlay, OverlayGazetteer};
 pub use overture::{OVERTURE_SOURCE, OvertureGazetteer};
 pub use profiles::{Neighbor, Place, PlaceProfiles, ProfileError, Similarity};
-pub use region::DocumentRegionAnnotator;
+pub use region::{DocumentRegionAnnotator, english_country};
 pub use snapshot::{SnapshotError, SnapshotKind};
 pub use store::{Attribute, CapacityError, Entry};
 pub use suppression::{Suppression, SuppressionError};
