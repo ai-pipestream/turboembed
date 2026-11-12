@@ -78,7 +78,8 @@ async fn start(home: &Path, admin: bool) -> (Server, Client) {
 
 /// The server over `home` with `serve`'s flags and the test catalog.
 async fn start_in(home: &Path, serve: Serve) -> (Server, Client) {
-    let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(Fixed) };
+    let catalog =
+        Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(Fixed), data: None };
     let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
     let model = ModelConfig {
         bundle: bundle.to_str().unwrap().into(),
