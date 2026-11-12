@@ -1,22 +1,26 @@
-// Chunk projection: ProjectChunks over the analyzed document, the chunk
-// and sentence vectors in 2 or 3 principal components, the sentence
-// boundary drift curve with the chunk cuts, ranked term-vector stacks,
-// and how chunking budgets compare with the profile's cuts.
+// The document views in Analyze, all from one ProjectChunks call over
+// the analyzed graph: the meaning map with the text beside it, the
+// topic seismograph, the term river, and the same numbers as tables.
+// The views share one focus (viz/link.ts): a chunk pointed at in one
+// lights up in the others and in the text.
 
 import { OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
-import type { BoundaryDriftCurveProto, ProjectChunksResponse, TermVectorStackProto, VectorProjectionProto } from "../gen/turbo_analysis_pb.js";
+import type { ProjectChunksResponse } from "../gen/turbo_analysis_pb.js";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { BudgetSpecSchema } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
 import { $, el, failed, input, lazy, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
 import { analysis, explain } from "../rpc.js";
+import { linker } from "../viz/link.js";
+import { distinctive, leaves, riverTerms, spread, type Term, type Unit } from "../viz/model.js";
+import { chunkText, follow } from "./chunktext.js";
 import { short } from "./embed.js";
 import { latest } from "../latest.js";
-
-const W = 640;
-const H = 360;
-const PAD = 24;
+import { meaningMap } from "./meaningmap.js";
+import { river } from "./river.js";
+import { seismograph } from "./seismograph.js";
+import { take } from "./take.js";
 
 const box = () => $("projection-out");
 
@@ -32,141 +36,92 @@ export function budgets(s: string): MessageInitShape<typeof BudgetSpecSchema>[] 
   return out;
 }
 
-function hue(level: number): string {
-  return `hsl(${(level * 67 + 210) % 360}, 65%, 50%)`;
-}
-
-function canvas(): [HTMLCanvasElement, CanvasRenderingContext2D] {
-  const c = el("canvas", { width: String(W), height: String(H), class: "plot" });
-  return [c, c.getContext("2d")!];
-}
-
-function scatter(p: VectorProjectionProto, text: string): HTMLElement {
-  const [c, g] = canvas();
-  const pts = p.points.filter((q) => !q.empty);
-  const xs = pts.map((q) => q.x);
-  const ys = pts.map((q) => q.y);
-  const zs = pts.map((q) => q.z);
-  const span = (v: number[]) => [Math.min(...v), Math.max(...v) - Math.min(...v) || 1];
-  const [x0, xw] = span(xs);
-  const [y0, yw] = span(ys);
-  const [z0, zw] = span(zs);
-  const at = pts.map((q) => [PAD + ((q.x - x0) / xw) * (W - 2 * PAD), H - PAD - ((q.y - y0) / yw) * (H - 2 * PAD)]);
-  g.lineWidth = 1;
-  for (let i = 1; i < pts.length; i++) {
-    if (pts[i].level !== pts[i - 1].level) continue;
-    g.strokeStyle = hue(pts[i].level);
-    g.globalAlpha = 0.35;
-    g.beginPath();
-    g.moveTo(at[i - 1][0], at[i - 1][1]);
-    g.lineTo(at[i][0], at[i][1]);
-    g.stroke();
-  }
-  pts.forEach((q, i) => {
-    g.globalAlpha = p.pcaDims === 3 ? 0.35 + 0.65 * ((q.z - z0) / zw) : 0.9;
-    g.fillStyle = hue(q.level);
-    g.beginPath();
-    g.arc(at[i][0], at[i][1], 5, 0, 2 * Math.PI);
-    g.fill();
-  });
-  const tip = el("p", { class: "muted", text: "Hover a point." });
-  c.addEventListener("mousemove", (ev) => {
-    const r = c.getBoundingClientRect();
-    const mx = ((ev.clientX - r.left) * W) / r.width;
-    const my = ((ev.clientY - r.top) * H) / r.height;
-    let best = -1;
-    let dist = 100;
-    at.forEach(([x, y], i) => {
-      const d = (x - mx) ** 2 + (y - my) ** 2;
-      if (d < dist) [best, dist] = [i, d];
-    });
-    if (best < 0) return;
-    const q = pts[best];
-    const cos = q.adjacentCosine === undefined ? "" : `, cosine to the next ${q.adjacentCosine.toFixed(3)}`;
-    tip.textContent = `item ${q.item}, level ${q.level}, ${q.start}..${q.end}${cos}: ${short(text.slice(q.start, q.end), 120)}`;
-  });
-  const levels = [...new Set(pts.map((q) => q.level))].sort((a, b) => a - b);
-  const legend = el("div", { class: "chips" }, levels.map((l) => el("span", { class: "chip", style: `border-color: ${hue(l)}; color: ${hue(l)}`, text: `level ${l}` })));
-  const ev = p.explainedVariance.map((v) => `${(v * 100).toFixed(1)}%`).join(", ");
-  return el(
-    "div",
-    {},
-    el("p", { class: "muted", text: `${pts.length} vectors from ${p.model ? `${p.model.id}@${p.model.revision}` : "the graph"}; explained variance ${ev}${p.pcaDims === 3 ? "; the third component is the opacity" : ""}.` }),
-    legend,
-    c,
-    tip,
-  );
-}
-
-function drift(d: BoundaryDriftCurveProto): HTMLElement {
-  const [c, g] = canvas();
-  const n = d.gaps.length;
-  const x = (i: number) => PAD + (n > 1 ? (i / (n - 1)) * (W - 2 * PAD) : (W - 2 * PAD) / 2);
-  const y = (v: number) => H - PAD - Math.max(0, Math.min(1, v)) * (H - 2 * PAD);
-  const micro = (v: bigint | undefined) => (v === undefined ? NaN : Number(v) / 1e6);
-  g.fillStyle = "rgba(127, 127, 127, 0.25)";
-  d.gaps.forEach((p, i) => {
-    const h = Math.max(0, Math.min(1, micro(p.depthScoreMicro)));
-    g.fillRect(x(i) - 3, y(h), 6, H - PAD - y(h));
-  });
-  for (const [field, color] of [["rawCosineMicro", "hsl(210, 20%, 60%)"], ["smoothedCosineMicro", "hsl(210, 70%, 50%)"]] as const) {
-    g.strokeStyle = color;
-    g.beginPath();
-    let on = false;
-    d.gaps.forEach((p, i) => {
-      const v = micro(p[field]);
-      if (Number.isNaN(v)) return void (on = false);
-      if (on) g.lineTo(x(i), y(v));
-      else g.moveTo(x(i), y(v));
-      on = true;
-    });
-    g.stroke();
-  }
-  g.strokeStyle = "hsl(10, 75%, 50%)";
-  d.gaps.forEach((p, i) => {
-    if (!p.isChunkCut) return;
-    g.beginPath();
-    g.moveTo(x(i), PAD);
-    g.lineTo(x(i), H - PAD);
-    g.stroke();
-  });
-  const cuts = d.gaps.filter((p) => p.isChunkCut).length;
-  return el(
-    "div",
-    {},
-    el("p", { class: "muted", text: `${n} sentence gaps (window ${d.window}, smoothing ${d.smoothing}), ${cuts} chunk cuts in red. Lines: cosine across each gap, raw and smoothed; bars: depth score.` }),
-    c,
-  );
-}
-
-function stack(s: TermVectorStackProto, label: string): HTMLElement {
-  const bar = el(
-    "div",
-    { class: "stack" },
-    s.segments.map((t) => el("span", { title: `${t.term}: ${t.frequency}x, weight ${t.weight.toFixed(3)}${t.isExpanded ? ", expanded" : ""}`, style: `flex: ${Math.max(t.share, 0.001)}`, text: t.term })),
-    s.otherTermCount ? el("span", { class: "other", title: `${s.otherTermCount} more terms`, style: `flex: ${Math.max(1 - s.segments.reduce((a, t) => a + t.share, 0), 0.001)}`, text: "\u2026" }) : null,
-  );
-  return el("div", { class: "lane" }, el("span", { class: "lane-name", text: label }), bar);
-}
+const micro = (v: bigint | undefined): number | undefined => (v === undefined ? undefined : Number(v) / 1e6);
 
 function show(r: ProjectChunksResponse, text: string): void {
+  const units: Unit[] = (r.projection?.points ?? []).map((q) => ({ item: q.item, start: q.start, end: q.end, level: q.level, x: q.x, y: q.y, z: q.z, empty: q.empty }));
+  const chunks = leaves(units);
+  const link = linker();
+  // A stack's unit is its chunk's item.
+  const stacks = new Map(r.chunkTermStacks.map((k) => [k.unit, k]));
+  const docTerms: Term[] = r.documentTermStack?.segments ?? [];
+  const docTotal = r.documentTermStack?.totalWeight ?? 0;
+  const listed = spread(chunks.map((c) => stacks.get(c.item)?.segments ?? []));
+  const named = chunks.map((c) => {
+    const k = stacks.get(c.item);
+    return k ? distinctive(k.segments, k.totalWeight, docTerms, docTotal, 3, listed, chunks.length) : [];
+  });
+  const cosines = new Map((r.projection?.points ?? []).map((q) => [q.item, q.adjacentCosine]));
+  const parts: (HTMLElement | string)[] = [];
+
+  if (chunks.some((c) => !c.empty)) {
+    const model = r.projection?.model;
+    const reader = chunkText(text, chunks, link, (term) => {
+      const t = docTerms.find((d) => d.term === term);
+      return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a] as [number, number]);
+    });
+    follow(reader, link);
+    parts.push(
+      el("h3", { text: "Meaning map" }),
+      el("p", { class: "muted", text: `Each dot is one chunk's vector from ${model ? `${model.id}@${model.revision}` : "the graph"}, placed by its two main directions of meaning. The line follows reading order: a document that wanders draws a long trail, and one that stays on a topic stays in one place.` }),
+      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3 }, link), el("div", {}, el("h4", { text: "The text, by chunk" }), reader)),
+    );
+  } else {
+    parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
+  }
+
+  if (r.driftCurve?.gaps.length) {
+    const d = r.driftCurve;
+    parts.push(
+      el("h3", { text: "Topic seismograph" }),
+      seismograph(
+        {
+          gaps: d.gaps.map((g) => ({ offset: g.gapOffset, raw: micro(g.rawCosineMicro), smoothed: micro(g.smoothedCosineMicro), depth: Number(g.depthScoreMicro) / 1e6, cost: g.cost, reason: g.reason, cut: g.isChunkCut })),
+          chunks,
+          strategies: (r.strategyMatrix?.strategies ?? []).map((t) => ({ name: t.name, chunks: t.chunkCount, shared: t.matchedCutsWithBaseline, apart: t.disagreementsWithBaseline, cuts: t.cutStarts })),
+          text,
+          window: d.window,
+          smoothing: d.smoothing,
+        },
+        link,
+      ),
+    );
+  }
+
+  const withStack = chunks.filter((c) => stacks.has(c.item));
+  if (docTerms.length && withStack.length > 1) {
+    const uneven = input("projection-uneven").checked;
+    const terms = riverTerms(docTerms, docTotal, withStack.map((c) => ({ terms: stacks.get(c.item)!.segments, total: stacks.get(c.item)!.totalWeight })), 8, uneven);
+    const weights = terms.map((t) => withStack.map((c) => stacks.get(c.item)!.segments.find((x) => x.term === t)?.weight ?? 0));
+    if (terms.length) {
+      parts.push(
+        el("h3", { text: "Term river" }),
+        el("p", { class: "muted", text: uneven ? "The terms whose weight is least evenly spread over the chunks, so words every chunk uses alike are left out. A stream is as thick over a chunk as the term's weight there." : "The document's heaviest terms. A stream is as thick over a chunk as the term's weight there." }),
+        river({ terms, weights, chunks: withStack, occurrences: (t) => docTerms.find((d) => d.term === t)?.occStart?.length ?? 0, length: text.length }, link),
+      );
+    }
+  }
+
+  // The same numbers as tables, for reading exactly and for taking away.
   const m = r.strategyMatrix;
-  box().replaceChildren(
-    el("h3", { text: "Projection" }),
-    r.projection?.points.length ? scatter(r.projection, text) : el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }),
-    r.driftCurve ? el("h3", { text: "Boundary drift" }) : "",
-    r.driftCurve ? drift(r.driftCurve) : "",
-    el("h3", { text: "Term vector stacks" }),
-    r.documentTermStack ? stack(r.documentTermStack, "document") : "",
-    ...r.chunkTermStacks.map((s) => stack(s, `chunk ${s.unit}`)),
-    m?.strategies.length ? el("h3", { text: "Strategies" }) : "",
-    m?.strategies.length
-      ? table(
-          ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
-          m.strategies.map((s) => [s.name, String(s.budget?.maxTokens ?? ""), String(s.budget?.targetTokens ?? ""), String(s.chunkCount), String(s.overBudgetCount), String(s.totalCost), String(s.matchedCutsWithBaseline), String(s.disagreementsWithBaseline)]),
-        )
-      : "",
+  const rows = chunks.map((c, i) => [String(i + 1), `${c.start}..${c.end}`, named[i].join(", "), (stacks.get(c.item)?.segments ?? []).slice(0, 6).map((t) => `${t.term} ${t.weight.toFixed(1)}`).join(", "), short(text.slice(c.start, c.end), 60)]);
+  parts.push(
+    el(
+      "details",
+      { class: "tables" },
+      el("summary", { text: "As tables" }),
+      chunks.length ? table(["chunk", "characters", "told apart by", "heaviest terms", "text"], rows) : "",
+      chunks.length ? take("Chunks", () => [["chunk", "start", "end", "told apart by", "x", "y", "text"], ...chunks.map((c, i) => [String(i + 1), String(c.start), String(c.end), named[i].join(" "), String(c.x), String(c.y), text.slice(c.start, c.end)])]) : "",
+      m?.strategies.length ? el("h4", { text: "Chunking budgets" }) : "",
+      m?.strategies.length
+        ? table(
+            ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
+            m.strategies.map((t) => [t.name, String(t.budget?.maxTokens ?? ""), String(t.budget?.targetTokens ?? ""), String(t.chunkCount), String(t.overBudgetCount), String(t.totalCost), String(t.matchedCutsWithBaseline), String(t.disagreementsWithBaseline)]),
+          )
+        : "",
+    ),
   );
+  box().replaceChildren(...parts);
 }
 
 // Only the latest call draws (latest.ts).
@@ -180,8 +135,9 @@ async function render(): Promise<void> {
       graph: d.graph,
       offsets: OffsetMode.UTF16,
       pcaDims: ($("projection-dims") as HTMLSelectElement).value === "3" ? 3 : 2,
-      maxStackSegments: 8,
-      includeDriftCurve: input("projection-drift").checked,
+      // Enough of each stack to tell a chunk's own terms from the document's.
+      maxStackSegments: 32,
+      includeDriftCurve: true,
       includeStrategyMatrix: true,
       strategyBudgets: budgets(input("projection-budgets").value),
     });
@@ -198,4 +154,5 @@ export function init(): void {
   onDoc(() => again());
   const go = $("projection-run") as HTMLButtonElement;
   go.addEventListener("click", () => void busy(go, render));
+  $("projection-uneven").addEventListener("change", () => void render());
 }

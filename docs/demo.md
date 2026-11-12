@@ -489,11 +489,37 @@ server and there is no JSON.
     view, a chip per layer, and the picked layer's annotations, 200 to
     a page, each with its span, text, kind, probability and fields
     named from the protobuf descriptors; then the models that made them.
-  - Chunk projection: `ProjectChunks` in 2 or 3 dimensions, the chunk
-    vectors drawn on a canvas by level, the boundary drift curve with
-    its cuts, the term vector stacks, and the strategy matrix for the
-    budgets typed as `name:max:target`. A graph has vectors only when
-    its profile embeds (`default-v1` with an embedding bundle).
+  - Document map (open from the start): one `ProjectChunks` call drawn
+    as three linked views, with the same numbers as tables under them.
+    Pointing at a chunk in one view lights it in the others and in the
+    text beside the map; every mark can be reached with Tab.
+    The meaning map places each chunk vector by its two main principal
+    components (a third, when asked for, is the dot's size), with the
+    share of the variance on each axis, a line through the chunks in
+    reading order, one hue from the first chunk (light) to the last
+    (dark), and each dot named by the terms that tell its chunk from the
+    rest. A coarser unit that holds some of the chunks, not all, is a
+    shaded region. The projection is of the graph's chunk vectors, so a
+    graph needs a profile that embeds (`default-v1` with an embedding
+    bundle); without vectors the map says so.
+    The topic seismograph runs along the document: the chunks as a
+    band, a value at each sentence gap, the gaps the chunker cut at
+    marked with a diamond, and under it one row of ticks for the
+    profile's own cuts and one per budget typed as `name:max:target`,
+    with how many cuts each shares with the profile. With sentence
+    vectors the value is the smoothed cosine across the gap; a graph
+    without them (the served profiles write chunk vectors only) shows
+    the chunker's cost of cutting there and says so. Pointing at the
+    curve, or the arrow keys, shows the sentence on each side of a gap.
+    The term river draws up to eight terms as streams, each as thick
+    over a chunk as its weight in that chunk's stack, ordered by the
+    chunk each is heaviest in. By default the terms are those that tell
+    chunks apart: a term is scored by its share of a chunk against its
+    share of the document and by how few chunks list it, so words every
+    chunk uses drop out in any language with no stop list
+    (`demo/web/src/viz/model.ts`); a switch draws the heaviest terms
+    instead. Pointing at a stream marks the term's occurrences in the
+    text.
   - Graph wire inspector: the graph's binary format (`TGRF`, as
     `analysis/core/src/export/graph.rs` writes it) read in the page into
     a tree of its parts with each one's offset,

@@ -1,0 +1,29 @@
+# 2246 meaning map
+ok   the map draws one dot per chunk (5 dots)
+ok   a trail joins them in reading order
+ok   the axes say how much of the variance each carries (first direction of meaning (41% of the variance) | second direction (35% of the variance))
+ok   each dot is named by terms of its own chunk (1 · engine, as | 2 · cobol, hopper | 3 · rates, bank | 4 · can, words | 5 · is, similar)
+ok   pointing at a dot lights its chunk in the text (2A century later, Grace Hopper wrote one of the fi)
+ok   and says which chunk it is (Chunk 2 of 5, characters 304 to 587, told apart by cobol, hopper, prog)
+ok   pointing at a chunk in the text lights its dot (4 · can, words)
+ok   a dot can be reached by keyboard
+# 2247 topic seismograph
+ok   the curve draws a value at each sentence gap (16 stems, 0 lines)
+ok   the cuts are marked (5 marks)
+ok   the chunks run as a band above
+ok   one row of ticks per budget, after the profile's own (3 rows)
+ok   each budget row carries its agreement with the profile (this profile: 5 chunks | small: 11 chunks, 6 cuts shared, 5 not | large: 3 chunks, 3 cuts shared, 2 not)
+ok   pointing at a gap shows the sentence on each side (Gap 8 of 16 (cut), paragraph, cost 400. That idea led to COBOL, and banks still run COBOL )
+# 2251 term river
+ok   the river draws a stream per term (8 streams)
+ok   with a legend naming each ( engine 3 | cobol 2 | hopper 2 | rates 3 | can 2 | words 3 | is 2 | similar 2)
+ok   words every chunk uses are left out
+ok   the chunk boundaries are marked
+ok   pointing at a term marks its occurrences in the text (COBOL, COBOL)
+ok   and lists where it occurs ("cobol" occurs 2 times; it is among the listed terms of chunk 2. Its occurrences are marke)
+ok   the switch draws the heaviest terms instead ( the 10 | in 5 | machine 5 | could 4 | that 8 | and 4 | of 5 | a 6)
+ok   the same numbers are there as tables (2 tables)
+# on a phone, and with no vectors
+ok   at 390 px the page does not scroll sideways (3 figures)
+ok   a graph with no vectors says how to get them (Meaning map  No vectors in this graph: analyze with a profil)
+all checks passed

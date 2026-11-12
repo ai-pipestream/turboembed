@@ -543,10 +543,10 @@ function unescapeBytesDefaultValue(str2) {
       this.tail = this.tail.substring(1);
       return true;
     },
-    take(n) {
-      if (this.tail.length >= n) {
-        const r = this.tail.substring(0, n);
-        this.tail = this.tail.substring(n);
+    take(n2) {
+      if (this.tail.length >= n2) {
+        const r = this.tail.substring(0, n2);
+        this.tail = this.tail.substring(n2);
         return r;
       }
       return false;
@@ -586,54 +586,54 @@ function unescapeBytesDefaultValue(str2) {
             case "5":
             case "6":
             case "7": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(2);
               if (t === false) {
                 return false;
               }
-              const n = parseInt(s + t, 8);
-              if (Number.isNaN(n)) {
+              const n2 = parseInt(s2 + t, 8);
+              if (Number.isNaN(n2)) {
                 return false;
               }
-              b.push(n);
+              b.push(n2);
               break;
             }
             case "x": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(2);
               if (t === false) {
                 return false;
               }
-              const n = parseInt(s + t, 16);
-              if (Number.isNaN(n)) {
+              const n2 = parseInt(s2 + t, 16);
+              if (Number.isNaN(n2)) {
                 return false;
               }
-              b.push(n);
+              b.push(n2);
               break;
             }
             case "u": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(4);
               if (t === false) {
                 return false;
               }
-              const n = parseInt(s + t, 16);
-              if (Number.isNaN(n)) {
+              const n2 = parseInt(s2 + t, 16);
+              if (Number.isNaN(n2)) {
                 return false;
               }
               const chunk = new Uint8Array(4);
               const view = new DataView(chunk.buffer);
-              view.setInt32(0, n, true);
+              view.setInt32(0, n2, true);
               b.push(chunk[0], chunk[1], chunk[2], chunk[3]);
               break;
             }
             case "U": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(8);
               if (t === false) {
                 return false;
               }
-              const tc = protoInt64.uEnc(s + t);
+              const tc = protoInt64.uEnc(s2 + t);
               const chunk = new Uint8Array(8);
               const view = new DataView(chunk.buffer);
               view.setInt32(0, tc.lo, true);
@@ -1190,9 +1190,9 @@ var BinaryReader = class {
     this.varint64();
     let lo = this.varint64Lo;
     let hi = this.varint64Hi;
-    let s = -(lo & 1);
-    lo = (lo >>> 1 | (hi & 1) << 31) ^ s;
-    hi = hi >>> 1 ^ s;
+    let s2 = -(lo & 1);
+    lo = (lo >>> 1 | (hi & 1) << 31) ^ s2;
+    hi = hi >>> 1 ^ s2;
     return protoInt64.dec(lo, hi);
   }
   /**
@@ -2978,8 +2978,8 @@ function compileMapKeyConverter(type) {
       };
     default:
       return (key3) => {
-        const n = Number.parseInt(key3);
-        return Number.isFinite(n) ? n : key3;
+        const n2 = Number.parseInt(key3);
+        return Number.isFinite(n2) ? n2 : key3;
       };
   }
 }
@@ -3589,9 +3589,9 @@ function mapKeyToReflect(key3, type) {
     case ScalarType.UINT32:
     case ScalarType.SFIXED32:
     case ScalarType.SINT32: {
-      const n = Number.parseInt(key3);
-      if (Number.isFinite(n)) {
-        return n;
+      const n2 = Number.parseInt(key3);
+      if (Number.isFinite(n2)) {
+        return n2;
       }
       break;
     }
@@ -4407,11 +4407,11 @@ function reveal(box5) {
     if (!moved) show3();
   };
 }
-function count(n, noun) {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+function count(n2, noun) {
+  return `${n2} ${noun}${n2 === 1 ? "" : "s"}`;
 }
-function size(n) {
-  const v = Number(n);
+function size(n2) {
+  const v = Number(n2);
   if (v < 1024) return `${v} B`;
   if (v < 1 << 20) return `${(v / 1024).toFixed(1)} KiB`;
   if (v < 1 << 30) return `${(v / (1 << 20)).toFixed(1)} MiB`;
@@ -4419,8 +4419,8 @@ function size(n) {
 }
 function elapsed(ms) {
   if (ms < 6e4) return `${(ms / 1e3).toFixed(1)} s`;
-  const s = Math.floor(ms / 1e3);
-  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
+  const s2 = Math.floor(ms / 1e3);
+  return `${Math.floor(s2 / 60)} min ${String(s2 % 60).padStart(2, "0")} s`;
 }
 function download(name, data, type) {
   const url = URL.createObjectURL(new Blob(data, { type }));
@@ -4430,8 +4430,8 @@ function download(name, data, type) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1e4);
 }
-function after(s, prefix2) {
-  return s.startsWith(prefix2) ? s.slice(prefix2.length) : s;
+function after(s2, prefix2) {
+  return s2.startsWith(prefix2) ? s2.slice(prefix2.length) : s2;
 }
 function lazy(details, render6) {
   let stale2 = true;
@@ -5726,29 +5726,29 @@ function parseJsonString(jsonString, typeName) {
   return json;
 }
 function checkDuplicateKeys(jsonString, typeName) {
-  const stack2 = [];
+  const stack = [];
   let expectKey = false;
   let i = 0;
   while (i < jsonString.length) {
     switch (jsonString[i]) {
       case "{":
-        stack2.push(/* @__PURE__ */ new Set());
+        stack.push(/* @__PURE__ */ new Set());
         expectKey = true;
         i++;
         break;
       case "[":
-        stack2.push(null);
+        stack.push(null);
         expectKey = false;
         i++;
         break;
       case "}":
       case "]":
-        stack2.pop();
+        stack.pop();
         expectKey = false;
         i++;
         break;
       case ",":
-        expectKey = stack2[stack2.length - 1] != null;
+        expectKey = stack[stack.length - 1] != null;
         i++;
         break;
       case ":":
@@ -5770,7 +5770,7 @@ function checkDuplicateKeys(jsonString, typeName) {
           i++;
         }
         const close = i++;
-        const seen = stack2[stack2.length - 1];
+        const seen = stack[stack.length - 1];
         if (expectKey && seen) {
           const name = escaped ? JSON.parse(jsonString.substring(open2, close + 1)) : jsonString.substring(open2 + 1, close);
           if (seen.has(name)) {
@@ -6193,10 +6193,10 @@ var __asyncValues = function(o) {
   return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
     return this;
   }, i);
-  function verb(n) {
-    i[n] = o[n] && function(v) {
+  function verb(n2) {
+    i[n2] = o[n2] && function(v) {
       return new Promise(function(resolve, reject) {
-        v = o[n](v), settle2(resolve, reject, v.done, v.value);
+        v = o[n2](v), settle2(resolve, reject, v.done, v.value);
       });
     };
   }
@@ -6220,19 +6220,19 @@ var __asyncGenerator = function(thisArg, _arguments, generator) {
       return Promise.resolve(v).then(f, reject);
     };
   }
-  function verb(n, f) {
-    if (g[n]) {
-      i[n] = function(v) {
+  function verb(n2, f) {
+    if (g[n2]) {
+      i[n2] = function(v) {
         return new Promise(function(a, b) {
-          q.push([n, v, a, b]) > 1 || resume(n, v);
+          q.push([n2, v, a, b]) > 1 || resume(n2, v);
         });
       };
-      if (f) i[n] = f(i[n]);
+      if (f) i[n2] = f(i[n2]);
     }
   }
-  function resume(n, v) {
+  function resume(n2, v) {
     try {
-      step(g[n](v));
+      step(g[n2](v));
     } catch (e) {
       settle2(q[0][3], e);
     }
@@ -6257,9 +6257,9 @@ var __asyncDelegator = function(o) {
   }), verb("return"), i[Symbol.iterator] = function() {
     return this;
   }, i;
-  function verb(n, f) {
-    i[n] = o[n] ? function(v) {
-      return (p = !p) ? { value: __await(o[n](v)), done: false } : f ? f(v) : v;
+  function verb(n2, f) {
+    i[n2] = o[n2] ? function(v) {
+      return (p = !p) ? { value: __await(o[n2](v)), done: false } : f ? f(v) : v;
     } : f;
   }
 };
@@ -6276,10 +6276,10 @@ var __asyncValues2 = function(o) {
   return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
     return this;
   }, i);
-  function verb(n) {
-    i[n] = o[n] && function(v) {
+  function verb(n2) {
+    i[n2] = o[n2] && function(v) {
       return new Promise(function(resolve, reject) {
-        v = o[n](v), settle2(resolve, reject, v.done, v.value);
+        v = o[n2](v), settle2(resolve, reject, v.done, v.value);
       });
     };
   }
@@ -6299,9 +6299,9 @@ var __asyncDelegator2 = function(o) {
   }), verb("return"), i[Symbol.iterator] = function() {
     return this;
   }, i;
-  function verb(n, f) {
-    i[n] = o[n] ? function(v) {
-      return (p = !p) ? { value: __await2(o[n](v)), done: false } : f ? f(v) : v;
+  function verb(n2, f) {
+    i[n2] = o[n2] ? function(v) {
+      return (p = !p) ? { value: __await2(o[n2](v)), done: false } : f ? f(v) : v;
     } : f;
   }
 };
@@ -6316,19 +6316,19 @@ var __asyncGenerator2 = function(thisArg, _arguments, generator) {
       return Promise.resolve(v).then(f, reject);
     };
   }
-  function verb(n, f) {
-    if (g[n]) {
-      i[n] = function(v) {
+  function verb(n2, f) {
+    if (g[n2]) {
+      i[n2] = function(v) {
         return new Promise(function(a, b) {
-          q.push([n, v, a, b]) > 1 || resume(n, v);
+          q.push([n2, v, a, b]) > 1 || resume(n2, v);
         });
       };
-      if (f) i[n] = f(i[n]);
+      if (f) i[n2] = f(i[n2]);
     }
   }
-  function resume(n, v) {
+  function resume(n2, v) {
     try {
-      step(g[n](v));
+      step(g[n2](v));
     } catch (e) {
       settle2(q[0][3], e);
     }
@@ -6432,7 +6432,7 @@ function handleStreamResponse(stream, options2) {
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol/signals.js
 function createLinkedAbortController(...signals) {
   const controller = new AbortController();
-  const sa = signals.filter((s) => s !== void 0).concat(controller.signal);
+  const sa = signals.filter((s2) => s2 !== void 0).concat(controller.signal);
   for (const signal of sa) {
     if (signal.aborted) {
       onAbort.apply(signal);
@@ -6902,19 +6902,19 @@ var __asyncGenerator3 = function(thisArg, _arguments, generator) {
       return Promise.resolve(v).then(f, reject);
     };
   }
-  function verb(n, f) {
-    if (g[n]) {
-      i[n] = function(v) {
+  function verb(n2, f) {
+    if (g[n2]) {
+      i[n2] = function(v) {
         return new Promise(function(a, b) {
-          q.push([n, v, a, b]) > 1 || resume(n, v);
+          q.push([n2, v, a, b]) > 1 || resume(n2, v);
         });
       };
-      if (f) i[n] = f(i[n]);
+      if (f) i[n2] = f(i[n2]);
     }
   }
-  function resume(n, v) {
+  function resume(n2, v) {
     try {
-      step(g[n](v));
+      step(g[n2](v));
     } catch (e) {
       settle2(q[0][3], e);
     }
@@ -7266,9 +7266,9 @@ function describe(e) {
 var running = /* @__PURE__ */ new WeakSet();
 var stoppable = /* @__PURE__ */ new WeakMap();
 function hold(stop6, by) {
-  const n = Math.max(0, (stoppable.get(stop6) ?? 0) + by);
-  stoppable.set(stop6, n);
-  stop6.disabled = n === 0;
+  const n2 = Math.max(0, (stoppable.get(stop6) ?? 0) + by);
+  stoppable.set(stop6, n2);
+  stop6.disabled = n2 === 0;
 }
 async function busy(button, job, stop6) {
   if (running.has(button)) return;
@@ -7355,12 +7355,12 @@ function layerName(layer, instance) {
 var NAMING = ["entities", "pii", "numbers", "language"];
 function names(layer) {
   const l = layer.toLowerCase();
-  return NAMING.some((n) => l.includes(n));
+  return NAMING.some((n2) => l.includes(n2));
 }
 var ORDER = ["subwords", "tokens", "sentences", "chunks", "structure"];
 function rank(a) {
   if (names(a.layer) && a.label) return 0;
-  const at = ORDER.findIndex((n) => a.layer.toLowerCase().includes(n));
+  const at = ORDER.findIndex((n2) => a.layer.toLowerCase().includes(n2));
   return at < 0 ? ORDER.length + 1 : at + 1;
 }
 function colourOf(a) {
@@ -7379,15 +7379,15 @@ function sentence2(a) {
   return a.layer.toLowerCase().includes("sentences");
 }
 function leadOf(segs) {
-  if (segs.some((s) => s.annotations.some((a) => rank(a) === 0))) return "naming";
-  return segs.some((s) => s.annotations.some(sentence2)) ? "sentences" : "all";
+  if (segs.some((s2) => s2.annotations.some((a) => rank(a) === 0))) return "naming";
+  return segs.some((s2) => s2.annotations.some(sentence2)) ? "sentences" : "all";
 }
 function legend(segs, filter2) {
   const any = leadOf(segs);
   const out = /* @__PURE__ */ new Map();
   const seen = /* @__PURE__ */ new Set();
-  for (const s of segs) {
-    for (const a of painted(s.annotations, filter2, any)) {
+  for (const s2 of segs) {
+    for (const a of painted(s2.annotations, filter2, any)) {
       const c = colourOf(a);
       let sw = out.get(c.key);
       if (!sw) {
@@ -7405,13 +7405,13 @@ function legend(segs, filter2) {
 }
 function found(segs) {
   const items = /* @__PURE__ */ new Map();
-  for (const s of segs) {
-    for (const a of s.annotations) {
+  for (const s2 of segs) {
+    for (const a of s2.annotations) {
       if (rank(a) !== 0) continue;
       const key3 = `${layerKey(a.layer, a.instance)}#${a.item}`;
       const it = items.get(key3);
-      if (it) it.text += s.text;
-      else items.set(key3, { label: a.label, text: s.text });
+      if (it) it.text += s2.text;
+      else items.set(key3, { label: a.label, text: s2.text });
     }
   }
   const groups2 = /* @__PURE__ */ new Map();
@@ -7441,32 +7441,32 @@ function inspect(text, anns) {
 function annotated(segs, filter2) {
   const any = leadOf(segs);
   const swatches = legend(segs, filter2);
-  const index = new Map(swatches.map((s) => [s.key, s.index]));
+  const index = new Map(swatches.map((s2) => [s2.key, s2.index]));
   const panel = el("div", { class: "inspect", "aria-live": "polite" }, el("p", { class: "muted", text: "Pick a marked stretch of text to list what is annotated on it." }));
   const text = el("div", { class: "doc" });
   let picked2 = null;
-  for (const s of segs) {
-    const paint = painted(s.annotations, filter2, any);
+  for (const s2 of segs) {
+    const paint = painted(s2.annotations, filter2, any);
     if (!paint.length) {
-      text.append(s.text);
+      text.append(s2.text);
       continue;
     }
     const lead = paint[0];
     const second = paint.find((a) => colourOf(a).key !== colourOf(lead).key);
     const style = `--mark: ${colour(index.get(colourOf(lead).key) ?? 0)}${second ? `; --under: ${colour(index.get(colourOf(second).key) ?? 0)}` : ""}`;
     const cls = `${lead.item % 2 ? "alt" : ""}${second ? " under" : ""}`.trim();
-    const mark = el("mark", { class: cls || void 0, style, title: tip(s.annotations), tabindex: "0", role: "button", text: s.text });
+    const mark = el("mark", { class: cls || void 0, style, title: tip(s2.annotations), tabindex: "0", role: "button", text: s2.text });
     const show3 = () => {
       picked2?.classList.remove("picked");
       picked2 = mark;
       mark.classList.add("picked");
-      panel.replaceChildren(...inspect(s.text, s.annotations));
+      panel.replaceChildren(...inspect(s2.text, s2.annotations));
     };
     mark.addEventListener("click", show3);
     mark.addEventListener("focus", show3);
     text.append(mark);
   }
-  const key3 = swatches.length ? el("div", { class: "legend" }, swatches.map((s) => el("span", { class: "swatch", style: `--mark: ${colour(s.index)}` }, el("i", {}), ` ${s.name} `, el("span", { class: "muted", text: String(s.items) })))) : el("p", { class: "muted", text: "Nothing is marked: pick a layer above to mark it in the text." });
+  const key3 = swatches.length ? el("div", { class: "legend" }, swatches.map((s2) => el("span", { class: "swatch", style: `--mark: ${colour(s2.index)}` }, el("i", {}), ` ${s2.name} `, el("span", { class: "muted", text: String(s2.items) })))) : el("p", { class: "muted", text: "Nothing is marked: pick a layer above to mark it in the text." });
   return el("div", { class: "annotated" }, key3, text, panel);
 }
 function foundList(segs) {
@@ -7602,10 +7602,10 @@ async function permits() {
 
 // demo/web/src/latest.ts
 function latest() {
-  let n = 0;
+  let n2 = 0;
   return () => {
-    const mine = ++n;
-    return () => mine === n;
+    const mine = ++n2;
+    return () => mine === n2;
   };
 }
 
@@ -7617,8 +7617,8 @@ var shape = null;
 var openSpanModels = /* @__PURE__ */ new Set();
 var relationModels = /* @__PURE__ */ new Set();
 var select = (id) => $(id);
-function statusName(s) {
-  return LayerWireStatus[s] ?? String(s);
+function statusName(s2) {
+  return LayerWireStatus[s2] ?? String(s2);
 }
 function layerRows(layers) {
   return table(
@@ -7800,10 +7800,10 @@ async function showWindow() {
     prev.addEventListener("click", () => (page = Math.max(0, page - 1), void showWindow()));
     next.addEventListener("click", () => (page += 1, void showWindow()));
     nav.append(prev, el("span", { class: "muted", text: win ? ` page ${win.page + 1} of ${win.pageCount}, units ${win.start}..${win.end} ` : "" }), next);
-    const s = w.summary;
+    const s2 = w.summary;
     box5.replaceChildren(
       el("h3", { text: "Document" }),
-      s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
+      s2 ? el("p", { class: "muted", text: `${s2.totalBytes} bytes, ${s2.totalUnits} UTF-16 units, ${s2.viewCount} views, ${s2.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
       nav,
       annotated(w.segments, filter),
@@ -8018,9 +8018,9 @@ function scalar(v) {
 function unset(v) {
   return v === void 0 || v === 0 || v === "" || v === false || v === 0n || v instanceof Uint8Array && v.length === 0;
 }
-function enumName(e, n) {
-  const v = e.value[n];
-  if (!v) return String(n);
+function enumName(e, n2) {
+  const v = e.value[n2];
+  if (!v) return String(n2);
   const pre = e.sharedPrefix ?? "";
   return v.name.toLowerCase().startsWith(pre) ? v.name.slice(pre.length) : v.name;
 }
@@ -8044,8 +8044,8 @@ function field(f, v, depth) {
     case "list":
       return v.length ? list2(f, v, depth) : "";
     case "map": {
-      const n = Object.keys(v).length;
-      return n ? `{${n} entries}` : "";
+      const n2 = Object.keys(v).length;
+      return n2 ? `{${n2} entries}` : "";
     }
   }
 }
@@ -8059,8 +8059,8 @@ function brief(desc, m, depth = 0, skip = []) {
       if (f) out.push(`${f.localName} ${field(f, o?.value, depth) || "{}"}`);
       continue;
     }
-    const s = field(member, m[member.localName], depth);
-    if (s) out.push(`${member.localName} ${s}`);
+    const s2 = field(member, m[member.localName], depth);
+    if (s2) out.push(`${member.localName} ${s2}`);
   }
   return out.join(", ");
 }
@@ -8112,7 +8112,7 @@ async function render() {
       el("h3", { text: "Steps" }),
       table(
         ["view", "parent", "instance", "annotator", "edits", "bytes in", "bytes out"],
-        x.steps.map((s) => [String(s.view), s.parentView === void 0 ? "" : String(s.parentView), s.instance, `${s.annotator} ${s.version}`, String(s.editCount), String(s.parentBytes), String(s.childBytes)])
+        x.steps.map((s2) => [String(s2.view), s2.parentView === void 0 ? "" : String(s2.parentView), s2.instance, `${s2.annotator} ${s2.version}`, String(s2.editCount), String(s2.parentBytes), String(s2.childBytes)])
       )
     );
   } catch (e) {
@@ -8152,8 +8152,8 @@ function kindOf(name) {
 }
 function rows(r, l) {
   const list5 = l.annotations.slice(0, shown).map((a, i) => {
-    const spans = a.spans.map((s) => `${s.start}..${s.end}`).join(" ");
-    const text = a.spans.map((s) => r.rawText.slice(s.start, s.end)).join(" \u2026 ");
+    const spans = a.spans.map((s2) => `${s2.start}..${s2.end}`).join(" ");
+    const text = a.spans.map((s2) => r.rawText.slice(s2.start, s2.end)).join(" \u2026 ");
     const kind = kindOf(a.value.case);
     const detail = kind && a.value.value ? brief(kind, a.value.value) : "";
     return [String(i), spans, el("span", { class: "quote", text }), a.value.case ?? "", a.probability === void 0 ? "" : a.probability.toFixed(3), el("span", { class: "vec", text: detail })];
@@ -8234,8 +8234,8 @@ function init5() {
 function inert(v) {
   const lead = v.trimStart().charAt(0);
   if (lead !== "=" && lead !== "+" && lead !== "-" && lead !== "@") return v;
-  const n = v.trim();
-  return n !== "" && Number.isFinite(Number(n)) ? v : `'${v}`;
+  const n2 = v.trim();
+  return n2 !== "" && Number.isFinite(Number(n2)) ? v : `'${v}`;
 }
 function field2(raw) {
   const v = inert(raw);
@@ -8342,14 +8342,14 @@ function simTable(labels, sim, name = "Cosine similarity") {
     el("tr", {}, el("th", {}), labels.map((_, j) => el("th", { text: `#${j + 1}` }))),
     labels.map((l, i) => el("tr", {}, el("td", { class: "text", title: l.full, text: `#${i + 1} ${l.short}` }), cells[i]))
   );
-  const scale = el(
+  const scale2 = el(
     "div",
     { class: "scale" },
     el("label", {}, pick, ` colour by this matrix's own range, ${lo.toFixed(3)} to ${hi.toFixed(3)}`),
     el("span", { class: "muted", text: "outlined: each row's best match" })
   );
   const rows2 = () => [["", ...labels.map((l) => l.full)], ...sim.map((row, i) => [labels[i].full, ...row.map((x) => x.toFixed(6))])];
-  return el("div", {}, scale, table2, take(name, rows2));
+  return el("div", {}, scale2, table2, take(name, rows2));
 }
 
 // demo/web/src/tabs/embed.ts
@@ -8394,7 +8394,7 @@ function renderModels() {
     cb.disabled = !m.meta;
     cb.addEventListener("change", () => {
       m.checked = cb.checked;
-      remember(PICKED, [...models].filter(([, x]) => x.checked).map(([n]) => n).join("\n"));
+      remember(PICKED, [...models].filter(([, x]) => x.checked).map(([n2]) => n2).join("\n"));
     });
     box5.append(
       el(
@@ -8408,9 +8408,9 @@ function renderModels() {
   }
 }
 async function addModels(names2) {
-  const fresh = names2.filter((n) => !models.get(n)?.meta);
+  const fresh = names2.filter((n2) => !models.get(n2)?.meta);
   const kept2 = recallList(PICKED);
-  for (const n of fresh) models.set(n, { meta: null, error: "", checked: kept2 ? kept2.includes(n) : true });
+  for (const n2 of fresh) models.set(n2, { meta: null, error: "", checked: kept2 ? kept2.includes(n2) : true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
 }
@@ -8426,18 +8426,18 @@ function cosine(a, b) {
   return na && nb ? d / Math.sqrt(na * nb) : 0;
 }
 function norm(a) {
-  return Math.sqrt(a.reduce((s, x) => s + x * x, 0));
+  return Math.sqrt(a.reduce((s2, x) => s2 + x * x, 0));
 }
 function matrix(vectors) {
   return vectors.map((a) => vectors.map((b) => cosine(a, b)));
 }
 function half(bits) {
-  const s = bits & 32768 ? -1 : 1;
+  const s2 = bits & 32768 ? -1 : 1;
   const e = bits >> 10 & 31;
   const f = bits & 1023;
-  if (e === 0) return s * f * 2 ** -24;
-  if (e === 31) return f ? NaN : s * Infinity;
-  return s * (1 + f / 1024) * 2 ** (e - 15);
+  if (e === 0) return s2 * f * 2 ** -24;
+  if (e === 31) return f ? NaN : s2 * Infinity;
+  return s2 * (1 + f / 1024) * 2 ** (e - 15);
 }
 function vectorsOf(reply) {
   const out = reply.outputs[0];
@@ -8481,7 +8481,7 @@ function parameters() {
 }
 async function run2() {
   const texts2 = document.getElementById("embed-texts").value.split("\n").map((t) => t.trim()).filter((t) => t.length);
-  const chosen = [...models].filter(([, m]) => m.checked && m.meta).map(([n]) => n);
+  const chosen = [...models].filter(([, m]) => m.checked && m.meta).map(([n2]) => n2);
   const err = $("embed-error");
   say(err, "");
   if (!texts2.length || !chosen.length) {
@@ -8506,9 +8506,9 @@ async function run2() {
   }
   render3(texts2, results);
 }
-function short(t, n = 28) {
+function short(t, n2 = 28) {
   const chars = typeof Intl !== "undefined" && Intl.Segmenter ? Array.from(new Intl.Segmenter(void 0, { granularity: "grapheme" }).segment(t), (g) => g.segment) : Array.from(t);
-  return chars.length > n ? chars.slice(0, n - 1).join("") + "\u2026" : t;
+  return chars.length > n2 ? chars.slice(0, n2 - 1).join("") + "\u2026" : t;
 }
 function card(texts2, r) {
   const head = el("div", { class: "head" }, el("h3", {}, r.name, el("span", { class: "tag", text: tier(r.meta) })));
@@ -8566,8 +8566,8 @@ function comparison(texts2, ok) {
   for (let i = 0; i < texts2.length; i++) {
     for (let j = i + 1; j < texts2.length; j++) {
       const vals = sims.map((m) => m[i][j]);
-      const spread = Math.max(...vals) - Math.min(...vals);
-      widest = Math.max(widest, spread);
+      const spread2 = Math.max(...vals) - Math.min(...vals);
+      widest = Math.max(widest, spread2);
       rows2.push(
         el(
           "tr",
@@ -8575,7 +8575,7 @@ function comparison(texts2, ok) {
           el("td", { class: "text", title: `${texts2[i]}
 ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
           vals.map((x) => el("td", { class: "cell", style: shade(place(x, lo, hi)), text: x.toFixed(4) })),
-          el("td", { text: spread.toFixed(4) })
+          el("td", { text: spread2.toFixed(4) })
         )
       );
     }
@@ -8644,7 +8644,7 @@ function init6() {
   onCapabilities((c) => {
     say($("embed-error"), "");
     const served = bundles(c, "TASK_EMBED");
-    for (const n of listed) if (!served.includes(n)) models.delete(n);
+    for (const n2 of listed) if (!served.includes(n2)) models.delete(n2);
     listed = served;
     void addModels(served);
   });
@@ -8912,17 +8912,17 @@ var Sha256 = class {
   }
 };
 async function sha256Blob(b, progress) {
-  const s = new Sha256();
+  const s2 = new Sha256();
   const reader = b.stream().getReader();
   let read = 0;
   for (; ; ) {
     const { done, value } = await reader.read();
     if (done) break;
-    s.update(value);
+    s2.update(value);
     read += value.length;
     progress?.(read);
   }
-  return s.hex();
+  return s2.hex();
 }
 
 // demo/web/src/tabs/licences.ts
@@ -8951,7 +8951,7 @@ function address(text) {
   return el("a", { href: text, target: "_blank", rel: "noopener noreferrer", text });
 }
 function termsBlock(e, t, w, accepted) {
-  const sources = e.trainedOn.map((s) => `${s.name} (${s.licence})`).join(", ");
+  const sources = e.trainedOn.map((s2) => `${s2.name} (${s2.licence})`).join(", ");
   const facts2 = el(
     "dl",
     {},
@@ -9016,7 +9016,7 @@ function nc(licence) {
   return /^CC-BY-NC(-|$)/.test(licence);
 }
 function nonCommercial(e) {
-  return nc(e.licence) || e.trainedOn.some((s) => nc(s.licence));
+  return nc(e.licence) || e.trainedOn.some((s2) => nc(s2.licence));
 }
 function mismatch(f, got, sha256) {
   if (BigInt(got) !== f.size) return `${f.path}: ${got} bytes arrived, the catalog lists ${f.size}`;
@@ -9049,11 +9049,11 @@ async function download2(e, f, status3, signal) {
 }
 
 // demo/web/src/sourcetext.ts
-function signInText(s) {
-  if (s === 2 /* GOOGLE */) return "Google sign-in";
-  if (s === 3 /* API_KEY */) return "API key";
-  if (s === 4 /* S3_KEYS */) return "S3 keys";
-  if (s === 1 /* ENVIRONMENT */) return "the server's own";
+function signInText(s2) {
+  if (s2 === 2 /* GOOGLE */) return "Google sign-in";
+  if (s2 === 3 /* API_KEY */) return "API key";
+  if (s2 === 4 /* S3_KEYS */) return "S3 keys";
+  if (s2 === 1 /* ENVIRONMENT */) return "the server's own";
   return "";
 }
 function s3KeysOf(f) {
@@ -9086,16 +9086,16 @@ function sourcesTable(r, changed2) {
   if (!r.sources.length) return el("p", { class: "muted", text: `${r.user} has no sources: installs read the catalog's own.` });
   return table(
     ["name", "address", "signs in with", ""],
-    r.sources.map((s) => {
+    r.sources.map((s2) => {
       let control = "";
       if (!why) {
-        control = confirmed("Remove", `Remove ${s.name}?`, async () => {
-          const gone = await catalog.removeModelSource({ name: s.name });
+        control = confirmed("Remove", `Remove ${s2.name}?`, async () => {
+          const gone = await catalog.removeModelSource({ name: s2.name });
           await changed2();
-          say(note2(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
+          say(note2(), gone.wasRegistered ? `Removed ${s2.name}.` : `${s2.name} was not registered.`);
         }, off(TurboCatalogService.method.removeModelSource));
       }
-      return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
+      return [s2.name, el("code", { text: s2.address }), signInText(s2.signIn), control];
     })
   );
 }
@@ -9252,8 +9252,8 @@ function catalogTable(entries, w) {
   const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
   box5.value = filterText;
   if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
-  const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n]) => [k, kindName(k), n])].map(([k, name, n]) => {
-    const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n}` });
+  const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n2]) => [k, kindName(k), n2])].map(([k, name, n2]) => {
+    const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n2}` });
     chip.addEventListener("click", () => {
       filterKind = k;
       apply2();
@@ -9380,11 +9380,11 @@ async function loadTraining() {
     options($("train-teacher"), t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`), "no teacher is served");
     let made;
     try {
-      const s = await training.listStaticModels({});
+      const s2 = await training.listStaticModels({});
       if (!mine()) return;
       made = table(
         ["name", "dims", "words", "learned", "dtype", "teacher", "quality", "served", ""],
-        s.models.map((m) => [
+        s2.models.map((m) => [
           m.name,
           String(m.dims),
           String(m.vocabSize),
@@ -9509,14 +9509,457 @@ function init9() {
   init8();
 }
 
-// demo/web/src/tabs/projection.ts
-var W = 640;
-var H = 360;
-var PAD = 24;
-var box3 = () => $("projection-out");
-function budgets(s) {
+// demo/web/src/viz/link.ts
+function linker() {
+  const focus = { chunk: null, term: null };
+  const listeners3 = [];
+  const tell = () => listeners3.forEach((l) => l(focus));
+  return {
+    on(l) {
+      listeners3.push(l);
+      l(focus);
+    },
+    chunk(i) {
+      if (focus.chunk === i) return;
+      focus.chunk = i;
+      tell();
+    },
+    term(t) {
+      if (focus.term === t) return;
+      focus.term = t;
+      tell();
+    }
+  };
+}
+
+// demo/web/src/viz/model.ts
+function leaves(units) {
+  if (!units.length) return [];
+  const finest = Math.min(...units.map((u) => u.level));
+  return units.filter((u) => u.level === finest).sort((a, b) => a.start - b.start || a.end - b.end);
+}
+function regions(units, leafUnits) {
+  if (!leafUnits.length) return [];
+  const finest = leafUnits[0].level;
   const out = [];
-  for (const item of s.split(",")) {
+  for (const u of units) {
+    if (u.level === finest) continue;
+    const members = leafUnits.flatMap((l, i) => l.start >= u.start && l.end <= u.end && !l.empty ? [i] : []);
+    if (members.length >= 2 && members.length < leafUnits.filter((l) => !l.empty).length) out.push({ unit: u, members });
+  }
+  return out.sort((a, b) => a.unit.start - b.unit.start);
+}
+function hull(pts) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]).filter((q, i, all) => i === 0 || q[0] !== all[i - 1][0] || q[1] !== all[i - 1][1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half2 = (src) => {
+    const h = [];
+    for (const q of src) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+      h.push(q);
+    }
+    h.pop();
+    return h;
+  };
+  return [...half2(p), ...half2([...p].reverse())];
+}
+function scale(lo, hi, a, b) {
+  return hi === lo ? () => (a + b) / 2 : (v) => a + (v - lo) / (hi - lo) * (b - a);
+}
+function spread(chunks) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of chunks) for (const t of new Set(c.map((x) => x.term))) seen.set(t, (seen.get(t) ?? 0) + 1);
+  return seen;
+}
+function telling(here, there, listedIn, count2) {
+  const rare = count2 > 1 ? Math.log(count2 / Math.max(1, listedIn)) : 1;
+  return here * Math.log(here / there) * rare;
+}
+function distinctive(chunk, chunkTotal, doc2, docTotal, k, listed2 = /* @__PURE__ */ new Map(), count2 = 1) {
+  if (!chunk.length || chunkTotal <= 0 || docTotal <= 0) return [];
+  const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
+  const floor = doc2.length ? Math.min(...doc2.map((t) => t.weight / docTotal)) : 1;
+  return chunk.map((t) => ({ term: t.term, score: telling(t.weight / chunkTotal, shares.get(t.term) ?? floor, listed2.get(t.term) ?? 1, count2) })).filter((t) => t.score > 0).sort((a, b) => b.score - a.score || (a.term < b.term ? -1 : 1)).slice(0, k).map((t) => t.term);
+}
+function riverTerms(doc2, docTotal, chunks, k, uneven) {
+  let picked2;
+  if (uneven) {
+    const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
+    const listed2 = spread(chunks.map((c) => c.terms));
+    const best2 = /* @__PURE__ */ new Map();
+    for (const c of chunks) {
+      for (const t of c.terms) {
+        const there = shares.get(t.term);
+        if (there === void 0 || c.total <= 0) continue;
+        best2.set(t.term, Math.max(best2.get(t.term) ?? 0, telling(t.weight / c.total, there, listed2.get(t.term) ?? 1, chunks.length)));
+      }
+    }
+    picked2 = [...best2].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, k).map(([t]) => t);
+  } else {
+    picked2 = [...doc2].sort((a, b) => b.weight - a.weight).slice(0, k).map((t) => t.term);
+  }
+  const peak = (term) => {
+    const w = chunks.map((c) => c.terms.find((t) => t.term === term)?.weight ?? 0);
+    return w.indexOf(Math.max(...w));
+  };
+  return picked2.map((t, i) => ({ t, i, at: peak(t) })).sort((a, b) => a.at - b.at || a.i - b.i).map((x) => x.t);
+}
+function streams(weights) {
+  const cols = weights[0]?.length ?? 0;
+  const out = weights.map(() => ({ lo: new Array(cols).fill(0), hi: new Array(cols).fill(0) }));
+  for (let c = 0; c < cols; c++) {
+    let at = -weights.reduce((s2, w) => s2 + w[c], 0) / 2;
+    weights.forEach((w, t) => {
+      out[t].lo[c] = at;
+      at += w[c];
+      out[t].hi[c] = at;
+    });
+  }
+  return out;
+}
+function pieces(text, chunks, marks) {
+  const clamp = (v) => Math.max(0, Math.min(text.length, v));
+  const edges = /* @__PURE__ */ new Set([0, text.length]);
+  for (const c of chunks) edges.add(clamp(c.start)).add(clamp(c.end));
+  for (const [s2, e] of marks) edges.add(clamp(s2)).add(clamp(e));
+  const cuts = [...edges].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const [s2, e] = [cuts[i], cuts[i + 1]];
+    if (e <= s2) continue;
+    const chunk = chunks.findIndex((c) => s2 >= c.start && e <= c.end);
+    out.push({ text: text.slice(s2, e), start: s2, chunk: chunk < 0 ? null : chunk, marked: marks.some(([a, b]) => s2 >= a && e <= b) });
+  }
+  return out;
+}
+function aroundGap(text, gaps, i) {
+  const at = gaps[i];
+  const from2 = i > 0 ? gaps[i - 1] : 0;
+  const to2 = i + 1 < gaps.length ? gaps[i + 1] : text.length;
+  return [text.slice(from2, at).trim(), text.slice(at, to2).trim()];
+}
+function cutReason(code) {
+  return ["document start", "sentence end", "section", "heading", "paragraph", "topic shift", "clause", "list item", "inside a sentence", "overlap"][code] ?? `reason ${code}`;
+}
+
+// demo/web/src/viz/svg.ts
+var NS = "http://www.w3.org/2000/svg";
+function s(tag, attrs = {}, ...children) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== void 0) e.setAttribute(k, String(v));
+  for (const c of children) if (c !== null) e.append(c);
+  return e;
+}
+function figure(w, h, label) {
+  return s("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": label, class: "viz" });
+}
+function n(v) {
+  return String(Math.round(v * 100) / 100);
+}
+function ordered(i, count2) {
+  const share = count2 > 1 ? Math.round(100 * i / (count2 - 1)) : 50;
+  return `color-mix(in oklab, var(--seq-from), var(--seq-to) ${share}%)`;
+}
+
+// demo/web/src/tabs/chunktext.ts
+function chunkText(text, chunks, link, marks) {
+  const box5 = el("div", { class: "doc chunked", tabindex: "0", "aria-label": "The document, by chunk" });
+  let drawn;
+  link.on((f) => {
+    if (f.term !== drawn) {
+      drawn = f.term;
+      const seen = /* @__PURE__ */ new Set();
+      box5.replaceChildren(
+        ...pieces(text, chunks, f.term === null ? [] : marks(f.term)).map((p) => {
+          const body2 = p.marked ? el("mark", { class: "occ", text: p.text }) : p.text;
+          if (p.chunk === null) return el("span", {}, body2);
+          const first = !seen.has(p.chunk);
+          seen.add(p.chunk);
+          const span = el("span", { class: "ck", "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body2);
+          span.addEventListener("mouseenter", () => link.chunk(p.chunk));
+          return span;
+        })
+      );
+    }
+    for (const span of box5.querySelectorAll(".ck")) span.classList.toggle("lit", span.dataset.chunk === String(f.chunk));
+  });
+  box5.addEventListener("mouseleave", () => link.chunk(null));
+  return box5;
+}
+function follow(box5, link) {
+  link.on((f) => {
+    if (f.chunk === null || box5.matches(":hover")) return;
+    const span = box5.querySelector(`.ck[data-chunk="${f.chunk}"]`);
+    if (span) box5.scrollTop = Math.max(0, span.offsetTop - box5.offsetTop - 12);
+  });
+}
+
+// demo/web/src/tabs/meaningmap.ts
+var W = 640;
+var H = 340;
+var PAD = { l: 34, r: 16, t: 16, b: 34 };
+function meaningMap(m, link) {
+  const placed = m.chunks.map((c, i) => ({ c, i })).filter((p) => !p.c.empty);
+  const xs = placed.map((p) => p.c.x);
+  const ys = placed.map((p) => p.c.y);
+  const zs = placed.map((p) => p.c.z);
+  const sx = scale(Math.min(...xs), Math.max(...xs), PAD.l + 24, W - PAD.r - 24);
+  const sy = scale(Math.min(...ys), Math.max(...ys), H - PAD.b - 24, PAD.t + 24);
+  const sz = scale(Math.min(...zs), Math.max(...zs), 5, 11);
+  const at = new Map(placed.map((p) => [p.i, [sx(p.c.x), sy(p.c.y)]]));
+  const pct = (v) => v === void 0 ? "" : ` (${(v * 100).toFixed(0)}% of the variance)`;
+  const svg = figure(W, H, `Meaning map of ${placed.length} chunks`);
+  svg.append(
+    s("rect", { x: PAD.l, y: PAD.t, width: W - PAD.l - PAD.r, height: H - PAD.t - PAD.b, class: "frame" }),
+    s("text", { x: (PAD.l + W - PAD.r) / 2, y: H - 10, class: "axis", "text-anchor": "middle" }, `first direction of meaning${pct(m.variance[0])}`),
+    s("text", { x: 12, y: (PAD.t + H - PAD.b) / 2, class: "axis", "text-anchor": "middle", transform: `rotate(-90 12 ${(PAD.t + H - PAD.b) / 2})` }, `second direction${pct(m.variance[1])}`)
+  );
+  for (const r of regions(m.units, m.chunks)) {
+    const pts = r.members.flatMap((i) => at.has(i) ? [at.get(i)] : []);
+    const h = hull(pts);
+    const g = s("g", { class: "region" });
+    if (h.length >= 3) g.append(s("polygon", { points: h.map(([x, y]) => `${n(x)},${n(y)}`).join(" ") }));
+    else if (h.length === 2) g.append(s("line", { x1: n(h[0][0]), y1: n(h[0][1]), x2: n(h[1][0]), y2: n(h[1][1]) }));
+    g.append(s("title", {}, `Level ${r.unit.level} unit ${r.unit.item}: chunks ${r.members[0] + 1} to ${r.members[r.members.length - 1] + 1}`));
+    svg.append(g);
+  }
+  if (placed.length > 1) svg.append(s("polyline", { class: "trail", points: placed.map((p) => at.get(p.i).map(n).join(",")).join(" ") }));
+  const info = el("p", { class: "info", role: "status", text: "Point at a dot to read its chunk; the same chunk lights up in the text." });
+  const dots = /* @__PURE__ */ new Map();
+  const few = placed.length <= 14;
+  for (const p of placed) {
+    const [x, y] = at.get(p.i);
+    const r = m.third ? sz(p.c.z) : 7;
+    const names2 = m.terms(p.i);
+    const left = x > W * 0.68;
+    const label = `${p.i + 1}${few && names2.length ? ` \xB7 ${names2.slice(0, 2).join(", ")}` : ""}`;
+    const g = s(
+      "g",
+      { class: "dot", tabindex: 0, role: "button", "aria-label": `Chunk ${p.i + 1} of ${m.chunks.length}${names2.length ? `: ${names2.join(", ")}` : ""}` },
+      // A target larger than the mark.
+      s("circle", { cx: n(x), cy: n(y), r: 18, class: "hit" }),
+      s("circle", { cx: n(x), cy: n(y), r: n(r), class: "mark", style: `fill: ${ordered(p.i, m.chunks.length)}` }),
+      s("text", { x: n(x + (left ? -r - 5 : r + 5)), y: n(y + 4), class: "label", "text-anchor": left ? "end" : "start" }, label)
+    );
+    const point = () => link.chunk(p.i);
+    g.addEventListener("mouseenter", point);
+    g.addEventListener("focus", point);
+    g.addEventListener("mouseleave", () => link.chunk(null));
+    g.addEventListener("blur", () => link.chunk(null));
+    dots.set(p.i, g);
+    svg.append(g);
+  }
+  link.on((f) => {
+    for (const [i, g] of dots) g.classList.toggle("lit", i === f.chunk);
+    svg.classList.toggle("dim", f.chunk !== null);
+    if (f.chunk === null) return;
+    const c = m.chunks[f.chunk];
+    const cos = m.toNext(f.chunk);
+    const names2 = m.terms(f.chunk);
+    info.textContent = `Chunk ${f.chunk + 1} of ${m.chunks.length}, characters ${c.start} to ${c.end}${names2.length ? `, told apart by ${names2.join(", ")}` : ""}${cos === void 0 ? "" : `, cosine to the next ${cos.toFixed(3)}`}: ${short(m.text.slice(c.start, c.end), 140)}`;
+  });
+  const others = m.units.length - m.chunks.length;
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    el("span", { class: "swatch ramp-key" }, el("i", {}), " a chunk, coloured from the first (light) to the last (dark)"),
+    el("span", { class: "swatch trail-key" }, el("i", {}), " reading order"),
+    m.third ? el("span", { class: "muted", text: "size: the third direction" }) : null,
+    others > 0 ? el("span", { class: "muted", text: `${others} coarser ${others === 1 ? "unit is" : "units are"} not drawn as dots; one holding some of the chunks is a shaded region` }) : null
+  );
+  return el("div", { class: "figure" }, el("div", { class: "scroll" }, svg), legend2, info);
+}
+
+// demo/web/src/tabs/river.ts
+var W2 = 640;
+var H2 = 210;
+var PAD2 = { l: 12, r: 12, t: 22, b: 10 };
+function river(m, link) {
+  const x = scale(0, Math.max(1, m.length), PAD2.l, W2 - PAD2.r);
+  const edges = streams(m.weights);
+  const reach = Math.max(1e-9, ...edges.flatMap((e) => e.hi), ...edges.flatMap((e) => e.lo.map((v) => -v)));
+  const y = scale(-reach, reach, H2 - PAD2.b, PAD2.t);
+  const svg = figure(W2, H2, `Term river: ${m.terms.join(", ")}`);
+  const stops2 = m.chunks.flatMap((c) => [x(c.start + (c.end - c.start) * 0.25), x(c.start + (c.end - c.start) * 0.75)]);
+  const along = (v) => {
+    const pts = v.flatMap((w, c) => [[stops2[2 * c], y(w)], [stops2[2 * c + 1], y(w)]]);
+    return pts.length ? [[x(m.chunks[0].start), pts[0][1]], ...pts, [x(m.chunks[m.chunks.length - 1].end), pts[pts.length - 1][1]]] : pts;
+  };
+  const curve = (pts, first) => pts.map(([px, py], i) => {
+    if (i === 0) return `${first}${n(px)} ${n(py)}`;
+    const [qx, qy] = pts[i - 1];
+    const mid = (qx + px) / 2;
+    return `C${n(mid)} ${n(qy)} ${n(mid)} ${n(py)} ${n(px)} ${n(py)}`;
+  }).join(" ");
+  m.chunks.forEach((c, i) => {
+    if (i) svg.append(s("line", { x1: n(x(c.start)), x2: n(x(c.start)), y1: PAD2.t - 4, y2: H2 - PAD2.b, class: "cut-line" }));
+    svg.append(s("text", { x: n(x((c.start + c.end) / 2)), y: 12, class: "tick", "text-anchor": "middle" }, String(i + 1)));
+  });
+  const paths = m.terms.map((term, t) => {
+    const up = along(edges[t].hi);
+    const down = along(edges[t].lo).reverse();
+    const p = s("path", { d: `${curve(up, "M")} ${curve(down, "L")} Z`, class: "stream", style: `fill: var(--m${t})`, tabindex: 0, role: "button", "aria-label": `${term}, ${m.occurrences(term)} occurrences` }, s("title", {}, term));
+    const on = () => link.term(term);
+    p.addEventListener("mouseenter", on);
+    p.addEventListener("focus", on);
+    svg.append(p);
+    const widest = m.weights[t].indexOf(Math.max(...m.weights[t]));
+    const thick = y(edges[t].lo[widest]) - y(edges[t].hi[widest]);
+    if (thick >= 14 && m.chunks[widest]) {
+      const c = m.chunks[widest];
+      svg.append(s("text", { x: n(x((c.start + c.end) / 2)), y: n((y(edges[t].lo[widest]) + y(edges[t].hi[widest])) / 2 + 4), class: "stream-name", "text-anchor": "middle" }, term));
+    }
+    return p;
+  });
+  const info = el("p", { class: "info", role: "status", text: "Point at a stream or a name to mark that term in the text." });
+  const keys = m.terms.map((term, t) => {
+    const b = el("button", { type: "button", class: "swatch key", style: `--mark: var(--m${t})` }, el("i", {}), ` ${term} `, el("span", { class: "muted", text: String(m.occurrences(term)) }));
+    b.addEventListener("mouseenter", () => link.term(term));
+    b.addEventListener("focus", () => link.term(term));
+    b.addEventListener("click", () => link.term(term));
+    return b;
+  });
+  const clear = el("button", { type: "button", class: "small", text: "Clear" });
+  clear.addEventListener("click", () => link.term(null));
+  link.on((f) => {
+    const at = f.term === null ? -1 : m.terms.indexOf(f.term);
+    paths.forEach((p, t) => p.classList.toggle("faded", at >= 0 && t !== at));
+    keys.forEach((k, t) => k.classList.toggle("on", t === at));
+    clear.hidden = at < 0;
+    if (at >= 0) {
+      const where = m.weights[at].flatMap((w, c) => w > 0 ? [c + 1] : []);
+      info.textContent = `"${m.terms[at]}" occurs ${m.occurrences(m.terms[at])} times; it is among the listed terms of ${where.length === 1 ? "chunk" : "chunks"} ${where.join(", ")}. Its occurrences are marked in the text.`;
+    }
+  });
+  return el("div", { class: "figure" }, el("div", { class: "scroll" }, svg), el("div", { class: "legend" }, keys, clear), info);
+}
+
+// demo/web/src/tabs/seismograph.ts
+var W3 = 640;
+var GUTTER = 150;
+var RIGHT = 12;
+var BAND = 14;
+var CURVE = 120;
+var ROW = 20;
+function seismograph(m, link) {
+  const len = Math.max(1, m.text.length);
+  const x = scale(0, len, GUTTER, W3 - RIGHT);
+  const top = 8;
+  const curveTop = top + BAND + 10;
+  const base2 = curveTop + CURVE;
+  const rowsTop = base2 + 26;
+  const H3 = rowsTop + (m.strategies.length + 1) * ROW + 6;
+  const hasCosine = m.gaps.some((g) => g.smoothed !== void 0);
+  const svg = figure(W3, H3, `Topic seismograph: ${m.gaps.length} sentence gaps, ${m.gaps.filter((g) => g.cut).length} cuts`);
+  svg.append(s("text", { x: GUTTER - 8, y: top + BAND - 3, class: "row-name", "text-anchor": "end" }, "chunks"));
+  const bands = m.chunks.map((c, i) => {
+    const r = s("rect", { x: n(x(c.start) + 1), y: top, width: n(Math.max(1, x(c.end) - x(c.start) - 2)), height: BAND, rx: 3, class: "band", style: `fill: ${ordered(i, m.chunks.length)}` }, s("title", {}, `Chunk ${i + 1}`));
+    r.addEventListener("mouseenter", () => link.chunk(i));
+    r.addEventListener("mouseleave", () => link.chunk(null));
+    return r;
+  });
+  svg.append(...bands);
+  link.on((f) => bands.forEach((b, i) => b.classList.toggle("lit", i === f.chunk)));
+  const values = m.gaps.map((g) => hasCosine ? g.smoothed : g.cost);
+  const known = values.filter((v) => v !== void 0);
+  const lo = hasCosine ? Math.min(...known) : 0;
+  const hi = Math.max(...known, lo + 1e-9);
+  const y = scale(lo, hi, base2, curveTop + 6);
+  svg.append(
+    s("line", { x1: GUTTER, x2: W3 - RIGHT, y1: base2, y2: base2, class: "axis-line" }),
+    s("text", { x: GUTTER - 8, y: curveTop + 10, class: "tick", "text-anchor": "end" }, hasCosine ? hi.toFixed(2) : String(Math.round(hi))),
+    s("text", { x: GUTTER - 8, y: base2, class: "tick", "text-anchor": "end" }, hasCosine ? lo.toFixed(2) : "0"),
+    s("text", { x: GUTTER - 8, y: (curveTop + base2) / 2 + 4, class: "row-name", "text-anchor": "end" }, hasCosine ? "cosine across the gap" : "cost of a cut here")
+  );
+  if (hasCosine) {
+    const pts = m.gaps.flatMap((g) => g.smoothed === void 0 ? [] : [[x(g.offset), y(g.smoothed)]]);
+    if (pts.length > 1) {
+      const line = pts.map(([px, py], i) => `${i ? "L" : "M"}${n(px)} ${n(py)}`).join(" ");
+      svg.append(s("path", { d: `${line} L${n(pts[pts.length - 1][0])} ${base2} L${n(pts[0][0])} ${base2} Z`, class: "area" }), s("path", { d: line, class: "line" }));
+    }
+    const raw = m.gaps.flatMap((g) => g.raw === void 0 ? [] : [[x(g.offset), y(Math.max(lo, Math.min(hi, g.raw)))]]);
+    if (raw.length > 1) svg.append(s("path", { d: raw.map(([px, py], i) => `${i ? "L" : "M"}${n(px)} ${n(py)}`).join(" "), class: "line raw" }));
+  } else {
+    for (const g of m.gaps) svg.append(s("line", { x1: n(x(g.offset)), x2: n(x(g.offset)), y1: base2, y2: n(y(g.cost)), class: g.cut ? "stem cut" : "stem" }));
+  }
+  for (const g of m.gaps) {
+    if (!g.cut) continue;
+    const gx = x(g.offset);
+    const gy = y(hasCosine ? g.smoothed ?? lo : g.cost);
+    svg.append(s("line", { x1: n(gx), x2: n(gx), y1: curveTop, y2: base2, class: "cut-line" }), s("path", { d: `M${n(gx)} ${n(gy - 6)} L${n(gx + 5)} ${n(gy)} L${n(gx)} ${n(gy + 6)} L${n(gx - 5)} ${n(gy)} Z`, class: "cut-mark" }));
+  }
+  const profile = m.gaps.filter((g) => g.cut).map((g) => g.offset);
+  const rows2 = [
+    { name: "this profile", note: `${m.chunks.length} chunks`, cuts: m.chunks.slice(1).map((c) => c.start) },
+    ...m.strategies.map((t) => ({ name: t.name, note: `${t.chunks} chunks, ${t.shared} cuts shared, ${t.apart} not`, cuts: t.cuts.filter((c) => c > 0) }))
+  ];
+  rows2.forEach((r, i) => {
+    const ry = rowsTop + i * ROW;
+    const near = (c) => profile.some((p) => Math.abs(p - c) <= 2) || m.chunks.some((k) => k.start === c);
+    svg.append(
+      s("text", { x: GUTTER - 8, y: ry + 12, class: "row-name", "text-anchor": "end" }, short(r.name, 20), s("title", {}, `${r.name}: ${r.note}`)),
+      s("rect", { x: GUTTER, y: ry + 2, width: W3 - RIGHT - GUTTER, height: ROW - 6, rx: 3, class: "barcode" }),
+      ...r.cuts.map((c) => s("rect", { x: n(x(c) - 1), y: ry + 2, width: 2, height: ROW - 6, class: i === 0 || near(c) ? "tick-shared" : "tick-apart" }))
+    );
+  });
+  const cross = s("line", { y1: curveTop, y2: base2, class: "cross", visibility: "hidden" });
+  const pad = s("rect", { x: GUTTER, y: curveTop, width: W3 - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, "aria-label": "Sentence gaps; point or use the arrow keys" });
+  svg.append(cross, pad);
+  const info = el("p", { class: "info", role: "status", text: "Point at the curve to see the two sentences on either side of a gap." });
+  const offsets = m.gaps.map((g) => g.offset);
+  let picked2 = -1;
+  const pick = (i) => {
+    if (i < 0 || i >= m.gaps.length) return;
+    picked2 = i;
+    const g = m.gaps[i];
+    cross.setAttribute("x1", n(x(g.offset)));
+    cross.setAttribute("x2", n(x(g.offset)));
+    cross.setAttribute("visibility", "visible");
+    const [before, after2] = aroundGap(m.text, offsets, i);
+    const value = g.smoothed !== void 0 ? `cosine ${g.smoothed.toFixed(3)}${g.depth > 0 ? `, depth ${g.depth.toFixed(3)}` : ""}` : `cost ${g.cost}`;
+    info.replaceChildren(
+      el("b", { text: `Gap ${i + 1} of ${m.gaps.length}${g.cut ? " (cut)" : ""}` }),
+      `, ${cutReason(g.reason)}, ${value}. `,
+      el("span", { class: "quote", text: short(before, 110) }),
+      el("span", { class: "muted", text: g.cut ? "  \u2702  " : "  \xB7  " }),
+      el("span", { class: "quote", text: short(after2, 110) || "(the end)" })
+    );
+    link.chunk(m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end));
+  };
+  pad.addEventListener("mousemove", (ev) => {
+    const box5 = svg.getBoundingClientRect();
+    const at = (ev.clientX - box5.left) / box5.width * W3;
+    let best2 = 0;
+    m.gaps.forEach((g, i) => {
+      if (Math.abs(x(g.offset) - at) < Math.abs(x(m.gaps[best2].offset) - at)) best2 = i;
+    });
+    pick(best2);
+  });
+  pad.addEventListener("keydown", (ev) => {
+    const step = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    ev.preventDefault();
+    pick(Math.max(0, Math.min(m.gaps.length - 1, picked2 + step)));
+  });
+  pad.addEventListener("mouseleave", () => link.chunk(null));
+  const cuts = m.gaps.filter((g) => g.cut).length;
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    el("span", { class: "swatch cut-key" }, el("i", {}), ` a gap the chunker cut at (${cuts})`),
+    m.strategies.length ? el("span", { class: "swatch shared-key" }, el("i", {}), " a cut this profile also makes") : null,
+    m.strategies.length ? el("span", { class: "swatch apart-key" }, el("i", {}), " a cut only that budget makes") : null
+  );
+  const how = hasCosine ? `The line is the cosine between the sentences on each side of a gap, smoothed over ${m.smoothing} (window ${m.window}); the thin line is the raw value. A valley is a change of topic.` : "This graph holds no sentence vectors, so there is no cosine to draw: each stem is what the chunker charges to cut at that gap, and a short stem is an easy cut (a paragraph or a heading).";
+  return el("div", { class: "figure" }, el("p", { class: "muted", text: how }), el("div", { class: "scroll" }, svg), legend2, info);
+}
+
+// demo/web/src/tabs/projection.ts
+var box3 = () => $("projection-out");
+function budgets(s2) {
+  const out = [];
+  for (const item of s2.split(",")) {
     const [name, max, target] = item.split(":").map((x) => x.trim());
     const m = parseInt(max ?? "", 10);
     const t = parseInt(target ?? "", 10);
@@ -9524,134 +9967,83 @@ function budgets(s) {
   }
   return out;
 }
-function hue(level) {
-  return `hsl(${(level * 67 + 210) % 360}, 65%, 50%)`;
-}
-function canvas() {
-  const c = el("canvas", { width: String(W), height: String(H), class: "plot" });
-  return [c, c.getContext("2d")];
-}
-function scatter(p, text) {
-  const [c, g] = canvas();
-  const pts = p.points.filter((q) => !q.empty);
-  const xs = pts.map((q) => q.x);
-  const ys = pts.map((q) => q.y);
-  const zs = pts.map((q) => q.z);
-  const span = (v) => [Math.min(...v), Math.max(...v) - Math.min(...v) || 1];
-  const [x0, xw] = span(xs);
-  const [y0, yw] = span(ys);
-  const [z0, zw] = span(zs);
-  const at = pts.map((q) => [PAD + (q.x - x0) / xw * (W - 2 * PAD), H - PAD - (q.y - y0) / yw * (H - 2 * PAD)]);
-  g.lineWidth = 1;
-  for (let i = 1; i < pts.length; i++) {
-    if (pts[i].level !== pts[i - 1].level) continue;
-    g.strokeStyle = hue(pts[i].level);
-    g.globalAlpha = 0.35;
-    g.beginPath();
-    g.moveTo(at[i - 1][0], at[i - 1][1]);
-    g.lineTo(at[i][0], at[i][1]);
-    g.stroke();
-  }
-  pts.forEach((q, i) => {
-    g.globalAlpha = p.pcaDims === 3 ? 0.35 + 0.65 * ((q.z - z0) / zw) : 0.9;
-    g.fillStyle = hue(q.level);
-    g.beginPath();
-    g.arc(at[i][0], at[i][1], 5, 0, 2 * Math.PI);
-    g.fill();
-  });
-  const tip2 = el("p", { class: "muted", text: "Hover a point." });
-  c.addEventListener("mousemove", (ev2) => {
-    const r = c.getBoundingClientRect();
-    const mx = (ev2.clientX - r.left) * W / r.width;
-    const my = (ev2.clientY - r.top) * H / r.height;
-    let best2 = -1;
-    let dist = 100;
-    at.forEach(([x, y], i) => {
-      const d = (x - mx) ** 2 + (y - my) ** 2;
-      if (d < dist) [best2, dist] = [i, d];
-    });
-    if (best2 < 0) return;
-    const q = pts[best2];
-    const cos = q.adjacentCosine === void 0 ? "" : `, cosine to the next ${q.adjacentCosine.toFixed(3)}`;
-    tip2.textContent = `item ${q.item}, level ${q.level}, ${q.start}..${q.end}${cos}: ${short(text.slice(q.start, q.end), 120)}`;
-  });
-  const levels = [...new Set(pts.map((q) => q.level))].sort((a, b) => a - b);
-  const legend2 = el("div", { class: "chips" }, levels.map((l) => el("span", { class: "chip", style: `border-color: ${hue(l)}; color: ${hue(l)}`, text: `level ${l}` })));
-  const ev = p.explainedVariance.map((v) => `${(v * 100).toFixed(1)}%`).join(", ");
-  return el(
-    "div",
-    {},
-    el("p", { class: "muted", text: `${pts.length} vectors from ${p.model ? `${p.model.id}@${p.model.revision}` : "the graph"}; explained variance ${ev}${p.pcaDims === 3 ? "; the third component is the opacity" : ""}.` }),
-    legend2,
-    c,
-    tip2
-  );
-}
-function drift(d) {
-  const [c, g] = canvas();
-  const n = d.gaps.length;
-  const x = (i) => PAD + (n > 1 ? i / (n - 1) * (W - 2 * PAD) : (W - 2 * PAD) / 2);
-  const y = (v) => H - PAD - Math.max(0, Math.min(1, v)) * (H - 2 * PAD);
-  const micro = (v) => v === void 0 ? NaN : Number(v) / 1e6;
-  g.fillStyle = "rgba(127, 127, 127, 0.25)";
-  d.gaps.forEach((p, i) => {
-    const h = Math.max(0, Math.min(1, micro(p.depthScoreMicro)));
-    g.fillRect(x(i) - 3, y(h), 6, H - PAD - y(h));
-  });
-  for (const [field3, color] of [["rawCosineMicro", "hsl(210, 20%, 60%)"], ["smoothedCosineMicro", "hsl(210, 70%, 50%)"]]) {
-    g.strokeStyle = color;
-    g.beginPath();
-    let on = false;
-    d.gaps.forEach((p, i) => {
-      const v = micro(p[field3]);
-      if (Number.isNaN(v)) return void (on = false);
-      if (on) g.lineTo(x(i), y(v));
-      else g.moveTo(x(i), y(v));
-      on = true;
-    });
-    g.stroke();
-  }
-  g.strokeStyle = "hsl(10, 75%, 50%)";
-  d.gaps.forEach((p, i) => {
-    if (!p.isChunkCut) return;
-    g.beginPath();
-    g.moveTo(x(i), PAD);
-    g.lineTo(x(i), H - PAD);
-    g.stroke();
-  });
-  const cuts = d.gaps.filter((p) => p.isChunkCut).length;
-  return el(
-    "div",
-    {},
-    el("p", { class: "muted", text: `${n} sentence gaps (window ${d.window}, smoothing ${d.smoothing}), ${cuts} chunk cuts in red. Lines: cosine across each gap, raw and smoothed; bars: depth score.` }),
-    c
-  );
-}
-function stack(s, label) {
-  const bar3 = el(
-    "div",
-    { class: "stack" },
-    s.segments.map((t) => el("span", { title: `${t.term}: ${t.frequency}x, weight ${t.weight.toFixed(3)}${t.isExpanded ? ", expanded" : ""}`, style: `flex: ${Math.max(t.share, 1e-3)}`, text: t.term })),
-    s.otherTermCount ? el("span", { class: "other", title: `${s.otherTermCount} more terms`, style: `flex: ${Math.max(1 - s.segments.reduce((a, t) => a + t.share, 0), 1e-3)}`, text: "\u2026" }) : null
-  );
-  return el("div", { class: "lane" }, el("span", { class: "lane-name", text: label }), bar3);
-}
+var micro = (v) => v === void 0 ? void 0 : Number(v) / 1e6;
 function show(r, text) {
+  const units = (r.projection?.points ?? []).map((q) => ({ item: q.item, start: q.start, end: q.end, level: q.level, x: q.x, y: q.y, z: q.z, empty: q.empty }));
+  const chunks = leaves(units);
+  const link = linker();
+  const stacks = new Map(r.chunkTermStacks.map((k) => [k.unit, k]));
+  const docTerms = r.documentTermStack?.segments ?? [];
+  const docTotal = r.documentTermStack?.totalWeight ?? 0;
+  const listed2 = spread(chunks.map((c) => stacks.get(c.item)?.segments ?? []));
+  const named2 = chunks.map((c) => {
+    const k = stacks.get(c.item);
+    return k ? distinctive(k.segments, k.totalWeight, docTerms, docTotal, 3, listed2, chunks.length) : [];
+  });
+  const cosines = new Map((r.projection?.points ?? []).map((q) => [q.item, q.adjacentCosine]));
+  const parts = [];
+  if (chunks.some((c) => !c.empty)) {
+    const model = r.projection?.model;
+    const reader = chunkText(text, chunks, link, (term) => {
+      const t = docTerms.find((d) => d.term === term);
+      return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a]);
+    });
+    follow(reader, link);
+    parts.push(
+      el("h3", { text: "Meaning map" }),
+      el("p", { class: "muted", text: `Each dot is one chunk's vector from ${model ? `${model.id}@${model.revision}` : "the graph"}, placed by its two main directions of meaning. The line follows reading order: a document that wanders draws a long trail, and one that stays on a topic stays in one place.` }),
+      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named2[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3 }, link), el("div", {}, el("h4", { text: "The text, by chunk" }), reader))
+    );
+  } else {
+    parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
+  }
+  if (r.driftCurve?.gaps.length) {
+    const d = r.driftCurve;
+    parts.push(
+      el("h3", { text: "Topic seismograph" }),
+      seismograph(
+        {
+          gaps: d.gaps.map((g) => ({ offset: g.gapOffset, raw: micro(g.rawCosineMicro), smoothed: micro(g.smoothedCosineMicro), depth: Number(g.depthScoreMicro) / 1e6, cost: g.cost, reason: g.reason, cut: g.isChunkCut })),
+          chunks,
+          strategies: (r.strategyMatrix?.strategies ?? []).map((t) => ({ name: t.name, chunks: t.chunkCount, shared: t.matchedCutsWithBaseline, apart: t.disagreementsWithBaseline, cuts: t.cutStarts })),
+          text,
+          window: d.window,
+          smoothing: d.smoothing
+        },
+        link
+      )
+    );
+  }
+  const withStack = chunks.filter((c) => stacks.has(c.item));
+  if (docTerms.length && withStack.length > 1) {
+    const uneven = input("projection-uneven").checked;
+    const terms = riverTerms(docTerms, docTotal, withStack.map((c) => ({ terms: stacks.get(c.item).segments, total: stacks.get(c.item).totalWeight })), 8, uneven);
+    const weights = terms.map((t) => withStack.map((c) => stacks.get(c.item).segments.find((x) => x.term === t)?.weight ?? 0));
+    if (terms.length) {
+      parts.push(
+        el("h3", { text: "Term river" }),
+        el("p", { class: "muted", text: uneven ? "The terms whose weight is least evenly spread over the chunks, so words every chunk uses alike are left out. A stream is as thick over a chunk as the term's weight there." : "The document's heaviest terms. A stream is as thick over a chunk as the term's weight there." }),
+        river({ terms, weights, chunks: withStack, occurrences: (t) => docTerms.find((d) => d.term === t)?.occStart?.length ?? 0, length: text.length }, link)
+      );
+    }
+  }
   const m = r.strategyMatrix;
-  box3().replaceChildren(
-    el("h3", { text: "Projection" }),
-    r.projection?.points.length ? scatter(r.projection, text) : el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }),
-    r.driftCurve ? el("h3", { text: "Boundary drift" }) : "",
-    r.driftCurve ? drift(r.driftCurve) : "",
-    el("h3", { text: "Term vector stacks" }),
-    r.documentTermStack ? stack(r.documentTermStack, "document") : "",
-    ...r.chunkTermStacks.map((s) => stack(s, `chunk ${s.unit}`)),
-    m?.strategies.length ? el("h3", { text: "Strategies" }) : "",
-    m?.strategies.length ? table(
-      ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
-      m.strategies.map((s) => [s.name, String(s.budget?.maxTokens ?? ""), String(s.budget?.targetTokens ?? ""), String(s.chunkCount), String(s.overBudgetCount), String(s.totalCost), String(s.matchedCutsWithBaseline), String(s.disagreementsWithBaseline)])
-    ) : ""
+  const rows2 = chunks.map((c, i) => [String(i + 1), `${c.start}..${c.end}`, named2[i].join(", "), (stacks.get(c.item)?.segments ?? []).slice(0, 6).map((t) => `${t.term} ${t.weight.toFixed(1)}`).join(", "), short(text.slice(c.start, c.end), 60)]);
+  parts.push(
+    el(
+      "details",
+      { class: "tables" },
+      el("summary", { text: "As tables" }),
+      chunks.length ? table(["chunk", "characters", "told apart by", "heaviest terms", "text"], rows2) : "",
+      chunks.length ? take("Chunks", () => [["chunk", "start", "end", "told apart by", "x", "y", "text"], ...chunks.map((c, i) => [String(i + 1), String(c.start), String(c.end), named2[i].join(" "), String(c.x), String(c.y), text.slice(c.start, c.end)])]) : "",
+      m?.strategies.length ? el("h4", { text: "Chunking budgets" }) : "",
+      m?.strategies.length ? table(
+        ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
+        m.strategies.map((t) => [t.name, String(t.budget?.maxTokens ?? ""), String(t.budget?.targetTokens ?? ""), String(t.chunkCount), String(t.overBudgetCount), String(t.totalCost), String(t.matchedCutsWithBaseline), String(t.disagreementsWithBaseline)])
+      ) : ""
+    )
   );
+  box3().replaceChildren(...parts);
 }
 var freshRender3 = latest();
 async function render4() {
@@ -9663,8 +10055,9 @@ async function render4() {
       graph: d.graph,
       offsets: 1 /* UTF16 */,
       pcaDims: $("projection-dims").value === "3" ? 3 : 2,
-      maxStackSegments: 8,
-      includeDriftCurve: input("projection-drift").checked,
+      // Enough of each stack to tell a chunk's own terms from the document's.
+      maxStackSegments: 32,
+      includeDriftCurve: true,
       includeStrategyMatrix: true,
       strategyBudgets: budgets(input("projection-budgets").value)
     });
@@ -9680,6 +10073,7 @@ function init10() {
   onDoc(() => again());
   const go2 = $("projection-run");
   go2.addEventListener("click", () => void busy(go2, render4));
+  $("projection-uneven").addEventListener("change", () => void render4());
 }
 
 // demo/web/src/frames.ts
@@ -9688,10 +10082,10 @@ var MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
 function bytes(b) {
   return b;
 }
-function prefix(n) {
-  if (n > MAX_FRAME_BYTES) throw new RangeError(`a frame of ${n} bytes is over the ${MAX_FRAME_BYTES} byte limit`);
+function prefix(n2) {
+  if (n2 > MAX_FRAME_BYTES) throw new RangeError(`a frame of ${n2} bytes is over the ${MAX_FRAME_BYTES} byte limit`);
   const p = new Uint8Array(5);
-  new DataView(p.buffer).setUint32(1, n, false);
+  new DataView(p.buffer).setUint32(1, n2, false);
   return p;
 }
 function envelope(message) {
@@ -9700,9 +10094,9 @@ function envelope(message) {
   out.set(message, 5);
   return out;
 }
-function varint(n) {
+function varint(n2) {
   const out = [];
-  let v = n;
+  let v = n2;
   while (v >= 128) {
     out.push(v % 128 | 128);
     v = Math.floor(v / 128);
@@ -9710,9 +10104,9 @@ function varint(n) {
   out.push(v);
   return Uint8Array.from(out);
 }
-function fieldHead(field3, n) {
+function fieldHead(field3, n2) {
   const tag = varint(field3 * 8 + 2);
-  const len = varint(n);
+  const len = varint(n2);
   const out = new Uint8Array(tag.length + len.length);
   out.set(tag);
   out.set(len, tag.length);
@@ -9761,7 +10155,7 @@ function boundary(bytes2, at) {
   while (i > 0 && i < bytes2.length && (bytes2[i] & 192) === 128) i--;
   return i;
 }
-function pieces(text, chunkStart, matches2) {
+function pieces2(text, chunkStart, matches2) {
   const bytes2 = new TextEncoder().encode(text);
   const inside = matches2.map((m) => ({ ...m, start: boundary(bytes2, m.start - chunkStart), end: boundary(bytes2, m.end - chunkStart) })).filter((m, i) => matches2[i].start >= chunkStart && matches2[i].end - chunkStart <= bytes2.length && m.end > m.start && !(m.start === 0 && m.end === bytes2.length));
   const cuts = [.../* @__PURE__ */ new Set([0, bytes2.length, ...inside.flatMap((m) => [m.start, m.end])])].sort((a, b) => a - b);
@@ -9945,10 +10339,10 @@ function heatView(r) {
           "span",
           { class: "cells" },
           d.segments.map(
-            (s) => el("span", {
+            (s2) => el("span", {
               class: "hcell",
-              title: `${s.chunkId} ${s.span?.start ?? 0}..${s.span?.end ?? 0}: ${s.score.toFixed(3)}`,
-              style: `opacity: ${(0.1 + 0.9 * (d.maxScore ? s.score / d.maxScore : 0)).toFixed(2)}`
+              title: `${s2.chunkId} ${s2.span?.start ?? 0}..${s2.span?.end ?? 0}: ${s2.score.toFixed(3)}`,
+              style: `opacity: ${(0.1 + 0.9 * (d.maxScore ? s2.score / d.maxScore : 0)).toFixed(2)}`
             })
           )
         )
@@ -9979,7 +10373,7 @@ async function runSearch(ev) {
         const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
         const matches2 = (a?.matchedSpans ?? []).map((m) => ({ source: m.source, label: m.label, start: m.span?.start ?? 0, end: m.span?.end ?? 0 }));
         const at = h.chunkSpan?.start ?? 0;
-        const text = pieces(h.text, at, matches2).map(
+        const text = pieces2(h.text, at, matches2).map(
           (p) => p.sources.length ? el("mark", { style: `--mark: ${colour2(p.sources[0])}`, title: `${p.sources.join(", ")}${p.labels.length ? `: ${p.labels.join(", ")}` : ""}` }, p.text, el("sup", { text: p.sources.join("+") })) : p.text
         );
         const rest = unplaced(h.text, at, matches2).map((m) => `${m.source}${m.label ? `:${m.label}` : ""}`);
@@ -10074,15 +10468,15 @@ async function embed(model, query, passages) {
   const near = pv.map((v, i) => ({ i, s: cosine(qv, v) })).sort((a, b) => b.s - a.s);
   out.replaceChildren(
     el("h3", { text: `Nearest neighbours (${model})` }),
-    table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
-    take(`Nearest neighbours ${model}`, () => [["rank", "passage number", "passage", "cosine"], ...near.slice(0, k).map((n, r) => [String(r + 1), String(n.i + 1), passages[n.i], n.s.toFixed(6)])]),
+    table(["rank", "passage", "cosine"], near.slice(0, k).map((n2, r) => [String(r + 1), el("span", { class: "quote", title: passages[n2.i], text: `#${n2.i + 1} ${short(passages[n2.i], 60)}` }), n2.s.toFixed(4)])),
+    take(`Nearest neighbours ${model}`, () => [["rank", "passage number", "passage", "cosine"], ...near.slice(0, k).map((n2, r) => [String(r + 1), String(n2.i + 1), passages[n2.i], n2.s.toFixed(6)])]),
     el("h3", { text: "Passage similarity" }),
     simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim, `Passage similarity ${model}`)
   );
 }
 async function rerank(model, query, passages) {
   const meta = await inference.modelMetadata({ name: model });
-  const limits = ["model_info.max_batch", "session_info.max_batch"].map((k) => parseInt(meta.properties[k] ?? "", 10)).filter((n) => n > 0);
+  const limits = ["model_info.max_batch", "session_info.max_batch"].map((k) => parseInt(meta.properties[k] ?? "", 10)).filter((n2) => n2 > 0);
   const batch = limits.length ? Math.min(...limits) : passages.length;
   const logits = [];
   for (let at = 0; at < passages.length; at += batch) {
@@ -10091,7 +10485,7 @@ async function rerank(model, query, passages) {
     const { dv } = output(r, "scores");
     part2.forEach((_, i) => logits.push(dv.getFloat32(i * 4, true)));
   }
-  const scored = logits.map((s, i) => ({ i, s })).sort((a, b) => b.s - a.s);
+  const scored = logits.map((s2, i) => ({ i, s: s2 })).sort((a, b) => b.s - a.s);
   $("sem-rerank-out").replaceChildren(
     el("h3", { text: `Reranked (${model})` }),
     el("p", { class: "muted", text: "Relevance logits from the cross-encoder, one per (query, passage) pair; higher is more relevant." }),
@@ -10113,8 +10507,8 @@ async function answer(model, question, context) {
   const dec = new TextDecoder();
   const rows2 = [];
   for (let i = 0; i < spans.shape[0]; i++) {
-    const [s, e] = [spans.dv.getInt32(i * 8, true), spans.dv.getInt32(i * 8 + 4, true)];
-    rows2.push([String(i + 1), el("span", { class: "quote", text: dec.decode(bytes2.subarray(s, e)) }), `${s}..${e}`, scores.dv.getFloat64(i * 8, true).toFixed(3), probs.dv.getFloat64(i * 8, true).toFixed(4)]);
+    const [s2, e] = [spans.dv.getInt32(i * 8, true), spans.dv.getInt32(i * 8 + 4, true)];
+    rows2.push([String(i + 1), el("span", { class: "quote", text: dec.decode(bytes2.subarray(s2, e)) }), `${s2}..${e}`, scores.dv.getFloat64(i * 8, true).toFixed(3), probs.dv.getFloat64(i * 8, true).toFixed(4)]);
   }
   const p = r.parameters;
   const abstained = p.abstained?.parameterChoice.case === "boolParam" && p.abstained.parameterChoice.value;
@@ -10193,22 +10587,22 @@ function unreached(e) {
   return c !== Code.Unauthenticated && c !== Code.PermissionDenied;
 }
 async function check() {
-  const s = $("server");
+  const s2 = $("server");
   try {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
-    s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
-    s.className = ready.ready ? "muted status up" : "muted status";
+    s2.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
+    s2.className = ready.ready ? "muted status up" : "muted status";
     setStatus(true, ready.ready);
   } catch (e) {
     if (unreached(e)) {
-      s.textContent = "server not reachable";
-      s.className = "error status down";
+      s2.textContent = "server not reachable";
+      s2.className = "error status down";
       $("down-why").textContent = describe(e);
       setStatus(false, false);
     } else {
-      s.textContent = describe(e);
-      s.className = "error status";
+      s2.textContent = describe(e);
+      s2.className = "error status";
       setStatus(true, false);
     }
   }
@@ -10482,10 +10876,10 @@ var Cursor = class {
   at = 0;
   dv;
   utf8 = new TextDecoder("utf-8", { fatal: true });
-  take(n) {
-    if (this.at + n > this.buf.length) throw new WireError("truncated", this.at);
-    const out = this.buf.subarray(this.at, this.at + n);
-    this.at += n;
+  take(n2) {
+    if (this.at + n2 > this.buf.length) throw new WireError("truncated", this.at);
+    const out = this.buf.subarray(this.at, this.at + n2);
+    this.at += n2;
     return out;
   }
   u8() {
@@ -10534,14 +10928,14 @@ function layerRef(c, name) {
 }
 function edits(c, name) {
   return part(c, name, (c2) => {
-    const n = c2.u32();
+    const n2 = c2.u32();
     const parts = [];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < n2; i++) {
       const at = c2.at;
       const [ps, pe, cs, ce] = [c2.u32(), c2.u32(), c2.u32(), c2.u32()];
       if (i < LISTED2) parts.push({ name: `edit ${i}`, at, len: 16, value: `${ps}..${pe} \u2192 ${cs}..${ce}` });
     }
-    return { value: `${n} edits${n > LISTED2 ? `, first ${LISTED2} listed` : ""}`, parts };
+    return { value: `${n2} edits${n2 > LISTED2 ? `, first ${LISTED2} listed` : ""}`, parts };
   });
 }
 function error(c) {
@@ -10622,18 +11016,18 @@ function option(c, name, what, read) {
 }
 function refs(c, name) {
   return part(c, name, (c2) => {
-    const n = c2.u32();
+    const n2 = c2.u32();
     const parts = [];
-    for (let i = 0; i < n; i++) parts.push(layerRef(c2, `${name} ${i}`));
+    for (let i = 0; i < n2; i++) parts.push(layerRef(c2, `${name} ${i}`));
     return { value: parts.map((p) => p.value).join(", ") || "none", parts };
   });
 }
 function digest(c, name) {
   return option(c, name, "a digest", (c2) => {
     const b = c2.take(32);
-    let s = "";
-    for (const x of b) s += x.toString(16).padStart(2, "0");
-    return { value: s };
+    let s2 = "";
+    for (const x of b) s2 += x.toString(16).padStart(2, "0");
+    return { value: s2 };
   });
 }
 function provenance(c) {
@@ -10663,9 +11057,9 @@ function provenance(c) {
 }
 function sized(c, name) {
   return part(c, name, (c2) => {
-    const n = c2.u32();
-    c2.take(n);
-    return { value: `${n} bytes` };
+    const n2 = c2.u32();
+    c2.take(n2);
+    return { value: `${n2} bytes` };
   });
 }
 function walkGraph(bytes2) {
@@ -10690,9 +11084,9 @@ function walkGraph(bytes2) {
   parts.push(option(c, "source alignment", "an alignment", (c2) => ({ parts: [edits(c2, "edits")] })));
   parts.push(
     part(c, "views", (c2) => {
-      const n = c2.u32();
+      const n2 = c2.u32();
       const views = [];
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < n2; i++) {
         views.push(
           part(c2, `view ${i}`, (c3) => {
             const p = [
@@ -10707,14 +11101,14 @@ function walkGraph(bytes2) {
           })
         );
       }
-      return { value: `${n} views`, parts: views };
+      return { value: `${n2} views`, parts: views };
     })
   );
   parts.push(
     part(c, "layers", (c2) => {
-      const n = c2.u32();
+      const n2 = c2.u32();
       const layers = [];
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < n2; i++) {
         layers.push(
           part(c2, `layer ${i}`, (c3) => {
             const p = [
@@ -10725,26 +11119,26 @@ function walkGraph(bytes2) {
               status2(c3),
               provenance(c3),
               option(c3, "body", "a body", (c4) => {
-                const n2 = c4.u32();
-                c4.take(n2);
-                return { value: `${n2} bytes` };
+                const n3 = c4.u32();
+                c4.take(n3);
+                return { value: `${n3} bytes` };
               })
             ];
             return { value: `${p[0].value}#${p[1].value}`, parts: p };
           })
         );
       }
-      return { value: `${n} layers`, parts: layers };
+      return { value: `${n2} layers`, parts: layers };
     })
   );
   if (c.at !== bytes2.length) throw new WireError(`${bytes2.length - c.at} trailing bytes`, c.at);
   return { name: "document graph", at: 0, len: bytes2.length, value: `format ${FORMAT_VERSION}`, parts };
 }
-function hex(bytes2, p, n = 32) {
-  const b = bytes2.subarray(p.at, p.at + Math.min(p.len, n));
-  let s = "";
-  for (const x of b) s += (s ? " " : "") + x.toString(16).padStart(2, "0");
-  return p.len > n ? `${s} \u2026` : s;
+function hex(bytes2, p, n2 = 32) {
+  const b = bytes2.subarray(p.at, p.at + Math.min(p.len, n2));
+  let s2 = "";
+  for (const x of b) s2 += (s2 ? " " : "") + x.toString(16).padStart(2, "0");
+  return p.len > n2 ? `${s2} \u2026` : s2;
 }
 
 // demo/web/src/tabs/wire.ts
@@ -10772,7 +11166,7 @@ function render5() {
   try {
     const g = walkGraph(d.graph);
     const layers = g.parts?.find((p) => p.name === "layers")?.parts ?? [];
-    const bodies = layers.reduce((n, l) => n + (l.parts?.find((p) => p.name === "body")?.len ?? 0), 0);
+    const bodies = layers.reduce((n2, l) => n2 + (l.parts?.find((p) => p.name === "body")?.len ?? 0), 0);
     box4().replaceChildren(
       el("p", { class: "muted", text: `${size(d.graph.length)} in all, ${size(bodies)} of it layer bodies. Open a part for its fields; hover for its offsets and first bytes.` }),
       el("div", { class: "kids top" }, (g.parts ?? []).map((p) => tree(d.graph, p, g.len)))
