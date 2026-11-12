@@ -41,7 +41,7 @@ impl fmt::Debug for ReleaseCipher {
 
 impl ReleaseCipher {
     /// Reads `file`, an encryption key of exactly 32 bytes. An error names
-    /// the reference and the path, never the bytes.
+    /// the reference and the path's length, never the path or the bytes.
     pub fn load(file: &TokenKeyFile) -> Result<ReleaseCipher, String> {
         #[cfg(feature = "pii-reversible")]
         {

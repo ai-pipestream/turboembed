@@ -135,6 +135,7 @@ async fn main() -> ExitCode {
         sink: args.sink,
         pii_output: args.pii_output,
         pii_release: args.pii_release,
+        pii_encryption_keys: args.pii_encryption_keys,
         max_stream_bytes: Some(args.max_stream_bytes),
         tls: args.tls,
         metrics_listen: args.metrics_listen,

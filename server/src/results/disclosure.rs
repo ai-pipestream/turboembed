@@ -162,7 +162,12 @@ impl Disclosure {
                         "PII values are released only by InspectDocumentGraph to granted services (#1909)".into()
                     );
                 }
-                _ => return Err(format!("`{part}` is not none, rewritten-text, full-text or detail")),
+                _ => {
+                    let n = part.len();
+                    return Err(format!(
+                        "a part ({n} bytes, not shown) is not none, rewritten-text, full-text or detail"
+                    ));
+                }
             };
             if std::mem::replace(slot, true) {
                 return Err(format!("`{part}` given twice"));

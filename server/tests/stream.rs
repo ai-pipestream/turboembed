@@ -124,16 +124,16 @@ async fn a_client_that_sends_without_reading_is_held_to_the_advertised_caps() {
     // While the client never reads, the server's queue never passes
     // the caps the capability listing advertises, however the buffers
     // underneath absorb.
-    let sample = tokio::time::timeout(Duration::from_millis(500), async {
-        while !sender.is_finished() {
-            let stats = s.stream_stats();
-            assert!(stats.queued_items <= item_cap, "queued_items over the advertised cap");
-            assert!(stats.queued_bytes <= byte_cap, "queued_bytes over the advertised cap");
-            tokio::time::sleep(Duration::from_millis(5)).await;
-        }
-    })
-    .await;
-    let finished_on_its_own = sample.is_ok();
+    // The sampling window is running time: a pause of the process ends
+    // no sample early (#2173).
+    let mut budget = Budget::new(Duration::from_millis(500));
+    while !sender.is_finished() && budget.has_left() {
+        let stats = s.stream_stats();
+        assert!(stats.queued_items <= item_cap, "queued_items over the advertised cap");
+        assert!(stats.queued_bytes <= byte_cap, "queued_bytes over the advertised cap");
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    let finished_on_its_own = sender.is_finished();
     sender.abort();
     let sent_n = sent.load(Ordering::Relaxed);
     assert!(finished_on_its_own || sent_n > item_cap, "the client sent {} past its first cap", sent_n);
@@ -151,41 +151,60 @@ async fn a_client_that_sends_without_reading_is_held_to_the_advertised_caps() {
 
 #[tokio::test]
 async fn cancelling_a_stream_drops_the_work_queued_for_it() {
+    cancel_with_work_queued(None).await;
+}
+
+/// The same cancellation with the clock jumped past every wait the test
+/// once timed, while the first document lingers and after the stream is
+/// gone: what a VM snapshot pausing the process did to it (#2173). Waits
+/// on events pass however far the clock moves.
+#[tokio::test(start_paused = true)]
+async fn cancelling_a_stream_drops_its_queued_work_across_clock_jumps() {
+    cancel_with_work_queued(Some(Duration::from_secs(11))).await;
+}
+
+/// One document runs alone (window 1, a 1 s linger), seven more are
+/// admitted behind it, and the client cancels. Every step waits on what
+/// the server reports, never on elapsed time. `jump` advances the paused
+/// clock while the first document lingers and once the stream is torn
+/// down.
+async fn cancel_with_work_queued(jump: Option<Duration>) {
     let (s, mut c) = serve().await;
     let before = s.stream_stats().runs;
-    let mut stream = open_stream(&mut c, 1, 1, 1000).await;
-    // One document runs alone (window 1, long linger); the rest arrive
-    // after it executed and wait queued.
-    stream.send("a", NAME, "first", None).await;
-    let a_ran = tokio::time::timeout(Duration::from_secs(10), async {
-        while s.stream_stats().runs == before {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(a_ran.is_ok(), "the first document never ran");
-    for i in 0..7 {
-        stream.send(&format!("q-{i}"), NAME, "queued then dropped", None).await;
+    let common::Stream { tx, mut responses, .. } = open_stream(&mut c, 1, 1, 1000).await;
+    tx.send(stream_doc("a", NAME, "first", None)).await.unwrap();
+    if let Some(d) = jump {
+        tokio::time::advance(d).await;
     }
-    // Cancel: the request and the response both go away.
-    drop(stream.tx);
-    drop(stream.responses);
-    // The seven queued documents never execute: the model-execution
-    // count settles at the one run already made.
-    let settled = tokio::time::timeout(Duration::from_secs(5), async {
-        let mut last = s.stream_stats().runs;
-        loop {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            let now = s.stream_stats().runs;
-            if now == last {
-                break now;
-            }
-            last = now;
-        }
-    })
-    .await
-    .expect("the model-execution count never settled");
-    assert_eq!(settled, before + 1, "queued work ran after the cancellation");
+    // The first answer is the proof the first document ran: no deadline
+    // races the run.
+    let first = within("the first document's answer", Duration::from_secs(10), responses.message())
+        .await
+        .unwrap()
+        .expect("the stream answers the first document");
+    assert_eq!(first.id, "a");
+    assert!(matches!(first.outcome, Some(Outcome::Vectors(_))), "{:?}", first.outcome);
+    assert_eq!(s.stream_stats().runs, before + 1, "the first document ran once");
+    for i in 0..7 {
+        tx.send(stream_doc(&format!("q-{i}"), NAME, "queued then dropped", None)).await.unwrap();
+    }
+    // All seven are admitted and waiting on the linger.
+    wait_for("seven documents queued", Duration::from_secs(5), || s.stream_stats().queued_items == 7).await;
+    // Cancel: both halves go. Dropping the response half alone is no
+    // cancellation on the wire: the call stays open, and the server runs
+    // and answers every queued document. The response half goes first so
+    // the call is already abandoned when the sender's end arrives.
+    drop(responses);
+    drop(tx);
+    // The server drops the stream's work: every room it held is released.
+    wait_for("the stream's queue dropped", Duration::from_secs(5), || s.stream_stats().queued_items == 0).await;
+    if let Some(d) = jump {
+        tokio::time::advance(d).await;
+        tokio::task::yield_now().await;
+    }
+    let stats = s.stream_stats();
+    assert_eq!(stats.runs, before + 1, "queued work ran after the cancellation");
+    assert_eq!((stats.queued_items, stats.queued_bytes), (0, 0), "{stats:?}");
 }
 
 #[tokio::test]

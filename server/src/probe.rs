@@ -7,7 +7,7 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::time::Duration;
 
-use crate::config::ENV_LISTEN;
+use crate::config::{ENV_LISTEN, refused};
 use crate::proto::health::HealthCheckRequest;
 use crate::proto::health::health_check_response::ServingStatus;
 use crate::proto::health::health_client::HealthClient;
@@ -21,6 +21,9 @@ the service is the server's own (empty) when absent; exit 0 on SERVING, 1 otherw
 
 /// How long a check waits for its answer when `--timeout-ms` is absent.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// The flags `health` takes, named when an argument is none of them.
+const FLAGS: &str = "--addr, --service, --timeout-ms, --tls-ca, --tls-cert, --tls-key and --tls-name";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Probe {
@@ -61,11 +64,19 @@ impl Probe {
                 Some((f, v)) if f.starts_with("--") => (f.to_string(), Some(v.to_string())),
                 _ => (a.clone(), None),
             };
+            // Checked before a value is taken: an unknown last argument
+            // would otherwise come back in "needs a value".
+            if !matches!(
+                flag.as_str(),
+                "--addr" | "--service" | "--timeout-ms" | "--tls-ca" | "--tls-cert" | "--tls-key" | "--tls-name"
+            ) {
+                return Err(format!("unknown argument ({} bytes, not shown); the flags are {FLAGS}", flag.len()));
+            }
             let v = inline.or_else(|| it.next()).ok_or_else(|| format!("{flag} needs a value"))?;
             let twice = || Err(format!("{flag} given twice"));
             match flag.as_str() {
                 "--addr" => {
-                    let a = v.parse::<SocketAddr>().map_err(|_| format!("--addr {v}: not ADDR:PORT"))?;
+                    let a = v.parse::<SocketAddr>().map_err(|_| refused("--addr", &v, "ADDR:PORT"))?;
                     if addr.replace(a).is_some() {
                         return twice();
                     }
@@ -77,13 +88,13 @@ impl Probe {
                 }
                 "--timeout-ms" => {
                     let ms = v.parse::<u64>().ok().filter(|&n| n > 0);
-                    let ms = ms.ok_or_else(|| format!("--timeout-ms {v}: not a count over 0"))?;
+                    let ms = ms.ok_or_else(|| refused("--timeout-ms", &v, "a count over 0"))?;
                     if timeout.replace(Duration::from_millis(ms)).is_some() {
                         return twice();
                     }
                 }
                 "--tls-ca" | "--tls-cert" | "--tls-key" | "--tls-name" => tls.flag(&flag, v)?,
-                _ => return Err(format!("unknown argument {a}")),
+                _ => unreachable!("every flag is checked above"),
             }
         }
         let addr = match addr {
@@ -92,7 +103,7 @@ impl Probe {
                 let v = env(ENV_LISTEN)
                     .filter(|v| !v.is_empty())
                     .ok_or_else(|| format!("--addr or {ENV_LISTEN} is required"))?;
-                target(v.parse().map_err(|_| format!("{ENV_LISTEN}={v}: not ADDR:PORT"))?)
+                target(v.parse().map_err(|_| refused(ENV_LISTEN, &v, "ADDR:PORT"))?)
             }
         };
         Ok(Probe {

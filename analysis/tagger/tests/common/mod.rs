@@ -14,6 +14,7 @@ use turbo::head::{lemmatizer, parser, relation, span, tagger};
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo_analysis::{Span, Spans, ViewId};
 use turbo_analysis_layers::Tokens;
+use turbo_scratch::Scratch;
 
 pub const TEXT: &str = "Ann met Bob in Paris , and the quiet old dog slept by the river .";
 
@@ -69,9 +70,8 @@ pub fn values(seed: u64, n: usize, scale: f32) -> Vec<f32> {
 
 /// The tiny bundle with `edit` applied to its manifest and the tensors
 /// of every head the edited manifest names, seeded.
-pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny().join(f), dir.join(f)).unwrap();

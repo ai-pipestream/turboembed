@@ -193,9 +193,14 @@ stubs must be regenerated.
   `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
   `Places` pack: a populated place of the bundled Natural Earth gazetteer
   directly before its US state or territory (`Springfield, IL`,
-  `San Juan, PR`) or after a city label
-  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
-  (#1886).
+  `San Juan, PR`) or after a city label (`City: Phoenix`, `the city of
+  Mobile`, `City: Springfield IL 62704`, `City: Mobile Alabama`). When a
+  state follows a labelled city, the gazetteer must hold that place in
+  that state rather than falling back to any place of that name,
+  refusing 395,983 of 396,760 canonical `(name, state)` pairs (99.80%,
+  such as `City: Mobile, IL`) at the cost of smaller US homonyms absent
+  from the 1:10m table under that state (`City: Dublin, OH`). A bare
+  city name is no mention (#1886, #2107).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
@@ -295,9 +300,9 @@ stubs must be regenerated.
   `turbo-tagger:lemmas`, `turbo-tagger:morphology`, `turbo-tagger:spans`,
   `turbo-tagger:relations`, and `turbo-tagger:heads` for every one the
   bundle provides), the word-level ones from one encoder pass; the
-  `annotate-v1` profile runs the part-of-speech, entity, dependency and
-  lemma heads, and `BundleCapabilities.head_steps` lists each loaded
-  bundle's head steps (docs/grpc-analysis.md). (#1775)
+  `annotate-v1` profile runs every head the bundle carries, so a bundle
+  with some of the heads runs what it has, and
+  `BundleCapabilities.head_steps` lists each loaded bundle's head steps (docs/grpc-analysis.md). (#1775, #1832, #2176)
 - The C interface's reranking (#759) and extractive QA (#767) tasks.
 - In `turbo-kserve`: the analysis service (docs/grpc-analysis.md), the
   search, vocabulary, catalog and sink services, and `grpc.health.v1`;
@@ -381,6 +386,15 @@ stubs must be regenerated.
 
 ### Changed
 
+- `--pii-encryption-key` (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`) no longer
+  needs `--pii-grant` or mTLS: encrypting during redaction releases no
+  value, so a server with no grant loads its encryption keys for the
+  redaction policies' `aes_256_gcm` and `ff1` arms.
+  `--pii-encryption-key-active` still needs a grant with ciphertext.
+  Keys loaded without a grant serve named `--pii-policy` policies only;
+  an inline policy naming one is refused. A named `ff1` policy still
+  encrypts any text a caller sends, so such a server must sit behind an
+  authenticating ingress or run with mTLS (#2111, #2164).
 - Over-limit step failures are carried as the typed
   `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
   variants (`{ annotator, limit, max, got }`, with `Display` changed
@@ -407,6 +421,9 @@ stubs must be regenerated.
 
 ### Fixed
 
+- Server flags and variables, `--model` settings and `turbo-kserve health`:
+  a value that is refused, or an unknown `health` argument, is described
+  by its length in the error and never repeated (#2196).
 - `AnalyzeDocumentProgressive`: a document over a limit of
   `turbo:zero-shot-relations` (such as the GLiNER2 encoder's 512 word
   pieces) fails the step with `TURBO_E_CAPACITY` and a message naming the

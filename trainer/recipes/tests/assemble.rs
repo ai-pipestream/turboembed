@@ -13,6 +13,7 @@ use turbo::manifest::{Decode, HeadKind, HeadSpec, KEEP_TOKEN, LicenseClass, Sche
 use turbo_analysis::{Annotator, Document, Ix, Key, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, LanguageSpans, PosTags, Sentences, Subwords, Tokens, Words};
+use turbo_scratch::Scratch;
 use turbo_tagger::{
     EntityTagger, LanguageTagger, MultiTaskTagger, PosTagger, SentenceSegmenter, TaggerZooError, WordEncoder,
     WordSplitTagger,
@@ -49,10 +50,8 @@ fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-assemble-1726-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-assemble-1726-{}-{name}", std::process::id())))
 }
 
 fn corpus_multiconer(dir: &Path) {
@@ -254,7 +253,7 @@ fn single_head_and_multitask_bundles_load_through_zoo_and_match_receipt_predicti
 
     let dir_transport = Directory::new(&single_bundle);
     let cache_dir = scratch("e2e-zoo-cache-dir");
-    let zoo_dir = Zoo::new(index, cache_dir, Policy::default(), &dir_transport);
+    let zoo_dir = Zoo::new(index, cache_dir.to_path_buf(), Policy::default(), &dir_transport);
     let entity_tagger =
         EntityTagger::from_zoo_language(&zoo_dir, "en", None, &EncoderOptions::default(), &user, &acc).unwrap();
 
@@ -357,7 +356,7 @@ fn single_head_and_multitask_bundles_load_through_zoo_and_match_receipt_predicti
         zoo_artifact(&assembled, &zoo_opts("turbo-en-multi-test-1", Kind::Model, Component::Pos, "en")).unwrap();
     let multi_index = Index::parse(Index::to_canonical_json(&[multi_art]).as_bytes()).unwrap();
     let blob_cache = scratch("e2e-blob-cache");
-    let zoo_blobs = Zoo::new(multi_index, blob_cache, Policy::default(), &blobs);
+    let zoo_blobs = Zoo::new(multi_index, blob_cache.to_path_buf(), Policy::default(), &blobs);
 
     let multi: MultiTaskTagger<(PosTags, Entities, Words, LanguageSpans)> = MultiTaskTagger::from_zoo(
         &zoo_blobs,
@@ -463,7 +462,7 @@ fn licence_classes_and_bundle_filtering_in_zoo() {
         Index::parse(Index::to_canonical_json(&[pt_art, raw_st_art, sa_art, perm_art, local_art]).as_bytes()).unwrap();
     let spy = SpyBlobs { blobs: &blobs, requested: RefCell::new(Vec::new()) };
     let cache = scratch("lic-zoo-cache");
-    let zoo = Zoo::new(index, cache, Policy::default(), &spy);
+    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &spy);
     let user: UserId = "alice".parse().unwrap();
     let mut acc = Acceptances::default();
 

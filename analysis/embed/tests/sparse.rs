@@ -22,6 +22,7 @@ use turbo_analysis_embed::{
     Encoder, EncoderOptions, Rows, SparseAnnotator, SparseOptions, SparseProvider, SubwordAnnotator,
 };
 use turbo_analysis_layers::{SparseTerms, Subwords};
+use turbo_scratch::Scratch;
 
 fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata")
@@ -34,9 +35,8 @@ fn bert() -> PathBuf {
 /// `tiny-bert-bundle` copied to scratch, with an MLM head appended to its
 /// weights and declared in its manifest: the sparse bundle every test
 /// opens. The decoder is tied to the word embeddings.
-fn sparse_bundle(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-embed-sparse-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn sparse_bundle(name: &str) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-embed-sparse-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(bert().join(f), dir.join(f)).unwrap();
@@ -362,7 +362,8 @@ fn refusals_and_the_provider() {
     assert!(err.to_string().contains("UTF-8"), "{err}");
 
     // The provider builds the step from a spec whose location is the bundle.
-    let spec = Spec { location: Some(sparse_bundle("provider")), options: Vec::new() };
+    let dir = sparse_bundle("provider");
+    let spec = Spec { location: Some(dir.to_path_buf()), options: Vec::new() };
     let step = SparseProvider.create(&spec).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(step.id(), "turbo:sparse");
 }

@@ -15,9 +15,12 @@ fn records() -> PathBuf {
 
 /// A fresh directory `<name>` under a per-process, per-suite parent, so a
 /// head row's label (its run directory's name) is `name` itself, the same
-/// on every machine and run.
+/// on every machine and run. It sits under the build's own scratch
+/// directory, on the same drive as the checkout: a summary records paths
+/// relative to where it runs, and no relative path crosses Windows drives.
 fn scratch(suite: &str, name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-summarize-1830-{}", std::process::id())).join(suite).join(name);
+    let tmp = Path::new(env!("CARGO_TARGET_TMPDIR"));
+    let d = tmp.join(format!("turbo-summarize-1830-{}", std::process::id())).join(suite).join(name);
     let _ = fs::remove_dir_all(&d);
     fs::create_dir_all(&d).unwrap();
     d
