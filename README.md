@@ -412,8 +412,8 @@ fails when a test leaves anything there (`scripts/test-in-scratch.sh`;
 tests hold such files in `turbo_scratch::Scratch`). The CUDA and Level
 Zero clippy lane and the Metal clippy lane run for a pull request or
 the merge queue only when the change touches a path they build from
-(`scripts/backend-lanes.sh`), and on every other run. The Windows lint, test and fuzz lanes run on pushes
-to main.
+(`scripts/backend-lanes.sh`), and in the daily run. The Windows lint, test, fuzz and core lanes run on
+pushes to main.
 
 ## Documentation
 
