@@ -175,7 +175,8 @@ fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {
     if e.raw_os_error() == Some(libc::ELOOP) {
         return true;
     }
-    e.kind() == ErrorKind::IsADirectory || fs::symlink_metadata(path).is_ok_and(|m| !m.is_file())
+    e.kind() == ErrorKind::IsADirectory
+        || fs::symlink_metadata(path).is_ok_and(|m| !m.is_file() || m.file_type().is_symlink())
 }
 
 /// The acceptance in the record file `path`, named `name`; none when it is
@@ -184,10 +185,19 @@ fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {
 fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     let bad = |m: String| ZooError::Acceptances(format!("{}: {m}; remove it to accept again", path.display()));
     let io = |e: std::io::Error| ZooError::Io { path: path.to_path_buf(), message: e.to_string() };
+    #[cfg(not(any(unix, windows)))]
+    match fs::symlink_metadata(path) {
+        Ok(m) if !m.is_file() || m.file_type().is_symlink() => return Err(bad("not a plain file".into())),
+        Ok(_) => {}
+        Err(e) if is_gone(&e) => return Ok(None),
+        Err(e) => return Err(io(e)),
+    }
     let mut opts = fs::OpenOptions::new();
     opts.read(true);
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::custom_flags(&mut opts, libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    #[cfg(windows)]
+    std::os::windows::fs::OpenOptionsExt::custom_flags(&mut opts, 0x0020_0000); // FILE_FLAG_OPEN_REPARSE_POINT
     // Open once without following symlinks or blocking on a FIFO: a record
     // revoked since read_dir (NotFound, or ESTALE on NFS) is gone, not bad.
     let mut file = match opts.open(path) {
@@ -197,7 +207,7 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
         Err(e) => return Err(io(e)),
     };
     match file.metadata() {
-        Ok(m) if !m.is_file() => return Err(bad("not a plain file".into())),
+        Ok(m) if !m.is_file() || m.file_type().is_symlink() => return Err(bad("not a plain file".into())),
         Ok(_) => {}
         Err(e) if is_gone(&e) => return Ok(None),
         Err(e) => return Err(io(e)),
@@ -348,12 +358,20 @@ mod tests {
     fn probe_passes_over_a_stale_probe_file() {
         let dir = scratch("probe");
         let n = PROBES.load(Ordering::Relaxed);
-        let stale = dir.join(format!(".turbo-probe.{}.{n}", std::process::id()));
-        fs::write(&stale, b"left by a killed container").unwrap();
+        let stales: Vec<PathBuf> = (n..n + 16)
+            .map(|i| {
+                let p = dir.join(format!(".turbo-probe.{}.{i}", std::process::id()));
+                fs::write(&p, b"left by a killed container").unwrap();
+                p
+            })
+            .collect();
         let opened = DataDir::open(&*dir).unwrap();
         assert!(opened.writable());
-        assert_eq!(fs::read(&stale).unwrap(), b"left by a killed container");
-        assert!(!dir.join(format!(".turbo-probe.{}.{}", std::process::id(), n + 1)).exists());
+        for stale in &stales {
+            assert_eq!(fs::read(stale).unwrap(), b"left by a killed container");
+        }
+        assert!(PROBES.load(Ordering::Relaxed) > n + 16);
+        assert!(!dir.join(format!(".turbo-probe.{}.{}", std::process::id(), n + 16)).exists());
     }
 
     #[test]
@@ -378,14 +396,22 @@ mod tests {
         assert!(e.contains("not a plain file"), "{e}");
         fs::remove_dir(&subdir).unwrap();
 
-        #[cfg(unix)]
+        #[cfg(any(unix, windows))]
         {
             let link = data.records().join("link.json");
+            #[cfg(unix)]
             std::os::unix::fs::symlink(&rec_path, &link).unwrap();
+            #[cfg(windows)]
+            std::os::windows::fs::symlink_file(&rec_path, &link).unwrap();
+            let e = record(&link, "link.json").unwrap_err().to_string();
+            assert!(e.contains("not a plain file"), "{e}");
             let e = data.acceptances().unwrap_err().to_string();
             assert!(e.contains("not a plain file"), "{e}");
             fs::remove_file(&link).unwrap();
+        }
 
+        #[cfg(unix)]
+        {
             let fifo = data.records().join("fifo.json");
             let c_fifo = std::ffi::CString::new(fifo.to_str().unwrap()).unwrap();
             assert_eq!(unsafe { libc::mkfifo(c_fifo.as_ptr(), 0o600) }, 0);
