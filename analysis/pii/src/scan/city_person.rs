@@ -89,9 +89,12 @@ const KIN_AND_BODY_NOUNS: [&str; 30] = [
 ];
 
 /// The words that, between a name and a pronoun, start a clause about the
-/// place (`Boston where he lived`), so the pronoun does not refer back.
-const CLAUSE_WORDS: [&str; 13] =
-    ["after", "as", "because", "before", "if", "since", "so", "than", "that", "until", "when", "where", "while"];
+/// place or join a new one (`Boston where he lived`, `we loved Boston and
+/// she stayed`), so the pronoun does not refer back.
+const CLAUSE_WORDS: [&str; 16] = [
+    "after", "and", "as", "because", "before", "but", "if", "or", "since", "so", "than", "that", "until", "when",
+    "where", "while",
+];
 
 /// Whether a verb of [`PERSON_OBJECT_VERBS`] stands one space before the
 /// name at `start`, as written in lower case (`we met Madison`).

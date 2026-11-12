@@ -259,7 +259,7 @@ fn after_lead_word(text: &str, start: usize) -> bool {
     let Some(line) = before.strip_suffix("\r\n").or_else(|| before.strip_suffix('\n')) else {
         return word_before(text, start).is_some_and(|(_, w)| lead(w));
     };
-    let from = line.rfind(|c: char| !c.is_ascii_alphabetic()).map_or(0, |p| p + 1);
+    let from = line.char_indices().rfind(|&(_, c)| !c.is_ascii_alphabetic()).map_or(0, |(p, c)| p + c.len_utf8());
     lead(&line[from..])
 }
 

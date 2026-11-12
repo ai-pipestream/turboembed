@@ -182,9 +182,31 @@ fn a_city_in_a_place_phrase_stays_a_city_beside_person_words() {
         // A line break between the place word and the name.
         ("people in\nParis who wrote letters", "Paris"),
         ("a source in\r\nBoston told reporters", "Boston"),
+        // A conjunction between the name and a pronoun starts a new clause.
+        ("we loved Boston and she stayed", "Boston"),
+        ("they toured Dayton but he left", "Dayton"),
+        ("a week in Rome or he goes home", "Rome"),
         ("from Madison to Columbus for the conference", "Madison"),
     ] {
         assert_eq!(written(text).first().map(String::as_str), Some(want), "{text:?}: {:?}", cities(text));
     }
     assert_eq!(written("from Madison to Columbus for the conference"), ["Madison", "Columbus"]);
+}
+
+#[test]
+fn a_line_break_after_a_multi_byte_character_reads_without_a_panic() {
+    // #2296 review: the word before a line break ends in a character of
+    // more than one byte, so its start is found on character boundaries.
+    for text in [
+        "caf\u{e9}\nParis said so",
+        "\u{201C}\nSalem, who runs it",
+        "na\u{ef}ve \u{65e5}\r\nColumbus herself",
+        "\u{1F600}\nDayton knew she would",
+    ] {
+        assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
+    }
+    for (text, want) in [("met in\nParis\u{2019}s caf\u{e9}", "Paris"), ("\u{e9}t\u{e9} in\nSalem, who knew", "Salem")]
+    {
+        assert_eq!(written(text), [want], "{text:?}");
+    }
 }
