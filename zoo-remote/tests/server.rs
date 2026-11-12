@@ -95,7 +95,8 @@ async fn serve(home: &Path) -> (Server, String) {
         .into_iter()
         .map(|(p, b)| (format!("{BASE}/{p}"), b))
         .collect();
-    let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(Fixed(files)) };
+    let catalog =
+        Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(Fixed(files)), data: None };
     let bundle = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
     let model = ModelConfig {
         bundle: bundle.to_str().unwrap().into(),
@@ -231,6 +232,37 @@ async fn a_source_list_falls_through_to_the_next_source() {
     assert_eq!(list.len(), 2);
     let got = fetch(Arc::new(list), index(), cache.0.clone(), "tiny", Acceptances::default()).await.unwrap();
     assert_eq!(got, [TEXT.to_vec(), big()]);
+}
+
+/// A server on a data directory fills its `public/` side, and the library
+/// then reads that side directly, with no server running; the
+/// share-alike file the server also installed is not there.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_library_reads_a_data_directory_public_side_with_no_server() {
+    let (data, home, cache) = (Dir::new("data-dir"), Dir::new("data-home"), Dir::new("data-cache"));
+    fs::create_dir_all(&data.0).unwrap();
+    let files = [("hello.txt", TEXT.to_vec()), ("weights.bin", big()), ("sa.txt", SA.to_vec())]
+        .into_iter()
+        .map(|(p, b)| (format!("{BASE}/{p}"), b))
+        .collect();
+    let opened = turbo_kserve::catalog::DataDir::open(&data.0).unwrap();
+    let catalog = Catalog::on_data(home.0.clone(), index(), Arc::new(Fixed(files)), opened);
+    let serve = Serve { admin: true, catalog: Some(catalog), ..Serve::default() };
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, serve).await.unwrap();
+    let address = format!("grpc://{}", s.local_addr());
+    install(&address, "tiny").await;
+    accept_on_server(&address, "admin").await;
+    install(&address, "sa").await;
+    s.stop().await;
+
+    let spec = format!("file://{}", data.0.join("public").display());
+    let list = tokio::task::spawn_blocking(move || sources(&spec, &alice(), Offline).unwrap()).await.unwrap();
+    let list: Arc<dyn Transport + Send + Sync> = Arc::new(list);
+    let got = fetch(list.clone(), index(), cache.0.clone(), "tiny", Acceptances::default()).await.unwrap();
+    assert_eq!(got, [TEXT.to_vec(), big()]);
+    let e = fetch(list, index(), cache.0.clone(), "sa", sa_accepted()).await.unwrap_err();
+    assert!(matches!(e, ZooError::Transport { .. }), "{e:?}");
+    assert!(data.0.join("private/blobs/sha256").join(Sha256::of(SA).to_string()).is_file());
 }
 
 #[test]

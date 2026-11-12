@@ -532,9 +532,9 @@ the server's prost types. Nothing is mocked.
 `scripts/e2e-web.sh` runs the page itself in a browser: it builds both
 binaries, starts the server on the CPU with `testdata/tiny-bert-bundle`
 at each tier and `testdata/tiny-modernbert-bundle`, starts the demo in
-front of it, and runs `demo/web/e2e/page.test.ts` under Node with
-Playwright driving Chromium. Nothing is stubbed here either: every call
-the page makes goes through the demo to the server.
+front of it, and runs each file in `demo/web/e2e` under Node, one file
+at a time, with Playwright driving Chromium. Nothing is stubbed here
+either: every call the page makes goes through the demo to the server.
 
 - Each tab at 1280 and 390 pixels wide, after the first thing a visitor
   does there (Embed, Run, Analyze, or the lists a tab reads when it
@@ -547,6 +547,22 @@ the page makes goes through the demo to the server.
   are shown, names no kind or component by its enum, and says so when
   nothing matches. The entries are cards, several to a row at 1280
   pixels, each saying what it is for.
+- Analyze lists one line per step of the profile and ends complete,
+  every layer OK, and shows the whole source text with a chip per
+  layer. The annotation drawer opens a layer's annotations, each span
+  quoting the source text it covers, with the model that made it. A
+  document with one view says it has nothing to X-ray.
+- Every output format downloads a file, and a text format shows in the
+  page exactly as downloaded.
+- The graph comes back from the server byte for byte, saves at the size
+  the stream reported, and a fresh page opens the saved file and shows
+  the same document; a file that is not a graph is refused with a
+  reason.
+- Semantic ranks distinct passages by cosine for the number of
+  neighbours asked, on each model, and fills a symmetric passage
+  matrix with ones on its diagonal.
+- The Server tab lists every served bundle and profile, and the Analyze
+  and Embed tabs offer the same ones.
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in
