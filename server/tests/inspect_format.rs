@@ -1,9 +1,7 @@
 //! End-to-end gRPC integration tests for `InspectDocumentWindow`,
 //! `ProjectChunks`, `ListOutputFormats`, and `FormatDocument` on
 //! `AnalysisService` (issue #1220).
-
 use std::sync::Arc;
-
 use tonic::Code;
 use turbo_analysis::export::{export, import};
 use turbo_analysis::{
@@ -285,6 +283,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                 page_size: 16_000,
                 page: 0,
                 filter_layers: Vec::new(),
+                filter_layer_instances: Vec::new(),
                 heatmap_buckets: 0,
                 xray_target_view: Some(1),
                 pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
@@ -360,6 +359,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
             page_size: 32,
             page: 1,
             filter_layers: vec!["turbo:pii".into()],
+            filter_layer_instances: Vec::new(),
             heatmap_buckets: 4,
             xray_target_view: None,
             pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),

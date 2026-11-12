@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 
+use super::{unpack, verify};
 use crate::index::{Artifact, File, Url};
 
 /// Fetches the bytes at an address. The zoo verifies whatever it returns,
@@ -18,10 +19,26 @@ pub trait Transport {
     /// call, so a transport that finds a file by its artifact, path or
     /// SHA-256 rather than by its address (a model server, a
     /// content-addressed store) overrides it. By default, [`Transport::get`]
-    /// of the file's address, at most [`most_bytes`] of it.
+    /// of the file's address, at most [`most_bytes`] of it. For a file
+    /// with further locations ([`File::locations`]), each is asked in
+    /// order and the first whose bytes verify as the file is handed over,
+    /// unpacked; when none does, the error names what each one said.
     fn get_file(&self, artifact: &Artifact, file: &File) -> Result<Vec<u8>, String> {
-        let _ = artifact;
-        self.get(&file.url, most_bytes(file))
+        if file.also.is_empty() {
+            return self.get(&file.url, most_bytes(file));
+        }
+        let mut failed = Vec::new();
+        for url in file.locations() {
+            let held = self.get(url, most_bytes(file)).and_then(|bytes| {
+                let bytes = unpack(artifact, file, bytes).map_err(|e| e.to_string())?;
+                verify(artifact, file, &bytes).map(|()| bytes).map_err(|e| e.to_string())
+            });
+            match held {
+                Ok(bytes) => return Ok(bytes),
+                Err(e) => failed.push(format!("{url}: {e}")),
+            }
+        }
+        Err(failed.join("; "))
     }
 }
 

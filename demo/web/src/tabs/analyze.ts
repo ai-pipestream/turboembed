@@ -15,7 +15,7 @@ import { bundles, onCapabilities, onReachable, onServed, reachable } from "../st
 
 let running: AbortController | null = null;
 let page = 0;
-let filter = new Set<string>();
+let filter: { layer: string; instance: string }[] = [];
 let openSpanModels = new Set<string>();
 let relationModels = new Set<string>();
 
@@ -188,18 +188,20 @@ async function showWindow(): Promise<void> {
   const box = $("analyze-window");
   if (!graph) return void box.replaceChildren();
   try {
-    const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayers: [...filter] };
+    const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayerInstances: filter };
     const [w, heat] = await Promise.all([
       analysis.inspectDocumentWindow({ ...base, page }),
       analysis.inspectDocumentWindow({ ...base, page: 0, heatmapBuckets: 96 }),
     ]);
     const win = w.window;
     const chips = (w.summary?.layers ?? []).map((l) => {
-      const on = filter.has(l.layer);
-      const b = el("button", { type: "button", class: on ? "chip on" : "chip", text: `${l.layer} ${l.items}` });
+      const on = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
+      const b = el("button", { type: "button", class: on ? "chip on" : "chip", text: `${l.layer}${l.instance ? ` [${l.instance}]` : ""} ${l.items}` });
       b.addEventListener("click", () => {
-        if (on) filter.delete(l.layer);
-        else filter.add(l.layer);
+        const selected = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
+        filter = selected
+          ? filter.filter((f) => f.layer !== l.layer || f.instance !== l.instance)
+          : [...filter, { layer: l.layer, instance: l.instance }];
         void showWindow();
       });
       return b;
@@ -215,7 +217,7 @@ async function showWindow(): Promise<void> {
     const s = w.summary;
     box.replaceChildren(
       el("h3", { text: "Document" }),
-      s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layers to show only them.` }) : "",
+      s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
       nav,
       segmentsView(w),
@@ -271,7 +273,7 @@ export function init(): void {
   format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
-    filter = new Set();
+    filter = [];
     void showWindow();
   });
   onCapabilities((c) => {

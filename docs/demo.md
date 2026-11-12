@@ -381,8 +381,9 @@ for any refused call.
 - Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
   its time and layers and any failed step with what it skipped; then
   the finished graph through `InspectDocumentWindow`, the text with its
-  annotations marked, a chip per layer to show only some, paging, and
-  heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
+  annotations marked, a chip per layer instance to filter text annotations, paging, and
+  heatmap lanes (unfiltered). Named chips show `[instance]` and select that
+  instance independently through `filter_layer_instances`; and `FormatDocument` in any format `ListOutputFormats`
   names, shown when it is text and offered as a download. An open-span model
   enables caller entity labels, optional label=prompt guidelines, threshold,
   and flat or nested decoding. A
