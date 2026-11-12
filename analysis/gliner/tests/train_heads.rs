@@ -85,11 +85,12 @@ fn model(config: &Config, heads: &[u8]) -> Model {
     Model::new(encoder, config.clone(), heads, &spm, identity).unwrap()
 }
 
-fn source_package(config: &Config, heads: &[u8], encoder: &[u8]) -> PathBuf {
+fn source_package(config: &Config, heads: &[u8], encoder: &[u8]) -> turbo_scratch::Scratch {
     use turbo::deberta::package::{PackageManifest, digest};
 
-    let dir = std::env::temp_dir().join(format!("turbo-gliner-lora-source-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-gliner-lora-source-{}", std::process::id())),
+    );
     std::fs::create_dir_all(dir.join("encoder")).unwrap();
     let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
     let encoder_manifest = PackageManifest {
@@ -283,13 +284,10 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
     close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after);
 
     let source = source_package(&config, &original, &encoder_original);
-    let out = source.with_extension("tuned");
-    let _ = std::fs::remove_dir_all(&out);
+    let out = turbo_scratch::Scratch::at(source.with_extension("tuned"));
     Manifest::write_tuned_encoder(&source, &out, &written, &merged).unwrap();
     let packaged = Manifest::load(&out).unwrap();
     close(&packaged.training_input(&WORDS, &schema()).unwrap().1, &after);
-    let _ = std::fs::remove_dir_all(source);
-    let _ = std::fs::remove_dir_all(out);
 }
 
 #[test]
