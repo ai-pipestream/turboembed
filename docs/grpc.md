@@ -102,7 +102,7 @@ no way to stop a load part way.
 | `--pii-policy PATH` | A named redaction policy, one binary `RedactionPolicy` message; repeat for more (docs/grpc-analysis.md). | None. |
 | `--pii-grant FINGERPRINT:FORMS:KINDS` | Grant the client certificate with that SHA-256 fingerprint the PII value forms in `FORMS` for the kinds in `KINDS`; repeat for more (docs/grpc-analysis.md, PII value release). | No value is released. |
 | `--pii-token-key ID:VERSION:PATH` | A key PII tokens are made under; repeat for more. `--pii-token-key-active ID:VERSION` picks the one tokens are issued under. Needs `--pii-grant`. | None. |
-| `--pii-encryption-key ID:VERSION:PATH` | A 32-byte key for the reversible redaction strategies and ciphertext release; repeat for more. `--pii-encryption-key-active ID:VERSION` picks the one ciphertexts are made under. Needs `--pii-grant` and a server built with `--features pii-reversible`. | None. |
+| `--pii-encryption-key ID:VERSION:PATH` | A 32-byte key for the reversible redaction strategies and ciphertext release; repeat for more. Needs a server built with `--features pii-reversible`. Without `--pii-grant` the keys serve the named `--pii-policy` policies only. `--pii-encryption-key-active ID:VERSION` picks the one ciphertexts are made under and needs `--pii-grant`. | None. |
 | `--pii-audit-endpoint URI` | The `turbo.audit.v1.TurboAuditService` that records every PII value release before it leaves. `--pii-audit-timeout-ms N` bounds the wait (5000 by default). Needs `--pii-grant`, and a grant needs it. | None. |
 | `--pii-require-recorded-policy` | Apply the redaction policy a graph records to every PII values request (docs/grpc-analysis.md). Needs `--pii-grant`. | Off. |
 
