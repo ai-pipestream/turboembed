@@ -6,6 +6,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use turbo_scratch::Scratch;
 use turbo_zoo::{
     Acceptances, Directory, Format, Index, Kind, ModelType, Policy, Sha256, Sha512, Task, UserId, Zoo, ZooError,
 };
@@ -59,20 +60,20 @@ fn index_of(entries: &[String]) -> Result<Index, ZooError> {
     Index::parse(format!(r#"{{"zoo_version": 1, "artifacts": [{}]}}"#, entries.join(", ")).as_bytes())
 }
 
-fn cache(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-bundle-type-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    dir
+/// A directory of this test's own, removed when the value is dropped.
+fn cache(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-bundle-type-{name}-{}", std::process::id())))
 }
 
 /// Fetches `tiny` from the sealed bundle in `dir`, as a server's or a
-/// user's directory of bundles serves it.
-fn fetch(name: &str, dir: &Path, index: Index) -> Result<Vec<PathBuf>, ZooError> {
+/// user's directory of bundles serves it: the bytes of each cached file.
+fn fetch(name: &str, dir: &Path, index: Index) -> Result<Vec<Vec<u8>>, ZooError> {
     let cache = cache(name);
     let source = Directory::new(dir);
-    let zoo = Zoo::new(index, cache, Policy::default(), &source);
+    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &source);
     let user: UserId = "alice".parse().unwrap();
-    zoo.fetch("tiny", &user, &Acceptances::default()).map(|f| f.files)
+    let fetched = zoo.fetch("tiny", &user, &Acceptances::default())?;
+    Ok(fetched.files.iter().map(|f| fs::read(f).unwrap()).collect())
 }
 
 #[test]
@@ -155,10 +156,8 @@ fn a_sealed_bundle_is_fetched_whole_and_every_file_verified() {
         let files = fetch(name, &dir, index).unwrap();
         assert_eq!(files.len(), listed.len());
         for (local, path) in files.iter().zip(&listed) {
-            assert_eq!(fs::read(local).unwrap(), fs::read(dir.join(path)).unwrap(), "{bundle}/{path}");
+            assert_eq!(*local, fs::read(dir.join(path)).unwrap(), "{bundle}/{path}");
         }
-        // `cache` clears the directory it names.
-        cache(name);
     }
 }
 
@@ -185,7 +184,7 @@ fn a_manifest_that_describes_another_model_is_refused() {
 }
 
 /// A copy of the sealed tiny BERT bundle a test may change.
-fn copy_of_tiny_bert(name: &str) -> PathBuf {
+fn copy_of_tiny_bert(name: &str) -> Scratch {
     let from = testdata("tiny-bert-bundle");
     let to = cache(name);
     let mut paths = Vec::new();
@@ -218,8 +217,4 @@ fn the_entry_and_the_manifest_must_name_the_same_files() {
     fs::write(dir.join("tokenizer.json"), tokenizer).unwrap();
     let e = fetch("other", &dir, index_of(&[entry(&dir, "tiny", ENCODER, TINY_BERT)]).unwrap()).unwrap_err();
     assert!(e.to_string().contains("manifest.json gives tokenizer.json another size or SHA-256"), "{e}");
-
-    for name in ["extra-src", "short-src", "other-src", "extra", "short", "other"] {
-        let _ = fs::remove_dir_all(cache(name));
-    }
 }
