@@ -135,7 +135,7 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         )));
     }
     let endpoint = endpoint.trim_end_matches('/');
-    let address = |s: String| Url::from_str(&s).map_err(&fail);
+    let address = |s: String| Url::from_str(&s).map_err(fail);
     let get = |url: &Url, size: u64| {
         transport.get(url, size).map_err(|message| ZooError::Transport { url: url.to_string(), message })
     };
