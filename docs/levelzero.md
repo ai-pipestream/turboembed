@@ -49,7 +49,7 @@ cargo build -p turbo --release --features levelzero
 |---|---|
 | `TURBO_CLANG` | The clang that compiles the kernels. Unset: `clang` on the `PATH`. |
 | `TURBO_LEVELZERO_CHOICES` | At run time: forces the session's kernel choice (Kernel choices, below). |
-| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. A profiled run allocates on the host to name what it times. |
+| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. With `levelzero-onednn`, oneDNN's queue is opened with profiling too, and each of its primitives is counted under `onednn matmul MxKxN` (with `bias`, `residual`, `gelu` or `f32` where they apply) or `onednn layer norm MxN`, timed from its SYCL event. A profiled run allocates on the host to name what it times. |
 
 The driver builds the SPIR-V for the device the first time a context
 needs a kernel, when a model or session is made; that build is not part
