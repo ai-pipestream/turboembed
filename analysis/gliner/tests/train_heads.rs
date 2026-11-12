@@ -197,4 +197,6 @@ fn recurrent_training_needs_boundaries_and_an_even_hidden_size() {
     assert!(refused(&even, false).contains("requires boundary training"));
     let odd = Config { hidden: 15, ..even.clone() };
     assert!(refused(&odd, true).contains("even hidden size"));
+    let projection = OutputTrainer::load_with_heads(&even, &bytes, false, false, false, true).map(|_| ()).unwrap_err();
+    assert!(projection.contains("requires recurrent and prompt training"));
 }
