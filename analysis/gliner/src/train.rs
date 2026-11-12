@@ -297,9 +297,6 @@ impl OutputTrainer {
             .filter(|&(_, &(start, end))| (0..labels).any(|label| positive.contains(&(start, end, label))))
             .map(|(i, _)| i)
             .collect();
-        if selected.is_empty() {
-            return Ok(0.0);
-        }
         let want = (selected.len() * 2).max(4);
         let mut ranked: Vec<(f32, usize)> = (0..input.pairs.len())
             .filter(|i| !selected.contains(i))
@@ -310,6 +307,9 @@ impl OutputTrainer {
             .collect();
         ranked.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         selected.extend(ranked.into_iter().take(want).map(|x| x.1));
+        if selected.is_empty() {
+            return Ok(0.0);
+        }
         let scale = 1.0 / selected.len() as f64;
         let (mut loss, mut dstarts, mut dends) = (0.0, vec![0.0; n * h], vec![0.0; n * h]);
         for index in selected {
