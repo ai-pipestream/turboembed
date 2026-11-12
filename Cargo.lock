@@ -2744,6 +2744,7 @@ dependencies = [
  "turbo-numeric",
  "turbo-sha256",
  "turbo-unicode",
+ "turbo-us-zip",
 ]
 
 [[package]]
@@ -3076,6 +3077,17 @@ dependencies = [
 [[package]]
 name = "turbo-unicode-gen"
 version = "0.1.0"
+
+[[package]]
+name = "turbo-us-zip"
+version = "0.1.0"
+dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-geo",
+ "turbo-pii",
+ "turbo-sha256",
+]
 
 [[package]]
 name = "turbo-vector-index"

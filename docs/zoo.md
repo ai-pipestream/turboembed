@@ -479,8 +479,16 @@ another way overrides it (#1613).
   against an in-process stand-in that answers the Drive API calls.
 
 A zoo server keeps its files in such a store with
-`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`
-(docs/grpc-catalog.md); started with `--zoo`, it fetches an artifact on
+`--catalog-store file:///dir` or `--catalog-store s3://bucket/prefix`,
+or in a data directory several servers share with `--catalog-data DIR`
+(docs/grpc-catalog.md, The data directory). That directory's `public/`
+side is a store of its own holding only files that need no acceptance,
+so a library with the directory mounted reads it directly, with no
+server running. Mount it read-only, or name a local store before it,
+`TURBO_ZOO_SOURCE=file:///local/store,file:///mount/public,origin`,
+since the first `file://` store named keeps what later sources serve.
+An accept-first file is never there and is read through a server.
+Started with `--zoo`, a server fetches an artifact on
 its first read, so a library pointed at it with `grpc(s)://` needs no
 separate install step. docs/zoo-container.md packs that server, the
 page and a RustFS store into one `docker compose`. `turbo-zoo-remote`

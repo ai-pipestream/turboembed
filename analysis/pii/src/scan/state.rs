@@ -187,72 +187,12 @@ fn capitalized_word_before(text: &str, end: usize) -> bool {
         && word.chars().next_back().is_some_and(name_char)
 }
 
-/// Whether the three-digit ZIP prefix `zip` (`005`..`999`) is assigned by
-/// the USPS to the state, territory or armed-forces designation `code`.
+/// Whether the three-digit ZIP prefix `zip` (`005`..`999`) belongs to
+/// the state, territory or armed-forces designation `code`: one of its
+/// Census ZCTAs lies mostly there, or the Postal Service assigns it there
+/// and it holds no ZCTA (`turbo_us_zip::zip3_in_state`).
 fn zip_prefix_in_state(code: &[u8], zip: &[u8]) -> bool {
-    let p = u16::from(zip[0] - b'0') * 100 + u16::from(zip[1] - b'0') * 10 + u16::from(zip[2] - b'0');
-    match code {
-        b"AL" => (350..=369).contains(&p),
-        b"AK" => (995..=999).contains(&p),
-        b"AZ" => (850..=865).contains(&p),
-        b"AR" => (716..=729).contains(&p),
-        b"CA" => (900..=961).contains(&p),
-        b"CO" => (800..=816).contains(&p),
-        b"CT" => (60..=69).contains(&p),
-        b"DE" => (197..=199).contains(&p),
-        b"FL" => (320..=339).contains(&p) || (341..=349).contains(&p),
-        b"GA" => (300..=319).contains(&p) || (398..=399).contains(&p),
-        b"HI" => (967..=968).contains(&p),
-        b"ID" => (832..=838).contains(&p),
-        b"IL" => (600..=629).contains(&p),
-        b"IN" => (460..=479).contains(&p),
-        b"IA" => (500..=528).contains(&p),
-        b"KS" => (660..=679).contains(&p),
-        b"KY" => (400..=427).contains(&p),
-        b"LA" => (700..=714).contains(&p),
-        b"ME" => (39..=49).contains(&p),
-        b"MD" => (206..=219).contains(&p),
-        b"MA" => (10..=27).contains(&p) || p == 55,
-        b"MI" => (480..=499).contains(&p),
-        b"MN" => (550..=567).contains(&p),
-        b"MS" => (386..=397).contains(&p),
-        b"MO" => (630..=658).contains(&p),
-        b"MT" => (590..=599).contains(&p),
-        b"NE" => (680..=693).contains(&p),
-        b"NV" => (889..=898).contains(&p),
-        b"NH" => (30..=38).contains(&p),
-        b"NJ" => (70..=89).contains(&p),
-        b"NM" => (870..=884).contains(&p),
-        b"NY" => p == 5 || p == 63 || (100..=149).contains(&p),
-        b"NC" => (270..=289).contains(&p),
-        b"ND" => (580..=588).contains(&p),
-        b"OH" => (430..=459).contains(&p),
-        b"OK" => (730..=732).contains(&p) || (734..=749).contains(&p),
-        b"OR" => (970..=979).contains(&p),
-        b"PA" => (150..=196).contains(&p),
-        b"RI" => (28..=29).contains(&p),
-        b"SC" => (290..=299).contains(&p),
-        b"SD" => (570..=577).contains(&p),
-        b"TN" => (370..=385).contains(&p),
-        b"TX" => p == 733 || (750..=799).contains(&p) || p == 885,
-        b"UT" => (840..=847).contains(&p),
-        b"VT" => (50..=54).contains(&p) || (56..=59).contains(&p),
-        b"VA" => p == 201 || (220..=246).contains(&p),
-        b"WA" => (980..=994).contains(&p),
-        b"WV" => (247..=268).contains(&p),
-        b"WI" => (530..=549).contains(&p),
-        b"WY" => (820..=831).contains(&p),
-        b"DC" => p == 200 || (202..=205).contains(&p) || p == 569,
-        b"AS" => p == 967,
-        b"GU" | b"MP" | b"FM" | b"MH" | b"PW" => p == 969,
-        b"PR" => (6..=7).contains(&p) || p == 9,
-        b"VI" => p == 8,
-        b"UM" => p == 968,
-        b"AA" => p == 340,
-        b"AE" => (90..=98).contains(&p),
-        b"AP" => (962..=966).contains(&p),
-        _ => false,
-    }
+    turbo_us_zip::zip3_in_state(zip, code)
 }
 
 /// Whether only blanks follow `end` to the end of its line or the text,
