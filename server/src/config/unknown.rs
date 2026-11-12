@@ -7,6 +7,7 @@
 const KNOWN_FLAGS: &[&str] = &[
     "--admin",
     "--bundle-dir",
+    "--catalog-data",
     "--catalog-dir",
     "--catalog-index",
     "--catalog-prefetch",

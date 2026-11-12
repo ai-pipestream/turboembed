@@ -423,8 +423,7 @@ impl Heads {
         };
         let projection = if projection {
             let values = &params[params.len() - 2..];
-            let k = values[0].len() / h;
-            Some(Dense::new(&values[0], values[1].clone(), h, k)?)
+            Some(Dense::new(&values[0], values[1].clone(), h, self.projection.k)?)
         } else {
             None
         };

@@ -153,6 +153,9 @@ impl OutputTrainer {
         }
         if projection {
             let tensor = file.get("token_rep_layer.projection.weight", Dtype::F32, 2).map_err(|e| e.message)?;
+            if tensor.shape[1] == 0 {
+                return Err("gliner projection input width must be positive".into());
+            }
             specs.push(("token_rep_layer.projection.weight".into(), vec![h, tensor.shape[1] as usize]));
             specs.push(("token_rep_layer.projection.bias".into(), vec![h]));
         }
@@ -478,22 +481,11 @@ impl OutputTrainer {
         }
         Ok((total, dencoder))
     }
-
-    /// Weight decay applies to matrices, never biases.
-    fn decay(&self) -> Vec<bool> {
-        let dense = self.recurrent_offset().unwrap_or(self.params.len());
-        (0..self.params.len()).map(|i| if i < dense { i % 2 == 0 } else { (i - dense) % 4 < 2 }).collect()
-    }
-
-    pub fn step(&mut self, optimizer: &mut AdamW<f32>, grads: &mut [Vec<f32>]) -> Result<f64, String> {
-        let decay = self.decay();
-        optimizer.step(&mut self.params, grads, &decay).map_err(|e| e.message)
-    }
-}
-pub fn output_optimizer(settings: Settings, trainer: &OutputTrainer) -> Result<AdamW<f32>, String> {
-    AdamW::new(settings, &trainer.params.iter().map(Vec::len).collect::<Vec<_>>()).map_err(|e| e.message)
 }
 mod encoder_train;
+mod optimizer;
+pub use optimizer::output_optimizer;
+
 #[cfg(test)]
 #[path = "train_tests.rs"]
 mod tests;

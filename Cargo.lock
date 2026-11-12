@@ -3083,7 +3083,10 @@ version = "0.1.0"
 name = "turbo-us-zip"
 version = "0.1.0"
 dependencies = [
+ "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-geo",
+ "turbo-pii",
  "turbo-sha256",
 ]
 
