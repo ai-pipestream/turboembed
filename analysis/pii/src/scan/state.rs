@@ -1,0 +1,219 @@
+//! United States states, `UsStatePiiExtractor`: the name of a state, the
+//! District of Columbia or an inhabited territory (`Illinois`, `New York`,
+//! `Puerto Rico`), as written in the table or all in capitals, at word
+//! boundaries, with single spaces between its words. `Washington, D.C.`
+//! and `Washington DC` are the District, `New York City` is a city, not
+//! the state, and a name before a county word that makes a county of the
+//! list (`Washington County`) is the county's. A two-letter USPS code (`IL`) is a common word or
+//! abbreviation too (`IN`, `OR`, `ME`, `OK`), so it is a mention only in
+//! capitals and only after a state label (`State: IL`) or before a ZIP
+//! code that ends an address: after a comma and blanks (`Springfield, IL 62704`),
+//! or, when the ZIP code's three-digit prefix belongs to that state, after a
+//! capitalized word and a bare comma (`Springfield,IL 62704`), in brackets with
+//! its ZIP code (`(IL 62704)`), after a colon label (`Address: IL 62704`), or
+//! after a capitalized word and horizontal blanks (`Springfield IL 62704`,
+//! `Springfield\tIL 62704`, `Saint Louis MO 63101`, `Reading PA 19601`), or
+//! alone on a line with its ZIP code (`IL 62704`, `\u{a0}IL 62704`), not after
+//! a small word or with another state's prefix (`(IN 12345)`, `Order: IN 12345`,
+//! `Order,IN 12345`, `Order IN 12345`, `PART OR 90210`). The normalized form is
+//! the USPS code.
+
+use turbo_analysis_layers::{PiiEvidence, PiiKind};
+
+use super::national::on_number_end;
+use super::us_labelled::STATES;
+use crate::hits::Hits;
+use crate::tables::us_counties::{SUFFIXES, county};
+use crate::tables::us_states::US_STATES;
+use crate::text::{before, name_char, on_end, on_name_end, on_name_start};
+use crate::window::find_any_label;
+
+/// The labels a code is read after, longest first.
+const LABELS: [&[u8]; 2] = [b"state of residence", b"state"];
+/// What after `Washington` makes it the District.
+const DISTRICT: [&[u8]; 4] = [b", D.C.", b" D.C.", b", DC", b" DC"];
+
+pub(crate) fn scan(text: &str, hits: &mut Hits) {
+    let b = text.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        super::step(1);
+        if !b[i].is_ascii_uppercase() || !on_name_start(text, i) {
+            i += 1;
+            continue;
+        }
+        let found = name_at(text, i).or_else(|| code_at(text, i).map(|end| (end, &text[i..end])));
+        match found {
+            Some((end, code)) => {
+                hits.add(i, end, PiiKind::State, PiiEvidence::Shape, |s| s.push_str(code));
+                i = end;
+            }
+            None => i += 1,
+        }
+    }
+}
+
+/// The end and code of the state name at `i`.
+pub(super) fn name_at(text: &str, i: usize) -> Option<(usize, &'static str)> {
+    let b = text.as_bytes();
+    let (name, code) = US_STATES.iter().find(|(name, _)| {
+        let n = name.as_bytes();
+        b.get(i..i + n.len())
+            .is_some_and(|w| w == n || (w.eq_ignore_ascii_case(n) && !w.iter().any(u8::is_ascii_lowercase)))
+            && on_name_end(text, i + n.len())
+    })?;
+    let end = i + name.len();
+    if *code == "WA"
+        && let Some(d) = DISTRICT.iter().find(|d| b.get(end..end + d.len()).is_some_and(|w| w == **d))
+    {
+        // A word character joined to the suffix (`Washington DC_x`) names
+        // neither the District nor the state.
+        let end = end + d.len();
+        return on_name_end(text, end).then_some((end, "DC"));
+    }
+    if *code == "NY" && b.get(end..end + 5).is_some_and(|w| w.eq_ignore_ascii_case(b" city")) && on_end(text, end + 5) {
+        return None;
+    }
+    // `Washington County` is a county, and the county scanner reads it;
+    // a suffix word that makes no county (`the Texas area`, `Illinois
+    // County`) leaves the state. Here, as for `New York City`, only a
+    // letter or digit after the word makes it another word, so
+    // `Washington County_x` is no state either.
+    if b.get(end) == Some(&b' ')
+        && SUFFIXES.iter().any(|s| {
+            let at = end + 1;
+            b.get(at..at + s.len()).is_some_and(|w| w.eq_ignore_ascii_case(s.as_bytes()))
+                && on_end(text, at + s.len())
+                && county(&text[i..at + s.len()]).is_some()
+        })
+    {
+        return None;
+    }
+    Some((end, code))
+}
+
+/// The end of a two-capital USPS code at `i` that a state label is
+/// before or a ZIP code after.
+fn code_at(text: &str, i: usize) -> Option<usize> {
+    let b = text.as_bytes();
+    let code = b.get(i..i + 2)?;
+    if !code.iter().all(u8::is_ascii_uppercase)
+        || !on_name_end(text, i + 2)
+        || !STATES.iter().any(|s| s.as_slice() == code)
+    {
+        return None;
+    }
+    let zip = b.get(i + 2) == Some(&b' ') && zip_end(text, i + 3).is_some_and(|end| address_like(text, i, end));
+    (zip || find_any_label(text, i, &LABELS, false).is_some()).then_some(i + 2)
+}
+
+/// Whether a code at `code` before the ZIP code ending at `end` reads as
+/// the end of an address, by what comes before it: a comma and horizontal
+/// blanks (`Springfield, IL 62704`), only blanks back to the start of a
+/// line when only blanks, or blanks and a clause's end, follow the ZIP
+/// code (`IL 62704`, `\u{a0}IL 62704`, `IL 62704.`), or, when the ZIP
+/// code's three-digit prefix belongs to that state, a capitalized word and
+/// a bare comma (`Springfield,IL 62704`), brackets around the code and ZIP
+/// code (`(IL 62704)`), a colon label with line/clause end after the ZIP
+/// code (`Address: IL 62704`), or a capitalized word and horizontal blanks
+/// (`Springfield IL 62704 is`, `Springfield  IL 62704`,
+/// `Springfield\tIL 62704`, `Saint Louis MO 63101`, `Reading PA 19601`).
+/// A small word or a prefix from another state (`(see IN 12345)`,
+/// `(IN 12345)`, `Order: IN 12345`, `Order,IN 12345`, `Order IN 12345`,
+/// `PART OR 90210`), or a word after a line's code and number
+/// (`IN 12345 units`), makes the number a count.
+fn address_like(text: &str, code: usize, end: usize) -> bool {
+    let b = text.as_bytes();
+    // Only the blanks directly before the code and after the ZIP code are
+    // walked, so each byte is looked at once however many codes a line
+    // holds.
+    let p = skip_blanks_back(b, code);
+    let in_state = zip_prefix_in_state(&b[code..code + 2], &b[code + 3..code + 6]);
+    if p > 0 && b[p - 1] == b',' {
+        return p < code || (in_state && capitalized_word_before(text, p - 1));
+    }
+    if p == 0 || b[p - 1] == b'\n' {
+        return line_ends_after(text, end);
+    }
+    let after = skip_blanks(b, end);
+    if (b[p - 1] == b'(' && b.get(after) == Some(&b')')) || (b[p - 1] == b'[' && b.get(after) == Some(&b']')) {
+        return in_state;
+    }
+    if p < code && b[p - 1] == b':' && before(text, p - 1).is_some_and(name_char) {
+        return in_state && line_ends_after(text, end);
+    }
+    p < code && in_state && capitalized_word_before(text, p)
+}
+
+/// Steps back over horizontal blanks (`' '`, `'\t'` and U+00A0) ending at `i`.
+fn skip_blanks_back(b: &[u8], mut i: usize) -> usize {
+    loop {
+        if i > 0 && matches!(b[i - 1], b' ' | b'\t') {
+            i -= 1;
+        } else if i >= 2 && b[i - 2..i] == [0xC2, 0xA0] {
+            i -= 2;
+        } else {
+            return i;
+        }
+    }
+}
+
+/// Steps forward over horizontal blanks (`' '`, `'\t'` and U+00A0) starting at `i`.
+fn skip_blanks(b: &[u8], mut i: usize) -> usize {
+    loop {
+        if i < b.len() && matches!(b[i], b' ' | b'\t') {
+            i += 1;
+        } else if b.get(i..i + 2) == Some(&[0xC2, 0xA0]) {
+            i += 2;
+        } else {
+            return i;
+        }
+    }
+}
+
+/// Whether the word ending at `end` is shaped like the last word of a
+/// place name: letters and internal apostrophes or hyphens (`Reading`,
+/// `O'Fallon`, `Winston-Salem`), no digit or `_`, starting with a
+/// capital and ending with a word character.
+fn capitalized_word_before(text: &str, end: usize) -> bool {
+    let start = text[..end]
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| !(name_char(c) || matches!(c, '\'' | '\u{2019}' | '-')))
+        .map_or(0, |(p, c)| p + c.len_utf8());
+    let word = &text[start..end];
+    !word.bytes().any(|b| b.is_ascii_digit() || b == b'_')
+        && word.chars().next().is_some_and(char::is_uppercase)
+        && word.chars().next_back().is_some_and(name_char)
+}
+
+/// Whether the three-digit ZIP prefix `zip` (`005`..`999`) belongs to
+/// the state, territory or armed-forces designation `code`: one of its
+/// Census ZCTAs lies mostly there, or the Postal Service assigns it there
+/// and it holds no ZCTA (`turbo_us_zip::zip3_in_state`).
+fn zip_prefix_in_state(code: &[u8], zip: &[u8]) -> bool {
+    turbo_us_zip::zip3_in_state(zip, code)
+}
+
+/// Whether only blanks follow `end` to the end of its line or the text,
+/// or blanks and then a mark that ends a clause (`IL 62704.`,
+/// `IL 62704, USA`), not a word (`IN 12345 units`).
+fn line_ends_after(text: &str, end: usize) -> bool {
+    text[end..].chars().find(|&c| !matches!(c, ' ' | '\t' | '\r' | '\u{a0}')).is_none_or(|c| {
+        matches!(c, '\n' | '\u{b}' | '\u{c}' | '\u{85}' | '\u{2028}' | '\u{2029}' | ',' | '.' | ';' | ')')
+    })
+}
+
+/// The end of a whole ZIP or ZIP+4 token at `at` (`62704`, `62704-1234`),
+/// with no letter, digit, `-` or `_` joined to it and not the start of a
+/// decimal, grouped or split number (`12345abc`, `12345.67`, `12345,678`
+/// and `12345/6` are none).
+pub(super) fn zip_end(text: &str, at: usize) -> Option<usize> {
+    let b = text.as_bytes();
+    let digits = |from: usize, n: usize| b.get(from..from + n).is_some_and(|d| d.iter().all(u8::is_ascii_digit));
+    if !digits(at, 5) {
+        return None;
+    }
+    let end = if b.get(at + 5) == Some(&b'-') && digits(at + 6, 4) { at + 10 } else { at + 5 };
+    (on_number_end(text, end, b".,-/") && !matches!(b.get(end), Some(b'-' | b'_'))).then_some(end)
+}

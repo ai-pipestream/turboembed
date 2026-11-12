@@ -33,6 +33,12 @@ final class RepoRootStagingTest {
             assertEquals(Files.size(original), Files.size(copy), file);
             assertTrue(Files.mismatch(original, copy) < 0, file);
         }
+        for (String file : RepoRootStaging.TINY_BERT_SEGMENT_FILES) {
+            Path original = repo.resolve("testdata/tiny-bert-segment-bundle").resolve(file);
+            Path copy = staged.resolve("testdata/tiny-bert-segment-bundle").resolve(file);
+            assertEquals(Files.size(original), Files.size(copy), file);
+            assertTrue(Files.mismatch(original, copy) < 0, file);
+        }
         assertTrue(Files.size(staged.resolve(RepoRootStaging.CONFORMANCE_POM)) > 0);
     }
 

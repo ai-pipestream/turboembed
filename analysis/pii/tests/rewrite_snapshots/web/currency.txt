@@ -1,0 +1,9 @@
+MASKED	Paid $1,250.00 on account, owes EUR 40, earns $25 per hour, refund of -$3 and 40 euros. Not money: 1,250.00 units, room 40, $ alone.
+
+MASK_ALL	Paid $1,250.00 on account, owes EUR 40, earns $25 per hour, refund of -$3 and 40 euros. Not money: 1,250.00 units, room 40, $ alone.
+
+REWRITE	pseudonymize	OK	Paid $1,250.00 on account, owes EUR 40, earns $25 per hour, refund of -$3 and 40 euros. Not money: 1,250.00 units, room 40, $ alone.
+
+REWRITE	hmac	OK	Paid $1,250.00 on account, owes EUR 40, earns $25 per hour, refund of -$3 and 40 euros. Not money: 1,250.00 units, room 40, $ alone.
+
+AUDIT_REPORT	no pii found

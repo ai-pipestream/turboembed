@@ -119,7 +119,10 @@ final class TurboBundleHeadsTest {
             for (TurboSpanView row : graph.spans()) {
                 kinds.add(row.layerKind());
             }
-            assertEquals(EnumSet.complementOf(EnumSet.of(TurboLayerKind.PII)), kinds, "the text holds no PII");
+            assertEquals(
+                    EnumSet.complementOf(EnumSet.of(TurboLayerKind.PII, TurboLayerKind.WORDS)),
+                    kinds,
+                    "the text holds no PII and the bundle has no token split head");
 
             List<TurboSpanView> tokens = graph.spans(TurboLayerKind.TOKENS);
             List<TurboSpanView> pos = graph.spans(TurboLayerKind.POS);

@@ -2,7 +2,7 @@
 //! while serving: the analysis service's LoadBundle and UnloadBundle add
 //! and remove entries, and every listing reads the current list.
 
-mod gliner;
+pub(crate) mod gliner;
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
@@ -59,6 +59,8 @@ pub(crate) struct Loaded {
     pub(crate) revision: String,
     /// The head steps the bundle provides (`progressive::heads::available`).
     pub(crate) head_steps: Vec<String>,
+    /// Stored vocabulary artifacts bound to this bundle at LoadBundle (#2013).
+    pub(crate) vocabulary: crate::vocabulary::ResolvedVocabulary,
     pub(crate) idle: Mutex<Vec<usize>>,
     pub(crate) metrics: Arc<Metrics>,
 }
@@ -96,6 +98,7 @@ impl Loaded {
 pub(crate) struct Served {
     pub(crate) name: String,
     pub(crate) config: ModelConfig,
+    pub(crate) vocabulary: crate::vocabulary::ResolvedVocabulary,
     pub(crate) loaded: OnceLock<Arc<Loaded>>,
     pub(crate) gliner: OnceLock<Arc<turbo_gliner::Model>>,
     pub(crate) relations: OnceLock<Arc<turbo_relation::Gliner2Relations>>,
@@ -126,16 +129,30 @@ pub(crate) struct State {
     pub(crate) pii_policies: crate::pii_policy::NamedPolicies,
     /// What an inline policy's key references resolve through.
     pub(crate) pii_resolver: Arc<crate::pii_policy::ServerResolver>,
+    /// Digest-pinned resolver and cache over the vocabulary store (#2013).
+    pub(crate) vocabulary_resolver: Arc<crate::vocabulary::VocabularyResolver>,
 }
 
 fn not_found(name: &str) -> Failure {
     Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 0, format!("no model {name} is served here"))
 }
 
+impl Served {
+    fn new(name: String, config: ModelConfig, vocabulary: crate::vocabulary::ResolvedVocabulary) -> Arc<Self> {
+        Arc::new(Self {
+            name,
+            config,
+            vocabulary,
+            loaded: OnceLock::new(),
+            gliner: OnceLock::new(),
+            relations: OnceLock::new(),
+        })
+    }
+}
+
 /// The most a server serves: sessions pile up pinned buffers, and every
 /// served name holds a loaded model. LoadBundle refuses past these with
-/// TURBO_E_CAPACITY naming the limit, before anything is allocated; the
-/// capability listing shows them.
+/// TURBO_E_CAPACITY naming the limit; the capability listing shows them.
 pub(crate) const MAX_SESSIONS_PER_MODEL: u32 = 32;
 pub(crate) const MAX_LOADED_MODELS: usize = 64;
 
@@ -145,19 +162,7 @@ impl State {
         let metrics = Metrics::new();
         Self {
             models: RwLock::new(
-                names
-                    .into_iter()
-                    .zip(models)
-                    .map(|(name, config)| {
-                        Arc::new(Served {
-                            name,
-                            config,
-                            loaded: OnceLock::new(),
-                            gliner: OnceLock::new(),
-                            relations: OnceLock::new(),
-                        })
-                    })
-                    .collect(),
+                names.into_iter().zip(models).map(|(n, c)| Served::new(n, c, Default::default())).collect(),
             ),
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
@@ -169,7 +174,14 @@ impl State {
             loading: Mutex::new(()),
             pii_policies: crate::pii_policy::NamedPolicies::default(),
             pii_resolver: Arc::default(),
+            vocabulary_resolver: Arc::default(),
         }
+    }
+
+    /// This state resolving vocabulary artifacts against `store`.
+    pub(crate) fn with_vocabulary(mut self, store: Option<Arc<crate::vocabulary::Store>>) -> Self {
+        self.vocabulary_resolver = Arc::new(crate::vocabulary::VocabularyResolver::new(store));
+        self
     }
 
     /// This state serving `policies` by name.
@@ -234,17 +246,23 @@ impl State {
         Ok((m.clone(), m.loaded.get().cloned()))
     }
 
+    /// A ready registration of any supported kind (`loaded`, `gliner`, or `relations`).
+    pub(crate) fn ready_served(&self, name: &str) -> api::Result<Arc<Served>> {
+        let (m, _) = self.peek(name)?;
+        if !gliner::is_loaded(&m) {
+            return Err(Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", m.name)));
+        }
+        Ok(m)
+    }
+
     /// A ready model, the version empty or its revision.
     pub(crate) fn ready(&self, name: &str, version: &str) -> api::Result<(Arc<Served>, Arc<Loaded>)> {
         let (m, loaded) = self.peek(name)?;
         let l = loaded
             .ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", m.name)))?;
         if !version.is_empty() && version != l.revision {
-            return Err(Failure::new(
-                TURBO_E_BUNDLE_NOT_FOUND,
-                0,
-                format!("model {} has version {}, not {version}", m.name, l.revision),
-            ));
+            let msg = format!("model {} has version {}, not {version}", m.name, l.revision);
+            return Err(Failure::new(TURBO_E_BUNDLE_NOT_FOUND, 0, msg));
         }
         Ok((m, l))
     }
@@ -261,6 +279,15 @@ impl State {
     /// the caller's identity for loading and for rolling back: the same
     /// name re-registered is a different registration.
     pub(crate) fn add(&self, name: String, config: ModelConfig) -> api::Result<Arc<Served>> {
+        self.add_with_vocabulary(name, config, Default::default())
+    }
+
+    pub(crate) fn add_with_vocabulary(
+        &self,
+        name: String,
+        config: ModelConfig,
+        vocabulary: crate::vocabulary::ResolvedVocabulary,
+    ) -> api::Result<Arc<Served>> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         if models.iter().any(|m| m.name == name) {
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("a model named {name} is already served")));
@@ -268,25 +295,16 @@ impl State {
         if models.len() >= MAX_LOADED_MODELS {
             return Err(over("max_loaded_models", "served models", models.len() as u64 + 1));
         }
-        let m = Arc::new(Served {
-            name,
-            config,
-            loaded: OnceLock::new(),
-            gliner: OnceLock::new(),
-            relations: OnceLock::new(),
-        });
+        let m = Served::new(name, config, vocabulary);
         models.push(m.clone());
         drop(models);
         self.notify_health();
         Ok(m)
     }
 
-    /// Removes the caller's own registration, whatever name it carries:
-    /// the entry goes only when it is still the one the caller
-    /// registered, under the write lock, so a concurrent unload and
-    /// re-registration of the same name is never touched. An entry the
-    /// caller no longer holds is not an error: there is nothing of
-    /// theirs to roll back.
+    /// Removes the caller's own registration under the write lock when it
+    /// is still the entry the caller registered, so a concurrent unload
+    /// and re-registration of the same name is never touched.
     pub(crate) fn remove_if(&self, expected: &Arc<Served>) -> api::Result<()> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         let removed = models.iter().position(|m| Arc::ptr_eq(m, expected)).map(|i| models.remove(i)).is_some();
@@ -377,11 +395,8 @@ impl State {
         let model = ctx.load(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let info = model.info().map_err(fail("turbo_model_get_info", &[]))?;
         if !matches!(info.task, TURBO_TASK_EMBED | TURBO_TASK_RERANK | TURBO_TASK_EXTRACTIVE_QA) {
-            return Err(fail("turbo_model_get_info", &[])(Failure::new(
-                TURBO_E_UNSUPPORTED_TASK,
-                0,
-                format!("unsupported task {}", info.task),
-            )));
+            let f = Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {}", info.task));
+            return Err(fail("turbo_model_get_info", &[])(f));
         }
         let qa = if info.task == TURBO_TASK_EXTRACTIVE_QA {
             Some(crate::tasks::QaModel::load(&c.bundle).map_err(fail("turbo_model_load", &[]))?)
@@ -414,10 +429,9 @@ impl State {
                 let b = ctx
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
                     .map_err(fail("turbo_buffer_alloc", &[]))?;
-                let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
-                Ok::<_, LoadError>((b, p))
+                Ok::<_, LoadError>((b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?, b))
             };
-            let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
+            let ((a, ids), (b, mask), (t, types)) = (alloc()?, alloc()?, alloc()?);
             slots.push(Slot {
                 _buffers: [ids, mask, types],
                 ptrs: [a, b, t],
@@ -439,6 +453,7 @@ impl State {
             device,
             revision: api::field(&info.revision),
             head_steps: crate::progressive::heads::available(&c.bundle),
+            vocabulary: m.vocabulary.clone(),
             idle,
             metrics: Arc::clone(&self.metrics),
         };
@@ -470,12 +485,8 @@ impl LoadError {
     /// Converts the load failure to its mapped gRPC Status with `turbo-code`
     /// and `turbo-field` trailing metadata.
     pub fn to_status(&self) -> tonic::Status {
-        let f = Failure::new(
-            self.failure.code,
-            self.failure.field,
-            format!("model {}: {}: {}", self.model, self.call, self.failure.message),
-        );
-        crate::status::to_status(&f, self.fields)
+        let msg = format!("model {}: {}: {}", self.model, self.call, self.failure.message);
+        crate::status::to_status(&Failure::new(self.failure.code, self.failure.field, msg), self.fields)
     }
 }
 

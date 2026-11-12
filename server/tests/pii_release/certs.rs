@@ -87,7 +87,7 @@ pub fn der(pem: &str) -> Vec<u8> {
 
 /// The SHA-256 of the client certificate's DER bytes.
 pub fn fingerprint_bytes() -> [u8; 32] {
-    turbo_pii::checksum::sha256::digest(&der(CLIENT_CERT_PEM))
+    turbo_sha256::sha256(&der(CLIENT_CERT_PEM)).0
 }
 
 /// [`fingerprint_bytes`] as 64 lowercase hexadecimal digits.

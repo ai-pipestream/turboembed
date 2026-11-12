@@ -1,0 +1,9 @@
+MASKED	Hosts 192.0.2.1, 198.51.100.7 and 203.0.113.254 answered.
+
+MASK_ALL	Hosts 192.0.2.1, 198.51.100.7 and 203.0.113.254 answered.
+
+REWRITE	pseudonymize	OK	Hosts 192.0.2.1, 198.51.100.7 and 203.0.113.254 answered.
+
+REWRITE	hmac	OK	Hosts 192.0.2.1, 198.51.100.7 and 203.0.113.254 answered.
+
+AUDIT_REPORT	no pii found

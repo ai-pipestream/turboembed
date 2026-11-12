@@ -48,6 +48,7 @@ final class RuntimeLoaderTest {
         assertEquals("en", new TurboAnalyzer.Config(" \t", null).language());
         assertEquals("pt", TurboAnalyzer.Config.forLanguage("pt").language());
         assertEquals(TurboLayerKind.MORPHOLOGY, TurboLayerKind.fromNative(8));
+        assertEquals(TurboLayerKind.WORDS, TurboLayerKind.fromNative(9));
         assertThrows(IllegalStateException.class, () -> TurboLayerKind.fromNative(99));
         assertEquals(TurboPiiConfidence.CHECKSUM, TurboPiiConfidence.fromNative(2));
         assertEquals(TurboPiiConfidence.LABELLED_CHECKSUM, TurboPiiConfidence.fromNative(3));

@@ -11,13 +11,20 @@ use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I8};
 
 /// The largest difference allowed between a score and the reference's,
 /// as a fraction of the run's scale, the largest reference score in
-/// magnitude. A run rescaled by any factor past the bound fails.
-pub fn score_bound(compute_dtype: u32) -> f64 {
-    match compute_dtype {
-        TURBO_DTYPE_F32 => 1e-4,
-        TURBO_DTYPE_F16 => 1e-2,
-        TURBO_DTYPE_BF16 => 4e-2,
-        TURBO_DTYPE_I8 => 0.15,
+/// magnitude, on a device of `backend` computing in `compute_dtype`. A
+/// run rescaled by any factor past the bound fails. A backend's own row
+/// is set from its measured differences with a margin; the dtype's row,
+/// from the format's precision, holds a backend not yet measured.
+pub fn score_bound(backend: &str, compute_dtype: u32) -> f64 {
+    match (backend, compute_dtype) {
+        // Measured on an M2 at FASTEST: 2.3e-5 for rerank, 1.0e-5 for
+        // extractive QA, at every kernel choice; the bound is about F16's
+        // machine epsilon (9.8e-4), some 40 times the larger.
+        ("metal", TURBO_DTYPE_F16) => 1e-3,
+        (_, TURBO_DTYPE_F32) => 1e-4,
+        (_, TURBO_DTYPE_F16) => 1e-2,
+        (_, TURBO_DTYPE_BF16) => 4e-2,
+        (_, TURBO_DTYPE_I8) => 0.15,
         _ => panic!("compute dtype {compute_dtype} has no score bound"),
     }
 }
@@ -29,11 +36,12 @@ pub fn scale(want: &[f32]) -> f64 {
     s
 }
 
-/// Every score of `got` within the bound of its reference in `want`.
-/// Returns the largest difference, as a fraction of the scale.
-pub fn scores_within(what: &str, got: &[f32], want: &[f32], compute_dtype: u32) -> f64 {
+/// Every score of `got` within `most`, a fraction of the scale, of its
+/// reference in `want`. Returns the largest difference, as a fraction of
+/// the scale.
+pub fn scores_within(what: &str, got: &[f32], want: &[f32], most: f64) -> f64 {
     assert_eq!(got.len(), want.len(), "{what}: scores");
-    let (s, most) = (scale(want), score_bound(compute_dtype));
+    let s = scale(want);
     let mut worst = 0.0f64;
     for (i, (&g, &w)) in got.iter().zip(want).enumerate() {
         let d = (f64::from(g) - f64::from(w)).abs() / s;

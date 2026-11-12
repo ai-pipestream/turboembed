@@ -9,10 +9,12 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
+use turbo::head::edit_tree::EditTree;
 use turbo::head::{lemmatizer, parser, relation, span, tagger};
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo_analysis::{Span, Spans, ViewId};
 use turbo_analysis_layers::Tokens;
+use turbo_scratch::Scratch;
 
 pub const TEXT: &str = "Ann met Bob in Paris , and the quiet old dog slept by the river .";
 
@@ -68,9 +70,8 @@ pub fn values(seed: u64, n: usize, scale: f32) -> Vec<f32> {
 
 /// The tiny bundle with `edit` applied to its manifest and the tensors
 /// of every head the edited manifest names, seeded.
-pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+pub fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-tagger-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny().join(f), dir.join(f)).unwrap();
@@ -132,4 +133,40 @@ pub fn tokens(text: &str) -> Tokens {
         start += word.len() + 1;
     }
     Tokens { spans, sentence: None }
+}
+
+/// A sentence boundary head over the tiny encoder.
+pub fn sentence_head() -> Value {
+    json!({
+        "name": "sents", "layer": "turboembed:sentences", "kind": "HEAD_SENTENCE_BOUNDARY",
+        "labels": ["inside", "last"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": "DECODE_ARGMAX", "artifact": "weights-f32", "tensor_prefix": "heads.sents"
+    })
+}
+
+/// The split label that makes `words` of `form`.
+pub fn split_label(form: &str, words: &[&str]) -> String {
+    words.iter().map(|w| EditTree::mine(form, w).label()).collect::<Vec<_>>().join(" ")
+}
+
+/// A token split head with `del`, `can't` and `and` splits.
+pub fn split_head() -> Value {
+    let del = split_label("del", &["de", "el"]);
+    let cant = split_label("can't", &["ca", "n't"]);
+    let and = split_label("and", &["an", "d"]);
+    json!({
+        "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
+        "labels": ["_", del, cant, and], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32", "tensor_prefix": "heads.words"
+    })
+}
+
+/// A span classifier over PER and LOC with `decode`.
+pub fn span_head(decode: &str) -> Value {
+    json!({
+        "name": "mentions", "layer": "turboembed:entities", "kind": "HEAD_SPAN_CLASSIFIER",
+        "labels": ["O", "PER", "LOC"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
+        "decode": decode, "span": {"max_words": 3, "width_dim": 4},
+        "artifact": "weights-f32", "tensor_prefix": "heads.mentions"
+    })
 }

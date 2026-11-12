@@ -3,32 +3,38 @@
 //! docs/bundle.md "Heads"), run over one encoder pass a sentence as the
 //! analysis annotators run them (`turbo-tagger`), through the same
 //! decoders (`head::run`). The part-of-speech, morphology, entity,
-//! dependency and lemma layers each come from the one head of the bundle
-//! that writes that layer; a head of a kind the analyzer does not run
-//! leaves its layer unsupported, named in the refusal.
+//! dependency, lemma and syntactic word layers each come from the one
+//! head of the bundle that writes that layer, and so do the sentences
+//! when it has a sentence boundary head (segment.rs); a head of a kind
+//! the analyzer does not run leaves its layer unsupported, named in the
+//! refusal.
 
 use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use turbo_analysis::TagSet;
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Tokens};
+use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
 
 use crate::bundle::Bundle;
 use crate::head::run::{
     Decoded, LemmaTags, Parse, decode_tagger, lemmatize_sequences, parse_sequences, same_layer, tail_taps,
 };
-use crate::head::{BiaffineParser, EditTreeLemmatizer, TokenTagger};
+use crate::head::{BiaffineParser, EditTreeLemmatizer, SentenceBoundary, TokenSplitter, TokenTagger};
 use crate::manifest::{HeadKind, HeadSpec, Scheme, WordPooling};
 use crate::status::{BUNDLE_INVALID, Error, INVALID_ARGUMENT, Result, UNSUPPORTED_TASK};
 use turbo_analysis::Layer as _;
 
+mod segment;
 mod words;
+use segment::{EntityHead, open_sentences, open_split, split_sequences};
 use words::Words;
 
-/// An entity a sequence's labels mark: words `start..end` of the
-/// sequence, its kind in the head's kinds, and the mean of its words'
-/// probabilities.
+/// The syntactic words layer's id, `turbo:words`.
+const WORDS: &str = <turbo_analysis_layers::Words as turbo_analysis::Layer>::ID;
+
+/// An entity of a sequence: words `start..end` of the sequence, its kind
+/// in the head's kinds, and its probability (segment.rs, `EntityHead`).
 pub(crate) struct Entity {
     pub(crate) start: u32,
     pub(crate) end: u32,
@@ -45,6 +51,8 @@ pub(crate) struct Want<'a> {
     pub(crate) entities: bool,
     pub(crate) dependencies: bool,
     pub(crate) lemmas: bool,
+    /// Each token's syntactic words, from the token split head.
+    pub(crate) words: bool,
     pub(crate) tags: Option<&'a [Vec<u32>]>,
 }
 
@@ -56,6 +64,7 @@ pub(crate) struct Written {
     pub(crate) entities: Option<Vec<Vec<Entity>>>,
     pub(crate) dependencies: Option<Vec<Parse>>,
     pub(crate) lemmas: Option<Vec<Vec<String>>>,
+    pub(crate) words: Option<Vec<Vec<Vec<String>>>>,
 }
 
 /// Why a layer is not written: no bundle, no head for it, or a head the
@@ -74,9 +83,12 @@ pub(crate) struct BundleHeads {
     words: Mutex<Words>,
     pos: Loaded<(TokenTagger, Arc<TagSet>)>,
     morphology: Loaded<(TokenTagger, Arc<TagSet>)>,
-    entities: Loaded<(TokenTagger, Arc<TagSet>)>,
+    entities: Loaded<(EntityHead, Arc<TagSet>)>,
     dependencies: Loaded<(BiaffineParser, Arc<TagSet>)>,
     lemmas: Loaded<(EditTreeLemmatizer, Option<TokenTagger>)>,
+    split: Loaded<TokenSplitter>,
+    /// The sentence boundary head; with none, sentences come from rules.
+    sentences: Option<SentenceBoundary>,
     pub(crate) model_id: String,
     pub(crate) model_revision: String,
     pub(crate) manifest_sha256: String,
@@ -125,7 +137,16 @@ impl BundleHeads {
         let bundle = Bundle::open(dir)?;
         // The encoder reads each word at as many layers as the widest
         // head mixes; a head of fewer takes the last of them.
-        let taps = [PosTags::ID, MorphFeatures::<Tokens>::ID, Entities::ID, Dependencies::<Tokens>::ID, Lemmas::ID]
+        let layers = [
+            PosTags::ID,
+            MorphFeatures::<Tokens>::ID,
+            Entities::ID,
+            Dependencies::<Tokens>::ID,
+            Lemmas::ID,
+            WORDS,
+            Sentences::ID,
+        ];
+        let taps = layers
             .iter()
             .filter_map(|layer| head_for(&bundle, layer).ok().flatten())
             .map(|h| h.layer_mix.as_ref().map_or(1, |m| m.layers as usize))
@@ -162,19 +183,11 @@ impl BundleHeads {
         let morphology = tag_head(MorphFeatures::<Tokens>::ID, "morphology")?;
         let entities = match head_for(&bundle, Entities::ID)? {
             None => Err(Missing::NoHead),
-            Some(spec) => match kind_of(spec, HeadKind::TokenTagger) {
+            Some(spec) => match EntityHead::open(&bundle, spec)? {
                 Err(m) => Err(m),
-                Ok(()) => {
-                    if spec.scheme == Scheme::Tags {
-                        return Err(Error::new(
-                            BUNDLE_INVALID,
-                            format!("head {:?}: an entity head reads SCHEME_BIO or SCHEME_BILOU labels", spec.name),
-                        ));
-                    }
-                    let t = TokenTagger::load(&bundle, &spec.name)?;
-                    width(&spec.name, t.hidden())?;
-                    let set = tagset(&spec.name, t.types());
-                    Ok((t, set))
+                Ok((e, set)) => {
+                    width(&spec.name, e.hidden())?;
+                    Ok((e, set))
                 }
             },
         };
@@ -209,6 +222,24 @@ impl BundleHeads {
                 }
             },
         };
+        let split = match head_for(&bundle, WORDS)? {
+            None => Err(Missing::NoHead),
+            Some(spec) => match open_split(&bundle, spec)? {
+                Err(m) => Err(m),
+                Ok(t) => {
+                    width(&spec.name, t.hidden())?;
+                    Ok(t)
+                }
+            },
+        };
+        let sentences = match head_for(&bundle, Sentences::ID)? {
+            None => None,
+            Some(spec) => {
+                let b = open_sentences(&bundle, spec)?;
+                width(&spec.name, b.hidden())?;
+                Some(b)
+            }
+        };
         let m = &bundle.manifest.model;
         Ok(BundleHeads {
             backend: words.backend.clone(),
@@ -219,6 +250,8 @@ impl BundleHeads {
             entities,
             dependencies,
             lemmas,
+            split,
+            sentences,
             model_id: m.id.clone(),
             model_revision: m.revision.clone(),
             manifest_sha256: bundle.manifest_sha256.clone(),
@@ -257,6 +290,7 @@ impl BundleHeads {
             entities: self.entities.is_ok(),
             dependencies: self.dependencies.is_ok(),
             lemmas: self.lemmas.is_ok(),
+            words: self.split.is_ok(),
             tags: None,
         }
     }
@@ -299,6 +333,10 @@ impl BundleHeads {
                 self.lemma_tag_labels()?;
                 out.lemmas = Some(sequences.iter().map(|_| Vec::new()).collect());
             }
+            if want.words {
+                self.split.as_ref().map_err(|m| unsupported("token splitting", "words", Some(m)))?;
+                out.words = Some(sequences.iter().map(|_| Vec::new()).collect());
+            }
             return Ok(out);
         }
         let mut poolings: Vec<WordPooling> = Vec::new();
@@ -331,11 +369,18 @@ impl BundleHeads {
         if let Some((t, _)) = morph {
             pool(t.spec().word_pooling);
         }
-        if let Some((t, _)) = ents {
-            pool(t.spec().word_pooling);
+        if let Some((e, _)) = ents {
+            pool(e.spec().word_pooling);
         }
         if let Some((p, _)) = deps {
             pool(p.spec().word_pooling);
+        }
+        let split = want
+            .words
+            .then(|| self.split.as_ref().map_err(|m| unsupported("token splitting", "words", Some(m))))
+            .transpose()?;
+        if let Some(t) = split {
+            pool(t.spec().word_pooling);
         }
         if let Some((l, t)) = lem {
             pool(l.spec().word_pooling);
@@ -357,19 +402,11 @@ impl BundleHeads {
         if let Some((t, _)) = morph {
             out.morphology = Some(decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?);
         }
-        if let Some((t, _)) = ents {
-            let decoded = decode_tagger(t, &of(t.spec().word_pooling, t.taps()), sequences)?;
-            let mut all = Vec::with_capacity(decoded.len());
-            for d in &decoded {
-                let mut found = Vec::new();
-                for w in t.spans(&d.tags)? {
-                    let p = &d.prob[w.start as usize..w.end as usize];
-                    let prob = p.iter().sum::<f64>() / p.len() as f64;
-                    found.push(Entity { start: w.start, end: w.end, kind: w.kind, prob });
-                }
-                all.push(found);
-            }
-            out.entities = Some(all);
+        if let Some((e, _)) = ents {
+            out.entities = Some(e.decode(&of(e.spec().word_pooling, e.taps()), sequences)?);
+        }
+        if let Some(t) = split {
+            out.words = Some(split_sequences(t, &of(t.spec().word_pooling, t.taps()), sequences)?);
         }
         if let Some((p, _)) = deps {
             out.dependencies = Some(parse_sequences(p, &of(p.spec().word_pooling, p.taps()))?);

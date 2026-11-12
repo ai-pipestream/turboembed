@@ -40,6 +40,26 @@ type All = (PosTags, Entities, Dependencies<Tokens>, Lemmas);
 const DOC: &str = "Ann met Bob in Paris, and the quiet old dog slept by the river. Bob walked the dog while Ann \
                    watched the river and the old dog.";
 
+/// What `annotate-v1` plans and writes on a bundle with the four heads.
+const FOUR_HEAD_STEPS: [&str; 7] = [
+    "turbo-structure:blocks",
+    "turbo-sentdetect:rules",
+    "turbo-tokenize:uax29-untyped",
+    "turbo-tagger:pos",
+    "turbo-tagger:entities",
+    "turbo-tagger:dependencies",
+    "turbo-tagger:lemmas",
+];
+const FOUR_HEAD_LAYERS: [&str; 7] = [
+    "turbo:structure",
+    "turbo:sentences",
+    "turbo:tokens",
+    "turbo:pos",
+    "turbo:entities",
+    "turbo:dependencies",
+    "turbo:lemmas",
+];
+
 fn model(bundle: &Path, name: &str) -> ModelConfig {
     ModelConfig {
         bundle: bundle.to_str().unwrap().to_string(),
@@ -83,6 +103,7 @@ fn request(doc_id: &str, profile: &str, steps: &[&str]) -> AnalyzePipelineReques
         open_span: None,
         relations: None,
         relation_model: String::new(),
+        vocabulary: None,
     }
 }
 
@@ -118,15 +139,16 @@ async fn annotate_v1_writes_each_head_layer_as_the_tagger_annotators_do() {
     let (server, mut client) = serve_models(vec![model(&dir, "heads")]).await;
     let events = run(&mut client, request("annotate", "annotate-v1", &[])).await;
 
-    assert_eq!(events.len(), ANNOTATE_V1.steps.len() + 3);
+    // The profile's head step plans one step for each of the four heads.
+    assert_eq!(events.len(), FOUR_HEAD_STEPS.len() + 3);
     let Some(Event::Started(started)) = &events[0].event else { panic!("no Started event") };
-    assert_eq!(started.step_ids.len(), ANNOTATE_V1.steps.len());
-    for step in ANNOTATE_V1.steps {
+    assert_eq!(started.step_ids.len(), FOUR_HEAD_STEPS.len());
+    for step in FOUR_HEAD_STEPS {
         assert!(started.step_ids.iter().any(|s| s == step), "{step} planned: {:?}", started.step_ids);
     }
     let complete = complete(&events);
     let produced: Vec<&str> = complete.layers.iter().map(|l| l.layer.as_str()).collect();
-    assert_eq!(produced, ANNOTATE_V1.layers);
+    assert_eq!(produced, FOUR_HEAD_LAYERS);
     for l in &complete.layers {
         assert_eq!(l.status, LayerWireStatus::Ok as i32, "layer {} failed: {:?}", l.layer, l.error);
     }
@@ -259,7 +281,7 @@ async fn a_bundle_without_the_head_is_refused_naming_the_head() {
     let (server, mut client) = serve().await;
     let err = client.analyze_document_progressive(request("no-heads", "annotate-v1", &[])).await.unwrap_err();
     assert_eq!(err.code(), Code::NotFound);
-    assert!(err.message().contains("head.pos"), "{}", err.message());
+    assert!(err.message().contains("head.any"), "{}", err.message());
 
     let steps = ["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped", "turbo-tagger:lemmas"];
     let err = client.analyze_document_progressive(request("no-lemma", "", &steps)).await.unwrap_err();
@@ -273,7 +295,7 @@ async fn a_bundle_without_the_head_is_refused_naming_the_head() {
     server.stop().await;
 
     // A bundle whose entity head is a span classifier serves the span
-    // step, not the entity step the profile requires.
+    // step, not the entity step.
     let span_head = json!({
         "name": "mentions", "layer": "turboembed:entities", "kind": "HEAD_SPAN_CLASSIFIER",
         "labels": ["O", "PER", "LOC"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
@@ -287,7 +309,8 @@ async fn a_bundle_without_the_head_is_refused_naming_the_head() {
         caps.bundles[0].head_steps,
         ["turbo-tagger:pos", "turbo-tagger:dependencies", "turbo-tagger:lemmas", "turbo-tagger:spans"]
     );
-    let err = client.analyze_document_progressive(request("spans", "annotate-v1", &[])).await.unwrap_err();
+    let steps = ["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped", "turbo-tagger:entities"];
+    let err = client.analyze_document_progressive(request("spans", "", &steps)).await.unwrap_err();
     assert_eq!(err.code(), Code::NotFound);
     assert!(err.message().contains("head.entities"), "{}", err.message());
     let steps = ["turbo-sentdetect:rules", "turbo-tokenize:uax29-untyped", "turbo-tagger:spans"];

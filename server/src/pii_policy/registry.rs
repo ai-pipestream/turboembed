@@ -1,6 +1,8 @@
 //! The server's [`PolicyResolver`]: keyed-token strategies resolve their
 //! key reference through #1909's token key registry (`--pii-token-key`),
-//! every registered key loaded at start, and dictionary references
+//! the AES-256-GCM and FF1 strategies theirs through the encryption keys
+//! (`--pii-encryption-key`, #1885), every registered key loaded at start,
+//! and dictionary references
 //! resolve through the vocabulary store (`--vocabulary-dir`, #1882 part
 //! C), pinned by content.
 //!
@@ -17,7 +19,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use super::{PolicyResolver, ResolveError};
-use crate::release::keys::{TokenKey, TokenKeyFile};
+use crate::release::keys::{EncryptionKey, TokenKey, TokenKeyFile};
 use crate::vocabulary::{Store, Stored, formats};
 
 /// The format a term source takes.
@@ -37,8 +39,11 @@ enum Resolved {
 #[derive(Default)]
 pub struct ServerResolver {
     keys: Vec<TokenKey>,
+    encryption: Vec<EncryptionKey>,
     store: Option<Arc<Store>>,
     cache: Mutex<HashMap<(String, String), Resolved>>,
+    /// The encryption keys serve named policies only (#2111).
+    named_only_encryption: bool,
 }
 
 impl std::fmt::Debug for ServerResolver {
@@ -46,18 +51,43 @@ impl std::fmt::Debug for ServerResolver {
         let cached: Vec<String> = self.cache().keys().map(|(id, sha)| format!("{id}@{sha}")).collect();
         f.debug_struct("ServerResolver")
             .field("keys", &self.keys.iter().map(|k| k.key.to_string()).collect::<Vec<_>>())
+            .field("encryption_keys", &self.encryption.iter().map(|k| k.key.to_string()).collect::<Vec<_>>())
             .field("vocabulary_store", &self.store.is_some())
             .field("dictionaries", &cached)
+            .field("named_only_encryption", &self.named_only_encryption)
             .finish()
     }
 }
 
 impl ServerResolver {
-    /// Reads every registered key file; dictionaries resolve through
-    /// `store`, and are refused without one.
-    pub(crate) fn load(files: &[TokenKeyFile], store: Option<Arc<Store>>) -> Result<ServerResolver, String> {
-        let keys = files.iter().map(TokenKey::load).collect::<Result<_, _>>()?;
-        Ok(ServerResolver { keys, store, cache: Mutex::default() })
+    /// Reads every registered token key file and encryption key file;
+    /// dictionaries resolve through `store`, and are refused without one.
+    /// An encryption key whose bytes are a token key's is refused: one
+    /// key, one use.
+    pub(crate) fn load(
+        files: &[TokenKeyFile],
+        encryption: &[TokenKeyFile],
+        store: Option<Arc<Store>>,
+    ) -> Result<ServerResolver, String> {
+        let keys: Vec<TokenKey> = files.iter().map(TokenKey::load).collect::<Result<_, _>>()?;
+        let encryption: Vec<EncryptionKey> = encryption.iter().map(EncryptionKey::load).collect::<Result<_, _>>()?;
+        for e in &encryption {
+            if let Some(t) = keys.iter().find(|t| t.bytes() == e.bytes()) {
+                return Err(format!(
+                    "--pii-encryption-key {} holds the bytes of --pii-token-key {}: one key, one use",
+                    e.key, t.key
+                ));
+            }
+        }
+        Ok(ServerResolver { keys, encryption, store, cache: Mutex::default(), named_only_encryption: false })
+    }
+
+    /// The same resolver, its encryption keys kept from inline policies:
+    /// for keys loaded without `--pii-grant`, where callers need not be
+    /// authenticated (#2111).
+    pub(crate) fn named_only_encryption(mut self) -> ServerResolver {
+        self.named_only_encryption = true;
+        self
     }
 
     pub fn shared(self) -> Arc<ServerResolver> {
@@ -96,7 +126,8 @@ impl ServerResolver {
             Some(Stored::Dictionary(..)) => return Err(ResolveError::DigestMismatch),
             Some(Stored::Vocabulary(..)) | None => return Err(ResolveError::NotRegistered),
         };
-        let resolved = parse(&bytes).map_err(|_| ResolveError::Unreadable)?;
+        let resolved =
+            parse(&bytes).map_err(|reason| ResolveError::Unparsable { format: format.to_owned(), reason })?;
         self.cache().insert(key, resolved.clone());
         Ok(resolved)
     }
@@ -108,11 +139,23 @@ impl ServerResolver {
 }
 
 impl PolicyResolver for ServerResolver {
+    fn inline_encryption(&self) -> bool {
+        !self.named_only_encryption
+    }
+
     fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError> {
         self.keys
             .iter()
             .find(|k| k.key.id == id && k.key.version == version)
             .map(TokenKey::bytes)
+            .ok_or(ResolveError::NotRegistered)
+    }
+
+    fn encryption_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError> {
+        self.encryption
+            .iter()
+            .find(|k| k.key.id == id && k.key.version == version)
+            .map(EncryptionKey::bytes)
             .ok_or(ResolveError::NotRegistered)
     }
 

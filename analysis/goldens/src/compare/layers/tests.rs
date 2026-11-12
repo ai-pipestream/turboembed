@@ -9,7 +9,7 @@ use crate::format::{
     AnnotatorRef, Column, ColumnData, Generator, Golden, GoldenAnchor, GoldenLayer, Header, Input, Jdk, OpenNlp,
     UnicodeVersion,
 };
-use crate::sha::sha256;
+use turbo_sha256::sha256;
 
 fn dummy_golden(text: &str, layers: Vec<GoldenLayer>) -> Golden {
     Golden {
@@ -23,7 +23,7 @@ fn dummy_golden(text: &str, layers: Vec<GoldenLayer>) -> Golden {
                 id: "0".into(),
                 utf8_len: text.len() as u32,
                 utf16_len: text.encode_utf16().count() as u32,
-                sha256: sha256(text.as_bytes()),
+                sha256: sha256(text.as_bytes()).0,
             },
             models: Vec::new(),
             annotator: AnnotatorRef { class: "test".into(), method: "test".into() },

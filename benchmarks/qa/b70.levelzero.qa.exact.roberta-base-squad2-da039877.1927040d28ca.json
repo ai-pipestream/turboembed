@@ -1,0 +1,88 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-11-10T01:17:18Z",
+  "machine": {
+    "arch": "b70",
+    "host_cpu": "",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "levelzero",
+    "kind": "DEVICE_GPU",
+    "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+    "vendor": "Intel",
+    "driver_version": "1.3.39122",
+    "runtime_version": "1.32.0",
+    "memory_total": 32530182144
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 levelzero cpu",
+    "commit": "1927040d28ca135c37907f0e488eefeb68ccef2d",
+    "pushed_to": [
+      "origin/claude/2006-levelzero-qa-head"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "deepset/roberta-base-squad2",
+  "revision": "1",
+  "manifest_sha256": "da0398773c5b3c8d547dd5b46f5f7d030eb42ebb74c3a4693ce081a3bb792630",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "batch": 8,
+  "max_batch": 32,
+  "bins": [
+    {
+      "min_tokens": 0,
+      "max_tokens": 128,
+      "questions": 256,
+      "windows": 256,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 370.33297300000004,
+      "min_ms": 369.928758,
+      "max_ms": 371.82937599999997,
+      "questions_per_second": 691.2697995163395,
+      "windows_per_second": 691.2697995163395
+    },
+    {
+      "min_tokens": 128,
+      "max_tokens": 256,
+      "questions": 256,
+      "windows": 256,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 674.524521,
+      "min_ms": 673.2852350000001,
+      "max_ms": 675.673296,
+      "questions_per_second": 379.52660285866756,
+      "windows_per_second": 379.52660285866756
+    },
+    {
+      "min_tokens": 256,
+      "max_tokens": 384,
+      "questions": 256,
+      "windows": 263,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 1151.857621,
+      "min_ms": 1143.17846,
+      "max_ms": 1158.000941,
+      "questions_per_second": 222.24969070200734,
+      "windows_per_second": 228.32683068214035
+    },
+    {
+      "min_tokens": 384,
+      "max_tokens": 0,
+      "questions": 210,
+      "windows": 471,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 2021.0530320000003,
+      "min_ms": 2018.8371869999999,
+      "max_ms": 2027.14783,
+      "questions_per_second": 103.90622941357829,
+      "windows_per_second": 233.046828827597
+    }
+  ]
+}

@@ -6,6 +6,7 @@ pub(super) fn optimize(
     model: &mut FeedforwardDependencyModel,
     examples: &[(Vec<usize>, usize)],
     settings: &FeedforwardSettings,
+    observe: &mut dyn FnMut(&FeedforwardEpoch) -> bool,
 ) -> Result<()> {
     // The weights change below: no slot contribution of the old ones stays.
     model.fixed = SlotTable::default();
@@ -28,8 +29,9 @@ pub(super) fn optimize(
     let mut probabilities = vec![0.0; o];
     let mut delta_h = vec![0.0; h];
     let mut delta_x = vec![0.0; input];
-    for _ in 0..settings.epochs {
+    for epoch in 1..=settings.epochs {
         random.shuffle(&mut order);
+        let mut loss = 0.0;
         for batch in order.chunks(settings.batch_size) {
             for g in &mut gradients {
                 g.fill(0.0);
@@ -74,6 +76,7 @@ pub(super) fn optimize(
                 for p in &mut probabilities {
                     *p /= norm;
                 }
+                loss -= probabilities[*gold].max(f64::MIN_POSITIVE).ln();
                 delta_h.fill(0.0);
                 delta_x.fill(0.0);
                 for (out, &p) in probabilities.iter().enumerate() {
@@ -134,6 +137,10 @@ pub(super) fn optimize(
                     0.0,
                 )?;
             }
+        }
+        let report = FeedforwardEpoch { epoch, epochs: settings.epochs, loss: loss / examples.len() as f64 };
+        if !observe(&report) {
+            return Err(error("feedforward training was stopped by its observer"));
         }
     }
     model.check()?;

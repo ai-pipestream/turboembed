@@ -90,7 +90,7 @@ fn reproduce(source: &Source, dir: &Path) -> Result<()> {
             .status()?;
         require(status.success(), format!("download failed: {}", source.id))?;
     }
-    require(to_hex(&sha256(&fs::read(&pdf)?)) == source.pdf_sha, format!("PDF changed: {}", source.id))?;
+    require(to_hex(sha256(&fs::read(&pdf)?)) == source.pdf_sha, format!("PDF changed: {}", source.id))?;
     let extracted = dir.join(format!("{}.txt", source.id));
     let status = if source.mupdf {
         Command::new("mutool")
@@ -111,7 +111,7 @@ fn reproduce(source: &Source, dir: &Path) -> Result<()> {
     };
     require(status.success(), format!("extraction failed: {}", source.id))?;
     let raw = fs::read(extracted)?;
-    require(to_hex(&sha256(&raw)) == source.text_sha, format!("extraction changed: {}", source.id))?;
+    require(to_hex(sha256(&raw)) == source.text_sha, format!("extraction changed: {}", source.id))?;
     let fixture =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("data/extracted-pdf").join(format!("{}.escaped", source.id));
     let encoded = fs::read_to_string(fixture)?;

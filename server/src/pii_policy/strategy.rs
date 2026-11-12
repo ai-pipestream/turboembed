@@ -1,16 +1,18 @@
 //! `PiiRewriteStrategy` messages to #1902's [`RewriteStrategy`] and back.
 
 use turbo_pii::rewrite::{
-    Abbreviator, FormatRedactor, HmacTokenizer, KeepSide, MapReplacer, MapTarget, MaskPolicy, Pseudonymizer,
-    RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate,
+    Abbreviator, AgeSafeHarbor, DateMode, DateRewrite, DateShift, FormatRedactor, HmacTokenizer, KeepSide, MapReplacer,
+    MapTarget, MaskPolicy, Pseudonymizer, RewriteStrategy, Sha256Tokenizer, StaticReplacer, Truncate, ZipSafeHarbor,
 };
 
 use super::error::{At, PolicyError};
 use super::resolve::{PolicyResolver, check_dictionary, check_key_id};
 use crate::proto::result::{
+    PiiAgeSafeHarborStrategy, PiiDateRelative, PiiDateSafeHarbor, PiiDateShift, PiiDateStrategy, PiiDateYear,
     PiiFormatStrategy, PiiKeepSide, PiiKeyedTokenStrategy, PiiLastNStrategy, PiiMapStrategy, PiiMapTarget,
     PiiMaskStrategy, PiiPseudonymStrategy, PiiRewriteStrategy, PiiSha256Strategy, PiiStaticStrategy, PiiStrategy,
-    PiiTruncateStrategy, pii_map_strategy::Table, pii_rewrite_strategy::Strategy,
+    PiiTruncateStrategy, PiiZipSafeHarborStrategy, pii_date_strategy::Mode, pii_map_strategy::Table,
+    pii_rewrite_strategy::Strategy,
 };
 
 /// A whole-value mask with `'*'`: the conservative default, and what
@@ -105,6 +107,68 @@ fn map(
     Ok(RewriteStrategy::Map(Box::new(replacer.with_target(target).with_fallback(fallback))))
 }
 
+/// The most restricted prefixes a ZIP Safe Harbor table may list: every
+/// three-digit area there is.
+const MAX_ZIP_PREFIXES: usize = 1000;
+
+fn zip_safe_harbor(at: At, z: &PiiZipSafeHarborStrategy) -> Result<RewriteStrategy, PolicyError> {
+    let c = mask_char(at, &z.mask_char, ZipSafeHarbor::DEFAULT_MASK)?;
+    let zip = if z.restricted_prefixes.is_empty() {
+        ZipSafeHarbor::hhs_2000()
+    } else if z.restricted_prefixes.len() > MAX_ZIP_PREFIXES {
+        return Err(invalid(at, format_args!("more than {MAX_ZIP_PREFIXES} restricted ZIP prefixes")));
+    } else {
+        ZipSafeHarbor::with_restricted(&z.restricted_prefixes).map_err(|e| invalid(at, e))?
+    };
+    Ok(RewriteStrategy::ZipSafeHarbor(zip.with_mask(c)))
+}
+
+/// The keyed offset's width when `max_days` is 0.
+const DEFAULT_KEYED_DAYS: u32 = 30;
+
+fn date_shift(at: At, s: &PiiDateShift, resolver: &dyn PolicyResolver) -> Result<DateShift, PolicyError> {
+    let fixed = DateShift::fixed(s.years, s.months, s.days);
+    let Some(key) = &s.key else {
+        if s.max_days != 0 || !s.context.is_empty() {
+            return Err(invalid(at, "date.shift.max_days and date.shift.context need date.shift.key"));
+        }
+        return Ok(fixed);
+    };
+    check_key_id(at, &key.id)?;
+    let bytes = resolver.hmac_key(&key.id, key.version).map_err(|e| PolicyError::Unresolved {
+        at,
+        field: "date.shift.key",
+        reason: e.reason(),
+    })?;
+    let max_days = if s.max_days == 0 { DEFAULT_KEYED_DAYS } else { s.max_days };
+    // DateShiftError names lengths and day counts only, never the key.
+    fixed.keyed(bytes, &s.context, max_days).map_err(|e| invalid(at, e))
+}
+
+/// The required `yyyy-MM-dd` reference date in `field`.
+fn reference_date(at: At, field: &'static str, reference: &str) -> Result<turbo_pii::rewrite::Date, PolicyError> {
+    if reference.is_empty() {
+        return Err(PolicyError::Missing { at, field });
+    }
+    turbo_pii::rewrite::Date::parse(reference)
+        .ok_or_else(|| invalid(at, format!("{field} is not a yyyy-MM-dd date: {reference:?}")))
+}
+
+fn date(at: At, d: &PiiDateStrategy, resolver: &dyn PolicyResolver) -> Result<RewriteStrategy, PolicyError> {
+    let mode = match d.mode.as_ref().ok_or(PolicyError::Missing { at, field: "date.mode" })? {
+        Mode::Year(PiiDateYear {}) => DateMode::Year,
+        Mode::Shift(s) => DateMode::Shift(date_shift(at, s, resolver)?),
+        Mode::Relative(PiiDateRelative { reference }) => {
+            DateMode::Relative(reference_date(at, "date.relative.reference", reference)?)
+        }
+        Mode::SafeHarbor(PiiDateSafeHarbor { reference }) => {
+            DateMode::SafeHarbor(reference_date(at, "date.safe_harbor.reference", reference)?)
+        }
+    };
+    let c = mask_char(at, &d.mask_char, DateRewrite::DEFAULT_MASK)?;
+    Ok(RewriteStrategy::Date(DateRewrite::new(mode).with_mask(c)))
+}
+
 /// The native strategy of `s`, or `None` when its arm is unset or unknown
 /// to this server (the caller decides between refusing and flagging).
 /// `default` is what an unset map fallback gets.
@@ -164,11 +228,19 @@ pub(crate) fn strategy(
         Strategy::Pseudonym(PiiPseudonymStrategy { prefix, suffix }) => {
             RewriteStrategy::Pseudonym(Pseudonymizer::new(prefix.as_str(), suffix.as_str()))
         }
+        Strategy::ZipSafeHarbor(z) => zip_safe_harbor(at, z)?,
+        Strategy::AgeSafeHarbor(PiiAgeSafeHarborStrategy { mask_char: c }) => RewriteStrategy::AgeSafeHarbor(
+            AgeSafeHarbor::new().with_mask(mask_char(at, c, AgeSafeHarbor::DEFAULT_MASK)?),
+        ),
+        Strategy::Date(d) => date(at, d, resolver)?,
+        Strategy::Aes256Gcm(a) => return super::reversible::aes_gcm(at, a, resolver),
+        Strategy::Ff1(f) => return super::reversible::ff1(at, f, resolver),
     }))
 }
 
 /// The `PiiStrategy` value an edit written by arm `s` records: exactly one
-/// per arm, the same as the converted strategy's
+/// per arm (per mode for the date arm; an unset mode is refused before an
+/// edit is written and reads as `PII_STRATEGY_DATE_YEAR`), the same as the converted strategy's
 /// [`RewriteStrategy::kind`].
 pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
     match s {
@@ -181,6 +253,16 @@ pub fn edit_strategy(s: &Strategy) -> PiiStrategy {
         Strategy::Sha256(_) => PiiStrategy::Sha256,
         Strategy::StaticText(_) => PiiStrategy::Static,
         Strategy::Pseudonym(_) => PiiStrategy::Pseudonym,
+        Strategy::ZipSafeHarbor(_) => PiiStrategy::ZipSafeHarbor,
+        Strategy::AgeSafeHarbor(_) => PiiStrategy::AgeSafeHarbor,
+        Strategy::Date(d) => match d.mode {
+            Some(Mode::Shift(_)) => PiiStrategy::DateShift,
+            Some(Mode::Relative(_)) => PiiStrategy::DateRelative,
+            Some(Mode::SafeHarbor(_)) => PiiStrategy::DateSafeHarbor,
+            Some(Mode::Year(_)) | None => PiiStrategy::DateYear,
+        },
+        Strategy::Aes256Gcm(_) => PiiStrategy::Aes256Gcm,
+        Strategy::Ff1(_) => PiiStrategy::Ff1,
     }
 }
 
@@ -189,10 +271,11 @@ fn char_string(c: char, default: char) -> String {
 }
 
 /// The message for `s`, where the native value says all its message does:
-/// mask, truncate (a kept end is written as last-N), format, SHA-256 and
-/// pseudonym. A keyed token holds key bytes and no reference, a map its
-/// table, a static replacer per-kind texts and an abbreviator private
-/// punctuation, so those give `None`; a strategy that refuses overlaps has
+/// mask, truncate (a kept end is written as last-N), format, SHA-256,
+/// pseudonym, ZIP Safe Harbor, age Safe Harbor and an unkeyed date
+/// strategy. A keyed token, a keyed date shift, an AES-256-GCM or an FF1
+/// strategy holds key bytes and no reference, a map its table, a static replacer per-kind
+/// texts and an abbreviator private punctuation, so those give `None`; a strategy that refuses overlaps has
 /// no message field and gives `None` too.
 pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
     if s.refuses_overlaps() {
@@ -225,11 +308,36 @@ pub fn strategy_to_proto(s: &RewriteStrategy) -> Option<PiiRewriteStrategy> {
         RewriteStrategy::Pseudonym(p) => {
             Strategy::Pseudonym(PiiPseudonymStrategy { prefix: p.prefix.clone(), suffix: p.suffix.clone() })
         }
+        RewriteStrategy::ZipSafeHarbor(z) => Strategy::ZipSafeHarbor(PiiZipSafeHarborStrategy {
+            mask_char: char_string(z.mask(), ZipSafeHarbor::DEFAULT_MASK),
+            restricted_prefixes: if z.is_hhs_2000() { Vec::new() } else { z.restricted().map(str::to_owned).collect() },
+        }),
+        RewriteStrategy::AgeSafeHarbor(a) => Strategy::AgeSafeHarbor(PiiAgeSafeHarborStrategy {
+            mask_char: char_string(a.mask(), AgeSafeHarbor::DEFAULT_MASK),
+        }),
+        RewriteStrategy::Date(d) => Strategy::Date(PiiDateStrategy {
+            mode: Some(match d.mode() {
+                DateMode::Year => Mode::Year(PiiDateYear {}),
+                DateMode::Shift(s) if s.is_keyed() => return None,
+                DateMode::Shift(s) => Mode::Shift(PiiDateShift {
+                    years: s.years(),
+                    months: s.months(),
+                    days: s.days(),
+                    ..PiiDateShift::default()
+                }),
+                DateMode::Relative(r) => Mode::Relative(PiiDateRelative { reference: r.to_string() }),
+                DateMode::SafeHarbor(r) => Mode::SafeHarbor(PiiDateSafeHarbor { reference: r.to_string() }),
+            }),
+            mask_char: char_string(d.mask(), DateRewrite::DEFAULT_MASK),
+        }),
         RewriteStrategy::Mask(_)
         | RewriteStrategy::Hmac(_)
         | RewriteStrategy::Map(_)
         | RewriteStrategy::Static(_)
         | RewriteStrategy::Abbreviate(_) => return None,
+        // Each holds key bytes and no reference.
+        #[cfg(feature = "pii-reversible")]
+        RewriteStrategy::AesGcm(_) | RewriteStrategy::Ff1(_) => return None,
     };
     Some(PiiRewriteStrategy { strategy: Some(arm) })
 }

@@ -139,6 +139,16 @@ typedef struct turbo_analysis_result turbo_analysis_result; /* analysis spans an
 #define TURBO_PAIR_ROBERTA 2
 #define TURBO_TASK_EXTRACTIVE_QA 3
 
+/* turbo_model_info.license_class: the model zoo's licence classes, least
+ * to most restrictive (docs/zoo.md). LOCAL_ONLY is fetched only after the
+ * user accepts the licence and is never redistributed. */
+#define TURBO_LICENSE_CLASS_UNSTATED    0   /* the manifest names no class */
+#define TURBO_LICENSE_CLASS_PERMISSIVE  1
+#define TURBO_LICENSE_CLASS_LGPL        2
+#define TURBO_LICENSE_CLASS_SHARE_ALIKE 3
+#define TURBO_LICENSE_CLASS_GPL         4
+#define TURBO_LICENSE_CLASS_LOCAL_ONLY  5
+
 /* What a (device, task) cell may say. There is no "planned": a thing that
  * does not run is unsupported. */
 #define TURBO_CAP_UNSUPPORTED  0
@@ -287,7 +297,7 @@ typedef struct turbo_device_info {
                                   * filed under arch and name together */
     char     name[128];          /* what the driver calls it */
     char     vendor[64];
-    char     backend[32];        /* cuda, openvino, metal, hailo, ggml */
+    char     backend[32];        /* cuda, levelzero, metal, hailo, npu or cpu */
     char     runtime_version[64];   /* the vendor runtime this build linked */
     char     driver_version[64];    /* empty where there is none */
 } turbo_device_info;
@@ -314,11 +324,18 @@ typedef struct turbo_capability {
     char     reason[160];         /* why it is not SUPPORTED, else empty */
 } turbo_capability;
 
+/* With the levelzero backend, the first call that finds a Level Zero
+ * loader may set NEOReadDebugKeys=1 and EnableRecoverablePageFaults=0 in
+ * the process's environment, before the drivers start (docs/levelzero.md,
+ * page faults). setenv is not safe while another thread is in getenv or
+ * setenv, so that call must not race one; to have nothing written, set
+ * EnableRecoverablePageFaults yourself, or NEOReadDebugKeys to anything
+ * but 1. */
 int32_t turbo_runtime_create(const turbo_runtime_desc *desc, turbo_runtime **out, turbo_error *err);
 void    turbo_runtime_release(turbo_runtime *rt);
 
 /* The library version and the backends compiled into this build, as a
- * static string: "0.1.0 cuda openvino". */
+ * static string, accelerators first and the CPU last: "0.1.0 cuda cpu". */
 const char *turbo_version(void);
 /* The status constant's name as this file spells it: "TURBO_OK" for 0,
  * "TURBO_E_CAPACITY" for 771, and "TURBO_E_UNKNOWN" for a code this file
@@ -413,9 +430,13 @@ typedef struct turbo_model_info {
                                                       name, ascending; 0 past the count */
     uint32_t rerank_query_tokens;    /* rerank: default query truncation budget */
     uint32_t rerank_pair_template;   /* rerank: TURBO_PAIR_BERT or TURBO_PAIR_ROBERTA */
+    char     license[128];           /* manifest model.license, an SPDX expression */
+    uint32_t license_class;          /* TURBO_LICENSE_CLASS_*: the most restrictive of
+                                        model.license_class and every head's corpora */
     /* Fields marked embed are 0 or empty for a model of another task. The
-     * library also accepts a struct_size that ends before output_dims_count
-     * or before rerank_query_tokens, writing only the caller's prefix. */
+     * library also accepts a struct_size that ends before output_dims_count,
+     * before rerank_query_tokens or before license, writing only the
+     * caller's prefix. */
 } turbo_model_info;
 
 /* Load a bundle directory on the context's device. Every file is checked
@@ -664,11 +685,11 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * opts may be NULL.
  *
  * On an extractive QA model (TURBO_TASK_EXTRACTIVE_QA) whose device applies
- * the span head (the cuda backend), each range's vector goes through the
- * head on the device and its row is the head's [start, end] logits: dim
- * is 2, and a read copies 8 bytes a range. The head reads the whole
- * vector, so there a normalization that resolves to other than
- * TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
+ * the span head (the cuda, levelzero and metal backends), each range's
+ * vector goes through the head on the device and its row is the head's
+ * [start, end] logits: dim is 2, and a read copies 8 bytes a range. The
+ * head reads the whole vector, so there a normalization that resolves to
+ * other than TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
  * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim that
  * resolves to other than the model's dim the same naming field 6.
  * A quantization other than F32 is TURBO_E_UNSUPPORTED_OPTION naming
@@ -691,10 +712,11 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * checked against the model before the device. Only then is above 1 on a
  * device whose turbo_capability.options_honored lacks field 9's bit, on a
  * static model (its table is its one layer), or on a model whose device
- * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu
- * backend sets the bit and reads the earlier layers of its BERT, RoBERTa,
- * ModernBERT, nomic-bert and DeBERTa-v2 encoders. count times layers
- * over the session's max_ranges is TURBO_E_CAPACITY. Everything else is as
+ * applies a span head, TURBO_E_UNSUPPORTED_OPTION naming field 9. The cpu,
+ * cuda, levelzero and metal backends set the bit and read the earlier layers of
+ * their BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders.
+ * count times layers over the session's max_ranges is TURBO_E_CAPACITY.
+ * Everything else is as
  * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,
                                        const turbo_token_range *ranges, uint32_t count,
@@ -709,7 +731,8 @@ int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch
  * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
-/* Cross-encoder reranking, on the CPU or through CUDA's embedding encoder. Output is [pair_count, 1] F32 raw relevance
+/* Cross-encoder reranking, on the CPU or through the CUDA, Level Zero or
+ * Metal embedding encoder. Output is [pair_count, 1] F32 raw relevance
  * logits, max-pooled over passage windows. Model and artifact identity are
  * in turbo_result_info. No sigmoid is applied. */
 typedef struct turbo_rerank_options {
@@ -813,6 +836,7 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_ANALYSIS_LAYER_PII       6
 #define TURBO_ANALYSIS_LAYER_DEPENDENCIES 7
 #define TURBO_ANALYSIS_LAYER_MORPHOLOGY 8
+#define TURBO_ANALYSIS_LAYER_WORDS     9
 
 #define TURBO_SPAN_VIEW_RANGE   (1u << 0)
 #define TURBO_SPAN_SOURCE_RANGE (1u << 1)
@@ -847,12 +871,72 @@ void    turbo_result_release(turbo_result *r);
  * label still holds the kind's name and classification its tier. */
 #define TURBO_ANALYZER_PII_KIND_IDS (1u << 1)
 
+/* turbo_analyzer_desc.flags. TURBO_ANALYZER_PII_DETAIL: populate PII
+ * candidate rows (turbo_analysis_result_pii_candidates) in detect_pii,
+ * analyze_graph and inspect_graph, and include the turbo:pii-candidates
+ * layer in the graph turbo_analyzer_analyze_graph writes. Off by default:
+ * candidate rows are omitted unless asked for (#1941). */
+#define TURBO_ANALYZER_PII_DETAIL (1u << 2)
+
 /* Discrete PII evidence tier codes (not a monotonic numeric scale:
  * 3 = LABELLED_CHECKSUM is stronger than 4 = LABELLED). */
 #define TURBO_PII_CONFIDENCE_FORMAT            1
 #define TURBO_PII_CONFIDENCE_CHECKSUM          2
 #define TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM 3
 #define TURBO_PII_CONFIDENCE_LABELLED          4
+
+/* Structured PII evidence fact kind tags (turbo_pii_fact.kind), matching
+ * the binary layer codec. 0 is no fact. */
+#define TURBO_PII_EVIDENCE_SHAPE    1
+#define TURBO_PII_EVIDENCE_CHECKSUM 2
+#define TURBO_PII_EVIDENCE_LABEL    3
+#define TURBO_PII_EVIDENCE_DENY_HIT 4
+#define TURBO_PII_EVIDENCE_RULE     5
+
+/* Stable checksum algorithm ids for TURBO_PII_EVIDENCE_CHECKSUM
+ * (turbo_pii_fact.a), matching ChecksumAlgorithm::id in the layer codec. */
+#define TURBO_PII_CHECKSUM_LUHN            1
+#define TURBO_PII_CHECKSUM_MOD97           2
+#define TURBO_PII_CHECKSUM_MOD11           3
+#define TURBO_PII_CHECKSUM_MOD23           4
+#define TURBO_PII_CHECKSUM_ES_CIF          5
+#define TURBO_PII_CHECKSUM_ISO7064_MOD11_10 6
+#define TURBO_PII_CHECKSUM_ICAO9303        7
+#define TURBO_PII_CHECKSUM_BASE58CHECK     8
+#define TURBO_PII_CHECKSUM_BECH32          9
+#define TURBO_PII_CHECKSUM_EIP55           10
+#define TURBO_PII_CHECKSUM_ABA_WEIGHTS     11
+#define TURBO_PII_CHECKSUM_OTHER           12
+#define TURBO_PII_CHECKSUM_LA_POSTE_MOD5   13
+#define TURBO_PII_CHECKSUM_VIN             14
+#define TURBO_PII_CHECKSUM_UPS_MOD10       15
+#define TURBO_PII_CHECKSUM_FEDEX_MOD11     16
+#define TURBO_PII_CHECKSUM_GS1_MOD10       17
+
+/* PII model score kinds (turbo_pii_span.score_kind and
+ * turbo_pii_candidate.score_kind), matching PiiScoreKind::id. 0 means no
+ * score is present (score_value is NaN). */
+#define TURBO_PII_SCORE_PROBABILITY 1
+#define TURBO_PII_SCORE_LOGIT       2
+#define TURBO_PII_SCORE_HEURISTIC   3
+
+/* PII candidate disposition tags (turbo_pii_candidate.disposition), plus
+ * allow-rule scope, allow-rule kind and reject-reason codes, matching the
+ * binary turbo:pii-candidates layer codec. */
+#define TURBO_PII_DISPOSITION_KEPT             1
+#define TURBO_PII_DISPOSITION_ALLOWED_BY_RULE  2
+#define TURBO_PII_DISPOSITION_NESTED_IN        3
+#define TURBO_PII_DISPOSITION_REJECTED_BY_RULE 4
+#define TURBO_PII_DISPOSITION_REPEATS          5
+
+#define TURBO_PII_ALLOW_SCOPE_GLOBAL 1
+#define TURBO_PII_ALLOW_SCOPE_KIND   2
+
+#define TURBO_PII_ALLOW_RULE_TERM    1
+#define TURBO_PII_ALLOW_RULE_PATTERN 2
+
+#define TURBO_PII_REJECT_LABEL_REQUIRED 1
+#define TURBO_PII_REJECT_THRESHOLD      2
 
 /* Stable PII kind ids, the same numbers as the Rust kind registry, the
  * proto PiiKindId enum, Java TurboPiiKind and the binary layer codec. An
@@ -899,6 +983,11 @@ void    turbo_result_release(turbo_result *r);
 #define TURBO_PII_KIND_PHONE_EXTENSION    38
 #define TURBO_PII_KIND_AGE                39
 #define TURBO_PII_KIND_STREET_ADDRESS     40
+#define TURBO_PII_KIND_DATE               41
+#define TURBO_PII_KIND_CURRENCY           42
+#define TURBO_PII_KIND_STATE              43
+#define TURBO_PII_KIND_COUNTY             44
+#define TURBO_PII_KIND_CITY               45
 
 /* The numeric kind of a custom PII kind is TURBO_PII_KIND_CUSTOM_BASE + i
  * for entry i of its layer's custom-kind table, the binary layer codec's
@@ -909,8 +998,16 @@ void    turbo_result_release(turbo_result *r);
  * English with the rule sentence splitter and rule tokenizer only. The
  * learned components come from a bundle (docs/bundle.md) named by
  * bundle_path: its heads write the part-of-speech, morphology, lemma,
- * dependency and entity layers, each from the one head of the bundle whose
- * layer it is, in one encoder pass a sentence on the cpu backend. Without a
+ * dependency, entity and syntactic word layers, each from the one head of
+ * the bundle whose layer it is, in one encoder pass a sentence on the cpu
+ * backend. An entity head is a token tagger over BIO or BILOU labels or a
+ * span classifier (HEAD_SPAN_CLASSIFIER); the word layer's is a token
+ * split head (HEAD_TOKEN_SPLIT). A bundle with a sentence boundary head
+ * (HEAD_SENTENCE_BOUNDARY) finds the sentences of every task with it, over
+ * the rule tokenizer's tokens of the whole text, in place of the rule
+ * splitter; a head of another kind on the sentence layer fails
+ * turbo_analyzer_create with TURBO_E_UNSUPPORTED_TASK naming field 7, so
+ * no rule splitter stands in for it. Without a
  * bundle, or with a bundle lacking a layer's head, that layer's tasks fail
  * with TURBO_E_UNSUPPORTED_TASK naming what is missing, except on no
  * input: a task given empty text or a token count of 0 returns TURBO_OK
@@ -948,7 +1045,12 @@ typedef struct turbo_analyzer_desc {
  * fields are zero, and prob is NaN when TURBO_SPAN_PROBABILITY is clear.
  * token_start also carries a PII row's numeric kind under
  * TURBO_SPAN_PII_KIND, which never comes with TURBO_SPAN_TOKEN_RANGE.
- * Discontinuous items emit one row per fragment. For a morphology row,
+ * Discontinuous items emit one row per fragment. A word row
+ * (TURBO_ANALYSIS_LAYER_WORDS) is one syntactic word: its token range is
+ * the tokens it belongs to, its text range the bytes of its token it is
+ * (a "ca" of "can't") or else the whole token, and it has a label, its
+ * form, only when that form is not the text of its range (a "del" read as
+ * "de" and "el"). For a morphology row,
  * there is one row per token and label is the feature string as the
  * MorphFeatures layer writes it. classification is layer-specific:
  * TURBO_PII_CONFIDENCE_* for PII; for a dependency row, whose label is the
@@ -993,6 +1095,115 @@ typedef struct turbo_span {
     double   prob;
 } turbo_span;
 
+/* One structured evidence fact supporting a PII mention or candidate.
+ *
+ * A fact holds small integers only, never matched text or label text:
+ * - TURBO_PII_EVIDENCE_SHAPE (1): a = 0, b = 0, c = 0.
+ * - TURBO_PII_EVIDENCE_CHECKSUM (2): a is TURBO_PII_CHECKSUM_*, b is 1 when
+ *   the check passed and 0 when it failed, c = 0.
+ * - TURBO_PII_EVIDENCE_LABEL (3): a and b are [byte_start, byte_end) of the
+ *   context label in the layer's view, and c is the phrase index in the
+ *   kind's phrase list (built-in phrases first, then extra labels).
+ * - TURBO_PII_EVIDENCE_DENY_HIT (4): a is the deny-list index and b is the
+ *   term index within that list, c = 0.
+ * - TURBO_PII_EVIDENCE_RULE (5): a is the extractor rule number, b = 0,
+ *   c = 0. */
+typedef struct turbo_pii_fact {
+    uint32_t kind;
+    uint32_t a;
+    uint32_t b;
+    uint32_t c;
+} turbo_pii_fact;
+
+/* Per-row PII detector identity, evidence slice and optional model score
+ * for one TURBO_ANALYSIS_LAYER_PII row in turbo_analysis_result_spans.
+ *
+ * Every field is a 32-bit word (uint32_t or float), giving 14 words
+ * (56 bytes) at 4-byte alignment with no padding. String offsets and byte
+ * lengths slice turbo_analysis_result_strings. Facts lie at
+ * [fact_start, fact_end) in turbo_analysis_result_pii_facts. When
+ * score_kind is 0, the mention has no score (score_value is NaN and the
+ * score model slice is empty). */
+typedef struct turbo_pii_span {
+    uint32_t span_index;
+    uint32_t detector_id_offset;
+    uint32_t detector_id_len;
+    uint32_t detector_version_offset;
+    uint32_t detector_version_len;
+    uint32_t fact_start;
+    uint32_t fact_end;
+    uint32_t score_kind;
+    uint32_t score_calibrated;
+    uint32_t score_model_id_offset;
+    uint32_t score_model_id_len;
+    uint32_t score_model_version_offset;
+    uint32_t score_model_version_len;
+    float    score_value;
+} turbo_pii_span;
+
+/* One PII candidate row emitted when the analyzer is created with
+ * TURBO_ANALYZER_PII_DETAIL.
+ *
+ * Every field is a 32-bit word (uint32_t or float), giving 39 words
+ * (156 bytes) at 4-byte alignment with no padding. Candidates never carry
+ * matched text or a normalized value. String slices index
+ * turbo_analysis_result_strings; facts lie at [fact_start, fact_end) in
+ * turbo_analysis_result_pii_facts. instance_offset and instance_len name
+ * the turbo:pii-candidates layer instance; pii_instance_offset and
+ * pii_instance_len name the bound turbo:pii layer instance its mention
+ * references point into.
+ *
+ * Disposition fields (disposition is TURBO_PII_DISPOSITION_*):
+ * - KEPT (1), NESTED_IN (3), REPEATS (5): disposition_a is the index of the
+ *   kept mention in the bound turbo:pii layer (pii_instance_offset,
+ *   pii_instance_len); disposition_b = 0, disposition_c = 0.
+ * - ALLOWED_BY_RULE (2): disposition_a is TURBO_PII_ALLOW_SCOPE_*,
+ *   disposition_b is TURBO_PII_ALLOW_RULE_*, and disposition_c is the rule
+ *   index.
+ * - REJECTED_BY_RULE (4): disposition_a is TURBO_PII_REJECT_*;
+ *   disposition_b = 0, disposition_c = 0. */
+typedef struct turbo_pii_candidate {
+    uint32_t item_index;
+    uint32_t fragment_index;
+    uint32_t view_id;
+    uint32_t kind_code;
+    uint32_t view_byte_start;
+    uint32_t view_byte_end;
+    uint32_t view_utf16_start;
+    uint32_t view_utf16_end;
+    uint32_t view_codepoint_start;
+    uint32_t view_codepoint_end;
+    uint32_t source_byte_start;
+    uint32_t source_byte_end;
+    uint32_t source_utf16_start;
+    uint32_t source_utf16_end;
+    uint32_t source_codepoint_start;
+    uint32_t source_codepoint_end;
+    uint32_t instance_offset;
+    uint32_t instance_len;
+    uint32_t pii_instance_offset;
+    uint32_t pii_instance_len;
+    uint32_t label_offset;
+    uint32_t label_len;
+    uint32_t detector_id_offset;
+    uint32_t detector_id_len;
+    uint32_t detector_version_offset;
+    uint32_t detector_version_len;
+    uint32_t fact_start;
+    uint32_t fact_end;
+    uint32_t disposition;
+    uint32_t disposition_a;
+    uint32_t disposition_b;
+    uint32_t disposition_c;
+    uint32_t score_kind;
+    uint32_t score_calibrated;
+    uint32_t score_model_id_offset;
+    uint32_t score_model_id_len;
+    uint32_t score_model_version_offset;
+    uint32_t score_model_version_len;
+    float    score_value;
+} turbo_pii_candidate;
+
 /* Create, retain or release an analyzer handle. Both turbo_analyzer and
  * turbo_analysis_result are thread-safe (Send + Sync): an analyzer may be
  * called concurrently from multiple threads, and a result may be read or
@@ -1004,13 +1215,19 @@ int32_t turbo_analyzer_create(const turbo_analyzer_desc *desc, turbo_analyzer **
 turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *a);
 void    turbo_analyzer_release(turbo_analyzer *a);
 
-/* Detect sentence spans in UTF-8 text. Sentence text is read from the
- * row's source range; no covered-text copy is put in the string pool. */
+/* Detect sentence spans in UTF-8 text, with the bundle's sentence
+ * boundary head when it has one and the rule splitter otherwise. A head's
+ * sentence runs from its first token's start to its last token's end.
+ * Sentence text is read from the row's source range; no covered-text copy
+ * is put in the string pool. */
 int32_t turbo_analyzer_detect_sentences(turbo_analyzer *a, turbo_text text,
                                         turbo_analysis_result **out, turbo_error *err);
 
-/* Tokenize UTF-8 text. Token text is read from each row's source range;
- * its token range is the one-token range at its item index. */
+/* Tokenize UTF-8 text with the rule tokenizer. Token text is read from
+ * each row's source range; its token range is the one-token range at its
+ * item index. With a bundle's token split head the result also holds a
+ * word row (TURBO_ANALYSIS_LAYER_WORDS) for each syntactic word of the
+ * tokens, read a sentence at a time. */
 int32_t turbo_analyzer_tokenize(turbo_analyzer *a, turbo_text text,
                                 turbo_analysis_result **out, turbo_error *err);
 
@@ -1042,13 +1259,15 @@ int32_t turbo_analyzer_lemmatize(turbo_analyzer *a, const turbo_text *tokens,
  * the bundle's entity head only. No dictionary, pattern or other
  * recognizer is merged in, and nothing is kept between calls. Rows are
  * token-only: one row per entity, with its token range, its kind as the
- * label, and the mean of its tokens' probabilities. Without an entity head
- * this is unsupported. */
+ * label, and its probability: the mean of its tokens' for a tagger head,
+ * its kind's softmax among the span's own scores for a span classifier.
+ * Without an entity head this is unsupported. */
 int32_t turbo_analyzer_find_tokens(turbo_analyzer *a, const turbo_text *tokens, uint32_t count,
                                    turbo_analysis_result **out, turbo_error *err);
 
 /* Find named entities directly in UTF-8 text with the bundle's entity
- * head, over the rule tokenizer's tokens a sentence at a time. Rows are as
+ * head, over the rule tokenizer's tokens a sentence at a time (the
+ * sentences turbo_analyzer_detect_sentences finds). Rows are as
  * turbo_analyzer_find_tokens writes them, with the entity's view and
  * source ranges, and a token range into the tokens of the whole text.
  * Without an entity head this is unsupported. */
@@ -1063,13 +1282,17 @@ int32_t turbo_analyzer_find_text(turbo_analyzer *a, turbo_text text,
 int32_t turbo_analyzer_detect_pii(turbo_analyzer *a, turbo_text text,
                                   turbo_analysis_result **out, turbo_error *err);
 
-/* Run the rule sentence splitter and tokenizer, every head of the bundle
- * (one encoder pass a sentence) and the PII task over UTF-8 text,
+/* Find the sentences as turbo_analyzer_detect_sentences does, run the
+ * rule tokenizer, every head of the bundle (one encoder pass a sentence)
+ * and the PII task over UTF-8 text,
  * serialize the binary DocumentGraph ("TGRF" wire format) into the
  * result's graph buffer, and expose every supported layer instance as
  * typed rows. A layer whose head the bundle lacks is absent, never
  * replaced by a fallback layer: with no bundle the graph holds the
- * sentence, token and PII layers alone. */
+ * sentence, token and PII layers alone. Each layer's provenance names
+ * what wrote it: turbo:sentdetect or turbo-tagger-sentences for the
+ * sentences, turbo-tagger-entities or turbo-tagger-spans for the entities,
+ * turbo-tagger-words for the words. */
 int32_t turbo_analyzer_analyze_graph(turbo_analyzer *a, turbo_text text,
                                      turbo_analysis_result **out, turbo_error *err);
 
@@ -1087,6 +1310,29 @@ int32_t turbo_analyzer_inspect_graph(turbo_analyzer *a,
 int32_t turbo_analysis_result_spans(const turbo_analysis_result *r,
                                     const turbo_span **spans, uint32_t *count,
                                     turbo_error *err);
+
+/* Borrow the result's per-row PII metadata array (*pii_spans may be NULL
+ * when *count is 0). Each entry describes one TURBO_ANALYSIS_LAYER_PII row
+ * in turbo_analysis_result_spans (matched by span_index), in ascending
+ * span_index order. */
+int32_t turbo_analysis_result_pii_spans(const turbo_analysis_result *r,
+                                        const turbo_pii_span **pii_spans,
+                                        uint32_t *count, turbo_error *err);
+
+/* Borrow the result's contiguous PII evidence fact pool (*facts may be NULL
+ * when *count is 0). Entries in turbo_analysis_result_pii_spans and
+ * turbo_analysis_result_pii_candidates index this array by
+ * [fact_start, fact_end). */
+int32_t turbo_analysis_result_pii_facts(const turbo_analysis_result *r,
+                                        const turbo_pii_fact **facts,
+                                        uint32_t *count, turbo_error *err);
+
+/* Borrow the result's PII candidate rows (*candidates may be NULL when
+ * *count is 0). Populated only when the analyzer was created with
+ * TURBO_ANALYZER_PII_DETAIL. */
+int32_t turbo_analysis_result_pii_candidates(const turbo_analysis_result *r,
+                                             const turbo_pii_candidate **candidates,
+                                             uint32_t *count, turbo_error *err);
 
 /* Borrow the result's contiguous UTF-8 string pool (*pool may be NULL when
  * *bytes is 0). Layer, instance, label and value offset/length pairs slice

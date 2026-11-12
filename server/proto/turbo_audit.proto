@@ -33,7 +33,7 @@ enum PiiAccessForm {
   PII_ACCESS_FORM_UNSPECIFIED = 0;
   // A keyed token (HMAC-SHA-256) standing for the value.
   PII_ACCESS_FORM_TOKEN = 1;
-  // The value encrypted under a registered key; refused until #1885.
+  // The value encrypted under a registered encryption key (#1885).
   PII_ACCESS_FORM_CIPHERTEXT = 2;
   // The normalized value in clear.
   PII_ACCESS_FORM_CLEAR = 3;

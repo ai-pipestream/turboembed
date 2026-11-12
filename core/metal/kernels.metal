@@ -685,15 +685,19 @@ struct AttentionParams {
     // attention_narrow's floats of scores per SIMD group: the run's
     // longest row, rounded up to 8.
     uint narrow_stride;
-    // A sliding-window layer's (#1461) keys each side of a query: query i
-    // reads keys j with |i - j| <= window. NO_WINDOW reads the whole row.
+    // The keys a query reads before it and after it: query i reads keys j
+    // with i - window <= j <= i + ahead. A sliding-window layer (#1461)
+    // sets both to its half window, a model of limited lookahead (#2016)
+    // ahead alone, to architecture.lookahead; NO_WINDOW reads every key on
+    // that side.
     uint window;
+    uint ahead;
 };
 
 constant uint NO_WINDOW = 0xffffffffu;
 
 // Whether key j is within query i's window.
-bool near(uint i, uint j, uint window) { return (i > j ? i - j : j - i) <= window; }
+bool near(uint i, uint j, uint window, uint ahead) { return j <= i ? i - j <= window : j - i <= ahead; }
 
 constant uint KC = 32;       // keys per chunk
 constant uint HD_MAX = 64;   // widest head
@@ -736,15 +740,15 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
     float mx = -INFINITY, sum = 0.0f;
     threadgroup float *s = vs + KC * LDH + sg * 8 * KC;
 
-    // A sliding window: the chunks holding a key some query of the 32
-    // reads, from the one holding first - window through the one holding
-    // first + 31 + window, each score outside its own query's window
-    // dropped as a masked key's is.
-    const uint win = p.window;
-    const bool banded = win < len;
+    // A window: the chunks holding a key some query of the 32 reads, from
+    // the one holding first - window through the one holding first + 31 +
+    // ahead, each score outside its own query's window dropped as a masked
+    // key's is.
+    const uint win = p.window, ahd = p.ahead;
+    const bool banded = win < len || ahd < len;
     const uint qi_row = first + sg * 8 + qr;
-    const uint c_lo = banded && first > win ? (first - win) / KC * KC : 0;
-    const uint c_hi = banded ? min(len, first + 32 + win) : len;
+    const uint c_lo = win < len && first > win ? (first - win) / KC * KC : 0;
+    const uint c_hi = ahd < len ? min(len, first + 32 + ahd) : len;
 
     for (uint c0 = c_lo; c0 < c_hi; c0 += KC) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -776,7 +780,7 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
         float cm = -INFINITY;
         for (uint t = part * 8; t < part * 8 + 8; t++) {
             const uint key = c0 + t;
-            if (key < len && m[key] != 0 && (!banded || near(qi_row, key, win)))
+            if (key < len && m[key] != 0 && (!banded || near(qi_row, key, win, ahd)))
                 cm = max(cm, s[qr * KC + t] * p.scale);
         }
         cm = max(cm, simd_shuffle_xor(cm, 1));
@@ -788,7 +792,7 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
         for (uint t = part * 8; t < part * 8 + 8; t++) {
             const uint key = c0 + t;
             float e = 0.0f;
-            if (key < len && m[key] != 0 && (!banded || near(qi_row, key, win))) e = exp(s[qr * KC + t] * p.scale - nm);
+            if (key < len && m[key] != 0 && (!banded || near(qi_row, key, win, ahd))) e = exp(s[qr * KC + t] * p.scale - nm);
             s[qr * KC + t] = e;
             cs += e;
         }
@@ -909,11 +913,11 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     // query of the 32 reads, each score outside its own query's window
     // -inf. A lane's query: row qr of the group's 8 for the staged scores,
     // row fm for the scores held in registers.
-    const uint win = p.window;
-    const bool banded = win < len;
+    const uint win = p.window, ahd = p.ahead;
+    const bool banded = win < len || ahd < len;
     const uint qi_lane = first + sg * 8 + (REG ? cd.fm : qr);
-    const uint c_lo = banded && first > win ? (first - win) / KC * KC : 0;
-    const uint c_hi = banded ? min(len, first + 32 + win) : len;
+    const uint c_lo = win < len && first > win ? (first - win) / KC * KC : 0;
+    const uint c_hi = ahd < len ? min(len, first + 32 + ahd) : len;
 
     for (uint c0 = c_lo; c0 < c_hi; c0 += KC) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -958,8 +962,8 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
                 e[1] += kb[j * 8 + cd.fn + 1];
                 if (banded) {
                     const uint key = c0 + j * 8 + cd.fn;
-                    if (!near(qi_lane, key, win)) e[0] = -INFINITY;
-                    if (!near(qi_lane, key + 1, win)) e[1] = -INFINITY;
+                    if (!near(qi_lane, key, win, ahd)) e[0] = -INFINITY;
+                    if (!near(qi_lane, key + 1, win, ahd)) e[1] = -INFINITY;
                 }
                 cm = max(cm, max(e[0], e[1]));
                 sr[j] = acc;
@@ -971,7 +975,7 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
             simdgroup_barrier(mem_flags::mem_threadgroup);
             for (uint t = part * 8; t < part * 8 + 8; t++) {
                 s[qr * KC + t] += kb[t];
-                if (banded && !near(qi_lane, c0 + t, win)) s[qr * KC + t] = -INFINITY;
+                if (banded && !near(qi_lane, c0 + t, win, ahd)) s[qr * KC + t] = -INFINITY;
                 cm = max(cm, s[qr * KC + t]);
             }
         }
@@ -1072,9 +1076,9 @@ kernel void attention_narrow(device const float *q [[buffer(0)]], device const f
     device const int *m = mask + p0;
     for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
         device const float *qi = q + ulong(p0 + i) * h + col;
-        // A sliding window reads keys j0 .. j1 alone.
-        const bool banded = p.window < len;
-        const uint j0 = banded && i > p.window ? i - p.window : 0, j1 = banded ? min(len, i + p.window + 1) : len;
+        // A window reads keys j0 .. j1 alone.
+        const uint j0 = p.window < len && i > p.window ? i - p.window : 0;
+        const uint j1 = p.ahead < len ? min(len, i + p.ahead + 1) : len;
         float mx = -INFINITY;
         for (uint j = j0 + lane; j < j1; j += 32) {
             if (m[j] == 0) continue;
@@ -1186,6 +1190,30 @@ kernel void pool_ranges(device const float *x [[buffer(0)]], device const int *m
     if (p.l2 == 0) return;
     const float inv = 1.0f / max(sqrt(simd_sum(ss)), 1e-12f);
     for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
+}
+
+// ---- The token head ---------------------------------------------------------
+
+struct HeadParams {
+    uint hidden;
+    uint head_out;
+};
+
+// The span head of an extractive QA model over the range vectors
+// pool_ranges wrote: one SIMD group per output value, out[i * head_out +
+// o] = bias[o] + w[o] . pooled[i], each lane's products summed by fma in
+// dimension order, then the lanes by simd_sum. w holds the [head_out,
+// hidden] weight and then the [head_out] bias.
+kernel void span_head(device const float *pooled [[buffer(0)]], device const float *w [[buffer(1)]],
+                      device float *out [[buffer(2)]], constant HeadParams &p [[buffer(3)]],
+                      uint v [[threadgroup_position_in_grid]], ushort lane [[thread_index_in_simdgroup]]) {
+    const uint i = v / p.head_out, o = v % p.head_out;
+    device const float *x = pooled + ulong(i) * p.hidden;
+    device const float *wo = w + ulong(o) * p.hidden;
+    float acc = 0.0f;
+    for (uint d = lane; d < p.hidden; d += 32) acc = fma(wo[d], x[d], acc);
+    acc = simd_sum(acc);
+    if (lane == 0) out[v] = w[ulong(p.head_out) * p.hidden + o] + acc;
 }
 
 // ---- DeBERTa-v2 ---------------------------------------------------------------

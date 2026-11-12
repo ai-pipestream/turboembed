@@ -31,6 +31,8 @@ pub(crate) struct Model {
     /// A rotary model's cos/sin table on the device (rotary.rs); null for
     /// any other family.
     pub(super) rope: *mut c_void,
+    /// The span head on the device (head.rs); null without one.
+    pub(super) head: *mut c_void,
 }
 
 /// Each layer's linear weights transposed to [n_in, n_out] for the 2D
@@ -360,6 +362,7 @@ impl Drop for Model {
         if !self.rope.is_null() {
             c.free(self.rope, "the rotary table");
         }
+        super::head::release(c, self.head);
     }
 }
 
@@ -419,7 +422,7 @@ pub(crate) unsafe extern "C" fn model_load(
             // From here the model's Drop frees what it holds.
             let m = Box::new(Model {
                 ctx: c,
-                desc: turbo_backend_model { tensors: std::ptr::null(), ..*d },
+                desc: turbo_backend_model { tensors: std::ptr::null(), head: std::ptr::null(), ..*d },
                 stored,
                 offsets,
                 counts,
@@ -427,6 +430,7 @@ pub(crate) unsafe extern "C" fn model_load(
                 f16: Mutex::new(None),
                 f32t: Mutex::new(None),
                 rope: std::ptr::null_mut(),
+                head: std::ptr::null_mut(),
             });
             {
                 // The weights go through staging the context allocated, not
@@ -461,6 +465,7 @@ pub(crate) unsafe extern "C" fn model_load(
             if is_rotary {
                 m.rope = super::rotary::upload_table(c, d)?;
             }
+            m.head = super::head::upload(c, d)?;
             c.say(
                 LOG_DEBUG,
                 &format!(

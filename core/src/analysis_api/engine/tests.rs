@@ -3,6 +3,7 @@
 use turbo_analysis_layers::PiiKind;
 
 use super::*;
+use crate::analysis_api::{TURBO_PII_CONFIDENCE_LABELLED, TURBO_PII_CONFIDENCE_LABELLED_CHECKSUM};
 
 #[test]
 fn detect_pii_maps_labelled_to_4_and_labelled_checksum_to_3() {

@@ -8,7 +8,6 @@ mod common;
 use common::*;
 use serde_json::{Value, json};
 use turbo::head::boundary::sentences;
-use turbo::head::edit_tree::EditTree;
 use turbo::head::span::SpanWork;
 use turbo::head::tagger::Work;
 use turbo::manifest::WordPooling;
@@ -16,40 +15,8 @@ use turbo_analysis::{Annotator, Document, Ix, Key, Layer, Span, View};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::{EntityTagger, SentenceTagger, SpanTagger, WordEncoder, WordTagger};
 
-fn sentence_head() -> Value {
-    json!({
-        "name": "sents", "layer": "turboembed:sentences", "kind": "HEAD_SENTENCE_BOUNDARY",
-        "labels": ["inside", "last"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
-        "decode": "DECODE_ARGMAX", "artifact": "weights-f32", "tensor_prefix": "heads.sents"
-    })
-}
-
-fn split_label(form: &str, words: &[&str]) -> String {
-    words.iter().map(|w| EditTree::mine(form, w).label()).collect::<Vec<_>>().join(" ")
-}
-
-fn split_head() -> Value {
-    let del = split_label("del", &["de", "el"]);
-    let cant = split_label("can't", &["ca", "n't"]);
-    let and = split_label("and", &["an", "d"]);
-    json!({
-        "name": "words", "layer": "turboembed:words", "kind": "HEAD_TOKEN_SPLIT",
-        "labels": ["_", del, cant, and], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
-        "decode": "DECODE_EDIT_TREE", "artifact": "weights-f32", "tensor_prefix": "heads.words"
-    })
-}
-
-fn span_head(decode: &str) -> Value {
-    json!({
-        "name": "mentions", "layer": "turboembed:entities", "kind": "HEAD_SPAN_CLASSIFIER",
-        "labels": ["O", "PER", "LOC"], "scheme": "SCHEME_TAGS", "word_pooling": "WORD_POOLING_FIRST",
-        "decode": decode, "span": {"max_words": 3, "width_dim": 4},
-        "artifact": "weights-f32", "tensor_prefix": "heads.mentions"
-    })
-}
-
 /// The tiny bundle carrying only the given heads.
-fn with_heads(name: &str, heads: Value) -> std::path::PathBuf {
+fn with_heads(name: &str, heads: Value) -> turbo_scratch::Scratch {
     bundle(name, |m| m["heads"] = heads)
 }
 

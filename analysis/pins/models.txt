@@ -32,6 +32,7 @@
 # Bundles checked in under testdata/.
 blobs/sha256/35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741  bundle  testdata/tiny-bert-bundle
 blobs/sha256/9fa507e8f7fc267176dd5667c1bc8e8e2939df0a25e7f3b8ac8f7859f4da0bc0  bundle  testdata/tiny-bert-heads-bundle
+blobs/sha256/e87a1ff84c799050f29b4b7fd84257f55b90ef95bd6db32eebd77ca0fe910546  bundle  testdata/tiny-bert-segment-bundle
 blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
 blobs/sha256/223fe30ed3eec3abac9281ae1cc543d634eab145b3286fe9887a87273bf9d231  bundle  testdata/tiny-modernbert-bundle
 blobs/sha256/8b12f898db464a68fa09e1bb996472c0c2ece0564daad20e6a3ffc332fb0ecd5  bundle  testdata/tiny-nomic-bundle
@@ -190,6 +191,7 @@ blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  b
 blobs/sha256/34314634641f8e9a4ecb674c70bf043a4e21af2d34b021a3b2286c77e2dfad38  tree  gliner2-base-v1 progressive graph release test
 blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
 blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)
+blobs/sha256/c6d7bff85891d6b8d36e2e0b2c8572fde5062f76457fbd35898120212f8421fb  bundle  SaT 3l, bge-m3 tokenizer bundle (4080 machine)
 blobs/sha256/b5285611dd564973d4b90ce148a5f62aef766ad11859cc62bcb801157309c146  bundle  sentence-transformers/all-MiniLM-L6-v2 static distillation, 256 dims (B70 machine)
 blobs/sha256/311365014225a874972577dabf2fac85f26141613ce42d726a707257038055d4  bundle  BAAI/bge-base-en-v1.5 static distillation, 256 dims (B70 machine)
 blobs/sha256/bec30f885845797c7be22bac5e731de8d30971c8343b2dd41ebb5b2c451e2cf4  bundle  minishlab/potion-base-2M static-1024 build (B70 machine)
@@ -220,3 +222,4 @@ blobs/sha256/7b8e5673dc75b38da41f3d842bcc6941dccb4670ce472a915fd2547cfb6c0d03  b
 blobs/sha256/3d885ff5da3bb79e6b975e421248e810d74bbf63ed4f1af753e36403e34de61a  bundle  minishlab/potion-science-32M static build (B70 machine)
 blobs/sha256/dd3ea37954bdac157b691b2e7157da45f0bf258badb52eb130b25c1df0dcbcba  bundle  minishlab/potion-science-32M static-rust build (B70 machine)
 blobs/sha256/111f32a50017d71e0974139c17903aa95d37a1dc9719ed4782723fcadddc1b97  bundle  sentence-transformers/all-MiniLM-L6-v2 NPU s256 / minilm-npu-token-ids-f16-s256-605aeb78e (first recorded in analysis/eval/records/v1-172/npu/turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/867431b1ddfd21d61f157948ee77d37311a4af74c95444f02cc64a00eace4d9c  bundle  dslim/bert-base-NER revision 1, source d1a3e8f1, from bundle/recipes/dslim-bert-base-ner.json, for the namefind-dl device test (B70 machine)

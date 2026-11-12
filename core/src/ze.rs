@@ -163,6 +163,106 @@ const LOADER: &str = "ze_loader.dll";
 #[cfg(not(windows))]
 const LOADER: &str = "libze_loader.so.1";
 
+/// The Intel compute runtime's switch for recoverable page faults, read
+/// from the environment when the driver starts, and the switch that has
+/// it read such variables at all.
+const PAGE_FAULTS: &str = "EnableRecoverablePageFaults";
+const READ_KEYS: &str = "NEOReadDebugKeys";
+
+/// What [`page_faults_off`] did, for the log.
+#[cfg_attr(not(feature = "levelzero"), allow(dead_code))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Faults {
+    /// This process set both variables.
+    Off,
+    /// The caller set EnableRecoverablePageFaults itself.
+    AsSet,
+    /// The caller set NEOReadDebugKeys to this, not 1: setting it to 1
+    /// would switch on every other debug key in its environment, so both
+    /// are left alone.
+    CallersKeys(String),
+    /// Windows, where the runtime reads its keys from the registry.
+    NotHere,
+}
+
+impl Faults {
+    /// The words the context's debug log line uses.
+    pub fn describe(&self) -> String {
+        match self {
+            Faults::Off => "the runtime's page faults turned off".into(),
+            Faults::AsSet => format!("page faults as {PAGE_FAULTS} sets them"),
+            Faults::CallersKeys(v) => {
+                format!("page faults left on: {READ_KEYS} is {v:?}, so {PAGE_FAULTS} was not set")
+            }
+            Faults::NotHere => "page faults as set".into(),
+        }
+    }
+}
+
+static FAULTS: std::sync::OnceLock<Faults> = std::sync::OnceLock::new();
+
+/// What to do with the environment the process has: `read_keys` and
+/// `faults` are NEOReadDebugKeys and EnableRecoverablePageFaults as set,
+/// or None.
+#[cfg_attr(not(feature = "levelzero"), allow(dead_code))]
+fn decide(read_keys: Option<&std::ffi::OsStr>, faults: Option<&std::ffi::OsStr>) -> Faults {
+    if cfg!(windows) {
+        return Faults::NotHere;
+    }
+    if faults.is_some() {
+        return Faults::AsSet;
+    }
+    match read_keys {
+        Some(v) if v != "1" => Faults::CallersKeys(v.to_string_lossy().into_owned()),
+        _ => Faults::Off,
+    }
+}
+
+/// What [`page_faults_off`] decided, if it has run: None before any
+/// loader was found.
+#[cfg_attr(not(feature = "levelzero"), allow(dead_code))]
+pub fn page_faults_peek() -> Option<&'static Faults> {
+    FAULTS.get()
+}
+
+/// Turns the runtime's recoverable page faults off, once the loader is
+/// open and before any driver starts, unless the caller set
+/// EnableRecoverablePageFaults itself (to anything: -1 is the runtime's
+/// own default) or set NEOReadDebugKeys to anything but 1. Only builds
+/// with the levelzero feature call it: the NPU does not need it.
+///
+/// With them on, under the `xe` kernel driver, the kernel evicts the
+/// runtime's host-memory buffers while a context is idle and the device
+/// pages them back in by faulting, and it suspends the runtime's queues
+/// for every job of another client on the render and compute engines. A
+/// suspend that lands while a fault is being served does not complete,
+/// and the firmware resets the engine: the context's device is lost
+/// (#1765, docs/levelzero.md). With them off the kernel rebinds evicted
+/// buffers itself before the queue runs again, and does not suspend it
+/// for other clients' jobs. The backend uses no memory that needs the
+/// faults: every buffer it hands the device is the driver's own.
+#[cfg_attr(not(feature = "levelzero"), allow(dead_code))]
+pub fn page_faults_off() -> &'static Faults {
+    FAULTS.get_or_init(|| {
+        let f = decide(std::env::var_os(READ_KEYS).as_deref(), std::env::var_os(PAGE_FAULTS).as_deref());
+        if f == Faults::Off {
+            // SAFETY: set_var is unsound if another thread reads or writes
+            // the environment at the same time, through Rust's std (which
+            // takes a lock) or through C's getenv and setenv (which do
+            // not). This assumes no other thread of the process is in
+            // getenv or setenv during the first runtime create that opens
+            // the loader, which turbo.h's turbo_runtime_create states; a
+            // host that cannot promise it sets EnableRecoverablePageFaults
+            // itself, and nothing is written.
+            unsafe {
+                std::env::set_var(READ_KEYS, "1");
+                std::env::set_var(PAGE_FAULTS, "0");
+            }
+        }
+        f
+    })
+}
+
 impl Api {
     /// None when the loader is not installed. A loader without
     /// zeInitDrivers predates Level Zero 1.10 and is an error. `who` is
@@ -171,6 +271,11 @@ impl Api {
         let Ok(lib) = (unsafe { libloading::Library::new(LOADER) }) else {
             return Ok(None);
         };
+        // The loader opens the drivers at zeInitDrivers, not here, so the
+        // runtime has not read its environment yet. A box with no loader
+        // gets nothing set, nor do its children.
+        #[cfg(feature = "levelzero")]
+        page_faults_off();
         // A closure is one type. Each symbol is a different function
         // pointer, so the lookup is expanded at the field.
         macro_rules! sym {
@@ -262,6 +367,27 @@ pub fn string(b: &[c_char]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // The one test that reads it is not built on Windows.
+    #[cfg(not(windows))]
+    use std::ffi::OsStr;
+
+    /// The caller's own NEOReadDebugKeys, other than 1, leaves both
+    /// variables alone; its own EnableRecoverablePageFaults, whatever it
+    /// is, too; with neither, or NEOReadDebugKeys already 1, both are set.
+    #[test]
+    #[cfg(not(windows))]
+    fn the_callers_keys_are_kept() {
+        let (one, zero, other) = (OsStr::new("1"), OsStr::new("0"), OsStr::new("-1"));
+        assert_eq!(decide(None, None), Faults::Off);
+        assert_eq!(decide(Some(one), None), Faults::Off);
+        assert_eq!(decide(Some(zero), None), Faults::CallersKeys("0".into()));
+        assert_eq!(decide(Some(OsStr::new("")), None), Faults::CallersKeys(String::new()));
+        assert_eq!(decide(Some(OsStr::new("yes")), None), Faults::CallersKeys("yes".into()));
+        assert_eq!(decide(None, Some(other)), Faults::AsSet);
+        assert_eq!(decide(Some(zero), Some(zero)), Faults::AsSet);
+        assert_eq!(decide(Some(one), Some(one)), Faults::AsSet);
+        assert!(Faults::CallersKeys("0".into()).describe().contains("NEOReadDebugKeys is \"0\""));
+    }
 
     /// The sizes and offsets a C compiler gives these structs on x86_64
     /// and aarch64 with the 1.28 ze_api.h.

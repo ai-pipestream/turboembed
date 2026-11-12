@@ -8,6 +8,8 @@ mod config;
 mod normalize;
 pub mod profiles;
 pub mod seed;
+#[cfg(test)]
+mod step_error_tests;
 mod steps;
 
 use std::collections::HashSet;
@@ -23,9 +25,7 @@ use tonic::{Request, Response, Status};
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Analyzer, Document};
 
-use crate::api::{
-    Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
-};
+use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
 use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
 use crate::metrics::{DocGuard, StreamGuard};
@@ -33,7 +33,7 @@ use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
     AnalysisLayerBatch, AnalysisStarted, AnalysisStepFailure, AnalyzeFailure, AnalyzePipelineRequest,
-    AnalyzeProgressiveEvent, DocumentGraphResponse, InputBinding,
+    AnalyzeProgressiveEvent, DocumentGraphResponse, InputBinding, LayerErrorKind,
 };
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
@@ -47,11 +47,12 @@ use crate::status::to_status;
 
 use crate::pii_policy;
 pub use profiles::{
-    ANNOTATE_V1, ANNOTATE_V2, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile,
-    profile_capabilities,
+    ANNOTATE_V1, AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile, profile_capabilities,
 };
-use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, StepOptions, compile_analyzer_with_state};
-pub use steps::{compile_analyzer, compile_analyzer_with_redaction, heads};
+pub(crate) use steps::{
+    CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, StepOptions, compile_analyzer_with_state, compile_pipeline,
+};
+pub use steps::{Models, compile_analyzer, compile_analyzer_with_models, compile_analyzer_with_redaction, heads};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
@@ -83,24 +84,6 @@ fn plain(f: Failure) -> Status {
 
 fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
-}
-
-fn step_error_code(err: &turbo_analysis::Error) -> i32 {
-    match err {
-        turbo_analysis::Error::Annotator { detail, .. } if detail.starts_with("panic:") => TURBO_E_PANIC,
-        turbo_analysis::Error::Annotator { .. } => TURBO_E_INTERNAL,
-        turbo_analysis::Error::Missing(_)
-        | turbo_analysis::Error::Duplicate(_)
-        | turbo_analysis::Error::Clash(_)
-        | turbo_analysis::Error::Misaligned { .. }
-        | turbo_analysis::Error::Unaligned { .. }
-        | turbo_analysis::Error::Pipeline(_) => TURBO_E_INVALID_STATE,
-        turbo_analysis::Error::Bounds { .. }
-        | turbo_analysis::Error::Invalid { .. }
-        | turbo_analysis::Error::Offset { .. }
-        | turbo_analysis::Error::Source(_) => TURBO_E_INVALID_ARGUMENT,
-        turbo_analysis::Error::Skipped(_) => 0,
-    }
 }
 
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
@@ -220,7 +203,7 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
             "chunking" => (CHUNKING_STEPS.to_vec(), req.profile.as_str(), &[]),
             other => {
                 return Err(plain(bad(format!(
-                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'annotate-v1', 'annotate-v2', 'default', 'minimal', or 'chunking'"
+                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'annotate-v1', 'default', 'minimal', or 'chunking'"
                 ))));
             }
         }
@@ -242,7 +225,13 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
         &req.model,
         profile_name,
         required_bundles,
-        StepOptions { redaction: redaction.as_ref(), open_span, relations, relation_model: &req.relation_model },
+        StepOptions {
+            redaction: redaction.as_ref(),
+            open_span,
+            relations,
+            relation_model: &req.relation_model,
+            vocabulary: req.vocabulary.as_ref(),
+        },
     )
     .map_err(plain)
 }
@@ -354,7 +343,7 @@ fn run_progressive_task(
                 .map(|r| layer_info(&snap_graph, r))
                 .collect();
             let error = of_error(&err);
-            let kind = crate::proto::result::LayerErrorKind::try_from(error.kind).unwrap_or_default();
+            let kind = LayerErrorKind::try_from(error.kind).unwrap_or_default();
             AnalyzeProgressiveEvent {
                 sequence: seq,
                 event: Some(Event::StepFailed(AnalysisStepFailure {
@@ -362,11 +351,20 @@ fn run_progressive_task(
                     stage: ev.timing.stage as u32,
                     duration_us: ev.timing.duration_us,
                     failure: Some(AnalyzeFailure {
-                        turbo_code: step_error_code(&err),
+                        turbo_code: error.turbo_code,
                         field: 0,
                         // A code name, never the error's text: an annotator's
-                        // detail can quote the document (issue #1908).
-                        message: format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
+                        // detail can quote the document (issue #1908). An
+                        // input over a limit says which and by how much,
+                        // counts only (#2125, #2134).
+                        message: match &err {
+                            turbo_analysis::Error::OverLimit { limit, max, got, .. }
+                                if turbo_analysis::error::known_limit(limit).is_some() =>
+                            {
+                                format!("step '{}' failed: over its {limit} {max}, got {got}", ev.timing.step_id)
+                            }
+                            _ => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
+                        },
                     }),
                     skipped_dependents: ev.skipped_dependents.into_iter().map(str::to_owned).collect(),
                     layers: affected_layers,

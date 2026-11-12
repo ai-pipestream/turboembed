@@ -1,0 +1,20 @@
+MASKED	Paid $*,***.** on account, owes *** **, earns $** per hour, refund of -$* and ** *****. Not money: 1,250.00 units, room 40, $ alone.
+
+MASK_ALL	Paid ######### on account, owes ######, earns ### per hour, refund of ### and ########. Not money: 1,250.00 units, room 40, $ alone.
+
+REWRITE	pseudonymize	OK	Paid CURRENCY-1 on account, owes CURRENCY-2, earns CURRENCY-3 per hour, refund of CURRENCY-4 and CURRENCY-2. Not money: 1,250.00 units, room 40, $ alone.
+
+LABEL	pseudonymize	5	14	5	15	CURRENCY-1
+LABEL	pseudonymize	32	38	33	43	CURRENCY-2
+LABEL	pseudonymize	46	49	51	61	CURRENCY-3
+LABEL	pseudonymize	70	73	82	92	CURRENCY-4
+LABEL	pseudonymize	78	86	97	107	CURRENCY-2
+REWRITE	hmac	OK	Paid CURRENCY-83b240f140a3db56 on account, owes CURRENCY-3204cdcf1fa4e16c, earns CURRENCY-155188c0e7e9845f per hour, refund of CURRENCY-750a02eed518a407 and CURRENCY-3204cdcf1fa4e16c. Not money: 1,250.00 units, room 40, $ alone.
+
+LABEL	hmac	5	14	5	30	CURRENCY-83b240f140a3db56
+LABEL	hmac	32	38	48	73	CURRENCY-3204cdcf1fa4e16c
+LABEL	hmac	46	49	81	106	CURRENCY-155188c0e7e9845f
+LABEL	hmac	70	73	127	152	CURRENCY-750a02eed518a407
+LABEL	hmac	78	86	157	182	CURRENCY-3204cdcf1fa4e16c
+AUDIT	currency	5	4	CURRENCY-83b240f140a3db56, CURRENCY-3204cdcf1fa4e16c, CURRENCY-155188c0e7e9845f
+AUDIT_REPORT	currency: 5 mentions, 4 distinct [CURRENCY-83b240f140a3db56, CURRENCY-3204cdcf1fa4e16c, CURRENCY-155188c0e7e9845f]

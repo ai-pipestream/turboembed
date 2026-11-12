@@ -97,15 +97,15 @@ fn the_environment_fills_in_absent_flags() {
     assert_eq!(a.max_message_bytes, 1);
     assert_eq!(names(&a.models).unwrap(), ["c"]);
 
-    // A bad variable is refused by name.
+    // A bad variable is refused by name, its value by length.
     let bad = |k: &str, v: &str| {
         let v = v.to_string();
         let k = k.to_string();
         Args::parse_with(std::iter::empty(), move |q| if q == k { Some(v.clone()) } else { env(q) }).unwrap_err()
     };
-    assert!(bad(ENV_LISTEN, "nowhere").starts_with("TURBO_KSERVE_LISTEN=nowhere"));
+    assert!(bad(ENV_LISTEN, "nowhere").starts_with("TURBO_KSERVE_LISTEN: the value (7 bytes"));
     assert!(bad(ENV_MODELS, "bundle=/b/a,device=0").starts_with("TURBO_KSERVE_MODELS: "));
-    assert!(bad(ENV_MAX_MESSAGE_BYTES, "64MiB").starts_with("TURBO_KSERVE_MAX_MESSAGE_BYTES=64MiB"));
+    assert!(bad(ENV_MAX_MESSAGE_BYTES, "64MiB").starts_with("TURBO_KSERVE_MAX_MESSAGE_BYTES: the value (5 bytes"));
     // An empty variable gives nothing.
     let e = Args::parse_with(std::iter::empty(), |_| Some(String::new())).unwrap_err();
     assert_eq!(e, "--listen is required");
@@ -237,7 +237,10 @@ fn zoo_mode_comes_from_its_flag_or_variable_needs_a_catalog_and_allows_no_model(
     };
     assert!(parsed("true").unwrap().zoo);
     assert_eq!(parsed("0").unwrap_err(), "at least one --model is required");
-    assert_eq!(parsed("maybe").unwrap_err(), "TURBO_KSERVE_ZOO=maybe: not one of 1, true, yes, 0, false, no");
+    assert_eq!(
+        parsed("maybe").unwrap_err(),
+        "TURBO_KSERVE_ZOO: the value (5 bytes, not shown) is not one of 1, true, yes, 0, false, no"
+    );
 }
 
 #[test]
@@ -247,7 +250,7 @@ fn prefetch_is_permissive_from_its_flag_or_variable_and_needs_a_catalog() {
     assert!(args(&format!("{base} --catalog-dir /z --catalog-prefetch permissive")).unwrap().catalog_prefetch);
     assert_eq!(
         args(&format!("{base} --catalog-dir /z --catalog-prefetch all")).unwrap_err(),
-        "--catalog-prefetch all: the one mode is permissive"
+        "--catalog-prefetch: the value (3 bytes, not shown) is not permissive, the one mode"
     );
     assert_eq!(
         args(&format!("{base} --catalog-prefetch=permissive")).unwrap_err(),

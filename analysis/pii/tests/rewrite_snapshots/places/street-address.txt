@@ -1,0 +1,14 @@
+MASKED	Ship to 1600 ************ Avenue NW, **********, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+MASK_ALL	Ship to 1600 ############ Avenue NW, ##########, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+REWRITE	pseudonymize	OK	Ship to 1600 STATE-1 Avenue NW, STATE-2, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+LABEL	pseudonymize	13	25	13	20	STATE-1
+LABEL	pseudonymize	37	47	32	39	STATE-2
+REWRITE	hmac	OK	Ship to 1600 STATE-785ad3f4f30cbae5 Avenue NW, STATE-a680e18f1f362c23, or 350 Fifth Ave, Suite 3300; mail PO Box 2291 or P.O. Box 77. Not addresses: Route 66, Table 4 Summary, the 5th Avenue store, 12.5 Main St.
+
+LABEL	hmac	13	25	13	35	STATE-785ad3f4f30cbae5
+LABEL	hmac	37	47	47	69	STATE-a680e18f1f362c23
+AUDIT	state	2	2	STATE-785ad3f4f30cbae5, STATE-a680e18f1f362c23
+AUDIT_REPORT	state: 2 mentions, 2 distinct [STATE-785ad3f4f30cbae5, STATE-a680e18f1f362c23]
