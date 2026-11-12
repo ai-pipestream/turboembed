@@ -89,8 +89,54 @@ oneAPI installation. The compiler's lib directory is written into both as
 a run-time path; oneDNN's own directory is not, so a program run outside
 the oneAPI environment (`source /opt/intel/oneapi/setvars.sh`) finds
 `libdnnl.so` through `LD_LIBRARY_PATH`. A program built in another crate,
-such as `turbo-bench`, also finds `libturbo_onednn.so` that way. A device
-oneDNN cannot open runs the backend's own kernels, and the log says so.
+such as `turbo-bench`, also needs the shim's build directory on
+`LD_LIBRARY_PATH`: core's link arguments do not propagate to a dependent
+crate's executable. `cargo run` and `cargo test` add that directory for
+their child process; running the built executable directly does not.
+
+For a direct launch on Linux, keep the oneAPI environment set and use
+Cargo's build messages to locate the matching shim and executable. This
+Bash recipe requires `jq`, runs from the workspace root, and works with a
+custom `CARGO_TARGET_DIR` or `--target` without guessing a build hash:
+
+```bash
+(
+  set -eu
+  cargo +1.99 build --locked --release -p turbo-bench \
+    --features turbo/levelzero-onednn --message-format=json > onednn-build.jsonl
+  shim_dir=$(jq -ers '
+    [.[] | select(.reason == "build-script-executed")
+     | select(.linked_libs | index("dylib=turbo_onednn")) | .out_dir] | unique
+    | if length == 1 then .[0] else error("expected one oneDNN shim directory") end
+  ' onednn-build.jsonl)
+  bench=$(jq -ers '
+    [.[] | select(.reason == "compiler-artifact" and .target.name == "turbo-bench")
+     | .executable | select(. != null)] | unique
+    | if length == 1 then .[0] else error("expected one turbo-bench executable") end
+  ' onednn-build.jsonl)
+  test -f "$shim_dir/libturbo_onednn.so"
+  LD_LIBRARY_PATH="$shim_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$bench"
+)
+```
+
+With no arguments, `turbo-bench` prints usage and exits with status 1;
+append the desired subcommand and arguments to `"$bench"` for a record.
+The command preserves existing oneAPI library directories and adds no
+empty search-path entry when `LD_LIBRARY_PATH` is unset or empty. Use
+only trusted library directories. Regenerate the messages after changing
+the build configuration; do not select a shim from an arbitrary old
+`target/*/build` directory.
+
+The build directory must remain present for that recipe. For a relocated
+deployment, copy the matching `libturbo_onednn.so` alongside the executable
+or into a dedicated library directory and use that deployed directory in
+place of `shim_dir`. Linux does not search beside an executable by default.
+Install the compatible oneDNN, SYCL and Level Zero runtimes and retain their
+library paths too; copying the shim alone does not bundle those runtimes.
+
+A device oneDNN cannot open runs the backend's own kernels, and the log
+says so. A missing shared library prevents process startup, before this
+fallback can run.
 
 oneDNN builds a kernel (a primitive) for one shape, its tokens included,
 which takes host memory and, for a shape whose kernel oneDNN has not
