@@ -309,13 +309,15 @@ does not say of itself:
 | `--origin <https url>` | `origin`, for a class of `CLASS_LOCAL_ONLY`; `--base` must lie under it. |
 | `--component <COMPONENT_*>` | `component`. Without it an embedding bundle is `COMPONENT_DENSE_ENCODER`, an extractive QA bundle `COMPONENT_EXTRACTIVE_QA`, and a reranker names none. |
 | `--language <tag>` | `language`. |
-| `--into <zoo.json>` | Adds the entry to that index file, last or in the place of the entry of the same id, and writes the file in the canonical form through a temporary name. A file that is absent is made holding the one entry. Without the flag the entry is printed as an index of its own. |
+| `--into <zoo.json>` | Adds the entry to that index file, last or in the place of the entry of the same id, and writes the file in the canonical form through a temporary name. Every other entry of the file is kept, one the zoo refuses and does not list among them, and a file that does not load as an index is left as it is. A file that is absent is made holding the one entry. Without the flag the entry is printed as an index of its own. |
 
-A file that is absent, a symlink, or not the bytes its manifest pins
-refuses the import, and so does an entry the index would not load: a
+A file that is absent, a symlink, under a directory of the bundle that
+is a symlink, or not the bytes its manifest pins refuses the import (no
+byte is read from outside the bundle directory), and so does an entry the index would not load: a
 class that needs an `origin` and has none, a missing attribution, a
 refused licence. `turbo-zoo index` prints the index the command reads
-(the built-in one, or `--index <zoo.json>`) in the canonical form, to
+(the built-in one, or `--index <zoo.json>`) in the canonical form, with
+any entry the zoo refuses, to
 start an index file that also lists the built-in entries.
 
 A zoo server lists the imported bundles when it is started with that
