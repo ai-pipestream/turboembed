@@ -92,11 +92,18 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let read = started.elapsed().as_secs_f64();
 
     let original_heads = turbo_gliner::package::read(&package.join("heads.safetensors"), 256 << 20).map_err(Error)?;
-    let original_encoder =
-        turbo_gliner::package::read(&package.join("encoder/weights.safetensors"), 1 << 30).map_err(Error)?;
+    let original_encoder = (lora_rank > 0)
+        .then(|| {
+            turbo_gliner::package::read(
+                &package.join("encoder/weights.safetensors"),
+                turbo::deberta::package::MAX_WEIGHT_BYTES,
+            )
+        })
+        .transpose()
+        .map_err(Error)?;
     let mut model = Manifest::load(&package).map_err(Error)?;
-    if lora_rank > 0 {
-        model.enable_lora(&original_encoder, lora_rank, lora_alpha, c.seed).map_err(Error)?;
+    if let Some(original) = original_encoder.as_deref() {
+        model.enable_lora(original, lora_rank, lora_alpha, c.seed).map_err(Error)?;
     }
     let mut trainer = OutputTrainer::load_with_heads(
         model.config(),
@@ -134,7 +141,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         score(&model, &combined, &all_types, &seen_types, &hold_out, threshold, guidelines.as_ref())?;
     let mut best_score = initial_eval.model.score();
     let mut best_heads = original_heads.clone();
-    let mut best_encoder = original_encoder.clone();
+    let mut best_encoder = original_encoder.clone().unwrap_or_default();
     let mut best_predictions = initial;
     let mut best_epoch = 0;
     let mut dev = vec![best_score];
@@ -237,8 +244,8 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         if score > best_score {
             best_score = score;
             best_heads = trainer.write_heads(&original_heads).map_err(Error)?;
-            if lora_rank > 0 {
-                best_encoder = model.write_lora(&original_encoder).map_err(Error)?;
+            if let Some(original) = original_encoder.as_deref() {
+                best_encoder = model.write_lora(original).map_err(Error)?;
             }
             best_predictions = predictions;
             best_epoch = (epoch + 1) as usize;

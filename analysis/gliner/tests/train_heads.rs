@@ -85,6 +85,38 @@ fn model(config: &Config, heads: &[u8]) -> Model {
     Model::new(encoder, config.clone(), heads, &spm, identity).unwrap()
 }
 
+fn source_package(config: &Config, heads: &[u8], encoder: &[u8]) -> PathBuf {
+    use turbo::deberta::package::{PackageManifest, digest};
+
+    let dir = std::env::temp_dir().join(format!("turbo-gliner-lora-source-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("encoder")).unwrap();
+    let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
+    let encoder_manifest = PackageManifest {
+        version: 1,
+        config: encoder_config(),
+        source_repository: "turboembed/tiny-deberta".into(),
+        source_revision: "0000000000000000000000000000000000000001".into(),
+        source_license: "Apache-2.0".into(),
+        weights_sha256: digest(encoder),
+    };
+    let encoder_meta = serde_json::to_vec_pretty(&encoder_manifest).unwrap();
+    let manifest = Manifest {
+        version: 1,
+        config: config.clone(),
+        encoder_sha256: digest(&encoder_meta),
+        heads_sha256: digest(heads),
+        tokenizer_sha256: digest(&spm),
+    };
+    std::fs::write(dir.join("encoder/deberta.json"), encoder_meta).unwrap();
+    std::fs::write(dir.join("encoder/weights.safetensors"), encoder).unwrap();
+    std::fs::write(dir.join("heads.safetensors"), heads).unwrap();
+    std::fs::write(dir.join("spm.model"), spm).unwrap();
+    std::fs::write(dir.join("gliner.json"), serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+    Manifest::load(&dir).unwrap();
+    dir
+}
+
 const WORDS: [&str; 6] = ["Alice", "visited", "Paris", "in", "May", "."];
 const GOLD: [(usize, usize, usize); 2] = [(0, 1, 0), (2, 3, 1)];
 
@@ -212,10 +244,10 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
         assert_eq!(a.len(), b.len());
         for (a, b) in a.iter().zip(b) {
             assert_eq!((a.start, a.end, a.label), (b.start, b.end, b.label));
-            assert!((a.logit - b.logit).abs() < 0.002, "logit {} != {}", a.logit, b.logit);
+            assert!((a.logit - b.logit).abs() < 0.0001, "logit {} != {}", a.logit, b.logit);
         }
     };
-    tuned.enable_lora(&encoder_original, 1, 2.0, 17).unwrap();
+    tuned.enable_lora(&encoder_original, 2, 4.0, 17).unwrap();
     let initial = tuned.training_input_lora(&WORDS, &schema()).unwrap();
     close(&initial.candidates, &before);
 
@@ -245,8 +277,17 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
     let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
     let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
     let written = trainer.write_heads(&original).unwrap();
-    let reloaded = Model::new(encoder, config, &written, &spm, identity).unwrap();
+    let reloaded = Model::new(encoder, config.clone(), &written, &spm, identity).unwrap();
     close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after);
+
+    let source = source_package(&config, &original, &encoder_original);
+    let out = source.with_extension("tuned");
+    let _ = std::fs::remove_dir_all(&out);
+    Manifest::write_tuned_encoder(&source, &out, &written, &merged).unwrap();
+    let packaged = Manifest::load(&out).unwrap();
+    close(&packaged.training_input(&WORDS, &schema()).unwrap().1, &after);
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(out);
 }
 
 #[test]

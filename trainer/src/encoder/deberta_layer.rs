@@ -93,6 +93,7 @@ pub struct DebertaLayer<R> {
 
 impl<R: Real> DebertaLayer<R> {
     pub fn load(config: Config, file: &File<'_>, layer: usize, rank: usize, alpha: f64, rng: &mut Rng) -> Result<Self> {
+        config.check()?;
         if rank == 0 || !alpha.is_finite() || alpha <= 0.0 {
             return Err(invalid("deberta LoRA rank and alpha must be positive"));
         }
@@ -107,29 +108,20 @@ impl<R: Real> DebertaLayer<R> {
     }
 
     pub fn relative(config: &Config, file: &File<'_>) -> Result<Vec<R>> {
+        config.check()?;
         let (h, rows) = (config.hidden, 2 * config.position_buckets);
-        let get = |name: &str| -> Result<Vec<R>> {
-            let tensor = file.get(
-                name,
-                Dtype::F32,
-                if name.ends_with("weight") && !name.contains("LayerNorm") { 2 } else { 1 },
-            )?;
+        let get = |name: &str, shape: &[u64]| -> Result<Vec<R>> {
+            let tensor = file.get(name, Dtype::F32, shape.len())?;
+            if tensor.shape != shape {
+                return Err(invalid(format!("deberta {name}: shape mismatch")));
+            }
             Ok(tensor.f32s().into_iter().map(|x| R::from_f64(x as f64)).collect())
         };
-        let relative = get("encoder.rel_embeddings.weight")?;
-        if relative.len() != rows * h {
-            return Err(invalid("deberta relative embeddings: shape mismatch"));
-        }
-        let input = relative;
+        let input = get("encoder.rel_embeddings.weight", &[rows as u64, h as u64])?;
+        let weight = get("encoder.LayerNorm.weight", &[h as u64])?;
+        let bias = get("encoder.LayerNorm.bias", &[h as u64])?;
         let mut out = vec![R::ZERO; input.len()];
-        norm::forward(
-            &input,
-            &get("encoder.LayerNorm.weight")?,
-            &get("encoder.LayerNorm.bias")?,
-            config.layer_norm_eps,
-            &mut out,
-            &mut norm::Cache::default(),
-        );
+        norm::forward(&input, &weight, &bias, config.layer_norm_eps, &mut out, &mut norm::Cache::default());
         Ok(out)
     }
 
@@ -138,15 +130,15 @@ impl<R: Real> DebertaLayer<R> {
         let (h, i) = (self.config.hidden, self.config.intermediate);
         let prefix = format!("encoder.layer.{layer}");
         let specs = [
-            (0, "attention.self.query_proj", h, h),
-            (0, "attention.self.key_proj", h, h),
-            (0, "attention.self.value_proj", h, h),
-            (1, "attention.output.dense", h, h),
-            (2, "intermediate.dense", h, i),
-            (3, "output.dense", i, h),
+            (0, 0, "attention.self.query_proj", h, h),
+            (0, h, "attention.self.key_proj", h, h),
+            (0, 2 * h, "attention.self.value_proj", h, h),
+            (1, 0, "attention.output.dense", h, h),
+            (2, 0, "intermediate.dense", h, i),
+            (3, 0, "output.dense", i, h),
         ];
         let mut out = original.to_vec();
-        for (which, stem, inp, width) in specs {
+        for (which, row, stem, inp, width) in specs {
             let name = format!("{prefix}.{stem}.weight");
             let tensor = file.get(&name, Dtype::F32, 2)?;
             if tensor.shape != [width as u64, inp as u64] {
@@ -157,7 +149,7 @@ impl<R: Real> DebertaLayer<R> {
             for o in 0..width {
                 for r in 0..self.rank {
                     for j in 0..inp {
-                        let delta = self.scale * b[o * self.rank + r] * a[r * inp + j];
+                        let delta = self.scale * b[(row + o) * self.rank + r] * a[r * inp + j];
                         let at = offset + (o * inp + j) * 4;
                         let old = f32::from_le_bytes(out[at..at + 4].try_into().expect("f32 bytes"));
                         out[at..at + 4].copy_from_slice(&(old + delta.to_f64() as f32).to_le_bytes());

@@ -99,14 +99,18 @@ impl Manifest {
     /// Writes a package with tuned heads and a merged LoRA encoder.
     pub fn write_tuned_encoder(source: &Path, dest: &Path, heads: &[u8], encoder: &[u8]) -> Result<(), String> {
         let (mut manifest, _, _, _) = Self::read_checked(source)?;
+        let encoder_meta = read(&source.join("encoder/deberta.json"), 65536)?;
+        let mut encoder_manifest: PackageManifest = serde_json::from_slice(&encoder_meta).map_err(|e| e.to_string())?;
+        encoder_manifest.weights_sha256 = digest(encoder);
+        let encoder_meta = serde_json::to_vec_pretty(&encoder_manifest).map_err(|e| e.to_string())?;
         fs::create_dir(dest).map_err(|e| e.to_string())?;
         fs::create_dir(dest.join("encoder")).map_err(|e| e.to_string())?;
-        for file in ["encoder/deberta.json", "spm.model"] {
-            fs::copy(source.join(file), dest.join(file)).map_err(|e| e.to_string())?;
-        }
+        fs::copy(source.join("spm.model"), dest.join("spm.model")).map_err(|e| e.to_string())?;
+        fs::write(dest.join("encoder/deberta.json"), &encoder_meta).map_err(|e| e.to_string())?;
         fs::write(dest.join("encoder/weights.safetensors"), encoder).map_err(|e| e.to_string())?;
         fs::write(dest.join("heads.safetensors"), heads).map_err(|e| e.to_string())?;
         manifest.heads_sha256 = digest(heads);
+        manifest.encoder_sha256 = digest(&encoder_meta);
         let meta = serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?;
         fs::write(dest.join("gliner.json"), meta).map_err(|e| e.to_string())
     }

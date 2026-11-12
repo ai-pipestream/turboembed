@@ -45,6 +45,104 @@ fn fixture() -> (DebertaLayer<f64>, Vec<f64>, Vec<f64>) {
     (layer, x, relative)
 }
 
+fn tiny_encoder() -> (Config, Vec<u8>) {
+    let config = Config {
+        hidden: 32,
+        intermediate: 64,
+        heads: 4,
+        layers: 2,
+        vocabulary: 30522,
+        max_sequence: 128,
+        position_buckets: 8,
+        max_relative_positions: 512,
+        layer_norm_eps: 1e-7,
+    };
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../testdata/tiny-deberta-bundle/weights/model.safetensors");
+    (config, std::fs::read(path).unwrap())
+}
+
+fn relative_checkpoint(relative: [u64; 2], weight: [u64; 1], bias: [u64; 1]) -> Vec<u8> {
+    let specs = [
+        ("encoder.rel_embeddings.weight", &relative[..]),
+        ("encoder.LayerNorm.weight", &weight[..]),
+        ("encoder.LayerNorm.bias", &bias[..]),
+    ];
+    let mut header = serde_json::Map::new();
+    let mut data = Vec::new();
+    for (name, shape) in specs {
+        let start = data.len();
+        let value = if name.ends_with("LayerNorm.weight") { 1.0f32 } else { 0.0 };
+        for _ in 0..shape.iter().product::<u64>() {
+            data.extend_from_slice(&value.to_le_bytes());
+        }
+        header.insert(
+            name.into(),
+            serde_json::json!({"dtype": "F32", "shape": shape, "data_offsets": [start, data.len()]}),
+        );
+    }
+    let mut header = serde_json::to_vec(&header).unwrap();
+    header.resize(header.len().next_multiple_of(8), b' ');
+    (header.len() as u64).to_le_bytes().into_iter().chain(header).chain(data).collect()
+}
+
+#[test]
+fn merged_qkv_uses_each_adapters_own_rows() {
+    let (config, original) = tiny_encoder();
+    let file = File::parse("encoder", &original).unwrap();
+    let mut layer = DebertaLayer::<f32>::load(config, &file, 0, 2, 4.0, &mut Rng::new(19)).unwrap();
+    for (at, value) in layer.params[0].iter_mut().enumerate() {
+        *value = (at % 17) as f32 * 0.001 - 0.008;
+    }
+    for (at, value) in layer.params[1].iter_mut().enumerate() {
+        *value = (at % 31) as f32 * 0.002 - 0.03;
+    }
+    let merged = layer.write_merged(&original, 0).unwrap();
+    let merged = File::parse("merged", &merged).unwrap();
+    let h = layer.config.hidden;
+    for (block, stem) in ["query_proj", "key_proj", "value_proj"].into_iter().enumerate() {
+        let name = format!("encoder.layer.0.attention.self.{stem}.weight");
+        let before = file.get(&name, Dtype::F32, 2).unwrap().f32s();
+        let after = merged.get(&name, Dtype::F32, 2).unwrap().f32s();
+        for o in 0..h {
+            for j in 0..h {
+                let mut expected = before[o * h + j];
+                for r in 0..layer.rank {
+                    expected +=
+                        layer.scale * layer.params[1][(block * h + o) * layer.rank + r] * layer.params[0][r * h + j];
+                }
+                assert!((after[o * h + j] - expected).abs() < 1e-6, "{stem} row {o} column {j}");
+            }
+        }
+    }
+}
+
+#[test]
+fn layer_loading_checks_config_and_relative_shapes() {
+    let (config, _) = tiny_encoder();
+    let (h, rows) = (config.hidden as u64, 2 * config.position_buckets as u64);
+    let bytes = relative_checkpoint([rows, h], [h], [h]);
+    let file = File::parse("relative", &bytes).unwrap();
+    assert_eq!(DebertaLayer::<f32>::relative(&config, &file).unwrap().len(), (rows * h) as usize);
+    for bytes in [
+        relative_checkpoint([rows - 1, h], [h], [h]),
+        relative_checkpoint([rows, h], [h - 1], [h]),
+        relative_checkpoint([rows, h], [h], [h - 1]),
+    ] {
+        let file = File::parse("invalid relative", &bytes).unwrap();
+        assert!(DebertaLayer::<f32>::relative(&config, &file).unwrap_err().message.contains("shape mismatch"));
+    }
+    let invalid = Config { heads: 0, ..config };
+    assert!(DebertaLayer::<f32>::relative(&invalid, &file).unwrap_err().message.contains("heads limit"));
+    assert!(
+        DebertaLayer::<f32>::load(invalid, &file, 0, 1, 2.0, &mut Rng::new(17))
+            .map(|_| ())
+            .unwrap_err()
+            .message
+            .contains("heads limit")
+    );
+}
+
 fn weighted(y: &[f64], r: &[f64]) -> f64 {
     y.iter().zip(r).map(|(a, b)| a * b).sum()
 }
