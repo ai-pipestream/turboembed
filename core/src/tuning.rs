@@ -365,8 +365,8 @@ mod tests {
     /// JSON; a file of another key, or not JSON, is no entry.
     #[test]
     fn the_cache_keeps_an_entry_in_memory_and_in_its_file() {
-        let dir = std::env::temp_dir().join(format!("turbo-tune-cache-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-tune-cache-{}", std::process::id())));
         let k = key();
         let e = TuneEntry::measured(k.clone(), "le256:qkv=8w/sk4;pool=groups;forced=", 12, "le256/qkv/8w=0.0500\nx\n");
         assert_eq!(e.timings, [("le256/qkv/8w".to_owned(), 0.05)]);

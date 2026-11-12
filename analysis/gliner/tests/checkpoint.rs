@@ -4,6 +4,7 @@
 //! `GLINER_PACKAGE` / `GLINER_MULTI_PACKAGE` are not set.
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use turbo_scratch::Scratch;
 
 use serde_json::Value;
 use turbo_gliner::{Decode, ExtractionSchema, Model, package::Manifest};
@@ -157,8 +158,7 @@ fn small_v2_5_checkpoint_matches_python() {
     tuned.apply_output(&boundary).unwrap();
     let expected = tuned.training_input(&words, &schema).unwrap().1;
     let heads = boundary.write_heads(&original).unwrap();
-    let out = std::env::temp_dir().join(format!("turbo-gliner-boundary-test-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&out);
+    let out = Scratch::at(std::env::temp_dir().join(format!("turbo-gliner-boundary-test-{}", std::process::id())));
     Manifest::write_tuned(&turbo_pins::require(&root), &out, &heads).unwrap();
     let reloaded = Manifest::load(&out).unwrap();
     assert_eq!(reloaded.training_input(&words, &schema).unwrap().1, expected);

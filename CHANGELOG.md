@@ -430,6 +430,11 @@ stubs must be regenerated.
   limit and the counts, instead of `TURBO_E_INTERNAL` with no detail.
   The layer's error has the new kind `LAYER_ERROR_KIND_LIMIT` with the
   same code (#2125).
+- `AnalyzeDocumentProgressive`: a sentence over a limit of `turbo:gliner`
+  (more than 384 tokens, or more word pieces than fit the encoder beside
+  the schema prompt) fails the step with `TURBO_E_CAPACITY` and the same
+  counts-only message, instead of `TURBO_E_INTERNAL` with no detail
+  (#2125).
 - PII policies: an `ff1` arm whose alphabet cannot hold a character
   every value of its rule's kind has (the digit alphabet on `email`, for
   one) is refused when the policy loads, naming the entry and the kind,

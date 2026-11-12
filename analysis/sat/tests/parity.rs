@@ -22,6 +22,7 @@
 //!   not (`compare`).
 
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use serde_json::Value;
 use turbo::bundle::Bundle;
@@ -323,8 +324,8 @@ fn many_overlapping_windows_match_wtpsplit() {
 /// The tiny bundle with limited lookahead: the same weights, and
 /// architecture.lookahead 4, which is wtpsplit's lookahead 8 over its two
 /// layers, as `sat_reference.py tiny <tokenizer> <out> 8` writes them.
-fn banded_bundle() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-sat-lookahead-{}", std::process::id()));
+fn banded_bundle() -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-sat-lookahead-{}", std::process::id())));
     for f in ["manifest.json", "tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
         let to = dir.join(f);
         std::fs::create_dir_all(to.parent().unwrap()).unwrap();

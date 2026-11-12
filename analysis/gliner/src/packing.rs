@@ -1,6 +1,7 @@
 use crate::{
     Config, ExtractionSchema,
     schema::{MAX_TOKEN_BYTES, MAX_TOKENS},
+    window::Refusal,
 };
 use turbo::sentencepiece::{PieceType, Scratch, SentencePiece};
 
@@ -96,7 +97,7 @@ impl<'a> Packer<'a> {
         c: &Config,
         max_sequence: usize,
         schema: &ExtractionSchema,
-    ) -> Result<PackedInput, String> {
+    ) -> Result<PackedInput, Refusal> {
         let mut out = PackedInput { ids: vec![c.cls_token], prompts: Vec::new(), words: Vec::new() };
         for label in schema.prompts() {
             out.prompts.push(out.ids.len());
@@ -106,7 +107,7 @@ impl<'a> Packer<'a> {
         out.ids.push(c.separator_token);
         // Reserve an EOS and at least one document piece.
         if out.ids.len() + 2 > max_sequence {
-            return Err("max_sequence limit: schema prompt leaves no room for a token".into());
+            return Err(Refusal::Sequence { max: max_sequence, got: out.ids.len() + 2 });
         }
         Ok(out)
     }

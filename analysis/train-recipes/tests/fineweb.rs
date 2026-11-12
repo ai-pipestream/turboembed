@@ -6,8 +6,9 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_train_recipes::fineweb::{
     self, Avoid, FileChoice, Overlap, Side, Span, Store, WEB, WebError, WebFile, WebRecipe, WebSplit, check_ranges,
@@ -154,9 +155,8 @@ fn parquet(rows: &[[String; 3]], group: usize) -> Vec<u8> {
     file
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-train-recipes-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn scratch(name: &str) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-train-recipes-{name}-{}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     dir
 }

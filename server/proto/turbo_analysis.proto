@@ -1167,6 +1167,14 @@ message AnalysisStepFailure
 // and FormatDocument RPC messages.
 // ============================================================================
 
+// Exact positional-layer selection for document inspection.
+message LayerInstanceFilter
+{
+  string layer = 1;
+  // Empty selects the default instance.
+  string instance = 2;
+}
+
 message DocumentWindowRequest
 {
   // Binary DocumentGraph bytes.
@@ -1187,6 +1195,11 @@ message DocumentWindowRequest
   // Optional allow-list of layer ids (e.g. "turbo:entities",
   // "turbo:chunks"); empty includes all positional layers on the view.
   repeated string filter_layers = 6;
+
+  // Optional exact (layer, instance) selectors for segments only. Empty
+  // includes all instances; with filter_layers set, both constraints apply.
+  // Summary metadata, document chips and heatmap lanes are not filtered.
+  repeated LayerInstanceFilter filter_layer_instances = 10;
 
   // Number of minimap buckets for heatmap lanes (0 uses exact segment
   // mode; > 0 bins into equal-width buckets).

@@ -142,8 +142,8 @@ mod tests {
 
     #[test]
     fn files_come_off_the_stacks_in_reverse() {
-        let root = std::env::temp_dir().join(format!("turbo-directory-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-directory-{}", std::process::id())));
         for d in ["a", "b", "b/c", "z"] {
             fs::create_dir_all(root.join(d)).unwrap();
         }

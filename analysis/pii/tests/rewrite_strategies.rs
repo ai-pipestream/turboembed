@@ -15,6 +15,7 @@ use turbo_pii::rewrite::{
     TokenizerError, Truncate,
 };
 use turbo_pii::{Pii, PiiDetector, PiiKind};
+use turbo_scratch::Scratch;
 
 const PERSON_KIND: PiiKind = test_kind(0);
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
@@ -182,7 +183,7 @@ fn map_replacer_supports_inline_tsv_files_case_sensitivity_targets_and_fallbacks
     assert_eq!(from_tsv.get("jane@example.com"), Some("JANE_TSV"));
     assert_eq!(from_tsv.get("bob@example.com"), Some("BOB_TSV"));
 
-    let tmp_path = std::env::temp_dir().join(format!("turbo_pii_map_test_{}.tsv", std::process::id()));
+    let tmp_path = Scratch::at(std::env::temp_dir().join(format!("turbo_pii_map_test_{}.tsv", std::process::id())));
     std::fs::write(&tmp_path, tsv).unwrap();
     let loaded = MapReplacer::from_tsv_file(&tmp_path, true).unwrap();
     let _ = std::fs::remove_file(&tmp_path);

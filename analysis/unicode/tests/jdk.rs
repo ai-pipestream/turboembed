@@ -13,8 +13,9 @@
 //! set; otherwise it says so and passes. With `TURBO_TEST_JDK` set, a
 //! missing `java` or `javac` fails the test.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::java::code_point as java;
@@ -49,10 +50,10 @@ const JDK_FEATURE: u32 = 21;
 /// Compiles and runs JavaChars.java, returning its output.
 fn jdk_dump() -> String {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/jdk/JavaChars.java");
-    let classes: PathBuf = std::env::temp_dir().join(format!("turbo-unicode-jdk-{}", std::process::id()));
+    let classes = Scratch::at(std::env::temp_dir().join(format!("turbo-unicode-jdk-{}", std::process::id())));
     std::fs::create_dir_all(&classes).unwrap();
-    run(Command::new("javac").arg("-d").arg(&classes).arg(&source)).expect("javac runs");
-    let output = run(Command::new("java").arg("-cp").arg(&classes).arg("JavaChars")).expect("java runs");
+    run(Command::new("javac").arg("-d").arg(classes.path()).arg(&source)).expect("javac runs");
+    let output = run(Command::new("java").arg("-cp").arg(classes.path()).arg("JavaChars")).expect("java runs");
     let _ = std::fs::remove_dir_all(&classes);
     output
 }

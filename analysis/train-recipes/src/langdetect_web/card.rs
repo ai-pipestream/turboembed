@@ -365,6 +365,7 @@ impl WebLanguageCard {
                 size,
                 sha256: sha256.parse().map_err(|e| bad("sha256", e))?,
                 sha512: sha512.parse().map_err(|e| bad("sha512", e))?,
+                also: Vec::new(),
                 download: None,
             })
         };

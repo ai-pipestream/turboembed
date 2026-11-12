@@ -1,4 +1,5 @@
 use super::*;
+use turbo_scratch::Scratch;
 
 /// MiniLM's tokenizer with its [PAD] matched as Model2Vec's code models
 /// add it: in the normalized text, as a whole word, taking the whitespace
@@ -11,7 +12,7 @@ fn a_normalized_special_token_matches_upstream() {
     for flag in ["normalized", "single_word", "lstrip", "rstrip"] {
         pad[flag] = json!(true);
     }
-    let path = std::env::temp_dir().join(format!("turbo-normalized-pad-{}.json", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-normalized-pad-{}.json", std::process::id())));
     std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
     let mut m = manifest();
     let specials = m["tokenizer"]["special_tokens"].as_array_mut().unwrap();

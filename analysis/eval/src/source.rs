@@ -127,9 +127,10 @@ mod tests {
     use std::fs;
     use std::time::Duration;
 
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("turbo-eval-source-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
+    fn scratch(name: &str) -> turbo_scratch::Scratch {
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-eval-source-{name}-{}", std::process::id())),
+        );
         fs::create_dir_all(&dir).unwrap();
         dir
     }

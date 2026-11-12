@@ -7,6 +7,7 @@ mod common;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use turbo_scratch::Scratch;
 
 use common::{open_stream, tiny};
 use turbo_analysis::export::export;
@@ -336,7 +337,7 @@ async fn a_refused_start_leaves_no_drain_calling_the_sink() {
         }
     });
     // A file where the vocabulary store wants a directory refuses the start.
-    let file = std::env::temp_dir().join(format!("turbo-sink-refused-{}", std::process::id()));
+    let file = Scratch::at(std::env::temp_dir().join(format!("turbo-sink-refused-{}", std::process::id())));
     std::fs::write(&file, b"not a directory").unwrap();
     let config = SinkConfig {
         endpoint: format!("http://{addr}"),
@@ -346,7 +347,7 @@ async fn a_refused_start_leaves_no_drain_calling_the_sink() {
         typed: None,
         pii_output: Default::default(),
     };
-    let serve = Serve { sink: Some(config), vocabulary: Some(file.clone()), ..Serve::default() };
+    let serve = Serve { sink: Some(config), vocabulary: Some(file.to_path_buf()), ..Serve::default() };
     let refused = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await;
     std::fs::remove_file(&file).unwrap();
     assert!(refused.err().is_some_and(|e| e.contains("vocabulary store")));

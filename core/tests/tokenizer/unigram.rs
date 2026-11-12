@@ -1,5 +1,6 @@
 use super::*;
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 const MASK: i64 = 28232;
 
@@ -224,7 +225,7 @@ fn the_multilingual_static_normalizer_matches_upstream() {
     steps.push(json!({ "type": "Strip", "strip_left": true, "strip_right": true }));
     json["normalizer"] = json!({ "type": "Sequence", "normalizers": steps });
     json["pre_tokenizer"]["split"] = json!(false);
-    let path = std::env::temp_dir().join(format!("turbo-m3-static-{}.json", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-m3-static-{}.json", std::process::id())));
     std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
     let mut m = manifest_m3();
     let u = &mut m["tokenizer"]["unigram"];

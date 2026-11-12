@@ -71,6 +71,7 @@ pub fn window(bytes: Vec<u8>, mode: OffsetMode) -> DocumentWindowRequest {
         page_size: 16_000,
         page: 0,
         filter_layers: Vec::new(),
+        filter_layer_instances: Vec::new(),
         heatmap_buckets: 0,
         xray_target_view: None,
         // Some fixtures hold PII; these tests are about the window (#1904).

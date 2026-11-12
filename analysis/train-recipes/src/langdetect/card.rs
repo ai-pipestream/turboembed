@@ -283,6 +283,7 @@ impl LanguageCard {
                     size: self.file.size,
                     sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
                     sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
+                    also: Vec::new(),
                     download: None,
                 },
                 File {
@@ -291,6 +292,7 @@ impl LanguageCard {
                     size: self.training_sentences.size,
                     sha256: self.training_sentences.sha256.parse().map_err(|e| bad("sentences sha256", e))?,
                     sha512: self.training_sentences.sha512.parse().map_err(|e| bad("sentences sha512", e))?,
+                    also: Vec::new(),
                     download: None,
                 },
             ],

@@ -1,4 +1,4 @@
-use crate::{ExtractionSchema, Model, OpenSpanModel};
+use crate::{ExtractionSchema, Model, OpenSpanModel, schema::MAX_TOKENS, window::Refusal};
 use std::path::Path;
 use std::sync::Arc;
 use turbo_analysis::{
@@ -194,7 +194,14 @@ impl GlinerAnnotator {
                     .map_err(fail);
             }
         };
-        let windows = crate::window::pack_windows(model, &self.schema, view, tokens, sentences).map_err(fail)?;
+        // An input over a limit goes on as the limit and two counts, which
+        // a server may pass to its caller; any other refusal is a detail.
+        let refused = |r: Refusal| match r {
+            Refusal::Tokens { got } => Error::over_limit(Self::ID, "max_tokens", MAX_TOKENS, got),
+            Refusal::Sequence { max, got } => Error::over_limit(Self::ID, "encoder max_sequence", max, got),
+            Refusal::Other(detail) => fail(detail),
+        };
+        let windows = crate::window::pack_windows(model, &self.schema, view, tokens, sentences).map_err(refused)?;
         let (starts, ends) = tokens.spans.columns();
         let mut entities = Entities {
             spans: Spans::new(view.id()),

@@ -5,22 +5,25 @@
 //! list by host synchronisation (encoder/mod.rs).
 
 use std::ffi::{CStr, c_char, c_void};
+use std::sync::OnceLock;
 
 use super::gpu::{Res, fail};
 use crate::status::RUNTIME;
 
-unsafe extern "C" {
-    fn turbo_dnnl_open(ze_device: *mut c_void, ze_context: *mut c_void, err: *mut c_char, n: usize) -> *mut c_void;
-    fn turbo_dnnl_close(h: *mut c_void);
-    fn turbo_dnnl_weights_bytes(
-        h: *mut c_void,
-        k: i32,
-        n: i32,
-        bytes: *mut usize,
+/// The C interface of libturbo_onednn.so, opened once (`api`).
+struct Api {
+    // Kept open for the life of the process: the pointers below are into it.
+    _lib: libloading::Library,
+    open: unsafe extern "C" fn(
+        ze_device: *mut c_void,
+        ze_context: *mut c_void,
         err: *mut c_char,
-        n_err: usize,
-    ) -> i32;
-    fn turbo_dnnl_pack(
+        n: usize,
+    ) -> *mut c_void,
+    close: unsafe extern "C" fn(h: *mut c_void),
+    weights_bytes:
+        unsafe extern "C" fn(h: *mut c_void, k: i32, n: i32, bytes: *mut usize, err: *mut c_char, n_err: usize) -> i32,
+    pack: unsafe extern "C" fn(
         h: *mut c_void,
         src: *const c_void,
         k: i32,
@@ -28,8 +31,8 @@ unsafe extern "C" {
         dst: *mut c_void,
         err: *mut c_char,
         n_err: usize,
-    ) -> i32;
-    fn turbo_dnnl_matmul(
+    ) -> i32,
+    matmul: unsafe extern "C" fn(
         h: *mut c_void,
         a: *const c_void,
         packed: *const c_void,
@@ -46,8 +49,8 @@ unsafe extern "C" {
         built: *mut i32,
         err: *mut c_char,
         n_err: usize,
-    ) -> i32;
-    fn turbo_dnnl_layer_norm(
+    ) -> i32,
+    layer_norm: unsafe extern "C" fn(
         h: *mut c_void,
         src: *const c_void,
         gamma: *const f32,
@@ -61,9 +64,49 @@ unsafe extern "C" {
         built: *mut i32,
         err: *mut c_char,
         n_err: usize,
-    ) -> i32;
-    fn turbo_dnnl_wait(h: *mut c_void, err: *mut c_char, n_err: usize) -> i32;
-    fn turbo_dnnl_version() -> *const c_char;
+    ) -> i32,
+    wait: unsafe extern "C" fn(h: *mut c_void, err: *mut c_char, n_err: usize) -> i32,
+    version: unsafe extern "C" fn() -> *const c_char,
+}
+
+/// Where core/build.rs built the library. A copy found through the
+/// dynamic linker's search (`LD_LIBRARY_PATH`, the run-time path) is the
+/// fallback, for a binary moved off the machine that built it.
+const BUILT: &str = env!("TURBO_ONEDNN_LIB");
+const NAME: &str = "libturbo_onednn.so";
+
+static API: OnceLock<Result<Api, String>> = OnceLock::new();
+
+/// The library's functions, opened the first time; Err says why not.
+fn api() -> Res<&'static Api> {
+    API.get_or_init(open_api).as_ref().map_err(|e| fail(RUNTIME, e.clone()))
+}
+
+fn open_api() -> Result<Api, String> {
+    let lib = match unsafe { libloading::Library::new(BUILT) } {
+        Ok(lib) => lib,
+        Err(built) => unsafe { libloading::Library::new(NAME) }.map_err(|found| {
+            format!("levelzero: oneDNN: cannot open {BUILT} ({built}) or {NAME} on the library path ({found})")
+        })?,
+    };
+    macro_rules! sym {
+        ($name:literal) => {{
+            let s = unsafe { lib.get(concat!($name, "\0").as_bytes()) }
+                .map_err(|e| format!("levelzero: oneDNN: {NAME} has no {}: {e}", $name))?;
+            *s
+        }};
+    }
+    Ok(Api {
+        open: sym!("turbo_dnnl_open"),
+        close: sym!("turbo_dnnl_close"),
+        weights_bytes: sym!("turbo_dnnl_weights_bytes"),
+        pack: sym!("turbo_dnnl_pack"),
+        matmul: sym!("turbo_dnnl_matmul"),
+        layer_norm: sym!("turbo_dnnl_layer_norm"),
+        wait: sym!("turbo_dnnl_wait"),
+        version: sym!("turbo_dnnl_version"),
+        _lib: lib,
+    })
 }
 
 /// c [m, n] = a [m, k] times the weights, plus bias (F32, n) where not 0,
@@ -101,7 +144,10 @@ pub(crate) struct LayerNorm {
 /// oneDNN on one context: a SYCL queue of its own on the backend's Level
 /// Zero context, and the primitives it has built, one per shape, its tokens
 /// binned (encoder/mod.rs).
-pub(crate) struct Dnnl(*mut c_void);
+pub(crate) struct Dnnl {
+    h: *mut c_void,
+    api: &'static Api,
+}
 
 // The handle is used from any thread under the context's queue lock.
 unsafe impl Send for Dnnl {}
@@ -120,22 +166,24 @@ fn check(what: &str, rc: i32, err: &[c_char; ERR]) -> Res<()> {
 impl Dnnl {
     /// Opened on the backend's device and context; Err says why not.
     pub fn open(ze_device: *mut c_void, ze_context: *mut c_void) -> Res<Dnnl> {
+        let api = api()?;
         let mut err = [0 as c_char; ERR];
-        let h = unsafe { turbo_dnnl_open(ze_device, ze_context, err.as_mut_ptr(), ERR) };
+        let h = unsafe { (api.open)(ze_device, ze_context, err.as_mut_ptr(), ERR) };
         if h.is_null() {
             check("oneDNN open", 1, &err)?;
         }
-        Ok(Dnnl(h))
+        Ok(Dnnl { h, api })
     }
 
-    pub fn version() -> String {
-        unsafe { CStr::from_ptr(turbo_dnnl_version()) }.to_string_lossy().into_owned()
+    /// oneDNN's version, as the opened library reports it.
+    pub fn version(&self) -> String {
+        unsafe { CStr::from_ptr((self.api.version)()) }.to_string_lossy().into_owned()
     }
 
     /// Bytes the packed weights of a [k, n] F16 matrix take.
     pub fn weights_bytes(&self, k: u32, n: u32) -> Res<usize> {
         let (mut bytes, mut err) = (0usize, [0 as c_char; ERR]);
-        let rc = unsafe { turbo_dnnl_weights_bytes(self.0, k as i32, n as i32, &mut bytes, err.as_mut_ptr(), ERR) };
+        let rc = unsafe { (self.api.weights_bytes)(self.h, k as i32, n as i32, &mut bytes, err.as_mut_ptr(), ERR) };
         check("oneDNN weights size", rc, &err)?;
         Ok(bytes)
     }
@@ -144,7 +192,7 @@ impl Dnnl {
     pub fn pack(&self, src: u64, k: u32, n: u32, dst: u64) -> Res<()> {
         let mut err = [0 as c_char; ERR];
         let rc = unsafe {
-            turbo_dnnl_pack(self.0, src as *const c_void, k as i32, n as i32, dst as *mut c_void, err.as_mut_ptr(), ERR)
+            (self.api.pack)(self.h, src as *const c_void, k as i32, n as i32, dst as *mut c_void, err.as_mut_ptr(), ERR)
         };
         check("oneDNN pack", rc, &err)
     }
@@ -154,8 +202,8 @@ impl Dnnl {
     pub fn matmul(&self, mm: &Matmul) -> Res<(u64, bool)> {
         let (mut signal, mut built, mut err) = (std::ptr::null_mut::<c_void>(), 0, [0 as c_char; ERR]);
         let rc = unsafe {
-            turbo_dnnl_matmul(
-                self.0,
+            (self.api.matmul)(
+                self.h,
                 mm.a as *const c_void,
                 mm.packed as *const c_void,
                 mm.bias as *const f32,
@@ -182,8 +230,8 @@ impl Dnnl {
     pub fn layer_norm(&self, ln: &LayerNorm) -> Res<(u64, bool)> {
         let (mut signal, mut built, mut err) = (std::ptr::null_mut::<c_void>(), 0, [0 as c_char; ERR]);
         let rc = unsafe {
-            turbo_dnnl_layer_norm(
-                self.0,
+            (self.api.layer_norm)(
+                self.h,
                 ln.src as *const c_void,
                 ln.gamma as *const f32,
                 ln.beta as *const f32,
@@ -205,13 +253,13 @@ impl Dnnl {
     /// Waits for everything queued, and drops the events handed out.
     pub fn wait(&self) -> Res<()> {
         let mut err = [0 as c_char; ERR];
-        let rc = unsafe { turbo_dnnl_wait(self.0, err.as_mut_ptr(), ERR) };
+        let rc = unsafe { (self.api.wait)(self.h, err.as_mut_ptr(), ERR) };
         check("oneDNN wait", rc, &err)
     }
 }
 
 impl Drop for Dnnl {
     fn drop(&mut self) {
-        unsafe { turbo_dnnl_close(self.0) };
+        unsafe { (self.api.close)(self.h) };
     }
 }

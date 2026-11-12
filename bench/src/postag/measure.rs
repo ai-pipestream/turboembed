@@ -238,6 +238,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
+            clock: None,
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),

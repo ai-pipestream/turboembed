@@ -16,7 +16,7 @@ impl Context {
         self.dnnl
             .get_or_init(|| match crate::levelzero::onednn::Dnnl::open(self.device, self.handle) {
                 Ok(d) => {
-                    let v = crate::levelzero::onednn::Dnnl::version();
+                    let v = d.version();
                     self.say(LOG_DEBUG, &format!("levelzero device {}: {v} can run the linear layers", self.ordinal));
                     Some(d)
                 }

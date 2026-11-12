@@ -198,6 +198,15 @@ pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
 fails that step with `TURBO_E_CAPACITY`, and the failure message names
 the limit and both counts, for example `step 'turbo:zero-shot-relations'
 failed: over its encoder max_sequence 512, got 528`; never the text.
+`turbo:gliner` packs whole sentences and never splits one, so a sentence
+over its limits fails that step the same way: `max_tokens` (384 tokens in
+one sentence) and `encoder max_sequence` (the schema prompt, the
+sentence's word pieces and the end token against the encoder's
+positions). A long document of ordinary sentences is not over either: it
+is read in windows. The other steps that run an encoder (the sentence,
+subword, sparse, vector and head steps, and `turbo:gliner` on a
+`HEAD_OPEN_SPAN` bundle) window their input and have no length limit of
+their own.
 
 `server/tests/full_text_graph_served.rs` runs the same text through a
 real server with the release packages: GLiNER small v2.5 for

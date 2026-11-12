@@ -1,5 +1,6 @@
 //! Native numeric validation, without device or performance claims.
 use std::path::Path;
+use turbo_scratch::Scratch;
 
 use turbo_analysis_embed::calibrate::{Calibration, CalibrationOptions, Cost, Point, Side};
 use turbo_analysis_embed::vectors::Shape;
@@ -103,7 +104,7 @@ fn invalid_cache_is_replaced_by_actual_cpu_measurement() {
     let mut c = calibration();
     c.key = Calibration::key(&bundle, &options, &texts).unwrap();
     c.points[0].device_ms = -1.0;
-    let dir = std::env::temp_dir().join(format!("turbo-calibration-values-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-calibration-values-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let path = Calibration::file(&dir, &c.key);
     std::fs::write(&path, c.to_text()).unwrap();

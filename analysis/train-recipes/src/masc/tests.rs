@@ -130,8 +130,9 @@ fn a_recorded_release_is_a_permissive_dataset_the_index_takes() {
 
 #[test]
 fn the_corpus_digest_covers_every_file_by_path_and_content() {
-    let dir = std::env::temp_dir().join(format!("turbo-train-recipes-digest-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-train-recipes-digest-{}", std::process::id())),
+    );
     std::fs::create_dir_all(dir.join("b")).unwrap();
     std::fs::write(dir.join("a.txt"), "abc").unwrap();
     std::fs::write(dir.join("b/c.txt"), "").unwrap();
