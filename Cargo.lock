@@ -2066,6 +2066,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-pii",
  "turbo-pins",
+ "turbo-scratch",
  "turbo-sentdetect",
  "turbo-sha256",
  "turbo-tokenize",
@@ -2105,6 +2106,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-normalize",
  "turbo-pins",
+ "turbo-scratch",
  "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-trainer",
@@ -2161,6 +2163,7 @@ dependencies = [
  "turbo",
  "turbo-gliner",
  "turbo-postag",
+ "turbo-scratch",
  "turbo-zoo",
  "ureq",
 ]
@@ -2399,6 +2402,7 @@ dependencies = [
  "turbo-bundle",
  "turbo-entity-linker",
  "turbo-pins",
+ "turbo-scratch",
  "turbo-trainer",
  "turbo-zoo",
 ]
@@ -2539,6 +2543,7 @@ dependencies = [
  "turbo-relation",
  "turbo-sat",
  "turbo-schema-extract",
+ "turbo-scratch",
  "turbo-sentdetect",
  "turbo-sequence",
  "turbo-sha256",
@@ -2662,6 +2667,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-formats",
  "turbo-pins",
+ "turbo-scratch",
 ]
 
 [[package]]
@@ -2738,6 +2744,7 @@ dependencies = [
  "turbo-numeric",
  "turbo-sha256",
  "turbo-unicode",
+ "turbo-us-zip",
 ]
 
 [[package]]
@@ -2846,6 +2853,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-scratch"
+version = "0.1.0"
+
+[[package]]
 name = "turbo-sentdetect"
 version = "0.1.0"
 dependencies = [
@@ -2936,6 +2947,7 @@ dependencies = [
  "turbo-morfologik",
  "turbo-pins",
  "turbo-relation",
+ "turbo-scratch",
  "turbo-unicode",
  "turbo-wordnet",
  "turbo-zoo",
@@ -3047,6 +3059,7 @@ dependencies = [
  "turbo-formats",
  "turbo-gliner",
  "turbo-pins",
+ "turbo-scratch",
  "turbo-sentdetect",
  "turbo-tagger",
  "turbo-train-recipes",
@@ -3064,6 +3077,14 @@ dependencies = [
 [[package]]
 name = "turbo-unicode-gen"
 version = "0.1.0"
+
+[[package]]
+name = "turbo-us-zip"
+version = "0.1.0"
+dependencies = [
+ "turbo-geo",
+ "turbo-sha256",
+]
 
 [[package]]
 name = "turbo-vector-index"

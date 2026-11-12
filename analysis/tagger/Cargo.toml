@@ -23,5 +23,6 @@ turbo-unicode = { path = "../unicode" }
 turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 serde_json = "1"
 turbo-pins = { path = "../pins" }

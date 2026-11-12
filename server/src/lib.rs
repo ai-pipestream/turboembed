@@ -179,6 +179,10 @@ pub struct Serve {
     /// PII value release to granted services (`--pii-grant`, #1909); none
     /// withholds every value.
     pub pii_release: Option<release::ReleaseConfig>,
+    /// The encryption keys of the redaction policies' AES-256-GCM and FF1
+    /// arms on a server with no `pii_release` (#2111); with one, its
+    /// `encryption_keys` serve and this must be empty.
+    pub pii_encryption_keys: Vec<release::keys::TokenKeyFile>,
     /// The most bytes one call's request may carry in all, frames
     /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
     pub max_stream_bytes: Option<u64>,
@@ -186,8 +190,9 @@ pub struct Serve {
     pub metrics_listen: Option<SocketAddr>,
     /// The encoded redaction policies `turbo-pii:redact` serves by name
     /// (`--pii-policy`), converted at start: their key references resolve
-    /// through `pii_release`'s token keys and their dictionary references
-    /// through the vocabulary store, and a bad reference fails start.
+    /// through `pii_release`'s token keys or the encryption keys, their
+    /// dictionary references through the vocabulary store, and a bad
+    /// reference fails start.
     pub pii_policies: pii_policy::PolicyFiles,
 }
 
@@ -222,8 +227,23 @@ impl Server {
             None => None,
         };
         let token_keys = serve.pii_release.as_ref().map_or(&[][..], |r| &r.token_keys[..]);
-        let encryption_keys = serve.pii_release.as_ref().map_or(&[][..], |r| &r.encryption_keys[..]);
-        let resolver = pii_policy::ServerResolver::load(token_keys, encryption_keys, store.clone())?;
+        let encryption_keys = match &serve.pii_release {
+            Some(_) if !serve.pii_encryption_keys.is_empty() => {
+                return Err("encryption keys go in the release config when there is one".into());
+            }
+            Some(r) => &r.encryption_keys[..],
+            None => {
+                release::keys::distinct("--pii-encryption-key", &serve.pii_encryption_keys)?;
+                &serve.pii_encryption_keys[..]
+            }
+        };
+        let mut resolver = pii_policy::ServerResolver::load(token_keys, encryption_keys, store.clone())?;
+        // Without a release no caller need be authenticated, so a key
+        // loaded on its own serves the operator's named policies only: an
+        // inline FF1 arm choosing its own tweak would be an oracle (#2111).
+        if serve.pii_release.is_none() {
+            resolver = resolver.named_only_encryption();
+        }
         let policies = pii_policy::NamedPolicies::from_files(&serve.pii_policies, &resolver)?;
         let state = Arc::new(
             State::new(names, models).with_pii_policies(policies, resolver.shared()).with_vocabulary(store.clone()),

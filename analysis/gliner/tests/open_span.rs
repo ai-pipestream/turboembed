@@ -14,6 +14,7 @@ use turbo_analysis::{Analyzer, Annotator, Bound, Document, Ix, Key, Layer, Prove
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_gliner::{Candidate, Decisions, Decode, ExtractionSchema, GlinerAnnotator, OpenSpanModel, decode};
+use turbo_scratch::Scratch;
 
 const TEXT: &str = "Ann met Bob in Paris . The dog slept .";
 
@@ -33,13 +34,12 @@ fn values(seed: u64, n: usize, scale: f32) -> Vec<f32> {
         .collect()
 }
 
-fn open_span_bundle(name: &str) -> PathBuf {
+fn open_span_bundle(name: &str) -> Scratch {
     open_span_bundle_with_bias(name, [0.5, 1.0, 1.0])
 }
 
-fn open_span_bundle_with_bias(name: &str, bias: [f32; 3]) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-gliner-open-span-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn open_span_bundle_with_bias(name: &str, bias: [f32; 3]) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-gliner-open-span-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny().join(f), dir.join(f)).unwrap();
@@ -226,10 +226,10 @@ fn open_span_loads_from_zoo_by_id_and_language_and_builtin_index_pins_permissive
         files,
     };
     let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();
-    let cache = std::env::temp_dir().join(format!("turbo-gliner-open-span-zoo-cache-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&cache);
+    let cache =
+        Scratch::at(std::env::temp_dir().join(format!("turbo-gliner-open-span-zoo-cache-{}", std::process::id())));
     let transport = Directory::new(&dir);
-    let zoo = Zoo::new(index, cache, Policy::default(), &transport);
+    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &transport);
     let user: UserId = "alice".parse().unwrap();
     let acc = Acceptances::default();
     let schema = ExtractionSchema::new(vec!["person".into(), "location".into()], 0.5, Decode::Flat).unwrap();

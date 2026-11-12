@@ -11,14 +11,14 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 use turbo_bundle::recipe::Recipe;
 use turbo_bundle::seal;
+use turbo_scratch::Scratch;
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-bundle-sparse-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-bundle-sparse-{}-{name}", std::process::id())));
     fs::create_dir_all(&d).unwrap();
     d
 }
@@ -155,7 +155,7 @@ fn append_safetensors(path: &Path, tensors: &[(String, Vec<u64>, Vec<u8>)]) -> V
 /// given `extra` tensors, its manifest `edit`ed, and its `files` entry
 /// for the weights updated to the new bytes: what a sparse bundle looks
 /// like on disk.
-fn sparse_bundle(name: &str, extra: &[(String, Vec<u64>, Vec<u8>)], edit: impl FnOnce(&mut Value)) -> PathBuf {
+fn sparse_bundle(name: &str, extra: &[(String, Vec<u64>, Vec<u8>)], edit: impl FnOnce(&mut Value)) -> Scratch {
     let dir = scratch(name);
     for f in ["tokenizer.json", "reference/reference.safetensors", "weights/model.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();

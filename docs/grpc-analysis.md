@@ -49,11 +49,10 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 | `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
 | `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
-| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas` | `turbo:structure`, `Sentences`, `Tokens`, `PosTags`, `Entities`, `Dependencies`, `Lemmas` | `TASK_EMBED`, `head.pos`, `head.entities`, `head.dependencies`, `head.lemmas` |
-| `annotate-v2` | `"2"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
+| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
 
-`annotate-v1` keeps its fixed four heads. `annotate-v2` (#1832) is
-capability driven: it runs every head step the selected bundle lists in
+`annotate-v1` (#1775, #1832) is capability driven: it runs every head
+step the selected bundle lists in
 `head_steps`, so a partial bundle (a span-classifier-only entity bundle,
 say) runs what it carries, and `head.any` is met by any bundle with a
 head. When the bundle has a learned sentence head, `turbo-tagger:sentences`
@@ -107,7 +106,7 @@ The refusals are named in the message:
 |---|---|---|
 | `requires bundle 'head.*'` | the bundle has no head the step takes | `TURBO_E_BUNDLE_NOT_FOUND` |
 | `missing head` | the selected name is no head of the bundle | `TURBO_E_BUNDLE_NOT_FOUND` |
-| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v2`) | `TURBO_E_INVALID_ARGUMENT` |
+| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v1`) | `TURBO_E_INVALID_ARGUMENT` |
 | `unsupported head` | the selected head is of another kind, layer or scheme | `TURBO_E_UNSUPPORTED_TASK` |
 | `ambiguous output` | two steps write one output: a step named twice, `turbo-tagger:sentences` beside `turbo-sentdetect:rules`, or `turbo-tagger:entities` beside `turbo-geo:names` | `TURBO_E_INVALID_ARGUMENT` |
 
@@ -127,7 +126,8 @@ and the most layer taps any head reads. The windows follow one plan:
 - With no whole-view head among the steps, the source view's `Tokens` are
   read a sentence at a time (the `Sentences` layer, or the tokens'
   sentence column), each sentence in windows of whole words when it is
-  longer than a row. This is the `annotate-v1` read.
+  longer than a row. This is the `annotate-v1` read on a bundle of
+  word-level heads.
 - With `turbo-tagger:sentences` or `turbo-tagger:coref`, the view's
   tokens are read once as one sequence, in windows of whole words. Those
   heads decode from it, and every sentence-scoped head decodes from its
@@ -169,7 +169,7 @@ package's own tokenizer when present, including normalized-view projection, so
 smart chunking works without another embedding bundle.
 
 Remaining limits: a step runs over the source view only; under
-`annotate-v2` a bundle with two heads for one step is refused as
+`annotate-v1` a bundle with two heads for one step is refused as
 ambiguous rather than run twice; and a learned sentence step cannot follow a
 normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
 the source, or the last view written before the fold, so its boundaries
@@ -198,6 +198,24 @@ pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
 fails that step with `TURBO_E_CAPACITY`, and the failure message names
 the limit and both counts, for example `step 'turbo:zero-shot-relations'
 failed: over its encoder max_sequence 512, got 528`; never the text.
+
+`server/tests/full_text_graph_served.rs` runs the same text through a
+real server with the release packages: GLiNER small v2.5 for
+`turbo:gliner` and GLiNER2 base v1 for `turbo:zero-shot-relations`, both
+loaded with `LoadBundle` and named by `turbo_pins::require` (set
+`GLINER_PACKAGE` and `GLINER2_PACKAGE`, run with `--ignored`). Its steps
+are the model-free stages above without the gazetteer, whose `Entities`
+GLiNER writes, then `turbo:subwords`, both model stages and
+`turbo:chunker`. The served graph is byte-identical to the graph
+`compile_analyzer_with_models` writes in process from the same packages,
+for that text, for empty text, and for a sentence whose word pieces are
+over the relation encoder's 512, where the relation step fails with
+`TURBO_E_CAPACITY` in both and every other layer is the same. The test
+also checks entity and PII source slices, UTF-16 offsets past the
+astral characters, relation mentions that link entities in the graph,
+deduplicated edges, verified evidence, model provenance equal to the
+digests `Capabilities` reports, a byte-identical second run and a
+byte-identical `RoundTripDocumentGraph`.
 The step's layer error, in the step failure, the complete graph and
 the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 
@@ -215,13 +233,17 @@ offset modes.
 Two of those steps match text as written and so read the cased view: the
 rule sentence step (`turbo-sentdetect:rules`) and the place-name step
 (`turbo-geo:names`, `turbo:entities`). In a chain with
-`turbo:normalize:case-fold` they read the last view written before the
-fold, or the source when the fold comes first, and their spans are in
-source offsets as always. A full fold also rewrites spellings (`ﬁ` to
-`fi`, `ſ` to `s`), which would otherwise turn words the text does not
-write into place names. Tokens, subwords and the steps that read them
-keep reading the last view, folded. Structure blocks read it too and do
-not depend on case. Every other step reads the source.
+`turbo:normalize:case-fold` they read the chain with the fold steps left
+out (or the source when the fold is the only normalizer), so every
+non-fold normalizer in the chain still reaches them wherever the fold
+sits, and their spans are in source offsets as always. No extra view is
+built when the chain has no fold, has the fold last, or the request has
+no step that reads cased text. A full fold also
+rewrites spellings (`ﬁ` to `fi`, `ſ` to `s`), as NFKC (`turbo:normalize`,
+`turbo:normalize:nfkc`) does, which would otherwise turn words the text
+does not write into place names. Tokens, subwords and the steps that read
+them keep reading the last view, folded. Structure blocks read it too and
+do not depend on case. Every other step reads the source.
 `server/tests/case_fold_sentences.rs` and
 `server/tests/progressive_case_fold_names.rs` hold the two steps to the
 results of the same request without the fold.
@@ -1144,9 +1166,29 @@ An unknown name is refused without echoing it.
   an unregistered key refuses the policy. The keys of the `aes_256_gcm`
   and `ff1` arms resolve through `--pii-encryption-key ID:VERSION:PATH`
   (repeated, or `TURBO_KSERVE_PII_ENCRYPTION_KEYS`), whose file must hold
-  exactly 32 bytes. That flag needs `--pii-grant`, as the token keys do,
-  and a server built with `pii-reversible`; without the feature it fails
-  start-up. The two registries are separate: a token key never answers
+  exactly 32 bytes. That flag needs a server built with `pii-reversible`;
+  without the feature it fails start-up. It does not need `--pii-grant`
+  or mTLS, unlike the token keys: encrypting during redaction releases
+  no value, it only writes ciphertext into the redacted view, so a server
+  with no grant still loads its encryption keys for these arms (#2111).
+  `--pii-encryption-key-active` still needs a grant with ciphertext, since
+  it only picks the key releases are made under.
+  Without a grant no caller need be authenticated, so those keys serve
+  the named `--pii-policy` policies only: an inline `pii_redaction`
+  policy naming one is refused (`INVALID_ARGUMENT`, "serves named
+  --pii-policy policies only"). Otherwise a caller could send its own
+  `ff1` arm with a tweak of its choosing and use the server as a
+  deterministic encryption oracle under the operator's key, matching
+  guesses over a small domain such as SSNs against stored ciphertext.
+  That narrows the oracle but does not close it: a named policy with a
+  deterministic arm (`ff1`) still encrypts whatever text a caller sends,
+  under the operator's key and tweak, and the caller reads the result
+  back. So a server with such a policy and no client authentication must
+  sit behind an ingress that authenticates callers (a sidecar, a service
+  mesh or a private network), or run with mTLS (`--tls-client-ca`); see
+  docs/grpc.md, Starting it, on putting the listener behind what a
+  deployment uses for authentication. With a grant (and so mTLS) inline
+  policies may name them as before. The two registries are separate: a token key never answers
   for an encryption reference, or the reverse, and an encryption key
   file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store
@@ -1329,7 +1371,7 @@ and `ANALYZE_OUTPUT_TOKEN_VECTORS` over `AnalyzeStream` against in-process
 `ColBERT` projection bundles in all three `OffsetMode`s.
 `server/tests/progressive_heads.rs`, `progressive_heads_all.rs` and
 `progressive_heads_rows.rs` prove the head steps on sealed tiny bundles:
-`annotate-v1` and `annotate-v2` layers field for field against the
+`annotate-v1` layers field for field against the
 tagger crate's annotators (partial bundles, morphology, BIO and span
 entities, relations, learned sentences, word splits, coreference) on
 Unicode text read in several windows, every head layer's offsets in all

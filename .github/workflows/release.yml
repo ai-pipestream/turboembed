@@ -45,14 +45,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.98
-      - name: the CUDA toolkit, nvcc and the runtime's headers and static library only
+      - name: the CUDA package repository
         run: |
-          curl -fsSLO https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 5 \
+            https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cuda-nvcc-$CUDA_PACKAGE cuda-cudart-dev-$CUDA_PACKAGE cuda-cccl-$CUDA_PACKAGE
-          /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
+      - name: the CUDA toolkit, nvcc and the runtime's headers and static library only
+        uses: ./.github/actions/apt-install
+        with:
+          packages: cuda-nvcc-${{ env.CUDA_PACKAGE }} cuda-cudart-dev-${{ env.CUDA_PACKAGE }} cuda-cccl-${{ env.CUDA_PACKAGE }}
+      - name: the installed nvcc
+        run: /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
       - name: build
         env:
           TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}

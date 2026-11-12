@@ -9,7 +9,6 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
 
 use common::*;
 use serde_json::{Value, json};
@@ -19,13 +18,13 @@ use turbo::mlm::MlmHead;
 use turbo::safetensors::{Dtype, File};
 use turbo::status::*;
 use turbo::*;
+use turbo_scratch::Scratch;
 
 /// Copy `testdata/tiny-bert-bundle` into a temporary directory, append
 /// `extra` tensors to `weights/model.safetensors`, apply `edit` to
 /// `manifest.json`, and update `files[]`: core/tests/head.rs's helper.
-fn tiny_with_mlm(name: &str, extra: Vec<Tensor>, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-mlm-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn tiny_with_mlm(name: &str, extra: Vec<Tensor>, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-mlm-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();
