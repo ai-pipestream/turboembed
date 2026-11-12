@@ -54,12 +54,14 @@ export function submitter(ev: Event): HTMLButtonElement {
 /**
  * A control for something that cannot be undone. The first click turns it
  * into `question` with Yes and Cancel; only Yes runs `act`. A failure
- * shows beside the control, which goes back to its first state.
+ * shows beside the control, which goes back to its first state. With an
+ * `off` reason the control is off and says why when pointed at.
  */
-export function confirmed(label: string, question: string, act: () => Promise<void>): HTMLElement {
+export function confirmed(label: string, question: string, act: () => Promise<void>, off = ""): HTMLElement {
   const box = el("span", { class: "confirm" });
   const first = (why = ""): HTMLButtonElement => {
-    const b = el("button", { type: "button", text: label });
+    const b = el("button", { type: "button", text: label, title: off || undefined });
+    b.disabled = off !== "";
     b.addEventListener("click", ask);
     box.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
     return b;

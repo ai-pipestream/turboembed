@@ -1,5 +1,7 @@
 // DOM helpers. Text is always set as text, never as markup.
 
+import type { Explained } from "./errors.js";
+
 export type Child = Node | string | null | undefined | false | Child[];
 
 export function $(id: string): HTMLElement {
@@ -65,11 +67,30 @@ export function options(select: HTMLSelectElement, values: string[], labels?: st
   if (values.includes(keep)) select.value = keep;
 }
 
-/** A status line: plain, busy or an error. */
-export function say(box: HTMLElement, text: string, kind: "" | "busy" | "error" = ""): void {
-  box.textContent = text;
-  box.className = kind ? `note ${kind}` : "note";
-  box.hidden = text === "";
+/** The children that show a failure: its sentence, then its details behind a toggle. */
+function failure(x: Explained): Child[] {
+  if (!x.details) return [x.text];
+  return [x.text, " ", el("details", { class: "why" }, el("summary", { text: "details" }), el("code", { text: x.details }))];
+}
+
+/** A status line: plain, busy or an error. A failure from `explain` is an error with its details behind a toggle. */
+export function say(box: HTMLElement, what: string | Explained, kind: "" | "busy" | "error" = ""): void {
+  if (typeof what === "string") {
+    box.textContent = what;
+    box.className = kind ? `note ${kind}` : "note";
+    box.hidden = what === "";
+    return;
+  }
+  box.replaceChildren();
+  append(box, failure(what));
+  // A call the visitor stopped is said plainly, not as an error.
+  box.className = what.text === "Cancelled." ? "note" : "note error";
+  box.hidden = false;
+}
+
+/** A failure from `explain` as a line of its own. */
+export function failed(x: Explained): HTMLElement {
+  return el("p", { class: "error" }, failure(x));
 }
 
 /** Bytes as a short human size. */

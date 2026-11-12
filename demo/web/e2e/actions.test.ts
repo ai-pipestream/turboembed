@@ -225,17 +225,24 @@ test("a delete asks in place, and only Yes calls the server", async () => {
 });
 
 test("a refused delete says why beside its own row", async () => {
+  // The demo forwards Unload, and the server, started without --admin, refuses it.
+  const stack = await Stack.start({
+    models: [BERT, `name=tiny-bert-exact,${BERT}`],
+    allow: ["/turbo.result.v1.AnalysisService/UnloadBundle"],
+  });
   const browser = await chromium.launch();
   try {
-    // The shared demo forwards no write, so the server is never asked.
     const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
-    await page.goto(`${BASE}/#server`);
+    await page.goto(`${stack.url}/#server`);
     const row = page.locator("#server-caps tr", { hasText: "tiny-bert-exact" });
-    await row.waitFor();
+    await row.locator(".confirm button:not([disabled])", { hasText: "Unload" }).waitFor();
     await row.locator(".confirm button", { hasText: "Unload" }).click();
     await row.locator(".confirm button", { hasText: "Yes" }).click();
     await row.locator(".confirm .error").waitFor();
-    assert.match((await row.locator(".confirm .error").textContent()) ?? "", /permission_denied/);
+    // A sentence first; the code stays behind the details toggle.
+    const why = (await row.locator(".confirm .error").textContent()) ?? "";
+    assert.equal(why.includes("Not served: UnloadBundle is admin-only: start the server with --admin to serve it."), true, why);
+    assert.equal(why.trim().startsWith("Not served"), true, why);
     // Only that row reports, Unload is back on it, and nothing was unloaded.
     assert.equal(await page.locator("#server-caps .confirm .error").count(), 1);
     assert.equal(await row.locator(".confirm button", { hasText: "Unload" }).count(), 1);
@@ -244,5 +251,6 @@ test("a refused delete says why beside its own row", async () => {
     assert.equal(await page.locator("#server-caps tr", { hasText: "tiny-bert-exact" }).count(), 1);
   } finally {
     await browser.close();
+    await stack.close();
   }
 });

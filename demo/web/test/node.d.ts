@@ -21,6 +21,7 @@ declare module "node:crypto" {
 
 declare module "node:fs" {
   export function readFileSync(path: string): Uint8Array;
+  export function writeFileSync(path: string, data: string, options?: { mode?: number }): void;
 }
 
 declare module "node:fs" {
