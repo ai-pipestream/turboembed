@@ -7,7 +7,7 @@ import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { indexBody, type Text } from "../frames.js";
 import { describe, search } from "../rpc.js";
-import { capabilities, onBack, onCapabilities, onReachable, reachable, whyNone } from "../state.js";
+import { onCapabilities, onCapabilitiesFailed, onReachable, onServed, reachable, whyNone } from "../state.js";
 import { put } from "../upload.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 
@@ -40,7 +40,7 @@ async function list(): Promise<void> {
     );
   } catch (e) {
     const down = reachable() === false;
-    if (down) options(select("search-index"), [], undefined, "the server is not reachable");
+    options(select("search-index"), [], undefined, down ? "the server is not reachable" : "the indexes could not be listed");
     box.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
   }
 }
@@ -100,10 +100,11 @@ async function addDocuments(): Promise<void> {
     say(note, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
     return;
   }
-  indexing?.abort();
-  const ac = new AbortController();
-  indexing = ac;
   await busy($("search-add") as HTMLButtonElement, async () => {
+    // Inside, so a click while the upload runs (which busy ignores) does not end it.
+    indexing?.abort();
+    const ac = new AbortController();
+    indexing = ac;
     try {
       const body = indexBody(index, docs);
       say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
@@ -193,17 +194,18 @@ export function init(): void {
   const served = (): void => {
     const embed = caps?.bundles.filter((b) => b.task === "TASK_EMBED") ?? [];
     options(select("search-create-bundle"), embed.map((b) => b.name), embed.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`), whyNone("embedding model"));
+    // Before the first answer the rerank select says why it is empty too.
+    const rerank = caps?.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name) ?? [];
+    if (caps) options(select("search-rerank"), ["", ...rerank], ["no rerank", ...rerank]);
+    else options(select("search-rerank"), [], undefined, reachable() === false ? "the server is not reachable" : "no rerank");
   };
   onReachable(() => {
     if (!caps) served();
   });
-  onBack(() => void list());
+  onServed(() => void list());
   onCapabilities((c) => {
     caps = c;
     served();
-    const rerank = c.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name);
-    options(select("search-rerank"), ["", ...rerank], ["no rerank", ...rerank]);
   });
-  capabilities().catch(() => undefined);
-  void list();
+  onCapabilitiesFailed(served);
 }

@@ -100,7 +100,7 @@ export function init(): void {
   const again = lazy($("analyze-drawer") as HTMLDetailsElement, () => void render());
   onDoc((d) => {
     const views = d?.views ?? [];
-    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)));
+    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)), "analyze a document first");
     viewSelect().value = "0";
     again();
   });

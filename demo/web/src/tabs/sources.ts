@@ -9,9 +9,13 @@ import type { ListModelSourcesResponse, ModelSource } from "../gen/turbo_trainin
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
 import { catalog, describe } from "../rpc.js";
+import { onServed, reachable } from "../state.js";
 import { readOnly, redirected, s3KeysOf, signInText } from "../sourcetext.js";
 
 const note = () => $("sources-note");
+// The read-only reason the last read put in the note, to take it back
+// when a later read finds the sources writable.
+let saidWhy = "";
 
 function sourcesTable(r: ListModelSourcesResponse, changed: () => Promise<void>): HTMLElement {
   const why = readOnly(r);
@@ -53,8 +57,12 @@ export async function load(): Promise<void> {
     ($("sources-form") as HTMLFormElement).hidden = why !== "";
     $("sources-drive").hidden = why !== "" || !r.driveSignIn;
     if (why) say(note(), why);
+    else if (saidWhy && note().textContent === saidWhy) say(note(), "");
+    saidWhy = why;
   } catch (e) {
-    say(note(), describe(e), "error");
+    const why = reachable() === false ? "The server is not reachable, so the sources cannot be listed." : describe(e);
+    $("sources-list").replaceChildren(el("p", { class: "error", text: why }));
+    say(note(), "");
   }
 }
 
@@ -80,11 +88,11 @@ function add(ev: Event): void {
 }
 
 /** Sends the user to Google's consent page for a Drive folder. */
-function connect(): void {
+function connect(): Promise<void> {
   const name = input("sources-drive-name").value.trim() || "Google Drive";
   const folder = input("sources-drive-folder").value.trim() || "root";
   const address = folder.startsWith("gdrive://") ? folder : `gdrive://${folder}`;
-  void act(async () => {
+  return act(async () => {
     const r = await catalog.startDriveSignIn({ name, address });
     location.assign(r.authorizeUrl);
     return "Opening Google sign-in.";
@@ -95,6 +103,7 @@ function connect(): void {
 async function finish(back: { code: string; state: string; error: string }): Promise<void> {
   history.replaceState(null, "", `${location.pathname}#models`);
   if (back.error) {
+    await load();
     say(note(), `Google sign-in was not completed: ${back.error}`, "error");
     return;
   }
@@ -107,11 +116,23 @@ async function finish(back: { code: string; state: string; error: string }): Pro
 /** Wires the controls; on a redirect back from Google, finishes the sign-in. */
 export function init(): boolean {
   $("sources-form").addEventListener("submit", add);
-  $("sources-connect").addEventListener("click", connect);
+  const drive = $("sources-connect") as HTMLButtonElement;
+  drive.addEventListener("click", () => void busy(drive, connect));
   const again = $("sources-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void busy(again, load));
   const back = redirected(location.search);
-  if (back) void finish(back);
-  else void load();
+  // The list is read with every other list (state.ts onServed). A
+  // sign-in that came back is finished in place of the first read, which
+  // reads the list itself.
+  let pending = back;
+  let finishing = false;
+  onServed(() => {
+    if (pending) {
+      const b = pending;
+      pending = null;
+      finishing = true;
+      void finish(b).finally(() => (finishing = false));
+    } else if (!finishing) void load();
+  });
   return back !== null;
 }

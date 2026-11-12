@@ -8,16 +8,13 @@ import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
 import { describe, inference, setToken, token } from "../rpc.js";
 import { analysis } from "../rpc.js";
-import { onBack, onReachable, reachable, refresh, setReachable } from "../state.js";
+import { onReachable, onServed, reachable, refresh, setStatus } from "../state.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 
 // How often the status is read again while the page is open and in view.
 const EVERY_MS = 10_000;
 
 let checking: Promise<void> | null = null;
-// Whether the last answered check said ready: null before the first and
-// after a check nothing answered.
-let wasReady: boolean | null = null;
 
 /** Whether `e` says nothing answered, rather than an answer that refuses. */
 function unreached(e: unknown): boolean {
@@ -32,22 +29,19 @@ async function check(): Promise<void> {
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
-    setReachable(true);
-    // A server that answers while it loads lists nothing yet. When it
-    // turns ready, read what it serves again, so every tab refills.
-    const becameReady = ready.ready && wasReady === false;
-    wasReady = ready.ready;
-    if (becameReady) void reload();
+    setStatus(true, ready.ready);
   } catch (e) {
     if (unreached(e)) {
-      wasReady = null;
       s.textContent = "server not reachable";
       s.className = "error status down";
       $("down-why").textContent = describe(e);
-      setReachable(false);
+      setStatus(false, false);
     } else {
+      // Something answered and refused (a missing or wrong token): that
+      // is not an unreachable server, and each list shows the refusal.
       s.textContent = describe(e);
       s.className = "error status";
+      setStatus(true, false);
     }
   }
 }
@@ -70,8 +64,9 @@ function watch(): void {
   const retry = $("down-retry") as HTMLButtonElement;
   retry.addEventListener("click", () => void busy(retry, status));
   onReachable((up) => ($("down").hidden = up));
-  // The server is back: read what it serves again, so every tab refills.
-  onBack(() => void reload());
+  // What the server serves is read once the status is known, and again
+  // when it is back or turns ready, so every tab refills.
+  onServed(() => void reload());
 }
 
 function renderCapabilities(c: CapabilitiesResponse): void {
@@ -148,5 +143,4 @@ export function init(): void {
   $("server-load").addEventListener("submit", load);
   watch();
   void status();
-  void reload();
 }

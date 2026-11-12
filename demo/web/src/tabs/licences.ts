@@ -5,7 +5,7 @@
 // without --admin or --zoo, the page is read-only.
 
 import type { CatalogEntry, LicenceTerms, ListLicenceAcceptancesResponse } from "../gen/turbo_training_pb.js";
-import { confirmed } from "../act.js";
+import { busy, confirmed } from "../act.js";
 import { el, table, type Child } from "../dom.js";
 import { catalog } from "../rpc.js";
 import { Sha256 } from "../sha256.js";
@@ -68,7 +68,7 @@ export function termsBlock(e: CatalogEntry, t: LicenceTerms, w: Who, accepted: (
     const button = el("button", { type: "button", text: `Accept ${t.licence}` });
     button.disabled = true;
     read.addEventListener("change", () => (button.disabled = !read.checked));
-    button.addEventListener("click", () => void accepted(t));
+    button.addEventListener("click", () => void busy(button, () => accepted(t)));
     body.push(el("label", {}, read, ` I have read the ${t.licence} terms above and accept them`), " ", button);
   } else {
     body.push(el("p", { class: "muted", text: w.why }));

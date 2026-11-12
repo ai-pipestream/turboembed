@@ -4281,17 +4281,17 @@ function after(s, prefix2) {
   return s.startsWith(prefix2) ? s.slice(prefix2.length) : s;
 }
 function lazy(details, render6) {
-  let stale = true;
+  let stale2 = true;
   details.addEventListener("toggle", () => {
-    if (details.open && stale) {
-      stale = false;
+    if (details.open && stale2) {
+      stale2 = false;
       render6();
     }
   });
   return () => {
-    stale = true;
+    stale2 = true;
     if (details.open) {
-      stale = false;
+      stale2 = false;
       render6();
     }
   };
@@ -7091,7 +7091,8 @@ function confirmed(label, question, act3) {
     no.focus();
   };
   box5.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape" && box5.querySelector(".ask")) first().focus();
+    const no = box5.querySelector(".ask ~ button:not(.danger)");
+    if (ev.key === "Escape" && no && !no.disabled) first().focus();
   });
   first();
   return box5;
@@ -7111,13 +7112,24 @@ function onDoc(l) {
   listeners.push(l);
 }
 
+// demo/web/src/status.ts
+function stale(was, now) {
+  if (was === null) return true;
+  if (was.up !== now.up) return true;
+  return now.up && now.ready && !was.ready;
+}
+
 // demo/web/src/state.ts
 var current2 = null;
 var listeners2 = [];
+var failures = [];
 function capabilities() {
   if (!current2) {
     current2 = analysis.capabilities({});
-    current2.then((c) => listeners2.forEach((l) => l(c))).catch(() => void 0);
+    current2.then(
+      (c) => listeners2.forEach((l) => l(c)),
+      (e) => failures.forEach((l) => l(e))
+    );
   }
   return current2;
 }
@@ -7128,30 +7140,33 @@ function refresh() {
 function onCapabilities(l) {
   listeners2.push(l);
 }
+function onCapabilitiesFailed(l) {
+  failures.push(l);
+}
 function bundles(c, task) {
   return c.bundles.filter((b) => b.task === task).map((b) => b.name);
 }
-var up = null;
+var last = null;
 var watchers = [];
+var readers = [];
 function reachable() {
-  return up;
+  return last === null ? null : last.up;
 }
-function setReachable(now) {
-  if (now === up) return;
-  const was = up;
-  up = now;
-  watchers.forEach((l) => l(now, was));
+function setStatus(up, ready) {
+  const was = last;
+  last = { up, ready: up && ready };
+  if (was === null || was.up !== up) watchers.forEach((l) => l(up, was === null ? null : was.up));
+  if (stale(was, last)) readers.forEach((l) => l());
 }
 function onReachable(l) {
   watchers.push(l);
 }
-function onBack(l) {
-  watchers.push((now, was) => {
-    if (now && was === false) l();
-  });
+function onServed(l) {
+  readers.push(l);
+  if (last !== null) l();
 }
 function whyNone(what) {
-  return up === false ? "the server is not reachable" : `no ${what} is served`;
+  return reachable() === false ? "the server is not reachable" : `no ${what} is served`;
 }
 
 // demo/web/src/tabs/analyze.ts
@@ -7375,12 +7390,18 @@ async function exportDoc() {
     out.replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
+var formatsFailed = false;
 async function loadFormats() {
   try {
     const f = await analysis.listOutputFormats({});
-    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`));
+    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
+    if (formatsFailed) say($("analyze-note"), "");
+    formatsFailed = false;
   } catch (e) {
-    if (reachable() !== false) say($("analyze-note"), describe(e), "error");
+    const down = reachable() === false;
+    if (!select("analyze-format").value) options(select("analyze-format"), [], void 0, down ? "the server is not reachable" : "the formats could not be listed");
+    formatsFailed = !down;
+    if (!down) say($("analyze-note"), describe(e), "error");
   }
 }
 function init() {
@@ -7404,13 +7425,11 @@ function init() {
   });
   let filled = false;
   onCapabilities(() => filled = true);
-  onReachable((up2) => {
-    if (filled || up2) return;
+  onReachable((up) => {
+    if (filled || up) return;
     for (const id of ["analyze-profile", "analyze-model", "analyze-relation-model", "analyze-format"]) options(select(id), [], void 0, "the server is not reachable");
   });
-  onBack(() => void loadFormats());
-  capabilities().catch(() => void 0);
-  void loadFormats();
+  onServed(() => void loadFormats());
 }
 
 // demo/web/src/tabs/collections.ts
@@ -7475,14 +7494,14 @@ function event(ev) {
   );
 }
 async function watch() {
-  stop2();
   const name = input("coll-name").value.trim();
   if (!name) return say(note(), "Name the collection to watch.", "error");
-  const ac = new AbortController();
-  watching = ac;
   const log = $("coll-events");
-  say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
   await busy($("coll-watch"), async () => {
+    stop2();
+    const ac = new AbortController();
+    watching = ac;
+    say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
     try {
       for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
         log.prepend(event(ev));
@@ -7505,10 +7524,9 @@ function init2() {
   $("coll-set").addEventListener("submit", set);
   const again = $("coll-refresh");
   again.addEventListener("click", () => void busy(again, list));
-  onBack(() => void list());
+  onServed(() => void list());
   $("coll-watch").addEventListener("click", () => void watch());
   $("coll-stop").addEventListener("click", stop2);
-  void list();
 }
 
 // demo/web/src/brief.ts
@@ -7629,8 +7647,8 @@ function init3() {
     const views = d?.views ?? [];
     const values = views.map((_, i) => String(i));
     const labels = views.map((v, i) => viewName(v.instance, i));
-    options(from(), values, labels);
-    options(to(), values, labels);
+    options(from(), values, labels, "analyze a document first");
+    options(to(), values, labels, "analyze a document first");
     from().value = "0";
     to().value = String(Math.max(0, views.length - 1));
     again();
@@ -7721,7 +7739,7 @@ function init4() {
   const again = lazy($("analyze-drawer"), () => void render2());
   onDoc((d) => {
     const views = d?.views ?? [];
-    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)));
+    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)), "analyze a document first");
     viewSelect().value = "0";
     again();
   });
@@ -7996,12 +8014,14 @@ function render3(texts2, results) {
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts2, r))));
 }
 function init5() {
-  $("embed-add").addEventListener("submit", async (ev) => {
+  $("embed-add").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const name = input("embed-add-name").value.trim();
     if (!name) return;
-    await addModels([name]);
-    input("embed-add-name").value = "";
+    void busy(submitter(ev), async () => {
+      await addModels([name]);
+      input("embed-add-name").value = "";
+    });
   });
   const go2 = $("embed-run");
   go2.addEventListener("click", () => void busy(go2, run2));
@@ -8010,9 +8030,9 @@ function init5() {
     void addModels(bundles(c, "TASK_EMBED"));
   });
   onReachable(renderModels);
-  capabilities().catch((e) => {
+  onCapabilitiesFailed((e) => {
     renderModels();
-    if (reachable() !== false) say($("embed-error"), describe(e), "error");
+    say($("embed-error"), reachable() === false ? "" : describe(e), "error");
   });
 }
 
@@ -8300,7 +8320,7 @@ function termsBlock(e, t, w, accepted) {
     const button = el("button", { type: "button", text: `Accept ${t.licence}` });
     button.disabled = true;
     read.addEventListener("change", () => button.disabled = !read.checked);
-    button.addEventListener("click", () => void accepted(t));
+    button.addEventListener("click", () => void busy(button, () => accepted(t)));
     body2.push(el("label", {}, read, ` I have read the ${t.licence} terms above and accept them`), " ", button);
   } else {
     body2.push(el("p", { class: "muted", text: w.why }));
@@ -8407,6 +8427,7 @@ function redirected(search2) {
 
 // demo/web/src/tabs/sources.ts
 var note2 = () => $("sources-note");
+var saidWhy = "";
 function sourcesTable(r, changed) {
   const why = readOnly(r);
   if (!r.user) return el("p", { class: "muted", text: why });
@@ -8444,8 +8465,12 @@ async function load() {
     $("sources-form").hidden = why !== "";
     $("sources-drive").hidden = why !== "" || !r.driveSignIn;
     if (why) say(note2(), why);
+    else if (saidWhy && note2().textContent === saidWhy) say(note2(), "");
+    saidWhy = why;
   } catch (e) {
-    say(note2(), describe(e), "error");
+    const why = reachable() === false ? "The server is not reachable, so the sources cannot be listed." : describe(e);
+    $("sources-list").replaceChildren(el("p", { class: "error", text: why }));
+    say(note2(), "");
   }
 }
 function add(ev) {
@@ -8472,7 +8497,7 @@ function connect() {
   const name = input("sources-drive-name").value.trim() || "Google Drive";
   const folder = input("sources-drive-folder").value.trim() || "root";
   const address2 = folder.startsWith("gdrive://") ? folder : `gdrive://${folder}`;
-  void act(async () => {
+  return act(async () => {
     const r = await catalog.startDriveSignIn({ name, address: address2 });
     location.assign(r.authorizeUrl);
     return "Opening Google sign-in.";
@@ -8481,6 +8506,7 @@ function connect() {
 async function finish(back) {
   history.replaceState(null, "", `${location.pathname}#models`);
   if (back.error) {
+    await load();
     say(note2(), `Google sign-in was not completed: ${back.error}`, "error");
     return;
   }
@@ -8491,12 +8517,21 @@ async function finish(back) {
 }
 function init6() {
   $("sources-form").addEventListener("submit", add);
-  $("sources-connect").addEventListener("click", connect);
+  const drive = $("sources-connect");
+  drive.addEventListener("click", () => void busy(drive, connect));
   const again = $("sources-refresh");
   again.addEventListener("click", () => void busy(again, load));
   const back = redirected(location.search);
-  if (back) void finish(back);
-  else void load();
+  let pending = back;
+  let finishing = false;
+  onServed(() => {
+    if (pending) {
+      const b = pending;
+      pending = null;
+      finishing = true;
+      void finish(b).finally(() => finishing = false);
+    } else if (!finishing) void load();
+  });
   return back !== null;
 }
 
@@ -8528,7 +8563,7 @@ function entryRow(e, w) {
     const b = el("button", { type: "button", class: e.missingTerms.length ? "" : "primary", text: e.installed ? "Reinstall" : "Install" });
     b.disabled = e.missingTerms.length > 0;
     b.title = b.disabled ? "Accept the licence terms first" : "";
-    b.addEventListener("click", () => void installModel(e));
+    b.addEventListener("click", () => void busy(b, () => installModel(e)));
     install = b;
   }
   const licence = el("span", { class: "licence", text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
@@ -8596,7 +8631,7 @@ function saveButtons(e, w) {
     el("summary", { text: e.files.length === 1 ? "1 file" : `${e.files.length} files` }),
     e.files.map((f) => {
       const b = el("button", { type: "button", text: `Save ${f.path}`, title: size(f.size) });
-      b.addEventListener("click", () => void saveFile(e, f));
+      b.addEventListener("click", () => void busy(b, () => saveFile(e, f)));
       return b;
     })
   );
@@ -8637,7 +8672,7 @@ async function loadCatalog() {
     );
     say(note3(), "");
   } catch (e) {
-    say(note3(), describe(e), "error");
+    say(note3(), reachable() === false ? "The server is not reachable, so its catalog cannot be read." : describe(e), "error");
   }
 }
 async function installModel(e) {
@@ -8673,7 +8708,7 @@ async function loadTraining() {
   const box5 = $("models-static");
   try {
     const t = await training.listTeachers({});
-    options($("train-teacher"), t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`));
+    options($("train-teacher"), t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`), "no teacher is served");
     let made;
     try {
       const s = await training.listStaticModels({});
@@ -8692,11 +8727,13 @@ async function loadTraining() {
         ])
       );
     } catch (e) {
-      made = el("p", { class: "error", text: describe(e) });
+      made = el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its static models cannot be listed." : describe(e) });
     }
     box5.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
-    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    const down = reachable() === false;
+    options($("train-teacher"), [], void 0, down ? "the server is not reachable" : "the teachers could not be listed");
+    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its teachers and static models cannot be listed." : describe(e) }));
   }
 }
 function deleteButton(name) {
@@ -8707,17 +8744,17 @@ function deleteButton(name) {
 }
 async function train(ev) {
   ev.preventDefault();
-  stopTraining();
-  const ac = new AbortController();
-  trainingRun = ac;
-  const steps = $("train-steps");
-  const progress = bar(0, 1);
-  steps.replaceChildren();
-  $("train-progress").replaceChildren(progress);
-  say($("train-note"), "Training\u2026", "busy");
-  const t0 = performance.now();
-  let last = -1;
   await busy(submitter(ev), async () => {
+    stopTraining();
+    const ac = new AbortController();
+    trainingRun = ac;
+    const steps = $("train-steps");
+    const progress = bar(0, 1);
+    steps.replaceChildren();
+    $("train-progress").replaceChildren(progress);
+    say($("train-note"), "Training\u2026", "busy");
+    const t0 = performance.now();
+    let last2 = -1;
     try {
       const req = {
         name: input("train-name").value.trim(),
@@ -8740,9 +8777,9 @@ async function train(ev) {
             p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : ""
           ].filter(Boolean);
           const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts2.length ? `: ${facts2.join(", ")}` : ""}`);
-          if (p.stage === last && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
+          if (p.stage === last2 && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
           else steps.append(line);
-          last = p.stage;
+          last2 = p.stage;
         } else if (u.update.case === "trained") {
           const t = u.update.value;
           progress.value = progress.max;
@@ -8777,8 +8814,21 @@ function init7() {
   $("train-stop").addEventListener("click", stopTraining);
   const again = $("train-refresh");
   again.addEventListener("click", () => void busy(again, loadTraining));
-  onBack(() => void loadTraining());
-  void loadTraining();
+  let reading = false;
+  let more = false;
+  const teachers = () => {
+    if (reading) return void (more = true);
+    reading = true;
+    void loadTraining().finally(() => {
+      reading = false;
+      if (more) {
+        more = false;
+        teachers();
+      }
+    });
+  };
+  onServed(teachers);
+  onCapabilities(teachers);
   init6();
 }
 
@@ -9078,7 +9128,7 @@ async function list3() {
     );
   } catch (e) {
     const down = reachable() === false;
-    if (down) options(select2("search-index"), [], void 0, "the server is not reachable");
+    options(select2("search-index"), [], void 0, down ? "the server is not reachable" : "the indexes could not be listed");
     box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
   }
 }
@@ -9132,10 +9182,10 @@ async function addDocuments() {
     say(note5, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
     return;
   }
-  indexing?.abort();
-  const ac = new AbortController();
-  indexing = ac;
   await busy($("search-add"), async () => {
+    indexing?.abort();
+    const ac = new AbortController();
+    indexing = ac;
     try {
       const body2 = indexBody(index, docs);
       say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
@@ -9221,19 +9271,19 @@ function init9() {
   const served = () => {
     const embed2 = caps?.bundles.filter((b) => b.task === "TASK_EMBED") ?? [];
     options(select2("search-create-bundle"), embed2.map((b) => b.name), embed2.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`), whyNone("embedding model"));
+    const rerank2 = caps?.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name) ?? [];
+    if (caps) options(select2("search-rerank"), ["", ...rerank2], ["no rerank", ...rerank2]);
+    else options(select2("search-rerank"), [], void 0, reachable() === false ? "the server is not reachable" : "no rerank");
   };
   onReachable(() => {
     if (!caps) served();
   });
-  onBack(() => void list3());
+  onServed(() => void list3());
   onCapabilities((c) => {
     caps = c;
     served();
-    const rerank2 = c.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name);
-    options(select2("search-rerank"), ["", ...rerank2], ["no rerank", ...rerank2]);
   });
-  capabilities().catch(() => void 0);
-  void list3();
+  onCapabilitiesFailed(served);
 }
 
 // demo/web/src/tabs/semantic.ts
@@ -9365,16 +9415,15 @@ function init10() {
   onReachable(() => {
     if (!caps2) served();
   });
-  capabilities().catch((err) => {
+  onCapabilitiesFailed((err) => {
     served();
-    if (reachable() !== false) say($("sem-note"), describe(err), "error");
+    say($("sem-note"), reachable() === false ? "" : describe(err), "error");
   });
 }
 
 // demo/web/src/tabs/server.ts
 var EVERY_MS = 1e4;
 var checking = null;
-var wasReady = null;
 function unreached(e) {
   const c = ConnectError.from(e).code;
   return c !== Code.Unauthenticated && c !== Code.PermissionDenied;
@@ -9386,20 +9435,17 @@ async function check() {
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
-    setReachable(true);
-    const becameReady = ready.ready && wasReady === false;
-    wasReady = ready.ready;
-    if (becameReady) void reload();
+    setStatus(true, ready.ready);
   } catch (e) {
     if (unreached(e)) {
-      wasReady = null;
       s.textContent = "server not reachable";
       s.className = "error status down";
       $("down-why").textContent = describe(e);
-      setReachable(false);
+      setStatus(false, false);
     } else {
       s.textContent = describe(e);
       s.className = "error status";
+      setStatus(true, false);
     }
   }
 }
@@ -9417,8 +9463,8 @@ function watch2() {
   });
   const retry = $("down-retry");
   retry.addEventListener("click", () => void busy(retry, status));
-  onReachable((up2) => $("down").hidden = up2);
-  onBack(() => void reload());
+  onReachable((up) => $("down").hidden = up);
+  onServed(() => void reload());
 }
 function renderCapabilities(c) {
   const box5 = $("server-caps");
@@ -9488,7 +9534,6 @@ function init11() {
   $("server-load").addEventListener("submit", load2);
   watch2();
   void status();
-  void reload();
 }
 
 // demo/web/src/tabs/vocabulary.ts
@@ -9522,7 +9567,7 @@ async function list4() {
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
     const importable = f.formats.filter((x) => x.importable);
-    options(select4("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`));
+    options(select4("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select4("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
     const l = f.limits;
     box5.replaceChildren(
@@ -9542,7 +9587,9 @@ async function list4() {
       )
     );
   } catch (e) {
-    box5.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
+    const down = reachable() === false;
+    for (const id of ["vocab-format", "vocab-seed"]) options(select4(id), [], void 0, down ? "the server is not reachable" : "the store could not be listed");
+    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
   }
 }
 async function importDictionary(ev) {
@@ -9639,9 +9686,8 @@ function init12() {
   $("vocab-learn").addEventListener("submit", learn);
   const again = $("vocab-refresh");
   again.addEventListener("click", () => void busy(again, list4));
-  onBack(() => void list4());
+  onServed(() => void list4());
   $("vocab-stop").addEventListener("click", stop5);
-  void list4();
 }
 
 // demo/web/src/graphwire.ts

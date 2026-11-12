@@ -6,7 +6,7 @@ import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
 import type { CollectionEvent } from "../gen/turbo_search_pb.js";
 import { describe, search } from "../rpc.js";
-import { onBack, reachable } from "../state.js";
+import { onServed, reachable } from "../state.js";
 
 let watching: AbortController | null = null;
 
@@ -77,14 +77,15 @@ function event(ev: CollectionEvent): HTMLElement {
 }
 
 async function watch(): Promise<void> {
-  stop();
   const name = input("coll-name").value.trim();
   if (!name) return say(note(), "Name the collection to watch.", "error");
-  const ac = new AbortController();
-  watching = ac;
   const log = $("coll-events");
-  say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
   await busy($("coll-watch") as HTMLButtonElement, async () => {
+    // Inside, so a click while a watch runs (which busy ignores) does not end it.
+    stop();
+    const ac = new AbortController();
+    watching = ac;
+    say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
     try {
       for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
         log.prepend(event(ev));
@@ -110,8 +111,7 @@ export function init(): void {
   $("coll-set").addEventListener("submit", set);
   const again = $("coll-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void busy(again, list));
-  onBack(() => void list());
+  onServed(() => void list());
   $("coll-watch").addEventListener("click", () => void watch());
   $("coll-stop").addEventListener("click", stop);
-  void list();
 }

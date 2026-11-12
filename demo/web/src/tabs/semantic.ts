@@ -10,7 +10,7 @@ import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
 import { $, el, input, options, say, table } from "../dom.js";
 import { describe, inference } from "../rpc.js";
-import { capabilities, onCapabilities, onReachable, reachable, whyNone } from "../state.js";
+import { onCapabilities, onCapabilitiesFailed, onReachable, reachable, whyNone } from "../state.js";
 import { cosine, heat, matrix, short, vectorsOf } from "./embed.js";
 
 const utf8 = new TextEncoder();
@@ -155,8 +155,8 @@ export function init(): void {
   onReachable(() => {
     if (!caps) served();
   });
-  capabilities().catch((err) => {
+  onCapabilitiesFailed((err) => {
     served();
-    if (reachable() !== false) say($("sem-note"), describe(err), "error");
+    say($("sem-note"), reachable() === false ? "" : describe(err), "error");
   });
 }

@@ -11,7 +11,7 @@ import { busy } from "../act.js";
 import { $, download, el, options, say, table } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
 import { analysis, describe } from "../rpc.js";
-import { bundles, capabilities, onBack, onCapabilities, onReachable, reachable } from "../state.js";
+import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
 
 let running: AbortController | null = null;
 let page = 0;
@@ -246,12 +246,20 @@ async function exportDoc(): Promise<void> {
   }
 }
 
+// Whether the note holds this list's own failure, to take it back on success.
+let formatsFailed = false;
+
 async function loadFormats(): Promise<void> {
   try {
     const f = await analysis.listOutputFormats({});
-    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`));
+    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
+    if (formatsFailed) say($("analyze-note"), "");
+    formatsFailed = false;
   } catch (e) {
-    if (reachable() !== false) say($("analyze-note"), describe(e), "error");
+    const down = reachable() === false;
+    if (!select("analyze-format").value) options(select("analyze-format"), [], undefined, down ? "the server is not reachable" : "the formats could not be listed");
+    formatsFailed = !down;
+    if (!down) say($("analyze-note"), describe(e), "error");
   }
 }
 
@@ -281,7 +289,5 @@ export function init(): void {
     if (filled || up) return;
     for (const id of ["analyze-profile", "analyze-model", "analyze-relation-model", "analyze-format"]) options(select(id), [], undefined, "the server is not reachable");
   });
-  onBack(() => void loadFormats());
-  capabilities().catch(() => undefined);
-  void loadFormats();
+  onServed(() => void loadFormats());
 }

@@ -8,7 +8,7 @@ import { kindName, kinds, matches, purpose } from "../catalogfilter.js";
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, options, say, size, table } from "../dom.js";
 import { catalog, describe, training } from "../rpc.js";
-import { onBack, refresh } from "../state.js";
+import { onCapabilities, onServed, reachable, refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
 import { download, nonCommercial } from "./download.js";
 import * as sources from "./sources.js";
@@ -50,7 +50,7 @@ function entryRow(e: CatalogEntry, w: Who): HTMLElement {
     const b = el("button", { type: "button", class: e.missingTerms.length ? "" : "primary", text: e.installed ? "Reinstall" : "Install" });
     b.disabled = e.missingTerms.length > 0;
     b.title = b.disabled ? "Accept the licence terms first" : "";
-    b.addEventListener("click", () => void installModel(e));
+    b.addEventListener("click", () => void busy(b, () => installModel(e)));
     install = b;
   }
   const licence = el("span", { class: "licence", text: e.licence }, nonCommercial(e) ? el("strong", { class: "error", text: " Non-commercial use only" }) : null);
@@ -125,7 +125,7 @@ function saveButtons(e: CatalogEntry, w: Who): HTMLElement | null {
     el("summary", { text: e.files.length === 1 ? "1 file" : `${e.files.length} files` }),
     e.files.map((f) => {
       const b = el("button", { type: "button", text: `Save ${f.path}`, title: size(f.size) });
-      b.addEventListener("click", () => void saveFile(e, f));
+      b.addEventListener("click", () => void busy(b, () => saveFile(e, f)));
       return b;
     }),
   );
@@ -168,7 +168,7 @@ async function loadCatalog(): Promise<void> {
     );
     say(note(), "");
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), reachable() === false ? "The server is not reachable, so its catalog cannot be read." : describe(e), "error");
   }
 }
 
@@ -206,7 +206,7 @@ async function loadTraining(): Promise<void> {
   const box = $("models-static");
   try {
     const t = await training.listTeachers({});
-    options($("train-teacher") as HTMLSelectElement, t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`));
+    options($("train-teacher") as HTMLSelectElement, t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`), "no teacher is served");
     let made: HTMLElement;
     try {
       const s = await training.listStaticModels({});
@@ -225,11 +225,13 @@ async function loadTraining(): Promise<void> {
         ]),
       );
     } catch (e) {
-      made = el("p", { class: "error", text: describe(e) });
+      made = el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its static models cannot be listed." : describe(e) });
     }
     box.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    const down = reachable() === false;
+    options($("train-teacher") as HTMLSelectElement, [], undefined, down ? "the server is not reachable" : "the teachers could not be listed");
+    box.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its teachers and static models cannot be listed." : describe(e) }));
   }
 }
 
@@ -242,17 +244,18 @@ function deleteButton(name: string): HTMLElement {
 
 async function train(ev: Event): Promise<void> {
   ev.preventDefault();
-  stopTraining();
-  const ac = new AbortController();
-  trainingRun = ac;
-  const steps = $("train-steps");
-  const progress = bar(0, 1);
-  steps.replaceChildren();
-  $("train-progress").replaceChildren(progress);
-  say($("train-note"), "Training\u2026", "busy");
-  const t0 = performance.now();
-  let last = -1;
   await busy(submitter(ev), async () => {
+    // Inside, so a submit while a run is on (which busy ignores) does not end it.
+    stopTraining();
+    const ac = new AbortController();
+    trainingRun = ac;
+    const steps = $("train-steps");
+    const progress = bar(0, 1);
+    steps.replaceChildren();
+    $("train-progress").replaceChildren(progress);
+    say($("train-note"), "Training\u2026", "busy");
+    const t0 = performance.now();
+    let last = -1;
     try {
       const req = {
         name: input("train-name").value.trim(),
@@ -316,7 +319,24 @@ export function init(): void {
   $("train-stop").addEventListener("click", stopTraining);
   const again = $("train-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void busy(again, loadTraining));
-  onBack(() => void loadTraining());
-  void loadTraining();
+  // The teachers are the served models: read them with every other
+  // list, and again whenever what is served was read again (a bundle
+  // loaded or unloaded on the Server tab, a model trained here).
+  // One read at a time; a call for another while one runs reads once more after it.
+  let reading = false;
+  let more = false;
+  const teachers = (): void => {
+    if (reading) return void (more = true);
+    reading = true;
+    void loadTraining().finally(() => {
+      reading = false;
+      if (more) {
+        more = false;
+        teachers();
+      }
+    });
+  };
+  onServed(teachers);
+  onCapabilities(teachers);
   sources.init();
 }

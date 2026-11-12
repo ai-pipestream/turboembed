@@ -83,7 +83,10 @@ export function confirmed(label: string, question: string, act: () => Promise<vo
     no.focus();
   };
   box.addEventListener("keydown", (ev) => {
-    if (ev.key === "Escape" && box.querySelector(".ask")) first().focus();
+    // Not while Yes is running: the question would come back over a
+    // call still in flight, and a second Yes would send it again.
+    const no = box.querySelector<HTMLButtonElement>(".ask ~ button:not(.danger)");
+    if (ev.key === "Escape" && no && !no.disabled) first().focus();
   });
   first();
   return box;

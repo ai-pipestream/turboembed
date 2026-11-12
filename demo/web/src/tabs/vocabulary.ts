@@ -7,7 +7,7 @@ import { busy as working, confirmed, submitter } from "../act.js";
 import { $, download, el, input, options, say, size, table } from "../dom.js";
 import { importBody, learnBody, type Text } from "../frames.js";
 import { describe, vocabulary } from "../rpc.js";
-import { onBack, reachable } from "../state.js";
+import { onServed, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
 import { put } from "../upload.js";
 
@@ -50,7 +50,7 @@ async function list(): Promise<void> {
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
     const importable = f.formats.filter((x) => x.importable);
-    options(select("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`));
+    options(select("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
     const l = f.limits;
     box.replaceChildren(
@@ -74,7 +74,10 @@ async function list(): Promise<void> {
       ),
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
+    const down = reachable() === false;
+    // A select is never left blank: it says why there is nothing to pick.
+    for (const id of ["vocab-format", "vocab-seed"]) options(select(id), [], undefined, down ? "the server is not reachable" : "the store could not be listed");
+    box.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
   }
 }
 
@@ -178,7 +181,6 @@ export function init(): void {
   $("vocab-learn").addEventListener("submit", learn);
   const again = $("vocab-refresh") as HTMLButtonElement;
   again.addEventListener("click", () => void working(again, list));
-  onBack(() => void list());
+  onServed(() => void list());
   $("vocab-stop").addEventListener("click", stop);
-  void list();
 }

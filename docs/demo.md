@@ -266,8 +266,10 @@ state is read again every 10 seconds while the page is in view and when
 it comes back into view. While the server does not answer, a notice
 under the tabs says so and offers "Retry now", and a list with nothing
 in it says why: the server is not reachable, or it serves none of that
-kind. When the server answers again the page reads `Capabilities` and
-its lists again, with no reload.
+kind. When the server answers again, or turns ready after loading, every
+tab reads its lists again, with no reload. A demo that refuses a call
+for want of its token counts as reachable: type the token and the tabs
+fill.
 
 Every action follows one pattern. A button that calls the server is off
 and shows the elapsed time while its call runs, and a Stop button is on
@@ -275,7 +277,8 @@ only while there is something to stop. Anything that removes state
 (delete an index, a collection, a vocabulary artifact or a static
 model, unload a bundle, revoke a licence acceptance, remove a model
 source) asks in place first, "Delete demo?" with Yes and Cancel, and
-reports a refusal beside the row it concerns.
+reports a refusal beside the row it concerns. While Yes is running the
+question stays put: Escape does not bring the first button back.
 
 ## Starting it
 

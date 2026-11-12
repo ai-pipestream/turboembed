@@ -45,3 +45,34 @@ script, run against the page before the fix (red) and after (green).
   `stop-red.log`: 4 of 7 pass. `stop-green.log`: all 7 pass: both run
   side by side, Stop stays on, and one press ends both.
   `two-running.png` shows both buttons counting with Stop on.
+
+## Every tab swept after a second review (`review/sweep-*`)
+
+A second review found the same two patterns in places the first fix had
+not reached, so every tab was checked for them with one driving script,
+run against the page before (`sweep-red.log`, 8 of 24 pass) and after
+(`sweep-green.log`, all 24 pass).
+
+- The page now keeps one status, up and ready, and every tab that reads
+  from the server reads again on the same events: the first answer, the
+  server going away, coming back, and turning ready. Before, the Models
+  tab's teachers, the Vocabulary selects, the Search rerank select and
+  the model sources were read once when the page opened and never
+  again, and showed a raw connection error or stayed on "Loading".
+  `sweep-stopped-models.png` and `sweep-started-models.png` are the
+  Models tab of one page, opened with the server stopped and then a few
+  seconds after it started, with no reload.
+- No select is blank: one with nothing to offer says why (the server is
+  not reachable, it serves none of that kind, or no document has been
+  analyzed yet).
+- A demo that refuses the call for want of its token is up, not
+  unreachable: the notice under the tabs stays hidden and the tabs fill
+  once the token is typed.
+- Escape is ignored by a confirmation while its Yes is running. Before,
+  it brought the first button back over the call in flight and a second
+  Yes sent the delete again (`sweep-red.log`: 2 calls). The check holds
+  the link at 1.5 seconds a call and sends the key to the confirmation.
+- Install, Reinstall and Save on the Models tab, Accept on a licence,
+  Add on the Embed tab and Connect Google Drive are off and show the
+  elapsed time while their calls run, like every other button
+  (`sweep-install-busy.png`).

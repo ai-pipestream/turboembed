@@ -9,10 +9,10 @@ import {
   type ModelInferResponse,
   type ModelMetadataResponse,
 } from "../gen/open_inference_grpc_pb.js";
-import { busy } from "../act.js";
+import { busy, submitter } from "../act.js";
 import { $, after, el, input, say, stat } from "../dom.js";
 import { describe, inference } from "../rpc.js";
-import { bundles, capabilities, onCapabilities, onReachable, reachable } from "../state.js";
+import { bundles, onCapabilities, onCapabilitiesFailed, onReachable, reachable } from "../state.js";
 
 type Model = { meta: ModelMetadataResponse | null; error: string; checked: boolean };
 type Result = { name: string; meta: ModelMetadataResponse | null; ms: number; vectors?: number[][]; reply?: ModelInferResponse; error?: string };
@@ -325,12 +325,14 @@ function render(texts: string[], results: Result[]): void {
 }
 
 export function init(): void {
-  $("embed-add").addEventListener("submit", async (ev) => {
+  $("embed-add").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const name = input("embed-add-name").value.trim();
     if (!name) return;
-    await addModels([name]);
-    input("embed-add-name").value = "";
+    void busy(submitter(ev), async () => {
+      await addModels([name]);
+      input("embed-add-name").value = "";
+    });
   });
   const go = $("embed-run") as HTMLButtonElement;
   go.addEventListener("click", () => void busy(go, run));
@@ -339,8 +341,9 @@ export function init(): void {
     void addModels(bundles(c, "TASK_EMBED"));
   });
   onReachable(renderModels);
-  capabilities().catch((e) => {
+  // The Server tab reads the capabilities for every tab (state.ts onServed).
+  onCapabilitiesFailed((e) => {
     renderModels();
-    if (reachable() !== false) say($("embed-error"), describe(e), "error");
+    say($("embed-error"), reachable() === false ? "" : describe(e), "error");
   });
 }
