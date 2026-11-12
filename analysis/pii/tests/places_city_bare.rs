@@ -154,6 +154,9 @@ fn a_person_who_shares_a_city_name_is_no_mention() {
         "Madison herself drove the van",
         "Dayton knew she would be late",
         "then Columbus thought he could help",
+        "Salem realized she was late",
+        "we will introduce Madison tomorrow",
+        "they promote Dayton next year",
         // A possessive before a kin or body noun.
         "Paris's mother called",
         "Madison\u{2019}s sister wrote",
@@ -186,6 +189,14 @@ fn a_city_in_a_place_phrase_stays_a_city_beside_person_words() {
         ("we loved Boston and she stayed", "Boston"),
         ("they toured Dayton but he left", "Dayton"),
         ("a week in Rome or he goes home", "Rome"),
+        // Only a verb of thought or speech makes the pronoun the name's.
+        ("we left Atlanta then she moved", "Atlanta"),
+        ("I miss Boston whenever he travels", "Boston"),
+        ("we toured Chicago once he arrived", "Chicago"),
+        ("we drove past Boston yet he never stopped", "Boston"),
+        ("we love Paris though she does not", "Paris"),
+        ("Dayton unless he calls", "Dayton"),
+        ("Paris's partner company", "Paris"),
         ("from Madison to Columbus for the conference", "Madison"),
     ] {
         assert_eq!(written(text).first().map(String::as_str), Some(want), "{text:?}: {:?}", cities(text));

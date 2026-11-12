@@ -1179,14 +1179,15 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
       as its object right before it (`met`, `asked`, `thanked`, `hired`,
       `invited` and a few more: `we met Madison`, `ask Columbus`), or
       after it `who` (`Salem, who`), a reflexive pronoun (`Madison
-      herself`), a subject pronoun one word on (`Dayton knew she`), or a
+      herself`), `she` or `he` after a verb of thought or speech (`knew`,
+      `thought`, `felt`, `hoped` and a few more: `Dayton knew she`), or a
       possessive before a kin or body noun (`Paris's mother`). The rules
       after the name give way to a sentence-start word before it, on the
       same line or the line before (`a donor in Columbus who`, `people
       in` / `Paris who`). A verb as ready to take a place (`visited`,
-      `left`, `called`) is not one of them, and a clause word between
-      the name and the pronoun leaves it a place (`Paris is where she
-      grew up`, `Boston where he lived`);
+      `left`, `called`) is not one of them, and any other word between
+      the name and the pronoun leaves it a place (`we left Atlanta then
+      she moved`, `Boston where he lived`);
     - no word, path or address touches it (`Grand-Rouen`,
       `example.com/Rouen`, `Rouen.example.com`, `Rouen@example.com`,
       `#Rouen`). A possessive name ends before its `'s` (`San
