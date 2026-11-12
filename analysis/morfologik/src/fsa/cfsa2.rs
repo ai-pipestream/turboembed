@@ -79,8 +79,8 @@ impl Cfsa2Reader {
     fn read_vint(&self, offset: usize) -> Result<usize, MorfologikError> {
         let end = self.skip_vint(offset)?;
         let mut value: i32 = 0;
-        for i in offset..end {
-            value |= i32::from(self.arcs[i] & 0x7f) << ((i - offset) * 7);
+        for (i, &b) in self.arcs[offset..end].iter().enumerate() {
+            value |= i32::from(b & 0x7f) << (i * 7);
         }
         if value < 0 {
             return Err(MorfologikError::invalid_argument("CFSA2 target exceeds the address range"));

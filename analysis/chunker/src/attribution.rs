@@ -204,8 +204,8 @@ impl ChunkAttribution {
                 if q.term.get() >= vocab.len() {
                     return Err(format!("term {} outside the {}-term vocabulary", q.term.get(), vocab.len()));
                 }
-                for t in range.start.get()..range.end.get() {
-                    if indexed.term[t] != Some(q.term) {
+                for (t, term) in indexed.term.iter().enumerate().take(range.end.get()).skip(range.start.get()) {
+                    if *term != Some(q.term) {
                         continue;
                     }
                     for frag in tokens.spans.fragments(Ix::new(t as u32)) {
