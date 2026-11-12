@@ -5,6 +5,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use serde_json::{Value, json};
 use turbo::head::RelationClassifier;
@@ -17,10 +18,8 @@ use turbo_trainer_recipes::redocred::{self, Document, ENTITY_TYPES, parse, read}
 use turbo_trainer_recipes::redocred_eval::{RelationOptions, baseline, bootstrap, evaluate, spec};
 use turbo_trainer_recipes::redocred_path as rule;
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-redocred-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-redocred-{}-{name}", std::process::id())))
 }
 
 fn mention(sent: usize, a: usize, b: usize, kind: &str) -> Value {
@@ -247,11 +246,11 @@ fn the_dependency_path_baseline_writes_a_receipt_of_the_rule() {
     let parser = scratch("path-parser");
     let o = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
         .args(["train-parse", "--corpus", "ud-en-ewt", "--dir"])
-        .arg(bank.as_path())
+        .arg(bank.path())
         .args(["--bundle"])
         .arg(tiny())
         .args(["--out"])
-        .arg(parser.as_path())
+        .arg(parser.path())
         .args(["--unrecorded-corpus", "--commit", "test", "--epochs", "3", "--batch", "8", "--lr", "0.01"])
         .output()
         .unwrap();
@@ -262,13 +261,13 @@ fn the_dependency_path_baseline_writes_a_receipt_of_the_rule() {
     let out = scratch("path-out");
     let o = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
         .args(["baseline", "--corpus", "re-docred", "--dir"])
-        .arg(data.as_path())
+        .arg(data.path())
         .args(["--dependency-path", "--parser"])
-        .arg(parser.as_path())
+        .arg(parser.path())
         .args(["--bundle"])
         .arg(tiny())
         .args(["--out"])
-        .arg(out.as_path())
+        .arg(out.path())
         .args(["--unrecorded-corpus", "--commit", "test"])
         .output()
         .unwrap();
@@ -291,13 +290,13 @@ fn the_dependency_path_baseline_writes_a_receipt_of_the_rule() {
     let again = scratch("path-out-2");
     let o2 = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
         .args(["baseline", "--corpus", "re-docred", "--dir"])
-        .arg(data.as_path())
+        .arg(data.path())
         .args(["--dependency-path", "--parser"])
-        .arg(parser.as_path())
+        .arg(parser.path())
         .args(["--bundle"])
         .arg(tiny())
         .args(["--out"])
-        .arg(again.as_path())
+        .arg(again.path())
         .args(["--unrecorded-corpus", "--commit", "test"])
         .output()
         .unwrap();
@@ -421,7 +420,7 @@ fn a_relation_run_writes_a_head_the_core_reads_and_a_receipt() {
     // A prior head that would read other features than this run computes
     // is refused before training: another pooling, another entity type
     // table, another encoder, or no receipt to say which encoder.
-    let copy = |name: &str, edit: &dyn Fn(&Path)| -> PathBuf {
+    let copy = |name: &str, edit: &dyn Fn(&Path)| -> Scratch {
         let d = scratch(name);
         fs::create_dir_all(&d).unwrap();
         for n in names {
@@ -442,10 +441,10 @@ fn a_relation_run_writes_a_head_the_core_reads_and_a_receipt() {
         copy("prior-encoder", &|d| edit_json(d, "receipt.json", &|v| v["encoder"]["manifest_sha256"] = json!("0")));
     let no_receipt = copy("prior-unrecorded", &|d| fs::remove_file(d.join("receipt.json")).unwrap());
     let refusals = [
-        (out.clone(), "mean", "word pooling"),
-        (swapped, "first", "entity type table"),
-        (other_encoder, "first", "the encoder"),
-        (no_receipt, "first", "receipt.json"),
+        (&out, "mean", "word pooling"),
+        (&swapped, "first", "entity type table"),
+        (&other_encoder, "first", "the encoder"),
+        (&no_receipt, "first", "receipt.json"),
     ];
     for (i, (prior, pooling, says)) in refusals.iter().enumerate() {
         let args = ["--against", prior.to_str().unwrap(), "--pooling", pooling, "--epochs", "1"];

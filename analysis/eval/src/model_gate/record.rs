@@ -193,7 +193,9 @@ mod tests {
         let r = language_record(units.clone(), labels_of(&units));
         let json = r.to_json();
         assert!(json.starts_with("{\n  \"record_version\": 3,\n"), "{json}");
-        let dir = std::env::temp_dir().join(format!("turbo-eval-model-gate-version-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-eval-model-gate-version-{}", std::process::id())),
+        );
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("gate.json");
         let read = |text: &str| {
@@ -225,7 +227,9 @@ mod tests {
         let r = record();
         assert_eq!(r.measure, Measure::FMeasure);
         r.check().unwrap();
-        let dir = std::env::temp_dir().join(format!("turbo-eval-model-gate-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-eval-model-gate-{}", std::process::id())),
+        );
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("gate.json");
         let _ = fs::remove_file(&path);

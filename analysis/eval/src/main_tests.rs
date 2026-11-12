@@ -5,13 +5,12 @@ use super::*;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+fn scratch(name: &str) -> turbo_scratch::Scratch {
+    let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!(
         "turbo-eval-main-{}-{}-{name}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = fs::remove_dir_all(&dir);
+    )));
     fs::create_dir_all(&dir).unwrap();
     dir
 }

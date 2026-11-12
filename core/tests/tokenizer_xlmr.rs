@@ -7,9 +7,11 @@
 mod common;
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use common::*;
 use serde_json::{Value, json};
+use turbo_scratch::Scratch;
 
 const MASK: i64 = 28232;
 
@@ -22,9 +24,10 @@ fn tokenizer_json() -> PathBuf {
 /// The same, with `<mask>` matched in the normalized text when
 /// `normalized_mask`.
 fn xlmr_json(normalized_mask: bool) -> PathBuf {
-    let name = format!("turbo-xlmr-tokenizer-{}-{}.json", normalized_mask, std::process::id());
-    let path = std::env::temp_dir().join(name);
-    if !path.exists() {
+    static FILES: [OnceLock<PathBuf>; 2] = [OnceLock::new(), OnceLock::new()];
+    let file = FILES[usize::from(normalized_mask)].get_or_init(|| {
+        let name = format!("turbo-xlmr-tokenizer-{}-{}.json", normalized_mask, std::process::id());
+        let path = Scratch::at(std::env::temp_dir().join(name));
         let raw = std::fs::read(testdata().join("bge-m3/tokenizer.json")).unwrap();
         let mut j: Value = serde_json::from_slice(&raw).unwrap();
         let model = j["model"].as_object_mut().unwrap();
@@ -44,11 +47,10 @@ fn xlmr_json(normalized_mask: bool) -> PathBuf {
             let mask = j["added_tokens"].as_array_mut().unwrap().iter_mut().find(|t| t["content"] == "<mask>");
             mask.unwrap()["normalized"] = json!(true);
         }
-        let tmp = path.with_extension(format!("{:?}.tmp", std::thread::current().id()));
-        std::fs::write(&tmp, serde_json::to_vec(&j).unwrap()).unwrap();
-        std::fs::rename(&tmp, &path).unwrap();
-    }
-    path
+        std::fs::write(&path, serde_json::to_vec(&j).unwrap()).unwrap();
+        path.until_exit()
+    });
+    file.clone()
 }
 
 /// The MiniLM fixture's manifest with that tokenizer and XLM-R's family.

@@ -2,6 +2,7 @@
 //! kept in one canonical form, refused when malformed, and written
 //! readable by its owner alone.
 
+use turbo_scratch::Scratch;
 use turbo_zoo::{Holder, Holders, SignIn, UserId, ZooError};
 
 fn user(name: &str) -> UserId {
@@ -18,10 +19,8 @@ fn disk() -> Holder {
     Holder::new("disk", "file:///zoo", SignIn::Environment).unwrap()
 }
 
-fn temp(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-holders-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
+fn temp(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-holders-{name}-{}", std::process::id())))
 }
 
 #[test]

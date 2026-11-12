@@ -14,5 +14,6 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 turbo-goldens = { path = "../goldens" }
 turbo-grammar = { path = "../grammar" }

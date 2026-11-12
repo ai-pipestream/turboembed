@@ -104,8 +104,12 @@ fn key_flag_parse_errors_never_repeat_the_input() {
 }
 
 fn key_file(name: &str, bytes: &[u8]) -> TokenKeyFile {
-    let dir = std::env::temp_dir().join(format!("turbo-release-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    static DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    let dir = DIR.get_or_init(|| {
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-release-{}", std::process::id())))
+            .until_exit()
+    });
+    std::fs::create_dir_all(dir).unwrap();
     let path: PathBuf = dir.join(name);
     std::fs::write(&path, bytes).unwrap();
     TokenKeyFile { key: KeyRef { id: "tok".into(), version: 3 }, path }

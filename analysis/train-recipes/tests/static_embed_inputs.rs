@@ -1,6 +1,7 @@
 use std::fs;
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use turbo_scratch::Scratch;
 
 use serde_json::json;
 use turbo_train_recipes::static_embed::{read_tensor, write_safetensors};
@@ -53,11 +54,11 @@ fn empty_and_nonfinite_teacher_matrices_are_refused() {
 
 fn scratch_preserved(extension: &str) {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
-    let root = std::env::temp_dir().join(format!(
+    let root = Scratch::at(std::env::temp_dir().join(format!(
         "static-input-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
-    ));
+    )));
     fs::create_dir(&root).unwrap();
     let out = root.join("model.bundle");
     let scratch = out.with_extension(extension);
@@ -107,7 +108,7 @@ fn valid_teacher_matrix_round_trips() {
 #[test]
 fn scratch_paths_are_new_distinct_and_not_reused() {
     use turbo_train_recipes::static_embed::bundle::reserve_scratch;
-    let root = std::env::temp_dir().join(format!("static-reserve-{}", std::process::id()));
+    let root = Scratch::at(std::env::temp_dir().join(format!("static-reserve-{}", std::process::id())));
     fs::create_dir(&root).unwrap();
     assert!(reserve_scratch(&root.join("model.init")).is_err());
     assert!(reserve_scratch(&root.join("model.stage")).is_err());
@@ -125,7 +126,7 @@ fn scratch_paths_are_new_distinct_and_not_reused() {
 #[test]
 fn dangling_scratch_symlink_is_not_followed() {
     use turbo_train_recipes::static_embed::bundle::reserve_scratch;
-    let root = std::env::temp_dir().join(format!("static-symlink-{}", std::process::id()));
+    let root = Scratch::at(std::env::temp_dir().join(format!("static-symlink-{}", std::process::id())));
     fs::create_dir(&root).unwrap();
     let out = root.join("model.bundle");
     let target = root.join("absent");

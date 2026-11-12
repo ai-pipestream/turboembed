@@ -8,3 +8,6 @@ publish = false
 [[bin]]
 name = "turbo-encoding-gen"
 path = "src/main.rs"
+
+[dev-dependencies]
+turbo-scratch = { path = "../scratch" }

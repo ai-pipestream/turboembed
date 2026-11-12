@@ -1,9 +1,10 @@
 use turbo_analysis::ModelRef;
 use turbo_langdetect::NgramModel;
+use turbo_scratch::Scratch;
 
 #[test]
 fn flores_command_loads_a_model_and_scores_every_row() {
-    let dir = std::env::temp_dir().join(format!("langid-flores-test-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("langid-flores-test-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let model = NgramModel::new(
         vec!["eng".into()],

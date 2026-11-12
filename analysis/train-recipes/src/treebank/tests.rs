@@ -187,7 +187,9 @@ fn the_treebanks_real_licence_texts_pass_with_their_recorded_grants() {
 
 #[test]
 fn a_file_that_is_not_the_recorded_one_is_refused() {
-    let dir = std::env::temp_dir().join(format!("turbo-train-recipes-treebank-{}", std::process::id()));
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-train-recipes-treebank-{}", std::process::id())),
+    );
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("LICENSE.txt"), UD_STATEMENT).unwrap();
     std::fs::write(dir.join("README.md"), README).unwrap();

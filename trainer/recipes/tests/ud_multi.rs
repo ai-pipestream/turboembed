@@ -1,6 +1,7 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::PosTags;
@@ -13,10 +14,8 @@ use turbo_trainer_recipes::ud::{CA_ANCORA, Column, ES_ANCORA, Treebank};
 use turbo_trainer_recipes::ud_multi::{find_column, read, sample_counts};
 use turbo_zoo::{Acceptances, Component, Directory, Index, Kind, Policy, UserId, Zoo};
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-ud-multi-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    dir
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-ud-multi-{}-{name}", std::process::id())))
 }
 
 fn sentence(bank: &str, index: usize) -> String {
@@ -170,7 +169,8 @@ fn the_cli_trains_a_multi_treebank_head_and_records_sampling() {
     .unwrap();
     let index = Index::parse(Index::to_canonical_json(&[artifact]).as_bytes()).unwrap();
     let transport = Directory::new(&bundle_dir);
-    let zoo = Zoo::new(index, scratch("cli-zoo"), Policy::default(), &transport);
+    let cache = scratch("cli-zoo");
+    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &transport);
     let user: UserId = "alice".parse().unwrap();
     let _: MultiTaskTagger<(PosTags,)> = MultiTaskTagger::from_zoo(
         &zoo,

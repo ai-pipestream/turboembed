@@ -1,4 +1,5 @@
 use super::*;
+use turbo_scratch::Scratch;
 
 #[test]
 fn normalized_special_token_word_boundaries_match_upstream() {
@@ -7,7 +8,7 @@ fn normalized_special_token_word_boundaries_match_upstream() {
     let pad = json["added_tokens"].as_array_mut().unwrap().iter_mut().find(|a| a["content"] == "[PAD]").unwrap();
     pad["normalized"] = json!(true);
     pad["single_word"] = json!(true);
-    let path = std::env::temp_dir().join(format!("turbo-unicode-word-{}.json", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-unicode-word-{}.json", std::process::id())));
     std::fs::write(&path, serde_json::to_vec(&json).unwrap()).unwrap();
     let mut m = manifest();
     let pad =

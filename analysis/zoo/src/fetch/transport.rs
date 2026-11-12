@@ -262,10 +262,10 @@ mod tests {
             HELLO_GZ.len(),
             Sha256::of(&HELLO_GZ),
         );
-        let dir = std::env::temp_dir().join(format!("turbo-zoo-encoded-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-encoded-{}", std::process::id())));
         let local = Local(config().build().into(), addr);
-        let zoo = Zoo::new(Index::parse(json.as_bytes()).unwrap(), dir.clone(), Policy::default(), &local);
+        let zoo = Zoo::new(Index::parse(json.as_bytes()).unwrap(), dir.to_path_buf(), Policy::default(), &local);
         let user: UserId = "alice".parse().unwrap();
         let got = zoo.fetch("hello", &user, &Acceptances::default()).map(|f| std::fs::read(&f.files[0]).unwrap());
         let head = server.join().unwrap();

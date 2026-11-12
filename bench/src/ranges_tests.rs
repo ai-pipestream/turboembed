@@ -77,6 +77,7 @@ fn the_three_ways_run_on_the_small_bert() {
     let mut bad = r.clone();
     bad.library.pushed_to.clear();
     assert!(check(&bad).is_err());
-    let dir = std::env::temp_dir().join(format!("turbo-bench-ranges-{}", std::process::id()));
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-ranges-{}", std::process::id())));
     assert!(write(&bad, &dir).is_err());
 }

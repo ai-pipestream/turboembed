@@ -44,6 +44,7 @@ npm ci --prefix demo/web --ignore-scripts --no-audit --no-fund >/dev/null
 BIN="$ROOT/demo/web/node_modules/.bin"
 
 WORK="$(mktemp -d)"
+cargo run --locked -p turbo-kserve --example inspect_layer_fixture -- "$WORK/layer-instances.graph"
 PIDS=()
 cleanup() {
   for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null || true; done
@@ -99,4 +100,4 @@ rm -rf "$OUT"
 # One file at a time: each model is served with one session, which
 # refuses a second call while one runs, so files run side by side would
 # fail each other's calls.
-TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test --test-concurrency=1 "$OUT"/*.test.mjs
+TURBO_E2E_LAYER_GRAPH="$WORK/layer-instances.graph" TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test --test-concurrency=1 "$OUT"/*.test.mjs

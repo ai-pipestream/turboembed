@@ -13,6 +13,7 @@ mod fixture;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use turbo_scratch::Scratch;
 
 use tokio_stream::StreamExt as _;
 use turbo_analysis::export::{Codecs, ErrorRecord, StatusRecord, export};
@@ -29,12 +30,12 @@ use turbo_kserve::{Serve, Server};
 /// copy onto a file another test has open.
 fn relation_package() -> PathBuf {
     static PACKAGE: OnceLock<PathBuf> = OnceLock::new();
-    PACKAGE.get_or_init(stage_relation_package).clone()
+    PACKAGE.get_or_init(|| stage_relation_package().until_exit()).clone()
 }
 
-fn stage_relation_package() -> PathBuf {
+fn stage_relation_package() -> Scratch {
     let entity = fixture::package();
-    let dir = std::env::temp_dir().join(format!("turbo-kserve-gliner2-package-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-gliner2-package-{}", std::process::id())));
     fs::create_dir_all(dir.join("encoder")).unwrap();
     for f in ["deberta.json", "weights.safetensors"] {
         fs::copy(entity.join("encoder").join(f), dir.join("encoder").join(f)).unwrap();

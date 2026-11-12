@@ -96,8 +96,7 @@ fn check_refuses_what_a_measurement_cannot_give() {
 
 #[test]
 fn a_record_round_trips_and_is_never_replaced() {
-    let dir = std::env::temp_dir().join(format!("turbo-bench-tag-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-tag-{}", std::process::id())));
     let r = sample();
     let path = write(&r, &dir).unwrap();
     let back: TagRecord = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();

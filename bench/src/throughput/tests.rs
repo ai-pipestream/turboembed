@@ -61,7 +61,9 @@ fn check_refuses_what_a_measurement_cannot_give() {
         let mut r = sample();
         f(&mut r);
         assert!(check(&r).is_err(), "{why}");
-        let dir = std::env::temp_dir().join(format!("turbo-throughput-check-{}", std::process::id()));
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-throughput-check-{}", std::process::id())),
+        );
         assert!(write(&r, &dir).is_err(), "{why}: written");
     };
     refused(&|r| r.library.commit.truncate(12), "a short commit");

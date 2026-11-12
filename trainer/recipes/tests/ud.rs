@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::run::{HeadOptions, spec};
@@ -82,7 +83,7 @@ fn each_column_is_a_corpus_id_with_its_own_head() {
 
 #[test]
 fn files_that_are_not_the_release_are_refused_unless_asked_for() {
-    let dir = std::env::temp_dir().join(format!("turbo-ud-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-ud-{}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     for pin in [EN_EWT.train, EN_EWT.dev, EN_EWT.test] {
         fs::write(dir.join(pin.path), TEXT).unwrap();

@@ -13,8 +13,9 @@
 //! the seed of the random strings (1 by default) and `TURBO_TEST_JDK_COUNT`
 //! how many of each kind to draw (200000 by default).
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_unicode::java::{self, WordClass};
 
@@ -35,10 +36,10 @@ fn jdk_requested() -> bool {
 /// Compiles `tests/jdk/<name>.java` and runs it with `args`.
 fn jdk(name: &str, args: &[&str]) -> String {
     let source = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/jdk/{name}.java"));
-    let classes: PathBuf = std::env::temp_dir().join(format!("turbo-unicode-{name}-{}", std::process::id()));
+    let classes = Scratch::at(std::env::temp_dir().join(format!("turbo-unicode-{name}-{}", std::process::id())));
     std::fs::create_dir_all(&classes).unwrap();
-    run(Command::new("javac").arg("-d").arg(&classes).arg(&source));
-    let output = run(Command::new("java").arg("-cp").arg(&classes).arg(name).args(args));
+    run(Command::new("javac").arg("-d").arg(classes.path()).arg(&source));
+    let output = run(Command::new("java").arg("-cp").arg(classes.path()).arg(name).args(args));
     let _ = std::fs::remove_dir_all(&classes);
     output
 }
