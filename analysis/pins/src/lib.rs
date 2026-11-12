@@ -134,7 +134,8 @@ fn zoo_pins(text: &'static str) -> Vec<Pin> {
         let Some(hex) = text.get(start..start + 64).filter(|h| is_hex64(h)) else { continue };
         let name =
             text[..start].rfind(PATH).and_then(|p| text[p + PATH.len()..].split('"').next()).unwrap_or("zoo file");
-        out.push(Pin { sha256: hex, kind: Kind::File, name, source: "analysis/zoo/index/zoo.json" });
+        let kind = MANIFESTS.iter().find(|&&(m, _)| m == name).map_or(Kind::File, |&(_, k)| k);
+        out.push(Pin { sha256: hex, kind, name, source: "analysis/zoo/index/zoo.json" });
     }
     out
 }

@@ -95,7 +95,9 @@ fn compression(c: turbo_zoo::Compression) -> &'static str {
 
 /// The artifact as the cache holds it, when every one of its files is a
 /// plain file there of the size the index records. The digests are not
-/// read here: an install, and every fetch, checks them.
+/// read here: an install, and every fetch, checks them. An encoder
+/// bundle whose manifest does not describe its entry is not installed:
+/// a fetch refuses it.
 pub(super) fn installed(cache: &Path, a: &Artifact) -> Option<InstalledModel> {
     let dir = cache.join(a.id.as_str());
     let mut files = Vec::with_capacity(a.files.len());
@@ -106,6 +108,10 @@ pub(super) fn installed(cache: &Path, a: &Artifact) -> Option<InstalledModel> {
             return None;
         }
         files.push(p.to_string_lossy().into_owned());
+    }
+    if a.model_type == turbo_zoo::ModelType::EncoderBundle {
+        let manifest = fs::read(dir.join(turbo_zoo::index::MANIFEST)).ok()?;
+        turbo_zoo::check_manifest(a, &manifest).ok()?;
     }
     Some(InstalledModel {
         id: a.id.to_string(),

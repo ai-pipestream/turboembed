@@ -148,5 +148,9 @@ rm -rf "$OUT"
 # One file at a time: each model is served with one session, which
 # refuses a second call while one runs, so files run side by side would
 # fail each other's calls.
-TURBO_E2E_INSTALL_URL="http://127.0.0.1:$INSTALL_DEMO_PORT" TURBO_E2E_INSTALL_INDEX="$WORK/install/index.json" \
+# TURBO_E2E_BIN lets a test start a server and demo of its own
+# (demo/web/e2e/stack.ts), to stop the server under an open page or to
+# forward writes the shared demo refuses.
+TURBO_E2E_BIN="$DEBUG" TURBO_E2E_DEVICE="$DEVICE" \
+  TURBO_E2E_INSTALL_URL="http://127.0.0.1:$INSTALL_DEMO_PORT" TURBO_E2E_INSTALL_INDEX="$WORK/install/index.json" \
   TURBO_E2E_LAYER_GRAPH="$WORK/layer-instances.graph" TURBO_E2E_URL="http://127.0.0.1:$DEMO_PORT" TURBO_E2E_SHOTS="$SHOTS" node --test --test-concurrency=1 "$OUT"/*.test.mjs

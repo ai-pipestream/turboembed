@@ -150,6 +150,14 @@ impl Hits {
         true
     }
 
+    /// Marks the candidate added last as rejected for `reason`: it gets
+    /// its row in the candidates layer and becomes no mention.
+    pub(crate) fn reject_last(&mut self, reason: RejectReason) {
+        if let Some(h) = self.hits.last_mut() {
+            h.rejected = Some(reason);
+        }
+    }
+
     /// Adds a candidate with one fact.
     pub(crate) fn add(
         &mut self,

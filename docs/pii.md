@@ -29,6 +29,8 @@ checksum is validated with it:
 | `rewrite::RewritePolicy`, `RewriteStrategy` | Composable per-`PiiKind` rewrite dispatcher with a default fallback strategy |
 | `rewrite::PiiAuditReport` | Redacted mention counts, suppressed counts, and keyed token summaries |
 | `checksum::luhn`, `mod97`, `mod11`, `icao9303`, `es`, `fr`, `bic`, `vin`, `parcel`, `verhoeff`, `damm`, `sha256`, `keccak`, `base58`, `bech32` | Checksum, national ID, and cryptographic validators |
+| `nemotron`, `NEMOTRON_TYPES`, `resolve_nemotron_kind`, `resolve_model_with_rules` | Mapping of all 55 `Nemotron-PII` entity types to `PiiKind` (15 built-ins, 40 custom kinds) and rule-overlap precedence |
+| `turbo_tagger::PiiTagger` | Neural `HEAD_TOKEN_TAGGER` (`SCHEME_BIO`) annotator writing `(Pii, PiiCandidates)` with calibrated `PiiScore` (`analysis/tagger/src/pii.rs`) |
 
 The crate depends on `turbo-analysis`, `turbo-analysis-layers`,
 `turbo-glossary` and `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
@@ -287,8 +289,9 @@ confidence tier, the audit report and every policy decision read them.
   a `PiiDisposition`: `Kept { mention }` (its row in `turbo:pii`),
   `AllowedByRule { scope, rule }` (`AllowScope::Global` or `Kind`,
   `AllowRule::Term(i)` or `Pattern(i)` by registration index),
-  `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`
-  or `Threshold`) or `Repeats { mention }`. The layer has no value or
+  `NestedIn { mention }`, `RejectedByRule { reason }` (`LabelRequired`,
+  `Threshold`, or `RulePrecedence` for a model's candidate that loses to
+  an overlapping rule mention) or `Repeats { mention }`. The layer has no value or
   normalized column by construction, so a suppressed candidate never
   carries text. `PiiAuditReport::with_candidates` counts suppressed
   candidates per kind from it, and `PiiCandidates::check_against` holds
@@ -375,6 +378,138 @@ annotation has no span. The typed validator refuses a level its score
 does not give, an unknown or unspecified enum, kinds out of order or
 outside the table, a mention count that is not their sum, a non-finite
 number, a span and a second annotation.
+
+## Neural BIO PII head
+
+`turbo_tagger::PiiTagger` (`analysis/tagger/src/pii.rs`, step id
+`turbo-tagger-pii`) runs a bundle's `HEAD_TOKEN_TAGGER` (`SCHEME_BIO`,
+layer `turboembed:pii`) over `(View, Tokens, Option<Subwords>)` and writes
+`(Pii, PiiCandidates)`. The default-tier zoo head
+`turbo-en-nemotron-pii-modernbert-base-1` (`COMPONENT_PII_DETECTOR`, resolved
+by `PiiTagger::from_zoo` or `PiiTagger::from_zoo_language(zoo, "en", ...)`) is
+trained in pure Rust (`turbo-trainer`) on `nvidia/Nemotron-PII` over
+`answerdotai/ModernBERT-base` (`trainer/recipes/src/nemotron_pii.rs`) to
+cover contextual PII that format and checksum scanners cannot recognize
+(person names, medical record and health-plan numbers, free-form
+addresses, credentials, occupations, and identifiers without check
+digits).
+
+```rust
+use turbo_analysis::{Analyzer, Document};
+use turbo_analysis_embed::EncoderOptions;
+use turbo_pii::{Pack, Pii, PiiDetector};
+use turbo_tagger::{NEMOTRON_PII_TEMPERATURE, PiiTagger};
+use turbo_tokenize::SimpleTokenizer;
+
+let tagger = PiiTagger::open(&bundle_dir, None, &EncoderOptions::default())?
+    .with_temperature(NEMOTRON_PII_TEMPERATURE)?
+    .with_score_threshold(0.50)?
+    .with_rules(PiiDetector::pack(Pack::AllStructured));
+
+let analyzer = Analyzer::builder()
+    .add(SimpleTokenizer::default())
+    .add(tagger)
+    .build()?;
+let mut docs = vec![Document::new("Patient Jane Doe, SSN 123-45-6789, MRN 884210.")];
+for r in analyzer.run(&mut docs) {
+    r?;
+}
+let pii = docs[0].get::<Pii>().unwrap();
+```
+
+### Label mapping (`turbo_pii::nemotron`)
+
+All 55 `Nemotron-PII` entity types map deterministically through
+`NEMOTRON_TYPES` (`analysis/pii/src/nemotron.rs`):
+
+- **16 built-in `PiiKind` variants**: `age` (`Age`), `bank_routing_number`
+  (`AbaRouting`), `city` (`City`), `county` (`County`), `credit_debit_card`
+  (`Card`), `date` (`Date`), `email` (`Email`), `ipv4` (`Ipv4`), `ipv6`
+  (`Ipv6`), `mac_address` (`Mac`), `phone_number` (`Phone`), `ssn` (`UsSsn`),
+  `state` (`State`), `street_address` (`StreetAddress`), `swift_bic` (`Bic`),
+  and `url` (`Url`).
+- **39 kebab-case `CustomKinds` entries** (registered automatically in
+  canonical order): `account-number`, `api-key`, `biometric-identifier`,
+  `blood-type`, `certificate-license-number`, `company-name`, `coordinate`,
+  `country`, `customer-id`, `cvv`, `date-of-birth`, `date-time`,
+  `device-identifier`, `education-level`, `employee-id`, `employment-status`,
+  `fax-number`, `first-name`, `gender`, `health-plan-beneficiary-number`,
+  `http-cookie`, `language`, `last-name`, `license-plate`,
+  `medical-record-number`, `national-id`, `occupation`, `password`, `pin`,
+  `political-view`, `postcode`, `race-ethnicity`, `religious-belief`,
+  `sexuality`, `tax-id`, `time`, `unique-id`, `user-name`, and
+  `vehicle-identifier` (39 custom + 16 built-in = 55 total; structured kinds
+  outside `Nemotron-PII`'s 55 types such as `iban` are covered directly by
+  `PiiDetector` packs).
+
+If any custom kind is promoted to a built-in `PiiKind` in a future schema
+revision, `resolve_nemotron_kind` automatically resolves its kebab-case
+wire name via `PiiKind::parse` first.
+
+### Rule-overlap precedence, `PiiScore`, and policy integration
+
+- **Rules win on overlap**: `PiiTagger::with_rules(PiiDetector)` runs the
+  configured scanner pack alongside the BIO head in one `Annotator` step
+  (respecting `Analyzer`'s single-producer invariant on `turbo:pii`).
+  Whenever a neural span overlaps an admitted rule mention, the rule
+  mention wins so checksum and format guarantees (`Checksum`, `Format`,
+  `LabelledChecksum`) are never diluted by a neural span:
+  - Exact `(span, kind)` twins appear in `turbo:pii-candidates` with
+    `PiiDisposition::Repeats` pointing to the kept rule mention.
+  - Neural spans strictly inside a kept rule mention record
+    `PiiDisposition::NestedIn` pointing to that rule mention.
+  - Enclosing, partially overlapping, or cross-kind neural spans (`postcode`
+    on a `us-zip` span) yield to the kept rule mention and keep a row in
+    `turbo:pii-candidates` with
+    `PiiDisposition::RejectedByRule { RejectReason::RulePrecedence }`, as
+    does a neural span inside a rule mention when nested mentions are
+    kept. Every scored candidate the head produced has a row.
+- **Scores and temperature calibration**: Rule mentions record
+  `score: None`; neural mentions record
+  `Some(PiiScore { value, kind: PiiScoreKind::Probability, model, calibrated })`
+  with mean token probability in `[0.0, 1.0]` (`Some(0.0)` is distinct from
+  `None`), detector id `turbo-tagger:pii` (`PII_TAGGER_DETECTOR`) on
+  `mention.detector`, and model
+  id/version in `score.model` (`PiiDetectors`). Calling
+  `PiiTagger::with_temperature(T)` scales token logits by `1 / T` (fitted on
+  held-out `dev` via `turbo-train-head calibrate`, never `test`;
+  `NEMOTRON_PII_TEMPERATURE = 1.093_758`) and sets
+  `calibrated: true`.
+- **Policy integration (`#1882`)**: `RedactionPolicy` rules in
+  `turbo-kserve` evaluate `ScoreAtLeast` (`PiiScoreKind::Probability`,
+  `min`, `calibrated`), `Detector` (`turbo-tagger:pii`), and
+  `ChecksumPassed` uniformly across rule and neural mentions in the same
+  `turbo:pii` layer.
+
+### Held-out evaluation and calibration (`#1888`)
+
+Receipts under `trainer/recipes/records/nemotron-pii-1888/` score
+`turbo-en-nemotron-pii-modernbert-base-1` (`answerdotai/ModernBERT-base`
+layer 22, `WORD_POOLING_FIRST`, 128-wide hashed word features) on the
+100,000-document held-out `test` split of `nvidia/Nemotron-PII`
+(`b70ffaf5ff39e079776134c5bf4381f00a9fd1ed`, 18,710,937 words, 848,257 gold
+spans across 55 types):
+
+- **Full 55-type micro span F1**: `0.6096` (`P = 0.5299`, `R = 0.7176`) vs
+  majority baseline `0.1677` (`+0.4419`, paired bootstrap 95% CI
+  `[+0.4404, +0.4434]`).
+- **Shared OntoNotes 4-type subset** (`company_name`, `date`, `time`,
+  `language`; 161,289 gold test spans): micro span F1 `0.6127` vs
+  `Stanza 1.10.1-en` `0.4832`, `spaCy en_core_web_lg 3.8.0` `0.2909`, and
+  majority `0.0809`, beating both peers on all four shared types
+  (`company_name` `0.5425`, `date` `0.6621`, `time` `0.5323`, `language`
+  `0.9002`).
+- **Coarse group highlights**: `person` `0.8794` (`first_name` `0.9243`,
+  `last_name` `0.8905`), `financial` `0.7723`, `location` `0.7714`,
+  `temporal_demographic` `0.6652`, and `medical_phi` `0.6554`. Punctuation-split
+  structured identifiers (`email`, `url`, `ssn`, `ipv6`) are covered by
+  `PiiDetector::pack(Pack::AllStructured)` winning on overlap via
+  `PiiTagger::with_rules`.
+- **Held-out `dev` calibration (`calibration.json`)**: fitted on the
+  10,000-document persona-disjoint `dev` split (1,969,973 tokens, 380,348
+  entity tokens), yielding `NEMOTRON_PII_TEMPERATURE = 1.093_758` (NLL
+  `0.09079 -> 0.09005`, ECE `0.00246 -> 0.00197`, entity ECE
+  `0.04808 -> 0.03848`).
 
 ## Masking and labels
 
@@ -976,7 +1111,8 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   populated places, public domain), matched by the gazetteer's own rule
   (case, accents and punctuation folded). Many city names are also
   common words or given names (`Mobile`, `Phoenix`, `Jackson`), so a name
-  is a mention only in one of two settings:
+  is a mention in one of two anchored settings, or bare under the rules
+  further down:
   - directly before a comma, a space and a US state's or territory's
     name or USPS code, when the gazetteer holds a place of that name
     there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
@@ -1006,12 +1142,53 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
     start of a longer name (`City: San Foo`, `the city of Paris
     Hilton`), so it is no mention.
 
-  A bare name (`Chicago is large`) is no mention. The name has at most
-  five words with single spaces between them, and each word starts with a
-  capital where the gazetteer's name has one (`Rio de Janeiro`,
-  `Coeur d'Alene`). The longest name wins, and the normalized form is the
-  gazetteer's name (`Sao Paulo` for `São Paulo`). A city and the state
-  after it are two mentions.
+  - bare, in running prose with neither (#2097,
+    `analysis/pii/src/scan/city_bare.rs`; `lunch in Rouen`, `the Boston
+    area`, `a Pasadena native`, `SAN FRANCISCO --`), only where it is
+    unlikely to be a word, a person or part of a longer name:
+    - the gazetteer holds a place of that name with at least 100,000
+      people (smaller places' names are more often words of other
+      languages or surnames, and the Antarctic stations carry country
+      names: `Ende`, `Nord`, `Australia`), and the normalized form is that
+      place's name;
+    - it is not a US state's name (`Virginia`, `New York`, which the
+      state scanner reads), not a country's English name (`Luxembourg`,
+      `Kuwait`, `Djibouti`), and a one-word name has four letters or more
+      and is not in `analysis/pii/src/tables/city_common_words.txt`: the
+      268 one-word gazetteer names that are lower-case words in SCOWL's
+      lists of sizes 10 to 50 or among the 1,000 most frequent first names
+      or surnames of the US Census Bureau's 1990 name files (`Mobile`,
+      `Reading`, `Price`, `Nice`, `Jackson`, `Florence`, `Austin`), which
+      stay mentions only in the anchored settings;
+    - no state follows it, so the anchored rule's refusals stand (`Mobile,
+      IL`, `Paris, Alaska`);
+    - no capitalized word follows it after a space, past a possessive
+      `'s` (`The San Francisco Chronicle`, `Orleans Parish`, `Prince
+      George's County`, `New York City`, `the Paris Hilton story`);
+    - the word one space before it is not capitalized, or is one of a
+      short list of words that start a sentence before a place (`In`,
+      `The`, `From`, `Between`), and is not `of` after a capitalized word
+      (`Harry Denton`, `Mr. Lincoln`, `University of Bristol`);
+    - no verb of speech or address follows it after one space (`said`,
+      `told`, `wrote` and a few more: `Madison said`, `Columbus wrote`),
+      as a person's name does, unless one of the sentence-start words
+      above stands before it (`people in Paris said so`, `a source in
+      Boston told reporters`);
+    - no word, path or address touches it (`Grand-Rouen`,
+      `example.com/Rouen`, `Rouen.example.com`, `Rouen@example.com`,
+      `#Rouen`). A possessive name ends before its `'s` (`San
+      Francisco's`), and a hyphenated name is one name (`Winston-Salem`).
+
+  The name has at most five words with single spaces between them, and
+  each word starts with a capital where the gazetteer's name has one
+  (`Rio de Janeiro`, `Coeur d'Alene`). The longest name wins, and the normalized form is the gazetteer's name
+  (`Sao Paulo` for `São Paulo`). A city and the state after it are two
+  mentions. The bare reading costs one probe of a table of the eligible
+  names' first words per capitalized word, so prose with no city adds
+  that probe and nothing else (`analysis/pii/examples/places_bench.rs`:
+  on 256 KB of city-free prose, release build, both builds on one shared
+  container, the Places pack took 2.5 ms before and 3.5 ms after; a
+  comparison on the same machine and text, not a timing claim).
 
 A place name starts and ends where no letter, digit, combining mark or
 `_` touches it (`text::name_char`, `on_name_start`, `on_name_end`), at
@@ -1046,13 +1223,28 @@ project-authored memo of places and near misses (`places-memos.txt`):
 |---|---|---:|---:|---:|---:|---:|
 | `state` | third-party MASC (`29`) + project-authored (`11`) | 40 | 0 | 0 | 1.000 | 1.000 |
 | `county` | project-authored (`places-memos.txt`) | 9 | 0 | 0 | 1.000 | 1.000 |
-| `city` | third-party MASC (`24`) + project-authored (`12`) | 9 | 0 | 27 | 1.000 | 0.250 |
+| `city` | third-party MASC (`24`) + project-authored (`12`) | 35 | 0 | 1 | 1.000 | 0.972 |
 
 The MASC documents name no county, so the county figures are only those
 of the memo written for it. The `city` gold marks every reference to a
 city, bare names in running prose included (`in Rouen`, `the Boston
-area`), so its recall counts what the two settings above leave out: all
-27 misses are names with no state after them and no label before them.
+area`). Before the bare reading (#2097) the anchored settings found 9
+and missed 27, every miss a bare name; the one miss left is `New York
+City`, which the gazetteer does not hold, so `New York` before `City` is
+part of a longer name. The bare rules were written against this set, so
+its figures are not held-out ones; a sweep over the other English test
+texts of the workspace (Wikipedia identifier articles, the PII inputs,
+the name finder corpora) found the bare names there to be places, apart
+from country names, which the country rule then removed, and names after
+`University of` or `Bank of`, which the `of` rule removed.
+
+The bare reading still tags a person who shares a city's name when
+nothing beside the name says so. Names outside the Census top 1,000
+first names and surnames (`Madison`, `Paris`, `Dayton`, `Salem`,
+`Columbus`) are not in the common-word list, so one alone as a subject
+or object (`we met Madison`, `Paris won the race`) is read as the city.
+A policy that needs higher precision on person-heavy text can leave
+`city` out and keep `state` and `county`.
 
 ## Custom extractors and scanner rules
 

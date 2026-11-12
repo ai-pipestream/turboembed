@@ -7,6 +7,7 @@ mod age;
 mod br;
 mod card;
 mod city;
+mod city_bare;
 mod county;
 mod crypto;
 mod date;

@@ -120,6 +120,8 @@ pub fn zoo_artifact(assembled: &AssembledBundle, opts: &ZooEntryOptions) -> Resu
         class: LicenceClass::Permissive,
         attribution: (!attributions.is_empty()).then(|| attributions.join(" | ")),
         origin: None,
+        model_type: Default::default(),
+        bundle: None,
         files,
     };
     artifact.class = artifact.computed_class();

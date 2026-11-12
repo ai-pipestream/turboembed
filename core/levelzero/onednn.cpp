@@ -38,6 +38,12 @@ struct Handle {
     // The events of the work queued since the last wait, kept so their
     // Level Zero handles stay valid for the backend's list to wait on.
     std::vector<sycl::event> events;
+    // With profile set (TURBO_LEVELZERO_PROFILE): each kept event's
+    // primitive, and per primitive how many ran and their nanoseconds on
+    // the device, read from the events at each wait.
+    bool profile;
+    std::vector<std::string> names;
+    std::map<std::string, std::pair<uint64_t, uint64_t>> times;
 };
 
 void say(char *err, size_t n, const std::string &what) {
@@ -129,8 +135,13 @@ std::vector<sycl::event> deps_of(Handle &h, void *ze_wait) {
     return deps;
 }
 
-// Keeps the primitive's event and hands out its Level Zero handle.
-void *signal_of(Handle &h, sycl::event ev) {
+// Keeps the primitive's event and hands out its Level Zero handle; with
+// the profile on, `name` gives what the profile calls the primitive, and is
+// not called otherwise.
+template <typename Name> void *signal_of(Handle &h, sycl::event ev, Name name) {
+    if (h.profile) {
+        h.names.push_back(name());
+    }
     h.events.push_back(ev);
     return sycl::get_native<sycl::backend::ext_oneapi_level_zero>(h.events.back());
 }
@@ -143,17 +154,22 @@ dnnl::memory usm(Handle &h, const dnnl::memory::desc &md, const void *p) {
 
 extern "C" {
 
-void *turbo_dnnl_open(void *ze_device, void *ze_context, char *err, size_t n) {
+// With profile set, the queue records each primitive's time on the device
+// (turbo_dnnl_profile).
+void *turbo_dnnl_open(void *ze_device, void *ze_context, int profile, char *err, size_t n) {
     Handle *h = nullptr;
     int rc = guarded(err, n, [&] {
         namespace lz = sycl::ext::oneapi::level_zero;
         sycl::device dev = sycl::make_device<sycl::backend::ext_oneapi_level_zero>((ze_device_handle_t)ze_device);
         sycl::context ctx = sycl::make_context<sycl::backend::ext_oneapi_level_zero>(
             {(ze_context_handle_t)ze_context, {dev}, lz::ownership::keep});
-        sycl::queue q(ctx, dev, sycl::property::queue::in_order());
+        sycl::property_list props = profile ? sycl::property_list{sycl::property::queue::in_order(),
+                                                                  sycl::property::queue::enable_profiling()}
+                                            : sycl::property_list{sycl::property::queue::in_order()};
+        sycl::queue q(ctx, dev, props);
         dnnl::engine eng = dnnl::sycl_interop::make_engine(dev, ctx);
         dnnl::stream st = dnnl::sycl_interop::make_stream(eng, q);
-        h = new Handle{dev, ctx, q, eng, st, {}, {}, {}};
+        h = new Handle{dev, ctx, q, eng, st, {}, {}, {}, profile != 0, {}, {}};
     });
     return rc ? nullptr : h;
 }
@@ -205,7 +221,11 @@ int turbo_dnnl_matmul(void *hp, const void *a, const void *packed, const float *
         if (residual) {
             args.emplace(DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1, usm(h, cmd, residual));
         }
-        *ze_signal = signal_of(h, sycl_interop::execute(mm, h.stream, args, deps_of(h, ze_wait)));
+        auto name = [&] {
+            return "onednn matmul " + std::to_string(m) + "x" + std::to_string(k) + "x" + std::to_string(n) +
+                   (f32 ? " f32" : "") + (bias ? " bias" : "") + (residual ? " residual" : "") + (gelu ? " gelu" : "");
+        };
+        *ze_signal = signal_of(h, sycl_interop::execute(mm, h.stream, args, deps_of(h, ze_wait)), name);
     });
 }
 
@@ -223,7 +243,8 @@ int turbo_dnnl_layer_norm(void *hp, const void *src, const float *gamma, const f
                                                 {DNNL_ARG_DST, usm(h, x, dst)},
                                                 {DNNL_ARG_SCALE, usm(h, g, gamma)},
                                                 {DNNL_ARG_SHIFT, usm(h, g, beta)}};
-        *ze_signal = signal_of(h, sycl_interop::execute(ln, h.stream, args, deps_of(h, ze_wait)));
+        auto name = [&] { return "onednn layer norm " + std::to_string(m) + "x" + std::to_string(n); };
+        *ze_signal = signal_of(h, sycl_interop::execute(ln, h.stream, args, deps_of(h, ze_wait)), name);
     });
 }
 
@@ -232,8 +253,29 @@ int turbo_dnnl_wait(void *hp, char *err, size_t n_err) {
     Handle &h = *static_cast<Handle *>(hp);
     return guarded(err, n_err, [&] {
         h.stream.wait();
+        if (h.profile) {
+            for (size_t i = 0; i < h.events.size() && i < h.names.size(); i++) {
+                namespace info = sycl::info::event_profiling;
+                uint64_t start = h.events[i].get_profiling_info<info::command_start>();
+                uint64_t end = h.events[i].get_profiling_info<info::command_end>();
+                auto &t = h.times[h.names[i]];
+                t.first += 1;
+                t.second += end - start;
+            }
+            h.names.clear();
+        }
         h.events.clear();
     });
+}
+
+// Each primitive's count and nanoseconds on the device since the queue
+// opened, through `each`; nothing unless opened with profile set.
+void turbo_dnnl_profile(void *hp, void (*each)(void *user, const char *name, uint64_t count, uint64_t ns),
+                        void *user) {
+    Handle &h = *static_cast<Handle *>(hp);
+    for (const auto &[name, t] : h.times) {
+        each(user, name.c_str(), t.first, t.second);
+    }
 }
 
 const char *turbo_dnnl_version(void) {

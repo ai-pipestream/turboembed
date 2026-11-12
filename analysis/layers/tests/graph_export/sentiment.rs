@@ -159,6 +159,8 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         (1, 3, PiiDisposition::NestedIn { mention: Ix::new(0) }),
         (6, 9, PiiDisposition::AllowedByRule { scope: AllowScope::Kind, rule: AllowRule::Pattern(1) }),
         (6, 9, PiiDisposition::RejectedByRule { reason: RejectReason::Threshold }),
+        (6, 9, PiiDisposition::RejectedByRule { reason: RejectReason::LabelRequired }),
+        (6, 9, PiiDisposition::RejectedByRule { reason: RejectReason::RulePrecedence }),
     ] {
         candidates.push(PiiCandidate {
             span: Span::new(start, end),
@@ -281,7 +283,7 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
     assert_eq!(m.evidence[3], PiiEvidence::Rule { rule: 9 });
     assert_eq!(m.score.map(|s| (s.value, s.kind, s.calibrated)), Some((0.75, PiiScoreKind::Probability, false)));
     let candidates = back.get::<PiiCandidates>().unwrap();
-    assert_eq!(candidates.len(), 5);
+    assert_eq!(candidates.len(), 7);
     assert_eq!(candidates.disposition[0], PiiDisposition::Kept { mention: Ix::new(0) });
     assert_eq!(candidates.disposition[1], PiiDisposition::Repeats { mention: Ix::new(0) });
     assert_eq!(candidates.disposition[2], PiiDisposition::NestedIn { mention: Ix::new(0) });
@@ -290,6 +292,9 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         PiiDisposition::AllowedByRule { scope: AllowScope::Kind, rule: AllowRule::Pattern(1) }
     );
     assert_eq!(candidates.disposition[4], PiiDisposition::RejectedByRule { reason: RejectReason::Threshold });
+    // Every reject reason comes back as itself.
+    assert_eq!(candidates.disposition[5], PiiDisposition::RejectedByRule { reason: RejectReason::LabelRequired });
+    assert_eq!(candidates.disposition[6], PiiDisposition::RejectedByRule { reason: RejectReason::RulePrecedence });
     assert_eq!(candidates.get(Ix::new(4)).evidence, &evidence[..2]);
     assert_eq!(candidates.content_hash(), doc.get::<PiiCandidates>().unwrap().content_hash());
     assert_eq!(back.get::<Regions>().unwrap().share, [0.75, 0.25]);

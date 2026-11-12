@@ -203,7 +203,9 @@ over its limits fails that step the same way: `max_tokens` (384 tokens in
 one sentence) and `encoder max_sequence` (the schema prompt, the
 sentence's word pieces and the end token against the encoder's
 positions). A long document of ordinary sentences is not over either: it
-is read in windows. The other steps that run an encoder (the sentence,
+is read in windows. Labels whose prompt alone leaves no room for a piece
+of text fail the step as `label prompt max_sequence`: there the fix is
+fewer or shorter labels, and no shorter text helps. The other steps that run an encoder (the sentence,
 subword, sparse, vector and head steps, and `turbo:gliner` on a
 `HEAD_OPEN_SPAN` bundle) window their input and have no length limit of
 their own.
@@ -224,7 +226,14 @@ also checks entity and PII source slices, UTF-16 offsets past the
 astral characters, relation mentions that link entities in the graph,
 deduplicated edges, verified evidence, model provenance equal to the
 digests `Capabilities` reports, a byte-identical second run and a
-byte-identical `RoundTripDocumentGraph`.
+byte-identical `RoundTripDocumentGraph`. It reads the graph back through
+the inspection calls too: `InspectDocumentGraph` in UTF-16 units gives
+every entity at the offsets the graph maps it to and every relation over
+the graph's entity rows, each layer naming the package the server
+reports as its model, and `InspectDocumentWindow`, 64 bytes a page, pages
+through the whole source with every entity on a page. The run with the
+release packages is recorded in
+`analysis/eval/records/full-text-graph-1948/README.md`.
 The step's layer error, in the step failure, the complete graph and
 the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 

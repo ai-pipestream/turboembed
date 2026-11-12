@@ -258,8 +258,27 @@ control leaves the box it is in, a long select or file picker shrinking
 to the box's width; a card with nothing in it is not drawn; and a list
 with no rows says "None." in place of bare column headings. The tabs
 are an ARIA tab list: the left and right arrow keys move between them.
+Each tab is an address (`#search`) and a history entry: a link opens its
+tab, and Back and Forward move between the tabs visited.
 The header shows the server's name, version and state with a dot, green
-once `ServerReady` says ready and red when the demo cannot reach it.
+once `ServerReady` says ready and red when the demo cannot reach it. The
+state is read again every 10 seconds while the page is in view and when
+it comes back into view. While the server does not answer, a notice
+under the tabs says so and offers "Retry now", and a list with nothing
+in it says why: the server is not reachable, or it serves none of that
+kind. When the server answers again, or turns ready after loading, every
+tab reads its lists again, with no reload. A demo that refuses a call
+for want of its token counts as reachable: type the token and the tabs
+fill.
+
+Every action follows one pattern. A button that calls the server is off
+and shows the elapsed time while its call runs, and a Stop button is on
+only while there is something to stop. Anything that removes state
+(delete an index, a collection, a vocabulary artifact or a static
+model, unload a bundle, revoke a licence acceptance, remove a model
+source) asks in place first, "Delete demo?" with Yes and Cancel, and
+reports a refusal beside the row it concerns. While Yes is running the
+question stays put: Escape does not bring the first button back.
 
 ## Starting it
 
@@ -557,6 +576,25 @@ either: every call the page makes goes through the demo to the server.
   on disk has the size and SHA-256 the catalog lists. The Server tab
   loads the installed directory into the running server, and Semantic
   ranks passages with it, with no restart and no page reload.
+- An address change, a link, Back and Forward each open the tab they
+  name, every tab click is one history entry, and an address naming no
+  tab opens the first.
+- Embed, Run, Analyze, Format and Round trip are each off and count the
+  time while their call runs, Analyze's Stop is on only then, and every
+  Stop starts off.
+- Delete index, Delete collection and Unload each ask in place, with
+  focus on Cancel; Cancel and Escape put the button back, and only Yes
+  calls the server. A delete the demo refuses says why beside its own
+  row and leaves the rest of the page alone.
+- The header turns red within one status interval after the server
+  stops, with the notice and Retry, and green again with no reload once
+  it is back, the tabs refilled. A page opened with the server stopped
+  says on each tab that the server is not reachable, and fills on Retry.
+
+The tests that stop the server, or need writes forwarded, start a
+server and demo of their own from the same binaries
+(`demo/web/e2e/stack.ts`, given the binaries' directory in
+`TURBO_E2E_BIN`).
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

@@ -8,6 +8,8 @@ use turbo_zoo::{
     UserId, Zoo, ZooError,
 };
 
+mod import_cmd;
+
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
   show <id>            one artifact: licences, training data, files
@@ -21,6 +23,11 @@ const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   accepted             the licences you have accepted
   fetch <id>           fetch and verify an artifact; prints its local files
   hash <file>...       size, SHA-256 and SHA-512 of files, for an index entry
+  index                the index in its canonical form, to start an index file from
+  import-bundle <bundle-dir> --id <id> --base <url> --license-terms <url> [...]
+                       a sealed bundle directory as an index entry, every file
+                       verified against its manifest; with --into <zoo.json>,
+                       added to that index file (`turbo-zoo import-bundle` lists the flags)
 
 The zoo keeps its cache and acceptance file in $TURBO_ZOO_HOME, else
 $XDG_DATA_HOME/turbo-zoo, else ~/.local/share/turbo-zoo. The user is $USER
@@ -64,14 +71,20 @@ fn acceptable(licence: &str, verb: &str) -> Result<Licence, String> {
 }
 
 fn run(mut args: Vec<String>) -> Result<(), String> {
+    if args.first().map(String::as_str) == Some("import-bundle") {
+        return import_cmd::run(&args[1..].iter().map(String::as_str).collect::<Vec<_>>());
+    }
+    // The index's own text is kept: it holds the entries the zoo refuses
+    // and does not list, which `index` prints with the rest.
+    let mut text = turbo_zoo::index::BUILTIN.as_bytes().to_vec();
     let index = if args.first().map(String::as_str) == Some("--index") {
         if args.len() < 2 {
             return Err(USAGE.into());
         }
         let path = args.remove(1);
         args.remove(0);
-        let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
-        Index::parse(&bytes).map_err(|e| e.to_string())?
+        text = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+        Index::parse(&text).map_err(|e| e.to_string())?
     } else {
         Index::builtin()
     };
@@ -96,6 +109,9 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                 println!("language: {l}");
             }
             println!("class: {}", a.class);
+            if let Some(b) = &a.bundle {
+                println!("type: {} of {} revision {} for {}", a.model_type, b.model, b.revision, b.task);
+            }
             println!("license: {} ({})", a.license, a.license_terms);
             for t in &a.trained_on {
                 println!("trained on: {} under {} ({})", t.name, t.license, t.license_terms);
@@ -178,6 +194,10 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             for f in &fetched.files {
                 println!("{}", f.display());
             }
+            Ok(())
+        }
+        ["index"] => {
+            print!("{}", Index::to_canonical_json(&Index::written(&text).map_err(e)?));
             Ok(())
         }
         ["hash", files @ ..] if !files.is_empty() => {

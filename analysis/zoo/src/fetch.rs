@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::accept::{Acceptances, UserId};
 use crate::digest::{Sha256, Sha512};
 use crate::error::{Check, ZooError};
-use crate::index::{Artifact, File, Index};
+use crate::index::{Artifact, File, Index, MANIFEST, ModelType, check_manifest};
 use crate::licence::Policy;
 
 #[cfg(feature = "http")]
@@ -166,6 +166,13 @@ impl<'t> Zoo<'t> {
                 write_atomic(&local, &bytes)?;
             }
             files.push(local);
+        }
+        // An encoder bundle's manifest, verified above as the entry's
+        // file, must describe the entry: the same model and files.
+        if a.model_type == ModelType::EncoderBundle {
+            let manifest = dir.join(MANIFEST);
+            let bytes = fs::read(&manifest).map_err(|e| ZooError::Io { path: manifest, message: e.to_string() })?;
+            check_manifest(a, &bytes)?;
         }
         Ok(Fetched { artifact: a, dir, files })
     }

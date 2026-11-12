@@ -121,9 +121,7 @@ static MAC_ROMAN_REVERSE: [(char, u8); 128] = {
     while j < 128 {
         let mut k = j;
         while k > 0 && (t[k - 1].0 as u32) > (t[k].0 as u32) {
-            let x = t[k - 1];
-            t[k - 1] = t[k];
-            t[k] = x;
+            t.swap(k - 1, k);
             k -= 1;
         }
         j += 1;
