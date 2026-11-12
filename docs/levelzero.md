@@ -83,14 +83,19 @@ The build needs the oneAPI compiler (`TURBO_ICPX`, else `icpx` on the
 Level Zero's headers (`ze_api.h`) and loader
 (`libze_loader.so`, which `onednn.cpp` links), from the oneAPI
 installation or the distribution's Level Zero development package; it
-makes `libturbo_onednn.so` in the build directory, which the library then
-needs at run time together with oneDNN and the SYCL runtime from the
-oneAPI installation. The compiler's lib directory is written into both as
-a run-time path; oneDNN's own directory is not, so a program run outside
+makes `libturbo_onednn.so` in the build directory. The library is not
+linked against it: it opens it at run time, first at the path it was
+built at and then by name through the dynamic linker's search
+(`LD_LIBRARY_PATH`), so any binary built with the feature (`turbo-bench`
+run straight from `target/release`, say) finds it on the machine that
+built it, and a binary moved elsewhere finds a copy put on the library
+path. `libturbo_onednn.so` needs oneDNN and the SYCL runtime from the
+oneAPI installation; the compiler's lib directory is written into it as
+a run-time path, oneDNN's own directory is not, so a program run outside
 the oneAPI environment (`source /opt/intel/oneapi/setvars.sh`) finds
-`libdnnl.so` through `LD_LIBRARY_PATH`. A program built in another crate,
-such as `turbo-bench`, also finds `libturbo_onednn.so` that way. A device
-oneDNN cannot open runs the backend's own kernels, and the log says so.
+`libdnnl.so` through `LD_LIBRARY_PATH`. Where the library or oneDNN
+cannot open on a device, the backend's own kernels run the linear
+layers, and the log says why.
 
 oneDNN builds a kernel (a primitive) for one shape, its tokens included,
 which takes host memory and, for a shape whose kernel oneDNN has not
