@@ -1,7 +1,7 @@
 //! Unkeyed SHA-256 hex digest replacement ([`Sha256Tokenizer`]).
 //!
 //! By default, each mention is replaced with the 64 lowercase hexadecimal
-//! digits of the SHA-256 digest ([`crate::checksum::sha256::digest`]) of its
+//! digits of the SHA-256 digest ([`turbo_sha256::sha256`]) of its
 //! normalized UTF-8 value. Callers may also request a shorter prefix (4 to
 //! 64 hex digits) or prepend the uppercase kind tag (`EMAIL-<hex>`) or a
 //! custom prefix.
@@ -22,7 +22,6 @@ use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
 use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError, TokenizerError, kind_name};
-use crate::checksum::sha256;
 
 const HEX: &[u8; 16] = b"0123456789abcdef";
 
@@ -126,7 +125,7 @@ impl Sha256Tokenizer {
         if value.is_empty() {
             return Err(TokenizerError::EmptyValue);
         }
-        let hash = sha256::digest(value.as_bytes());
+        let hash = turbo_sha256::sha256(value.as_bytes()).0;
         out.push_str(&self.prefix);
         if self.kind_prefix {
             out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));

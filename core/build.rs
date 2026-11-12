@@ -240,9 +240,13 @@ fn clang_major(version: &str) -> Option<u32> {
 
 /// For `levelzero-onednn`: core/levelzero/onednn.cpp, oneDNN's kernels
 /// behind a C interface, built by the oneAPI compiler (TURBO_ICPX, else
-/// icpx on the PATH) into a shared library in OUT_DIR that the library
-/// links; the oneAPI lib directory next to the compiler is its run-time
-/// path for oneDNN and the SYCL runtime.
+/// icpx on the PATH) into a shared library in OUT_DIR, whose path the
+/// library is compiled with (TURBO_ONEDNN_LIB) and opens at run time
+/// (src/levelzero/onednn.rs). It is not linked: a link's run-time path
+/// would reach only this package's own binaries and tests, so a binary of
+/// another crate (turbo-bench) would not start. The oneAPI lib directory
+/// next to the compiler is the shared library's run-time path for oneDNN
+/// and the SYCL runtime.
 fn onednn() {
     const SOURCE: &str = "levelzero/onednn.cpp";
     println!("cargo:rerun-if-changed={SOURCE}");
@@ -269,12 +273,7 @@ fn onednn() {
     if !done.status.success() {
         fail(&format!("{needs}; {cmd:?} failed:\n{}", String::from_utf8_lossy(&done.stderr)));
     }
-    println!("cargo:rustc-link-search=native={}", out_dir.display());
-    println!("cargo:rustc-link-lib=dylib=turbo_onednn");
-    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", out_dir.display());
-    if let Some(l) = &oneapi_lib {
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", l.display());
-    }
+    println!("cargo:rustc-env=TURBO_ONEDNN_LIB={}", lib.display());
 }
 
 const METAL_SOURCES: [&str; 1] = ["metal/backend.mm"];

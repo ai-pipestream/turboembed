@@ -124,6 +124,11 @@ fn skip_error(r: &mut Reader<'_>) -> Result<(), ExportError> {
             }
             tag => return Err(malformed(format!("a source error tag of {tag}"))),
         },
+        12 => {
+            skip_strs(r, 2)?;
+            r.u32()?;
+            r.u32()?;
+        }
         tag => return Err(malformed(format!("an error tag of {tag}"))),
     }
     Ok(())

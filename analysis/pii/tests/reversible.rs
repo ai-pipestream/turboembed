@@ -169,3 +169,24 @@ fn keys_are_32_bytes_and_stay_out_of_debug() {
         assert!(!debug.contains("90") && !debug.contains("5a") && !debug.contains(hidden), "{debug}");
     }
 }
+
+#[test]
+fn an_exact_token_keeps_the_case_of_its_kind_and_binds_it() {
+    let enc = AesGcmEncryptor::new(&KEY).unwrap().with_context(b"ctx");
+    let token = enc.exact_token("custom:Badge", "A-1047").unwrap();
+    assert!(token.starts_with("custom:Badge:"), "{token}");
+    assert_eq!(enc.decrypt(&token).unwrap(), ("custom:Badge".to_owned(), "A-1047".to_owned()));
+    for other in ["custom:badge", "CUSTOM:BADGE"] {
+        assert!(enc.decrypt(&token.replacen("custom:Badge", other, 1)).is_err(), "{other} is another kind");
+    }
+    // The capitals of `token` fold the pair into one kind; the exact form
+    // does not decrypt as it either.
+    let folded = enc.token("custom:Badge", "A-1047").unwrap();
+    assert!(folded.starts_with("CUSTOM:BADGE:"), "{folded}");
+    assert!(enc.decrypt(&folded.replacen("CUSTOM:BADGE", "custom:Badge", 1)).is_err());
+    // A refusal writes nothing.
+    let mut out = String::from("kept ");
+    assert!(enc.write_exact_token("custom:Badge", "", &mut out).is_err());
+    assert!(enc.write_token("custom:Badge", "", &mut out).is_err());
+    assert_eq!(out, "kept ");
+}

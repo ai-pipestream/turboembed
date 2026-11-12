@@ -12,6 +12,8 @@ name = "turbo_tagger"
 turbo = { path = "../../core" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+# Structured PII scanners, Nemotron-PII kind mapping and rule-overlap precedence (pii.rs).
+turbo-pii = { path = "../pii" }
 # The relation layer the relation classifier head writes (relation.rs).
 turbo-relation = { path = "../relation" }
 # The bundle encoder and its range write.
@@ -23,5 +25,7 @@ turbo-unicode = { path = "../unicode" }
 turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 serde_json = "1"
 turbo-pins = { path = "../pins" }
+turbo-tokenize = { path = "../tokenize" }

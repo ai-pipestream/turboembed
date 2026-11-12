@@ -28,6 +28,57 @@ read. A file the store cannot keep is still installed. A
 from its publisher on each install and never kept there, since the class
 allows no copy beyond the cache it is installed into.
 
+## The data directory
+
+`--catalog-data DIR` (or `TURBO_KSERVE_CATALOG_DATA`) gives the catalog
+one persistent directory in place of `--catalog-store`: it is the
+store, and it holds the licence acceptances too. Several servers may
+open the same directory, each with its own `--catalog-dir` for its
+cache and its users' sources. The server assumes only that what it
+writes there stays; whether that is an NFS mount, a replicated or
+synced disk or a volume is the admin's choice. The two stores are
+exclusive: a server given both exits at start.
+
+```
+DIR/public/blobs/sha256/<hex>     permissive files that need no acceptance
+DIR/private/blobs/sha256/<hex>    every other file that may be redistributed
+DIR/private/acceptances/<key>.json  one acceptance per file
+```
+
+- `public/` is in the store layout docs/zoo.md describes, so a client
+  may read it directly, `TURBO_ZOO_SOURCE=file:///mount/public`, with
+  no server in between. Only a `CLASS_PERMISSIVE` artifact that needs
+  no acceptance is kept there. Give clients `public/` read-only, or have
+  them name a local store first, since a library keeps what it reads in
+  the first `file://` store it names (docs/zoo.md).
+- `private/` holds the files of share-alike, LGPL and other accept-first
+  artifacts, which reach a user only through a server after its licence
+  check, and the acceptances. The server makes it readable by its own
+  user alone and refuses to start when users other than its owner and
+  group may read or enter it; its group may, so an admin group can
+  back it up (on Unix; elsewhere the file system's own access control
+  applies). Export or mount only `public/` to clients.
+- A `CLASS_LOCAL_ONLY` file is never written to the directory, as with
+  any store: each server fetches it from its publisher.
+- Each acceptance is its own file, named by the SHA-256 of the user and
+  the terms, so servers that record at once never rewrite each other's
+  file; a revoke removes it. An acceptance recorded through one server
+  is honoured, listed and revoked through every other. The home's
+  `acceptances.json` is not read while a data directory is set. A
+  record that does not parse, or is not named for the acceptance it
+  holds, fails every licence check with an error naming the file, so a
+  tool that copies the directory must rename each file into place
+  whole, as the server does; remove such a file and accept again.
+- Every file is written whole under a temporary name and renamed into
+  place, so a reader never sees part of one, and two servers fetching
+  the same file both succeed and leave one verified copy.
+
+A server that cannot write the directory when it starts serves the
+files already there and fetches nothing from the index's addresses: a
+read or install of a file the directory lacks fails naming the
+read-only directory, and recording or revoking an acceptance is refused
+`FAILED_PRECONDITION` (`TURBO_E_INVALID_STATE`).
+
 ## The service
 
 | RPC | Admin | Answer |
@@ -188,7 +239,12 @@ from the cache. Each fetched file is checked as docs/zoo.md says, by its
 wire size and SHA-256 when served compressed, then unpacked and checked
 by size, SHA-256 and SHA-512, before it is written; it is written under
 its name only whole. A file that fails ends the stream with `DATA_LOSS`
-(`TURBO_E_BUNDLE_INTEGRITY`) naming the check, and is never cached. A
+(`TURBO_E_BUNDLE_INTEGRITY`) naming the check, and is never cached. For
+an encoder bundle entry (`TYPE_ENCODER_BUNDLE`, docs/zoo.md, Model
+types), once every file is verified the bundle's `manifest.json` must
+describe the entry; one that names another model or other files ends
+the stream with the same `DATA_LOSS` (`TURBO_E_BUNDLE_INTEGRITY`), and
+no `Installed` answer is sent. A
 transport or disk failure ends it with `INTERNAL` (`TURBO_E_RUNTIME`).
 An install the client abandons carries on to its end, so the files it
 fetched are cached for the next one.

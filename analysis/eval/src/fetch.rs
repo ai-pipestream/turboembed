@@ -12,7 +12,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::sha::{Sha256, sha256, to_hex};
+use turbo_sha256::{Sha256, sha256, to_hex};
 
 use crate::Result;
 use crate::sets::{Digest, RemoteFile, Set, Source};
@@ -59,7 +59,7 @@ fn fetch_file(set: &str, f: &RemoteFile, dir: &Path) -> Result<()> {
     let dest = dir.join(f.path);
     if let Digest::Recorded(want) = f.sha256
         && let Ok(bytes) = fs::read(&dest)
-        && to_hex(&sha256(&bytes)) == want
+        && to_hex(sha256(&bytes)) == want
     {
         return Ok(());
     }
@@ -101,5 +101,5 @@ fn download(url: &str, tmp: &Path) -> Result<String> {
         out.write_all(&buf[..n]).map_err(|e| format!("{}: {e}", tmp.display()))?;
     }
     out.sync_all().map_err(|e| format!("{}: {e}", tmp.display()))?;
-    Ok(to_hex(&h.finish()))
+    Ok(to_hex(h.finish()))
 }

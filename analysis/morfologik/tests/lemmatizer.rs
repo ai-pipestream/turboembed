@@ -6,6 +6,7 @@
 //! `MorfologikLocaleTest`, and `MorfologikDictionaryBuilderTest`.
 
 use std::sync::Arc;
+use turbo_scratch::Scratch;
 
 use turbo_morfologik::{
     BaseFormEncoding, DictionaryCharset, MorfologikDictionary, MorfologikDictionaryBuilder, MorfologikDictionaryReader,
@@ -318,8 +319,7 @@ fn annotator_and_sequence_validator_and_disk_builder_round_trip() {
     use turbo_analysis_layers::{PosTags, TagSet, Tokens};
     use turbo_sequence::SequenceValidator;
 
-    let tmp_dir = std::env::temp_dir().join(format!("turbo_morfologik_test_{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&tmp_dir);
+    let tmp_dir = Scratch::at(std::env::temp_dir().join(format!("turbo_morfologik_test_{}", std::process::id())));
     std::fs::create_dir_all(&tmp_dir).unwrap();
     let txt_path = tmp_dir.join("sample.txt");
     let info_path = tmp_dir.join("sample.info");

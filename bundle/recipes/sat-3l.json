@@ -200,6 +200,9 @@
           "weights/model.safetensors"
         ],
         "backends": [
+          "cuda",
+          "metal",
+          "levelzero",
           "cpu"
         ],
         "graph_input": "INPUT_TOKEN_IDS",
@@ -230,7 +233,8 @@
           "classifier_bias": "classifier.bias"
         },
         "produced_by": {
-          "upstream": "pytorch_model.bin"
+          "upstream": "pytorch_model.bin",
+          "container": "turbo-reference@sha256:0e153c1db87c62f55ff6f918c7d8a0120c3d2e5d45d3f5a0336e81153c12dd6b"
         }
       }
     ],
@@ -311,6 +315,8 @@
     {
       "path": "tokenizer.json",
       "to": "tokenizer.json",
+      "repository": "https://huggingface.co/BAAI/bge-m3",
+      "commit": "5617a9f61b028005a4858fdac845db406aefb181",
       "sha256": "21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08"
     },
     {

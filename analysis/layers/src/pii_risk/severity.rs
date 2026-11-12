@@ -11,7 +11,7 @@ use super::super::pii::{CustomKinds, PiiKind};
 pub enum PiiSeverity {
     /// Public or business identifiers: a company number, a routing number,
     /// an EIN, a parcel tracking number, a URL, a ZIP code, a phone
-    /// extension, an age.
+    /// extension, an age, a date, an amount of money, a state, a county.
     Low = 1,
     /// Contact, device and vehicle details: an e-mail address, a phone
     /// number, a street address, an IP address, a wallet address, a VIN.
@@ -69,7 +69,7 @@ impl PiiSeverity {
                 PiiSeverity::Medium
             }
             EsCif | FrSiren | FrSiret | BrCnpj | Bic | AbaRouting | UsEin | TrackingNumber | Url | UsZip
-            | PhoneExtension | Age => PiiSeverity::Low,
+            | PhoneExtension | Age | Date | Currency | State | County | City => PiiSeverity::Low,
         }
     }
 }
@@ -107,14 +107,16 @@ impl PiiSuggestedRewrite {
     }
 
     /// The built-in suggestion for `kind`: a label for credentials,
-    /// contact details, street addresses, ages and URLs, the last four for cards and IBANs, a
+    /// contact details, street addresses, ages, dates, amounts, states, counties and URLs, the last four for cards and IBANs, a
     /// format-keeping mask for identity, vehicle, parcel and business
     /// numbers.
     pub const fn default_for(kind: PiiKind) -> PiiSuggestedRewrite {
         use PiiKind::*;
         match kind {
             Jwt | AwsAccessKey | GithubToken | UrlCredential | Email | Phone | Mac | Ipv4 | Ipv6 | BtcAddress
-            | EthAddress | Url | StreetAddress | Age | Custom(_) => PiiSuggestedRewrite::Label,
+            | EthAddress | Url | StreetAddress | Age | Date | Currency | State | County | City | Custom(_) => {
+                PiiSuggestedRewrite::Label
+            }
             Card | Iban => PiiSuggestedRewrite::KeepLastFour,
             Imei | UsSsn | UsItin | UkNhs | DeSteuerId | EsDni | EsNie | EsCif | DePersonalausweis | FrNir
             | FrSiren | FrSiret | BrCpf | BrCnpj | Bic | CaSin | AbaRouting | Vin | TrackingNumber | UsEin

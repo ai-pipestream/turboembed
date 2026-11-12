@@ -10,4 +10,4 @@ Model and dictionary catalog (`Zoo`, `Index`, `Component`, `Artifact`, `analysis
 
 ## Testing, Accuracy, and Speed
 
-- **Test suite**: Verified by `analysis/zoo/tests/zoo.rs`, `analysis/zoo/tests/builtin.rs`, `analysis/zoo/tests/paths_and_cache.rs`, `analysis/zoo/tests/transfer.rs`, and `analysis/zoo/tests/cli.rs`. See `docs/zoo.md` for catalog schema details.
+- **Test suite**: Verified by `analysis/zoo/tests/zoo.rs`, `analysis/zoo/tests/builtin.rs`, `analysis/zoo/tests/paths_and_cache.rs`, `analysis/zoo/tests/transfer.rs`, `analysis/zoo/tests/locations.rs`, `analysis/zoo/tests/bundle_type.rs`, `analysis/zoo/tests/import_bundle.rs`, and `analysis/zoo/tests/cli.rs`. See `docs/zoo.md` for catalog schema details.

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use super::{Zoo, denied_again, verify};
 use crate::error::{Check, ZooError};
-use crate::index::{Artifact, File};
+use crate::index::{Artifact, File, MANIFEST, ModelType, check_manifest};
 
 /// An artifact's files in the cache, as [`Zoo::cache_status`] finds them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +15,9 @@ pub enum CacheStatus {
     /// This file, the first in the index's order, is not there.
     Missing { file: String },
     /// This file is there and does not verify; [`Zoo::fetch`] would fetch
-    /// it again.
+    /// it again. For an encoder bundle whose files all verify, the
+    /// manifest when it does not describe the entry
+    /// ([`ZooError::Bundle`]): [`Zoo::fetch`] refuses such a bundle.
     Corrupt { file: String, reason: ZooError },
 }
 
@@ -102,6 +104,21 @@ impl Zoo<'_> {
                 Local::Verified => {}
                 Local::Missing => return Ok(CacheStatus::Missing { file: file() }),
                 Local::Mismatch(reason) => return Ok(CacheStatus::Corrupt { file: file(), reason }),
+            }
+        }
+        // As in a fetch: a bundle is held only when its manifest, verified
+        // above as the entry's file, describes the entry.
+        if a.model_type == ModelType::EncoderBundle {
+            let manifest = self.cache.join(a.id.as_str()).join(MANIFEST);
+            let bytes = match denied_again(|| fs::read(&manifest)) {
+                Ok(bytes) => bytes,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(CacheStatus::Missing { file: MANIFEST.to_owned() });
+                }
+                Err(e) => return Err(ZooError::Io { path: manifest, message: e.to_string() }),
+            };
+            if let Err(reason) = check_manifest(a, &bytes) {
+                return Ok(CacheStatus::Corrupt { file: MANIFEST.to_owned(), reason });
             }
         }
         Ok(CacheStatus::Cached)

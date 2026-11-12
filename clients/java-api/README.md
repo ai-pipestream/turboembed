@@ -51,6 +51,20 @@ loader. To choose a bridge per adapter, open an analyzer through that
 runtime and pass it to the adapter constructor. The adapter does not own
 an analyzer supplied by its caller.
 
+## Sessions
+
+`TurboSession.open(bundle, options)` takes a `TurboSessionOptions`: the
+device index (`onDevice`), or a task for the runtime to pick the fastest
+device for (`fastestFor`), and the precision, batch, sequence length and
+CPU threads of the session. `TurboSessionOptions.DEFAULT` is device 0
+with the bundle's own limits. `embed(texts, TurboEmbedOptions)` sets the
+truncation, prompt role, normalization, pooling and output width of one
+call; `embedCodes` returns int8 codes or packed sign bits
+(`withInt8(ranges)`, `withBinary()`), one byte array a text.
+`rerank(query, passages, TurboRerankOptions)` sets the query budget,
+pair budget and stride, and `modelInfo()` reports the bundle's task, dims,
+limits, prefixes and digests and the session's device.
+
 ## Ownership and coordinates
 
 Each analyzer, result and session is closeable. Retaining an analyzer or

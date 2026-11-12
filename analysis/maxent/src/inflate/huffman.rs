@@ -32,13 +32,13 @@ impl Huffman {
         self.count[0] = 0;
         let mut left: i32 = 1;
         let mut max_len = 0;
-        for len in 1..=MAX_BITS {
+        for (len, &count) in self.count.iter().enumerate().skip(1) {
             left <<= 1;
-            left -= i32::from(self.count[len]);
+            left -= i32::from(count);
             if left < 0 {
                 return Err(Error::Inflate("a Huffman code is over-subscribed"));
             }
-            if self.count[len] != 0 {
+            if count != 0 {
                 max_len = len;
             }
         }

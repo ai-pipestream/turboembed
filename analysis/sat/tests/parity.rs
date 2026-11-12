@@ -6,9 +6,10 @@
 //!
 //! For every text the tokens must be the same ids at the same offsets
 //! (upstream's trimmed of whitespace, as the core's spans are), every
-//! character's boundary probability within `PROB_TOLERANCE` of
-//! wtpsplit's, the same characters over the threshold except those
-//! whose probability in wtpsplit is within that tolerance of it, and,
+//! character's boundary probability within the bound for the dtype the
+//! encoder computes in (`tolerance`) of wtpsplit's, the same characters
+//! over the threshold except those whose probability in wtpsplit is
+//! within that bound of it, and,
 //! where the same characters are over it, the pieces `split` returned.
 //! Two known differences are allowed, and each fixture's count of them
 //! and of the characters near the threshold is checked:
@@ -21,10 +22,11 @@
 //!   not (`compare`).
 
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use serde_json::Value;
 use turbo::bundle::Bundle;
-use turbo_analysis::{Analyzer, Document, Span};
+use turbo_analysis::{Analyzer, Annotator, Document, Span};
 use turbo_analysis_embed::Device;
 use turbo_analysis_layers::Sentences;
 use turbo_sat::{SatAnnotator, SatOptions, cuts};
@@ -39,7 +41,18 @@ use common::encoder;
 /// times |x| is at most 0.224, so a probability moves by less than
 /// 0.224 * 6 / 2048, about 6.6e-4. The encoders' own float32
 /// differences are far smaller.
-const PROB_TOLERANCE: f64 = 1e-3;
+const F32_TOLERANCE: f64 = 1e-3;
+
+/// The bound where the encoder computes in f16 or bf16, as a device does
+/// at `fastest`: the encoder's own rounding is then larger than the f32
+/// bound. The largest difference measured is in analysis/sat/README.md,
+/// and this is about twice it.
+const F16_TOLERANCE: f64 = 5e-3;
+
+/// The bound for the dtype the step computes in.
+fn tolerance(sat: &SatAnnotator) -> f64 {
+    if sat.execution().unwrap().precision.starts_with("f32") { F32_TOLERANCE } else { F16_TOLERANCE }
+}
 
 /// The bundle's pad token, `<pad>`.
 const PAD_ID: i64 = 1;
@@ -125,9 +138,14 @@ fn trimmed(text: &str, [a, b]: [u32; 2]) -> [u32; 2] {
 #[derive(Default, Debug)]
 struct Seen {
     texts: usize,
+    /// The bound the probabilities were held to, and what computed them.
+    tolerance: f64,
+    precision: String,
     worst_prob: f64,
-    /// Characters over the threshold on one side only, each within the
-    /// tolerance of it in wtpsplit.
+    /// Characters whose probability in wtpsplit is within the bound of
+    /// the threshold: the fixture's and the bound's, whatever the device.
+    in_band: usize,
+    /// Those of them over the threshold on one side only.
     near_threshold: usize,
     widened: usize,
     pad_in_text: usize,
@@ -147,7 +165,8 @@ fn compare_at(path: &Path, bundle: &Path) -> Seen {
     let f = fixture_at(path, bundle);
     let sat = open_at(&f, bundle);
     let name = path.file_name().unwrap().to_string_lossy().into_owned();
-    let mut seen = Seen::default();
+    let tol = tolerance(&sat);
+    let mut seen = Seen { tolerance: tol, precision: sat.execution().unwrap().precision, ..Seen::default() };
     for r in &f.records {
         let text = r["text"].as_str().unwrap();
         seen.texts += 1;
@@ -224,10 +243,12 @@ fn compare_at(path: &Path, bundle: &Path) -> Seen {
             for (i, (&o, &t)) in ours.iter().zip(&theirs).enumerate() {
                 let d = (o - t).abs();
                 seen.worst_prob = seen.worst_prob.max(d);
-                assert!(d <= PROB_TOLERANCE, "{name}: {text:?}: character {i}: {o} here, {t} in wtpsplit");
+                assert!(d <= tol, "{name}: {text:?}: character {i}: {o} here, {t} in wtpsplit, bound {tol}");
+                let near = (t - f.threshold).abs() <= tol;
+                seen.in_band += usize::from(near);
                 if over(o) != over(t) {
                     assert!(
-                        (t - f.threshold).abs() <= PROB_TOLERANCE,
+                        near,
                         "{name}: {text:?}: character {i}: {o} here, {t} in wtpsplit, threshold {}",
                         f.threshold
                     );
@@ -254,32 +275,57 @@ fn compare_at(path: &Path, bundle: &Path) -> Seen {
     seen
 }
 
+/// Prints the bound a fixture was held to and what it found, and checks
+/// its counts. At f32 the characters on the other side of the threshold
+/// are the `near_f32` the fixture has; at f16 they depend on the device's
+/// rounding, and are any of those within the bound of the threshold. A
+/// text with none of them had its pieces compared (`compare_at`), so the
+/// cuts are wtpsplit's wherever no character is that near.
+fn check(name: &str, s: &Seen, near_f32: usize) {
+    eprintln!(
+        "{name}: bound {:e} at {}, worst {:e}, {} characters within the bound of the threshold, {} of them on the \
+         other side, {} texts' pieces compared",
+        s.tolerance,
+        s.precision,
+        s.worst_prob,
+        s.in_band,
+        s.near_threshold,
+        s.skipped.iter().filter(|&&skip| !skip).count()
+    );
+    assert_eq!((s.texts, s.widened), (90, 6), "{name}: texts, widened");
+    if s.tolerance == F32_TOLERANCE {
+        assert_eq!(s.near_threshold, near_f32, "{name}: characters on the other side of the threshold");
+    } else {
+        assert!(s.near_threshold <= s.in_band, "{name}: {s:?}");
+    }
+}
+
 #[test]
 fn stride_16_block_62_matches_wtpsplit() {
     let s = compare("t0.5-s16-b62.jsonl");
-    eprintln!("t0.5-s16-b62: {s:?}");
-    assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 0, 6, 1));
+    check("t0.5-s16-b62", &s, 0);
+    assert_eq!(s.pad_in_text, 1);
 }
 
 #[test]
 fn windows_without_overlap_match_wtpsplit() {
     let s = compare("t0.25-s62-b62.jsonl");
-    eprintln!("t0.25-s62-b62: {s:?}");
-    assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 1, 6, 1));
+    check("t0.25-s62-b62", &s, 1);
+    assert_eq!(s.pad_in_text, 1);
 }
 
 #[test]
 fn many_overlapping_windows_match_wtpsplit() {
     let s = compare("t0.5-s7-b30.jsonl");
-    eprintln!("t0.5-s7-b30: {s:?}");
-    assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 0, 6, 1));
+    check("t0.5-s7-b30", &s, 0);
+    assert_eq!(s.pad_in_text, 1);
 }
 
 /// The tiny bundle with limited lookahead: the same weights, and
 /// architecture.lookahead 4, which is wtpsplit's lookahead 8 over its two
 /// layers, as `sat_reference.py tiny <tokenizer> <out> 8` writes them.
-fn banded_bundle() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-sat-lookahead-{}", std::process::id()));
+fn banded_bundle() -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-sat-lookahead-{}", std::process::id())));
     for f in ["manifest.json", "tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
         let to = dir.join(f);
         std::fs::create_dir_all(to.parent().unwrap()).unwrap();
@@ -299,18 +345,20 @@ fn banded_bundle() -> PathBuf {
 fn limited_lookahead_matches_wtpsplit() {
     let dir = banded_bundle();
     if encoder().device != Device::Cpu {
-        // Only the CPU's attention takes a band (`turbo::model::runs_band`):
-        // rule 6 skips the artifact on a device rather than read whole rows.
+        // A device whose attention takes no band (`turbo::model::runs_band`)
+        // has the artifact skipped by rule 6 rather than read whole rows;
+        // one that takes it (CUDA, Level Zero, Metal) is held to wtpsplit as the CPU is.
         let o = SatOptions { encoder: encoder(), ..SatOptions::default() };
-        let Err(e) = SatAnnotator::open(&dir, &o) else { panic!("a device opened a model of limited lookahead") };
-        assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");
-        std::fs::remove_dir_all(dir).unwrap();
-        return;
+        if let Err(e) = SatAnnotator::open(&dir, &o) {
+            assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");
+            std::fs::remove_dir_all(dir).unwrap();
+            return;
+        }
     }
-    for (name, near) in [("la8-t0.5-s16-b62.jsonl", 0), ("la8-t0.025-s7-b30.jsonl", 0)] {
+    for name in ["la8-t0.5-s16-b62.jsonl", "la8-t0.025-s7-b30.jsonl"] {
         let s = compare_at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name), &dir);
-        eprintln!("{name}: {s:?}");
-        assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, near, 6, 1), "{name}");
+        check(name, &s, 0);
+        assert_eq!(s.pad_in_text, 1, "{name}");
     }
     let banded = SatAnnotator::open(&dir, &SatOptions { encoder: encoder(), ..SatOptions::default() }).unwrap();
     let whole = SatAnnotator::open(&bundle(), &SatOptions { encoder: encoder(), ..SatOptions::default() }).unwrap();
@@ -322,9 +370,11 @@ fn limited_lookahead_matches_wtpsplit() {
 /// bundle sealed from it, and TURBO_TEST_SAT_FIXTURES the fixtures,
 /// separated by commas, that the reference's `segment` made from the same
 /// weights over tests/data/texts.jsonl (analysis/sat/README.md). Each is
-/// held to the tiny model's checks, with no character near the threshold
-/// and no more than the one text with a pad token in it left out. With
-/// neither variable set it says it was skipped; one alone is an error.
+/// held to the tiny model's checks, with no more than the one text with a
+/// pad token in it left out. A fixture is a path, or `path=n` where the
+/// checkpoint has n characters on the other side of the threshold at f32
+/// (none when not given). With neither variable set it says it was
+/// skipped; one alone is an error.
 #[test]
 fn a_released_checkpoint_matches_wtpsplit() {
     use std::env::VarError::NotPresent;
@@ -337,10 +387,13 @@ fn a_released_checkpoint_matches_wtpsplit() {
         (b, f) => panic!("TURBO_TEST_SAT_BUNDLE ({b:?}) and TURBO_TEST_SAT_FIXTURES ({f:?}) go together"),
     };
     let bundle = turbo_pins::require(&bundle);
-    for path in fixtures.split(',') {
+    for entry in fixtures.split(',') {
+        let (path, near) = match entry.rsplit_once('=') {
+            Some((path, n)) => (path, n.parse().unwrap_or_else(|e| panic!("{entry}: {e}"))),
+            None => (entry, 0),
+        };
         let s = compare_at(Path::new(path), &bundle);
-        eprintln!("{path}: {s:?}");
-        assert_eq!((s.texts, s.near_threshold, s.widened), (90, 0, 6), "{path}: texts, near the threshold, widened");
+        check(path, &s, near);
         assert!(s.pad_in_text <= 1, "{path}: {} texts compared for their tokens only", s.pad_in_text);
     }
 }
@@ -370,16 +423,17 @@ fn cuts_of(text: &str, pieces: &[&str]) -> Vec<u32> {
 /// whitespace, the empty ones left out: on every text but the one with a
 /// pad token in it, whose scores differ, and those with a character on
 /// the other side of the threshold (`compare` counts both). Returns the
-/// texts compared and those with a cut that moved.
-fn layer_matches(name: &str) -> (usize, usize) {
-    let skipped = compare(name).skipped;
+/// texts compared, those with a cut that moved, and what `compare` saw.
+fn layer_matches(name: &str) -> (usize, usize, Seen) {
+    let seen = compare(name);
+    let skipped = &seen.skipped;
     let f = fixture(name);
     let analyzer = Analyzer::builder().add(open(&f)).build().unwrap();
     let mut docs: Vec<Document> =
         f.records.iter().map(|r| Document::new(r["text"].as_str().unwrap().to_owned())).collect();
     let results = analyzer.run(&mut docs);
     let (mut compared, mut snapped) = (0, 0);
-    for (((r, d), res), &skip) in f.records.iter().zip(&docs).zip(results).zip(&skipped) {
+    for (((r, d), res), &skip) in f.records.iter().zip(&docs).zip(results).zip(skipped) {
         res.unwrap();
         let text = r["text"].as_str().unwrap();
         let s = d.get::<Sentences>().unwrap();
@@ -407,15 +461,21 @@ fn layer_matches(name: &str) -> (usize, usize) {
         assert_eq!(ours, theirs, "{name}: {text:?}");
         compared += 1;
     }
-    (compared, snapped)
+    (compared, snapped, seen)
 }
 
 #[test]
 fn the_layer_is_wtpsplit_s_pieces_snapped_and_trimmed() {
     for name in ["t0.5-s16-b62.jsonl", "t0.25-s62-b62.jsonl", "t0.5-s7-b30.jsonl"] {
-        let (compared, snapped) = layer_matches(name);
+        let (compared, snapped, seen) = layer_matches(name);
         eprintln!("{name}: {compared} texts, {snapped} with a cut inside a cluster");
-        let want = if name.starts_with("t0.25") { 88 } else { 89 };
+        // At f16 the texts left out are those the device put a character
+        // on the other side of the threshold in, within the bound.
+        let want = match seen.tolerance == F32_TOLERANCE {
+            true if name.starts_with("t0.25") => 88,
+            true => 89,
+            false => seen.skipped.iter().filter(|&&skip| !skip).count(),
+        };
         assert_eq!(compared, want, "{name}: texts compared");
         assert!(snapped > 5, "{name}: {snapped} texts have a cut inside a cluster");
     }

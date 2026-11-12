@@ -4,6 +4,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 use turbo_trainer_recipes::corpus::Task;
 use turbo_trainer_recipes::multiconer::{COARSE, coarse, parse, read};
@@ -47,7 +48,7 @@ fn the_coarse_groups_cover_33_types_once() {
 
 #[test]
 fn files_that_are_not_the_release_are_refused_unless_asked_for() {
-    let dir = std::env::temp_dir().join(format!("turbo-multiconer-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-multiconer-{}", std::process::id())));
     fs::create_dir_all(dir.join("EN-English")).unwrap();
     for f in ["en_train", "en_dev", "en_test"] {
         fs::write(dir.join(format!("EN-English/{f}.conll")), TEXT).unwrap();
@@ -82,7 +83,7 @@ fn a_head_trained_on_multiconer_makes_its_bundle_share_alike() {
     use turbo::manifest::{LicenseClass, Manifest};
     use turbo_trainer_recipes::run::{HeadOptions, spec};
 
-    let dir = std::env::temp_dir().join(format!("turbo-multiconer-class-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-multiconer-class-{}", std::process::id())));
     fs::create_dir_all(dir.join("EN-English")).unwrap();
     for f in ["en_train", "en_dev", "en_test"] {
         fs::write(dir.join(format!("EN-English/{f}.conll")), TEXT).unwrap();

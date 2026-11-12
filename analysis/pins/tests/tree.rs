@@ -116,6 +116,16 @@ fn every_bundle_recipe_pins_its_commit_and_every_upstream_file() {
             if !is_hex64(sha) {
                 bad.push(format!("{}: upstream {} has no SHA-256", rel(&f), u["path"]));
             }
+            if u.get("repository").is_some() || u.get("commit").is_some() {
+                let repo = u["repository"].as_str().unwrap_or("");
+                let c = u["commit"].as_str().unwrap_or("");
+                if !repo.starts_with("https://")
+                    || c.len() != 40
+                    || !c.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+                {
+                    bad.push(format!("{}: upstream {} bad repository/commit override", rel(&f), u["path"]));
+                }
+            }
         }
     }
     assert!(seen >= 30, "found {seen} recipes");

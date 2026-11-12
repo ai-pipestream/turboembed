@@ -14,6 +14,7 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 use turbo_train_recipes::Error;
 use turbo_train_recipes::langdetect::{
@@ -63,9 +64,9 @@ fn export() -> Export {
 }
 
 /// A fresh directory under the system's temporary directory.
-fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-train-recipes-langdetect-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+fn temp_dir(name: &str) -> Scratch {
+    let dir =
+        Scratch::at(std::env::temp_dir().join(format!("turbo-train-recipes-langdetect-{name}-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }

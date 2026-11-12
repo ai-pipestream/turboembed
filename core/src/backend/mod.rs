@@ -75,8 +75,9 @@ pub struct turbo_backend_model {
     pub head: *const turbo_backend_tensor,
     pub head_out: u32,
     /// Limited lookahead: keys a query attends to past itself, 0 for the
-    /// whole row (architecture.lookahead). Only the CPU backend runs a
-    /// band; the core refuses a banded model on any other.
+    /// whole row (architecture.lookahead). Only the CPU, Level Zero and
+    /// Metal backends run a band; the core refuses a banded model on any
+    /// other.
     pub lookahead: u32,
     /// TURBO_FAMILY_DEBERTA_V2: half the relative table's rows, and the
     /// distance its log buckets reach; 0 for every other family.

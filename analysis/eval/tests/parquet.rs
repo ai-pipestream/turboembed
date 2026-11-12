@@ -156,7 +156,8 @@ fn reads_a_zstd_page() {
     let rows = zstd_rows();
     let col = || Col::Str("s", rows.iter().map(String::as_str).collect());
     let page = fs::read(data("parquet").join("zstd-page.zst")).unwrap();
-    let path = scratch("parquet-zstd").join("z.parquet");
+    let dir = scratch("parquet-zstd");
+    let path = dir.join("z.parquet");
     write_compressed(&path, &[col()], Codec::Zstd, std::slice::from_ref(&page));
     let bytes = fs::read(&path).unwrap();
     let s = Parquet::open("z.parquet", &bytes).unwrap().strings("s").unwrap();
@@ -180,7 +181,8 @@ fn a_null_is_an_error_where_a_value_is_needed() {
 
 #[test]
 fn refusals_name_what_is_not_read() {
-    let path = scratch("parquet-refusals").join("l.parquet");
+    let dir = scratch("parquet-refusals");
+    let path = dir.join("l.parquet");
     write_compressed(&path, &[Col::Str("name", vec!["a", "b"])], Codec::Lz4Raw, &[vec![0; 10]]);
     let bytes = fs::read(&path).unwrap();
     let t = Parquet::open("l.parquet", &bytes).unwrap();
@@ -217,7 +219,8 @@ fn the_test_writer_round_trips() {
 /// past 2^31 - 1 is refused, before anything is allocated for it.
 #[test]
 fn page_sizes_outside_an_i32_are_refused() {
-    let path = scratch("parquet-page-sizes").join("s.parquet");
+    let dir = scratch("parquet-page-sizes");
+    let path = dir.join("s.parquet");
     // Two values of 3 bytes, each after its length: 14 bytes.
     let col = || Col::Str("s", vec!["abc", "def"]);
     write_with_page_sizes(&path, &[col()], (14, 14));

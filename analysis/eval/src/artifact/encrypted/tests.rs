@@ -78,7 +78,8 @@ fn reorder_duplicate_and_omitted_frames_are_rejected() {
 
 #[test]
 fn verified_reader_withholds_incomplete_artifacts_and_cleans_ciphertext_snapshot() {
-    let root = std::env::temp_dir().join(format!("artifact-verified-test-{}", std::process::id()));
+    let root =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("artifact-verified-test-{}", std::process::id())));
     std::fs::create_dir(&root).unwrap();
     let text = b"source data never written to snapshot";
     let bytes = encoded(text);
@@ -153,7 +154,8 @@ fn oversized_frame_lengths_are_refused_before_payload_allocation() {
 #[ignore = "explicit bounded filesystem measurement"]
 fn bounded_filesystem_measurement() {
     let mib: u64 = std::env::var("ARTIFACT_MEASURE_MIB").unwrap().parse().unwrap();
-    let root = std::env::temp_dir().join(format!("artifact-memory-test-{}", std::process::id()));
+    let root =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("artifact-memory-test-{}", std::process::id())));
     std::fs::create_dir(&root).unwrap();
     let path = root.join("published");
     let file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();

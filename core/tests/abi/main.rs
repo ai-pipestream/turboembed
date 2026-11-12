@@ -16,14 +16,14 @@ mod quantized;
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 fn include() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../include")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-abi-{}-{name}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-abi-{}-{name}", std::process::id())));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
@@ -40,11 +40,22 @@ fn run(cmd: &mut Command) -> String {
     String::from_utf8(out.stdout).unwrap().replace("\r\n", "\n")
 }
 
+/// `target/<profile>`, where cargo writes the cdylib. A test binary runs
+/// from `target/<profile>/deps/`, or with the build directory layout of
+/// cargo 1.100 from `target/<profile>/build/<package>/<hash>/out/`.
+fn profile_dir() -> PathBuf {
+    let exe = std::env::current_exe().unwrap();
+    exe.ancestors()
+        .find(|a| matches!(a.file_name().and_then(|n| n.to_str()), Some("deps" | "build")))
+        .and_then(Path::parent)
+        .unwrap_or_else(|| panic!("{} is not under a cargo profile directory", exe.display()))
+        .to_path_buf()
+}
+
 /// `source` built as a C11 program linked against libturbo as it is now,
 /// in a scratch directory, which is returned with the program's path.
-fn compile(name: &str, source: &str) -> (PathBuf, PathBuf) {
-    // target/<profile>/deps/abi-* -> target/<profile>/libturbo.{so,dylib}
-    let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
+fn compile(name: &str, source: &str) -> (Scratch, PathBuf) {
+    let lib_dir = profile_dir();
     // `cargo test` builds the rlib the tests link, not the cdylib; build
     // it here, with the same profile and target directory, so the program
     // links the library as it is now.

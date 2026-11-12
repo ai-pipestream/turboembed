@@ -7,6 +7,7 @@ use std::process::Command;
 
 use turbo::bundle::sha256_hex;
 use turbo::manifest::HeadSpec;
+use turbo_scratch::Scratch;
 use turbo_tagger::{DepParser, Lemmatizer};
 use turbo_trainer_recipes::assemble::{assemble_bundle, verify_run};
 use turbo_trainer_recipes::corpus::{Counts, FileRecord};
@@ -17,10 +18,8 @@ fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-assemble-refuse-1726-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-assemble-refuse-1726-{}-{name}", std::process::id())))
 }
 
 fn corpus_multiconer(dir: &Path) {
@@ -123,7 +122,7 @@ fn assemble_refuses_mismatched_encoders_checkpoint_metadata_tampered_files_and_c
             .contains("colliding tensor_prefix")
     );
 
-    let clone_run = |name: &str, files: &[&str]| -> PathBuf {
+    let clone_run = |name: &str, files: &[&str]| -> Scratch {
         let d = scratch(name);
         fs::create_dir_all(&d).unwrap();
         for f in files {

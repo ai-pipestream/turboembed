@@ -10,6 +10,10 @@ mod checkpoints;
 mod components;
 #[path = "builtin/coref_head.rs"]
 mod coref_head;
+#[path = "builtin/hugging_face.rs"]
+mod hugging_face;
+#[path = "builtin/pii_head.rs"]
+mod pii_head;
 
 #[test]
 fn the_builtin_index_parses_and_is_canonical() {
@@ -66,9 +70,14 @@ const MASC_POS_BILSTM2: &str = "turbo-en-masc-pos-modernbert-base-bilstm256x2-1"
 /// assembled with its encoder.
 pub(crate) const COREF_HEAD: &str = "turbo-en-litbank-modernbert-base-coref-2";
 
+/// The 55-label BIO PII head `fit-cache` trains on `nvidia/Nemotron-PII`
+/// over `answerdotai/ModernBERT-base` (#1888), assembled with its encoder.
+pub(crate) const PII_HEAD: &str = "turbo-en-nemotron-pii-modernbert-base-1";
+
 /// A permissive model this repository's recipes train.
 fn trained_here_permissive(id: &str) -> bool {
-    [OPEN_SPAN_HEAD, MASC_POS, MASC_POS_BILSTM2, COREF_HEAD].contains(&id) || MODERNBERT_SENTIMENT_HEADS.contains(&id)
+    [OPEN_SPAN_HEAD, MASC_POS, MASC_POS_BILSTM2, COREF_HEAD, PII_HEAD].contains(&id)
+        || MODERNBERT_SENTIMENT_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -149,7 +158,8 @@ const DATASETS: [&str; 12] = [
 #[test]
 fn the_builtin_catalogue_preserves_supported_artifacts() {
     let index = Index::builtin();
-    let mut expected = BTreeSet::from([OPEN_SPAN_HEAD, MASC_POS, MASC_POS_BILSTM2, COREF_HEAD].map(str::to_owned));
+    let mut expected =
+        BTreeSet::from([OPEN_SPAN_HEAD, MASC_POS, MASC_POS_BILSTM2, COREF_HEAD, PII_HEAD].map(str::to_owned));
     expected.extend(MODERNBERT_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(LEGACY_MSMARCO_SENTIMENT_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
@@ -222,7 +232,8 @@ fn the_remaining_artifacts_keep_their_licence_requirements() {
 #[ignore]
 #[cfg(feature = "http")]
 fn every_builtin_artifact_fetches_and_verifies() {
-    let cache = std::env::temp_dir().join(format!("turbo-zoo-builtin-{}", std::process::id()));
+    let cache =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-builtin-{}", std::process::id())));
     let user: turbo_zoo::UserId = "turbo-zoo-test".parse().unwrap();
     let mut acc = turbo_zoo::Acceptances::default();
     acc.accept(&user, Licence::CcBySa40, 0).unwrap();
@@ -230,7 +241,7 @@ fn every_builtin_artifact_fetches_and_verifies() {
     let index = Index::builtin();
     let ids: Vec<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     let transport = Http::new();
-    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &transport);
+    let zoo = turbo_zoo::Zoo::new(index, cache.to_path_buf(), Policy::default(), &transport);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
         assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");

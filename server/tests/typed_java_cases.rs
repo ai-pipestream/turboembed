@@ -88,11 +88,29 @@ fn the_cases_cover_every_fixture_and_view_pair() {
     let text = render();
     let names: Vec<&str> = text.lines().filter_map(|l| l.strip_prefix("case ")).collect();
     assert_eq!(names.len(), fixture_documents().len());
+    let mut coalesced = 0usize;
     for (name, doc) in fixture_documents() {
         let n = doc.view_count();
         assert!(names.iter().any(|c| c.starts_with(&format!("{name} views {n}"))), "{name}");
         let maps =
             text.lines().skip_while(|l| !l.starts_with(&format!("case {name} "))).skip(1).take_while(|l| *l != "end");
         assert_eq!(maps.filter(|l| l.starts_with("map ")).count(), n * n, "{name}: every view pair");
+        for v in 0..n as u16 {
+            let typed = turbo_kserve::results::typed::document_to_typed(
+                name,
+                &doc,
+                ViewId(v),
+                turbo_kserve::offsets::OffsetMode::Utf8,
+            )
+            .unwrap();
+            coalesced += typed
+                .layers
+                .iter()
+                .flat_map(|l| &l.annotations)
+                .flat_map(|a| &a.spans)
+                .filter(|f| f.members.len() > 1)
+                .count();
+        }
     }
+    assert!(coalesced > 0, "the Java mapping cases must include coalesced fragments");
 }

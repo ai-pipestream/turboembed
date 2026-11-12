@@ -49,7 +49,7 @@ cargo build -p turbo --release --features levelzero
 |---|---|
 | `TURBO_CLANG` | The clang that compiles the kernels. Unset: `clang` on the `PATH`. |
 | `TURBO_LEVELZERO_CHOICES` | At run time: forces the session's kernel choice (Kernel choices, below). |
-| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. A profiled run allocates on the host to name what it times. |
+| `TURBO_LEVELZERO_PROFILE` | At run time: every context times each kernel and copy on the device, and logs the totals at debug level when it is released. With `levelzero-onednn`, oneDNN's queue is opened with profiling too, and each of its primitives is counted under `onednn matmul MxKxN` (with `bias`, `residual`, `gelu` or `f32` where they apply) or `onednn layer norm MxN`, timed from its SYCL event. A profiled run allocates on the host to name what it times. |
 
 The driver builds the SPIR-V for the device the first time a context
 needs a kernel, when a model or session is made; that build is not part
@@ -83,14 +83,19 @@ The build needs the oneAPI compiler (`TURBO_ICPX`, else `icpx` on the
 Level Zero's headers (`ze_api.h`) and loader
 (`libze_loader.so`, which `onednn.cpp` links), from the oneAPI
 installation or the distribution's Level Zero development package; it
-makes `libturbo_onednn.so` in the build directory, which the library then
-needs at run time together with oneDNN and the SYCL runtime from the
-oneAPI installation. The compiler's lib directory is written into both as
-a run-time path; oneDNN's own directory is not, so a program run outside
+makes `libturbo_onednn.so` in the build directory. The library is not
+linked against it: it opens it at run time, first at the path it was
+built at and then by name through the dynamic linker's search
+(`LD_LIBRARY_PATH`), so any binary built with the feature (`turbo-bench`
+run straight from `target/release`, say) finds it on the machine that
+built it, and a binary moved elsewhere finds a copy put on the library
+path. `libturbo_onednn.so` needs oneDNN and the SYCL runtime from the
+oneAPI installation; the compiler's lib directory is written into it as
+a run-time path, oneDNN's own directory is not, so a program run outside
 the oneAPI environment (`source /opt/intel/oneapi/setvars.sh`) finds
-`libdnnl.so` through `LD_LIBRARY_PATH`. A program built in another crate,
-such as `turbo-bench`, also finds `libturbo_onednn.so` that way. A device
-oneDNN cannot open runs the backend's own kernels, and the log says so.
+`libdnnl.so` through `LD_LIBRARY_PATH`. Where the library or oneDNN
+cannot open on a device, the backend's own kernels run the linear
+layers, and the log says why.
 
 oneDNN builds a kernel (a primitive) for one shape, its tokens included,
 which takes host memory and, for a shape whose kernel oneDNN has not
@@ -174,8 +179,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   filed under, is from the PCI device id: `b70` for 0xe223, and
   `intel-<id>` for a device not named yet.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
-  every field of `turbo_embed_options` but `layers` (field 9), which it
-  takes as 0 or 1 alone (its bit is clear). MODEL and EXACT compute in F32;
+  every field of `turbo_embed_options`; `layers` (field 9) reads the
+  earlier layers of the BERT, RoBERTa, ModernBERT, nomic-bert and
+  DeBERTa-v2 encoders on a range write (Range pooling, below). MODEL
+  and EXACT compute in F32;
   FASTEST in F16 on the matrix engines (XMX), for a model whose hidden and
   intermediate widths are multiples of 32, and in F32 otherwise, which
   `turbo_session_get_info` says. A
@@ -219,7 +226,10 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   packed rows from the staging over the bus, and its LayerNorm in one
   kernel; per layer one projection for Q, K and V with their biases, one
   attention kernel (scaled dot products over the keys whose mask is 1,
-  with an online softmax), the attention output projection, a residual
+  with an online softmax; for a model of limited lookahead,
+  `architecture.lookahead`, a query's keys stop that many past it, each
+  kernel's walk over the keys ending at its last query's band), the
+  attention output projection, a residual
   and LayerNorm kernel, the feed-forward input with GELU (erf) in its
   epilogue, the feed-forward output (its sums split four ways over its
   terms where the kernels below split them), and a kernel that adds the
@@ -317,7 +327,30 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   depend on the other rows of the batch. The output buffer holds
   max(`max_batch`, `max_ranges`) vectors of `hidden` F32, allocated with
   the session; a run allocates nothing. A plain write after a range
-  write, or the reverse, replaces it.
+  write, or the reverse, replaces it. A range write with `layers` T
+  above 1 (`turbo_embed_write_layer_ranges`) pools each range from each
+  of the last T layers in the one pass: after each of those layers but
+  the last, the same pooling kernel writes its block of the output from
+  the layer's F32 states, before the next layer runs, and the last block
+  is the plain range write's, bit for bit. At FASTEST, where the
+  residual stream is F16, each layer a block reads also writes its states
+  to F32, as the last layer does for the pooling; a ModernBERT's
+  final_norm is applied to each block's states, as to the last layer's.
+  Normalization then runs over the T blocks at once. T times the ranges
+  is at most `max_ranges`, which the core checks
+  (`core/tests/ranges/layers.rs`).
+- **The span head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head (`turbo_backend_model.head`: the
+  `[2, hidden]` weight and then the bias, F32, copied to the device in an
+  allocation of their own), and a range write to it asks for the head
+  (`rows.head`). The run then pools each range's whole vector,
+  unnormalized, into the projections' scratch, which is free after the
+  last layer and holds `max_batch * max_seq` vectors, and `span_head`
+  computes each range's start and end logits from it, a sub-group per
+  logit, the products and sums in F64 as the CPU path's head does, into
+  the output buffer as `[ranges, 2]` F32. A window's read is then 8 bytes
+  a token, where the hidden states were 3 KB a token at RoBERTa-base's
+  768 (`core/tests/levelzero_qa.rs`).
 - **Failures.** The driver's immediate list cannot finish or be destroyed
   after an append to it fails. Every append signals an event of the
   context's, so when one fails the call waits for the event of the last
@@ -503,6 +536,81 @@ refuses it. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
 with `TURBO_TEST_REQUIRE_LEVELZERO=1` (or `TURBO_TEST_DEVICE=levelzero`),
 and fails when the LSTM cannot be made there.
 
+## Benchmark records
+
+`benchmarks/records/b70.levelzero.embed.*.2cb395364fa9.json` are the
+levelzero backend's records (docs/benchmarks.md) for all-MiniLM-L6-v2
+(manifest `0f17adc4`) and bge-base-en-v1.5 (manifest `0ecbae3e`), made at
+library commit `2cb39536` with the `levelzero-onednn` feature on an Intel
+Arc Pro B70, Linux 7.3 with the xe driver, Level Zero driver `1.3.39122`
+(the `libze-intel-gpu1` and `intel-opencl-icd` 26.27.39122.14 packages,
+IGC 2.40.14) and loader 1.32.0, oneDNN 3.9 from oneAPI 2025.3. The GPU
+clock was pinned at 2200 MHz for the runs (`min_freq` and `max_freq`
+under the xe driver's `tile0/gt0/freq0` set to 2200). These records were
+made before a record carried the clock; a record made since has it in
+`device.clock` (docs/benchmarks.md). 32 rows of 256 tokens, 20 untimed and 200 timed runs,
+oneDNN's linear layers at every precision (`linear=onednn`). The
+reference is OpenVINO 2026.4's `benchmark_app` on the same GPU
+(`openvino/ubuntu24_dev@sha256:91a9411e9c8aecdbb8a35426c9d1f1938c5680eca977da9e7b9cf519e5e0f21a`);
+TEI was not run. p50 in ms, with the earlier records at `b63bd467`
+(driver `1.3.37020`) beside them:
+
+| Model | Rows | FASTEST | MODEL | EXACT | OpenVINO at FASTEST | at `b63bd467`: FASTEST, MODEL, EXACT |
+|---|---|---|---|---|---|---|
+| all-MiniLM-L6-v2 | mixed | 0.905 | 2.844 | 2.823 | 4.44 | 0.902, 2.839, 2.844 |
+| all-MiniLM-L6-v2 | dense | 3.106 | 13.711 | 13.710 | 4.37 | 3.035, 13.635, 13.626 |
+| bge-base-en-v1.5 | mixed | 2.480 | 9.769 | 9.813 | 18.09 | 2.491, 9.865, 9.871 |
+| bge-base-en-v1.5 | dense | 16.943 | 94.395 | 94.269 | 18.24 | 16.678, 94.026, 94.098 |
+
+The library's lowest cosine against each bundle's reference vectors is
+at least 0.99999885 at FASTEST, the same values as at `b63bd467`, and
+0.9999999999 at MODEL and EXACT. The dense FASTEST rows are 2.3%
+(MiniLM) and 1.6% (bge-base) slower than at `b63bd467` and the rest
+within 1%. In one interleaved session on this driver and clock,
+`b63bd467` was no faster than main at dense FASTEST, which is
+consistent with a driver or runtime effect rather than a library
+change; those paired runs are not committed as records. On this
+machine a p50 moves by up to 4% between sessions at the same clock, so
+a comparison between builds is made interleaved in one session.
+
+### Per-kernel profile
+
+`benchmarks/logs/2204-levelzero/` holds `TURBO_LEVELZERO_PROFILE` runs of
+`the_profile_of_a_real_bundle` (core/tests/levelzero/conformance.rs) at
+FASTEST, 32 rows of 256 tokens, 5 untimed and 20 timed runs, for the same
+two bundles. They were made at library commit `7f7d61a2` with `levelzero-onednn`
+on the same B70, on Intel's compute-runtime 26.40.40196.8 (Level Zero
+driver `1.18.40196`, IGC 2.42.6, gmmlib 22.10.2, loader 1.35.0) and
+oneDNN 3.9.1. The clock was pinned at 2200 MHz, and `act_freq`, sampled
+every 20 ms during each run, never read below 2200. Each log's header
+names its versions and command. `summary.tsv` has every line of the
+three rounds. Device milliseconds per run, the median of three rounds
+(the 20 timed runs and the 5 untimed ones together, divided by 25):
+
+| Line | all-MiniLM-L6-v2 | bge-base-en-v1.5 |
+|---|---|---|
+| oneDNN matmul, feed-forward in + GELU | 0.842 | 5.064 |
+| oneDNN matmul, feed-forward out + residual | 0.721 | 3.694 |
+| oneDNN matmul, Q K V | 0.440 | 2.920 |
+| oneDNN matmul, attention output + residual | 0.291 | 1.352 |
+| attention | 0.474 | 2.151 |
+| oneDNN LayerNorm | 0.127 | 0.721 |
+| copies (`zeCommandListAppendMemoryCopy`, with the first run's uploads) | 0.146 | 0.672 |
+| the embedding lookup | 0.077 | 0.208 |
+| the last feed-forward output and LayerNorm | 0.034 | 0.090 |
+| pooling, normalization | 0.029 | 0.008 |
+| `narrow_f16_transposed` (the weights' conversion at load, 48 launches for bge-base) | 0.016 | 0.122 |
+| sum of the lines | 3.20 | 17.00 |
+| wall time of a profiled run | 3.606 | 17.995 |
+
+A profiled run is slower than an unprofiled one: timing every
+primitive costs time on the host (MiniLM's record p50 is about 3.1 ms).
+So the gap between the sum and a profiled run's wall time is an upper
+bound on the time the device spends between kernels, not a measure of
+it: about 0.41 ms for MiniLM and 1.0 ms for bge-base. Between rounds the
+matmuls, attention and the smaller kernels move by under 0.01 ms, the
+copies by 0.012 to 0.016 ms, and oneDNN's LayerNorms by up to 0.05 ms.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
@@ -514,8 +622,11 @@ cannot pass.
 ```
 export TURBO_TEST_REQUIRE_LEVELZERO=1
 
-# Everything, with the levelzero-only tests in core/tests/levelzero.rs:
-cargo test -p turbo --features levelzero
+# Everything, with the levelzero-only tests in core/tests/levelzero.rs.
+# The device tests shared with other backends (DeBERTa, rotary, quantize)
+# pick their device from TURBO_TEST_DEVICE, and fail under
+# TURBO_TEST_REQUIRE_LEVELZERO without it:
+TURBO_TEST_DEVICE=levelzero cargo test -p turbo --features levelzero
 
 # The levelzero-only tests, with what they print (the device, the largest
 # difference from the f64 encoder and the CPU):
@@ -530,6 +641,9 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=levelzero \
     cargo test --release -p turbo --features levelzero --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features levelzero --test levelzero -- --include-ignored --nocapture
+
+# One run longer than the compute engine's job timeout (A lost device, below):
+TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_long_run -- --nocapture
 
 # DeBERTa-v2 against the CPU, and its speed (DeBERTa-v2, above):
 TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_deberta -- --nocapture
@@ -554,19 +668,97 @@ context, release its resources and the context, and create a new one only
 once the device is available again. Device removal or an ongoing driver
 problem may prevent recreation; it is not a guaranteed recovery.
 
-On the Arc Pro B70 under `xe`, each one seen
-(#1433) was a compute job that had not finished within the engine's job
-timeout (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
-5000 ms), and the kernel log says so: `Timedout job ... in <process>`,
-then `Engine reset: engine_class=ccs`. These logs identify a timeout/reset
-for those observations, not for every possible device-loss error.
+On the Arc Pro B70 under `xe`, the kernel log names each one seen
+(#1433, #1765): `Engine reset: engine_class=ccs, ... state=0x29`, then
+`Timedout job ... in <process>`. Neither line says a run was too long:
 
-On that machine all nine such resets on 2026-10-26, six of them in
+- The compute runtime does not submit a kernel job per launch or per run.
+  It keeps one job open and feeds it, and starts another after two seconds
+  of use or once the queue has gone idle: a whole `train-relation` on
+  Re-DocRED, some hundred thousand launches, was 75 jobs. The `seqno` in
+  the log counts those, from 4294967169 for a queue's first.
+- Its queues are long-running ones, to which the driver applies no job
+  timeout, so the engine's `job_timeout_ms`
+  (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
+  5000 ms) does not bound a run. `core/tests/levelzero_long_run.rs` holds
+  one run of over twice that, and the driver prints `Timedout job` for
+  such a queue only after the engine reset.
+- State `0x29` is a queue the kernel was suspending (registered, disable
+  pending, suspended). The firmware resets the engine when a context does
+  not leave it within `preempt_timeout_us` (640 ms) of being asked to.
+  The kernel suspends the runtime's queues when it rebinds their memory,
+  and whenever another client's job needs the render and compute engines,
+  which are one group: each frame a desktop client draws is one such
+  suspend.
+
+What keeps a context on the engine is a page fault (#1765). The runtime
+makes its address spaces ones whose page faults the kernel recovers. In
+that mode the kernel may evict a client's host-memory buffers while they
+are idle (its shrinker, under memory pressure), and the device pages them
+back in by faulting when it next touches them; and it is these queues the
+kernel suspends for other clients' jobs. A suspend that lands while a
+fault is being served does not complete, and 640 ms later the engine is
+reset. The buffers are the runtime's own as much as the backend's: the
+2 MB buffers it stages every read of device memory through, its command
+buffers, and a session's packed rows.
+
+So a loss needs a context idle long enough under memory pressure to be
+evicted, then work on it while a desktop client draws. `train-relation`
+is that: its test pass follows minutes of training on the CPU, and both
+the first reports and a soak lost the device there, in `buffer_read`, the
+first copy to fault. With the kernel's shrinker run by hand during the
+training of a 640-document `train-relation` (`echo 2 >
+/proc/sys/vm/drop_caches`, as root), three runs of four lost the device:
+768 faults on one staging buffer, one for each hardware thread of the
+copy, a suspend during them, and the reset 641 ms after it.
+
+The backend therefore turns the runtime's recoverable page faults off:
+once it has opened the loader, and before `zeInitDrivers` starts the
+drivers, it sets `NEOReadDebugKeys=1` and `EnableRecoverablePageFaults=0`
+in the process's environment, and a context's debug log line says so. A
+process with no loader gets nothing set, and an `npu`-only build never
+sets them. The kernel then rebinds evicted buffers
+itself before the queue runs again and does not suspend the queue for
+other clients' jobs. With them off, six runs of six of that
+reproduction completed with no fault and no suspend of the queue, at the
+same speed (ModernBERT-base, 8 rows of 512 tokens at MODEL: 100.4 ms a
+pass before, 100.0 ms after) and the same vectors. The backend needs no
+faulting memory: every buffer it hands the device is the driver's own.
+
+- A caller that sets `EnableRecoverablePageFaults` itself, to anything,
+  keeps its value, and `NEOReadDebugKeys` is then not touched; `-1` is the
+  runtime's default, with the faults on.
+- A caller that sets `NEOReadDebugKeys` to anything but `1` keeps it, and
+  `EnableRecoverablePageFaults` is not set either: turning the keys on
+  would switch on every other debug key in that environment. The log line
+  says the faults were left on.
+- The variables are written with `setenv`, which is not safe while
+  another thread of the process is in `getenv` or `setenv` (a JVM host's
+  native threads, for one). The first `turbo_runtime_create` that opens
+  the loader must not race such a thread; a host that cannot promise
+  that sets `EnableRecoverablePageFaults` itself, and nothing is written.
+- The runtime reads the variables when it starts. A process that has
+  already loaded it another way (OpenCL, SYCL, oneDNN on its own) before
+  the first `turbo_runtime_create` keeps what it started with; set the
+  two variables in that process's environment instead.
+- `NEOReadDebugKeys=1` has the runtime read its other switches from the
+  environment too, where a process has any set.
+- Shared-system USM, where the device reads any host address, needs the
+  faults. The backend does not use it.
+
+What did not lose the device, with the faults on (a B70, 2026-11-09):
+single runs of 12 s, 31 s and 77 s; launches of several seconds each; two
+and three processes computing at once; a render client drawing 60 frames
+a second during runs; a process stopped for 13 s in the middle of a pass;
+and 14 whole `train-relation` runs under that render client before the
+fifteenth was lost.
+
+All nine resets on that machine on 2026-10-26, six of them in
 `levelzero_loads`, fell within the four days a desktop client (snap-store)
 was running; one sample, minutes before it stopped, had it at 61% of the
-render engine, and render and compute share the card's execution units.
-After it stopped, 1,400 runs of the loads at once passed
-(`docs/receipts/levelzero-1433/`). That client is the likely cause, not a
-reproduced one: no load was recorded at the reset times and no run was made
-with it up. Check the kernel log and the other clients on the card before
+render engine. After it stopped, 1,400 runs of the loads at once passed
+(`docs/receipts/levelzero-1433/`). A render client is what the suspends
+need, which fits; no load was recorded at those reset times.
+
+Check the kernel log and the other clients on the card before
 reading a lost device as a defect here.

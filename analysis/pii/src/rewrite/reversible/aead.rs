@@ -16,8 +16,7 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use turbo_analysis::View;
 use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
-use super::{CryptError, base64url, check_key, from_base64url, random_seed};
-use crate::checksum::sha256;
+use super::{CryptError, base64url, check_key, from_base64url, key_check, random_seed};
 use crate::rewrite::replace::EditOrigin;
 use crate::rewrite::{PiiRewrite, RewriteError, kind_name};
 
@@ -29,6 +28,7 @@ const AAD_LABEL: &[u8] = b"turbo-pii:aes-256-gcm";
 /// key and the context decrypts back to the mention's surface.
 pub struct AesGcmEncryptor {
     cipher: Aes256Gcm,
+    key_check: [u8; 32],
     context: Vec<u8>,
     refuse_overlaps: bool,
     // Nonces are HMAC-SHA-256 of a counter under a random seed of this
@@ -53,6 +53,7 @@ impl Clone for AesGcmEncryptor {
     fn clone(&self) -> AesGcmEncryptor {
         AesGcmEncryptor {
             cipher: self.cipher.clone(),
+            key_check: self.key_check,
             context: self.context.clone(),
             refuse_overlaps: self.refuse_overlaps,
             seed: random_seed(),
@@ -61,13 +62,32 @@ impl Clone for AesGcmEncryptor {
     }
 }
 
+/// Equal when the key, the context and the overlap rule are: what the
+/// tokens decrypt under. The nonce seed is left out, so a clone is equal.
+impl PartialEq for AesGcmEncryptor {
+    fn eq(&self, other: &AesGcmEncryptor) -> bool {
+        self.key_check == other.key_check
+            && self.context == other.context
+            && self.refuse_overlaps == other.refuse_overlaps
+    }
+}
+
+impl Eq for AesGcmEncryptor {}
+
 impl AesGcmEncryptor {
+    /// Folds the key (as an HMAC under a fixed label, never itself), the
+    /// context and the overlap rule into `h`.
+    pub(crate) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
+        h.bytes(&self.key_check).usize(self.context.len()).bytes(&self.context).u8(u8::from(self.refuse_overlaps));
+    }
+
     /// An encryptor under the 32-byte AES-256 `key`, with an empty context.
     pub fn new(key: &[u8]) -> Result<AesGcmEncryptor, CryptError> {
         check_key(key)?;
         let cipher = Aes256Gcm::new_from_slice(key).map_err(|_| CryptError::KeyLength(key.len()))?;
         Ok(AesGcmEncryptor {
             cipher,
+            key_check: key_check(key),
             context: Vec::new(),
             refuse_overlaps: false,
             seed: random_seed(),
@@ -106,7 +126,7 @@ impl AesGcmEncryptor {
 
     fn next_nonce(&self) -> [u8; NONCE_BYTES] {
         let n = self.counter.fetch_add(1, Ordering::Relaxed);
-        let mac = sha256::hmac(&self.seed, &n.to_le_bytes());
+        let mac = turbo_sha256::hmac_sha256(&self.seed, &n.to_le_bytes()).0;
         let mut nonce = [0u8; NONCE_BYTES];
         nonce.copy_from_slice(&mac[..NONCE_BYTES]);
         nonce
@@ -114,21 +134,39 @@ impl AesGcmEncryptor {
 
     /// Appends the token of `value`, of the kind named `kind`, to `out`.
     pub fn write_token(&self, kind: &str, value: &str, out: &mut String) -> Result<(), CryptError> {
-        if value.is_empty() {
-            return Err(CryptError::EmptyValue);
-        }
         let start = out.len();
         out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
+        self.seal(start, value, out)
+    }
+
+    /// Appends the token of `value` with `kind` written as given, its case
+    /// kept, so two kinds that differ only by case bind different tokens.
+    pub fn write_exact_token(&self, kind: &str, value: &str, out: &mut String) -> Result<(), CryptError> {
+        let start = out.len();
+        out.push_str(kind);
+        self.seal(start, value, out)
+    }
+
+    /// Appends `:` and the sealed `value` after the kind `out` holds from
+    /// `start`, binding that kind as written. A refusal leaves `out` as it
+    /// was before the kind.
+    fn seal(&self, start: usize, value: &str, out: &mut String) -> Result<(), CryptError> {
+        if value.is_empty() {
+            out.truncate(start);
+            return Err(CryptError::EmptyValue);
+        }
         let aad = self.aad(&out[start..]);
-        out.push(':');
         let nonce = self.next_nonce();
         let mut sealed = Vec::with_capacity(NONCE_BYTES + value.len() + TAG_BYTES);
         sealed.extend_from_slice(&nonce);
         sealed.extend_from_slice(value.as_bytes());
-        let tag = self
-            .cipher
-            .encrypt_inout_detached(&Nonce::from(nonce), &aad, (&mut sealed[NONCE_BYTES..]).into())
-            .map_err(|_| CryptError::TooLong)?;
+        let Ok(tag) =
+            self.cipher.encrypt_inout_detached(&Nonce::from(nonce), &aad, (&mut sealed[NONCE_BYTES..]).into())
+        else {
+            out.truncate(start);
+            return Err(CryptError::TooLong);
+        };
+        out.push(':');
         sealed.extend_from_slice(&tag);
         base64url(&sealed, out);
         Ok(())
@@ -141,7 +179,16 @@ impl AesGcmEncryptor {
         Ok(out)
     }
 
-    /// The kind as the token writes it (`EMAIL`) and the value of `token`,
+    /// The token of `value` with `kind` written as given, its case kept
+    /// ([`AesGcmEncryptor::write_exact_token`]).
+    pub fn exact_token(&self, kind: &str, value: &str) -> Result<String, CryptError> {
+        let mut out = String::new();
+        self.write_exact_token(kind, value, &mut out)?;
+        Ok(out)
+    }
+
+    /// The kind as the token writes it (`EMAIL`, or as given by
+    /// [`AesGcmEncryptor::write_exact_token`]) and the value of `token`,
     /// made by an encryptor with this key and context.
     pub fn decrypt(&self, token: &str) -> Result<(String, String), CryptError> {
         let (tag, body) = token.rsplit_once(':').ok_or(CryptError::Malformed)?;

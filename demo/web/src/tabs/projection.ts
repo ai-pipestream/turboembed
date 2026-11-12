@@ -7,6 +7,7 @@ import { OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { BoundaryDriftCurveProto, ProjectChunksResponse, TermVectorStackProto, VectorProjectionProto } from "../gen/turbo_analysis_pb.js";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { BudgetSpecSchema } from "../gen/turbo_analysis_pb.js";
+import { busy } from "../act.js";
 import { $, el, input, lazy, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
 import { analysis, describe } from "../rpc.js";
@@ -189,5 +190,6 @@ async function render(): Promise<void> {
 export function init(): void {
   const again = lazy($("analyze-projection") as HTMLDetailsElement, () => void render());
   onDoc(() => again());
-  $("projection-run").addEventListener("click", () => void render());
+  const go = $("projection-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, render));
 }

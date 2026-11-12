@@ -20,6 +20,7 @@ use std::time::Instant;
 use serde_json::{Value, json};
 use turbo_analysis::{Annotator, Document, Ix};
 use turbo_analysis_embed::{SparseAnnotator, SparseOptions, SubwordAnnotator};
+use turbo_scratch::Scratch;
 
 fn bert() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -31,8 +32,7 @@ fn bundle() -> PathBuf {
     if let Some(p) = std::env::var_os("TURBO_SPARSE_BUNDLE") {
         return turbo_pins::require(PathBuf::from(p));
     }
-    let dir = std::env::temp_dir().join(format!("turbo-embed-sparse-speed-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-embed-sparse-speed-{}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(bert().join(f), dir.join(f)).unwrap();
@@ -81,7 +81,7 @@ fn bundle() -> PathBuf {
     w["size"] = json!(weights.len());
     w["sha256"] = json!(turbo::bundle::sha256_hex(&weights));
     fs::write(dir.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
-    dir
+    dir.until_exit()
 }
 
 #[test]
@@ -94,8 +94,9 @@ fn sparse_speed_on_the_cpu() {
     let docs: Vec<String> = (0..4).flat_map(|_| texts.chunks(10).map(|c| c.join("\n"))).collect();
     let bytes: usize = docs.iter().map(|d| d.len()).sum();
     let runs: u32 = std::env::var("TURBO_SPEED_RUNS").ok().and_then(|r| r.parse().ok()).unwrap_or(5);
-    let a = SparseAnnotator::open(&bundle(), &SparseOptions::default()).unwrap();
-    let sub = SubwordAnnotator::open(&bundle()).unwrap();
+    let bundle = bundle();
+    let a = SparseAnnotator::open(&bundle, &SparseOptions::default()).unwrap();
+    let sub = SubwordAnnotator::open(&bundle).unwrap();
     let mut built: Vec<(Document, _)> = Vec::with_capacity(docs.len());
     for t in &docs {
         let d = Document::new(t.as_str());
@@ -125,7 +126,7 @@ fn sparse_speed_on_the_cpu() {
     let secs = start.elapsed().as_secs_f64() / f64::from(runs);
     eprintln!(
         "{}: {} documents, {bytes} bytes, {pieces} pieces, {terms} terms: {:.1} ms a pass, {:.1} texts/s, {:.0} pieces/s, {:.0} terms/s",
-        bundle().display(),
+        bundle.display(),
         docs.len(),
         secs * 1e3,
         docs.len() as f64 / secs,

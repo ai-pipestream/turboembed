@@ -1,8 +1,13 @@
 name: Zoo image
 
 # The model zoo image (docs/zoo-container.md): server/Dockerfile.zoo built
-# from the tree, then docker-compose.zoo.yml with RustFS and the smoke test
-# in scripts/test-zoo-image.sh.
+# from the tree on Docker Hardened Images (dhi.io), then
+# docker-compose.zoo.yml with RustFS and the smoke test in
+# scripts/test-zoo-image.sh. Building logs in to dhi.io when the repository
+# or its organisation has the DOCKER_USER and DOCKER_TOKEN secrets. On a
+# push to main or a release tag, the image that passed the smoke test is
+# pushed to Docker Hub (the DOCKERHUB_REPOSITORY variable, or
+# pipestreamai/turbo-zoo). Pull requests never push.
 
 on:
   pull_request:
@@ -11,12 +16,15 @@ on:
       - 'docker-compose.zoo.yml'
       - 'scripts/test-zoo-image.sh'
       - 'scripts/zoo-smoke-mtls.sh'
+      - 'server/src/main.rs'
       - 'server/src/probe*'
       - 'server/src/probe/**'
+      - 'server/src/zoo*'
+      - 'server/src/zoo/**'
       - 'server/Dockerfile.zoo'
       - 'server/Dockerfile.zoo.dockerignore'
-      - 'server/zoo/**'
       - 'server/tests/zoo_image_smoke.rs'
+      - 'server/tests/zoo_tls_env.rs'
       - 'zoo-remote/**'
       - 'server/src/catalog/**'
       - 'analysis/zoo/**'
@@ -24,17 +32,22 @@ on:
       - 'demo/static/**'
   push:
     branches: [main]
+    # Path filters do not apply to tag pushes, so every release tag publishes.
+    tags: ['v*']
     paths:
       - '.github/workflows/zoo-image.yml'
       - 'docker-compose.zoo.yml'
       - 'scripts/test-zoo-image.sh'
       - 'scripts/zoo-smoke-mtls.sh'
+      - 'server/src/main.rs'
       - 'server/src/probe*'
       - 'server/src/probe/**'
+      - 'server/src/zoo*'
+      - 'server/src/zoo/**'
       - 'server/Dockerfile.zoo'
       - 'server/Dockerfile.zoo.dockerignore'
-      - 'server/zoo/**'
       - 'server/tests/zoo_image_smoke.rs'
+      - 'server/tests/zoo_tls_env.rs'
       - 'zoo-remote/**'
       - 'server/src/catalog/**'
       - 'analysis/zoo/**'
@@ -62,11 +75,75 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: log in to dhi.io
+        id: dhi
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+        run: |
+          if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_TOKEN" ]; then
+            echo "::notice::DOCKER_USER or DOCKER_TOKEN is not set; skipping hardened zoo image build"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$DOCKER_TOKEN" | docker login dhi.io -u "$DOCKER_USER" --password-stdin
+          echo "ready=true" >> "$GITHUB_OUTPUT"
       - name: build the zoo image
+        if: steps.dhi.outputs.ready == 'true'
         run: docker build -f server/Dockerfile.zoo -t turbo-zoo:ci .
-      - name: the image runs as a user
+      - name: the image runs as a user and carries no shell, curl or apt
+        if: steps.dhi.outputs.ready == 'true'
         run: |
           user="$(docker image inspect -f '{{.Config.User}}' turbo-zoo:ci)"
           if [ "$user" != "10001:10001" ]; then echo "the image runs as $user, not 10001:10001"; exit 1; fi
+          cid="$(docker create turbo-zoo:ci)"
+          trap 'docker rm -f "$cid" >/dev/null' EXIT
+          bad="$(docker export "$cid" | tar tf - | sed 's#^\./##; s#/$##' | grep -E '^(usr/)?s?bin/(sh|bash|dash|ash|curl|apt|apt-get|dpkg)$' || true)"
+          if [ -n "$bad" ]; then
+            echo "the runtime image contains forbidden tools:"
+            echo "$bad"
+            exit 1
+          fi
       - name: compose with RustFS, reads through the store
+        if: steps.dhi.outputs.ready == 'true'
         run: bash scripts/test-zoo-image.sh
+      - name: push the tested image to Docker Hub
+        if: github.event_name == 'push' && steps.dhi.outputs.ready == 'true'
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+        run: |
+          if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_TOKEN" ]; then
+            echo "::notice::DOCKER_USER or DOCKER_TOKEN is not set; the image is not pushed"
+            exit 0
+          fi
+          repo="${DOCKERHUB_REPOSITORY:-pipestreamai/turbo-zoo}"
+          tags="sha-${GITHUB_SHA::12}"
+          case "$GITHUB_REF" in
+            refs/heads/main) tags="$tags main" ;;
+            refs/tags/v[0-9]*)
+              version="${GITHUB_REF#refs/tags/v}"
+              tags="$tags $version"
+              # A pre-release such as 0.2.0-rc.1 does not move latest.
+              case "$version" in *-*) ;; *) tags="$tags latest" ;; esac
+              ;;
+            *) echo "::notice::$GITHUB_REF is not main or a v<digit> release tag; the image is not pushed"; exit 0 ;;
+          esac
+          echo "$DOCKER_TOKEN" | docker login docker.io -u "$DOCKER_USER" --password-stdin
+          trap 'docker logout docker.io' EXIT
+          for t in $tags; do
+            docker tag turbo-zoo:ci "docker.io/$repo:$t"
+            docker push "docker.io/$repo:$t"
+          done
+          digest="$(docker image inspect -f '{{index .RepoDigests 0}}' "docker.io/$repo:sha-${GITHUB_SHA::12}")"
+          {
+            echo "### Zoo image pushed"
+            echo
+            echo "Digest: \`$digest\`"
+            echo
+            for t in $tags; do echo "- \`docker.io/$repo:$t\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: log out of dhi.io
+        if: always() && steps.dhi.outputs.ready == 'true'
+        run: docker logout dhi.io

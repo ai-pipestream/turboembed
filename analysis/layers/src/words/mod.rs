@@ -31,6 +31,7 @@
 //!   `Words::code_point_span`) never split a surface token between words.
 
 mod mwt;
+mod split;
 
 use std::fmt;
 use std::marker::PhantomData;

@@ -27,7 +27,10 @@
  * every later kernel reads them there, and each is launched for the
  * session's largest batch: a block loops over its share of the work that
  * exists and leaves when there is none. So one CUDA graph captured when
- * the session is made serves every run, whatever its rows.
+ * the session is made serves every run, whatever its rows. A range write
+ * that reads earlier layers too (RunArgs.taps above 1) runs a second
+ * graph, the same kernels with a pooling after every layer, each of which
+ * finds in the Info whether the run reads its layer.
  */
 
 #ifndef TURBO_CUDA_KERNELS_H
@@ -46,6 +49,7 @@ namespace turbo_cuda {
 struct RunArgs {
     int32_t batch, seq, pooling, l2, output_dim, has_types, ranges;
     int32_t head; /* 1: the range vectors go through the model's token head (span_head) */
+    int32_t taps; /* the last layers a range write's ranges are pooled from; 0 or 1 for the final one alone */
 };
 
 /* What pack_rows finds, in device memory, for every later kernel. */
@@ -55,6 +59,7 @@ struct Info {
     int32_t items; /* attention's work items, (row, head, query tile) */
     int32_t ranges; /* the range write's ranges, whose vectors the pooling writes; 0 for a vector per row */
     int32_t head;   /* RunArgs.head */
+    int32_t taps;   /* RunArgs.taps */
 };
 
 /* The packing, in device memory. start, len and holes (whether a masked
@@ -350,9 +355,15 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint1
  * in its place: the mean over the range's tokens whose mask is 1, with
  * the same kernel and the same sums as a row's mean, so a range over a
  * whole row gives that row's bits. The hidden states are read from x16,
- * F16, when it is not NULL, else from x. */
+ * F16, when it is not NULL, else from x.
+ *
+ * back is the layers after the one whose states x holds, 0 for the final
+ * layer's. A run of T taps (Info.taps, 1 when it is 0) writes that layer's
+ * vectors as block T - 1 - back of out, [T, ranges, output_dim], so the
+ * final layer's are the last block, and out itself with one tap; a layer
+ * before the run's taps returns at once. */
 cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int32_t *rows, const Packing &p,
-                 int hidden, float *out, const Plan &plan);
+                 int hidden, int back, float *out, const Plan &plan);
 
 /* out[i * head_out + o] = bias[o] + sum_d w[o, d] * pooled[i, d] for each
  * range i of a range write whose run asks for the head (Info.head), the
@@ -535,12 +546,18 @@ struct AttnArgs {
     Packing p;
     int heads, head_dim, hidden, tcap, chunk, queries;
     float scale;
-    /* A sliding-window layer's keys each side of a query: query i reads
-     * keys j with |i - j| <= window, positions in its row; -1 for every
-     * key of the row. Chunks of keys outside every query's band are not
-     * read. */
+    /* A banded layer's keys about a query: query i reads keys j with
+     * i - back <= j <= i + window, positions in its row; window -1 for
+     * every key of the row, back then not read. A sliding-window layer
+     * has the two equal; limited lookahead has window keys ahead and
+     * back BAND_ALL, every key before the query. Chunks of keys outside
+     * every query's band are not read. */
     int window = -1;
+    int back = -1;
 };
+
+/* AttnArgs.back for every key before the query: more than any row has. */
+constexpr int BAND_ALL = 1 << 28;
 
 cudaError_t attention(cudaStream_t s, const AttnArgs &a, const Shape &shape, const Plan &plan);
 

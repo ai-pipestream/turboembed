@@ -1,0 +1,154 @@
+TAP version 13
+# Subtest: every tab lays out cleanly at 1280 px
+not ok 1 - every tab lays out cleanly at 1280 px
+  ---
+  duration_ms: 1802.127066
+  type: 'test'
+  location: 'demo/web/node_modules/.e2e/page.test.mjs:74:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    + [
+    +   'semantic: div#sem-rerank-out is an empty card',
+    +   'semantic: div#sem-qa-out is an empty card',
+    +   'analyze: select#analyze-format leaves its box by 192 px',
+    +   'analyze: input#analyze-nested is 135 px wide',
+    +   'analyze: input#analyze-relation-sentence is 135 px wide',
+    +   'analyze: input#projection-drift is 120 px wide',
+    +   'vocabulary: select#vocab-format leaves its box by 366 px',
+    +   'vocabulary: button leaves its box by 366 px',
+    +   'vocabulary: input#vocab-header is 135 px wide',
+    +   'vocabulary: input#vocab-lowercase is 135 px wide',
+    +   'vocabulary: input#vocab-stopwords is 135 px wide',
+    +   'vocabulary: input#vocab-ngrams is 135 px wide',
+    +   'vocabulary: a table in div#vocab-lists has headings and no rows',
+    +   'vocabulary: a table in div#vocab-lists has headings and no rows',
+    +   'models: select#train-teacher leaves its box by 23 px',
+    +   'models: textarea#train-terms leaves its box by 23 px',
+    +   'models: div#models-install is an empty card',
+    +   'models: a table in div#models-static has headings and no rows',
+    +   'server: input#server-load-select is 135 px wide'
+    + ]
+    - []
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'semantic: div#sem-rerank-out is an empty card'
+    1: 'semantic: div#sem-qa-out is an empty card'
+    2: 'analyze: select#analyze-format leaves its box by 192 px'
+    3: 'analyze: input#analyze-nested is 135 px wide'
+    4: 'analyze: input#analyze-relation-sentence is 135 px wide'
+    5: 'analyze: input#projection-drift is 120 px wide'
+    6: 'vocabulary: select#vocab-format leaves its box by 366 px'
+    7: 'vocabulary: button leaves its box by 366 px'
+    8: 'vocabulary: input#vocab-header is 135 px wide'
+    9: 'vocabulary: input#vocab-lowercase is 135 px wide'
+    10: 'vocabulary: input#vocab-stopwords is 135 px wide'
+    11: 'vocabulary: input#vocab-ngrams is 135 px wide'
+    12: 'vocabulary: a table in div#vocab-lists has headings and no rows'
+    13: 'vocabulary: a table in div#vocab-lists has headings and no rows'
+    14: 'models: select#train-teacher leaves its box by 23 px'
+    15: 'models: textarea#train-terms leaves its box by 23 px'
+    16: 'models: div#models-install is an empty card'
+    17: 'models: a table in div#models-static has headings and no rows'
+    18: 'server: input#server-load-select is 135 px wide'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (demo/web/node_modules/.e2e/page.test.mjs:86:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: every tab lays out cleanly at 390 px
+not ok 2 - every tab lays out cleanly at 390 px
+  ---
+  duration_ms: 1627.235152
+  type: 'test'
+  location: 'demo/web/node_modules/.e2e/page.test.mjs:74:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    + [
+    +   'semantic: div#sem-rerank-out is an empty card',
+    +   'semantic: div#sem-qa-out is an empty card',
+    +   'analyze: the page scrolls sideways: 588 px in 390 px',
+    +   'analyze: select#analyze-format leaves its box by 214 px',
+    +   'analyze: input#analyze-nested is 135 px wide',
+    +   'analyze: input#analyze-relation-sentence is 135 px wide',
+    +   'analyze: input#projection-drift is 120 px wide',
+    +   'vocabulary: the page scrolls sideways: 762 px in 390 px',
+    +   'vocabulary: select#vocab-format leaves its box by 388 px',
+    +   'vocabulary: button leaves its box by 388 px',
+    +   'vocabulary: input#vocab-header is 135 px wide',
+    +   'vocabulary: input#vocab-lowercase is 135 px wide',
+    +   'vocabulary: input#vocab-stopwords is 135 px wide',
+    +   'vocabulary: input#vocab-ngrams is 135 px wide',
+    +   'vocabulary: a table in div#vocab-lists has headings and no rows',
+    +   'vocabulary: a table in div#vocab-lists has headings and no rows',
+    +   'models: the page scrolls sideways: 419 px in 390 px',
+    +   'models: select#train-teacher leaves its box by 45 px',
+    +   'models: textarea#train-terms leaves its box by 45 px',
+    +   'models: div#models-install is an empty card',
+    +   'models: a table in div#models-static has headings and no rows',
+    +   'server: input#server-load-select is 135 px wide'
+    + ]
+    - []
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'semantic: div#sem-rerank-out is an empty card'
+    1: 'semantic: div#sem-qa-out is an empty card'
+    2: 'analyze: the page scrolls sideways: 588 px in 390 px'
+    3: 'analyze: select#analyze-format leaves its box by 214 px'
+    4: 'analyze: input#analyze-nested is 135 px wide'
+    5: 'analyze: input#analyze-relation-sentence is 135 px wide'
+    6: 'analyze: input#projection-drift is 120 px wide'
+    7: 'vocabulary: the page scrolls sideways: 762 px in 390 px'
+    8: 'vocabulary: select#vocab-format leaves its box by 388 px'
+    9: 'vocabulary: button leaves its box by 388 px'
+    10: 'vocabulary: input#vocab-header is 135 px wide'
+    11: 'vocabulary: input#vocab-lowercase is 135 px wide'
+    12: 'vocabulary: input#vocab-stopwords is 135 px wide'
+    13: 'vocabulary: input#vocab-ngrams is 135 px wide'
+    14: 'vocabulary: a table in div#vocab-lists has headings and no rows'
+    15: 'vocabulary: a table in div#vocab-lists has headings and no rows'
+    16: 'models: the page scrolls sideways: 419 px in 390 px'
+    17: 'models: select#train-teacher leaves its box by 45 px'
+    18: 'models: textarea#train-terms leaves its box by 45 px'
+    19: 'models: div#models-install is an empty card'
+    20: 'models: a table in div#models-static has headings and no rows'
+    21: 'server: input#server-load-select is 135 px wide'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (demo/web/node_modules/.e2e/page.test.mjs:86:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the embed tab answers with a card per model and the tabs take the arrow keys
+not ok 3 - the embed tab answers with a card per model and the tabs take the arrow keys
+  ---
+  duration_ms: 5266.944065
+  type: 'test'
+  location: 'demo/web/node_modules/.e2e/page.test.mjs:93:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    page.waitForSelector: Timeout 5000ms exceeded.
+    Call log:
+      - waiting for locator('#server.status.up') to be visible
+  code: 'ERR_TEST_FAILURE'
+  name: 'TimeoutError'
+  stack: |-
+    TestContext.<anonymous> (demo/web/node_modules/.e2e/page.test.mjs:97:16)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 0
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9422.126889

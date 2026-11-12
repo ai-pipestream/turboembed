@@ -2,13 +2,15 @@
 //! Qwen2's does, on text NFC composes and reorders.
 
 use super::*;
+use turbo_scratch::Scratch;
 
 /// testdata/tiny-bpe with an NFC normalizer, in a bundle that says so.
-fn bpe_nfc() -> (TempBundle, PathBuf, SubwordAnnotator) {
+fn bpe_nfc() -> (TempBundle, Scratch, SubwordAnnotator) {
     let mut json: serde_json::Value =
         serde_json::from_slice(&std::fs::read(testdata().join("tiny-bpe/tokenizer.json")).unwrap()).unwrap();
     json["normalizer"] = serde_json::json!({ "type": "NFC" });
-    let file = std::env::temp_dir().join(format!("turbo-embed-test-{}-nfc-tokenizer.json", std::process::id()));
+    let file =
+        Scratch::at(std::env::temp_dir().join(format!("turbo-embed-test-{}-nfc-tokenizer.json", std::process::id())));
     std::fs::write(&file, serde_json::to_vec(&json).unwrap()).unwrap();
     let (dir, tok, bundle) = bundle_with("bpe-nfc", &file, |m| {
         m.model.id = "turbo-testdata/tiny-bpe-nfc".into();

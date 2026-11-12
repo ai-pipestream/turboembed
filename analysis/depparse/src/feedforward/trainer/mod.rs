@@ -64,13 +64,31 @@ impl FeedforwardSettings {
         Ok(())
     }
 }
+/// One finished training epoch: its number from 1, the epochs asked for, and
+/// the mean cross-entropy of its examples as they were scored, dropout applied.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FeedforwardEpoch {
+    pub epoch: usize,
+    pub epochs: usize,
+    pub loss: f64,
+}
 pub struct FeedforwardDependencyTrainer;
 impl FeedforwardDependencyTrainer {
     pub fn train<A: WordOrTokenAnchor>(
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
-        Self::train_with_mode(samples, settings, crate::training::TrainingMode::PseudoProjective)
+        Self::train_observed(samples, settings, &mut |_| true)
+    }
+    /// [`Self::train`], with `observe` called after each epoch. Training
+    /// stops with an error when it answers false. The model is the one
+    /// `train` returns for the same samples and settings.
+    pub fn train_observed<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+        observe: &mut dyn FnMut(&FeedforwardEpoch) -> bool,
+    ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::PseudoProjective, observe)
     }
     /// Train plain arc-standard labels from projective samples only.
     /// Non-projective or already encoded trees produce an error.
@@ -78,19 +96,20 @@ impl FeedforwardDependencyTrainer {
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
-        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Projective)
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Projective, &mut |_| true)
     }
     /// Train native SWAP transitions with ordinary labels and no tree filtering.
     pub fn train_swap<A: WordOrTokenAnchor>(
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
-        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Swap)
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Swap, &mut |_| true)
     }
     fn train_with_mode<A: WordOrTokenAnchor>(
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
         mode: crate::training::TrainingMode,
+        observe: &mut dyn FnMut(&FeedforwardEpoch) -> bool,
     ) -> Result<FeedforwardDependencyModel> {
         settings.check()?;
         let mut model = initialize::initialize(samples, settings, mode)?;
@@ -114,7 +133,7 @@ impl FeedforwardDependencyTrainer {
         if examples.is_empty() {
             return Err(error("no projective training examples"));
         }
-        optimize::optimize(&mut model, &examples, settings)?;
+        optimize::optimize(&mut model, &examples, settings, observe)?;
         let mut counts = std::collections::BTreeMap::<String, usize>::new();
         for sample in samples {
             for word in sample.tokens() {

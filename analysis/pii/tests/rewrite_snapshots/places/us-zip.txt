@@ -1,0 +1,21 @@
+MASKED	Mail to 1 Main St, ***********, ** 62704 or ******, ** 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, ** 00000.
+
+MASK_ALL	Mail to 1 Main St, ###########, ## 62704 or ######, ## 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, ## 00000.
+
+REWRITE	pseudonymize	OK	Mail to 1 Main St, CITY-1, STATE-1 62704 or CITY-2, STATE-2 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, STATE-1 00000.
+
+LABEL	pseudonymize	19	30	19	25	CITY-1
+LABEL	pseudonymize	32	34	27	34	STATE-1
+LABEL	pseudonymize	44	50	44	50	CITY-2
+LABEL	pseudonymize	52	54	52	59	STATE-2
+LABEL	pseudonymize	130	132	135	142	STATE-1
+REWRITE	hmac	OK	Mail to 1 Main St, CITY-c32e15e74c216b38, STATE-84549c8ff7f8cfff 62704 or CITY-5e7c85bf296a6ba1, STATE-929c890916ae4769 78701-4417; ZIP: 30301 and zip code 10001. Not ZIPs: room 62704, il 62704, STATE-84549c8ff7f8cfff 00000.
+
+LABEL	hmac	19	30	19	40	CITY-c32e15e74c216b38
+LABEL	hmac	32	34	42	64	STATE-84549c8ff7f8cfff
+LABEL	hmac	44	50	74	95	CITY-5e7c85bf296a6ba1
+LABEL	hmac	52	54	97	119	STATE-929c890916ae4769
+LABEL	hmac	130	132	195	217	STATE-84549c8ff7f8cfff
+AUDIT	city	2	2	CITY-c32e15e74c216b38, CITY-5e7c85bf296a6ba1
+AUDIT	state	3	2	STATE-84549c8ff7f8cfff, STATE-929c890916ae4769
+AUDIT_REPORT	city: 2 mentions, 2 distinct [CITY-c32e15e74c216b38, CITY-5e7c85bf296a6ba1]\nstate: 3 mentions, 2 distinct [STATE-84549c8ff7f8cfff, STATE-929c890916ae4769]

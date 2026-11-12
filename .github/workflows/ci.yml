@@ -79,6 +79,8 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       - name: clippy (pii reversible)
         run: cargo clippy -p turbo-pii --features reversible --all-targets
+      - name: clippy (server pii-reversible)
+        run: cargo clippy -p turbo-kserve --features pii-reversible --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
       # through ureq or rustls, whose build script needs an aarch64 C
@@ -101,18 +103,29 @@ jobs:
   # that touch server/proto/ for wire or file-level breaking changes against
   # main (issue #1296), and verifies that the published Java Maven and Python
   # wheel client stubs call Capabilities and AnalyzeStream against a running
-  # server (issue #1297, docs/grpc.md, docs/release.md).
+  # server (issue #1297, docs/grpc.md, docs/release.md). Its last steps run
+  # the demo page in a browser (issue #2149).
   proto:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: bufbuild/buf-setup-action@v1
+      # Cached install: buf-setup-action downloads from GitHub Releases on
+      # every run and failed merge-queue run 42580497484 three times with
+      # HTTP 504. The composite action hits the Actions cache for the same
+      # OS/arch/version and only downloads with curl retries on a miss.
+      # The SHA-256 is pinned here, from the v1.70.0 release, and checked on
+      # every run, cache hit or not. Bump the version and the hashes together.
+      - uses: ./.github/actions/setup-buf
         with:
           version: 1.70.0
-          # Authenticated, so the version lookup is not rate limited.
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          sha256: |
+            e2bbcdd324da09c16a15963dc2dae0525c955c05dc118223cf732f4f7509c5e6  buf-Linux-x86_64
+            95eaebf9c6a25fd26510c9596b6cedebbb2ab90258904f96edc9625e505181b6  buf-Linux-aarch64
+            f6662346793727c4a5a11a813983a74964f40a626c7ca35df96fe2582b1fbebf  buf-Darwin-arm64
+            ee339fd6ca4ec2312bd9b5f2b53493b7396d87b702efbdaac98b5acbe8d1e3d9  buf-Darwin-x86_64
+            cd911f151142d09843131b591d0a4ca65f8e53500395fcd6a9848138d6e2f3b8  buf-Windows-x86_64.exe
       - name: buf lint
         run: buf lint server/proto
       - name: buf breaking against main
@@ -122,8 +135,14 @@ jobs:
             echo "server/proto unchanged from origin/main"
             exit 0
           fi
+          # Compare against the main this HEAD was built on, as the skip
+          # above does. The tip of origin/main can be newer than the merge
+          # ref (main moved after the push), and then a proto change merged
+          # since reads as a deletion in every proto pull request.
+          base=$(git merge-base origin/main HEAD)
+          echo "comparing against merge base $base"
           mkdir -p "$RUNNER_TEMP/base"
-          git archive origin/main server/proto | tar -x -C "$RUNNER_TEMP/base"
+          git archive "$base" server/proto | tar -x -C "$RUNNER_TEMP/base"
           if [ ! -f "$RUNNER_TEMP/base/server/proto/buf.yaml" ]; then
             cp server/proto/buf.yaml "$RUNNER_TEMP/base/server/proto/buf.yaml"
             sed -i \
@@ -171,6 +190,47 @@ jobs:
           target/debug/turbo-kserve health --addr 127.0.0.1:18089
           bash scripts/package-proto-stubs.sh v0.1.0 "$RUNNER_TEMP/proto-stubs-dist" 127.0.0.1:18089
           ls -la "$RUNNER_TEMP/proto-stubs-dist"
+      # The demo page itself in a browser against the real server (issue
+      # #2149, docs/demo.md): layout at two widths, the tab keys and the
+      # catalog filter. It reuses this job's Node and its build of
+      # turbo-kserve, and runs only when what it serves or tests changed: on
+      # a pull request against its base, in the merge queue against the main
+      # the group is stacked on. The daily run always runs it; a push to
+      # main does not, since the merge queue ran that commit.
+      - name: whether the demo page's browser test runs
+        id: page
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          GROUP_BASE: ${{ github.event.merge_group.base_sha }}
+        run: |
+          case "$EVENT" in
+            pull_request) changed=$(git diff --name-only "origin/$BASE_REF...HEAD") ;;
+            merge_group) changed=$(git diff --name-only "$GROUP_BASE" HEAD) ;;
+            schedule) echo "run=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            *) exit 0 ;;
+          esac
+          if grep -qE '^(demo/|server/|testdata/tiny-(bert|modernbert)-bundle/|scripts/(e2e-web|build-web)\.sh$|\.github/workflows/ci\.yml$)' <<<"$changed"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      # The browser build belongs to the Playwright version the lock file
+      # pins, so that version is the cache key. Only the headless shell is
+      # fetched: the test never opens a window.
+      - name: the pinned Playwright's version
+        id: playwright
+        if: steps.page.outputs.run
+        run: echo "version=$(node -p 'require("./demo/web/node_modules/playwright/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        if: steps.page.outputs.run
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - name: headless Chromium for the pinned Playwright
+        if: steps.page.outputs.run
+        run: demo/web/node_modules/.bin/playwright install chromium-headless-shell
+      - name: the demo page in a browser against turbo-kserve
+        if: steps.page.outputs.run
+        run: bash scripts/e2e-web.sh
 
   # turbo-bench's throughput CLI across Cargo profile settings. A job of
   # its own, not steps in lint: its record test pins counts over the
@@ -234,10 +294,31 @@ jobs:
       # nextest runs the shard's test binaries side by side, where cargo
       # test runs them one after another; it does not run doctests, so
       # those run after it.
+      # The tests get a temp directory of their own, made after the build
+      # so that only they write to it; the step after this one fails when
+      # a test left something there (#2183). It is under /tmp and not the
+      # runner's own temp directory, which is under a home directory on
+      # some runners: the bench refuses a record that names one, and its
+      # tests write their fixtures to the temp directory.
       - name: test
         run: |
-          cargo nextest run --no-tests=warn $PACKAGES
+          cargo nextest run --no-run --no-tests=warn $PACKAGES
+          scratch=$(mktemp -d /tmp/turbo-test-scratch.XXXXXX)
+          echo "TEST_SCRATCH=$scratch" >> "$GITHUB_ENV"
+          TMPDIR="$scratch" cargo nextest run --no-tests=warn $PACKAGES
           cargo test --doc $PACKAGES
+      - name: no test leaves files in the temp directory
+        run: |
+          left=$(ls -A "$TEST_SCRATCH")
+          if [ -n "$left" ]; then
+            echo "tests left these in the temp directory; hold them in turbo_scratch::Scratch:"
+            echo "$left"
+            exit 1
+          fi
+      - name: remove the tests' temp directory
+        if: always()
+        run: |
+          if [ -n "${TEST_SCRATCH:-}" ]; then rm -rf "$TEST_SCRATCH"; fi
 
   # turbo-fuzz's tests run every annotator run over every corpus and
   # golden text, about 20 minutes unoptimized. Here they are built
@@ -273,20 +354,33 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      # The feature tests below get a temp directory of their own, as the
+      # test shards do, and a later step fails when one left something
+      # there. scripts/test-in-scratch.sh builds first, so that only the
+      # tests write to it.
+      - name: the feature tests' temp directory
+        run: echo "TEST_SCRATCH=$(mktemp -d /tmp/turbo-features-scratch.XXXXXX)" >> "$GITHUB_ENV"
       # TurboQuant storage is behind a feature that brings in turbovec.
       - name: test (turboquant)
-        run: cargo test -p turbo-vector-index --features turboquant
+        run: scripts/test-in-scratch.sh cargo test -p turbo-vector-index --features turboquant
       # Reversible PII protection is behind a feature that brings in the
       # RustCrypto AES-GCM and FF1 crates.
       - name: test (pii reversible)
-        run: cargo test -p turbo-pii --features reversible --lib --test reversible
+        run: >-
+          scripts/test-in-scratch.sh
+          cargo test -p turbo-pii --features reversible --lib --test reversible --test reversible_policy
+      - name: test (server pii-reversible)
+        run: >-
+          scripts/test-in-scratch.sh
+          cargo test -p turbo-kserve --features pii-reversible --lib
+          --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest --test pii_encryption_keys
       - name: test (fuzz command)
-        run: cargo test -p turbo-goldens-tool --features fuzz
+        run: scripts/test-in-scratch.sh cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host
       # (trainer/cuda/shim.h), against the CPU encoder. A green step is
       # not a device run: docs/cuda.md, "The trainer's kernels".
       - name: test (trainer cuda-shim)
-        run: cargo test -p turbo-trainer --features cuda-shim --test encoder_cuda
+        run: scripts/test-in-scratch.sh cargo test -p turbo-trainer --features cuda-shim --test encoder_cuda
       # The core's own tests build it with its `internals` feature, and
       # the core is a cdylib as well, so its rlib has no hash in its name:
       # one run building both the core's tests and the crates that use the
@@ -300,8 +394,23 @@ jobs:
         env:
           CARGO_TARGET_DIR: target/core
         run: |
-          cargo nextest run -p turbo
+          cargo nextest run --no-run -p turbo
+          scratch=$(mktemp -d /tmp/turbo-core-scratch.XXXXXX)
+          echo "CORE_SCRATCH=$scratch" >> "$GITHUB_ENV"
+          TMPDIR="$scratch" cargo nextest run -p turbo
           cargo test --doc -p turbo
+      - name: no core test leaves files in the temp directory
+        run: |
+          left=$(ls -A "$CORE_SCRATCH")
+          if [ -n "$left" ]; then
+            echo "tests left these in the temp directory; hold them in turbo_scratch::Scratch:"
+            echo "$left"
+            exit 1
+          fi
+      - name: remove the core tests' temp directory
+        if: always()
+        run: |
+          if [ -n "${CORE_SCRATCH:-}" ]; then rm -rf "$CORE_SCRATCH"; fi
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
@@ -311,12 +420,112 @@ jobs:
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo nextest run -p turbo --features npu
+        run: scripts/test-in-scratch.sh cargo nextest run -p turbo --features npu
+      - name: no feature test leaves files in the temp directory
+        run: |
+          left=$(ls -A "$TEST_SCRATCH")
+          if [ -n "$left" ]; then
+            echo "tests left these in the temp directory; hold them in turbo_scratch::Scratch:"
+            echo "$left"
+            exit 1
+          fi
+      - name: remove the feature tests' temp directory
+        if: always()
+        run: |
+          if [ -n "${TEST_SCRATCH:-}" ]; then rm -rf "$TEST_SCRATCH"; fi
       - name: a benchmark record end to end, from the pushed commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           TURBO_BENCH_REQUIRE_RECORD: "1"
         run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
+
+  # The accelerator backends, compiled and linted only: no runner here has
+  # the devices, so a green job is not a device run. The CUDA backend
+  # builds against the toolkit the release pins (its nvcc, runtime headers
+  # and static runtime), for the default architecture alone; Level Zero
+  # compiles its OpenCL C kernels with clang 20; Metal builds on macOS.
+  # Hailo is left out: HailoRT's headers are not published as a package
+  # this runner can install. Each lane runs only when the commits under
+  # test change the core, analysis/, the headers, the root Cargo.toml,
+  # the lock file or this file, and in the daily run. `changes` decides
+  # that on a Linux runner first, so that a lane with nothing to do asks
+  # for no runner: a macOS runner that is never assigned fails the run.
+  changes:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      linux: ${{ steps.lanes.outputs.linux }}
+      macos: ${{ steps.lanes.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: the lane decision gives the right answer on known changes
+        run: scripts/backend-lanes-test.sh
+      - name: which backend lanes the change needs
+        id: lanes
+        env:
+          BASE: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || format('origin/{0}', github.base_ref) }}
+          HEAD_SHA: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || 'HEAD' }}
+        run: |
+          scripts/backend-lanes.sh "${{ github.event_name }}" "$BASE" "$HEAD_SHA" > lanes.txt
+          cat lanes.txt
+          cat lanes.txt >> "$GITHUB_OUTPUT"
+
+  backends-linux:
+    needs: changes
+    if: needs.changes.outputs.linux == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      CUDA_VERSION: "12.8"
+      CUDA_PACKAGE: "12-8"
+      CARGO_TARGET_DIR: target/core
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: the CUDA package repository
+        run: |
+          curl -fsSLO --retry 5 --retry-all-errors --retry-delay 5 \
+            https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+      - name: the CUDA toolkit (nvcc, the runtime's headers and static library) and clang 20
+        uses: ./.github/actions/apt-install
+        with:
+          packages: cuda-nvcc-${{ env.CUDA_PACKAGE }} cuda-cudart-dev-${{ env.CUDA_PACKAGE }} cuda-cccl-${{ env.CUDA_PACKAGE }} clang-20
+      - name: the installed nvcc and clang 20
+        run: |
+          /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1
+          clang-20 --version | head -1
+      - name: clippy (cuda)
+        env:
+          TURBO_CUDA_ROOT: /usr/local/cuda-${{ env.CUDA_VERSION }}
+        run: cargo clippy --locked -p turbo --features cuda --all-targets -- -D warnings
+      - name: clippy (levelzero)
+        env:
+          TURBO_CLANG: clang-20
+        run: cargo clippy --locked -p turbo --features levelzero --all-targets -- -D warnings
+
+  backends-macos:
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
+    runs-on: macos-15
+    env:
+      CARGO_TARGET_DIR: target/core
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: clippy (metal)
+        run: cargo clippy --locked -p turbo --features metal --all-targets -- -D warnings
 
   # Both Java bridges consume the same pure API and conformance modules.
   # JNI runs on Java 21, then Panama on Java 25, against the same native library.
@@ -424,7 +633,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, proto, bench-throughput, test, fuzz, features, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, changes, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04

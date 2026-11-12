@@ -404,7 +404,7 @@ fn entity_votes_doc() -> Document {
 /// `RoundTripTypedDocument` caller, so they are budgeted before they are
 /// read and checked in linear time once they are.
 #[test]
-fn member_lists_are_budgeted_and_checked_in_linear_time() {
+fn member_lists_are_budgeted_and_long_ones_validate() {
     let mut doc = insertion_and_deletion();
     tokens_everywhere(&mut doc);
     let msg = typed("v", &doc, ViewId(1), OffsetMode::Utf8).unwrap();
@@ -426,13 +426,14 @@ fn member_lists_are_budgeted_and_checked_in_linear_time() {
     let over = u32::try_from(MAX_FRAGMENTS + 1).unwrap();
     let message = refused(&msg, |m| with(m, over));
     assert!(message.contains("max_fragments"), "{message}");
-    // Within it: a long well-formed list validates in time linear in its length.
-    let mut big = msg.clone();
-    with(&mut big, 200_000);
-    let started = std::time::Instant::now();
-    validate_typed_document(&big).unwrap();
-    let elapsed = started.elapsed();
-    assert!(elapsed < std::time::Duration::from_secs(5), "200k members took {elapsed:?}");
+    // Within it: a long well-formed list validates at both sizes. The unit
+    // test next to the check counts the member reads, so nothing here
+    // depends on the clock.
+    for n in [50_000u32, 200_000] {
+        let mut big = msg.clone();
+        with(&mut big, n);
+        validate_typed_document(&big).unwrap();
+    }
     // Votes carry fragments of their own and count too.
     let voted = entity_votes_doc();
     let mut votes = typed("w", &voted, ViewId::SOURCE, OffsetMode::Utf8).unwrap();

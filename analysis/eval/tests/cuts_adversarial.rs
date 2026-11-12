@@ -5,9 +5,10 @@ use std::{
 use turbo_analysis::{Document, IxRange, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences};
 use turbo_eval::cuts::{Dump, Header, Writer, compare_dirs, compare_dumps, cuts_path};
+use turbo_scratch::Scratch;
 
-fn dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("cuts-review-{}-{name}", std::process::id()));
+fn dir(name: &str) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("cuts-review-{}-{name}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     dir
 }
@@ -131,8 +132,12 @@ fn header_only_truncations_must_not_report_identical() {
         fs::write(&path, &bytes[..m + 4 + n]).unwrap();
     }
     let compared = compare_dirs(&a, &b);
-    let cli =
-        std::process::Command::new(env!("CARGO_BIN_EXE_turbo-eval")).arg("cuts").arg(&a).arg(&b).output().unwrap();
+    let cli = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-eval"))
+        .arg("cuts")
+        .arg(a.path())
+        .arg(b.path())
+        .output()
+        .unwrap();
     assert!(
         compared.is_err() && !cli.status.success(),
         "corrupt artifacts produced successful comparison: {:?}; CLI status={}, stdout={}",

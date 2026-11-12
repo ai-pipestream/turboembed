@@ -49,11 +49,10 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 | `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
 | `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
-| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:pos`, `turbo-tagger:entities`, `turbo-tagger:dependencies`, `turbo-tagger:lemmas` | `turbo:structure`, `Sentences`, `Tokens`, `PosTags`, `Entities`, `Dependencies`, `Lemmas` | `TASK_EMBED`, `head.pos`, `head.entities`, `head.dependencies`, `head.lemmas` |
-| `annotate-v2` | `"2"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
+| `annotate-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo-tagger:heads` | `turbo:structure`, `Sentences`, `Tokens`, then the layers of every head step the bundle lists | `TASK_EMBED`, `head.any` |
 
-`annotate-v1` keeps its fixed four heads. `annotate-v2` (#1832) is
-capability driven: it runs every head step the selected bundle lists in
+`annotate-v1` (#1775, #1832) is capability driven: it runs every head
+step the selected bundle lists in
 `head_steps`, so a partial bundle (a span-classifier-only entity bundle,
 say) runs what it carries, and `head.any` is met by any bundle with a
 head. When the bundle has a learned sentence head, `turbo-tagger:sentences`
@@ -107,7 +106,7 @@ The refusals are named in the message:
 |---|---|---|
 | `requires bundle 'head.*'` | the bundle has no head the step takes | `TURBO_E_BUNDLE_NOT_FOUND` |
 | `missing head` | the selected name is no head of the bundle | `TURBO_E_BUNDLE_NOT_FOUND` |
-| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v2`) | `TURBO_E_INVALID_ARGUMENT` |
+| `ambiguous head` | several heads fit and none is selected (also under `turbo-tagger:heads` and `annotate-v1`) | `TURBO_E_INVALID_ARGUMENT` |
 | `unsupported head` | the selected head is of another kind, layer or scheme | `TURBO_E_UNSUPPORTED_TASK` |
 | `ambiguous output` | two steps write one output: a step named twice, `turbo-tagger:sentences` beside `turbo-sentdetect:rules`, or `turbo-tagger:entities` beside `turbo-geo:names` | `TURBO_E_INVALID_ARGUMENT` |
 
@@ -127,7 +126,8 @@ and the most layer taps any head reads. The windows follow one plan:
 - With no whole-view head among the steps, the source view's `Tokens` are
   read a sentence at a time (the `Sentences` layer, or the tokens'
   sentence column), each sentence in windows of whole words when it is
-  longer than a row. This is the `annotate-v1` read.
+  longer than a row. This is the `annotate-v1` read on a bundle of
+  word-level heads.
 - With `turbo-tagger:sentences` or `turbo-tagger:coref`, the view's
   tokens are read once as one sequence, in windows of whole words. Those
   heads decode from it, and every sentence-scoped head decodes from its
@@ -169,9 +169,73 @@ package's own tokenizer when present, including normalized-view projection, so
 smart chunking works without another embedding bundle.
 
 Remaining limits: a step runs over the source view only; under
-`annotate-v2` a bundle with two heads for one step is refused as
-ambiguous rather than run twice; a learned sentence step cannot follow a
-normalizer.
+`annotate-v1` a bundle with two heads for one step is refused as
+ambiguous rather than run twice; and a learned sentence step cannot follow a
+normalizer. The rule sentence step after `turbo:normalize:case-fold` reads
+the source, or the last view written before the fold, so its boundaries
+match the same request without the fold. When the fold comes first, that
+is the unnormalized request; after another normalizer, such as
+`turbo:normalize` then the fold, it is the request with that normalizer
+and no fold.
+
+`server/tests/full_text_graph.rs` is the in-process acceptance of the
+model-free stages: `compile_analyzer` with normalization, structure,
+sentences, tokens, abbreviations, terms, stems, stopwords, keywords, the
+place-name gazetteer (`turbo-geo:names`), PII, numbers, money, dates and
+both boundary layers, over UTF-8 text with a heading, two paragraphs, a
+ligature NFKC unfolds, two characters outside the Basic Multilingual
+Plane, a combining mark, sharp s and dotted capital I. It checks each
+layer's source slices, UTF-16 and code point offsets against counts
+made from the text itself (one more UTF-16 unit per surrogate pair) and
+their round trips, projection into the normalized and the case-folded
+view and back, a byte-identical export, import and re-export,
+deterministic runs, empty input and a 600-sentence document. A stage the request cannot run is
+refused by name: `turbo:chunker` without a bundle (it reads
+`turbo:subwords`), `turbo:gliner` without `open_span`,
+`turbo:zero-shot-relations` without relation labels, and an unknown step.
+A document over `turbo:zero-shot-relations`' limits (its mention and
+pair caps, and the GLiNER2 encoder's `max_sequence` of word pieces)
+fails that step with `TURBO_E_CAPACITY`, and the failure message names
+the limit and both counts, for example `step 'turbo:zero-shot-relations'
+failed: over its encoder max_sequence 512, got 528`; never the text.
+`turbo:gliner` packs whole sentences and never splits one, so a sentence
+over its limits fails that step the same way: `max_tokens` (384 tokens in
+one sentence) and `encoder max_sequence` (the schema prompt, the
+sentence's word pieces and the end token against the encoder's
+positions). A long document of ordinary sentences is not over either: it
+is read in windows. Labels whose prompt alone leaves no room for a piece
+of text fail the step as `label prompt max_sequence`: there the fix is
+fewer or shorter labels, and no shorter text helps. The other steps that run an encoder (the sentence,
+subword, sparse, vector and head steps, and `turbo:gliner` on a
+`HEAD_OPEN_SPAN` bundle) window their input and have no length limit of
+their own.
+
+`server/tests/full_text_graph_served.rs` runs the same text through a
+real server with the release packages: GLiNER small v2.5 for
+`turbo:gliner` and GLiNER2 base v1 for `turbo:zero-shot-relations`, both
+loaded with `LoadBundle` and named by `turbo_pins::require` (set
+`GLINER_PACKAGE` and `GLINER2_PACKAGE`, run with `--ignored`). Its steps
+are the model-free stages above without the gazetteer, whose `Entities`
+GLiNER writes, then `turbo:subwords`, both model stages and
+`turbo:chunker`. The served graph is byte-identical to the graph
+`compile_analyzer_with_models` writes in process from the same packages,
+for that text, for empty text, and for a sentence whose word pieces are
+over the relation encoder's 512, where the relation step fails with
+`TURBO_E_CAPACITY` in both and every other layer is the same. The test
+also checks entity and PII source slices, UTF-16 offsets past the
+astral characters, relation mentions that link entities in the graph,
+deduplicated edges, verified evidence, model provenance equal to the
+digests `Capabilities` reports, a byte-identical second run and a
+byte-identical `RoundTripDocumentGraph`. It reads the graph back through
+the inspection calls too: `InspectDocumentGraph` in UTF-16 units gives
+every entity at the offsets the graph maps it to and every relation over
+the graph's entity rows, each layer naming the package the server
+reports as its model, and `InspectDocumentWindow`, 64 bytes a page, pages
+through the whole source with every entity on a page. The run with the
+release packages is recorded in
+`analysis/eval/records/full-text-graph-1948/README.md`.
+The step's layer error, in the step failure, the complete graph and
+the receipt, has kind `LAYER_ERROR_KIND_LIMIT` and the same code.
 
 When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
 `turbo:normalize:case-fold`, `turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
@@ -183,6 +247,24 @@ layers bi-directionally back to `ViewId::SOURCE` at their default keys so
 1-to-1 `Ix<L>` alignment with `Vectors<Sentences>`, `Vectors<Chunks>`, and
 `SparseTerms<View>` is preserved across UTF-8, UTF-16, and Unicode code-point
 offset modes.
+
+Two of those steps match text as written and so read the cased view: the
+rule sentence step (`turbo-sentdetect:rules`) and the place-name step
+(`turbo-geo:names`, `turbo:entities`). In a chain with
+`turbo:normalize:case-fold` they read the chain with the fold steps left
+out (or the source when the fold is the only normalizer), so every
+non-fold normalizer in the chain still reaches them wherever the fold
+sits, and their spans are in source offsets as always. No extra view is
+built when the chain has no fold, has the fold last, or the request has
+no step that reads cased text. A full fold also
+rewrites spellings (`ﬁ` to `fi`, `ſ` to `s`), as NFKC (`turbo:normalize`,
+`turbo:normalize:nfkc`) does, which would otherwise turn words the text
+does not write into place names. Tokens, subwords and the steps that read
+them keep reading the last view, folded. Structure blocks read it too and
+do not depend on case. Every other step reads the source.
+`server/tests/case_fold_sentences.rs` and
+`server/tests/progressive_case_fold_names.rs` hold the two steps to the
+results of the same request without the fold.
 
 Span offsets cross in the unit a message names (`OffsetMode` on
 `ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and
@@ -389,7 +471,13 @@ default: start it with `--admin` (docs/grpc.md, Flags) to answer them
 and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
 `LoadBundleRequest` accepts either an explicit `device` index or
 `select_device = true` (with `device = 0`) to pick a device for the
-bundle's task via `turbo_runtime_select`, and any load or session creation
+bundle's task via `turbo_runtime_select`, and optionally `vocabulary`
+(`VocabularyBinding`, field 13, issue #2013; see
+[docs/grpc-vocabulary.md](grpc-vocabulary.md)) to bind stored
+`stopwords` and `glossary` artifacts (`VocabularyArtifactRef`:
+`artifact_id` plus `sha256`) as the bundle's default vocabulary,
+advertised on `BundleCapabilities.vocabulary` (field 10). Any load,
+vocabulary resolution, or session creation
 failure returns its mapped gRPC status code with `turbo-code` and
 `turbo-field` trailing metadata (docs/kserve.md, Errors).
 On a server started with a catalog (docs/grpc-catalog.md), a bundle whose
@@ -544,7 +632,9 @@ carry the view's words (sentence text, token surfaces, lemmas), so while
 the text is withheld they are listed with their status and no
 annotations. A typed result is refused on validation when a mention's
 value is missing or has no form, is an empty clear value, a token that is
-not 32 bytes or names no key id and version, or a ciphertext (#1885).
+not 32 bytes or names no key id and version, or a ciphertext that is
+empty, names no key id and version, or names a scheme other than
+`turbo-pii-aes-256-gcm-v1` (#1885).
 The result envelope (#1907) is kept: it carries digests and lengths of
 the texts and the edit chain's offsets, never a text.
 
@@ -587,18 +677,19 @@ and the stacks are built from the projected view's tokens.
 - `full_text`: source and view texts and graph bytes, as for a document
   without PII.
 - `detail`: candidates and evidence detail (#1903).
-- `values`: `UNSPECIFIED` or `WITHHELD` withholds them. `TOKEN` and
-  `CLEAR` are released by `InspectDocumentGraph` only, as the next section
-  says; `CIPHERTEXT` (#1885), and a value form on any other call or on a
-  server without PII release, are refused with
-  `TURBO_E_UNSUPPORTED_OPTION` (`UNIMPLEMENTED`).
+- `values`: `UNSPECIFIED` or `WITHHELD` withholds them. `TOKEN`,
+  `CIPHERTEXT` and `CLEAR` are released by `InspectDocumentGraph` only,
+  as the next section says. A value form on any other call or on a
+  server without PII release, and `CIPHERTEXT` on a server that releases
+  no ciphertext, are refused with `TURBO_E_UNSUPPORTED_OPTION`
+  (`UNIMPLEMENTED`).
   A token or ciphertext names its key in `key_id` and `key_version`, the
   identity (id, version) of a `PiiPolicyKeyRef`.
 
 The server caps the options with `--pii-output-allow`
 (`TURBO_KSERVE_PII_OUTPUT_ALLOW`): `none`, or a comma-separated list of
-`rewritten-text`, `full-text`, `detail`, and the value forms `token` and
-`clear`. Unset, the three text options are allowed, since a caller of
+`rewritten-text`, `full-text`, `detail`, and the value forms `token`,
+`ciphertext` and `clear`. Unset, the three text options are allowed, since a caller of
 these calls sent the text it asks back, and no value form is. A request for an
 option the server does not allow is refused with `TURBO_E_INVALID_STATE`
 (`FAILED_PRECONDITION`) naming it; nothing is dropped silently. Sink items
@@ -630,12 +721,13 @@ needed.
 
 `--pii-grant FINGERPRINT:FORMS:KINDS` (repeated, or
 `TURBO_KSERVE_PII_GRANTS` as a `;`-separated list) grants the service
-with that fingerprint the forms in `FORMS` (`token`, `clear`, or
-`token+clear`) for the built-in kinds in `KINDS` (comma-separated names,
-or `*` for every kind, caller-defined kinds included). Grants of one
-fingerprint add up. A grant needs `--tls-cert`, `--tls-key` and
-`--tls-client-ca`, and `--pii-audit-endpoint`; `ciphertext` is refused
-until #1885.
+with that fingerprint the forms in `FORMS` (`token`, `ciphertext` and
+`clear`, joined by `+`) for the built-in kinds in `KINDS`
+(comma-separated names, or `*` for every kind, caller-defined kinds
+included). Grants of one fingerprint add up. A grant needs `--tls-cert`,
+`--tls-key` and `--tls-client-ca`, and `--pii-audit-endpoint`. A grant
+with `ciphertext` also needs a server built with the `pii-reversible`
+feature and an encryption key (#1885), as below.
 
 For each mention the forms in effect are the request's form ∩ the forms
 `--pii-output-allow` lists ∩ the release ceiling of the request's
@@ -712,6 +804,26 @@ prefixed with its length as 4 big-endian bytes (#1930). Equal values of
 one kind under one key give equal tokens; one value under two kinds
 gives two, so tokens never show that two kinds share a value. `clear`
 carries the normalized value.
+
+Ciphertexts (#1885) are AES-256-GCM under a registered encryption key,
+`--pii-encryption-key ID:VERSION:PATH` (the keys a redaction policy's
+encryption strategies name, each exactly 32 bytes). With several keys,
+`--pii-encryption-key-active ID:VERSION`
+(`TURBO_KSERVE_PII_ENCRYPTION_KEY_ACTIVE`) names the one ciphertexts are
+made under; it is refused without a grant that includes ciphertext.
+`PiiValueCiphertext` carries the scheme `turbo-pii-aes-256-gcm-v1`, the
+key's id and version, and as `ciphertext` the UTF-8 text of a
+`turbo-pii` AES-256-GCM token: the kind code as it is, its case kept
+(`builtin:3`, `custom:Badge`), `:`, and the unpadded base64url of a
+12-byte nonce, the encrypted normalized value and the 16-byte tag. The
+associated data binds the exact kind code and the context
+`turbo-kserve.pii-release.v1`, so a holder of the key decrypts it with
+`AesGcmEncryptor` under that context, and a ciphertext moved to another
+kind fails authentication. Custom kind names are case-sensitive, so that
+holds for `custom:Badge` and `custom:badge` too. Each release
+draws a fresh nonce, so, unlike tokens, equal values give different
+ciphertexts. A grant with no ciphertext kind gives the policy digest it
+gave before ciphertext release.
 
 Before any value leaves, the server records one `PiiAccessEvent` with
 `turbo.audit.v1.TurboAuditService.RecordPiiAccess`
@@ -959,8 +1071,32 @@ and detector lists, with a typed `PolicyError` naming the field.
   format template, map (inline entries or a registered dictionary, with a
   fallback that is never a map), truncate, last-N, abbreviate, keyed
   token (HMAC under a registered key), SHA-256 (unkeyed, reversible by
-  guessing for low-entropy values, never a default), static text and
-  pseudonym (per-document numbers, never a default).
+  guessing for low-entropy values, never a default), static text,
+  pseudonym (per-document numbers, never a default), ZIP Safe Harbor
+  (first three digits kept, `000` for a restricted area, the rest masked;
+  the bundled HHS 2000 Census table or the caller's own prefixes), age
+  Safe Harbor (an age of 89 or under kept, every older age written as
+  `90+`) and date (`year`: the year alone; `shift`: moved by fixed
+  years, months and days plus an optional offset a registered key
+  chooses from a context string, in the form it was written in;
+  `relative`: relative to a `yyyy-MM-dd` reference date; each mode
+  records its own `PiiStrategy`). A rule for `date` or `currency` turns
+  on the opt-in `Dates` or `Money` pack of the `turbo-pii:pii` step.
+  Two reversible arms need a server built with the `pii-reversible`
+  cargo feature: `aes_256_gcm` (an authenticated AES-256-GCM token of the
+  mention as written, bound to the kind and a `context` string; a fresh
+  nonce each time, so tokens are not linkable) and `ff1` (FF1
+  format-preserving encryption of the mention's digits or letters under
+  an alphabet and a `tweak`, every other character kept in place). Each
+  names a key registered with `--pii-encryption-key`. An `ff1` alphabet
+  that cannot hold a character every value of the rule's kind has is
+  refused when the policy loads: the digit alphabet on `email`, `url`,
+  `iban`, `bic`, `eth-address`, `aws-access-key`, `es-dni`, `es-nie` or
+  `github-token`, and the upper case alphabet on `github-token`. Any other
+  mention FF1 cannot take fails the rewrite. A server without the feature
+  does not know either arm, so the
+  policy is refused, or the entry masked and flagged under
+  `redact_and_flag_unknown`. No rpc decrypts.
 - **Default**: a kind with no rule, or no entry that applies, gets
   `default_strategy`, which is a mask or a keyed token only; unset, a
   whole-value `*` mask. The native `RewriteStrategy::default()` is the
@@ -1045,7 +1181,34 @@ An unknown name is refused without echoing it.
   position, never the path, a term or a key.
 - **References**: a keyed-token key (`PiiPolicyKeyRef`) resolves through
   the token keys registered with `--pii-token-key` (PII value release);
-  an unregistered key refuses the policy. A dictionary reference
+  an unregistered key refuses the policy. The keys of the `aes_256_gcm`
+  and `ff1` arms resolve through `--pii-encryption-key ID:VERSION:PATH`
+  (repeated, or `TURBO_KSERVE_PII_ENCRYPTION_KEYS`), whose file must hold
+  exactly 32 bytes. That flag needs a server built with `pii-reversible`;
+  without the feature it fails start-up. It does not need `--pii-grant`
+  or mTLS, unlike the token keys: encrypting during redaction releases
+  no value, it only writes ciphertext into the redacted view, so a server
+  with no grant still loads its encryption keys for these arms (#2111).
+  `--pii-encryption-key-active` still needs a grant with ciphertext, since
+  it only picks the key releases are made under.
+  Without a grant no caller need be authenticated, so those keys serve
+  the named `--pii-policy` policies only: an inline `pii_redaction`
+  policy naming one is refused (`INVALID_ARGUMENT`, "serves named
+  --pii-policy policies only"). Otherwise a caller could send its own
+  `ff1` arm with a tweak of its choosing and use the server as a
+  deterministic encryption oracle under the operator's key, matching
+  guesses over a small domain such as SSNs against stored ciphertext.
+  That narrows the oracle but does not close it: a named policy with a
+  deterministic arm (`ff1`) still encrypts whatever text a caller sends,
+  under the operator's key and tweak, and the caller reads the result
+  back. So a server with such a policy and no client authentication must
+  sit behind an ingress that authenticates callers (a sidecar, a service
+  mesh or a private network), or run with mTLS (`--tls-client-ca`); see
+  docs/grpc.md, Starting it, on putting the listener behind what a
+  deployment uses for authentication. With a grant (and so mTLS) inline
+  policies may name them as before. The two registries are separate: a token key never answers
+  for an encryption reference, or the reverse, and an encryption key
+  file holding a token key's bytes fails start-up. A dictionary reference
   (`PiiDictionaryRef`) resolves through the vocabulary store
   (`--vocabulary-dir`, docs/grpc-vocabulary.md), pinned by content: the
   stored dictionary must have exactly the reference's SHA-256 and the
@@ -1111,18 +1274,26 @@ and `int8_ranges` among them, plus `sparse_top_k`, `sparse_floor`, and
 `token_stride`), `output`
 (`ANALYZE_OUTPUT_VECTORS` by default, `ANALYZE_OUTPUT_SPARSE_TERMS` for
 learned sparse lexical expansion, `ANALYZE_OUTPUT_TOKEN_VECTORS` for
-per-token contextual vectors and encoder window spans, or
-`ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes), and `offsets`
+per-token contextual vectors and encoder window spans,
+`ANALYZE_OUTPUT_VECTOR_CODES` for the pooled vector's quantized codes, or
+`ANALYZE_OUTPUT_DOCUMENT_GRAPH` for the progressive document graph
+pipeline), and `offsets`
 (`OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, or `OFFSET_MODE_CODE_POINT` for
-span offsets on `SparseTermsResult` and `TokenVectorsResult`), and
+span offsets on `SparseTermsResult` and `TokenVectorsResult`),
 optionally `binding` (field 7, issue #1939), the caller's `InputBinding`
-of the text: its source revision and parse artifact id and digest. The
-server echoes it as given on the document's answer
+of the text: its source revision and parse artifact id and digest, and
+optionally `vocabulary` (field 8, issue #2013), a `VocabularyBinding`
+(`stopwords` and `glossary` `VocabularyArtifactRef` pairs of
+`artifact_id` and `sha256` resolved against the vocabulary store and
+cached by digest; see [docs/grpc-vocabulary.md](grpc-vocabulary.md))
+overriding any bundle-level binding for this document. The
+server echoes `binding` as given on the document's answer
 (`AnalyzeStreamResponse.binding`, field 7), failures included, and on
 the answer's sink item, so a downstream store joins the result to the
 parse artifact; a document that sends none gets none back, and a
 `parse_artifact_digest` without a `parse_artifact_id` fails that
-document with `TURBO_E_INVALID_ARGUMENT`. The binding counts toward the
+document with `TURBO_E_INVALID_ARGUMENT`. Both `binding` and
+`vocabulary` count toward the
 document's queued bytes; a refusal over the stream's byte cap echoes it
 only when its id and binding fit that cap. Every
 document answers exactly once as an `AnalyzeStreamResponse` tagged with
@@ -1135,7 +1306,8 @@ its id:
   model's `dim`; another length is the document's
   `TURBO_E_INVALID_ARGUMENT` naming field 8, and documents batch together
   only under the same table. A `quantization` other than 0 or
-  `TURBO_QUANTIZE_NONE` with a sparse-terms or token-vectors `output`
+  `TURBO_QUANTIZE_NONE` with a sparse-terms, token-vectors, or
+  document-graph `output`
   is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output
   whose `quantization` names f32;
 - `SparseTermsResult` (`ANALYZE_OUTPUT_SPARSE_TERMS`, issue #917),
@@ -1149,9 +1321,15 @@ its id:
   pooled vector's codes as their own outcome: the same bytes
   `AnalyzeVectors` carries under `TURBO_QUANTIZE_INT8` (with the
   document's `int8_ranges` table) or `TURBO_QUANTIZE_UBINARY`, so a
-  client asks for codes without asking for vectors; or
+  client asks for codes without asking for vectors;
+- `DocumentGraphResponse` (`ANALYZE_OUTPUT_DOCUMENT_GRAPH`, field 8,
+  issue #2013), the exported document graph with its `layers` (carrying
+  `ModelRef { id: artifact_id, revision: format_id, sha256 }` on any
+  bound `turbo:stopwords`, `turbo:keywords`, or `turbo:glossary-terms`
+  layer) and `findings` (`TypedDocumentResult`); or
 - `AnalyzeFailure` with the turbo status code, field and refusal the
-  single-document call would carry.
+  single-document call would carry (including `TURBO_E_INVALID_ARGUMENT`
+  when a `vocabulary` reference fails digest or format validation).
 A failed document never ends the stream; unknown model, unknown option
 value, missing MLM head, and an over-limit document all answer this way,
 and a batch whose write fails is retried one document at a time so the
@@ -1211,7 +1389,7 @@ and `ANALYZE_OUTPUT_TOKEN_VECTORS` over `AnalyzeStream` against in-process
 `ColBERT` projection bundles in all three `OffsetMode`s.
 `server/tests/progressive_heads.rs`, `progressive_heads_all.rs` and
 `progressive_heads_rows.rs` prove the head steps on sealed tiny bundles:
-`annotate-v1` and `annotate-v2` layers field for field against the
+`annotate-v1` layers field for field against the
 tagger crate's annotators (partial bundles, morphology, BIO and span
 entities, relations, learned sentences, word splits, coreference) on
 Unicode text read in several windows, every head layer's offsets in all

@@ -58,13 +58,14 @@ pub(crate) fn ze(what: &str, rc: ze::Status) -> Res<()> {
 }
 
 /// DEVICE_LOST covers hangs, resets, removal and driver updates. The
-/// timeout/reset observations in #1433 do not identify every loss's cause,
-/// and a new context cannot recover a device that is still unavailable.
+/// engine resets seen in #1433 and #1765 do not identify every loss's
+/// cause, and a new context cannot recover a device that is still
+/// unavailable.
 fn device_lost(what: &str) -> String {
     format!(
         "levelzero: {what} failed with 0x70000001 (device lost): possible device hang, reset, removal \
          or driver update; this status alone does not identify the cause. Check driver/kernel logs \
-         (a job timeout is one possibility). Stop using any affected context, release its resources \
+         (an engine reset is one possibility). Stop using any affected context, release its resources \
          and the context, and create a new one once the device is available"
     )
 }
@@ -184,7 +185,17 @@ pub(crate) use quantize::buffer_quantize;
 impl Drop for Context {
     fn drop(&mut self) {
         if profiling() {
-            let p = std::mem::take(self.profile.get_mut().unwrap_or_else(|p| p.into_inner()));
+            #[cfg_attr(not(feature = "levelzero-onednn"), allow(unused_mut))]
+            let mut p = std::mem::take(self.profile.get_mut().unwrap_or_else(|p| p.into_inner()));
+            // oneDNN's primitives run on its own queue, timed there.
+            #[cfg(feature = "levelzero-onednn")]
+            if let Some(Some(d)) = self.dnnl.get() {
+                for (name, n, ns) in d.profile() {
+                    let entry = p.entry(name).or_default();
+                    entry.0 += n;
+                    entry.1 += ns;
+                }
+            }
             let total: u64 = p.values().map(|v| v.1).sum();
             for (name, (n, ns)) in p.iter() {
                 let share = 100.0 * *ns as f64 / total.max(1) as f64;
@@ -280,7 +291,8 @@ pub(crate) unsafe fn create(
     ze("zeCommandListCreateImmediate", unsafe {
         (api.command_list_create_immediate)(handle, dev.handle, &queue_desc(), &mut q.list)
     })?;
-    ctx.say(LOG_DEBUG, &format!("levelzero context on device {ordinal} ({}): one in-order queue", dev.name));
+    let faults = crate::ze::page_faults_off().describe();
+    ctx.say(LOG_DEBUG, &format!("levelzero context on device {ordinal} ({}): one in-order queue, {faults}", dev.name));
     unsafe { *out = Box::into_raw(ctx) as *mut c_void };
     Ok(())
 }
@@ -393,7 +405,7 @@ mod tests {
     fn a_lost_device_says_the_context_is_gone() {
         let lost = ze("zeCommandListHostSynchronize", ze::RESULT_ERROR_DEVICE_LOST).unwrap_err();
         assert_eq!(lost.code, RUNTIME);
-        for part in ["zeCommandListHostSynchronize failed with 0x70000001 (device lost)", "job timeout", "new one"] {
+        for part in ["zeCommandListHostSynchronize failed with 0x70000001 (device lost)", "engine reset", "new one"] {
             assert!(lost.message.contains(part), "{part:?} not in {:?}", lost.message);
         }
         let other = ze("zeEventHostSynchronize", 0x7800_0004).unwrap_err();

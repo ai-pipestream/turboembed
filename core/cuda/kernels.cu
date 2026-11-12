@@ -356,6 +356,7 @@ __global__ void __launch_bounds__(PACK_BLOCK) pack_rows_kernel(PackArgs a) {
         in.items = items;
         in.ranges = a.run.ranges;
         in.head = a.run.head;
+        in.taps = a.run.taps;
         *p.info = in;
     }
     __syncthreads();
@@ -507,6 +508,10 @@ __global__ void __launch_bounds__(ROW_BLOCK)
     }
 }
 
+/* The block of a run's output that the layer with back layers after it
+ * writes (kernels.h, pool): under 0 for a layer the run does not read. */
+__device__ __forceinline__ int pool_block(const Info &in, int back) { return (in.taps > 1 ? in.taps : 1) - 1 - back; }
+
 #include "rotary.cuh"
 
 /* A thread per column of the pooled vector, a block per row. */
@@ -563,9 +568,12 @@ __device__ __forceinline__ float4 pool_quad(const __half *p) {
  * before it adds any, then adds them in position order. */
 template <typename TIn>
 __global__ void __launch_bounds__(POOL_BLOCK)
-    pool_kernel(const TIn *x, const int32_t *rows, Packing p, int hidden, float *out) {
+    pool_kernel(const TIn *x, const int32_t *rows, Packing p, int hidden, int back, float *out) {
     __shared__ float red[POOL_WARPS];
     const Info in = *p.info;
+    const int block = pool_block(in, back);
+    if (block < 0) return;
+    out += (size_t)block * in.ranges * in.output_dim;
     const int32_t *mask = mask_of(rows, in);
     const int vectors = in.ranges > 0 ? in.ranges : in.batch;
     for (int i = blockIdx.x; i < vectors; i += gridDim.x) {
@@ -659,11 +667,14 @@ constexpr int POOL_QUADS_AHEAD = 8;
  * normalization and is written once. */
 template <typename TIn>
 __global__ void __launch_bounds__(POOL_BLOCK)
-    pool_split_kernel(const TIn *x, const int32_t *rows, Packing p, int hidden, float *out) {
+    pool_split_kernel(const TIn *x, const int32_t *rows, Packing p, int hidden, int back, float *out) {
     __shared__ float4 part[POOL_BLOCK];
     __shared__ unsigned counts[POOL_GROUPS];
     __shared__ float red[POOL_WARPS];
     const Info in = *p.info;
+    const int block = pool_block(in, back);
+    if (block < 0) return;
+    out += (size_t)block * in.ranges * in.output_dim;
     const int32_t *mask = mask_of(rows, in);
     const int quads = (in.output_dim + 3) / 4;
     const bool mean = in.pooling != TURBO_POOLING_CLS && in.pooling != TURBO_POOLING_LAST;
@@ -3136,6 +3147,10 @@ __global__ void __launch_bounds__(256) gelu_epilogue_kernel(const float *raw, Ge
 // the masked values. Its largest score is then a masked key's, at or
 // below MASKED_SCORE; a live key's never is.
 constexpr float MASKED_SCORE = -1e29f;
+
+/* Whether key k is outside query q's band (AttnArgs): more than back keys
+ * before it or more than w after it. */
+__device__ __forceinline__ bool off_band(int q, int k, int w, int back) { return k - q > w || q - k > back; }
 //
 // Work items are (row, head, query tile), rows longest first as the
 // packing ordered them; a block loops over items. Keys and values of the
@@ -3281,8 +3296,8 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
         for (int c = 0; c < HD; c++) o[c] = 0.0f;
         float m = -INFINITY, l = 0.0f;
         // A sliding window's keys: those some query of the block reads.
-        const int w = a.window;
-        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int w = a.window, wb = a.back;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - wb);
         const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + SIMT_ATT_QUERIES + w);
         for (int c0 = k_lo; c0 < k_hi; c0 += chunk) {
             const int cn = min(chunk, k_hi - c0);
@@ -3301,7 +3316,7 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
                 for (int u = 0; u < G; u++) {
                     const int j = j0 + u;
                     s[u] = j < khi ? dot_row<HD>(qr, Ks + (size_t)j * HD) * a.scale + (it.holes ? kbs[j] : 0.0f) +
-                                         (w >= 0 && abs(q - (c0 + j)) > w ? -1e30f : 0.0f)
+                                         (w >= 0 && off_band(q, c0 + j, w, wb) ? -1e30f : 0.0f)
                                    : -INFINITY;
                 }
                 float mx = m;
@@ -3500,13 +3515,13 @@ __device__ __forceinline__ void tiled_item(const AttnArgs &a, const Item &it, in
 #pragma unroll
         for (int w = 0; w < W; w++) o[i][w] = 0.0f;
     }
-    const int w = a.window;
-    const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+    const int w = a.window, wb = a.back;
+    const int k_lo = w < 0 ? 0 : max(0, it.q0 - wb);
     const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + nq + w);
     for (int c0 = k_lo; c0 < k_hi; c0 += TILED_CHUNK) {
         const int cn = min(TILED_CHUNK, k_hi - c0);
         const bool whole = d == HD && cn == TILED_CHUNK && !it.holes &&
-                           (w < 0 || (c0 >= it.q0 + nq - 1 - w && c0 + TILED_CHUNK - 1 <= it.q0 + w));
+                           (w < 0 || (c0 >= it.q0 + nq - 1 - wb && c0 + TILED_CHUNK - 1 <= it.q0 + w));
         __syncthreads();
         if (whole) {
 #pragma unroll
@@ -3607,7 +3622,7 @@ __device__ __forceinline__ void tiled_item(const AttnArgs &a, const Item &it, in
                 } else {
                     const int k = 4 * tx + j;
                     s[i][j] = k < cn ? s[i][j] * a.scale + kbs[j] +
-                                           (w >= 0 && abs(it.q0 + QPT * ty + i - (c0 + k)) > w ? -1e30f : 0.0f)
+                                           (w >= 0 && off_band(it.q0 + QPT * ty + i, c0 + k, w, wb) ? -1e30f : 0.0f)
                                      : -INFINITY;
                 }
                 mx = fmaxf(mx, s[i][j]);
@@ -3735,8 +3750,8 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
         float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
 
-        const int w = a.window;
-        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int w = a.window, wb = a.back;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - wb);
         const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + MMA_QUERIES + w);
         for (int c0 = k_lo; c0 < k_hi; c0 += chunk) {
             const int cn = min(chunk, k_hi - c0), padded = (cn + 63) & ~63;
@@ -3787,7 +3802,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
                         else if (it.holes)
                             v += kbs[key];
                         if (w >= 0 && key < cn &&
-                            abs(it.q0 + warp * 16 + (lane >> 2) + (e >> 1) * 8 - (c0 + key)) > w)
+                            off_band(it.q0 + warp * 16 + (lane >> 2) + (e >> 1) * 8, c0 + key, w, wb))
                             v += -1e30f;
                         s[j][e] = v;
                         mx[e >> 1] = fmaxf(mx[e >> 1], v);
@@ -3937,7 +3952,7 @@ template <int D, int MT, bool WHOLE, bool EXACT, bool ACC16, int KEYS, typename 
 __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT (&o)[MT][D / 8][OW],
                                          float (&m)[MT][2], float (&l)[MT][2], const __half *Ks, const __half *Vs,
                                          const float *kb, int cn, int holes, float sl2, int lane, int q0,
-                                         int k0, int w) {
+                                         int k0, int w, int wb) {
     constexpr int LD = D + 8, DK = D / 16, DN = D / 8, NJ = KEYS / 8, NK = KEYS / 16;
     float s[MT][NJ][4];
     if constexpr (!EXACT) {
@@ -4000,7 +4015,7 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
                     // A key outside a sliding window's band (w >= 0) is
                     // masked as a masked key is.
                     const int key = j * 8 + (lane & 3) * 2 + (e & 1);
-                    const bool out = w >= 0 && abs(q0 + t * 16 + (lane >> 2) + (e >> 1) * 8 - (k0 + key)) > w;
+                    const bool out = w >= 0 && off_band(q0 + t * 16 + (lane >> 2) + (e >> 1) * 8, k0 + key, w, wb);
                     if (key >= cn) {
                         v = -INFINITY;
                     } else if (EXACT) {
@@ -4178,8 +4193,8 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
     // item's queries and first chunk, and its second.
     // An item's keys: the row's, or a sliding window's (w >= 0) band
     // about the block's queries, from a whole chunk; [first, end).
-    const int w = a.window;
-    auto first_key = [&](const Item &x) { return w < 0 ? 0 : max(0, x.q0 - w) / KEYS * KEYS; };
+    const int w = a.window, wb = a.back;
+    auto first_key = [&](const Item &x) { return w < 0 ? 0 : max(0, x.q0 - wb) / KEYS * KEYS; };
     auto end_key = [&](const Item &x) { return w < 0 ? x.n : min(x.n, x.q0 + FA_QUERIES + w); };
     auto chunks_of = [&](const Item &x) { return (end_key(x) - first_key(x) + KEYS - 1) / KEYS; };
     Item it = decode(a, item, batch);
@@ -4237,17 +4252,17 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
             cp_async_commit();
             // In a window, a chunk wholly outside the warp's band is not
             // read, and one wholly inside it is as a chunk of no window.
-            const bool beyond = w >= 0 && (c0 > wq1 + w || c0 + cn - 1 < wq0 - w);
-            const bool inside = w < 0 || (c0 >= wq1 - w && c0 + cn - 1 <= wq0 + w);
+            const bool beyond = w >= 0 && (c0 > wq1 + w || c0 + cn - 1 < wq0 - wb);
+            const bool inside = w < 0 || (c0 >= wq1 - wb && c0 + cn - 1 <= wq0 + w);
             if (live && !beyond) {
                 const __half *Ks = KV + (size_t)(2 * b) * KEYS * LD, *Vs = Ks + KEYS * LD;
                 const float *kb = kbs + b * KEYS;
                 if (cn == KEYS && !it.holes && inside)
                     fa_chunk<D, MT, true, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane, wq0,
-                                                              c0, -1);
+                                                              c0, -1, -1);
                 else
                     fa_chunk<D, MT, false, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane, wq0,
-                                                               c0, inside ? -1 : w);
+                                                               c0, inside ? -1 : w, wb);
             }
         }
         if (live) {
@@ -4537,7 +4552,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     if (e != cudaSuccess) return e;
 
     // The row kernels too, for this width.
-    const void *rows[13] = {reinterpret_cast<const void *>(pack_rows_kernel),
+    const void *rows[14] = {reinterpret_cast<const void *>(pack_rows_kernel),
                             reinterpret_cast<const void *>(pool_kernel<float>),
                             nullptr,
                             nullptr,
@@ -4547,6 +4562,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
                             nullptr,
                             reinterpret_cast<const void *>(pool_kernel<__half>),
                             reinterpret_cast<const void *>(pool_split_kernel<__half>),
+                            nullptr,
                             nullptr,
                             nullptr,
                             nullptr};
@@ -4560,6 +4576,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
         rows[10] = reinterpret_cast<const void *>(rotary_embed_kernel<V>);
         rows[11] = reinterpret_cast<const void *>(add_norm_into_kernel<V, false>);
         rows[12] = reinterpret_cast<const void *>(add_norm_into_kernel<V, true>);
+        rows[13] = reinterpret_cast<const void *>(norm_into_kernel<V>);
         return cudaSuccess;
     });
     for (const void *fn : rows)
@@ -4660,17 +4677,26 @@ cudaError_t add_norm_into(cudaStream_t s, float *x, const float *y, const uint16
 }
 
 cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int32_t *rows, const Packing &p,
-                 int hidden, float *out, const Plan &plan) {
+                 int hidden, int back, float *out, const Plan &plan) {
     const __half *h = reinterpret_cast<const __half *>(x16);
     if (plan.column_pool && x16)
-        pool_kernel<__half><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(h, rows, p, hidden, out);
+        pool_kernel<__half><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(h, rows, p, hidden, back, out);
     else if (plan.column_pool)
-        pool_kernel<float><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, out);
+        pool_kernel<float><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, back, out);
     else if (x16)
-        pool_split_kernel<__half><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(h, rows, p, hidden, out);
+        pool_split_kernel<__half><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(h, rows, p, hidden, back, out);
     else
-        pool_split_kernel<float><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, out);
+        pool_split_kernel<float><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, back, out);
     return cudaGetLastError();
+}
+
+cudaError_t norm_into(cudaStream_t s, const float *x, const float *ln_w, const float *ln_b, float eps,
+                      const Info *info, int hidden, int back, float *out, const Plan &plan) {
+    return with_row_width(hidden, [&](auto v) {
+        norm_into_kernel<decltype(v)::value>
+            <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, ln_w, ln_b, eps, info, hidden, back, out);
+        return cudaGetLastError();
+    });
 }
 
 cudaError_t span_head(cudaStream_t s, const float *pooled, const float *w, int head_out, int hidden, const Info *info,

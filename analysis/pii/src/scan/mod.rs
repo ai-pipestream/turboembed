@@ -6,7 +6,11 @@ mod address;
 mod age;
 mod br;
 mod card;
+mod city;
+mod city_bare;
+mod county;
 mod crypto;
+mod date;
 mod email;
 mod es_de;
 mod extension;
@@ -16,10 +20,12 @@ mod jws;
 mod jwt;
 mod labelled;
 mod logistics;
+mod money;
 mod national;
 mod network;
 mod phone;
 mod secrets;
+mod state;
 mod url;
 mod us;
 mod us_labelled;
@@ -70,6 +76,16 @@ pub enum Extractor {
     UsAddress,
     /// `AgePiiExtractor`: ages in years.
     Age,
+    /// `TemporalPiiExtractor`: calendar dates naming a day, week or month.
+    Temporal,
+    /// `MoneyPiiExtractor`: amounts of money with their currency.
+    Money,
+    /// `UsStatePiiExtractor`: United States states and territories.
+    UsState,
+    /// `UsCountyPiiExtractor`: United States counties of the Census list.
+    UsCounty,
+    /// `CityPiiExtractor`: cities of the bundled gazetteer, by state or label.
+    City,
     /// A caller-defined extractor (`PiiExtractor`).
     Custom(&'static str),
 }
@@ -97,6 +113,11 @@ impl Extractor {
             Extractor::PhoneExtension => PiiKinds::of(&[PhoneExtension]),
             Extractor::UsAddress => PiiKinds::of(&[StreetAddress]),
             Extractor::Age => PiiKinds::of(&[Age]),
+            Extractor::Temporal => PiiKinds::of(&[Date]),
+            Extractor::Money => PiiKinds::of(&[Currency]),
+            Extractor::UsState => PiiKinds::of(&[State]),
+            Extractor::UsCounty => PiiKinds::of(&[County]),
+            Extractor::City => PiiKinds::of(&[City]),
             Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
@@ -119,6 +140,11 @@ impl Extractor {
             Extractor::PhoneExtension => "PhoneExtensionPiiExtractor",
             Extractor::UsAddress => "UsAddressPiiExtractor",
             Extractor::Age => "AgePiiExtractor",
+            Extractor::Temporal => "TemporalPiiExtractor",
+            Extractor::Money => "MoneyPiiExtractor",
+            Extractor::UsState => "UsStatePiiExtractor",
+            Extractor::UsCounty => "UsCountyPiiExtractor",
+            Extractor::City => "CityPiiExtractor",
             Extractor::Custom(name) => name,
         }
     }
@@ -143,6 +169,11 @@ impl Extractor {
             Extractor::PhoneExtension => "turbo-pii:phone-extension",
             Extractor::UsAddress => "turbo-pii:us-address",
             Extractor::Age => "turbo-pii:age",
+            Extractor::Temporal => "turbo-pii:temporal",
+            Extractor::Money => "turbo-pii:money",
+            Extractor::UsState => "turbo-pii:us-state",
+            Extractor::UsCounty => "turbo-pii:us-county",
+            Extractor::City => "turbo-pii:city",
             Extractor::Custom(name) => name,
         }
     }
@@ -165,6 +196,11 @@ impl Extractor {
             Extractor::PhoneExtension => 13,
             Extractor::UsAddress => 14,
             Extractor::Age => 15,
+            Extractor::Temporal => 16,
+            Extractor::Money => 17,
+            Extractor::UsState => 18,
+            Extractor::UsCounty => 19,
+            Extractor::City => 20,
         }
     }
 }
@@ -426,7 +462,31 @@ impl Scanner {
             Extractor::PhoneExtension => extension::scan(text, hits),
             Extractor::UsAddress => address::scan(text, hits),
             Extractor::Age => age::scan(text, hits),
+            Extractor::Temporal => date::scan(text, hits),
+            Extractor::Money => money::scan(text, hits),
+            Extractor::UsState => state::scan(text, hits),
+            Extractor::UsCounty => county::scan(text, hits),
+            Extractor::City => city::scan(text, hits),
             Extractor::Custom(_) => {}
         }
     }
 }
+
+#[cfg(test)]
+thread_local! {
+    static PLACE_STEPS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[inline]
+pub(crate) fn step(n: usize) {
+    PLACE_STEPS.with(|c| c.set(c.get() + n));
+}
+
+#[cfg(not(test))]
+#[inline(always)]
+pub(crate) fn step(_: usize) {}
+
+#[cfg(test)]
+#[path = "places_tests.rs"]
+mod places_tests;

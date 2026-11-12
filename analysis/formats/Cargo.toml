@@ -27,6 +27,7 @@ turbo-stopword = { path = "../stopword" }
 turbo-stem = { path = "../stem" }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 turbo-goldens = { path = "../goldens" }
 turbo-glossary = { path = "../glossary" }
 turbo-normalize = { path = "../normalize" }

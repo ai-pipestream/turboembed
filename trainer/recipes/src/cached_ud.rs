@@ -449,8 +449,9 @@ pub fn eval_cached_tagger(
         return Ok(None);
     }
     let t_eval = Instant::now();
-    let test_layers = read_ud_layers(&p.cache_dir, cache, "test", &p.layers, test_sents, test_sents.len())?;
-    let test_f = stack_layers(&test_layers);
+    let mut test_layers = read_ud_layers(&p.cache_dir, cache, "test", &p.layers, test_sents, test_sents.len())?;
+    let test_f = if test_layers.len() == 1 { test_layers.remove(0) } else { stack_layers(&test_layers) };
+    drop(test_layers);
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), TagWork::default());
     let mut predicted = Vec::with_capacity(test_sents.len());
     for (s, f) in test_sents.iter().zip(&test_f) {

@@ -122,6 +122,7 @@ pub(crate) fn find_any_label(text: &str, start: usize, labels: &[&[u8]], allow_d
     }
     let mut end = start;
     while let Some(c) = before(text, end) {
+        crate::scan::step(1);
         if !(whitespace(c) || matches!(c, ':' | '#' | '=') || (allow_dot && c == '.')) {
             break;
         }

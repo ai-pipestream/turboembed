@@ -8,7 +8,6 @@ mod support;
 
 use support::*;
 use turbo_analysis::Span;
-use turbo_pii::checksum::sha256;
 use turbo_pii::rewrite::source_view;
 use turbo_pii::rewrite::{
     Abbreviator, FormatError, FormatRedactor, HmacTokenizer, MapError, MapReplacer, MapTarget, MaskPolicy,
@@ -16,6 +15,7 @@ use turbo_pii::rewrite::{
     TokenizerError, Truncate,
 };
 use turbo_pii::{Pii, PiiDetector, PiiKind};
+use turbo_scratch::Scratch;
 
 const PERSON_KIND: PiiKind = test_kind(0);
 const KEY: &[u8] = b"0123456789abcdef0123456789abcdef";
@@ -105,14 +105,16 @@ fn sha256_tokenizer_hashes_normalized_values_and_validates_lengths() {
     assert!(!sha.has_kind_prefix());
     assert_eq!(sha.prefix(), "");
 
-    let expected_jane: String = sha256::digest(b"jane@example.com").iter().map(|b| format!("{b:02x}")).collect();
+    let expected_jane: String =
+        turbo_sha256::sha256(b"jane@example.com").0.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(expected_jane.len(), 64);
     assert_eq!(sha.digest("email", "jane@example.com").unwrap(), expected_jane);
 
     let text = "Contact JANE@EXAMPLE.COM or jane@example.com.";
     let pii = layer(&cursor(), text);
     let r = sha.rewrite(&source_view(text), &pii).unwrap();
-    let expected_upper: String = sha256::digest(b"JANE@example.com").iter().map(|b| format!("{b:02x}")).collect();
+    let expected_upper: String =
+        turbo_sha256::sha256(b"JANE@example.com").0.iter().map(|b| format!("{b:02x}")).collect();
     assert_eq!(r.text(), format!("Contact {expected_upper} or {expected_jane}."));
     let sources: Vec<Span> = pii.mentions().map(|m| m.span).collect();
     assert_offset_and_span_maps(text, &sources, &r);
@@ -181,7 +183,7 @@ fn map_replacer_supports_inline_tsv_files_case_sensitivity_targets_and_fallbacks
     assert_eq!(from_tsv.get("jane@example.com"), Some("JANE_TSV"));
     assert_eq!(from_tsv.get("bob@example.com"), Some("BOB_TSV"));
 
-    let tmp_path = std::env::temp_dir().join(format!("turbo_pii_map_test_{}.tsv", std::process::id()));
+    let tmp_path = Scratch::at(std::env::temp_dir().join(format!("turbo_pii_map_test_{}.tsv", std::process::id())));
     std::fs::write(&tmp_path, tsv).unwrap();
     let loaded = MapReplacer::from_tsv_file(&tmp_path, true).unwrap();
     let _ = std::fs::remove_file(&tmp_path);

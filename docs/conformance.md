@@ -116,14 +116,52 @@ scale, the largest reference value in magnitude
 |---|---|
 | F32 | 1e-4 |
 | F16 | 1e-2 |
+| F16 on Metal | 1e-3 |
 | BF16 | 4e-2 |
 | I8 | 0.15 |
 
 The F32 bound is the one `core/tests/rerank.rs` and
 `core/tests/qa_inference.rs` hold the CPU to. The F16, BF16 and I8
-bounds are set from each format's precision and have not yet been
-measured on a device; a device run that fails one is to be looked at
-before the bound is changed.
+bounds were set from each format's precision; the measurements below
+are the largest difference each device gave, as a fraction of the
+scale, at FASTEST. A bound is kept at least three times the largest
+difference measured for its dtype on its devices (the F16 bound is 3.0
+times CUDA's 3.3e-3 on BGE reranker base, the largest in the table); a
+device run that fails one is to be looked at before the bound is
+changed.
+
+| Device | Compute dtype | Small rerank | Small QA | MS MARCO MiniLM L6 v2 | BGE reranker base |
+|---|---|---:|---:|---:|---:|
+| Level Zero, Arc Pro B70 | F16 | 1.5e-3 | 5.7e-4 | 4.9e-4 | 9.0e-4 |
+| Level Zero with oneDNN, Arc Pro B70 | F16 | 2.1e-3 | 1.1e-3 | 4.2e-4 | 4.6e-4 |
+| Metal, Apple M2 | F16 | 2.3e-5 | 1.0e-5 | not run | not run |
+| CUDA, RTX 4080 SUPER | F16 | 1.8e-3 | 9.4e-4 | 2.6e-3 | 3.3e-3 |
+
+The small rerank and QA columns are this check, at
+`TURBO_TEST_PRECISION=fastest`; the two real rerankers are
+`core/tests/levelzero_rerank.rs` and `core/tests/cuda_rerank.rs` with
+`TURBO_TEST_RERANK_BUNDLES` (docs/reranking.md), which hold FASTEST to
+the same bound. Level Zero
+computes in F32 or F16 only, so it measures no BF16 or I8 bound. The
+Level Zero rows were run on compute-runtime 26.27.39122.14, loader
+1.32.0 and oneAPI 2025.3.
+
+CUDA's row is FASTEST as a session makes it by default: F16 GEMM
+operands, the tensor cores' attention with its F16 probabilities, the
+tanh form of GELU, and the hidden states and GEMM products between
+LayerNorms kept in F16 (docs/cuda.md). Those choices are most of the
+difference: with `TURBO_CUDA_ATTENTION=exact`, `TURBO_CUDA_GELU=erf`,
+`TURBO_CUDA_RESIDUAL=f32` and `TURBO_CUDA_PRODUCT=f32` together, the
+two rerankers give 6.6e-4 and 1.2e-3, Level Zero's order; any one of
+the four alone leaves the larger of the two between 2.4e-3 and 3.3e-3. CUDA computes in
+F32 or F16 only, so it measures no BF16 or I8 bound. At MODEL the small
+rerank and QA checks give 2.2e-7 of the scale on CUDA, and the two
+rerankers are within 7.6e-6 of their reference scores.
+
+Metal's F16 row is the same with every linear and attention kernel
+`TURBO_METAL_CHOICES` can force, so F16 on Metal has its own bound,
+about F16's machine epsilon (9.8e-4), some 40 times the larger. Metal
+offers neither BF16 nor I8.
 
 The decisions are checked too:
 

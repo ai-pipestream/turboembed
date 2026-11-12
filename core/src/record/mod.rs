@@ -149,6 +149,29 @@ pub struct Device {
     pub driver_version: String,
     pub runtime_version: String,
     pub memory_total: u64,
+    /// The GPU clock, read just before the first timed run and just after
+    /// the last, where the tool can read it (levelzero on Linux, from the
+    /// xe driver); absent otherwise, and in a record made before the field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub clock: Option<GpuClock>,
+}
+
+/// The GPU clock around the timed runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GpuClock {
+    pub before: ClockReading,
+    pub after: ClockReading,
+}
+
+/// One reading of the GPU clock, in MHz: the lowest and highest frequency
+/// the driver may pick at the time, and the one the GPU was running at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClockReading {
+    pub min_mhz: u32,
+    pub max_mhz: u32,
+    pub act_mhz: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

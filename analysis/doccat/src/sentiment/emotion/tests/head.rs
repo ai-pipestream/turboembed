@@ -103,8 +103,8 @@ fn fitting_learns_the_labels_and_is_deterministic() {
 #[test]
 fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
     use turbo_zoo::{Acceptances, Index, Offline, Policy, Sha256, Sha512, UserId, Zoo};
-    let dir = std::env::temp_dir().join(format!("turbo-emotion-zoo-test-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-emotion-zoo-test-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let bound = head().with_model(model());
     let bytes = bound.to_bytes();
@@ -153,7 +153,7 @@ fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
         sha512 = sha512,
     );
     let index = Index::parse(index_json.as_bytes()).unwrap();
-    let zoo = Zoo::new(index, dir.clone(), Policy::default(), &Offline);
+    let zoo = Zoo::new(index, dir.to_path_buf(), Policy::default(), &Offline);
     let user: UserId = "test".parse().unwrap();
     let loaded =
         EmotionVectorHead::from_zoo(&zoo, GOEMOTIONS_MINILM_HEAD, &user, || Ok(Acceptances::default())).unwrap();
@@ -163,7 +163,7 @@ fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
         Err(EmotionZooError::Zoo(_))
     ));
     let builtin_index = Index::builtin();
-    let builtin = Zoo::new(builtin_index.clone(), dir.clone(), Policy::default(), &Offline);
+    let builtin = Zoo::new(builtin_index.clone(), dir.to_path_buf(), Policy::default(), &Offline);
     assert!(matches!(
         EmotionVectorHead::from_zoo(&builtin, "goemotions", &user, || Ok(Acceptances::default())),
         Err(EmotionZooError::NotAHead { .. })

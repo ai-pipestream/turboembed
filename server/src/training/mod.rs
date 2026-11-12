@@ -1,19 +1,26 @@
 //! The TurboTrainingService rpcs (proto/turbo_training.proto,
 //! docs/grpc-training.md): the served encoders a static model can be
-//! distilled from, the distillation itself, and the static models the
-//! training directory holds. Training and deleting are admin calls, served
-//! only with the admin flag. Without a training directory every call but
-//! ListTeachers refuses UNIMPLEMENTED.
+//! distilled from, the distillation itself, the static models the
+//! training directory holds, classical component training, and the
+//! streamed corpus and neural component jobs. Training and deleting are
+//! admin calls, served only with the admin flag. Without a training
+//! directory every call but ListTeachers, TrainComponent and a
+//! StreamingTraining component job refuses UNIMPLEMENTED.
 
+pub(crate) mod component;
+mod corpus;
 mod describe;
+mod neural;
+mod stream;
 mod train;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, Streaming};
 use turbo::bundle::Bundle;
 
 use crate::api::{
@@ -23,8 +30,10 @@ use crate::kserve::Reply;
 use crate::proto::training::turbo_training_service_server::TurboTrainingService;
 use crate::proto::training::{
     DeleteStaticModelRequest, DeleteStaticModelResponse, ListStaticModelsRequest, ListStaticModelsResponse,
-    ListTeachersRequest, ListTeachersResponse, Teacher, TrainStaticModelRequest,
+    ListTeachersRequest, ListTeachersResponse, StreamingTrainingRequest, Teacher, TrainComponentRequest,
+    TrainStaticModelRequest,
 };
+use crate::search::SearchRegistry;
 use crate::state::{Served, State};
 use crate::status::to_status;
 use crate::vocabulary::Store;
@@ -39,11 +48,15 @@ const MAX_NAME: usize = 128;
 pub(crate) struct TrainingService {
     pub(crate) state: Arc<State>,
     pub(crate) vocabulary: Option<Arc<Store>>,
+    /// The search indexes a corpus job publishes into.
+    pub(crate) search: Arc<SearchRegistry>,
     /// The training directory: one sealed static model per child.
     pub(crate) dir: Option<PathBuf>,
     pub(crate) admin: bool,
     /// Held by the one training that may run.
     training: Arc<AtomicBool>,
+    /// How long a component upload may go without a message.
+    upload_idle: Duration,
     /// Held across a name's check, rename and registration, and across a
     /// delete, so a model is published or removed whole.
     publishing: Arc<Mutex<()>>,
@@ -69,14 +82,18 @@ impl TrainingService {
     pub(crate) fn new(
         state: Arc<State>,
         vocabulary: Option<Arc<Store>>,
+        search: Arc<SearchRegistry>,
         dir: Option<PathBuf>,
         admin: bool,
+        upload_idle: Duration,
     ) -> TrainingService {
         TrainingService {
             state,
             vocabulary,
+            search,
             dir,
             admin,
+            upload_idle,
             training: Arc::new(AtomicBool::new(false)),
             publishing: Arc::new(Mutex::new(())),
         }
@@ -137,6 +154,32 @@ pub(crate) fn serving(state: &State, name: &str, dir: &Path) -> Option<Arc<Serve
     state.listing().into_iter().find(|m| m.name == name && same_dir(Path::new(&m.config.bundle), dir))
 }
 
+/// Stops serving the static model `name` and removes its directory, under
+/// the publishing lock: whether it was served, or None when the training
+/// directory has no such model.
+pub(crate) fn remove_static(
+    state: &State,
+    publishing: &Mutex<()>,
+    dir: &Path,
+    name: &str,
+) -> Result<Option<bool>, Status> {
+    let path = dir.join(name);
+    let _one = publishing.lock().unwrap_or_else(|e| e.into_inner());
+    // A child directory only: a link is never a model of this one.
+    let child = fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir());
+    if !child || !path.join("manifest.json").is_file() {
+        return Ok(None);
+    }
+    // Only the registration serving this directory goes: a model
+    // served under the same name from elsewhere is not this one.
+    let served = serving(state, name, &path);
+    if let Some(m) = &served {
+        state.remove_if(m).map_err(plain)?;
+    }
+    fs::remove_dir_all(&path).map_err(|e| runtime(format!("{}: {e}", path.display())))?;
+    Ok(Some(served.is_some()))
+}
+
 /// A served, loaded encoder a static model can be distilled from: an
 /// embedding bundle with an architecture, not itself a static model.
 pub(crate) fn teacher(m: &Served) -> Option<(Teacher, PathBuf)> {
@@ -168,6 +211,8 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, Status> + Sen
 #[tonic::async_trait]
 impl TurboTrainingService for TrainingService {
     type TrainStaticModelStream = train::UpdateStream;
+    type TrainComponentStream = component::ComponentStream;
+    type StreamingTrainingStream = stream::UpdateStream;
 
     async fn list_teachers(&self, _: Request<ListTeachersRequest>) -> Reply<ListTeachersResponse> {
         let state = self.state.clone();
@@ -202,27 +247,32 @@ impl TurboTrainingService for TrainingService {
         check_name(1, &name)?;
         let (state, publishing) = (self.state.clone(), self.publishing.clone());
         let unloaded = blocking(move || {
-            let path = dir.join(&name);
-            let _one = publishing.lock().unwrap_or_else(|e| e.into_inner());
-            // A child directory only: a link is never a model of this one.
-            let child = fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir());
-            if !child || !path.join("manifest.json").is_file() {
-                return Err(plain(Failure::new(
+            remove_static(&state, &publishing, &dir, &name)?.ok_or_else(|| {
+                plain(Failure::new(
                     TURBO_E_BUNDLE_NOT_FOUND,
                     1,
                     format!("no static model {name} in the training directory"),
-                )));
-            }
-            // Only the registration serving this directory goes: a model
-            // served under the same name from elsewhere is not this one.
-            let served = serving(&state, &name, &path);
-            if let Some(m) = &served {
-                state.remove_if(m).map_err(plain)?;
-            }
-            fs::remove_dir_all(&path).map_err(|e| runtime(format!("{}: {e}", path.display())))?;
-            Ok(served.is_some())
+                ))
+            })
         })
         .await?;
         Ok(Response::new(DeleteStaticModelResponse { unloaded }))
+    }
+
+    async fn train_component(
+        &self,
+        req: Request<Streaming<TrainComponentRequest>>,
+    ) -> Reply<Self::TrainComponentStream> {
+        // Nothing is kept, so no training directory is needed.
+        self.admin("TrainComponent")?;
+        Ok(Response::new(component::start(req.into_inner(), self.training.clone(), self.upload_idle).await?))
+    }
+
+    async fn streaming_training(
+        &self,
+        req: Request<Streaming<StreamingTrainingRequest>>,
+    ) -> Reply<Self::StreamingTrainingStream> {
+        self.admin("StreamingTraining")?;
+        Ok(Response::new(stream::start(self, req.into_inner()).await?))
     }
 }

@@ -163,8 +163,8 @@ fn round_trip_through_the_fixture_bytes() {
 #[test]
 fn unknown_versions_and_schemas_are_refused() {
     let mut graph = export(&document(), &codecs()).unwrap();
-    graph.version = 3;
-    assert_eq!(import(&graph, &codecs()).err(), Some(ExportError::UnsupportedVersion { found: 3, supported: 2 }));
+    graph.version = 4;
+    assert_eq!(import(&graph, &codecs()).err(), Some(ExportError::UnsupportedVersion { found: 4, supported: 3 }));
 
     let mut graph = export(&document(), &codecs()).unwrap();
     graph.layers[0].schema = 9;
@@ -174,13 +174,15 @@ fn unknown_versions_and_schemas_are_refused() {
     );
 
     let mut bytes = graph.to_bytes().unwrap();
-    // A format 1 graph (before #1901's PII kind ids) is refused by name of
-    // both versions, never misparsed, by the owning and the borrowing reader.
-    bytes[4] = 1;
-    bytes[5] = 0;
-    let v1 = Err(ExportError::UnsupportedVersion { found: 1, supported: 2 });
-    assert_eq!(DocumentGraph::from_bytes(&bytes), v1);
-    assert_eq!(DocumentGraphRef::parse(&bytes).map(|_| ()), v1.map(|_: DocumentGraph| ()));
+    // Format 1 (before #1901's PII kind ids) and format 2 (before #2134's
+    // over-limit error tag) are refused by name of both versions, never
+    // misparsed, by the owning and the borrowing reader.
+    for v in [1u16, 2] {
+        bytes[4..6].copy_from_slice(&v.to_le_bytes());
+        let bad = Err(ExportError::UnsupportedVersion { found: v, supported: 3 });
+        assert_eq!(DocumentGraph::from_bytes(&bytes), bad);
+        assert_eq!(DocumentGraphRef::parse(&bytes).map(|_| ()), bad.map(|_: DocumentGraph| ()));
+    }
 }
 
 #[test]

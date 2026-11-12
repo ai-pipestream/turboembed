@@ -6,6 +6,7 @@
 mod kserve;
 
 use kserve::*;
+use turbo_scratch::Scratch;
 
 #[tokio::test]
 async fn readiness_before_and_after_load() {
@@ -49,7 +50,29 @@ async fn server_metadata() {
 
 #[tokio::test]
 async fn model_metadata() {
-    let (s, mut c) = serve(2).await;
+    let src = tiny();
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-server-metadata-licence-{}", std::process::id())));
+    std::fs::create_dir_all(dir.join("weights")).unwrap();
+    std::fs::create_dir_all(dir.join("reference")).unwrap();
+    for p in ["tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
+        std::fs::copy(src.join(p), dir.join(p)).unwrap();
+    }
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(src.join("manifest.json")).unwrap()).unwrap();
+    manifest["model"]["license"] = "CC-BY-SA-4.0".into();
+    manifest["model"]["license_class"] = "CLASS_SHARE_ALIKE".into();
+    std::fs::write(dir.join("manifest.json"), serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+
+    let s = Server::start(
+        "127.0.0.1:0".parse().unwrap(),
+        vec![model(&src, 2), ModelConfig { name: Some("classified".into()), ..model(&dir, 1) }],
+        MAX,
+        Serve::default(),
+    )
+    .await
+    .unwrap();
+    s.load().await.unwrap();
+    let mut c = client(&s).await;
     let m =
         c.model_metadata(ModelMetadataRequest { name: NAME.into(), version: "1".into() }).await.unwrap().into_inner();
     assert_eq!(m.name, NAME);
@@ -93,6 +116,8 @@ async fn model_metadata() {
                 "tokenizer_sha256",
                 "prefix_query",
                 "prefix_document",
+                "license",
+                "license_class",
                 "output_dims_count",
                 "output_dims",
             ][..],
@@ -136,9 +161,18 @@ async fn model_metadata() {
     assert_eq!(p("model_info.revision"), "1");
     assert_eq!(p("model_info.prefix_query"), "query: ");
     assert_eq!(p("model_info.prefix_document"), "");
+    assert_eq!(p("model_info.license"), "Apache-2.0");
+    assert_eq!(p("model_info.license_class"), "LICENSE_CLASS_UNSTATED");
     assert_eq!(p("model_info.output_dims_count"), "0");
     assert_eq!(p("model_info.output_dims"), "");
     assert_eq!(p("model_info.manifest_sha256").len(), 64);
+    let mc = c
+        .model_metadata(ModelMetadataRequest { name: "classified".into(), version: "1".into() })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(mc.properties["model_info.license"], "CC-BY-SA-4.0");
+    assert_eq!(mc.properties["model_info.license_class"], "LICENSE_CLASS_SHARE_ALIKE");
     assert_eq!(p("session_info.max_batch"), "64");
     assert_eq!(p("session_info.max_seq"), "64");
     assert_eq!(p("session_info.precision"), "PRECISION_MODEL");
@@ -160,6 +194,7 @@ async fn model_metadata() {
     assert_eq!(p("capability.reason"), field(&cap.reason));
     assert!(p("capability.status").starts_with("CAP_"));
     s.stop().await;
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[tokio::test]

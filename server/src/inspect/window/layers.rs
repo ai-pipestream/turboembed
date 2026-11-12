@@ -1,5 +1,5 @@
 //! Collection of each named positional layer instance for document inspection.
-use super::{ClippedFrag, bad, layer_allowed, ordered_range, push_clipped_item};
+use super::{ClippedFrag, LayerFilter, bad, ordered_range, push_clipped_item};
 use crate::api::Failure;
 use std::any::TypeId;
 use turbo_analysis::{Document, Ix, Key, Layer, Span, ViewId};
@@ -12,14 +12,14 @@ pub(super) fn collect_fragments(
     doc: &Document,
     view: ViewId,
     window: Span,
-    filter_layers: &[String],
+    filter: LayerFilter<'_>,
 ) -> Result<Vec<ClippedFrag>, Failure> {
     let mut clipped = Vec::new();
     for key in doc.layers() {
         let instance = key.name;
 
         if key.ty == TypeId::of::<Sentences>()
-            && layer_allowed(filter_layers, Sentences::ID)
+            && filter.allows(Sentences::ID, instance)
             && let Some(sentences) = doc.get_key(&Key::<Sentences>::named(instance))
             && sentences.spans.view() == view
         {
@@ -37,7 +37,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Tokens>()
-            && layer_allowed(filter_layers, Tokens::ID)
+            && filter.allows(Tokens::ID, instance)
             && let Some(tokens) = doc.get_key(&Key::<Tokens>::named(instance))
             && tokens.spans.view() == view
         {
@@ -61,7 +61,7 @@ pub(super) fn collect_fragments(
         // Subwords uses Overlap::Any, so its ends column is not guaranteed monotonic;
         // scan items directly rather than binary-searching ends.
         if key.ty == TypeId::of::<Subwords>()
-            && layer_allowed(filter_layers, Subwords::ID)
+            && filter.allows(Subwords::ID, instance)
             && let Some(subwords) = doc.get_key(&Key::<Subwords>::named(instance))
             && subwords.spans.view() == view
         {
@@ -79,7 +79,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Structure>()
-            && layer_allowed(filter_layers, Structure::ID)
+            && filter.allows(Structure::ID, instance)
             && let Some(structure) = doc.get_key(&Key::<Structure>::named(instance))
             && structure.spans.view() == view
         {
@@ -90,7 +90,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Entities>()
-            && layer_allowed(filter_layers, Entities::ID)
+            && filter.allows(Entities::ID, instance)
             && let Some(entities) = doc.get_key(&Key::<Entities>::named(instance))
             && entities.spans.view() == view
         {
@@ -102,7 +102,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Chunks>()
-            && layer_allowed(filter_layers, Chunks::ID)
+            && filter.allows(Chunks::ID, instance)
             && let Some(chunks) = doc.get_key(&Key::<Chunks>::named(instance))
             && chunks.spans.view() == view
         {
@@ -114,7 +114,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Pii>()
-            && layer_allowed(filter_layers, Pii::ID)
+            && filter.allows(Pii::ID, instance)
             && let Some(pii) = doc.get_key(&Key::<Pii>::named(instance))
             && pii.spans.view() == view
         {
@@ -131,7 +131,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Numbers>()
-            && layer_allowed(filter_layers, Numbers::ID)
+            && filter.allows(Numbers::ID, instance)
             && let Some(numbers) = doc.get_key(&Key::<Numbers>::named(instance))
             && numbers.spans.view() == view
         {
@@ -142,7 +142,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<LanguageSpans>()
-            && layer_allowed(filter_layers, LanguageSpans::ID)
+            && filter.allows(LanguageSpans::ID, instance)
             && let Some(langs) = doc.get_key(&Key::<LanguageSpans>::named(instance))
             && langs.spans.view() == view
         {
@@ -161,7 +161,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Abbreviations>()
-            && layer_allowed(filter_layers, Abbreviations::ID)
+            && filter.allows(Abbreviations::ID, instance)
             && let Some(abbr) = doc.get_key(&Key::<Abbreviations>::named(instance))
             && abbr.spans.view() == view
         {
@@ -172,7 +172,7 @@ pub(super) fn collect_fragments(
         }
 
         if key.ty == TypeId::of::<Boilerplate<Sentences>>()
-            && layer_allowed(filter_layers, Boilerplate::<Sentences>::ID)
+            && filter.allows(Boilerplate::<Sentences>::ID, instance)
             && let Some(bp) = doc.get_key(&Key::<Boilerplate<Sentences>>::named(instance))
         {
             let anchor = doc

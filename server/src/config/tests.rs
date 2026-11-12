@@ -97,15 +97,15 @@ fn the_environment_fills_in_absent_flags() {
     assert_eq!(a.max_message_bytes, 1);
     assert_eq!(names(&a.models).unwrap(), ["c"]);
 
-    // A bad variable is refused by name.
+    // A bad variable is refused by name, its value by length.
     let bad = |k: &str, v: &str| {
         let v = v.to_string();
         let k = k.to_string();
         Args::parse_with(std::iter::empty(), move |q| if q == k { Some(v.clone()) } else { env(q) }).unwrap_err()
     };
-    assert!(bad(ENV_LISTEN, "nowhere").starts_with("TURBO_KSERVE_LISTEN=nowhere"));
+    assert!(bad(ENV_LISTEN, "nowhere").starts_with("TURBO_KSERVE_LISTEN: the value (7 bytes"));
     assert!(bad(ENV_MODELS, "bundle=/b/a,device=0").starts_with("TURBO_KSERVE_MODELS: "));
-    assert!(bad(ENV_MAX_MESSAGE_BYTES, "64MiB").starts_with("TURBO_KSERVE_MAX_MESSAGE_BYTES=64MiB"));
+    assert!(bad(ENV_MAX_MESSAGE_BYTES, "64MiB").starts_with("TURBO_KSERVE_MAX_MESSAGE_BYTES: the value (5 bytes"));
     // An empty variable gives nothing.
     let e = Args::parse_with(std::iter::empty(), |_| Some(String::new())).unwrap_err();
     assert_eq!(e, "--listen is required");
@@ -220,6 +220,12 @@ fn the_catalog_comes_from_its_flags_or_their_variables() {
     assert!(args(&format!("{base} --catalog-dir /z --catalog-store /a --catalog-store /b")).is_err());
     let e = args(&format!("{base} --catalog-store file:///s")).unwrap_err();
     assert_eq!(e, "--catalog-store needs --catalog-dir");
+    let a = args(&format!("{base} --catalog-dir /z --catalog-data /data")).unwrap();
+    assert_eq!(a.catalog_data.as_deref(), Some("/data"));
+    let env = |k: &str| (k == ENV_CATALOG_DATA).then(|| "/shared".to_string());
+    let parsed = Args::parse_with(format!("{base} --catalog-dir /z").split_whitespace().map(String::from), env);
+    assert_eq!(parsed.unwrap().catalog_data.as_deref(), Some("/shared"));
+    assert_eq!(args(&format!("{base} --catalog-data /d")).unwrap_err(), "--catalog-data needs --catalog-dir");
 }
 
 #[test]
@@ -237,7 +243,10 @@ fn zoo_mode_comes_from_its_flag_or_variable_needs_a_catalog_and_allows_no_model(
     };
     assert!(parsed("true").unwrap().zoo);
     assert_eq!(parsed("0").unwrap_err(), "at least one --model is required");
-    assert_eq!(parsed("maybe").unwrap_err(), "TURBO_KSERVE_ZOO=maybe: not one of 1, true, yes, 0, false, no");
+    assert_eq!(
+        parsed("maybe").unwrap_err(),
+        "TURBO_KSERVE_ZOO: the value (5 bytes, not shown) is not one of 1, true, yes, 0, false, no"
+    );
 }
 
 #[test]
@@ -247,7 +256,7 @@ fn prefetch_is_permissive_from_its_flag_or_variable_and_needs_a_catalog() {
     assert!(args(&format!("{base} --catalog-dir /z --catalog-prefetch permissive")).unwrap().catalog_prefetch);
     assert_eq!(
         args(&format!("{base} --catalog-dir /z --catalog-prefetch all")).unwrap_err(),
-        "--catalog-prefetch all: the one mode is permissive"
+        "--catalog-prefetch: the value (3 bytes, not shown) is not permissive, the one mode"
     );
     assert_eq!(
         args(&format!("{base} --catalog-prefetch=permissive")).unwrap_err(),
@@ -317,8 +326,8 @@ fn admin_allows_empty_models_and_bundle_dir_discovers_manifests() {
     assert!(a.admin);
     assert!(a.models.is_empty());
 
-    let dir = std::env::temp_dir().join(format!("turbo-kserve-bundles-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-bundles-{}", std::process::id())));
     std::fs::create_dir_all(dir.join("alpha")).unwrap();
     std::fs::create_dir_all(dir.join("beta")).unwrap();
     std::fs::create_dir_all(dir.join("not-a-bundle")).unwrap();

@@ -35,8 +35,8 @@ fn a_directory_and_its_bytes_load_the_same_dictionary() {
 
 #[test]
 fn missing_files_are_named_in_load_order() {
-    let tmp = std::env::temp_dir().join(format!("turbo-lattice-missing-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&tmp);
+    let tmp =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-lattice-missing-{}", std::process::id())));
     std::fs::create_dir_all(&tmp).unwrap();
     let load = || MecabDictionary::load(&tmp).unwrap_err();
     assert!(matches!(load(), DictionaryError::Missing(DictionaryFile::Matrix)));

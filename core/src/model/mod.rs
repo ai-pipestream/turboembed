@@ -116,11 +116,13 @@ pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
     [TensorRole::StaticEmbeddings, TensorRole::StaticWeights, TensorRole::StaticMapping];
 
 /// Whether the backend named `backend` runs a model of limited lookahead
-/// `lookahead` (0 for none): only the CPU's attention takes a band, and any
-/// other would run the whole row and give wrong vectors. Rule 6 (choose)
-/// skips an artifact whose backend this refuses, giving this message.
+/// `lookahead` (0 for none): only the CPU's, CUDA's, Level Zero's and Metal's
+/// attention take a band, and any other would run the whole row and give
+/// wrong vectors.
+/// Rule 6 (choose) skips an artifact whose backend this refuses, giving
+/// this message.
 pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
-    if lookahead == 0 || backend == "cpu" {
+    if lookahead == 0 || matches!(backend, "cpu" | "cuda" | "levelzero" | "metal") {
         return Ok(());
     }
     Err(Error::new(

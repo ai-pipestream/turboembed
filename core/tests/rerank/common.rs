@@ -10,12 +10,28 @@ use turbo::{
     safetensors::{Dtype, File},
 };
 static SERIAL: AtomicUsize = AtomicUsize::new(0);
+/// As tests/common's settle_level_zero (#2203): the Level Zero driver
+/// starts before a fixture's files open. Not behind the levelzero feature,
+/// since crates without that feature include this file too; a runtime
+/// without Level Zero is made and released at once.
+fn settle_level_zero() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let mut rt = std::ptr::null_mut();
+        let size = size_of::<turbo::turbo_error>() as u32;
+        let mut err = turbo::turbo_error { struct_size: size, code: -1, field: 0, message: [0; 496] };
+        if unsafe { turbo::turbo_runtime_create(std::ptr::null(), &mut rt, &mut err) } == 0 {
+            unsafe { turbo::turbo_runtime_release(rt) };
+        }
+    });
+}
 pub struct Fixture {
     pub dir: PathBuf,
     pub manifest: Value,
 }
 impl Fixture {
     pub fn new(root: &Path) -> Self {
+        settle_level_zero();
         let dir = root.join("target/rerank-tests").join(format!(
             "{}-{}",
             std::process::id(),
@@ -78,4 +94,28 @@ impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.dir);
     }
+}
+
+/// The largest difference between two runs of scores. A score or a
+/// difference that is not finite fails here: `f32::max` drops a NaN, so a
+/// fold of differences alone would hold a run of NaN scores to any bound.
+pub fn worst(a: &[f32], b: &[f32]) -> f32 {
+    assert_eq!(a.len(), b.len());
+    a.iter().zip(b).fold(0f32, |m, (x, y)| {
+        let d = (x - y).abs();
+        assert!(x.is_finite() && y.is_finite() && d.is_finite(), "a score is not finite: {x} against {y}");
+        m.max(d)
+    })
+}
+
+#[test]
+fn worst_fails_on_a_score_that_is_not_finite() {
+    assert_eq!(worst(&[1.0, -2.0], &[1.5, -2.0]), 0.5);
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        for (a, b) in [([1.0, bad], [1.0, 2.0]), ([1.0, 2.0], [1.0, bad]), ([bad, bad], [bad, bad])] {
+            assert!(std::panic::catch_unwind(|| worst(&a, &b)).is_err(), "{a:?} against {b:?}");
+        }
+    }
+    // Finite scores whose difference overflows.
+    assert!(std::panic::catch_unwind(|| worst(&[f32::MAX], &[f32::MIN])).is_err());
 }

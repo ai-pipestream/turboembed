@@ -47,12 +47,21 @@ pub enum Pack {
     Logistics,
     /// Web addresses.
     Web,
-    /// Every detector: the default `CursorPiiExtractor` and every pack.
+    /// Every identifier detector: the default `CursorPiiExtractor` and
+    /// every pack above. The dates and money packs are not in it.
     AllStructured,
+    /// Calendar dates naming a day, a week or a month. Opt-in: dates are
+    /// in most texts, and only some of them are a person's.
+    Dates,
+    /// Amounts of money with their currency. Opt-in, as dates are.
+    Money,
+    /// Places: United States states and counties. Opt-in, as dates are: most texts
+    /// name places, and only some of them are where a person is.
+    Places,
 }
 
 impl Pack {
-    pub const ALL: [Pack; 13] = [
+    pub const ALL: [Pack; 16] = [
         Pack::Payment,
         Pack::Contact,
         Pack::Network,
@@ -66,6 +75,9 @@ impl Pack {
         Pack::Logistics,
         Pack::Web,
         Pack::AllStructured,
+        Pack::Dates,
+        Pack::Money,
+        Pack::Places,
     ];
 
     /// The name of the `PiiPacks` factory method, in kebab case
@@ -85,6 +97,9 @@ impl Pack {
             Pack::Logistics => "logistics",
             Pack::Web => "web",
             Pack::AllStructured => "all-structured",
+            Pack::Dates => "dates",
+            Pack::Money => "money",
+            Pack::Places => "places",
         }
     }
 
@@ -115,6 +130,11 @@ impl Pack {
             Pack::Device => vec![Scanner::all(Extractor::Device)],
             Pack::Logistics => vec![Scanner::all(Extractor::Logistics)],
             Pack::Web => vec![Scanner::all(Extractor::Web)],
+            Pack::Dates => vec![Scanner::all(Extractor::Temporal)],
+            Pack::Money => vec![Scanner::all(Extractor::Money)],
+            Pack::Places => {
+                vec![Scanner::all(Extractor::UsState), Scanner::all(Extractor::UsCounty), Scanner::all(Extractor::City)]
+            }
             Pack::AllStructured => [
                 Extractor::Cursor,
                 Extractor::Secrets,
@@ -147,14 +167,14 @@ impl Pack {
 /// for OpenNLP parity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PiiDetector {
-    scanners: Vec<Scanner>,
-    custom_kinds: CustomKinds,
-    keep_nested: bool,
-    window: WindowConfig,
-    global_allow: AllowList,
-    kind_allow: Vec<(PiiKind, AllowList)>,
-    deny_lists: Vec<DenyList>,
-    min_score: Option<f32>,
+    pub(crate) scanners: Vec<Scanner>,
+    pub(crate) custom_kinds: CustomKinds,
+    pub(crate) keep_nested: bool,
+    pub(crate) window: WindowConfig,
+    pub(crate) global_allow: AllowList,
+    pub(crate) kind_allow: Vec<(PiiKind, AllowList)>,
+    pub(crate) deny_lists: Vec<DenyList>,
+    pub(crate) min_score: Option<f32>,
 }
 
 impl PiiDetector {
@@ -388,7 +408,7 @@ impl PiiDetector {
 
     /// The allow rule that suppresses a mention: the global list first,
     /// then the list scoped to `kind`.
-    fn allow_rule(&self, kind: PiiKind, covered: &str, normalized: &str) -> AllowDecision {
+    pub(crate) fn allow_rule(&self, kind: PiiKind, covered: &str, normalized: &str) -> AllowDecision {
         if let Some(rule) = self.global_allow.find_rule(covered, normalized) {
             return Some((AllowScope::Global, rule));
         }
