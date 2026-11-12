@@ -1,0 +1,42 @@
+✖ Analyze selects default and named boundary instances independently (437.143575ms)
+✖ Analyze filters the named/default token graph through the real server (301.742245ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1018.953329
+
+✖ failing tests:
+
+test at demo/web/node_modules/.e2e/layer-instances.test.mjs:6:1
+✖ Analyze selects default and named boundary instances independently (437.143575ms)
+  AssertionError [ERR_ASSERTION]: default boundary has one label
+  
+  2 !== 1
+  
+      at TestContext.<anonymous> (file://<checkout>/demo/web/node_modules/.e2e/layer-instances.test.mjs:17:12)
+      at async Test.run (node:internal/test_runner/test:1313:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at demo/web/node_modules/.e2e/layer-instances.test.mjs:35:1
+✖ Analyze filters the named/default token graph through the real server (301.742245ms)
+  locator.click: Error: strict mode violation: locator('#analyze-window .chips button').filter({ hasText: /^turbo:tokens 1$/ }) resolved to 2 elements:
+      1) <button class="chip" type="button">turbo:tokens 1</button> aka getByRole('button', { name: 'turbo:tokens' }).first()
+      2) <button class="chip" type="button">turbo:tokens 1</button> aka getByRole('button', { name: 'turbo:tokens' }).nth(1)
+  
+  Call log:
+    - waiting for locator('#analyze-window .chips button').filter({ hasText: /^turbo:tokens 1$/ })
+  
+      at TestContext.<anonymous> (<checkout>/demo/web/node_modules/.e2e/layer-instances.test.mjs:50:20) {
+    log: [ "  - waiting for locator('#analyze-window .chips button').filter({ hasText: /^turbo:tokens 1$/ })" ]
+  }
