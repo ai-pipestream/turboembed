@@ -617,6 +617,17 @@ either: every call the page makes goes through the demo to the server.
   stops, with the notice and Retry, and green again with no reload once
   it is back, the tabs refilled. A page opened with the server stopped
   says on each tab that the server is not reachable, and fills on Retry.
+- With no `--allow`, every write form is off and names the `--allow`
+  that turns it on, and Unload is off with its reason; with `--allow`
+  for CreateIndex only, that form alone is live and creates an index.
+- A refused LoadBundle leads with a sentence, with the Connect code,
+  turbo-code and raw message behind a closed details toggle; Search
+  with no index says so before the server is asked.
+- Every input, select and text box on every tab has a label or an
+  accessible name.
+- With only embedding models served, the open-span and relation
+  options on Analyze and the Reranker, QA and Answers controls on
+  Semantic are hidden, and Semantic still runs.
 
 `demo/web/e2e/permits.test.ts` starts a demo with a token and one
 `--allow`: nothing is off before the token is typed, and after it the
