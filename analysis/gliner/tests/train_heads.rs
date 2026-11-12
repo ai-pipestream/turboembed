@@ -49,10 +49,17 @@ fn config(out_project_mlp: bool, prompt_factor: usize) -> Config {
 /// A heads file of the configuration's own tensors, filled with small
 /// values of both signs from a fixed sequence.
 fn heads(config: &Config) -> Vec<u8> {
+    heads_with_projection_width(config, encoder_config().hidden)
+}
+
+fn heads_with_projection_width(config: &Config, projection_width: usize) -> Vec<u8> {
     let mut state = 0x2545_f491u32;
     let mut header = serde_json::Map::new();
     let mut data = Vec::new();
-    for (name, shape) in config.tensor_shapes(&encoder_config()).unwrap() {
+    for (name, mut shape) in config.tensor_shapes(&encoder_config()).unwrap() {
+        if name == "token_rep_layer.projection.weight" {
+            shape[1] = projection_width as u64;
+        }
         let start = data.len();
         for _ in 0..shape.iter().product::<u64>() {
             state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
@@ -163,6 +170,21 @@ fn a_trainer_of_another_form_is_not_installed() {
     let narrow = config(true, 2);
     let trainer = OutputTrainer::load_with_heads(&narrow, &heads(&narrow), false, true, false, false).unwrap();
     assert!(other.apply_output(&trainer).unwrap_err().contains("does not match"));
+}
+
+#[test]
+fn projection_widths_are_checked_before_installation() {
+    let config = config(true, 4);
+    let zero = heads_with_projection_width(&config, 0);
+    let error = OutputTrainer::load_with_heads(&config, &zero, true, true, true, true).map(|_| ()).unwrap_err();
+    assert!(error.contains("width must be positive"), "{error}");
+
+    let narrow = heads_with_projection_width(&config, config.hidden);
+    let trainer = OutputTrainer::load_with_heads(&config, &narrow, true, true, true, true).unwrap();
+    let mut tuned = model(&config, &heads(&config));
+    let before = scores(&tuned);
+    assert!(tuned.apply_output(&trainer).unwrap_err().contains("shape mismatch"));
+    assert_eq!(scores(&tuned), before);
 }
 
 #[test]

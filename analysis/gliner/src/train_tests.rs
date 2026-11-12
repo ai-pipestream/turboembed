@@ -199,7 +199,15 @@ fn a_gradient_buffer_of_another_mode_is_refused() {
 
 #[test]
 fn weight_decay_reaches_every_matrix_and_no_bias() {
-    for heads in combinations() {
+    let projected = [false, true].map(|linear| Heads {
+        linear,
+        boundaries: true,
+        prompt: true,
+        recurrent: true,
+        projection: true,
+        prompt_factor: 0,
+    });
+    for heads in combinations().into_iter().chain(projected) {
         let mut trainer = trainer(heads);
         let before = trainer.params.clone();
         let settings = Settings { lr: 0.01, weight_decay: 0.1, total: 1, ..Settings::default() };
@@ -207,10 +215,17 @@ fn weight_decay_reaches_every_matrix_and_no_bias() {
         // No gradient: only the decay moves a tensor.
         trainer.step(&mut optimizer, &mut trainer.zero_grads()).unwrap();
         let recurrent = trainer.recurrent_offset().unwrap_or(before.len());
+        let projection = trainer.projection_offset().unwrap_or(before.len());
         for (at, (old, new)) in before.iter().zip(&trainer.params).enumerate() {
-            // Dense layers are weight then bias; a BiLSTM direction is
-            // weight_ih, weight_hh, bias_ih, bias_hh.
-            let matrix = if at < recurrent { at % 2 == 0 } else { (at - recurrent) % 4 < 2 };
+            // Dense and projection layers are weight then bias; a BiLSTM
+            // direction is weight_ih, weight_hh, bias_ih, bias_hh.
+            let matrix = if at >= projection {
+                (at - projection) % 2 == 0
+            } else if at < recurrent {
+                at % 2 == 0
+            } else {
+                (at - recurrent) % 4 < 2
+            };
             assert_eq!(old != new, matrix, "{heads:?} tensor {at}");
         }
     }
