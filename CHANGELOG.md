@@ -435,6 +435,10 @@ stubs must be regenerated.
   the schema prompt) fails the step with `TURBO_E_CAPACITY` and the same
   counts-only message, instead of `TURBO_E_INTERNAL` with no detail
   (#2125).
+- `turbo:gliner`: labels whose prompt alone fills the encoder's sequence
+  fail the step under the limit name `label prompt max_sequence`, not
+  `encoder max_sequence`, so a caller can tell "use fewer labels" from
+  "shorten the sentence" (#2268).
 - PII policies: an `ff1` arm whose alphabet cannot hold a character
   every value of its rule's kind has (the digit alphabet on `email`, for
   one) is refused when the policy loads, naming the entry and the kind,
