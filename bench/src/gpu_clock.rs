@@ -8,14 +8,41 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo::record::ClockReading;
+use turbo::record::{ClockReading, GpuClock};
 
 const DRM: &str = "/sys/class/drm";
 const FREQ: &str = "device/tile0/gt0/freq0";
+const LEVELZERO: &str = "levelzero";
 
 /// Intel's PCI vendor id, as `device/vendor` reads it: every GPU the
 /// levelzero backend can list is one of these.
 const INTEL: &str = "0x8086";
+
+#[cfg(test)]
+type TestReader = Box<dyn FnMut(&str) -> Option<ClockReading>>;
+
+#[cfg(test)]
+std::thread_local! {
+    static TEST_READER: std::cell::RefCell<Option<TestReader>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Override `read` on the current thread while `f` runs, so builder tests
+/// can check `device.clock` and where around the timed loop it is sampled.
+#[cfg(test)]
+pub(crate) fn with_test_reader<T>(
+    reader: impl FnMut(&str) -> Option<ClockReading> + 'static,
+    f: impl FnOnce() -> T,
+) -> T {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            TEST_READER.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+    TEST_READER.with(|slot| *slot.borrow_mut() = Some(Box::new(reader)));
+    let _reset = Reset;
+    f()
+}
 
 /// The clock of the measured GPU, for `backend`; None for any other
 /// backend or off Linux. The files do not say which device was measured,
@@ -23,10 +50,62 @@ const INTEL: &str = "0x8086";
 /// and that GPU has the xe frequency files. With a second Intel GPU, under
 /// xe or i915, or one GPU without the files, there is no reading.
 pub fn read(backend: &str) -> Option<ClockReading> {
-    if backend != "levelzero" || !cfg!(target_os = "linux") {
+    #[cfg(test)]
+    if let Some(out) = TEST_READER.with(|slot| slot.borrow_mut().as_mut().map(|r| r(backend))) {
+        return out;
+    }
+    if backend != LEVELZERO || !cfg!(target_os = "linux") {
         return None;
     }
     xe_freq_dir(Path::new(DRM)).as_deref().and_then(reading)
+}
+
+/// Pair the readings taken before the first timed run and after the last
+/// into `device.clock`; None when either reading is absent.
+pub fn span(before: Option<ClockReading>, after: Option<ClockReading>) -> Option<GpuClock> {
+    before.zip(after).map(|(before, after)| GpuClock { before, after })
+}
+
+/// Samples `device.clock` across the `steps` timed loops of one record:
+/// `before_timed` reads once before the first timed loop (after its warmup)
+/// and `after_timed` reads once after the last timed loop.
+pub(crate) struct Window {
+    backend: String,
+    remaining: usize,
+    started: bool,
+    before: Option<ClockReading>,
+    after: Option<ClockReading>,
+}
+
+impl Window {
+    pub(crate) fn new(backend: impl Into<String>, steps: usize) -> Self {
+        Self { backend: backend.into(), remaining: steps, started: false, before: None, after: None }
+    }
+
+    pub(crate) fn none() -> Self {
+        Self::new(String::new(), 0)
+    }
+
+    pub(crate) fn before_timed(&mut self) {
+        if !self.started && self.remaining > 0 {
+            self.started = true;
+            self.before = read(&self.backend);
+        }
+    }
+
+    pub(crate) fn after_timed(&mut self) {
+        if self.remaining > 0 {
+            self.remaining -= 1;
+            if self.remaining == 0 {
+                self.after = read(&self.backend);
+            }
+        }
+    }
+
+    pub(crate) fn finish(self) -> Option<GpuClock> {
+        debug_assert_eq!(self.remaining, 0);
+        span(self.before, self.after)
+    }
 }
 
 /// The xe frequency directory of the one Intel `card<N>` under `drm` (not
@@ -127,5 +206,40 @@ mod tests {
         for backend in ["cpu", "cuda", "metal", "npu", "hailo"] {
             assert_eq!(read(backend), None, "{backend}");
         }
+    }
+
+    #[test]
+    fn window_reads_once_before_first_step_and_once_after_last() {
+        let b = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
+        let a = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+        assert_eq!(span(Some(b), Some(a)), Some(GpuClock { before: b, after: a }));
+        assert_eq!(span(Some(b), None), None);
+        assert_eq!(span(None, Some(a)), None);
+
+        let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let log_r = std::rc::Rc::clone(&log);
+        let readings = std::cell::Cell::new(0u32);
+        let clock = with_test_reader(
+            move |backend| {
+                let n = readings.get();
+                readings.set(n + 1);
+                log_r.borrow_mut().push(format!("read:{backend}:{n}"));
+                Some(if n == 0 { b } else { a })
+            },
+            || {
+                let mut w = Window::new("levelzero", 2);
+                log.borrow_mut().push("warm-0".into());
+                w.before_timed();
+                log.borrow_mut().push("timed-0".into());
+                w.after_timed();
+                log.borrow_mut().push("warm-1".into());
+                w.before_timed();
+                log.borrow_mut().push("timed-1".into());
+                w.after_timed();
+                w.finish()
+            },
+        );
+        assert_eq!(clock, Some(GpuClock { before: b, after: a }));
+        assert_eq!(*log.borrow(), ["warm-0", "read:levelzero:0", "timed-0", "warm-1", "timed-1", "read:levelzero:1"]);
     }
 }

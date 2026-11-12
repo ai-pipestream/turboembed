@@ -124,3 +124,120 @@ fn check_refuses_non_finite_latency_and_ratio() {
     let back: PosRecord = serde_json::from_str(&serde_json::to_string(&r).unwrap()).unwrap();
     assert_eq!(back, r);
 }
+
+#[cfg(feature = "postag")]
+#[test]
+fn postag_measure_carries_gpu_clock_when_read() {
+    use turbo::record::{ClockReading, GpuClock};
+    use turbo_postag::neural::bilstm_model::{UNKNOWN, char_vocabulary_from_strs};
+    use turbo_postag::neural::lstm::LstmLayer;
+    use turbo_postag::neural::{BilstmPosModel, BilstmPosTagger, Numerics};
+
+    let layer = |input| {
+        LstmLayer::of_weights(input, 1, vec![vec![0.125; input]; 4], vec![vec![0.25]; 4], vec![0.0625; 4]).unwrap()
+    };
+    let model = || {
+        BilstmPosModel::new(
+            vec![(UNKNOWN.into(), 0), ("word".into(), 1)],
+            char_vocabulary_from_strs([(UNKNOWN, 0), ("w", 1)]),
+            vec!["NOUN".into(), "VERB".into()],
+            vec![vec![0.25], vec![0.5]],
+            vec![vec![0.125], vec![0.375]],
+            layer(1),
+            layer(1),
+            layer(3),
+            layer(3),
+            None,
+            None,
+            vec![vec![0.125, 0.25], vec![0.5, 0.75]],
+            vec![0.0625, 0.125],
+            8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap()
+    };
+    let packed = BilstmPosTagger::with_numerics(model(), Numerics::Packed).unwrap();
+    let parity = BilstmPosTagger::with_numerics(model(), Numerics::JvmParity).unwrap();
+    let treebank = b"1\tword\t_\tNOUN\n\n";
+    let sentences = super::measure::conllu(std::str::from_utf8(treebank).unwrap());
+    let prov = || {
+        Ok(crate::git::Provenance { top: String::new(), commit: "e".repeat(40), pushed_to: vec!["origin/main".into()] })
+    };
+
+    let cpu_record = super::measure::measure(
+        &packed,
+        &parity,
+        b"native-fixture",
+        "t.conllu".into(),
+        treebank,
+        &sentences,
+        None,
+        1,
+        "2026-10-22T00:00:00Z".into(),
+        prov,
+    )
+    .unwrap();
+    assert_eq!(cpu_record.device.clock, None);
+    check(&cpu_record).unwrap();
+
+    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
+    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen_r = std::rc::Rc::clone(&seen);
+    let clocked = crate::gpu_clock::with_test_reader(
+        move |backend| {
+            let mut s = seen_r.borrow_mut();
+            s.push(backend.to_owned());
+            Some(if s.len() == 1 { before } else { after })
+        },
+        || {
+            super::measure::measure(
+                &packed,
+                &parity,
+                b"native-fixture",
+                "t.conllu".into(),
+                treebank,
+                &sentences,
+                None,
+                1,
+                "2026-10-22T00:00:00Z".into(),
+                prov,
+            )
+            .unwrap()
+        },
+    );
+    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
+    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
+    check(&clocked).unwrap();
+
+    let calls = std::cell::Cell::new(0u32);
+    let incomplete = crate::gpu_clock::with_test_reader(
+        move |_| {
+            let n = calls.get();
+            calls.set(n + 1);
+            (n == 0).then_some(before)
+        },
+        || {
+            super::measure::measure(
+                &packed,
+                &parity,
+                b"native-fixture",
+                "t.conllu".into(),
+                treebank,
+                &sentences,
+                None,
+                1,
+                "2026-10-22T00:00:00Z".into(),
+                prov,
+            )
+            .unwrap()
+        },
+    );
+    assert_eq!(incomplete.device.clock, None);
+}

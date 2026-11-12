@@ -105,16 +105,38 @@ pub(super) fn goldens_text(top: &Path, sets: &[&str], floor: usize) -> Result<(S
     ))
 }
 
+/// The CPU device a throughput mode runs on and the clock window
+/// sampled across its `steps` timed phases.
+pub(super) struct ClockedDevice {
+    d: turbo::turbo_device_info,
+    pub(super) clock: crate::gpu_clock::Window,
+}
+
+impl ClockedDevice {
+    pub(super) fn open(steps: usize) -> Result<Self> {
+        let rt = Runtime::create()?;
+        let d = rt.cpu()?.ok_or("this build lists no CPU device")?;
+        let backend = field(&d.backend);
+        Ok(Self { d, clock: crate::gpu_clock::Window::new(backend, steps) })
+    }
+}
+
 /// One warm pass, then `rounds` timed passes of `f`; the warm
 /// pass's unit count and the median pass's seconds.
-pub(super) fn median_pass(rounds: u32, mut f: impl FnMut() -> Result<u64>) -> Result<(u64, f64)> {
+pub(super) fn median_pass(
+    clock: &mut crate::gpu_clock::Window,
+    rounds: u32,
+    mut f: impl FnMut() -> Result<u64>,
+) -> Result<(u64, f64)> {
     let units = f()?;
     let mut secs: Vec<f64> = Vec::with_capacity(rounds as usize);
+    clock.before_timed();
     for _ in 0..rounds {
         let t = Instant::now();
         f()?;
         secs.push(t.elapsed().as_secs_f64());
     }
+    clock.after_timed();
     secs.sort_by(f64::total_cmp);
     Ok((units, secs[secs.len() / 2]))
 }
@@ -135,6 +157,7 @@ pub(super) fn run(phase: &str, units: u64, seconds: f64, text: &str) -> PhaseRun
 /// after by the caller.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn record(
+    device: ClockedDevice,
     mode: &str,
     subject: Subject,
     source: String,
@@ -145,10 +168,9 @@ pub(super) fn record(
     runs: Vec<PhaseRun>,
     after: &Provenance,
     recorded_at: String,
-) -> Result<ThroughputRecord> {
-    let rt = Runtime::create()?;
-    let d = rt.cpu()?.ok_or("this build lists no CPU device")?;
-    Ok(ThroughputRecord {
+) -> ThroughputRecord {
+    let d = device.d;
+    ThroughputRecord {
         record_version: THROUGHPUT_RECORD_VERSION,
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: field(&d.name), os: std::env::consts::OS.into() },
@@ -160,7 +182,7 @@ pub(super) fn record(
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: device.clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),
@@ -182,7 +204,7 @@ pub(super) fn record(
         },
         rounds,
         runs,
-    })
+    }
 }
 
 /// The timestamp a mode stamps before it measures.

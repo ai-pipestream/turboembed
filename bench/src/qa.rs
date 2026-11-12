@@ -141,8 +141,12 @@ pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaR
         max_batch: plan.max_batch,
     };
     let mut qa = ExtractiveQa::open_with(&plan.bundle, &o).map_err(|e| e.message)?;
+    let d = qa.device_info().map_err(|e| e.message)?;
+    let backend = field(&d.backend);
+    let active: Vec<_> = bins.iter().enumerate().filter(|(_, s)| !s.is_empty()).collect();
+    let mut clock = crate::gpu_clock::Window::new(&backend, active.len());
     let mut out = Vec::new();
-    for (i, set) in bins.iter().enumerate().filter(|(_, s)| !s.is_empty()) {
+    for (i, set) in active {
         let mut pass = || -> Result<u32> {
             let mut windows = 0;
             for chunk in set.chunks(plan.batch as usize) {
@@ -154,12 +158,14 @@ pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaR
         for _ in 0..plan.warmup {
             windows = pass()?;
         }
+        clock.before_timed();
         let mut ms = Vec::with_capacity(plan.iterations as usize);
         for _ in 0..plan.iterations {
             let t = Instant::now();
             windows = pass()?;
             ms.push(t.elapsed().as_secs_f64() * 1e3);
         }
+        clock.after_timed();
         ms.sort_by(f64::total_cmp);
         let p50 = percentile(&ms, 50.0);
         out.push(Bin {
@@ -176,21 +182,19 @@ pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaR
             windows_per_second: f64::from(windows) / (p50 / 1e3),
         });
     }
-    let d = qa.device_info().map_err(|e| e.message)?;
-    let backend = field(&d.backend);
     Ok(QaRecord {
         record_version: QA_RECORD_VERSION,
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: String::new(), os: std::env::consts::OS.into() },
         device: Device {
-            backend: backend.clone(),
+            backend,
             kind: crate::kind_name(d.kind).into(),
             name: field(&d.name),
             vendor: field(&d.vendor),
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),
@@ -282,39 +286,5 @@ pub fn write(r: &QaRecord, dir: &Path) -> Result<PathBuf> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn questions_read_squad_layout_in_order() {
-        let text = r#"{"version":"v2.0","data":[{"title":"A","paragraphs":[
-            {"context":"Paris is in France.","qas":[{"id":"1","question":"Where is Paris?","answers":[],"is_impossible":false},
-                                                {"id":"2","question":"Who?","answers":[],"is_impossible":true}]},
-            {"context":"Second.","qas":[{"id":"3","question":"What?","answers":[]}]}]}]}"#;
-        let q = questions(text).unwrap();
-        assert_eq!(q.len(), 3);
-        assert_eq!(q[0], ("Where is Paris?".into(), "Paris is in France.".into()));
-        assert_eq!(q[2], ("What?".into(), "Second.".into()));
-        assert!(questions(r#"{"data":[{"paragraphs":[{"qas":[]}]}]}"#).is_err());
-        assert!(questions("[]").is_err());
-    }
-
-    #[test]
-    fn bins_start_at_their_bounds() {
-        assert_eq!([0, 127, 128, 255, 256, 383, 384, 5000].map(bin_of), [0, 0, 1, 1, 2, 2, 3, 3]);
-    }
-
-    /// Each committed record parses and passes `check`, and is filed
-    /// under the name `file_name` gives it.
-    #[test]
-    fn committed_records_pass_their_check() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(QA_DIR);
-        let Ok(entries) = std::fs::read_dir(&dir) else { return };
-        for e in entries {
-            let path = e.unwrap().path();
-            let r: QaRecord = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-            check(&r).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            assert_eq!(path.file_name().unwrap().to_str().unwrap(), file_name(&r));
-        }
-    }
-}
+#[path = "qa_tests.rs"]
+mod tests;
