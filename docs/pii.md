@@ -940,14 +940,21 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
   (`the Texas area`, `Illinois County`). A two-letter USPS code is also a common word (`IN`, `OR`, `ME`,
   `OK`), so it is a mention only in capitals and only directly after a
   state label (`State: OR`) or before a ZIP code that ends an address,
-  by what comes before the code: a comma (`Springfield, IL 62704`), a
-  city of that state in the bundled gazetteer and one space
-  (`Springfield IL 62704 is`), or the start of a line when only blanks
-  follow the ZIP code to the line's end or a clause's end (`IL 62704`,
-  `IL 62704, USA`). After any other
-  word (`Order IN 12345.`, `PART OR 90210`), or with a word after a line's
-  code and number (`IN 12345 units`), the number is a count, not a
-  state. The normalized form is the USPS code (`IL`).
+  by what comes before the code: a comma and horizontal blanks
+  (`Springfield, IL 62704`), the start of a line when only blanks follow
+  the ZIP code to the line's end or a clause's end (`IL 62704`,
+  `\u{a0}IL 62704`, `IL 62704, USA`), or, when the ZIP code's
+  three-digit prefix belongs to that state, a capitalized word and a
+  bare comma (`Springfield,IL 62704`), brackets around the code and ZIP
+  code (`(IL 62704)`), a colon label (`Address: IL 62704`), or a
+  capitalized word and horizontal blanks (`Springfield IL 62704 is`,
+  `Springfield  IL 62704`, `Springfield\tIL 62704`,
+  `Saint Louis MO 63101`, `Reading PA 19601`). After a small word or
+  with another state's prefix (`(see IN 12345)`, `(IN 12345)`,
+  `Order: IN 12345`, `Order,IN 12345`, `Order IN 12345.`,
+  `PART OR 90210`), or with a word after a line's code and number
+  (`IN 12345 units`), the number is a count, not a state. The
+  normalized form is the USPS code (`IL`).
 - `county` (new `UsCounty` extractor, `UsCountyPiiExtractor`,
   `turbo-pii:us-county`; `analysis/pii/src/scan/county.rs`): a county or
   county equivalent of the Census Bureau's 2020 county list
@@ -975,12 +982,29 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
     there (`Springfield, IL`, `Mobile, Alabama`, `San Juan, PR`; not
     `Mobile, IL`). The gazetteer files the territories under their own
     country codes, which are their USPS codes;
-  - directly after a city label, as any place of that name: `city of
-    residence`, `place of birth`, `city of` and `town of` with or without
-    a colon, and `birthplace`, `city/town`, `city` and `town` only with
-    one (`City: Phoenix`, `the city of Mobile`), as `the city Council`
-    names none. A known name that a space and a capitalized word follow
-    is the start of a longer name (`City: San Foo`), so it is no mention.
+  - directly after a city label, as any place of that name when no state
+    follows, or as a place of that state when a state follows (`City:
+    Springfield, IL`, `City: Springfield IL 62704`, `City: Mobile
+    Alabama`): `city of residence`, `place of birth`, `city of` and
+    `town of` with or without a colon, and `birthplace`, `city/town`,
+    `city` and `town` only with one (`City: Phoenix`, `the city of
+    Mobile`), as `the city Council` names none. When a state follows
+    (after `, ` by name or USPS code, or after a space by state name or
+    by a capital USPS code before a ZIP code, #2107), the gazetteer must
+    hold a place of that name in that state rather than falling back to
+    any place of that name: across the 7,085 distinct canonical place
+    names of `BundledGazetteer` and the 56 US states and territories
+    (396,760 pairs), only 777 pairs are in-state matches and 395,983
+    mismatched pairs (99.80%, or 40,719 of 41,496 pairs, 98.13%, across
+    the 741 distinct US and territory city names, such as `City: Mobile,
+    IL`, `City: Mobile Illinois` and `City: Mobile IL 62704`) are
+    refused, at the cost of smaller US homonyms below Natural Earth's
+    1:10m population floor under that state (`City: Dublin, OH`, `City:
+    Rome, NY`, `City: Moscow, ID`, which match the foreign capital only
+    when no conflicting US state follows). When no state follows, a
+    known name that a space and another capitalized word follow is the
+    start of a longer name (`City: San Foo`, `the city of Paris
+    Hilton`), so it is no mention.
 
   A bare name (`Chicago is large`) is no mention. The name has at most
   five words with single spaces between them, and its first and last

@@ -42,6 +42,8 @@ pub struct ServerResolver {
     encryption: Vec<EncryptionKey>,
     store: Option<Arc<Store>>,
     cache: Mutex<HashMap<(String, String), Resolved>>,
+    /// The encryption keys serve named policies only (#2111).
+    named_only_encryption: bool,
 }
 
 impl std::fmt::Debug for ServerResolver {
@@ -52,6 +54,7 @@ impl std::fmt::Debug for ServerResolver {
             .field("encryption_keys", &self.encryption.iter().map(|k| k.key.to_string()).collect::<Vec<_>>())
             .field("vocabulary_store", &self.store.is_some())
             .field("dictionaries", &cached)
+            .field("named_only_encryption", &self.named_only_encryption)
             .finish()
     }
 }
@@ -76,7 +79,15 @@ impl ServerResolver {
                 ));
             }
         }
-        Ok(ServerResolver { keys, encryption, store, cache: Mutex::default() })
+        Ok(ServerResolver { keys, encryption, store, cache: Mutex::default(), named_only_encryption: false })
+    }
+
+    /// The same resolver, its encryption keys kept from inline policies:
+    /// for keys loaded without `--pii-grant`, where callers need not be
+    /// authenticated (#2111).
+    pub(crate) fn named_only_encryption(mut self) -> ServerResolver {
+        self.named_only_encryption = true;
+        self
     }
 
     pub fn shared(self) -> Arc<ServerResolver> {
@@ -128,6 +139,10 @@ impl ServerResolver {
 }
 
 impl PolicyResolver for ServerResolver {
+    fn inline_encryption(&self) -> bool {
+        !self.named_only_encryption
+    }
+
     fn hmac_key(&self, id: &str, version: u32) -> Result<&[u8], ResolveError> {
         self.keys
             .iter()

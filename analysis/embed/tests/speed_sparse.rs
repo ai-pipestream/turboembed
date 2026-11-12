@@ -20,6 +20,7 @@ use std::time::Instant;
 use serde_json::{Value, json};
 use turbo_analysis::{Annotator, Document, Ix};
 use turbo_analysis_embed::{SparseAnnotator, SparseOptions, SubwordAnnotator};
+use turbo_scratch::Scratch;
 
 fn bert() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -31,8 +32,7 @@ fn bundle() -> PathBuf {
     if let Some(p) = std::env::var_os("TURBO_SPARSE_BUNDLE") {
         return turbo_pins::require(PathBuf::from(p));
     }
-    let dir = std::env::temp_dir().join(format!("turbo-embed-sparse-speed-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-embed-sparse-speed-{}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(bert().join(f), dir.join(f)).unwrap();
@@ -81,7 +81,7 @@ fn bundle() -> PathBuf {
     w["size"] = json!(weights.len());
     w["sha256"] = json!(turbo::bundle::sha256_hex(&weights));
     fs::write(dir.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
-    dir
+    dir.until_exit()
 }
 
 #[test]

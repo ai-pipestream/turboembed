@@ -22,7 +22,7 @@ const TEXTS: [&str; 4] = [
 ];
 
 /// The backends whose attention takes a band (turbo::model::runs_band).
-const BANDED: [&str; 3] = ["cpu", "cuda", "levelzero"];
+const BANDED: [&str; 4] = ["cpu", "cuda", "levelzero", "metal"];
 
 /// The small BERT with `lookahead` keys ahead.
 fn banded_fixture(name: &str, lookahead: u32) -> Fixture {
@@ -227,21 +227,23 @@ fn a_band_of_no_keys_is_refused_at_load() {
     assert!(e.is(BUNDLE_INVALID, "architecture.lookahead: 0 is not a band of 1 key or more"), "{e:?}");
 }
 
-/// Every device's backend but the CPU's, CUDA's and Level Zero's runs whole rows, so rule
-/// 6 skips the banded artifact there before any file of it is read. The weights
+/// Every device's backend but the CPU's, CUDA's, Level Zero's and Metal's runs whole
+/// rows, so rule 6 skips the banded artifact there before any file of it is read. The weights
 /// are left out of the bundle: the CPU, which runs the band, opens them
 /// and finds none, and every other backend refuses with the reason.
 #[test]
 fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
     let mut f = Fixture::model("lookahead-skipped");
     f.manifest["architecture"]["lookahead"] = json!(4);
+    // npu, listed for the artifact, has no band: the choice names it.
+    f.manifest["artifacts"][0]["backends"].as_array_mut().unwrap().push(json!("npu"));
     std::fs::remove_file(f.dir.join("weights/model.safetensors")).unwrap();
     let e = f.load().err().unwrap();
     assert!(e.is(BUNDLE_NOT_FOUND, "weights/model.safetensors"), "{e:?}");
 
     let bundle = turbo::bundle::Bundle::open(f.write()).unwrap();
     let raw = backend::format_bit(backend::TURBO_FORMAT_SAFETENSORS);
-    let b = "metal";
+    let b = "npu";
     let e = turbo::model::choose(&bundle.manifest, b, raw, "").unwrap_err();
     let why = format!("weights-f32: architecture.lookahead 4: the {b} backend has no limited-lookahead attention");
     assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);

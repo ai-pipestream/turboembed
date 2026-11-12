@@ -36,15 +36,18 @@ async fn stop_signal() -> &'static str {
     }
 }
 
-/// The catalog in `dir`, fetching over HTTPS, through `store` when given.
+/// The catalog in `dir`, fetching over HTTPS, through the store or the
+/// data directory `args` names.
 #[cfg(feature = "catalog-http")]
-fn catalog(dir: &str, index: Option<&str>, store: Option<&str>) -> Result<Catalog, String> {
-    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new), store)
+fn catalog(dir: &str, args: &Args) -> Result<Catalog, String> {
+    let (index, data) = (args.catalog_index.as_deref(), args.catalog_data.as_deref());
+    let path = std::path::Path::new;
+    Catalog::http(std::path::PathBuf::from(dir), index.map(path), args.catalog_store.as_deref(), data.map(path))
 }
 
 /// A server built without `catalog-http` has no way to fetch a model.
 #[cfg(not(feature = "catalog-http"))]
-fn catalog(_dir: &str, _index: Option<&str>, _store: Option<&str>) -> Result<Catalog, String> {
+fn catalog(_dir: &str, _args: &Args) -> Result<Catalog, String> {
     Err("this turbo-kserve was built without the catalog-http feature, so it cannot fetch models".into())
 }
 
@@ -100,7 +103,7 @@ async fn main() -> ExitCode {
         }
     };
     let catalog = match &args.catalog_dir {
-        Some(dir) => match catalog(dir, args.catalog_index.as_deref(), args.catalog_store.as_deref()) {
+        Some(dir) => match catalog(dir, &args) {
             Ok(c) => Some(c),
             Err(e) => {
                 eprintln!("turbo-kserve: catalog: {e}");
@@ -135,6 +138,7 @@ async fn main() -> ExitCode {
         sink: args.sink,
         pii_output: args.pii_output,
         pii_release: args.pii_release,
+        pii_encryption_keys: args.pii_encryption_keys,
         max_stream_bytes: Some(args.max_stream_bytes),
         tls: args.tls,
         metrics_listen: args.metrics_listen,

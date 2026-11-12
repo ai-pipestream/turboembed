@@ -45,6 +45,7 @@ fn catalog(home: &std::path::Path) -> Catalog {
         home: home.to_path_buf(),
         index: Arc::new(Index::parse(json.as_bytes()).unwrap()),
         transport: Arc::new(Nothing),
+        data: None,
     }
 }
 

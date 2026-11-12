@@ -6,7 +6,7 @@ mod common;
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use common::{open_stream, tiny};
 use turbo_analysis::export::export;
@@ -179,12 +179,13 @@ async fn analyze(s: &Server, tag: &str, n: usize) {
     assert_eq!(stream.half_close().collect().await.len(), n);
 }
 
-/// Polls the stats until `done` holds, for at most two seconds.
+/// Polls the stats until `done` holds, for at most two seconds of running
+/// time: a pause of the process does not end the wait early (#2173).
 async fn until(s: &Server, done: impl Fn(&SinkStats) -> bool) -> SinkStats {
-    let start = Instant::now();
+    let mut budget = common::Budget::new(Duration::from_secs(2));
     loop {
         let stats = s.sink_stats().unwrap();
-        if done(&stats) || start.elapsed() > Duration::from_secs(2) {
+        if done(&stats) || !budget.has_left() {
             return stats;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -307,9 +308,10 @@ async fn closing_with_the_sink_down_stops_the_drain_at_the_deadline() {
     let s = teeing(format!("http://{gone}"), 4).await;
     analyze(&s, "d", 3).await;
     until(&s, |s| s.failed_calls > 0).await;
-    let start = Instant::now();
-    let stats = s.close_sink(Duration::from_millis(300)).await.unwrap();
-    assert!(start.elapsed() < Duration::from_secs(2), "{:?}", start.elapsed());
+    // Two seconds of running time, so a pause of the process during the
+    // close does not count against it (#2173).
+    let close = s.close_sink(Duration::from_millis(300));
+    let stats = common::within("close stops at its deadline", Duration::from_secs(2), close).await.unwrap();
     // What the queue held is counted abandoned, not left counted queued.
     let held = (stats.forwarded, stats.dropped, stats.abandoned, stats.queued, stats.queued_bytes);
     assert_eq!(held, (0, 0, 3, 0, 0), "{stats:?}");

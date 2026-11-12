@@ -193,9 +193,14 @@ stubs must be regenerated.
   `CITY`), with the `City` extractor (`turbo-pii:city`) in the opt-in
   `Places` pack: a populated place of the bundled Natural Earth gazetteer
   directly before its US state or territory (`Springfield, IL`,
-  `San Juan, PR`) or after a city label
-  (`City: Phoenix`, `the city of Mobile`). A bare city name is no mention
-  (#1886).
+  `San Juan, PR`) or after a city label (`City: Phoenix`, `the city of
+  Mobile`, `City: Springfield IL 62704`, `City: Mobile Alabama`). When a
+  state follows a labelled city, the gazetteer must hold that place in
+  that state rather than falling back to any place of that name,
+  refusing 395,983 of 396,760 canonical `(name, state)` pairs (99.80%,
+  such as `City: Mobile, IL`) at the cost of smaller US homonyms absent
+  from the 1:10m table under that state (`City: Dublin, OH`). A bare
+  city name is no mention (#1886, #2107).
 - HIPAA Safe Harbor ZIP generalization: the `PiiZipSafeHarborStrategy`
   arm of `PiiRewriteStrategy` (`zip_safe_harbor`, field 11) and
   `PII_STRATEGY_ZIP_SAFE_HARBOR` (12) keep a ZIP code's first three
@@ -381,6 +386,15 @@ stubs must be regenerated.
 
 ### Changed
 
+- `--pii-encryption-key` (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`) no longer
+  needs `--pii-grant` or mTLS: encrypting during redaction releases no
+  value, so a server with no grant loads its encryption keys for the
+  redaction policies' `aes_256_gcm` and `ff1` arms.
+  `--pii-encryption-key-active` still needs a grant with ciphertext.
+  Keys loaded without a grant serve named `--pii-policy` policies only;
+  an inline policy naming one is refused. A named `ff1` policy still
+  encrypts any text a caller sends, so such a server must sit behind an
+  authenticating ingress or run with mTLS (#2111, #2164).
 - Over-limit step failures are carried as the typed
   `turbo_analysis::Error::OverLimit` and `ErrorRecord::OverLimit`
   variants (`{ annotator, limit, max, got }`, with `Display` changed

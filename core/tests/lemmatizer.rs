@@ -6,7 +6,6 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
 
 use common::*;
 use serde_json::{Value, json};
@@ -16,6 +15,7 @@ use turbo::head::tagger::{self, NO_WORD};
 use turbo::head::{EditTreeLemmatizer, TokenTagger};
 use turbo::manifest::HeadSpec;
 use turbo::status::*;
+use turbo_scratch::Scratch;
 
 fn heads() -> Value {
     json!([
@@ -64,13 +64,12 @@ fn head_weights() -> Vec<(String, Vec<u64>, Vec<f32>)> {
         .collect()
 }
 
-fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
+fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> Scratch {
     bundle_of(name, head_weights(), edit)
 }
 
-fn bundle_of(name: &str, weights: Vec<(String, Vec<u64>, Vec<f32>)>, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-lemmatizer-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn bundle_of(name: &str, weights: Vec<(String, Vec<u64>, Vec<f32>)>, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-lemmatizer-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();
@@ -105,7 +104,8 @@ fn bundle_of(name: &str, weights: Vec<(String, Vec<u64>, Vec<f32>)>, edit: impl 
 
 #[test]
 fn loaded_lemmatizer_matches_the_one_built_from_the_same_weights() {
-    let b = Bundle::open(&bundle("load", |_| {})).unwrap();
+    let dir = bundle("load", |_| {});
+    let b = Bundle::open(&dir).unwrap();
     let loaded = EditTreeLemmatizer::load(&b, "lemma").unwrap();
     let w = head_weights();
     let get = |s: &str| w.iter().find(|(k, _, _)| *k == format!("heads.lemma.{s}")).map(|(_, _, v)| v.clone());
@@ -195,7 +195,8 @@ fn a_bundle_whose_tag_embedding_is_not_finite_does_not_load() {
         let mut w = head_weights();
         let (_, _, t) = w.iter_mut().find(|(k, _, _)| k == "heads.lemma.pos.embedding").unwrap();
         t[3] = v;
-        let b = Bundle::open(&bundle_of(&format!("poison-{name}"), w, |_| {})).unwrap();
+        let dir = bundle_of(&format!("poison-{name}"), w, |_| {});
+        let b = Bundle::open(&dir).unwrap();
         let e = EditTreeLemmatizer::load(&b, "lemma").unwrap_err();
         assert_eq!(e.code, BUNDLE_INVALID, "{name}: {e:?}");
         assert!(e.message.contains("pos.embedding holds a value that is not finite"), "{name}: {e:?}");
