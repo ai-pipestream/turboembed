@@ -7,6 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use turbo_scratch::Scratch;
 use turbo_zoo::import::{BundleImport, add_to, bundle, component_of};
 use turbo_zoo::{
     Acceptances, Component, Directory, Index, Licence, LicenceClass, ModelType, Policy, Sha256, Sha512, Task,
@@ -17,14 +18,13 @@ fn testdata(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata").join(name)
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-import-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    dir
+/// A directory of this test's own, removed when the value is dropped.
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-{name}-{}", std::process::id())))
 }
 
 /// A copy of the sealed tiny BERT bundle a test may change.
-fn copy_of_tiny_bert(name: &str) -> PathBuf {
+fn copy_of_tiny_bert(name: &str) -> Scratch {
     let (from, to) = (testdata("tiny-bert-bundle"), scratch(name));
     for p in ["manifest.json", "tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
         fs::create_dir_all(to.join(p).parent().unwrap()).unwrap();
@@ -94,14 +94,13 @@ fn the_zoo_serves_an_imported_bundle_from_its_directory() {
         let index = Index::parse(add_to(&empty, entry).as_bytes()).unwrap();
         let cache = scratch(name);
         let source = Directory::new(&dir);
-        let zoo = Zoo::new(index, cache.clone(), Policy::default(), &source);
+        let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &source);
         let user: UserId = "alice".parse().unwrap();
         let fetched = zoo.fetch("tiny", &user, &Acceptances::default()).unwrap();
         assert!(fetched.files.len() >= 4, "{name}");
         for (local, file) in fetched.files.iter().zip(&fetched.artifact.files) {
             assert_eq!(fs::read(local).unwrap(), fs::read(dir.join(file.path.as_str())).unwrap(), "{name}");
         }
-        fs::remove_dir_all(&cache).unwrap();
     }
 }
 
@@ -152,7 +151,6 @@ fn a_manifest_the_importer_cannot_take_refuses_the_import() {
         fs::write(dir.join("manifest.json"), good.replacen(from, to, 1)).unwrap();
         let e = bundle(&dir, spec("tiny")).unwrap_err().to_string();
         assert!(e.contains(why), "{name}: {e}");
-        fs::remove_dir_all(&dir).unwrap();
     }
 }
 
@@ -268,5 +266,4 @@ fn the_command_adds_a_bundle_to_an_index_file_and_replaces_it_by_id() {
     }
     let (ok, _, err) = zoo(&home, &["import-bundle", bert, "--id", "tiny"]);
     assert!(!ok && err.contains("--base is required"), "{err}");
-    fs::remove_dir_all(&home).unwrap();
 }

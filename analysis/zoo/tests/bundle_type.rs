@@ -192,7 +192,7 @@ fn a_refused_bundle_left_in_the_cache_is_not_reported_as_cached() {
     let cache = cache("status");
     let other = TINY_BERT.replace("turboembed/tiny-bert", "turboembed/other");
     let other = index_of(&[entry(&dir, "tiny", ENCODER, &other)]).unwrap();
-    let zoo = Zoo::new(other, cache.clone(), Policy::default(), &source);
+    let zoo = Zoo::new(other, cache.to_path_buf(), Policy::default(), &source);
     assert_eq!(zoo.cache_status("tiny").unwrap(), CacheStatus::Missing { file: "manifest.json".into() });
 
     // Every file arrives and verifies, and the fetch refuses the bundle.
@@ -208,9 +208,8 @@ fn a_refused_bundle_left_in_the_cache_is_not_reported_as_cached() {
 
     // The same files under the entry the manifest describes are held.
     let index = index_of(&[entry(&dir, "tiny", ENCODER, TINY_BERT)]).unwrap();
-    let zoo = Zoo::new(index, cache.clone(), Policy::default(), &source);
+    let zoo = Zoo::new(index, cache.to_path_buf(), Policy::default(), &source);
     assert_eq!(zoo.cache_status("tiny").unwrap(), CacheStatus::Cached);
-    fs::remove_dir_all(&cache).unwrap();
 }
 
 /// A copy of the sealed tiny BERT bundle a test may change.
