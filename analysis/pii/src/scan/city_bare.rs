@@ -19,6 +19,8 @@
 //!   word that starts a sentence before a place ([`LEAD_WORDS`], `In
 //!   Rouen`, `The Boston area`), so `Harry Denton` is a person, and is not
 //!   `of` after such a word (`University of Bristol`);
+//! - no verb of speech follows it ([`SPEECH_VERBS`], `Madison said`), as
+//!   a person's name does;
 //! - it is not joined to an address, a path or a word (`example.com/Paris`,
 //!   `Paris.example`, `Grand-Rouen`).
 //!
@@ -231,7 +233,25 @@ fn left_out(key: &str, states: &[String]) -> bool {
 /// Whether the name `text[start..end]` that [`Names::prefixes`] holds is read
 /// bare.
 fn accepted(text: &str, start: usize, end: usize) -> bool {
-    state_after(text, end).is_none() && free_end(text, end) && !after_name_word(text, start)
+    state_after(text, end).is_none()
+        && free_end(text, end)
+        && !after_name_word(text, start)
+        && !before_speech(text, end)
+}
+
+/// The verbs of speech and address a person's name stands before and a
+/// city's seldom does (`Madison said`, `Paris told her`).
+const SPEECH_VERBS: [&str; 12] =
+    ["added", "asked", "replied", "said", "says", "smiled", "nodded", "told", "tells", "wrote", "writes", "laughed"];
+
+/// Whether one of [`SPEECH_VERBS`] follows the name at `end` after one
+/// space, so the name is a person's (`Columbus said`, `Salem wrote`).
+fn before_speech(text: &str, end: usize) -> bool {
+    let Some(rest) = text[end..].strip_prefix(' ') else {
+        return false;
+    };
+    let word = &rest[..rest.find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(rest.len())];
+    SPEECH_VERBS.contains(&word)
 }
 
 /// Whether nothing joins the start of a name at `start` to a word, a

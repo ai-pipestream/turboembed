@@ -1034,6 +1034,9 @@ runs `AllStructured` (`RedactionPolicy::opted_in_packs`).
       short list of words that start a sentence before a place (`In`,
       `The`, `From`, `Between`), and is not `of` after a capitalized word
       (`Harry Denton`, `Mr. Lincoln`, `University of Bristol`);
+    - no verb of speech or address follows it after one space (`said`,
+      `told`, `wrote` and a few more: `Madison said`, `Columbus wrote`),
+      as a person's name does;
     - no word, path or address touches it (`Grand-Rouen`,
       `example.com/Rouen`, `Rouen.example.com`, `Rouen@example.com`,
       `#Rouen`). A possessive name ends before its `'s` (`San
@@ -1097,6 +1100,14 @@ texts of the workspace (Wikipedia identifier articles, the PII inputs,
 the name finder corpora) found the bare names there to be places, apart
 from country names, which the country rule then removed, and names after
 `University of` or `Bank of`, which the `of` rule removed.
+
+The bare reading still tags a person who shares a city's name when
+nothing beside the name says so. Names outside the Census top 1,000
+first names and surnames (`Madison`, `Paris`, `Dayton`, `Salem`,
+`Columbus`) are not in the common-word list, so one alone as a subject
+or object (`we met Madison`, `Paris won the race`) is read as the city.
+A policy that needs higher precision on person-heavy text can leave
+`city` out and keep `state` and `county`.
 
 ## Custom extractors and scanner rules
 

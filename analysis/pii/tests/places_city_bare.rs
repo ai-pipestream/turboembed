@@ -41,6 +41,8 @@ fn a_bare_name_in_prose_is_a_mention() {
         ("a trip to Kansas City last May", "Kansas City"),
         ("born in S\u{e3}o Paulo in 1990", "S\u{e3}o Paulo"),
         ("Indianapolis traffic", "Indianapolis"),
+        // A verb of speech after a place is not one after the name.
+        ("people in Paris say so", "Paris"),
         // A hyphenated name is one name, never its last word alone.
         ("a Winston-Salem address", "Winston-Salem"),
     ] {
@@ -105,6 +107,10 @@ fn a_bare_name_inside_a_longer_name_is_no_mention() {
         "the Federal Reserve Bank of Boston",
         "chefs like Alice Waters",
         "Mr. Lincoln arrived",
+        // A person: a verb of speech after the name.
+        "Madison said the vote would wait.",
+        "Paris told her to wait",
+        "When Columbus wrote back, nobody answered.",
         // Joined to a word, a path or an address.
         "the Grand-Rouen plan",
         "see example.com/Rouen for more",
