@@ -9,6 +9,7 @@ pub mod open_span;
 mod output;
 pub mod package;
 mod packing;
+mod projection;
 mod recurrent;
 mod schema;
 mod subwords;

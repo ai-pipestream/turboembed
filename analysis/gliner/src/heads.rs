@@ -331,6 +331,7 @@ impl Heads {
         let mut input = crate::train::TrainingInput {
             words: w.words.clone(),
             projected_words: projected[labels * d..].to_vec(),
+            encoder_inputs: w.x.clone(),
             spans: Vec::new(),
             prompts: w.prompts.clone(),
             prompt_inputs: projected[..labels * d].to_vec(),
@@ -364,15 +365,21 @@ impl Heads {
         boundaries: bool,
         prompt: bool,
         recurrent: bool,
+        projection: bool,
     ) -> Result<(), String> {
         let (h, f) = match &self.head {
             SpanHead::Marker { start, .. } => (self.hidden, start.first.n),
             SpanHead::Token { .. } => return Err("gliner token-level output training is not supported".into()),
         };
-        if !matches!(params.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 24) {
+        let optional = 8 * usize::from(boundaries)
+            + 4 * usize::from(prompt)
+            + 8 * usize::from(recurrent)
+            + 2 * usize::from(projection);
+        let output = params.len().checked_sub(optional);
+        if !matches!(output, Some(2 | 4)) {
             return Err("gliner output training requires output tensors with optional head groups".into());
         }
-        let linear = matches!(params.len(), 2 | 10 | 14 | 18);
+        let linear = output == Some(2);
         let output_len = if linear { 2 } else { 4 };
         let span = match &params[..output_len] {
             [w0, b0, w1, b1] => OutputHead::Mlp(Mlp {
@@ -396,7 +403,8 @@ impl Heads {
         let prompt_offset = output_len + if boundaries.is_some() { 8 } else { 0 };
         let prompt = if prompt { Some(PromptHead::Mlp(mlp(&params[prompt_offset..prompt_offset + 4])?)) } else { None };
         let recurrent = if recurrent {
-            let values = &params[params.len() - 8..];
+            let values = &params
+                [params.len() - 8 - if projection { 2 } else { 0 }..params.len() - if projection { 2 } else { 0 }];
             let forward: Vec<f32> = values[2].iter().zip(&values[3]).map(|(a, b)| a + b).collect();
             let reverse: Vec<f32> = values[6].iter().zip(&values[7]).map(|(a, b)| a + b).collect();
             let dirs = [
@@ -404,6 +412,13 @@ impl Heads {
                 Weights { w: &values[4], u: &values[5], b: &reverse, reverse: true },
             ];
             Some(Lstm::new(h, h / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?)
+        } else {
+            None
+        };
+        let projection = if projection {
+            let values = &params[params.len() - 2..];
+            let k = values[0].len() / h;
+            Some(Dense::new(&values[0], values[1].clone(), h, k)?)
         } else {
             None
         };
@@ -418,6 +433,9 @@ impl Heads {
         }
         if let Some(recurrent) = recurrent {
             self.lstm = recurrent;
+        }
+        if let Some(projection) = projection {
+            self.projection = projection;
         }
         Ok(())
     }

@@ -1,4 +1,4 @@
-//! Native fine-tuning of markerV0 output and boundary heads on frozen GLiNER features.
+//! Native fine-tuning of markerV0 heads on frozen GLiNER encoder features.
 
 use std::collections::BTreeSet;
 
@@ -13,6 +13,7 @@ use crate::{Candidate, Config, ExtractionSchema, Model};
 pub struct TrainingInput {
     pub(crate) words: Vec<f32>,
     pub(crate) projected_words: Vec<f32>,
+    pub(crate) encoder_inputs: Vec<f32>,
     pub(crate) spans: Vec<f32>,
     pub(crate) prompts: Vec<f32>,
     pub(crate) prompt_inputs: Vec<f32>,
@@ -20,8 +21,8 @@ pub struct TrainingInput {
 }
 
 impl Model {
-    /// Runs the production forward pass once and retains the output and
-    /// boundary inputs. Gold spans are `(start, end, label)`, with an exclusive end.
+    /// Runs the production forward pass once and retains trainable head inputs.
+    /// Gold spans are `(start, end, label)`, with an exclusive end.
     pub fn training_input(
         &self,
         words: &[&str],
@@ -38,7 +39,13 @@ impl Model {
         if self.config.hidden != trainer.hidden || self.config.projection_factor != trainer.factor {
             return Err("gliner output trainer does not match the model".into());
         }
-        self.heads.set_output(&trainer.params, trainer.boundaries, trainer.prompt, trainer.recurrent)
+        self.heads.set_output(
+            &trainer.params,
+            trainer.boundaries,
+            trainer.prompt,
+            trainer.recurrent,
+            trainer.projection,
+        )
     }
 }
 
@@ -51,15 +58,16 @@ pub struct OutputTrainer {
     boundaries: bool,
     prompt: bool,
     recurrent: bool,
+    projection: bool,
 }
 
 impl OutputTrainer {
     pub fn load(config: &Config, bytes: &[u8]) -> Result<Self, String> {
-        Self::load_with_heads(config, bytes, false, false, false)
+        Self::load_with_heads(config, bytes, false, false, false, false)
     }
 
     pub fn load_with_boundaries(config: &Config, bytes: &[u8], boundaries: bool) -> Result<Self, String> {
-        Self::load_with_heads(config, bytes, boundaries, false, false)
+        Self::load_with_heads(config, bytes, boundaries, false, false, false)
     }
 
     pub fn load_with_heads(
@@ -68,6 +76,7 @@ impl OutputTrainer {
         boundaries: bool,
         prompt: bool,
         recurrent: bool,
+        projection: bool,
     ) -> Result<Self, String> {
         let file = File::parse("gliner heads", bytes).map_err(|e| e.message)?;
         let (h, f) = (config.hidden, config.projection_factor);
@@ -84,11 +93,14 @@ impl OutputTrainer {
                 ("span_rep_layer.span_rep_layer.out_project.bias".into(), vec![h]),
             ]
         };
-        if (boundaries || prompt || recurrent) && config.token_level {
+        if (boundaries || prompt || recurrent || projection) && config.token_level {
             return Err("gliner token-level output training is not supported".into());
         }
         if recurrent && !boundaries {
             return Err("gliner recurrent training requires boundary training".into());
+        }
+        if projection && !(recurrent && prompt) {
+            return Err("gliner projection training requires recurrent and prompt training".into());
         }
         if boundaries {
             for stem in ["project_start", "project_end"] {
@@ -127,6 +139,11 @@ impl OutputTrainer {
                 }
             }
         }
+        if projection {
+            let tensor = file.get("token_rep_layer.projection.weight", Dtype::F32, 2).map_err(|e| e.message)?;
+            specs.push(("token_rep_layer.projection.weight".into(), vec![h, tensor.shape[1] as usize]));
+            specs.push(("token_rep_layer.projection.bias".into(), vec![h]));
+        }
         let mut params = Vec::new();
         for (name, shape) in specs {
             let tensor = file.get(&name, Dtype::F32, shape.len()).map_err(|e| e.message)?;
@@ -136,7 +153,17 @@ impl OutputTrainer {
             }
             params.push(tensor.f32s());
         }
-        Ok(Self { hidden: h, factor: f, base: params.clone(), params, anchor: 0.0, boundaries, prompt, recurrent })
+        Ok(Self {
+            hidden: h,
+            factor: f,
+            base: params.clone(),
+            params,
+            anchor: 0.0,
+            boundaries,
+            prompt,
+            recurrent,
+            projection,
+        })
     }
 
     pub fn set_anchor(&mut self, weight: f32) -> Result<(), String> {
@@ -157,7 +184,11 @@ impl OutputTrainer {
     }
 
     fn linear(&self) -> bool {
-        matches!(self.params.len(), 2 | 10 | 14 | 18)
+        let optional = 8 * usize::from(self.boundaries)
+            + 4 * usize::from(self.prompt)
+            + 8 * usize::from(self.recurrent)
+            + 2 * usize::from(self.projection);
+        self.params.len() - optional == 2
     }
 
     fn output_len(&self) -> usize {
@@ -173,7 +204,11 @@ impl OutputTrainer {
     }
 
     fn recurrent_offset(&self) -> Option<usize> {
-        self.recurrent.then(|| self.params.len() - 8)
+        self.recurrent.then(|| self.params.len() - 8 - 2 * usize::from(self.projection))
+    }
+
+    fn projection_offset(&self) -> Option<usize> {
+        self.projection.then(|| self.params.len() - 2)
     }
 
     pub fn write_heads(&self, original: &[u8]) -> Result<Vec<u8>, String> {
@@ -210,6 +245,10 @@ impl OutputTrainer {
                 }
             }
         }
+        if self.projection_offset().is_some() {
+            names.push("token_rep_layer.projection.weight".into());
+            names.push("token_rep_layer.projection.bias".into());
+        }
         let mut out = original.to_vec();
         for (name, values) in names.into_iter().zip(&self.params) {
             let tensor =
@@ -237,10 +276,12 @@ impl OutputTrainer {
         let boundary = self.boundary_offset();
         let prompt_offset = self.prompt_offset();
         let recurrent_offset = self.recurrent_offset();
+        let projection_offset = self.projection_offset();
+        let n = if boundary.is_some() || recurrent_offset.is_some() { input.words.len() / h } else { 0 };
         let valid_words = boundary.is_none()
             || (input.words.len().is_multiple_of(h)
                 && input.pairs.iter().all(|&(start, end)| start < end && end <= input.words.len() / h));
-        if !matches!(grads.len(), 2 | 4 | 8 | 10 | 12 | 14 | 16 | 18 | 20 | 24)
+        if grads.len() != self.params.len()
             || grads.iter().zip(&self.params).any(|(a, b)| a.len() != b.len())
             || input.spans.len() != input.pairs.len() * 2 * h
             || candidates.len() != input.pairs.len() * labels
@@ -248,12 +289,18 @@ impl OutputTrainer {
             || !valid_words
             || (prompt_offset.is_some() && input.prompt_inputs.len() != input.prompts.len())
             || (recurrent_offset.is_some() && input.projected_words.len() != input.words.len())
+            || projection_offset
+                .is_some_and(|offset| input.encoder_inputs.len() != (labels + n) * (self.params[offset].len() / h))
         {
             return Err("gliner output training input or gradient shape mismatch".into());
         }
-        let n = if boundary.is_some() || recurrent_offset.is_some() { input.words.len() / h } else { 0 };
-        let recurrent =
-            recurrent_offset.map(|offset| Recurrent::forward(&self.params[offset..], &input.projected_words, h));
+        let projected = projection_offset
+            .map(|offset| crate::projection::forward(&self.params[offset..], &input.encoder_inputs, h));
+        let (prompt_inputs, projected_words) =
+            projected.as_ref().map_or((input.prompt_inputs.as_slice(), input.projected_words.as_slice()), |values| {
+                values.split_at(labels * h)
+            });
+        let recurrent = recurrent_offset.map(|offset| Recurrent::forward(&self.params[offset..], projected_words, h));
         let word_values = recurrent.as_ref().map_or(&input.words, |recurrent| &recurrent.words);
         let boundaries = boundary.map(|offset| {
             (
@@ -261,10 +308,10 @@ impl OutputTrainer {
                 Boundary::forward(&self.params[offset + 4..], word_values, n, h, f),
             )
         });
-        let prompt_features =
-            prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], &input.prompt_inputs, h, f));
+        let prompt_features = prompt_offset.map(|offset| Prompt::forward(&self.params[offset..], prompt_inputs, h, f));
         let prompt_values = prompt_features.as_ref().map_or(&input.prompts, |(_, values)| values);
         let mut dprompt = if prompt_offset.is_some() { vec![0.0; labels * h] } else { Vec::new() };
+        let mut dprojected_prompt = if projection_offset.is_some() { vec![0.0; labels * h] } else { Vec::new() };
         let mut dlstm = if recurrent_offset.is_some() { vec![0.0; n * h] } else { Vec::new() };
         let linear = self.linear();
         let positive: BTreeSet<(usize, usize, usize)> = gold.iter().copied().collect();
@@ -383,10 +430,29 @@ impl OutputTrainer {
             ends.backward(&self.params[offset + 4..], word_values, &dends, &mut dlstm, &mut grads[offset + 4..], h, f);
         }
         if let (Some(offset), Some((features, _))) = (prompt_offset, &prompt_features) {
-            features.backward(&self.params[offset..], &input.prompt_inputs, &dprompt, &mut grads[offset..], h, f);
+            features.backward(
+                &self.params[offset..],
+                prompt_inputs,
+                &dprompt,
+                &mut dprojected_prompt,
+                &mut grads[offset..],
+                h,
+                f,
+            );
         }
         if let (Some(offset), Some(recurrent)) = (recurrent_offset, &recurrent) {
-            recurrent.backward(&self.params[offset..], &input.projected_words, &dlstm, &mut grads[offset..], h);
+            let dprojected =
+                recurrent.backward(&self.params[offset..], projected_words, &dlstm, &mut grads[offset..], h);
+            if let Some(offset) = projection_offset {
+                let combined = dprojected_prompt.iter().chain(&dprojected).copied().collect::<Vec<_>>();
+                crate::projection::backward(
+                    &self.params[offset..],
+                    &input.encoder_inputs,
+                    &combined,
+                    &mut grads[offset..],
+                    h,
+                );
+            }
         }
         let mut total = -loss * scale;
         if self.anchor > 0.0 {

@@ -1,7 +1,17 @@
 use super::*;
 
 fn trainer(params: Vec<Vec<f32>>, boundaries: bool, prompt: bool, recurrent: bool) -> OutputTrainer {
-    OutputTrainer { hidden: 1, factor: 2, base: params.clone(), params, anchor: 0.0, boundaries, prompt, recurrent }
+    OutputTrainer {
+        hidden: 1,
+        factor: 2,
+        base: params.clone(),
+        params,
+        anchor: 0.0,
+        boundaries,
+        prompt,
+        recurrent,
+        projection: false,
+    }
 }
 
 fn fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
@@ -10,6 +20,7 @@ fn fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
     let input = TrainingInput {
         words: vec![0.6, -0.2],
         projected_words: vec![0.6, -0.2],
+        encoder_inputs: vec![0.6, -0.2],
         spans: vec![0.5, -0.3, 0.2, 0.8],
         prompts: vec![0.7],
         prompt_inputs: vec![0.4],
@@ -117,10 +128,12 @@ fn recurrent_fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
         boundaries: true,
         prompt: true,
         recurrent: true,
+        projection: false,
     };
     let input = TrainingInput {
         words: vec![0.6, -0.2, 0.4, 0.3],
         projected_words: vec![0.6, -0.2, 0.4, 0.3],
+        encoder_inputs: Vec::new(),
         spans: vec![0.5, -0.3, 0.2, 0.8, 0.1, 0.4, -0.2, 0.6],
         prompts: vec![0.7, 0.2],
         prompt_inputs: vec![0.4, -0.1],
@@ -136,5 +149,14 @@ fn recurrent_fixture() -> (OutputTrainer, TrainingInput, Vec<Candidate>) {
 #[test]
 fn recurrent_gradients_match_finite_differences() {
     let (mut trainer, input, candidates) = recurrent_fixture();
+    check_gradients(&mut trainer, &input, &candidates);
+}
+
+#[test]
+fn projection_gradients_match_finite_differences() {
+    let (mut trainer, mut input, candidates) = recurrent_fixture();
+    trainer.projection = true;
+    trainer.params.extend([vec![0.03, -0.04, 0.05, -0.06, 0.07, -0.08], vec![0.02, -0.03]]);
+    input.encoder_inputs = vec![0.4, -0.1, 0.3, 0.6, -0.2, 0.4, 0.3, 0.2, 0.5];
     check_gradients(&mut trainer, &input, &candidates);
 }
