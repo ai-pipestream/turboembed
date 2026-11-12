@@ -2,7 +2,12 @@ name: Zoo image
 
 # The model zoo image (docs/zoo-container.md): server/Dockerfile.zoo built
 # from the tree, then docker-compose.zoo.yml with RustFS and the smoke test
-# in scripts/test-zoo-image.sh.
+# in scripts/test-zoo-image.sh. On a push to main or a release tag, the image
+# that passed the smoke test is pushed to Docker Hub when the repository or
+# its organisation has the DOCKER_USER and DOCKER_TOKEN secrets. The Docker
+# Hub repository is the DOCKERHUB_REPOSITORY variable, or
+# pipestreamai/turbo-zoo.
+# Pull requests never log in or push.
 
 on:
   pull_request:
@@ -24,6 +29,8 @@ on:
       - 'demo/static/**'
   push:
     branches: [main]
+    # Path filters do not apply to tag pushes, so every release tag publishes.
+    tags: ['v*']
     paths:
       - '.github/workflows/zoo-image.yml'
       - 'docker-compose.zoo.yml'
@@ -70,3 +77,40 @@ jobs:
           if [ "$user" != "10001:10001" ]; then echo "the image runs as $user, not 10001:10001"; exit 1; fi
       - name: compose with RustFS, reads through the store
         run: bash scripts/test-zoo-image.sh
+      - name: push the tested image to Docker Hub
+        if: github.event_name == 'push'
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+        run: |
+          if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_TOKEN" ]; then
+            echo "::notice::DOCKER_USER or DOCKER_TOKEN is not set; the image is not pushed"
+            exit 0
+          fi
+          repo="${DOCKERHUB_REPOSITORY:-pipestreamai/turbo-zoo}"
+          tags="sha-${GITHUB_SHA::12}"
+          case "$GITHUB_REF" in
+            refs/heads/main) tags="$tags main" ;;
+            refs/tags/v[0-9]*)
+              version="${GITHUB_REF#refs/tags/v}"
+              tags="$tags $version"
+              # A pre-release such as 0.2.0-rc.1 does not move latest.
+              case "$version" in *-*) ;; *) tags="$tags latest" ;; esac
+              ;;
+            *) echo "::notice::$GITHUB_REF is not main or a v<digit> release tag; the image is not pushed"; exit 0 ;;
+          esac
+          echo "$DOCKER_TOKEN" | docker login docker.io -u "$DOCKER_USER" --password-stdin
+          trap 'docker logout docker.io' EXIT
+          for t in $tags; do
+            docker tag turbo-zoo:ci "docker.io/$repo:$t"
+            docker push "docker.io/$repo:$t"
+          done
+          digest="$(docker image inspect -f '{{index .RepoDigests 0}}' "docker.io/$repo:sha-${GITHUB_SHA::12}")"
+          {
+            echo "### Zoo image pushed"
+            echo
+            echo "Digest: \`$digest\`"
+            echo
+            for t in $tags; do echo "- \`docker.io/$repo:$t\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -29,6 +29,45 @@ read from it, whoever has accepted it: its class allows no copy beyond
 the cache it is installed into, so each zoo fetches it from its
 publisher (docs/grpc-catalog.md).
 
+## The published image
+
+The `Zoo image` workflow pushes the image to Docker Hub after its smoke
+test passes, so the same image can be pulled instead of built. Each push
+carries these tags:
+
+| Tag | Pushed by |
+|---|---|
+| `sha-<12 hex>` | Every push, naming the commit it was built from. |
+| `main` | Each change to `main` that touches the image, the catalog or the demo. |
+| `<version>`, such as `0.2.0` | The release tag `v<version>`, where the version starts with a digit. |
+| `latest` | The newest release tag that is not a pre-release (no `-` in the version). |
+
+The image is built for `linux/amd64`. The job summary of each run names
+the pushed digest; pin the digest (`turbo-zoo@sha256:...`) where the
+same bytes must run every time.
+
+```
+docker pull docker.io/pipestreamai/turbo-zoo:main
+docker run -d -p 8080:8080 -p 8081:8081 -v turbo-zoo:/zoo docker.io/pipestreamai/turbo-zoo:main
+```
+
+With compose, name the published image in `TURBO_ZOO_IMAGE`
+and leave out `--build`:
+
+```
+export TURBO_ZOO_IMAGE=docker.io/pipestreamai/turbo-zoo:main
+docker compose -f docker-compose.zoo.yml pull zoo
+docker compose -f docker-compose.zoo.yml up -d
+```
+
+The workflow logs in with the secrets `DOCKER_USER` and `DOCKER_TOKEN`
+(a Docker Hub access token with write access), set on the repository or
+its organisation. A fork publishes its own copy by setting the same
+secrets and the repository variable `DOCKERHUB_REPOSITORY` to its own
+Docker Hub repository.
+Without the secrets the workflow builds and tests the image and pushes
+nothing. A pull request never logs in or pushes.
+
 ## With RustFS: docker compose
 
 `docker-compose.zoo.yml` at the repository root runs three services:
@@ -55,6 +94,7 @@ The page is at `http://HOST:8080` and gRPC at `HOST:8081`.
 | `TURBO_ZOO_BIND` | The host address both ports are published on. | `0.0.0.0`, every interface. |
 | `TURBO_ZOO_PAGE_PORT`, `TURBO_ZOO_GRPC_PORT` | The host ports. | `8080` and `8081`. |
 | `TURBO_ZOO_BUCKET` | The bucket's name. | `turbo-zoo`. |
+| `TURBO_ZOO_IMAGE` | A published zoo image to run instead of the local build (The published image). | `turbo-zoo`, the image `--build` makes. |
 | `TURBO_ZOO_RUSTFS_IMAGE` | The same RustFS image under another name, such as a registry mirror. | The pinned image. |
 
 The volumes `rustfs-data` (the store) and `zoo-home` (the zoo's cache and
@@ -238,4 +278,5 @@ health check, and refuses missing/rogue identities and a wrong server name.
 Finally it runs the image alone with the page on HTTPS, using a certificate
 made for the run, and waits for Docker to report the container healthy. The `Zoo image` workflow
 (.github/workflows/zoo-image.yml) builds the image and runs the script
-whenever the image, the catalog or the demo changes.
+whenever the image, the catalog or the demo changes, and on a push to
+`main` or a release tag pushes the tested image (The published image).
