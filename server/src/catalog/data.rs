@@ -216,7 +216,7 @@ fn make(dir: &Path, mode: u32) -> Result<(), String> {
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut b, mode);
     #[cfg(not(unix))]
-    let _ = mode;
+    let _ = (&mut b, mode);
     match b.create(dir) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == ErrorKind::AlreadyExists => match fs::symlink_metadata(dir) {
