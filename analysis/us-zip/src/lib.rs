@@ -143,6 +143,7 @@ pub struct UsZipTable {
     places: Vec<PlaceRow>,
     counties: Vec<CountyRow>,
     prefixes: Vec<PrefixRow>,
+    digest: u64,
 }
 
 impl UsZipTable {
@@ -166,7 +167,13 @@ impl UsZipTable {
             places: Vec::new(),
             counties: Vec::new(),
             prefixes: Vec::new(),
+            digest: 0,
         };
+        let mut h = turbo_analysis::Fnv1a::new();
+        for text in [zctas, places, counties, prefixes] {
+            h.usize(text.len()).bytes(text.as_bytes());
+        }
+        t.digest = h.finish();
         parse::zctas(zctas, &mut t.zctas, &mut t.parts)?;
         parse::places(places, &mut t.places)?;
         parse::counties(counties, &mut t.counties)?;
@@ -185,6 +192,12 @@ impl UsZipTable {
             }
         }
         Ok(t)
+    }
+
+    /// An FNV-1a digest of the four tables' text, so tables that differ in
+    /// any byte differ here.
+    pub fn digest(&self) -> u64 {
+        self.digest
     }
 
     /// The number of ZCTAs.

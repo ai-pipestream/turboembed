@@ -61,3 +61,21 @@ fn the_annotator_adds_locale_names_to_a_detected_zip_code() {
     assert_eq!(entry.attribute(ATTRIBUTE_KEY_USPS_LOCALE).unwrap().value(), "SPRINGFIELD|LELAND GROVE");
     assert_eq!(entry.containment(), ["IL", "Sangamon County", "Springfield"]);
 }
+
+#[test]
+fn lists_of_one_size_with_other_names_hash_apart() {
+    let a = UspsLocales::parse(&sheet(&[SPRINGFIELD])).unwrap();
+    let b = UspsLocales::parse(&sheet(&[LELAND_GROVE])).unwrap();
+    assert_eq!(a.len(), b.len());
+    assert_ne!(a.digest(), b.digest());
+    let ha = ZipLocationAnnotator::new().with_usps(a).config_hash();
+    let hb = ZipLocationAnnotator::new().with_usps(b).config_hash();
+    assert_ne!(ha, hb);
+    assert_ne!(ha, ZipLocationAnnotator::new().config_hash());
+}
+
+#[test]
+fn a_locale_name_with_the_attribute_separator_is_refused() {
+    let err = UspsLocales::parse(&sheet(&[&SPRINGFIELD.replace("SPRINGFIELD   ", "SPRING|FIELD")])).unwrap_err();
+    assert!(err.to_string().contains("holds a `|`"), "{err}");
+}

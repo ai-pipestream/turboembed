@@ -23,6 +23,7 @@ const STATE: &str = "PHYSICAL STATE";
 #[derive(Debug, Default)]
 pub struct UspsLocales {
     by_zip: HashMap<u32, Vec<Locale>>,
+    digest: u64,
 }
 
 impl UspsLocales {
@@ -41,7 +42,10 @@ impl UspsLocales {
             header.split('\t').position(|c| c.trim() == name).ok_or_else(|| err(1, format!("no {name} column")))
         };
         let (zc, lc, sc) = (col(ZIP)?, col(LOCALE)?, col(STATE)?);
-        let mut out = UspsLocales::default();
+        let mut out = UspsLocales {
+            digest: turbo_analysis::Fnv1a::new().bytes(text.as_bytes()).finish(),
+            ..UspsLocales::default()
+        };
         for (i, line) in lines {
             let n = i + 1;
             let f: Vec<&str> = line.split('\t').map(str::trim).collect();
@@ -56,6 +60,10 @@ impl UspsLocales {
             if locale.is_empty() {
                 return Err(err(n, format!("{LOCALE} is blank")));
             }
+            if locale.contains('|') {
+                // `|` separates the names in the `usps-locale` attribute.
+                return Err(err(n, format!("{LOCALE} holds a `|`: {locale:?}")));
+            }
             let state = get(sc, STATE)?;
             let state: [u8; 2] = state
                 .as_bytes()
@@ -69,6 +77,12 @@ impl UspsLocales {
             }
         }
         Ok(out)
+    }
+
+    /// An FNV-1a digest of the text the list was read from, so lists that
+    /// differ in any byte differ here.
+    pub fn digest(&self) -> u64 {
+        self.digest
     }
 
     /// The number of ZIP Codes listed.

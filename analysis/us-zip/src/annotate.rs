@@ -112,7 +112,11 @@ impl Annotator for ZipLocationAnnotator {
 
     fn config_hash(&self) -> u64 {
         let mut h = turbo_analysis::Fnv1a::new();
-        h.usize(self.table.len()).usize(self.usps.as_ref().map_or(0, UspsLocales::len));
+        h.u64(self.table.digest());
+        match &self.usps {
+            None => h.u8(0),
+            Some(u) => h.u8(1).u64(u.digest()),
+        };
         h.finish()
     }
 }
