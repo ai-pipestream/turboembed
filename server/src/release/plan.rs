@@ -133,7 +133,7 @@ pub fn project(
                 format!("layer {instance} projected {projected} of {} mentions", pii.len()),
             ));
         }
-        for i in 0..pii.len() {
+        for (i, annotation) in typed.layers[li].annotations.iter_mut().enumerate() {
             let m = pii.get(Ix::new(i as u32));
             let custom =
                 if m.kind.is_custom() { pii.custom_kinds.name(m.kind).unwrap_or("").to_owned() } else { String::new() };
@@ -149,7 +149,7 @@ pub fn project(
                 } else {
                     PiiWithheldReason::NotAllowedByPolicy
                 };
-                if let Some(Value::Pii(w)) = &mut typed.layers[li].annotations[i].value {
+                if let Some(Value::Pii(w)) = &mut annotation.value {
                     w.value = Some(withheld_because(reason));
                 }
                 continue;
