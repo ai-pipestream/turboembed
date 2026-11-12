@@ -9,7 +9,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { test } from "node:test";
 import { chromium } from "playwright";
 
@@ -20,8 +19,11 @@ const TERMS = "https://creativecommons.org/licenses/by-sa/4.0/legalcode";
 
 type File = { path: string; size: number; sha256: string };
 
-test("a share-alike model is accepted, installed, verified and hot-loaded", { skip: !BASE && "TURBO_E2E_INSTALL_URL is not set" }, async () => {
-  const files: File[] = JSON.parse(readFileSync(INDEX, "utf8")).artifacts[0].files;
+test("a share-alike model is accepted, installed, verified and hot-loaded", async () => {
+  // The flow is part of the suite: without its server it fails, never skips.
+  assert.notEqual(BASE, "", "TURBO_E2E_INSTALL_URL names the install demo (scripts/e2e-web.sh)");
+  assert.notEqual(INDEX, "", "TURBO_E2E_INSTALL_INDEX names its catalog index");
+  const files: File[] = JSON.parse(new TextDecoder().decode(readFileSync(INDEX))).artifacts[0].files;
   const browser = await chromium.launch();
   try {
     const page = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
@@ -56,11 +58,11 @@ test("a share-alike model is accepted, installed, verified and hot-loaded", { sk
     await page.waitForFunction(() => /^Installed /.test(document.querySelector("#models-install p")?.textContent ?? ""), null, { timeout: 60_000 });
     const done = (await status.textContent()) ?? "";
     const m = done.match(new RegExp(`^Installed ${ID} 1: ${files.length} files, .* in (.+)\\.$`));
-    assert.ok(m, done);
+    if (!m) throw new Error(`not an install status: ${done}`);
     const dir = m[1];
     assert.equal(await page.locator("#models-install progress").evaluate((p) => (p as HTMLProgressElement).value === (p as HTMLProgressElement).max), true);
     for (const f of files) {
-      const bytes = readFileSync(join(dir, f.path));
+      const bytes = readFileSync(`${dir}/${f.path}`);
       assert.equal(bytes.length, f.size, f.path);
       assert.equal(createHash("sha256").update(bytes).digest("hex"), f.sha256, f.path);
     }
