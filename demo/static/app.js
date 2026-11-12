@@ -7301,7 +7301,7 @@ function whyNone(what) {
 }
 async function permits() {
   try {
-    const d = await demo.describe({});
+    const d = await demo.describe({}, { signal: AbortSignal.timeout(3e3) });
     set(d.forwardedWrites, d.hasUser);
   } catch {
     set(null);

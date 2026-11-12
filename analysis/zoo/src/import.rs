@@ -61,7 +61,7 @@ pub fn component_of(task: Task) -> Option<Component> {
 pub fn bundle(dir: &Path, spec: BundleImport) -> Result<Artifact, ZooError> {
     let id = spec.id.clone();
     let fail = |message: String| ZooError::Bundle { id: id.clone(), message };
-    let manifest_bytes = read_plain(&dir.join(MANIFEST))?;
+    let manifest_bytes = read_plain(dir, MANIFEST)?;
     let v: serde_json::Value =
         serde_json::from_slice(&manifest_bytes).map_err(|e| fail(format!("{MANIFEST} is not JSON: {e}")))?;
     let text = |pointer: &str| {
@@ -97,7 +97,7 @@ pub fn bundle(dir: &Path, spec: BundleImport) -> Result<Artifact, ZooError> {
         let size = field("size")?.as_u64().ok_or_else(|| at_file("size", "is not a size".into()))?;
         let sha256 =
             Sha256::from_str(field("sha256")?.as_str().unwrap_or_default()).map_err(|e| at_file("sha256", e))?;
-        let bytes = read_plain(&dir.join(path.as_str()))?;
+        let bytes = read_plain(dir, path.as_str())?;
         let differs = |check, expected: String, actual: String| ZooError::Integrity {
             id: id.clone(),
             path: path.to_string(),
@@ -149,15 +149,19 @@ pub fn bundle(dir: &Path, spec: BundleImport) -> Result<Artifact, ZooError> {
     Ok(artifact)
 }
 
-/// `index` with `entry` added last, or in the place of the entry of the
-/// same id, in the canonical form.
-pub fn add_to(index: &Index, entry: Artifact) -> String {
-    let mut artifacts = index.list().to_vec();
+/// The index text `index` with `entry` added last, or in the place of
+/// the entry of the same id, in the canonical form. Every other entry is
+/// carried over, one the zoo refuses and does not list among them, and
+/// the result is held to every rule of the index.
+pub fn add_to(index: &[u8], entry: Artifact) -> Result<String, ZooError> {
+    let mut artifacts = Index::written(index)?;
     match artifacts.iter_mut().find(|a| a.id == entry.id) {
         Some(held) => *held = entry,
         None => artifacts.push(entry),
     }
-    Index::to_canonical_json(&artifacts)
+    let written = Index::to_canonical_json(&artifacts);
+    Index::parse(written.as_bytes())?;
+    Ok(written)
 }
 
 /// Writes an index's canonical text to `path` through a temporary name
@@ -166,14 +170,26 @@ pub fn write(path: &Path, canonical: &str) -> Result<(), ZooError> {
     crate::fetch::write_atomic(path, canonical.as_bytes())
 }
 
-/// The whole of the plain file at `path`; a symlink, a directory or
-/// anything else is refused.
-fn read_plain(path: &Path) -> Result<Vec<u8>, ZooError> {
-    let io = |message: String| ZooError::Io { path: path.to_path_buf(), message };
-    let m = fs::symlink_metadata(path).map_err(|e| io(e.to_string()))?;
-    if !m.is_file() {
-        return Err(io("is not a plain file".into()));
+/// The whole of the plain file at `path` (`/`-separated) under `dir`.
+/// Every directory on the way is a plain directory and the file a plain
+/// file: a symlink anywhere below `dir` is refused, so no byte is read
+/// from outside the bundle directory.
+fn read_plain(dir: &Path, path: &str) -> Result<Vec<u8>, ZooError> {
+    let mut at = dir.to_path_buf();
+    let mut parts = path.split('/').peekable();
+    while let Some(part) = parts.next() {
+        at.push(part);
+        let io = |message: String| ZooError::Io { path: at.clone(), message };
+        let m = fs::symlink_metadata(&at).map_err(|e| io(e.to_string()))?;
+        if parts.peek().is_some() && !m.is_dir() {
+            return Err(io("is not a plain directory".into()));
+        }
+        if parts.peek().is_none() && !m.is_file() {
+            return Err(io("is not a plain file".into()));
+        }
     }
+    let path = at.as_path();
+    let io = |message: String| ZooError::Io { path: path.to_path_buf(), message };
     let mut out = Vec::new();
     fs::File::open(path).and_then(|mut f| f.read_to_end(&mut out)).map_err(|e| io(e.to_string()))?;
     Ok(out)

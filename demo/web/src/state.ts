@@ -91,7 +91,8 @@ export function whyNone(what: string): string {
 /** Asks the demo which writes it forwards; with no answer, nothing is turned off. */
 export async function permits(): Promise<void> {
   try {
-    const d = await demo.describe({});
+    // A demo that does not answer must not hold the page back.
+    const d = await demo.describe({}, { signal: AbortSignal.timeout(3000) });
     permit.set(d.forwardedWrites, d.hasUser);
   } catch {
     permit.set(null);
