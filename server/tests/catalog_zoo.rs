@@ -113,7 +113,8 @@ impl Drop for Home {
 
 /// A server with no model and no admin flag, in zoo mode or not.
 async fn start(home: &Path, origin: &Origin, zoo: bool) -> (Server, Client) {
-    let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(origin.clone()) };
+    let catalog =
+        Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(origin.clone()), data: None };
     let serve = Serve { zoo, admin: !zoo, catalog: Some(catalog), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, serve).await.unwrap();
     let c = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
@@ -215,7 +216,8 @@ async fn outside_zoo_mode_a_read_never_fetches_and_accepting_needs_the_admin_fla
     assert_eq!(origin.total.load(Ordering::SeqCst), 0);
     s.stop().await;
     // Neither admin nor zoo: acceptance is refused.
-    let catalog = Catalog { home: home.0.clone(), index: Arc::new(index()), transport: Arc::new(origin.clone()) };
+    let catalog =
+        Catalog { home: home.0.clone(), index: Arc::new(index()), transport: Arc::new(origin.clone()), data: None };
     let serve = Serve { catalog: Some(catalog), ..Serve::default() };
     let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
     let model =
@@ -238,7 +240,8 @@ async fn outside_zoo_mode_a_read_never_fetches_and_accepting_needs_the_admin_fla
 #[tokio::test]
 async fn prefetch_installs_every_permissive_artifact_and_nothing_else() {
     let (home, origin) = (Home::new("prefetch"), Origin::new());
-    let catalog = Catalog { home: home.0.clone(), index: Arc::new(index()), transport: Arc::new(origin.clone()) };
+    let catalog =
+        Catalog { home: home.0.clone(), index: Arc::new(index()), transport: Arc::new(origin.clone()), data: None };
     let serve = Serve { zoo: true, prefetch: true, catalog: Some(catalog), ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, serve).await.unwrap();
     let mut c = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();

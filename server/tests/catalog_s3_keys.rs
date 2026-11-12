@@ -68,7 +68,8 @@ impl Drop for Home {
 }
 
 async fn start(home: &Path, serve: Serve) -> (Server, Client) {
-    let catalog = Catalog { home: home.join("zoo"), index: Arc::new(index()), transport: Arc::new(Nothing) };
+    let catalog =
+        Catalog { home: home.join("zoo"), index: Arc::new(index()), transport: Arc::new(Nothing), data: None };
     let serve = Serve { catalog: Some(catalog), ..serve };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), Vec::new(), MAX, serve).await.unwrap();
     let c = TurboCatalogServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
