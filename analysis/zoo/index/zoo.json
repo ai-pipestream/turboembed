@@ -1857,7 +1857,8 @@
           "path": "manifest.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/manifest.json",
           "also": [
-            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/manifest.json"
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/manifest.json",
+            "https://registry-1.docker.io/v2/pipestreamai/turbo-en-masc-pos-modernbert-base-2/blobs/sha256:068a2664cd0b968425cf85bd98ad5d40122e9c4b1645fd4ddcab6a5dfac32200"
           ],
           "size": 98165,
           "sha256": "068a2664cd0b968425cf85bd98ad5d40122e9c4b1645fd4ddcab6a5dfac32200",
@@ -1867,7 +1868,8 @@
           "path": "reference/reference.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/reference.safetensors",
           "also": [
-            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/reference/reference.safetensors"
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/reference/reference.safetensors",
+            "https://registry-1.docker.io/v2/pipestreamai/turbo-en-masc-pos-modernbert-base-2/blobs/sha256:f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755"
           ],
           "size": 430352,
           "sha256": "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
@@ -1877,7 +1879,8 @@
           "path": "tokenizer.json",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/tokenizer.json",
           "also": [
-            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/tokenizer.json"
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/tokenizer.json",
+            "https://registry-1.docker.io/v2/pipestreamai/turbo-en-masc-pos-modernbert-base-2/blobs/sha256:9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1"
           ],
           "size": 2132967,
           "sha256": "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1",
@@ -1887,7 +1890,8 @@
           "path": "weights/model.safetensors",
           "url": "https://github.com/ai-pipestream/turboembed/releases/download/turbo-en-masc-pos-modernbert-base-2/model.safetensors",
           "also": [
-            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/weights/model.safetensors"
+            "https://huggingface.co/pipestream-ai/turbo-en-masc-pos-modernbert-base-2/resolve/2a47799b816e1a22d58b210a6040b78e7006d684/weights/model.safetensors",
+            "https://registry-1.docker.io/v2/pipestreamai/turbo-en-masc-pos-modernbert-base-2/blobs/sha256:d1e925ab465de45d37b7b5fa0f0cbb2814f1ce37bd46e4b8d956a205007b9be9"
           ],
           "size": 612061000,
           "sha256": "d1e925ab465de45d37b7b5fa0f0cbb2814f1ce37bd46e4b8d956a205007b9be9",

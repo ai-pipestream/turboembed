@@ -729,6 +729,19 @@ every location. `analysis/zoo/tests/builtin/hugging_face.rs` keeps the
 list, and its ignored test installs each model from Hugging Face alone
 (`cargo test -p turbo-zoo -- --ignored hugging_face`).
 
+`turbo-en-masc-pos-modernbert-base-2` is kept in an OCI registry as
+well, as the artifact
+`docker.io/pipestreamai/turbo-en-masc-pos-modernbert-base-2:2`, and each
+of its files lists a third location, the blob of its own SHA-256
+(`https://registry-1.docker.io/v2/pipestreamai/<id>/blobs/sha256:<hex>`).
+A registry answers only a request that carries its anonymous token, so
+this location is read through `OciRegistry`: `turbo-zoo fetch` asks it
+after plain HTTPS, and a caller of the library adds it to its `Sources`
+the same way. The ignored test
+`the_model_kept_in_a_registry_installs_from_the_registry_alone` installs
+the model from the registry alone
+(`cargo test -p turbo-zoo -- --ignored registry`).
+
 ## Reading the index from external clients
 
 The index is structured so external tools can query it without scraping HTML
