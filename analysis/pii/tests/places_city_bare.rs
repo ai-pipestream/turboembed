@@ -137,3 +137,54 @@ fn a_bare_name_before_a_state_is_left_to_the_state_rule() {
     }
     assert_eq!(written("Springfield, IL 62704"), ["Springfield"]);
 }
+
+#[test]
+fn a_person_who_shares_a_city_name_is_no_mention() {
+    // #2295: person context around a lone bare name.
+    for text in [
+        // A verb that takes a person as its object.
+        "we met Madison at the desk",
+        "please ask Columbus first",
+        "we thanked Dayton for the flowers",
+        "the firm hired Salem last spring",
+        "they invited Paris to the party",
+        // `who`, a reflexive pronoun, or a subject pronoun one word on.
+        "Salem, who runs the class, is out.",
+        "the note from a friend: Paris who knew",
+        "Madison herself drove the van",
+        "Dayton knew she would be late",
+        "then Columbus thought he could help",
+        // A possessive before a kin or body noun.
+        "Paris's mother called",
+        "Madison\u{2019}s sister wrote",
+        "Columbus's hair was wet",
+    ] {
+        assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
+    }
+}
+
+#[test]
+fn a_city_in_a_place_phrase_stays_a_city_beside_person_words() {
+    // #2295: each person rule leaves a city in a place phrase alone.
+    for (text, want) in [
+        ("we met in Madison last year", "Madison"),
+        ("they asked to fly to Columbus", "Columbus"),
+        ("hired from Dayton in May", "Dayton"),
+        ("a donor in Columbus who funds it", "Columbus"),
+        ("people from Paris, who wrote letters", "Paris"),
+        ("a trip to Salem where he grew up", "Salem"),
+        ("Boston where he lived", "Boston"),
+        ("Paris is where she grew up", "Paris"),
+        ("visited Paris last May", "Paris"),
+        ("left Madison for good", "Madison"),
+        ("Paris's museums are open", "Paris"),
+        ("in Dayton she found work", "Dayton"),
+        // A line break between the place word and the name.
+        ("people in\nParis who wrote letters", "Paris"),
+        ("a source in\r\nBoston told reporters", "Boston"),
+        ("from Madison to Columbus for the conference", "Madison"),
+    ] {
+        assert_eq!(written(text).first().map(String::as_str), Some(want), "{text:?}: {:?}", cities(text));
+    }
+    assert_eq!(written("from Madison to Columbus for the conference"), ["Madison", "Columbus"]);
+}

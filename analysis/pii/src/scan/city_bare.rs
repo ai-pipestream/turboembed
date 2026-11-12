@@ -22,6 +22,12 @@
 //! - no verb of speech follows it ([`SPEECH_VERBS`], `Madison said`), as
 //!   a person's name does, unless a [`LEAD_WORDS`] word stands before it
 //!   (`people in Paris said so`);
+//! - no person context stands around it ([`super::city_person`], #2295):
+//!   a verb that takes a person as its object before it (`we met
+//!   Madison`), or after it `who`, a reflexive or subject pronoun or a
+//!   possessive before a kin or body noun (`Salem, who`, `Paris's
+//!   mother`), the words after it again giving way to a [`LEAD_WORDS`]
+//!   word before it;
 //! - it is not joined to an address, a path or a word (`example.com/Paris`,
 //!   `Paris.example`, `Grand-Rouen`).
 //!
@@ -34,6 +40,7 @@ use std::sync::OnceLock;
 use turbo_geo::{BUNDLED_TABLE, Folder};
 
 use super::city::{capital_at, lookup, state_after, word_ends};
+use super::city_person::{after_person_verb, person_after};
 use crate::tables::city_common_words;
 use crate::tables::us_states::US_STATES;
 use crate::text::name_char;
@@ -233,7 +240,8 @@ fn accepted(text: &str, start: usize, end: usize) -> bool {
     state_after(text, end).is_none()
         && free_end(text, end)
         && !after_name_word(text, start)
-        && !(before_speech(text, end) && !after_lead_word(text, start))
+        && !after_person_verb(text, start)
+        && !((before_speech(text, end) || person_after(text, end)) && !after_lead_word(text, start))
 }
 
 /// The verbs of speech and address a person's name stands before and a
@@ -241,11 +249,18 @@ fn accepted(text: &str, start: usize, end: usize) -> bool {
 const SPEECH_VERBS: [&str; 12] =
     ["added", "asked", "replied", "said", "says", "smiled", "nodded", "told", "tells", "wrote", "writes", "laughed"];
 
-/// Whether one of [`LEAD_WORDS`] stands one space before `start`, in any
-/// case, so the name is a place in its sentence (`people in Paris said`,
-/// `a source in Boston told`), whatever verb follows it.
+/// Whether one of [`LEAD_WORDS`] stands one space or one line break
+/// before `start`, in any case, so the name is a place in its sentence
+/// (`people in Paris said`, `a source in Boston told`, `people in` and
+/// `Paris who` on two lines), whatever verb follows it.
 fn after_lead_word(text: &str, start: usize) -> bool {
-    word_before(text, start).is_some_and(|(_, w)| LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w)))
+    let lead = |w: &str| LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w));
+    let before = &text[..start];
+    let Some(line) = before.strip_suffix("\r\n").or_else(|| before.strip_suffix('\n')) else {
+        return word_before(text, start).is_some_and(|(_, w)| lead(w));
+    };
+    let from = line.rfind(|c: char| !c.is_ascii_alphabetic()).map_or(0, |p| p + 1);
+    lead(&line[from..])
 }
 
 /// Whether one of [`SPEECH_VERBS`] follows the name at `end` after one
@@ -300,7 +315,7 @@ fn after_name_word(text: &str, start: usize) -> bool {
 /// The start and text of the word that ends one space before `at`, its
 /// inner marks included (`Mr.`, `O'Neil`); the word is empty after two
 /// spaces or a mark.
-fn word_before(text: &str, at: usize) -> Option<(usize, &str)> {
+pub(super) fn word_before(text: &str, at: usize) -> Option<(usize, &str)> {
     let before = text[..at].strip_suffix(' ')?;
     let start = before
         .char_indices()
