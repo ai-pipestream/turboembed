@@ -1,6 +1,8 @@
 //! Integration tests for the in-process analysis C ABI (`turbo_analyzer`
 //! and `turbo_analysis_result`) and `turbo_last_error_message`.
 
+mod cdylib;
+
 use std::ffi::CStr;
 use turbo_scratch::Scratch;
 
@@ -459,22 +461,9 @@ int main(void) {
 #[cfg(not(miri))]
 #[test]
 fn c_caller_compiled_with_frozen_legacy_descriptor_links_and_runs_rule_tasks() {
-    use std::path::Path;
     use std::process::Command;
 
-    let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
-    let profile = match lib_dir.file_name().unwrap().to_str().unwrap() {
-        "debug" => "dev",
-        p => p,
-    };
-    let build = Command::new(env!("CARGO"))
-        .args(["build", "--lib", "--profile", profile, "--manifest-path"])
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
-        .arg("--target-dir")
-        .arg(lib_dir.parent().unwrap())
-        .output()
-        .unwrap();
-    assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
+    let lib_dir = cdylib::build();
 
     let scratch = Scratch::at(std::env::temp_dir().join(format!("turbo-legacy-desc-c-{}", std::process::id())));
     std::fs::create_dir_all(&scratch).unwrap();

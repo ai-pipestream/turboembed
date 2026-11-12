@@ -117,8 +117,7 @@ impl Rotary {
         };
         go(pool, embed, chunks);
         let half = self.positions * self.pairs;
-        for l in 0..e.layers {
-            let pl = &packed.layers[l];
+        for (l, pl) in packed.layers[..e.layers].iter().enumerate() {
             let global = self.global(l);
             // SAFETY: the table holds both bases' cos and sin.
             let cos = unsafe { self.table.add(if global { 0 } else { 2 * half }) };

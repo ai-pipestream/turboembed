@@ -250,11 +250,12 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
     }
     pub fn is_projective(&self) -> bool {
         // Include the artificial-root arc, as the arc-standard oracle does.
-        for i in 0..self.len() {
-            let h = self.layer.head[i].map_or(-1, |h| h.get() as i64);
+        let heads = &self.layer.head[..self.len()];
+        for (i, head_i) in heads.iter().enumerate() {
+            let h = head_i.map_or(-1, |h| h.get() as i64);
             let (lo, hi) = (h.min(i as i64), h.max(i as i64));
-            for j in i + 1..self.len() {
-                let h = self.layer.head[j].map_or(-1, |h| h.get() as i64);
+            for (j, head_j) in heads.iter().enumerate().skip(i + 1) {
+                let h = head_j.map_or(-1, |h| h.get() as i64);
                 let (a, b) = (h.min(j as i64), h.max(j as i64));
                 if (lo < a && a < hi && hi < b) || (a < lo && lo < b && b < hi) {
                     return false;

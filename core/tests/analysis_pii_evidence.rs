@@ -1,6 +1,8 @@
 //! C ABI tests for PII evidence facts, detector identity, scores and
 //! detail-gated candidates (`#1941`).
 
+mod cdylib;
+
 use std::ffi::c_char;
 use std::path::PathBuf;
 use std::process::Command;
@@ -332,8 +334,7 @@ fn c_abi_pii_evidence_detector_score_and_detail_candidates_match_rust_layer() {
 #[test]
 fn c_program_reads_evidence_detector_score_and_candidates_from_header() {
     let (_, wire) = build_fixture_graph();
-    let cdylib = build_cdylib();
-    let lib_dir = cdylib.parent().unwrap();
+    let lib_dir = cdylib::build();
 
     let tmp = turbo_scratch::Scratch::at(
         std::env::temp_dir().join(format!("turbo_c_pii_evidence_test_{}", std::process::id())),
@@ -362,25 +363,6 @@ fn c_program_reads_evidence_detector_score_and_candidates_from_header() {
     let run_status = Command::new(&bin_path).arg(&graph_path).status().expect("failed to run C binary");
     let _ = std::fs::remove_dir_all(&tmp);
     assert!(run_status.success(), "C PII evidence binary exited with status {run_status}");
-}
-
-fn build_cdylib() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir.parent().unwrap();
-    let status = Command::new(env!("CARGO"))
-        .current_dir(workspace_root)
-        .args(["build", "-p", "turbo", "--lib"])
-        .status()
-        .expect("failed to invoke cargo build -p turbo --lib");
-    assert!(status.success(), "cargo build -p turbo --lib failed");
-    let debug_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
-    for name in ["libturbo.so", "libturbo.dylib", "turbo.dll"] {
-        let candidate = debug_dir.join(name);
-        if candidate.exists() {
-            return candidate;
-        }
-    }
-    panic!("could not locate built turbo cdylib in {}", debug_dir.display());
 }
 
 const C_PROGRAM: &str = r#"

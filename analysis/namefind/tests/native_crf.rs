@@ -304,8 +304,8 @@ fn calibrated_candidates_cover_unique_top_k_spans() {
         assert!(spans.contains(&(0, 2)), "{spans:?}");
         assert!(spans.contains(&(1, 2)), "{spans:?}");
         assert_eq!(entities.len(), side.len());
-        for i in 0..entities.len() {
-            assert!((side.row(i).raw[1] - entities.score[i]).abs() < 1e-12);
+        for (i, score) in entities.score[..entities.len()].iter().enumerate() {
+            assert!((side.row(i).raw[1] - score).abs() < 1e-12);
         }
     }
 }

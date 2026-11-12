@@ -5,6 +5,8 @@
 //! another returns int8 and ubinary codes and checks them itself; a third
 //! calls every analyzer and analysis result function.
 
+#[path = "../cdylib/mod.rs"]
+mod cdylib;
 #[path = "../common/mod.rs"]
 mod common;
 
@@ -43,23 +45,7 @@ fn run(cmd: &mut Command) -> String {
 /// `source` built as a C11 program linked against libturbo as it is now,
 /// in a scratch directory, which is returned with the program's path.
 fn compile(name: &str, source: &str) -> (Scratch, PathBuf) {
-    // target/<profile>/deps/abi-* -> target/<profile>/libturbo.{so,dylib}
-    let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
-    // `cargo test` builds the rlib the tests link, not the cdylib; build
-    // it here, with the same profile and target directory, so the program
-    // links the library as it is now.
-    let profile = lib_dir.file_name().unwrap().to_str().unwrap();
-    let profile = match profile {
-        "debug" => "dev",
-        p => p,
-    };
-    run(Command::new(env!("CARGO"))
-        .args(["build", "--lib", "--profile", profile, "--manifest-path"])
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
-        .arg("--target-dir")
-        .arg(lib_dir.parent().unwrap()));
-    let lib = format!("{}turbo{}", std::env::consts::DLL_PREFIX, std::env::consts::DLL_SUFFIX);
-    assert!(lib_dir.join(&lib).exists(), "{lib} is not in {}", lib_dir.display());
+    let lib_dir = cdylib::build();
     let d = scratch(name);
     std::fs::write(d.join("p.c"), source).unwrap();
     run(Command::new("cc")

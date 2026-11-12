@@ -136,12 +136,11 @@ pub fn category_sentence_centroids(
         return Err(format!("sentence_vectors has {} items, sentences has {n}", sentence_vectors.len()));
     }
     let mut buckets: Vec<(Tag, Vec<Ix<Sentences>>, u32, u32)> = Vec::new();
-    for i in 0..n {
+    for (i, &tag) in categories.category[..n].iter().enumerate() {
         let ix = Ix::<Sentences>::new(i as u32);
         if sentence_vectors.is_empty(ix) {
             continue;
         }
-        let tag = categories.category[i];
         if let Some(allowed) = allowlist
             && !allowed.contains(&tag)
         {
