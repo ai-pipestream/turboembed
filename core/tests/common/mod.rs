@@ -22,6 +22,22 @@ pub mod conformance;
 
 pub const MAX_SEQ: usize = 256;
 
+/// Starts the Level Zero driver once, before any Fixture's files open: the
+/// driver closes one file descriptor twice as it starts, which can close a
+/// directory another test thread just opened (EBADF, #2203).
+pub fn settle_level_zero() {
+    #[cfg(feature = "levelzero")]
+    {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            let mut rt = ptr::null_mut();
+            if unsafe { turbo_runtime_create(ptr::null(), &mut rt, &mut new_error()) } == 0 {
+                unsafe { turbo_runtime_release(rt) };
+            }
+        });
+    }
+}
+
 pub fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata")
 }
@@ -272,6 +288,7 @@ impl Fixture {
     /// As `new`, with the tokenizer file at `tokenizer_json`, whose ids
     /// the reference file carries, padded with the manifest's pad id.
     pub fn with_tokenizer(name: &str, manifest: Value, tokenizer_json: &Path) -> Fixture {
+        settle_level_zero();
         let dir = std::env::temp_dir().join(format!("turbo-test-{}-{name}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("reference")).unwrap();

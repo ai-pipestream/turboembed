@@ -1,6 +1,8 @@
 //! turbo-kserve: the Open Inference Protocol over gRPC for turboembed
 //! bundles (docs/kserve.md).
 
+mod zoo;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -13,7 +15,7 @@ use turbo_kserve::{Serve, Server};
 
 /// Resolves to the name of the first stop signal: SIGINT (Ctrl-C) or, on
 /// Unix, SIGTERM as well, what an orchestrator sends to stop a service.
-async fn stop_signal() -> &'static str {
+pub(crate) async fn stop_signal() -> &'static str {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{SignalKind, signal};
@@ -90,7 +92,14 @@ fn read_pii_policies(paths: &[PathBuf]) -> Result<PolicyFiles, String> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
+    let program = std::env::args_os().next();
     let mut argv = std::env::args().skip(1).peekable();
+    if let Some((cmd, consume_first)) = zoo::Subcommand::detect(program.as_deref(), argv.peek().map(String::as_str)) {
+        if consume_first {
+            argv.next();
+        }
+        return cmd.run(argv.collect()).await;
+    }
     if argv.peek().map(String::as_str) == Some("health") {
         argv.next();
         return health(argv).await;

@@ -17,6 +17,7 @@ struct Api {
     open: unsafe extern "C" fn(
         ze_device: *mut c_void,
         ze_context: *mut c_void,
+        profile: i32,
         err: *mut c_char,
         n: usize,
     ) -> *mut c_void,
@@ -67,7 +68,12 @@ struct Api {
     ) -> i32,
     wait: unsafe extern "C" fn(h: *mut c_void, err: *mut c_char, n_err: usize) -> i32,
     version: unsafe extern "C" fn() -> *const c_char,
+    profile: unsafe extern "C" fn(h: *mut c_void, each: ProfileFn, user: *mut c_void),
 }
+
+/// Called once per primitive by `turbo_dnnl_profile`: its name, how many
+/// ran, and their nanoseconds on the device.
+type ProfileFn = unsafe extern "C" fn(user: *mut c_void, name: *const c_char, count: u64, ns: u64);
 
 /// Where core/build.rs built the library. A copy found through the
 /// dynamic linker's search (`LD_LIBRARY_PATH`, the run-time path) is the
@@ -105,6 +111,7 @@ fn open_api() -> Result<Api, String> {
         layer_norm: sym!("turbo_dnnl_layer_norm"),
         wait: sym!("turbo_dnnl_wait"),
         version: sym!("turbo_dnnl_version"),
+        profile: sym!("turbo_dnnl_profile"),
         _lib: lib,
     })
 }
@@ -164,11 +171,12 @@ fn check(what: &str, rc: i32, err: &[c_char; ERR]) -> Res<()> {
 }
 
 impl Dnnl {
-    /// Opened on the backend's device and context; Err says why not.
-    pub fn open(ze_device: *mut c_void, ze_context: *mut c_void) -> Res<Dnnl> {
+    /// Opened on the backend's device and context; Err says why not. With
+    /// `profile`, its primitives are timed on the device (`profile`).
+    pub fn open(ze_device: *mut c_void, ze_context: *mut c_void, profile: bool) -> Res<Dnnl> {
         let api = api()?;
         let mut err = [0 as c_char; ERR];
-        let h = unsafe { (api.open)(ze_device, ze_context, err.as_mut_ptr(), ERR) };
+        let h = unsafe { (api.open)(ze_device, ze_context, profile as i32, err.as_mut_ptr(), ERR) };
         if h.is_null() {
             check("oneDNN open", 1, &err)?;
         }
@@ -248,6 +256,19 @@ impl Dnnl {
         };
         check("oneDNN layer norm", rc, &err)?;
         Ok((signal as u64, built != 0))
+    }
+
+    /// Each primitive that ran, as (name, count, nanoseconds on the device),
+    /// when opened with `profile`; empty otherwise.
+    pub fn profile(&self) -> Vec<(String, u64, u64)> {
+        unsafe extern "C" fn each(user: *mut c_void, name: *const c_char, count: u64, ns: u64) {
+            let out = unsafe { &mut *(user as *mut Vec<(String, u64, u64)>) };
+            let name = unsafe { CStr::from_ptr(name) }.to_string_lossy().into_owned();
+            out.push((name, count, ns));
+        }
+        let mut out: Vec<(String, u64, u64)> = Vec::new();
+        unsafe { (self.api.profile)(self.h, each, &mut out as *mut _ as *mut c_void) };
+        out
     }
 
     /// Waits for everything queued, and drops the events handed out.

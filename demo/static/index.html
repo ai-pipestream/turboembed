@@ -27,6 +27,11 @@
 </header>
 
 <main>
+<p id="down" class="banner" role="alert" hidden>
+  The server is not reachable through the demo; retrying every few seconds.
+  <button id="down-retry" type="button">Retry now</button>
+  <span id="down-why" class="why"></span>
+</p>
 <section class="panel split" id="tab-embed" role="tabpanel" aria-labelledby="tabbtn-embed" hidden>
   <div class="box">
     <h2>Texts</h2>
@@ -110,7 +115,7 @@ The engine was never built, but her notes describe how it could compute Bernoull
     </div>
     <div class="row">
       <button id="analyze-run" class="primary">Analyze</button>
-      <button id="analyze-stop" type="button">Stop</button>
+      <button id="analyze-stop" type="button" disabled>Stop</button>
     </div>
     <p id="analyze-note" class="note" hidden></p>
     <h2>Steps</h2>
@@ -127,12 +132,12 @@ The engine was never built, but her notes describe how it could compute Bernoull
     <div class="card" id="analyze-window"></div>
     <details class="card" id="analyze-xray">
       <summary>Normalization X-Ray</summary>
-      <div class="row">From <select id="xray-from"></select> to <select id="xray-to"></select> offsets in <select id="xray-offsets"><option value="utf8">UTF-8 bytes</option><option value="utf16" selected>UTF-16 units</option><option value="cp">code points</option></select></div>
+      <div class="row">From <select id="xray-from"><option value="">analyze a document first</option></select> to <select id="xray-to"><option value="">analyze a document first</option></select> offsets in <select id="xray-offsets"><option value="utf8">UTF-8 bytes</option><option value="utf16" selected>UTF-16 units</option><option value="cp">code points</option></select></div>
       <div id="xray-out"></div>
     </details>
     <details class="card" id="analyze-drawer">
       <summary>Annotation drawer</summary>
-      <div class="row">View <select id="drawer-view"></select></div>
+      <div class="row">View <select id="drawer-view"><option value="">analyze a document first</option></select></div>
       <div id="drawer-out"></div>
     </details>
     <details class="card" id="analyze-projection">
@@ -205,7 +210,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <div id="coll-list"></div>
       <div class="row">
         <button id="coll-watch" type="button" class="go">Watch</button>
-        <button id="coll-stop" type="button">Stop</button>
+        <button id="coll-stop" type="button" disabled>Stop</button>
         <label>min OOV <input id="coll-min" type="number" min="0" max="1" step="0.05" value="0" class="narrow"></label>
       </div>
       <p id="coll-note" class="note" hidden></p>
@@ -238,7 +243,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <button type="submit">Learn</button>
     </form>
     <div class="row">
-      <button id="vocab-stop" type="button">Stop</button>
+      <button id="vocab-stop" type="button" disabled>Stop</button>
     </div>
     <p id="vocab-note" class="note" hidden></p>
   </div>
@@ -299,7 +304,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <label>Type <select id="train-dtype"><option>F32</option><option>F16</option></select></label>
       <label>Learned vocabulary <input id="train-vocabulary" autocomplete="off" placeholder="artifact id, optional"></label>
       <textarea id="train-terms" rows="3" spellcheck="false" placeholder="more terms, one per line"></textarea>
-      <div class="row"><button type="submit" class="go">Train</button><button id="train-stop" type="button">Stop</button></div>
+      <div class="row"><button type="submit" class="go">Train</button><button id="train-stop" type="button" disabled>Stop</button></div>
     </form>
     <p id="train-note" class="note" hidden></p>
   </div>

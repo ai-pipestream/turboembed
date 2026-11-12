@@ -130,6 +130,27 @@ impl HeadRunner {
         decode_with(&self.tagger, &features, &forms, None).map_err(|e| e.to_string())
     }
 
+    /// As [`HeadRunner::decode_tokens`], scaling token logits by `1 / temperature`
+    /// when `temperature` is given.
+    pub(crate) fn decode_tokens_temperature(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        seqs: &[Vec<usize>],
+        subwords: Option<&Subwords>,
+        temperature: Option<f32>,
+    ) -> Result<Vec<Decoded>, String> {
+        let Some(temp) = temperature else {
+            return self.decode_tokens(view, tokens, seqs, subwords);
+        };
+        let pooling = self.tagger.spec().word_pooling;
+        let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
+        let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
+        drop(words);
+        let forms = forms_of(view, tokens, seqs);
+        decode_scaled(&self.tagger, &features, &forms, temp as f64).map_err(|e| e.to_string())
+    }
+
     /// The token indices of each sequence of `tokens`, in order: by the
     /// token layer's own sentence column, else by `sentences`, else one.
     /// Every token is in exactly one sequence: a token across a sentence
@@ -289,4 +310,36 @@ pub(crate) fn entity_layer(
 pub(crate) fn forms_of<'v>(view: &'v View, tokens: &Tokens, seqs: &[Vec<usize>]) -> Vec<Vec<&'v str>> {
     let text = view.text();
     seqs.iter().map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect()).collect()
+}
+
+fn decode_scaled(
+    tagger: &TokenTagger,
+    features: &[Vec<f32>],
+    forms: &[Vec<&str>],
+    temperature: f64,
+) -> Result<Vec<Decoded>, CoreError> {
+    let (mut scores, mut work) = (Vec::new(), turbo::head::tagger::Work::default());
+    let labels = tagger.labels().len();
+    let stride = tagger.taps() * tagger.hidden();
+    let inv_t = 1.0 / temperature;
+    let mut out = Vec::with_capacity(features.len());
+    for (f, forms) in features.iter().zip(forms) {
+        let n = f.len() / stride;
+        let word_ids: Vec<u32> = (0..n as u32).collect();
+        tagger.scores_language(f, &word_ids, Some(forms), None, &mut scores, &mut work)?;
+        let mut tags = Vec::new();
+        tagger.decode(&scores, n, &mut tags)?;
+        let prob = tags
+            .iter()
+            .enumerate()
+            .map(|(w, &t)| {
+                let row = &scores[w * labels..][..labels];
+                let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64 * inv_t;
+                let z: f64 = row.iter().map(|&v| (v as f64 * inv_t - m).exp()).sum();
+                ((row[t as usize] as f64 * inv_t - m).exp() / z).clamp(0.0, 1.0)
+            })
+            .collect();
+        out.push(Decoded { tags, prob });
+    }
+    Ok(out)
 }

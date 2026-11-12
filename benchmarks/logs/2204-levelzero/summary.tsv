@@ -1,0 +1,79 @@
+model	round	name	count	total_ms	ms_per_run	share_pct
+all-minilm-l6-v2-r4	1	whole run (wall time of the 20 timed runs / 20)	20		3.608	
+all-minilm-l6-v2-r4	1	attention	150	11.821	0.4728	14.7
+all-minilm-l6-v2-r4	1	narrow_f16_transposed	24	0.399	0.0160	0.5
+all-minilm-l6-v2-r4	1	normalization	25	0.047	0.0019	0.1
+all-minilm-l6-v2-r4	1	onednn layer norm 8192x384	300	3.119	0.1248	3.9
+all-minilm-l6-v2-r4	1	onednn matmul 8192x1536x384 bias residual	150	17.979	0.7192	22.4
+all-minilm-l6-v2-r4	1	onednn matmul 8192x384x1152 bias	150	10.971	0.4388	13.7
+all-minilm-l6-v2-r4	1	onednn matmul 8192x384x1536 bias gelu	150	21.006	0.8402	26.2
+all-minilm-l6-v2-r4	1	onednn matmul 8192x384x384 bias residual	150	7.284	0.2914	9.1
+all-minilm-l6-v2-r4	1	pooling	25	0.680	0.0272	0.8
+all-minilm-l6-v2-r4	1	the embedding lookup	25	1.953	0.0781	2.4
+all-minilm-l6-v2-r4	1	the feed-forward output and LayerNorm	25	0.847	0.0339	1.1
+all-minilm-l6-v2-r4	1	zeCommandListAppendMemoryCopy	139	4.041	0.1616	5.0
+all-minilm-l6-v2-r4	2	whole run (wall time of the 20 timed runs / 20)	20		3.520	
+all-minilm-l6-v2-r4	2	attention	150	11.845	0.4738	14.8
+all-minilm-l6-v2-r4	2	narrow_f16_transposed	24	0.398	0.0159	0.5
+all-minilm-l6-v2-r4	2	normalization	25	0.049	0.0020	0.1
+all-minilm-l6-v2-r4	2	onednn layer norm 8192x384	300	3.164	0.1266	4.0
+all-minilm-l6-v2-r4	2	onednn matmul 8192x1536x384 bias residual	150	18.037	0.7215	22.6
+all-minilm-l6-v2-r4	2	onednn matmul 8192x384x1152 bias	150	11.019	0.4408	13.8
+all-minilm-l6-v2-r4	2	onednn matmul 8192x384x1536 bias gelu	150	21.072	0.8429	26.4
+all-minilm-l6-v2-r4	2	onednn matmul 8192x384x384 bias residual	150	7.262	0.2905	9.1
+all-minilm-l6-v2-r4	2	pooling	25	0.681	0.0272	0.9
+all-minilm-l6-v2-r4	2	the embedding lookup	25	1.896	0.0758	2.4
+all-minilm-l6-v2-r4	2	the feed-forward output and LayerNorm	25	0.836	0.0334	1.0
+all-minilm-l6-v2-r4	2	zeCommandListAppendMemoryCopy	139	3.655	0.1462	4.6
+all-minilm-l6-v2-r4	3	whole run (wall time of the 20 timed runs / 20)	20		3.606	
+all-minilm-l6-v2-r4	3	attention	150	11.858	0.4743	14.8
+all-minilm-l6-v2-r4	3	narrow_f16_transposed	24	0.397	0.0159	0.5
+all-minilm-l6-v2-r4	3	normalization	25	0.057	0.0023	0.1
+all-minilm-l6-v2-r4	3	onednn layer norm 8192x384	300	3.233	0.1293	4.0
+all-minilm-l6-v2-r4	3	onednn matmul 8192x1536x384 bias residual	150	18.066	0.7226	22.6
+all-minilm-l6-v2-r4	3	onednn matmul 8192x384x1152 bias	150	11.000	0.4400	13.8
+all-minilm-l6-v2-r4	3	onednn matmul 8192x384x1536 bias gelu	150	21.042	0.8417	26.3
+all-minilm-l6-v2-r4	3	onednn matmul 8192x384x384 bias residual	150	7.273	0.2909	9.1
+all-minilm-l6-v2-r4	3	pooling	25	0.678	0.0271	0.8
+all-minilm-l6-v2-r4	3	the embedding lookup	25	1.919	0.0768	2.4
+all-minilm-l6-v2-r4	3	the feed-forward output and LayerNorm	25	0.838	0.0335	1.0
+all-minilm-l6-v2-r4	3	zeCommandListAppendMemoryCopy	139	3.631	0.1452	4.5
+bge-base-en-v1.5-r1	1	whole run (wall time of the 20 timed runs / 20)	20		17.995	
+bge-base-en-v1.5-r1	1	attention	300	53.787	2.1515	12.6
+bge-base-en-v1.5-r1	1	narrow_f16_transposed	48	3.060	0.1224	0.7
+bge-base-en-v1.5-r1	1	normalization	25	0.070	0.0028	0.0
+bge-base-en-v1.5-r1	1	onednn layer norm 8192x768	600	18.021	0.7208	4.2
+bge-base-en-v1.5-r1	1	onednn matmul 8192x3072x768 bias residual	300	92.339	3.6936	21.7
+bge-base-en-v1.5-r1	1	onednn matmul 8192x768x2304 bias	300	72.985	2.9194	17.2
+bge-base-en-v1.5-r1	1	onednn matmul 8192x768x3072 bias gelu	300	126.716	5.0686	29.8
+bge-base-en-v1.5-r1	1	onednn matmul 8192x768x768 bias residual	300	33.822	1.3529	7.9
+bge-base-en-v1.5-r1	1	pooling	25	0.120	0.0048	0.0
+bge-base-en-v1.5-r1	1	the embedding lookup	25	5.273	0.2109	1.2
+bge-base-en-v1.5-r1	1	the feed-forward output and LayerNorm	25	2.254	0.0902	0.5
+bge-base-en-v1.5-r1	1	zeCommandListAppendMemoryCopy	281	17.042	0.6817	4.0
+bge-base-en-v1.5-r1	2	whole run (wall time of the 20 timed runs / 20)	20		18.551	
+bge-base-en-v1.5-r1	2	attention	300	53.845	2.1538	12.7
+bge-base-en-v1.5-r1	2	narrow_f16_transposed	48	3.055	0.1222	0.7
+bge-base-en-v1.5-r1	2	normalization	25	0.070	0.0028	0.0
+bge-base-en-v1.5-r1	2	onednn layer norm 8192x768	600	18.391	0.7356	4.3
+bge-base-en-v1.5-r1	2	onednn matmul 8192x3072x768 bias residual	300	92.444	3.6978	21.7
+bge-base-en-v1.5-r1	2	onednn matmul 8192x768x2304 bias	300	73.002	2.9201	17.2
+bge-base-en-v1.5-r1	2	onednn matmul 8192x768x3072 bias gelu	300	126.581	5.0632	29.7
+bge-base-en-v1.5-r1	2	onednn matmul 8192x768x768 bias residual	300	33.755	1.3502	7.9
+bge-base-en-v1.5-r1	2	pooling	25	0.122	0.0049	0.0
+bge-base-en-v1.5-r1	2	the embedding lookup	25	5.150	0.2060	1.2
+bge-base-en-v1.5-r1	2	the feed-forward output and LayerNorm	25	2.262	0.0905	0.5
+bge-base-en-v1.5-r1	2	zeCommandListAppendMemoryCopy	281	16.808	0.6723	4.0
+bge-base-en-v1.5-r1	3	whole run (wall time of the 20 timed runs / 20)	20		17.796	
+bge-base-en-v1.5-r1	3	attention	300	53.650	2.1460	12.7
+bge-base-en-v1.5-r1	3	narrow_f16_transposed	48	3.059	0.1224	0.7
+bge-base-en-v1.5-r1	3	normalization	25	0.066	0.0026	0.0
+bge-base-en-v1.5-r1	3	onednn layer norm 8192x768	600	17.113	0.6845	4.0
+bge-base-en-v1.5-r1	3	onednn matmul 8192x3072x768 bias residual	300	92.360	3.6944	21.8
+bge-base-en-v1.5-r1	3	onednn matmul 8192x768x2304 bias	300	73.011	2.9204	17.2
+bge-base-en-v1.5-r1	3	onednn matmul 8192x768x3072 bias gelu	300	126.592	5.0637	29.9
+bge-base-en-v1.5-r1	3	onednn matmul 8192x768x768 bias residual	300	33.805	1.3522	8.0
+bge-base-en-v1.5-r1	3	pooling	25	0.121	0.0048	0.0
+bge-base-en-v1.5-r1	3	the embedding lookup	25	5.202	0.2081	1.2
+bge-base-en-v1.5-r1	3	the feed-forward output and LayerNorm	25	2.252	0.0901	0.5
+bge-base-en-v1.5-r1	3	zeCommandListAppendMemoryCopy	281	16.746	0.6698	3.9

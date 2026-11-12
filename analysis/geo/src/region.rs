@@ -46,6 +46,15 @@ impl CountryNameScratch {
     }
 }
 
+/// The country an English country name names (`Kuwait`, `KUWAIT`,
+/// `Côte d'Ivoire`), read as the region vote reads a country mention
+/// ([`country_code_for_name`]): the PII city scanner uses it to leave
+/// country names that a city shares (`Luxembourg`, `Djibouti`) out of
+/// its bare reading.
+pub fn english_country(name: &str) -> Option<RegionCode> {
+    country_code_for_name(name, &mut String::new(), &mut String::new())
+}
+
 /// The one country-name normalization both region votes and
 /// spatial scoring use: NFKC, curly apostrophes read as `'`,
 /// whitespace collapsed to one space, lowercased, trimmed of

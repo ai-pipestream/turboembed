@@ -383,6 +383,14 @@ stubs must be regenerated.
   check whether it may serve or redistribute the model. The 772-byte
   struct is still accepted, and a `model.license` of 128 bytes or more
   is `BUNDLE_INVALID` (#2019, #2041).
+- A third PII reject reason, `RulePrecedence`: a model's candidate that
+  overlaps a mention a rule found, other than as its repeat or strictly
+  inside it, is kept in `turbo:pii-candidates` as `RejectedByRule {
+  RulePrecedence }` and the rule's mention stands. It is
+  `TURBO_PII_REJECT_RULE_PRECEDENCE` (3) in the C header,
+  `PII_REJECT_REASON_RULE_PRECEDENCE` (3) in
+  `turbo_typed_annotations.proto` and `RULE_PRECEDENCE` in the Java
+  `TurboPiiDisposition.RejectReason` (#2198).
 
 ### Changed
 
@@ -435,6 +443,10 @@ stubs must be regenerated.
   the schema prompt) fails the step with `TURBO_E_CAPACITY` and the same
   counts-only message, instead of `TURBO_E_INTERNAL` with no detail
   (#2125).
+- `turbo:gliner`: labels whose prompt alone fills the encoder's sequence
+  fail the step under the limit name `label prompt max_sequence`, not
+  `encoder max_sequence`, so a caller can tell "use fewer labels" from
+  "shorten the sentence" (#2268).
 - PII policies: an `ff1` arm whose alphabet cannot hold a character
   every value of its rule's kind has (the digit alphabet on `email`, for
   one) is refused when the policy loads, naming the entry and the kind,

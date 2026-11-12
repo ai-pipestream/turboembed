@@ -32,5 +32,5 @@ fn places_precision_and_recall_on_human_written_text() {
         eprintln!("{name:<8} {:>5} {:>5} {:>5} {p:>9} {r:>7}", c.tp, c.fp, c.fn_);
     }
     let got: Vec<(&str, usize, usize, usize)> = by_kind.iter().map(|(k, c)| (*k, c.tp, c.fp, c.fn_)).collect();
-    assert_eq!(got, [("city", 9, 0, 27), ("county", 9, 0, 0), ("state", 40, 0, 0)]);
+    assert_eq!(got, [("city", 35, 0, 1), ("county", 9, 0, 0), ("state", 40, 0, 0)]);
 }

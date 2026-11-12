@@ -211,8 +211,8 @@ fn incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_de
 
     let cpu_inciv = cpu_doc.get::<Incivility>().unwrap();
     assert_eq!(cpu_inciv.len(), 5);
-    for i in 0..5 {
-        assert_eq!(cpu_inciv.target[i], IncivilityTarget::Sentence(Ix::new(i as u32)));
+    for (i, target) in cpu_inciv.target.iter().enumerate() {
+        assert_eq!(*target, IncivilityTarget::Sentence(Ix::new(i as u32)));
     }
 
     let metrics = evaluate_incivility_corpus(&gold, cpu_inciv, DEFAULT_INCIVILITY_THRESHOLD);

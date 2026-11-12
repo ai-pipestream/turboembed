@@ -9,7 +9,12 @@
 //! relation edges link entities in the graph, the model digests the
 //! server reports are the graph's provenance, a second run and the graph
 //! round trip are byte-identical, empty text is a graph, and a document
-//! longer than the relation encoder's window is refused by name.
+//! longer than the relation encoder's window is refused by name. The
+//! inspection calls read the same graph: `InspectDocumentGraph` gives each
+//! entity at its UTF-16 offsets and each relation over the graph's entity
+//! rows, with the served packages as their models, and
+//! `InspectDocumentWindow` pages through the whole source with every
+//! entity on a page.
 //!
 //! ```sh
 //! GLINER_PACKAGE=... GLINER2_PACKAGE=... cargo test -p turbo-kserve \
@@ -308,4 +313,90 @@ fn a_model_step_without_its_model_is_refused_by_name_in_process() {
     let steps: Vec<_> = STEPS.iter().copied().filter(|s| *s != "turbo:gliner").collect();
     let refused = compile_analyzer_with_models(&doc, &steps, Models::default()).err().expect("refused");
     assert_eq!(refused.message, "turbo:zero-shot-relations requires its model");
+}
+
+#[tokio::test]
+#[ignore = "requires GLINER_PACKAGE and GLINER2_PACKAGE release candidates"]
+async fn the_inspection_apis_read_the_served_graph_as_it_is() {
+    let (gliner, gliner2) = packages();
+    let (server, mut client, capabilities) = serve(&gliner, &gliner2).await;
+    let graph = served(&mut client, TEXT).await.0.graph;
+    let bytes: Vec<u8> = graph.to_vec();
+    let doc = import(&DocumentGraph::from_bytes(&graph).unwrap(), codecs()).unwrap();
+    let (entities, relations) = (doc.get::<Entities>().unwrap(), doc.get::<Relations>().unwrap());
+    // Empty layers would let every check below pass on nothing.
+    assert!(!entities.spans.is_empty() && !relations.spans.is_empty(), "the graph has entities and relations");
+
+    // InspectDocumentGraph in UTF-16 units: every entity at the offsets the
+    // graph maps it to, every relation linking the graph's entity rows.
+    let typed = client
+        .inspect_document_graph(InspectDocumentGraphRequest {
+            doc_id: "full-text-graph".into(),
+            graph: bytes.clone(),
+            offsets: OffsetMode::Utf16 as i32,
+            // The text holds PII, so its layers are read with the text.
+            pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    let layer = |id: &str| typed.layers.iter().find(|l| l.id == id && l.instance.is_empty()).expect(id);
+    let typed_entities = layer("turbo:entities");
+    assert_eq!(typed_entities.annotations.len(), entities.spans.len());
+    for (a, (_, s)) in typed_entities.annotations.iter().zip(entities.spans.iter()) {
+        let u = doc.view_to_source_utf16(ViewId::SOURCE, s).unwrap();
+        assert_eq!((a.spans[0].start, a.spans[0].end), (u.start.0, u.end.0), "{s:?}");
+    }
+    let typed_relations = layer("turbo:relations");
+    assert_eq!(typed_relations.annotations.len(), relations.spans.len());
+    for (row, a) in typed_relations.annotations.iter().enumerate() {
+        let Some(typed_annotation::Value::Relation(r)) = &a.value else { panic!("row {row} is a relation") };
+        let (subject, object, kind, _) = relations.mention(Ix::new(row as u32));
+        assert_eq!(
+            (r.subject_entity, r.object_entity, r.kind.as_str()),
+            (subject.get() as u32, object.get() as u32, kind)
+        );
+    }
+    // Each model layer names the package the server reports as its model.
+    for (typed_layer, relation) in [(typed_entities, false), (typed_relations, true)] {
+        let capability = capabilities.iter().find(|c| (c.task == "TASK_RELATION") == relation).unwrap();
+        let digest = &capability.model.as_ref().unwrap().sha256;
+        let named = typed_layer.model_refs.iter().filter_map(|r| typed.models.iter().find(|m| &m.model_ref == r));
+        let bundles: Vec<_> = named.filter_map(|m| m.bundle.as_ref().map(|b| b.sha256.clone())).collect();
+        assert!(bundles.contains(digest), "{}: {bundles:?}", typed_layer.id);
+    }
+
+    // InspectDocumentWindow, a page of 64 bytes at a time: the pages
+    // together are the source, and each entity is a segment's annotation.
+    let mut text = String::new();
+    let mut labelled = std::collections::BTreeSet::new();
+    let mut page = 0;
+    loop {
+        let w = client
+            .inspect_document_window(DocumentWindowRequest {
+                graph: bytes.clone(),
+                offsets: OffsetMode::Utf8 as i32,
+                page_size: 64,
+                page,
+                filter_layers: vec!["turbo:entities".into()],
+                pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        let window = w.window.unwrap();
+        text.push_str(&window.text);
+        for s in &w.segments {
+            labelled.extend(s.annotations.iter().filter(|a| a.layer == "turbo:entities").map(|a| a.item));
+        }
+        page += 1;
+        if page >= window.page_count {
+            break;
+        }
+    }
+    assert_eq!(text, TEXT, "the pages are the source");
+    assert_eq!(labelled.len(), entities.spans.len(), "every entity is on a page");
+    server.stop().await;
 }

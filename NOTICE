@@ -142,6 +142,28 @@ derivation of the Natural Earth "Populated Places" dataset. Natural
 Earth is in the public domain; made with Natural Earth.
 
 ------------------------------------------------------------------------
+SCOWL and the US Census Bureau 1990 name files
+------------------------------------------------------------------------
+
+The word list analysis/pii/src/tables/city_common_words.txt is the set of
+the bundled gazetteer's one-word place names that are lower-case words of
+SCOWL (Spell Checker Oriented Word Lists, http://wordlist.aspell.net/,
+release 2020.12.07, sizes 10 to 50) or among the 1,000 most frequent
+first names and surnames of the US Census Bureau's 1990 name files (public
+domain). SCOWL is used under the following notice:
+
+  Copyright 2000-2018 by Kevin Atkinson
+
+  Permission to use, copy, modify, distribute and sell these word
+  lists, the associated scripts, the output created from the scripts,
+  and its documentation for any purpose is hereby granted without fee,
+  provided that the above copyright notice appears in all copies and
+  that both that copyright notice and this permission notice appear in
+  supporting documentation. Kevin Atkinson makes no representations
+  about the suitability of this array for any purpose. It is provided
+  "as is" without express or implied warranty.
+
+------------------------------------------------------------------------
 GeoNames
 ------------------------------------------------------------------------
 

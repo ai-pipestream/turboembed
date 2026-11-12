@@ -383,6 +383,8 @@ impl WebLanguageCard {
             class: self.class,
             attribution: Some(self.attribution.clone()),
             origin: None,
+            model_type: Default::default(),
+            bundle: None,
             files: vec![
                 file(&self.file.name, model_url, self.file.size, &self.file.sha256, &self.file.sha512)?,
                 file(&s.name, sentences_url, s.size, &s.sha256, &s.sha512)?,
