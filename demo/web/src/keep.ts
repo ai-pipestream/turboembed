@@ -73,12 +73,16 @@ const restored = new WeakSet<HTMLSelectElement>();
  * visitor or the page (a new index, say) picked it.
  */
 export function restore(select: HTMLSelectElement): void {
-  if (restored.has(select)) return;
-  const v = select.id && !select.hasAttribute("data-unkept") ? recall(select.id) : null;
-  if (v === null || !select.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
-  if (!offered(v, [...select.options].map((o) => o.value))) return;
+  if (restored.has(select) || !select.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
+  const v = kept(select.id, select.hasAttribute("data-unkept"), select.id ? recall(select.id) : null, [...select.options].map((o) => o.value));
+  if (v === null) return;
   select.value = v;
   restored.add(select);
+}
+
+/** The kept pick `v` to put back in a select `id` offering `values`, or null: none for a select marked `unkept`, with no id, or not offering it. */
+export function kept(id: string, unkept: boolean, v: string | null, values: string[]): string | null {
+  return id !== "" && !unkept && offered(v, values) ? v : null;
 }
 
 /** Whether a kept pick `v` is among `values`, the ones a select offers now. */

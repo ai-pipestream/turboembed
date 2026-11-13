@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { offered, recall, recallList, remember, storable, stored, TABS } from "../src/keep.js";
+import { kept, offered, recall, recallList, remember, storable, stored, TABS } from "../src/keep.js";
 
 test("text, numbers, checkboxes and selects are kept; a password and a file never are", () => {
   assert.equal(storable("TEXTAREA", "textarea"), true);
@@ -36,4 +36,12 @@ test("a kept pick counts only when the select offers it now", () => {
   assert.equal(offered("", ["", "tiny-bert"]), true);
   assert.equal(offered("gone", ["idx-a"]), false);
   assert.equal(offered(null, ["idx-a"]), false);
+});
+
+test("a kept pick is put back only in a select with an id, not marked unkept, that offers it", () => {
+  assert.equal(kept("sem-embed", false, "tiny-bert", ["", "tiny-bert"]), "tiny-bert");
+  assert.equal(kept("entities-layer", true, "tiny-bert", ["", "tiny-bert"]), null);
+  assert.equal(kept("", false, "tiny-bert", ["", "tiny-bert"]), null);
+  assert.equal(kept("sem-embed", false, "gone", ["", "tiny-bert"]), null);
+  assert.equal(kept("sem-embed", false, null, ["", "tiny-bert"]), null);
 });

@@ -140,6 +140,7 @@ function strips(v: Seen, info: HTMLElement, light: (e: number | null) => void, o
       mark.addEventListener("mouseenter", show);
       mark.addEventListener("focus", show);
       mark.addEventListener("mouseleave", () => light(null));
+      mark.addEventListener("blur", () => light(null));
       g.append(mark);
     }
     svg.append(g);

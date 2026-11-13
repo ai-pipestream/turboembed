@@ -4249,12 +4249,14 @@ function put(f, v) {
 }
 var restored = /* @__PURE__ */ new WeakSet();
 function restore(select5) {
-  if (restored.has(select5)) return;
-  const v = select5.id && !select5.hasAttribute("data-unkept") ? recall(select5.id) : null;
-  if (v === null || !select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
-  if (!offered(v, [...select5.options].map((o) => o.value))) return;
+  if (restored.has(select5) || !select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
+  const v = kept(select5.id, select5.hasAttribute("data-unkept"), select5.id ? recall(select5.id) : null, [...select5.options].map((o) => o.value));
+  if (v === null) return;
   select5.value = v;
   restored.add(select5);
+}
+function kept(id, unkept, v, values) {
+  return id !== "" && !unkept && offered(v, values) ? v : null;
 }
 function offered(v, values) {
   return v !== null && values.includes(v);
@@ -7367,11 +7369,11 @@ function colourOf(a) {
   if (names(a.layer) && a.label) return { key: `label:${a.label}`, name: a.label };
   return { key: `layer:${layerKey(a.layer, a.instance)}`, name: layerName(a.layer, a.instance) };
 }
-function kept(anns, filter2) {
+function kept2(anns, filter2) {
   return filter2.size ? anns.filter((a) => filter2.has(layerKey(a.layer, a.instance))) : anns;
 }
 function painted(anns, filter2, lead) {
-  let show4 = kept(anns, filter2);
+  let show4 = kept2(anns, filter2);
   if (!filter2.size && lead !== "all") show4 = show4.filter((a) => lead === "naming" ? rank(a) === 0 : sentence2(a));
   return [...show4].sort((x, y) => rank(x) - rank(y));
 }
@@ -8409,8 +8411,8 @@ function renderModels() {
 }
 async function addModels(names2) {
   const fresh = names2.filter((n2) => !models.get(n2)?.meta);
-  const kept2 = recallList(PICKED);
-  for (const n2 of fresh) models.set(n2, { meta: null, error: "", checked: kept2 ? kept2.includes(n2) : true });
+  const kept3 = recallList(PICKED);
+  for (const n2 of fresh) models.set(n2, { meta: null, error: "", checked: kept3 ? kept3.includes(n2) : true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
 }
@@ -9034,6 +9036,7 @@ function strips(v, info, light, onLight) {
       mark.addEventListener("mouseenter", show4);
       mark.addEventListener("focus", show4);
       mark.addEventListener("mouseleave", () => light(null));
+      mark.addEventListener("blur", () => light(null));
       g.append(mark);
     }
     svg.append(g);
