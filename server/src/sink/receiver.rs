@@ -45,7 +45,11 @@ fn check(item: &DocumentSinkItem, last: Option<u64>) -> Result<(), String> {
     if last.is_some_and(|l| item.sequence <= l) {
         return Err(format!("sequence {} is not over the last, {}", item.sequence, last.unwrap_or(0)));
     }
-    if item.graph.is_empty() && item.analyzed.is_none() && !super::document::pii_withheld(item) {
+    if item.graph.is_empty()
+        && item.analyzed.is_none()
+        && item.search_projection.is_none()
+        && !super::document::pii_withheld(item)
+    {
         return Err("carries neither a graph nor an answer".into());
     }
     if !item.graph.is_empty() {
@@ -57,6 +61,9 @@ fn check(item: &DocumentSinkItem, last: Option<u64>) -> Result<(), String> {
     }
     if let Some(typed) = &item.typed {
         super::document::check_typed(item, typed)?;
+    }
+    if let Some(sp) = &item.search_projection {
+        super::document::check_search_projection(sp)?;
     }
     super::document::check_binding_agrees(item)
 }

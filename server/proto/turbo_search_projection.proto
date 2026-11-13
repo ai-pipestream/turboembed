@@ -1,0 +1,319 @@
+// Schema-driven Search Index Envelope Projection (#2345): projects Document
+// layers in a single pass into ready-to-index chunks, aligned sentence spans,
+// position-length token lattices, first-class NLP typed columns, syntactic
+// negation/modality entity polarities, near-duplicate sketches, and WAL replay
+// provenance digests.
+//
+// Composes with #1219 (TypedDocumentResult) and #1905/#1904 (provenance,
+// layer assessment status, and PII disclosure controls) without duplicating
+// #1901..#1904 PII wire structures.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package turbo.result.v1;
+
+import "turbo_typed_annotations.proto";
+
+// Projects a binary DocumentGraph into a SearchDocumentProjection in the
+// requested target view and OffsetMode (#2345).
+message ProjectSearchDocumentRequest
+{
+  // Caller-supplied document correlation identifier.
+  string doc_id = 1;
+
+  // Binary DocumentGraph bytes (turbo_analysis::export).
+  bytes graph = 2;
+
+  // Target view id onto which all spans are projected (0 = ViewId::SOURCE).
+  uint32 view = 3;
+
+  // Character offset unit for all projected span coordinates (default UTF-8).
+  OffsetMode offsets = 4;
+
+  // PII disclosure controls (#1904): documents holding PII require full_text
+  // on ViewId::SOURCE or rewritten_text on a PII rewrite view.
+  PiiOutputOptions pii_output = 5;
+
+  // Caller identity binding (#1939), carried unchanged onto provenance.input.
+  optional InputBinding binding = 6;
+
+  // Optional 32-byte SHA-256 digest of the caller's analyzer/bundle config.
+  bytes analyzer_config_digest = 7;
+}
+
+// Assessment state of a quality or NLP measurement layer (#1905).
+enum SearchAssessmentState
+{
+  // Layer was not executed on the document.
+  SEARCH_ASSESSMENT_STATE_UNASSESSED = 0;
+
+  // Layer ran to completion (Status::Complete); zero values mean measured-clean.
+  SEARCH_ASSESSMENT_STATE_ASSESSED = 1;
+
+  // Layer attempted execution and failed or was skipped due to upstream error.
+  SEARCH_ASSESSMENT_STATE_FAILED = 2;
+}
+
+// Summary of one text view's alignment lineage for deterministic replay.
+message ViewAlignmentSummary
+{
+  uint32 view_id = 1;
+  string name = 2;
+  optional uint32 parent_view = 3;
+  uint32 utf8_bytes = 4;
+  bytes text_sha256 = 5;
+  bool lossy = 6;
+}
+
+// Replay provenance digests attached to a SearchDocumentProjection (#2345).
+message SearchReplayProvenance
+{
+  InputIdentity input = 1;
+  ResultIdentity result = 2;
+  repeated ViewAlignmentSummary views = 3;
+  repeated ModelProvenance models = 4;
+  bytes analyzer_config_digest = 5;
+}
+
+// One aligned sentence span satisfying the sorted, non-overlapping
+// `sentences:body` invariant in target_view coordinates.
+message SearchSentenceRow
+{
+  uint32 index = 1;
+  uint32 span_start = 2;
+  uint32 span_end = 3;
+  optional string boilerplate_kind = 4;
+  optional float boilerplate_score = 5;
+}
+
+// Fixed-size word/shingle near-duplicate sketch (`turbo-group` Sketches).
+message SearchSketchRow
+{
+  uint32 shingle = 1;
+  uint32 words = 2;
+  fixed64 exact_lo = 3;
+  fixed64 exact_hi = 4;
+  fixed64 shape_hash = 5;
+  fixed64 simhash = 6;
+  repeated uint32 minhash = 7;
+}
+
+// One hierarchical DP chunk (`turbo-chunker`) projected to target_view.
+message SearchChunkRow
+{
+  uint32 index = 1;
+  uint32 span_start = 2;
+  uint32 span_end = 3;
+  uint32 level = 4;
+  optional uint32 parent_index = 5;
+  uint32 sentence_start = 6;
+  uint32 sentence_end = 7;
+  string cut_reason = 8;
+  int64 cut_margin = 9;
+  uint32 model_tokens = 10;
+  bool over_budget = 11;
+  optional string boilerplate_kind = 12;
+  optional float boilerplate_score = 13;
+  optional SearchSketchRow sketch = 14;
+}
+
+// One position-length lexical token lattice arc (#2340) in target_view offsets.
+message SearchLexicalToken
+{
+  string instance = 1;
+  string term = 2;
+  uint32 pos = 3;
+  uint32 pos_len = 4;
+  uint32 span_start = 5;
+  uint32 span_end = 6;
+  optional uint32 sentence_index = 7;
+  string kind = 8;
+}
+
+// Extracted or ECB-normalized currency amount (`Money` / `CONVERTED_MONEY`).
+message SearchMoneyValue
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  string currency = 3;
+  double amount_f64 = 4;
+  string plain_amount = 5;
+  string per = 6;
+  bool ecb_converted = 7;
+}
+
+// SI-normalized physical or percentage quantity (`Quantities`).
+message SearchQuantityValue
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  string unit = 3;
+  double value_f64 = 4;
+  string plain_value = 5;
+  bool is_percent = 6;
+}
+
+// Resolved UTC document calendar date (`DocumentDate`).
+message SearchUtcDate
+{
+  string iso = 1;
+  int64 epoch_seconds = 2;
+  int32 year = 3;
+  uint32 month = 4;
+  uint32 day = 5;
+}
+
+// Resolved UTC calendar interval (`Temporals`, half-open [start, end) seconds).
+message SearchTemporalRange
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  string granularity = 3;
+  string origin = 4;
+  string iso = 5;
+  int64 start_epoch_seconds = 6;
+  int64 end_epoch_seconds = 7;
+}
+
+// Resolved sub-day or interval time expression (`Times`, UTC epoch ms).
+message SearchTimeRange
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  string kind = 3;
+  string grain = 4;
+  string timex = 5;
+  optional int64 start_epoch_ms = 6;
+  optional int64 end_epoch_ms = 7;
+  optional int64 duration_ms = 8;
+  bool ambiguous = 9;
+}
+
+// Numeric and temporal typed columns projected in one pass (#2345).
+message SearchNumericTemporalColumns
+{
+  repeated SearchMoneyValue money = 1;
+  repeated SearchQuantityValue quantities = 2;
+  optional SearchUtcDate document_date = 3;
+  repeated SearchTemporalRange temporals = 4;
+  repeated SearchTimeRange times = 5;
+}
+
+// WGS84 bounding box (`west`, `south`, `east`, `north`).
+message SearchGeoBbox
+{
+  double west = 1;
+  double south = 2;
+  double east = 3;
+  double north = 4;
+}
+
+// Disambiguated geospatial point, bounding box, and containment spine (#2345).
+message SearchGeoPoint
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  string source = 3;
+  string record_id = 4;
+  string canonical_name = 5;
+  string feature_class = 6;
+  string country_code = 7;
+  double latitude = 8;
+  double longitude = 9;
+  optional SearchGeoBbox bbox = 10;
+  repeated PlaceAncestorProto containment = 11;
+  string spine_path = 12;
+  double confidence = 13;
+}
+
+// One document or scope category assignment (`Categories`).
+message SearchCategoryRow
+{
+  string scope = 1;
+  string tagset = 2;
+  string best_label = 3;
+  bool abstained = 4;
+  optional double probability = 5;
+  repeated string selected = 6;
+  repeated CategoryScoreProto scores = 7;
+}
+
+// Aspect-level sentiment summary (`Aspects`).
+message SearchAspectSummary
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  optional string category = 3;
+  string polarity = 4;
+  double positive = 5;
+  double negative = 6;
+  double neutral = 7;
+}
+
+// Calibrated category and sentiment columns (#2345).
+message SearchCategorySentiment
+{
+  repeated SearchCategoryRow categories = 1;
+  optional string sentiment_label = 2;
+  optional double sentiment_score = 3;
+  repeated SearchAspectSummary aspects = 4;
+}
+
+// Monotone text quality scalars with explicit #1905 assessment state (#2345).
+message SearchQualitySummary
+{
+  SearchAssessmentState noise_state = 1;
+  SearchAssessmentState artifacts_state = 2;
+  SearchAssessmentState text_quality_state = 3;
+  double worst_noise_score = 4;
+  int64 union_noise_chars = 5;
+  int64 artifact_count = 6;
+  optional QualityMetricsAnnotation metrics = 7;
+  optional LayerError noise_error = 8;
+  optional LayerError artifacts_error = 9;
+}
+
+// Canonical KB entity mention tagged with syntactic/modality polarity (#2345).
+message SearchLinkedEntity
+{
+  uint32 entity_index = 1;
+  uint32 span_start = 2;
+  uint32 span_end = 3;
+  string entity_kind = 4;
+  optional string kb_id = 5;
+  string provider_id = 6;
+  string canonical_name = 7;
+  string matched_alias = 8;
+  double score = 9;
+  string polarity = 10;
+  string epistemic = 11;
+  optional string cue = 12;
+}
+
+// Entities partitioned by syntactic negation and modality (#2345).
+message SearchEntityPolarities
+{
+  repeated SearchLinkedEntity affirmed = 1;
+  repeated SearchLinkedEntity negated = 2;
+  repeated SearchLinkedEntity uncertain = 3;
+}
+
+// Deterministic Search Index Envelope Projection (#2345).
+message SearchDocumentProjection
+{
+  string doc_id = 1;
+  uint32 target_view = 2;
+  OffsetMode offset_mode = 3;
+  uint32 target_text_len = 4;
+  SearchReplayProvenance provenance = 5;
+  repeated SearchSentenceRow sentences = 6;
+  repeated SearchChunkRow chunks = 7;
+  repeated SearchLexicalToken tokens = 8;
+  SearchNumericTemporalColumns numeric_temporal = 9;
+  repeated SearchGeoPoint geo_locations = 10;
+  SearchCategorySentiment categories_sentiment = 11;
+  SearchQualitySummary quality = 12;
+  SearchEntityPolarities entities = 13;
+  optional SearchSketchRow document_sketch = 14;
+}

@@ -175,6 +175,7 @@ pub struct Serve {
     /// one minute when `None`.
     pub upload_idle: Option<std::time::Duration>,
     pub sink: Option<SinkConfig>,
+    pub sink_search_projection: Option<sink::SinkTyped>,
     pub sink_receiver: Option<SinkReceiver>,
     /// What a request's PiiOutputOptions may turn on
     /// (`--pii-output-allow`, docs/grpc-analysis.md, PII output).
@@ -291,7 +292,8 @@ impl Server {
             state.pii_policies.clone(),
             state.pii_resolver.clone(),
         )?;
-        let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
+        let sink_sp = serve.sink_search_projection;
+        let sink = serve.sink.as_ref().map(|c| SinkForwarder::start_with(c, sink_sp)).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
             admin: serve.admin,

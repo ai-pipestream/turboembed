@@ -98,6 +98,7 @@ protox = "0.9"
 tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
 
 [dev-dependencies]
+turbo-encoding = { path = "../analysis/encoding" }
 turbo-scratch = { path = "../analysis/scratch" }
 # Real wire deadline tests bypass tonic clients' own timeout wrapper.
 h2 = "0.4"

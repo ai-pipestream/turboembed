@@ -12,6 +12,7 @@ syntax = "proto3";
 package turbo.result.v1;
 
 import public "turbo_typed_annotations.proto";
+import public "turbo_search_projection.proto";
 import "turbo_pii_policy.proto";
 
 // Analysis results and the server's bundle capabilities.
@@ -65,6 +66,13 @@ service AnalysisService
   // boundaries, probability ranges, and indexes_layer target bounds)
   // and returns it unchanged (#1219).
   rpc RoundTripTypedDocument(TypedDocumentResult) returns (TypedDocumentResult) {}
+
+  // Projects a binary DocumentGraph into a SearchDocumentProjection in
+  // the requested target view and OffsetMode (#2345).
+  rpc ProjectSearchDocument(ProjectSearchDocumentRequest) returns (SearchDocumentProjection) {}
+
+  // Validates a SearchDocumentProjection and returns it unchanged (#2345).
+  rpc RoundTripSearchProjection(SearchDocumentProjection) returns (SearchDocumentProjection) {}
 
   // Bulk document analysis over one bidirectional stream (issue #722):
   // the client opens with one AnalyzeStreamHeader naming the ordering and

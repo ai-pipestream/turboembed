@@ -18,6 +18,7 @@ pub mod multires;
 pub mod receipt;
 pub mod records;
 pub mod rerank;
+pub mod search_projection;
 pub mod sparse;
 pub mod tokens;
 pub mod typed;

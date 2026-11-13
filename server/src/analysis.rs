@@ -21,8 +21,8 @@ use crate::proto::result::{
     DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest, DocumentWindowResponse, ExtractionResult,
     FormatDocumentRequest, FormatDocumentResponse, InspectDocumentGraphRequest, ListOutputFormatsRequest,
     ListOutputFormatsResponse, LoadBundleRequest, LoadBundleResponse, MultiResVectorsResult, ProjectChunksRequest,
-    ProjectChunksResponse, RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult,
-    TypedDocumentResult, UnloadBundleRequest, UnloadBundleResponse,
+    ProjectChunksResponse, ProjectSearchDocumentRequest, RecordsResult, RerankScoresResult, SearchDocumentProjection,
+    SparseTermsResult, TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
@@ -225,6 +225,27 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_typed_document(&self, req: Request<TypedDocumentResult>) -> Reply<TypedDocumentResult> {
         round_trip::<_, TypedDocumentResult>(req)
+    }
+
+    async fn project_search_document(
+        &self,
+        req: Request<ProjectSearchDocumentRequest>,
+    ) -> Reply<SearchDocumentProjection> {
+        let req = req.into_inner();
+        let policy = self.pii_policy;
+        let out = tokio::task::spawn_blocking(move || {
+            crate::results::search_projection::project_search_document_under(&req, policy)
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_search_document task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_search_projection(
+        &self,
+        req: Request<SearchDocumentProjection>,
+    ) -> Reply<SearchDocumentProjection> {
+        round_trip::<_, SearchDocumentProjection>(req)
     }
 
     async fn analyze_stream(
