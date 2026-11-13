@@ -549,7 +549,8 @@ server and there is no JSON.
   coverage, new terms) as documents are indexed, until stopped.
 - Vocabulary: the store's limits and formats, the stored dictionaries
   and vocabularies, `ImportDictionary` and `LearnVocabulary` as uploads
-  (writes), `DownloadVocabulary` streamed into a file, and
+  (writes; learning sends the form's language, which "drop stopwords"
+  needs), `DownloadVocabulary` streamed into a file, and
   `DeleteVocabularyArtifact` (write).
 - Server: the server's name, version and readiness (`ServerLive`,
   `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, with task
@@ -827,6 +828,11 @@ either: every call the page makes goes through the demo to the server.
   says so, and nothing reaches the index.
 - Every tab opens with a line on what it does; with the only model
   unloaded, Embed, Semantic and Search say what they need.
+- Learning a vocabulary with "drop stopwords" sends the form's language
+  and learns without that language's stopwords; an empty language is
+  asked for before anything is sent, and one with no bundled list shows
+  the server's refusal. From 390 to 1280 pixels no two fields of the
+  collection form overlap.
 - Beyond `document-map.test.ts`, a four-paragraph document analyzed
   with `default-v1` numbers the map's dots in reading order and lights
   the last dot from the last chunk of text; a term picked on the river
@@ -840,6 +846,11 @@ either: every call the page makes goes through the demo to the server.
 `--allow`: nothing is off before the token is typed, and after it the
 other writes are off, the Set button of a collection and each row's
 Delete and Unload among them.
+
+`demo/web/e2e/busy-permission.test.ts` pauses an actual Set request while
+a token brings a Describe answer, then resumes it through the real token
+gate. Permission changes preserve the busy state, and completion preserves
+the current permission. An allowed retry and read Watch/Stop also recover.
 
 The tests that stop the server, or need writes forwarded or a token, start a
 server and demo of their own from the same binaries
