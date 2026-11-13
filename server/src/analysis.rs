@@ -20,13 +20,14 @@ use crate::proto::result::{
     AnalyzePipelineRequest, AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult,
     DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest, DocumentWindowResponse, ExtractionResult,
     FormatDocumentRequest, FormatDocumentResponse, InspectDocumentGraphRequest, ListOutputFormatsRequest,
-    ListOutputFormatsResponse, LoadBundleRequest, LoadBundleResponse, ProjectChunksRequest, ProjectChunksResponse,
-    RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest,
-    UnloadBundleResponse,
+    ListOutputFormatsResponse, LoadBundleRequest, LoadBundleResponse, MultiResVectorsResult, ProjectChunksRequest,
+    ProjectChunksResponse, RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult,
+    TypedDocumentResult, UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
-    extraction::Extraction, layers::ChunkLevels, records::RecordSet, rerank::RerankScores, tokens::TokenVectors,
+    extraction::Extraction, layers::ChunkLevels, multires::MultiResVectorsWire, records::RecordSet,
+    rerank::RerankScores, tokens::TokenVectors,
 };
 use crate::state::State;
 use crate::status::to_status;
@@ -166,6 +167,10 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_token_vectors(&self, req: Request<TokenVectorsResult>) -> Reply<TokenVectorsResult> {
         round_trip::<_, TokenVectors>(req)
+    }
+
+    async fn round_trip_multi_res_vectors(&self, req: Request<MultiResVectorsResult>) -> Reply<MultiResVectorsResult> {
+        round_trip::<_, MultiResVectorsWire>(req)
     }
 
     async fn round_trip_rerank_scores(&self, req: Request<RerankScoresResult>) -> Reply<RerankScoresResult> {

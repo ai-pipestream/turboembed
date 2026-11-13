@@ -27,6 +27,11 @@ pub use impacts::{
     DEFAULT_IMPACT_CLIP_MAX, ImpactBits as ImpactBitWidth, ImpactQuantizerConfig, QuantizedImpacts, format_token_key,
     parse_token_key,
 };
+pub mod multires;
+pub use multires::{
+    MultiResInput, MultiResOptions, MultiResVectors, VectorTier, build_tier_from_unnormalized, compute_inv_norm,
+    normalize_matryoshka_dims, row_le_sha256, validate_turboquant_options,
+};
 pub mod levels;
 pub mod rerank;
 pub mod sparse;

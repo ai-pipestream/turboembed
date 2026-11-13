@@ -72,7 +72,7 @@ impl Dead {
 /// effective bound vocabulary identity.
 pub(crate) type BatchKey = (
     (usize, i32, i32, u32, u32, u32, u32, u32, u32, u32, u32, u32),
-    (u32, Vec<u32>, (String, String, u64, String, String, u64)),
+    (u32, Vec<u32>, (String, String, u64, String, String, u64), Vec<u32>),
 );
 
 /// What the reader hands the engine for one stream message: an

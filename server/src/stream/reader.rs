@@ -79,7 +79,11 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
                 unreachable!()
             };
             let embed = loaded.embed()?;
-            embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k)?;
+            if doc_opts.output == AnalyzeOutput::MultiresVectors {
+                embed.validate_multires(&doc_opts.embed, &doc_opts.multires)?;
+            } else {
+                embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k)?;
+            }
         }
         if let Some(r) = &doc_opts.int8_ranges {
             let Some((_, Some(loaded))) = resolved_model.as_ref() else {
@@ -134,6 +138,7 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
         offsets: doc_opts.offsets,
         sparse_top_k: doc_opts.sparse_top_k,
         sparse_floor: doc_opts.sparse_floor,
+        multires: doc_opts.multires,
         token_stride: doc_opts.token_stride,
         vocabulary,
         loaded,

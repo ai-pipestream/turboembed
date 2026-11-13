@@ -41,6 +41,7 @@ service AnalysisService
   // Each result kind answers with the message it was given, validated.
   rpc RoundTripSparseTerms(SparseTermsResult) returns (SparseTermsResult) {}
   rpc RoundTripTokenVectors(TokenVectorsResult) returns (TokenVectorsResult) {}
+  rpc RoundTripMultiResVectors(MultiResVectorsResult) returns (MultiResVectorsResult) {}
   rpc RoundTripRerankScores(RerankScoresResult) returns (RerankScoresResult) {}
   rpc RoundTripExtraction(ExtractionResult) returns (ExtractionResult) {}
 
@@ -615,6 +616,11 @@ enum AnalyzeOutput
   // A DocumentGraphResponse built from the document text and the
   // request's or bundle's bound vocabulary artifacts (#2013).
   ANALYZE_OUTPUT_DOCUMENT_GRAPH = 4;
+
+  // Single-pass multi-resolution vector package: Matryoshka normalized
+  // prefixes, full vector, optional sentence vectors, precomputed inv_norm,
+  // streaming SHA-256 digests, and optional compact TurboQuant codes (#2344).
+  ANALYZE_OUTPUT_MULTIRES_VECTORS = 5;
 }
 
 // The embed options one document asks for: the fields of
@@ -665,6 +671,26 @@ message AnalyzeOptions
   // where width is output_dim or the model's dim. Documents batch together
   // only with documents giving the same table.
   repeated float int8_ranges = 11;
+
+  // Requested Matryoshka prefix widths for ANALYZE_OUTPUT_MULTIRES_VECTORS
+  // (#2344); each must be declared in BundleCapabilities.widths and < full dim.
+  repeated uint32 matryoshka_dims = 15;
+
+  // When true on ANALYZE_OUTPUT_MULTIRES_VECTORS, detects sentence spans and
+  // pools per-sentence vectors in the same encoder pass (#2344).
+  bool emit_sentence_vectors = 16;
+
+  // When true on ANALYZE_OUTPUT_MULTIRES_VECTORS, populates per-row SHA-256
+  // digests alongside each tier's streaming content_sha256 (#2344).
+  bool emit_row_sha256 = 17;
+
+  // Optional TurboQuant bit width (0 for unquantized, or 2..=4) for the full
+  // tier on ANALYZE_OUTPUT_MULTIRES_VECTORS (#2344).
+  uint32 turboquant_bits = 18;
+
+  // Whether TurboQuant per-coordinate calibration (TQ+) is enabled when
+  // turboquant_bits is 2..=4 (#2344).
+  bool turboquant_calibrate = 19;
 }
 
 // One document to analyze: its client correlation id, the served model's
@@ -730,6 +756,9 @@ message AnalyzeStreamResponse
     // The document's analyzed DocumentGraphResponse
     // (ANALYZE_OUTPUT_DOCUMENT_GRAPH, #2013).
     DocumentGraphResponse document_graph = 8;
+
+    // Single-pass multi-resolution vectors (#2344).
+    MultiResVectorsResult multires_vectors = 9;
   }
 
   // The document's AnalyzeDocument.binding as given, on every answer,
@@ -786,6 +815,46 @@ message VectorCodesResult
   // TURBO_QUANTIZE_* of data: TURBO_QUANTIZE_INT8 or
   // TURBO_QUANTIZE_UBINARY, what the document asked for.
   uint32 quantization = 5;
+}
+
+// One vector resolution tier (full, Matryoshka prefix, or sentence tier)
+// produced by a single encoder pass (#2344).
+message VectorTierWire
+{
+  uint32 dim = 1;
+  uint32 rows = 2;
+  // rows x dim little-endian f32 values in row-major order.
+  bytes data = 3;
+  // Strictly ascending indices in 0..rows whose spans held zero subwords.
+  repeated uint32 empty = 4;
+  // Precomputed 1.0 / ||row||_2 per row (0.0 for zero rows).
+  repeated float inv_norm = 5;
+  // Precomputed 1.0 / ||raw_row||_2 before L2 normalization.
+  repeated float raw_inv_norm = 6;
+  // 32-byte SHA-256 over `data` (little-endian f32 bytes in row order).
+  bytes content_sha256 = 7;
+  // Optional concatenated 32-byte SHA-256 per row (empty or 32 * rows bytes).
+  bytes row_sha256 = 8;
+  // Optional TurboQuant bit width (0 when unquantized, or 2..=4).
+  uint32 turboquant_bits = 9;
+  bool turboquant_calibrate = 10;
+  // Compact TQPACK01 image over `turboquant_rows`.
+  bytes turboquant_compact = 11;
+  repeated uint32 turboquant_rows = 12;
+}
+
+// Single-pass multi-resolution vector package (#2344).
+message MultiResVectorsResult
+{
+  ModelRef model = 1;
+  bool l2_normalized = 2;
+  VectorTierWire full = 3;
+  repeated VectorTierWire prefixes = 4;
+  optional VectorTierWire sentences = 5;
+  repeated uint32 sentence_span_start = 6;
+  repeated uint32 sentence_span_end = 7;
+  string text = 8;
+  OffsetMode offsets = 9;
 }
 
 // Why one document failed: the turbo status the refusal carries, as the

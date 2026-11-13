@@ -14,6 +14,7 @@ pub mod disclosure;
 pub mod document;
 pub mod extraction;
 pub mod layers;
+pub mod multires;
 pub mod receipt;
 pub mod records;
 pub mod rerank;
