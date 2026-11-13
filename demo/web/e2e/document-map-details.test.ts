@@ -28,7 +28,7 @@ async function mapped(browser: Browser, width = 1280, height = 900): Promise<Pag
   await page.fill("#analyze-text", DOCUMENT);
   await page.click("#analyze-run");
   await page.waitForSelector("#projection-out .map-and-text svg");
-  // Each figure is drawn when its own call answers.
+  // The other panels under Analyze make their own calls for the new document and can still move this one.
   await settled(page);
   return page;
 }
@@ -95,8 +95,12 @@ test("on a phone the figures scroll in their own boxes and the page does not", a
   const browser = await chromium.launch();
   try {
     const page = await mapped(browser, 390, 844);
-    // The meaning map, the seismograph and the river, each drawn when its own call answers.
-    await page.waitForFunction(() => document.querySelectorAll("#projection-out .figure .scroll").length === 3);
+    // The meaning map, the seismograph and the river: each is wider than the phone and scrolls in its own box.
+    const boxes = await page.locator("#projection-out .figure .scroll").evaluateAll((all) =>
+      all.map((b) => ({ overflow: getComputedStyle(b).overflowX, wider: b.scrollWidth > b.clientWidth })),
+    );
+    assert.deepEqual(boxes, Array(3).fill({ overflow: "auto", wider: true }));
+    // And the page itself does not scroll sideways.
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     assert.equal(sideways, false);
   } finally {
