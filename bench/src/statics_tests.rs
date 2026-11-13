@@ -66,35 +66,8 @@ fn committed_records_pass_their_check() {
 }
 
 #[test]
-fn statics_reads_gpu_clock_outside_timed_passes() {
+fn statics_cpu_record_has_no_gpu_clock() {
     use turbo::TURBO_PRECISION_MODEL;
-    use turbo::record::{ClockReading, GpuClock};
-
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
-    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let events_r = std::rc::Rc::clone(&events);
-    let calls = std::cell::Cell::new(0u32);
-    let clock = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let n = calls.get();
-            calls.set(n + 1);
-            events_r.borrow_mut().push(format!("clock:{backend}:{n}"));
-            Some(if n == 0 { before } else { after })
-        },
-        || {
-            let mut w = crate::gpu_clock::Window::new("levelzero", 1);
-            best_in(Duration::ZERO, &mut w, 2, &mut || {
-                events.borrow_mut().push("pass".into());
-                Ok(())
-            })
-            .unwrap();
-            w.finish()
-        },
-    );
-    assert_eq!(clock, Some(GpuClock { before, after }));
-    assert_eq!(*events.borrow(), ["pass", "clock:levelzero:0", "pass", "pass", "pass", "clock:levelzero:1"]);
-
     let scratch =
         turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-static-{}", std::process::id())));
     std::fs::create_dir_all(&scratch).unwrap();
@@ -116,30 +89,6 @@ fn statics_reads_gpu_clock_outside_timed_passes() {
     assert_eq!(cpu_record.device.clock, None);
     check(&cpu_record).unwrap();
 
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let clocked = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap(),
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
-    check(&clocked).unwrap();
-
-    let calls = std::cell::Cell::new(0u32);
-    let incomplete = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap(),
-    );
-    assert_eq!(incomplete.device.clock, None);
     std::fs::remove_dir_all(&scratch).unwrap();
 }
 
@@ -217,4 +166,21 @@ fn empty_json_measurement_is_rejected() {
         }
         std::thread::sleep(Duration::from_millis(10));
     }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn static_clock_reads_enclose_only_the_timed_passes() {
+    let driver = crate::gpu_clock::tests::Driver::new("static-timing");
+    let mut clock = driver.window(1);
+    let mut calls = 0;
+    best_in(Duration::ZERO, &mut clock, 1, &mut || {
+        calls += 1;
+        driver.set(calls * 100);
+        Ok(())
+    })
+    .unwrap();
+    let clock = clock.finish().unwrap();
+    assert_eq!(calls, 4);
+    assert_eq!((clock.before.act_mhz, clock.after.act_mhz), (100, 400));
 }

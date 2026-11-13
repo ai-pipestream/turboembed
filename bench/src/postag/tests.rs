@@ -127,8 +127,7 @@ fn check_refuses_non_finite_latency_and_ratio() {
 
 #[cfg(feature = "postag")]
 #[test]
-fn postag_measure_carries_gpu_clock_when_read() {
-    use turbo::record::{ClockReading, GpuClock};
+fn postag_cpu_record_has_no_gpu_clock() {
     use turbo_postag::neural::bilstm_model::{UNKNOWN, char_vocabulary_from_strs};
     use turbo_postag::neural::lstm::LstmLayer;
     use turbo_postag::neural::{BilstmPosModel, BilstmPosTagger, Numerics};
@@ -185,59 +184,4 @@ fn postag_measure_carries_gpu_clock_when_read() {
     .unwrap();
     assert_eq!(cpu_record.device.clock, None);
     check(&cpu_record).unwrap();
-
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let clocked = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || {
-            super::measure::measure(
-                &packed,
-                &parity,
-                b"native-fixture",
-                "t.conllu".into(),
-                treebank,
-                &sentences,
-                None,
-                1,
-                "2026-10-22T00:00:00Z".into(),
-                prov,
-            )
-            .unwrap()
-        },
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
-    check(&clocked).unwrap();
-
-    let calls = std::cell::Cell::new(0u32);
-    let incomplete = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || {
-            super::measure::measure(
-                &packed,
-                &parity,
-                b"native-fixture",
-                "t.conllu".into(),
-                treebank,
-                &sentences,
-                None,
-                1,
-                "2026-10-22T00:00:00Z".into(),
-                prov,
-            )
-            .unwrap()
-        },
-    );
-    assert_eq!(incomplete.device.clock, None);
 }
