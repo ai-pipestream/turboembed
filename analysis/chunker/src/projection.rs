@@ -39,6 +39,10 @@ pub enum ProjectionDims {
     D3 = 3,
 }
 
+/// A basis direction is kept when its eigenvalue is over this share of
+/// the largest one.
+const BASIS_FLOOR: f64 = 1e-9;
+
 impl ProjectionDims {
     pub fn get(self) -> usize {
         self as usize
@@ -57,8 +61,11 @@ impl ProjectionDims {
 /// `components` (row-major `[dims, vector dimension]`, unit length, in
 /// the canonical sign) are the basis the coordinates were taken in, so
 /// [`VectorProjection::place`] can put another vector of the same model
-/// in the same picture. Only [`VectorProjection::compute_with_basis`]
-/// keeps them, all zeros when fewer than two rows carry a vector;
+/// in the same picture. A component whose share of the variance is
+/// nothing but rounding (the rows span fewer directions than `dims`, as
+/// two rows always do) is all zeros, so a placed vector sits at 0 on
+/// that axis. Only [`VectorProjection::compute_with_basis`] keeps them,
+/// all zeros when fewer than two rows carry a vector;
 /// [`VectorProjection::compute`] leaves both empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VectorProjection<L> {
@@ -181,21 +188,33 @@ impl<L: Layer> VectorProjection<L> {
         for v in &mut values {
             *v = v.max(0.0);
         }
+        // A direction is kept only when its eigenvalue stands clear of the
+        // largest one's rounding: the rest of the spectrum of centred rows
+        // is zero in exact arithmetic, and its eigenvectors are arbitrary.
+        let floor = order.first().map_or(0.0, |&top| values[top] * BASIS_FLOOR);
         for c in 0..if basis { k } else { 0 } {
             let Some(&col) = order.get(c) else { break };
+            if values[col] <= floor {
+                continue;
+            }
             let slot = &mut out.components[c * d..(c + 1) * d];
             if !dual {
                 if let Some(comp) = comps.get(c * d..(c + 1) * d) {
                     slot.copy_from_slice(comp);
                 }
-            } else if values[col] > 0.0 {
-                // u = X^T v / sqrt(lambda), in the sign the coordinates use.
-                let scale = comps[c] / values[col].sqrt();
-                for r in 0..m {
-                    let w = scale * vecs[r * m + col];
-                    for (u, x) in slot.iter_mut().zip(&centred[r * d..(r + 1) * d]) {
-                        *u += w * x;
-                    }
+                continue;
+            }
+            // u = X^T v in the sign the coordinates use, then unit length.
+            for r in 0..m {
+                let w = comps[c] * vecs[r * m + col];
+                for (u, x) in slot.iter_mut().zip(&centred[r * d..(r + 1) * d]) {
+                    *u += w * x;
+                }
+            }
+            let length = slot.iter().map(|u| u * u).sum::<f64>().sqrt();
+            if length > 0.0 {
+                for u in slot.iter_mut() {
+                    *u /= length;
                 }
             }
         }
@@ -397,16 +416,19 @@ mod tests {
         )
     }
 
+    fn both(rows: &[Vec<f32>], dims: ProjectionDims) -> [VectorProjection<Chunks>; 2] {
+        let v = vectors(rows[0].len() as u32, &rows.iter().map(|r| &r[..]).collect::<Vec<_>>(), &[]);
+        let present: Vec<usize> = (0..rows.len()).collect();
+        [true, false].map(|dual| VectorProjection::<Chunks>::project(&v, dims, &present, dual, true).unwrap())
+    }
+
     #[test]
     fn dual_and_covariance_paths_agree() {
         // 4 rows in 6 dims: dual is the production path; force both.
         let rows: Vec<Vec<f32>> = (0..4)
             .map(|i| (0..6).map(|j| ((i * 7 + j * 3) as f32 * 0.37).sin() + (i as f32) * 0.11 * j as f32).collect())
             .collect();
-        let v = vectors(6, &rows.iter().map(|r| &r[..]).collect::<Vec<_>>(), &[]);
-        let present: Vec<usize> = (0..4).collect();
-        let dual = VectorProjection::<Chunks>::project(&v, ProjectionDims::D3, &present, true, false).unwrap();
-        let cov = VectorProjection::<Chunks>::project(&v, ProjectionDims::D3, &present, false, false).unwrap();
+        let [dual, cov] = both(&rows, ProjectionDims::D3);
         for (a, b) in dual.coords.iter().zip(&cov.coords) {
             assert!((a - b).abs() < 1e-5, "dual {a} vs covariance {b}");
         }
@@ -415,5 +437,59 @@ mod tests {
         }
         let kept: f32 = dual.explained_variance.iter().sum();
         assert!(kept > 0.9 && kept <= 1.0 + 1e-6, "3 components of 4 points keep nearly all variance: {kept}");
+    }
+
+    /// The two paths keep one basis, whatever the rows span: each kept
+    /// component is of unit length, each axis without variance is all
+    /// zeros, and a vector off the rows' span is placed alike by both.
+    #[test]
+    fn both_paths_keep_one_basis_at_any_rank() {
+        let wave = |i: usize, j: usize| ((i * 7 + j * 3) as f32 * 0.37).sin() + (i as f32) * 0.11 * j as f32;
+        let full =
+            |m: usize, d: usize| -> Vec<Vec<f32>> { (0..m).map(|i| (0..d).map(|j| wave(i, j)).collect()).collect() };
+        let line = |m: usize, d: usize| -> Vec<Vec<f32>> {
+            (0..m).map(|i| (0..d).map(|j| wave(0, j) + i as f32 * 0.5 * wave(1, j)).collect()).collect()
+        };
+        let mut twice = full(3, 6);
+        twice[2] = twice[0].clone();
+        // (rows, the directions they span after centring)
+        let cases = [
+            (full(4, 6), 3),
+            (full(7, 3), 3),
+            (full(2, 6), 1),
+            (full(3, 6), 2),
+            (twice, 1),
+            (line(4, 6), 1),
+            (line(7, 3), 1),
+        ];
+        for (rows, rank) in cases {
+            let d = rows[0].len();
+            let probe: Vec<f32> = (0..d).map(|j| 0.3 + ((j * 5 + 1) as f32 * 0.61).cos()).collect();
+            for dims in [ProjectionDims::D2, ProjectionDims::D3] {
+                let [dual, cov] = both(&rows, dims);
+                let what = format!("{} rows of {d}, {dims:?}", rows.len());
+                for (a, b) in dual.mean.iter().zip(&cov.mean) {
+                    assert!((a - b).abs() < 1e-12, "{what}: mean {a} vs {b}");
+                }
+                assert_eq!((dual.components.len(), cov.components.len()), (dims.get() * d, dims.get() * d));
+                for (a, b) in dual.components.iter().zip(&cov.components) {
+                    assert!((a - b).abs() < 1e-5, "{what}: component value {a} vs {b}");
+                }
+                for (c, comp) in dual.components.chunks_exact(d).enumerate() {
+                    let length = comp.iter().map(|x| x * x).sum::<f64>().sqrt();
+                    let want = if c < rank { 1.0 } else { 0.0 };
+                    assert!((length - want).abs() < 1e-9, "{what}: component {c} has length {length}");
+                    if c >= rank {
+                        assert!(cov.components[c * d..(c + 1) * d].iter().all(|&x| x == 0.0), "{what}: axis {c}");
+                    }
+                }
+                let (a, b) = (dual.place(&probe).unwrap(), cov.place(&probe).unwrap());
+                for c in 0..dims.get() {
+                    assert!((a[c] - b[c]).abs() < 1e-4, "{what}: placed axis {c}: {} vs {}", a[c], b[c]);
+                    assert!(c < rank || (a[c] == 0.0 && b[c] == 0.0), "{what}: axis {c} carries no variance");
+                }
+                assert!(a[0].abs() > 1e-3, "{what}: the probe is off the mean on the first axis");
+            }
+        }
     }
 }

@@ -215,6 +215,58 @@ async fn a_query_lands_in_the_projections_own_basis() {
     s.stop().await;
 }
 
+/// A graph with sentence vectors and no chunk vectors: the sentences are
+/// the items, all at level 0, for the pairs and for the query alike.
+#[tokio::test]
+async fn sentence_vectors_are_compared_and_hold_a_query() {
+    let (s, mut infer) = serve(1).await;
+    let mut c = analysis(&s).await;
+    let model = served_model(&mut c).await;
+    let rows = embed(&mut infer, with(texts(&SENTENCES), "normalize", st("NORMALIZE_L2"))).await;
+    let text: String = SENTENCES.concat();
+    let mut doc = Document::new(text.as_str());
+    let mut spans = Spans::new(ViewId::SOURCE);
+    let mut at = 0u32;
+    for s in SENTENCES {
+        spans.push(Span::new(at, at + s.trim_end().len() as u32));
+        at += s.len() as u32;
+    }
+    doc.add(&Key::DEFAULT, Sentences { spans }, Provenance::by("test")).unwrap();
+    let data: Vec<f32> = rows.iter().flatten().copied().collect();
+    let make = || Vectors::<Sentences>::new(rows[0].len() as u32, data.clone(), Vec::new(), model.clone());
+    doc.add(&Key::DEFAULT, make(), Provenance::by("test")).unwrap();
+    let bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    let vectors = make();
+    let row = |i: usize| vectors.row(Ix::new(i as u32));
+
+    let mut r = request(&bytes, 2);
+    r.pairwise = Some(PairwiseCosinesSpec { level: 0, max_items: 0 });
+    r.query = Some(QUERY.into());
+    let out = project(&mut c, r).await;
+    assert!(out.projection.unwrap().points.iter().all(|p| p.level == 0));
+    let pairs = out.pairwise.unwrap();
+    assert_eq!(pairs.items, vec![0, 1, 2, 3, 4]);
+    let want: Vec<f64> =
+        (0..5).flat_map(|a| (a + 1..5).map(move |b| (a, b))).map(|(a, b)| cosine(row(a), row(b))).collect();
+    assert_eq!(pairs.cosines.len(), want.len());
+    for (got, want) in pairs.cosines.iter().zip(&want) {
+        assert!((f64::from(*got) - want).abs() < 1e-6, "{got} vs {want}");
+    }
+    assert!((want[0] - want[9]).abs() > 1e-4, "{want:?}");
+
+    let asked = with(with(texts(&[QUERY]), "prompt_role", st("PROMPT_QUERY")), "normalize", st("NORMALIZE_L2"));
+    let query = embed(&mut infer, asked).await.remove(0);
+    let placed = out.query.unwrap();
+    let at = VectorProjection::compute_with_basis(&vectors, ProjectionDims::D2).unwrap().place(&query).unwrap();
+    assert!((placed.x - at[0]).abs() < 1e-4 && (placed.y - at[1]).abs() < 1e-4, "{placed:?} vs {at:?}");
+    assert!(placed.x.abs() > 1e-4 || placed.y.abs() > 1e-4);
+    assert_eq!(placed.cosines.len(), 5);
+    for (i, got) in placed.cosines.iter().enumerate() {
+        assert!((f64::from(*got) - cosine(&query, row(i))).abs() < 1e-4, "item {i}");
+    }
+    s.stop().await;
+}
+
 #[tokio::test]
 async fn a_query_is_refused_without_vectors_or_their_model() {
     let (s, mut infer) = serve(1).await;

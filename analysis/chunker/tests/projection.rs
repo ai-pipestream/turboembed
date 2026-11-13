@@ -197,10 +197,14 @@ fn place_puts_a_vector_where_its_row_is() {
             }
             let mean: Vec<f32> = p.mean.iter().map(|&x| x as f32).collect();
             assert!(p.place(&mean).unwrap().iter().all(|x| x.abs() < 1e-5));
-            for comp in p.components.chunks_exact(dim as usize) {
+            // A component is of unit length, or all zeros on an axis the
+            // rows do not vary along (the tall rows span two directions).
+            for (c, comp) in p.components.chunks_exact(dim as usize).enumerate() {
                 let norm: f64 = comp.iter().map(|x| x * x).sum::<f64>().sqrt();
-                assert!((norm - 1.0).abs() < 1e-9, "component length {norm}");
+                let want = if p.explained_variance[c] > 1e-6 { 1.0 } else { 0.0 };
+                assert!((norm - want).abs() < 1e-9, "component {c} length {norm}");
             }
+            assert!((p.components.len() / dim as usize, p.explained_variance[0] > 0.1) == (dims.get(), true));
             assert!(p.place(&rows[0][1..]).unwrap_err().contains("values"));
             let mut bad = rows[0].clone();
             bad[1] = f32::NAN;

@@ -170,7 +170,9 @@ same mean and laid on the same principal components as the points, the
 served model name that embedded it, and one cosine per `projection.points`
 entry in that order (0 for an empty row or a vector of zero length). With
 fewer than two rows that carry a vector there is no direction of variance,
-so the coordinates are zero while the cosines still stand. The text must
+so the coordinates are zero while the cosines still stand; likewise an
+axis the rows do not vary along (the second axis of two rows, say) holds
+the query at 0. The text must
 hold something besides white space (`INVALID_ARGUMENT`) and at most 8,192
 bytes (`TURBO_E_CAPACITY`). A graph with no chunk or sentence vectors, or
 with every row empty, is refused with `INVALID_ARGUMENT`; vectors of a
