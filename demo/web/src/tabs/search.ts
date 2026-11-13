@@ -13,16 +13,21 @@ import { describe, explain, search } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, onServed, reachable, whyNone } from "../state.js";
 import { put } from "../upload.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
+import { latest } from "../latest.js";
 
 let caps: CapabilitiesResponse | null = null;
 let indexing: AbortController | null = null;
 
 const select = (id: string) => $(id) as HTMLSelectElement;
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("search-indexes");
   try {
     const r = await search.listIndexes({});
+    if (!mine()) return;
     options(select("search-index"), r.indexes.map((i) => i.indexName), undefined, "no index yet");
     box.replaceChildren(
       r.indexes.length
@@ -42,6 +47,7 @@ async function list(): Promise<void> {
         : el("p", { class: "muted", text: "No index yet: create one from an embedding bundle." }),
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     options(select("search-index"), [], undefined, down ? "the server is not reachable" : "the indexes could not be listed");
     box.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
