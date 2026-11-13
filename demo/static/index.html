@@ -149,13 +149,15 @@ The engine was never built, but her notes describe how it could compute Bernoull
       <div class="row"><label>View <select id="drawer-view"><option value="">analyze a document first</option></select></label></div>
       <div id="drawer-out"></div>
     </details>
-    <details class="card" id="analyze-projection">
-      <summary>Chunk projection</summary>
+    <details class="card" id="analyze-projection" open>
+      <summary>Document map</summary>
       <div class="row">
-        <label>Dimensions <select id="projection-dims"><option value="2">2D</option><option value="3">3D</option></select></label>
-        <label><input id="projection-drift" type="checkbox" checked> drift curve</label>
+        <label>Directions <select id="projection-dims"><option value="2">2</option><option value="3">3 (the third as size)</option></select></label>
+        <label><input id="projection-uneven" type="checkbox" checked> river: skip words every chunk uses</label>
+      </div>
+      <div class="row">
         <label class="grow">Chunking budgets, name:max:target <input id="projection-budgets" value="small:32:24, large:128:96"></label>
-        <button id="projection-run" type="button">Project</button>
+        <button id="projection-run" type="button">Draw</button>
       </div>
       <div id="projection-out"></div>
     </details>
