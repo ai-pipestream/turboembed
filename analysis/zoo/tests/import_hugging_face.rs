@@ -121,234 +121,248 @@ fn file_by_hand(path: &str) -> String {
     )
 }
 
-#[test]
-fn the_imported_entry_is_the_one_written_by_hand_for_the_same_files() {
-    let chosen = ["weights/model.safetensors", "tokenizer.json"];
-    let by_hand = format!(
-        r#"{{"zoo_version": 1, "artifacts": [{{"id": "tiny", "kind": "KIND_MODEL", "format": "FORMAT_SAFETENSORS",
+mod in_memory_transport {
+    use super::*;
+
+    #[test]
+    fn the_imported_entry_is_the_one_written_by_hand_for_the_same_files() {
+        let chosen = ["weights/model.safetensors", "tokenizer.json"];
+        let by_hand = format!(
+            r#"{{"zoo_version": 1, "artifacts": [{{"id": "tiny", "kind": "KIND_MODEL", "format": "FORMAT_SAFETENSORS",
           "version": "{COMMIT}", "license": "Apache-2.0",
           "license_terms": "{HUGGING_FACE}/{REPO}/blob/{COMMIT}/README.md", "trained_on": [],
           "class": "CLASS_PERMISSIVE", "attribution": "Example attribution for tiny.", "files": [{}, {}]}}]}}"#,
-        file_by_hand(chosen[0]),
-        file_by_hand(chosen[1])
-    );
-    let by_hand = Index::parse(by_hand.as_bytes()).unwrap();
-    let hub = Hub::new();
-    let imported = hugging_face(&hub, HUGGING_FACE, spec(&chosen)).unwrap();
-    assert_eq!(&imported, by_hand.get("tiny").unwrap());
-    // The listing, then only the files named, in the order named.
-    let asked = hub.asked.lock().unwrap().clone();
-    assert_eq!(asked.len(), 3, "{asked:?}");
-    assert!(asked[0].ends_with("/tree/0123456789abcdef0123456789abcdef01234567?recursive=true"), "{asked:?}");
-    assert!(asked[1].ends_with("/weights/model.safetensors") && asked[2].ends_with("/tokenizer.json"), "{asked:?}");
-
-    // With no file named, every file of the commit in the listing's order.
-    let all = hugging_face(&Hub::new(), HUGGING_FACE, spec(&[])).unwrap();
-    let paths: Vec<&str> = all.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(paths[0], ".gitattributes");
-    assert_eq!(paths[1..], PATHS);
-    let mut versioned = spec(&chosen);
-    versioned.version = Some("1.5".into());
-    assert_eq!(hugging_face(&Hub::new(), HUGGING_FACE, versioned).unwrap().version, "1.5");
-}
-
-#[test]
-fn a_repository_that_holds_a_sealed_bundle_imports_as_an_encoder_bundle() {
-    let mut as_bundle = spec(&PATHS);
-    as_bundle.bundle = true;
-    let imported = hugging_face(&Hub::new(), HUGGING_FACE, as_bundle.clone()).unwrap();
-    assert_eq!(
-        (imported.model_type, imported.kind, imported.format),
-        (ModelType::EncoderBundle, Kind::Model, Format::Bundle)
-    );
-    // The same entry the sealed directory itself imports as, at that address.
-    let from_dir = BundleImport {
-        id: "tiny".parse().unwrap(),
-        base: format!("{HUGGING_FACE}/{REPO}/resolve/{COMMIT}").parse().unwrap(),
-        described: described(),
-    };
-    assert_eq!(imported, bundle(&sealed(), from_dir).unwrap());
-
-    // Without the manifest, with a file the manifest does not name, or
-    // under another licence than the manifest's, it is not a bundle.
-    let mut short = as_bundle.clone();
-    short.files.remove(0);
-    let e = hugging_face(&Hub::new(), HUGGING_FACE, short).unwrap_err().to_string();
-    assert!(e.contains("a bundle needs manifest.json"), "{e}");
-    let mut extra = as_bundle.clone();
-    extra.files.clear();
-    let e = hugging_face(&Hub::new(), HUGGING_FACE, extra).unwrap_err().to_string();
-    assert!(e.contains("the index lists .gitattributes, which manifest.json does not name"), "{e}");
-    let mut mit = as_bundle;
-    mit.license = Licence::Mit;
-    let e = hugging_face(&Hub::new(), HUGGING_FACE, mit).unwrap_err().to_string();
-    assert!(e.contains("at /model/license, the index says MIT"), "{e}");
-}
-
-#[test]
-fn an_import_that_keeps_its_files_downloads_a_pinned_file_once() {
-    let hub = Hub::new();
-    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-hf-keep-{}", std::process::id())));
-    let mut keeping = spec(&["weights/model.safetensors", "tokenizer.json"]);
-    keeping.keep = Some(cache.to_path_buf());
-    let entry = hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap();
-    for p in ["weights/model.safetensors", "tokenizer.json"] {
-        assert_eq!(fs::read(cache.join("tiny").join(p)).unwrap(), bytes_of(p), "{p}");
-    }
-    // Again: the listing, and the one file the repository records no
-    // SHA-256 for. The weights, which it pins, come from the cache.
-    hub.asked.lock().unwrap().clear();
-    assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap(), entry);
-    let asked = hub.asked.lock().unwrap().clone();
-    assert_eq!(asked.len(), 2, "{asked:?}");
-    assert!(asked[0].contains("/tree/") && asked[1].ends_with("/tokenizer.json"), "{asked:?}");
-
-    // Kept weights that hold other bytes are read again and put right.
-    let weights = cache.join("tiny").join("weights").join("model.safetensors");
-    let mut other = bytes_of("weights/model.safetensors");
-    other[0] ^= 1;
-    fs::write(&weights, &other).unwrap();
-    hub.asked.lock().unwrap().clear();
-    assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping).unwrap(), entry);
-    assert_eq!(hub.asked.lock().unwrap().len(), 3);
-    assert_eq!(fs::read(&weights).unwrap(), bytes_of("weights/model.safetensors"));
-}
-
-#[test]
-fn a_revision_that_may_move_is_refused_before_anything_is_asked() {
-    for revision in ["main", "v1.5", "refs/pr/1", "0123456789abcdef", "0123456789ABCDEF0123456789ABCDEF01234567", ""] {
+            file_by_hand(chosen[0]),
+            file_by_hand(chosen[1])
+        );
+        let by_hand = Index::parse(by_hand.as_bytes()).unwrap();
         let hub = Hub::new();
-        let mut moving = spec(&[]);
-        moving.commit = revision.into();
-        let e = hugging_face(&hub, HUGGING_FACE, moving).unwrap_err();
-        assert!(matches!(e, ZooError::Import { .. }) && e.to_string().contains("is not a commit"), "{revision}: {e}");
-        assert!(hub.asked.lock().unwrap().is_empty(), "{revision}");
-    }
-    for repo in ["tiny-bert", "a/b/c", "../x", "a/..", "a b/c", "a/b?x", ".a/b", ""] {
-        let hub = Hub::new();
-        let mut named = spec(&[]);
-        named.repo = repo.into();
-        let e = hugging_face(&hub, HUGGING_FACE, named).unwrap_err().to_string();
-        assert!(e.contains("is not a repository"), "{repo}: {e}");
-        assert!(hub.asked.lock().unwrap().is_empty(), "{repo}");
-    }
-}
+        let imported = hugging_face(&hub, HUGGING_FACE, spec(&chosen)).unwrap();
+        assert_eq!(&imported, by_hand.get("tiny").unwrap());
+        // The listing, then only the files named, in the order named.
+        let asked = hub.asked.lock().unwrap().clone();
+        assert_eq!(asked.len(), 3, "{asked:?}");
+        assert!(asked[0].ends_with("/tree/0123456789abcdef0123456789abcdef01234567?recursive=true"), "{asked:?}");
+        assert!(asked[1].ends_with("/weights/model.safetensors") && asked[2].ends_with("/tokenizer.json"), "{asked:?}");
 
-#[test]
-fn a_changed_byte_or_a_file_the_commit_does_not_hold_is_refused() {
-    // A file in large file storage that is not the bytes the repository
-    // records for the commit.
-    let mut weights = bytes_of("weights/model.safetensors");
-    let last = weights.len() - 1;
-    weights[last] ^= 1;
-    let e = hugging_face(&Hub::new().with("weights/model.safetensors", weights.clone()), HUGGING_FACE, spec(&PATHS));
-    match e {
-        Err(ZooError::Integrity { path, check, .. }) => {
-            assert_eq!((path.as_str(), check), ("weights/model.safetensors", Check::Sha256))
+        // With no file named, every file of the commit in the listing's order.
+        let all = hugging_face(&Hub::new(), HUGGING_FACE, spec(&[])).unwrap();
+        let paths: Vec<&str> = all.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths[0], ".gitattributes");
+        assert_eq!(paths[1..], PATHS);
+        let mut versioned = spec(&chosen);
+        versioned.version = Some("1.5".into());
+        assert_eq!(hugging_face(&Hub::new(), HUGGING_FACE, versioned).unwrap().version, "1.5");
+    }
+
+    #[test]
+    fn a_repository_that_holds_a_sealed_bundle_imports_as_an_encoder_bundle() {
+        let mut as_bundle = spec(&PATHS);
+        as_bundle.bundle = true;
+        let imported = hugging_face(&Hub::new(), HUGGING_FACE, as_bundle.clone()).unwrap();
+        assert_eq!(
+            (imported.model_type, imported.kind, imported.format),
+            (ModelType::EncoderBundle, Kind::Model, Format::Bundle)
+        );
+        // The same entry the sealed directory itself imports as, at that address.
+        let from_dir = BundleImport {
+            id: "tiny".parse().unwrap(),
+            base: format!("{HUGGING_FACE}/{REPO}/resolve/{COMMIT}").parse().unwrap(),
+            described: described(),
+        };
+        assert_eq!(imported, bundle(&sealed(), from_dir).unwrap());
+
+        // Without the manifest, with a file the manifest does not name, or
+        // under another licence than the manifest's, it is not a bundle.
+        let mut short = as_bundle.clone();
+        short.files.remove(0);
+        let e = hugging_face(&Hub::new(), HUGGING_FACE, short).unwrap_err().to_string();
+        assert!(e.contains("a bundle needs manifest.json"), "{e}");
+        let mut extra = as_bundle.clone();
+        extra.files.clear();
+        let e = hugging_face(&Hub::new(), HUGGING_FACE, extra).unwrap_err().to_string();
+        assert!(e.contains("the index lists .gitattributes, which manifest.json does not name"), "{e}");
+        let mut mit = as_bundle;
+        mit.license = Licence::Mit;
+        let e = hugging_face(&Hub::new(), HUGGING_FACE, mit).unwrap_err().to_string();
+        assert!(e.contains("at /model/license, the index says MIT"), "{e}");
+    }
+
+    #[test]
+    fn an_import_that_keeps_its_files_downloads_a_pinned_file_once() {
+        let hub = Hub::new();
+        let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-hf-keep-{}", std::process::id())));
+        let mut keeping = spec(&["weights/model.safetensors", "tokenizer.json"]);
+        keeping.keep = Some(cache.to_path_buf());
+        let entry = hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap();
+        for p in ["weights/model.safetensors", "tokenizer.json"] {
+            assert_eq!(fs::read(cache.join("tiny").join(p)).unwrap(), bytes_of(p), "{p}");
         }
-        other => panic!("{other:?}"),
-    }
-    // Any file that is not the size the listing gives.
-    weights.push(0);
-    for (path, bytes) in [("weights/model.safetensors", weights), ("tokenizer.json", b"{}".to_vec())] {
-        let e = hugging_face(&Hub::new().with(path, bytes), HUGGING_FACE, spec(&PATHS));
-        assert!(matches!(e, Err(ZooError::Integrity { check: Check::Size, .. })), "{path}: {e:?}");
-    }
-    for (files, why) in [
-        (&["vocab.txt"][..], "the commit holds no file \"vocab.txt\""),
-        (&["tokenizer.json", "tokenizer.json"], "named twice"),
-        (&["weights"], "the commit holds no file \"weights\""),
-    ] {
-        let e = hugging_face(&Hub::new(), HUGGING_FACE, spec(files)).unwrap_err().to_string();
-        assert!(e.contains(why), "{e}");
-    }
-    // A commit the host does not have.
-    let mut absent = spec(&[]);
-    absent.commit = "f".repeat(40);
-    assert!(matches!(hugging_face(&Hub::new(), HUGGING_FACE, absent), Err(ZooError::Transport { .. })));
-}
+        // Again: the listing, and the one file the repository records no
+        // SHA-256 for. The weights, which it pins, come from the cache.
+        hub.asked.lock().unwrap().clear();
+        assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap(), entry);
+        let asked = hub.asked.lock().unwrap().clone();
+        assert_eq!(asked.len(), 2, "{asked:?}");
+        assert!(asked[0].contains("/tree/") && asked[1].ends_with("/tokenizer.json"), "{asked:?}");
 
-#[test]
-fn a_listing_the_importer_cannot_take_is_refused() {
-    let tree = format!("{HUGGING_FACE}/api/models/{REPO}/tree/{COMMIT}?recursive=true");
-    let file = |path: &str| format!(r#"{{"type": "file", "oid": "a6344aac", "size": 2, "path": "{path}"}}"#);
-    let many: Vec<String> = (0..1000).map(|i| file(&format!("f{i}"))).collect();
-    for (listing, why) in [
-        (r#"{"error": "Repository not found"}"#.to_owned(), "is not a list"),
-        ("not json".to_owned(), "is not JSON"),
-        ("[]".to_owned(), "the commit holds no file"),
-        (format!("[{}]", many.join(", ")), "may not be all of them"),
-        (format!("[{}]", file("../escape.txt")), "a path the zoo does not take"),
-        (format!("[{}]", file("with space.txt")), "a path the zoo does not take"),
-        (format!("[{}]", file("a%2fb.txt")), "a path the zoo does not take"),
-        (r#"[{"type": "file", "oid": "a6344aac", "path": "x.txt"}]"#.to_owned(), "no size"),
-        (
-            r#"[{"type": "file", "size": 2, "lfs": {"oid": "abc", "size": 2}, "path": "x.bin"}]"#.to_owned(),
-            "no SHA-256",
-        ),
-    ] {
-        let mut hub = Hub::new();
-        hub.serve.insert(tree.clone(), listing.into_bytes());
-        let e = hugging_face(&hub, HUGGING_FACE, spec(&[])).unwrap_err().to_string();
-        assert!(e.contains(why), "{why}: {e}");
+        // Kept weights that hold other bytes are read again and put right.
+        let weights = cache.join("tiny").join("weights").join("model.safetensors");
+        let mut other = bytes_of("weights/model.safetensors");
+        other[0] ^= 1;
+        fs::write(&weights, &other).unwrap();
+        hub.asked.lock().unwrap().clear();
+        assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping).unwrap(), entry);
+        assert_eq!(hub.asked.lock().unwrap().len(), 3);
+        assert_eq!(fs::read(&weights).unwrap(), bytes_of("weights/model.safetensors"));
     }
-}
 
-/// Imports `BAAI/bge-small-en-v1.5` at the commit the built-in index pins
-/// and expects the built-in entry, file for file:
-/// The cache a network test keeps its downloads in: the directory
-/// `TURBO_TEST_ZOO_CACHE` names, which is left in place so the next run
-/// downloads nothing it holds, or else a directory of the test's own.
-#[cfg(feature = "http")]
-fn network_cache(name: &str) -> (PathBuf, Option<Scratch>) {
-    match std::env::var_os("TURBO_TEST_ZOO_CACHE") {
-        Some(dir) => (PathBuf::from(dir), None),
-        None => {
-            let own = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-{name}-{}", std::process::id())));
-            (own.to_path_buf(), Some(own))
+    #[test]
+    fn a_revision_that_may_move_is_refused_before_anything_is_asked() {
+        for revision in
+            ["main", "v1.5", "refs/pr/1", "0123456789abcdef", "0123456789ABCDEF0123456789ABCDEF01234567", ""]
+        {
+            let hub = Hub::new();
+            let mut moving = spec(&[]);
+            moving.commit = revision.into();
+            let e = hugging_face(&hub, HUGGING_FACE, moving).unwrap_err();
+            assert!(
+                matches!(e, ZooError::Import { .. }) && e.to_string().contains("is not a commit"),
+                "{revision}: {e}"
+            );
+            assert!(hub.asked.lock().unwrap().is_empty(), "{revision}");
+        }
+        for repo in ["tiny-bert", "a/b/c", "../x", "a/..", "a b/c", "a/b?x", ".a/b", ""] {
+            let hub = Hub::new();
+            let mut named = spec(&[]);
+            named.repo = repo.into();
+            let e = hugging_face(&hub, HUGGING_FACE, named).unwrap_err().to_string();
+            assert!(e.contains("is not a repository"), "{repo}: {e}");
+            assert!(hub.asked.lock().unwrap().is_empty(), "{repo}");
+        }
+    }
+
+    #[test]
+    fn a_changed_byte_or_a_file_the_commit_does_not_hold_is_refused() {
+        // A file in large file storage that is not the bytes the repository
+        // records for the commit.
+        let mut weights = bytes_of("weights/model.safetensors");
+        let last = weights.len() - 1;
+        weights[last] ^= 1;
+        let e =
+            hugging_face(&Hub::new().with("weights/model.safetensors", weights.clone()), HUGGING_FACE, spec(&PATHS));
+        match e {
+            Err(ZooError::Integrity { path, check, .. }) => {
+                assert_eq!((path.as_str(), check), ("weights/model.safetensors", Check::Sha256))
+            }
+            other => panic!("{other:?}"),
+        }
+        // Any file that is not the size the listing gives.
+        weights.push(0);
+        for (path, bytes) in [("weights/model.safetensors", weights), ("tokenizer.json", b"{}".to_vec())] {
+            let e = hugging_face(&Hub::new().with(path, bytes), HUGGING_FACE, spec(&PATHS));
+            assert!(matches!(e, Err(ZooError::Integrity { check: Check::Size, .. })), "{path}: {e:?}");
+        }
+        for (files, why) in [
+            (&["vocab.txt"][..], "the commit holds no file \"vocab.txt\""),
+            (&["tokenizer.json", "tokenizer.json"], "named twice"),
+            (&["weights"], "the commit holds no file \"weights\""),
+        ] {
+            let e = hugging_face(&Hub::new(), HUGGING_FACE, spec(files)).unwrap_err().to_string();
+            assert!(e.contains(why), "{e}");
+        }
+        // A commit the host does not have.
+        let mut absent = spec(&[]);
+        absent.commit = "f".repeat(40);
+        assert!(matches!(hugging_face(&Hub::new(), HUGGING_FACE, absent), Err(ZooError::Transport { .. })));
+    }
+
+    #[test]
+    fn a_listing_the_importer_cannot_take_is_refused() {
+        let tree = format!("{HUGGING_FACE}/api/models/{REPO}/tree/{COMMIT}?recursive=true");
+        let file = |path: &str| format!(r#"{{"type": "file", "oid": "a6344aac", "size": 2, "path": "{path}"}}"#);
+        let many: Vec<String> = (0..1000).map(|i| file(&format!("f{i}"))).collect();
+        for (listing, why) in [
+            (r#"{"error": "Repository not found"}"#.to_owned(), "is not a list"),
+            ("not json".to_owned(), "is not JSON"),
+            ("[]".to_owned(), "the commit holds no file"),
+            (format!("[{}]", many.join(", ")), "may not be all of them"),
+            (format!("[{}]", file("../escape.txt")), "a path the zoo does not take"),
+            (format!("[{}]", file("with space.txt")), "a path the zoo does not take"),
+            (format!("[{}]", file("a%2fb.txt")), "a path the zoo does not take"),
+            (r#"[{"type": "file", "oid": "a6344aac", "path": "x.txt"}]"#.to_owned(), "no size"),
+            (
+                r#"[{"type": "file", "size": 2, "lfs": {"oid": "abc", "size": 2}, "path": "x.bin"}]"#.to_owned(),
+                "no SHA-256",
+            ),
+        ] {
+            let mut hub = Hub::new();
+            hub.serve.insert(tree.clone(), listing.into_bytes());
+            let e = hugging_face(&hub, HUGGING_FACE, spec(&[])).unwrap_err().to_string();
+            assert!(e.contains(why), "{why}: {e}");
         }
     }
 }
 
-/// `cargo test -p turbo-zoo --test import_hugging_face -- --ignored`.
-/// Needs the network. With `TURBO_TEST_ZOO_CACHE=<dir>` the files are
-/// kept there, and a later run does not download again a file whose
-/// SHA-256 the repository records (the weights).
-#[test]
-#[ignore]
 #[cfg(feature = "http")]
-fn a_real_repository_imports_as_the_entry_the_builtin_index_holds() {
-    let index = Index::builtin();
-    let held = index.get("baai-bge-small-en-v1.5").unwrap();
-    let (cache, _own) = network_cache("import-hf-real");
-    let spec = RepoImport {
-        id: held.id.clone(),
-        repo: "BAAI/bge-small-en-v1.5".into(),
-        commit: held.version.clone(),
-        files: held.files.iter().map(|f| f.path.to_string()).collect(),
-        bundle: false,
-        kind: held.kind,
-        format: held.format,
-        version: None,
-        license: held.license,
-        described: Described {
-            license_terms: held.license_terms.clone(),
-            trained_on: held.trained_on.clone(),
-            attribution: held.attribution.clone(),
-            origin: held.origin.clone(),
-            component: held.component,
-            language: held.language.clone(),
-        },
-        keep: Some(cache),
-    };
-    let http = turbo_zoo::Http::new();
-    assert_eq!(&hugging_face(&http, HUGGING_FACE, spec.clone()).unwrap(), held);
+mod real_service {
+    use super::*;
 
-    // A branch is refused, and so is a commit the repository does not have.
-    let mut moving = spec.clone();
-    moving.commit = "main".into();
-    assert!(matches!(hugging_face(&http, HUGGING_FACE, moving), Err(ZooError::Import { .. })));
-    let mut absent = spec;
-    absent.commit = "0".repeat(40);
-    assert!(matches!(hugging_face(&http, HUGGING_FACE, absent), Err(ZooError::Transport { .. })));
+    /// The cache a network test keeps its downloads in: the directory
+    /// `TURBO_TEST_ZOO_CACHE` names, which is left in place so the next run
+    /// downloads nothing it holds, or else a directory of the test's own.
+    fn network_cache(name: &str) -> (PathBuf, Option<Scratch>) {
+        match std::env::var_os("TURBO_TEST_ZOO_CACHE") {
+            Some(dir) => (PathBuf::from(dir), None),
+            None => {
+                let own = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-{name}-{}", std::process::id())));
+                (own.to_path_buf(), Some(own))
+            }
+        }
+    }
+
+    /// Imports `BAAI/bge-small-en-v1.5` at the commit the built-in index
+    /// pins (~134 MB across its files) and expects the built-in entry,
+    /// file for file:
+    /// `cargo test -p turbo-zoo --test import_hugging_face -- --ignored`.
+    /// Needs network access. With `TURBO_TEST_ZOO_CACHE=<dir>` the files
+    /// are kept there, and a later run does not download again a file
+    /// whose SHA-256 the repository records (the weights).
+    #[test]
+    #[ignore]
+    fn a_real_repository_imports_as_the_entry_the_builtin_index_holds() {
+        let index = Index::builtin();
+        let held = index.get("baai-bge-small-en-v1.5").unwrap();
+        let (cache, _own) = network_cache("import-hf-real");
+        let spec = RepoImport {
+            id: held.id.clone(),
+            repo: "BAAI/bge-small-en-v1.5".into(),
+            commit: held.version.clone(),
+            files: held.files.iter().map(|f| f.path.to_string()).collect(),
+            bundle: false,
+            kind: held.kind,
+            format: held.format,
+            version: None,
+            license: held.license,
+            described: Described {
+                license_terms: held.license_terms.clone(),
+                trained_on: held.trained_on.clone(),
+                attribution: held.attribution.clone(),
+                origin: held.origin.clone(),
+                component: held.component,
+                language: held.language.clone(),
+            },
+            keep: Some(cache),
+        };
+        let http = turbo_zoo::Http::new();
+        assert_eq!(&hugging_face(&http, HUGGING_FACE, spec.clone()).unwrap(), held);
+
+        // A branch is refused, and so is a commit the repository does not have.
+        let mut moving = spec.clone();
+        moving.commit = "main".into();
+        assert!(matches!(hugging_face(&http, HUGGING_FACE, moving), Err(ZooError::Import { .. })));
+        let mut absent = spec;
+        absent.commit = "0".repeat(40);
+        assert!(matches!(hugging_face(&http, HUGGING_FACE, absent), Err(ZooError::Transport { .. })));
+    }
 }

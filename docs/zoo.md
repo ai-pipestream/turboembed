@@ -386,14 +386,17 @@ token for public repositories too, so a file at a blob address is
 fetched through it: `turbo-zoo fetch` asks the address plainly and then
 through `OciRegistry`. `OciRegistry::with` sends a registry's requests
 to another address: an `https://` one, such as a pull-through mirror,
-or `http://` on this machine alone (`127.0.0.1` or `localhost`), and
-refuses any other.
-`analysis/zoo/tests/import_oci.rs` runs the importer against an
-in-process registry that issues the challenge, the token and the
-redirect. The manifest and the challenge Docker Hub itself
-serves for the published model are kept as recorded
-(`analysis/zoo/testdata/recorded/`, the manifest held to its digest),
-and unit tests read them.
+or `http://` on this machine alone (`127.0.0.1:<port>`, `[::1]:<port>`,
+or `localhost:<port>`), and refuses any other. Even when a loopback
+`http://` base is given, every token endpoint, token redirect, and
+manifest or blob redirect hop is validated before a request is sent so
+plaintext traffic can never escape to a non-loopback host.
+`analysis/zoo/tests/import_oci.rs` and `analysis/zoo/tests/oci_transport.rs`
+run the importer and client against an in-process loopback registry that
+issues the challenge, the token and the redirects. The manifest and the
+challenge Docker Hub itself serves for the published model are kept as
+recorded (`analysis/zoo/testdata/recorded/`, the manifest held to its
+digest), and unit tests read them.
 
 ### What an import keeps
 
@@ -414,6 +417,64 @@ without it.
 The two network tests keep their downloads in the directory
 `TURBO_TEST_ZOO_CACHE` names when it is set, and leave it in place, so
 a later run on the same machine does not download the files again.
+
+### Test stand-ins and real-service checks
+
+The repository's no-mocks rule forbids replacing production logic with
+stubbed answers that bypass real verification or protocol handling. In
+`turbo-zoo`, tests fall into three explicit categories whose module
+names appear directly in `cargo test` output:
+
+1. **In-memory `Transport` implementations** (`in_memory_transport` in
+   `analysis/zoo/tests/import_hugging_face.rs`, plus `Always`, `Down`,
+   and `One` in `analysis/zoo/tests/sources.rs` and
+   `analysis/zoo/tests/transfer.rs`): `Transport` is the public trait
+   boundary whose contract is to return bytes for a URL while the zoo
+   itself enforces size, SHA-256, SHA-512, unpacking, and cache rules.
+   Implementing `Transport` in memory exercises the production importer,
+   cache, and verifier without stubbing out any check.
+2. **Protocol-level in-process loopback servers** (`socket_protocol` in
+   `analysis/zoo/tests/import_oci.rs` and
+   `analysis/zoo/tests/oci_transport.rs`, plus `analysis/zoo/tests/s3.rs`,
+   `analysis/zoo/tests/drive.rs`, and `analysis/zoo/tests/oauth.rs`):
+   HTTP clients that speak a wire protocol (`OciRegistry`, `S3Bucket`,
+   `GoogleDrive`, `GoogleOAuth`) bind a real loopback `TcpListener`
+   (`127.0.0.1:0` or `[::1]:0`) and exercise the production `ureq` stack
+   over real sockets, including challenges, signatures, token isolation,
+   and redirect hops.
+3. **Real-service integrations** (`real_service`, marked `#[ignore]` so
+   default `cargo test` runs stay offline and deterministic, and listed as
+   `ignored` in test reports):
+   - Hugging Face (`analysis/zoo/tests/import_hugging_face.rs`,
+     `real_service::a_real_repository_imports_as_the_entry_the_builtin_index_holds`):
+     imports `BAAI/bge-small-en-v1.5` at the commit pinned in
+     `Index::builtin()` (~134 MB download) over `Http::new()` and
+     compares the result file-for-file against the built-in index. Run
+     with `cargo test -p turbo-zoo --test import_hugging_face -- --ignored`.
+   - OCI (`analysis/zoo/tests/import_oci.rs`,
+     `real_service::a_real_artifact_imports_and_fetches_from_its_registry`):
+     imports `registry-1.docker.io/pipestreamai/turbo-en-masc-pos-modernbert-base-2@sha256:ac9d7e33c8f91cfaab3f6279d4b5adccaa8c651f6ac29b5cfece6ccba6fa0092`
+     (~615 MB download, matching
+     `analysis/zoo/testdata/recorded/docker-hub-artifact-manifest.json`;
+     overridable via `TURBO_TEST_OCI_REFERENCE`) over `OciRegistry::new()`
+     and fetches it back through `Zoo`. Run with
+     `cargo test -p turbo-zoo --test import_oci -- --ignored`.
+
+Production endpoint overrides follow strict transport rules:
+- `OciRegistry::with` allows `https://` mirrors or explicit loopback
+  `http://` (`127.0.0.1:<port>`, `[::1]:<port>`, `localhost:<port>`) and
+  validates every token endpoint and redirect hop before sending.
+- `GoogleOAuth::with_endpoints` allows `https://` or loopback
+  `http://127.0.0.1:<port>` / `http://localhost:<port>` with
+  `max_redirects(0)`.
+- `S3Bucket::with` intentionally allows `http://host:port` as well as
+  `https://host` for self-hosted S3-compatible stores (such as RustFS)
+  with `max_redirects(0)`.
+- `GoogleDrive::with` (`analysis/zoo/src/fetch/drive.rs`) currently
+  allows any `http://host:port` and relaxes `https_only` on its redirect
+  agent `plain`; tightening it to match `OciRegistry::with`'s
+  loopback-only `http://` and per-hop validation is tracked as a
+  separate cleanup item.
 
 A zoo server lists the imported bundles when it is started with that
 file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
