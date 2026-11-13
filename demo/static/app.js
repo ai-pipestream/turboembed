@@ -7125,6 +7125,11 @@ function describe(e) {
 
 // demo/web/src/act.ts
 var running = /* @__PURE__ */ new WeakSet();
+var disabled = /* @__PURE__ */ new WeakMap();
+function setDisabled(button, off2) {
+  disabled.set(button, off2);
+  button.disabled = off2 || running.has(button);
+}
 var stoppable = /* @__PURE__ */ new WeakMap();
 function hold(stop6, by) {
   const n = Math.max(0, (stoppable.get(stop6) ?? 0) + by);
@@ -7146,7 +7151,7 @@ async function busy(button, job, stop6) {
   } finally {
     clearInterval(tick);
     clock.remove();
-    button.disabled = false;
+    button.disabled = disabled.get(button) ?? false;
     button.removeAttribute("aria-busy");
     running.delete(button);
     if (stop6) hold(stop6, -1);
@@ -7682,7 +7687,7 @@ function init2() {
   const setButton = $("coll-set").querySelector("button[type=submit]");
   const gate = () => {
     const why = off(TurboSearchService.method.setCollection);
-    setButton.disabled = why !== "";
+    setDisabled(setButton, why !== "");
     setButton.title = why;
   };
   gate();
