@@ -653,6 +653,18 @@ either: every call the page makes goes through the demo to the server.
 - With only embedding models served, the open-span and relation
   options on Analyze and the Reranker, QA and Answers controls on
   Semantic are hidden, and Semantic still runs.
+- Each similarity matrix on Embed colours from faint to strong across
+  its own range, the absolute switch narrows that, each row outlines
+  its greatest cosine off the diagonal, and the side-by-side spread is
+  in fixed decimals with its last label whole.
+- On Analyze the two `turbo:boundaries` chips read apart and pick
+  alone; a picked layer is named in the legend, a mark clicked or
+  focused lists its annotations beside the text, and two picked layers
+  show in two colours.
+- A search for "memory safe language" marks those words in its hits,
+  each mark naming its signal and the legend naming every signal.
+- At 390 pixels, Run on Embed, Semantic, Analyze and Search brings the
+  results into view.
 
 `demo/web/e2e/permits.test.ts` starts a demo with a token and one
 `--allow`: nothing is off before the token is typed, and after it the
