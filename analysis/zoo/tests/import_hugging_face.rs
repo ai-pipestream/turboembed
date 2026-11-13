@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use turbo_scratch::Scratch;
 use turbo_zoo::import::{BundleImport, Described, HUGGING_FACE, RepoImport, bundle, hugging_face};
-use turbo_zoo::{Check, Format, Index, Kind, Licence, ModelType, Sha256, Sha512, Transport, Url, ZooError};
+use turbo_zoo::{Check, Format, GitBlob, Index, Kind, Licence, ModelType, Sha256, Sha512, Transport, Url, ZooError};
 
 const REPO: &str = "example-org/tiny-bert";
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -30,11 +30,14 @@ fn bytes_of(path: &str) -> Vec<u8> {
 /// with their SHA-256.
 fn listing() -> String {
     let mut entries = vec![
-        r#"{"type": "directory", "oid": "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "size": 0, "path": "weights"}"#.to_owned(),
+        r#"{"type": "directory", "oid": "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "size": 0, "path": "weights"}"#
+            .to_owned(),
         r#"{"type": "directory", "oid": "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "size": 0, "path": "reference"}"#
             .to_owned(),
-        r#"{"type": "file", "oid": "a6344aac8c09253b3b630fb776ae94478aa0275b", "size": 1519, "path": ".gitattributes"}"#
-            .to_owned(),
+        format!(
+            r#"{{"type": "file", "oid": "{}", "size": 1519, "path": ".gitattributes"}}"#,
+            GitBlob::of(&[b'#'; 1519])
+        ),
     ];
     for path in PATHS {
         let bytes = bytes_of(path);
@@ -43,10 +46,9 @@ fn listing() -> String {
         } else {
             String::new()
         };
-        entries.push(format!(
-            r#"{{"type": "file", "oid": "a6344aac8c09253b3b630fb776ae94478aa0275b", "size": {}{lfs}, "path": "{path}"}}"#,
-            bytes.len()
-        ));
+        // A file in large file storage is listed by the id of its pointer.
+        let oid = if lfs.is_empty() { GitBlob::of(&bytes) } else { GitBlob::of(b"a pointer") };
+        entries.push(format!(r#"{{"type": "file", "oid": "{oid}", "size": {}{lfs}, "path": "{path}"}}"#, bytes.len()));
     }
     format!("[{}]", entries.join(", "))
 }
@@ -195,23 +197,30 @@ fn an_import_that_keeps_its_files_downloads_a_pinned_file_once() {
     for p in ["weights/model.safetensors", "tokenizer.json"] {
         assert_eq!(fs::read(cache.join("tiny").join(p)).unwrap(), bytes_of(p), "{p}");
     }
-    // Again: the listing, and the one file the repository records no
-    // SHA-256 for. The weights, which it pins, come from the cache.
+    // Again: the listing alone. The weights are held to the SHA-256 it
+    // records and the tokenizer to its git blob id, and both come from
+    // the cache.
     hub.asked.lock().unwrap().clear();
     assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping.clone()).unwrap(), entry);
     let asked = hub.asked.lock().unwrap().clone();
-    assert_eq!(asked.len(), 2, "{asked:?}");
-    assert!(asked[0].contains("/tree/") && asked[1].ends_with("/tokenizer.json"), "{asked:?}");
+    assert_eq!(asked.len(), 1, "{asked:?}");
+    assert!(asked[0].contains("/tree/"), "{asked:?}");
 
-    // Kept weights that hold other bytes are read again and put right.
+    // Kept files that hold other bytes are read again and put right.
     let weights = cache.join("tiny").join("weights").join("model.safetensors");
     let mut other = bytes_of("weights/model.safetensors");
     other[0] ^= 1;
     fs::write(&weights, &other).unwrap();
     hub.asked.lock().unwrap().clear();
+    let tokenizer = cache.join("tiny").join("tokenizer.json");
+    let mut other_tokenizer = bytes_of("tokenizer.json");
+    other_tokenizer[0] ^= 1;
+    fs::write(&tokenizer, &other_tokenizer).unwrap();
+    hub.asked.lock().unwrap().clear();
     assert_eq!(hugging_face(&hub, HUGGING_FACE, keeping).unwrap(), entry);
     assert_eq!(hub.asked.lock().unwrap().len(), 3);
     assert_eq!(fs::read(&weights).unwrap(), bytes_of("weights/model.safetensors"));
+    assert_eq!(fs::read(&tokenizer).unwrap(), bytes_of("tokenizer.json"));
 }
 
 /// Every file below `dir`, by its path from there; none when `dir` is
@@ -314,6 +323,17 @@ fn a_changed_byte_or_a_file_the_commit_does_not_hold_is_refused() {
         }
         other => panic!("{other:?}"),
     }
+    // A file outside large file storage that is the size the listing
+    // gives and not the bytes git names for the commit.
+    let mut tokenizer = bytes_of("tokenizer.json");
+    tokenizer[0] ^= 1;
+    match hugging_face(&Hub::new().with("tokenizer.json", tokenizer), HUGGING_FACE, spec(&PATHS)) {
+        Err(ZooError::Integrity { path, check, expected, .. }) => {
+            assert_eq!((path.as_str(), check), ("tokenizer.json", Check::GitBlob));
+            assert_eq!(expected, GitBlob::of(&bytes_of("tokenizer.json")).to_string());
+        }
+        other => panic!("{other:?}"),
+    }
     // Any file that is not the size the listing gives.
     weights.push(0);
     for (path, bytes) in [("weights/model.safetensors", weights), ("tokenizer.json", b"{}".to_vec())] {
@@ -346,6 +366,8 @@ fn a_listing_the_importer_cannot_take_is_refused() {
         (format!("[{}]", many.join(", ")), "may not be all of them"),
         (format!("[{}]", file("../escape.txt")), "a path the zoo does not take"),
         (r#"[{"type": "file", "oid": "a6344aac", "path": "x.txt"}]"#.to_owned(), "no size"),
+        (format!("[{}]", file("x.txt")), "no git blob id"),
+        (r#"[{"type": "file", "size": 2, "path": "x.txt"}]"#.to_owned(), "no git blob id"),
         (
             r#"[{"type": "file", "size": 2, "lfs": {"oid": "abc", "size": 2}, "path": "x.bin"}]"#.to_owned(),
             "no SHA-256",
@@ -384,7 +406,8 @@ fn a_path_an_address_does_not_carry_as_it_is_is_asked_percent_encoded() {
     let tree = format!("{HUGGING_FACE}/api/models/{REPO}/tree/{COMMIT}?recursive=true");
     let path = "vocab/Größe 1%.txt";
     let bytes = "Größe\n".as_bytes().to_vec();
-    let entry = format!(r#"{{"type": "file", "oid": "a6344aac", "size": {}, "path": "{path}"}}"#, bytes.len());
+    let oid = GitBlob::of(&bytes);
+    let entry = format!(r#"{{"type": "file", "oid": "{oid}", "size": {}, "path": "{path}"}}"#, bytes.len());
     let at = format!("{HUGGING_FACE}/{REPO}/resolve/{COMMIT}/vocab/Gr%C3%B6%C3%9Fe%201%25.txt");
     let mut hub = Hub::new();
     hub.serve.insert(tree, format!("[{entry}, {}", &listing()[1..]).into_bytes());

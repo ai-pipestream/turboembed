@@ -1,5 +1,6 @@
 //! SHA-256 and SHA-512 (FIPS 180-4) and HMAC-SHA-256 (RFC 2104), the one
-//! implementation every crate hashes with.
+//! implementation every crate hashes with, and SHA-1 for reading the id
+//! git gives a file.
 //!
 //! A layer's provenance names the model that made it by the SHA-256 of
 //! the model file, the same value `sha256sum` prints and the golden files
@@ -10,9 +11,11 @@
 
 mod compress;
 mod hmac;
+mod sha1;
 mod sha512;
 
 pub use hmac::hmac_sha256;
+pub use sha1::{git_blob_id, sha1};
 pub use sha512::{Sha512, sha512};
 
 /// The initial hash value: the first 32 bits of the fractional parts of
