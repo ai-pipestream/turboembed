@@ -4,7 +4,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fromBinary } from "@bufbuild/protobuf";
 import { chromium, type Page } from "playwright";
+import { ProjectChunksResponseSchema, type ProjectChunksResponse } from "../src/gen/turbo_analysis_pb.js";
+import { Hold } from "./hold.js";
 
 const BASE = process.env.TURBO_E2E_URL ?? "http://127.0.0.1:8080";
 const OUT = "#projection-out";
@@ -16,6 +19,36 @@ const TEXT = [
   "Banks process billions of transactions on that old code every day. When the central bank raises interest rates, those bank systems recalculate millions of loans overnight. Higher interest rates push borrowing costs up for households and firms. Inflation this quarter kept rates high for longer than expected.",
   "Today, search engines in Zürich turn words into vectors so a machine can compare meaning. A query and a passage that share no words can still sit close together in that vector space. Each vector is a list of numbers, and similar meanings point in similar directions. Lovelace's idea that a machine could work with symbols is the root of that design.",
 ].join("\n\n");
+
+/** The server's own answers to the page's ProjectChunks calls, as they arrive. */
+function answers(page: Page): ProjectChunksResponse[] {
+  const got: ProjectChunksResponse[] = [];
+  page.on("response", (r) => {
+    if (!new URL(r.url()).pathname.endsWith("AnalysisService/ProjectChunks") || r.status() !== 200) return;
+    void r.body().then((b) => got.push(fromBinary(ProjectChunksResponseSchema, new Uint8Array(b))));
+  });
+  return got;
+}
+
+/** The item of each chunk the page draws, in its order: the finest level by where it starts. */
+function drawn(r: ProjectChunksResponse): number[] {
+  const points = r.projection?.points ?? [];
+  const finest = Math.min(...points.map((p) => p.level));
+  return points
+    .filter((p) => p.level === finest)
+    .sort((a, b) => a.start - b.start || a.end - b.end)
+    .map((p) => p.item);
+}
+
+/** The first answer for which `has` holds, waiting for it to arrive. */
+async function answer(page: Page, got: ProjectChunksResponse[], has: (r: ProjectChunksResponse) => boolean): Promise<ProjectChunksResponse> {
+  for (let i = 0; i < 100; i++) {
+    const r = got.find(has);
+    if (r) return r;
+    await page.waitForTimeout(50);
+  }
+  throw new Error("the page received no such ProjectChunks answer in 5 s");
+}
 
 async function open(page: Page): Promise<number> {
   await page.goto(`${BASE}/#analyze`);
@@ -47,8 +80,20 @@ test("the similarity matrix shades a cell per pair of chunks and says what is po
     const page = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } })).newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    const got = answers(page);
     const n = await open(page);
     assert.equal(n > 3, true, `${n} chunks`);
+    // What the server said of each pair, by the position of its two chunks on the page.
+    const sent = await answer(page, got, (r) => r.pairwise !== undefined);
+    const items = drawn(sent);
+    const pair = sent.pairwise!;
+    assert.deepEqual([...pair.items].sort((a, b) => a - b), [...items].sort((a, b) => a - b));
+    const served = (a: number, b: number): string => {
+      const [i, j] = [pair.items.indexOf(items[a]), pair.items.indexOf(items[b])].sort((x, y) => x - y);
+      const m = pair.items.length;
+      return pair.cosines[i * m - (i * (i + 1)) / 2 + (j - i - 1)].toFixed(3);
+    };
+    assert.equal(new Set(pair.cosines.map((c) => c.toFixed(3))).size > 2, true, "the server's cosines differ at three places");
 
     // One row per chunk; the cells are drawn, symmetric, and not of one shade.
     const label = (await page.locator(`${OUT} .matrix canvas`).getAttribute("aria-label")) ?? "";
@@ -76,8 +121,7 @@ test("the similarity matrix shades a cell per pair of chunks and says what is po
     await page.mouse.move(box.x + (box.width * 2.5) / n, box.y + (box.height * 1.5) / n);
     await page.waitForFunction((out) => (document.querySelector(`${out} .matrix .info`)?.textContent ?? "").startsWith("chunk 2 and chunk 3: cosine "), OUT);
     const said = (await info.textContent()) ?? "";
-    const cosine = Number(said.slice("chunk 2 and chunk 3: cosine ".length).split(". ")[0] + "");
-    assert.equal(Number.isFinite(cosine) && cosine <= 1 && cosine >= -1, true, said);
+    assert.equal(said.startsWith(`chunk 2 and chunk 3: cosine ${served(1, 2)}. `), true, `${said} against the server's ${served(1, 2)}`);
     assert.deepEqual(await page.locator(`${OUT} .chunked .ck.lit`).evaluateAll((all) => [...new Set(all.map((e) => (e as HTMLElement).dataset.chunk))]), ["1"]);
     assert.equal(await page.locator(`${OUT} .matrix .cross-on`).getAttribute("visibility"), "visible");
     // Leaving puts the prompt back and takes the light off.
@@ -88,7 +132,18 @@ test("the similarity matrix shades a cell per pair of chunks and says what is po
     // The arrow keys walk the cells: the first press lands on chunks 1 and 2.
     await plot.focus();
     await page.keyboard.press("ArrowRight");
-    assert.equal(((await info.textContent()) ?? "").startsWith("chunk 1 and chunk 2: cosine "), true);
+    assert.equal(((await info.textContent()) ?? "").startsWith(`chunk 1 and chunk 2: cosine ${served(0, 1)}. `), true);
+    // Every cell of the last column, by key, against the server's own number for that pair.
+    for (let i = 1; i < n; i++) await page.keyboard.press("ArrowRight");
+    for (let row = 0; row < n - 1; row++) {
+      if (row > 0) await page.keyboard.press("ArrowDown");
+      const cell = (await info.textContent()) ?? "";
+      assert.equal(cell.startsWith(`chunk ${row + 1} and chunk ${n}: cosine ${served(row, n - 1)}. `), true, `${cell} against the server's ${served(row, n - 1)}`);
+    }
+    for (let i = 1; i < n; i++) await page.keyboard.press("ArrowLeft");
+    for (let i = 1; i < n - 1; i++) await page.keyboard.press("ArrowUp");
+    assert.equal(((await info.textContent()) ?? "").startsWith("chunk 1 with itself"), true);
+    await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowDown");
     assert.equal(((await info.textContent()) ?? "").startsWith("chunk 2 with itself"), true);
 
@@ -113,6 +168,7 @@ test("a query is placed on the map, lights the chunks by cosine and lists the cl
     const page = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } })).newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    const got = answers(page);
     const n = await open(page);
     assert.equal(await page.locator(`${OUT} svg .query`).count(), 0);
     assert.equal(await page.locator(`${OUT} svg .dot .glow`).count(), 0);
@@ -130,6 +186,15 @@ test("a query is placed on the map, lights the chunks by cosine and lists the cl
     await placed(first);
     assert.equal(((await page.locator("#projection-query-out").textContent()) ?? "").startsWith("Embedded by tiny-bert"), true);
     const mark = await page.locator(`${OUT} svg .query path`).getAttribute("d");
+    // Each chunk's cosine to the query is the server's own number for that chunk, and the list is the server's top.
+    const sent = await answer(page, got, (r) => r.query !== undefined);
+    const order = (sent.projection?.points ?? []).map((p) => p.item);
+    const cosines = drawn(sent).map((item) => sent.query!.cosines[order.indexOf(item)]);
+    assert.equal(cosines.length, n);
+    assert.equal(new Set(cosines.map((c) => c.toFixed(3))).size > 2, true, "the server's cosines differ at three places");
+    const labels = await page.locator(`${OUT} svg .dot`).evaluateAll((all) => all.map((d) => d.getAttribute("aria-label") ?? ""));
+    labels.forEach((label, i) => assert.equal(label.endsWith(`, cosine to the query ${cosines[i].toFixed(3)}`), true, `chunk ${i + 1}: ${label} against the server's ${cosines[i].toFixed(3)}`));
+    const top = cosines.map((c, i) => [i + 1, c] as const).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
     // Every chunk glows, and not all alike.
     const glows = await page.locator(`${OUT} svg .dot .glow`).evaluateAll((all) => all.map((g) => Number(g.getAttribute("r"))));
     assert.equal(glows.length, n);
@@ -138,6 +203,7 @@ test("a query is placed on the map, lights the chunks by cosine and lists the cl
     const want = Math.min(5, Math.max(1, Math.floor(n / 2)));
     const list = await listed();
     assert.equal(list.length, want);
+    assert.deepEqual(list, top.slice(0, want).map(([chunk, c]) => [chunk, Number(c.toFixed(3))]));
     assert.equal(list.every((row, i) => row[1] >= -1 && row[1] <= 1 && (i === 0 || row[1] <= list[i - 1][1])), true, JSON.stringify(list));
     assert.equal(glows.indexOf(Math.max(...glows)) + 1, list[0][0], "the strongest glow is the first of the list");
     const near = await page.locator(`${OUT} .chunked .ck.near`).evaluateAll((all) => [...new Set(all.map((e) => Number((e as HTMLElement).dataset.chunk) + 1))].sort((a, b) => a - b));
@@ -167,6 +233,47 @@ test("a query is placed on the map, lights the chunks by cosine and lists the cl
     assert.equal(await page.locator("#projection-closest").count(), 0);
     assert.equal(await page.locator(`${OUT} .chunked .ck.near`).count(), 0);
     assert.equal(((await page.locator("#projection-query-out").textContent()) ?? "").trim(), "");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("an answer to an older query that arrives late is not drawn", async () => {
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+    const hold = await Hold.of(context, "AnalysisService/ProjectChunks");
+    const page = await context.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const got = answers(page);
+    await open(page);
+    const title = (): Promise<string | null> => page.locator(`${OUT} svg .query title`).textContent();
+    const closest = (): Promise<string[]> => page.locator("#projection-closest li").allTextContents();
+
+    // The first query's answer is held back: the server has answered, the page has not been told.
+    const first = "what happens when the central bank raises interest rates";
+    const second = "Zürich search engines compare meaning with vectors";
+    hold.start();
+    await page.fill("#projection-query", first);
+    await page.press("#projection-query", "Enter");
+    await hold.held(page, 1);
+    assert.equal(await page.locator(`${OUT} svg .query`).count(), 0);
+
+    // A second query is asked and answered while the first is still on its way.
+    await page.fill("#projection-query", second);
+    await page.waitForFunction(([out, q]) => document.querySelector(`${out} svg .query title`)?.textContent === q, [OUT, second] as const);
+    const shown = await closest();
+    const mark = await page.locator(`${OUT} svg .query path`).getAttribute("d");
+
+    // The first answer arrives now, the older of the two, and changes nothing.
+    await hold.release(page);
+    await answer(page, got, (r) => r.query !== undefined && got.filter((x) => x.query !== undefined).length === 2);
+    assert.equal(await title(), second);
+    assert.deepEqual(await closest(), shown);
+    assert.equal(await page.locator(`${OUT} svg .query path`).getAttribute("d"), mark);
+    assert.equal(((await page.locator("#projection-query-out").textContent()) ?? "").startsWith("Embedded by tiny-bert"), true);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

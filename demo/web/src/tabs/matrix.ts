@@ -52,7 +52,13 @@ export function similarityMatrix(m: MatrixInput, link: Link): HTMLElement {
     }
   };
   draw();
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  // The ramp follows the theme. A matrix that was redrawn away takes its listener with it.
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const recolour = (): void => {
+    if (canvas.isConnected) draw();
+    else scheme.removeEventListener("change", recolour);
+  };
+  scheme.addEventListener("change", recolour);
 
   const over = s("svg", { viewBox: `0 0 ${n} ${n}`, preserveAspectRatio: "none", class: "viz over", "aria-hidden": "true" });
   const rowOf = new Map(m.rows.map((leaf, row) => [leaf, row]));

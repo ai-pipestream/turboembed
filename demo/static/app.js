@@ -10127,7 +10127,12 @@ function similarityMatrix(m, link2) {
     }
   };
   draw2();
-  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw2);
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const recolour = () => {
+    if (canvas.isConnected) draw2();
+    else scheme.removeEventListener("change", recolour);
+  };
+  scheme.addEventListener("change", recolour);
   const over = s("svg", { viewBox: `0 0 ${n2} ${n2}`, preserveAspectRatio: "none", class: "viz over", "aria-hidden": "true" });
   const rowOf = new Map(m.rows.map((leaf, row) => [leaf, row]));
   for (const b of blocks(m.groups, rowOf)) over.append(s("rect", { x: b.from, y: b.from, width: b.to - b.from + 1, height: b.to - b.from + 1, class: "block" }));
@@ -10505,6 +10510,7 @@ var MATRIX_ROWS = 512;
 var CLOSEST = 5;
 var seen = null;
 var pairs = null;
+var unpaired = null;
 var spot = null;
 var asked = 0;
 function budgets(s2) {
@@ -10573,6 +10579,8 @@ function show2(r, text) {
         el("p", { class: "muted", text: "Every chunk against every other: a cell is the cosine between two chunks' vectors, shaded within this document's own range, so the picture has contrast even when every pair is close. A square in the diagonal's own colour around it is a run of chunks that say similar things; a cell of that colour far from the diagonal is the text coming back to something it said before." }),
         similarityMatrix({ chunks, rows: rows3, upper: pairs.upper, groups: regions(units, chunks).map((g) => g.members), text }, link2)
       );
+    } else if (unpaired !== null) {
+      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: ${unpaired}` }));
     } else if (chunks.filter((c) => !c.empty).length > MATRIX_ROWS) {
       parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: this document has ${chunks.filter((c) => !c.empty).length} chunks with a vector, and the server compares at most ${MATRIX_ROWS}.` }));
     }
@@ -10641,7 +10649,10 @@ async function compare() {
     if (seen !== now || !r.pairwise) return;
     pairs = { items: r.pairwise.items, upper: r.pairwise.cosines };
     show2(now.r, now.text);
-  } catch {
+  } catch (e) {
+    if (seen !== now) return;
+    unpaired = explain(e).text;
+    show2(now.r, now.text);
   }
 }
 async function ask() {
@@ -10693,6 +10704,7 @@ async function render5() {
     if (!mine()) return;
     seen = { r, text: d.source, graph: d.graph };
     pairs = null;
+    unpaired = null;
     spot = null;
     show2(r, d.source);
     await Promise.all([compare(), ask()]);

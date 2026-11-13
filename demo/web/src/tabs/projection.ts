@@ -37,6 +37,8 @@ const CLOSEST = 5;
 /** What is on show: the answer, then what the two further calls added. */
 let seen: { r: ProjectChunksResponse; text: string; graph: Uint8Array } | null = null;
 let pairs: { items: number[]; upper: number[] } | null = null;
+/** Why the matrix call was refused, when it was. */
+let unpaired: string | null = null;
 let spot: { text: string; x: number; y: number; byItem: Map<number, number>; model: string } | null = null;
 /** Counts the queries asked, so a slow answer to an old one is dropped. */
 let asked = 0;
@@ -113,6 +115,8 @@ function show(r: ProjectChunksResponse, text: string): void {
         el("p", { class: "muted", text: "Every chunk against every other: a cell is the cosine between two chunks' vectors, shaded within this document's own range, so the picture has contrast even when every pair is close. A square in the diagonal's own colour around it is a run of chunks that say similar things; a cell of that colour far from the diagonal is the text coming back to something it said before." }),
         similarityMatrix({ chunks, rows, upper: pairs.upper, groups: regions(units, chunks).map((g) => g.members), text }, link),
       );
+    } else if (unpaired !== null) {
+      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: ${unpaired}` }));
     } else if (chunks.filter((c) => !c.empty).length > MATRIX_ROWS) {
       parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: this document has ${chunks.filter((c) => !c.empty).length} chunks with a vector, and the server compares at most ${MATRIX_ROWS}.` }));
     }
@@ -190,8 +194,11 @@ async function compare(): Promise<void> {
     if (seen !== now || !r.pairwise) return;
     pairs = { items: r.pairwise.items, upper: r.pairwise.cosines };
     show(now.r, now.text);
-  } catch {
-    // The map stands without its matrix.
+  } catch (e) {
+    // The map stands without its matrix, and says why there is none.
+    if (seen !== now) return;
+    unpaired = explain(e).text;
+    show(now.r, now.text);
   }
 }
 
@@ -247,6 +254,7 @@ async function render(): Promise<void> {
     if (!mine()) return;
     seen = { r, text: d.source, graph: d.graph };
     pairs = null;
+    unpaired = null;
     spot = null;
     show(r, d.source);
     await Promise.all([compare(), ask()]);
