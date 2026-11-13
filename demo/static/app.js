@@ -4271,6 +4271,23 @@ function say(box5, what, kind = "") {
 function failed(x) {
   return el("p", { class: "error" }, failure(x));
 }
+function heatKey(what) {
+  return el("p", { class: "heat-key muted" }, what, " ", el("span", { class: "ramp", role: "img", "aria-label": "colour scale from low to high" }, "low ", el("i", {}), " high"));
+}
+function reveal(box5) {
+  if (!box5 || !matchMedia("(max-width: 820px)").matches) return () => {
+  };
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const show3 = () => box5.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  let moved = false;
+  for (const ev of ["wheel", "touchmove", "keydown"]) {
+    addEventListener(ev, () => moved = true, { once: true, passive: true });
+  }
+  show3();
+  return () => {
+    if (!moved) show3();
+  };
+}
 function size(n) {
   const v = Number(n);
   if (v < 1024) return `${v} B`;
@@ -6057,11 +6074,11 @@ var __asyncValues = function(o) {
   function verb(n) {
     i[n] = o[n] && function(v) {
       return new Promise(function(resolve, reject) {
-        v = o[n](v), settle(resolve, reject, v.done, v.value);
+        v = o[n](v), settle2(resolve, reject, v.done, v.value);
       });
     };
   }
-  function settle(resolve, reject, d, v) {
+  function settle2(resolve, reject, d, v) {
     Promise.resolve(v).then(function(v2) {
       resolve({ value: v2, done: d });
     }, reject);
@@ -6095,11 +6112,11 @@ var __asyncGenerator = function(thisArg, _arguments, generator) {
     try {
       step(g[n](v));
     } catch (e) {
-      settle(q[0][3], e);
+      settle2(q[0][3], e);
     }
   }
   function step(r) {
-    r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);
+    r.value instanceof __await ? Promise.resolve(r.value.v).then(fulfill, reject) : settle2(q[0][2], r);
   }
   function fulfill(value) {
     resume("next", value);
@@ -6107,7 +6124,7 @@ var __asyncGenerator = function(thisArg, _arguments, generator) {
   function reject(value) {
     resume("throw", value);
   }
-  function settle(f, v) {
+  function settle2(f, v) {
     if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]);
   }
 };
@@ -6140,11 +6157,11 @@ var __asyncValues2 = function(o) {
   function verb(n) {
     i[n] = o[n] && function(v) {
       return new Promise(function(resolve, reject) {
-        v = o[n](v), settle(resolve, reject, v.done, v.value);
+        v = o[n](v), settle2(resolve, reject, v.done, v.value);
       });
     };
   }
-  function settle(resolve, reject, d, v) {
+  function settle2(resolve, reject, d, v) {
     Promise.resolve(v).then(function(v2) {
       resolve({ value: v2, done: d });
     }, reject);
@@ -6191,11 +6208,11 @@ var __asyncGenerator2 = function(thisArg, _arguments, generator) {
     try {
       step(g[n](v));
     } catch (e) {
-      settle(q[0][3], e);
+      settle2(q[0][3], e);
     }
   }
   function step(r) {
-    r.value instanceof __await2 ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);
+    r.value instanceof __await2 ? Promise.resolve(r.value.v).then(fulfill, reject) : settle2(q[0][2], r);
   }
   function fulfill(value) {
     resume("next", value);
@@ -6203,7 +6220,7 @@ var __asyncGenerator2 = function(thisArg, _arguments, generator) {
   function reject(value) {
     resume("throw", value);
   }
-  function settle(f, v) {
+  function settle2(f, v) {
     if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]);
   }
 };
@@ -6777,11 +6794,11 @@ var __asyncGenerator3 = function(thisArg, _arguments, generator) {
     try {
       step(g[n](v));
     } catch (e) {
-      settle(q[0][3], e);
+      settle2(q[0][3], e);
     }
   }
   function step(r) {
-    r.value instanceof __await3 ? Promise.resolve(r.value.v).then(fulfill, reject) : settle(q[0][2], r);
+    r.value instanceof __await3 ? Promise.resolve(r.value.v).then(fulfill, reject) : settle2(q[0][2], r);
   }
   function fulfill(value) {
     resume("next", value);
@@ -6789,7 +6806,7 @@ var __asyncGenerator3 = function(thisArg, _arguments, generator) {
   function reject(value) {
     resume("throw", value);
   }
-  function settle(f, v) {
+  function settle2(f, v) {
     if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]);
   }
 };
@@ -7211,6 +7228,141 @@ function onDoc(l) {
   listeners.push(l);
 }
 
+// demo/web/src/marks.ts
+function layerKey(layer, instance) {
+  return `${layer}#${instance}`;
+}
+function layerName(layer, instance) {
+  return instance ? `${layer} [${instance}]` : layer;
+}
+var NAMING = ["entities", "pii", "numbers", "language"];
+function names(layer) {
+  const l = layer.toLowerCase();
+  return NAMING.some((n) => l.includes(n));
+}
+var ORDER = ["subwords", "tokens", "sentences", "chunks", "structure"];
+function rank(a) {
+  if (names(a.layer) && a.label) return 0;
+  const at = ORDER.findIndex((n) => a.layer.toLowerCase().includes(n));
+  return at < 0 ? ORDER.length + 1 : at + 1;
+}
+function colourOf(a) {
+  if (names(a.layer) && a.label) return { key: `label:${a.label}`, name: a.label };
+  return { key: `layer:${layerKey(a.layer, a.instance)}`, name: layerName(a.layer, a.instance) };
+}
+function kept(anns, filter2) {
+  return filter2.size ? anns.filter((a) => filter2.has(layerKey(a.layer, a.instance))) : anns;
+}
+function painted(anns, filter2, lead) {
+  let show3 = kept(anns, filter2);
+  if (!filter2.size && lead !== "all") show3 = show3.filter((a) => lead === "naming" ? rank(a) === 0 : sentence2(a));
+  return [...show3].sort((x, y) => rank(x) - rank(y));
+}
+function sentence2(a) {
+  return a.layer.toLowerCase().includes("sentences");
+}
+function leadOf(segs) {
+  if (segs.some((s) => s.annotations.some((a) => rank(a) === 0))) return "naming";
+  return segs.some((s) => s.annotations.some(sentence2)) ? "sentences" : "all";
+}
+function legend(segs, filter2) {
+  const any = leadOf(segs);
+  const out = /* @__PURE__ */ new Map();
+  const seen = /* @__PURE__ */ new Set();
+  for (const s of segs) {
+    for (const a of painted(s.annotations, filter2, any)) {
+      const c = colourOf(a);
+      let sw = out.get(c.key);
+      if (!sw) {
+        sw = { key: c.key, name: c.name, index: out.size, items: 0 };
+        out.set(c.key, sw);
+      }
+      const item = `${layerKey(a.layer, a.instance)}#${a.item}`;
+      if (!seen.has(`${c.key} ${item}`)) {
+        seen.add(`${c.key} ${item}`);
+        sw.items++;
+      }
+    }
+  }
+  return [...out.values()];
+}
+function found(segs) {
+  const items = /* @__PURE__ */ new Map();
+  for (const s of segs) {
+    for (const a of s.annotations) {
+      if (rank(a) !== 0) continue;
+      const key3 = `${layerKey(a.layer, a.instance)}#${a.item}`;
+      const it = items.get(key3);
+      if (it) it.text += s.text;
+      else items.set(key3, { label: a.label, text: s.text });
+    }
+  }
+  const groups2 = /* @__PURE__ */ new Map();
+  for (const it of items.values()) {
+    const text = it.text.trim();
+    const list5 = groups2.get(it.label) ?? [];
+    if (text && !list5.includes(text)) list5.push(text);
+    groups2.set(it.label, list5);
+  }
+  return [...groups2].map(([label, texts2]) => ({ label, texts: texts2 }));
+}
+
+// demo/web/src/tabs/annotated.ts
+var COLOURS = 8;
+function colour(index) {
+  return `var(--m${index % COLOURS})`;
+}
+function tip(anns) {
+  return anns.map((a) => `${a.layer}${a.instance ? ` (${a.instance})` : ""}${a.label ? `: ${a.label}` : ""}${a.score ? ` ${a.score.toFixed(3)}` : ""}`).join("\n");
+}
+function inspect(text, anns) {
+  return [
+    el("p", {}, el("span", { class: "quote", text })),
+    table(["layer", "instance", "label", "score", "item"], anns.map((a) => [a.layer, a.instance, a.label, a.score ? a.score.toFixed(3) : "", String(a.item)]))
+  ];
+}
+function annotated(segs, filter2) {
+  const any = leadOf(segs);
+  const swatches = legend(segs, filter2);
+  const index = new Map(swatches.map((s) => [s.key, s.index]));
+  const panel = el("div", { class: "inspect", "aria-live": "polite" }, el("p", { class: "muted", text: "Pick a marked stretch of text to list what is annotated on it." }));
+  const text = el("div", { class: "doc" });
+  let picked2 = null;
+  for (const s of segs) {
+    const paint = painted(s.annotations, filter2, any);
+    if (!paint.length) {
+      text.append(s.text);
+      continue;
+    }
+    const lead = paint[0];
+    const second = paint.find((a) => colourOf(a).key !== colourOf(lead).key);
+    const style = `--mark: ${colour(index.get(colourOf(lead).key) ?? 0)}${second ? `; --under: ${colour(index.get(colourOf(second).key) ?? 0)}` : ""}`;
+    const cls = `${lead.item % 2 ? "alt" : ""}${second ? " under" : ""}`.trim();
+    const mark = el("mark", { class: cls || void 0, style, title: tip(s.annotations), tabindex: "0", role: "button", text: s.text });
+    const show3 = () => {
+      picked2?.classList.remove("picked");
+      picked2 = mark;
+      mark.classList.add("picked");
+      panel.replaceChildren(...inspect(s.text, s.annotations));
+    };
+    mark.addEventListener("click", show3);
+    mark.addEventListener("focus", show3);
+    text.append(mark);
+  }
+  const key3 = swatches.length ? el("div", { class: "legend" }, swatches.map((s) => el("span", { class: "swatch", style: `--mark: ${colour(s.index)}` }, el("i", {}), ` ${s.name} `, el("span", { class: "muted", text: String(s.items) })))) : el("p", { class: "muted", text: "Nothing is marked: pick a layer above to mark it in the text." });
+  return el("div", { class: "annotated" }, key3, text, panel);
+}
+function foundList(segs) {
+  const groups2 = found(segs);
+  if (!groups2.length) return null;
+  return el(
+    "div",
+    { class: "found" },
+    el("h3", { text: "Found" }),
+    el("dl", {}, groups2.map((g) => [el("dt", { text: `${g.label} (${g.texts.length})` }), el("dd", { text: g.texts.join(", ") })]))
+  );
+}
+
 // demo/web/src/permit.ts
 var writes = null;
 var user = true;
@@ -7325,7 +7477,8 @@ async function permits() {
 // demo/web/src/tabs/analyze.ts
 var running2 = null;
 var page = 0;
-var filter = [];
+var filter = /* @__PURE__ */ new Set();
+var shape = null;
 var openSpanModels = /* @__PURE__ */ new Set();
 var relationModels = /* @__PURE__ */ new Set();
 var select = (id) => $(id);
@@ -7348,6 +7501,7 @@ function stop() {
   running2?.abort();
   running2 = null;
 }
+var settle = null;
 async function run() {
   stop();
   const ac = new AbortController();
@@ -7365,6 +7519,8 @@ async function run() {
   let source = "";
   const layers = /* @__PURE__ */ new Map();
   const t0 = performance.now();
+  let shown2 = false;
+  settle = null;
   say(note5, "Analyzing\u2026", "busy");
   try {
     if (!document.getElementById("analyze-text").value.trim()) throw new Error("Enter a document first.");
@@ -7426,6 +7582,8 @@ async function run() {
         );
         if (b.graph.length) graph = b.graph;
         layersBox.replaceChildren(layerRows(layers));
+        if (!shown2) settle = reveal(layersBox.closest(".results"));
+        shown2 = true;
       } else if (e.case === "stepFailed") {
         const f = e.value;
         steps.append(
@@ -7447,19 +7605,6 @@ async function run() {
   } finally {
     if (running2 === ac) running2 = null;
   }
-}
-function segmentsView(w) {
-  const text = el("div", { class: "doc" });
-  for (const s of w.segments) {
-    if (!s.annotations.length) {
-      text.append(s.text);
-      continue;
-    }
-    const tip = s.annotations.map((a) => `${a.layer}${a.label ? `: ${a.label}` : ""}${a.score ? ` ${a.score.toFixed(3)}` : ""}`).join("\n");
-    const level = Math.min(4, s.annotations.length);
-    text.append(el("mark", { class: `l${level}`, title: tip, text: s.text }));
-  }
-  return text;
 }
 function lanesView(w) {
   const box5 = el("div", { class: "lanes" });
@@ -7488,22 +7633,27 @@ async function showWindow() {
   const box5 = $("analyze-window");
   if (!graph) return void box5.replaceChildren();
   try {
-    const base2 = { graph, view: 0, offsets: 1 /* UTF16 */, pageSize: 16e3, filterLayerInstances: filter };
-    const [w, heat2] = await Promise.all([
+    const picked2 = (shape ?? []).filter((l) => filter.has(layerKey(l.layer, l.instance))).map((l) => ({ layer: l.layer, instance: l.instance }));
+    const base2 = { graph, view: 0, offsets: 1 /* UTF16 */, pageSize: 16e3, filterLayerInstances: picked2 };
+    const [w, heat] = await Promise.all([
       analysis.inspectDocumentWindow({ ...base2, page }),
       analysis.inspectDocumentWindow({ ...base2, page: 0, heatmapBuckets: 96 })
     ]);
     const win = w.window;
-    const chips = (w.summary?.layers ?? []).map((l) => {
-      const on = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
-      const b = el("button", { type: "button", class: on ? "chip on" : "chip", text: `${l.layer}${l.instance ? ` [${l.instance}]` : ""} ${l.items}` });
+    shape = w.summary?.layers ?? [];
+    const chips = shape.map((l) => {
+      const key3 = layerKey(l.layer, l.instance);
+      const on = filter.has(key3);
+      const b = el("button", { type: "button", class: on ? "chip on" : "chip", "aria-pressed": String(on), text: `${layerName(l.layer, l.instance)} ${l.items}` });
       b.addEventListener("click", () => {
-        const selected = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
-        filter = selected ? filter.filter((f) => f.layer !== l.layer || f.instance !== l.instance) : [...filter, { layer: l.layer, instance: l.instance }];
+        if (on) filter.delete(key3);
+        else filter.add(key3);
         void showWindow();
       });
       return b;
     });
+    const list5 = foundList(w.segments);
+    $("analyze-found").replaceChildren(...list5 ? [list5] : []);
     const nav = el("div", { class: "nav" });
     const prev = el("button", { type: "button", text: "\u2190 page" });
     const next = el("button", { type: "button", text: "page \u2192" });
@@ -7518,10 +7668,13 @@ async function showWindow() {
       s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
       nav,
-      segmentsView(w),
+      annotated(w.segments, filter),
       el("h3", { text: "Heatmap" }),
-      lanesView(heat2)
+      heatKey("One row per layer, the document from start to end in 96 steps. Stronger colour is more items or a higher score in that step, relative to the row's greatest."),
+      lanesView(heat)
     );
+    settle?.();
+    settle = null;
   } catch (e) {
     box5.replaceChildren(failed(explain(e)));
   }
@@ -7571,7 +7724,9 @@ function init() {
   format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
-    filter = [];
+    filter = /* @__PURE__ */ new Set();
+    shape = null;
+    $("analyze-found").replaceChildren();
     void showWindow();
   });
   onCapabilities((c) => {
@@ -7919,6 +8074,70 @@ function init4() {
   viewSelect().addEventListener("change", () => void render2());
 }
 
+// demo/web/src/heat.ts
+function range(m) {
+  let lo = Infinity;
+  let hi = -Infinity;
+  m.forEach(
+    (row, i) => row.forEach((v, j) => {
+      if (i === j || !Number.isFinite(v)) return;
+      lo = Math.min(lo, v);
+      hi = Math.max(hi, v);
+    })
+  );
+  return lo <= hi ? [lo, hi] : [0, 1];
+}
+function place(v, lo, hi) {
+  if (!(hi > lo)) return 1;
+  return Math.max(0, Math.min(1, (v - lo) / (hi - lo)));
+}
+function best(m, i) {
+  let at = -1;
+  m[i].forEach((v, j) => {
+    if (j !== i && Number.isFinite(v) && (at < 0 || v > m[i][at])) at = j;
+  });
+  return at;
+}
+function strength(t) {
+  return 0.06 + 0.8 * t;
+}
+
+// demo/web/src/tabs/simtable.ts
+var own = true;
+function shade(t) {
+  return `background: rgba(var(--heat), ${strength(t).toFixed(3)})`;
+}
+function simTable(labels, sim) {
+  const [lo, hi] = range(sim);
+  const cells = sim.map((row, i) => {
+    const top = best(sim, i);
+    return row.map((x, j) => el("td", { class: j === top ? "cell best" : "cell", title: j === top ? "this row's best match" : void 0, text: x.toFixed(3) }));
+  });
+  const paint = () => {
+    sim.forEach((row, i) => row.forEach((x, j) => cells[i][j].style.cssText = shade(own ? place(x, lo, hi) : place(x, 0, 1))));
+  };
+  const pick = el("input", { type: "checkbox" });
+  pick.checked = own;
+  pick.addEventListener("change", () => {
+    own = pick.checked;
+    paint();
+  });
+  paint();
+  const table2 = el(
+    "table",
+    { class: "sim" },
+    el("tr", {}, el("th", {}), labels.map((_, j) => el("th", { text: `#${j + 1}` }))),
+    labels.map((l, i) => el("tr", {}, el("td", { class: "text", title: l.full, text: `#${i + 1} ${l.short}` }), cells[i]))
+  );
+  const scale = el(
+    "div",
+    { class: "scale" },
+    el("label", {}, pick, ` colour by this matrix's own range, ${lo.toFixed(3)} to ${hi.toFixed(3)}`),
+    el("span", { class: "muted", text: "outlined: each row's best match" })
+  );
+  return el("div", {}, scale, table2);
+}
+
 // demo/web/src/tabs/embed.ts
 var models = /* @__PURE__ */ new Map();
 function tier(meta) {
@@ -7969,8 +8188,8 @@ function renderModels() {
     );
   }
 }
-async function addModels(names) {
-  const fresh = names.filter((n) => !models.get(n)?.meta);
+async function addModels(names2) {
+  const fresh = names2.filter((n) => !models.get(n)?.meta);
   for (const n of fresh) models.set(n, { meta: null, error: "", checked: true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
@@ -8067,10 +8286,6 @@ async function run2() {
   }
   render3(texts2, results);
 }
-function heat(v) {
-  const a = Math.max(0, Math.min(1, v));
-  return `background: rgba(var(--heat), ${(a * a * 0.85).toFixed(3)})`;
-}
 function short(t, n = 28) {
   const chars = typeof Intl !== "undefined" && Intl.Segmenter ? Array.from(new Intl.Segmenter(void 0, { granularity: "grapheme" }).segment(t), (g) => g.segment) : Array.from(t);
   return chars.length > n ? chars.slice(0, n - 1).join("") + "\u2026" : t;
@@ -8083,20 +8298,7 @@ function card(texts2, r) {
   const v = r.vectors;
   const p = r.reply.parameters;
   const str2 = (k) => p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "";
-  const sim = matrix(v);
-  const simTable = el(
-    "table",
-    { class: "sim" },
-    el("tr", {}, el("th", {}), texts2.map((_, j) => el("th", { text: `#${j + 1}` }))),
-    texts2.map(
-      (t, i) => el(
-        "tr",
-        {},
-        el("td", { class: "text", title: t, text: `#${i + 1} ${short(t, 22)}` }),
-        sim[i].map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) }))
-      )
-    )
-  );
+  const sim = simTable(texts2.map((t) => ({ short: short(t, 22), full: t })), matrix(v));
   const previews = el(
     "table",
     {},
@@ -8129,12 +8331,15 @@ function card(texts2, r) {
       str2("compute_dtype") ? stat(after(str2("compute_dtype"), "DTYPE_"), "computed in") : null
     ),
     el("h2", { text: "Cosine similarity" }),
-    simTable,
+    sim,
     el("details", {}, el("summary", { text: "Vectors" }), previews)
   );
 }
 function comparison(texts2, ok) {
   const sims = ok.map((r) => matrix(r.vectors));
+  const all = sims.map((m) => range(m));
+  const lo = Math.min(...all.map((r) => r[0]));
+  const hi = Math.max(...all.map((r) => r[1]));
   const rows2 = [];
   let widest = 0;
   for (let i = 0; i < texts2.length; i++) {
@@ -8148,8 +8353,8 @@ function comparison(texts2, ok) {
           {},
           el("td", { class: "text", title: `${texts2[i]}
 ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
-          vals.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(4) })),
-          el("td", { text: spread === 0 ? "0" : spread.toExponential(1) })
+          vals.map((x) => el("td", { class: "cell", style: shade(place(x, lo, hi)), text: x.toFixed(4) })),
+          el("td", { text: spread.toFixed(4) })
         )
       );
     }
@@ -8165,7 +8370,7 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
     { class: "sim cmp" },
     el("tr", {}, el("th", { class: "text", text: "pair" }), ok.map((r) => el("th", { text: `${r.name} (${tier(r.meta)})` })), el("th", { text: "spread" })),
     rows2,
-    el("tr", {}, el("th", { class: "text", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {}))
+    el("tr", {}, el("th", { class: "text wrap", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {}))
   );
   return el(
     "div",
@@ -8185,6 +8390,7 @@ function render3(texts2, results) {
   const ok = results.filter((r) => r.vectors);
   if (ok.length > 1 && texts2.length > 1) out.append(comparison(texts2, ok));
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts2, r))));
+  reveal(out);
 }
 function init5() {
   $("embed-add").addEventListener("submit", (ev) => {
@@ -8234,10 +8440,10 @@ var KIND_PURPOSES = {
 };
 function purpose(e) {
   const c = e.component ?? "";
-  if (c) return PURPOSES[c] ?? sentence2(plain2(c, "COMPONENT_"));
-  return KIND_PURPOSES[e.kind] ?? sentence2(kindName(e.kind));
+  if (c) return PURPOSES[c] ?? sentence3(plain2(c, "COMPONENT_"));
+  return KIND_PURPOSES[e.kind] ?? sentence3(kindName(e.kind));
 }
-function sentence2(text) {
+function sentence3(text) {
   const first = [...text][0] ?? "";
   return first.toUpperCase() + text.slice(first.length);
 }
@@ -9070,32 +9276,32 @@ function scatter(p, text) {
     g.arc(at[i][0], at[i][1], 5, 0, 2 * Math.PI);
     g.fill();
   });
-  const tip = el("p", { class: "muted", text: "Hover a point." });
+  const tip2 = el("p", { class: "muted", text: "Hover a point." });
   c.addEventListener("mousemove", (ev2) => {
     const r = c.getBoundingClientRect();
     const mx = (ev2.clientX - r.left) * W / r.width;
     const my = (ev2.clientY - r.top) * H / r.height;
-    let best = -1;
+    let best2 = -1;
     let dist = 100;
     at.forEach(([x, y], i) => {
       const d = (x - mx) ** 2 + (y - my) ** 2;
-      if (d < dist) [best, dist] = [i, d];
+      if (d < dist) [best2, dist] = [i, d];
     });
-    if (best < 0) return;
-    const q = pts[best];
+    if (best2 < 0) return;
+    const q = pts[best2];
     const cos = q.adjacentCosine === void 0 ? "" : `, cosine to the next ${q.adjacentCosine.toFixed(3)}`;
-    tip.textContent = `item ${q.item}, level ${q.level}, ${q.start}..${q.end}${cos}: ${short(text.slice(q.start, q.end), 120)}`;
+    tip2.textContent = `item ${q.item}, level ${q.level}, ${q.start}..${q.end}${cos}: ${short(text.slice(q.start, q.end), 120)}`;
   });
   const levels = [...new Set(pts.map((q) => q.level))].sort((a, b) => a - b);
-  const legend = el("div", { class: "chips" }, levels.map((l) => el("span", { class: "chip", style: `border-color: ${hue(l)}; color: ${hue(l)}`, text: `level ${l}` })));
+  const legend2 = el("div", { class: "chips" }, levels.map((l) => el("span", { class: "chip", style: `border-color: ${hue(l)}; color: ${hue(l)}`, text: `level ${l}` })));
   const ev = p.explainedVariance.map((v) => `${(v * 100).toFixed(1)}%`).join(", ");
   return el(
     "div",
     {},
     el("p", { class: "muted", text: `${pts.length} vectors from ${p.model ? `${p.model.id}@${p.model.revision}` : "the graph"}; explained variance ${ev}${p.pcaDims === 3 ? "; the third component is the opacity" : ""}.` }),
-    legend,
+    legend2,
     c,
-    tip
+    tip2
   );
 }
 function drift(d) {
@@ -9262,6 +9468,33 @@ function indexBody(index, docs) {
   return body(parts);
 }
 
+// demo/web/src/highlight.ts
+function boundary(bytes2, at) {
+  let i = Math.max(0, Math.min(bytes2.length, at));
+  while (i > 0 && i < bytes2.length && (bytes2[i] & 192) === 128) i--;
+  return i;
+}
+function pieces(text, chunkStart, matches2) {
+  const bytes2 = new TextEncoder().encode(text);
+  const inside = matches2.map((m) => ({ ...m, start: boundary(bytes2, m.start - chunkStart), end: boundary(bytes2, m.end - chunkStart) })).filter((m, i) => matches2[i].start >= chunkStart && matches2[i].end - chunkStart <= bytes2.length && m.end > m.start && !(m.start === 0 && m.end === bytes2.length));
+  const cuts = [.../* @__PURE__ */ new Set([0, bytes2.length, ...inside.flatMap((m) => [m.start, m.end])])].sort((a, b) => a - b);
+  const dec = new TextDecoder();
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const [a, b] = [cuts[i], cuts[i + 1]];
+    const on = inside.filter((m) => m.start <= a && m.end >= b);
+    const piece = { text: dec.decode(bytes2.subarray(a, b)), sources: [...new Set(on.map((m) => m.source))], labels: [...new Set(on.map((m) => m.label).filter(Boolean))] };
+    const last2 = out[out.length - 1];
+    if (last2 && !last2.sources.length && !piece.sources.length) last2.text += piece.text;
+    else out.push(piece);
+  }
+  return out;
+}
+function unplaced(text, chunkStart, matches2) {
+  const length = new TextEncoder().encode(text).length;
+  return matches2.filter((m) => m.start < chunkStart || m.end - chunkStart > length || m.end <= m.start || m.start === chunkStart && m.end - chunkStart === length);
+}
+
 // demo/web/src/upload.ts
 async function put(method, bodyBlob, signal) {
   const headers = new Headers({ "content-type": "application/octet-stream" });
@@ -9424,25 +9657,39 @@ async function runSearch(ev) {
         topK: Math.max(1, parseInt(input("search-k").value, 10) || 10),
         rerankBundle: select2("search-rerank").value
       });
+      const sources = [];
+      const colour2 = (source) => {
+        if (!sources.includes(source)) sources.push(source);
+        return `var(--m${sources.indexOf(source) % 8})`;
+      };
       const hits = r.hits.map((h, i) => {
         const a = h.attribution;
         const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
-        const spans = (a?.matchedSpans ?? []).map((m) => `${m.source}${m.label ? `:${m.label}` : ""} ${m.span?.start ?? 0}..${m.span?.end ?? 0}`);
+        const matches2 = (a?.matchedSpans ?? []).map((m) => ({ source: m.source, label: m.label, start: m.span?.start ?? 0, end: m.span?.end ?? 0 }));
+        const at = h.chunkSpan?.start ?? 0;
+        const text = pieces(h.text, at, matches2).map(
+          (p) => p.sources.length ? el("mark", { style: `--mark: ${colour2(p.sources[0])}`, title: `${p.sources.join(", ")}${p.labels.length ? `: ${p.labels.join(", ")}` : ""}` }, p.text, el("sup", { text: p.sources.join("+") })) : p.text
+        );
+        const rest = unplaced(h.text, at, matches2).map((m) => `${m.source}${m.label ? `:${m.label}` : ""}`);
         return el(
           "div",
           { class: "hit" },
           el("div", { class: "head" }, el("b", { text: `${i + 1}. ${h.docId}` }), el("span", { class: "tag", text: h.score.toFixed(4) }), el("span", { class: "muted", text: ` ${h.chunkId}` })),
-          el("p", { text: h.text }),
+          el("p", { class: "doc flat" }, text),
           signals ? el("p", { class: "muted", text: `signals: ${signals}` }) : null,
-          spans.length ? el("p", { class: "muted", text: `matched: ${spans.join("; ")}` }) : null
+          rest.length ? el("p", { class: "muted", text: `matched the whole passage: ${[...new Set(rest)].join("; ")}` }) : null
         );
       });
+      const key3 = sources.length ? el("div", { class: "legend" }, el("span", { class: "muted", text: "matched by" }), sources.map((x) => el("span", { class: "swatch", style: `--mark: ${colour2(x)}` }, el("i", {}), ` ${x}`))) : null;
       out.replaceChildren(
         el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
+        key3 ?? "",
         ...hits,
         r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
+        r.documentHeat.length ? heatKey("One cell per chunk, in reading order. Stronger colour is a higher score, relative to that document's best (max).") : "",
         heatView(r)
       );
+      reveal(out);
     } catch (e) {
       out.replaceChildren(failed(explain(e)));
     }
@@ -9512,12 +9759,7 @@ async function embed(model, query, passages) {
     el("h3", { text: `Nearest neighbours (${model})` }),
     table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
     el("h3", { text: "Passage similarity" }),
-    el(
-      "table",
-      { class: "sim" },
-      el("tr", {}, el("th", {}), passages.map((_, j) => el("th", { text: `#${j + 1}` }))),
-      sim.map((row, i) => el("tr", {}, el("td", { class: "text", title: passages[i], text: `#${i + 1} ${short(passages[i], 22)}` }), row.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) }))))
-    )
+    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim)
   );
 }
 async function rerank(model, query, passages) {
@@ -9582,6 +9824,7 @@ async function run3() {
     jobs.filter(([m]) => m).map(([, box5, job]) => job().catch((err) => $(box5).replaceChildren(failed(explain(err)))))
   );
   say(note5, "");
+  reveal($("sem-sim").parentElement);
 }
 function init10() {
   const go2 = $("sem-run");
@@ -9589,17 +9832,17 @@ function init10() {
   const kinds2 = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
   const served = () => {
     for (const [id, task, what] of kinds2) {
-      const names = caps2?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
-      if (id !== "sem-embed") $(`${id}-pick`).hidden = names.length === 0;
-      if (id === "sem-qa") $("sem-topk-pick").hidden = names.length === 0;
-      if (!names.length) {
+      const names2 = caps2?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
+      if (id !== "sem-embed") $(`${id}-pick`).hidden = names2.length === 0;
+      if (id === "sem-qa") $("sem-topk-pick").hidden = names2.length === 0;
+      if (!names2.length) {
         options(select3(id), [], void 0, whyNone(what));
         continue;
       }
       const first = !select3(id).dataset.filled;
-      options(select3(id), ["", ...names], ["none", ...names]);
+      options(select3(id), ["", ...names2], ["none", ...names2]);
       select3(id).dataset.filled = "yes";
-      if (first) select3(id).value = names[0];
+      if (first) select3(id).value = names2[0];
     }
   };
   onCapabilities((c) => {
