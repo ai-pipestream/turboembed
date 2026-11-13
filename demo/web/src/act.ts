@@ -6,6 +6,14 @@ import { el, elapsed } from "./dom.js";
 import { describe } from "./rpc.js";
 
 const running = new WeakSet<HTMLButtonElement>();
+// Permission and other idle-state gates survive a job finishing.
+const disabled = new WeakMap<HTMLButtonElement, boolean>();
+
+/** Sets the idle state without enabling a button whose job is still running. */
+export function setDisabled(button: HTMLButtonElement, off: boolean): void {
+  disabled.set(button, off);
+  button.disabled = off || running.has(button);
+}
 // How many jobs each Stop button stands for: one button may serve
 // several actions, and it stays on until the last of them ends.
 const stoppable = new WeakMap<HTMLButtonElement, number>();
@@ -20,6 +28,7 @@ function hold(stop: HTMLButtonElement, by: number): void {
  * Runs `job` with `button` off and showing the elapsed time, and `stop`
  * (when given) on. Both go back when the job ends, however it ends,
  * except that a `stop` shared with another job still running stays on.
+ * A disabled state supplied by `setDisabled` is preserved.
  * A second call for the same button while the first runs does nothing.
  */
 export async function busy(button: HTMLButtonElement, job: () => Promise<void>, stop?: HTMLButtonElement): Promise<void> {
@@ -37,7 +46,7 @@ export async function busy(button: HTMLButtonElement, job: () => Promise<void>, 
   } finally {
     clearInterval(tick);
     clock.remove();
-    button.disabled = false;
+    button.disabled = disabled.get(button) ?? false;
     button.removeAttribute("aria-busy");
     running.delete(button);
     if (stop) hold(stop, -1);

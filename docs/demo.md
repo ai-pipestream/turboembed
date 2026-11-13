@@ -839,6 +839,11 @@ either: every call the page makes goes through the demo to the server.
 other writes are off, the Set button of a collection and each row's
 Delete and Unload among them.
 
+`demo/web/e2e/busy-permission.test.ts` pauses an actual Set request while
+a token brings a Describe answer, then resumes it through the real token
+gate. Permission changes preserve the busy state, and completion preserves
+the current permission. An allowed retry and read Watch/Stop also recover.
+
 The tests that stop the server, or need writes forwarded or a token, start a
 server and demo of their own from the same binaries
 (`demo/web/e2e/stack.ts`, given the binaries' directory in
