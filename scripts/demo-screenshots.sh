@@ -14,6 +14,9 @@
 # minishlab/potion-base-8M and minishlab/potion-base-32M, made with
 #   turbo-bundle make bundle/recipes/potion/potion-base-8M.json UPSTREAM BUNDLE
 # TURBO_SHOTS_DIR sets where the PNGs go (default docs/images/demo).
+# TURBO_SHOTS_MAX_SEQ serves every bundle with that max_seq: the chunker
+# sizes chunks from the model's width, so a static model's 8192 tokens
+# would put the sample document in one chunk (the pictures use 128).
 # Needs Node, npm and a headless Chromium the pinned Playwright can
 # launch (scripts/e2e-web.sh says how to fetch one).
 set -euo pipefail
@@ -68,7 +71,9 @@ for scheme in light dark; do
       for (const x of servers) x.close();
     });')
   MODELS=()
-  for b in "${BUNDLES[@]}"; do MODELS+=(--model "bundle=$b,device=0,sessions=1"); done
+  for b in "${BUNDLES[@]}"; do
+    MODELS+=(--model "bundle=$b,device=0,sessions=1${TURBO_SHOTS_MAX_SEQ:+,max_seq=$TURBO_SHOTS_MAX_SEQ}")
+  done
   "$RELEASE/turbo-kserve" --listen "127.0.0.1:$SERVER_PORT" --admin \
     --vocabulary-dir "$WORK/$scheme/vocabulary" --catalog-dir "$WORK/$scheme/catalog" \
     --training-dir "$WORK/$scheme/training" "${MODELS[@]}" >"$WORK/$scheme/server.log" 2>&1 &

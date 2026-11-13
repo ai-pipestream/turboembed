@@ -13,15 +13,25 @@ const MODEL = process.env.TURBO_SHOTS_MODEL ?? "";
 const WIDTH = 1280;
 const HEIGHT = 860;
 
-const DOCUMENT = `Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine, a mechanical computer that was never finished.
+const DOCUMENT = `Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine, a mechanical computer that was never finished. Babbage had designed the machine to read instructions from punched cards, an idea borrowed from the looms of the textile trade.
 
-Her notes describe how the engine could compute Bernoulli numbers, and they suggest that such a machine might one day compose music or draw graphics.
+Her notes on the engine are longer than the paper they accompany. They describe how it could compute Bernoulli numbers step by step, and they suggest that such a machine might one day compose music or draw graphics if its symbols stood for notes or shapes rather than numbers.
 
-The central bank in Frankfurt raised interest rates again this spring. Inflation had pushed borrowing costs higher across Europe, and lenders in Paris and Madrid followed within a week.
+Historians still argue over how much of the program was hers and how much came from Babbage, but the notes show a clear grasp of loops, of variables that change as a calculation proceeds, and of the difference between a machine that calculates and one that follows a general plan.
 
-Markets fell on the news, then recovered as traders read the statement more closely and decided that further rises were unlikely this year.
+The central bank in Frankfurt raised interest rates again this spring. Inflation had pushed borrowing costs higher across Europe, and lenders in Paris and Madrid followed within a week. Mortgage rates rose first, then the rates on business loans.
 
-A long walk along the coast near Lisbon ends at a lighthouse. The path climbs over low cliffs, past fishing boats and small cafes, and the light turns gold in the late afternoon.`;
+Markets fell on the news, then recovered as traders read the statement more closely and decided that further rises were unlikely this year. Bond yields settled a little higher than before, and the euro gained against the dollar for the first time in a month.
+
+Economists expect the effect on prices to take a year or more to show. Firms that borrowed heavily when money was cheap will feel it soonest, while households with fixed rate loans may not notice until their terms come up for renewal.
+
+A long walk along the coast near Lisbon ends at a lighthouse. The path climbs over low cliffs, past fishing boats pulled up on the sand and small cafes that open only in summer, and the light turns gold in the late afternoon.
+
+Walkers start early to avoid the heat. Water and a hat matter more than good boots, since the trail is dry and mostly flat, and the last bus back to the city leaves before the sun goes down.
+
+Sourdough bread needs only flour, water, salt and a starter, but it asks for patience. The dough rises slowly overnight in a cool kitchen, and the long fermentation gives the crust its colour and the crumb its sour taste.
+
+Bakers judge the dough by touch rather than by the clock. A loaf that has risen enough springs back slowly when pressed, and one baked too soon tears open along the side instead of the cut across the top.`;
 
 const PASSAGES = `Rust is a systems programming language focused on safety and speed.
 
@@ -77,6 +87,15 @@ const SHOTS: Shot[] = [
     },
   },
   {
+    name: "analyze-map",
+    tab: "analyze",
+    element: "#analyze-projection",
+    ready: async (page) => {
+      await page.waitForSelector("#analyze-projection[open]");
+      await page.waitForSelector("#projection-out .map-and-text");
+    },
+  },
+  {
     name: "analyze-wire",
     tab: "analyze",
     element: "#analyze-wire",
@@ -115,6 +134,8 @@ const SHOTS: Shot[] = [
     tab: "vocabulary",
     ready: async (page) => {
       await page.fill("#vocab-docs", PASSAGES);
+      await page.fill("#vocab-learn-language", "en");
+      await page.check("#vocab-stopwords");
       await page.click("#vocab-learn button[type=submit]");
       await page.waitForSelector("#vocab-note:not([hidden])");
       await page.waitForFunction(() => (document.getElementById("vocab-stop") as HTMLButtonElement).disabled);
