@@ -133,6 +133,7 @@ const DEFAULT_WINDOW: Duration = Duration::from_secs(2);
 
 /// Time `pass` over `n` texts: one warm pass, then the best of three runs
 /// of at least two seconds, in texts a second.
+/// Reject zero texts before running a pass.
 pub fn best(n: usize, pass: &mut dyn FnMut() -> Result<()>) -> Result<f64> {
     best_in(DEFAULT_WINDOW, &mut crate::gpu_clock::Window::none(), n, pass)
 }
@@ -143,6 +144,9 @@ fn best_in(
     n: usize,
     pass: &mut dyn FnMut() -> Result<()>,
 ) -> Result<f64> {
+    if n == 0 {
+        return Err("a static text set must contain at least one text".into());
+    }
     pass()?;
     let mut top = 0f64;
     clock.before_timed();

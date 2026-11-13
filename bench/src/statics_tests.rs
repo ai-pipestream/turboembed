@@ -142,3 +142,79 @@ fn statics_reads_gpu_clock_outside_timed_passes() {
     assert_eq!(incomplete.device.clock, None);
     std::fs::remove_dir_all(&scratch).unwrap();
 }
+
+#[test]
+fn empty_text_count_is_rejected_without_running_a_pass() {
+    let mut calls = 0;
+    let result = best_in(Duration::ZERO, &mut crate::gpu_clock::Window::none(), 0, &mut || {
+        calls += 1;
+        if calls > 8 {
+            return Err("pass safety limit reached".into());
+        }
+        Ok(())
+    });
+    assert_eq!(result.unwrap_err(), "a static text set must contain at least one text");
+    assert_eq!(calls, 0);
+}
+
+#[test]
+fn nonempty_text_count_runs_warmup_and_three_timed_passes() {
+    let mut calls = 0;
+    let rate = best_in(Duration::ZERO, &mut crate::gpu_clock::Window::none(), 1, &mut || {
+        calls += 1;
+        if calls > 8 {
+            return Err("pass safety limit reached".into());
+        }
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(calls, 4);
+    assert!(rate.is_finite() && rate > 0.0);
+}
+
+#[test]
+fn empty_json_measurement_is_rejected() {
+    const CHILD: &str = "TURBO_STATIC_EMPTY_TEST_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let scratch =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-static-empty-{}", std::process::id())));
+        std::fs::create_dir_all(&scratch).unwrap();
+        let texts = scratch.join("texts.json");
+        let plan = StaticPlan {
+            bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-static-bundle"),
+            precision: turbo::TURBO_PRECISION_MODEL,
+            sets: vec![("test".into(), texts.clone())],
+            batches: vec![1],
+            peers: None,
+        };
+        let p = Provenance { top: String::new(), commit: "d".repeat(40), pushed_to: vec!["origin/main".into()] };
+        // Prove that this fixture and CPU path work before exercising the empty set.
+        std::fs::write(&texts, r#"["hello world"]"#).unwrap();
+        let record = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap();
+        check(&record).unwrap();
+        assert_eq!(record.sets[0].texts, 1);
+        assert_eq!(record.device.clock, None);
+        std::fs::write(&texts, "[]").unwrap();
+        let error = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap_err();
+        assert_eq!(error, "a static text set must contain at least one text");
+        return;
+    }
+    let mut child = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "statics::tests::empty_json_measurement_is_rejected", "--nocapture"])
+        .env(CHILD, "1")
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            assert!(status.success(), "measurement child failed: {status}");
+            break;
+        }
+        if Instant::now() >= deadline {
+            child.kill().unwrap();
+            child.wait().unwrap();
+            panic!("empty JSON measurement exceeded 10 seconds; child killed and reaped");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
