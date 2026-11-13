@@ -363,6 +363,18 @@ Library callers use `Options.upstream_tls: Option<UpstreamTls>` and the
 paired `ClientIdentity` type. The server's private key is never used as
 the client's key automatically.
 
+SIGTERM and SIGINT (Ctrl-C) stop the demo: it closes the listener and
+ends every open stream there with an `unavailable` end-of-stream
+envelope, message `the demo is stopping`, so a `WatchCollection` a page
+holds open does not hold the stop. Calls in flight get 5 s to finish;
+one still open then (a request whose body never arrives, say) is cut,
+and the demo logs `calls still open after 5 s were cut`. Library callers
+get the same from `Demo::stop`, and choose the wait with
+`Demo::stop_within`, which answers whether every call ended by itself.
+A stream the
+server ends because it is stopping reaches the page with the server's
+message, `the server is stopping`.
+
 ## What the page shows
 
 The page has a tab per area; leaving a tab cancels its streams and
@@ -586,6 +598,9 @@ the server's prost types. Nothing is mocked.
 - `demo/tests/stream.rs`: `AnalyzeDocumentProgressive` giving the
   server's events; `WatchCollection` giving an event when a document is
   indexed; the server's refusals in the end-of-stream envelope.
+- `demo/tests/stop.rs`: a watch held open ends as `unavailable` when
+  the demo stops and when the server stops, and neither stop waits; a
+  request whose body never arrives is cut after the wait given.
 - `demo/tests/admin.rs`: `TrainStaticModel` and `InstallModel` (from a
   catalog served from memory) when allowed; a refused field's
   `turbo-code` and `turbo-field`; a page that goes away mid-training,

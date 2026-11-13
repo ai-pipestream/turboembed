@@ -69,6 +69,16 @@ be answered, refuses new connections, logs `stopped` and exits 0. A
 signal during load takes effect once the load returns; the library has
 no way to stop a load part way.
 
+The wait for requests in flight has a limit, so a stream nobody closes
+cannot hold the stop. A `WatchCollection` stream, which has no end of
+its own, ends at once with `UNAVAILABLE` and the message `the server is
+stopping`. Any other call still open 5 s after the signal (an
+`AnalyzeStream` its caller never closes, say) is cut, and the server
+logs `calls still open after 5 s were cut` before `stopped`. Library
+callers get the same from `Server::stop`, and choose the wait with
+`Server::stop_within`, which answers whether every call ended by
+itself.
+
 ### Flags
 
 | Flag | Meaning | Absent |
