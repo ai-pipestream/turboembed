@@ -89,15 +89,37 @@ fn each_published_model_installs_from_hugging_face_alone() {
 /// Installs the model kept in a registry from the registry alone: an
 /// `OciRegistry` refuses every address that is not a blob's.
 /// `cargo test -p turbo-zoo -- --ignored registry`. Needs the network.
+/// With `TURBO_TEST_ZOO_CACHE=<dir>` the cache is that directory, left
+/// in place, and a later run takes the weights from it. Every run still
+/// reads the registry: the small files are removed first, so each is
+/// downloaded again, and every file is held to both digests at the end.
 #[test]
 #[ignore]
 #[cfg(feature = "http")]
 fn the_model_kept_in_a_registry_installs_from_the_registry_alone() {
-    let cache =
-        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-registry-{}", std::process::id())));
+    /// A file this size or larger is taken from a kept cache.
+    const KEPT_FROM: u64 = 64 << 20;
+    let (cache, _own) = match std::env::var_os("TURBO_TEST_ZOO_CACHE") {
+        Some(dir) => (std::path::PathBuf::from(dir), None),
+        None => {
+            let own = turbo_scratch::Scratch::at(
+                std::env::temp_dir().join(format!("turbo-zoo-registry-{}", std::process::id())),
+            );
+            (own.to_path_buf(), Some(own))
+        }
+    };
+    let index = Index::builtin();
+    let small: Vec<_> = index.get(IN_REGISTRY).unwrap().files.iter().filter(|f| f.size < KEPT_FROM).collect();
+    assert!(!small.is_empty(), "no file left to ask the registry for");
+    for f in small {
+        match std::fs::remove_file(cache.join(IN_REGISTRY).join(f.path.as_str())) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => panic!("{}: {e}", f.path),
+            _ => {}
+        }
+    }
     let user: turbo_zoo::UserId = "turbo-zoo-test".parse().unwrap();
     let transport = turbo_zoo::OciRegistry::new();
-    let zoo = turbo_zoo::Zoo::new(Index::builtin(), cache.to_path_buf(), turbo_zoo::Policy::default(), &transport);
+    let zoo = turbo_zoo::Zoo::new(index, cache, turbo_zoo::Policy::default(), &transport);
     let f = zoo.fetch(IN_REGISTRY, &user, &turbo_zoo::Acceptances::default()).unwrap();
     for (path, file) in f.files.iter().zip(&f.artifact.files) {
         let bytes = std::fs::read(path).unwrap();
