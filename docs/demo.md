@@ -628,6 +628,16 @@ either: every call the page makes goes through the demo to the server.
   on disk has the size and SHA-256 the catalog lists. The Server tab
   loads the installed directory into the running server, and Semantic
   ranks passages with it, with no restart and no page reload.
+- Per-user acceptance isolation, anti-spoofing and authenticated write
+  controls (`demo/web/e2e/acceptance_isolation.test.ts`): two demos
+  with different `--user` names against one server keep their
+  acceptances isolated (the second user still sees missing terms and
+  cannot hot-load the share-alike bundle); a binary protobuf call from
+  the first user's browser carrying another user's name is rewritten by
+  the demo proxy to the demo's own user; an anonymous demo without
+  `--user` is read-only and refuses direct acceptance writes with 403;
+  and a token-protected demo refuses unauthenticated writes with 401
+  while keeping writes outside `--allow` disabled after sign-in.
 - An address change, a link, Back and Forward each open the tab they
   name, every tab click is one history entry, and an address naming no
   tab opens the first.
