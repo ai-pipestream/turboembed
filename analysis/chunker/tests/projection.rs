@@ -182,7 +182,13 @@ fn place_puts_a_vector_where_its_row_is() {
         let dim = rows[0].len() as u32;
         let v = vectors::<Chunks>(dim, &rows.iter().map(|r| &r[..]).collect::<Vec<_>>(), &[]);
         for dims in [ProjectionDims::D2, ProjectionDims::D3] {
-            let p = VectorProjection::compute(&v, dims).unwrap();
+            let p = VectorProjection::compute_with_basis(&v, dims).unwrap();
+            // Keeping the basis changes no coordinate, and a projection
+            // without one places nothing.
+            let plain = VectorProjection::compute(&v, dims).unwrap();
+            assert_eq!((&plain.coords, plain.explained_variance), (&p.coords, p.explained_variance));
+            assert!(plain.mean.is_empty() && plain.components.is_empty());
+            assert!(plain.place(&rows[0]).unwrap_err().contains("without its basis"));
             for (i, row) in rows.iter().enumerate() {
                 let placed = p.place(row).unwrap();
                 for (a, b) in placed.iter().zip(p.row(Ix::new(i as u32))) {
@@ -203,6 +209,6 @@ fn place_puts_a_vector_where_its_row_is() {
     }
     // One row: no direction of variance, so everything lands on the origin.
     let one = vectors::<Chunks>(2, &[&[1.0, 2.0]], &[]);
-    let p = VectorProjection::compute(&one, ProjectionDims::D2).unwrap();
+    let p = VectorProjection::compute_with_basis(&one, ProjectionDims::D2).unwrap();
     assert_eq!(p.place(&[5.0, -3.0]).unwrap(), vec![0.0, 0.0]);
 }

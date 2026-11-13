@@ -71,7 +71,13 @@ pub(crate) fn compute_pca<L: Layer>(
         return Ok((empty, None));
     }
     let dims = if pca_dims == 3 { ProjectionDims::D3 } else { ProjectionDims::D2 };
-    let projection = VectorProjection::compute(vectors, dims).map_err(|e| bad(format!("vector projection: {e}")))?;
+    // The basis is kept only for a query: a plain projection never pays for it.
+    let computed = if query.is_some() {
+        VectorProjection::compute_with_basis(vectors, dims)
+    } else {
+        VectorProjection::compute(vectors, dims)
+    };
+    let projection = computed.map_err(|e| bad(format!("vector projection: {e}")))?;
     let points = (0..n)
         .map(|i| {
             let ix = Ix::new(i as u32);

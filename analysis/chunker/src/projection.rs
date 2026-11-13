@@ -57,8 +57,9 @@ impl ProjectionDims {
 /// `components` (row-major `[dims, vector dimension]`, unit length, in
 /// the canonical sign) are the basis the coordinates were taken in, so
 /// [`VectorProjection::place`] can put another vector of the same model
-/// in the same picture; both are all zeros when fewer than two rows
-/// carry a vector.
+/// in the same picture. Only [`VectorProjection::compute_with_basis`]
+/// keeps them, all zeros when fewer than two rows carry a vector;
+/// [`VectorProjection::compute`] leaves both empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct VectorProjection<L> {
     pub model: ModelRef,
@@ -83,9 +84,13 @@ impl<L: Layer> VectorProjection<L> {
     /// centred on the rows' mean and laid on the same components, so a
     /// vector equal to a projected row lands on that row's point up to
     /// rounding. Refuses a vector of another dimension or with a
-    /// non-finite value or coordinate.
+    /// non-finite value or coordinate, and any vector when the
+    /// projection was computed without its basis.
     pub fn place(&self, vector: &[f32]) -> Result<Vec<f32>, String> {
         let d = self.mean.len();
+        if d == 0 {
+            return Err("the projection was computed without its basis".into());
+        }
         if vector.len() != d {
             return Err(format!("vector has {} values and the projection has {d}", vector.len()));
         }
@@ -111,7 +116,16 @@ impl<L: Layer> VectorProjection<L> {
     pub fn compute(vectors: &Vectors<L>, dims: ProjectionDims) -> Result<VectorProjection<L>, String> {
         vectors.check()?;
         let present: Vec<usize> = (0..vectors.len()).filter(|&i| !vectors.is_empty(Ix::new(i as u32))).collect();
-        Self::project(vectors, dims, &present, present.len() < vectors.dim as usize)
+        Self::project(vectors, dims, &present, present.len() < vectors.dim as usize, false)
+    }
+
+    /// [`VectorProjection::compute`] that also keeps `mean` and
+    /// `components`, for [`VectorProjection::place`]. The coordinates
+    /// are the same either way.
+    pub fn compute_with_basis(vectors: &Vectors<L>, dims: ProjectionDims) -> Result<VectorProjection<L>, String> {
+        vectors.check()?;
+        let present: Vec<usize> = (0..vectors.len()).filter(|&i| !vectors.is_empty(Ix::new(i as u32))).collect();
+        Self::project(vectors, dims, &present, present.len() < vectors.dim as usize, true)
     }
 
     fn project(
@@ -119,6 +133,7 @@ impl<L: Layer> VectorProjection<L> {
         dims: ProjectionDims,
         present: &[usize],
         dual: bool,
+        basis: bool,
     ) -> Result<VectorProjection<L>, String> {
         let (n, d) = (vectors.len(), vectors.dim as usize);
         let k = dims.get();
@@ -129,8 +144,8 @@ impl<L: Layer> VectorProjection<L> {
             empty: vectors.empty.clone(),
             explained_variance: [0.0; 3],
             adjacent_cosine: adjacent_cosines(vectors),
-            mean: vec![0.0; d],
-            components: vec![0.0; k * d],
+            mean: if basis { vec![0.0; d] } else { Vec::new() },
+            components: if basis { vec![0.0; k * d] } else { Vec::new() },
             _of: PhantomData,
         };
         let mut centred = Vec::with_capacity(present.len() * d);
@@ -166,7 +181,7 @@ impl<L: Layer> VectorProjection<L> {
         for v in &mut values {
             *v = v.max(0.0);
         }
-        for c in 0..k {
+        for c in 0..if basis { k } else { 0 } {
             let Some(&col) = order.get(c) else { break };
             let slot = &mut out.components[c * d..(c + 1) * d];
             if !dual {
@@ -184,7 +199,9 @@ impl<L: Layer> VectorProjection<L> {
                 }
             }
         }
-        out.mean = mean;
+        if basis {
+            out.mean = mean;
+        }
         let total: f64 = values.iter().sum();
         if total > 0.0 {
             for (c, slot) in out.explained_variance.iter_mut().enumerate() {
@@ -388,8 +405,8 @@ mod tests {
             .collect();
         let v = vectors(6, &rows.iter().map(|r| &r[..]).collect::<Vec<_>>(), &[]);
         let present: Vec<usize> = (0..4).collect();
-        let dual = VectorProjection::<Chunks>::project(&v, ProjectionDims::D3, &present, true).unwrap();
-        let cov = VectorProjection::<Chunks>::project(&v, ProjectionDims::D3, &present, false).unwrap();
+        let dual = VectorProjection::<Chunks>::project(&v, ProjectionDims::D3, &present, true, false).unwrap();
+        let cov = VectorProjection::<Chunks>::project(&v, ProjectionDims::D3, &present, false, false).unwrap();
         for (a, b) in dual.coords.iter().zip(&cov.coords) {
             assert!((a - b).abs() < 1e-5, "dual {a} vs covariance {b}");
         }

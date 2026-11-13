@@ -192,7 +192,7 @@ async fn a_query_lands_in_the_projections_own_basis() {
             let points = out.projection.unwrap().points;
             let placed = out.query.unwrap();
             assert_eq!(placed.model_name, NAME);
-            let basis = VectorProjection::compute(&vectors, dims).unwrap();
+            let basis = VectorProjection::compute_with_basis(&vectors, dims).unwrap();
             let want = basis.place(&query).unwrap();
             let got = [placed.x, placed.y, placed.z];
             for (axis, want) in want.iter().enumerate() {
@@ -231,16 +231,25 @@ async fn a_query_is_refused_without_vectors_or_their_model() {
     assert_eq!(refusal(&e), (tonic::Code::InvalidArgument, 256, 0));
     assert!(e.message().contains("no chunk or sentence vectors"), "{}", e.message());
 
-    // Vectors of a model this server does not serve: by identity, and by width.
+    // Vectors of a model this server does not serve: by id, by revision,
+    // by the bundle's digest (the same name retrained), and by width.
     let other = ModelRef { id: "somebody-else".into(), ..model.clone() };
+    let revised = ModelRef { revision: "another-revision".into(), ..model.clone() };
+    let retrained = ModelRef { sha256: "0".repeat(64), ..model.clone() };
+    assert_ne!(retrained.sha256, model.sha256);
     let narrow: Vec<Vec<f32>> = rows.iter().map(|r| r[..7].to_vec()).collect();
-    for (rows, model, said) in [(&rows, other, "somebody-else"), (&narrow, model.clone(), "at 7 dimensions")] {
+    for (rows, model, said) in [
+        (&rows, other, "somebody-else".to_string()),
+        (&rows, revised, "@another-revision#".to_string()),
+        (&rows, retrained, format!("#{} at", "0".repeat(64))),
+        (&narrow, model.clone(), "at 7 dimensions".to_string()),
+    ] {
         let (bytes, _) = graph(rows, &[], model);
         let mut r = request(&bytes, 2);
         r.query = Some(QUERY.into());
         let e = c.project_chunks(r).await.unwrap_err();
         assert_eq!(refusal(&e), (tonic::Code::NotFound, 1280, 0));
-        assert!(e.message().contains(said), "{}", e.message());
+        assert!(e.message().contains(&said), "{}", e.message());
     }
 
     // An empty text and one past the limit.

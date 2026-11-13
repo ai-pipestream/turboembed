@@ -158,7 +158,13 @@ the loaded `TASK_EMBED` model whose identity (id, revision and manifest
 digest) equals the vectors' `ModelRef` and which serves the vectors'
 dimension, in the query prompt role (the bundle's query prefix when it
 lists one), L2-normalized when every stored vector is of unit length
-within 0.001 and unnormalized otherwise. The answer's `query`
+within 0.001 and unnormalized otherwise (stored vectors that were
+quantized or cut to a shorter width without being normalized again fall
+outside that, so the query is left unnormalized: the cosines hold either
+way, while the placed point is then scaled as the model gave it). The
+text is not truncated: one longer than the model's token limit is the
+model's own refusal. The projection's basis is built only when a query is
+asked for. The answer's `query`
 (`QueryPointProto`) carries the query vector's coordinates, centred on the
 same mean and laid on the same principal components as the points, the
 served model name that embedded it, and one cosine per `projection.points`
