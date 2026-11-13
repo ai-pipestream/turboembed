@@ -10405,10 +10405,16 @@ async function learn(ev) {
     say(note5, "Type documents (a blank line between) or pick files.", "error");
     return;
   }
+  const language = input("vocab-learn-language").value.trim();
+  if (input("vocab-stopwords").checked && !language) {
+    say(note5, "Dropping stopwords needs a language, such as en: the server drops that language's bundled list.", "error");
+    return;
+  }
   await busy(submitter(ev), () => stoppable2(async (signal) => {
     try {
       const body2 = learnBody(
         {
+          language,
           minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
           maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
           lowercase: input("vocab-lowercase").checked,

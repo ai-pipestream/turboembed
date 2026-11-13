@@ -58,7 +58,7 @@ label.token input { width: 16em; max-width: 100%; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; min-width: 0; }
 .row > select { flex: 0 1 auto; min-width: 0; }
 .row > label { display: flex; gap: 6px; align-items: center; min-width: 0; color: var(--muted); white-space: nowrap; }
-.row > label.grow { flex: 1 1 12em; }
+.row > label.grow { flex: 1 1 auto; }
 .row > label > input, .row > label > select { color: var(--text); min-width: 0; }
 .options.group { margin-top: 0; padding-left: 10px; border-left: 2px solid var(--line); }
 .options.group[hidden], .options label[hidden] { display: none; }
