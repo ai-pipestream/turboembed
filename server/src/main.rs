@@ -174,10 +174,13 @@ async fn main() -> ExitCode {
     eprintln!("turbo-kserve: ready");
     let name = stop.await.unwrap_or("SIGINT");
     // The listener closes, requests in flight finish, and new connections
-    // are refused; then the process exits.
+    // are refused; then the process exits. A call still open after the
+    // grace period is cut, so a stream nobody closes cannot hold the stop.
     eprintln!("turbo-kserve: stopping on {name}");
     server.drain();
-    server.stop().await;
+    if !server.stop_within(turbo_kserve::STOP_GRACE).await {
+        eprintln!("turbo-kserve: calls still open after {} s were cut", turbo_kserve::STOP_GRACE.as_secs());
+    }
     eprintln!("turbo-kserve: stopped");
     ExitCode::SUCCESS
 }

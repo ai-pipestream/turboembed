@@ -9,6 +9,7 @@
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::Router;
 use axum::extract::State;
@@ -16,7 +17,7 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use tokio::net::TcpListener;
-use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tonic::transport::Channel;
 
@@ -46,6 +47,8 @@ struct App {
     allow: Arc<Allow>,
     gate: Arc<gate::Gate>,
     user: Option<Arc<str>>,
+    /// Turns true once the demo is stopping.
+    stopping: watch::Receiver<bool>,
 }
 
 /// How the demo is reached and what it forwards.
@@ -68,10 +71,13 @@ pub struct Options {
     pub user: Option<String>,
 }
 
+/// How long [`Demo::stop`] waits for calls in flight before cutting them.
+pub const STOP_GRACE: Duration = Duration::from_secs(5);
+
 /// The demo, answering HTTP until stopped or dropped.
 pub struct Demo {
     addr: SocketAddr,
-    stop: Option<oneshot::Sender<()>>,
+    stop: watch::Sender<bool>,
     task: JoinHandle<std::io::Result<()>>,
 }
 
@@ -97,7 +103,10 @@ impl Demo {
         }
         let tls = options.tls.as_ref().map(tls::config).transpose()?;
         let endpoint = upstream::endpoint(server, options.upstream_tls.as_ref())?;
+        let (stop, stopping) = watch::channel(false);
+        let mut stopped = stopping.clone();
         let app = App {
+            stopping,
             channel: endpoint.connect_lazy(),
             allow: Arc::new(options.allow),
             gate: Arc::new(gate),
@@ -113,9 +122,8 @@ impl Demo {
             .with_state(app);
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
-        let (stop, stopped) = oneshot::channel::<()>();
-        let stopped = async {
-            let _ = stopped.await;
+        let stopped = async move {
+            let _ = stopped.wait_for(|s| *s).await;
         };
         let task = match tls {
             None => tokio::spawn(async move { axum::serve(listener, router).with_graceful_shutdown(stopped).await }),
@@ -124,27 +132,37 @@ impl Demo {
                 tokio::spawn(async move { axum::serve(listener, router).with_graceful_shutdown(stopped).await })
             }
         };
-        Ok(Demo { addr, stop: Some(stop), task })
+        Ok(Demo { addr, stop, task })
     }
 
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
     }
 
-    /// Stops listening and waits for calls in flight.
-    pub async fn stop(mut self) {
-        if let Some(s) = self.stop.take() {
-            let _ = s.send(());
+    /// Stops listening, ends every open stream as `unavailable` and waits
+    /// for the calls in flight, up to [`STOP_GRACE`]. See
+    /// [`Self::stop_within`].
+    pub async fn stop(self) {
+        self.stop_within(STOP_GRACE).await;
+    }
+
+    /// [`Self::stop`] with the wait given: a call still open after `grace`
+    /// (an upload its caller never finishes) is cut. Answers whether every
+    /// call ended by itself.
+    pub async fn stop_within(mut self, grace: Duration) -> bool {
+        self.stop.send_replace(true);
+        let clean = tokio::time::timeout(grace, &mut self.task).await.is_ok();
+        if !clean {
+            self.task.abort();
+            let _ = (&mut self.task).await;
         }
-        let _ = (&mut self.task).await;
+        clean
     }
 }
 
 impl Drop for Demo {
     fn drop(&mut self) {
-        if let Some(s) = self.stop.take() {
-            let _ = s.send(());
-        }
+        self.stop.send_replace(true);
     }
 }
 
