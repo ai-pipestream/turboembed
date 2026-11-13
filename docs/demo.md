@@ -721,7 +721,10 @@ Delete and Unload among them.
 The tests that stop the server, or need writes forwarded or a token, start a
 server and demo of their own from the same binaries
 (`demo/web/e2e/stack.ts`, given the binaries' directory in
-`TURBO_E2E_BIN`).
+`TURBO_E2E_BIN`). A port taken between pick and bind is picked again,
+and a process still running 10 s after SIGTERM is killed and the test
+fails naming it, so one that does not stop cannot hang the run
+(`stack.test.ts` checks this on a shell that ignores SIGTERM).
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

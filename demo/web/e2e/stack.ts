@@ -33,6 +33,7 @@ function started(exe: string, args: string[], word: string): Promise<ChildProces
   return new Promise((resolve, reject) => {
     const child = spawn(`${BIN}/${exe}`, args, { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
+    said.set(child, () => out.slice(-2000));
     const timer = setTimeout(() => (child.kill(), reject(new Error(`${exe} was not ready in 60 s:\n${out}`))), 60_000);
     const read = (d: Uint8Array) => {
       out += new TextDecoder().decode(d);
@@ -57,12 +58,29 @@ function inUse(e: unknown): boolean {
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** Ends `child` and waits until it has exited, so its port is free again. */
-function ended(child: ChildProcess | null): Promise<void> {
+/** What each started process has written, its last 2000 characters, for an error that names it. */
+const said = new WeakMap<ChildProcess, () => string>();
+
+/**
+ * Sends `child` SIGTERM and waits until it has exited, so its port is free
+ * again. One still running after `ms` is killed outright, and the promise
+ * rejects naming it with its last output, so a process that does not stop
+ * fails the test instead of hanging the run.
+ */
+export function ended(child: ChildProcess | null, name: string, ms = 10_000): Promise<void> {
   if (!child || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
-  return new Promise((resolve) => {
-    child.once("exit", () => resolve());
-    child.kill();
+  return new Promise((resolve, reject) => {
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      child.kill("SIGKILL");
+    }, ms);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      if (!killed) return resolve();
+      reject(new Error(`${name} did not stop within ${ms} ms of SIGTERM and was killed. It last wrote:\n${said.get(child)?.() ?? ""}`));
+    });
+    child.kill("SIGTERM");
   });
 }
 
@@ -145,12 +163,16 @@ export class Stack {
 
   /** Stops the server; the demo keeps running in front of nothing. */
   async stopServer(): Promise<void> {
-    await ended(this.server);
+    const server = this.server;
     this.server = null;
+    await ended(server, "turbo-kserve");
   }
 
+  /** Stops the demo and the server; rejects naming either one that had to be killed. */
   async close(): Promise<void> {
-    await Promise.all([ended(this.demo), ended(this.server)]);
+    const all = await Promise.allSettled([ended(this.demo, "turbo-kserve-demo"), ended(this.server, "turbo-kserve")]);
     if (this.work) rmSync(this.work, { recursive: true, force: true });
+    const failed = all.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) throw failed.reason;
   }
 }
