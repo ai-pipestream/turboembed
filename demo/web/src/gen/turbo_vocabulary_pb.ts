@@ -9,15 +9,15 @@
 // @generated from file turbo_vocabulary.proto (package turbo.vocabulary.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file turbo_vocabulary.proto.
  */
 export const file_turbo_vocabulary: GenFile = /*@__PURE__*/
-  fileDesc("ChZ0dXJib192b2NhYnVsYXJ5LnByb3RvEhN0dXJiby52b2NhYnVsYXJ5LnYxIh4KHExpc3REaWN0aW9uYXJ5Rm9ybWF0c1JlcXVlc3QiZgoQRGljdGlvbmFyeUZvcm1hdBIRCglmb3JtYXRfaWQYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSEgoKaW1wb3J0YWJsZRgDIAEoCBIWCg5uZWVkc19sYW5ndWFnZRgEIAEoCCKfAQoLU3RvcmVMaW1pdHMSDQoFc3RvcmUYASABKAgSDQoFYWRtaW4YAiABKAgSIwobbWF4X2RpY3Rpb25hcnlfdXBsb2FkX2J5dGVzGAMgASgEEhcKD21heF9sZWFybl9ieXRlcxgEIAEoBBIWCg5tYXhfbmdyYW1fc2l6ZRgFIAEoDRIcChRkb3dubG9hZF9jaHVua19ieXRlcxgGIAEoDSKJAQodTGlzdERpY3Rpb25hcnlGb3JtYXRzUmVzcG9uc2USNgoHZm9ybWF0cxgBIAMoCzIlLnR1cmJvLnZvY2FidWxhcnkudjEuRGljdGlvbmFyeUZvcm1hdBIwCgZsaW1pdHMYAiABKAsyIC50dXJiby52b2NhYnVsYXJ5LnYxLlN0b3JlTGltaXRzIp4BChxEaWN0aW9uYXJ5QXJ0aWZhY3REZXNjcmlwdG9yEhMKC2FydGlmYWN0X2lkGAEgASgJEhEKCWZvcm1hdF9pZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCRIMCgRuYW1lGAQgASgJEhMKC2VudHJ5X2NvdW50GAUgASgEEhEKCWJ5dGVfc2l6ZRgGIAEoBBIOCgZzaGEyNTYYByABKAki2QEKHFZvY2FidWxhcnlBcnRpZmFjdERlc2NyaXB0b3ISEwoLYXJ0aWZhY3RfaWQYASABKAkSEAoIbGFuZ3VhZ2UYAiABKAkSEQoJZG9jdW1lbnRzGAMgASgEEg4KBnRva2VucxgEIAEoBBISCgp0ZXJtX2NvdW50GAUgASgEEhMKC25ncmFtX2NvdW50GAYgASgEEhEKCWJ5dGVfc2l6ZRgHIAEoBBIOCgZzaGEyNTYYCCABKAkSIwobc2VlZF9kaWN0aW9uYXJ5X2FydGlmYWN0X2lkGAkgASgJIhkKF0xpc3REaWN0aW9uYXJpZXNSZXF1ZXN0ImMKGExpc3REaWN0aW9uYXJpZXNSZXNwb25zZRJHCgxkaWN0aW9uYXJpZXMYASADKAsyMS50dXJiby52b2NhYnVsYXJ5LnYxLkRpY3Rpb25hcnlBcnRpZmFjdERlc2NyaXB0b3IiGQoXTGlzdFZvY2FidWxhcmllc1JlcXVlc3QiYwoYTGlzdFZvY2FidWxhcmllc1Jlc3BvbnNlEkcKDHZvY2FidWxhcmllcxgBIAMoCzIxLnR1cmJvLnZvY2FidWxhcnkudjEuVm9jYWJ1bGFyeUFydGlmYWN0RGVzY3JpcHRvciI2Ch9EZWxldGVWb2NhYnVsYXJ5QXJ0aWZhY3RSZXF1ZXN0EhMKC2FydGlmYWN0X2lkGAEgASgJIiIKIERlbGV0ZVZvY2FidWxhcnlBcnRpZmFjdFJlc3BvbnNlIoYBChZJbXBvcnREaWN0aW9uYXJ5SGVhZGVyEhEKCWZvcm1hdF9pZBgBIAEoCRIQCghsYW5ndWFnZRgCIAEoCRIMCgRuYW1lGAMgASgJEhEKCWJ5dGVfc2l6ZRgEIAEoBBIOCgZzaGEyNTYYBSABKAkSFgoOaGFzX2hlYWRlcl9yb3cYBiABKAgicgoXSW1wb3J0RGljdGlvbmFyeVJlcXVlc3QSPQoGaGVhZGVyGAEgASgLMisudHVyYm8udm9jYWJ1bGFyeS52MS5JbXBvcnREaWN0aW9uYXJ5SGVhZGVySAASDwoFY2h1bmsYAiABKAxIAEIHCgVmcmFtZSL+AQoVTGVhcm5Wb2NhYnVsYXJ5SGVhZGVyEhoKEm1pbl90ZXJtX2ZyZXF1ZW5jeRgBIAEoDRIRCgltYXhfdGVybXMYAiABKA0SEQoJbG93ZXJjYXNlGAMgASgIEhgKEGZpbHRlcl9zdG9wd29yZHMYBCABKAgSFgoOaW5jbHVkZV9uZ3JhbXMYBSABKAgSFgoObWluX25ncmFtX3NpemUYBiABKA0SFgoObWF4X25ncmFtX3NpemUYByABKA0SDwoHbWluX3BtaRgIIAEoARIeChZkaWN0aW9uYXJ5X2FydGlmYWN0X2lkGAkgASgJEhAKCGxhbmd1YWdlGAogASgJIicKF0xlYXJuVm9jYWJ1bGFyeURvY3VtZW50EgwKBHRleHQYASABKAkioQEKFkxlYXJuVm9jYWJ1bGFyeVJlcXVlc3QSPAoGaGVhZGVyGAEgASgLMioudHVyYm8udm9jYWJ1bGFyeS52MS5MZWFyblZvY2FidWxhcnlIZWFkZXJIABJACghkb2N1bWVudBgCIAEoCzIsLnR1cmJvLnZvY2FidWxhcnkudjEuTGVhcm5Wb2NhYnVsYXJ5RG9jdW1lbnRIAEIHCgVmcmFtZSIwChlEb3dubG9hZFZvY2FidWxhcnlSZXF1ZXN0EhMKC2FydGlmYWN0X2lkGAEgASgJIsQBChdWb2NhYnVsYXJ5QXJ0aWZhY3RDaHVuaxJHCgpkaWN0aW9uYXJ5GAEgASgLMjEudHVyYm8udm9jYWJ1bGFyeS52MS5EaWN0aW9uYXJ5QXJ0aWZhY3REZXNjcmlwdG9ySAASRwoKdm9jYWJ1bGFyeRgCIAEoCzIxLnR1cmJvLnZvY2FidWxhcnkudjEuVm9jYWJ1bGFyeUFydGlmYWN0RGVzY3JpcHRvckgAEg4KBGRhdGEYAyABKAxIAEIHCgVmcmFtZTL1BgoWVHVyYm9Wb2NhYnVsYXJ5U2VydmljZRKAAQoVTGlzdERpY3Rpb25hcnlGb3JtYXRzEjEudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0RGljdGlvbmFyeUZvcm1hdHNSZXF1ZXN0GjIudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0RGljdGlvbmFyeUZvcm1hdHNSZXNwb25zZSIAEnEKEExpc3REaWN0aW9uYXJpZXMSLC50dXJiby52b2NhYnVsYXJ5LnYxLkxpc3REaWN0aW9uYXJpZXNSZXF1ZXN0Gi0udHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0RGljdGlvbmFyaWVzUmVzcG9uc2UiABJxChBMaXN0Vm9jYWJ1bGFyaWVzEiwudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0Vm9jYWJ1bGFyaWVzUmVxdWVzdBotLnR1cmJvLnZvY2FidWxhcnkudjEuTGlzdFZvY2FidWxhcmllc1Jlc3BvbnNlIgASiQEKGERlbGV0ZVZvY2FidWxhcnlBcnRpZmFjdBI0LnR1cmJvLnZvY2FidWxhcnkudjEuRGVsZXRlVm9jYWJ1bGFyeUFydGlmYWN0UmVxdWVzdBo1LnR1cmJvLnZvY2FidWxhcnkudjEuRGVsZXRlVm9jYWJ1bGFyeUFydGlmYWN0UmVzcG9uc2UiABJ3ChBJbXBvcnREaWN0aW9uYXJ5EiwudHVyYm8udm9jYWJ1bGFyeS52MS5JbXBvcnREaWN0aW9uYXJ5UmVxdWVzdBoxLnR1cmJvLnZvY2FidWxhcnkudjEuRGljdGlvbmFyeUFydGlmYWN0RGVzY3JpcHRvciIAKAESdQoPTGVhcm5Wb2NhYnVsYXJ5EisudHVyYm8udm9jYWJ1bGFyeS52MS5MZWFyblZvY2FidWxhcnlSZXF1ZXN0GjEudHVyYm8udm9jYWJ1bGFyeS52MS5Wb2NhYnVsYXJ5QXJ0aWZhY3REZXNjcmlwdG9yIgAoARJ2ChJEb3dubG9hZFZvY2FidWxhcnkSLi50dXJiby52b2NhYnVsYXJ5LnYxLkRvd25sb2FkVm9jYWJ1bGFyeVJlcXVlc3QaLC50dXJiby52b2NhYnVsYXJ5LnYxLlZvY2FidWxhcnlBcnRpZmFjdENodW5rIgAwAWIGcHJvdG8z");
+  fileDesc("ChZ0dXJib192b2NhYnVsYXJ5LnByb3RvEhN0dXJiby52b2NhYnVsYXJ5LnYxIh4KHExpc3REaWN0aW9uYXJ5Rm9ybWF0c1JlcXVlc3QiZgoQRGljdGlvbmFyeUZvcm1hdBIRCglmb3JtYXRfaWQYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSEgoKaW1wb3J0YWJsZRgDIAEoCBIWCg5uZWVkc19sYW5ndWFnZRgEIAEoCCKfAQoLU3RvcmVMaW1pdHMSDQoFc3RvcmUYASABKAgSDQoFYWRtaW4YAiABKAgSIwobbWF4X2RpY3Rpb25hcnlfdXBsb2FkX2J5dGVzGAMgASgEEhcKD21heF9sZWFybl9ieXRlcxgEIAEoBBIWCg5tYXhfbmdyYW1fc2l6ZRgFIAEoDRIcChRkb3dubG9hZF9jaHVua19ieXRlcxgGIAEoDSKJAQodTGlzdERpY3Rpb25hcnlGb3JtYXRzUmVzcG9uc2USNgoHZm9ybWF0cxgBIAMoCzIlLnR1cmJvLnZvY2FidWxhcnkudjEuRGljdGlvbmFyeUZvcm1hdBIwCgZsaW1pdHMYAiABKAsyIC50dXJiby52b2NhYnVsYXJ5LnYxLlN0b3JlTGltaXRzIp4BChxEaWN0aW9uYXJ5QXJ0aWZhY3REZXNjcmlwdG9yEhMKC2FydGlmYWN0X2lkGAEgASgJEhEKCWZvcm1hdF9pZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCRIMCgRuYW1lGAQgASgJEhMKC2VudHJ5X2NvdW50GAUgASgEEhEKCWJ5dGVfc2l6ZRgGIAEoBBIOCgZzaGEyNTYYByABKAki2QEKHFZvY2FidWxhcnlBcnRpZmFjdERlc2NyaXB0b3ISEwoLYXJ0aWZhY3RfaWQYASABKAkSEAoIbGFuZ3VhZ2UYAiABKAkSEQoJZG9jdW1lbnRzGAMgASgEEg4KBnRva2VucxgEIAEoBBISCgp0ZXJtX2NvdW50GAUgASgEEhMKC25ncmFtX2NvdW50GAYgASgEEhEKCWJ5dGVfc2l6ZRgHIAEoBBIOCgZzaGEyNTYYCCABKAkSIwobc2VlZF9kaWN0aW9uYXJ5X2FydGlmYWN0X2lkGAkgASgJIhkKF0xpc3REaWN0aW9uYXJpZXNSZXF1ZXN0ImMKGExpc3REaWN0aW9uYXJpZXNSZXNwb25zZRJHCgxkaWN0aW9uYXJpZXMYASADKAsyMS50dXJiby52b2NhYnVsYXJ5LnYxLkRpY3Rpb25hcnlBcnRpZmFjdERlc2NyaXB0b3IiGQoXTGlzdFZvY2FidWxhcmllc1JlcXVlc3QiYwoYTGlzdFZvY2FidWxhcmllc1Jlc3BvbnNlEkcKDHZvY2FidWxhcmllcxgBIAMoCzIxLnR1cmJvLnZvY2FidWxhcnkudjEuVm9jYWJ1bGFyeUFydGlmYWN0RGVzY3JpcHRvciI2Ch9EZWxldGVWb2NhYnVsYXJ5QXJ0aWZhY3RSZXF1ZXN0EhMKC2FydGlmYWN0X2lkGAEgASgJIiIKIERlbGV0ZVZvY2FidWxhcnlBcnRpZmFjdFJlc3BvbnNlIoYBChZJbXBvcnREaWN0aW9uYXJ5SGVhZGVyEhEKCWZvcm1hdF9pZBgBIAEoCRIQCghsYW5ndWFnZRgCIAEoCRIMCgRuYW1lGAMgASgJEhEKCWJ5dGVfc2l6ZRgEIAEoBBIOCgZzaGEyNTYYBSABKAkSFgoOaGFzX2hlYWRlcl9yb3cYBiABKAgicgoXSW1wb3J0RGljdGlvbmFyeVJlcXVlc3QSPQoGaGVhZGVyGAEgASgLMisudHVyYm8udm9jYWJ1bGFyeS52MS5JbXBvcnREaWN0aW9uYXJ5SGVhZGVySAASDwoFY2h1bmsYAiABKAxIAEIHCgVmcmFtZSL+AQoVTGVhcm5Wb2NhYnVsYXJ5SGVhZGVyEhoKEm1pbl90ZXJtX2ZyZXF1ZW5jeRgBIAEoDRIRCgltYXhfdGVybXMYAiABKA0SEQoJbG93ZXJjYXNlGAMgASgIEhgKEGZpbHRlcl9zdG9wd29yZHMYBCABKAgSFgoOaW5jbHVkZV9uZ3JhbXMYBSABKAgSFgoObWluX25ncmFtX3NpemUYBiABKA0SFgoObWF4X25ncmFtX3NpemUYByABKA0SDwoHbWluX3BtaRgIIAEoARIeChZkaWN0aW9uYXJ5X2FydGlmYWN0X2lkGAkgASgJEhAKCGxhbmd1YWdlGAogASgJIicKF0xlYXJuVm9jYWJ1bGFyeURvY3VtZW50EgwKBHRleHQYASABKAkioQEKFkxlYXJuVm9jYWJ1bGFyeVJlcXVlc3QSPAoGaGVhZGVyGAEgASgLMioudHVyYm8udm9jYWJ1bGFyeS52MS5MZWFyblZvY2FidWxhcnlIZWFkZXJIABJACghkb2N1bWVudBgCIAEoCzIsLnR1cmJvLnZvY2FidWxhcnkudjEuTGVhcm5Wb2NhYnVsYXJ5RG9jdW1lbnRIAEIHCgVmcmFtZSIwChlEb3dubG9hZFZvY2FidWxhcnlSZXF1ZXN0EhMKC2FydGlmYWN0X2lkGAEgASgJIsEDChdWb2NhYnVsYXJ5QXJ0aWZhY3RDaHVuaxJHCgpkaWN0aW9uYXJ5GAEgASgLMjEudHVyYm8udm9jYWJ1bGFyeS52MS5EaWN0aW9uYXJ5QXJ0aWZhY3REZXNjcmlwdG9ySAASRwoKdm9jYWJ1bGFyeRgCIAEoCzIxLnR1cmJvLnZvY2FidWxhcnkudjEuVm9jYWJ1bGFyeUFydGlmYWN0RGVzY3JpcHRvckgAEg4KBGRhdGEYAyABKAxIABJQCg9zdWdnZXN0X2xleGljb24YBCABKAsyNS50dXJiby52b2NhYnVsYXJ5LnYxLlN1Z2dlc3RMZXhpY29uQXJ0aWZhY3REZXNjcmlwdG9ySAASVAoRY29ycHVzX3N0YXRpc3RpY3MYBSABKAsyNy50dXJiby52b2NhYnVsYXJ5LnYxLkNvcnB1c1N0YXRpc3RpY3NBcnRpZmFjdERlc2NyaXB0b3JIABJTChF2b3Jvbm9pX2NlbnRyb2lkcxgGIAEoCzI2LnR1cmJvLnZvY2FidWxhcnkudjEuVm9yb25vaUNlbnRyb2lkQXJ0aWZhY3REZXNjcmlwdG9ySABCBwoFZnJhbWUilQEKIFN1Z2dlc3RMZXhpY29uQXJ0aWZhY3REZXNjcmlwdG9yEhMKC2FydGlmYWN0X2lkGAEgASgJEhAKCGxhbmd1YWdlGAIgASgJEhMKC2VudHJ5X2NvdW50GAMgASgEEhIKCnN0ZW1fY291bnQYBCABKAQSEQoJYnl0ZV9zaXplGAUgASgEEg4KBnNoYTI1NhgGIAEoCSIcChpMaXN0U3VnZ2VzdExleGljb25zUmVxdWVzdCJmChtMaXN0U3VnZ2VzdExleGljb25zUmVzcG9uc2USRwoIbGV4aWNvbnMYASADKAsyNS50dXJiby52b2NhYnVsYXJ5LnYxLlN1Z2dlc3RMZXhpY29uQXJ0aWZhY3REZXNjcmlwdG9yIm8KGUJ1aWxkU3VnZ2VzdExleGljb25IZWFkZXISEAoIbGFuZ3VhZ2UYASABKAkSFAoMdG9wX2tfcHJlZml4GAIgASgNEhIKCnRvcF9rX3N0ZW0YAyABKA0SFgoOY291bnRfZG9jX2ZyZXEYBCABKAgiQgoSU3VnZ2VzdE9ic2VydmF0aW9uEg8KB3N1cmZhY2UYASABKAkSDAoEc3RlbRgCIAEoCRINCgVjb3VudBgDIAEoBCLpAQoaQnVpbGRTdWdnZXN0TGV4aWNvblJlcXVlc3QSQAoGaGVhZGVyGAEgASgLMi4udHVyYm8udm9jYWJ1bGFyeS52MS5CdWlsZFN1Z2dlc3RMZXhpY29uSGVhZGVySAASPgoLb2JzZXJ2YXRpb24YAiABKAsyJy50dXJiby52b2NhYnVsYXJ5LnYxLlN1Z2dlc3RPYnNlcnZhdGlvbkgAEkAKCGRvY3VtZW50GAMgASgLMiwudHVyYm8udm9jYWJ1bGFyeS52MS5MZWFyblZvY2FidWxhcnlEb2N1bWVudEgAQgcKBWZyYW1lIkoKFFN1Z2dlc3RQcmVmaXhSZXF1ZXN0EhMKC2FydGlmYWN0X2lkGAEgASgJEg4KBnByZWZpeBgCIAEoCRINCgVsaW1pdBgDIAEoDSJFChVTdXJmYWNlQ29tcGxldGlvbkl0ZW0SDwoHc3VyZmFjZRgBIAEoCRIMCgRzdGVtGAIgASgJEg0KBWNvdW50GAMgASgEIlgKFVN1Z2dlc3RQcmVmaXhSZXNwb25zZRI/Cgtjb21wbGV0aW9ucxgBIAMoCzIqLnR1cmJvLnZvY2FidWxhcnkudjEuU3VyZmFjZUNvbXBsZXRpb25JdGVtIk0KGUxvb2t1cFN0ZW1TdXJmYWNlc1JlcXVlc3QSEwoLYXJ0aWZhY3RfaWQYASABKAkSDAoEc3RlbRgCIAEoCRINCgVsaW1pdBgDIAEoDSIxCg9TdGVtU3VyZmFjZUl0ZW0SDwoHc3VyZmFjZRgBIAEoCRINCgVjb3VudBgCIAEoBCJUChpMb29rdXBTdGVtU3VyZmFjZXNSZXNwb25zZRI2CghzdXJmYWNlcxgBIAMoCzIkLnR1cmJvLnZvY2FidWxhcnkudjEuU3RlbVN1cmZhY2VJdGVtIiwKDlNwZWxsY2hlY2tTcGFuEg0KBXN0YXJ0GAEgASgNEgsKA2VuZBgCIAEoDSLcAQoWU3BlbGxjaGVja1F1ZXJ5UmVxdWVzdBIeChZ2b2NhYnVsYXJ5X2FydGlmYWN0X2lkGAEgASgJEg0KBXF1ZXJ5GAIgASgJEjoKB29mZnNldHMYAyABKA4yKS50dXJiby52b2NhYnVsYXJ5LnYxLlNwZWxsY2hlY2tPZmZzZXRNb2RlEjwKD3Byb3RlY3RlZF9zcGFucxgEIAMoCzIjLnR1cmJvLnZvY2FidWxhcnkudjEuU3BlbGxjaGVja1NwYW4SGQoRbWF4X2VkaXRfZGlzdGFuY2UYBSABKA0ihQEKElNwZWxsY2hlY2tFZGl0SXRlbRIxCgRzcGFuGAEgASgLMiMudHVyYm8udm9jYWJ1bGFyeS52MS5TcGVsbGNoZWNrU3BhbhIQCghvcmlnaW5hbBgCIAEoCRITCgtyZXBsYWNlbWVudBgDIAEoCRIVCg1lZGl0X2Rpc3RhbmNlGAQgASgNIs4BChdTcGVsbGNoZWNrUXVlcnlSZXNwb25zZRIXCg9jb3JyZWN0ZWRfcXVlcnkYASABKAkSEgoKZGlkX2NoYW5nZRgCIAEoCBISCgpjb25maWRlbmNlGAMgASgBEjoKB29mZnNldHMYBCABKA4yKS50dXJiby52b2NhYnVsYXJ5LnYxLlNwZWxsY2hlY2tPZmZzZXRNb2RlEjYKBWVkaXRzGAUgAygLMicudHVyYm8udm9jYWJ1bGFyeS52MS5TcGVsbGNoZWNrRWRpdEl0ZW0iSwoWQ29ycHVzU3RhdGlzdGljc0hlYWRlchIQCghsYW5ndWFnZRgBIAEoCRIRCglkb2NfY291bnQYAiABKAQSDAoEbmFtZRgDIAEoCSI6ChhDb3JwdXNUZXJtRnJlcXVlbmN5RW50cnkSDAoEdGVybRgBIAEoCRIQCghkb2NfZnJlcRgCIAEoBCJaChhDb3JwdXNUZXJtRnJlcXVlbmN5QmF0Y2gSPgoHZW50cmllcxgBIAMoCzItLnR1cmJvLnZvY2FidWxhcnkudjEuQ29ycHVzVGVybUZyZXF1ZW5jeUVudHJ5IqcBCh1JbXBvcnRDb3JwdXNTdGF0aXN0aWNzUmVxdWVzdBI9CgZoZWFkZXIYASABKAsyKy50dXJiby52b2NhYnVsYXJ5LnYxLkNvcnB1c1N0YXRpc3RpY3NIZWFkZXJIABI+CgViYXRjaBgCIAEoCzItLnR1cmJvLnZvY2FidWxhcnkudjEuQ29ycHVzVGVybUZyZXF1ZW5jeUJhdGNoSABCBwoFZnJhbWUiowEKIkNvcnB1c1N0YXRpc3RpY3NBcnRpZmFjdERlc2NyaXB0b3ISEwoLYXJ0aWZhY3RfaWQYASABKAkSEAoIbGFuZ3VhZ2UYAiABKAkSDAoEbmFtZRgDIAEoCRIRCglkb2NfY291bnQYBCABKAQSEgoKdGVybV9jb3VudBgFIAEoBBIRCglieXRlX3NpemUYBiABKAQSDgoGc2hhMjU2GAcgASgJIh0KG0xpc3RDb3JwdXNTdGF0aXN0aWNzUmVxdWVzdCJrChxMaXN0Q29ycHVzU3RhdGlzdGljc1Jlc3BvbnNlEksKCnN0YXRpc3RpY3MYASADKAsyNy50dXJiby52b2NhYnVsYXJ5LnYxLkNvcnB1c1N0YXRpc3RpY3NBcnRpZmFjdERlc2NyaXB0b3IizQEKG1RyYWluVm9yb25vaUNlbnRyb2lkc0hlYWRlchIQCghtb2RlbF9pZBgBIAEoCRIWCg5tb2RlbF9yZXZpc2lvbhgCIAEoCRIUCgxtb2RlbF9zaGEyNTYYAyABKAkSCwoDZGltGAQgASgNEhUKDW51bV9jZW50cm9pZHMYBSABKA0SEQoJbWF4X2l0ZXJzGAYgASgNEgwKBHNlZWQYByABKAQSFAoMdGFnX3NldF9uYW1lGAggASgJEhMKC3RlbXBlcmF0dXJlGAkgASgBIiQKElZvcm9ub2lTYW1wbGVCYXRjaBIOCgZ2YWx1ZXMYASADKAIipQEKHFRyYWluVm9yb25vaUNlbnRyb2lkc1JlcXVlc3QSQgoGaGVhZGVyGAEgASgLMjAudHVyYm8udm9jYWJ1bGFyeS52MS5UcmFpblZvcm9ub2lDZW50cm9pZHNIZWFkZXJIABI4CgViYXRjaBgCIAEoCzInLnR1cmJvLnZvY2FidWxhcnkudjEuVm9yb25vaVNhbXBsZUJhdGNoSABCBwoFZnJhbWUiggIKIVZvcm9ub2lDZW50cm9pZEFydGlmYWN0RGVzY3JpcHRvchITCgthcnRpZmFjdF9pZBgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIWCg5tb2RlbF9yZXZpc2lvbhgDIAEoCRIUCgxtb2RlbF9zaGEyNTYYBCABKAkSCwoDZGltGAUgASgNEhUKDW51bV9jZW50cm9pZHMYBiABKA0SFAoMc2FtcGxlX2NvdW50GAcgASgEEhMKC21lYW5fY29zaW5lGAggASgBEhEKCWJ5dGVfc2l6ZRgJIAEoBBIOCgZzaGEyNTYYCiABKAkSFgoOY2x1c3Rlcl9jb3VudHMYCyADKAQiHQobTGlzdFZvcm9ub2lDZW50cm9pZHNSZXF1ZXN0ImkKHExpc3RWb3Jvbm9pQ2VudHJvaWRzUmVzcG9uc2USSQoJY2VudHJvaWRzGAEgAygLMjYudHVyYm8udm9jYWJ1bGFyeS52MS5Wb3Jvbm9pQ2VudHJvaWRBcnRpZmFjdERlc2NyaXB0b3IqgAEKFFNwZWxsY2hlY2tPZmZzZXRNb2RlEh8KG1NQRUxMQ0hFQ0tfT0ZGU0VUX01PREVfVVRGOBAAEiAKHFNQRUxMQ0hFQ0tfT0ZGU0VUX01PREVfVVRGMTYQARIlCiFTUEVMTENIRUNLX09GRlNFVF9NT0RFX0NPREVfUE9JTlQQAjLbDwoWVHVyYm9Wb2NhYnVsYXJ5U2VydmljZRKAAQoVTGlzdERpY3Rpb25hcnlGb3JtYXRzEjEudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0RGljdGlvbmFyeUZvcm1hdHNSZXF1ZXN0GjIudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0RGljdGlvbmFyeUZvcm1hdHNSZXNwb25zZSIAEnEKEExpc3REaWN0aW9uYXJpZXMSLC50dXJiby52b2NhYnVsYXJ5LnYxLkxpc3REaWN0aW9uYXJpZXNSZXF1ZXN0Gi0udHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0RGljdGlvbmFyaWVzUmVzcG9uc2UiABJxChBMaXN0Vm9jYWJ1bGFyaWVzEiwudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0Vm9jYWJ1bGFyaWVzUmVxdWVzdBotLnR1cmJvLnZvY2FidWxhcnkudjEuTGlzdFZvY2FidWxhcmllc1Jlc3BvbnNlIgASiQEKGERlbGV0ZVZvY2FidWxhcnlBcnRpZmFjdBI0LnR1cmJvLnZvY2FidWxhcnkudjEuRGVsZXRlVm9jYWJ1bGFyeUFydGlmYWN0UmVxdWVzdBo1LnR1cmJvLnZvY2FidWxhcnkudjEuRGVsZXRlVm9jYWJ1bGFyeUFydGlmYWN0UmVzcG9uc2UiABJ3ChBJbXBvcnREaWN0aW9uYXJ5EiwudHVyYm8udm9jYWJ1bGFyeS52MS5JbXBvcnREaWN0aW9uYXJ5UmVxdWVzdBoxLnR1cmJvLnZvY2FidWxhcnkudjEuRGljdGlvbmFyeUFydGlmYWN0RGVzY3JpcHRvciIAKAESdQoPTGVhcm5Wb2NhYnVsYXJ5EisudHVyYm8udm9jYWJ1bGFyeS52MS5MZWFyblZvY2FidWxhcnlSZXF1ZXN0GjEudHVyYm8udm9jYWJ1bGFyeS52MS5Wb2NhYnVsYXJ5QXJ0aWZhY3REZXNjcmlwdG9yIgAoARJ2ChJEb3dubG9hZFZvY2FidWxhcnkSLi50dXJiby52b2NhYnVsYXJ5LnYxLkRvd25sb2FkVm9jYWJ1bGFyeVJlcXVlc3QaLC50dXJiby52b2NhYnVsYXJ5LnYxLlZvY2FidWxhcnlBcnRpZmFjdENodW5rIgAwARJ6ChNMaXN0U3VnZ2VzdExleGljb25zEi8udHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0U3VnZ2VzdExleGljb25zUmVxdWVzdBowLnR1cmJvLnZvY2FidWxhcnkudjEuTGlzdFN1Z2dlc3RMZXhpY29uc1Jlc3BvbnNlIgASgQEKE0J1aWxkU3VnZ2VzdExleGljb24SLy50dXJiby52b2NhYnVsYXJ5LnYxLkJ1aWxkU3VnZ2VzdExleGljb25SZXF1ZXN0GjUudHVyYm8udm9jYWJ1bGFyeS52MS5TdWdnZXN0TGV4aWNvbkFydGlmYWN0RGVzY3JpcHRvciIAKAESaAoNU3VnZ2VzdFByZWZpeBIpLnR1cmJvLnZvY2FidWxhcnkudjEuU3VnZ2VzdFByZWZpeFJlcXVlc3QaKi50dXJiby52b2NhYnVsYXJ5LnYxLlN1Z2dlc3RQcmVmaXhSZXNwb25zZSIAEncKEkxvb2t1cFN0ZW1TdXJmYWNlcxIuLnR1cmJvLnZvY2FidWxhcnkudjEuTG9va3VwU3RlbVN1cmZhY2VzUmVxdWVzdBovLnR1cmJvLnZvY2FidWxhcnkudjEuTG9va3VwU3RlbVN1cmZhY2VzUmVzcG9uc2UiABJuCg9TcGVsbGNoZWNrUXVlcnkSKy50dXJiby52b2NhYnVsYXJ5LnYxLlNwZWxsY2hlY2tRdWVyeVJlcXVlc3QaLC50dXJiby52b2NhYnVsYXJ5LnYxLlNwZWxsY2hlY2tRdWVyeVJlc3BvbnNlIgASiQEKFkltcG9ydENvcnB1c1N0YXRpc3RpY3MSMi50dXJiby52b2NhYnVsYXJ5LnYxLkltcG9ydENvcnB1c1N0YXRpc3RpY3NSZXF1ZXN0GjcudHVyYm8udm9jYWJ1bGFyeS52MS5Db3JwdXNTdGF0aXN0aWNzQXJ0aWZhY3REZXNjcmlwdG9yIgAoARJ9ChRMaXN0Q29ycHVzU3RhdGlzdGljcxIwLnR1cmJvLnZvY2FidWxhcnkudjEuTGlzdENvcnB1c1N0YXRpc3RpY3NSZXF1ZXN0GjEudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0Q29ycHVzU3RhdGlzdGljc1Jlc3BvbnNlIgAShgEKFVRyYWluVm9yb25vaUNlbnRyb2lkcxIxLnR1cmJvLnZvY2FidWxhcnkudjEuVHJhaW5Wb3Jvbm9pQ2VudHJvaWRzUmVxdWVzdBo2LnR1cmJvLnZvY2FidWxhcnkudjEuVm9yb25vaUNlbnRyb2lkQXJ0aWZhY3REZXNjcmlwdG9yIgAoARJ9ChRMaXN0Vm9yb25vaUNlbnRyb2lkcxIwLnR1cmJvLnZvY2FidWxhcnkudjEuTGlzdFZvcm9ub2lDZW50cm9pZHNSZXF1ZXN0GjEudHVyYm8udm9jYWJ1bGFyeS52MS5MaXN0Vm9yb25vaUNlbnRyb2lkc1Jlc3BvbnNlIgBiBnByb3RvMw");
 
 /**
  * @generated from message turbo.vocabulary.v1.ListDictionaryFormatsRequest
@@ -598,6 +598,24 @@ export type VocabularyArtifactChunk = Message<"turbo.vocabulary.v1.VocabularyArt
      */
     value: Uint8Array;
     case: "data";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.SuggestLexiconArtifactDescriptor suggest_lexicon = 4;
+     */
+    value: SuggestLexiconArtifactDescriptor;
+    case: "suggestLexicon";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.CorpusStatisticsArtifactDescriptor corpus_statistics = 5;
+     */
+    value: CorpusStatisticsArtifactDescriptor;
+    case: "corpusStatistics";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.VoronoiCentroidArtifactDescriptor voronoi_centroids = 6;
+     */
+    value: VoronoiCentroidArtifactDescriptor;
+    case: "voronoiCentroids";
   } | { case: undefined; value?: undefined };
 };
 
@@ -607,6 +625,845 @@ export type VocabularyArtifactChunk = Message<"turbo.vocabulary.v1.VocabularyArt
  */
 export const VocabularyArtifactChunkSchema: GenMessage<VocabularyArtifactChunk> = /*@__PURE__*/
   messageDesc(file_turbo_vocabulary, 18);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SuggestLexiconArtifactDescriptor
+ */
+export type SuggestLexiconArtifactDescriptor = Message<"turbo.vocabulary.v1.SuggestLexiconArtifactDescriptor"> & {
+  /**
+   * @generated from field: string artifact_id = 1;
+   */
+  artifactId: string;
+
+  /**
+   * @generated from field: string language = 2;
+   */
+  language: string;
+
+  /**
+   * @generated from field: uint64 entry_count = 3;
+   */
+  entryCount: bigint;
+
+  /**
+   * @generated from field: uint64 stem_count = 4;
+   */
+  stemCount: bigint;
+
+  /**
+   * @generated from field: uint64 byte_size = 5;
+   */
+  byteSize: bigint;
+
+  /**
+   * @generated from field: string sha256 = 6;
+   */
+  sha256: string;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SuggestLexiconArtifactDescriptor.
+ * Use `create(SuggestLexiconArtifactDescriptorSchema)` to create a new message.
+ */
+export const SuggestLexiconArtifactDescriptorSchema: GenMessage<SuggestLexiconArtifactDescriptor> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 19);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ListSuggestLexiconsRequest
+ */
+export type ListSuggestLexiconsRequest = Message<"turbo.vocabulary.v1.ListSuggestLexiconsRequest"> & {
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ListSuggestLexiconsRequest.
+ * Use `create(ListSuggestLexiconsRequestSchema)` to create a new message.
+ */
+export const ListSuggestLexiconsRequestSchema: GenMessage<ListSuggestLexiconsRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 20);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ListSuggestLexiconsResponse
+ */
+export type ListSuggestLexiconsResponse = Message<"turbo.vocabulary.v1.ListSuggestLexiconsResponse"> & {
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.SuggestLexiconArtifactDescriptor lexicons = 1;
+   */
+  lexicons: SuggestLexiconArtifactDescriptor[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ListSuggestLexiconsResponse.
+ * Use `create(ListSuggestLexiconsResponseSchema)` to create a new message.
+ */
+export const ListSuggestLexiconsResponseSchema: GenMessage<ListSuggestLexiconsResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 21);
+
+/**
+ * @generated from message turbo.vocabulary.v1.BuildSuggestLexiconHeader
+ */
+export type BuildSuggestLexiconHeader = Message<"turbo.vocabulary.v1.BuildSuggestLexiconHeader"> & {
+  /**
+   * BCP 47 language tag selecting the server stemmer when raw documents are
+   * streamed (defaults to "en" Snowball English when empty).
+   *
+   * @generated from field: string language = 1;
+   */
+  language: string;
+
+  /**
+   * Maximum completions stored per folded prefix node (0 uses default 16).
+   *
+   * @generated from field: uint32 top_k_prefix = 2;
+   */
+  topKPrefix: number;
+
+  /**
+   * Maximum surface realizations stored per stem (0 uses default 16).
+   *
+   * @generated from field: uint32 top_k_stem = 3;
+   */
+  topKStem: number;
+
+  /**
+   * When raw documents are streamed, count document frequency (1 per document)
+   * rather than raw term frequency.
+   *
+   * @generated from field: bool count_doc_freq = 4;
+   */
+  countDocFreq: boolean;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.BuildSuggestLexiconHeader.
+ * Use `create(BuildSuggestLexiconHeaderSchema)` to create a new message.
+ */
+export const BuildSuggestLexiconHeaderSchema: GenMessage<BuildSuggestLexiconHeader> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 22);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SuggestObservation
+ */
+export type SuggestObservation = Message<"turbo.vocabulary.v1.SuggestObservation"> & {
+  /**
+   * @generated from field: string surface = 1;
+   */
+  surface: string;
+
+  /**
+   * @generated from field: string stem = 2;
+   */
+  stem: string;
+
+  /**
+   * @generated from field: uint64 count = 3;
+   */
+  count: bigint;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SuggestObservation.
+ * Use `create(SuggestObservationSchema)` to create a new message.
+ */
+export const SuggestObservationSchema: GenMessage<SuggestObservation> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 23);
+
+/**
+ * @generated from message turbo.vocabulary.v1.BuildSuggestLexiconRequest
+ */
+export type BuildSuggestLexiconRequest = Message<"turbo.vocabulary.v1.BuildSuggestLexiconRequest"> & {
+  /**
+   * @generated from oneof turbo.vocabulary.v1.BuildSuggestLexiconRequest.frame
+   */
+  frame: {
+    /**
+     * @generated from field: turbo.vocabulary.v1.BuildSuggestLexiconHeader header = 1;
+     */
+    value: BuildSuggestLexiconHeader;
+    case: "header";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.SuggestObservation observation = 2;
+     */
+    value: SuggestObservation;
+    case: "observation";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.LearnVocabularyDocument document = 3;
+     */
+    value: LearnVocabularyDocument;
+    case: "document";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.BuildSuggestLexiconRequest.
+ * Use `create(BuildSuggestLexiconRequestSchema)` to create a new message.
+ */
+export const BuildSuggestLexiconRequestSchema: GenMessage<BuildSuggestLexiconRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 24);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SuggestPrefixRequest
+ */
+export type SuggestPrefixRequest = Message<"turbo.vocabulary.v1.SuggestPrefixRequest"> & {
+  /**
+   * @generated from field: string artifact_id = 1;
+   */
+  artifactId: string;
+
+  /**
+   * @generated from field: string prefix = 2;
+   */
+  prefix: string;
+
+  /**
+   * @generated from field: uint32 limit = 3;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SuggestPrefixRequest.
+ * Use `create(SuggestPrefixRequestSchema)` to create a new message.
+ */
+export const SuggestPrefixRequestSchema: GenMessage<SuggestPrefixRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 25);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SurfaceCompletionItem
+ */
+export type SurfaceCompletionItem = Message<"turbo.vocabulary.v1.SurfaceCompletionItem"> & {
+  /**
+   * @generated from field: string surface = 1;
+   */
+  surface: string;
+
+  /**
+   * @generated from field: string stem = 2;
+   */
+  stem: string;
+
+  /**
+   * @generated from field: uint64 count = 3;
+   */
+  count: bigint;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SurfaceCompletionItem.
+ * Use `create(SurfaceCompletionItemSchema)` to create a new message.
+ */
+export const SurfaceCompletionItemSchema: GenMessage<SurfaceCompletionItem> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 26);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SuggestPrefixResponse
+ */
+export type SuggestPrefixResponse = Message<"turbo.vocabulary.v1.SuggestPrefixResponse"> & {
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.SurfaceCompletionItem completions = 1;
+   */
+  completions: SurfaceCompletionItem[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SuggestPrefixResponse.
+ * Use `create(SuggestPrefixResponseSchema)` to create a new message.
+ */
+export const SuggestPrefixResponseSchema: GenMessage<SuggestPrefixResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 27);
+
+/**
+ * @generated from message turbo.vocabulary.v1.LookupStemSurfacesRequest
+ */
+export type LookupStemSurfacesRequest = Message<"turbo.vocabulary.v1.LookupStemSurfacesRequest"> & {
+  /**
+   * @generated from field: string artifact_id = 1;
+   */
+  artifactId: string;
+
+  /**
+   * @generated from field: string stem = 2;
+   */
+  stem: string;
+
+  /**
+   * @generated from field: uint32 limit = 3;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.LookupStemSurfacesRequest.
+ * Use `create(LookupStemSurfacesRequestSchema)` to create a new message.
+ */
+export const LookupStemSurfacesRequestSchema: GenMessage<LookupStemSurfacesRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 28);
+
+/**
+ * @generated from message turbo.vocabulary.v1.StemSurfaceItem
+ */
+export type StemSurfaceItem = Message<"turbo.vocabulary.v1.StemSurfaceItem"> & {
+  /**
+   * @generated from field: string surface = 1;
+   */
+  surface: string;
+
+  /**
+   * @generated from field: uint64 count = 2;
+   */
+  count: bigint;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.StemSurfaceItem.
+ * Use `create(StemSurfaceItemSchema)` to create a new message.
+ */
+export const StemSurfaceItemSchema: GenMessage<StemSurfaceItem> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 29);
+
+/**
+ * @generated from message turbo.vocabulary.v1.LookupStemSurfacesResponse
+ */
+export type LookupStemSurfacesResponse = Message<"turbo.vocabulary.v1.LookupStemSurfacesResponse"> & {
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.StemSurfaceItem surfaces = 1;
+   */
+  surfaces: StemSurfaceItem[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.LookupStemSurfacesResponse.
+ * Use `create(LookupStemSurfacesResponseSchema)` to create a new message.
+ */
+export const LookupStemSurfacesResponseSchema: GenMessage<LookupStemSurfacesResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 30);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SpellcheckSpan
+ */
+export type SpellcheckSpan = Message<"turbo.vocabulary.v1.SpellcheckSpan"> & {
+  /**
+   * @generated from field: uint32 start = 1;
+   */
+  start: number;
+
+  /**
+   * @generated from field: uint32 end = 2;
+   */
+  end: number;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SpellcheckSpan.
+ * Use `create(SpellcheckSpanSchema)` to create a new message.
+ */
+export const SpellcheckSpanSchema: GenMessage<SpellcheckSpan> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 31);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SpellcheckQueryRequest
+ */
+export type SpellcheckQueryRequest = Message<"turbo.vocabulary.v1.SpellcheckQueryRequest"> & {
+  /**
+   * @generated from field: string vocabulary_artifact_id = 1;
+   */
+  vocabularyArtifactId: string;
+
+  /**
+   * @generated from field: string query = 2;
+   */
+  query: string;
+
+  /**
+   * @generated from field: turbo.vocabulary.v1.SpellcheckOffsetMode offsets = 3;
+   */
+  offsets: SpellcheckOffsetMode;
+
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.SpellcheckSpan protected_spans = 4;
+   */
+  protectedSpans: SpellcheckSpan[];
+
+  /**
+   * @generated from field: uint32 max_edit_distance = 5;
+   */
+  maxEditDistance: number;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SpellcheckQueryRequest.
+ * Use `create(SpellcheckQueryRequestSchema)` to create a new message.
+ */
+export const SpellcheckQueryRequestSchema: GenMessage<SpellcheckQueryRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 32);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SpellcheckEditItem
+ */
+export type SpellcheckEditItem = Message<"turbo.vocabulary.v1.SpellcheckEditItem"> & {
+  /**
+   * @generated from field: turbo.vocabulary.v1.SpellcheckSpan span = 1;
+   */
+  span?: SpellcheckSpan | undefined;
+
+  /**
+   * @generated from field: string original = 2;
+   */
+  original: string;
+
+  /**
+   * @generated from field: string replacement = 3;
+   */
+  replacement: string;
+
+  /**
+   * @generated from field: uint32 edit_distance = 4;
+   */
+  editDistance: number;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SpellcheckEditItem.
+ * Use `create(SpellcheckEditItemSchema)` to create a new message.
+ */
+export const SpellcheckEditItemSchema: GenMessage<SpellcheckEditItem> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 33);
+
+/**
+ * @generated from message turbo.vocabulary.v1.SpellcheckQueryResponse
+ */
+export type SpellcheckQueryResponse = Message<"turbo.vocabulary.v1.SpellcheckQueryResponse"> & {
+  /**
+   * @generated from field: string corrected_query = 1;
+   */
+  correctedQuery: string;
+
+  /**
+   * @generated from field: bool did_change = 2;
+   */
+  didChange: boolean;
+
+  /**
+   * @generated from field: double confidence = 3;
+   */
+  confidence: number;
+
+  /**
+   * @generated from field: turbo.vocabulary.v1.SpellcheckOffsetMode offsets = 4;
+   */
+  offsets: SpellcheckOffsetMode;
+
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.SpellcheckEditItem edits = 5;
+   */
+  edits: SpellcheckEditItem[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.SpellcheckQueryResponse.
+ * Use `create(SpellcheckQueryResponseSchema)` to create a new message.
+ */
+export const SpellcheckQueryResponseSchema: GenMessage<SpellcheckQueryResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 34);
+
+/**
+ * @generated from message turbo.vocabulary.v1.CorpusStatisticsHeader
+ */
+export type CorpusStatisticsHeader = Message<"turbo.vocabulary.v1.CorpusStatisticsHeader"> & {
+  /**
+   * @generated from field: string language = 1;
+   */
+  language: string;
+
+  /**
+   * @generated from field: uint64 doc_count = 2;
+   */
+  docCount: bigint;
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.CorpusStatisticsHeader.
+ * Use `create(CorpusStatisticsHeaderSchema)` to create a new message.
+ */
+export const CorpusStatisticsHeaderSchema: GenMessage<CorpusStatisticsHeader> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 35);
+
+/**
+ * @generated from message turbo.vocabulary.v1.CorpusTermFrequencyEntry
+ */
+export type CorpusTermFrequencyEntry = Message<"turbo.vocabulary.v1.CorpusTermFrequencyEntry"> & {
+  /**
+   * @generated from field: string term = 1;
+   */
+  term: string;
+
+  /**
+   * @generated from field: uint64 doc_freq = 2;
+   */
+  docFreq: bigint;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.CorpusTermFrequencyEntry.
+ * Use `create(CorpusTermFrequencyEntrySchema)` to create a new message.
+ */
+export const CorpusTermFrequencyEntrySchema: GenMessage<CorpusTermFrequencyEntry> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 36);
+
+/**
+ * @generated from message turbo.vocabulary.v1.CorpusTermFrequencyBatch
+ */
+export type CorpusTermFrequencyBatch = Message<"turbo.vocabulary.v1.CorpusTermFrequencyBatch"> & {
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.CorpusTermFrequencyEntry entries = 1;
+   */
+  entries: CorpusTermFrequencyEntry[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.CorpusTermFrequencyBatch.
+ * Use `create(CorpusTermFrequencyBatchSchema)` to create a new message.
+ */
+export const CorpusTermFrequencyBatchSchema: GenMessage<CorpusTermFrequencyBatch> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 37);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ImportCorpusStatisticsRequest
+ */
+export type ImportCorpusStatisticsRequest = Message<"turbo.vocabulary.v1.ImportCorpusStatisticsRequest"> & {
+  /**
+   * @generated from oneof turbo.vocabulary.v1.ImportCorpusStatisticsRequest.frame
+   */
+  frame: {
+    /**
+     * @generated from field: turbo.vocabulary.v1.CorpusStatisticsHeader header = 1;
+     */
+    value: CorpusStatisticsHeader;
+    case: "header";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.CorpusTermFrequencyBatch batch = 2;
+     */
+    value: CorpusTermFrequencyBatch;
+    case: "batch";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ImportCorpusStatisticsRequest.
+ * Use `create(ImportCorpusStatisticsRequestSchema)` to create a new message.
+ */
+export const ImportCorpusStatisticsRequestSchema: GenMessage<ImportCorpusStatisticsRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 38);
+
+/**
+ * @generated from message turbo.vocabulary.v1.CorpusStatisticsArtifactDescriptor
+ */
+export type CorpusStatisticsArtifactDescriptor = Message<"turbo.vocabulary.v1.CorpusStatisticsArtifactDescriptor"> & {
+  /**
+   * @generated from field: string artifact_id = 1;
+   */
+  artifactId: string;
+
+  /**
+   * @generated from field: string language = 2;
+   */
+  language: string;
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * @generated from field: uint64 doc_count = 4;
+   */
+  docCount: bigint;
+
+  /**
+   * @generated from field: uint64 term_count = 5;
+   */
+  termCount: bigint;
+
+  /**
+   * @generated from field: uint64 byte_size = 6;
+   */
+  byteSize: bigint;
+
+  /**
+   * @generated from field: string sha256 = 7;
+   */
+  sha256: string;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.CorpusStatisticsArtifactDescriptor.
+ * Use `create(CorpusStatisticsArtifactDescriptorSchema)` to create a new message.
+ */
+export const CorpusStatisticsArtifactDescriptorSchema: GenMessage<CorpusStatisticsArtifactDescriptor> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 39);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ListCorpusStatisticsRequest
+ */
+export type ListCorpusStatisticsRequest = Message<"turbo.vocabulary.v1.ListCorpusStatisticsRequest"> & {
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ListCorpusStatisticsRequest.
+ * Use `create(ListCorpusStatisticsRequestSchema)` to create a new message.
+ */
+export const ListCorpusStatisticsRequestSchema: GenMessage<ListCorpusStatisticsRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 40);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ListCorpusStatisticsResponse
+ */
+export type ListCorpusStatisticsResponse = Message<"turbo.vocabulary.v1.ListCorpusStatisticsResponse"> & {
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.CorpusStatisticsArtifactDescriptor statistics = 1;
+   */
+  statistics: CorpusStatisticsArtifactDescriptor[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ListCorpusStatisticsResponse.
+ * Use `create(ListCorpusStatisticsResponseSchema)` to create a new message.
+ */
+export const ListCorpusStatisticsResponseSchema: GenMessage<ListCorpusStatisticsResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 41);
+
+/**
+ * @generated from message turbo.vocabulary.v1.TrainVoronoiCentroidsHeader
+ */
+export type TrainVoronoiCentroidsHeader = Message<"turbo.vocabulary.v1.TrainVoronoiCentroidsHeader"> & {
+  /**
+   * @generated from field: string model_id = 1;
+   */
+  modelId: string;
+
+  /**
+   * @generated from field: string model_revision = 2;
+   */
+  modelRevision: string;
+
+  /**
+   * @generated from field: string model_sha256 = 3;
+   */
+  modelSha256: string;
+
+  /**
+   * @generated from field: uint32 dim = 4;
+   */
+  dim: number;
+
+  /**
+   * @generated from field: uint32 num_centroids = 5;
+   */
+  numCentroids: number;
+
+  /**
+   * @generated from field: uint32 max_iters = 6;
+   */
+  maxIters: number;
+
+  /**
+   * @generated from field: uint64 seed = 7;
+   */
+  seed: bigint;
+
+  /**
+   * @generated from field: string tag_set_name = 8;
+   */
+  tagSetName: string;
+
+  /**
+   * @generated from field: double temperature = 9;
+   */
+  temperature: number;
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.TrainVoronoiCentroidsHeader.
+ * Use `create(TrainVoronoiCentroidsHeaderSchema)` to create a new message.
+ */
+export const TrainVoronoiCentroidsHeaderSchema: GenMessage<TrainVoronoiCentroidsHeader> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 42);
+
+/**
+ * @generated from message turbo.vocabulary.v1.VoronoiSampleBatch
+ */
+export type VoronoiSampleBatch = Message<"turbo.vocabulary.v1.VoronoiSampleBatch"> & {
+  /**
+   * @generated from field: repeated float values = 1;
+   */
+  values: number[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.VoronoiSampleBatch.
+ * Use `create(VoronoiSampleBatchSchema)` to create a new message.
+ */
+export const VoronoiSampleBatchSchema: GenMessage<VoronoiSampleBatch> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 43);
+
+/**
+ * @generated from message turbo.vocabulary.v1.TrainVoronoiCentroidsRequest
+ */
+export type TrainVoronoiCentroidsRequest = Message<"turbo.vocabulary.v1.TrainVoronoiCentroidsRequest"> & {
+  /**
+   * @generated from oneof turbo.vocabulary.v1.TrainVoronoiCentroidsRequest.frame
+   */
+  frame: {
+    /**
+     * @generated from field: turbo.vocabulary.v1.TrainVoronoiCentroidsHeader header = 1;
+     */
+    value: TrainVoronoiCentroidsHeader;
+    case: "header";
+  } | {
+    /**
+     * @generated from field: turbo.vocabulary.v1.VoronoiSampleBatch batch = 2;
+     */
+    value: VoronoiSampleBatch;
+    case: "batch";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.TrainVoronoiCentroidsRequest.
+ * Use `create(TrainVoronoiCentroidsRequestSchema)` to create a new message.
+ */
+export const TrainVoronoiCentroidsRequestSchema: GenMessage<TrainVoronoiCentroidsRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 44);
+
+/**
+ * @generated from message turbo.vocabulary.v1.VoronoiCentroidArtifactDescriptor
+ */
+export type VoronoiCentroidArtifactDescriptor = Message<"turbo.vocabulary.v1.VoronoiCentroidArtifactDescriptor"> & {
+  /**
+   * @generated from field: string artifact_id = 1;
+   */
+  artifactId: string;
+
+  /**
+   * @generated from field: string model_id = 2;
+   */
+  modelId: string;
+
+  /**
+   * @generated from field: string model_revision = 3;
+   */
+  modelRevision: string;
+
+  /**
+   * @generated from field: string model_sha256 = 4;
+   */
+  modelSha256: string;
+
+  /**
+   * @generated from field: uint32 dim = 5;
+   */
+  dim: number;
+
+  /**
+   * @generated from field: uint32 num_centroids = 6;
+   */
+  numCentroids: number;
+
+  /**
+   * @generated from field: uint64 sample_count = 7;
+   */
+  sampleCount: bigint;
+
+  /**
+   * @generated from field: double mean_cosine = 8;
+   */
+  meanCosine: number;
+
+  /**
+   * @generated from field: uint64 byte_size = 9;
+   */
+  byteSize: bigint;
+
+  /**
+   * @generated from field: string sha256 = 10;
+   */
+  sha256: string;
+
+  /**
+   * @generated from field: repeated uint64 cluster_counts = 11;
+   */
+  clusterCounts: bigint[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.VoronoiCentroidArtifactDescriptor.
+ * Use `create(VoronoiCentroidArtifactDescriptorSchema)` to create a new message.
+ */
+export const VoronoiCentroidArtifactDescriptorSchema: GenMessage<VoronoiCentroidArtifactDescriptor> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 45);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ListVoronoiCentroidsRequest
+ */
+export type ListVoronoiCentroidsRequest = Message<"turbo.vocabulary.v1.ListVoronoiCentroidsRequest"> & {
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ListVoronoiCentroidsRequest.
+ * Use `create(ListVoronoiCentroidsRequestSchema)` to create a new message.
+ */
+export const ListVoronoiCentroidsRequestSchema: GenMessage<ListVoronoiCentroidsRequest> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 46);
+
+/**
+ * @generated from message turbo.vocabulary.v1.ListVoronoiCentroidsResponse
+ */
+export type ListVoronoiCentroidsResponse = Message<"turbo.vocabulary.v1.ListVoronoiCentroidsResponse"> & {
+  /**
+   * @generated from field: repeated turbo.vocabulary.v1.VoronoiCentroidArtifactDescriptor centroids = 1;
+   */
+  centroids: VoronoiCentroidArtifactDescriptor[];
+};
+
+/**
+ * Describes the message turbo.vocabulary.v1.ListVoronoiCentroidsResponse.
+ * Use `create(ListVoronoiCentroidsResponseSchema)` to create a new message.
+ */
+export const ListVoronoiCentroidsResponseSchema: GenMessage<ListVoronoiCentroidsResponse> = /*@__PURE__*/
+  messageDesc(file_turbo_vocabulary, 47);
+
+/**
+ * @generated from enum turbo.vocabulary.v1.SpellcheckOffsetMode
+ */
+export enum SpellcheckOffsetMode {
+  /**
+   * @generated from enum value: SPELLCHECK_OFFSET_MODE_UTF8 = 0;
+   */
+  UTF8 = 0,
+
+  /**
+   * @generated from enum value: SPELLCHECK_OFFSET_MODE_UTF16 = 1;
+   */
+  UTF16 = 1,
+
+  /**
+   * @generated from enum value: SPELLCHECK_OFFSET_MODE_CODE_POINT = 2;
+   */
+  CODE_POINT = 2,
+}
+
+/**
+ * Describes the enum turbo.vocabulary.v1.SpellcheckOffsetMode.
+ */
+export const SpellcheckOffsetModeSchema: GenEnum<SpellcheckOffsetMode> = /*@__PURE__*/
+  enumDesc(file_turbo_vocabulary, 0);
 
 /**
  * The vocabulary store. Listing, describing and downloading are served
@@ -699,6 +1556,102 @@ export const TurboVocabularyService: GenService<{
     methodKind: "server_streaming";
     input: typeof DownloadVocabularyRequestSchema;
     output: typeof VocabularyArtifactChunkSchema;
+  },
+  /**
+   * Lists compiled stem-to-surface and surface-prefix lexicons (#2341).
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.ListSuggestLexicons
+   */
+  listSuggestLexicons: {
+    methodKind: "unary";
+    input: typeof ListSuggestLexiconsRequestSchema;
+    output: typeof ListSuggestLexiconsResponseSchema;
+  },
+  /**
+   * Client-streaming builder for a zero-copy stem-to-surface and prefix
+   * lexicon (#2341): one BuildSuggestLexiconHeader followed by either
+   * explicit (surface, stem, count) observations or raw documents.
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.BuildSuggestLexicon
+   */
+  buildSuggestLexicon: {
+    methodKind: "client_streaming";
+    input: typeof BuildSuggestLexiconRequestSchema;
+    output: typeof SuggestLexiconArtifactDescriptorSchema;
+  },
+  /**
+   * Completes a surface prefix against a mapped suggest lexicon (#2341),
+   * returning canonical surface completions paired with target stems.
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.SuggestPrefix
+   */
+  suggestPrefix: {
+    methodKind: "unary";
+    input: typeof SuggestPrefixRequestSchema;
+    output: typeof SuggestPrefixResponseSchema;
+  },
+  /**
+   * Looks up canonical surface realizations for an indexed stem (#2341).
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.LookupStemSurfaces
+   */
+  lookupStemSurfaces: {
+    methodKind: "unary";
+    input: typeof LookupStemSurfacesRequestSchema;
+    output: typeof LookupStemSurfacesResponseSchema;
+  },
+  /**
+   * Context-aware multi-word query spellcheck ("Did you mean?", #2341)
+   * backed by a learned vocabulary artifact's unigram and n-gram counts.
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.SpellcheckQuery
+   */
+  spellcheckQuery: {
+    methodKind: "unary";
+    input: typeof SpellcheckQueryRequestSchema;
+    output: typeof SpellcheckQueryResponseSchema;
+  },
+  /**
+   * Client-streaming upload of collection-wide (term, df, doc_count) snapshots
+   * (#2346), compiling a deterministic TCIDF001 corpus IDF artifact.
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.ImportCorpusStatistics
+   */
+  importCorpusStatistics: {
+    methodKind: "client_streaming";
+    input: typeof ImportCorpusStatisticsRequestSchema;
+    output: typeof CorpusStatisticsArtifactDescriptorSchema;
+  },
+  /**
+   * Lists stored TCIDF001 corpus IDF statistics artifacts (#2346).
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.ListCorpusStatistics
+   */
+  listCorpusStatistics: {
+    methodKind: "unary";
+    input: typeof ListCorpusStatisticsRequestSchema;
+    output: typeof ListCorpusStatisticsResponseSchema;
+  },
+  /**
+   * Client-streaming trainer for spherical k-means Voronoi routing centroids
+   * (#2346), exporting a versioned TCENT001 centroid bundle.
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.TrainVoronoiCentroids
+   */
+  trainVoronoiCentroids: {
+    methodKind: "client_streaming";
+    input: typeof TrainVoronoiCentroidsRequestSchema;
+    output: typeof VoronoiCentroidArtifactDescriptorSchema;
+  },
+  /**
+   * Lists stored TCENT001 Voronoi routing centroid artifacts (#2346).
+   *
+   * @generated from rpc turbo.vocabulary.v1.TurboVocabularyService.ListVoronoiCentroids
+   */
+  listVoronoiCentroids: {
+    methodKind: "unary";
+    input: typeof ListVoronoiCentroidsRequestSchema;
+    output: typeof ListVoronoiCentroidsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_turbo_vocabulary, 0);

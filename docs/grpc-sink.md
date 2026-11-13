@@ -38,6 +38,13 @@ rejects an item whose binding has a `parse_artifact_digest` and no
 `parse_artifact_id`, or whose projection or answer carries another
 binding than the item.
 
+`search_projection` (field 11, issue #2345) optionally carries the graph's
+one-pass `SearchDocumentProjection` (`--sink-search-projection` /
+`SinkConfig::search_projection`), giving downstream search indexers chunks,
+sentences, lexical lattices, numeric/temporal/geospatial columns, sentiment,
+quality summaries, affirmed vs negated entities, and near-duplicate sketches
+in original source coordinates without decoding the binary graph.
+
 ## Forwarding
 
 With `--sink-endpoint URI`, every answer an `AnalyzeStream` call

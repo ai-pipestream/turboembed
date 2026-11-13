@@ -28,6 +28,13 @@ own file; generate a client from it in any language with gRPC.
 | `AnalyzeDocumentProgressive` | Progressive server-streaming document analysis by step list or named profile. |
 | `InspectDocumentGraph` | Projects a binary document graph into `TypedDocumentResult` for a requested view and offset mode. |
 | `RoundTripTypedDocument` | The typed document message, validated, unchanged. |
+| `RoundTripMultiResVectors` | Multi-resolution dense, Matryoshka, `TurboQuant`, and sentence vectors (`#2344`), validated, unchanged. |
+| `ProjectSearchDocument` | Projects a binary document graph into `SearchDocumentProjection` (`#2345`) in the requested view and offset mode. |
+| `RoundTripSearchProjection` | The `SearchDocumentProjection` message, validated, unchanged. |
+| `AnalyzeQuery` | One-pass per-field BM25 terms, multi-word query synonyms, structured NLP filters, and dense/SPLADE query encoding (`#2339`). |
+| `RoundTripAnalyzeQuery` | The `AnalyzeQueryResponse` message, validated, unchanged. |
+| `RerankAndHighlight` | Calibrated cross-encoder reranking with source-projected semantic highlight spans (`#2342`). |
+| `RoundTripRerankAndHighlight` | The `RerankAndHighlightResponse` message, validated, unchanged. |
 
 See [inspection, projection and export RPCs](grpc-inspect.md) for their
 request fields, limits and output semantics.

@@ -35,6 +35,10 @@ served to every client.
 | `LearnVocabulary` | Client streaming. One `LearnVocabularyHeader`, then `LearnVocabularyDocument` frames. |
 | `DownloadVocabulary` | Server streaming. The artifact's descriptor, then its bytes in frames of at most 64 KiB. |
 | `DeleteVocabularyArtifact` | Removes a dictionary or a vocabulary. |
+| `BuildSurfaceLexicon` | Builds and stores a memory-mapped `.slex` stem-to-surface and prefix completion lexicon (`#2341`). |
+| `SpellcheckQuery` | Context-aware token-bigram Viterbi spellcheck preserving query syntax and UTF-8 / UTF-16 / code-point spans (`#2341`). |
+| `ReportCorpusStats` | Aggregates shard document-frequency deltas into a deterministic `TCIDF001` BM25 IDF snapshot (`#2346`). |
+| `CalibrateCentroids` | Trains spherical k-means Voronoi routing centroids into a `TCENT001` snapshot (`#2346`). |
 
 Every descriptor carries the artifact's id, byte size and the lowercase
 hex SHA-256 of its bytes. A download's bytes always match them: the store

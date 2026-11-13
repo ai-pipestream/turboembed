@@ -248,14 +248,15 @@ pub(super) fn encode_splade_targets(
                 let cfg = ImpactQuantizerConfig { bits: b, top_k_doc: 0, top_k_query: 0, min_weight: 0.0, clip_max };
                 let pairs: Vec<(u32, f32)> = st.term.iter().copied().zip(st.weight.iter().copied()).collect();
                 let q = cfg.quantize_query_pairs(&pairs).map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e))?;
-                (
-                    b.bits(),
-                    q.impacts.into_iter().map(u32::from).collect(),
-                    q.scale,
-                    q.clip_max,
-                    f64::from(q.l1_rounding_bound),
-                    f64::from(q.dot_slack_bound),
-                )
+                let impacts: Vec<u32> = st
+                    .term
+                    .iter()
+                    .map(|&id| {
+                        let idx = q.pairs().binary_search_by_key(&id, |&(tid, _)| tid).unwrap_or(0);
+                        u32::from(q.pairs().get(idx).map_or(1, |&(_, imp)| imp))
+                    })
+                    .collect();
+                (b.bits(), impacts, q.scale, q.clip_max, q.l1_rounding_bound, q.dot_slack_bound)
             } else {
                 (0, Vec::new(), 0.0, 0.0, 0.0, 0.0)
             };
