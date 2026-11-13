@@ -2,6 +2,7 @@
 
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::annotate::{Locality, Step};
 use crate::doc::View;
@@ -16,7 +17,7 @@ use crate::layer::{Key, KeyId};
 /// and only `P` is compared partition by partition across an edit. Steps
 /// are visited in stage order, so a producer's effective locality is
 /// settled before its readers are.
-pub(super) fn effective(given: &[KeyId], steps: &[Box<dyn Step>], stages: &[Vec<usize>]) -> Vec<Locality> {
+pub(super) fn effective(given: &[KeyId], steps: &[Arc<dyn Step>], stages: &[Vec<usize>]) -> Vec<Locality> {
     let mut producer: HashMap<KeyId, Option<usize>> = given.iter().map(|&k| (k, None)).collect();
     for (i, s) in steps.iter().enumerate() {
         for w in s.writes() {
@@ -55,7 +56,7 @@ pub(super) fn effective(given: &[KeyId], steps: &[Box<dyn Step>], stages: &[Vec<
 pub(super) fn downgrade_reason(
     i: usize,
     given: &[KeyId],
-    steps: &[Box<dyn Step>],
+    steps: &[Arc<dyn Step>],
     effective: &[Locality],
 ) -> Option<String> {
     let Locality::Partition(p) = steps[i].locality() else { return None };
