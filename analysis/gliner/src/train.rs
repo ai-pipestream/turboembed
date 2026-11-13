@@ -276,13 +276,13 @@ impl OutputTrainer {
     }
 
     /// Adds one sentence's balanced positive and hard-negative gradients.
-    pub fn gradients(
+    fn gradients_impl(
         &self,
         input: &TrainingInput,
         candidates: &[Candidate],
         gold: &[(usize, usize, usize)],
         grads: &mut [Vec<f32>],
-    ) -> Result<f64, String> {
+    ) -> Result<(f64, Vec<f32>), String> {
         let (h, f, pf, labels) = (self.hidden, self.factor, self.prompt_factor, input.prompts.len() / self.hidden);
         let boundary = self.boundary_offset();
         let prompt_offset = self.prompt_offset();
@@ -345,7 +345,7 @@ impl OutputTrainer {
         ranked.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
         selected.extend(ranked.into_iter().take(want).map(|x| x.1));
         if selected.is_empty() {
-            return Ok(0.0);
+            return Ok((0.0, vec![0.0; input.encoder_inputs.len()]));
         }
         let scale = 1.0 / selected.len() as f64;
         let (mut loss, mut dstarts, mut dends) = (0.0, vec![0.0; n * h], vec![0.0; n * h]);
@@ -452,12 +452,13 @@ impl OutputTrainer {
                 pf,
             );
         }
+        let mut dencoder = vec![0.0; input.encoder_inputs.len()];
         if let (Some(offset), Some(recurrent)) = (recurrent_offset, &recurrent) {
             let dprojected =
                 recurrent.backward(&self.params[offset..], projected_words, &dlstm, &mut grads[offset..], h);
             if let Some(offset) = projection_offset {
                 let combined = dprojected_prompt.iter().chain(&dprojected).copied().collect::<Vec<_>>();
-                crate::projection::backward(
+                dencoder = crate::projection::backward(
                     &self.params[offset..],
                     &input.encoder_inputs,
                     &combined,
@@ -478,10 +479,10 @@ impl OutputTrainer {
             }
             total += f64::from(self.anchor) * penalty;
         }
-        Ok(total)
+        Ok((total, dencoder))
     }
 }
-
+mod encoder_train;
 mod optimizer;
 pub use optimizer::output_optimizer;
 
