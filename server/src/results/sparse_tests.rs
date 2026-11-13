@@ -264,6 +264,10 @@ fn quantized_impacts_and_error_certificates_round_trip_and_refuse_corruptions() 
         bad.impact_scale = 0.0;
         assert!(SparseTermsWire::from_msg(&bad).err().unwrap().message.contains("impact_scale"));
 
+        let mut bad = msg.clone();
+        bad.impact_dot_error_bound = 0.0;
+        assert!(SparseTermsWire::from_msg(&bad).err().unwrap().message.contains("impact_dot_error_bound"));
+
         let mut bad = msg;
         bad.impact_dot_error_bound = -1.0;
         assert!(SparseTermsWire::from_msg(&bad).err().unwrap().message.contains("impact_dot_error_bound"));

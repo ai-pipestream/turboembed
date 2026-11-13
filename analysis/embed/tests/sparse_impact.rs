@@ -181,16 +181,35 @@ fn cpu_and_gpu_tier_tolerance_activations_produce_bit_identical_impacts() {
 
 #[test]
 fn upper_bound_error_certificate_holds_across_all_query_document_pairs() {
-    let w_max = 3.5f32;
-    for bits in [ImpactBits::U8, ImpactBits::U16] {
-        for min_w in [0.0f32, 0.02] {
-            let quantizer = ImpactQuantizer::new(bits, w_max).unwrap().with_pruning(48, 16, min_w).unwrap();
+    // 1. Direct regression for saturated document clipping (cursor probe):
+    // query weight 1.0, document weight 3.0, w_max = 1.0 (u8).
+    let q_probe = ImpactQuantizer::new(ImpactBits::U8, 1.0).unwrap();
+    let q_one = q_probe.quantize_query_terms(&[SparseTerm { term: 1, weight: 1.0 }], None).unwrap();
+    let d_clipped = q_probe.quantize_doc_terms(&[SparseTerm { term: 1, weight: 3.0 }], None).unwrap();
+    assert_eq!(q_one.dot_float(&d_clipped), 3.0);
+    assert_eq!(q_one.dot_rescaled(&d_clipped), 1.0);
+    let wand_floor = q_one.certificate().safe_wand_floor(d_clipped.certificate(), 3.0);
+    assert!(q_one.dot_rescaled(&d_clipped) + 1e-6 >= wand_floor, "clipped doc not skipped: {wand_floor}");
+    let wand_int = q_one.certificate().safe_wand_floor_int(d_clipped.certificate(), 3.0);
+    assert!(q_one.dot_int(&d_clipped) >= wand_int, "clipped doc int not skipped: {wand_int}");
 
-            // Generate 20 diverse queries and 40 diverse documents, including very small weights
-            // (< step / 2) and weights near w_max.
-            let queries: Vec<QuantizedSparseTerms> = (0..20u32)
+    // 2. Diverse queries and documents with both unsaturated (<= w_max) and saturated (> w_max)
+    // weights, plus mixed (u8, u16) bit widths and distinct w_max scales.
+    for (q_bits, q_wmax, d_bits, d_wmax, sat_factor) in [
+        (ImpactBits::U8, 3.5f32, ImpactBits::U8, 3.5f32, 1.0f32),
+        (ImpactBits::U16, 3.5, ImpactBits::U16, 3.5, 1.0),
+        (ImpactBits::U8, 2.0, ImpactBits::U8, 2.0, 2.2),
+        (ImpactBits::U16, 2.0, ImpactBits::U16, 2.0, 2.2),
+        (ImpactBits::U16, 3.0, ImpactBits::U8, 3.0, 1.6),
+        (ImpactBits::U8, 1.5, ImpactBits::U16, 3.5, 1.8),
+    ] {
+        for min_w in [0.0f32, 0.02] {
+            let qq = ImpactQuantizer::new(q_bits, q_wmax).unwrap().with_pruning(48, 16, min_w).unwrap();
+            let dq = ImpactQuantizer::new(d_bits, d_wmax).unwrap().with_pruning(48, 16, min_w).unwrap();
+
+            let queries: Vec<QuantizedSparseTerms> = (0..16u32)
                 .map(|q_idx| {
-                    let pool: Vec<f32> = (0..128u32)
+                    let pool: Vec<f32> = (0..96u32)
                         .map(|t| {
                             let h = (q_idx.wrapping_mul(1103515245).wrapping_add(t.wrapping_mul(12345))) & 0x7fff;
                             if h % 5 != 0 {
@@ -198,17 +217,17 @@ fn upper_bound_error_certificate_holds_across_all_query_document_pairs() {
                             } else if h % 25 == 0 {
                                 1e-5
                             } else {
-                                (h as f32 / 32767.0) * w_max
+                                (h as f32 / 32767.0) * q_wmax * sat_factor
                             }
                         })
                         .collect();
-                    quantizer.quantize_query_pool(&pool, None).unwrap()
+                    qq.quantize_query_pool(&pool, None).unwrap()
                 })
                 .collect();
 
-            let docs: Vec<QuantizedSparseTerms> = (0..40u32)
+            let docs: Vec<QuantizedSparseTerms> = (0..24u32)
                 .map(|d_idx| {
-                    let pool: Vec<f32> = (0..128u32)
+                    let pool: Vec<f32> = (0..96u32)
                         .map(|t| {
                             let h = (d_idx.wrapping_mul(214013).wrapping_add(t.wrapping_mul(2531011))) & 0x7fff;
                             if h % 3 != 0 {
@@ -216,45 +235,40 @@ fn upper_bound_error_certificate_holds_across_all_query_document_pairs() {
                             } else if h % 21 == 0 {
                                 2e-5
                             } else {
-                                (h as f32 / 32767.0) * w_max
+                                (h as f32 / 32767.0) * d_wmax * sat_factor
                             }
                         })
                         .collect();
-                    quantizer.quantize_doc_pool(&pool, None).unwrap()
+                    dq.quantize_doc_pool(&pool, None).unwrap()
                 })
                 .collect();
 
+            let block_cert =
+                docs.iter().map(|d| *d.certificate()).reduce(|a, b| a.merge_block_bound(&b).unwrap()).unwrap();
+
             for (qi, q) in queries.iter().enumerate() {
-                let cert = q.certificate().dot_error_bound;
                 for (di, d) in docs.iter().enumerate() {
                     let float_dot = q.dot_float(d);
                     let quant_dot = q.dot_rescaled(d);
                     let err = (quant_dot - float_dot).abs();
+                    if q_bits == d_bits && (q_wmax - d_wmax).abs() < 1e-6 && sat_factor <= 1.0 {
+                        assert!(err <= q.certificate().dot_error_bound);
+                    }
+                    let pair_cert = q.certificate().pair_error_bound(d.certificate());
                     assert!(
-                        err <= cert,
-                        "{bits:?} min_w={min_w} q={qi} d={di}: |{quant_dot} - {float_dot}| = {err} > cert {cert}"
+                        err <= pair_cert,
+                        "{q_bits:?}/{d_bits:?} q={qi} d={di}: |{quant_dot} - {float_dot}| = {err} > {pair_cert}"
                     );
-                    // Verify Block-Max WAND safe floor never prunes a true qualifying document.
-                    let wand_floor = q.certificate().safe_wand_floor(float_dot);
+                    let wand_floor = q.certificate().safe_wand_floor(d.certificate(), float_dot);
                     assert!(quant_dot + 1e-6 >= wand_floor);
-                    let wand_int = q.certificate().safe_wand_floor_int(float_dot);
+                    let wand_int = q.certificate().safe_wand_floor_int(d.certificate(), float_dot);
                     assert!(q.dot_int(d) >= wand_int);
+                    let block_int = q.certificate().safe_wand_floor_int(&block_cert, float_dot);
+                    assert!(q.dot_int(d) >= block_int);
                 }
             }
         }
     }
-
-    // Also verify pair_error_bound when both query and document exceed w_max (saturation clipping).
-    let q_sat = ImpactQuantizer::new(ImpactBits::U8, 2.0).unwrap();
-    let q_vec = q_sat
-        .quantize_query_terms(&[SparseTerm { term: 1, weight: 3.5 }, SparseTerm { term: 4, weight: 1.2 }], None)
-        .unwrap();
-    let d_vec = q_sat
-        .quantize_doc_terms(&[SparseTerm { term: 1, weight: 2.8 }, SparseTerm { term: 4, weight: 2.5 }], None)
-        .unwrap();
-    let diff = (q_vec.dot_rescaled(&d_vec) - q_vec.dot_float(&d_vec)).abs();
-    let pair_cert = q_vec.certificate().pair_error_bound(d_vec.certificate());
-    assert!(diff <= pair_cert, "saturated pair error {diff} <= pair certificate {pair_cert}");
 }
 
 fn ndcg_at_10(ranked_doc_ids: &[usize], relevance: &[f64]) -> f64 {
@@ -326,11 +340,11 @@ fn beir_scifact_and_nfcorpus_ndcg10_parity_and_wand_exactness() {
             raw_queries.push(terms);
         }
 
-        let q_u8 = ImpactQuantizer::calibrate(ImpactBits::U8, &calibration_sample, 1.0)
+        let q_u8 = ImpactQuantizer::calibrate(ImpactBits::U8, &calibration_sample, 0.98)
             .unwrap()
             .with_pruning(64, 16, 0.01)
             .unwrap();
-        let q_u16 = ImpactQuantizer::calibrate(ImpactBits::U16, &calibration_sample, 1.0)
+        let q_u16 = ImpactQuantizer::calibrate(ImpactBits::U16, &calibration_sample, 0.98)
             .unwrap()
             .with_pruning(64, 16, 0.01)
             .unwrap();
@@ -369,16 +383,18 @@ fn beir_scifact_and_nfcorpus_ndcg10_parity_and_wand_exactness() {
 
             // Verify certificate invariant and Block-Max WAND pruning safety on every doc.
             let top10_threshold = float_scores[float_order[9]];
-            let wand_floor_u8 = qu8.certificate().safe_wand_floor_int(top10_threshold);
-            let wand_floor_u16 = qu16.certificate().safe_wand_floor_int(top10_threshold);
             for d in 0..n_docs {
                 let err8 = (qu8.dot_rescaled(&docs_u8[d]) - float_scores[d]).abs();
-                assert!(err8 <= qu8.certificate().dot_error_bound, "{suite_name} q={qi} d={d} u8 err {err8}");
+                let cert8 = qu8.certificate().pair_error_bound(docs_u8[d].certificate());
+                assert!(err8 <= cert8, "{suite_name} q={qi} d={d} u8 err {err8} > {cert8}");
                 let err16 = (qu16.dot_rescaled(&docs_u16[d]) - float_scores[d]).abs();
-                assert!(err16 <= qu16.certificate().dot_error_bound, "{suite_name} q={qi} d={d} u16 err {err16}");
+                let cert16 = qu16.certificate().pair_error_bound(docs_u16[d].certificate());
+                assert!(err16 <= cert16, "{suite_name} q={qi} d={d} u16 err {err16} > {cert16}");
                 if float_scores[d] >= top10_threshold {
-                    assert!(qu8.dot_int(&docs_u8[d]) >= wand_floor_u8, "WAND u8 false negative");
-                    assert!(qu16.dot_int(&docs_u16[d]) >= wand_floor_u16, "WAND u16 false negative");
+                    let wand_u8 = qu8.certificate().safe_wand_floor_int(docs_u8[d].certificate(), top10_threshold);
+                    let wand_u16 = qu16.certificate().safe_wand_floor_int(docs_u16[d].certificate(), top10_threshold);
+                    assert!(qu8.dot_int(&docs_u8[d]) >= wand_u8, "WAND u8 false negative");
+                    assert!(qu16.dot_int(&docs_u16[d]) >= wand_u16, "WAND u16 false negative");
                 }
             }
 
@@ -420,6 +436,35 @@ fn invalid_quantizer_configurations_and_inputs_are_refused() {
             PromptRole::Query,
             &[SparseTerm { term: 4, weight: 1.0 }, SparseTerm { term: 4, weight: 0.5 }],
             None
+        )
+        .is_err()
+    );
+    // Understated error bounds in from_raw_parts are refused.
+    let valid = q.quantize_doc_terms(&[SparseTerm { term: 4, weight: 1.3 }], None).unwrap();
+    let c = valid.certificate();
+    assert!(
+        QuantizedSparseTerms::from_raw_parts(
+            valid.impacts().to_vec(),
+            valid.weights().to_vec(),
+            Vec::new(),
+            c.bits,
+            c.scale,
+            c.w_max,
+            0.0,
+            c.dot_error_bound,
+        )
+        .is_err()
+    );
+    assert!(
+        QuantizedSparseTerms::from_raw_parts(
+            valid.impacts().to_vec(),
+            valid.weights().to_vec(),
+            Vec::new(),
+            c.bits,
+            c.scale,
+            c.w_max,
+            c.l1_rounding_bound,
+            0.0,
         )
         .is_err()
     );

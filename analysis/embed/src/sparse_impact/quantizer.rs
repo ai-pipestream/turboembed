@@ -9,8 +9,7 @@ use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::SparseTerms;
 
 use super::{
-    ImpactBits, ImpactErrorCertificate, QuantizedSparseTerms, TermKeyMode, format_compact_token_key,
-    format_vocab_term_key,
+    ImpactBits, QuantizedSparseTerms, TermKeyMode, compute_certificate, format_compact_token_key, format_vocab_term_key,
 };
 
 /// Calibrated SPLADE `u8` / `u16` impact quantizer with static document and
@@ -166,7 +165,7 @@ impl ImpactQuantizer {
         pool: &[f32],
         tokenizer: Option<&Tokenizer>,
     ) -> Result<QuantizedSparseTerms, CoreError> {
-        self.quantize_pool_with(pool, self.top_k_doc, self.min_weight_doc, self.min_weight_query, tokenizer)
+        self.quantize_pool_with(pool, self.top_k_doc, self.min_weight_doc, tokenizer)
     }
 
     /// Prunes and quantizes a dense query SPLADE weight vector (`|V|`).
@@ -175,7 +174,7 @@ impl ImpactQuantizer {
         pool: &[f32],
         tokenizer: Option<&Tokenizer>,
     ) -> Result<QuantizedSparseTerms, CoreError> {
-        self.quantize_pool_with(pool, self.top_k_query, self.min_weight_query, self.min_weight_doc, tokenizer)
+        self.quantize_pool_with(pool, self.top_k_query, self.min_weight_query, tokenizer)
     }
 
     /// Prunes and quantizes sparse document terms.
@@ -184,13 +183,7 @@ impl ImpactQuantizer {
         terms: &[SparseTerm],
         tokenizer: Option<&Tokenizer>,
     ) -> Result<QuantizedSparseTerms, CoreError> {
-        self.quantize_pairs(
-            terms.iter().map(|t| (t.term, t.weight)),
-            self.top_k_doc,
-            self.min_weight_doc,
-            self.min_weight_query,
-            tokenizer,
-        )
+        self.quantize_pairs(terms.iter().map(|t| (t.term, t.weight)), self.top_k_doc, self.min_weight_doc, tokenizer)
     }
 
     /// Prunes and quantizes sparse query terms.
@@ -203,7 +196,6 @@ impl ImpactQuantizer {
             terms.iter().map(|t| (t.term, t.weight)),
             self.top_k_query,
             self.min_weight_query,
-            self.min_weight_doc,
             tokenizer,
         )
     }
@@ -233,7 +225,6 @@ impl ImpactQuantizer {
             ids.iter().copied().zip(weights.iter().copied()),
             self.top_k_doc,
             self.min_weight_doc,
-            self.min_weight_query,
             tokenizer,
         )
     }
@@ -250,7 +241,6 @@ impl ImpactQuantizer {
             ids.iter().copied().zip(weights.iter().copied()),
             self.top_k_query,
             self.min_weight_query,
-            self.min_weight_doc,
             tokenizer,
         )
     }
@@ -260,7 +250,6 @@ impl ImpactQuantizer {
         pool: &[f32],
         top_k: u32,
         min_weight: f32,
-        peer_min_weight: f32,
         tokenizer: Option<&Tokenizer>,
     ) -> Result<QuantizedSparseTerms, CoreError> {
         let mut kept = Vec::new();
@@ -276,7 +265,7 @@ impl ImpactQuantizer {
                 kept.push((id, w));
             }
         }
-        self.finish_kept(kept, top_k, peer_min_weight, tokenizer)
+        self.finish_kept(kept, top_k, tokenizer)
     }
 
     fn quantize_pairs(
@@ -284,7 +273,6 @@ impl ImpactQuantizer {
         pairs: impl IntoIterator<Item = (u32, f32)>,
         top_k: u32,
         min_weight: f32,
-        peer_min_weight: f32,
         tokenizer: Option<&Tokenizer>,
     ) -> Result<QuantizedSparseTerms, CoreError> {
         let (mut seen, mut kept) = (Vec::new(), Vec::new());
@@ -298,14 +286,13 @@ impl ImpactQuantizer {
             }
         }
         check_unique_ids(&mut seen)?;
-        self.finish_kept(kept, top_k, peer_min_weight, tokenizer)
+        self.finish_kept(kept, top_k, tokenizer)
     }
 
     fn finish_kept(
         &self,
         mut kept: Vec<(u32, f32)>,
         top_k: u32,
-        peer_min_weight: f32,
         tokenizer: Option<&Tokenizer>,
     ) -> Result<QuantizedSparseTerms, CoreError> {
         if top_k > 0 && kept.len() as u64 > top_k as u64 {
@@ -316,11 +303,10 @@ impl ImpactQuantizer {
 
         let max_q = self.bits.max_impact();
         let (scale_f64, w_max_f64) = (self.scale as f64, self.w_max as f64);
-        let step_f64 = 1.0 / scale_f64;
 
         let mut impacts = Vec::with_capacity(kept.len());
         let mut weights = Vec::with_capacity(kept.len());
-        let (mut l1_float, mut l1_quantized, mut l1_rounding_bound, mut l1_sat) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
+        let (mut l1_float, mut l1_quantized, mut l1_rounding_raw, mut l1_sat) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
 
         for (id, w) in kept {
             let clipped = w.min(self.w_max);
@@ -330,14 +316,9 @@ impl ImpactQuantizer {
             weights.push(w);
             l1_float += w_f64;
             l1_quantized += w_hat;
-            l1_rounding_bound += (w_hat - w_f64).abs();
+            l1_rounding_raw += (w_hat - w_f64).abs();
             l1_sat += (w_f64 - w_max_f64).max(0.0);
         }
-
-        let peer_delta = (0.5 * step_f64).max(step_f64 - (peer_min_weight as f64).min(step_f64));
-        let fp_slack = (impacts.len() as f64) * (f32::EPSILON as f64) * w_max_f64 * w_max_f64 * 4.0;
-        let dot_error_bound = ((peer_delta * l1_quantized + w_max_f64 * l1_rounding_bound + fp_slack)
-            * (1.0 + 4.0 * f32::EPSILON as f64)) as f32;
 
         let term_keys = match self.term_key_mode {
             TermKeyMode::None => Vec::new(),
@@ -347,18 +328,13 @@ impl ImpactQuantizer {
             }
         };
 
-        let certificate = ImpactErrorCertificate {
-            bits: self.bits,
-            scale: self.scale,
-            w_max: self.w_max,
-            step: 1.0 / self.scale,
-            active_terms: impacts.len() as u32,
-            l1_float: l1_float as f32,
-            l1_quantized: l1_quantized as f32,
-            l1_rounding_bound: (l1_rounding_bound * (1.0 + 2.0 * f32::EPSILON as f64)) as f32,
-            l1_saturation_excess: l1_sat as f32,
-            dot_error_bound,
-        };
+        let certificate = compute_certificate(
+            self.bits,
+            self.scale,
+            self.w_max,
+            impacts.len() as u32,
+            (l1_float, l1_quantized, l1_rounding_raw, l1_sat),
+        );
         Ok(QuantizedSparseTerms { impacts, weights, term_keys, certificate })
     }
 }
