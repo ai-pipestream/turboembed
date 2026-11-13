@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn lora_options_require_lora() {
-    for option in ["--lora-alpha", "--lora-lr"] {
+    for option in ["--lora-alpha", "--lora-layers", "--lora-lr"] {
         let args = Args {
             rest: vec!["--package", "missing", "--hold-out", "location", option, "2"]
                 .into_iter()

@@ -30,7 +30,7 @@
 //!     [--balance] to repeat smaller training corpora to the largest split)
 //! turbo-train-head train-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
 //!     [--balance] [--max-train N] [--guidelines <json>] [--anchor W] [--train-boundaries] [--train-prompt]
-//!     [--train-recurrent] [--train-projection] [--lora N] [--lora-alpha X] [--lora-lr X]
+//!     [--train-recurrent] [--train-projection] [--lora N] [--lora-layers K] [--lora-alpha X] [--lora-lr X]
 //!     [training settings as train]
 //! turbo-train-head eval-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
 //!     [--encoder-bundle <sealed encoder> --device cpu|cuda|levelzero|metal] [--threshold X] [--threads N]

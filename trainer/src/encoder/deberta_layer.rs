@@ -169,8 +169,22 @@ impl<R: Real> DebertaLayer<R> {
     }
 
     pub fn step(&mut self, optimizer: &mut crate::adamw::AdamW<R>, grads: &mut [Vec<R>]) -> Result<f64> {
-        let decay = vec![true; self.params.len()];
-        optimizer.step(&mut self.params, grads, &decay)
+        Self::step_many(std::slice::from_mut(self), optimizer, grads)
+    }
+
+    pub fn step_many(layers: &mut [Self], optimizer: &mut crate::adamw::AdamW<R>, grads: &mut [Vec<R>]) -> Result<f64> {
+        let counts: Vec<usize> = layers.iter().map(|layer| layer.params.len()).collect();
+        let mut params = Vec::with_capacity(counts.iter().sum());
+        for layer in layers.iter_mut() {
+            params.append(&mut layer.params);
+        }
+        let decay = vec![true; params.len()];
+        let result = optimizer.step(&mut params, grads, &decay);
+        let mut params = params.into_iter();
+        for (layer, count) in layers.iter_mut().zip(counts) {
+            layer.params = params.by_ref().take(count).collect();
+        }
+        result
     }
 
     fn project(&self, which: usize, x: &[R], inp: usize, out: usize, y: &mut [R], h: &mut Vec<R>) {

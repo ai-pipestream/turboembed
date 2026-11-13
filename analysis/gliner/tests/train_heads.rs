@@ -85,11 +85,11 @@ fn model(config: &Config, heads: &[u8]) -> Model {
     Model::new(encoder, config.clone(), heads, &spm, identity).unwrap()
 }
 
-fn source_package(config: &Config, heads: &[u8], encoder: &[u8]) -> turbo_scratch::Scratch {
+fn source_package(config: &Config, heads: &[u8], encoder: &[u8], layers: usize) -> turbo_scratch::Scratch {
     use turbo::deberta::package::{PackageManifest, digest};
 
     let dir = turbo_scratch::Scratch::at(
-        std::env::temp_dir().join(format!("turbo-gliner-lora-source-{}", std::process::id())),
+        std::env::temp_dir().join(format!("turbo-gliner-lora-source-{}-{layers}", std::process::id())),
     );
     std::fs::create_dir_all(dir.join("encoder")).unwrap();
     let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
@@ -237,22 +237,33 @@ fn recurrent_training_needs_boundaries_and_an_even_hidden_size() {
 
 #[test]
 fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
+    lora_train_install_reload(1, 0.0001);
+}
+
+#[test]
+fn multi_layer_lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
+    lora_train_install_reload(2, 0.005);
+}
+
+fn lora_train_install_reload(layers: usize, tolerance: f32) {
     let config = config(true, 4);
     let original = heads(&config);
     let encoder_original =
         std::fs::read(root().join("testdata/tiny-deberta-bundle/weights/model.safetensors")).unwrap();
     let mut tuned = model(&config, &original);
     let before = scores(&tuned);
-    let close = |a: &[Candidate], b: &[Candidate]| {
+    let close = |a: &[Candidate], b: &[Candidate], tolerance: f32| {
         assert_eq!(a.len(), b.len());
         for (a, b) in a.iter().zip(b) {
             assert_eq!((a.start, a.end, a.label), (b.start, b.end, b.label));
-            assert!((a.logit - b.logit).abs() < 0.0001, "logit {} != {}", a.logit, b.logit);
+            assert!((a.logit - b.logit).abs() < tolerance, "logit {} != {}", a.logit, b.logit);
         }
     };
-    tuned.enable_lora(&encoder_original, 2, 4.0, 17).unwrap();
+    assert!(tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, 0).is_err());
+    assert!(tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, 3).is_err());
+    tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, layers).unwrap();
     let initial = tuned.training_input_lora(&WORDS, &schema()).unwrap();
-    close(&initial.candidates, &before);
+    close(&initial.candidates, &before, tolerance);
 
     let mut trainer = OutputTrainer::load_with_heads(&config, &original, true, true, true, true).unwrap();
     let mut head_grads = trainer.zero_grads();
@@ -261,7 +272,8 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
     let mut encoder_grads = tuned.lora_zero_grads().unwrap();
     tuned.lora_backward(&initial, &dencoder, &mut encoder_grads).unwrap();
     assert!(head_grads.iter().flatten().any(|&x| x != 0.0));
-    assert!(encoder_grads.iter().flatten().any(|&x| x != 0.0));
+    assert_eq!(encoder_grads.len(), 8 * layers);
+    assert!(encoder_grads.chunks(8).all(|grads| grads.iter().flatten().any(|&x| x != 0.0)));
 
     let settings = Settings { lr: 1e-2, total: 1, ..Settings::default() };
     let mut head_optimizer = output_optimizer(settings, &trainer).unwrap();
@@ -281,13 +293,13 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
     let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
     let written = trainer.write_heads(&original).unwrap();
     let reloaded = Model::new(encoder, config.clone(), &written, &spm, identity).unwrap();
-    close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after);
+    close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after, tolerance);
 
-    let source = source_package(&config, &original, &encoder_original);
+    let source = source_package(&config, &original, &encoder_original, layers);
     let out = turbo_scratch::Scratch::at(source.with_extension("tuned"));
     Manifest::write_tuned_encoder(&source, &out, &written, &merged).unwrap();
     let packaged = Manifest::load(&out).unwrap();
-    close(&packaged.training_input(&WORDS, &schema()).unwrap().1, &after);
+    close(&packaged.training_input(&WORDS, &schema()).unwrap().1, &after, tolerance);
 }
 
 #[test]
@@ -295,18 +307,21 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
 fn real_lora_initialization_preserves_encoder_states_and_scores() {
     let root = std::env::var_os("GLINER_V2_5_PACKAGE").expect("GLINER_V2_5_PACKAGE");
     let encoder_original = std::fs::read(turbo_pins::require(&root).join("encoder/weights.safetensors")).unwrap();
-    let mut model = Manifest::load(&turbo_pins::require(&root)).unwrap();
+    let baseline_model = Manifest::load(&turbo_pins::require(&root)).unwrap();
     let schema = ExtractionSchema::new(vec!["person".into(), "location".into()], 0.5, Decode::Flat).unwrap();
-    let packed = model.pack(&WORDS, &schema).unwrap();
-    let before = model.states(&packed, &schema).unwrap();
-    let baseline = model.training_input(&WORDS, &schema).unwrap().1;
-    model.enable_lora(&encoder_original, 1, 2.0, 17).unwrap();
-    let after = model.states(&packed, &schema).unwrap();
-    let maximum = before.iter().zip(&after).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
-    let initial = model.training_input_lora(&WORDS, &schema).unwrap();
-    let candidates = initial.candidates.clone();
-    let logit = baseline.iter().zip(&candidates).map(|(a, b)| (a.logit - b.logit).abs()).fold(0.0, f32::max);
-    println!("real LoRA maximum state error {maximum}, logit error {logit}");
-    assert!(maximum < 0.002);
-    assert!(logit < 0.002);
+    let packed = baseline_model.pack(&WORDS, &schema).unwrap();
+    let before = baseline_model.states(&packed, &schema).unwrap();
+    let baseline = baseline_model.training_input(&WORDS, &schema).unwrap().1;
+    for layers in [1, 2] {
+        let mut model = Manifest::load(&turbo_pins::require(&root)).unwrap();
+        model.enable_lora_layers(&encoder_original, 1, 2.0, 17, layers).unwrap();
+        let after = model.states(&packed, &schema).unwrap();
+        let maximum = before.iter().zip(&after).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+        let initial = model.training_input_lora(&WORDS, &schema).unwrap();
+        let candidates = initial.candidates.clone();
+        let logit = baseline.iter().zip(&candidates).map(|(a, b)| (a.logit - b.logit).abs()).fold(0.0, f32::max);
+        println!("real LoRA layers {layers}: maximum state error {maximum}, logit error {logit}");
+        assert!(maximum < 0.002);
+        assert!(logit < 0.002);
+    }
 }

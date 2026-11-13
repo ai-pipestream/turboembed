@@ -192,6 +192,40 @@ fn layer_gradients_match_finite_differences() {
 }
 
 #[test]
+fn composed_layer_gradients_match_finite_differences() {
+    let (first, x, relative) = fixture();
+    let layers = [first, fixture().0];
+    let mut rng = Rng::new(53);
+    let r = random(&mut rng, x.len());
+    let loss = |layers: &[DebertaLayer<f64>; 2], x: &[f64]| {
+        let mut first = Work::default();
+        layers[0].forward(x, &relative, &mut first);
+        let mut second = Work::default();
+        layers[1].forward(&first.out, &relative, &mut second);
+        weighted(&second.out, &r)
+    };
+    let mut works = [Work::default(), Work::default()];
+    let (first, second) = works.split_at_mut(1);
+    layers[0].forward(&x, &relative, &mut first[0]);
+    layers[1].forward(&first[0].out, &relative, &mut second[0]);
+    let mut grads = [layers[0].zero_grads(), layers[1].zero_grads()];
+    let dx = layers[1].backward(&works[1], &relative, &r, &mut grads[1]);
+    let dx = layers[0].backward(&works[0], &relative, &dx, &mut grads[0]);
+    check("composed input", &mut x.clone(), &dx, &mut |x| loss(&layers, x));
+    for layer in 0..layers.len() {
+        for (tensor, analytic) in grads[layer].iter().enumerate() {
+            let mut params = layers[layer].params[tensor].clone();
+            let analytic = analytic.clone();
+            check("composed adapter", &mut params, &analytic, &mut |values| {
+                let mut changed = layers.clone();
+                changed[layer].params[tensor].copy_from_slice(values);
+                loss(&changed, &x)
+            });
+        }
+    }
+}
+
+#[test]
 fn qkv_adapters_also_move_relative_projections() {
     let (layer, _, relative) = fixture();
     let x = vec![0.0; 4 * layer.config.hidden];

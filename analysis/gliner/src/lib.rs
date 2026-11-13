@@ -169,7 +169,8 @@ impl Model {
         p.check(&self.config, self.encoder.config(), schema.labels().len())?;
         let width = self.encoder.config().hidden;
         if self.lora.is_some() {
-            let (_, adapted) = self.lora_forward(&p.ids)?;
+            let adapted = self.lora_forward(&p.ids)?;
+            let adapted = adapted.last().ok_or("gliner LoRA needs an encoder layer")?;
             return self.heads.score_with_work(&adapted.out, width, &p.prompts, &p.words, self.config.max_width, work);
         }
         match &self.encoder {

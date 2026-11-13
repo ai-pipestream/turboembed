@@ -30,6 +30,14 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let hold_out_arg = a.required("--hold-out")?;
     let balance = a.flag("--balance");
     let lora_rank: usize = a.parsed("--lora", 0)?;
+    let lora_layers = a.value("--lora-layers")?;
+    if lora_rank == 0 && lora_layers.is_some() {
+        return Err(Error("--lora-layers requires --lora".into()));
+    }
+    let lora_layers: usize = match lora_layers {
+        Some(value) => value.parse().map_err(|_| Error(format!("--lora-layers {value:?} is not a valid value")))?,
+        None => 1,
+    };
     let lora_alpha = a.value("--lora-alpha")?;
     if lora_rank == 0 && lora_alpha.is_some() {
         return Err(Error("--lora-alpha requires --lora".into()));
@@ -117,7 +125,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         .map_err(Error)?;
     let mut model = Manifest::load(&package).map_err(Error)?;
     if let Some(original) = original_encoder.as_deref() {
-        model.enable_lora(original, lora_rank, lora_alpha, c.seed).map_err(Error)?;
+        model.enable_lora_layers(original, lora_rank, lora_alpha, c.seed, lora_layers).map_err(Error)?;
     }
     let mut trainer = OutputTrainer::load_with_heads(
         model.config(),
@@ -287,7 +295,7 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
     let identity = model.identity();
     let peer_name = format!(
-        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent};projection={train_projection};lora={lora_rank};lora_alpha={lora_alpha};lora_lr={lora_lr}",
+        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent};projection={train_projection};lora={lora_rank};lora_layers={lora_layers};lora_alpha={lora_alpha};lora_lr={lora_lr}",
         identity.id, identity.revision, manifest_record.sha256
     );
     let evaluation = score_parts(&combined, &all_types, &seen_types, &hold_out, &best_predictions)?;
