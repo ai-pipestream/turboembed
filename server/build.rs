@@ -6,11 +6,12 @@
 //! proto/turbo_sink.proto and proto/turbo_audit.proto with a protobuf compiler written in Rust, so
 //! building needs no protoc.
 
-const PROTOS: [&str; 12] = [
+const PROTOS: [&str; 13] = [
     "proto/open_inference_grpc.proto",
     "proto/turbo_typed_annotations.proto",
     "proto/turbo_search_projection.proto",
     "proto/turbo_analyze_query.proto",
+    "proto/turbo_rerank_highlight.proto",
     "proto/turbo_pii_policy.proto",
     "proto/turbo_analysis.proto",
     "proto/turbo_search.proto",

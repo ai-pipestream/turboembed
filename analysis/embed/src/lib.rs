@@ -32,6 +32,12 @@ pub use multires::{
     MultiResInput, MultiResOptions, MultiResVectors, VectorTier, build_tier_from_unnormalized, compute_inv_norm,
     normalize_matryoshka_dims, row_le_sha256, validate_turboquant_options,
 };
+pub mod rerank_highlight;
+pub use rerank_highlight::{
+    CalibratedRerankScore, HighlightCandidateSpan, RERANK_CALIBRATION_LABELS, RerankCalibrator, SourcePassage,
+    clean_query_text, score_spans_contextual_maxsim, score_spans_pooled_cosine, score_spans_subword_tokenizer,
+    select_top_non_overlapping,
+};
 pub mod levels;
 pub mod rerank;
 pub mod sparse;

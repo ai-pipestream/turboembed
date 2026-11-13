@@ -14,6 +14,7 @@ package turbo.result.v1;
 import public "turbo_typed_annotations.proto";
 import public "turbo_search_projection.proto";
 import public "turbo_analyze_query.proto";
+import public "turbo_rerank_highlight.proto";
 import "turbo_pii_policy.proto";
 
 // Analysis results and the server's bundle capabilities.
@@ -81,6 +82,13 @@ service AnalysisService
 
   // Validates an AnalyzeQueryResponse and returns it unchanged (#2339).
   rpc RoundTripAnalyzeQuery(AnalyzeQueryResponse) returns (AnalyzeQueryResponse) {}
+
+  // Micro-batched calibrated cross-encoder reranking plus top-K semantic
+  // highlight span attribution in original source coordinates (#2342).
+  rpc RerankAndHighlight(RerankAndHighlightRequest) returns (RerankAndHighlightResponse) {}
+
+  // Validates a RerankAndHighlightResponse and returns it unchanged (#2342).
+  rpc RoundTripRerankAndHighlight(RerankAndHighlightResponse) returns (RerankAndHighlightResponse) {}
 
   // Bulk document analysis over one bidirectional stream (issue #722):
   // the client opens with one AnalyzeStreamHeader naming the ordering and

@@ -22,8 +22,9 @@ use crate::proto::result::{
     DocumentWindowResponse, ExtractionResult, FormatDocumentRequest, FormatDocumentResponse,
     InspectDocumentGraphRequest, ListOutputFormatsRequest, ListOutputFormatsResponse, LoadBundleRequest,
     LoadBundleResponse, MultiResVectorsResult, ProjectChunksRequest, ProjectChunksResponse,
-    ProjectSearchDocumentRequest, RecordsResult, RerankScoresResult, SearchDocumentProjection, SparseTermsResult,
-    TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest, UnloadBundleResponse,
+    ProjectSearchDocumentRequest, RecordsResult, RerankAndHighlightRequest, RerankAndHighlightResponse,
+    RerankScoresResult, SearchDocumentProjection, SparseTermsResult, TokenVectorsResult, TypedDocumentResult,
+    UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
@@ -260,6 +261,25 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_analyze_query(&self, req: Request<AnalyzeQueryResponse>) -> Reply<AnalyzeQueryResponse> {
         round_trip::<_, AnalyzeQueryResponse>(req)
+    }
+
+    async fn rerank_and_highlight(&self, req: Request<RerankAndHighlightRequest>) -> Reply<RerankAndHighlightResponse> {
+        let deadline = crate::deadline::Deadline::from_request(&req)?;
+        let req = req.into_inner();
+        let state = self.state.clone();
+        let out = tokio::task::spawn_blocking(move || {
+            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, &deadline)
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("rerank_and_highlight task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_rerank_and_highlight(
+        &self,
+        req: Request<RerankAndHighlightResponse>,
+    ) -> Reply<RerankAndHighlightResponse> {
+        round_trip::<_, RerankAndHighlightResponse>(req)
     }
 
     async fn analyze_stream(

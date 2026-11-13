@@ -20,6 +20,7 @@ turbo = { path = "../core" }
 turbo-analysis = { path = "../analysis/core" }
 turbo-analysis-layers = { path = "../analysis/layers" }
 turbo-analysis-embed = { path = "../analysis/embed", features = ["turboquant"] }
+turbo-calibration = { path = "../analysis/calibration" }
 turbo-abbrev = { path = "../analysis/abbrev" }
 turbo-chunker = { path = "../analysis/chunker" }
 turbo-coref = { path = "../analysis/coref" }

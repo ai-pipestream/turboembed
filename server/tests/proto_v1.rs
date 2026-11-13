@@ -43,6 +43,7 @@ fn all_turbo_protos_use_versioned_v1_packages_and_service_names() {
         ("turbo_analysis.proto", "turbo.result.v1"),
         ("turbo_analyze_query.proto", "turbo.result.v1"),
         ("turbo_pii_policy.proto", "turbo.result.v1"),
+        ("turbo_rerank_highlight.proto", "turbo.result.v1"),
         ("turbo_search.proto", "turbo.search.v1"),
         ("turbo_search_projection.proto", "turbo.result.v1"),
         ("turbo_sink.proto", "turbo.sink.v1"),
