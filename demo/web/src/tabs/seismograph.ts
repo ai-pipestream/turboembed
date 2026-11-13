@@ -95,7 +95,7 @@ export function seismograph(m: SeismoInput, link: Link): HTMLElement {
 
   // Pointing anywhere on the curve picks the nearest gap.
   const cross = s("line", { y1: curveTop, y2: base, class: "cross", visibility: "hidden" });
-  const pad = s("rect", { x: GUTTER, y: curveTop, width: W - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, "aria-label": "Sentence gaps; point or use the arrow keys" });
+  const pad = s("rect", { x: GUTTER, y: curveTop, width: W - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, role: "slider", "aria-valuemin": 1, "aria-valuemax": m.gaps.length, "aria-label": "Sentence gaps; point or use the arrow keys" });
   svg.append(cross, pad);
   const info = el("p", { class: "info", role: "status", text: "Point at the curve to see the two sentences on either side of a gap." });
   const offsets = m.gaps.map((g) => g.offset);
@@ -116,7 +116,11 @@ export function seismograph(m: SeismoInput, link: Link): HTMLElement {
       el("span", { class: "muted", text: g.cut ? "  ✂  " : "  ·  " }),
       el("span", { class: "quote", text: short(after, 110) || "(the end)" }),
     );
-    link.chunk(m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end));
+    pad.setAttribute("aria-valuenow", String(i + 1));
+    pad.setAttribute("aria-valuetext", `Gap ${i + 1} of ${m.gaps.length}`);
+    // A gap that lies in no chunk points at none.
+    const at = m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end);
+    link.chunk(at < 0 ? null : at);
   };
   pad.addEventListener("mousemove", (ev) => {
     const box = svg.getBoundingClientRect();

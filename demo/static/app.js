@@ -9912,7 +9912,7 @@ function seismograph(m, link) {
     );
   });
   const cross = s("line", { y1: curveTop, y2: base2, class: "cross", visibility: "hidden" });
-  const pad = s("rect", { x: GUTTER, y: curveTop, width: W3 - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, "aria-label": "Sentence gaps; point or use the arrow keys" });
+  const pad = s("rect", { x: GUTTER, y: curveTop, width: W3 - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, role: "slider", "aria-valuemin": 1, "aria-valuemax": m.gaps.length, "aria-label": "Sentence gaps; point or use the arrow keys" });
   svg.append(cross, pad);
   const info = el("p", { class: "info", role: "status", text: "Point at the curve to see the two sentences on either side of a gap." });
   const offsets = m.gaps.map((g) => g.offset);
@@ -9933,7 +9933,10 @@ function seismograph(m, link) {
       el("span", { class: "muted", text: g.cut ? "  \u2702  " : "  \xB7  " }),
       el("span", { class: "quote", text: short(after2, 110) || "(the end)" })
     );
-    link.chunk(m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end));
+    pad.setAttribute("aria-valuenow", String(i + 1));
+    pad.setAttribute("aria-valuetext", `Gap ${i + 1} of ${m.gaps.length}`);
+    const at = m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end);
+    link.chunk(at < 0 ? null : at);
   };
   pad.addEventListener("mousemove", (ev) => {
     const box5 = svg.getBoundingClientRect();

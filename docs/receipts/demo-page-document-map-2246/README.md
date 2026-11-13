@@ -8,9 +8,10 @@ cut it into five chunks. Machine: a 4-core x86_64 Linux container, no
 GPU.
 
 The checks were driven by a Playwright script that is not part of the
-repository; it prints one line per check. Browser tests for
-`demo/web/e2e` are follow-up work. The unit tests for the arithmetic
-(`demo/web/test/vizmodel.test.ts`) are in the repository and run in CI.
+repository; it prints one line per check. A cut of the same checks is
+in the repository as `demo/web/e2e/document-map.test.ts`, and the unit
+tests for the arithmetic are in `demo/web/test/vizmodel.test.ts`; both
+run in CI.
 
 - `red.log`: the checks against the page before this change (a canvas
   scatter, a drift canvas and stack bars, in a closed panel). 0 of 24
