@@ -1,10 +1,12 @@
 // What document-map.test.ts leaves out of the document map under
 // Analyze, in a real browser against the real servers scripts/e2e-web.sh
 // starts: the meaning map's reading order, a picked river term fading the
-// other streams, the numbers as tables, and the phone layout. Nothing is
+// other streams, the numbers as tables, the phone layout, and the
+// similarity matrix's pairs as CSV and on the clipboard. Nothing is
 // stubbed.
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { chromium, type Browser, type Page } from "playwright";
 import { settled, track } from "./settle.js";
@@ -105,6 +107,56 @@ test("on a phone the figures scroll in their own boxes and the page does not", a
     // And the page itself does not scroll sideways.
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     assert.equal(sideways, false);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("the similarity matrix's CSV has each pair of chunks once, with the cosines the matrix shows", async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await mapped(browser);
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    const matrix = "#projection-out .figure.matrix";
+    await page.waitForSelector(`${matrix} canvas`);
+    const chunks = await page.locator(`${TEXT} .ck sup`).count();
+    const label = (await page.locator(`${matrix} canvas`).getAttribute("aria-label")) ?? "";
+    const range = label.split(": cosines from ")[1]?.split(" to ").map(Number) ?? [];
+    assert.equal(range.length === 2 && range[0] <= range[1] && range[1] <= 1, true, label);
+    const [lo, hi] = range;
+
+    // The read-out of the cell for chunks 1 and 2, to hold the file's row against.
+    const plot = page.locator(`${matrix} .plot`);
+    await plot.focus();
+    await page.keyboard.press("ArrowRight");
+    const said = (await page.locator(`${matrix} .info`).textContent()) ?? "";
+    assert.equal(said.startsWith("chunk 1 and chunk 2: cosine "), true, said);
+    const shown = said.slice("chunk 1 and chunk 2: cosine ".length).split(". ")[0];
+
+    const [file] = await Promise.all([page.waitForEvent("download"), page.locator(`${matrix} .take button`, { hasText: "Download CSV" }).click()]);
+    const rows = readFileSync(await file.path()).toString().trimEnd().split("\r\n");
+    assert.equal(rows[0], "chunk,other chunk,cosine");
+    const pairs = rows.slice(1).map((r) => r.split(",").map(Number));
+    assert.equal(pairs.length, (chunks * (chunks - 1)) / 2);
+    const seen = new Set<string>();
+    for (const [a, b, c] of pairs) {
+      assert.equal(a >= 1 && a < b && b <= chunks, true, `${a},${b}`);
+      seen.add(`${a},${b}`);
+      // The label rounds the range to three places.
+      assert.equal(c >= lo - 0.0005 && c <= hi + 0.0005, true, `${a},${b},${c} outside ${lo}..${hi}`);
+    }
+    assert.equal(seen.size, pairs.length, "no pair twice");
+    const first = pairs.find(([a, b]) => a === 1 && b === 2);
+    assert.equal(first?.[2].toFixed(3), shown);
+
+    // Copy puts the same rows on the clipboard, tab-separated.
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
+    await page.locator(`${matrix} .take button`, { hasText: "Copy" }).click();
+    await page.locator(`${matrix} .take [role=status]`, { hasText: `Copied ${pairs.length} rows.` }).waitFor();
+    const copied = (await page.evaluate(() => navigator.clipboard.readText())).trimEnd().split(/\r?\n/);
+    assert.deepEqual(copied, rows.map((r) => r.split(",").join("\t")));
+    assert.deepEqual(errors, []);
   } finally {
     await browser.close();
   }
