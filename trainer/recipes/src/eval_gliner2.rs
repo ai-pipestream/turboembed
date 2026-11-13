@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use turbo::deberta::package::PackageManifest;
 use turbo_gliner::{Decode, ExtractionSchema};
 use turbo_schema_extract::model::Gliner2Extractor;
 use turbo_trainer_recipes::corpus::Sentence;
@@ -16,9 +17,6 @@ use turbo_trainer_recipes::run::replace;
 use turbo_trainer_recipes::{Error, Result, gliner_calibrate::Calibration, gliner_eval, gliner2_eval};
 
 use super::{Args, OutDir, RESAMPLES, commit, finish};
-
-const ID: &str = "fastino/gliner2-base-v1";
-const REVISION: &str = "f9634218e53580c56edf0de97ca1a7d3f1c2354e";
 
 pub(super) fn evaluate_command(
     argv: &[String],
@@ -89,7 +87,7 @@ pub(super) fn evaluate_command(
     let read = t.elapsed().as_secs_f64();
 
     let t = Instant::now();
-    let model = open_model(&package)?;
+    let (model, encoder_record) = open_model(&package)?;
     let (calibration, raw) = if calibrate {
         let (all, held) = std::thread::scope(|scope| {
             let all_task =
@@ -120,7 +118,7 @@ pub(super) fn evaluate_command(
     let identity = model.model();
     let peer_name = format!(
         "gliner2:{}@{}#{};threshold={threshold};decode=flat;schema={schema_digest};calibration={calibration_digest}",
-        identity.id, identity.revision, identity.sha256
+        identity.id, identity.revision, encoder_record.manifest_sha256
     );
 
     let predictions = predict_partitioned(
@@ -217,7 +215,7 @@ pub(super) fn evaluate_command(
         commit,
         unix_time: unix_time(),
         corpus: combined.record.clone(),
-        encoder: None,
+        encoder: Some(encoder_record),
         head: None,
         peer: Some(PeerRecord {
             name: peer_name,
@@ -246,8 +244,40 @@ struct Reuse {
     held: Vec<Vec<turbo_gliner::Candidate>>,
 }
 
-fn open_model(package: &Path) -> Result<Gliner2Extractor> {
-    Gliner2Extractor::load(&package.join("encoder"), package, ID, REVISION).map_err(Error)
+fn open_model(package: &Path) -> Result<(Gliner2Extractor, EncoderRecord)> {
+    let (meta, encoder) = PackageManifest::load(&package.join("encoder")).map_err(|e| Error(e.message))?;
+    let record = EncoderRecord {
+        model: meta.source_repository.clone(),
+        revision: meta.source_revision.clone(),
+        manifest_sha256: package_digest(package)?,
+        hidden: meta.config.hidden,
+        layers: Some(meta.config.layers as u32),
+        width: meta.config.hidden,
+        backend: "native-deberta".into(),
+        device: "cpu".into(),
+        precision: "f32".into(),
+    };
+    let model = Gliner2Extractor::load_with(encoder.into(), package, &meta.source_repository, &meta.source_revision)
+        .map_err(Error)?;
+    Ok((model, record))
+}
+
+fn package_digest(package: &Path) -> Result<String> {
+    let mut inputs = String::new();
+    for name in [
+        "config.json",
+        "model.safetensors",
+        "added_tokens.json",
+        "spm.model",
+        "encoder/deberta.json",
+        "encoder/weights.safetensors",
+    ] {
+        let path = package.join(name);
+        let bytes = std::fs::read(&path).map_err(|e| Error(format!("{}: {e}", path.display())))?;
+        inputs.push_str(name);
+        inputs.push_str(&turbo::deberta::package::digest(&bytes));
+    }
+    Ok(turbo::deberta::package::digest(inputs.as_bytes()))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -301,7 +331,7 @@ fn predict_partitioned(
         let mut handles = Vec::new();
         for chunk in chunks {
             handles.push(scope.spawn(move || {
-                let worker = open_model(package)?;
+                let worker = open_model(package)?.0;
                 predict_three(
                     &worker,
                     chunk,
@@ -344,4 +374,35 @@ fn predict_partitioned(
         out.held = gliner_eval::decode_candidates(sentences, hold_out, &raw.held, &calibration.held_values(hold_out)?)?;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn package_identity_covers_every_effective_input() {
+        let dir =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("gliner2-identity-{}", std::process::id())));
+        std::fs::create_dir_all(dir.join("encoder")).unwrap();
+        let names = [
+            "config.json",
+            "model.safetensors",
+            "added_tokens.json",
+            "spm.model",
+            "encoder/deberta.json",
+            "encoder/weights.safetensors",
+        ];
+        for name in names {
+            std::fs::write(dir.join(name), name.as_bytes()).unwrap();
+        }
+        let first = package_digest(dir.path()).unwrap();
+        for name in names {
+            let path = dir.join(name);
+            let original = std::fs::read(&path).unwrap();
+            std::fs::write(&path, b"changed").unwrap();
+            assert_ne!(package_digest(dir.path()).unwrap(), first, "{name}");
+            std::fs::write(&path, original).unwrap();
+        }
+    }
 }

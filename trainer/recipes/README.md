@@ -278,7 +278,11 @@ held-out metrics, flat decoding and dev-only per-label calibration. Use
 `--guidelines <json>` supplies label-to-description prompts. Raw span logits
 are converted to the shared candidate format, so `--calibrate`, `--thresholds`,
 `--split dev`, and `--threads N` have the same meaning and ordered schema
-binding as in `eval-gliner`. The current command supports the CPU encoder.
+binding as in `eval-gliner`. Label batches fit each sentence's prompt and
+encoder limits while preserving global label indexes. The receipt uses the
+encoder package's source metadata and a digest over every effective package
+input. GLiNER2's count head can cap recall. Over-limit inputs fail rather than
+being windowed. The current command supports the CPU encoder.
 
 `train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP or NuNER's
 single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and

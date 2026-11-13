@@ -16,7 +16,7 @@ fn prompt<'a>(
     text: &'a str,
     sentence: &'a Sentence,
     schema: &ExtractionSchema,
-) -> Result<Prompt<'a>> {
+) -> std::result::Result<Prompt<'a>, turbo_schema_extract::model::ExtractError> {
     let mut offset = 0;
     let words = sentence
         .words
@@ -28,32 +28,17 @@ fn prompt<'a>(
             Word { text: lowercase(word), start, end, subword_len: 0 }
         })
         .collect();
-    model.prompt_words(text, schema, words).map_err(|e| Error(e.to_string()))
+    model.build_words(text, schema, words)
 }
 
-pub fn candidates(
+fn score_batch(
     model: &Gliner2Extractor,
-    sentences: &[Sentence],
+    text: &str,
+    sentence: &Sentence,
     labels: &[String],
+    offset: usize,
     guidelines: Option<&BTreeMap<String, String>>,
-) -> Result<Vec<Vec<Candidate>>> {
-    if labels.is_empty() {
-        return Err(Error("GLiNER2 evaluation needs at least one entity label".into()));
-    }
-    if labels.len() > turbo_gliner::MAX_LABELS {
-        let mut out = vec![Vec::new(); sentences.len()];
-        for (batch, chunk) in labels.chunks(turbo_gliner::MAX_LABELS).enumerate() {
-            let offset = batch * turbo_gliner::MAX_LABELS;
-            let part = candidates(model, sentences, chunk, guidelines)?;
-            for (found, mut part) in out.iter_mut().zip(part) {
-                for candidate in &mut part {
-                    candidate.label += offset;
-                }
-                found.append(&mut part);
-            }
-        }
-        return Ok(out);
-    }
+) -> std::result::Result<Vec<Candidate>, turbo_schema_extract::model::ExtractError> {
     let schema = ExtractionSchema {
         entities: labels
             .iter()
@@ -67,44 +52,81 @@ pub fn candidates(
             .collect(),
         ..ExtractionSchema::default()
     };
+    let built = prompt(model, text, sentence, &schema)?;
+    model.check(&built)?;
+    let pass = model.pass_prompt(built)?;
+    let [Scores::Spans { instances, logits, .. }] = pass.scores() else {
+        return Err(turbo_schema_extract::model::ExtractError::Model(
+            "GLiNER2 returned an unexpected entity task layout".into(),
+        ));
+    };
+    let (instances, logits) = (*instances, logits);
+    if instances > 1 || logits.len() != instances * labels.len() * pass.prompt().token_first.len() * pass.width() {
+        return Err(turbo_schema_extract::model::ExtractError::Model(
+            "GLiNER2 returned invalid entity score dimensions".into(),
+        ));
+    }
+    if instances == 0 {
+        return Ok(Vec::new());
+    }
+    let (tokens, width) = (pass.prompt().token_first.len(), pass.width());
+    if pass.prompt().words.len() < sentence.words.len() {
+        return Err(turbo_schema_extract::model::ExtractError::Model("GLiNER2 dropped a sentence word".into()));
+    }
+    let mut found = Vec::new();
+    for label in 0..labels.len() {
+        for start in 0..sentence.words.len() {
+            for span_width in 0..width.min(sentence.words.len() - start) {
+                let logit = logits[(label * tokens + start) * width + span_width];
+                if !logit.is_finite() {
+                    return Err(turbo_schema_extract::model::ExtractError::Model(
+                        "GLiNER2 returned a non-finite in-range span logit".into(),
+                    ));
+                }
+                found.push(Candidate {
+                    start,
+                    end: start + span_width + 1,
+                    label: label + offset,
+                    logit,
+                    score: turbo::head::sigmoid(logit),
+                });
+            }
+        }
+    }
+    Ok(found)
+}
+
+pub fn candidates(
+    model: &Gliner2Extractor,
+    sentences: &[Sentence],
+    labels: &[String],
+    guidelines: Option<&BTreeMap<String, String>>,
+) -> Result<Vec<Vec<Candidate>>> {
+    if labels.is_empty() {
+        return Err(Error("GLiNER2 evaluation needs at least one entity label".into()));
+    }
     let mut out = Vec::with_capacity(sentences.len());
     for sentence in sentences {
-        if sentence.words.is_empty() {
-            out.push(Vec::new());
-            continue;
-        }
-        let text = sentence.words.join(" ");
-        let pass = model.pass_prompt(prompt(model, &text, sentence, &schema)?).map_err(|e| Error(e.to_string()))?;
-        let [Scores::Spans { instances, logits, .. }] = pass.scores() else {
-            return Err(Error("GLiNER2 returned an unexpected entity task layout".into()));
-        };
-        let (instances, logits) = (*instances, logits);
-        if instances > 1 || logits.len() != instances * labels.len() * pass.prompt().token_first.len() * pass.width() {
-            return Err(Error("GLiNER2 returned invalid entity score dimensions".into()));
-        }
         let mut found = Vec::new();
-        if instances == 0 {
+        if sentence.words.is_empty() {
             out.push(found);
             continue;
         }
-        let (tokens, width) = (pass.prompt().token_first.len(), pass.width());
-        if pass.prompt().words.len() < sentence.words.len() {
-            return Err(Error("GLiNER2 dropped a sentence word".into()));
-        }
-        for label in 0..labels.len() {
-            for start in 0..sentence.words.len() {
-                for span_width in 0..width.min(sentence.words.len() - start) {
-                    let logit = logits[(label * tokens + start) * width + span_width];
-                    if !logit.is_finite() {
-                        return Err(Error("GLiNER2 returned a non-finite in-range span logit".into()));
+        let text = sentence.words.join(" ");
+        let mut start = 0;
+        while start < labels.len() {
+            let mut end = (start + turbo_gliner::MAX_LABELS).min(labels.len());
+            loop {
+                match score_batch(model, &text, sentence, &labels[start..end], start, guidelines) {
+                    Ok(part) => {
+                        found.extend(part);
+                        start = end;
+                        break;
                     }
-                    found.push(Candidate {
-                        start,
-                        end: start + span_width + 1,
-                        label,
-                        logit,
-                        score: turbo::head::sigmoid(logit),
-                    });
+                    Err(turbo_schema_extract::model::ExtractError::OverLimit { .. }) if end - start > 1 => {
+                        end = start + (end - start) / 2;
+                    }
+                    Err(e) => return Err(Error(e.to_string())),
                 }
             }
         }
@@ -127,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "loads the local Apache-2.0 GLiNER2 checkpoint"]
+    #[ignore = "loads the local-only GLiNER2 checkpoint"]
     fn raw_candidates_match_the_native_schema_decoder() {
         let root = std::env::var_os("GLINER2_PACKAGE").expect("GLINER2_PACKAGE");
         let root = turbo_pins::require(&root);
@@ -221,5 +243,17 @@ mod tests {
         let found = candidates(&model, std::slice::from_ref(&sentence), &many, None).unwrap().remove(0);
         assert!(found.iter().all(|c| c.label < many.len()));
         assert!(found.iter().any(|c| c.label == 32));
+        let descriptions: BTreeMap<String, String> = many
+            .iter()
+            .map(|name| {
+                (
+                    name.clone(),
+                    "a detailed annotation guideline with examples and boundary rules that deliberately expands the schema beyond the prompt budget".into(),
+                )
+            })
+            .collect();
+        let guided = candidates(&model, std::slice::from_ref(&sentence), &many, Some(&descriptions)).unwrap().remove(0);
+        assert!(guided.iter().all(|c| c.label < many.len()));
+        assert!(guided.iter().any(|c| c.label == 32));
     }
 }
