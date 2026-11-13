@@ -13,7 +13,10 @@ use common::*;
 use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
 use turbo_analysis::{Annotator, Document, Ix, Layer, View, ViewId};
-use turbo_analysis_embed::{SparseAnnotator, SparseOptions, SubwordAnnotator, VectorAnnotator, VectorOptions};
+use turbo_analysis_embed::{
+    ImpactBits, ImpactQuantizer, SparseAnnotator, SparseOptions, SubwordAnnotator, TermKeyMode, VectorAnnotator,
+    VectorOptions,
+};
 use turbo_analysis_layers::{SparseTerms, TokenVectorWindows, Vectors};
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
@@ -317,6 +320,19 @@ async fn stream_sparse_terms_match_in_process_splade_across_batches_orders_and_o
     for msg in [&utf8_msg, &utf16_msg, &cp_msg] {
         let decoded = SparseTerms::from_msg(msg).unwrap();
         assert_sparse_eq(&decoded, &want_multi);
+    }
+    for bits in [ImpactBits::U8, ImpactBits::U16] {
+        let iq = ImpactQuantizer::new(bits, 4.0)
+            .unwrap()
+            .with_doc_pruning(16, 0.05)
+            .unwrap()
+            .with_term_key_mode(TermKeyMode::VocabularyPiece);
+        let mode = turbo_kserve::offsets::OffsetMode::Utf8;
+        let q_wire = SparseTermsWire::quantize_doc(&want_multi, multi, mode, &iq, Some(annotator.tokenizer())).unwrap();
+        let q_msg = q_wire.to_msg();
+        let q_back = c.round_trip_sparse_terms(q_msg.clone()).await.unwrap().into_inner();
+        assert_eq!(q_back, q_msg);
+        assert_eq!(SparseTermsWire::from_msg(&q_back).unwrap().impacts, q_wire.impacts);
     }
 }
 

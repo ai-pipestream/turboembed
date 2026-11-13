@@ -378,6 +378,36 @@ message SparseTermsResult
   // OFFSET_MODE_UTF8, spans are carried as raw UTF-8 byte offsets.
   string text = 11;
   OffsetMode offsets = 12;
+
+  // Optional quantized integer impact per entry (#2343): empty when
+  // unquantized, or one value per entry in 1..=255 (when impact_bits == 8)
+  // or 1..=65535 (when impact_bits == 16).
+  repeated uint32 impact = 13;
+
+  // Quantization bit width for impact (#2343): 0 when unquantized, 8 for
+  // u8 impacts (1..=255), or 16 for u16 impacts (1..=65535).
+  uint32 impact_bits = 14;
+
+  // Calibrated quantization scale max_impact / impact_w_max (#2343);
+  // finite and over 0 when impact_bits is 8 or 16, 0 when unquantized.
+  float impact_scale = 15;
+
+  // Saturation clip ceiling w_max (#2343); finite and over 0 when
+  // impact_bits is 8 or 16, 0 when unquantized.
+  float impact_w_max = 16;
+
+  // Exact L1 rounding and clipping error bound sum_t |q(t) / scale - w(t)|
+  // across the quantized entries (#2343); finite and >= 0.
+  float impact_l1_rounding_bound = 17;
+
+  // Upper-bound error certificate on |quantized_dot_rescaled - float_dot|
+  // for safe Block-Max WAND floor pruning (#2343); finite and >= 0.
+  float impact_dot_error_bound = 18;
+
+  // Optional compact ASCII/UTF-8 term key per entry (#tok_<id> or
+  // vocabulary piece string, #2343): empty, or one non-empty string per
+  // entry.
+  repeated string term_key = 19;
 }
 
 // One contextual vector per model token with the spans of the encoder
