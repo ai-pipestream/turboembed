@@ -333,8 +333,12 @@ which becomes its `url`, and refuses a file that is not the size the
 listing gives or, for a file in large file storage, not the SHA-256 the
 repository records for it. The entry pins the size, SHA-256 and SHA-512
 of the bytes read. A listing of 1000 entries or more is refused, since
-it may have been cut, and so is a path that an address would not carry
-as it is.
+it may have been cut. A file's path is percent-encoded in its address
+where an address would not carry it as it is (a space, a character
+outside ASCII). A file the importer cannot take (a path that leaves the
+repository, a file in large file storage with no SHA-256) is refused
+when it is imported, and holds up no other: with `--file`, only the
+files named are read.
 
 | Flag | Entry field |
 |---|---|
@@ -383,8 +387,11 @@ request that any hop sends on to another host is reported as that
 redirect and is not followed.
 Most registries ask for such a
 token for public repositories too, so a file at a blob address is
-fetched through it: `turbo-zoo fetch` asks the address plainly and then
-through `OciRegistry`. `OciRegistry::with` sends a registry's requests
+fetched through it: `turbo-zoo fetch` and a zoo server (`Catalog::http`)
+read an index's addresses through `Sources::https()`, which asks each
+address plainly and then through `OciRegistry`. The ignored test
+`analysis/zoo/tests/registry_address.rs` fetches a file of the
+published POS model from its Docker Hub blob address that way. `OciRegistry::with` sends a registry's requests
 to another address: an `https://` one, such as a pull-through mirror,
 or `http://` on this machine alone (`127.0.0.1` or `localhost`), and
 refuses any other.
