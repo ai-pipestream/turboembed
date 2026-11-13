@@ -390,7 +390,10 @@ or `http://` on this machine alone (`127.0.0.1` or `localhost`), and
 refuses any other.
 `analysis/zoo/tests/import_oci.rs` runs the importer against an
 in-process registry that issues the challenge, the token and the
-redirect.
+redirect. The manifest and the challenge Docker Hub itself
+serves for the published model are kept as recorded
+(`analysis/zoo/testdata/recorded/`, the manifest held to its digest),
+and unit tests read them.
 
 ### What an import keeps
 

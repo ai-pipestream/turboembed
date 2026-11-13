@@ -76,6 +76,40 @@ fn parse(reference: &str) -> Result<(&str, &str, Sha256), String> {
     Ok((registry, name, pin))
 }
 
+/// The file each layer of an artifact's `manifest` is: its path, size
+/// and SHA-256, in the manifest's order.
+fn layers(manifest: &[u8]) -> Result<Vec<(RelPath, u64, Sha256)>, String> {
+    let v: serde_json::Value =
+        serde_json::from_slice(manifest).map_err(|e| format!("the artifact's manifest is not JSON: {e}"))?;
+    if v.get("manifests").is_some() {
+        return Err("the digest names an image index; name one manifest of it".into());
+    }
+    let layers = v
+        .get("layers")
+        .and_then(|l| l.as_array())
+        .filter(|l| !l.is_empty())
+        .ok_or("the artifact's manifest lists no layers")?;
+    let mut out = Vec::with_capacity(layers.len());
+    for (i, layer) in layers.iter().enumerate() {
+        let bad = |what: &str| format!("layers[{i}] {what}");
+        let title = layer.get("annotations").and_then(|a| a.get(TITLE)).and_then(|t| t.as_str()).ok_or_else(|| {
+            bad("names no file (no org.opencontainers.image.title); a container image's layers are not model files")
+        })?;
+        let unpack = layer.get("annotations").and_then(|a| a.get(UNPACK)).and_then(|u| u.as_str()) == Some("true");
+        if unpack {
+            return Err(bad(&format!(
+                "({title:?}) is an archive of a directory, not a file; push each file as a layer of its own"
+            )));
+        }
+        let path = RelPath::from_str(title).map_err(|e| bad(&format!("names a file the zoo does not take: {e}")))?;
+        let size = layer.get("size").and_then(|s| s.as_u64()).ok_or_else(|| bad("has no size"))?;
+        let named = layer.get("digest").and_then(|d| d.as_str()).unwrap_or_default();
+        let sha256 = digest(named).ok_or_else(|| bad(&format!("has the digest {named:?}, not a SHA-256 one")))?;
+        out.push((path, size, sha256));
+    }
+    Ok(out)
+}
+
 /// The entry of the artifact `spec.reference` names, read from
 /// `registry`. The manifest is held to the digest of the reference, and
 /// each layer to the size and digest the manifest gives it; a layer's
@@ -92,35 +126,12 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
     let manifest = registry
         .manifest(host, name, &pin)
         .map_err(|message| ZooError::Transport { url: format!("{at}/manifests/sha256:{pin}"), message })?;
-    let v: serde_json::Value =
-        serde_json::from_slice(&manifest).map_err(|e| fail(format!("the artifact's manifest is not JSON: {e}")))?;
-    if v.get("manifests").is_some() {
-        return Err(fail("the digest names an image index; name one manifest of it".into()));
-    }
-    let layers = v
-        .get("layers")
-        .and_then(|l| l.as_array())
-        .filter(|l| !l.is_empty())
-        .ok_or_else(|| fail("the artifact's manifest lists no layers".into()))?;
+    let layers = layers(&manifest).map_err(fail)?;
 
     let kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
     let mut files = Vec::with_capacity(layers.len());
     let mut bundle_manifest = None;
-    for (i, layer) in layers.iter().enumerate() {
-        let bad = |what: &str| fail(format!("layers[{i}] {what}"));
-        let title = layer.get("annotations").and_then(|a| a.get(TITLE)).and_then(|t| t.as_str()).ok_or_else(|| {
-            bad("names no file (no org.opencontainers.image.title); a container image's layers are not model files")
-        })?;
-        let unpack = layer.get("annotations").and_then(|a| a.get(UNPACK)).and_then(|u| u.as_str()) == Some("true");
-        if unpack {
-            return Err(bad(&format!(
-                "({title:?}) is an archive of a directory, not a file; push each file as a layer of its own"
-            )));
-        }
-        let path = RelPath::from_str(title).map_err(|e| bad(&format!("names a file the zoo does not take: {e}")))?;
-        let size = layer.get("size").and_then(|s| s.as_u64()).ok_or_else(|| bad("has no size"))?;
-        let named = layer.get("digest").and_then(|d| d.as_str()).unwrap_or_default();
-        let sha256 = digest(named).ok_or_else(|| bad(&format!("has the digest {named:?}, not a SHA-256 one")))?;
+    for (path, size, sha256) in layers {
         let url = Url::from_str(&format!("{at}/blobs/sha256:{sha256}")).map_err(fail)?;
         let cached = match &kept {
             Some(k) => k.held(path.as_str(), size, &sha256)?,
@@ -189,7 +200,46 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
 
 #[cfg(test)]
 mod tests {
-    use super::parse;
+    use super::{layers, parse};
+    use crate::digest::Sha256;
+
+    /// The manifest Docker Hub serves for
+    /// `pipestreamai/turbo-en-masc-pos-modernbert-base-2@sha256:ac9d7e33...`,
+    /// as `oras push` wrote it, byte for byte: its SHA-256 is that digest.
+    const RECORDED: &[u8] = include_bytes!("../../testdata/recorded/docker-hub-artifact-manifest.json");
+
+    #[test]
+    fn the_manifest_docker_hub_serves_reads_as_the_models_four_files() {
+        let pin = "ac9d7e33c8f91cfaab3f6279d4b5adccaa8c651f6ac29b5cfece6ccba6fa0092";
+        assert_eq!(Sha256::of(RECORDED).to_string(), pin, "the recording is the manifest the digest names");
+        let read: Vec<(String, u64, String)> =
+            layers(RECORDED).unwrap().into_iter().map(|(p, size, d)| (p.to_string(), size, d.to_string())).collect();
+        let expected = [
+            ("manifest.json", 98165, "068a2664cd0b968425cf85bd98ad5d40122e9c4b1645fd4ddcab6a5dfac32200"),
+            (
+                "reference/reference.safetensors",
+                430352,
+                "f0aa2f78c5a9c5564e48063a09cf016b84c70795188eb52c4a862b294a597755",
+            ),
+            ("tokenizer.json", 2132967, "9fd55248d51d33976b324fc11592e28071da7d41e0e9401dfb7082e30574b7b1"),
+            (
+                "weights/model.safetensors",
+                612061000,
+                "d1e925ab465de45d37b7b5fa0f0cbb2814f1ce37bd46e4b8d956a205007b9be9",
+            ),
+        ];
+        assert_eq!(read.len(), expected.len());
+        for ((path, size, digest), want) in read.iter().zip(expected) {
+            assert_eq!((path.as_str(), *size, digest.as_str()), want);
+        }
+        // The files are the ones the built-in index pins for the model.
+        let index = crate::Index::builtin();
+        let held = &index.get("turbo-en-masc-pos-modernbert-base-2").unwrap().files;
+        assert_eq!(held.len(), read.len());
+        for (f, (path, size, digest)) in held.iter().zip(&read) {
+            assert_eq!((f.path.as_str(), f.size, f.sha256.to_string()), (path.as_str(), *size, digest.clone()));
+        }
+    }
 
     #[test]
     fn a_reference_names_a_registry_a_repository_and_a_digest() {

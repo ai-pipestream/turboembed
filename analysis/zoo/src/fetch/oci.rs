@@ -268,12 +268,15 @@ mod tests {
 
     #[test]
     fn a_bearer_challenge_names_the_token_request() {
-        let docker = r#"Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:library/x:pull""#;
+        // Docker Hub's own challenge, as recorded from an anonymous
+        // manifest request for a public repository.
+        let docker = r#"Bearer realm="https://auth.docker.io/token",service="registry.docker.io",scope="repository:pipestreamai/turbo-en-masc-pos-modernbert-base-2:pull""#;
         assert_eq!(
             token_request(docker).unwrap(),
             (
                 "https://auth.docker.io/token".to_owned(),
-                "service=registry.docker.io&scope=repository:library/x:pull".to_owned()
+                "service=registry.docker.io&scope=repository:pipestreamai/turbo-en-masc-pos-modernbert-base-2:pull"
+                    .to_owned()
             )
         );
         let spaced = r#"Bearer realm="https://r.example.org/token", scope="repository:a/b:pull,push", error="x y""#;
