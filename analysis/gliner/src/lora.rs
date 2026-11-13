@@ -65,10 +65,13 @@ impl Model {
             return Err("gliner LoRA training requires the CPU encoder".into());
         };
         let trace = encoder.encode_layers(ids, &vec![true; ids.len()]).map_err(|e| e.message)?;
-        let mut works = Vec::with_capacity(state.layers.len());
+        let mut works: Vec<Work<f32>> = Vec::with_capacity(state.layers.len());
         for (offset, layer) in state.layers.iter().enumerate() {
-            let index = state.start + offset;
-            let x = trace.get(index).ok_or("gliner LoRA encoder layer is out of range")?;
+            let x = if offset == 0 {
+                trace.get(state.start).ok_or("gliner LoRA encoder layer is out of range")?
+            } else {
+                &works[offset - 1].out
+            };
             let mut work = Work::default();
             layer.forward(x, &state.relative, &mut work);
             works.push(work);

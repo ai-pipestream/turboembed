@@ -245,7 +245,38 @@ fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
 
 #[test]
 fn multi_layer_lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
-    lora_train_install_reload(2, 0.005);
+    lora_train_install_reload(2, 0.0001);
+}
+
+#[test]
+fn earlier_lora_layer_changes_scores_and_merged_export() {
+    let config = config(true, 4);
+    let original = heads(&config);
+    let encoder_original =
+        std::fs::read(root().join("testdata/tiny-deberta-bundle/weights/model.safetensors")).unwrap();
+    let mut tuned = model(&config, &original);
+    tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, 2).unwrap();
+    let before = tuned.training_input_lora(&WORDS, &schema()).unwrap().candidates;
+    let mut grads = tuned.lora_zero_grads().unwrap();
+    grads[1][0] = 1.0;
+    let lens: Vec<usize> = grads.iter().map(Vec::len).collect();
+    let settings = Settings { lr: 1e-2, total: 1, ..Settings::default() };
+    let mut optimizer = turbo_trainer::adamw::AdamW::new(settings, &lens).unwrap();
+    tuned.lora_step(&mut optimizer, &mut grads).unwrap();
+    let after = tuned.training_input_lora(&WORDS, &schema()).unwrap().candidates;
+    assert_ne!(after, before);
+
+    let merged = tuned.write_lora(&encoder_original).unwrap();
+    let encoder = Encoder::from_safetensors(encoder_config(), &merged).unwrap().with_threads(1).unwrap();
+    let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
+    let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
+    let reloaded = Model::new(encoder, config, &original, &spm, identity).unwrap();
+    let exported = reloaded.training_input(&WORDS, &schema()).unwrap().1;
+    assert_eq!(exported.len(), after.len());
+    for (exported, after) in exported.iter().zip(&after) {
+        assert_eq!((exported.start, exported.end, exported.label), (after.start, after.end, after.label));
+        assert!((exported.logit - after.logit).abs() < 0.0001);
+    }
 }
 
 fn lora_train_install_reload(layers: usize, tolerance: f32) {
