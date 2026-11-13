@@ -617,8 +617,11 @@ and the dark scheme, 1280 px wide. They are the page in a real browser
 in front of a real server on the CPU, serving the static models
 `minishlab/potion-base-8M` and `minishlab/potion-base-32M` (MIT, made
 with `turbo-bundle make bundle/recipes/potion/potion-base-8M.json
-UPSTREAM BUNDLE`); every number in them is the server's answer.
-`scripts/demo-screenshots.sh BUNDLE [BUNDLE...]` takes them again:
+UPSTREAM BUNDLE`) with `max_seq=128`, so the chunker, which sizes
+chunks from the model's width, cuts the sample document into several
+chunks; every number in them is the server's answer.
+`TURBO_SHOTS_MAX_SEQ=128 scripts/demo-screenshots.sh BUNDLE [BUNDLE...]`
+takes them again:
 it builds both binaries in release, serves the bundles with a demo that
 forwards creating and filling an index and learning a vocabulary, and
 runs `demo/web/e2e/screenshots.ts`, which uses each tab as a visitor
@@ -639,11 +642,18 @@ Semantic: one query against five passages, the nearest by cosine and the passage
   <img alt="Semantic tab of the demo page" src="images/demo/semantic-light.png" width="640">
 </picture>
 
-Analyze: a document run through `default-v1` with an embedding model, its steps, layers, the place names found and the heatmap.
+Analyze: a document on four topics run through `default-v1` with an embedding model, its steps, layers, the place names found, the heatmap and the document map.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-dark.png">
   <img alt="Analyze tab of the demo page" src="images/demo/analyze-light.png" width="640">
+</picture>
+
+Analyze, Document map: the same document's chunks placed by their two main directions of meaning, the topic seismograph with the chunker's cuts, and the term river.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-map-dark.png">
+  <img alt="Analyze, Document map tab of the demo page" src="images/demo/analyze-map-light.png" width="640">
 </picture>
 
 Analyze, Graph wire inspector: the graph's binary format read in the page, after a byte-for-byte round trip on the server.
@@ -660,7 +670,7 @@ Search: an index created and filled from the page, a query's hits with the words
   <img alt="Search tab of the demo page" src="images/demo/search-light.png" width="640">
 </picture>
 
-Vocabulary: the store after learning a vocabulary from typed documents.
+Vocabulary: the store after learning an English vocabulary from typed documents with the stopwords dropped.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/demo/vocabulary-dark.png">
