@@ -9820,7 +9820,8 @@ function river(m, link) {
     }
     return p;
   });
-  const info = el("p", { class: "info", role: "status", text: "Point at a stream or a name to mark that term in the text." });
+  const IDLE = "Point at a stream or a name to mark that term in the text.";
+  const info = el("p", { class: "info", role: "status", text: IDLE });
   const keys = m.terms.map((term, t) => {
     const b = el("button", { type: "button", class: "swatch key", style: `--mark: var(--m${t})` }, el("i", {}), ` ${term} `, el("span", { class: "muted", text: String(m.occurrences(term)) }));
     b.addEventListener("mouseenter", () => link.term(term));
@@ -9838,7 +9839,7 @@ function river(m, link) {
     if (at >= 0) {
       const where = m.weights[at].flatMap((w, c) => w > 0 ? [c + 1] : []);
       info.textContent = `"${m.terms[at]}" occurs ${m.occurrences(m.terms[at])} times; it is among the listed terms of ${where.length === 1 ? "chunk" : "chunks"} ${where.join(", ")}. Its occurrences are marked in the text.`;
-    }
+    } else info.textContent = IDLE;
   });
   return el("div", { class: "figure" }, el("div", { class: "scroll" }, svg), el("div", { class: "legend" }, keys, clear), info);
 }

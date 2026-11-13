@@ -60,12 +60,26 @@ test("the document map draws a dot per chunk and links the views with the text",
     const seismograph = page.locator(`${OUT} .figure`).nth(1);
     assert.equal(await seismograph.locator("svg .band").count(), chunks);
     assert.equal((await seismograph.locator("svg .stem, svg path.line").count()) > 0, true);
+    assert.equal(await seismograph.locator("svg .cut-mark").count(), chunks);
+    // The profile's own row of ticks, then one per budget of the box (small and large).
+    assert.equal(await seismograph.locator("svg .barcode").count(), 3);
+    const rows = await seismograph.locator("svg text.row-name title").allTextContents();
+    assert.equal(rows.some((t) => t.startsWith("small:") && t.includes("cuts shared")), true, rows.join(" | "));
     const pad = seismograph.locator("svg .pad");
+    // Pointing at the curve picks the gap nearest the pointer and shows the sentence on each side.
+    await pad.scrollIntoViewIfNeeded();
+    await pad.hover();
+    await page.waitForFunction((out) => (document.querySelectorAll(`${out} .figure`)[1].querySelector(".info")?.textContent ?? "").startsWith("Gap "), OUT);
+    assert.equal(await seismograph.locator(".info .quote").count(), 2);
+    await page.mouse.move(0, 0);
     await pad.focus();
     await page.keyboard.press("ArrowRight");
-    await page.waitForFunction((out) => (document.querySelectorAll(`${out} .figure`)[1].querySelector(".info")?.textContent ?? "").startsWith("Gap 1 of "), OUT);
-    assert.equal(await pad.getAttribute("aria-valuenow"), "1");
-    await page.keyboard.press("ArrowLeft");
+    const now = Number(await pad.getAttribute("aria-valuenow"));
+    const most = Number(await pad.getAttribute("aria-valuemax"));
+    for (let i = now; i <= most; i++) await page.keyboard.press("ArrowRight");
+    assert.equal(await pad.getAttribute("aria-valuenow"), String(most), "the last gap is the right end");
+    assert.equal(((await seismograph.locator(".info").textContent()) ?? "").startsWith(`Gap ${most} of ${most}`), true);
+    for (let i = 0; i <= most; i++) await page.keyboard.press("ArrowLeft");
     assert.equal(await pad.getAttribute("aria-valuenow"), "1", "the first gap is the left end");
 
     // The river: a stream and a legend key per term, and a term marks its occurrences in the text.
@@ -80,6 +94,16 @@ test("the document map draws a dot per chunk and links the views with the text",
     await page.waitForSelector(`${OUT} .chunked mark.occ`);
     assert.deepEqual(await page.locator(`${OUT} .chunked mark.occ`).allTextContents(), ["COBOL", "COBOL"]);
     assert.equal(((await river.locator(".info").textContent()) ?? "").includes("occurs 2 times"), true);
+    // Clear takes the marks off and puts the prompt back.
+    await river.locator("button", { hasText: "Clear" }).click();
+    await page.waitForSelector(`${OUT} .chunked mark.occ`, { state: "detached" });
+    assert.equal(await river.locator(".info").textContent(), "Point at a stream or a name to mark that term in the text.");
+
+    // The switch draws the heaviest terms instead, words every chunk uses among them.
+    const skipped = (await river.locator("button.key").allTextContents()).map((k) => k.trim().split(" ")[0]);
+    assert.equal(skipped.includes("the"), false, skipped.join(" "));
+    await page.uncheck("#projection-uneven");
+    await page.waitForFunction((out) => [...document.querySelectorAll(`${out} .figure button.key`)].some((k) => (k.textContent ?? "").trim().startsWith("the ")), OUT);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
