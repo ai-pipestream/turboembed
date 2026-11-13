@@ -8184,7 +8184,14 @@ function init5() {
 }
 
 // demo/web/src/csv.ts
-function field2(v) {
+function inert(v) {
+  const lead = v.trimStart().charAt(0);
+  if (lead !== "=" && lead !== "+" && lead !== "-" && lead !== "@") return v;
+  const n = v.trim();
+  return n !== "" && Number.isFinite(Number(n)) ? v : `'${v}`;
+}
+function field2(raw) {
+  const v = inert(raw);
   const quote = v.includes(",") || v.includes('"') || v.includes("\n") || v.includes("\r") || v.startsWith(" ") || v.endsWith(" ");
   return quote ? `"${v.replaceAll('"', '""')}"` : v;
 }
@@ -8193,7 +8200,7 @@ function csv(rows2) {
 }
 function tsv(rows2) {
   const flat = (v) => v.replaceAll("	", " ").replaceAll("\r\n", " ").replaceAll("\n", " ").replaceAll("\r", " ");
-  return rows2.map((r) => r.map(flat).join("	")).join("\n");
+  return rows2.map((r) => r.map((v) => inert(flat(v))).join("	")).join("\n");
 }
 function fileName(name) {
   let out = "";

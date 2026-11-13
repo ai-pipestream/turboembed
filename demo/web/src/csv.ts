@@ -3,8 +3,22 @@
 // doubled, rows end CR LF) and tab-separated for the clipboard, which
 // is what a sheet pastes into cells.
 
+/**
+ * `v` as a sheet will take it for text: a value that starts with `=`,
+ * `+`, `-` or `@` (or a tab or carriage return before one) is read as a
+ * formula, and a search hit's text is not ours to trust, so it gets a
+ * leading apostrophe. A plain number such as `-0.25` is left alone.
+ */
+export function inert(v: string): string {
+  const lead = v.trimStart().charAt(0);
+  if (lead !== "=" && lead !== "+" && lead !== "-" && lead !== "@") return v;
+  const n = v.trim();
+  return n !== "" && Number.isFinite(Number(n)) ? v : `'${v}`;
+}
+
 /** One CSV field. */
-export function field(v: string): string {
+export function field(raw: string): string {
+  const v = inert(raw);
   const quote = v.includes(",") || v.includes('"') || v.includes("\n") || v.includes("\r") || v.startsWith(" ") || v.endsWith(" ");
   return quote ? `"${v.replaceAll('"', '""')}"` : v;
 }
@@ -17,7 +31,7 @@ export function csv(rows: string[][]): string {
 /** Rows as tab-separated lines; a tab or a line break inside a value becomes a space. */
 export function tsv(rows: string[][]): string {
   const flat = (v: string): string => v.replaceAll("\t", " ").replaceAll("\r\n", " ").replaceAll("\n", " ").replaceAll("\r", " ");
-  return rows.map((r) => r.map(flat).join("\t")).join("\n");
+  return rows.map((r) => r.map((v) => inert(flat(v))).join("\t")).join("\n");
 }
 
 /** A file name from a result's name: letters and digits kept (any script), the rest a dash. */

@@ -426,13 +426,18 @@ tab's form puts that tab back and forgets what was kept
 Models and Server are never kept, and the bearer token stays in
 `sessionStorage`. With storage blocked the page works the same and
 keeps nothing.
+What is kept stays in that browser until Reset or until the site's data
+is cleared, so on a shared machine use Reset, or a private window,
+after pasting text that others should not read.
 
 The similarity matrices, the vectors, the side-by-side table, the
 nearest neighbours, the rerank scores and the search hits each have
 "Copy" and "Download CSV" (`demo/web/src/csv.ts`). The file is CSV as
 RFC 4180 writes it, with the full texts and six decimals (the vectors
 as the server sent them); Copy puts the same rows on the clipboard
-separated by tabs, which a spreadsheet pastes into cells. Both are
+separated by tabs, which a spreadsheet pastes into cells. A value that
+a sheet would read as a formula (it starts with `=`, `+`, `-` or `@` and
+is not a number) gets a leading apostrophe in both. Both are
 built in the page from values it already has; nothing is asked of the
 server and there is no JSON.
 
