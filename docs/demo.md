@@ -843,6 +843,14 @@ either: every call the page makes goes through the demo to the server.
   asked for before anything is sent, and one with no bundled list shows
   the server's refusal. From 390 to 1280 pixels no two fields of the
   collection form overlap.
+- Beyond `document-map.test.ts`, a four-paragraph document analyzed
+  with `default-v1` numbers the map's dots in reading order and lights
+  the last dot from the last chunk of text; a term picked on the river
+  fades the other streams and marks as many words in the text as its
+  key counts, until Clear; the numbers are tables too; and at 390
+  pixels each figure is wider than the phone and scrolls in its own box
+  while the page does not scroll sideways
+  (`document-map-details.test.ts`).
 
 `demo/web/e2e/permits.test.ts` starts a demo with a token and one
 `--allow`: nothing is off before the token is typed, and after it the
