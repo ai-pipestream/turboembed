@@ -4,8 +4,8 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use turbo_zoo::{
-    Acceptances, Home, Http, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512,
-    UserId, Zoo, ZooError,
+    Acceptances, Home, Http, Index, Licence, LicenceClass, LocalOnlyReason, OciRegistry, Policy, Requirement, Sha256,
+    Sha512, Sources, UserId, Zoo, ZooError,
 };
 
 mod import_cmd;
@@ -28,6 +28,12 @@ const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
                        a sealed bundle directory as an index entry, every file
                        verified against its manifest; with --into <zoo.json>,
                        added to that index file (`turbo-zoo import-bundle` lists the flags)
+  import-hf <owner/name> <commit> --id <id> --license <SPDX id> --license-terms <url> [...]
+                       a Hugging Face model repository at a commit as an index entry,
+                       every file fetched and held to the repository's own listing
+  import-oci <registry>/<name>@sha256:<digest> --id <id> --license <SPDX id> --license-terms <url> [...]
+                       an OCI artifact in a registry as an index entry, the manifest and
+                       every layer held to its digest
 
 The zoo keeps its cache and acceptance file in $TURBO_ZOO_HOME, else
 $XDG_DATA_HOME/turbo-zoo, else ~/.local/share/turbo-zoo. The user is $USER
@@ -71,8 +77,14 @@ fn acceptable(licence: &str, verb: &str) -> Result<Licence, String> {
 }
 
 fn run(mut args: Vec<String>) -> Result<(), String> {
-    if args.first().map(String::as_str) == Some("import-bundle") {
-        return import_cmd::run(&args[1..].iter().map(String::as_str).collect::<Vec<_>>());
+    let import = match args.first().map(String::as_str) {
+        Some("import-bundle") => Some(import_cmd::bundle_dir as fn(&[&str]) -> Result<(), String>),
+        Some("import-hf") => Some(import_cmd::repo as fn(&[&str]) -> Result<(), String>),
+        Some("import-oci") => Some(import_cmd::artifact as fn(&[&str]) -> Result<(), String>),
+        _ => None,
+    };
+    if let Some(import) = import {
+        return import(&args[1..].iter().map(String::as_str).collect::<Vec<_>>());
     }
     // The index's own text is kept: it holds the entries the zoo refuses
     // and does not list, which `index` prints with the rest.
@@ -187,7 +199,9 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
         }
         ["fetch", id] => {
             let user = UserId::from_env()?;
-            let transport = Http::new();
+            // A file at a registry's blob address is asked for again with
+            // the anonymous token the registry wants.
+            let transport = Sources::new().then("address", Http::new()).then("registry", OciRegistry::new());
             let zoo = Zoo::new(index, home.artifacts(), Policy::default(), &transport);
             // The acceptance file is read only for an artifact that needs it.
             let fetched = zoo.fetch_with(id, &user, || Acceptances::load(&accept_path)).map_err(e)?;

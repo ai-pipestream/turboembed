@@ -289,7 +289,7 @@ struct Listed {
 /// other reference beside the request's last path segment, with `.` and
 /// `..` segments removed. Whether the result may be fetched (HTTPS only
 /// for an HTTPS endpoint) is the unsigned agent's check.
-fn resolve(base: &str, path: &str, location: &str) -> String {
+pub(super) fn resolve(base: &str, path: &str, location: &str) -> String {
     // A scheme can only precede the first path, query or fragment delimiter.
     // In particular, an absolute URL inside a query is not this URI's scheme.
     let first = location.split(['/', '?', '#']).next().unwrap_or_default();

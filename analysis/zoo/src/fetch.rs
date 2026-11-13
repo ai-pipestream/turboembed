@@ -16,8 +16,11 @@ use crate::licence::Policy;
 
 #[cfg(feature = "http")]
 mod drive;
+mod kept;
 #[cfg(feature = "http")]
 mod oauth;
+#[cfg(feature = "http")]
+mod oci;
 #[cfg(feature = "http")]
 mod s3;
 #[cfg(feature = "http")]
@@ -28,8 +31,11 @@ mod transport;
 
 #[cfg(feature = "http")]
 pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
+pub(crate) use kept::Kept;
 #[cfg(feature = "http")]
 pub use oauth::{DRIVE_READONLY, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleOAuth, Grant, Pkce, Renewing};
+#[cfg(feature = "http")]
+pub use oci::OciRegistry;
 #[cfg(feature = "http")]
 pub use s3::S3Bucket;
 pub use sources::{Blobs, Directory, Keep, Sources};
