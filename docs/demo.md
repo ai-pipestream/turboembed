@@ -540,8 +540,8 @@ server and there is no JSON.
     the row's chunk in the text; the pairs can be copied or downloaded.
     Rows are chunks because the served profiles write chunk vectors; a
     graph with sentence vectors only gets a row per sentence. The server
-    compares at most 512, and a longer document says so in the matrix's
-    place.
+    places and compares at most 512 rows, and a longer document gets its
+    refusal in the panel's place.
     A query typed over the map (`query`) is embedded by the model that
     made the graph's vectors and lands on the map as a diamond, a
     little after the typing stops or at once on Enter. Each
@@ -553,13 +553,15 @@ server and there is no JSON.
     that model is not loaded the server's refusal is shown under the box
     and the map stands as it was.
     One Analyze sends the graph once: the map, the matrix and a query
-    already in the box come back from one `ProjectChunks` call, and a
-    graph whose layers hold no chunk or sentence vectors is not asked
-    for a matrix. The server refuses a whole call when it cannot answer
-    the query or the matrix, so on a refusal the page asks again
-    without the query, then without the matrix, shows what was refused
-    in that part's place and draws the rest. A query typed afterwards
-    is a call of its own.
+    already in the box come back from one `ProjectChunks` call. A graph
+    whose chunk or sentence vectors did not run, or hold nothing, is not
+    asked for a matrix or a query. The server refuses a whole call when
+    it cannot answer the query or the matrix and names that part, so the
+    page asks again without the part named, shows the refusal in that
+    part's place and draws the rest; any other refusal is the panel's
+    and is not asked again. A query typed afterwards is a call of its
+    own, and one changed while the map was on its way is asked of the
+    new map.
   - Entities (open from the start): `InspectDocumentGraph`'s entity
     layer drawn two ways. The constellation has a node per entity
     (mentions of one name and kind gathered, whatever the case), sized
@@ -894,14 +896,17 @@ either: every call the page makes goes through the demo to the server.
   while the page does not scroll sideways
   (`document-map-details.test.ts`).
 - One Analyze is one `ProjectChunks` call, with the query box empty or
-  filled, and a query typed afterwards is a second; a query typed just
-  before Draw is asked once, not again when the typing timer would
-  have run; a query over the server's byte limit costs one more call
-  and leaves the map and the matrix drawn with the refusal under the
-  box; and an answer to an older drawing that arrives after a newer
-  one is not drawn (`document-map-calls.test.ts`). The matrix's
-  diagonal is the far end of its colour ramp
-  (`matrix-spotlight.test.ts`).
+  filled, and a query typed afterwards is a second; a graph without
+  vectors (`minimal-v1`) is one call with or without a query and shows
+  no line for a matrix; a query typed just before Draw is asked once,
+  not again when the typing timer would have run; a query over the
+  server's byte limit costs one more call and leaves the map and the
+  matrix drawn with the refusal under the box; a document of more rows
+  than the server places is refused once and not asked again in parts;
+  a query changed while the map was on its way is the one placed; and
+  an answer to an older drawing that arrives after a newer one is not
+  drawn (`document-map-calls.test.ts`). The matrix's diagonal is the
+  far end of its colour ramp (`matrix-spotlight.test.ts`).
 - A graph with an entity layer and a relation layer, which
   `server/examples/inspect_layer_fixture.rs` writes as its second file
   because no test bundle has a relation model, opened from a file: the

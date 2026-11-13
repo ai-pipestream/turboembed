@@ -19,6 +19,8 @@ const TEXT = [
   "Banks process billions of transactions on that old code every day. When the central bank raises interest rates, those bank systems recalculate millions of loans overnight. Higher interest rates push borrowing costs up for households and firms. Inflation this quarter kept rates high for longer than expected.",
   "Today, search engines in Zürich turn words into vectors so a machine can compare meaning. A query and a passage that share no words can still sit close together in that vector space. Each vector is a list of numbers, and similar meanings point in similar directions. Lovelace's idea that a machine could work with symbols is the root of that design.",
 ].join("\n\n");
+/** Copies of TEXT that chunk into more than the 512 rows the server places. */
+const LONG = 150;
 const BANK = "what happens when the central bank raises interest rates";
 const SEARCH = "Zürich search engines compare meaning with vectors";
 
@@ -38,11 +40,11 @@ async function watch(browser: Browser): Promise<Seen> {
 }
 
 /** Fills the form of Analyze; `query` goes in the map's query box before anything is drawn. */
-async function ready(page: Page, query = ""): Promise<void> {
+async function ready(page: Page, query = "", profile = "default-v1"): Promise<void> {
   await page.goto(`${BASE}/#analyze`);
   await page.waitForSelector("#analyze-profile option", { state: "attached" });
   await page.fill("#analyze-text", TEXT);
-  await page.selectOption("#analyze-profile", "default-v1");
+  await page.selectOption("#analyze-profile", profile);
   if (query) {
     await page.fill("#projection-query", query);
     // The typing's own timer finds nothing on show and asks nothing.
@@ -94,6 +96,27 @@ test("one Analyze draws the map, the matrix and the query from one ProjectChunks
   }
 });
 
+test("a graph without vectors is asked once, and not for a matrix", async () => {
+  const browser = await chromium.launch();
+  try {
+    // minimal-v1 embeds nothing; a query in the box changes nothing about that.
+    for (const query of ["", BANK]) {
+      const { page, context, calls, errors } = await watch(browser);
+      await ready(page, query, "minimal-v1");
+      await page.click("#analyze-run");
+      await page.waitForSelector(`${OUT} :text("No vectors in this graph")`);
+      await page.waitForTimeout(700);
+      assert.equal(calls(), 1, `calls with the query ${JSON.stringify(query)}`);
+      assert.equal(await page.locator(`${OUT} .matrix`).count(), 0);
+      assert.equal(await page.locator("#matrix-none").count(), 0, "no line for a matrix nobody asked for");
+      assert.deepEqual(errors, []);
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
 test("a query typed just before Draw rides on that call and is not asked twice", async () => {
   const browser = await chromium.launch();
   try {
@@ -132,6 +155,49 @@ test("a refused query leaves the map and the matrix standing and says why", asyn
     const why = (await page.locator("#projection-query-out").textContent()) ?? "";
     assert.equal(why.includes("query bytes"), true, why);
     assert.equal((await page.locator(`${OUT} svg .dot`).count()) > 3, true);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("a document too long to place is refused once and not asked again in parts", async () => {
+  const browser = await chromium.launch();
+  try {
+    // More rows than the server places: no part of the call is to blame, so nothing is asked again.
+    const { page, calls, errors } = await watch(browser);
+    await ready(page, BANK);
+    await page.fill("#analyze-text", Array.from({ length: LONG }, () => TEXT).join("\n\n"));
+    await page.click("#analyze-run");
+    await page.waitForSelector(`${OUT} .error`, { timeout: 120_000 });
+    await page.waitForTimeout(700);
+    assert.equal(calls(), 1);
+    const why = (await page.locator(OUT).textContent()) ?? "";
+    assert.equal(why.includes("max_project_rows"), true, why);
+    assert.equal(await page.locator(`${OUT} svg .dot`).count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("a query changed while the map is on its way is the one placed", async () => {
+  const browser = await chromium.launch();
+  try {
+    const { page, context, calls, errors } = await watch(browser);
+    const hold = await Hold.of(context, CALL);
+    await ready(page, BANK);
+    hold.start();
+    await page.click("#analyze-run");
+    await hold.held(page, 1);
+    // Nothing is drawn yet, so Enter has nothing to ask of.
+    await page.fill("#projection-query", SEARCH);
+    await page.press("#projection-query", "Enter");
+    await hold.release(page);
+    await placed(page, SEARCH);
+    await page.waitForTimeout(900);
+    assert.equal(calls(), 2, "the drawing, and the changed query once");
+    assert.equal(await page.locator(`${OUT} svg .query`).count(), 1);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

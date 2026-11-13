@@ -7081,6 +7081,14 @@ function cancelled(e) {
   if (e instanceof Error && e.name === "AbortError") return true;
   return e instanceof ConnectError && e.code === Code.Canceled;
 }
+function declined(e) {
+  if (!(e instanceof ConnectError)) return false;
+  return ASKED_TOO_MUCH.includes(e.code);
+}
+var ASKED_TOO_MUCH = [Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound, Code.OutOfRange, Code.ResourceExhausted];
+function declinedOver(e, part2) {
+  return declined(e) && unprefixed(e.rawMessage).startsWith(part2);
+}
 var EMPTY = {
   index_name: "Pick or create an index first.",
   natural_query: "Enter something to search for.",
@@ -7341,7 +7349,7 @@ function confirmed(label, question, act3, off2 = "") {
 // demo/web/src/doc.ts
 var PLACED = ["turbo:embeddings<turbo:chunks>", "turbo:embeddings<turbo:sentences>"];
 function hasVectors(layers) {
-  return layers.some((l) => PLACED.includes(l.layer));
+  return layers.some((l) => PLACED.includes(l.layer) && l.instance === "" && l.status === 1 /* OK */ && l.items > 0);
 }
 var current = null;
 var listeners = [];
@@ -10668,28 +10676,27 @@ async function ask() {
     show2(now.r, now.text);
     say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
   } catch (e) {
-    if (!mine()) return;
+    if (!mine() || seen !== now) return;
     out.replaceChildren(failed(explain(e)));
   }
 }
 async function answer(base2, vectors, text) {
-  if (!vectors) return { r: await analysis.projectChunks(base2) };
-  const matrix2 = { ...base2, pairwise: { level: 0, maxItems: MATRIX_ROWS } };
-  if (text) {
+  let pairwise = vectors ? { level: 0, maxItems: MATRIX_ROWS } : void 0;
+  let query = vectors && text ? text : void 0;
+  let noQuery;
+  let noMatrix;
+  for (; ; ) {
     try {
-      return { r: await analysis.projectChunks({ ...matrix2, query: text }) };
-    } catch (noQuery) {
-      try {
-        return { r: await analysis.projectChunks(matrix2), noQuery };
-      } catch (noMatrix) {
-        return { r: await analysis.projectChunks(base2), noMatrix };
-      }
+      return { r: await analysis.projectChunks({ ...base2, pairwise, query }), noQuery, noMatrix };
+    } catch (e) {
+      if (query !== void 0 && declinedOver(e, "query")) {
+        query = void 0;
+        noQuery = e;
+      } else if (pairwise && declinedOver(e, "pairwise")) {
+        pairwise = void 0;
+        noMatrix = e;
+      } else throw e;
     }
-  }
-  try {
-    return { r: await analysis.projectChunks(matrix2) };
-  } catch (noMatrix) {
-    return { r: await analysis.projectChunks(base2), noMatrix };
   }
 }
 var freshRender4 = latest();
@@ -10716,14 +10723,16 @@ async function render5() {
       text
     );
     if (!mine()) return;
-    freshAsk();
     const r = got.r;
     seen = { r, text: d.source, graph: d.graph };
     pairs = r.pairwise ? { items: r.pairwise.items, upper: r.pairwise.cosines } : null;
     unpaired = got.noMatrix === void 0 ? null : explain(got.noMatrix).text;
-    spot = text ? placed(r, text) : null;
+    clearTimeout(typed);
+    const edited = input("projection-query").value.trim() !== text;
+    spot = text && !edited ? placed(r, text) : null;
     show2(r, d.source);
-    if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+    if (edited) await ask();
+    else if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
     else if (got.noQuery !== void 0) out.replaceChildren(failed(explain(got.noQuery)));
     else if (text) await ask();
     else out.replaceChildren();

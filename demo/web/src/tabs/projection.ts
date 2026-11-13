@@ -15,7 +15,7 @@ import type { BudgetSpecSchema } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
 import { $, el, failed, input, lazy, say, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, explain } from "../rpc.js";
+import { analysis, declinedOver, explain } from "../rpc.js";
 import { linker } from "../viz/link.js";
 import { nearest } from "../viz/matrix.js";
 import { distinctive, leaves, regions, riverTerms, spread, type Term, type Unit } from "../viz/model.js";
@@ -213,7 +213,8 @@ async function ask(): Promise<void> {
     show(now.r, now.text);
     say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
   } catch (e) {
-    if (!mine()) return;
+    // A refusal that comes after a newer drawing is that drawing's no longer.
+    if (!mine() || seen !== now) return;
     out.replaceChildren(failed(explain(e)));
   }
 }
@@ -224,29 +225,30 @@ type Ask = { graph: Uint8Array; offsets: OffsetMode; pcaDims: number; maxStackSe
 /**
  * One answer for the whole panel. A graph with vectors is asked for the
  * matrix of its leaf chunks (level 0, the ones the page draws) and for the
- * query in the box in the same call; a refusal of that
- * is asked again without the query, then without the matrix, so what the
- * server can answer is drawn and each refusal is kept to be said.
+ * query in the box in the same call. The server refuses the whole call
+ * when it cannot answer one part and names the part, so the call is asked
+ * again without the part it named: what the server can answer is drawn
+ * and each refusal is kept to be said. Any other refusal or failure (a
+ * graph too long to place, the server away) is the whole panel's.
  */
 async function answer(base: Ask, vectors: boolean, text: string): Promise<{ r: ProjectChunksResponse; noQuery?: unknown; noMatrix?: unknown }> {
-  if (!vectors) return { r: await analysis.projectChunks(base) };
-  const matrix = { ...base, pairwise: { level: 0, maxItems: MATRIX_ROWS } };
-  if (text) {
+  let pairwise = vectors ? { level: 0, maxItems: MATRIX_ROWS } : undefined;
+  // Without vectors there is nothing to place a query among either.
+  let query = vectors && text ? text : undefined;
+  let noQuery: unknown;
+  let noMatrix: unknown;
+  for (;;) {
     try {
-      return { r: await analysis.projectChunks({ ...matrix, query: text }) };
-    } catch (noQuery) {
-      try {
-        // The query was all that was taken out, so the refusal was the query's.
-        return { r: await analysis.projectChunks(matrix), noQuery };
-      } catch (noMatrix) {
-        return { r: await analysis.projectChunks(base), noMatrix };
-      }
+      return { r: await analysis.projectChunks({ ...base, pairwise, query }), noQuery, noMatrix };
+    } catch (e) {
+      if (query !== undefined && declinedOver(e, "query")) {
+        query = undefined;
+        noQuery = e;
+      } else if (pairwise && declinedOver(e, "pairwise")) {
+        pairwise = undefined;
+        noMatrix = e;
+      } else throw e;
     }
-  }
-  try {
-    return { r: await analysis.projectChunks(matrix) };
-  } catch (noMatrix) {
-    return { r: await analysis.projectChunks(base), noMatrix };
   }
 }
 
@@ -276,15 +278,17 @@ async function render(): Promise<void> {
       text,
     );
     if (!mine()) return;
-    // An answer to a query asked of the last drawing is no longer wanted.
-    freshAsk();
     const r = got.r;
     seen = { r, text: d.source, graph: d.graph };
     pairs = r.pairwise ? { items: r.pairwise.items, upper: r.pairwise.cosines } : null;
     unpaired = got.noMatrix === undefined ? null : explain(got.noMatrix).text;
-    spot = text ? placed(r, text) : null;
+    // A query typed or changed while the answer was on its way is asked of this drawing.
+    clearTimeout(typed);
+    const edited = input("projection-query").value.trim() !== text;
+    spot = text && !edited ? placed(r, text) : null;
     show(r, d.source);
-    if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+    if (edited) await ask();
+    else if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
     else if (got.noQuery !== undefined) out.replaceChildren(failed(explain(got.noQuery)));
     else if (text) await ask();
     else out.replaceChildren();
