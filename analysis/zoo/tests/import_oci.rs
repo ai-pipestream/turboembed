@@ -278,6 +278,11 @@ fn an_import_that_keeps_its_files_downloads_each_once() {
     let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-oci-keep-{}", std::process::id())));
     let mut keeping = spec(&pin);
     keeping.keep = Some(cache.to_path_buf());
+    // An import whose entry is refused, every layer read by then, keeps none.
+    let mut refused = keeping.clone();
+    (refused.bundle, refused.license) = (true, Licence::Mit);
+    assert!(oci(&client, refused).unwrap_err().to_string().contains("the index says MIT"));
+    assert!(!cache.join("tiny").exists());
     let entry = oci(&client, keeping.clone()).unwrap();
     assert_eq!(entry, oci(&client, spec(&pin)).unwrap(), "keeping changes nothing of the entry");
     for p in PATHS {

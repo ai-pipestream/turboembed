@@ -186,7 +186,7 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         return Err(fail("the commit holds no file".into()));
     }
 
-    let kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
+    let mut kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
     let mut files = Vec::with_capacity(listed.len());
     let mut manifest = None;
     for l in listed {
@@ -217,7 +217,7 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         if let Some(recorded) = l.sha256.filter(|r| *r != sha256) {
             return Err(differs(Check::Sha256, recorded.to_string(), sha256.to_string()));
         }
-        if let Some(k) = kept.as_ref().filter(|_| fresh) {
+        if let Some(k) = kept.as_mut().filter(|_| fresh) {
             k.keep(l.path.as_str(), &bytes)?;
         }
         files.push(File {
@@ -259,5 +259,10 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         bundle: record,
         files,
     };
-    described(artifact, manifest.as_deref())
+    let artifact = described(artifact, manifest.as_deref())?;
+    // Only an accepted entry's files go into the cache.
+    if let Some(k) = kept {
+        k.accept()?;
+    }
+    Ok(artifact)
 }
