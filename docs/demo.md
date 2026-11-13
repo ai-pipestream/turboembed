@@ -827,6 +827,13 @@ either: every call the page makes goes through the demo to the server.
   says so, and nothing reaches the index.
 - Every tab opens with a line on what it does; with the only model
   unloaded, Embed, Semantic and Search say what they need.
+- Beyond `document-map.test.ts`, a four-paragraph document analyzed
+  with `default-v1` numbers the map's dots in reading order and lights
+  the last dot from the last chunk of text; a term picked on the river
+  fades the other streams and marks as many words in the text as its
+  key counts, until Clear; the numbers are tables too; and at 390
+  pixels the figures scroll in their own boxes and the page does not
+  scroll sideways (`document-map-details.test.ts`).
 
 `demo/web/e2e/permits.test.ts` starts a demo with a token and one
 `--allow`: nothing is off before the token is typed, and after it the
