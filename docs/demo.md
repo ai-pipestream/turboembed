@@ -571,6 +571,77 @@ through the demo and the server, with the models called one after
 another. It includes the browser and the HTTP hop through the demo, so it is
 a look at the call, not a measure of the library; docs/benchmarks.md says how speed is measured.
 
+## Screenshots
+
+The pictures below are in `docs/images/demo`, one per tab in the light
+and the dark scheme, 1280 px wide. They are the page in a real browser
+in front of a real server on the CPU, serving the static models
+`minishlab/potion-base-8M` and `minishlab/potion-base-32M` (MIT, made
+with `turbo-bundle make bundle/recipes/potion/potion-base-8M.json
+UPSTREAM BUNDLE`); every number in them is the server's answer.
+`scripts/demo-screenshots.sh BUNDLE [BUNDLE...]` takes them again:
+it builds both binaries in release, serves the bundles with a demo that
+forwards creating and filling an index and learning a vocabulary, and
+runs `demo/web/e2e/screenshots.ts`, which uses each tab as a visitor
+would first and writes `NAME-light.png` and `NAME-dark.png`. It starts
+a fresh server for each scheme. The browser tests do not run it.
+
+Embed: two static models compared on the same five texts, side by side and each with its own similarity table.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/embed-dark.png">
+  <img alt="Embed tab of the demo page" src="images/demo/embed-light.png" width="640">
+</picture>
+
+Semantic: one query against five passages, the nearest by cosine and the passages' similarity matrix.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/semantic-dark.png">
+  <img alt="Semantic tab of the demo page" src="images/demo/semantic-light.png" width="640">
+</picture>
+
+Analyze: a document run through `default-v1` with an embedding model, its steps, layers, the place names found and the heatmap.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-dark.png">
+  <img alt="Analyze tab of the demo page" src="images/demo/analyze-light.png" width="640">
+</picture>
+
+Analyze, Graph wire inspector: the graph's binary format read in the page, after a byte-for-byte round trip on the server.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-wire-dark.png">
+  <img alt="Analyze, Graph wire inspector tab of the demo page" src="images/demo/analyze-wire-light.png" width="640">
+</picture>
+
+Search: an index created and filled from the page, a query's hits with the words that matched, and the collection the index feeds.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/search-dark.png">
+  <img alt="Search tab of the demo page" src="images/demo/search-light.png" width="640">
+</picture>
+
+Vocabulary: the store after learning a vocabulary from typed documents.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/vocabulary-dark.png">
+  <img alt="Vocabulary tab of the demo page" src="images/demo/vocabulary-light.png" width="640">
+</picture>
+
+Models: the built-in catalog as cards, with licences, sizes and the terms still to accept.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/models-dark.png">
+  <img alt="Models tab of the demo page" src="images/demo/models-light.png" width="640">
+</picture>
+
+Server: the bundles served and the analysis profiles with what each needs.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/server-dark.png">
+  <img alt="Server tab of the demo page" src="images/demo/server-light.png" width="640">
+</picture>
+
 ## Tests
 
 `cargo test -p turbo-kserve-demo` starts the server in-process on the
