@@ -881,9 +881,12 @@ either: every call the page makes goes through the demo to the server.
   with `default-v1` numbers the map's dots in reading order and lights
   the last dot from the last chunk of text; a term picked on the river
   fades the other streams and marks as many words in the text as its
-  key counts, until Clear; the numbers are tables too; and at 390
-  pixels each figure is wider than the phone and scrolls in its own box
-  while the page does not scroll sideways
+  key counts, until Clear; the numbers are tables too; at 390 pixels
+  each figure but the similarity matrix is wider than the phone and
+  scrolls in its own box while the page does not scroll sideways; and
+  the similarity matrix's CSV and Copy hold each pair of chunks once,
+  with cosines inside the range its label gives, and every row carries
+  the cosine its own cell reads out when the arrow keys reach it
   (`document-map-details.test.ts`).
 - A graph with an entity layer and a relation layer, which
   `server/examples/inspect_layer_fixture.rs` writes as its second file
