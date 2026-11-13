@@ -4,7 +4,16 @@
 
 import type { ViewInfo } from "./gen/turbo_typed_annotations_pb.js";
 
-export type Doc = { graph: Uint8Array; views: ViewInfo[]; source: string };
+/** `vectors`: whether the graph holds chunk or sentence vectors, so a panel knows before it asks. */
+export type Doc = { graph: Uint8Array; views: ViewInfo[]; source: string; vectors: boolean };
+
+/** The layers ProjectChunks places and compares: vectors over the chunks, else over the sentences. */
+const PLACED = ["turbo:embeddings<turbo:chunks>", "turbo:embeddings<turbo:sentences>"];
+
+/** Whether a graph's layer list names vectors a projection can use. */
+export function hasVectors(layers: { layer: string }[]): boolean {
+  return layers.some((l) => PLACED.includes(l.layer));
+}
 
 let current: Doc | null = null;
 const listeners: ((d: Doc | null) => void)[] = [];

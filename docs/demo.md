@@ -532,8 +532,8 @@ server and there is no JSON.
     (`demo/web/src/viz/model.ts`); a switch draws the heaviest terms
     instead. Pointing at a stream marks the term's occurrences in the
     text.
-    The similarity matrix (a second call, `pairwise`) is the cosine
-    between every pair of chunk vectors, shaded within the document's
+    The similarity matrix (`pairwise`, asked in the same call) is the
+    cosine between every pair of chunk vectors, shaded within the document's
     own least and greatest cosine, with the chunks each coarser unit
     holds outlined as a block on the diagonal. Pointing at a cell, or
     the arrow keys, names its two chunks with their cosine and lights
@@ -542,9 +542,9 @@ server and there is no JSON.
     graph with sentence vectors only gets a row per sentence. The server
     compares at most 512, and a longer document says so in the matrix's
     place.
-    A query typed over the map (a third call, `query`) is embedded by
-    the model that made the graph's vectors and lands on the map as a
-    diamond, a little after the typing stops or at once on Enter. Each
+    A query typed over the map (`query`) is embedded by the model that
+    made the graph's vectors and lands on the map as a diamond, a
+    little after the typing stops or at once on Enter. Each
     chunk glows by its cosine to the query, lines join the query to the
     closest few, and up to five of the closest are listed with their
     scores and marked in the text. The glow and the list are the true
@@ -552,6 +552,14 @@ server and there is no JSON.
     directions, so the closest chunk is not always the nearest dot. When
     that model is not loaded the server's refusal is shown under the box
     and the map stands as it was.
+    One Analyze sends the graph once: the map, the matrix and a query
+    already in the box come back from one `ProjectChunks` call, and a
+    graph whose layers hold no chunk or sentence vectors is not asked
+    for a matrix. The server refuses a whole call when it cannot answer
+    the query or the matrix, so on a refusal the page asks again
+    without the query, then without the matrix, shows what was refused
+    in that part's place and draws the rest. A query typed afterwards
+    is a call of its own.
   - Entities (open from the start): `InspectDocumentGraph`'s entity
     layer drawn two ways. The constellation has a node per entity
     (mentions of one name and kind gathered, whatever the case), sized
@@ -885,6 +893,15 @@ either: every call the page makes goes through the demo to the server.
   pixels each figure is wider than the phone and scrolls in its own box
   while the page does not scroll sideways
   (`document-map-details.test.ts`).
+- One Analyze is one `ProjectChunks` call, with the query box empty or
+  filled, and a query typed afterwards is a second; a query typed just
+  before Draw is asked once, not again when the typing timer would
+  have run; a query over the server's byte limit costs one more call
+  and leaves the map and the matrix drawn with the refusal under the
+  box; and an answer to an older drawing that arrives after a newer
+  one is not drawn (`document-map-calls.test.ts`). The matrix's
+  diagonal is the far end of its colour ramp
+  (`matrix-spotlight.test.ts`).
 - A graph with an entity layer and a relation layer, which
   `server/examples/inspect_layer_fixture.rs` writes as its second file
   because no test bundle has a relation model, opened from a file: the

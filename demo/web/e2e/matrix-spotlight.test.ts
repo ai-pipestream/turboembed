@@ -100,6 +100,17 @@ test("the similarity matrix shades a cell per pair of chunks and says what is po
     assert.equal(label.startsWith(`Similarity matrix of ${n} chunks: cosines from `), true, label);
     const self = await shade(page, 0, 0, n);
     assert.equal(self.endsWith(",255"), true, `the diagonal is painted: ${self}`);
+    // A chunk with itself is the far end of the ramp: the theme's strongest colour, as the browser paints it.
+    const strongest = await page.evaluate(() => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 1;
+      const g = c.getContext("2d")!;
+      g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--seq-to");
+      g.fillRect(0, 0, 1, 1);
+      return Array.from(g.getImageData(0, 0, 1, 1).data);
+    });
+    const painted = self.split(",").map(Number);
+    assert.equal(painted.every((v, i) => Math.abs(v - strongest[i]) <= 1), true, `the diagonal ${self} against the ramp's end ${strongest.join(",")}`);
     const shades = new Set<string>();
     for (let a = 0; a < n; a++) {
       assert.equal(await shade(page, a, a, n), self, `chunk ${a + 1} with itself`);
