@@ -175,8 +175,8 @@ impl<'a> TextSpans<'a> {
         if self.is_start_ordered() {
             for a in 0..n {
                 let end_a = self.end[a];
-                for b in (a + 1)..n {
-                    if self.start[b] >= end_a {
+                for (b, &start_b) in self.start.iter().enumerate().take(n).skip(a + 1) {
+                    if start_b >= end_a {
                         break;
                     }
                     check_pair(a, b)?;

@@ -54,6 +54,15 @@ fn the_three_ways_run_on_the_small_bert() {
     let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
     let r = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
     assert_eq!(r.device.clock, None);
+    if let Some(_turn) = crate::gpu_clock::tests::levelzero_turn("ranges_tests.rs") {
+        let mut gpu_plan = plan.clone();
+        gpu_plan.device = "levelzero".into();
+        let gpu_record = measure(&gpu_plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+        assert_eq!(gpu_record.device.backend, "levelzero");
+        crate::gpu_clock::tests::assert_device_clock(gpu_record.device.clock);
+        check(&gpu_record).unwrap();
+    }
+
     // 30 text tokens a row: chunks of 8, 8, 8 and 6.
     assert_eq!((r.shape.chunks_per_row, r.rows.vectors, r.ranges.vectors, r.chunk_rows.vectors), (4, 2, 8, 8));
     // A range over a whole row is the row's vector, to the bit.
@@ -83,75 +92,19 @@ fn the_three_ways_run_on_the_small_bert() {
     assert!(write(&bad, &dir).is_err());
 }
 
+#[cfg(target_os = "linux")]
 #[test]
-fn ranges_reads_gpu_clock_outside_timed_rounds() {
-    use turbo::record::{ClockReading, GpuClock};
-
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2150 };
-    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let events_r = std::rc::Rc::clone(&events);
-    let calls = std::cell::Cell::new(0u32);
-    let clock = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let n = calls.get();
-            calls.set(n + 1);
-            events_r.borrow_mut().push(format!("clock:{backend}:{n}"));
-            Some(if n == 0 { before } else { after })
-        },
-        || {
-            let mut w = crate::gpu_clock::Window::new("levelzero", 1);
-            let mut a = || {
-                events.borrow_mut().push("run-a".into());
-                Ok(())
-            };
-            let mut b = || {
-                events.borrow_mut().push("run-b".into());
-                Ok(())
-            };
-            time(1, 2, &mut w, &mut [(1, &mut a), (1, &mut b)]).unwrap();
-            w.finish()
-        },
-    );
-    assert_eq!(clock, Some(GpuClock { before, after }));
-    assert_eq!(
-        *events.borrow(),
-        ["run-a", "run-b", "clock:levelzero:0", "run-a", "run-b", "run-b", "run-a", "clock:levelzero:1"]
-    );
-
-    let plan = RangePlan {
-        bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"),
-        device: "cpu".into(),
-        precision: TURBO_PRECISION_MODEL,
-        batch: Some(2),
-        seq: Some(32),
-        chunk: 8,
-        warmup: 1,
-        iterations: 2,
+fn ranges_clock_reads_enclose_only_the_timed_rounds() {
+    let driver = crate::gpu_clock::tests::Driver::new("ranges-timing");
+    let mut clock = driver.window(1);
+    let calls = std::cell::Cell::new(0);
+    let pass = || {
+        calls.set(calls.get() + 1);
+        driver.set(calls.get() * 100);
+        Ok(())
     };
-    let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let r = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(r.device.clock, Some(GpuClock { before, after }));
-    check(&r).unwrap();
-
-    let calls = std::cell::Cell::new(0u32);
-    let missing = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(missing.device.clock, None);
+    time(1, 2, &mut clock, &mut [(1, &mut || pass()), (1, &mut || pass())]).unwrap();
+    let clock = clock.finish().unwrap();
+    assert_eq!(calls.get(), 6);
+    assert_eq!((clock.before.act_mhz, clock.after.act_mhz), (200, 600));
 }

@@ -86,8 +86,8 @@ impl Bm25PostingIndexBuilder {
             let row = first + i as u32;
             let mut by_term: BTreeMap<Ix<Vocabulary>, Vec<u32>> = BTreeMap::new();
             let mut pos = 0u32;
-            for tok_i in range.start.get()..range.end.get() {
-                if let Some(t_ix) = indexed.term[tok_i] {
+            for term in indexed.term.iter().take(range.end.get()).skip(range.start.get()) {
+                if let Some(t_ix) = *term {
                     by_term.entry(t_ix).or_default().push(pos);
                     pos += 1;
                 }

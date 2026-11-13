@@ -97,35 +97,8 @@ fn tiny_rerank_bundle(dir: &Path) -> PathBuf {
 }
 
 #[test]
-fn rerank_reads_gpu_clock_around_library_timed_runs() {
+fn rerank_cpu_record_has_no_gpu_clock() {
     use turbo::TURBO_PRECISION_MODEL;
-    use turbo::record::{ClockReading, GpuClock};
-
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
-    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let events_r = std::rc::Rc::clone(&events);
-    let calls = std::cell::Cell::new(0u32);
-    let clock = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let n = calls.get();
-            calls.set(n + 1);
-            events_r.borrow_mut().push(format!("clock:{backend}:{n}"));
-            Some(if n == 0 { before } else { after })
-        },
-        || {
-            let mut w = crate::gpu_clock::Window::new("levelzero", 1);
-            time(1, 2, &mut w, &mut || {
-                events.borrow_mut().push("pass".into());
-                Ok(vec![1.0])
-            })
-            .unwrap();
-            w.finish()
-        },
-    );
-    assert_eq!(clock, Some(GpuClock { before, after }));
-    assert_eq!(*events.borrow(), ["pass", "clock:levelzero:0", "pass", "pass", "clock:levelzero:1"]);
-
     let scratch =
         turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-rerank-{}", std::process::id())));
     let bundle = tiny_rerank_bundle(&scratch);
@@ -157,29 +130,31 @@ fn rerank_reads_gpu_clock_around_library_timed_runs() {
     assert_eq!(cpu_record.device.clock, None);
     check(&cpu_record).unwrap();
 
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let clocked = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
-    check(&clocked).unwrap();
+    if let Some(_turn) = crate::gpu_clock::tests::levelzero_turn("rerank_tests.rs") {
+        let mut gpu_plan = plan.clone();
+        gpu_plan.device = "levelzero".into();
+        let gpu_record = measure(&gpu_plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+        assert_eq!(gpu_record.device.backend, "levelzero");
+        crate::gpu_clock::tests::assert_device_clock(gpu_record.device.clock);
+        check(&gpu_record).unwrap();
+    }
 
-    let calls = std::cell::Cell::new(0u32);
-    let incomplete = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(incomplete.device.clock, None);
     std::fs::remove_dir_all(&scratch).unwrap();
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn rerank_clock_reads_enclose_only_the_timed_passes() {
+    let driver = crate::gpu_clock::tests::Driver::new("rerank-timing");
+    let mut clock = driver.window(1);
+    let mut calls = 0;
+    time(1, 2, &mut clock, &mut || {
+        calls += 1;
+        driver.set(calls * 100);
+        Ok(vec![1.0])
+    })
+    .unwrap();
+    let clock = clock.finish().unwrap();
+    assert_eq!(calls, 3);
+    assert_eq!((clock.before.act_mhz, clock.after.act_mhz), (100, 300));
 }

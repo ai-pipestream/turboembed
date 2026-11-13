@@ -118,3 +118,25 @@ fn redact_user_paths_preserves_trailing_text_after_root_and_bare_user_paths() {
         "<home>: I/O error on <home>/run"
     );
 }
+
+#[test]
+fn measured_clock_belongs_to_the_measured_device() {
+    let mut plan = Plan {
+        bundle: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"),
+        device: "cpu".into(),
+        precision: turbo::TURBO_PRECISION_MODEL,
+        batch: Some(2),
+        seq: Some(32),
+        rows: RowKind::Mixed,
+        warmup: 1,
+        iterations: 2,
+    };
+    let cpu = measure(&plan).unwrap();
+    assert_eq!(cpu.clock, None);
+    if let Some(_turn) = crate::gpu_clock::tests::levelzero_turn("record") {
+        plan.device = "levelzero".into();
+        let gpu = measure(&plan).unwrap();
+        assert_eq!(field(&gpu.device.backend), "levelzero");
+        crate::gpu_clock::tests::assert_device_clock(gpu.clock);
+    }
+}

@@ -373,7 +373,16 @@ fn build_cdylib() -> PathBuf {
         .status()
         .expect("failed to invoke cargo build -p turbo --lib");
     assert!(status.success(), "cargo build -p turbo --lib failed");
-    let debug_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
+    let debug_dir = {
+        // `target/<profile>`: a test binary runs from `<profile>/deps/`, or
+        // with cargo 1.100's build directory from `<profile>/build/<package>/<hash>/out/`.
+        let exe = std::env::current_exe().unwrap();
+        exe.ancestors()
+            .find(|a| matches!(a.file_name().and_then(|n| n.to_str()), Some("deps" | "build")))
+            .and_then(std::path::Path::parent)
+            .unwrap_or_else(|| panic!("{} is not under a cargo profile directory", exe.display()))
+            .to_path_buf()
+    };
     for name in ["libturbo.so", "libturbo.dylib", "turbo.dll"] {
         let candidate = debug_dir.join(name);
         if candidate.exists() {
