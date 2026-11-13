@@ -75,6 +75,8 @@ pub use tables::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use token_graph::{TokenArc, TokenArcKind, TokenGraph};
+pub use token_graph_builder::TokenGraphBuilder;
 pub use vector_codes::{CodeKind, VectorCodes};
 pub use wordnet::{
     ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
@@ -191,6 +193,8 @@ mod syntax;
 pub mod tables;
 mod temporal;
 mod times;
+mod token_graph;
+mod token_graph_builder;
 pub mod unit;
 mod vector_codes;
 mod wordnet;

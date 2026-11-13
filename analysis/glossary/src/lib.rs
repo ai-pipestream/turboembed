@@ -90,6 +90,7 @@
 mod annotate;
 mod boundaries;
 mod error;
+pub mod lattice;
 mod mapped;
 mod matcher;
 mod read;
@@ -101,6 +102,7 @@ mod token_fuzzy;
 pub use annotate::GlossaryAnnotator;
 pub use boundaries::Boundaries;
 pub use error::{BuildError, MatchError, ReadError};
+pub use lattice::{GlossaryLatticeAnnotator, emit_glossary_lattice};
 #[cfg(feature = "mmap")]
 pub use mapped::MappedFile;
 pub use mapped::{ImageBuf, ImageError, MappedGlossaryMatcher, MappedGlossaryWriter, Scratch};

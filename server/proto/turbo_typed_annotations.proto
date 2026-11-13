@@ -1916,6 +1916,16 @@ message AlternativeAnnotation
   optional string form = 5;
 }
 
+// Position-length lexical token lattice arc (`turbo:token-graph`, #2340).
+message TokenArcAnnotation
+{
+  uint32 position = 1;
+  uint32 position_length = 2;
+  string term = 3;
+  uint32 kind = 4;
+  uint32 num_positions = 5;
+}
+
 message NBestCandidateProto
 {
   uint32 rank = 1;
@@ -2194,5 +2204,7 @@ message TypedAnnotation
     // turbo:pii-candidates (#1903).
     PiiCandidateAnnotation pii_candidate = 99;
     PiiRiskAnnotation pii_risk = 100;
+    // turbo:token-graph (#2340).
+    TokenArcAnnotation token_arc = 101;
   }
 }

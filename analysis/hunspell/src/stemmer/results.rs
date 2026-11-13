@@ -83,11 +83,20 @@ pub(crate) struct Results {
     /// The input is the part of a Hungarian word before a hyphen, read as
     /// a compound under the relaxed rules for it.
     pub(crate) hyphenated_first_part: bool,
+    /// First complete compound decomposition `(part_surface, part_stem)` when
+    /// requested by compound-lattice callers.
+    pub(crate) first_compound: Option<Vec<(String, String)>>,
 }
 
 impl Results {
     pub(crate) fn new(morphological: bool) -> Results {
-        Results { morphological, values: OrderedSet::default(), forbidden: false, hyphenated_first_part: false }
+        Results {
+            morphological,
+            values: OrderedSet::default(),
+            forbidden: false,
+            hyphenated_first_part: false,
+            first_compound: None,
+        }
     }
 
     pub(crate) fn is_empty(&self) -> bool {
@@ -107,6 +116,20 @@ impl Results {
     /// Adds a complete compound: every part's stems, or each combination
     /// of the parts' analyses, each part introduced by `pa:` and its text.
     pub(crate) fn add_compound(&mut self, dictionary: &Dictionary, parts: &[CompoundPart<'_>]) {
+        if self.first_compound.is_none() && parts.len() >= 2 {
+            let split = parts
+                .iter()
+                .map(|part| {
+                    let stem = dictionary
+                        .morphological_stems(&part.root, part.entry, &part.affixes)
+                        .into_iter()
+                        .next()
+                        .unwrap_or_else(|| part.root.clone());
+                    (part.surface.clone(), stem)
+                })
+                .collect();
+            self.first_compound = Some(split);
+        }
         if !self.morphological {
             for part in parts {
                 self.add_all(dictionary.morphological_stems(&part.root, part.entry, &part.affixes));

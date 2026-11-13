@@ -10,7 +10,10 @@ mod affixes;
 mod compound;
 mod parts;
 mod results;
+mod segments;
 mod variants;
+
+pub use segments::CompoundSegment;
 
 use std::collections::HashMap;
 use std::rc::Rc;
