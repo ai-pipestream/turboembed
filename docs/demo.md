@@ -885,8 +885,9 @@ either: every call the page makes goes through the demo to the server.
   each figure but the similarity matrix is wider than the phone and
   scrolls in its own box while the page does not scroll sideways; and
   the similarity matrix's CSV and Copy hold each pair of chunks once,
-  with cosines inside the range its label gives and the same value the
-  pointed-at cell reads out (`document-map-details.test.ts`).
+  with cosines inside the range its label gives, and every row carries
+  the cosine its own cell reads out when the arrow keys reach it
+  (`document-map-details.test.ts`).
 - A graph with an entity layer and a relation layer, which
   `server/examples/inspect_layer_fixture.rs` writes as its second file
   because no test bundle has a relation model, opened from a file: the

@@ -126,13 +126,28 @@ test("the similarity matrix's CSV has each pair of chunks once, with the cosines
     assert.equal(range.length === 2 && range[0] <= range[1] && range[1] <= 1, true, label);
     const [lo, hi] = range;
 
-    // The read-out of the cell for chunks 1 and 2, to hold the file's row against.
+    // Every cell above the diagonal, walked by arrow key from the first (chunks 1 and 2): what the
+    // matrix reads out for each pair, to hold the file's rows against.
     const plot = page.locator(`${matrix} .plot`);
+    const info = page.locator(`${matrix} .info`);
+    await page.mouse.move(0, 0);
     await plot.focus();
     await page.keyboard.press("ArrowRight");
-    const said = (await page.locator(`${matrix} .info`).textContent()) ?? "";
-    assert.equal(said.startsWith("chunk 1 and chunk 2: cosine "), true, said);
-    const shown = said.slice("chunk 1 and chunk 2: cosine ".length).split(". ")[0];
+    let [row, col] = [0, 1];
+    const shown = new Map<string, string>();
+    for (let a = 0; a < chunks; a++) {
+      for (let b = a + 1; b < chunks; b++) {
+        for (; row < a; row++) await page.keyboard.press("ArrowDown");
+        for (; col < b; col++) await page.keyboard.press("ArrowRight");
+        for (; col > b; col--) await page.keyboard.press("ArrowLeft");
+        const said = (await info.textContent()) ?? "";
+        const [names, rest] = said.split(": cosine ");
+        const [x, y] = names.split(" and ").map((c) => Number(c.slice("chunk ".length)));
+        assert.equal(rest === undefined || Number.isNaN(x) || Number.isNaN(y), false, said);
+        shown.set(`${x},${y}`, rest.split(". ")[0]);
+      }
+    }
+    assert.equal(shown.size, (chunks * (chunks - 1)) / 2);
 
     const [file] = await Promise.all([page.waitForEvent("download"), page.locator(`${matrix} .take button`, { hasText: "Download CSV" }).click()]);
     const rows = readFileSync(await file.path()).toString().trimEnd().split("\r\n");
@@ -147,8 +162,8 @@ test("the similarity matrix's CSV has each pair of chunks once, with the cosines
       assert.equal(c >= lo - 0.0005 && c <= hi + 0.0005, true, `${a},${b},${c} outside ${lo}..${hi}`);
     }
     assert.equal(seen.size, pairs.length, "no pair twice");
-    const first = pairs.find(([a, b]) => a === 1 && b === 2);
-    assert.equal(first?.[2].toFixed(3), shown);
+    // Each row carries the cosine of its own cell.
+    for (const [a, b, c] of pairs) assert.equal(c.toFixed(3), shown.get(`${a},${b}`), `the row for chunks ${a} and ${b}`);
 
     // Copy puts the same rows on the clipboard, tab-separated.
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
