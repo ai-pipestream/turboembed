@@ -32,8 +32,6 @@ struct Cluster {
     persons: Known,
     words: HashSet<String>,
     heads: HashSet<String>,
-    normalized: HashSet<String>,
-    members: Vec<usize>,
 }
 
 pub(crate) struct Clusters {
@@ -46,8 +44,7 @@ impl Clusters {
     pub fn new(mentions: &[Mention]) -> Clusters {
         let clusters = mentions
             .iter()
-            .enumerate()
-            .map(|(i, m)| Cluster {
+            .map(|m| Cluster {
                 ty: m.ty.clone().filter(|t| t != crate::detect::UNTYPED),
                 numbers: Known::of(m.number as u8, m.number == Number::Unknown),
                 genders: Known::of(m.gender as u8, m.gender == Gender::Unknown),
@@ -55,8 +52,6 @@ impl Clusters {
                 persons: Known::of(m.person as u8, m.person == Person::Unknown),
                 words: m.words.iter().filter(|w| !lexicon::stop_word(w)).cloned().collect(),
                 heads: HashSet::from([m.head.clone()]),
-                normalized: HashSet::from([m.normalized.clone()]),
-                members: vec![i],
             })
             .collect();
         Clusters { parent: (0..mentions.len()).collect(), clusters }
@@ -114,19 +109,6 @@ impl Clusters {
         &self.get(i).heads
     }
 
-    pub fn normalized_forms(&mut self, i: usize) -> &HashSet<String> {
-        &self.get(i).normalized
-    }
-
-    pub fn size(&mut self, i: usize) -> usize {
-        self.get(i).members.len()
-    }
-
-    /// The mention indexes of a cluster, in merge order.
-    pub fn members(&mut self, i: usize) -> &[usize] {
-        &self.get(i).members
-    }
-
     /// Merges two clusters unless their known types differ; the earlier
     /// root survives. Returns whether the mentions share a cluster after.
     pub fn union(&mut self, a: usize, b: usize) -> bool {
@@ -152,8 +134,6 @@ impl Clusters {
         kept.persons.0 |= dropped.persons.0;
         kept.words.extend(dropped.words);
         kept.heads.extend(dropped.heads);
-        kept.normalized.extend(dropped.normalized);
-        kept.members.extend(dropped.members);
         true
     }
 
@@ -179,8 +159,6 @@ impl Cluster {
             persons: Known(0),
             words: HashSet::new(),
             heads: HashSet::new(),
-            normalized: HashSet::new(),
-            members: Vec::new(),
         }
     }
 
