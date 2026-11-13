@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 use super::status::dirs_exist;
 use super::{denied_again, make_dirs, put_in_place, write_partial};
-use crate::digest::Sha256;
 use crate::error::ZooError;
 
 /// One artifact's directory in a cache, `<cache>/<id>`, read and written
@@ -36,10 +35,15 @@ impl<'a> Kept<'a> {
     }
 
     /// The bytes of `path` when the cache holds it as a plain file of
-    /// this size and SHA-256. A file that is absent or holds other bytes
-    /// is none: the importer reads it from its source. A symlink, or
-    /// anything but a plain file, is an error.
-    pub(crate) fn held(&self, path: &str, size: u64, sha256: &Sha256) -> Result<Option<Vec<u8>>, ZooError> {
+    /// this size that `is_it` holds to be the file. A file that is absent
+    /// or holds other bytes is none: the importer reads it from its
+    /// source. A symlink, or anything but a plain file, is an error.
+    pub(crate) fn held(
+        &self,
+        path: &str,
+        size: u64,
+        is_it: impl Fn(&[u8]) -> bool,
+    ) -> Result<Option<Vec<u8>>, ZooError> {
         if !dirs_exist(self.cache, self.id, path)? {
             return Ok(None);
         }
@@ -50,7 +54,7 @@ impl<'a> Kept<'a> {
             Ok(m) if !m.is_file() => Err(io("is not a plain file".into())),
             Ok(m) if m.len() != size => Ok(None),
             Ok(_) => match denied_again(|| fs::read(&local)) {
-                Ok(bytes) => Ok(Some(bytes).filter(|b| Sha256::of(b) == *sha256)),
+                Ok(bytes) => Ok(Some(bytes).filter(|b| is_it(b))),
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
                 Err(e) => Err(io(e.to_string())),
             },
