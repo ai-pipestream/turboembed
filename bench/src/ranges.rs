@@ -243,6 +243,7 @@ pub fn measure(plan: &RangePlan, p: &Provenance, recorded_at: String) -> Result<
     let chunk_batch = (ranges.len() as u32).min(mi.max_batch);
     let frames = (ranges.len() as u32).div_ceil(chunk_batch);
     let chunk_session = model.session(chunk_batch, chunked.seq, plan.precision)?;
+    crate::onednn::note_fallback(&field(&d.backend), &field(&si.choices), &rt.warnings());
     let frame = |f: u32| {
         let a = (f * chunk_batch) as usize;
         let b = ((f + 1) * chunk_batch).min(chunked.batch) as usize;

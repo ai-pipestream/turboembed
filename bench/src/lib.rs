@@ -12,6 +12,7 @@ pub mod gpu_clock;
 pub mod hailo;
 pub mod measure;
 pub mod mlx;
+mod onednn;
 pub mod onnx;
 pub mod openvino;
 pub mod postag;

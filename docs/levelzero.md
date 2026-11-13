@@ -95,7 +95,9 @@ a run-time path, oneDNN's own directory is not, so a program run outside
 the oneAPI environment (`source /opt/intel/oneapi/setvars.sh`) finds
 `libdnnl.so` through `LD_LIBRARY_PATH`. Where the library or oneDNN
 cannot open on a device, the backend's own kernels run the linear
-layers, and the log says why.
+layers, and the log says why; `turbo-bench` built with
+`levelzero-onednn` prints that warning as one line on `stderr` when a
+measured `levelzero` session falls back to the own kernels.
 
 oneDNN builds a kernel (a primitive) for one shape, its tokens included,
 which takes host memory and, for a shape whose kernel oneDNN has not

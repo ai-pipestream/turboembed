@@ -205,6 +205,7 @@ pub fn measure(plan: &RerankPlan, p: &Provenance, recorded_at: String) -> Result
         Ok(all)
     })?;
     let turbo = side(plan.warmup, ms, pairs);
+    crate::onednn::note_fallback(r.backend(), &crate::onednn::env_choices(), &r.warnings());
     let tei = match &plan.tei {
         Some((image, dir)) => Some(tei(image, dir, plan, &reqs, &turbo_scores, &turbo)?),
         None => None,
