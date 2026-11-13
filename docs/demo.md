@@ -422,7 +422,10 @@ What is typed or picked on Embed, Semantic, Analyze, Search and
 Vocabulary is kept in the browser's `localStorage` and put back after a
 reload, the models picked on Embed included; "Reset to sample" under a
 tab's form puts that tab back and forgets what was kept
-(`demo/web/src/keep.ts`). A password, a picked file, and everything on
+(`demo/web/src/keep.ts`). A pick from a list the server fills (a
+model, an index) is put back the first time the list offers it; after
+that the list keeps what is picked now, so the index the page picks
+after creating one stays picked. A password, a picked file, and everything on
 Models and Server are never kept, and the bearer token stays in
 `sessionStorage`. With storage blocked the page works the same and
 keeps nothing.

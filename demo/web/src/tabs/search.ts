@@ -81,6 +81,8 @@ async function createIndex(ev: Event): Promise<void> {
       say(note, `Created ${name}.`);
       await list();
       select("search-index").value = name;
+      // As if picked by hand, so the new index is the one kept (keep.ts).
+      select("search-index").dispatchEvent(new Event("change", { bubbles: true }));
     } catch (e) {
       say(note, explain(e));
     }
