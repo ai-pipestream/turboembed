@@ -7,11 +7,14 @@
 use std::path::{Path, PathBuf};
 
 use turbo::deberta::{Config as EncoderConfig, Encoder};
+use turbo::safetensors::File;
 use turbo_analysis::ModelRef;
 use turbo_gliner::package::Manifest;
 use turbo_gliner::train::{OutputTrainer, output_optimizer};
 use turbo_gliner::{Candidate, Config, Decode, ExtractionSchema, Model};
 use turbo_trainer::adamw::Settings;
+use turbo_trainer::encoder::deberta_layer::DebertaLayer;
+use turbo_trainer::rng::Rng;
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -271,6 +274,27 @@ fn lora_train_install_reload(layers: usize, tolerance: f32) {
         trainer.gradients_with_encoder(&initial.training, &initial.candidates, &GOLD, &mut head_grads).unwrap();
     let mut encoder_grads = tuned.lora_zero_grads().unwrap();
     tuned.lora_backward(&initial, &dencoder, &mut encoder_grads).unwrap();
+    if layers > 1 {
+        let file = File::parse("encoder", &encoder_original).unwrap();
+        let relative = DebertaLayer::<f32>::relative(&encoder_config(), &file).unwrap();
+        let mut rng = Rng::new(17);
+        let independent: Vec<DebertaLayer<f32>> = (encoder_config().layers - layers..encoder_config().layers)
+            .map(|index| DebertaLayer::load(encoder_config(), &file, index, 2, 4.0, &mut rng).unwrap())
+            .collect();
+        let packed = tuned.pack(&WORDS, &schema()).unwrap();
+        let h = encoder_config().hidden;
+        let mut dx = vec![0.0; initial.work.last().unwrap().out.len()];
+        for (row, &at) in packed.prompts.iter().chain(&packed.words).enumerate() {
+            dx[at * h..(at + 1) * h].copy_from_slice(&dencoder[row * h..(row + 1) * h]);
+        }
+        let mut expected: Vec<Vec<f32>> = independent.iter().flat_map(|layer| layer.zero_grads()).collect();
+        let mut offset = expected.len();
+        for (layer, work) in independent.iter().zip(&initial.work).rev() {
+            offset -= layer.params().len();
+            dx = layer.backward(work, &relative, &dx, &mut expected[offset..offset + layer.params().len()]);
+        }
+        assert_eq!(encoder_grads, expected);
+    }
     assert!(head_grads.iter().flatten().any(|&x| x != 0.0));
     assert_eq!(encoder_grads.len(), 8 * layers);
     assert!(encoder_grads.chunks(8).all(|grads| grads.iter().flatten().any(|&x| x != 0.0)));
