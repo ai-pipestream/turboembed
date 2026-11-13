@@ -8,10 +8,12 @@ import { create } from "@bufbuild/protobuf";
 import { InferParameterSchema, type InferParameter, type ModelInferResponse } from "../gen/open_inference_grpc_pb.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
-import { $, el, input, options, say, table } from "../dom.js";
-import { describe, inference } from "../rpc.js";
+import { $, el, failed, input, options, reveal, say, table } from "../dom.js";
+import { take } from "./take.js";
+import { explain, inference } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, reachable, whyNone } from "../state.js";
-import { cosine, heat, matrix, short, vectorsOf } from "./embed.js";
+import { cosine, matrix, short, vectorsOf } from "./embed.js";
+import { simTable } from "./simtable.js";
 
 const utf8 = new TextEncoder();
 const select = (id: string) => $(id) as HTMLSelectElement;
@@ -51,13 +53,9 @@ async function embed(model: string, query: string, passages: string[]): Promise<
   out.replaceChildren(
     el("h3", { text: `Nearest neighbours (${model})` }),
     table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
+    take(`Nearest neighbours ${model}`, () => [["rank", "passage number", "passage", "cosine"], ...near.slice(0, k).map((n, r) => [String(r + 1), String(n.i + 1), passages[n.i], n.s.toFixed(6)])]),
     el("h3", { text: "Passage similarity" }),
-    el(
-      "table",
-      { class: "sim" },
-      el("tr", {}, el("th", {}), passages.map((_, j) => el("th", { text: `#${j + 1}` }))),
-      sim.map((row, i) => el("tr", {}, el("td", { class: "text", title: passages[i], text: `#${i + 1} ${short(passages[i], 22)}` }), row.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) })))),
-    ),
+    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim, `Passage similarity ${model}`),
   );
 }
 
@@ -78,6 +76,7 @@ async function rerank(model: string, query: string, passages: string[]): Promise
     el("h3", { text: `Reranked (${model})` }),
     el("p", { class: "muted", text: "Relevance logits from the cross-encoder, one per (query, passage) pair; higher is more relevant." }),
     table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)])),
+    take(`Reranked ${model}`, () => [["rank", "passage number", "passage", "logit", "sigmoid"], ...scored.map((x, r) => [String(r + 1), String(x.i + 1), passages[x.i], x.s.toFixed(6), (1 / (1 + Math.exp(-x.s))).toFixed(6)])]),
   );
 }
 
@@ -123,9 +122,10 @@ async function run(): Promise<void> {
     [qa, "sem-qa-out", () => answer(qa, query, passages.join("\n"))],
   ];
   await Promise.all(
-    jobs.filter(([m]) => m).map(([, box, job]) => job().catch((err) => $(box).replaceChildren(el("p", { class: "error", text: describe(err) })))),
+    jobs.filter(([m]) => m).map(([, box, job]) => job().catch((err) => $(box).replaceChildren(failed(explain(err))))),
   );
   say(note, "");
+  reveal($("sem-sim").parentElement);
 }
 
 export function init(): void {
@@ -136,6 +136,9 @@ export function init(): void {
   const served = (): void => {
     for (const [id, task, what] of kinds) {
       const names = caps?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
+      // A task nothing serves has no select at all; the embedding model's stays, to say why it is empty.
+      if (id !== "sem-embed") $(`${id}-pick`).hidden = names.length === 0;
+      if (id === "sem-qa") $("sem-topk-pick").hidden = names.length === 0;
       if (!names.length) {
         options(select(id), [], undefined, whyNone(what));
         continue;
@@ -157,6 +160,7 @@ export function init(): void {
   });
   onCapabilitiesFailed((err) => {
     served();
-    say($("sem-note"), reachable() === false ? "" : describe(err), "error");
+    if (reachable() === false) say($("sem-note"), "");
+    else say($("sem-note"), explain(err));
   });
 }

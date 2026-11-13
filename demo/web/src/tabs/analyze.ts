@@ -8,14 +8,19 @@ import { LayerErrorKind, LayerWireStatus, OffsetMode } from "../gen/turbo_typed_
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
 import { busy } from "../act.js";
-import { $, download, el, options, say, table } from "../dom.js";
+import { $, download, el, failed, heatKey, options, reveal, say, table } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { layerKey, layerName } from "../marks.js";
+import { annotated, foundList } from "./annotated.js";
+import { analysis, explain } from "../rpc.js";
 import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
 
 let running: AbortController | null = null;
 let page = 0;
-let filter: { layer: string; instance: string }[] = [];
+// The layers picked to show, as layer keys (marks.ts); empty for all.
+let filter = new Set<string>();
+// The document's layers as the last window listed them.
+let shape: LayerInfo[] | null = null;
 let openSpanModels = new Set<string>();
 let relationModels = new Set<string>();
 
@@ -44,6 +49,9 @@ export function stop(): void {
   running = null;
 }
 
+/** Brings the results to the top again once the document has rendered (phones). */
+let settle: (() => void) | null = null;
+
 async function run(): Promise<void> {
   stop();
   const ac = new AbortController();
@@ -61,11 +69,14 @@ async function run(): Promise<void> {
   let source = "";
   const layers = new Map<string, LayerInfo>();
   const t0 = performance.now();
+  let shown = false;
+  settle = null;
   say(note, "Analyzing\u2026", "busy");
   try {
+    if (!(document.getElementById("analyze-text") as HTMLTextAreaElement).value.trim()) throw new Error("Enter a document first.");
     const model = select("analyze-model").value;
     const open = openSpanModels.has(model);
-    const relationModel = select("analyze-relation-model").value;
+    const relationModel = relationModels.size ? select("analyze-relation-model").value : "";
     const labels = ($("analyze-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
     const relationLabels = ($("analyze-relation-labels") as HTMLInputElement).value.split(",").map((label) => label.trim()).filter(Boolean);
     const threshold = ($("analyze-threshold") as HTMLInputElement).valueAsNumber;
@@ -123,6 +134,9 @@ async function run(): Promise<void> {
         );
         if (b.graph.length) graph = b.graph;
         layersBox.replaceChildren(layerRows(layers));
+        // The first answer: on a phone, the results are below the form.
+        if (!shown) settle = reveal(layersBox.closest(".results"));
+        shown = true;
       } else if (e.case === "stepFailed") {
         const f = e.value;
         steps.append(
@@ -140,24 +154,10 @@ async function run(): Promise<void> {
     say(note, "");
     if (graph) setDoc({ graph, views, source });
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note, explain(e));
   } finally {
     if (running === ac) running = null;
   }
-}
-
-function segmentsView(w: DocumentWindowResponse): HTMLElement {
-  const text = el("div", { class: "doc" });
-  for (const s of w.segments) {
-    if (!s.annotations.length) {
-      text.append(s.text);
-      continue;
-    }
-    const tip = s.annotations.map((a) => `${a.layer}${a.label ? `: ${a.label}` : ""}${a.score ? ` ${a.score.toFixed(3)}` : ""}`).join("\n");
-    const level = Math.min(4, s.annotations.length);
-    text.append(el("mark", { class: `l${level}`, title: tip, text: s.text }));
-  }
-  return text;
 }
 
 function lanesView(w: DocumentWindowResponse): HTMLElement {
@@ -188,24 +188,28 @@ async function showWindow(): Promise<void> {
   const box = $("analyze-window");
   if (!graph) return void box.replaceChildren();
   try {
-    const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayerInstances: filter };
+    // The server shows only the picked (layer, instance) pairs; none picked shows all.
+    const picked = (shape ?? []).filter((l) => filter.has(layerKey(l.layer, l.instance))).map((l) => ({ layer: l.layer, instance: l.instance }));
+    const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayerInstances: picked };
     const [w, heat] = await Promise.all([
       analysis.inspectDocumentWindow({ ...base, page }),
       analysis.inspectDocumentWindow({ ...base, page: 0, heatmapBuckets: 96 }),
     ]);
     const win = w.window;
-    const chips = (w.summary?.layers ?? []).map((l) => {
-      const on = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
-      const b = el("button", { type: "button", class: on ? "chip on" : "chip", text: `${l.layer}${l.instance ? ` [${l.instance}]` : ""} ${l.items}` });
+    shape = w.summary?.layers ?? [];
+    const chips = shape.map((l) => {
+      const key = layerKey(l.layer, l.instance);
+      const on = filter.has(key);
+      const b = el("button", { type: "button", class: on ? "chip on" : "chip", "aria-pressed": String(on), text: `${layerName(l.layer, l.instance)} ${l.items}` });
       b.addEventListener("click", () => {
-        const selected = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
-        filter = selected
-          ? filter.filter((f) => f.layer !== l.layer || f.instance !== l.instance)
-          : [...filter, { layer: l.layer, instance: l.instance }];
+        if (on) filter.delete(key);
+        else filter.add(key);
         void showWindow();
       });
       return b;
     });
+    const list = foundList(w.segments);
+    $("analyze-found").replaceChildren(...(list ? [list] : []));
     const nav = el("div", { class: "nav" });
     const prev = el("button", { type: "button", text: "\u2190 page" });
     const next = el("button", { type: "button", text: "page \u2192" });
@@ -220,12 +224,16 @@ async function showWindow(): Promise<void> {
       s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
       nav,
-      segmentsView(w),
+      annotated(w.segments, filter),
       el("h3", { text: "Heatmap" }),
+      heatKey("One row per layer, the document from start to end in 96 steps. Stronger colour is more items or a higher score in that step, relative to the row's greatest."),
       lanesView(heat),
     );
+    // The page is longer now; a phone may not have reached the results before.
+    settle?.();
+    settle = null;
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box.replaceChildren(failed(explain(e)));
   }
 }
 
@@ -244,7 +252,7 @@ async function exportDoc(): Promise<void> {
     const text = r.mediaType.startsWith("text/") || r.mediaType.includes("csv") || r.mediaType.includes("ld+");
     out.replaceChildren(save, text ? el("pre", { class: "export", text: new TextDecoder().decode(r.content) }) : el("p", { class: "muted", text: `${r.content.length} bytes of ${r.mediaType}` }));
   } catch (e) {
-    out.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    out.replaceChildren(failed(explain(e)));
   }
 }
 
@@ -261,8 +269,19 @@ async function loadFormats(): Promise<void> {
     const down = reachable() === false;
     if (!select("analyze-format").value) options(select("analyze-format"), [], undefined, down ? "the server is not reachable" : "the formats could not be listed");
     formatsFailed = !down;
-    if (!down) say($("analyze-note"), describe(e), "error");
+    if (!down) say($("analyze-note"), explain(e));
   }
+}
+
+/**
+ * Shows the open-span options only with an open-span model picked, the
+ * relation model only when one is served, and the relation options only
+ * with one picked. What is typed in a hidden group is kept.
+ */
+function groups(): void {
+  $("analyze-open-span").hidden = !openSpanModels.has(select("analyze-model").value);
+  $("analyze-relation-pick").hidden = relationModels.size === 0;
+  $("analyze-relation").hidden = relationModels.size === 0 || select("analyze-relation-model").value === "";
 }
 
 export function init(): void {
@@ -273,7 +292,9 @@ export function init(): void {
   format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
-    filter = [];
+    filter = new Set();
+    shape = null;
+    $("analyze-found").replaceChildren();
     void showWindow();
   });
   onCapabilities((c) => {
@@ -283,7 +304,10 @@ export function init(): void {
     options(select("analyze-profile"), ["", ...c.profiles.map((p) => p.name)], ["default", ...c.profiles.map((p) => `${p.name} v${p.version}`)]);
     options(select("analyze-model"), ["", ...models], ["none", ...models]);
     options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
+    groups();
   });
+  select("analyze-model").addEventListener("change", groups);
+  select("analyze-relation-model").addEventListener("change", groups);
   // Before the first answer, the selects say that there is no server to ask.
   let filled = false;
   onCapabilities(() => (filled = true));

@@ -116,6 +116,15 @@ writes: they are reached only by `HTTP PUT` (see Uploads), and a Connect
 services, the rest of `TurboSinkService` and every bidi method are not
 in the table.
 
+One call the demo answers itself, with no call to the server:
+`POST /turbo.demo.v1.DemoService/Describe` (`demo/proto/turbo_demo.proto`),
+unary, `application/proto` only, behind the gate like any other call.
+Its reply lists the write methods the demo forwards (`forwarded_writes`,
+each `/<package>.<Service>/<Method>`, uploads included) and whether the
+demo has a user (`has_user`). The page asks it first, so it can turn
+off what would be refused (What the page shows). `demo/tests/describe.rs`
+checks the reply and that the path and fields are the proto's.
+
 ### Uploads
 
 A file goes to the server as an `HTTP PUT` to `/upload` followed by the
@@ -221,7 +230,8 @@ The page's protobuf and Connect-ES code is generated, never written by
 hand: `scripts/generate-web-stubs.sh` runs `buf generate` with
 `server/proto/buf.gen.yaml` and `protoc-gen-es` v2 (`target=ts`) into
 `demo/web/src/gen`, one `*_pb.ts` per proto file with its message
-schemas and service descriptors. The output is committed; the `proto` CI
+schemas and service descriptors, then the same for the demo's own
+service with `demo/proto/buf.gen.yaml`. The output is committed; the `proto` CI
 job regenerates it and fails on any difference, so a `.proto` change
 lands with its regenerated TypeScript. The script needs Node and npm and
 installs the exact versions in `demo/web/package-lock.json`
@@ -242,14 +252,21 @@ framework.
 
 In `demo/web/src`, `rpc.ts` makes the one Connect transport (binary,
 POST only, the bearer token from the page's token field) and a client
-per service, and `upload.ts` makes the one `fetch`, the upload PUT;
+per service, and `upload.ts` makes the one request outside them, the
+upload PUT, as an `XMLHttpRequest` because that reports how much of the
+body has gone out;
 `frames.ts` builds the upload bodies as Blobs, so a picked file is sent
 from disk without being read into memory, and `sha256.ts` hashes a
 dictionary for its import header. The tree test
 (`bench/tests/tree/front_end.rs`) holds the page's own TypeScript to
 this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
-`connect+json`, no JSON or GET transport, and no `fetch` outside
-`upload.ts`.
+`connect+json`, no JSON or GET transport, and no `fetch` or
+`XMLHttpRequest` outside `upload.ts`.
+
+While an upload's body goes out the page shows a bar and the bytes sent
+of the total, then that the server is working on it, and every upload
+(documents to an index, a dictionary, documents to learn from) has a
+Stop that aborts it.
 
 The page keeps to a few layout rules, which the browser run (Tests,
 below) checks on every tab at 1280 and 390 CSS pixels: the page never
@@ -350,9 +367,79 @@ the client's key automatically.
 
 The page has a tab per area; leaving a tab cancels its streams and
 uploads. Writes (marked below) are refused with `permission_denied`
-unless the demo is started with `--allow` for them, and the tab says
-so with the call's code, `turbo-code`, field and message, as it does
-for any refused call.
+unless the demo is started with `--allow` for them. The page asks the
+demo which writes it forwards (`DemoService/Describe`) before it draws
+anything: a form whose write is not forwarded is off, with a line
+naming the `--allow` that enables it, and so is each delete, unload,
+install, accept and revoke control.
+A demo that wants a token answers only once the token is typed: until
+then nothing is off, and when the answer arrives every form and control
+follows it.
+
+A refused or failed call is reported as one plain sentence that says
+what to do where that is known ("Pick or create an index first."), with
+the call's code, `turbo-code`, field and raw message behind a "details"
+toggle (`demo/web/src/errors.ts`). An empty input the page can see (no
+index picked, no query, no document) is said before the server is
+asked. Every input and select has a visible label or an accessible
+name. Options that need a kind of model show only when one applies: the
+open-span options on Analyze with an open-span model picked, the
+relation model when one is served and its options when one is picked,
+and the reranker and QA selects on Semantic when the server serves that
+task. What is typed in a hidden group is kept.
+
+Results are drawn so they can be read without the numbers
+(`demo/web/src/heat.ts`, `marks.ts`, `highlight.ts`):
+
+- A similarity table is coloured by its own lowest and highest
+  off-diagonal cosine, which it names, so a model whose cosines all sit
+  in a narrow band still shows which pairs are closer. A switch goes
+  back to the absolute scale from 0 to 1, and each row's best match is
+  outlined.
+- Annotated text has a legend, a colour per picked layer: the first
+  fills, the next underlines, so layers over the same words stay
+  apart. With no layer picked the text marks what was named, or its
+  sentences when nothing was, or every layer when it has neither. A
+  marked stretch can be clicked, or reached with Tab, to list
+  every annotation on it with its layer, label and score. The legend
+  names a picked layer as its chip does, instance included.
+- A search hit marks the words that matched in place, each with the
+  signal that matched it, and the legend names the signals. Signals
+  whose spans the page cannot place in the chunk are named under the
+  hit.
+- The search heat and the Analyze heatmap each say what their colour
+  means and show the scale.
+- Where the layout is one column (820 px and narrower), a finished
+  run brings its results into view, without animation when the
+  visitor asked for less motion.
+
+Each tab opens with one line on what it does. When the server serves
+nothing a tab can use, Embed, Semantic and Search say what they need
+and where to get it (`demo/web/src/about.ts`); a model the server no
+longer serves leaves the Embed list.
+
+What is typed or picked on Embed, Semantic, Analyze, Search and
+Vocabulary is kept in the browser's `localStorage` and put back after a
+reload, the models picked on Embed included; "Reset to sample" under a
+tab's form puts that tab back and forgets what was kept
+(`demo/web/src/keep.ts`). A password, a picked file, and everything on
+Models and Server are never kept, and the bearer token stays in
+`sessionStorage`. With storage blocked the page works the same and
+keeps nothing.
+What is kept stays in that browser until Reset or until the site's data
+is cleared, so on a shared machine use Reset, or a private window,
+after pasting text that others should not read.
+
+The similarity matrices, the vectors, the side-by-side table, the
+nearest neighbours, the rerank scores and the search hits each have
+"Copy" and "Download CSV" (`demo/web/src/csv.ts`). The file is CSV as
+RFC 4180 writes it, with the full texts and six decimals (the vectors
+as the server sent them); Copy puts the same rows on the clipboard
+separated by tabs, which a spreadsheet pastes into cells. A value that
+a sheet would read as a formula (it starts with `=`, `+`, `-` or `@` and
+is not a number) gets a leading apostrophe in both. Both are
+built in the page from values it already has; nothing is asked of the
+server and there is no JSON.
 
 - Embed: each served embedding bundle (from `Capabilities`) with its
   tier, model id, dimensions, compute type and device from
@@ -590,8 +677,36 @@ either: every call the page makes goes through the demo to the server.
   stops, with the notice and Retry, and green again with no reload once
   it is back, the tabs refilled. A page opened with the server stopped
   says on each tab that the server is not reachable, and fills on Retry.
+- With no `--allow`, every write form is off and names the `--allow`
+  that turns it on, and Unload is off with its reason; with `--allow`
+  for CreateIndex only, that form alone is live and creates an index.
+- A refused LoadBundle leads with a sentence, with the Connect code,
+  turbo-code and raw message behind a closed details toggle; Search
+  with no index says so before the server is asked.
+- Every input, select and text box on every tab has a label or an
+  accessible name.
+- With only embedding models served, the open-span and relation
+  options on Analyze and the Reranker, QA and Answers controls on
+  Semantic are hidden, and Semantic still runs.
+- Each similarity matrix on Embed colours from faint to strong across
+  its own range, the absolute switch narrows that, each row outlines
+  its greatest cosine off the diagonal, and the side-by-side spread is
+  in fixed decimals with its last label whole.
+- On Analyze the two `turbo:boundaries` chips read apart and pick
+  alone; a picked layer is named in the legend, a mark clicked or
+  focused lists its annotations beside the text, and two picked layers
+  show in two colours.
+- A search for "memory safe language" marks those words in its hits,
+  each mark naming its signal and the legend naming every signal.
+- At 390 pixels, Run on Embed, Semantic, Analyze and Search brings the
+  results into view.
 
-The tests that stop the server, or need writes forwarded, start a
+`demo/web/e2e/permits.test.ts` starts a demo with a token and one
+`--allow`: nothing is off before the token is typed, and after it the
+other writes are off, the Set button of a collection and each row's
+Delete and Unload among them.
+
+The tests that stop the server, or need writes forwarded or a token, start a
 server and demo of their own from the same binaries
 (`demo/web/e2e/stack.ts`, given the binaries' directory in
 `TURBO_E2E_BIN`).

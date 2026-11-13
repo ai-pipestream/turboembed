@@ -135,6 +135,26 @@ fn combinations() -> Vec<Heads> {
 }
 
 #[test]
+fn negative_only_sentences_train_and_empty_inputs_are_safe() {
+    for heads in combinations() {
+        let (input, candidates) = fixture();
+        let trainer = trainer(heads);
+        let mut grads = trainer.zero_grads();
+        let loss = trainer.gradients(&input, &candidates, &[], &mut grads).unwrap();
+        assert!(loss.is_finite() && loss != 0.0, "{heads:?}");
+        assert!(grads.iter().flatten().any(|&gradient| gradient != 0.0), "{heads:?}");
+    }
+
+    let (mut input, _) = fixture();
+    input.pairs.clear();
+    input.spans.clear();
+    let trainer = trainer(Heads::default());
+    let mut grads = trainer.zero_grads();
+    assert_eq!(trainer.gradients(&input, &[], &[], &mut grads).unwrap(), 0.0);
+    assert!(grads.iter().flatten().all(|&gradient| gradient == 0.0));
+}
+
+#[test]
 fn gradients_match_finite_differences_for_every_head_combination() {
     let counts: Vec<usize> = combinations().into_iter().map(|heads| trainer(heads).params.len()).collect();
     // Twelve modes; 6 and 22 are linear output with a prompt head.

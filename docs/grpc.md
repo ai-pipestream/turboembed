@@ -234,8 +234,11 @@ the certificate's name is not the address, and `--tls-cert FILE` with
 `--tls-key FILE` when the server requires a client certificate
 (`TURBO_KSERVE_HEALTH_TLS_CA`, `TURBO_KSERVE_HEALTH_TLS_NAME`,
 `TURBO_KSERVE_HEALTH_TLS_CERT`, `TURBO_KSERVE_HEALTH_TLS_KEY`). These
-are the probe's client credentials, not the listener's. The image, its `/bundles` volume, its variables
-and the Kubernetes probes for it are in docs/release.md, Images.
+are the probe's client credentials, not the listener's. The release
+image, its `/bundles` volume, its variables and the Kubernetes probes
+for it are in docs/release.md, Images. The model zoo image's entrypoint,
+health check and bucket helper are subcommands of the same binary,
+`zoo-start`, `zoo-health` and `zoo-bucket` (docs/zoo-container.md).
 
 A `ModelInfer` carries either `texts` (BYTES, `[batch]`) or token rows
 `ids` and `mask` (INT32, `[batch, seq]`), with `types` optional, and

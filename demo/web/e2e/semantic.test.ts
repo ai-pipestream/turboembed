@@ -48,7 +48,7 @@ test("semantic ranks the passages by cosine and fills a symmetric matrix", async
         assert.equal(new Set(picked).size, k);
         for (const n of picked) assert.equal(n >= 1 && n <= passages.length, true);
 
-        const matrix = (await rows(page, "#sem-sim table:nth-of-type(2)")).map((r) => r.slice(1).map(Number));
+        const matrix = (await rows(page, "#sem-sim table.sim")).map((r) => r.slice(1).map(Number));
         assert.equal(matrix.length, passages.length);
         for (let i = 0; i < matrix.length; i++) {
           assert.equal(matrix[i].length, passages.length);

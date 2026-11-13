@@ -6,9 +6,10 @@ import { plain } from "../catalogfilter.js";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { busy, confirmed, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
-import { describe, inference, setToken, token } from "../rpc.js";
-import { analysis } from "../rpc.js";
-import { onReachable, onServed, reachable, refresh, setStatus } from "../state.js";
+import { analysis, describe, explain, inference, setToken, token } from "../rpc.js";
+import { lock, off } from "../permit.js";
+import { AnalysisService } from "../gen/turbo_analysis_pb.js";
+import { onReachable, onServed, permits, reachable, refresh, setStatus } from "../state.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 
 // How often the status is read again while the page is open and in view.
@@ -100,7 +101,7 @@ function unloadButton(name: string): HTMLElement {
     await analysis.unloadBundle({ name });
     say($("server-load-note"), `Unloaded ${name}.`);
     await reload();
-  });
+  }, off(AnalysisService.method.unloadBundle));
 }
 
 async function reload(): Promise<void> {
@@ -115,6 +116,7 @@ async function reload(): Promise<void> {
 async function load(ev: Event): Promise<void> {
   ev.preventDefault();
   const note = $("server-load-note");
+  if (!input("server-load-name").value.trim() || !input("server-load-path").value.trim()) return say(note, "Name the bundle and give its path on the server.", "error");
   say(note, "Loading\u2026", "busy");
   await busy(submitter(ev), async () => {
     try {
@@ -127,7 +129,7 @@ async function load(ev: Event): Promise<void> {
       say(note, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
       await reload();
     } catch (e) {
-      say(note, describe(e), "error");
+      say(note, explain(e));
     }
   });
 }
@@ -138,9 +140,10 @@ export function init(): void {
   t.addEventListener("change", () => {
     setToken(t.value.trim());
     void status();
-    void reload();
+    void permits().then(reload);
   });
   $("server-load").addEventListener("submit", load);
+  lock($("server-load"), AnalysisService.method.loadBundle);
   watch();
   void status();
 }

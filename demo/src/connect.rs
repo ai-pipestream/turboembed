@@ -48,6 +48,36 @@ pub(crate) async fn call(State(app): State<App>, req: Request) -> Response {
     reply
 }
 
+/// The path of the one call the demo answers itself (demo/proto).
+pub const DESCRIBE: &str = "/turbo.demo.v1.DemoService/Describe";
+
+/// `DemoService/Describe`: the write methods the demo forwards and whether
+/// it has a user, behind the same gate as a forwarded call. The request
+/// is empty and is not read; the reply is a `DescribeResponse`, encoded
+/// here: field 1 once per path, field 2 when there is a user.
+pub(crate) async fn describe(State(app): State<App>, headers: HeaderMap) -> Response {
+    let mut reply = match protocol(&headers) {
+        Some(Protocol::Unary) => match app.gate.check(&headers) {
+            Ok(()) => {
+                let mut out = BytesMut::new();
+                for path in app.allow.forwarded_writes() {
+                    out.put_u8((1 << 3) | 2);
+                    crate::user::put_varint(&mut out, path.len() as u64);
+                    out.put_slice(path.as_bytes());
+                }
+                if app.user.is_some() {
+                    out.put_slice(&[2 << 3, 1]);
+                }
+                ([(header::CONTENT_TYPE, UNARY)], out.freeze()).into_response()
+            }
+            Err((code, msg)) => refuse(Protocol::Unary, Refusal(code, msg)),
+        },
+        _ => unsupported(),
+    };
+    app.gate.grant(headers.get(header::ORIGIN), reply.headers_mut());
+    reply
+}
+
 async fn forward(app: &App, req: Request) -> Response {
     let started = tokio::time::Instant::now();
     let (parts, body) = req.into_parts();

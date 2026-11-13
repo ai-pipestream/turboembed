@@ -33,10 +33,12 @@
   <span id="down-why" class="why"></span>
 </p>
 <section class="panel split" id="tab-embed" role="tabpanel" aria-labelledby="tabbtn-embed" hidden>
+  <p class="about" id="about-embed">Turn texts into vectors with one or more served embedding models, and see how close the texts are to each other.</p>
+  <p class="needs" id="needs-embed" role="status" hidden></p>
   <div class="box">
     <h2>Texts</h2>
     <p class="muted">One text per line; all of them go in one request.</p>
-    <textarea id="embed-texts" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
+    <textarea id="embed-texts" aria-label="Texts, one per line" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
 A kitten naps in the warm sun by the window.
 The central bank raised interest rates again.
 Inflation pushed borrowing costs higher this quarter.
@@ -58,7 +60,7 @@ How do I reset my router?</textarea>
       Pick several to send the same texts to each and compare.</p>
     <div id="embed-models" class="models"></div>
     <form id="embed-add" class="add">
-      <input id="embed-add-name" placeholder="another served model name" autocomplete="off">
+      <input id="embed-add-name" data-unkept aria-label="Another served model name" placeholder="another served model name" autocomplete="off">
       <button type="submit">Add</button>
     </form>
     <button id="embed-run" class="primary">Embed</button>
@@ -68,12 +70,14 @@ How do I reset my router?</textarea>
 </section>
 
 <section class="panel split" id="tab-semantic" role="tabpanel" aria-labelledby="tabbtn-semantic" hidden>
+  <p class="about" id="about-semantic">Ask one question of a handful of passages: the nearest by embedding, reranked by a cross-encoder, and answered by a QA model.</p>
+  <p class="needs" id="needs-semantic" role="status" hidden></p>
   <div class="box">
     <h2>Query</h2>
-    <input id="sem-query" class="wide" value="Who wrote the first published program?">
+    <input id="sem-query" class="wide" aria-label="Query" value="Who wrote the first published program?">
     <h2>Passages</h2>
     <p class="muted">One passage per line.</p>
-    <textarea id="sem-passages" rows="7" wrap="off" spellcheck="false">Ada Lovelace wrote the first published program in 1843.
+    <textarea id="sem-passages" aria-label="Passages, one per line" rows="7" wrap="off" spellcheck="false">Ada Lovelace wrote the first published program in 1843.
 Charles Babbage designed the Analytical Engine in London.
 The central bank raised interest rates again.
 Grace Hopper wrote one of the first compilers.
@@ -81,9 +85,9 @@ A kitten naps in the warm sun by the window.</textarea>
     <div class="options">
       <label>Embedding model <select id="sem-embed"></select></label>
       <label>Neighbours <input id="sem-k" type="number" min="1" value="3" class="narrow"></label>
-      <label>Reranker <select id="sem-rerank"></select></label>
-      <label>QA model <select id="sem-qa"></select></label>
-      <label>Answers <input id="sem-topk" type="number" min="1" value="3" class="narrow"></label>
+      <label id="sem-rerank-pick" hidden>Reranker <select id="sem-rerank"></select></label>
+      <label id="sem-qa-pick" hidden>QA model <select id="sem-qa"></select></label>
+      <label id="sem-topk-pick" hidden>Answers <input id="sem-topk" type="number" min="1" value="3" class="narrow"></label>
     </div>
     <button id="sem-run" class="primary">Run</button>
     <p id="sem-note" class="note" hidden></p>
@@ -96,22 +100,27 @@ A kitten naps in the warm sun by the window.</textarea>
 </section>
 
 <section class="panel split" id="tab-analyze" role="tabpanel" aria-labelledby="tabbtn-analyze" hidden>
+  <p class="about" id="about-analyze">Run a document through an analysis profile and read what each layer found: sentences, tokens, entities and relations.</p>
   <div class="box">
     <h2>Document</h2>
-    <textarea id="analyze-text" rows="10" spellcheck="false">Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine.
+    <textarea id="analyze-text" aria-label="Document" rows="10" spellcheck="false">Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine.
 
 The engine was never built, but her notes describe how it could compute Bernoulli numbers.</textarea>
     <div class="options">
       <label>Profile <select id="analyze-profile"></select></label>
       <label>Model <select id="analyze-model"></select></label>
-      <label>Open-span labels <input id="analyze-labels" value="person, organization, location" /></label>
-      <label>Threshold <input id="analyze-threshold" type="number" min="0" max="1" step="0.05" value="0.5" /></label>
-      <label><input id="analyze-nested" type="checkbox" /> Nested spans</label>
-      <label>Guidelines (optional, one label=prompt per line) <textarea id="analyze-guidelines" rows="2" placeholder="VisualWork=visual artwork"></textarea></label>
-      <label>Relation model <select id="analyze-relation-model"></select></label>
-      <label>Relation labels <input id="analyze-relation-labels" value="founded, works for, located in" /></label>
-      <label>Relation threshold <input id="analyze-relation-threshold" type="number" min="0" max="1" step="0.05" value="0.5" /></label>
-      <label><input id="analyze-relation-sentence" type="checkbox" checked /> Within one sentence</label>
+      <div id="analyze-open-span" class="options group" hidden>
+        <label>Open-span labels <input id="analyze-labels" value="person, organization, location" /></label>
+        <label>Threshold <input id="analyze-threshold" type="number" min="0" max="1" step="0.05" value="0.5" /></label>
+        <label><input id="analyze-nested" type="checkbox" /> Nested spans</label>
+        <label>Guidelines (optional, one label=prompt per line) <textarea id="analyze-guidelines" rows="2" placeholder="VisualWork=visual artwork"></textarea></label>
+      </div>
+      <label id="analyze-relation-pick" hidden>Relation model <select id="analyze-relation-model"></select></label>
+      <div id="analyze-relation" class="options group" hidden>
+        <label>Relation labels <input id="analyze-relation-labels" value="founded, works for, located in" /></label>
+        <label>Relation threshold <input id="analyze-relation-threshold" type="number" min="0" max="1" step="0.05" value="0.5" /></label>
+        <label><input id="analyze-relation-sentence" type="checkbox" checked /> Within one sentence</label>
+      </div>
     </div>
     <div class="row">
       <button id="analyze-run" class="primary">Analyze</button>
@@ -122,30 +131,30 @@ The engine was never built, but her notes describe how it could compute Bernoull
     <ol id="analyze-steps" class="steps"></ol>
     <h2>Export</h2>
     <div class="row">
-      <select id="analyze-format"></select>
+      <label>Format <select id="analyze-format"></select></label>
       <button id="analyze-export" type="button">Format</button>
     </div>
     <div id="analyze-export-out"></div>
   </div>
   <div class="results">
-    <div class="card"><h3>Layers</h3><div id="analyze-layers"></div></div>
+    <div class="card"><div id="analyze-found"></div><h3>Layers</h3><div id="analyze-layers"></div></div>
     <div class="card" id="analyze-window"></div>
     <details class="card" id="analyze-xray">
       <summary>Normalization X-Ray</summary>
-      <div class="row">From <select id="xray-from"><option value="">analyze a document first</option></select> to <select id="xray-to"><option value="">analyze a document first</option></select> offsets in <select id="xray-offsets"><option value="utf8">UTF-8 bytes</option><option value="utf16" selected>UTF-16 units</option><option value="cp">code points</option></select></div>
+      <div class="row"><label>From <select id="xray-from"><option value="">analyze a document first</option></select></label> <label>to <select id="xray-to"><option value="">analyze a document first</option></select></label> <label>offsets in <select id="xray-offsets"><option value="utf8">UTF-8 bytes</option><option value="utf16" selected>UTF-16 units</option><option value="cp">code points</option></select></label></div>
       <div id="xray-out"></div>
     </details>
     <details class="card" id="analyze-drawer">
       <summary>Annotation drawer</summary>
-      <div class="row">View <select id="drawer-view"><option value="">analyze a document first</option></select></div>
+      <div class="row"><label>View <select id="drawer-view"><option value="">analyze a document first</option></select></label></div>
       <div id="drawer-out"></div>
     </details>
     <details class="card" id="analyze-projection">
       <summary>Chunk projection</summary>
       <div class="row">
-        <select id="projection-dims"><option value="2">2D</option><option value="3">3D</option></select>
+        <label>Dimensions <select id="projection-dims"><option value="2">2D</option><option value="3">3D</option></select></label>
         <label><input id="projection-drift" type="checkbox" checked> drift curve</label>
-        <input id="projection-budgets" value="small:32:24, large:128:96" title="chunking budgets as name:max:target">
+        <label class="grow">Chunking budgets, name:max:target <input id="projection-budgets" value="small:32:24, large:128:96"></label>
         <button id="projection-run" type="button">Project</button>
       </div>
       <div id="projection-out"></div>
@@ -164,6 +173,8 @@ The engine was never built, but her notes describe how it could compute Bernoull
 </section>
 
 <section class="panel split" id="tab-search" role="tabpanel" aria-labelledby="tabbtn-search" hidden>
+  <p class="about" id="about-search">Build an index from documents, then search it and see why each hit matched.</p>
+  <p class="needs" id="needs-search" role="status" hidden></p>
   <div class="box">
     <h2>New index</h2>
     <form id="search-create" class="options">
@@ -175,13 +186,15 @@ The engine was never built, but her notes describe how it could compute Bernoull
     <p id="search-create-note" class="note" hidden></p>
     <h2>Add documents</h2>
     <p class="muted">Typed paragraphs (a blank line between) and picked files, one upload; the server cuts and embeds them.</p>
-    <textarea id="search-docs" rows="6" spellcheck="false">Rust is a systems programming language focused on safety and speed.
+    <div id="search-add-box">
+    <textarea id="search-docs" aria-label="Documents, a blank line between" rows="6" spellcheck="false">Rust is a systems programming language focused on safety and speed.
 
 Python is popular for data science and machine learning.
 
 The Analytical Engine was a proposed mechanical general purpose computer.</textarea>
-    <input id="search-files" type="file" multiple>
-    <button id="search-add" type="button">Upload to the index</button>
+    <input id="search-files" type="file" multiple aria-label="Document files">
+    <div class="row"><button id="search-add" type="button">Upload to the index</button><button id="search-add-stop" type="button" disabled>Stop</button></div>
+    </div>
     <p id="search-add-note" class="note" hidden></p>
   </div>
   <div class="results">
@@ -191,10 +204,10 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
     </div>
     <div class="card">
       <form id="search-form" class="row">
-        <select id="search-index"></select>
-        <input id="search-query" placeholder="search" value="memory safe language">
-        <input id="search-k" type="number" min="1" value="10" class="narrow">
-        <select id="search-rerank"></select>
+        <label>Index <select id="search-index"></select></label>
+        <label class="grow">Query <input id="search-query" placeholder="search" value="memory safe language"></label>
+        <label>Hits <input id="search-k" type="number" min="1" value="10" class="narrow"></label>
+        <label>Rerank <select id="search-rerank"></select></label>
         <button type="submit" class="go">Search</button>
       </form>
       <div id="search-results"></div>
@@ -202,16 +215,16 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
     <div class="card">
       <div class="head"><h3>Collections</h3><button id="coll-refresh" type="button">Refresh</button></div>
       <form id="coll-set" class="row">
-        <input id="coll-name" autocomplete="off" value="demo-docs" placeholder="collection">
-        <input id="coll-baseline" autocomplete="off" placeholder="baseline terms, space separated">
-        <input id="coll-threshold" type="number" min="0" max="1" step="0.05" value="0" class="narrow" title="OOV alert threshold">
+        <label>Collection <input id="coll-name" autocomplete="off" value="demo-docs"></label>
+        <label class="grow">Baseline terms <input id="coll-baseline" autocomplete="off" placeholder="space separated"></label>
+        <label>Alert at OOV ratio <input id="coll-threshold" type="number" min="0" max="1" step="0.05" value="0" class="narrow"></label>
         <button type="submit">Set</button>
       </form>
       <div id="coll-list"></div>
       <div class="row">
         <button id="coll-watch" type="button" class="go">Watch</button>
         <button id="coll-stop" type="button" disabled>Stop</button>
-        <label>min OOV <input id="coll-min" type="number" min="0" max="1" step="0.05" value="0" class="narrow"></label>
+        <label>Report from OOV ratio <input id="coll-min" type="number" min="0" max="1" step="0.05" value="0" class="narrow"></label>
       </div>
       <p id="coll-note" class="note" hidden></p>
       <ol id="coll-events" class="steps"></ol>
@@ -220,6 +233,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
 </section>
 
 <section class="panel split" id="tab-vocabulary" role="tabpanel" aria-labelledby="tabbtn-vocabulary" hidden>
+  <p class="about" id="about-vocabulary">Import dictionaries and learn vocabularies from documents, for the analysis and search steps that use them.</p>
   <div class="box">
     <h2>Import a dictionary</h2>
     <form id="vocab-import" class="options">
@@ -227,13 +241,13 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <label>Language <input id="vocab-language" placeholder="en" class="narrow"></label>
       <label>Name <input id="vocab-name" autocomplete="off"></label>
       <label><input id="vocab-header" type="checkbox"> first row is a header</label>
-      <input id="vocab-file" type="file">
+      <input id="vocab-file" type="file" aria-label="Dictionary file">
       <button type="submit">Import</button>
     </form>
     <h2>Learn a vocabulary</h2>
     <form id="vocab-learn" class="options">
-      <textarea id="vocab-docs" rows="5" spellcheck="false" placeholder="documents, a blank line between"></textarea>
-      <input id="vocab-learn-files" type="file" multiple>
+      <textarea id="vocab-docs" aria-label="Documents, a blank line between" rows="5" spellcheck="false" placeholder="documents, a blank line between"></textarea>
+      <input id="vocab-learn-files" type="file" multiple aria-label="Document files">
       <label>Min term frequency <input id="vocab-min-tf" type="number" min="1" value="1" class="narrow"></label>
       <label>Max terms <input id="vocab-max-terms" type="number" min="0" value="0" class="narrow"></label>
       <label><input id="vocab-lowercase" type="checkbox" checked> lowercase</label>
@@ -256,6 +270,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
 </section>
 
 <section class="panel split" id="tab-server" role="tabpanel" aria-labelledby="tabbtn-server" hidden>
+  <p class="about" id="about-server">What the server is and what it serves, and loading or unloading a bundle.</p>
   <div class="box">
     <h2>Load a bundle</h2>
     <form id="server-load" class="options">
@@ -273,6 +288,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
 </section>
 
 <section class="panel split" id="tab-models" role="tabpanel" aria-labelledby="tabbtn-models" hidden>
+  <p class="about" id="about-models">Browse the model catalog, accept licence terms, install models and train small static ones.</p>
   <div class="box">
     <h2>Catalog</h2>
     <p class="muted">Licence acceptances and installs are for the user the demo was started with (--user).</p>
@@ -303,7 +319,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <label>Width <input id="train-dims" type="number" min="0" value="0" class="narrow"> 0 is the default</label>
       <label>Type <select id="train-dtype"><option>F32</option><option>F16</option></select></label>
       <label>Learned vocabulary <input id="train-vocabulary" autocomplete="off" placeholder="artifact id, optional"></label>
-      <textarea id="train-terms" rows="3" spellcheck="false" placeholder="more terms, one per line"></textarea>
+      <textarea id="train-terms" aria-label="More terms, one per line" rows="3" spellcheck="false" placeholder="more terms, one per line"></textarea>
       <div class="row"><button type="submit" class="go">Train</button><button id="train-stop" type="button" disabled>Stop</button></div>
     </form>
     <p id="train-note" class="note" hidden></p>
@@ -330,7 +346,8 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
 
 <footer class="muted">
   Every call is gRPC through this demo as binary protobuf; times shown are the round trip the browser saw,
-  one request at a time: a look at the call, not a benchmark. Writes need the demo started with --allow.
+  one request at a time: a look at the call, not a benchmark. A write needs the demo started with --allow for its method;
+  a form whose write is not forwarded is off and says which.
 </footer>
 <script type="module" src="app.js"></script>
 </body>

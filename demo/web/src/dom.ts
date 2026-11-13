@@ -1,5 +1,8 @@
 // DOM helpers. Text is always set as text, never as markup.
 
+import type { Explained } from "./errors.js";
+import { restore } from "./keep.js";
+
 export type Child = Node | string | null | undefined | false | Child[];
 
 export function $(id: string): HTMLElement {
@@ -63,13 +66,86 @@ export function options(select: HTMLSelectElement, values: string[], labels?: st
   if (!values.length && none) return void select.replaceChildren(el("option", { value: "", text: none }));
   select.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
   if (values.includes(keep)) select.value = keep;
+  // What the visitor picked before a reload wins, when it is still offered.
+  restore(select);
 }
 
-/** A status line: plain, busy or an error. */
-export function say(box: HTMLElement, text: string, kind: "" | "busy" | "error" = ""): void {
-  box.textContent = text;
-  box.className = kind ? `note ${kind}` : "note";
-  box.hidden = text === "";
+/** The children that show a failure: its sentence, then its details behind a toggle. */
+function failure(x: Explained): Child[] {
+  if (!x.details) return [x.text];
+  return [x.text, " ", el("details", { class: "why" }, el("summary", { text: "details" }), el("code", { text: x.details }))];
+}
+
+/** A status line: plain, busy or an error. A failure from `explain` is an error with its details behind a toggle. */
+export function say(box: HTMLElement, what: string | Explained, kind: "" | "busy" | "error" = ""): void {
+  if (typeof what === "string") {
+    box.textContent = what;
+    box.className = kind ? `note ${kind}` : "note";
+    box.hidden = what === "";
+    return;
+  }
+  box.replaceChildren();
+  append(box, failure(what));
+  // A call the visitor stopped is said plainly, not as an error.
+  box.className = what.text === "Cancelled." ? "note" : "note error";
+  box.hidden = false;
+}
+
+/**
+ * A status line for an upload: a bar and "3.1 MiB of 12.0 MiB (26%)"
+ * while the body goes out, then that the server is working on it.
+ * Returns the function to hand to `put`.
+ */
+export function sending(box: HTMLElement, what: string): (sent: number, total: number) => void {
+  const bar = el("progress", { max: "1", value: "0", "aria-label": "Upload progress" }) as HTMLProgressElement;
+  const line = el("span", {});
+  box.replaceChildren(line, bar);
+  box.className = "note busy upload";
+  box.hidden = false;
+  return (sent, total) => {
+    bar.max = Math.max(1, total);
+    bar.value = sent;
+    const share = total ? Math.floor((100 * sent) / total) : 100;
+    line.textContent = sent < total ? `Uploading ${what}: ${size(sent)} of ${size(total)} (${share}%)` : `Sent ${size(total)} (${what}). The server is working on it\u2026`;
+  };
+}
+
+/** A failure from `explain` as a line of its own. */
+export function failed(x: Explained): HTMLElement {
+  return el("p", { class: "error" }, failure(x));
+}
+
+/** The legend of a row of heat cells: what a cell is, and the scale from low to high. */
+export function heatKey(what: string): HTMLElement {
+  return el("p", { class: "heat-key muted" }, what, " ", el("span", { class: "ramp", role: "img", "aria-label": "colour scale from low to high" }, "low ", el("i", {}), " high"));
+}
+
+/**
+ * Where the layout is one column (a phone), the results sit below the
+ * form: brings `box` into view, smoothly unless the visitor asked for
+ * less motion. On a wider layout it does nothing.
+ *
+ * A result that grows after its first part (a stream) can call the
+ * returned function to bring the box to the top once more; it does
+ * nothing once the visitor has scrolled on their own.
+ */
+export function reveal(box: Element | null): () => void {
+  if (!box || !matchMedia("(max-width: 820px)").matches) return () => {};
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const show = (): void => box.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  let moved = false;
+  for (const ev of ["wheel", "touchmove", "keydown"]) {
+    addEventListener(ev, () => (moved = true), { once: true, passive: true });
+  }
+  show();
+  return () => {
+    if (!moved) show();
+  };
+}
+
+/** A count with its noun: `1 document`, `3 documents`. */
+export function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /** Bytes as a short human size. */

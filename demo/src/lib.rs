@@ -4,7 +4,8 @@
 //! goes to the server, and the server's back, as the same bytes. It holds
 //! no model and links no backend. It decodes no message, but for one
 //! field: the user of a catalog call, which it sets to its own identity
-//! (user.rs).
+//! (user.rs). One call it answers itself: which writes it forwards
+//! (`DemoService/Describe`, demo/proto).
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -106,6 +107,7 @@ impl Demo {
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))
             .route("/style.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
+            .route(connect::DESCRIBE, post(connect::describe).options(preflight).fallback(only_post))
             .route("/{service}/{method}", post(connect::call).options(preflight).fallback(only_post))
             .route("/upload/{service}/{method}", put(upload::call).options(preflight).fallback(only_put))
             .with_state(app);

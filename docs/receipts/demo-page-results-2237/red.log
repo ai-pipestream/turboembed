@@ -1,0 +1,24 @@
+# 2238 similarity colours
+FAIL cosines in a narrow band show visible contrast (cosines 0.892 to 0.968, colour strength 0.68 to 0.80)
+FAIL each row marks its best match
+FAIL the switch goes back to the absolute scale (no switch)
+FAIL the spread column is in fixed decimals (2.2e-1)
+FAIL the last row label is not cut off (lowest cosine to tiny-bert-bundle, same text)
+# 2237 annotated text
+FAIL a legend names the colours (no legend)
+FAIL clicking a mark lists its annotations beside the text
+FAIL a mark can be reached by keyboard
+FAIL two picked layers are told apart by colour
+# 2240 layer chips
+FAIL the two turbo:boundaries chips read differently (turbo:boundaries 3 | turbo:boundaries 3)
+FAIL picking one of them picks only that one
+# 2239 search hits
+FAIL a hit for "memory safe language" shows its matched words marked in place (no mark)
+FAIL the hits have a legend of the signals
+FAIL the document heat has a legend and a scale
+# 2242 on a phone, results come into view
+FAIL at 390 px, embed: the result is in view after Run
+FAIL at 390 px, semantic: the result is in view after Run
+FAIL at 390 px, analyze: the result is in view after Run
+ok   at 390 px, search: the result is in view after Run
+17 checks failed

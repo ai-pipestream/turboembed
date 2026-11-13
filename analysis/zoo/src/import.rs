@@ -2,7 +2,9 @@
 //! written as an index entry. The zoo itself reads only its own index;
 //! an importer is how a model from elsewhere gets one.
 //!
-//! [`bundle`] reads a sealed bundle directory (docs/bundle.md).
+//! [`bundle`] reads a sealed bundle directory (docs/bundle.md), and
+//! [`hugging_face`] a Hugging Face model repository at a pinned commit,
+//! and [`oci`] an OCI artifact in a registry, pinned by digest.
 
 use std::fs;
 use std::io::Read;
@@ -17,6 +19,32 @@ use crate::index::{
 };
 use crate::licence::Licence;
 
+mod hugging_face;
+#[cfg(feature = "http")]
+mod oci;
+
+pub use hugging_face::{HUGGING_FACE, RepoImport, hugging_face};
+#[cfg(feature = "http")]
+pub use oci::{OciImport, TITLE, oci};
+
+/// What an entry holds that no layout says of the model itself.
+#[derive(Debug, Clone)]
+pub struct Described {
+    /// Where the model's publisher states its licence.
+    pub license_terms: Url,
+    /// What the model was trained on. The entry's class is the most
+    /// restrictive of its own licence and these.
+    pub trained_on: Vec<TrainingData>,
+    pub attribution: Option<String>,
+    /// For a model whose class is `CLASS_LOCAL_ONLY`: its publisher's own
+    /// location, which every file's address must lie under.
+    pub origin: Option<Url>,
+    /// The component the model serves; for a bundle, by default the one
+    /// its task gives ([`component_of`]).
+    pub component: Option<Component>,
+    pub language: Option<Language>,
+}
+
 /// What an entry holds that a sealed bundle does not say of itself.
 #[derive(Debug, Clone)]
 pub struct BundleImport {
@@ -25,19 +53,36 @@ pub struct BundleImport {
     /// Where the bundle directory is published: each file's address is
     /// `<base>/<path>`.
     pub base: Url,
-    /// Where the model's publisher states its licence.
-    pub license_terms: Url,
-    /// What the model was trained on. The entry's class is the most
-    /// restrictive of the manifest's licence and these.
-    pub trained_on: Vec<TrainingData>,
-    pub attribution: Option<String>,
-    /// For a model whose class is `CLASS_LOCAL_ONLY`: its publisher's own
-    /// location, which `base` must lie under.
-    pub origin: Option<Url>,
-    /// The component the model serves; by default the one its task gives
-    /// ([`component_of`]).
-    pub component: Option<Component>,
-    pub language: Option<Language>,
+    pub described: Described,
+}
+
+/// What a bundle's manifest records of its model, and the model's
+/// licence as the manifest names it.
+pub(crate) fn manifest_record(id: &ArtifactId, manifest: &[u8]) -> Result<(Bundle, Licence), ZooError> {
+    let fail = |message: String| ZooError::Bundle { id: id.clone(), message };
+    let v: serde_json::Value =
+        serde_json::from_slice(manifest).map_err(|e| fail(format!("{MANIFEST} is not JSON: {e}")))?;
+    let text = |pointer: &str| {
+        v.pointer(pointer)
+            .and_then(|s| s.as_str())
+            .ok_or_else(|| fail(format!("{MANIFEST} has no string at {pointer}")))
+    };
+    let parsed = |pointer: &str, e: String| fail(format!("{MANIFEST} at {pointer}: {e}"));
+    let task = Task::from_str(text("/task")?).map_err(|e| parsed("/task", e))?;
+    let license = Licence::from_str(text("/model/license")?).map_err(|e| parsed("/model/license", e))?;
+    Ok((Bundle { model: text("/model/id")?.to_owned(), revision: text("/model/revision")?.to_owned(), task }, license))
+}
+
+/// `artifact` with the class its licences give, held to every rule of the
+/// index, and, for a bundle, to its `manifest`, before it is handed out.
+pub(crate) fn described(mut artifact: Artifact, manifest: Option<&[u8]>) -> Result<Artifact, ZooError> {
+    artifact.class = artifact.computed_class();
+    let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?;
+    index.get(artifact.id.as_str())?;
+    if let Some(manifest) = manifest.filter(|_| artifact.model_type == ModelType::EncoderBundle) {
+        crate::index::check_manifest(&artifact, manifest)?;
+    }
+    Ok(artifact)
 }
 
 /// The component a bundle of `task` serves when the importer names none:
@@ -62,17 +107,10 @@ pub fn bundle(dir: &Path, spec: BundleImport) -> Result<Artifact, ZooError> {
     let id = spec.id.clone();
     let fail = |message: String| ZooError::Bundle { id: id.clone(), message };
     let manifest_bytes = read_plain(dir, MANIFEST)?;
+    let (record, license) = manifest_record(&id, &manifest_bytes)?;
+    let task = record.task;
     let v: serde_json::Value =
         serde_json::from_slice(&manifest_bytes).map_err(|e| fail(format!("{MANIFEST} is not JSON: {e}")))?;
-    let text = |pointer: &str| {
-        v.pointer(pointer)
-            .and_then(|s| s.as_str())
-            .ok_or_else(|| fail(format!("{MANIFEST} has no string at {pointer}")))
-    };
-    let parsed = |pointer: &str, e: String| fail(format!("{MANIFEST} at {pointer}: {e}"));
-    let task = Task::from_str(text("/task")?).map_err(|e| parsed("/task", e))?;
-    let license = Licence::from_str(text("/model/license")?).map_err(|e| parsed("/model/license", e))?;
-    let record = Bundle { model: text("/model/id")?.to_owned(), revision: text("/model/revision")?.to_owned(), task };
 
     let base = spec.base.as_str().trim_end_matches('/');
     let at = |path: &RelPath| Url::from_str(&format!("{base}/{path}")).map_err(|e| fail(format!("{path}: {e}")));
@@ -123,30 +161,25 @@ pub fn bundle(dir: &Path, spec: BundleImport) -> Result<Artifact, ZooError> {
         });
     }
 
-    let mut artifact = Artifact {
+    let d = spec.described;
+    let artifact = Artifact {
         id: spec.id,
         model_type: ModelType::EncoderBundle,
         kind: Kind::Model,
-        component: spec.component.or_else(|| component_of(task)),
-        language: spec.language,
+        component: d.component.or_else(|| component_of(task)),
+        language: d.language,
         format: Format::Bundle,
         version: record.revision.clone(),
         license,
-        license_terms: spec.license_terms,
-        trained_on: spec.trained_on,
+        license_terms: d.license_terms,
+        trained_on: d.trained_on,
         class: license.class(),
-        attribution: spec.attribution,
-        origin: spec.origin,
+        attribution: d.attribution,
+        origin: d.origin,
         bundle: Some(record),
         files,
     };
-    artifact.class = artifact.computed_class();
-    // The entry is held to every rule of the index, and to its manifest,
-    // before it is handed out.
-    let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?;
-    index.get(artifact.id.as_str())?;
-    crate::index::check_manifest(&artifact, &manifest_bytes)?;
-    Ok(artifact)
+    described(artifact, Some(&manifest_bytes))
 }
 
 /// The index text `index` with `entry` added last, or in the place of

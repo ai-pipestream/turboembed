@@ -22,6 +22,12 @@
 //! - no verb of speech follows it ([`SPEECH_VERBS`], `Madison said`), as
 //!   a person's name does, unless a [`LEAD_WORDS`] word stands before it
 //!   (`people in Paris said so`);
+//! - no person context stands around it ([`super::city_person`], #2295):
+//!   a verb that takes a person as its object before it (`we met
+//!   Madison`), or after it `who`, a reflexive or subject pronoun or a
+//!   possessive before a kin or body noun (`Salem, who`, `Paris's
+//!   mother`), the words after it again giving way to a [`LEAD_WORDS`]
+//!   word before it;
 //! - it is not joined to an address, a path or a word (`example.com/Paris`,
 //!   `Paris.example`, `Grand-Rouen`).
 //!
@@ -34,6 +40,7 @@ use std::sync::OnceLock;
 use turbo_geo::{BUNDLED_TABLE, Folder};
 
 use super::city::{capital_at, lookup, state_after, word_ends};
+use super::city_person::{after_person_verb, person_after};
 use crate::tables::city_common_words;
 use crate::tables::us_states::US_STATES;
 use crate::text::name_char;
@@ -228,12 +235,18 @@ fn left_out(key: &str, states: &[String]) -> bool {
 }
 
 /// Whether the name `text[start..end]` that [`Names::prefixes`] holds is read
-/// bare.
+/// bare. Kept out of line, as it runs only on a name the gazetteer holds,
+/// so the scan's loop over every capital stays small.
+#[inline(never)]
 fn accepted(text: &str, start: usize, end: usize) -> bool {
-    state_after(text, end).is_none()
-        && free_end(text, end)
-        && !after_name_word(text, start)
-        && !(before_speech(text, end) && !after_lead_word(text, start))
+    if state_after(text, end).is_some() || !free_end(text, end) {
+        return false;
+    }
+    // The word before the name, read once for every rule that looks at it.
+    let before = word_before(text, start);
+    !after_name_word(text, before)
+        && !before.is_some_and(|(_, w)| after_person_verb(w))
+        && !((before_speech(text, end) || person_after(text, end)) && !after_lead_word(text, start, before))
 }
 
 /// The verbs of speech and address a person's name stands before and a
@@ -241,11 +254,18 @@ fn accepted(text: &str, start: usize, end: usize) -> bool {
 const SPEECH_VERBS: [&str; 12] =
     ["added", "asked", "replied", "said", "says", "smiled", "nodded", "told", "tells", "wrote", "writes", "laughed"];
 
-/// Whether one of [`LEAD_WORDS`] stands one space before `start`, in any
-/// case, so the name is a place in its sentence (`people in Paris said`,
-/// `a source in Boston told`), whatever verb follows it.
-fn after_lead_word(text: &str, start: usize) -> bool {
-    word_before(text, start).is_some_and(|(_, w)| LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w)))
+/// Whether one of [`LEAD_WORDS`] stands one space or one line break
+/// before `start`, in any case, so the name is a place in its sentence
+/// (`people in Paris said`, `a source in Boston told`, `people in` and
+/// `Paris who` on two lines), whatever verb follows it. `word` is the word one space before `start`.
+fn after_lead_word(text: &str, start: usize, word: Option<(usize, &str)>) -> bool {
+    let lead = |w: &str| LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w));
+    let before = &text[..start];
+    let Some(line) = before.strip_suffix("\r\n").or_else(|| before.strip_suffix('\n')) else {
+        return word.is_some_and(|(_, w)| lead(w));
+    };
+    let from = line.char_indices().rfind(|&(_, c)| !c.is_ascii_alphabetic()).map_or(0, |(p, c)| p + c.len_utf8());
+    lead(&line[from..])
 }
 
 /// Whether one of [`SPEECH_VERBS`] follows the name at `end` after one
@@ -283,15 +303,15 @@ fn free_end(text: &str, end: usize) -> bool {
     }
 }
 
-/// Whether the word before `start`, after one space, is capitalized and
+/// Whether `word`, the word one space before a name, is capitalized and
 /// not a [`LEAD_WORDS`] word, so the name is part of a longer one or a
 /// person's (`Harry Denton`, `Alex Van`, `Mr. Lincoln`), or is `of` after
 /// such a word (`University of Bristol`, `Bank of Rome`).
-fn after_name_word(text: &str, start: usize) -> bool {
+fn after_name_word(text: &str, word: Option<(usize, &str)>) -> bool {
     let name_word = |w: Option<(usize, &str)>| {
         w.is_some_and(|(at, w)| capital_at(text, at) && !LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(w)))
     };
-    match word_before(text, start) {
+    match word {
         Some((at, "of")) => name_word(word_before(text, at)),
         w => name_word(w),
     }

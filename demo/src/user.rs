@@ -59,7 +59,7 @@ fn varint(b: &[u8], at: &mut usize) -> Result<u64, String> {
     Err("a varint is over 10 bytes".into())
 }
 
-fn put_varint(out: &mut BytesMut, mut v: u64) {
+pub(crate) fn put_varint(out: &mut BytesMut, mut v: u64) {
     while v >= 0x80 {
         out.put_u8((v as u8) | 0x80);
         v >>= 7;

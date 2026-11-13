@@ -5,7 +5,7 @@
 // script does, so the test bundle paths resolve.
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 
@@ -62,6 +62,8 @@ export interface StackOptions {
   admin?: boolean;
   /** Method paths the demo forwards with `--allow`. */
   allow?: string[];
+  /** The bearer token every call to the demo must carry (`--token-file`). */
+  token?: string;
 }
 
 /** A server and the demo in front of it. */
@@ -88,6 +90,10 @@ export class Stack {
     try {
       await s.startServer();
       const demoArgs = ["--listen", `127.0.0.1:${demoPort}`, "--server", `http://127.0.0.1:${serverPort}`, ...(o.allow ?? []).flatMap((m) => ["--allow", m])];
+      if (o.token) {
+        writeFileSync(`${s.work}/token`, o.token, { mode: 0o600 });
+        demoArgs.push("--token-file", `${s.work}/token`);
+      }
       s.demo = await started("turbo-kserve-demo", demoArgs, "open http");
     } catch (e) {
       await s.close();

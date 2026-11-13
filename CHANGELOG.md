@@ -394,6 +394,14 @@ stubs must be regenerated.
 
 ### Changed
 
+- The model zoo image (`server/Dockerfile.zoo`) builds on Docker
+  Hardened Images pinned by digest and its runtime stage holds only
+  `turbo-kserve`, `turbo-kserve-demo`, `libstdc++` and the CA bundle:
+  no shell, `curl` or `apt`. Its entrypoint, health check and bucket
+  helper are now `turbo-kserve` subcommands, `zoo-start`, `zoo-health`
+  and `zoo-bucket` (symlinked under those names in `/opt/turbo/bin`),
+  in place of the shell scripts under `server/zoo/`. Building it needs
+  a `dhi.io` login (docs/zoo-container.md, #2226, #2289).
 - `--pii-encryption-key` (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`) no longer
   needs `--pii-grant` or mTLS: encrypting during redaction releases no
   value, so a server with no grant loads its encryption keys for the

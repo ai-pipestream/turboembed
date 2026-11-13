@@ -4,9 +4,9 @@
 
 import { OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import { XrayEditKindProto, type NormalizationXrayProto } from "../gen/turbo_analysis_pb.js";
-import { $, el, lazy, options, table } from "../dom.js";
+import { $, el, failed, lazy, options, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 
 const box = () => $("xray-out");
 const from = () => $("xray-from") as HTMLSelectElement;
@@ -58,7 +58,7 @@ async function render(): Promise<void> {
       ),
     );
   } catch (e) {
-    box().replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box().replaceChildren(failed(explain(e)));
   }
 }
 
