@@ -5,46 +5,30 @@
 //!   their chains (`Groups<Mentions>`) and their antecedent links
 //!   (`Edges<Mentions, Mentions>`) through the document graph.
 //! - [`CorefAnnotator`]: mention detection from entities, parse phrases or
-//!   noun phrase chunks and pronouns; the precision-ranked sieves of Lee
-//!   et al. (2013); or a [`CorefModel`] ranker or pair classifier.
+//!   noun phrase chunks and pronouns, then the precision-ranked sieves of
+//!   Lee et al. (2013).
 //! - [`lexicon`]: the English word knowledge detection and the sieves use.
-//! - [`WordVectors`] and [`TokenVectors`]: vector providers for the
-//!   ranker's similarity and contextual span features.
-//! - [`word2vec`]: skip-gram and CBOW training of [`WordVectors`] from a
-//!   tokenized corpus.
-//! - [`train`]: pair classifier and mention ranking training.
 //! - [`scorer`]: MUC, B-cubed, CEAF and CoNLL scores.
 
 mod annotator;
 mod clusters;
 mod detect;
-mod features;
 mod hash;
 mod input;
 pub mod layer;
 pub mod lexicon;
 mod mention;
-mod model;
 mod quotation;
 mod quotes;
 pub mod scorer;
 mod sieve;
-pub mod train;
 mod validate;
-mod vectors;
-pub mod word2vec;
 
-pub use annotator::{CorefAnnotator, DEFAULT_THRESHOLD, Resolution, sieve_tags};
+pub use annotator::{CorefAnnotator, Resolution, sieve_tags};
 pub use detect::UNTYPED;
-pub use features::{DIFFERENCE, NEW_CHAIN, PRODUCT};
 pub use input::CorefInput;
 pub use layer::codec::{codecs, register_codecs};
 pub use layer::{Agreement, Animacy, Gender, MentionKind, Mentions, Number, Origin, Person, Speakers};
-pub use model::{
-    APART, COMPONENT_NAME, CorefModel, LINK, MODEL_ENTRY, RANKING_PROPERTY, TOKEN_VECTOR_DIMENSION_PROPERTY,
-};
 pub use quotation::{QuotationAnnotator, QuotationConfig};
 pub use scorer::{CorefScorer, CorefScores, Score};
 pub use sieve::Sieve;
-pub use vectors::{MapWordVectors, TokenVectors, WordVectors};
-pub use word2vec::{Word2VecArch, Word2VecError, Word2VecParameters, Word2VecTrainer, Word2VecVectors};
