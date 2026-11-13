@@ -57,8 +57,16 @@ test("a new index stays picked after an upload reads the list again, and after a
       await page.click("#search-create button[type=submit]");
       await page.waitForSelector(`#search-create-note:has-text('Created ${name}.')`);
     }
-    // Picked by hand, so it is the kept pick; then the page picks the next new one.
+    // Picked by hand, so it is the kept pick.
     await page.selectOption("#search-index", "older");
+    // A pick that fires no change event, as a page script makes one, is not
+    // kept: the shown pick and the kept pick differ. Reading the list again
+    // keeps the shown one, since the kept pick goes back only once a load.
+    await page.locator("#search-index").evaluate((s) => ((s as HTMLSelectElement).value = "newer"));
+    await page.click("#search-refresh");
+    await page.waitForSelector("#search-refresh:not([aria-busy])");
+    assert.equal(await picked(page, "search-index"), "newer");
+    // Then the page picks the next new one.
     await page.fill("#search-create-name", "newest");
     await page.click("#search-create button[type=submit]");
     await page.waitForSelector("#search-create-note:has-text('Created newest.')");
