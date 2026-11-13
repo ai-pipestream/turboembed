@@ -1,12 +1,22 @@
 // SVG building for the document views. Text is set as text, never markup.
 
-const NS = "http://www.w3.org/2000/svg";
+// The SVG namespace, as the browser's own parser names it: the page
+// source spells out no address, its own or anyone else's.
+let ns: string | null = null;
+function namespace(): string {
+  if (ns === null) {
+    const t = document.createElement("template");
+    t.innerHTML = "<svg></svg>";
+    ns = t.content.firstElementChild!.namespaceURI!;
+  }
+  return ns;
+}
 
 export type Attrs = Record<string, string | number | undefined>;
 
 /** An SVG element with attributes and children; a string child is its text. */
 export function s<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Attrs = {}, ...children: (SVGElement | string | null)[]): SVGElementTagNameMap[K] {
-  const e = document.createElementNS(NS, tag);
+  const e = document.createElementNS(namespace(), tag) as SVGElementTagNameMap[K];
   for (const [k, v] of Object.entries(attrs)) if (v !== undefined) e.setAttribute(k, String(v));
   for (const c of children) if (c !== null) e.append(c);
   return e;

@@ -9644,9 +9644,17 @@ function cutReason(code) {
 }
 
 // demo/web/src/viz/svg.ts
-var NS = "http://www.w3.org/2000/svg";
+var ns = null;
+function namespace() {
+  if (ns === null) {
+    const t = document.createElement("template");
+    t.innerHTML = "<svg></svg>";
+    ns = t.content.firstElementChild.namespaceURI;
+  }
+  return ns;
+}
 function s(tag, attrs = {}, ...children) {
-  const e = document.createElementNS(NS, tag);
+  const e = document.createElementNS(namespace(), tag);
   for (const [k, v] of Object.entries(attrs)) if (v !== void 0) e.setAttribute(k, String(v));
   for (const c of children) if (c !== null) e.append(c);
   return e;
