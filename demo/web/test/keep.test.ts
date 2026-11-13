@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { recall, recallList, remember, storable, stored, TABS } from "../src/keep.js";
+import { offered, recall, recallList, remember, storable, stored, TABS } from "../src/keep.js";
 
 test("text, numbers, checkboxes and selects are kept; a password and a file never are", () => {
   assert.equal(storable("TEXTAREA", "textarea"), true);
@@ -29,4 +29,11 @@ test("with no storage in reach, nothing is kept and nothing throws", () => {
   remember("x", "y");
   assert.equal(recall("x"), null);
   assert.equal(recallList("x"), null);
+});
+
+test("a kept pick counts only when the select offers it now", () => {
+  assert.equal(offered("idx-a", ["idx-a", "idx-b"]), true);
+  assert.equal(offered("", ["", "tiny-bert"]), true);
+  assert.equal(offered("gone", ["idx-a"]), false);
+  assert.equal(offered(null, ["idx-a"]), false);
 });

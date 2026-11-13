@@ -63,10 +63,27 @@ function put(f: Field, v: string): void {
   } else f.value = v;
 }
 
-/** After a select's options are filled from the server: picks what was kept, if it is still offered. */
+// The selects whose kept pick has been put back since the page loaded.
+const restored = new WeakSet<HTMLSelectElement>();
+
+/**
+ * After a select's options are filled from the server: picks what was
+ * kept, the first time it is offered. Only once per page load, so a
+ * later refill of the list keeps what is picked now, whether the
+ * visitor or the page (a new index, say) picked it.
+ */
 export function restore(select: HTMLSelectElement): void {
+  if (restored.has(select)) return;
   const v = select.id ? recall(select.id) : null;
-  if (v !== null && select.closest(TABS.map((t) => `#tab-${t}`).join(", "))) put(select, v);
+  if (v === null || !select.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
+  if (!offered(v, [...select.options].map((o) => o.value))) return;
+  select.value = v;
+  restored.add(select);
+}
+
+/** Whether a kept pick `v` is among `values`, the ones a select offers now. */
+export function offered(v: string | null, values: string[]): v is string {
+  return v !== null && values.includes(v);
 }
 
 let resetting = false;
