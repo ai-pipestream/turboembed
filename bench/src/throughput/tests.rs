@@ -125,3 +125,163 @@ fn cargo_optimization_is_independent_of_profile_family_and_assertions() {
         }
     }
 }
+
+#[cfg(any(feature = "grammar", feature = "lattice"))]
+#[test]
+fn median_pass_samples_gpu_clock_outside_timed_passes() {
+    use turbo::record::{ClockReading, GpuClock};
+
+    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
+    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let events_r = std::rc::Rc::clone(&events);
+    let calls = std::cell::Cell::new(0u32);
+    let clock = crate::gpu_clock::with_test_reader(
+        move |backend| {
+            let n = calls.get();
+            calls.set(n + 1);
+            events_r.borrow_mut().push(format!("clock:{backend}:{n}"));
+            Some(if n == 0 { before } else { after })
+        },
+        || {
+            let mut w = crate::gpu_clock::Window::new("levelzero", 2);
+            super::measure::median_pass(&mut w, 2, || {
+                events.borrow_mut().push("phase1".into());
+                Ok(5)
+            })
+            .unwrap();
+            super::measure::median_pass(&mut w, 1, || {
+                events.borrow_mut().push("phase2".into());
+                Ok(3)
+            })
+            .unwrap();
+            w.finish()
+        },
+    );
+    assert_eq!(clock, Some(GpuClock { before, after }));
+    assert_eq!(
+        *events.borrow(),
+        ["phase1", "clock:levelzero:0", "phase1", "phase1", "phase2", "phase2", "clock:levelzero:1"]
+    );
+}
+
+#[cfg(feature = "grammar")]
+#[test]
+fn grammar_measure_carries_gpu_clock_across_all_phases() {
+    use turbo::record::{ClockReading, GpuClock};
+
+    let prov = || {
+        Ok(crate::git::Provenance { top: String::new(), commit: "1".repeat(40), pushed_to: vec!["origin/main".into()] })
+    };
+    let run_once = || {
+        super::grammar::measure(
+            "12 km and $5 on 2020-01-02\n",
+            "fixture".into(),
+            None,
+            1,
+            "2026-10-22T00:00:00Z".into(),
+            prov,
+        )
+        .unwrap()
+    };
+
+    let mut cpu_record = run_once();
+    assert_eq!(cpu_record.device.clock, None);
+    cpu_record.cargo_build = None;
+    check(&cpu_record).unwrap();
+
+    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
+    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen_r = std::rc::Rc::clone(&seen);
+    let mut clocked = crate::gpu_clock::with_test_reader(
+        move |backend| {
+            let mut s = seen_r.borrow_mut();
+            s.push(backend.to_owned());
+            Some(if s.len() == 1 { before } else { after })
+        },
+        run_once,
+    );
+    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
+    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
+    clocked.cargo_build = None;
+    check(&clocked).unwrap();
+
+    let calls = std::cell::Cell::new(0u32);
+    let incomplete = crate::gpu_clock::with_test_reader(
+        move |_| {
+            let n = calls.get();
+            calls.set(n + 1);
+            (n == 0).then_some(before)
+        },
+        run_once,
+    );
+    assert_eq!(incomplete.device.clock, None);
+}
+
+#[cfg(feature = "lattice")]
+#[test]
+fn lattice_measure_carries_gpu_clock_with_and_without_readings() {
+    use turbo::record::{ClockReading, GpuClock};
+    use turbo_tokenize::lattice::DictionaryFormat;
+
+    let dict = Path::new(env!("CARGO_MANIFEST_DIR")).join("../analysis/goldens/data/fixtures/mecab-fixture-ko");
+    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
+    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+    for readings in [false, true] {
+        let prov = || {
+            Ok(crate::git::Provenance {
+                top: String::new(),
+                commit: "2".repeat(40),
+                pushed_to: vec!["origin/main".into()],
+            })
+        };
+        let run_once = || {
+            super::lattice::measure_one(
+                "ko-dic",
+                DictionaryFormat::MecabKoDic,
+                &dict,
+                "학교\n",
+                "fixture".into(),
+                "the tool ran unpinned, the tokenizer on one thread".into(),
+                None,
+                readings,
+                1,
+                "2026-10-22T00:00:00Z".into(),
+                prov,
+            )
+            .unwrap()
+        };
+
+        let mut cpu_record = run_once();
+        assert_eq!(cpu_record.device.clock, None);
+        cpu_record.cargo_build = None;
+        check(&cpu_record).unwrap();
+
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let seen_r = std::rc::Rc::clone(&seen);
+        let mut clocked = crate::gpu_clock::with_test_reader(
+            move |backend| {
+                let mut s = seen_r.borrow_mut();
+                s.push(backend.to_owned());
+                Some(if s.len() == 1 { before } else { after })
+            },
+            run_once,
+        );
+        assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
+        assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
+        clocked.cargo_build = None;
+        check(&clocked).unwrap();
+
+        let calls = std::cell::Cell::new(0u32);
+        let incomplete = crate::gpu_clock::with_test_reader(
+            move |_| {
+                let n = calls.get();
+                calls.set(n + 1);
+                (n == 0).then_some(before)
+            },
+            run_once,
+        );
+        assert_eq!(incomplete.device.clock, None);
+    }
+}

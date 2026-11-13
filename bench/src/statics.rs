@@ -129,19 +129,32 @@ pub struct Agreement {
     pub min_cosine: f64,
 }
 
+const DEFAULT_WINDOW: Duration = Duration::from_secs(2);
+
 /// Time `pass` over `n` texts: one warm pass, then the best of three runs
 /// of at least two seconds, in texts a second.
 pub fn best(n: usize, pass: &mut dyn FnMut() -> Result<()>) -> Result<f64> {
+    best_in(DEFAULT_WINDOW, &mut crate::gpu_clock::Window::none(), n, pass)
+}
+
+fn best_in(
+    window: Duration,
+    clock: &mut crate::gpu_clock::Window,
+    n: usize,
+    pass: &mut dyn FnMut() -> Result<()>,
+) -> Result<f64> {
     pass()?;
     let mut top = 0f64;
+    clock.before_timed();
     for _ in 0..3 {
         let (start, mut done) = (Instant::now(), 0usize);
-        while start.elapsed() < Duration::from_secs(2) {
+        while done == 0 || start.elapsed() < window {
             pass()?;
             done += n;
         }
         top = top.max(done as f64 / start.elapsed().as_secs_f64());
     }
+    clock.after_timed();
     Ok(top)
 }
 
@@ -193,12 +206,22 @@ pub fn agreement(set: &str, want: &[f32], got: &[u8], dim: usize) -> Result<Agre
 }
 
 pub fn measure(plan: &StaticPlan, p: &Provenance, recorded_at: String) -> Result<StaticRecord> {
+    measure_for(plan, p, recorded_at, DEFAULT_WINDOW)
+}
+
+pub(crate) fn measure_for(
+    plan: &StaticPlan,
+    p: &Provenance,
+    recorded_at: String,
+    window: Duration,
+) -> Result<StaticRecord> {
     if plan.sets.is_empty() || plan.batches.is_empty() || plan.batches.contains(&0) {
         return Err("--texts and --batches must name at least one set and batches above 0".into());
     }
     let rt = Runtime::create()?;
     let index = rt.find("cpu")?;
     let d = rt.device_info(index)?;
+    let backend = field(&d.backend);
     let model = rt.context(index)?.load(&plan.bundle)?;
     let info = model.info()?;
     let dim = info.dim as usize;
@@ -214,6 +237,7 @@ pub fn measure(plan: &StaticPlan, p: &Provenance, recorded_at: String) -> Result
         sets.push(TextSet { name: name.clone(), texts: t.len() as u32, sha256: turbo::bundle::sha256_hex(&bytes) });
         texts.push(t);
     }
+    let mut clock = crate::gpu_clock::Window::new(&backend, plan.batches.len() * plan.sets.len());
     let mut turbo = Vec::new();
     let mut first = Vec::new();
     for &b in &plan.batches {
@@ -221,7 +245,7 @@ pub fn measure(plan: &StaticPlan, p: &Provenance, recorded_at: String) -> Result
         for ((name, _), t) in plan.sets.iter().zip(&texts) {
             let views: Vec<&str> = t.iter().map(String::as_str).collect();
             let mut vectors = vec![0f32; views.len() * dim];
-            let tps = best(views.len(), &mut || {
+            let tps = best_in(window, &mut clock, views.len(), &mut || {
                 for (chunk, out) in views.chunks(b as usize).zip(vectors.chunks_mut(b as usize * dim)) {
                     s.embed_texts_into(chunk, &o, out)?;
                 }
@@ -244,14 +268,14 @@ pub fn measure(plan: &StaticPlan, p: &Provenance, recorded_at: String) -> Result
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: field(&d.name), os: std::env::consts::OS.into() },
         device: Device {
-            backend: field(&d.backend),
+            backend,
             kind: crate::kind_name(d.kind).into(),
             name: field(&d.name),
             vendor: field(&d.vendor),
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),

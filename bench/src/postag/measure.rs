@@ -150,7 +150,6 @@ pub fn cmd(args: &[String]) -> Result<()> {
     let treebank_bytes = read(&treebank_path)?;
     let text = std::str::from_utf8(&treebank_bytes).map_err(|e| format!("{}: {e}", treebank_path.display()))?;
     let test = conllu(text);
-    let words: usize = test.iter().map(|s| s.words.len()).sum();
     if test.is_empty() {
         return Err(format!("{}: no sentence", treebank_path.display()));
     }
@@ -159,7 +158,65 @@ pub fn cmd(args: &[String]) -> Result<()> {
         BilstmPosTagger::with_numerics(m, n).map_err(|e| format!("{n:?}: {e}"))
     };
     let (packed, parity) = (load(Numerics::Packed)?, load(Numerics::JvmParity)?);
-    let (accuracy, drift) = compare(&packed, &parity, &test)?;
+    let file = treebank_path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_owned();
+    let r = measure(
+        &packed,
+        &parity,
+        &model_bytes,
+        file,
+        &treebank_bytes,
+        &test,
+        cpus.as_ref(),
+        rounds,
+        recorded_at,
+        || {
+            let after = git::provenance(&repo)?;
+            if after != before {
+                return Err(format!(
+                    "the working tree moved from {} to {} during the run",
+                    before.commit, after.commit
+                ));
+            }
+            Ok(after)
+        },
+    )?;
+    let dir = out.unwrap_or_else(|| Path::new(&before.top).join(POSTAG_DIR));
+    let path = super::write(&r, &dir)?;
+    for run in &r.runs {
+        eprintln!(
+            "{:>3} per call, lengths {:>5}: packed {:.0} words/s (p50 {:.3} ms), parity {:.0} words/s (p50 {:.3} ms), \
+             {:.2}x",
+            run.sentences_per_call,
+            run.lengths,
+            run.packed.words_per_second,
+            run.packed.call_p50_ms,
+            run.parity.words_per_second,
+            run.parity.call_p50_ms,
+            run.packed_over_parity
+        );
+    }
+    println!("{}", path.display());
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn measure(
+    packed: &BilstmPosTagger,
+    parity: &BilstmPosTagger,
+    model_bytes: &[u8],
+    file: String,
+    treebank_bytes: &[u8],
+    test: &[Sentence],
+    cpus: Option<&Cpus>,
+    rounds: u32,
+    recorded_at: String,
+    provenance: impl FnOnce() -> Result<git::Provenance>,
+) -> Result<PosRecord> {
+    let words: usize = test.iter().map(|s| s.words.len()).sum();
+    let rt = Runtime::create()?;
+    let d = rt.cpu()?.ok_or("this build lists no CPU device")?;
+    let backend = field(&d.backend);
+    let (accuracy, drift) = compare(packed, parity, test)?;
     eprintln!(
         "{} sentences, {words} words: packed {} correct, parity {} correct, {} agree; max emission diff {:e}, max \
          marginal diff {:e}",
@@ -185,14 +242,16 @@ pub fn cmd(args: &[String]) -> Result<()> {
         }
     }
     // Warm each tagger once before anything is timed.
-    for t in [&packed, &parity] {
+    for t in [packed, parity] {
         pass(t, &all[..all.len().min(64)], 32)?;
     }
+    let mut clock = crate::gpu_clock::Window::new(&backend, 1);
     let mut times: Vec<[Times; 2]> = configs.iter().map(|_| Default::default()).collect();
+    clock.before_timed();
     for round in 0..rounds {
         for ((n, lengths, set), t) in configs.iter().zip(&mut times) {
             // Packed, parity, parity, packed.
-            for (i, tagger) in [(0, &packed), (1, &parity), (1, &parity), (0, &packed)] {
+            for (i, tagger) in [(0, packed), (1, parity), (1, parity), (0, packed)] {
                 let (secs, calls) = pass(tagger, set, *n as usize)?;
                 t[i].passes.push(secs);
                 t[i].calls.extend(calls);
@@ -200,6 +259,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
             eprintln!("round {} of {rounds}: {n} per call, lengths {lengths} done", round + 1);
         }
     }
+    clock.after_timed();
     let runs: Vec<PosRun> = configs
         .iter()
         .zip(times)
@@ -218,27 +278,21 @@ pub fn cmd(args: &[String]) -> Result<()> {
         })
         .collect();
 
-    let after = git::provenance(&repo)?;
-    if after != before {
-        return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));
-    }
-    let rt = Runtime::create()?;
-    let d = rt.cpu()?.ok_or("this build lists no CPU device")?;
-    let file = treebank_path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_owned();
+    let after = provenance()?;
     let model_ref = packed.model().model_ref();
-    let r = PosRecord {
+    Ok(PosRecord {
         record_version: super::POS_RECORD_VERSION,
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: field(&d.name), os: std::env::consts::OS.into() },
         device: Device {
-            backend: field(&d.backend),
+            backend,
             kind: crate::kind_name(d.kind).into(),
             name: field(&d.name),
             vendor: field(&d.vendor),
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),
@@ -247,20 +301,20 @@ pub fn cmd(args: &[String]) -> Result<()> {
             pushed_to: after.pushed_to.clone(),
             settings: Vec::new(),
         },
-        procedure: match &cpus {
+        procedure: match cpus {
             Some(c) => format!("the tool ran pinned to CPUs {}, the tagger on one thread", c.list),
             None => "the tool ran unpinned, the tagger on one thread".into(),
         },
         command: format!(
             "cargo run --release -p turbo-bench --features postag -- postag --model <model> --treebank \
              <dir>/{file}{} --rounds {rounds}",
-            cpus.as_ref().map_or(String::new(), |c| format!(" --cpus {}", c.list))
+            cpus.map_or(String::new(), |c| format!(" --cpus {}", c.list))
         ),
         model: PosModel {
             id: model_ref.id.to_string(),
             revision: model_ref.revision.to_string(),
             sha256: model_ref.sha256.to_string(),
-            file_sha256: sha256_hex(&model_bytes),
+            file_sha256: sha256_hex(model_bytes),
             file_bytes: model_bytes.len() as u64,
             tags: packed.model().tags().len() as u32,
             packed_config_hash: format!("{:016x}", packed.config_hash()),
@@ -268,7 +322,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
         },
         treebank: Treebank {
             file,
-            sha256: sha256_hex(&treebank_bytes),
+            sha256: sha256_hex(treebank_bytes),
             sentences: test.len() as u32,
             words: words as u32,
         },
@@ -276,22 +330,5 @@ pub fn cmd(args: &[String]) -> Result<()> {
         accuracy,
         drift,
         runs,
-    };
-    let dir = out.unwrap_or_else(|| Path::new(&after.top).join(POSTAG_DIR));
-    let path = super::write(&r, &dir)?;
-    for run in &r.runs {
-        eprintln!(
-            "{:>3} per call, lengths {:>5}: packed {:.0} words/s (p50 {:.3} ms), parity {:.0} words/s (p50 {:.3} ms), \
-             {:.2}x",
-            run.sentences_per_call,
-            run.lengths,
-            run.packed.words_per_second,
-            run.packed.call_p50_ms,
-            run.parity.words_per_second,
-            run.parity.call_p50_ms,
-            run.packed_over_parity
-        );
-    }
-    println!("{}", path.display());
-    Ok(())
+    })
 }

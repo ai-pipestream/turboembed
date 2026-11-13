@@ -58,3 +58,96 @@ fn archive_file_argument_is_rejected_before_reading() {
     let error = load(&path, &["f64", "f32"]).err().unwrap();
     assert!(error.contains("archive loading is retired"), "{error}");
 }
+
+#[test]
+fn tag_measure_carries_gpu_clock_around_cold_and_warm_passes() {
+    use turbo::record::{ClockReading, GpuClock};
+
+    let layer = |input| {
+        LstmLayer::of_weights(input, 1, vec![vec![0.125; input]; 4], vec![vec![0.25]; 4], vec![0.0625; 4]).unwrap()
+    };
+    let model = BilstmPosModel::new(
+        vec![(UNKNOWN.into(), 0), ("word".into(), 1)],
+        char_vocabulary_from_strs([(UNKNOWN, 0), ("w", 1)]),
+        vec!["NOUN".into(), "VERB".into()],
+        vec![vec![0.25], vec![0.5]],
+        vec![vec![0.125], vec![0.375]],
+        layer(1),
+        layer(1),
+        layer(3),
+        layer(3),
+        None,
+        None,
+        vec![vec![0.125, 0.25], vec![0.5, 0.75]],
+        vec![0.0625, 0.125],
+        8,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-tag-clock-bundle-{}", std::process::id())));
+    let source = turbo_bundle::postag::NativeSource { id: "turbo-native:tag-clock".into(), revision: "v1".into() };
+    turbo_bundle::postag::export(&model, &source, "Apache-2.0", &dir).unwrap();
+
+    let corpus = b"1\tword\t_\tNOUN\n\n";
+    let sentences = conllu(std::str::from_utf8(corpus).unwrap());
+    let prov =
+        || Ok(git::Provenance { top: String::new(), commit: "f".repeat(40), pushed_to: vec!["origin/main".into()] });
+    let run_once = || {
+        measure(
+            &dir,
+            "cpu",
+            "model",
+            "Packed",
+            Numerics::Packed,
+            &["f64", "f32"],
+            "c.conllu".into(),
+            corpus,
+            &sentences,
+            32,
+            2,
+            None,
+            "2026-10-22T00:00:00Z".into(),
+            prov,
+        )
+        .unwrap()
+    };
+
+    let cpu_record = run_once();
+    assert_eq!(cpu_record.device.clock, None);
+    super::super::check(&cpu_record).unwrap();
+
+    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
+    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
+    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let seen_r = std::rc::Rc::clone(&seen);
+    let clocked = crate::gpu_clock::with_test_reader(
+        move |backend| {
+            let mut s = seen_r.borrow_mut();
+            s.push(backend.to_owned());
+            Some(if s.len() == 1 { before } else { after })
+        },
+        run_once,
+    );
+    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
+    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
+    super::super::check(&clocked).unwrap();
+
+    let calls = std::cell::Cell::new(0u32);
+    let incomplete = crate::gpu_clock::with_test_reader(
+        move |_| {
+            let n = calls.get();
+            calls.set(n + 1);
+            (n == 0).then_some(before)
+        },
+        run_once,
+    );
+    assert_eq!(incomplete.device.clock, None);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

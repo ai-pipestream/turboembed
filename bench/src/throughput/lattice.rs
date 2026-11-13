@@ -12,8 +12,8 @@ use turbo_analysis_layers::Tokens;
 use turbo_tokenize::lattice::{DictionaryFormat, Scratch, UnidicLayout};
 use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary};
 
-use super::measure::{Options, goldens_text, median_pass, now, out_dir, record, run, same_tree};
-use super::{Subject, write};
+use super::measure::{ClockedDevice, Options, goldens_text, median_pass, now, out_dir, record, run, same_tree};
+use super::{Subject, ThroughputRecord, write};
 use crate::cpus::{Cpus, SYSFS_CPUS, pin};
 use crate::{BUILD_CHANGES, BUILD_COMMIT, Result, check_build, git};
 
@@ -73,61 +73,94 @@ pub fn cmd(args: &[String]) -> Result<()> {
 
     for setup in SETUPS.iter().filter(|s| named.is_empty() || named.iter().any(|n| n == s.name)) {
         let path = dir.join(setup.dir);
-        let t = Instant::now();
-        let dictionary = MecabDictionary::load(&path)
-            .map_err(|e| format!("{}: {e} (run turbo-goldens fetch-models)", path.display()))?;
-        let load_seconds = t.elapsed().as_secs_f64();
-        let tokenizer = LatticeTokenizer::new(dictionary);
-        let subject_hash = tokenizer.dictionary().sha256().to_hex();
         let (text, source) = goldens_text(&top, &[setup.inputs], TEN_MIB)?;
         eprintln!("{} ({}): {} bytes from inputs/{}", setup.name, setup.dir, text.len(), setup.inputs);
-
-        let mut scratch = Scratch::new();
-        let mut morphemes = Vec::new();
-        let (units, secs) = median_pass(rounds, || {
-            morphemes.clear();
-            tokenizer.analyze_with(black_box(&text), &mut scratch, &mut morphemes).map_err(|e| e.to_string())?;
-            Ok(morphemes.len() as u64)
-        })?;
-        let mut runs = vec![run("analyze", units, secs, &text)];
-        eprintln!("analyze: {units} morphemes in {secs:.4} s (median)");
-
-        if readings {
-            let analyzer = LatticeAnalyzer::new(tokenizer, setup.format).map_err(|e| e.to_string())?;
-            let pipeline = Analyzer::builder().add(analyzer).build().map_err(|e| e.to_string())?;
-            let (units, secs) = median_pass(rounds, || {
-                let mut docs = vec![Document::new(text.as_str())];
-                pipeline.run(&mut docs)[0].clone().map_err(|e| format!("{e:?}"))?;
-                black_box(&docs);
-                Ok(docs[0].get::<Tokens>().map_or(0, |t| t.spans.len()) as u64)
-            })?;
-            runs.push(run("analyzer-readings", units, secs, &text));
-            eprintln!("analyzer-readings: {units} tokens in {secs:.4} s (median)");
-        }
-
-        let command = format!(
-            "turbo-bench lattice --dictionaries <dir> {}\
-             {}{} --rounds {rounds} --repo <repo> --out <dir>",
+        let r = measure_one(
             setup.name,
-            cpus.as_ref().map_or(String::new(), |c| format!(" --cpus {}", c.list)),
-            if readings { " --readings" } else { "" },
-        );
-        let after = git::provenance(&repo)?;
-        same_tree(&before, &after)?;
-        let r = record(
-            "lattice",
-            Subject { name: setup.name.into(), sha256: subject_hash, load_seconds: Some(load_seconds) },
-            source,
+            setup.format,
+            &path,
             &text,
+            source,
             procedure.clone(),
-            command,
+            cpus.as_ref(),
+            readings,
             rounds,
-            runs,
-            &after,
             recorded_at.clone(),
+            || {
+                let after = git::provenance(&repo)?;
+                same_tree(&before, &after)?;
+                Ok(after)
+            },
         )?;
-        let path = write(&r, &out_dir(out.clone(), &after))?;
+        let path = write(&r, &out_dir(out.clone(), &before))?;
         println!("{}", path.display());
     }
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn measure_one(
+    name: &str,
+    format: DictionaryFormat,
+    path: &Path,
+    text: &str,
+    source: String,
+    procedure: String,
+    cpus: Option<&Cpus>,
+    readings: bool,
+    rounds: u32,
+    recorded_at: String,
+    provenance: impl FnOnce() -> Result<git::Provenance>,
+) -> Result<ThroughputRecord> {
+    let mut device = ClockedDevice::open(if readings { 2 } else { 1 })?;
+    let t = Instant::now();
+    let dictionary =
+        MecabDictionary::load(path).map_err(|e| format!("{}: {e} (run turbo-goldens fetch-models)", path.display()))?;
+    let load_seconds = t.elapsed().as_secs_f64();
+    let tokenizer = LatticeTokenizer::new(dictionary);
+    let subject_hash = tokenizer.dictionary().sha256().to_hex();
+
+    let mut scratch = Scratch::new();
+    let mut morphemes = Vec::new();
+    let (units, secs) = median_pass(&mut device.clock, rounds, || {
+        morphemes.clear();
+        tokenizer.analyze_with(black_box(text), &mut scratch, &mut morphemes).map_err(|e| e.to_string())?;
+        Ok(morphemes.len() as u64)
+    })?;
+    let mut runs = vec![run("analyze", units, secs, text)];
+    eprintln!("analyze: {units} morphemes in {secs:.4} s (median)");
+
+    if readings {
+        let analyzer = LatticeAnalyzer::new(tokenizer, format).map_err(|e| e.to_string())?;
+        let pipeline = Analyzer::builder().add(analyzer).build().map_err(|e| e.to_string())?;
+        let (units, secs) = median_pass(&mut device.clock, rounds, || {
+            let mut docs = vec![Document::new(text)];
+            pipeline.run(&mut docs)[0].clone().map_err(|e| format!("{e:?}"))?;
+            black_box(&docs);
+            Ok(docs[0].get::<Tokens>().map_or(0, |t| t.spans.len()) as u64)
+        })?;
+        runs.push(run("analyzer-readings", units, secs, text));
+        eprintln!("analyzer-readings: {units} tokens in {secs:.4} s (median)");
+    }
+
+    let command = format!(
+        "turbo-bench lattice --dictionaries <dir> {name}\
+         {}{} --rounds {rounds} --repo <repo> --out <dir>",
+        cpus.map_or(String::new(), |c| format!(" --cpus {}", c.list)),
+        if readings { " --readings" } else { "" },
+    );
+    let after = provenance()?;
+    Ok(record(
+        device,
+        "lattice",
+        Subject { name: name.into(), sha256: subject_hash, load_seconds: Some(load_seconds) },
+        source,
+        text,
+        procedure,
+        command,
+        rounds,
+        runs,
+        &after,
+        recorded_at,
+    ))
 }
