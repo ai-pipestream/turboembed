@@ -2,10 +2,11 @@
 // graph: the meaning map with the text beside it, the similarity
 // matrix, the topic seismograph, the term river, and the same numbers
 // as tables. The views share one focus (viz/link.ts): a chunk pointed
-// at in one lights up in the others and in the text. The matrix and a
-// query placed on the map are calls of their own, so a document too
-// long for one, or a model that is not loaded for the other, leaves
-// the rest standing.
+// at in one lights up in the others and in the text. One call carries
+// the matrix and the query in the box with the rest; when the server
+// refuses that, the page asks again without the refused part, so a
+// document too long for the matrix, or a model that is not loaded for
+// the query, leaves the rest standing.
 
 import { OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { ProjectChunksResponse } from "../gen/turbo_analysis_pb.js";
@@ -14,7 +15,7 @@ import type { BudgetSpecSchema } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
 import { $, el, failed, input, lazy, say, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, explain } from "../rpc.js";
+import { analysis, declinedOver, explain } from "../rpc.js";
 import { linker } from "../viz/link.js";
 import { nearest } from "../viz/matrix.js";
 import { distinctive, leaves, regions, riverTerms, spread, type Term, type Unit } from "../viz/model.js";
@@ -34,7 +35,7 @@ const MATRIX_ROWS = 512;
 /** How many of the chunks closest to a query are listed and marked. */
 const CLOSEST = 5;
 
-/** What is on show: the answer, then what the two further calls added. */
+/** What is on show: the answer, with its matrix and its query when it has them. */
 let seen: { r: ProjectChunksResponse; text: string; graph: Uint8Array } | null = null;
 let pairs: { items: number[]; upper: number[] } | null = null;
 /** Why the matrix call was refused, when it was. */
@@ -119,8 +120,6 @@ function show(r: ProjectChunksResponse, text: string): void {
       );
     } else if (unpaired !== null) {
       parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: ${unpaired}` }));
-    } else if (chunks.filter((c) => !c.empty).length > MATRIX_ROWS) {
-      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: this document has ${chunks.filter((c) => !c.empty).length} chunks with a vector, and the server compares at most ${MATRIX_ROWS}.` }));
     }
   } else {
     parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
@@ -182,26 +181,11 @@ function show(r: ProjectChunksResponse, text: string): void {
 
 const dims = (): number => (($("projection-dims") as HTMLSelectElement).value === "3" ? 3 : 2);
 
-/** Asks for the matrix of what is on show, and draws it in when it comes. */
-async function compare(): Promise<void> {
-  const now = seen;
-  if (!now) return;
-  const points = (now.r.projection?.points ?? []).filter((q) => !q.empty);
-  if (!points.length) return;
-  const level = Math.min(...points.map((q) => q.level));
-  const count = points.filter((q) => q.level === level).length;
-  if (count < 2 || count > MATRIX_ROWS) return;
-  try {
-    const r = await analysis.projectChunks({ graph: now.graph, offsets: OffsetMode.UTF16, pcaDims: dims(), maxStackSegments: 1, pairwise: { level, maxItems: MATRIX_ROWS } });
-    if (seen !== now || !r.pairwise) return;
-    pairs = { items: r.pairwise.items, upper: r.pairwise.cosines };
-    show(now.r, now.text);
-  } catch (e) {
-    // The map stands without its matrix, and says why there is none.
-    if (seen !== now) return;
-    unpaired = explain(e).text;
-    show(now.r, now.text);
-  }
+/** A placed query as the page keeps it: its cosines by the item they belong to. */
+function placed(r: ProjectChunksResponse, text: string): typeof spot {
+  const q = r.query;
+  if (!q) return null;
+  return { text, x: q.x, y: q.y, byItem: new Map((r.projection?.points ?? []).map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
 }
 
 /** Places the query box's text on the map of what is on show; an empty box takes the query off. */
@@ -224,15 +208,47 @@ async function ask(): Promise<void> {
   try {
     const r = await analysis.projectChunks({ graph: now.graph, offsets: OffsetMode.UTF16, pcaDims: dims(), maxStackSegments: 1, query: text });
     if (!mine() || seen !== now) return;
-    const q = r.query;
-    if (!q) return void say(out, "The server answered without a query point: it is older than this page.", "error");
-    const order = r.projection?.points ?? [];
-    spot = { text, x: q.x, y: q.y, byItem: new Map(order.map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
+    spot = placed(r, text);
+    if (!spot) return void say(out, "The server answered without a query point: it is older than this page.", "error");
     show(now.r, now.text);
-    say(out, `Embedded by ${q.modelName} as a query and placed among the chunks.`);
+    say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
   } catch (e) {
-    if (!mine()) return;
+    // A refusal that comes after a newer drawing is that drawing's no longer.
+    if (!mine() || seen !== now) return;
     out.replaceChildren(failed(explain(e)));
+  }
+}
+
+/** What every call for the panel asks. */
+type Ask = { graph: Uint8Array; offsets: OffsetMode; pcaDims: number; maxStackSegments: number; includeDriftCurve: boolean; includeStrategyMatrix: boolean; strategyBudgets: MessageInitShape<typeof BudgetSpecSchema>[] };
+
+/**
+ * One answer for the whole panel. A graph with vectors is asked for the
+ * matrix of its leaf chunks (level 0, the ones the page draws) and for the
+ * query in the box in the same call. The server refuses the whole call
+ * when it cannot answer one part and names the part, so the call is asked
+ * again without the part it named: what the server can answer is drawn
+ * and each refusal is kept to be said. Any other refusal or failure (a
+ * graph too long to place, the server away) is the whole panel's.
+ */
+async function answer(base: Ask, vectors: boolean, text: string): Promise<{ r: ProjectChunksResponse; noQuery?: unknown; noMatrix?: unknown }> {
+  let pairwise = vectors ? { level: 0, maxItems: MATRIX_ROWS } : undefined;
+  // Without vectors there is nothing to place a query among either.
+  let query = vectors && text ? text : undefined;
+  let noQuery: unknown;
+  let noMatrix: unknown;
+  for (;;) {
+    try {
+      return { r: await analysis.projectChunks({ ...base, pairwise, query }), noQuery, noMatrix };
+    } catch (e) {
+      if (query !== undefined && declinedOver(e, "query")) {
+        query = undefined;
+        noQuery = e;
+      } else if (pairwise && declinedOver(e, "pairwise")) {
+        pairwise = undefined;
+        noMatrix = e;
+      } else throw e;
+    }
   }
 }
 
@@ -242,26 +258,40 @@ async function render(): Promise<void> {
   const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  // The query in the box rides on this call, so one still waiting on the typing is not asked twice.
+  clearTimeout(typed);
+  const text = input("projection-query").value.trim();
+  const out = $("projection-query-out");
   try {
-    const r = await analysis.projectChunks({
-      graph: d.graph,
-      offsets: OffsetMode.UTF16,
-      pcaDims: dims(),
-      // Enough of each stack to tell a chunk's own terms from the document's.
-      maxStackSegments: 32,
-      includeDriftCurve: true,
-      includeStrategyMatrix: true,
-      strategyBudgets: budgets(input("projection-budgets").value),
-    });
+    const got = await answer(
+      {
+        graph: d.graph,
+        offsets: OffsetMode.UTF16,
+        pcaDims: dims(),
+        // Enough of each stack to tell a chunk's own terms from the document's.
+        maxStackSegments: 32,
+        includeDriftCurve: true,
+        includeStrategyMatrix: true,
+        strategyBudgets: budgets(input("projection-budgets").value),
+      },
+      d.vectors,
+      text,
+    );
     if (!mine()) return;
+    const r = got.r;
     seen = { r, text: d.source, graph: d.graph };
-    pairs = null;
-    unpaired = null;
-    spot = null;
-    show(r, d.source);
-    // The query in the box is asked here, so one still waiting on the typing is not asked twice.
+    pairs = r.pairwise ? { items: r.pairwise.items, upper: r.pairwise.cosines } : null;
+    unpaired = got.noMatrix === undefined ? null : explain(got.noMatrix).text;
+    // A query typed or changed while the answer was on its way is asked of this drawing.
     clearTimeout(typed);
-    await Promise.all([compare(), ask()]);
+    const edited = input("projection-query").value.trim() !== text;
+    spot = text && !edited ? placed(r, text) : null;
+    show(r, d.source);
+    if (edited) await ask();
+    else if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+    else if (got.noQuery !== undefined) out.replaceChildren(failed(explain(got.noQuery)));
+    else if (text) await ask();
+    else out.replaceChildren();
   } catch (e) {
     if (!mine()) return;
     seen = null;

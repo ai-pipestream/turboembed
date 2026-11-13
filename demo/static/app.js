@@ -7081,6 +7081,14 @@ function cancelled(e) {
   if (e instanceof Error && e.name === "AbortError") return true;
   return e instanceof ConnectError && e.code === Code.Canceled;
 }
+function declined(e) {
+  if (!(e instanceof ConnectError)) return false;
+  return ASKED_TOO_MUCH.includes(e.code);
+}
+var ASKED_TOO_MUCH = [Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound, Code.OutOfRange, Code.ResourceExhausted];
+function declinedOver(e, part2) {
+  return declined(e) && unprefixed(e.rawMessage).startsWith(part2);
+}
 var EMPTY = {
   index_name: "Pick or create an index first.",
   natural_query: "Enter something to search for.",
@@ -7339,6 +7347,10 @@ function confirmed(label, question, act3, off2 = "") {
 }
 
 // demo/web/src/doc.ts
+var PLACED = ["turbo:embeddings<turbo:chunks>", "turbo:embeddings<turbo:sentences>"];
+function hasVectors(layers) {
+  return layers.some((l) => PLACED.includes(l.layer) && l.instance === "" && l.status === 1 /* OK */ && l.items > 0);
+}
 var current = null;
 var listeners = [];
 function doc() {
@@ -7741,7 +7753,7 @@ async function run() {
       }
     }
     say(note5, "");
-    if (graph) setDoc({ graph, views, source });
+    if (graph) setDoc({ graph, views, source, vectors: hasVectors([...layers.values()]) });
   } catch (e) {
     say(note5, explain(e));
   } finally {
@@ -10217,18 +10229,18 @@ var W2 = 640;
 var H = 340;
 var PAD = { l: 34, r: 16, t: 16, b: 34 };
 function meaningMap(m, link2) {
-  const placed = m.chunks.map((c, i) => ({ c, i })).filter((p) => !p.c.empty);
-  const xs = [...placed.map((p) => p.c.x), ...m.spot ? [m.spot.x] : []];
-  const ys = [...placed.map((p) => p.c.y), ...m.spot ? [m.spot.y] : []];
-  const zs = placed.map((p) => p.c.z);
+  const placed2 = m.chunks.map((c, i) => ({ c, i })).filter((p) => !p.c.empty);
+  const xs = [...placed2.map((p) => p.c.x), ...m.spot ? [m.spot.x] : []];
+  const ys = [...placed2.map((p) => p.c.y), ...m.spot ? [m.spot.y] : []];
+  const zs = placed2.map((p) => p.c.z);
   const sx = scale(Math.min(...xs), Math.max(...xs), PAD.l + 24, W2 - PAD.r - 24);
   const sy = scale(Math.min(...ys), Math.max(...ys), H - PAD.b - 24, PAD.t + 24);
   const sz = scale(Math.min(...zs), Math.max(...zs), 5, 11);
-  const at = new Map(placed.map((p) => [p.i, [sx(p.c.x), sy(p.c.y)]]));
+  const at = new Map(placed2.map((p) => [p.i, [sx(p.c.x), sy(p.c.y)]]));
   const pct = (v) => v === void 0 ? "" : ` (${(v * 100).toFixed(0)}% of the variance)`;
   const near = m.spot ? m.chunks.map((_, i) => m.spot.cosine(i)) : [];
   const [lo, hi] = extent(near.flatMap((c) => c === void 0 ? [] : [c]));
-  const svg = figure(W2, H, `Meaning map of ${placed.length} chunks${m.spot ? `, with the query "${short(m.spot.text, 60)}" placed among them` : ""}`);
+  const svg = figure(W2, H, `Meaning map of ${placed2.length} chunks${m.spot ? `, with the query "${short(m.spot.text, 60)}" placed among them` : ""}`);
   svg.append(
     s("rect", { x: PAD.l, y: PAD.t, width: W2 - PAD.l - PAD.r, height: H - PAD.t - PAD.b, class: "frame" }),
     s("text", { x: (PAD.l + W2 - PAD.r) / 2, y: H - 10, class: "axis", "text-anchor": "middle" }, `first direction of meaning${pct(m.variance[0])}`),
@@ -10243,18 +10255,18 @@ function meaningMap(m, link2) {
     g.append(s("title", {}, `Level ${r.unit.level} unit ${r.unit.item}: chunks ${r.members[0] + 1} to ${r.members[r.members.length - 1] + 1}`));
     svg.append(g);
   }
-  if (placed.length > 1) svg.append(s("polyline", { class: "trail", points: placed.map((p) => at.get(p.i).map(n).join(",")).join(" ") }));
+  if (placed2.length > 1) svg.append(s("polyline", { class: "trail", points: placed2.map((p) => at.get(p.i).map(n).join(",")).join(" ") }));
   if (m.spot) {
     const [qx, qy] = [sx(m.spot.x), sy(m.spot.y)];
-    for (const hit of nearest(near, Math.min(3, Math.max(1, Math.floor(placed.length / 2))))) {
+    for (const hit of nearest(near, Math.min(3, Math.max(1, Math.floor(placed2.length / 2))))) {
       const to2 = at.get(hit.at);
       if (to2) svg.append(s("line", { x1: n(qx), y1: n(qy), x2: n(to2[0]), y2: n(to2[1]), class: "ray" }));
     }
   }
   const info = el("p", { class: "info", role: "status", text: "Point at a dot to read its chunk; the same chunk lights up in the text." });
   const dots = /* @__PURE__ */ new Map();
-  const few = placed.length <= 14;
-  for (const p of placed) {
+  const few = placed2.length <= 14;
+  for (const p of placed2) {
     const [x, y] = at.get(p.i);
     const r = m.third ? sz(p.c.z) : 7;
     const names2 = m.terms(p.i);
@@ -10582,8 +10594,6 @@ function show2(r, text) {
       );
     } else if (unpaired !== null) {
       parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: ${unpaired}` }));
-    } else if (chunks.filter((c) => !c.empty).length > MATRIX_ROWS) {
-      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: this document has ${chunks.filter((c) => !c.empty).length} chunks with a vector, and the server compares at most ${MATRIX_ROWS}.` }));
     }
   } else {
     parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
@@ -10637,24 +10647,10 @@ function show2(r, text) {
   box4().replaceChildren(...parts);
 }
 var dims = () => $("projection-dims").value === "3" ? 3 : 2;
-async function compare() {
-  const now = seen;
-  if (!now) return;
-  const points = (now.r.projection?.points ?? []).filter((q) => !q.empty);
-  if (!points.length) return;
-  const level = Math.min(...points.map((q) => q.level));
-  const count2 = points.filter((q) => q.level === level).length;
-  if (count2 < 2 || count2 > MATRIX_ROWS) return;
-  try {
-    const r = await analysis.projectChunks({ graph: now.graph, offsets: 1 /* UTF16 */, pcaDims: dims(), maxStackSegments: 1, pairwise: { level, maxItems: MATRIX_ROWS } });
-    if (seen !== now || !r.pairwise) return;
-    pairs = { items: r.pairwise.items, upper: r.pairwise.cosines };
-    show2(now.r, now.text);
-  } catch (e) {
-    if (seen !== now) return;
-    unpaired = explain(e).text;
-    show2(now.r, now.text);
-  }
+function placed(r, text) {
+  const q = r.query;
+  if (!q) return null;
+  return { text, x: q.x, y: q.y, byItem: new Map((r.projection?.points ?? []).map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
 }
 async function ask() {
   const now = seen;
@@ -10675,15 +10671,32 @@ async function ask() {
   try {
     const r = await analysis.projectChunks({ graph: now.graph, offsets: 1 /* UTF16 */, pcaDims: dims(), maxStackSegments: 1, query: text });
     if (!mine() || seen !== now) return;
-    const q = r.query;
-    if (!q) return void say(out, "The server answered without a query point: it is older than this page.", "error");
-    const order = r.projection?.points ?? [];
-    spot = { text, x: q.x, y: q.y, byItem: new Map(order.map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
+    spot = placed(r, text);
+    if (!spot) return void say(out, "The server answered without a query point: it is older than this page.", "error");
     show2(now.r, now.text);
-    say(out, `Embedded by ${q.modelName} as a query and placed among the chunks.`);
+    say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
   } catch (e) {
-    if (!mine()) return;
+    if (!mine() || seen !== now) return;
     out.replaceChildren(failed(explain(e)));
+  }
+}
+async function answer(base2, vectors, text) {
+  let pairwise = vectors ? { level: 0, maxItems: MATRIX_ROWS } : void 0;
+  let query = vectors && text ? text : void 0;
+  let noQuery;
+  let noMatrix;
+  for (; ; ) {
+    try {
+      return { r: await analysis.projectChunks({ ...base2, pairwise, query }), noQuery, noMatrix };
+    } catch (e) {
+      if (query !== void 0 && declinedOver(e, "query")) {
+        query = void 0;
+        noQuery = e;
+      } else if (pairwise && declinedOver(e, "pairwise")) {
+        pairwise = void 0;
+        noMatrix = e;
+      } else throw e;
+    }
   }
 }
 var freshRender4 = latest();
@@ -10691,25 +10704,38 @@ async function render5() {
   const mine = freshRender4();
   const d = doc();
   if (!d) return void box4().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  clearTimeout(typed);
+  const text = input("projection-query").value.trim();
+  const out = $("projection-query-out");
   try {
-    const r = await analysis.projectChunks({
-      graph: d.graph,
-      offsets: 1 /* UTF16 */,
-      pcaDims: dims(),
-      // Enough of each stack to tell a chunk's own terms from the document's.
-      maxStackSegments: 32,
-      includeDriftCurve: true,
-      includeStrategyMatrix: true,
-      strategyBudgets: budgets(input("projection-budgets").value)
-    });
+    const got = await answer(
+      {
+        graph: d.graph,
+        offsets: 1 /* UTF16 */,
+        pcaDims: dims(),
+        // Enough of each stack to tell a chunk's own terms from the document's.
+        maxStackSegments: 32,
+        includeDriftCurve: true,
+        includeStrategyMatrix: true,
+        strategyBudgets: budgets(input("projection-budgets").value)
+      },
+      d.vectors,
+      text
+    );
     if (!mine()) return;
+    const r = got.r;
     seen = { r, text: d.source, graph: d.graph };
-    pairs = null;
-    unpaired = null;
-    spot = null;
-    show2(r, d.source);
+    pairs = r.pairwise ? { items: r.pairwise.items, upper: r.pairwise.cosines } : null;
+    unpaired = got.noMatrix === void 0 ? null : explain(got.noMatrix).text;
     clearTimeout(typed);
-    await Promise.all([compare(), ask()]);
+    const edited = input("projection-query").value.trim() !== text;
+    spot = text && !edited ? placed(r, text) : null;
+    show2(r, d.source);
+    if (edited) await ask();
+    else if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+    else if (got.noQuery !== void 0) out.replaceChildren(failed(explain(got.noQuery)));
+    else if (text) await ask();
+    else out.replaceChildren();
   } catch (e) {
     if (!mine()) return;
     seen = null;
@@ -11155,7 +11181,7 @@ async function rerank(model, query, passages) {
     take(`Reranked ${model}`, () => [["rank", "passage number", "passage", "logit", "sigmoid"], ...scored.map((x, r) => [String(r + 1), String(x.i + 1), passages[x.i], x.s.toFixed(6), (1 / (1 + Math.exp(-x.s))).toFixed(6)])])
   );
 }
-async function answer(model, question, context) {
+async function answer2(model, question, context) {
   const topK = Math.max(1, parseInt(input("sem-topk").value, 10) || 3);
   const r = await inference.modelInfer({
     modelName: model,
@@ -11193,7 +11219,7 @@ async function run3() {
   const jobs = [
     [e, "sem-sim", () => embed(e, query, passages)],
     [rr, "sem-rerank-out", () => rerank(rr, query, passages)],
-    [qa, "sem-qa-out", () => answer(qa, query, passages.join("\n"))]
+    [qa, "sem-qa-out", () => answer2(qa, query, passages.join("\n"))]
   ];
   await Promise.all(
     jobs.filter(([m]) => m).map(([, box6, job]) => job().catch((err) => $(box6).replaceChildren(failed(explain(err)))))
@@ -11861,7 +11887,7 @@ async function open() {
   try {
     const graph = new Uint8Array(await f.arrayBuffer());
     const r = await analysis.roundTripDocumentGraph({ graph });
-    setDoc({ graph, views: r.views, source: r.sourceText });
+    setDoc({ graph, views: r.views, source: r.sourceText, vectors: hasVectors(r.layers) });
     say(note4(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
   } catch (e) {
     say(note4(), explain(e));
