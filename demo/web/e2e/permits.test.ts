@@ -37,6 +37,8 @@ test("typing the token turns off the writes the demo does not forward", async ()
     assert.equal(await page.locator("#coll-watch").isDisabled(), false);
 
     // A row's Delete and Unload are off too.
+    // The bundle list is read after the status: Create asks for a bundle until it is filled.
+    await page.waitForSelector("#search-create-bundle option[value=tiny-bert-bundle]", { state: "attached" });
     await page.click("#search-create button[type=submit]");
     const row = page.locator("#search-indexes tr", { hasText: "demo" });
     await row.waitFor();

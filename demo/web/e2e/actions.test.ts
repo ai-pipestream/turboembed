@@ -216,6 +216,8 @@ test("a delete asks in place, and only Yes calls the server", async () => {
     assert.equal(await page.locator("#server-caps table").first().locator("td:first-child").count(), 2);
     await spare.locator(".confirm button", { hasText: "Yes" }).click();
     await page.waitForSelector("#server-load-note:has-text('Unloaded tiny-bert-spare.')");
+    // The note comes before the list is read again.
+    await spare.waitFor({ state: "detached" });
     assert.deepEqual(await page.locator("#server-caps table").first().locator("td:first-child").allTextContents(), ["tiny-bert-bundle"]);
     assert.deepEqual(errors, []);
   } finally {

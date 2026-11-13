@@ -96,10 +96,13 @@ test("annotated text is coloured by layer, with a legend and a panel for the mar
     await page.waitForSelector("#analyze-window .chips button.on");
     assert.deepEqual(await page.locator("#analyze-window .chips button[aria-pressed=true]").allTextContents(), [bounds.find((b) => b.includes("lexical"))]);
     await chip(/^turbo:boundaries \[lexical\] /).click();
+    // The window is drawn again when the server answers: wait, so the next pick is not answered first.
+    await page.waitForFunction(() => document.querySelectorAll("#analyze-window .chips button[aria-pressed=true]").length === 0);
 
     // One layer picked: the legend names it and the marks are its items.
     await chip(/^turbo:sentences /).click();
     await page.waitForSelector("#analyze-window .chips button.on");
+    await page.waitForSelector("#analyze-window .legend .swatch:has-text('turbo:sentences')");
     const swatches = await page.locator("#analyze-window .legend .swatch").allTextContents();
     assert.deepEqual(swatches.map((s) => s.trim()), ["turbo:sentences 3"]);
     const marks = page.locator("#analyze-window .doc mark");
@@ -139,9 +142,13 @@ async function indexed(): Promise<Stack> {
   try {
     const page = await opened(browser, stack.url, "search");
     await page.waitForSelector("#search-create:not(.off)");
+    // The bundle list is read after the status: Create asks for a bundle until it is filled.
+    await page.waitForSelector("#search-create-bundle option[value=tiny-bert-bundle]", { state: "attached" });
     await page.click("#search-create button[type=submit]");
     await page.waitForSelector("#search-create-note:has-text('Created demo.')");
     await page.waitForSelector("#search-add-box:not(.off)");
+    // The new index is picked once the list has been read again.
+    await page.waitForFunction(() => (document.querySelector("#search-index") as HTMLSelectElement).value === "demo");
     await page.click("#search-add");
     await page.waitForSelector("#search-add-note:has-text('Indexed ')");
   } catch (e) {
@@ -203,6 +210,7 @@ test("on a phone, Run brings the results into view", async () => {
       await page.goto(`${url}/#${tab}`);
       await page.waitForSelector("#server.status.up");
       if (tab === "embed") await page.waitForSelector("#embed-models label.model");
+      if (tab === "semantic") await page.waitForSelector("#sem-embed option[value=tiny-bert-bundle]", { state: "attached" });
       if (tab === "search") {
         await page.waitForSelector("#search-index option[value=demo]", { state: "attached" });
         await page.selectOption("#search-index", "demo");
