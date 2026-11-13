@@ -185,6 +185,35 @@ effective `Locality` (see the incremental execution section), which
 multiple recognizers or views of the same Rust type to coexist in one
 `Document` without collision.
 
+### Critical-path DAG scheduler and bounded `WorkerPool` (`analysis/core/src/analyzer/dag.rs`, `pool.rs`)
+
+Alongside the deterministic stage inspection returned by `Analyzer::plan()`,
+`Analyzer::builder().build()` constructs a per-step dependency graph (`DagStep`,
+inspected via `Analyzer::dag_plan()`, `predecessors()`, `dependents()`, and
+`critical_path_order()`):
+
+- **Exact `predecessors` and `dependents` edges**: each step records the exact
+  upstream step indices producing its `Reads` inputs and the downstream step
+  indices unlocked upon its completion, ordered by descending critical-path
+  priority (`critical_path_cost`, `transitive_dependents`, and `cost_hint`).
+- **Linguistic dependency parsing on the critical path**: `DependencyAnnotator`
+  (`turbo-depparse:parser`, writing `turbo:dependencies`) declares an elevated
+  `Annotator::cost_hint` (`10`, overridable per step via `Bound::with_cost`),
+  so whenever relation, sentiment-target, clause-chunker, or modality annotators
+  depend on syntactic head-modifier arcs, `turbo-depparse` is scheduled ahead of
+  leaf siblings on the CPU critical path.
+- **Zero-barrier readiness on a bounded work-stealing `WorkerPool`**:
+  `Analyzer::run`, `Analyzer::run_with_pool`, and `Analyzer::run_with_workers`
+  (configured via `Builder::worker_pool` or `Builder::workers`, or backed by
+  `WorkerPool::shared()`) dispatch ready steps onto persistent worker threads
+  with per-worker local deques and cross-worker stealing. Downstream steps
+  trigger as soon as their specific `predecessors` reach zero (`remaining == 0`)
+  without waiting at coarse stage barriers, while preserving bit-identical
+  layer outputs, `DocumentGraph` wire bytes, and per-document failure/panic
+  isolation across `1`, `2`, `4`, and `8` worker threads. `Analyzer::run_staged`
+  retains the stage-barrier `std::thread::scope` baseline for head-to-head
+  benchmarking.
+
 ### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
 
 `Analyzer::analyze_incremental` and `Analyzer::run_incremental` execute a

@@ -1,15 +1,20 @@
 //! The analyzer: a validated graph of steps, run over batches or streamed
 //! progressively as individual DAG branches complete.
 
+pub mod dag;
 mod incremental;
 mod locality;
+pub mod pool;
 mod progressive;
 mod splice;
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
+pub use dag::{DagNode, DagStep};
 pub use incremental::{IncrementalReport, StageCacheStatus, StageIncrementalReport};
+pub use pool::WorkerPool;
 pub use progressive::{StepEvent, StepTiming};
 pub use splice::{SpliceReport, StepRun};
 
@@ -28,8 +33,12 @@ pub use report::{ExecutionReport, LayerExecution, StepExecution};
 /// at once.
 pub struct Analyzer {
     given: Vec<KeyId>,
-    steps: Vec<Box<dyn Step>>,
+    steps: Vec<Arc<dyn Step>>,
     stages: Vec<Vec<usize>>,
+    pub(super) dag: Vec<DagStep>,
+    pub(super) topo_rank: Vec<usize>,
+    pub(super) writes_view: Vec<bool>,
+    pub(super) pool: Option<WorkerPool>,
     pub(super) dag_error: Option<Error>,
     pub(super) backedge_reads: Vec<Vec<KeyId>>,
     pub(super) order_map: HashMap<KeyId, usize>,
@@ -39,12 +48,13 @@ pub struct Analyzer {
 
 pub struct Builder {
     given: Vec<KeyId>,
-    steps: Vec<Box<dyn Step>>,
+    steps: Vec<Arc<dyn Step>>,
+    pool: Option<WorkerPool>,
 }
 
 impl Analyzer {
     pub fn builder() -> Builder {
-        Builder { given: vec![Key::<View>::DEFAULT.id()], steps: Vec::new() }
+        Builder { given: vec![Key::<View>::DEFAULT.id()], steps: Vec::new(), pool: None }
     }
 
     /// The steps in run order, a stage per line: for logs and the docs.
@@ -77,11 +87,13 @@ impl Analyzer {
     /// no other document is touched. Each document's result is its first
     /// failure.
     pub fn run(&self, docs: &mut [Document]) -> Vec<Result<(), Error>> {
-        let mut status: Vec<Result<(), Error>> = (0..docs.len()).map(|_| Ok(())).collect();
-        for stage in &self.stages {
-            self.run_steps(stage, docs, &mut status);
+        if let Some(pool) = &self.pool {
+            return self.run_with_pool(docs, pool);
         }
-        status
+        if self.stages.iter().any(|s| s.len() > 1) {
+            return self.run_with_pool(docs, WorkerPool::shared());
+        }
+        self.run_staged(docs)
     }
 
     /// Computes `steps`, side by side when there are several, then stores
@@ -123,7 +135,7 @@ impl Analyzer {
     }
 }
 
-fn build_order_map(stages: &[Vec<usize>], steps: &[Box<dyn Step>]) -> HashMap<KeyId, usize> {
+fn build_order_map(stages: &[Vec<usize>], steps: &[Arc<dyn Step>]) -> HashMap<KeyId, usize> {
     stages.iter().flatten().flat_map(|&i| steps[i].writes()).enumerate().map(|(pos, k)| (k, pos)).collect()
 }
 
@@ -135,19 +147,30 @@ impl Builder {
         self
     }
 
+    /// Binds a caller-owned bounded [`WorkerPool`] to this pipeline.
+    pub fn worker_pool(mut self, pool: WorkerPool) -> Builder {
+        self.pool = Some(pool);
+        self
+    }
+
+    /// Configures a dedicated bounded [`WorkerPool`] with `workers` threads.
+    pub fn workers(self, workers: usize) -> Builder {
+        self.worker_pool(WorkerPool::new(workers))
+    }
+
     #[allow(clippy::should_implement_trait)]
     pub fn add<A: Annotator>(self, annotator: A) -> Builder {
         self.step(Bound::new(annotator))
     }
 
     pub fn step(mut self, step: impl Step + 'static) -> Builder {
-        self.steps.push(Box::new(step));
+        self.steps.push(Arc::new(step));
         self
     }
 
     /// A step made at run time, by a provider.
     pub fn boxed(mut self, step: Box<dyn Step>) -> Builder {
-        self.steps.push(step);
+        self.steps.push(Arc::from(step));
         self
     }
 
@@ -161,13 +184,32 @@ impl Builder {
     /// `analyzer.validate_dag()` explicitly.
     pub fn build_unvalidated(self) -> Analyzer {
         let stages: Vec<Vec<usize>> = (0..self.steps.len()).map(|i| vec![i]).collect();
-        let (dag_error, backedge_reads) = match validate_and_schedule(&self.given, &self.steps) {
-            Ok((_, backedges)) => (None, backedges),
-            Err(e) => (Some(e), vec![Vec::new(); self.steps.len()]),
+        let (dag_error, backedge_reads, dag) = match validate_and_schedule(&self.given, &self.steps) {
+            Ok((_, backedges, dag)) => (None, backedges, dag),
+            Err(e) => {
+                let empty_prod = HashMap::new();
+                let level: Vec<usize> = (0..self.steps.len()).collect();
+                let backedges = vec![Vec::new(); self.steps.len()];
+                let dag = dag::build_dag_steps(&self.steps, &backedges, &empty_prod, &level);
+                (Some(e), backedges, dag)
+            }
         };
         let order_map = build_order_map(&stages, &self.steps);
+        let (topo_rank, writes_view) = dag::build_metadata(&stages, &self.steps);
         let localities = locality::effective(&self.given, &self.steps, &stages);
-        Analyzer { given: self.given, steps: self.steps, stages, dag_error, backedge_reads, order_map, localities }
+        Analyzer {
+            given: self.given,
+            steps: self.steps,
+            stages,
+            dag,
+            topo_rank,
+            writes_view,
+            pool: self.pool,
+            dag_error,
+            backedge_reads,
+            order_map,
+            localities,
+        }
     }
 
     /// Checks the graph and orders it: one layer type per id, every read
@@ -175,13 +217,18 @@ impl Builder {
     /// output's anchor one of its step's reads or an output the step writes
     /// before it, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
-        let (stages, backedge_reads) = validate_and_schedule(&self.given, &self.steps)?;
+        let (stages, backedge_reads, dag) = validate_and_schedule(&self.given, &self.steps)?;
         let order_map = build_order_map(&stages, &self.steps);
+        let (topo_rank, writes_view) = dag::build_metadata(&stages, &self.steps);
         let localities = locality::effective(&self.given, &self.steps, &stages);
         Ok(Analyzer {
             given: self.given,
             steps: self.steps,
             stages,
+            dag,
+            topo_rank,
+            writes_view,
+            pool: self.pool,
             dag_error: None,
             backedge_reads,
             order_map,
@@ -190,9 +237,9 @@ impl Builder {
     }
 }
 
-pub(super) type ScheduleResult = Result<(Vec<Vec<usize>>, Vec<Vec<KeyId>>), Error>;
+pub(super) type ScheduleResult = Result<(Vec<Vec<usize>>, Vec<Vec<KeyId>>, Vec<DagStep>), Error>;
 
-pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) -> ScheduleResult {
+pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Arc<dyn Step>]) -> ScheduleResult {
     let mut types: HashMap<&LayerName, TypeId> = HashMap::new();
     let keys = steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
     for k in given.iter().copied().chain(keys) {
@@ -273,7 +320,7 @@ pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) ->
         }
         stages.push(ready);
     }
-    let backedge_reads = (0..steps.len())
+    let backedge_reads: Vec<Vec<KeyId>> = (0..steps.len())
         .map(|i| {
             steps[i]
                 .reads()
@@ -292,12 +339,13 @@ pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) ->
                 .collect()
         })
         .collect();
-    Ok((stages, backedge_reads))
+    let dag = dag::build_dag_steps(steps, &backedge_reads, &producer, &level);
+    Ok((stages, backedge_reads, dag))
 }
 
 fn on_optional_cycle(
     candidate: usize,
-    steps: &[Box<dyn Step>],
+    steps: &[Arc<dyn Step>],
     level: &[usize],
     done: &HashSet<KeyId>,
     producer: &HashMap<KeyId, Option<usize>>,
