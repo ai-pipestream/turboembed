@@ -10512,7 +10512,8 @@ var seen = null;
 var pairs = null;
 var unpaired = null;
 var spot = null;
-var asked = 0;
+var freshAsk = latest();
+var typed;
 function budgets(s2) {
   const out = [];
   for (const item of s2.split(",")) {
@@ -10659,7 +10660,7 @@ async function ask() {
   const now = seen;
   const out = $("projection-query-out");
   const text = input("projection-query").value.trim();
-  const mine = ++asked;
+  const mine = freshAsk();
   if (!now || !text) {
     out.replaceChildren();
     if (spot && now) {
@@ -10673,7 +10674,7 @@ async function ask() {
   say(out, "Placing the query\u2026", "busy");
   try {
     const r = await analysis.projectChunks({ graph: now.graph, offsets: 1 /* UTF16 */, pcaDims: dims(), maxStackSegments: 1, query: text });
-    if (mine !== asked || seen !== now) return;
+    if (!mine() || seen !== now) return;
     const q = r.query;
     if (!q) return void say(out, "The server answered without a query point: it is older than this page.", "error");
     const order = r.projection?.points ?? [];
@@ -10681,7 +10682,7 @@ async function ask() {
     show2(now.r, now.text);
     say(out, `Embedded by ${q.modelName} as a query and placed among the chunks.`);
   } catch (e) {
-    if (mine !== asked) return;
+    if (!mine()) return;
     out.replaceChildren(failed(explain(e)));
   }
 }
@@ -10707,6 +10708,7 @@ async function render5() {
     unpaired = null;
     spot = null;
     show2(r, d.source);
+    clearTimeout(typed);
     await Promise.all([compare(), ask()]);
   } catch (e) {
     if (!mine()) return;
@@ -10719,12 +10721,11 @@ function init11() {
   onDoc(() => again());
   const go2 = $("projection-run");
   go2.addEventListener("click", () => void busy(go2, render5));
-  $("projection-uneven").addEventListener("change", () => void render5());
+  $("projection-uneven").addEventListener("change", () => seen ? show2(seen.r, seen.text) : void render5());
   const query = input("projection-query");
   const place2 = $("projection-ask");
-  let wait;
   const now = () => {
-    clearTimeout(wait);
+    clearTimeout(typed);
     void busy(place2, ask);
   };
   place2.addEventListener("click", now);
@@ -10732,8 +10733,8 @@ function init11() {
     if (e.key === "Enter") now();
   });
   query.addEventListener("input", () => {
-    clearTimeout(wait);
-    wait = setTimeout(() => void ask(), 500);
+    clearTimeout(typed);
+    typed = setTimeout(() => void ask(), 500);
   });
 }
 
@@ -10961,10 +10962,10 @@ async function createIndex(ev) {
 async function addDocuments() {
   const note5 = $("search-add-note");
   const index = select2("search-index").value;
-  const typed = document.getElementById("search-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
+  const typed2 = document.getElementById("search-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
   const files = [...input("search-files").files ?? []];
   const docs = [
-    ...typed.map((t, i) => ({ id: `typed-${Date.now()}-${i + 1}`, text: t })),
+    ...typed2.map((t, i) => ({ id: `typed-${Date.now()}-${i + 1}`, text: t })),
     ...files.map((f) => ({ id: f.name, text: f }))
   ];
   if (!index || !docs.length) {
@@ -11454,8 +11455,8 @@ async function importDictionary(ev) {
 async function learn(ev) {
   ev.preventDefault();
   const note5 = $("vocab-note");
-  const typed = document.getElementById("vocab-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
-  const docs = [...typed, ...[...input("vocab-learn-files").files ?? []]];
+  const typed2 = document.getElementById("vocab-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
+  const docs = [...typed2, ...[...input("vocab-learn-files").files ?? []]];
   if (!docs.length) {
     say(note5, "Type documents (a blank line between) or pick files.", "error");
     return;

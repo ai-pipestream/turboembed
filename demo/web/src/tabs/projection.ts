@@ -40,8 +40,10 @@ let pairs: { items: number[]; upper: number[] } | null = null;
 /** Why the matrix call was refused, when it was. */
 let unpaired: string | null = null;
 let spot: { text: string; x: number; y: number; byItem: Map<number, number>; model: string } | null = null;
-/** Counts the queries asked, so a slow answer to an old one is dropped. */
-let asked = 0;
+/** Only the latest query asked is drawn (latest.ts). */
+const freshAsk = latest();
+/** The typed query waiting for the typing to stop. */
+let typed: ReturnType<typeof setTimeout> | undefined;
 
 /** Budgets as `name:max:target`, comma separated; a bad entry is left out. */
 export function budgets(s: string): MessageInitShape<typeof BudgetSpecSchema>[] {
@@ -207,7 +209,7 @@ async function ask(): Promise<void> {
   const now = seen;
   const out = $("projection-query-out");
   const text = input("projection-query").value.trim();
-  const mine = ++asked;
+  const mine = freshAsk();
   if (!now || !text) {
     out.replaceChildren();
     if (spot && now) {
@@ -221,7 +223,7 @@ async function ask(): Promise<void> {
   say(out, "Placing the query\u2026", "busy");
   try {
     const r = await analysis.projectChunks({ graph: now.graph, offsets: OffsetMode.UTF16, pcaDims: dims(), maxStackSegments: 1, query: text });
-    if (mine !== asked || seen !== now) return;
+    if (!mine() || seen !== now) return;
     const q = r.query;
     if (!q) return void say(out, "The server answered without a query point: it is older than this page.", "error");
     const order = r.projection?.points ?? [];
@@ -229,7 +231,7 @@ async function ask(): Promise<void> {
     show(now.r, now.text);
     say(out, `Embedded by ${q.modelName} as a query and placed among the chunks.`);
   } catch (e) {
-    if (mine !== asked) return;
+    if (!mine()) return;
     out.replaceChildren(failed(explain(e)));
   }
 }
@@ -257,6 +259,8 @@ async function render(): Promise<void> {
     unpaired = null;
     spot = null;
     show(r, d.source);
+    // The query in the box is asked here, so one still waiting on the typing is not asked twice.
+    clearTimeout(typed);
     await Promise.all([compare(), ask()]);
   } catch (e) {
     if (!mine()) return;
@@ -270,13 +274,13 @@ export function init(): void {
   onDoc(() => again());
   const go = $("projection-run") as HTMLButtonElement;
   go.addEventListener("click", () => void busy(go, render));
-  $("projection-uneven").addEventListener("change", () => void render());
+  // The switch only chooses which terms the river draws: what is on show is drawn again, and nothing is asked.
+  $("projection-uneven").addEventListener("change", () => (seen ? show(seen.r, seen.text) : void render()));
   // A query is placed on Enter or the button, and a little after the typing stops.
   const query = input("projection-query");
   const place = $("projection-ask") as HTMLButtonElement;
-  let wait: ReturnType<typeof setTimeout> | undefined;
   const now = (): void => {
-    clearTimeout(wait);
+    clearTimeout(typed);
     void busy(place, ask);
   };
   place.addEventListener("click", now);
@@ -284,7 +288,7 @@ export function init(): void {
     if (e.key === "Enter") now();
   });
   query.addEventListener("input", () => {
-    clearTimeout(wait);
-    wait = setTimeout(() => void ask(), 500);
+    clearTimeout(typed);
+    typed = setTimeout(() => void ask(), 500);
   });
 }

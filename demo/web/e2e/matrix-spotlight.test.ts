@@ -218,6 +218,17 @@ test("a query is placed on the map, lights the chunks by cosine and lists the cl
     // The matrix is still there beside the query.
     assert.equal(await page.locator(`${OUT} .matrix canvas`).count(), 1);
 
+    // The uneven-terms switch redraws what is on show: the query and the matrix stay, and nothing is asked again.
+    const calls = got.length;
+    await page.uncheck("#projection-uneven");
+    await page.waitForFunction((out) => [...document.querySelectorAll(`${out} .figure button.key`)].some((k) => (k.textContent ?? "").trim().startsWith("the ")), OUT);
+    assert.equal(await page.locator(`${OUT} svg .query title`).textContent(), first);
+    assert.equal(JSON.stringify(await listed()), JSON.stringify(list));
+    assert.equal(await page.locator(`${OUT} .matrix canvas`).count(), 1);
+    await page.check("#projection-uneven");
+    await page.waitForTimeout(300);
+    assert.equal(got.length, calls, "the switch made no ProjectChunks call");
+
     // Another query, typed and left alone, moves the marker and scores the chunks again.
     const second = "Zürich search engines compare meaning with vectors";
     await page.fill("#projection-query", second);

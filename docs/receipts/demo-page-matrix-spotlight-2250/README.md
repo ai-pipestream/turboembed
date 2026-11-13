@@ -9,7 +9,7 @@ coarser units. Machine: a 4-core x86_64 Linux container, no GPU.
 The checks were driven by a Playwright script that is not part of the
 repository; it prints one line per check. The browser test that is in
 the repository is `demo/web/e2e/matrix-spotlight.test.ts`, run by
-`scripts/e2e-web.sh` (56 of 56 with this change); with the cells not
+`scripts/e2e-web.sh`; with the cells not
 painted its matrix test fails, and with the glow not drawn its query
 test fails. The unit tests for the arithmetic
 (`demo/web/test/vizmatrix.test.ts`) are in the repository and run in CI.
