@@ -125,3 +125,28 @@ __global__ void __launch_bounds__(ROW_BLOCK)
                         xn16 ? xn16 + (size_t)t * hidden : nullptr);
     }
 }
+
+/* out[t] = LayerNorm(x[t]) in F32, x left as it is: ModernBERT's final
+ * norm of a layer a range write reads before the last (pool's back),
+ * which the pooling then reads from out. Returns at once for a layer the
+ * run does not read. */
+template <int V>
+__global__ void __launch_bounds__(ROW_BLOCK)
+    norm_into_kernel(const float *x, const float *ln_w, const float *ln_b, float eps, const Info *info, int hidden,
+                     int back, float *out) {
+    const Info in = *info;
+    if (pool_block(in, back) < 0) return;
+    const int lane = threadIdx.x & 31;
+    for (int t = blockIdx.x * ROW_WARPS + (threadIdx.x >> 5); t < in.tokens; t += gridDim.x * ROW_WARPS) {
+        const float *row = x + (size_t)t * hidden;
+        float v[V][4];
+#pragma unroll
+        for (int i = 0; i < V; i++) {
+            const int d = 4 * lane + 128 * i;
+#pragma unroll
+            for (int j = 0; j < 4; j++) v[i][j] = 0.0f;
+            if (d < hidden) load4(row + d, v[i]);
+        }
+        layer_norm_regs(v, hidden, ln_w, ln_b, eps, out + (size_t)t * hidden, nullptr);
+    }
+}

@@ -7,6 +7,7 @@ pub mod parquet;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use turbo_eval::set::LoadedSet;
 use turbo_eval::spans::Span;
@@ -18,9 +19,8 @@ pub fn data(set: &str) -> PathBuf {
 
 /// An empty directory for one test, under the system's temporary
 /// directory.
-pub fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-eval-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+pub fn scratch(name: &str) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-eval-{name}-{}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     dir
 }

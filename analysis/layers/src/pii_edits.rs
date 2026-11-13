@@ -36,11 +36,24 @@ pub enum PiiStrategyKind {
     Aes256Gcm = 10,
     /// FF1 format-preserving encryption a holder of the key decrypts.
     Ff1 = 11,
+    /// HIPAA Safe Harbor ZIP generalization.
+    ZipSafeHarbor = 12,
+    /// HIPAA Safe Harbor age aggregation (`90+`).
+    AgeSafeHarbor = 13,
+    /// A date truncated to its year.
+    DateYear = 14,
+    /// A date shifted, in its written form.
+    DateShift = 15,
+    /// A date written relative to a reference date.
+    DateRelative = 16,
+    /// A date truncated to its year, with years indicating an age over 89
+    /// written as one category.
+    DateSafeHarbor = 17,
 }
 
 impl PiiStrategyKind {
     /// Every kind, in id order.
-    pub const ALL: [PiiStrategyKind; 11] = [
+    pub const ALL: [PiiStrategyKind; 17] = [
         PiiStrategyKind::Mask,
         PiiStrategyKind::Pseudonym,
         PiiStrategyKind::Hmac,
@@ -52,6 +65,12 @@ impl PiiStrategyKind {
         PiiStrategyKind::Abbreviate,
         PiiStrategyKind::Aes256Gcm,
         PiiStrategyKind::Ff1,
+        PiiStrategyKind::ZipSafeHarbor,
+        PiiStrategyKind::AgeSafeHarbor,
+        PiiStrategyKind::DateYear,
+        PiiStrategyKind::DateShift,
+        PiiStrategyKind::DateRelative,
+        PiiStrategyKind::DateSafeHarbor,
     ];
 
     /// The stable id.
@@ -78,6 +97,12 @@ impl PiiStrategyKind {
             PiiStrategyKind::Abbreviate => "abbreviate",
             PiiStrategyKind::Aes256Gcm => "aes-256-gcm",
             PiiStrategyKind::Ff1 => "ff1",
+            PiiStrategyKind::ZipSafeHarbor => "zip-safe-harbor",
+            PiiStrategyKind::AgeSafeHarbor => "age-safe-harbor",
+            PiiStrategyKind::DateYear => "date-year",
+            PiiStrategyKind::DateShift => "date-shift",
+            PiiStrategyKind::DateRelative => "date-relative",
+            PiiStrategyKind::DateSafeHarbor => "date-safe-harbor",
         }
     }
 }

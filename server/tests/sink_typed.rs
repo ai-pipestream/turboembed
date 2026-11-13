@@ -257,13 +257,14 @@ async fn progressive(s: &Server, doc_id: &str) -> DocumentGraphResponse {
     complete.expect("the call ends with its complete graph")
 }
 
-/// Waits, up to two seconds, for the sender to offer or refuse a graph:
+/// Waits, up to two seconds of running time, for the sender to offer or
+/// refuse a graph (a pause of the process does not end the wait, #2173):
 /// it does once the call's reply has ended. `offered` is counted under the
 /// same lock as the queue send, so once it moves the item is in the queue
 /// (or counted dropped for a full queue), and close can drain it.
 async fn settle(s: &Server) {
-    let start = std::time::Instant::now();
-    while start.elapsed() < Duration::from_secs(2) {
+    let mut budget = common::Budget::new(Duration::from_secs(2));
+    while budget.has_left() {
         let st = s.sink_stats().unwrap();
         if st.offered + st.refused > 0 {
             return;
@@ -367,8 +368,8 @@ async fn closing_as_soon_as_a_document_is_offered_still_forwards_it() {
             let s = s.clone();
             tokio::spawn(async move { s.forward_document(&format!("doc-{i}"), graph).await.unwrap() })
         };
-        let start = std::time::Instant::now();
-        while start.elapsed() < Duration::from_secs(2) {
+        let mut budget = common::Budget::new(Duration::from_secs(2));
+        while budget.has_left() {
             if s.sink_stats().unwrap().offered > 0 {
                 break;
             }

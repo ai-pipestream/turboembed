@@ -62,6 +62,71 @@ pub fn cases(recipe: &Recipe) -> Result<Value> {
     Ok(spec)
 }
 
+/// Whether `container` is the SaT reference image (`turbo-sat-reference@...`).
+pub fn is_sat(container: &str) -> bool {
+    let name = container.split_once('@').map_or(container, |(n, _)| n);
+    name == "turbo-sat-reference" || name.ends_with("/turbo-sat-reference")
+}
+
+/// The arguments passed to `docker` for a reference run on `upstream` and
+/// `work`. A `turbo-sat-reference` container runs its `reference`
+/// subcommand on `/model` and `/work/recipe.json`; the general reference
+/// container runs on `/model` and `/work/cases.json`.
+pub fn docker_args(
+    recipe: &Recipe,
+    image: &str,
+    upstream: &Path,
+    work: &Path,
+    user: Option<&str>,
+) -> Result<Vec<String>> {
+    let container = recipe.str_at("/reference/produced_by/container")?;
+    check_pinned(container)?;
+    let _ = cases(recipe)?;
+    let mut args = vec![
+        "run".to_owned(),
+        "--rm".to_owned(),
+        "--network".to_owned(),
+        "none".to_owned(),
+        "--mount".to_owned(),
+        format!("type=bind,src={},dst=/model,readonly", upstream.display()),
+        "--mount".to_owned(),
+        format!("type=bind,src={},dst=/work", work.display()),
+    ];
+    if let Some(u) = user {
+        args.extend(["--user".to_owned(), u.to_owned()]);
+    }
+    args.push(image.to_owned());
+    if is_sat(container) {
+        if let Some(cs) = recipe.manifest["reference"]["cases"].as_array() {
+            for (i, c) in cs.iter().enumerate() {
+                let role = c["prompt_role"].as_str().unwrap_or_default();
+                if role != "PROMPT_NONE" {
+                    return Err(format!(
+                        "reference.cases[{i}].prompt_role: SaT reference takes only PROMPT_NONE, got {role:?}"
+                    ));
+                }
+            }
+        }
+        args.extend(
+            [
+                "reference",
+                "/model",
+                "/model",
+                "/work/recipe.json",
+                "/work/reference.safetensors",
+                "/work/produced_by.json",
+                container,
+            ]
+            .map(str::to_owned),
+        );
+    } else {
+        args.extend(
+            ["/model", "/work/cases.json", "/work/reference.safetensors", "/work/produced_by.json"].map(str::to_owned),
+        );
+    }
+    Ok(args)
+}
+
 /// Run the container on `upstream` and put the reference file in `bundle`.
 /// Returns the reference's `produced_by`, as the container reported it.
 pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Value> {
@@ -69,19 +134,15 @@ pub fn run(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<Value> {
     let image = present(container)?;
 
     let work = scratch(bundle)?;
-    fs::write(work.join("cases.json"), serde_json::to_vec_pretty(&cases(recipe)?).unwrap())
+    let spec = cases(recipe)?;
+    let (input_name, input_json) =
+        if is_sat(container) { ("recipe.json", json!({ "manifest": &recipe.manifest })) } else { ("cases.json", spec) };
+    fs::write(work.join(input_name), serde_json::to_vec_pretty(&input_json).unwrap())
         .map_err(|e| format!("{}: {e}", work.display()))?;
     let abs = |p: &Path| fs::canonicalize(p).map_err(|e| format!("{}: {e}", p.display()));
-    let mut cmd = Command::new("docker");
-    cmd.args(["run", "--rm", "--network", "none", "--mount"])
-        .arg(format!("type=bind,src={},dst=/model,readonly", abs(upstream)?.display()))
-        .arg("--mount")
-        .arg(format!("type=bind,src={},dst=/work", abs(&work)?.display()));
-    if let Some(user) = current_user() {
-        cmd.args(["--user", &user]);
-    }
-    cmd.arg(&image).args(["/model", "/work/cases.json", "/work/reference.safetensors", "/work/produced_by.json"]);
-    let out = cmd.output().map_err(|e| format!("docker: {e}"))?;
+    let user = current_user();
+    let args = docker_args(recipe, &image, &abs(upstream)?, &abs(&work)?, user.as_deref())?;
+    let out = Command::new("docker").args(&args).output().map_err(|e| format!("docker: {e}"))?;
     if !out.status.success() {
         return Err(format!(
             "the reference container failed:\n{}{}",

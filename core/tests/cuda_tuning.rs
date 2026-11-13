@@ -17,6 +17,7 @@ mod cuda_support;
 use std::ffi::c_void;
 use std::ptr;
 use std::sync::Mutex;
+use turbo_scratch::Scratch;
 
 use common::*;
 use cuda_support::*;
@@ -45,9 +46,8 @@ fn caching<T>(dir: Option<&std::path::Path>, f: impl FnOnce() -> T) -> T {
 }
 
 /// An empty directory of the test's own for a tuning cache.
-fn cache_dir(name: &str) -> std::path::PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&d);
+fn cache_dir(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-{name}-{}", std::process::id())));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
@@ -145,7 +145,7 @@ fn the_cache_decides() {
     let (f, g) = small_model("cuda-cache");
     let dir = cache_dir("cuda-cache");
     let desc = tuned_desc(40, 160, TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_ON, 0);
-    caching(Some(&dir), || {
+    caching(Some(dir.path()), || {
         let first = Session::create(g.m, Some(&desc)).unwrap().info();
         assert_eq!(first.tuned, TURBO_TUNED_MEASURED);
         let choices = field(&first.choices);
@@ -187,7 +187,7 @@ fn forcing_beats_tuning() {
     let (_f, g) = small_model("cuda-forcing-tuning");
     let dir = cache_dir("cuda-forcing-tuning");
     let tuned = |precision| tuned_desc(40, 160, precision, TURBO_AUTOTUNE_ON, 0);
-    caching(Some(&dir), || {
+    caching(Some(dir.path()), || {
         turbo::cuda::use_tile(Some(Tile::T64x64));
         let s = Session::create(g.m, Some(&tuned(TURBO_PRECISION_FASTEST)));
         turbo::cuda::use_tile(None);

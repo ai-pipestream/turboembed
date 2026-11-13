@@ -4,6 +4,7 @@
 // to check the server re-exports the same bytes; and a graph file opened
 // from disk, saved, or handed to the other panels.
 
+import { busy } from "../act.js";
 import { $, download, el, input, lazy, say, size } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
 import { WireError, hex, walkGraph, type Part } from "../graphwire.js";
@@ -77,7 +78,8 @@ async function open(): Promise<void> {
 export function init(): void {
   const again = lazy($("analyze-wire") as HTMLDetailsElement, render);
   onDoc(() => again());
-  $("wire-roundtrip").addEventListener("click", () => void roundTrip());
+  const go = $("wire-roundtrip") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, roundTrip));
   $("wire-file").addEventListener("change", () => void open());
   $("wire-save").addEventListener("click", () => {
     const d = doc();

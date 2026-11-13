@@ -61,6 +61,9 @@ pub struct Measurement {
     /// Each of record::LIBRARY_VARS for the backend that was set, as
     /// `NAME=value`: what the library read besides the session's options.
     pub settings: Vec<String>,
+    /// The GPU clock just before the first timed run and just after the
+    /// last, where it can be read (crate::gpu_clock).
+    pub clock: Option<turbo::record::GpuClock>,
 }
 
 impl Measurement {
@@ -297,6 +300,7 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         }
     }
     let mut ms = Vec::with_capacity(plan.iterations as usize);
+    let clock_before = crate::gpu_clock::read(&backend_name);
     let started = Instant::now();
     for i in 0..plan.iterations {
         let t = Instant::now();
@@ -313,6 +317,9 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         ms.push(t.elapsed().as_secs_f64() * 1e3);
     }
     let total = started.elapsed().as_secs_f64();
+    let clock = clock_before
+        .zip(crate::gpu_clock::read(&backend_name))
+        .map(|(before, after)| turbo::record::GpuClock { before, after });
     let timed = last;
     for (r, v) in timed.iter().enumerate() {
         if rows.whole(r, &reference) {
@@ -369,5 +376,6 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         vectors: timed,
         expected,
         settings,
+        clock,
     })
 }

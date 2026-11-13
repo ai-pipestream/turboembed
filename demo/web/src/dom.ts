@@ -43,8 +43,9 @@ export function stat(value: string, key: string): HTMLElement {
   return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key }));
 }
 
-/** A table from a header row and rows of cells. */
-export function table(head: string[], rows: Child[][], cls = ""): HTMLTableElement {
+/** A table from a header row and rows of cells; with no rows, a line saying so in place of bare headings. */
+export function table(head: string[], rows: Child[][], cls = "", none = "None."): HTMLElement {
+  if (!rows.length) return el("p", { class: "muted empty", text: none });
   return el(
     "table",
     { class: cls || undefined },
@@ -53,9 +54,13 @@ export function table(head: string[], rows: Child[][], cls = ""): HTMLTableEleme
   );
 }
 
-/** A select's options from values, with labels when given. */
-export function options(select: HTMLSelectElement, values: string[], labels?: string[]): void {
+/**
+ * A select's options from values, with labels when given. With no values
+ * and a `none`, one empty option says why there is nothing to pick.
+ */
+export function options(select: HTMLSelectElement, values: string[], labels?: string[], none = ""): void {
   const keep = select.value;
+  if (!values.length && none) return void select.replaceChildren(el("option", { value: "", text: none }));
   select.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
   if (values.includes(keep)) select.value = keep;
 }
@@ -74,6 +79,13 @@ export function size(n: number | bigint): string {
   if (v < 1 << 20) return `${(v / 1024).toFixed(1)} KiB`;
   if (v < 1 << 30) return `${(v / (1 << 20)).toFixed(1)} MiB`;
   return `${(v / (1 << 30)).toFixed(2)} GiB`;
+}
+
+/** Elapsed time as the buttons show it: `3.4 s`, `2 min 05 s`. */
+export function elapsed(ms: number): string {
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
 }
 
 /** Offers `data` as a file download. */

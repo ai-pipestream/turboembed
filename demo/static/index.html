@@ -8,24 +8,31 @@
 </head>
 <body>
 <header>
-  <h1>turboembed <span class="sub">gRPC workbench</span></h1>
-  <p id="server" class="muted">Checking the server&hellip;</p>
-  <label class="token">Bearer token
-    <input id="token" type="password" autocomplete="off" placeholder="only if the demo asks for one">
-  </label>
-  <nav class="tabs">
-    <button type="button" data-tab="embed">Embed</button>
-    <button type="button" data-tab="semantic">Semantic</button>
-    <button type="button" data-tab="analyze">Analyze</button>
-    <button type="button" data-tab="search">Search</button>
-    <button type="button" data-tab="vocabulary">Vocabulary</button>
-    <button type="button" data-tab="models">Models</button>
-    <button type="button" data-tab="server">Server</button>
+  <div class="top">
+    <h1>turboembed <span class="sub">gRPC workbench</span></h1>
+    <p id="server" class="muted status" role="status">Checking the server&hellip;</p>
+    <label class="token">Bearer token
+      <input id="token" type="password" autocomplete="off" placeholder="only if the demo asks for one">
+    </label>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Areas">
+    <button type="button" role="tab" id="tabbtn-embed" aria-controls="tab-embed" data-tab="embed">Embed</button>
+    <button type="button" role="tab" id="tabbtn-semantic" aria-controls="tab-semantic" data-tab="semantic">Semantic</button>
+    <button type="button" role="tab" id="tabbtn-analyze" aria-controls="tab-analyze" data-tab="analyze">Analyze</button>
+    <button type="button" role="tab" id="tabbtn-search" aria-controls="tab-search" data-tab="search">Search</button>
+    <button type="button" role="tab" id="tabbtn-vocabulary" aria-controls="tab-vocabulary" data-tab="vocabulary">Vocabulary</button>
+    <button type="button" role="tab" id="tabbtn-models" aria-controls="tab-models" data-tab="models">Models</button>
+    <button type="button" role="tab" id="tabbtn-server" aria-controls="tab-server" data-tab="server">Server</button>
   </nav>
 </header>
 
 <main>
-<section class="panel split" id="tab-embed" hidden>
+<p id="down" class="banner" role="alert" hidden>
+  The server is not reachable through the demo; retrying every few seconds.
+  <button id="down-retry" type="button">Retry now</button>
+  <span id="down-why" class="why"></span>
+</p>
+<section class="panel split" id="tab-embed" role="tabpanel" aria-labelledby="tabbtn-embed" hidden>
   <div class="box">
     <h2>Texts</h2>
     <p class="muted">One text per line; all of them go in one request.</p>
@@ -60,7 +67,7 @@ How do I reset my router?</textarea>
   <div id="embed-results" class="results"></div>
 </section>
 
-<section class="panel split" id="tab-semantic" hidden>
+<section class="panel split" id="tab-semantic" role="tabpanel" aria-labelledby="tabbtn-semantic" hidden>
   <div class="box">
     <h2>Query</h2>
     <input id="sem-query" class="wide" value="Who wrote the first published program?">
@@ -88,7 +95,7 @@ A kitten naps in the warm sun by the window.</textarea>
   </div>
 </section>
 
-<section class="panel split" id="tab-analyze" hidden>
+<section class="panel split" id="tab-analyze" role="tabpanel" aria-labelledby="tabbtn-analyze" hidden>
   <div class="box">
     <h2>Document</h2>
     <textarea id="analyze-text" rows="10" spellcheck="false">Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine.
@@ -108,7 +115,7 @@ The engine was never built, but her notes describe how it could compute Bernoull
     </div>
     <div class="row">
       <button id="analyze-run" class="primary">Analyze</button>
-      <button id="analyze-stop" type="button">Stop</button>
+      <button id="analyze-stop" type="button" disabled>Stop</button>
     </div>
     <p id="analyze-note" class="note" hidden></p>
     <h2>Steps</h2>
@@ -125,12 +132,12 @@ The engine was never built, but her notes describe how it could compute Bernoull
     <div class="card" id="analyze-window"></div>
     <details class="card" id="analyze-xray">
       <summary>Normalization X-Ray</summary>
-      <div class="row">From <select id="xray-from"></select> to <select id="xray-to"></select> offsets in <select id="xray-offsets"><option value="utf8">UTF-8 bytes</option><option value="utf16" selected>UTF-16 units</option><option value="cp">code points</option></select></div>
+      <div class="row">From <select id="xray-from"><option value="">analyze a document first</option></select> to <select id="xray-to"><option value="">analyze a document first</option></select> offsets in <select id="xray-offsets"><option value="utf8">UTF-8 bytes</option><option value="utf16" selected>UTF-16 units</option><option value="cp">code points</option></select></div>
       <div id="xray-out"></div>
     </details>
     <details class="card" id="analyze-drawer">
       <summary>Annotation drawer</summary>
-      <div class="row">View <select id="drawer-view"></select></div>
+      <div class="row">View <select id="drawer-view"><option value="">analyze a document first</option></select></div>
       <div id="drawer-out"></div>
     </details>
     <details class="card" id="analyze-projection">
@@ -156,7 +163,7 @@ The engine was never built, but her notes describe how it could compute Bernoull
   </div>
 </section>
 
-<section class="panel split" id="tab-search" hidden>
+<section class="panel split" id="tab-search" role="tabpanel" aria-labelledby="tabbtn-search" hidden>
   <div class="box">
     <h2>New index</h2>
     <form id="search-create" class="options">
@@ -203,7 +210,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <div id="coll-list"></div>
       <div class="row">
         <button id="coll-watch" type="button" class="go">Watch</button>
-        <button id="coll-stop" type="button">Stop</button>
+        <button id="coll-stop" type="button" disabled>Stop</button>
         <label>min OOV <input id="coll-min" type="number" min="0" max="1" step="0.05" value="0" class="narrow"></label>
       </div>
       <p id="coll-note" class="note" hidden></p>
@@ -212,7 +219,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   </div>
 </section>
 
-<section class="panel split" id="tab-vocabulary" hidden>
+<section class="panel split" id="tab-vocabulary" role="tabpanel" aria-labelledby="tabbtn-vocabulary" hidden>
   <div class="box">
     <h2>Import a dictionary</h2>
     <form id="vocab-import" class="options">
@@ -236,7 +243,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <button type="submit">Learn</button>
     </form>
     <div class="row">
-      <button id="vocab-stop" type="button">Stop</button>
+      <button id="vocab-stop" type="button" disabled>Stop</button>
     </div>
     <p id="vocab-note" class="note" hidden></p>
   </div>
@@ -248,7 +255,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   </div>
 </section>
 
-<section class="panel split" id="tab-server" hidden>
+<section class="panel split" id="tab-server" role="tabpanel" aria-labelledby="tabbtn-server" hidden>
   <div class="box">
     <h2>Load a bundle</h2>
     <form id="server-load" class="options">
@@ -265,7 +272,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
   </div>
 </section>
 
-<section class="panel split" id="tab-models" hidden>
+<section class="panel split" id="tab-models" role="tabpanel" aria-labelledby="tabbtn-models" hidden>
   <div class="box">
     <h2>Catalog</h2>
     <p class="muted">Licence acceptances and installs are for the user the demo was started with (--user).</p>
@@ -297,7 +304,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <label>Type <select id="train-dtype"><option>F32</option><option>F16</option></select></label>
       <label>Learned vocabulary <input id="train-vocabulary" autocomplete="off" placeholder="artifact id, optional"></label>
       <textarea id="train-terms" rows="3" spellcheck="false" placeholder="more terms, one per line"></textarea>
-      <div class="row"><button type="submit" class="go">Train</button><button id="train-stop" type="button">Stop</button></div>
+      <div class="row"><button type="submit" class="go">Train</button><button id="train-stop" type="button" disabled>Stop</button></div>
     </form>
     <p id="train-note" class="note" hidden></p>
   </div>

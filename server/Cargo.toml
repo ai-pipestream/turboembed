@@ -26,6 +26,11 @@ turbo-coref = { path = "../analysis/coref" }
 turbo-encoding-layers = { path = "../analysis/encoding-layers" }
 turbo-entity-linker = { path = "../analysis/entity-linker" }
 turbo-formats = { path = "../analysis/formats" }
+# TrainComponent: the classical component trainers, their parameters,
+# and the document categorizer's factory.
+turbo-train = { path = "../analysis/train" }
+turbo-train-components = { path = "../analysis/train-components" }
+turbo-doccat = { path = "../analysis/doccat", features = ["classical"] }
 turbo-geo = { path = "../analysis/geo" }
 turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
@@ -65,19 +70,22 @@ turbo-zoo = { path = "../analysis/zoo", default-features = false }
 turbo-bundle = { path = "../bundle", default-features = false }
 # ReadModelFile hashes a file as it streams it; the zoo's own SHA-256, already
 # in the tree under turbo-zoo.
-sha2 = "0.11"
+turbo-sha256 = { path = "../analysis/sha256" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 # The request body trait, to count a stream's bytes (ceiling.rs) and for
 # the metrics layer's reply body; already under tonic and hyper.
 http-body = "1"
 prost = "0.14"
-tokio = { version = "1", features = ["io-util", "rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tokio = { version = "1", features = ["io-util", "process", "rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 tokio-stream = "0.1"
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "router", "server", "channel"] }
 tonic-prost = "0.14"
 # Gives a message over the size limit RESOURCE_EXHAUSTED (Server::start).
 tower = { version = "0.5", default-features = false, features = ["util"] }
+# The zoo container's page liveness check and store bucket helper, already
+# linked under turbo-zoo/http.
+ureq = { version = "3", optional = true, default-features = false, features = ["rustls"] }
 
 [target.'cfg(unix)'.dependencies]
 # statvfs, for the free disk check before an install.
@@ -89,19 +97,24 @@ protox = "0.9"
 tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
 
 [dev-dependencies]
+turbo-scratch = { path = "../analysis/scratch" }
 # Real wire deadline tests bypass tonic clients' own timeout wrapper.
 h2 = "0.4"
 # The tests read the bundle's manifest and reference.
 serde_json = "1"
 turbo-pins = { path = "../analysis/pins" }
-# The sink tests relay a call over TCP and cut it.
-tokio = { version = "1", features = ["io-util"] }
+# The sink tests relay a call over TCP and cut it; the stream tests pause the clock.
+tokio = { version = "1", features = ["io-util", "test-util"] }
+# HTTPS test listeners for the zoo container's page probe and S3 bucket helper.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+# The TrainComponent tests tag with the POS model a call trains.
+turbo-postag = { path = "../analysis/postag" }
 
 [features]
 default = ["catalog-http", "tls"]
 # The catalog fetches its models over HTTPS (--catalog-dir). Without it the
 # server builds with no TLS stack and refuses --catalog-dir.
-catalog-http = ["turbo-zoo/http"]
+catalog-http = ["turbo-zoo/http", "dep:ureq"]
 # Serves gRPC over TLS and mTLS (--tls-cert, --tls-key, --tls-client-ca).
 tls = ["tonic/tls-ring"]
 # Each links that backend into the library the server runs; the cpu backend
@@ -112,3 +125,7 @@ levelzero = ["turbo/levelzero"]
 levelzero-onednn = ["turbo/levelzero-onednn"]
 npu = ["turbo/npu"]
 hailo = ["turbo/hailo"]
+# Reversible PII protection: the AES-256-GCM and FF1 redaction strategies
+# and --pii-encryption-key, through turbo-pii's `reversible` feature (the
+# RustCrypto aes-gcm and fpe crates). Without it the server refuses both.
+pii-reversible = ["turbo-pii/reversible"]

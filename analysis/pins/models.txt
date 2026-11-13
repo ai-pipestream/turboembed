@@ -32,6 +32,7 @@
 # Bundles checked in under testdata/.
 blobs/sha256/35f69b13899b0fa0b7ccb88876f56db625197332695f7ea8117143fe08f5c741  bundle  testdata/tiny-bert-bundle
 blobs/sha256/9fa507e8f7fc267176dd5667c1bc8e8e2939df0a25e7f3b8ac8f7859f4da0bc0  bundle  testdata/tiny-bert-heads-bundle
+blobs/sha256/e87a1ff84c799050f29b4b7fd84257f55b90ef95bd6db32eebd77ca0fe910546  bundle  testdata/tiny-bert-segment-bundle
 blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
 blobs/sha256/223fe30ed3eec3abac9281ae1cc543d634eab145b3286fe9887a87273bf9d231  bundle  testdata/tiny-modernbert-bundle
 blobs/sha256/8b12f898db464a68fa09e1bb996472c0c2ece0564daad20e6a3ffc332fb0ecd5  bundle  testdata/tiny-nomic-bundle
@@ -104,6 +105,7 @@ blobs/sha256/76fac774d60210b9279a47ebcb565e12e2b353897f560afa4806e43771e8a3b6  f
 blobs/sha256/f38d9f3b8351d9d40f615b95d6a4dae97eaa3c04db567fde7faaeb72b6cdb9fd  file  MASC 3.0.0 Penn POS head, head B retrained (zoo turbo-en-masc-pos-modernbert-base-2) over ModernBERT-base (trainer/recipes/records/1828/pos-shipped.json)
 blobs/sha256/0bdc91202ff2ad61d2818bb1442f7880eedfe93ec0f5793e63617671b793616e  file  MASC 3.0.0 Penn POS head, BiLSTM 256x2 (zoo turbo-en-masc-pos-modernbert-base-bilstm256x2-1) over ModernBERT-base (trainer/recipes/records/1828/pos-bilstm256x2.json)
 blobs/sha256/f4ba66f2e149df070d3c7ff9378dc998d4524c8f8cee00c1c4e77403990b37f7  file  LitBank coreference head, seed 2 (zoo turbo-en-litbank-modernbert-base-coref-2) over ModernBERT-base (trainer/recipes/records/1828/coref-shipped-s2.json)
+blobs/sha256/b8cb82e3708629e101990487add3dea807b2d56fb2cda15cbcfd06dcb054f9e6  file  Nemotron-PII BIO PII head (zoo turbo-en-nemotron-pii-modernbert-base-1) over ModernBERT-base (trainer/recipes/records/nemotron-pii-1888/head.json)
 blobs/sha256/3fde6d9baa940e32619cb02cbff24e1f4d997004ff19fc4e01616a7ed5b3228a  file  UD EWT r2.18 UPOS head over ModernBERT-base (trainer/recipes/records/ewt-1523/upos.json)
 blobs/sha256/78bac1195d29565142e9fd3b63d5e3501c30dfce572c383b565ba213b4283dd1  file  UD EWT r2.18 XPOS head over ModernBERT-base (trainer/recipes/records/ewt-1523/xpos.json)
 blobs/sha256/a1f98dfd6c744d0405a637ef9022fbf6fcef6d4b3b5e438d29d54764d1c26dbc  file  UD EWT r2.18 feats head over ModernBERT-base (trainer/recipes/records/ewt-1523/feats.json)
@@ -188,8 +190,11 @@ blobs/sha256/c38aa631f6b5a02f8f198ec6e9bbed4e98b8a3e7437032898950245458192c70  b
 blobs/sha256/4c5a35e444094f547df03c0e1745a0d13375f17e06430f1d2dd0c185a643ad52  bundle  FacebookAI/xlm-roberta-base revision 1, from bundle/recipes/xlm-roberta-base.json (RTX 4080 machine)
 blobs/sha256/1956a158b18b776704b5a15f7ebf1b0181f070a81163ac6955e0d50ac3c144c5  bundle  gliner2-base-v1 encoder bundle (fastino/gliner2-base-v1) (B70 machine)
 blobs/sha256/34314634641f8e9a4ecb674c70bf043a4e21af2d34b021a3b2286c77e2dfad38  tree  gliner2-base-v1 progressive graph release test
+blobs/sha256/70107e6a4c5579f5379f496d6405ab3a1c1469cbe18377ddeb9d1d886c5698fc  package  jackboyla/glirel-large-v0 revision 40a523e12a8432d6da364cf2a195a28755ff04d3, glirel-convert (relations-1952 record)
+blobs/sha256/f8d9c9abc84d18e2b69b6d0ffd18a706176e121ea1b1250a7505a62b518f03b6  package  jackboyla/glirel-large-v0 encoder/ of that package (relations-1952 record)
 blobs/sha256/5e7f64fdadc68e8fd4710ca2b903213871a8e80f6496e6d8120294562a071b34  bundle  gliner-small-v2.1 encoder bundle (urchade/gliner_small-v2.1) (B70 machine)
 blobs/sha256/c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506  bundle  SaT 1l-sm, xlm-roberta tokenizer bundle (B70 machine)
+blobs/sha256/c6d7bff85891d6b8d36e2e0b2c8572fde5062f76457fbd35898120212f8421fb  bundle  SaT 3l, bge-m3 tokenizer bundle (4080 machine)
 blobs/sha256/b5285611dd564973d4b90ce148a5f62aef766ad11859cc62bcb801157309c146  bundle  sentence-transformers/all-MiniLM-L6-v2 static distillation, 256 dims (B70 machine)
 blobs/sha256/311365014225a874972577dabf2fac85f26141613ce42d726a707257038055d4  bundle  BAAI/bge-base-en-v1.5 static distillation, 256 dims (B70 machine)
 blobs/sha256/bec30f885845797c7be22bac5e731de8d30971c8343b2dd41ebb5b2c451e2cf4  bundle  minishlab/potion-base-2M static-1024 build (B70 machine)
@@ -220,3 +225,4 @@ blobs/sha256/7b8e5673dc75b38da41f3d842bcc6941dccb4670ce472a915fd2547cfb6c0d03  b
 blobs/sha256/3d885ff5da3bb79e6b975e421248e810d74bbf63ed4f1af753e36403e34de61a  bundle  minishlab/potion-science-32M static build (B70 machine)
 blobs/sha256/dd3ea37954bdac157b691b2e7157da45f0bf258badb52eb130b25c1df0dcbcba  bundle  minishlab/potion-science-32M static-rust build (B70 machine)
 blobs/sha256/111f32a50017d71e0974139c17903aa95d37a1dc9719ed4782723fcadddc1b97  bundle  sentence-transformers/all-MiniLM-L6-v2 NPU s256 / minilm-npu-token-ids-f16-s256-605aeb78e (first recorded in analysis/eval/records/v1-172/npu/turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/867431b1ddfd21d61f157948ee77d37311a4af74c95444f02cc64a00eace4d9c  bundle  dslim/bert-base-NER revision 1, source d1a3e8f1, from bundle/recipes/dslim-bert-base-ner.json, for the namefind-dl device test (B70 machine)

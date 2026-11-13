@@ -247,3 +247,44 @@ fn huge_thread_count_above_event_count_does_not_allocate_per_thread_empty_chunks
     assert_eq!(stop, QnStop::Iterations);
     assert_eq!(model.all_parameters().len(), 24);
 }
+
+/// Stops at its `at`th test, recording every rise it is given.
+struct StopAt {
+    at: usize,
+    rises: std::rc::Rc<std::cell::RefCell<Vec<f64>>>,
+}
+
+impl crate::monitor::StopCriteria for StopAt {
+    fn test(&self, rise: f64) -> bool {
+        let mut r = self.rises.borrow_mut();
+        r.push(rise);
+        r.len() >= self.at
+    }
+
+    fn message_if_satisfied(&self) -> String {
+        "stopped".into()
+    }
+}
+
+#[test]
+fn a_stop_criterion_ends_the_run_with_the_model_reached() {
+    let index = index();
+    let rises = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let stop = StopAt { at: 2, rises: rises.clone() };
+    let mut config = TrainingConfiguration::new(None, Some(Box::new(stop)));
+    let stopped = train_with(&index, &TrainingParameters::new(), &mut config).unwrap();
+    // Tested after each iteration, on the log likelihood's rise: the first
+    // has nothing before it.
+    let mut seen = Vec::new();
+    let (full, _) = train_model(&index, &QnParams::default(), &mut |it, _| seen.push(it.value)).unwrap();
+    assert!(seen.len() > 2, "{}", seen.len());
+    assert_eq!(*rises.borrow(), vec![f64::INFINITY, seen[0] - seen[1]]);
+    assert!(rises.borrow()[1] > 0.0);
+    // The run that stopped after two iterations is the two-iteration run.
+    let mut two = TrainingParameters::new();
+    two.put(Key::ITERATIONS, 2);
+    assert_eq!(stopped.all_parameters(), train(&index, &two).unwrap().all_parameters());
+    assert_ne!(stopped.all_parameters(), full.all_parameters());
+    // No criterion: the JVM's run.
+    assert_eq!(train(&index, &TrainingParameters::new()).unwrap().all_parameters(), full.all_parameters());
+}

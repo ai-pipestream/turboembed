@@ -29,10 +29,15 @@
 //! turbo-train-head train-open-span --corpus wnut-17 ...  (open-label span typing, #1735;
 //!     [--balance] to repeat smaller training corpora to the largest split)
 //! turbo-train-head train-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
-//!     [--balance] [--max-train N] [--guidelines <json>] [--anchor W] [training settings as train]
+//!     [--balance] [--max-train N] [--guidelines <json>] [--anchor W] [--train-boundaries] [--train-prompt]
+//!     [--train-recurrent]
+//!     [training settings as train]
 //! turbo-train-head eval-gliner --corpus wnut-17 ... --package <converted GLiNER> --hold-out <types>
 //!     [--encoder-bundle <sealed encoder> --device cpu|cuda|levelzero|metal] [--threshold X] [--threads N]
 //!     [--split dev --calibrate | --thresholds <dev thresholds.json>] [--guidelines <label-to-prompt json>]
+//! turbo-train-head eval-gliner2 --corpus wnut-17 ... --package <GLiNER2 checkpoint> --hold-out <types>
+//!     [--threshold X] [--threads N] [--split dev --calibrate | --thresholds <dev thresholds.json>]
+//!     [--guidelines <label-to-description json>]
 //! turbo-train-head train-coref --corpus litbank ...      (as train, no --crf or --hash-embed;
 //!     [--mlp N] [--max-antecedents N] [--max-words N] [--width-dim N] [--against <run dir>])
 //! turbo-train-head train-sentences --corpus <masc-pos|treebank> ...   (as train)
@@ -55,7 +60,7 @@ use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
-use turbo_trainer_recipes::cache;
+use turbo_trainer_recipes::cache::{self, encoder_record};
 use turbo_trainer_recipes::cli::{Args, HeadArgs, OutDir, commit, encoder_args, head_args};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
@@ -68,6 +73,7 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 mod baseline_cmd;
 mod eval_gliner;
+mod eval_gliner2;
 mod peer_cmd;
 mod summarize;
 mod train_coref;
@@ -114,6 +120,7 @@ fn run(argv: Vec<String>) -> Result<()> {
         "baseline" => baseline_cmd::baseline_cmd(&argv, &corpus_id, &dir, unrecorded, a),
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         "cache" => cache::command(&argv, &corpus_id, &dir, unrecorded, a),
+        "calibrate" => turbo_trainer_recipes::tagger_calibrate::command(&argv, &corpus_id, &dir, unrecorded, a),
         "fit-cache" | "train-cached" => {
             turbo_trainer_recipes::fit_cache::command(&argv, &corpus_id, &dir, unrecorded, a)
         }
@@ -132,10 +139,11 @@ fn run(argv: Vec<String>) -> Result<()> {
         "train-open-span" => train_open_span::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-gliner" => train_gliner::train(&argv, &corpus_id, &dir, unrecorded, a),
         "eval-gliner" => eval_gliner::evaluate_command(&argv, &corpus_id, &dir, unrecorded, a),
+        "eval-gliner2" => eval_gliner2::evaluate_command(&argv, &corpus_id, &dir, unrecorded, a),
         "train-coref" => train_coref::train(&argv, &corpus_id, &dir, unrecorded, a),
         "train-sentences" => train_sentences::train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!(
-            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-gliner, eval-gliner, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
+            "unknown command {command:?}: check, baseline, train, train-lemma, train-parse, train-split, train-relation, train-open-span, train-gliner, eval-gliner, eval-gliner2, train-coref, train-sentences, distill-head, assemble, summarize, cache, fit-cache, train-cached, sweep, export, peer, predict-ner or compare-ner"
         ))),
     }
 }
@@ -441,24 +449,6 @@ fn baseline(train: &[Sentence], test: &[Sentence]) -> Vec<Vec<String>> {
     test.iter().map(|s| m.predict(&s.words)).collect()
 }
 
-fn encoder_record(bundle: &Path, enc: &WordEncoder) -> Result<EncoderRecord> {
-    let manifest =
-        std::fs::read(bundle.join("manifest.json")).map_err(|e| Error(format!("{}: {e}", bundle.display())))?;
-    let m: turbo::manifest::Manifest =
-        serde_json::from_slice(&manifest).map_err(|e| Error(format!("{}: {e}", bundle.display())))?;
-    let x = enc.execution();
-    Ok(EncoderRecord {
-        model: m.model.id,
-        revision: m.model.revision,
-        manifest_sha256: turbo::bundle::sha256_hex(&manifest),
-        hidden: enc.hidden(),
-        layers: m.architecture.as_ref().map(|a| a.layers),
-        width: enc.width(),
-        backend: x.backend.clone(),
-        device: x.device.clone(),
-        precision: x.precision.clone(),
-    })
-}
 /// Whether a checkpoint was written into `dir`.
 fn saved_any(dir: &Path) -> bool {
     dir.join("head.safetensors").is_file()

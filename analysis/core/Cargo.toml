@@ -12,5 +12,6 @@ name = "turbo_analysis"
 turbo-sha256 = { path = "../sha256" }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 # The pipeline tests run toy annotators over the shared layers.
 turbo-analysis-layers = { path = "../layers" }

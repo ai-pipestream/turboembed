@@ -133,7 +133,8 @@ fn an_image_is_the_same_bytes_every_time() {
     assert_eq!(a, MappedGlossaryWriter::write(&g, Case::Insensitive).unwrap());
     assert_ne!(a, MappedGlossaryWriter::write(&g, Case::Sensitive).unwrap());
     assert!(a.len().is_multiple_of(8));
-    let path = std::env::temp_dir().join(format!("turbo-glossary-{}.tglac", std::process::id()));
+    let path =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-glossary-{}.tglac", std::process::id())));
     std::fs::write(&path, &a).unwrap();
     let read = ImageBuf::read(&path).unwrap();
     std::fs::remove_file(&path).unwrap();
@@ -165,7 +166,9 @@ fn a_mapped_file_matches_as_the_in_heap_matcher_does() {
     for (id, term) in [("1", "hot dog"), ("2", "dog"), ("3", "Größe")] {
         g.push(id, term).unwrap();
     }
-    let path = std::env::temp_dir().join(format!("turbo-glossary-map-{}.tglac", std::process::id()));
+    let path = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-glossary-map-{}.tglac", std::process::id())),
+    );
     std::fs::write(&path, MappedGlossaryWriter::write(&g, Case::Insensitive).unwrap()).unwrap();
     // SAFETY: the file is this test's own and is not changed while mapped.
     let file = unsafe { turbo_glossary::MappedFile::open(&path) }.unwrap();

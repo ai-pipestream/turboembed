@@ -92,7 +92,8 @@ mod tests {
 
     #[test]
     fn a_listed_or_empty_list_is_left_as_it_is() {
-        let d = std::env::temp_dir().join(format!("turbo-added-tokens-{}", std::process::id()));
+        let d =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-added-tokens-{}", std::process::id())));
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(d.join("tokenizer.json"), r#"{"added_tokens":[{"id":0,"content":"[PAD]"}]}"#).unwrap();
         let roles = json!([{ "role": "SPECIAL_PAD", "content": "[PAD]", "id": 0 }]);

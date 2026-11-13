@@ -251,6 +251,35 @@ this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
 `connect+json`, no JSON or GET transport, and no `fetch` outside
 `upload.ts`.
 
+The page keeps to a few layout rules, which the browser run (Tests,
+below) checks on every tab at 1280 and 390 CSS pixels: the page never
+scrolls sideways, a wide table scrolling inside its card instead; no
+control leaves the box it is in, a long select or file picker shrinking
+to the box's width; a card with nothing in it is not drawn; and a list
+with no rows says "None." in place of bare column headings. The tabs
+are an ARIA tab list: the left and right arrow keys move between them.
+Each tab is an address (`#search`) and a history entry: a link opens its
+tab, and Back and Forward move between the tabs visited.
+The header shows the server's name, version and state with a dot, green
+once `ServerReady` says ready and red when the demo cannot reach it. The
+state is read again every 10 seconds while the page is in view and when
+it comes back into view. While the server does not answer, a notice
+under the tabs says so and offers "Retry now", and a list with nothing
+in it says why: the server is not reachable, or it serves none of that
+kind. When the server answers again, or turns ready after loading, every
+tab reads its lists again, with no reload. A demo that refuses a call
+for want of its token counts as reachable: type the token and the tabs
+fill.
+
+Every action follows one pattern. A button that calls the server is off
+and shows the elapsed time while its call runs, and a Stop button is on
+only while there is something to stop. Anything that removes state
+(delete an index, a collection, a vocabulary artifact or a static
+model, unload a bundle, revoke a licence acceptance, remove a model
+source) asks in place first, "Delete demo?" with Yes and Cancel, and
+reports a refusal beside the row it concerns. While Yes is running the
+question stays put: Escape does not bring the first button back.
+
 ## Starting it
 
 Build both binaries:
@@ -352,8 +381,9 @@ for any refused call.
 - Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
   its time and layers and any failed step with what it skipped; then
   the finished graph through `InspectDocumentWindow`, the text with its
-  annotations marked, a chip per layer to show only some, paging, and
-  heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
+  annotations marked, a chip per layer instance to filter text annotations, paging, and
+  heatmap lanes (unfiltered). Named chips show `[instance]` and select that
+  instance independently through `filter_layer_instances`; and `FormatDocument` in any format `ListOutputFormats`
   names, shown when it is text and offered as a download. An open-span model
   enables caller entity labels, optional label=prompt guidelines, threshold,
   and flat or nested decoding. A
@@ -394,10 +424,24 @@ for any refused call.
   (writes), `DownloadVocabulary` streamed into a file, and
   `DeleteVocabularyArtifact` (write).
 - Server: the server's name, version and readiness (`ServerLive`,
-  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
-  profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
-- Models: `ListModelCatalog` for the demo's user, each artifact's
-  licence terms still to accept shown with the licence, its class and
+  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, with task
+  and prompt roles in plain words, analysis profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
+- Models: `ListModelCatalog` for the demo's user as cards, one per
+  artifact: its id, a line saying what it is for (from the catalog's
+  component, such as "Embeds text for semantic search", else from its
+  kind), its kind in plain words (model, head, dataset, lexicon),
+  language, licence and size, and its actions. A card whose terms or
+  files are opened takes the full row. A filter box narrows the cards
+  to the entries whose id, purpose, kind, language or licence holds every word
+  typed, whatever the case (words are parted by any Unicode white space,
+  the next-line control included; `ß`, `ẞ` and `SS` compare equal, as
+  do a final and a medial sigma; and a kind also matches in its enum
+  spelling), and a chip per kind with its count shows
+  only that kind; both work in the page on the catalog already read
+  (demo/web/src/catalogfilter.ts) and stay set when the catalog is read
+  again after a change. Installed models and accepted terms are listed
+  above the catalog. Each artifact's
+  licence terms still to accept are shown with the licence, its class and
   what that class means in plain words, the attribution, the training
   data and a link to the terms text. An "I have read and accept"
   control enables `RecordLicenceAcceptance` (write), which sends the
@@ -407,8 +451,8 @@ for any refused call.
   which artifact's page, each with `RevokeLicenceAcceptance` (write).
   An artifact whose licence, or any data it was trained on, is
   non-commercial (`CC-BY-NC-*`) says "Non-commercial use only" beside
-  its licence. Once the user may have an artifact, a Save button per
-  file reads it through `ReadModelFile` (a read, the same stream the
+  its licence. Once the user may have an artifact, its files open under
+  a disclosure with a Save button per file, which reads it through `ReadModelFile` (a read, the same stream the
   library reads), hashes it as it arrives, and hands the browser the
   file only when its size and SHA-256 are the ones the catalog lists
   (demo/web/src/tabs/download.ts). The file is held in the page's
@@ -485,3 +529,88 @@ the server's prost types. Nothing is mocked.
   its `turbo-code` and `turbo-field` headers. With `TURBO_TEST_2GIB=1` it
   also streams 2 GiB of `StreamDocuments` frames, all accepted, and one
   frame more, refused 413.
+
+`scripts/e2e-web.sh` runs the page itself in a browser: it builds both
+binaries, starts the server on the CPU with `testdata/tiny-bert-bundle`
+at each tier and `testdata/tiny-modernbert-bundle`, starts the demo in
+front of it, and runs each file in `demo/web/e2e` under Node, one file
+at a time, with Playwright driving Chromium. Nothing is stubbed here
+either: every call the page makes goes through the demo to the server.
+
+- Each tab at 1280 and 390 pixels wide, after the first thing a visitor
+  does there (Embed, Run, Analyze, or the lists a tab reads when it
+  opens): the layout rules under Building the page, and no uncaught
+  error in the page.
+- Embed answers with a card per served model and no error, the header
+  shows the server up, and the arrow keys move between the tabs.
+- The catalog read from the server narrows to the entries matching the
+  words typed and to one kind by its chip, says how many of how many
+  are shown, names no kind or component by its enum, and says so when
+  nothing matches. The entries are cards, several to a row at 1280
+  pixels, each saying what it is for.
+- Analyze lists one line per step of the profile and ends complete,
+  every layer OK, and shows the whole source text with a chip per
+  layer. The annotation drawer opens a layer's annotations, each span
+  quoting the source text it covers, with the model that made it. A
+  document with one view says it has nothing to X-ray.
+- Every output format downloads a file, and a text format shows in the
+  page exactly as downloaded.
+- The graph comes back from the server byte for byte, saves at the size
+  the stream reported, and a fresh page opens the saved file and shows
+  the same document; a file that is not a graph is refused with a
+  reason.
+- Semantic ranks distinct passages by cosine for the number of
+  neighbours asked, on each model, and fills a symmetric passage
+  matrix with ones on its diagonal.
+- The Server tab lists every served bundle and profile, and the Analyze
+  and Embed tabs offer the same ones.
+- The install flow, against a second server and demo the script starts
+  for it: a catalog of one share-alike bundle (the tiny bundle with its
+  licence set to CC-BY-SA-4.0) whose files are in a `file://` store, a
+  server with `--admin`, and a demo with `--user e2e` that forwards
+  `RecordLicenceAcceptance`, `InstallModel` and `LoadBundle`. The Models
+  tab shows the terms still to accept with the licence, its class and
+  the address of its text, and Install stays off. Once the box is
+  ticked and the terms accepted, the acceptance is listed with the
+  artifact it was made on, Install installs the model, and every file
+  on disk has the size and SHA-256 the catalog lists. The Server tab
+  loads the installed directory into the running server, and Semantic
+  ranks passages with it, with no restart and no page reload.
+- An address change, a link, Back and Forward each open the tab they
+  name, every tab click is one history entry, and an address naming no
+  tab opens the first.
+- Embed, Run, Analyze, Format and Round trip are each off and count the
+  time while their call runs, Analyze's Stop is on only then, and every
+  Stop starts off.
+- Delete index, Delete collection and Unload each ask in place, with
+  focus on Cancel; Cancel and Escape put the button back, and only Yes
+  calls the server. A delete the demo refuses says why beside its own
+  row and leaves the rest of the page alone.
+- The header turns red within one status interval after the server
+  stops, with the notice and Retry, and green again with no reload once
+  it is back, the tabs refilled. A page opened with the server stopped
+  says on each tab that the server is not reachable, and fills on Retry.
+
+The tests that stop the server, or need writes forwarded, start a
+server and demo of their own from the same binaries
+(`demo/web/e2e/stack.ts`, given the binaries' directory in
+`TURBO_E2E_BIN`).
+
+Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
+of every tab at each width there, at the device scale factor in
+`TURBO_E2E_SCALE` (default 1). `TURBO_E2E_DEVICE` is the server's device
+index of the CPU (default 0). The binaries started are the ones that
+build wrote, in the target directory `cargo metadata` names, so
+`CARGO_TARGET_DIR` and a configured target directory are followed. The
+run needs a headless Chromium the pinned Playwright can launch; after
+`npm ci --prefix demo/web`,
+`demo/web/node_modules/.bin/playwright install chromium-headless-shell`
+fetches one. Playwright 1.63.0 is pinned exactly in
+`demo/web/package.json` as a development dependency of this run alone:
+the page's bundle, the demo and the library do not use it.
+
+CI runs it in the `proto` job (.github/workflows/ci.yml), after the
+steps that check the generated code and the bundle. On a pull request
+and in the merge queue it runs when `demo/`, `server/`, the two test
+bundles, `scripts/e2e-web.sh`, `scripts/build-web.sh` or the workflow
+changed; the daily run always runs it.

@@ -1,4 +1,4 @@
-//! Fine-tune a converted GLiNER output MLP without Python or test labels.
+//! Fine-tune converted GLiNER output and boundary heads without Python or test labels.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -29,6 +29,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
     let package = PathBuf::from(a.required("--package")?);
     let hold_out_arg = a.required("--hold-out")?;
     let balance = a.flag("--balance");
+    let boundaries = a.flag("--train-boundaries");
+    let train_prompt = a.flag("--train-prompt");
+    let train_recurrent = a.flag("--train-recurrent");
     let guidelines = a.value("--guidelines")?.map(read_guidelines).transpose()?;
     let max_train: usize = a.parsed("--max-train", 0)?;
     let anchor: f32 = a.parsed("--anchor", 0.0)?;
@@ -86,7 +89,9 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
 
     let original_heads = turbo_gliner::package::read(&package.join("heads.safetensors"), 256 << 20).map_err(Error)?;
     let mut model = Manifest::load(&package).map_err(Error)?;
-    let mut trainer = OutputTrainer::load(model.config(), &original_heads).map_err(Error)?;
+    let mut trainer =
+        OutputTrainer::load_with_heads(model.config(), &original_heads, boundaries, train_prompt, train_recurrent)
+            .map_err(Error)?;
     trainer.set_anchor(anchor).map_err(Error)?;
     let total: usize = corpora.iter().map(|x| x.splits.train.len().div_ceil(c.batch)).sum();
     let steps = (total * c.epochs as usize) as u64;
@@ -215,8 +220,10 @@ pub(super) fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bo
         super::eval_gliner::prediction_text(&combined.splits.dev, &best_predictions.all)?.into_bytes();
     let prediction_record = replace(&out.path, "predictions.bio", &prediction_bytes)?;
     let identity = model.identity();
-    let peer_name =
-        format!("gliner-tuned:{}@{}#{};anchor={anchor}", identity.id, identity.revision, manifest_record.sha256);
+    let peer_name = format!(
+        "gliner-tuned:{}@{}#{};anchor={anchor};boundaries={boundaries};prompt={train_prompt};recurrent={train_recurrent}",
+        identity.id, identity.revision, manifest_record.sha256
+    );
     let evaluation = score_parts(&combined, &all_types, &seen_types, &hold_out, &best_predictions)?;
     let train_filtered = filter_sentences(&combined.splits.train, &seen_types);
     let majority = Majority::train(&train_filtered);
@@ -424,8 +431,9 @@ mod tests {
         trainer.step(&mut optimizer, &mut grads).unwrap();
         model.apply_output(&trainer).unwrap();
         let heads = trainer.write_heads(&original).unwrap();
-        let out = std::env::temp_dir().join(format!("turbo-nuner-linear-test-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&out);
+        let out = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-nuner-linear-test-{}", std::process::id())),
+        );
         Manifest::write_tuned(&turbo_pins::require(&root), &out, &heads).unwrap();
         let reloaded = Manifest::load(&out).unwrap();
         let words: Vec<&str> = sentence.words.iter().map(String::as_str).collect();

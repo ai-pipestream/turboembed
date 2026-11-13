@@ -7,7 +7,7 @@
 mod common;
 
 use std::fs;
-use std::path::PathBuf;
+use turbo_scratch::Scratch;
 
 use common::*;
 use serde_json::{Value, json};
@@ -17,9 +17,8 @@ use turbo::safetensors::{Dtype, File};
 use turbo::status::*;
 use turbo::*;
 
-fn tiny_with_projection(name: &str, extra: Vec<Tensor>, edit: impl FnOnce(&mut Value)) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-proj-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+fn tiny_with_projection(name: &str, extra: Vec<Tensor>, edit: impl FnOnce(&mut Value)) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-proj-{}-{name}", std::process::id())));
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
         fs::create_dir_all(dir.join(f).parent().unwrap()).unwrap();
         fs::copy(tiny_bundle().join(f), dir.join(f)).unwrap();

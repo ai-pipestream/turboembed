@@ -43,6 +43,7 @@ fn window(graph: &[u8], view: u32, xray: Option<u32>, pii_output: Option<PiiOutp
         page_size: 16_000,
         page: 0,
         filter_layers: Vec::new(),
+        filter_layer_instances: Vec::new(),
         heatmap_buckets: 4,
         xray_target_view: xray,
         pii_output,

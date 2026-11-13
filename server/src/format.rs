@@ -103,8 +103,9 @@ pub fn format_document_under(
     let trimmed_id = req.doc_id.trim();
     let doc_id = if trimmed_id.is_empty() { DEFAULT_DOC_ID } else { trimmed_id };
     let export_offsets = to_export_offset_mode(offset_mode);
-    let (desc, content) =
-        registry().format_to_vec(format_id, doc_id, &doc, export_offsets).map_err(map_export_error)?;
+    let (desc, content) = registry()
+        .format_to_vec_with_detail(format_id, doc_id, &doc, export_offsets, disclosure.detail)
+        .map_err(map_export_error)?;
 
     Ok(FormatDocumentResponse {
         format_id: desc.format_id.to_owned(),

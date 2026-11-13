@@ -5,7 +5,8 @@
 #![allow(dead_code)]
 
 use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use turbo_scratch::Scratch;
 
 /// A token: its text, whether a space comes before it, whether it is a
 /// Penn token, its tag, if it has one, and its chunk tag, if it is in a
@@ -337,9 +338,8 @@ pub fn write_document(dir: &Path, name: &str, pool: &[&str], sentences: &[usize]
 }
 
 /// A fresh directory under the system's temporary directory.
-pub fn temp_dir(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("turbo-train-recipes-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+pub fn temp_dir(name: &str) -> Scratch {
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-train-recipes-{name}-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }

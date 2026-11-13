@@ -188,6 +188,17 @@ impl Store {
         self.index().dictionaries.get(id).cloned()
     }
 
+    /// Checks whether `id` is in the store's index and whether its stored
+    /// descriptor has `sha256`.
+    pub(crate) fn check_digest(&self, id: &str, sha256: &str) -> Option<bool> {
+        let index = self.index();
+        if let Some(d) = index.dictionaries.get(id) {
+            Some(d.descriptor.sha256 == sha256)
+        } else {
+            index.vocabularies.get(id).map(|v| v.sha256 == sha256)
+        }
+    }
+
     /// Writes `bytes` to `dir/name` through a synced temporary file.
     fn write(&self, dir: &str, name: &str, bytes: &[u8]) -> Result<(), String> {
         let n = self.seq.fetch_add(1, Ordering::Relaxed);
@@ -226,20 +237,20 @@ impl Store {
     }
 
     /// Stores a vocabulary, or answers with the one already stored under
-    /// its id.
+    /// its id. The flag is whether this call stored it.
     pub(crate) fn put_vocabulary(
         &self,
         v: VocabularyArtifactDescriptor,
         bytes: &[u8],
-    ) -> Result<VocabularyArtifactDescriptor, String> {
+    ) -> Result<(VocabularyArtifactDescriptor, bool), String> {
         let mut index = self.index();
         if let Some(have) = index.vocabularies.get(&v.artifact_id) {
-            return Ok(have.clone());
+            return Ok((have.clone(), false));
         }
         self.write(VOCABULARIES, &format!("{}.tsv", v.artifact_id), bytes)?;
         self.write(VOCABULARIES, &format!("{}.meta", v.artifact_id), &vocabulary_meta(&v))?;
         index.vocabularies.insert(v.artifact_id.clone(), v.clone());
-        Ok(v)
+        Ok((v, true))
     }
 
     /// Removes an artifact, its descriptor first: false when there is none.

@@ -87,9 +87,12 @@ fn every_inconsistent_release_setting_is_refused() {
         (format!("{MTLS} {grant} --pii-token-key a:1:"), "path is empty"),
         (format!("{MTLS} {grant} --pii-audit-timeout-ms 0"), "over 0"),
         (format!("{MTLS} {grant} --pii-audit-endpoint http://b:9"), "given once"),
-        (format!("{MTLS} --pii-grant {FP}:ciphertext:email --pii-audit-endpoint http://a:9"), "#1885"),
+        (format!("{MTLS} --pii-grant {FP}:ciphertext:email --pii-audit-endpoint http://a:9"), CIPHER_ALONE),
         (format!("{MTLS} --pii-grant {FP}:token+token:email --pii-audit-endpoint http://a:9"), "given twice"),
-        (format!("{MTLS} --pii-grant {FP}:reveal:email --pii-audit-endpoint http://a:9"), "not token or clear"),
+        (
+            format!("{MTLS} --pii-grant {FP}:reveal:email --pii-audit-endpoint http://a:9"),
+            "not token, ciphertext or clear",
+        ),
         (format!("{MTLS} --pii-grant {FP}:clear:mail --pii-audit-endpoint http://a:9"), "not a built-in PII kind"),
         (format!("{MTLS} --pii-grant {FP}:clear:email,email --pii-audit-endpoint http://a:9"), "given twice"),
         (format!("{MTLS} --pii-grant {FP}:clear --pii-audit-endpoint http://a:9"), "FINGERPRINT:FORMS:KINDS"),
@@ -101,15 +104,22 @@ fn every_inconsistent_release_setting_is_refused() {
     }
 }
 
+/// What a ciphertext grant with no encryption key is refused for.
+const CIPHER_ALONE: &str = if cfg!(feature = "pii-reversible") {
+    "needs --pii-encryption-key"
+} else {
+    "needs a server built with the pii-reversible feature"
+};
+
 #[test]
-fn the_output_policy_lists_value_forms_and_refuses_ciphertext() {
+fn the_output_policy_lists_every_value_form() {
     let p = PiiOutputPolicy::parse("rewritten-text,token,clear").unwrap();
     assert!(p.rewritten_text && !p.full_text && p.values == Forms::of(Form::Token).with(Form::Clear));
     assert_eq!(PiiOutputPolicy::parse("clear").unwrap().values, Forms::of(Form::Clear));
     assert_eq!(PiiOutputPolicy::parse("none").unwrap(), PiiOutputPolicy::NONE);
     assert_eq!(PiiOutputPolicy::ALL.values, Forms::NONE, "the default allows no value form");
     assert!(PiiOutputPolicy::parse("token,token").unwrap_err().contains("twice"));
-    assert!(PiiOutputPolicy::parse("ciphertext").unwrap_err().contains("#1885"));
+    assert_eq!(PiiOutputPolicy::parse("ciphertext").unwrap().values, Forms::of(Form::Ciphertext));
     let a = args(&format!("{MTLS} --pii-output-allow detail,clear")).unwrap();
     assert_eq!(a.pii_output.values, Forms::of(Form::Clear));
 }
@@ -145,4 +155,88 @@ fn requiring_the_recorded_policy_is_off_by_default_and_set_by_its_flag_or_variab
     assert!(args_env(&grant, bad).unwrap_err().contains("not one of"));
     let set = |k: &str| (k == ENV_PII_REQUIRE_RECORDED_POLICY).then(|| "1".to_owned());
     assert!(args_env(MTLS, set).unwrap_err().contains("need --pii-grant"));
+}
+
+#[test]
+fn encryption_keys_repeat_and_need_a_reversible_build() {
+    let grant = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
+    let cmd = format!("{grant} --pii-encryption-key vault:1:/k/one --pii-encryption-key vault:2:/k/two:x");
+    if cfg!(feature = "pii-reversible") {
+        let r = args(&cmd).unwrap().pii_release.unwrap();
+        assert_eq!(r.encryption_keys.len(), 2);
+        assert_eq!(r.encryption_keys[1].key, KeyRef { id: "vault".into(), version: 2 });
+        assert_eq!(r.encryption_keys[1].path, std::path::PathBuf::from("/k/two:x"));
+        assert!(r.token_keys.is_empty(), "an encryption key is not a token key");
+        let env = |k: &str| (k == ENV_PII_ENCRYPTION_KEYS).then(|| "vault:3:/k/three; vault:4:/k/four".to_owned());
+        assert_eq!(args_env(&grant, env).unwrap().pii_release.unwrap().encryption_keys.len(), 2);
+        for (cmd, want) in [
+            (format!("{grant} --pii-encryption-key a:1:/k --pii-encryption-key a:1:/j"), "given twice"),
+            (format!("{grant} --pii-encryption-key a:0:/k"), "not a number from 1"),
+            (format!("{grant} --pii-encryption-key a:1:"), "path is empty"),
+        ] {
+            let e = args(&cmd).unwrap_err();
+            assert!(e.contains(want), "{cmd}: {e}");
+        }
+    } else {
+        let e = args(&cmd).unwrap_err();
+        assert!(e.contains("pii-reversible"), "{e}");
+    }
+}
+
+#[test]
+fn a_ciphertext_grant_names_its_kinds_and_its_active_encryption_key() {
+    let grant = format!("{MTLS} --pii-grant {FP}:ciphertext+token:email --pii-audit-endpoint http://audit:9");
+    let keys = "--pii-token-key tok:1:/k/t --pii-encryption-key vault:1:/k/one --pii-encryption-key vault:2:/k/two";
+    let cmd = format!("{grant} {keys} --pii-encryption-key-active vault:2");
+    if !cfg!(feature = "pii-reversible") {
+        assert!(args(&cmd).unwrap_err().contains("pii-reversible"));
+        return;
+    }
+    let r = args(&cmd).unwrap().pii_release.unwrap();
+    assert_eq!(r.grants.of(Some(&fp())).forms(PiiKind::Email), Forms::of(Form::Token).with(Form::Ciphertext));
+    assert_eq!(r.active_encryption_key, Some(KeyRef { id: "vault".into(), version: 2 }));
+    let env = |k: &str| (k == ENV_PII_ENCRYPTION_KEY_ACTIVE).then(|| "vault:1".to_owned());
+    let r = args_env(&format!("{grant} {keys}"), env).unwrap().pii_release.unwrap();
+    assert_eq!(r.active_encryption_key, Some(KeyRef { id: "vault".into(), version: 1 }), "from its variable");
+    let clear = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
+    for (cmd, want) in [
+        (format!("{grant} {keys}"), "several --pii-encryption-key values need --pii-encryption-key-active"),
+        (format!("{grant} {keys} --pii-encryption-key-active vault:3"), "is not a --pii-encryption-key"),
+        (format!("{grant} {keys} --pii-encryption-key-active vault"), "--pii-encryption-key-active: "),
+        (format!("{clear} --pii-encryption-key vault:1:/k --pii-encryption-key-active vault:1"), "with ciphertext"),
+        (format!("{MTLS} --pii-encryption-key-active vault:1"), "need --pii-grant"),
+    ] {
+        let e = args(&cmd).unwrap_err();
+        assert!(e.contains(want), "{cmd}: {e}");
+    }
+}
+
+#[test]
+fn encryption_keys_need_no_grant_and_no_mtls() {
+    // Encrypting during redaction releases nothing (#2111): without a
+    // grant the keys come back on their own, for the policy arms.
+    let plain = "--listen 127.0.0.1:0 --admin";
+    let cmd = format!("{plain} --pii-encryption-key vault:1:/k/one --pii-encryption-key vault:2:/k/two");
+    if !cfg!(feature = "pii-reversible") {
+        assert!(args(&cmd).unwrap_err().contains("pii-reversible"));
+        return;
+    }
+    let a = args(&cmd).unwrap();
+    assert!(a.pii_release.is_none(), "no grant, no release");
+    let keys: Vec<_> = a.pii_encryption_keys.iter().map(|k| k.key.to_string()).collect();
+    assert_eq!(keys, ["vault:1", "vault:2"]);
+    let env = |k: &str| (k == ENV_PII_ENCRYPTION_KEYS).then(|| "vault:3:/k/three".to_owned());
+    assert_eq!(args_env(plain, env).unwrap().pii_encryption_keys.len(), 1, "from its variable");
+    let grant = format!("{MTLS} --pii-grant {FP}:clear:email --pii-audit-endpoint http://audit:9");
+    let a = args(&format!("{grant} --pii-encryption-key vault:1:/k/one")).unwrap();
+    assert!(a.pii_encryption_keys.is_empty(), "with a grant the keys are the release's");
+    assert_eq!(a.pii_release.unwrap().encryption_keys.len(), 1);
+    for (cmd, want) in [
+        (format!("{plain} --pii-encryption-key a:1:/k --pii-encryption-key a:1:/j"), "given twice"),
+        (format!("{plain} --pii-encryption-key a:0:/k"), "not a number from 1"),
+        (format!("{plain} --pii-encryption-key vault:1:/k --pii-encryption-key-active vault:1"), "need --pii-grant"),
+    ] {
+        let e = args(&cmd).unwrap_err();
+        assert!(e.contains(want), "{cmd}: {e}");
+    }
 }

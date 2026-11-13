@@ -1,8 +1,9 @@
 //! Retired archive commands refuse input before attempting filesystem access.
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 fn refuses_before_read(command: &str) {
-    let root = std::env::temp_dir().join(format!("turbo-{command}-retired-{}", std::process::id()));
+    let root = Scratch::at(std::env::temp_dir().join(format!("turbo-{command}-retired-{}", std::process::id())));
     assert!(!root.exists());
     let missing = root.join("missing.bin");
     let out = root.join("bundle");

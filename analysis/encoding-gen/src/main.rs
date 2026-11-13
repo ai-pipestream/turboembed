@@ -368,14 +368,13 @@ mod tests {
 
     use super::*;
 
-    fn scratch(tag: &str) -> PathBuf {
+    fn scratch(tag: &str) -> turbo_scratch::Scratch {
         static N: AtomicU64 = AtomicU64::new(0);
-        let dir = std::env::temp_dir().join(format!(
+        let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!(
             "turbo-encoding-gen-{tag}-{}-{}",
             std::process::id(),
             N.fetch_add(1, Ordering::Relaxed)
-        ));
-        let _ = fs::remove_dir_all(&dir);
+        )));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

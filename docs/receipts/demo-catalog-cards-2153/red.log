@@ -1,0 +1,53 @@
+TAP version 13
+# Subtest: every tab lays out cleanly at 1280 px
+ok 1 - every tab lays out cleanly at 1280 px
+  ---
+  duration_ms: 1592.266485
+  type: 'test'
+  ...
+# Subtest: every tab lays out cleanly at 390 px
+ok 2 - every tab lays out cleanly at 390 px
+  ---
+  duration_ms: 979.069998
+  type: 'test'
+  ...
+# Subtest: the embed tab answers with a card per model and the tabs take the arrow keys
+ok 3 - the embed tab answers with a card per model and the tabs take the arrow keys
+  ---
+  duration_ms: 439.887671
+  type: 'test'
+  ...
+# Subtest: the catalog narrows by words typed and by kind
+not ok 4 - the catalog narrows by words typed and by kind
+  ---
+  duration_ms: 395.90406
+  type: 'test'
+  location: 'demo/web/node_modules/.e2e/page.test.mjs:116:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://demo/web/node_modules/.e2e/page.test.mjs:137:12)
+    runNextTicks (node:internal/process/task_queues:64:5)
+    process.processImmediate (node:internal/timers:452:9)
+    process.callbackTrampoline (node:internal/async_hooks:130:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 3
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3821.070898

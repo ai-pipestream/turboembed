@@ -5,6 +5,7 @@
 mod common;
 
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use common::*;
 use serde_json::{Value, json};
@@ -121,7 +122,7 @@ fn texts() -> Vec<String> {
 }
 
 fn tokenizer(name: &str, m: Value, json: &Value) -> (Fixture, Tokenizer, tokenizers::Tokenizer) {
-    let path = std::env::temp_dir().join(format!("turbo-bpe-split-{name}-{}.json", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-bpe-split-{name}-{}.json", std::process::id())));
     std::fs::write(&path, serde_json::to_vec(json).unwrap()).unwrap();
     let f = Fixture::with_tokenizer(&format!("bpe-split-{name}"), m, &path);
     f.write();

@@ -8,6 +8,7 @@ pub mod api;
 pub mod cpus;
 pub mod docker;
 pub mod git;
+pub mod gpu_clock;
 pub mod hailo;
 pub mod measure;
 pub mod mlx;
@@ -171,6 +172,7 @@ pub fn record(m: &Measurement, p: &Provenance, references: Vec<ReferenceRun>, re
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
+            clock: m.clock,
         },
         library: Library {
             version: m.build.split(' ').next().unwrap_or("").into(),

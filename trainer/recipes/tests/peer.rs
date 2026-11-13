@@ -3,8 +3,8 @@
 //! treebank in UD EWT's layout.
 
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_trainer_recipes::corpus::Sentence;
 use turbo_trainer_recipes::peer::{Column, apply, conllu, form, parse_map, read};
@@ -64,10 +64,8 @@ fn a_map_rewrites_tag_spellings_only_as_named() {
     }
 }
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-peer-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-peer-{}-{name}", std::process::id())))
 }
 
 fn run(args: &[&str]) -> std::process::Output {
@@ -166,7 +164,7 @@ fn a_peer_run_that_fails_leaves_no_directory() {
         out.to_str().unwrap(),
     ]);
     assert!(!o.status.success());
-    assert!(!Path::new(&out).exists());
+    assert!(!out.exists());
 }
 
 #[test]

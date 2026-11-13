@@ -34,6 +34,7 @@ pub mod distill;
 pub mod eval;
 pub mod fit_cache;
 pub mod germeval;
+pub mod gliner2_eval;
 pub mod gliner_calibrate;
 pub mod gliner_eval;
 pub mod litbank;
@@ -41,6 +42,7 @@ pub mod litbank_eval;
 pub mod masc_ne;
 pub mod masc_pos;
 pub mod multiconer;
+pub mod nemotron_pii;
 pub mod ner_cmd;
 pub mod ner_compare;
 pub mod ner_documents;
@@ -59,6 +61,7 @@ pub mod safetensors;
 pub mod sentences;
 pub mod split_labels;
 pub mod sweep;
+pub mod tagger_calibrate;
 pub mod ud;
 pub mod ud_banks;
 pub mod ud_banks_sa;
@@ -89,6 +92,7 @@ pub fn corpora() -> Vec<String> {
         masc_ne::ID.to_owned(),
         masc_pos::ID.to_owned(),
         multiconer::ID.to_owned(),
+        nemotron_pii::ID.to_owned(),
         wnut17::ID.to_owned(),
         litbank::ID.to_owned(),
     ];
@@ -111,6 +115,7 @@ pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<
         masc_ne::ID => masc_ne::read(dir, unrecorded).map_err(|e| Error(e.to_string())),
         wnut17::ID => wnut17::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
+        nemotron_pii::ID => nemotron_pii::read(dir, unrecorded),
         litbank::ID => litbank::read(dir, unrecorded),
         _ => match ud::find(id) {
             Some((bank, column)) => ud::read(&bank, column, dir, unrecorded),
@@ -124,6 +129,7 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
     match id {
         germeval::OUTER => return ("ner_outer", "turboembed:entities"),
         germeval::INNER => return ("ner_inner", "turboembed:entities"),
+        nemotron_pii::ID => return (nemotron_pii::HEAD, nemotron_pii::LAYER),
         _ => (),
     }
     if let Some(column) = ud_multi::find_column(id) {
@@ -140,7 +146,11 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
 
 /// The coarse groups of a corpus's types, where it has them.
 pub fn coarse(id: &str) -> Option<fn(&str) -> &str> {
-    (id == multiconer::ID).then_some(multiconer::coarse as fn(&str) -> &str)
+    match id {
+        multiconer::ID => Some(multiconer::coarse as fn(&str) -> &str),
+        nemotron_pii::ID => Some(nemotron_pii::coarse as fn(&str) -> &str),
+        _ => None,
+    }
 }
 
 /// The publisher-declared types of fixed-schema NER recipes, independent
@@ -149,6 +159,7 @@ pub fn fixed_entity_types(id: &str) -> Option<&'static [&'static str]> {
     match id {
         wnut17::ID => Some(&wnut17::TYPES),
         masc_ne::ID => Some(&masc_ne::TYPES),
+        nemotron_pii::ID => Some(&nemotron_pii::TYPES),
         germeval::OUTER | germeval::INNER => Some(&germeval::TYPES),
         _ => None,
     }

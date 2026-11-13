@@ -394,8 +394,9 @@ int32_t device_info(uint32_t ordinal, turbo_device_info *out, turbo_error *err) 
 }
 
 /* Fields of turbo_embed_options a run honors: normalize (4), pooling (5)
- * and output_dim (6), every value of each. */
-constexpr uint32_t EMBED_HONORED = 0x38;
+ * and output_dim (6), every value of each, and layers (9), whose range
+ * writes take taps above 1 (turbo_backend.h, taps). */
+constexpr uint32_t EMBED_HONORED = 0x138;
 
 /* Embed at every precision: MODEL and EXACT in F32 (F32 FMAs; with
  * TURBO_CUDA_TF32=1, MODEL's GEMMs as TF32 on the tensor cores from
@@ -880,6 +881,9 @@ struct Model {
      * the device; NULL with head_out 0 for a model without one. */
     float *head = nullptr;
     uint32_t head_out = 0;
+    /* Limited lookahead (turbo_backend.h, lookahead): the keys a query
+     * reads past itself, in every layer; 0 for the whole row. */
+    uint32_t lookahead = 0;
     /* A DeBERTa-v2 model's relative table LayerNormed, then each layer's
      * relative rows through its fused projection, [2 * position_buckets,
      * 3 * hidden] (deberta.h), made by the first session; empty for any
@@ -1041,6 +1045,15 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
                          desc->head[1].bytes != (uint64_t)desc->head_out * 4))
             return refuse(err, TURBO_E_INTERNAL, "a token head of %u outputs whose tensors are not F32 [%u, %u] and [%u]",
                           desc->head_out, desc->head_out, desc->hidden, desc->head_out);
+        // A band is BERT's and RoBERTa's attention's alone, as the manifest
+        // allows it; a description without the field has none.
+        const uint32_t lookahead =
+            desc->struct_size >= offsetof(turbo_backend_model, lookahead) + sizeof(uint32_t) ? desc->lookahead : 0;
+        if (lookahead && (deberta || rotary))
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "lookahead %u on family %u: the cuda backend's banded attention is its BERT and RoBERTa "
+                          "encoders'",
+                          lookahead, desc->family);
         const turbo_backend_model *const original = desc;
         if (rotary) {
             rotary_slots(*desc, slots, reordered);
@@ -1057,6 +1070,7 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         m->desc.head = nullptr;
         m->desc.rope_table = nullptr;
         m->rotary = rotary;
+        m->lookahead = lookahead;
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
         const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets, layer_base(*desc));
         const int32_t rc = [&]() -> int32_t {
@@ -1344,6 +1358,15 @@ int32_t relative_rows(Model *m, turbo_error *err) {
 // reads it and pools one vector per range in place of one per row, with
 // the row's own kernel and sums. The output buffer holds
 // max(max_batch, max_ranges) vectors, for the one write or the other.
+//
+// A range write with taps above 1 pools each range from each of the last
+// taps layers: its run is a second graph per choice of kernels, captured
+// at the session's first such write, that pools after every layer, each
+// pooling finding in the Info whether the run reads its layer and which
+// block of the output, [taps, ranges, output_dim], is its own. The final
+// layer's block is the last, written by the kernel that writes a plain
+// range write's vectors, from the same states. A run with one tap
+// launches the session's first graph, which has no pooling but the last.
 
 /* The GEMMs TURBO_CUDA_CUBLAS may name. */
 enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 = 8 };
@@ -1907,6 +1930,11 @@ struct Session {
     Graph graphs[BIN_COUNT];
     int graph_count = 0;
     int graph_of[BIN_COUNT] = {0, 0, 0, 0, 0};
+    /* The same runs with a pooling after every layer, for a range write
+     * of taps above 1, bin for bin as graphs: captured at the first such
+     * write, which sets tapped. */
+    Graph tap_graphs[BIN_COUNT];
+    bool tapped = false;
     PackArgs pack{};
     FetchArgs fetch{};
     void *pack_argv[1] = {nullptr}, *fetch_argv[1] = {nullptr};
@@ -1928,16 +1956,23 @@ struct Session {
     float *xn = nullptr;
 };
 
+/* A session's graphs destroyed, and their places as before any. */
+void drop_graphs(Graph (&graphs)[BIN_COUNT]) {
+    for (Graph &g : graphs) {
+        if (g.exec) cudaGraphExecDestroy(g.exec);
+        if (g.graph) cudaGraphDestroy(g.graph);
+        g = Graph{};
+    }
+}
+
 void release_session(Session *s) {
     DeviceScope scope(s->ctx->ordinal);
     if (s->sent) {
         cudaEventSynchronize(s->sent);
         cudaEventDestroy(s->sent);
     }
-    for (Graph &g : s->graphs) {
-        if (g.exec) cudaGraphExecDestroy(g.exec);
-        if (g.graph) cudaGraphDestroy(g.graph);
-    }
+    drop_graphs(s->graphs);
+    drop_graphs(s->tap_graphs);
     if (s->scratch) cudaFree(s->scratch);
     if (s->staging) cudaFreeHost(s->staging);
     delete s;
@@ -1966,11 +2001,12 @@ int min_steps(const GemmChoice &c) { return c.sk == SK_TILES ? SK_WHOLE_TILES : 
 
 /* The encoder with one bin's kernels, queued on the context's stream:
  * captured into the bin's graph, or run as it is queued when cuBLAS
- * computes a GEMM. */
-int32_t encode_rotary(Session &s, int bin, turbo_error *err);
+ * computes a GEMM. With taps, a pooling follows every layer before the
+ * last too, for a range write that reads them (kernels.h, pool). */
+int32_t encode_rotary(Session &s, int bin, bool taps, turbo_error *err);
 
-int32_t encode(Session &s, int bin, turbo_error *err) {
-    if (s.model->rotary) return encode_rotary(s, bin, err);
+int32_t encode(Session &s, int bin, bool taps, turbo_error *err) {
+    if (s.model->rotary) return encode_rotary(s, bin, taps, err);
     const Model &mo = *s.model;
     const turbo_backend_model &d = mo.desc;
     const std::vector<const float *> &w = mo.f32;
@@ -2036,6 +2072,12 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     aa.chunk = plan.attn_chunk;
     aa.queries = plan.attn_queries;
     aa.scale = 1.0f / sqrtf((float)hd);
+    // Limited lookahead: every key before a query and at most lookahead
+    // after it, in every layer. A row holds max_seq keys at most.
+    if (mo.lookahead) {
+        aa.window = (int)std::min(mo.lookahead, s.max_seq);
+        aa.back = BAND_ALL;
+    }
     // The F16 residual stream, where every LayerNorm is the kernel of its
     // own: the fused epilogues read the F32 one. The F16 product likewise,
     // in the first half of the F32 product's buffer.
@@ -2132,8 +2174,13 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
                                     layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the feed-forward LayerNorm");
         }
+        // The layer's states are what the final pooling reads of the last.
+        if (taps && l + 1 < d.layers)
+            TRY_CUDA(pool(st, s.x, stream16 ? s.x16 : nullptr, s.rows, s.pk, h, (int)(d.layers - 1 - l),
+                          static_cast<float *>(s.output.ptr), plan),
+                     "pooling a layer");
     }
-    TRY_CUDA(pool(st, s.x, stream16 ? s.x16 : nullptr, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan),
+    TRY_CUDA(pool(st, s.x, stream16 ? s.x16 : nullptr, s.rows, s.pk, h, 0, static_cast<float *>(s.output.ptr), plan),
              "pooling");
     if (s.model->head)
         TRY_CUDA(span_head(st, static_cast<const float *>(s.output.ptr), s.model->head, (int)s.model->head_out, h,
@@ -2144,7 +2191,7 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
 
 /* A rotary family's encoder (rotary.h) with one bin's kernels, queued on
  * the context's stream, as encode's. The tensors are in BERT's slots. */
-int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
+int32_t encode_rotary(Session &s, int bin, bool taps, turbo_error *err) {
     const Model &mo = *s.model;
     const turbo_backend_model &d = mo.desc;
     const std::vector<const float *> &w = mo.f32;
@@ -2224,6 +2271,7 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
         g.k = h;
         TRY_CUDA(gemm_as(GEMM_QKV, layer_epilogue(GEMM_QKV, false, sh), g), "the rotated query, key and value");
         aa.window = global ? -1 : (int)(d.attention_window / 2);
+        aa.back = aa.window;
         TRY_CUDA(attention(st, aa, sh, plan), "attention");
 
         g.a = s.att;
@@ -2274,8 +2322,22 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
                                     layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                                     layer(l, TURBO_BERT_FFN_LN_BIAS), eps, info, h, s.x16, res16, plan),
                      "the MLP LayerNorm");
+        if (taps && l + 1 < d.layers) {
+            // ModernBERT's final norm applies to every layer read: into
+            // part, whose product the residual has taken, and which the
+            // next layer writes before it reads.
+            const int back = (int)(d.layers - 1 - l);
+            float *out = static_cast<float *>(s.output.ptr);
+            if (modern) {
+                TRY_CUDA(norm_into(st, s.x, w[ROTARY_FINAL_NORM], zero, eps, info, h, back, s.part, plan),
+                         "the final norm of a layer");
+                TRY_CUDA(pool(st, s.part, nullptr, s.rows, s.pk, h, back, out, plan), "pooling a layer");
+            } else {
+                TRY_CUDA(pool(st, s.x, res16 ? s.x16 : nullptr, s.rows, s.pk, h, back, out, plan), "pooling a layer");
+            }
+        }
     }
-    TRY_CUDA(pool(st, s.x, res16 ? s.x16 : nullptr, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan),
+    TRY_CUDA(pool(st, s.x, res16 ? s.x16 : nullptr, s.rows, s.pk, h, 0, static_cast<float *>(s.output.ptr), plan),
              "pooling");
     if (s.model->head)
         TRY_CUDA(span_head(st, static_cast<const float *>(s.output.ptr), s.model->head, (int)s.model->head_out, h,
@@ -2285,12 +2347,13 @@ int32_t encode_rotary(Session &s, int bin, turbo_error *err) {
 }
 
 /* One bin's run captured into a graph, instantiated and uploaded, and its
- * fetch and pack kernels' nodes found. */
-int32_t capture(Session &s, int bin, Graph *out, turbo_error *err) {
+ * fetch and pack kernels' nodes found; with taps, the run that pools after
+ * every layer. */
+int32_t capture(Session &s, int bin, bool taps, Graph *out, turbo_error *err) {
     cudaStream_t st = s.ctx->stream;
     out->bin = bin;
     TRY_CUDA(cudaStreamBeginCapture(st, cudaStreamCaptureModeThreadLocal), "capturing the run");
-    const int32_t rc = encode(s, bin, err);
+    const int32_t rc = encode(s, bin, taps, err);
     cudaGraph_t graph = nullptr;
     const cudaError_t e = cudaStreamEndCapture(st, &graph);
     if (rc != TURBO_OK) {
@@ -2322,17 +2385,21 @@ int32_t capture(Session &s, int bin, Graph *out, turbo_error *err) {
 }
 
 /* A graph per distinct choice of kernels, and each bin pointed at its
- * own. */
-int32_t capture_bins(Session &s, turbo_error *err) {
+ * own; with taps, the session's tap_graphs, which the same bins point
+ * at. */
+int32_t capture_bins(Session &s, bool taps, turbo_error *err) {
+    Graph *graphs = taps ? s.tap_graphs : s.graphs;
+    int count = 0;
     for (int b = 0; b < s.choices.bins; b++) {
         int same = 0;
-        while (same < s.graph_count && !same_kernels(s.choices.bin[s.graphs[same].bin], s.choices.bin[b])) same++;
-        if (same == s.graph_count) {
-            TRY(capture(s, b, &s.graphs[same], err));
-            s.graph_count++;
+        while (same < count && !same_kernels(s.choices.bin[graphs[same].bin], s.choices.bin[b])) same++;
+        if (same == count) {
+            TRY(capture(s, b, taps, &graphs[same], err));
+            count++;
         }
         s.graph_of[b] = same;
     }
+    s.graph_count = count;
     return TURBO_OK;
 }
 
@@ -2495,7 +2562,7 @@ void stage_rows(Session &s, int m) {
             mask[(size_t)r * seq + i] = live ? 1 : 0;
         }
     s.fetch.n = (int32_t)(2 * plane);
-    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0, 0, 0};
+    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0, 0, 0, 1};
     s.pack.run = s.run;
     s.tokens = (uint32_t)m;
 }
@@ -2686,7 +2753,7 @@ int32_t tune(Session &s, const Tuning &t, uint32_t budget_ms, Tuned *out, turbo_
         const int m = tuning_tokens(b, s.shape[b].tcap);
         stage_rows(s, m);
         if (first) {
-            TRY(encode(s, b, err));
+            TRY(encode(s, b, false, err));
         } else {
             s.pack.queries = plan.attn_queries;
             TRY_CUDA(fetch_rows(st, s.fetch, plan), "the tuner's rows");
@@ -3163,7 +3230,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 s->run = RunArgs{};
                 tune_ms = (uint32_t)std::ceil(ms_since(tune_start));
             }
-            if (!s->cublas) TRY(capture_bins(*s, err));
+            if (!s->cublas) TRY(capture_bins(*s, false, err));
             return TURBO_OK;
         }();
         if (rc != TURBO_OK) {
@@ -3366,6 +3433,7 @@ int32_t write_rows(Session &s, const turbo_backend_embed_rows *r, const turbo_to
     s.run.ranges = (int32_t)count;
     // The head reads each range's whole vector, unnormalized.
     s.run.head = r->head ? 1 : 0;
+    s.run.taps = count && r->taps > 1 ? (int32_t)r->taps : 1;
     if (r->head) {
         s.run.output_dim = (int32_t)s.model->desc.hidden;
         s.run.l2 = 0;
@@ -3383,9 +3451,28 @@ int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_erro
     });
 }
 
+/* The graphs of a range write that reads earlier layers, captured at the
+ * session's first one. Nothing is queued on the stream between a run's
+ * end and the next write, so the capture has it alone. */
+int32_t capture_taps(Session &s, turbo_error *err) {
+    if (s.tapped || s.cublas) return TURBO_OK;
+    std::lock_guard<std::mutex> g(s.ctx->lock);
+    ON_DEVICE(s.ctx->ordinal);
+    const int32_t rc = capture_bins(s, true, err);
+    if (rc != TURBO_OK) {
+        drop_graphs(s.tap_graphs);
+        (void)cudaStreamSynchronize(s.ctx->stream);
+        return rc;
+    }
+    s.tapped = true;
+    return TURBO_OK;
+}
+
 /* The rows as embed_write sends them, and the ranges after them, where
  * the pooling kernel reads them. The core has checked each range and the
- * count against max_ranges, and set pooling to MEAN. */
+ * count against max_ranges, and set pooling to MEAN; with taps above 1
+ * (turbo_backend.h), the count of vectors, taps times the ranges, and
+ * that no head is asked. */
 int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, const turbo_token_range *ranges,
                            uint32_t count, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
@@ -3398,19 +3485,29 @@ int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, con
         if (r->head && (!s.model->head || r->output_dim != s.model->head_out))
             return refuse(err, TURBO_E_INTERNAL, "a head of %u outputs asked of a cuda model whose head has %u",
                           r->output_dim, s.model->head_out);
+        if (r->taps > 1) {
+            if (r->head || r->taps > s.model->desc.layers || (uint64_t)count * r->taps > s.max_ranges)
+                return refuse(err, TURBO_E_INTERNAL,
+                              "%u ranges from %u layers%s for a cuda session of max_ranges %u and a model of %u "
+                              "layers",
+                              count, r->taps, r->head ? " through a head" : "", s.max_ranges, s.model->desc.layers);
+            TRY(capture_taps(s, err));
+        }
         return write_rows(s, r, ranges, count, err);
     });
 }
 
 /* The written rows through the encoder with their bin's kernels: the
- * bin's graph, with this run's rows' shape and options set in its fetch
+ * bin's graph (the one that pools after every layer for a range write of
+ * taps above 1), with this run's rows' shape and options set in its fetch
  * and pack kernels when they differ from the last run's in it, or the
  * launches one by one when cuBLAS computes a GEMM. */
 int32_t launch(Session &s, turbo_error *err) {
     const int bin = bin_of(s.tokens, s.choices.bins);
     s.pack.run = s.run;
-    if (s.cublas) return encode(s, bin, err);
-    Graph &g = s.graphs[s.graph_of[bin]];
+    const bool taps = s.run.taps > 1;
+    if (s.cublas) return encode(s, bin, taps, err);
+    Graph &g = (taps ? s.tap_graphs : s.graphs)[s.graph_of[bin]];
     const Plan &plan = s.plan[g.bin];
     if (!g.set || memcmp(&g.in_graph, &s.run, sizeof s.run) != 0 || g.fetch_in_graph != s.fetch.n) {
         // Marked unset first: a failure leaves the graph's arguments unknown.

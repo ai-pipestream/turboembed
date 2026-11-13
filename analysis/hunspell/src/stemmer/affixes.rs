@@ -14,6 +14,20 @@ use crate::affix::Affix;
 
 use super::{Analysis, Stemmer};
 
+#[cfg(test)]
+thread_local! {
+    /// Affix rules undone on this thread, so tests bound the search by its
+    /// work instead of by wall-clock time.
+    pub(crate) static UNDOS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Counts one attempt to undo an affix rule (tests only).
+#[inline]
+fn count_undo() {
+    #[cfg(test)]
+    UNDOS.with(|n| n.set(n.get() + 1));
+}
+
 /// The first character of a word that is not empty.
 #[inline]
 pub(crate) fn first_char(word: &str) -> char {
@@ -226,6 +240,7 @@ impl Stemmer<'_> {
     /// under `FULLSTRIP`. A rule that adds and strips nothing is not undone
     /// here.
     pub(crate) fn remove_suffix<'w>(&self, word: &'w str, suffix: &Affix) -> Option<Cow<'w, str>> {
+        count_undo();
         let (add, strip) = (&*suffix.add, &*suffix.strip);
         if (add.is_empty() && strip.is_empty())
             || !word.ends_with(add)
@@ -240,6 +255,7 @@ impl Stemmer<'_> {
 
     /// Undoes a prefix rule, as [`Stemmer::remove_suffix`] a suffix rule.
     pub(crate) fn remove_prefix<'w>(&self, word: &'w str, prefix: &Affix) -> Option<Cow<'w, str>> {
+        count_undo();
         let (add, strip) = (&*prefix.add, &*prefix.strip);
         if (add.is_empty() && strip.is_empty())
             || !word.starts_with(add)
@@ -256,6 +272,7 @@ impl Stemmer<'_> {
     /// gives the word itself when it meets the condition.
     pub(crate) fn remove_suffix_allowing_identity<'w>(&self, word: &'w str, suffix: &Affix) -> Option<Cow<'w, str>> {
         if suffix.is_identity() {
+            count_undo();
             return suffix.condition.matches(word).then_some(word.into());
         }
         self.remove_suffix(word, suffix)
@@ -265,6 +282,7 @@ impl Stemmer<'_> {
     /// gives the word itself when it meets the condition.
     pub(crate) fn remove_prefix_allowing_identity<'w>(&self, word: &'w str, prefix: &Affix) -> Option<Cow<'w, str>> {
         if prefix.is_identity() {
+            count_undo();
             return prefix.condition.matches(word).then_some(word.into());
         }
         self.remove_prefix(word, prefix)

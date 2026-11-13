@@ -139,6 +139,7 @@ impl KindSet {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Grant {
     pub token: KindSet,
+    pub ciphertext: KindSet,
     pub clear: KindSet,
 }
 
@@ -148,6 +149,9 @@ impl Grant {
         let mut f = Forms::NONE;
         if self.token.contains(kind) {
             f = f.with(Form::Token);
+        }
+        if self.ciphertext.contains(kind) {
+            f = f.with(Form::Ciphertext);
         }
         if self.clear.contains(kind) {
             f = f.with(Form::Clear);
@@ -161,14 +165,21 @@ impl Grant {
         match form {
             Form::Token => set(&self.token),
             Form::Clear => set(&self.clear),
-            Form::Ciphertext => false,
+            Form::Ciphertext => set(&self.ciphertext),
         }
     }
 
-    /// The rules as one canonical line, for the policy digest.
+    /// The rules as one canonical line, for the policy digest. A grant
+    /// with no ciphertext kind gives the line it gave before ciphertext
+    /// release (#1885), so its digests do not change.
     pub fn canonical(&self) -> String {
         let set = |s: &KindSet| format!("{:032x}{}", s.builtin.bits(), if s.custom { "+custom" } else { "" });
-        format!("token={};clear={}", set(&self.token), set(&self.clear))
+        let mut line = format!("token={};clear={}", set(&self.token), set(&self.clear));
+        if self.ciphertext != KindSet::default() {
+            line.push_str(";ciphertext=");
+            line.push_str(&set(&self.ciphertext));
+        }
+        line
     }
 }
 
@@ -178,16 +189,17 @@ impl Grant {
 pub struct Fingerprint(pub [u8; 32]);
 
 impl Fingerprint {
-    /// 64 hexadecimal digits, either case.
+    /// 64 hexadecimal digits, either case. An error describes the input by
+    /// length only, never repeating it.
     pub fn parse(s: &str) -> Result<Fingerprint, String> {
         let b = s.as_bytes();
         if b.len() != 64 {
-            return Err(format!("fingerprint `{s}` is not 64 hexadecimal digits"));
+            return Err(format!("the fingerprint ({} bytes, not shown) is not 64 hexadecimal digits", b.len()));
         }
         let mut out = [0u8; 32];
         for (i, pair) in b.chunks(2).enumerate() {
-            let hi = hex(pair[0]).ok_or_else(|| format!("fingerprint `{s}` is not hexadecimal"))?;
-            let lo = hex(pair[1]).ok_or_else(|| format!("fingerprint `{s}` is not hexadecimal"))?;
+            let hi = hex(pair[0]).ok_or("the fingerprint (64 bytes, not shown) is not hexadecimal")?;
+            let lo = hex(pair[1]).ok_or("the fingerprint (64 bytes, not shown) is not hexadecimal")?;
             out[i] = hi << 4 | lo;
         }
         Ok(Fingerprint(out))
@@ -231,20 +243,20 @@ impl Grants {
             let s = match form {
                 Form::Token => &g.token,
                 Form::Clear => &g.clear,
-                Form::Ciphertext => return false,
+                Form::Ciphertext => &g.ciphertext,
             };
             s.custom || !s.builtin.is_empty()
         })
     }
 
     /// Adds one `--pii-grant` value, `FINGERPRINT:FORMS:KINDS`: FORMS is
-    /// `+`-separated `token` and `clear`, KINDS is a comma-separated list
+    /// `+`-separated `token`, `ciphertext` and `clear`, KINDS is a comma-separated list
     /// of built-in kind names, or `*` for every kind, custom kinds
     /// included. Grants of one fingerprint add up.
     pub fn add(&mut self, spec: &str) -> Result<(), String> {
         let mut parts = spec.splitn(3, ':');
         let (Some(fp), Some(forms), Some(kinds)) = (parts.next(), parts.next(), parts.next()) else {
-            return Err(format!("`{spec}` is not FINGERPRINT:FORMS:KINDS"));
+            return Err(super::keys::shape("FINGERPRINT:FORMS:KINDS", spec));
         };
         let fp = Fingerprint::parse(fp)?;
         let kinds = if kinds == "*" {
@@ -252,7 +264,8 @@ impl Grants {
         } else {
             let mut list = Vec::new();
             for name in kinds.split(',') {
-                let k = PiiKind::parse(name).ok_or_else(|| format!("`{name}` is not a built-in PII kind"))?;
+                let k = PiiKind::parse(name)
+                    .ok_or_else(|| format!("the kind ({} bytes, not shown) is not a built-in PII kind", name.len()))?;
                 if list.contains(&k) {
                     return Err(format!("kind `{name}` given twice"));
                 }
@@ -265,8 +278,13 @@ impl Grants {
             let slot = match Form::parse(name) {
                 Some(Form::Token) => &mut add.token,
                 Some(Form::Clear) => &mut add.clear,
-                Some(Form::Ciphertext) => return Err("ciphertext release waits for #1885".into()),
-                None => return Err(format!("`{name}` is not token or clear")),
+                Some(Form::Ciphertext) => &mut add.ciphertext,
+                None => {
+                    return Err(format!(
+                        "the form ({} bytes, not shown) is not token, ciphertext or clear",
+                        name.len()
+                    ));
+                }
             };
             if *slot != KindSet::default() {
                 return Err(format!("form `{name}` given twice"));
@@ -275,6 +293,7 @@ impl Grants {
         }
         let g = self.0.entry(fp).or_default();
         g.token = g.token.union(add.token);
+        g.ciphertext = g.ciphertext.union(add.ciphertext);
         g.clear = g.clear.union(add.clear);
         Ok(())
     }

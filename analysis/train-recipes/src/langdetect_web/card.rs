@@ -365,6 +365,7 @@ impl WebLanguageCard {
                 size,
                 sha256: sha256.parse().map_err(|e| bad("sha256", e))?,
                 sha512: sha512.parse().map_err(|e| bad("sha512", e))?,
+                also: Vec::new(),
                 download: None,
             })
         };
@@ -382,6 +383,8 @@ impl WebLanguageCard {
             class: self.class,
             attribution: Some(self.attribution.clone()),
             origin: None,
+            model_type: Default::default(),
+            bundle: None,
             files: vec![
                 file(&self.file.name, model_url, self.file.size, &self.file.sha256, &self.file.sha512)?,
                 file(&s.name, sentences_url, s.size, &s.sha256, &s.sha512)?,

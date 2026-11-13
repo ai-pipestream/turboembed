@@ -2,6 +2,7 @@
 //! and `turbo_analysis_result`) and `turbo_last_error_message`.
 
 use std::ffi::CStr;
+use turbo_scratch::Scratch;
 
 use turbo::*;
 
@@ -460,8 +461,9 @@ int main(void) {
 fn c_caller_compiled_with_frozen_legacy_descriptor_links_and_runs_rule_tasks() {
     use std::path::Path;
     use std::process::Command;
-
-    let lib_dir = std::env::current_exe().unwrap().parent().unwrap().parent().unwrap().to_path_buf();
+    let is_top = |a: &&Path| matches!(a.file_name().and_then(|n| n.to_str()), Some("deps" | "build"));
+    let lib_dir =
+        std::env::current_exe().unwrap().ancestors().find(is_top).and_then(Path::parent).unwrap().to_path_buf();
     let profile = match lib_dir.file_name().unwrap().to_str().unwrap() {
         "debug" => "dev",
         p => p,
@@ -475,8 +477,7 @@ fn c_caller_compiled_with_frozen_legacy_descriptor_links_and_runs_rule_tasks() {
         .unwrap();
     assert!(build.status.success(), "{}", String::from_utf8_lossy(&build.stderr));
 
-    let scratch = std::env::temp_dir().join(format!("turbo-legacy-desc-c-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&scratch);
+    let scratch = Scratch::at(std::env::temp_dir().join(format!("turbo-legacy-desc-c-{}", std::process::id())));
     std::fs::create_dir_all(&scratch).unwrap();
     let (src, bin) = (scratch.join("legacy_caller.c"), scratch.join("legacy_caller"));
     std::fs::write(&src, FROZEN_LEGACY_C_CALLER).unwrap();

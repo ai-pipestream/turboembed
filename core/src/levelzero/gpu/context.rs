@@ -14,9 +14,9 @@ impl Context {
     #[cfg(feature = "levelzero-onednn")]
     pub fn dnnl(&self) -> Option<&crate::levelzero::onednn::Dnnl> {
         self.dnnl
-            .get_or_init(|| match crate::levelzero::onednn::Dnnl::open(self.device, self.handle) {
+            .get_or_init(|| match crate::levelzero::onednn::Dnnl::open(self.device, self.handle, profiling()) {
                 Ok(d) => {
-                    let v = crate::levelzero::onednn::Dnnl::version();
+                    let v = d.version();
                     self.say(LOG_DEBUG, &format!("levelzero device {}: {v} can run the linear layers", self.ordinal));
                     Some(d)
                 }

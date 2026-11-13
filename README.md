@@ -2,7 +2,7 @@
 
 TurboEmbed runs text encoder models and the document analysis around
 them as native code, with no Python at run time. It is a Rust workspace
-of 71 crates that builds four things:
+that builds four things:
 
 - `libturbo`, a library with a hand-written C API
   (`include/turbo/turbo.h`) that embeds text, reranks passages and
@@ -16,8 +16,8 @@ of 71 crates that builds four things:
   chunk boundaries by an exact optimization.
 - `turbo-kserve`, a gRPC server that serves bundles over the KServe v2
   Open Inference Protocol and adds analysis, search, model catalog,
-  vocabulary and health services, and can forward analyzed documents to
-  a downstream sink.
+  training, vocabulary and health services, and can forward analyzed
+  documents to a downstream sink.
 - Tools that build and verify model bundles, enforce model and dataset
   licences, measure every backend against vendor reference programs,
   and train and evaluate the classic models.
@@ -105,14 +105,21 @@ the result with the library's own loader. Its commands are `make`,
 GLiREL and POS tagger checkpoints ([bundle.md](docs/bundle.md),
 [setup/bundles.md](docs/setup/bundles.md)).
 
-Recipes in `bundle/recipes/`: all-MiniLM-L6-v2 (and a static variant),
-bge-small, bge-base (and static), bge-large-en-v1.5, bge-m3 (512 and
-8192 tokens), bge-reranker-base, ms-marco-MiniLM-L6-v2,
-dslim/bert-base-NER, nli-MiniLM2-L6-H768, roberta-base-squad2, SaT 1l-sm
-and 3l, and nine potion static models.
+Recipes in `bundle/recipes/`: embedding encoders all-MiniLM-L6-v2 (with
+static and NPU variants), bge-small-en-v1.5 and bge-base-en-v1.5 (with
+Hailo variants, and a static bge-base), bge-large-en-v1.5, bge-m3 (512
+and 8192 tokens), granite-embedding-30m-english and
+nomic-embed-text-v1.5; the token vector model colbertv2 and the sparse
+opensearch-neural-sparse-encoding-v1; the rerankers bge-reranker-base
+and ms-marco-MiniLM-L6-v2; dslim/bert-base-NER, nli-MiniLM2-L6-H768 and
+roberta-base-squad2; the base encoders modernbert-base and
+xlm-roberta-base; the GLiNER, GLiNER2 and GLiREL encoders; SaT 1l-sm and
+3l; and nine potion static models (`bundle/recipes/potion/`).
 
 `turbo-zoo` (`analysis/zoo`) is an index of models, heads, lexicons,
-centroid sets and datasets (`analysis/zoo/index/zoo.json`), each with
+centroid sets and datasets (`analysis/zoo/index/zoo.json`; an index
+can also list sealed encoder bundles, [zoo.md](docs/zoo.md), Model
+types), each with
 its licence, attribution and training data. Its fetcher refuses an
 artifact whose licence class has not been accepted with `turbo-zoo
 accept` ([zoo.md](docs/zoo.md), [licences.md](docs/licences.md)).
@@ -228,8 +235,9 @@ these services on one port ([grpc.md](docs/grpc.md)):
 |---|---|---|
 | `inference.GRPCInferenceService` | `server/proto/open_inference_grpc.proto` | KServe v2 Open Inference Protocol: embed, rerank and extractive QA through `ModelInfer` ([kserve.md](docs/kserve.md)) |
 | `turbo.result.v1.AnalysisService` | `server/proto/turbo_analysis.proto` | capabilities, bundle load and unload, `AnalyzeStream` (bidirectional bulk analysis with per-document answers, micro-batching and backpressure), `AnalyzeDocumentProgressive`, document graph and window inspection, chunk projection, and output formats (CoNLL-U, brat, TSV, CSV, Markdown, JSON-LD, WARC) ([grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md)) |
-| `turbo.search.v1.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections |
+| `turbo.search.v1.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections ([grpc-search.md](docs/grpc-search.md)) |
 | `turbo.training.v1.TurboCatalogService` | `server/proto/turbo_training.proto` | the model zoo catalog, installed models, licence acceptance and streamed installs ([grpc-catalog.md](docs/grpc-catalog.md)) |
+| `turbo.training.v1.TurboTrainingService` | `server/proto/turbo_training.proto` | static models distilled from a served encoder and served once sealed, and classical components trained from streamed samples ([grpc-training.md](docs/grpc-training.md)) |
 | `turbo.vocabulary.v1.TurboVocabularyService` | `server/proto/turbo_vocabulary.proto` | dictionary import, corpus vocabulary learning and download ([grpc-vocabulary.md](docs/grpc-vocabulary.md)) |
 | `grpc.health.v1.Health` | `server/proto/health.proto` | standard gRPC health checks |
 
@@ -246,8 +254,16 @@ accept documents themselves; the `turbo-kserve` binary does not serve it
 
 Calls that change server state (bundle loading and unloading, index
 persistence, vocabulary writes, catalog licence acceptance and model
-installs) need `--admin`. The server speaks plaintext gRPC with
-no authentication, so it belongs behind a trusted network boundary.
+installs, training) need `--admin`. The server speaks plaintext gRPC
+unless it is given `--tls-cert` and `--tls-key`, and adding
+`--tls-client-ca` requires client certificates (mutual TLS). It has no
+other authentication, so a plaintext listener belongs behind a trusted
+network boundary. PII values (tokens, ciphertexts, clear text) are withheld
+by default; releasing them identifies the calling service by its mutual
+TLS client certificate and records an audit event first
+([grpc-analysis.md](docs/grpc-analysis.md), PII value release).
+`--metrics-listen` serves Prometheus metrics on a separate plaintext
+listener ([grpc.md](docs/grpc.md)).
 
 `turbo-kserve-demo` (`demo/`) is a small web page and a Connect protocol
 proxy, protobuf only, in front of a running server for trying
@@ -267,8 +283,9 @@ differential fuzzing across the analysis and numeric crates.
 `turbo-bench` (`bench/`) measures the library through its C API against
 pinned reference programs (Hugging Face TEI, TensorRT, OpenVINO,
 HailoRT, MLX) and writes the records that capability reports cite
-([benchmarks.md](docs/benchmarks.md)). The tree holds 171 embedding
-records plus range, POS, tagging and throughput records.
+([benchmarks.md](docs/benchmarks.md)). The records under
+`benchmarks/records/` cover embedding on every backend, plus range,
+POS, tagging and throughput.
 
 ## Quick start
 
@@ -309,9 +326,9 @@ CARGO_TARGET_DIR=target/core cargo test -p turbo
 
 ## Releases
 
-A `v<version>` tag on main builds four archives and publishes them as
-one GitHub release, each with its SHA-256 sum
-([release.md](docs/release.md),
+A `v<version>` tag on main builds five binary archives, a proto archive
+and generated client stubs, and publishes them as one GitHub release,
+each with its SHA-256 sum ([release.md](docs/release.md),
 [setup/release-archive.md](docs/setup/release-archive.md)):
 
 | Archive | Backends | Contents |
@@ -320,10 +337,34 @@ one GitHub release, each with its SHA-256 sum
 | `macos-arm64.tar.gz` | Metal and CPU | `lib/libturbo.dylib`, the C headers |
 | `linux-aarch64.tar.gz` | CPU | `lib/libturbo.so`, `bin/turbo-kserve`, the C headers |
 | `windows-x86_64.zip` | CPU, built with MSVC | `bin/turbo.dll`, `lib/turbo.lib`, `bin/turbo-kserve.exe`, the C headers |
+| `android.tar.gz` | CPU | `jniLibs/arm64-v8a/libturbo.so` and `jniLibs/x86_64/libturbo.so` for the JNI binding |
+| `turboembed-proto-v<version>.tar.gz` | none | the `server/proto/*.proto` definitions and `buf.yaml` |
+
+The release also carries the generated Java gRPC stubs
+(`ai.pipestream:turboembed-grpc`, a jar, sources jar and pom) and the
+Python stub wheel (`turboembed-proto`). The same tag pushes two server
+images to GHCR, `ghcr.io/ai-pipestream/turbo-kserve:<version>` (CPU,
+amd64 and arm64) and `:<version>-cuda` (CPU and CUDA, amd64)
+([release.md](docs/release.md), Images).
 
 What changed in each release is in [CHANGELOG.md](CHANGELOG.md), and
 what a release may change is under Versions and compatibility in
 release.md.
+
+## Client libraries
+
+| Path | What it is |
+|---|---|
+| `clients/python` | `turboembed-proto`, generated Python gRPC stubs for every service ([README](clients/python/README.md)) |
+| `clients/java` | `ai.pipestream:turboembed-grpc`, generated Java gRPC stubs |
+| `clients/java-api` | `ai.pipestream:turboembed-api`, the in-process Java API (Java 21+) shared by both native bridges ([README](clients/java-api/README.md)) |
+| `clients/java-panama` | `ai.pipestream:turboembed-panama`, the `libturbo` binding through the Foreign Function and Memory API (Java 25+) ([README](clients/java-panama/README.md)) |
+| `clients/java-jni` | `ai.pipestream:turboembed-jni`, the `libturbo` binding through JNI (Java 21+ and Android) ([README](clients/java-jni/README.md)) |
+| `clients/java-conformance` | the tests every Java binding runs, so both give the same results ([README](clients/java-conformance/README.md)) |
+| `zoo-remote/` | `turbo-zoo-remote`: loading zoo models from a zoo server over gRPC or from S3 ([README](zoo-remote/README.md)) |
+
+Clients in other languages are generated from `server/proto`
+([integration.md](docs/integration.md)).
 
 ## Module layout
 
@@ -338,16 +379,20 @@ release.md.
 | `benchmarks/records/` | committed benchmark records |
 | `server/` | `turbo-kserve` and its protos |
 | `demo/` | `turbo-kserve-demo` |
+| `clients/` | Python and Java gRPC stubs and the Java in-process bindings (Client libraries, above) |
+| `zoo-remote/` | `turbo-zoo-remote`, remote model sources for the zoo |
+| `examples/` | example programs (`examples/docling`) |
+| `scripts/` | machine setup (`scripts/setup/`), web build and end-to-end scripts, and stub packaging |
 | `analysis/core`, `analysis/layers` | the document model, views, alignments and shared layer types |
 | `analysis/unicode`, `analysis/encoding`, `analysis/zstd`, `analysis/normalize` | text input and normalization |
 | `analysis/structure`, `analysis/sentdetect`, `analysis/sat`, `analysis/tokenize`, `analysis/langdetect`, `analysis/langspan` | structure, segmentation and language |
 | `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | tagging, parsing, entity extraction, document categorization and coreference |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
-| `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
+| `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/us-zip`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, US ZIP Codes, PII and pattern matching |
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz` | the model zoo, the pins of tested models, golden fixtures and fuzzing |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/scratch`, `analysis/sha256` | the model zoo, the pins of tested models, golden fixtures, fuzzing, test scratch directories, and the SHA-256, SHA-512 and HMAC-SHA-256 implementation every crate hashes with |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types
@@ -361,8 +406,16 @@ them: no regex crate (pattern work goes through `turbo-matcher`), no
 external NLP dependencies, every Rust file under 500 lines, model
 settings in the bundle rather than in code, and no result called working
 until it has run on the real device. CI runs formatting, clippy, an
-aarch64 check, four test shards, fuzzing, feature builds, reference
-conformance checks, and Windows lint and tests.
+aarch64 check, four test shards, fuzzing, feature builds and their
+tests, proto lint and breaking-change checks with the generated client
+stubs, the Java JNI binding, and reference conformance checks. The
+feature tests run with a temporary directory of their own, and the run
+fails when a test leaves anything there (`scripts/test-in-scratch.sh`;
+tests hold such files in `turbo_scratch::Scratch`). The CUDA and Level
+Zero clippy lane and the Metal clippy lane run for a pull request or
+the merge queue only when the change touches a path they build from
+(`scripts/backend-lanes.sh`), and in the daily run. The Windows lint, test, fuzz and core lanes run on
+pushes to main.
 
 ## Documentation
 
@@ -371,16 +424,16 @@ conformance checks, and Windows lint and tests.
 | Library and backends | [embeddings.md](docs/embeddings.md), [cpu.md](docs/cpu.md), [cuda.md](docs/cuda.md), [levelzero.md](docs/levelzero.md), [npu.md](docs/npu.md), [metal.md](docs/metal.md), [hailo.md](docs/hailo.md), [autotune.md](docs/autotune.md), [conformance.md](docs/conformance.md) |
 | Tasks and models | [reranking.md](docs/reranking.md), [extractive-qa.md](docs/extractive-qa.md), [static.md](docs/static.md), [deberta.md](docs/deberta.md), [tokenizer.md](docs/tokenizer.md) |
 | Bundles, zoo and benchmarks | [bundle.md](docs/bundle.md), [zoo.md](docs/zoo.md), [zoo-container.md](docs/zoo-container.md), [licences.md](docs/licences.md), [benchmarks.md](docs/benchmarks.md), [reference-inventory.md](docs/reference-inventory.md) |
-| Setup | [setup/README.md](docs/setup/README.md), [setup/bundles.md](docs/setup/bundles.md), [setup/release-archive.md](docs/setup/release-archive.md) |
+| Setup | [setup/README.md](docs/setup/README.md), [setup/cpu.md](docs/setup/cpu.md), [setup/cuda.md](docs/setup/cuda.md), [setup/intel-gpu.md](docs/setup/intel-gpu.md), [setup/intel-npu.md](docs/setup/intel-npu.md), [setup/apple-metal.md](docs/setup/apple-metal.md), [setup/hailo-8.md](docs/setup/hailo-8.md), [setup/hailo-10h.md](docs/setup/hailo-10h.md), [setup/bundles.md](docs/setup/bundles.md), [setup/release-archive.md](docs/setup/release-archive.md) |
 | Analysis model and text | [analysis.md](docs/analysis.md), [normalizers.md](docs/normalizers.md), [normalization-xray.md](docs/normalization-xray.md), [text-quality.md](docs/text-quality.md), [whitespace.md](docs/whitespace.md), [codepoint-lowercase.md](docs/codepoint-lowercase.md) |
 | Structure and segmentation | [tables.md](docs/tables.md), [structure-projection.md](docs/structure-projection.md), [structure-conformance.md](docs/structure-conformance.md), [segmentation.md](docs/segmentation.md), [lattice-prebuilt.md](docs/lattice-prebuilt.md), [unigram-chinese.md](docs/unigram-chinese.md), [langdetect.md](docs/langdetect.md) |
 | Syntax, entities and categorization | [liblinear.md](docs/liblinear.md), [crf-namefinder.md](docs/crf-namefinder.md), [dependency-parser.md](docs/dependency-parser.md), [feedforward-dependency-parser.md](docs/feedforward-dependency-parser.md), [doccat.md](docs/doccat.md), [sentiment.md](docs/sentiment.md), [coref.md](docs/coref.md) |
-| Numbers, dates and PII | [grammar.md](docs/grammar.md), [grammar-units.md](docs/grammar-units.md), [numbers.md](docs/numbers.md), [money.md](docs/money.md), [quantities.md](docs/quantities.md), [temporal.md](docs/temporal.md), [pii.md](docs/pii.md) |
-| Neural extraction and graphs | [neural-annotators.md](docs/neural-annotators.md), [namefind-dl.md](docs/namefind-dl.md), [gliner.md](docs/gliner.md), [schema-extract.md](docs/schema-extract.md), [gliner2-relations.md](docs/gliner2-relations.md), [glirel-relations.md](docs/glirel-relations.md), [relation.md](docs/relation.md), [events.md](docs/events.md), [modality.md](docs/modality.md), [entity-graph.md](docs/entity-graph.md), [entity-salience.md](docs/entity-salience.md), [discourse.md](docs/discourse.md) |
+| Numbers, dates and PII | [grammar.md](docs/grammar.md), [grammar-units.md](docs/grammar-units.md), [grammar-units-chinese.md](docs/grammar-units-chinese.md), [grammar-units-japanese.md](docs/grammar-units-japanese.md), [numbers.md](docs/numbers.md), [money.md](docs/money.md), [quantities.md](docs/quantities.md), [temporal.md](docs/temporal.md), [pii.md](docs/pii.md) |
+| Neural extraction and graphs | [neural-annotators.md](docs/neural-annotators.md), [namefind-dl.md](docs/namefind-dl.md), [gliner.md](docs/gliner.md), [schema-extract.md](docs/schema-extract.md), [gliner2-relations.md](docs/gliner2-relations.md), [glirel-relations.md](docs/glirel-relations.md), [relation.md](docs/relation.md), [dependency-matcher.md](docs/dependency-matcher.md), [events.md](docs/events.md), [modality.md](docs/modality.md), [entity-graph.md](docs/entity-graph.md), [entity-salience.md](docs/entity-salience.md), [discourse.md](docs/discourse.md) |
 | Classification and calibration | [dense-classifier.md](docs/dense-classifier.md), [model-routing.md](docs/model-routing.md), [calibration.md](docs/calibration.md) |
 | Chunking and retrieval | [chunker-cut-identity.md](docs/chunker-cut-identity.md), [chunker-text-signals.md](docs/chunker-text-signals.md), [keywords.md](docs/keywords.md), [turboquant.md](docs/turboquant.md), [splate.md](docs/splate.md), [quality-consumers.md](docs/quality-consumers.md) |
-| Training and evaluation | [cut-artifact-storage.md](docs/cut-artifact-storage.md), [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
-| Server and demo | [integration.md](docs/integration.md), [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
+| Training and evaluation | [cut-artifact-storage.md](docs/cut-artifact-storage.md), [encrypted-artifacts.md](docs/encrypted-artifacts.md), [eval-long-documents.md](docs/eval-long-documents.md), [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
+| Server and demo | [integration.md](docs/integration.md), [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-search.md](docs/grpc-search.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-training.md](docs/grpc-training.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
 | Releases | [release.md](docs/release.md) |
 
 ## License

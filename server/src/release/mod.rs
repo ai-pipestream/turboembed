@@ -11,12 +11,14 @@
 //! mentions with none stay withheld, each saying why (#1931). Before any value leaves, one access
 //! event is recorded with the audit service and acknowledged
 //! ([`audit`]); a failed record fails the call, with no value. Tokens are
-//! HMAC-SHA-256 under the active registered key ([`keys`]). Ciphertext
-//! waits for #1885. Only InspectDocumentGraph releases values; every other
+//! HMAC-SHA-256 under the active registered key ([`keys`]); ciphertexts
+//! are AES-256-GCM under the active encryption key ([`cipher`], #1885).
+//! Only InspectDocumentGraph releases values; every other
 //! surface stays as #1904 decides it.
 
 pub mod audit;
 pub mod caps;
+pub mod cipher;
 pub mod identity;
 pub mod keys;
 mod plan;
@@ -24,8 +26,6 @@ pub mod policy;
 
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-use turbo_pii::checksum::sha256;
 
 use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE};
 use crate::pii_policy::{NamedPolicies, NoRegistry, PolicyDigest, PolicyResolver};
@@ -35,6 +35,7 @@ use crate::results::disclosure::PiiOutputPolicy;
 use crate::tls::TlsConfig;
 use audit::AuditClient;
 use caps::{Fingerprint, Form, Forms, Grants};
+use cipher::ReleaseCipher;
 use keys::{KeyRef, TokenKey, TokenKeyFile};
 
 /// The policy id every event names until #1882's policies replace the
@@ -51,6 +52,13 @@ pub struct ReleaseConfig {
     pub grants: Grants,
     pub token_keys: Vec<TokenKeyFile>,
     pub active_token_key: Option<KeyRef>,
+    /// `--pii-encryption-key` (#1885): the keys a redaction policy's
+    /// AES-256-GCM and FF1 strategies name, and ciphertext releases are
+    /// made under.
+    pub encryption_keys: Vec<TokenKeyFile>,
+    /// `--pii-encryption-key-active`: the key of ciphertext releases among
+    /// several encryption keys.
+    pub active_encryption_key: Option<KeyRef>,
     pub audit_endpoint: String,
     pub audit_timeout: Duration,
     /// `--pii-require-recorded-policy` (#1977): refuse a values request
@@ -61,9 +69,12 @@ pub struct ReleaseConfig {
 
 impl ReleaseConfig {
     /// What the settings need beyond themselves: verified identities
-    /// (`--tls-client-ca`), a token key when any grant includes token, and
-    /// an active key among several. Answers the active key's file.
-    pub fn check(&self, tls: Option<&TlsConfig>) -> Result<Option<&TokenKeyFile>, String> {
+    /// (`--tls-client-ca`), a token key when any grant includes token, an
+    /// encryption key and the `pii-reversible` feature when any includes
+    /// ciphertext, and an active key among several. Answers the active
+    /// token key's file and, when any grant includes ciphertext, the
+    /// active encryption key's.
+    pub fn check(&self, tls: Option<&TlsConfig>) -> Result<ActiveKeys<'_>, String> {
         if !tls.is_some_and(|t| t.client_ca.is_some()) {
             return Err("--pii-grant needs mTLS: --tls-cert, --tls-key and --tls-client-ca".into());
         }
@@ -74,8 +85,31 @@ impl ReleaseConfig {
         if self.grants.any(Form::Token) && active.is_none() {
             return Err("a --pii-grant with token needs --pii-token-key".into());
         }
-        Ok(active)
+        let encryption = if self.grants.any(Form::Ciphertext) {
+            if !cfg!(feature = "pii-reversible") {
+                return Err("a --pii-grant with ciphertext needs a server built with the pii-reversible feature".into());
+            }
+            let key =
+                keys::active_of("--pii-encryption-key", &self.encryption_keys, self.active_encryption_key.as_ref())?;
+            Some(key.ok_or("a --pii-grant with ciphertext needs --pii-encryption-key")?)
+        } else {
+            keys::distinct("--pii-encryption-key", &self.encryption_keys)?;
+            if let Some(a) = &self.active_encryption_key {
+                return Err(format!("--pii-encryption-key-active {a} needs a --pii-grant with ciphertext"));
+            }
+            None
+        };
+        Ok(ActiveKeys { token: active, encryption })
     }
+}
+
+/// The key files a release issues values under.
+#[derive(Debug, Default)]
+pub struct ActiveKeys<'a> {
+    /// The token key: when any grant includes token, or one is configured.
+    pub token: Option<&'a TokenKeyFile>,
+    /// The encryption key: when any grant includes ciphertext.
+    pub encryption: Option<&'a TokenKeyFile>,
 }
 
 /// What a release resolves a request's redaction policy with.
@@ -87,6 +121,7 @@ pub type Resolver = Arc<dyn PolicyResolver + Send + Sync>;
 pub struct Release {
     grants: Grants,
     token: Option<TokenKey>,
+    cipher: Option<ReleaseCipher>,
     audit: AuditClient,
     policies: NamedPolicies,
     resolver: Resolver,
@@ -111,11 +146,13 @@ impl Release {
     ) -> Result<Option<Arc<Release>>, String> {
         let Some(config) = config else { return Ok(None) };
         let active = config.check(tls)?;
-        let token = active.map(TokenKey::load).transpose()?;
+        let token = active.token.map(TokenKey::load).transpose()?;
+        let cipher = active.encryption.map(ReleaseCipher::load).transpose()?;
         let audit = AuditClient::new(&config.audit_endpoint, config.audit_timeout)?;
         Ok(Some(Arc::new(Release {
             grants: config.grants.clone(),
             token,
+            cipher,
             audit,
             policies,
             resolver,
@@ -141,11 +178,11 @@ impl Release {
     ) -> Result<TypedDocumentResult, Failure> {
         let options = req.pii_output.take().unwrap_or_default();
         let operation_key = req.operation_key.clone();
-        if form == Form::Ciphertext {
+        if form == Form::Ciphertext && self.cipher.is_none() {
             return Err(Failure::new(
                 crate::api::TURBO_E_UNSUPPORTED_OPTION,
                 0,
-                "pii_output.values PII_VALUE_FORM_CIPHERTEXT waits for #1885".to_owned(),
+                "pii_output.values PII_VALUE_FORM_CIPHERTEXT: this server releases no ciphertext".to_owned(),
             ));
         }
         if !policy.values.contains(form) {
@@ -228,7 +265,7 @@ impl Release {
         self.audit.record(event).await.map_err(|why| {
             Failure::new(TURBO_E_BUSY, 0, format!("PII value release refused, no value released: {why}"))
         })?;
-        plan::fill(&mut typed, plan, self.token.as_ref())?;
+        plan::fill(&mut typed, plan, self.token.as_ref(), self.cipher.as_ref())?;
         if cfg!(debug_assertions) {
             crate::results::typed::validate_typed_document(&typed)?;
         }
@@ -260,7 +297,7 @@ pub fn policy_digest(policy: PiiOutputPolicy, grant: &caps::Grant, redaction: Op
         rules.push_str(";redaction-policy=");
         rules.push_str(&d.to_hex());
     }
-    sha256::digest(rules.as_bytes())
+    turbo_sha256::sha256(rules.as_bytes()).0
 }
 
 #[cfg(test)]

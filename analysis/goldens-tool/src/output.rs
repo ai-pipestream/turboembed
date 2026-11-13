@@ -225,8 +225,9 @@ mod tests {
 
     #[test]
     fn install_replaces_annotator_directories_and_keeps_the_rest() {
-        let root = std::env::temp_dir().join(format!("turbo-goldens-output-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-output-{}", std::process::id())),
+        );
         let (run, target) = (root.join("run"), root.join("data"));
         for (dir, rel, bytes) in [
             (&run, "tokenize/m/en/a.golden", "new"),
@@ -251,8 +252,9 @@ mod tests {
     /// of it, and it installs and compares as any annotator directory.
     #[test]
     fn a_sentence_vector_run_goes_through_layout_dumps_install_and_compare() {
-        let root = std::env::temp_dir().join(format!("turbo-goldens-sentvectors-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-sentvectors-{}", std::process::id())),
+        );
         let dir = RunDir::new(&root).unwrap();
         let (run, target) = (dir.path().to_path_buf(), root.join("data"));
         let rel = "sentvectors/all-minilm-l6-v2-mean/en/a.golden";
@@ -279,8 +281,9 @@ mod tests {
 
     #[test]
     fn every_golden_needs_a_dump_whose_header_names_its_input_and_model() {
-        let root = std::env::temp_dir().join(format!("turbo-goldens-dumps-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-dumps-{}", std::process::id())),
+        );
         let put = |rel: &str, text: &str| {
             let p = root.join(rel);
             fs::create_dir_all(p.parent().unwrap()).unwrap();
@@ -387,8 +390,9 @@ mod tests {
 
     #[test]
     fn a_golden_with_an_error_record_has_no_dump() {
-        let root = std::env::temp_dir().join(format!("turbo-goldens-error-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-goldens-error-{}", std::process::id())),
+        );
         let put = |rel: &str, text: &str| {
             let p = root.join(rel);
             fs::create_dir_all(p.parent().unwrap()).unwrap();

@@ -12,6 +12,7 @@ use turbo_analysis::{Ix, Key, Layer};
 use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, Sensitive};
 
 use super::caps::{Form, Forms, Grant, effective};
+use super::cipher::ReleaseCipher;
 use super::keys::TokenKey;
 use super::policy::{ceiling, check_digest, check_unnamed};
 use crate::api::{Failure, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
@@ -132,7 +133,7 @@ pub fn project(
                 format!("layer {instance} projected {projected} of {} mentions", pii.len()),
             ));
         }
-        for i in 0..pii.len() {
+        for (i, annotation) in typed.layers[li].annotations.iter_mut().enumerate() {
             let m = pii.get(Ix::new(i as u32));
             let custom =
                 if m.kind.is_custom() { pii.custom_kinds.name(m.kind).unwrap_or("").to_owned() } else { String::new() };
@@ -148,7 +149,7 @@ pub fn project(
                 } else {
                     PiiWithheldReason::NotAllowedByPolicy
                 };
-                if let Some(Value::Pii(w)) = &mut typed.layers[li].annotations[i].value {
+                if let Some(Value::Pii(w)) = &mut annotation.value {
                     w.value = Some(withheld_because(reason));
                 }
                 continue;
@@ -197,13 +198,22 @@ fn covers(doc: &Document) -> Result<Vec<Option<Cover>>, Failure> {
     Ok(out)
 }
 
-/// Writes each planned value into its mention: a token under `key`, or
-/// the value in clear. Called only after the audit acknowledgement.
-pub fn fill(typed: &mut TypedDocumentResult, plan: Vec<Planned>, key: Option<&TokenKey>) -> Result<(), Failure> {
+/// Writes each planned value into its mention: a token under `key`, a
+/// ciphertext under `cipher`, or the value in clear. Called only after
+/// the audit acknowledgement.
+pub fn fill(
+    typed: &mut TypedDocumentResult,
+    plan: Vec<Planned>,
+    key: Option<&TokenKey>,
+    cipher: Option<&ReleaseCipher>,
+) -> Result<(), Failure> {
     for p in plan {
-        let form = match (p.form, key) {
-            (Form::Token, Some(k)) => pii_value::Form::Token(k.token(&p.kind_code(), p.value.expose())),
-            (Form::Clear, _) => pii_value::Form::Clear(p.value.into_inner()),
+        let form = match (p.form, key, cipher) {
+            (Form::Token, Some(k), _) => pii_value::Form::Token(k.token(&p.kind_code(), p.value.expose())),
+            (Form::Ciphertext, _, Some(c)) => pii_value::Form::Ciphertext(
+                c.seal(&p.kind_code(), p.value.expose()).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e))?,
+            ),
+            (Form::Clear, _, _) => pii_value::Form::Clear(p.value.into_inner()),
             _ => return Err(Failure::new(TURBO_E_INTERNAL, 0, format!("no key for a {} release", p.form.name()))),
         };
         let ann = &mut typed.layers[p.layer].annotations[p.index];

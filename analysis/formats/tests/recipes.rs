@@ -9,6 +9,7 @@
 mod recipes;
 
 use std::path::{Path, PathBuf};
+use turbo_scratch::Scratch;
 
 use recipes::{Kind, Recipe, Tier, parse_dir};
 
@@ -94,8 +95,7 @@ fn ordering_is_deterministic_across_reads() {
 
 #[test]
 fn rejects_two_recipes_with_one_name() {
-    let dir = std::env::temp_dir().join(format!("recipes-dup-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("recipes-dup-{}", std::process::id())));
     std::fs::create_dir(&dir).unwrap();
     let one = checked_in().pop().expect("one recipe").to_string();
     std::fs::write(dir.join("a.recipe"), &one).unwrap();
@@ -106,8 +106,7 @@ fn rejects_two_recipes_with_one_name() {
 
 #[test]
 fn ignores_files_that_are_not_recipes() {
-    let dir = std::env::temp_dir().join(format!("recipes-mix-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("recipes-mix-{}", std::process::id())));
     std::fs::create_dir(&dir).unwrap();
     std::fs::write(dir.join("README.txt"), "not a recipe").unwrap();
     std::fs::write(dir.join("one.recipe"), checked_in().pop().expect("one recipe").to_string()).unwrap();

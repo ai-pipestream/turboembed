@@ -53,7 +53,7 @@ pub static BACKEND: turbo_backend = turbo_backend {
     session_create_tuned: Some(encoder::session_create_tuned),
     session_open: Some(encoder::session_open),
     embed_write_ranges: Some(encoder::embed_write_ranges),
-    token_head: 0,
+    token_head: 1,
     reserved3: 0,
     buffer_quantize: Some(gpu::buffer_quantize),
 };
@@ -200,9 +200,9 @@ pub fn append_failure_recovers() -> Result<(), String> {
     gpu::append_failure_recovers(d, dev)
 }
 
-/// Fields of turbo_embed_options a run honors: normalize (4), pooling (5)
-/// and output_dim (6), every value of each.
-const EMBED_HONORED: u32 = 0b111000;
+/// Fields of turbo_embed_options a run honors: normalize (4), pooling (5),
+/// output_dim (6) and layers (9, encoder/taps.rs), every value of each.
+const EMBED_HONORED: u32 = 0b1_0011_1000;
 
 unsafe extern "C" fn context_create(
     ordinal: u32,

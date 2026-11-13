@@ -7,6 +7,8 @@ use std::path::PathBuf;
 
 use crate::api::names;
 pub use crate::tls::TlsConfig;
+pub(crate) use refused::refused;
+use refused::{MODEL_SETTINGS, SWITCH, number};
 
 /// Where the model runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,12 +52,14 @@ impl ModelConfig {
         let (mut bundle, mut name, mut device, mut sessions) = (None, None, None, None);
         let (mut precision, mut max_batch, mut max_seq) = (None, None, None);
         for part in s.split(',') {
-            let (k, v) = part.split_once('=').ok_or_else(|| format!("--model {s}: `{part}` is not key=value"))?;
+            let (k, v) = part
+                .split_once('=')
+                .ok_or_else(|| format!("--model: a setting ({} bytes, not shown) is not key=value", part.len()))?;
             let seen = match k {
                 "bundle" => bundle.replace(v.to_string()).is_some(),
                 "name" => {
                     if v.is_empty() {
-                        return Err(format!("--model {s}: name is empty"));
+                        return Err("--model: name is empty".into());
                     }
                     name.replace(v.to_string()).is_some()
                 }
@@ -65,37 +69,33 @@ impl ModelConfig {
                 }
                 "precision" => {
                     let p = names::PRECISION.iter().find(|(_, n)| *n == v).map(|(p, _)| *p).ok_or_else(|| {
-                        format!("precision {v}: not PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT")
+                        refused("--model precision", v, "PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT")
                     })?;
                     precision.replace(p).is_some()
                 }
                 "max_batch" => max_batch.replace(number(k, v)?).is_some(),
                 "max_seq" => max_seq.replace(number(k, v)?).is_some(),
                 "sessions" => sessions.replace(number(k, v)?).is_some(),
-                _ => return Err(format!("--model {s}: unknown setting `{k}`")),
+                _ => return Err(format!("--model: a setting ({} bytes, not shown) is not {MODEL_SETTINGS}", k.len())),
             };
             if seen {
-                return Err(format!("--model {s}: `{k}` given twice"));
+                return Err(format!("--model: {k} given twice"));
             }
         }
-        let sessions = sessions.ok_or_else(|| format!("--model {s}: sessions is required"))?;
+        let sessions = sessions.ok_or("--model: sessions is required")?;
         if sessions == 0 {
-            return Err(format!("--model {s}: sessions must be at least 1"));
+            return Err("--model: sessions must be at least 1".into());
         }
         Ok(ModelConfig {
-            bundle: bundle.ok_or_else(|| format!("--model {s}: bundle is required"))?,
+            bundle: bundle.ok_or("--model: bundle is required")?,
             name,
-            device: device.ok_or_else(|| format!("--model {s}: device is required"))?,
+            device: device.ok_or("--model: device is required")?,
             precision: precision.unwrap_or(0),
             max_batch: max_batch.unwrap_or(0),
             max_seq: max_seq.unwrap_or(0),
             sessions,
         })
     }
-}
-
-fn number(k: &str, v: &str) -> Result<u32, String> {
-    v.parse().map_err(|_| format!("{k} {v}: not a number from 0 to 4294967295"))
 }
 
 /// Every model's name, refusing an empty model list, zero sessions, a path
@@ -148,6 +148,10 @@ pub struct Args {
     pub pii_output: crate::results::disclosure::PiiOutputPolicy,
     /// PII value release to granted services (`--pii-grant`, #1909).
     pub pii_release: Option<crate::release::ReleaseConfig>,
+    /// `--pii-encryption-key` without a grant (#2111): the keys of the
+    /// redaction policies' AES-256-GCM and FF1 arms. With a grant they are
+    /// `pii_release`'s and this is empty.
+    pub pii_encryption_keys: Vec<crate::release::keys::TokenKeyFile>,
     /// The model catalog's zoo home, and the index it serves when not the
     /// built-in one.
     pub catalog_dir: Option<String>,
@@ -155,6 +159,8 @@ pub struct Args {
     /// The store the catalog reads first and fills: `file:///dir` or
     /// `s3://bucket/prefix`.
     pub catalog_store: Option<String>,
+    /// The data directory, in place of a store, that also holds the acceptances.
+    pub catalog_data: Option<String>,
     /// Zoo mode: any user records their own acceptance and installs what
     /// they are permitted, a read fetches a permitted artifact not yet in
     /// the cache, and the server may start with no model.
@@ -215,6 +221,7 @@ pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
 pub const ENV_CATALOG_STORE: &str = "TURBO_KSERVE_CATALOG_STORE";
+pub const ENV_CATALOG_DATA: &str = "TURBO_KSERVE_CATALOG_DATA";
 pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub use pii::ENV_PII_OUTPUT_ALLOW;
 pub use release::{
@@ -232,14 +239,14 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL] [--catalog-prefetch permissive] [--zoo]] \
+[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] \
 [--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
 [--pii-output-allow none|rewritten-text,full-text,detail] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT] [--pii-policy PATH ...]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
-TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_CATALOG_STORE, TURBO_KSERVE_CATALOG_DATA, TURBO_KSERVE_CATALOG_PREFETCH, TURBO_KSERVE_ZOO, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_SINK_DOCUMENTS, TURBO_KSERVE_SINK_TYPED_OFFSETS, \
 TURBO_KSERVE_SINK_TYPED_VIEW, TURBO_KSERVE_SINK_PII_OUTPUT, TURBO_KSERVE_PII_OUTPUT_ALLOW, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
@@ -278,7 +285,7 @@ impl Args {
         let (mut admin, mut zoo) = (None, None);
         let mut vocabulary_dir = None;
         let (mut sink_flags, mut release_flags) = (sink::SinkFlags::default(), release::ReleaseFlags::default());
-        let (mut catalog_dir, mut catalog_index, mut catalog_store) = (None, None, None);
+        let (mut catalog_dir, mut catalog_index, mut catalog_store, mut catalog_data) = (None, None, None, None);
         let mut catalog_prefetch = None;
         let mut training_dir = None;
         let mut bundle_dir = None;
@@ -302,7 +309,7 @@ impl Args {
             match flag.as_str() {
                 "--listen" => {
                     let v = value()?;
-                    let addr = v.parse().map_err(|_| format!("--listen {v}: not ADDR:PORT"))?;
+                    let addr = v.parse().map_err(|_| refused("--listen", &v, "ADDR:PORT"))?;
                     if listen.replace(addr).is_some() {
                         return Err("--listen given twice".into());
                     }
@@ -332,6 +339,7 @@ impl Args {
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
                 "--catalog-store" => once(&flag, value()?, &mut catalog_store)?,
+                "--catalog-data" => path_once(&flag, value()?, &mut catalog_data)?,
                 "--catalog-prefetch" => once(&flag, value()?, &mut catalog_prefetch)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
                 "--pii-output-allow" => once(&flag, value()?, &mut pii_output_allow)?,
@@ -340,32 +348,32 @@ impl Args {
                 "--tls-client-ca" => path_once(&flag, value()?, &mut tls_client_ca)?,
                 "--metrics-listen" => {
                     let v = value()?;
-                    let addr = v.parse().map_err(|_| format!("--metrics-listen {v}: not ADDR:PORT"))?;
+                    let addr = v.parse().map_err(|_| refused("--metrics-listen", &v, "ADDR:PORT"))?;
                     if metrics_listen.replace(addr).is_some() {
                         return Err("--metrics-listen given twice".into());
                     }
                 }
                 "--max-message-bytes" => {
                     let v = value()?;
-                    let n: usize = v.parse().map_err(|_| format!("--max-message-bytes {v}: not a byte count"))?;
+                    let n: usize = v.parse().map_err(|_| refused("--max-message-bytes", &v, "a byte count"))?;
                     if max_message_bytes.replace(n).is_some() {
                         return Err("--max-message-bytes given twice".into());
                     }
                 }
                 "--max-stream-bytes" => {
                     let v = value()?;
-                    let n: u64 = v.parse().map_err(|_| format!("--max-stream-bytes {v}: not a byte count"))?;
+                    let n: u64 = v.parse().map_err(|_| refused("--max-stream-bytes", &v, "a byte count"))?;
                     if max_stream_bytes.replace(n).is_some() {
                         return Err("--max-stream-bytes given twice".into());
                     }
                 }
-                _ => return Err(format!("unknown argument {a}")),
+                _ => return Err(unknown::unknown_argument(&flag, inline.is_some())),
             }
         }
         if listen.is_none()
             && let Some(v) = env(ENV_LISTEN).filter(|v| !v.is_empty())
         {
-            listen = Some(v.parse().map_err(|_| format!("{ENV_LISTEN}={v}: not ADDR:PORT"))?);
+            listen = Some(v.parse().map_err(|_| refused(ENV_LISTEN, &v, "ADDR:PORT"))?);
         }
         if models.is_empty()
             && let Some(v) = env(ENV_MODELS)
@@ -382,13 +390,13 @@ impl Args {
         if max_message_bytes.is_none()
             && let Some(v) = env(ENV_MAX_MESSAGE_BYTES).filter(|v| !v.is_empty())
         {
-            max_message_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_MESSAGE_BYTES}={v}: not a byte count"))?);
+            max_message_bytes = Some(v.parse().map_err(|_| refused(ENV_MAX_MESSAGE_BYTES, &v, "a byte count"))?);
         }
         let max_message_bytes = max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES);
         if max_stream_bytes.is_none()
             && let Some(v) = env(ENV_MAX_STREAM_BYTES).filter(|v| !v.is_empty())
         {
-            max_stream_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_STREAM_BYTES}={v}: not a byte count"))?);
+            max_stream_bytes = Some(v.parse().map_err(|_| refused(ENV_MAX_STREAM_BYTES, &v, "a byte count"))?);
         }
         let max_stream_bytes = max_stream_bytes.unwrap_or(DEFAULT_MAX_STREAM_BYTES);
         if max_stream_bytes < max_message_bytes as u64 {
@@ -401,7 +409,7 @@ impl Args {
                 (None, Some(v)) => match v.as_str() {
                     "1" | "true" | "yes" => Ok(true),
                     "0" | "false" | "no" => Ok(false),
-                    _ => Err(format!("{k}={v}: not one of 1, true, yes, 0, false, no")),
+                    _ => Err(refused(k, &v, SWITCH)),
                 },
             }
         };
@@ -412,22 +420,21 @@ impl Args {
         catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
         training_dir = training_dir.or_else(|| env(ENV_TRAINING_DIR).filter(|v| !v.is_empty()));
         catalog_store = catalog_store.or_else(|| env(ENV_CATALOG_STORE).filter(|v| !v.is_empty()));
-        if catalog_index.is_some() && catalog_dir.is_none() {
-            return Err("--catalog-index needs --catalog-dir".into());
-        }
-        if catalog_store.is_some() && catalog_dir.is_none() {
-            return Err("--catalog-store needs --catalog-dir".into());
-        }
+        catalog_data = catalog_data.or_else(|| env(ENV_CATALOG_DATA).filter(|v| !v.is_empty()));
         let catalog_prefetch = match catalog_prefetch.or_else(|| env(ENV_CATALOG_PREFETCH).filter(|v| !v.is_empty())) {
             None => false,
             Some(v) if v == "permissive" => true,
-            Some(v) => return Err(format!("--catalog-prefetch {v}: the one mode is permissive")),
+            Some(v) => return Err(refused("--catalog-prefetch", &v, "permissive, the one mode")),
         };
-        if catalog_prefetch && catalog_dir.is_none() {
-            return Err("--catalog-prefetch needs --catalog-dir".into());
-        }
-        if zoo && catalog_dir.is_none() {
-            return Err("--zoo needs --catalog-dir".into());
+        let needs_dir = [
+            ("--catalog-index", catalog_index.is_some()),
+            ("--catalog-store", catalog_store.is_some()),
+            ("--catalog-data", catalog_data.is_some()),
+            ("--catalog-prefetch", catalog_prefetch),
+            ("--zoo", zoo),
+        ];
+        if let Some((flag, _)) = needs_dir.iter().find(|(_, set)| *set && catalog_dir.is_none()) {
+            return Err(format!("{flag} needs --catalog-dir"));
         }
         let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         let sink = sink_flags.resolve(&env)?;
@@ -448,11 +455,11 @@ impl Args {
             (None, None, Some(_)) => return Err("--tls-client-ca needs --tls-cert and --tls-key".into()),
             _ => return Err("--tls-cert and --tls-key must be given together".into()),
         };
-        let pii_release = release_flags.resolve(&env, tls.as_ref())?;
+        let (pii_release, pii_encryption_keys) = release_flags.resolve(&env, tls.as_ref())?;
         if metrics_listen.is_none()
             && let Some(v) = env(ENV_METRICS_LISTEN).filter(|v| !v.is_empty())
         {
-            metrics_listen = Some(v.parse().map_err(|_| format!("{ENV_METRICS_LISTEN}={v}: not ADDR:PORT"))?);
+            metrics_listen = Some(v.parse().map_err(|_| refused(ENV_METRICS_LISTEN, &v, "ADDR:PORT"))?);
         }
         if let Some(dir) = &bundle_dir {
             bundles::discover(dir, &mut models)?;
@@ -469,9 +476,11 @@ impl Args {
             sink,
             pii_output,
             pii_release,
+            pii_encryption_keys,
             catalog_dir,
             catalog_index,
             catalog_store,
+            catalog_data,
             zoo,
             catalog_prefetch,
             training_dir,
@@ -484,8 +493,10 @@ impl Args {
 
 mod bundles;
 mod pii;
+mod refused;
 mod release;
 mod sink;
+mod unknown;
 
 #[cfg(test)]
 mod tests;

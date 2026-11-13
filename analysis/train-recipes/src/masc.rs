@@ -159,12 +159,15 @@ pub fn dataset(release: Release) -> Result<Artifact> {
         class: LicenceClass::Permissive,
         attribution: Some(ATTRIBUTION.to_owned()),
         origin: None,
+        model_type: Default::default(),
+        bundle: None,
         files: vec![File {
             path: r.file.parse().map_err(parse("file", r.file))?,
             url: r.url.parse().map_err(parse("url", r.url))?,
             size: r.size,
             sha256: r.sha256.parse().map_err(parse("sha256", r.sha256))?,
             sha512: r.sha512.parse().map_err(parse("sha512", r.sha512))?,
+            also: Vec::new(),
             download: None,
         }],
     })

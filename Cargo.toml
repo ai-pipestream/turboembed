@@ -66,6 +66,7 @@ members = [
     "analysis/train-recipes",
     "analysis/formats",
     "analysis/geo",
+    "analysis/us-zip",
     "analysis/fuzz",
     "analysis/grammar",
     "analysis/group",
@@ -74,6 +75,7 @@ members = [
     "analysis/wordnet",
     "analysis/hunspell",
     "analysis/pins",
+    "analysis/scratch",
     "analysis/zoo",
     "analysis/zstd",
 ]

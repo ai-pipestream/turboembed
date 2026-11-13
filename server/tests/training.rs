@@ -7,7 +7,8 @@
 mod common;
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use turbo_scratch::Scratch;
 
 use tonic::Code;
 use tonic::transport::Channel;
@@ -31,9 +32,8 @@ type Client = TurboTrainingServiceClient<Channel>;
 const TEACHER: &str = "tiny-bert-bundle";
 const BASE_VOCAB: u32 = 30522;
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-kserve-training-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
+fn scratch(name: &str) -> Scratch {
+    let d = Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-training-{}-{name}", std::process::id())));
     fs::create_dir_all(&d).unwrap();
     d
 }

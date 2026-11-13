@@ -400,6 +400,8 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
         ("model_info.tokenizer_sha256", api::field(&mi.tokenizer_sha256)),
         ("model_info.prefix_query", api::field(&mi.prefix_query)),
         ("model_info.prefix_document", api::field(&mi.prefix_document)),
+        ("model_info.license", api::field(&mi.license)),
+        ("model_info.license_class", names::license_class(mi.license_class)),
         ("model_info.output_dims_count", mi.output_dims_count.to_string()),
         ("model_info.output_dims", dims.join(",")),
         ("session_info.max_batch", si.max_batch.to_string()),

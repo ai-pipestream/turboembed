@@ -271,9 +271,29 @@ for held-out decoding. Candidate tensors are
 reused for calibrated all-label and held-out predictions; only seen labels are
 scored again.
 
+`eval-gliner2` evaluates native GLiNER2 extraction with the same corpora,
+held-out metrics, flat decoding and dev-only per-label calibration. Use
+`--package <GLiNER2 checkpoint>` with the checkpoint's `encoder/` package,
+`model.safetensors`, `spm.model`, `added_tokens.json`, and `config.json`.
+`--guidelines <json>` supplies label-to-description prompts. Raw span logits
+are converted to the shared candidate format, so `--calibrate`, `--thresholds`,
+`--split dev`, and `--threads N` have the same meaning and ordered schema
+binding as in `eval-gliner`. Label batches fit each sentence's prompt and
+encoder limits while preserving global label indexes. The receipt uses the
+encoder package's source metadata and a digest over every effective package
+input. GLiNER2's count head can cap recall. Over-limit inputs fail rather than
+being windowed. The current command supports the CPU encoder.
+
 `train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP or NuNER's
 single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and
-boundary features. Each training span
+boundary features. `--train-boundaries` also trains the marker start and end
+MLPs, with their exact gradients through `out_project`, while the encoder,
+prompt encoder and BiLSTM remain frozen. `--train-prompt` also trains the
+`prompt_rep_layer` MLP with its exact gradient through span-label scoring,
+while the encoder and BiLSTM remain frozen. `--train-recurrent` also trains
+both BiLSTM directions with exact gradients through the boundary MLPs and
+requires `--train-boundaries`; the encoder and token projection remain frozen.
+Each training span
 keeps its gold labels and at most four highest-logit negative labels; gold
 spans are accompanied by up to two hard-negative spans per positive span,
 with a minimum of four. Positive BCE terms have weight 4. `--balance` repeats
@@ -289,8 +309,9 @@ computes at most N sentences per batch concurrently and reduces their
 gradients in original sentence order; 0 uses the whole batch. Set
 `TURBO_CPU_THREADS=1` when using multiple sentence workers so encoder calls
 do not create nested thread pools. `--anchor W` adds `W * ||params - base||^2`
-to the output-head loss and its exact gradient, limiting drift from the
-pretrained MLP. The default is 0, and the peer identity records the value.
+to the loss and its exact gradient, limiting drift from every pretrained
+tensor selected for training. The default is 0, and the peer identity records
+the anchor and whether boundary, prompt and recurrent training were enabled.
 
 `train-coref` trains the antecedent-ranking coreference head (`coref` on
 `turboembed:coref`, #1527) on LitBank's 100 literary works (80 train,

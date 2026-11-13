@@ -4,13 +4,13 @@
 //! at 0 and the taken names are the first ones it would try.
 
 use std::fs;
+use turbo_scratch::Scratch;
 
 use turbo_zoo::accept::Acceptances;
 
 #[test]
 fn a_write_passes_over_temporary_names_a_killed_process_left() {
-    let dir = std::env::temp_dir().join(format!("turbo-zoo-leftover-partial-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-leftover-partial-{}", std::process::id())));
     fs::create_dir_all(&dir).unwrap();
     let dest = dir.join("acceptances.json");
     let left: Vec<_> =

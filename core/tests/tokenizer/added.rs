@@ -6,6 +6,7 @@
 use super::*;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use turbo_scratch::Scratch;
 use turbo_unicode::hf::aligned;
 use turbo_unicode::normalize::Form;
 
@@ -230,7 +231,7 @@ fn bpe_with_each_flag_matches_upstream() {
         if nfc {
             up.add_tokens([tokenizers::AddedToken::from("e\u{301}x", false)]).unwrap();
         }
-        let path = std::env::temp_dir().join(format!("turbo-added-{variant}-{}.json", std::process::id()));
+        let path = Scratch::at(std::env::temp_dir().join(format!("turbo-added-{variant}-{}.json", std::process::id())));
         up.save(&path, false).unwrap();
         check_bpe(variant, manifest_bpe(&path, nfc), &path);
         let tok = Fixture::with_tokenizer(&format!("added-{variant}-more"), manifest_bpe(&path, nfc), &path);
@@ -264,7 +265,7 @@ fn wordpiece_matches_upstream() {
         AddedToken::from("Foo Bar", false).single_word(true),
     ])
     .unwrap();
-    let path = std::env::temp_dir().join(format!("turbo-added-wordpiece-{}.json", std::process::id()));
+    let path = Scratch::at(std::env::temp_dir().join(format!("turbo-added-wordpiece-{}.json", std::process::id())));
     up.save(&path, false).unwrap();
     let roles = [
         ("SPECIAL_PAD", "[PAD]"),

@@ -132,7 +132,7 @@ impl Drop for Home {
 }
 
 async fn start(home: &Path, admin: bool, transport: Arc<Fixed>) -> (Server, Client) {
-    let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport };
+    let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport, data: None };
     start_with(Serve { admin, catalog: Some(catalog), ..Serve::default() }).await
 }
 
@@ -403,7 +403,7 @@ async fn an_install_reads_the_store_first_and_the_store_keeps_what_the_origin_se
     let (home, again, store) = (Home::new("store-home"), Home::new("store-again"), Home::new("store-blobs"));
     let through = |home: &Path, origin: Arc<Fixed>| {
         let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Shared(origin));
-        Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(list) }
+        Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport: Arc::new(list), data: None }
     };
     let origin = Arc::new(transport());
     let (s, mut c) =
@@ -447,7 +447,7 @@ async fn a_store_neither_serves_nor_keeps_a_local_only_artifact() {
         Arc::new(Fixed { files: HashMap::from([(format!("{BASE}/nc/nc.txt"), NC.to_vec())]), ..Fixed::default() });
     let list = Sources::new().then_keep("store", Blobs::new(&store.0)).then("origin", Shared(origin.clone()));
     let index = Arc::new(Index::parse(json.as_bytes()).unwrap());
-    let catalog = Catalog { home: home.0.clone(), index, transport: Arc::new(list) };
+    let catalog = Catalog { home: home.0.clone(), index, transport: Arc::new(list), data: None };
     let (s, mut c) = start_with(Serve { admin: true, catalog: Some(catalog), ..Serve::default() }).await;
     let accept = RecordLicenceAcceptanceRequest {
         user: "alice".into(),

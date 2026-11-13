@@ -38,5 +38,6 @@ turbo-unicode = { path = "../unicode" }
 turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
+turbo-scratch = { path = "../scratch" }
 turbo-goldens = { path = "../goldens" }
 turbo-zoo = { path = "../zoo" }

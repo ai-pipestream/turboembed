@@ -18,14 +18,15 @@ fn annotation_total_is_checked_before_cloning_another_segment() {
     let text = doc.source();
     let offsetter = Offsetter::new(text, OffsetMode::Utf8);
     let span = Span::new(0, text.len() as u32);
-    let filter = vec![Tokens::ID.to_owned()];
+    let names = vec![Tokens::ID.to_owned()];
+    let filter = LayerFilter { layers: &names, instances: &[] };
 
     // Three intervals carry 1 + 2 + 1 annotations. The small budget exercises
     // the production sweep's capacity check without constructing millions.
-    let error = combine_with_budget(&doc, ViewId::SOURCE, text, span, &offsetter, &filter, 3).unwrap_err();
+    let error = combine_with_budget(&doc, ViewId::SOURCE, text, span, &offsetter, filter, 3).unwrap_err();
     assert_eq!(error.code, TURBO_E_CAPACITY);
     assert!(error.message.contains("annotation memberships"));
-    let segments = combine_with_budget(&doc, ViewId::SOURCE, text, span, &offsetter, &filter, 4).unwrap();
+    let segments = combine_with_budget(&doc, ViewId::SOURCE, text, span, &offsetter, filter, 4).unwrap();
     assert_eq!(segments.len(), 3);
     assert_eq!(segments.iter().map(|s| s.annotations.len()).sum::<usize>(), 4);
 }

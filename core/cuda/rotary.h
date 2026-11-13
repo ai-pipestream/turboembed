@@ -71,6 +71,13 @@ cudaError_t add_norm_into(cudaStream_t s, float *x, const float *y, const uint16
                           const float *ln_b, float eps, const Info *info, int hidden, float *xn, uint16_t *xn16,
                           const Plan &plan);
 
+/* out = LayerNorm(x) in F32, x left as it is, for the layer with back
+ * layers after it (kernels.h, pool): ModernBERT's final norm of a layer a
+ * range write reads before the last. A run that does not read the layer
+ * computes nothing. */
+cudaError_t norm_into(cudaStream_t s, const float *x, const float *ln_w, const float *ln_b, float eps,
+                      const Info *info, int hidden, int back, float *out, const Plan &plan);
+
 } // namespace turbo_cuda
 
 #endif /* TURBO_CUDA_ROTARY_H */

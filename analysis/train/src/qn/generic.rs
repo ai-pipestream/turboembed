@@ -108,7 +108,7 @@ pub fn minimize_objective(
         return Ok((origin, QnStop::GradientNorm));
     }
     let mut minimizer = Minimizer::new(&cached, params);
-    let result = minimizer.minimize(&mut |_, _| {});
+    let result = minimizer.minimize(&mut |_, _| false);
     if let Some(e) = cached.error.borrow_mut().take() {
         return Err(e);
     }

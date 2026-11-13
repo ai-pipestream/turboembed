@@ -17,8 +17,10 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
 
 `make` runs, in order:
 
-1. **fetch**: every upstream file at the commit, checked against its
-   pinned SHA-256 where the recipe gives one. Each file's hash is printed.
+1. **fetch**: every upstream file at the commit (or at its own
+   `repository` and `commit`, when the file comes from a base model's
+   repository), checked against its pinned SHA-256 where the recipe gives
+   one. Each file's hash is printed.
 2. **stage**: the files the bundle carries are copied to their bundle
    paths: the fetched ones, and the recipe's `local` files, each checked
    against its pinned hash.
@@ -38,10 +40,11 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      container, by `onnx_f16.py`, run with `--entrypoint python`. An image
      built before `onnx_f16.py` was added to it cannot; build it again and
      pin the new id.
-   - raw weights as safetensors (`produced_by` names only `upstream`, a
-     PyTorch checkpoint among the upstream files, fetched and not carried),
-     in the reference container, by `bin_to_safetensors.py`: every tensor
-     as stored, for a model whose repository ships no safetensors file.
+   - raw weights as safetensors (`produced_by` names `upstream`, a
+     PyTorch checkpoint among the upstream files, fetched and not carried,
+     and may name `dtype` and `container`), in `container` or the
+     reference container, by `bin_to_safetensors.py`: every tensor as
+     stored, for a model whose repository ships no safetensors file.
    - a static-shape OpenVINO IR for the npu backend (`produced_by` names
      only `from`), two files, the xml then its weights, in the reference
      container, by `onnx_to_openvino_ir.py`: the export's inputs reshaped
@@ -67,6 +70,12 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
      longer. The compiler cannot be redistributed, so its image is built
      locally; `bundle/hailo/Dockerfile` (Hailo-10H) and
      `bundle/hailo/Dockerfile.hailo8` (Hailo-8, Hailo-8L) say how.
+     Both image builds run real ONNX Runtime comparison regressions.
+     The comparison requires a nonempty calibration set, exact
+     `[1, fixed_seq, hidden]` outputs, and finite hidden states on every
+     kept position. A classifier's logits are not encoder hidden states.
+     Rebuild and pin the image to use an updated comparison script;
+     existing recipe image digests retain their original script.
 5. **seal**: `files` is filled with each named file's size and SHA-256,
    the reference's and each converted artifact's `produced_by` with what
    its container reported and the image it ran in (and for a conversion,

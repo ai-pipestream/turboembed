@@ -1,5 +1,5 @@
 use super::{boundaries, *};
-use crate::window::pack_windows;
+use crate::window::{Refusal, pack_windows};
 use turbo_analysis::{Analyzer, Annotator, Bound, Document, Evidence, Ix, Key, Layer, Provenance, Span, Spans, View};
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 
@@ -128,18 +128,24 @@ fn word_and_subword_limits_include_prompt_and_eos() {
 }
 
 #[test]
-fn oversized_sentence_names_the_index_and_limit() {
+fn an_oversized_sentence_is_refused_with_its_limit_and_counts() {
     let model = boundaries::model();
     let schema = schema(Decode::Flat);
-    for (count, limit) in [(385, "max_tokens"), (25, "max_sequence")] {
+    let sequence = model.encoder_config().max_sequence;
+    for (count, limit, max) in [(385, "max_tokens", 384), (25, "encoder max_sequence", sequence)] {
         let doc = document(&vec!["a"; count], Some(count));
         let error = GlinerAnnotator::new(model.clone(), schema.clone())
             .annotate((doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), doc.get::<Sentences>()))
             .err()
             .unwrap();
-        let message = error.to_string();
-        assert!(message.contains("sentence 1"), "{message}");
-        assert!(message.contains(limit), "{message}");
+        // The limit and two counts, which a server passes on (#2125); no
+        // text of the document.
+        let turbo_analysis::Error::OverLimit { annotator, limit: named, max: at_most, got } = error else {
+            panic!("{error}");
+        };
+        assert_eq!((annotator, named, at_most), (GlinerAnnotator::ID, limit, max));
+        assert!(got > max, "{got} > {max}");
+        assert_eq!(turbo_analysis::error::known_limit(named), Some(limit));
     }
 }
 
@@ -150,7 +156,8 @@ fn invalid_sentence_ownership_and_utf8_are_rejected() {
     let doc = document(&["Zoë", "🙂"], None);
     let view = doc.get::<View>().unwrap();
     let tokens = doc.get::<Tokens>().unwrap();
-    let check = |spans| pack_windows(&model, &schema, view, tokens, Some(&Sentences { spans })).err().unwrap();
+    let check =
+        |spans| String::from(pack_windows(&model, &schema, view, tokens, Some(&Sentences { spans })).err().unwrap());
     for (a, b) in [(1, 9), (0, 3), (0, 4), (0, 10)] {
         let mut spans = Spans::new(view.id());
         spans.push(Span::new(a, b));
@@ -166,12 +173,8 @@ fn invalid_sentence_ownership_and_utf8_are_rejected() {
         spans.push(Span::new(a, b));
     }
     let bad = Tokens { spans, sentence: Some(vec![Ix::new(0), Ix::new(0)]) };
-    assert!(
-        pack_windows(&model, &schema, doc.get::<View>().unwrap(), &bad, doc.get::<Sentences>())
-            .err()
-            .unwrap()
-            .contains("sentence index mismatch")
-    );
+    let mismatch = pack_windows(&model, &schema, doc.get::<View>().unwrap(), &bad, doc.get::<Sentences>());
+    assert!(String::from(mismatch.err().unwrap()).contains("sentence index mismatch"));
 }
 
 #[test]
@@ -181,11 +184,12 @@ fn indivisible_token_and_prompt_overflow_are_named_errors() {
     let doc = document(&["a", "a a"], None);
     let error =
         pack_windows(&model, &schema, doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), None).err().unwrap();
-    assert!(error.contains("token 1") && error.contains("max_sequence"), "{error}");
+    assert!(matches!(error, Refusal::Sequence { max: 8, got } if got > 8), "{error:?}");
     let crowded = ExtractionSchema::new(vec!["a".into(), "b".into()], 0.0, Decode::Flat).unwrap();
     let error =
         pack_windows(&model, &crowded, doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), None).err().unwrap();
-    assert!(error.contains("schema prompt") && error.contains("max_sequence"), "{error}");
+    // The labels fill the sequence on their own: no text fits, however short.
+    assert!(matches!(error, Refusal::Prompt { max: 8, got } if got > 8), "{error:?}");
 }
 
 #[test]

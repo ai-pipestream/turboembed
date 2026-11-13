@@ -11,7 +11,6 @@ use turbo_analysis_layers::{Pii, PiiStrategyKind};
 
 use super::replace::EditOrigin;
 use super::{PiiRewrite, RewriteError, kind_name};
-use crate::checksum::sha256;
 
 /// A key or length the tokenizer cannot take.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,7 +57,7 @@ impl HmacTokenizer {
     /// `h`, for the step's config hash.
     pub(super) fn fold_config(&self, h: &mut turbo_analysis::Fnv1a) {
         // The key enters only as an HMAC under a fixed label, never as itself.
-        h.bytes(&sha256::hmac(&self.key, b"turbo-pii:redacted config key"));
+        h.bytes(&turbo_sha256::hmac_sha256(&self.key, b"turbo-pii:redacted config key").0);
         h.usize(self.length).u8(u8::from(self.refuse_overlaps));
     }
 
@@ -103,7 +102,7 @@ impl HmacTokenizer {
         message.extend_from_slice(kind.as_bytes());
         message.push(0);
         message.extend_from_slice(value.as_bytes());
-        let mac = sha256::hmac(&self.key, &message);
+        let mac = turbo_sha256::hmac_sha256(&self.key, &message).0;
         out.extend(kind.chars().map(|c| c.to_ascii_uppercase()));
         out.push('-');
         const HEX: &[u8; 16] = b"0123456789abcdef";

@@ -7,14 +7,15 @@
 import { LayerErrorKind, LayerWireStatus, OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
+import { busy } from "../act.js";
 import { $, download, el, options, say, table } from "../dom.js";
 import { doc, onDoc, setDoc } from "../doc.js";
 import { analysis, describe } from "../rpc.js";
-import { bundles, capabilities, onCapabilities } from "../state.js";
+import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
 
 let running: AbortController | null = null;
 let page = 0;
-let filter = new Set<string>();
+let filter: { layer: string; instance: string }[] = [];
 let openSpanModels = new Set<string>();
 let relationModels = new Set<string>();
 
@@ -24,7 +25,7 @@ function statusName(s: LayerWireStatus): string {
   return LayerWireStatus[s] ?? String(s);
 }
 
-function layerRows(layers: Map<string, LayerInfo>): HTMLTableElement {
+function layerRows(layers: Map<string, LayerInfo>): HTMLElement {
   return table(
     ["layer", "instance", "status", "items", "annotator"],
     [...layers.values()].map((l) => [
@@ -187,18 +188,20 @@ async function showWindow(): Promise<void> {
   const box = $("analyze-window");
   if (!graph) return void box.replaceChildren();
   try {
-    const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayers: [...filter] };
+    const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayerInstances: filter };
     const [w, heat] = await Promise.all([
       analysis.inspectDocumentWindow({ ...base, page }),
       analysis.inspectDocumentWindow({ ...base, page: 0, heatmapBuckets: 96 }),
     ]);
     const win = w.window;
     const chips = (w.summary?.layers ?? []).map((l) => {
-      const on = filter.has(l.layer);
-      const b = el("button", { type: "button", class: on ? "chip on" : "chip", text: `${l.layer} ${l.items}` });
+      const on = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
+      const b = el("button", { type: "button", class: on ? "chip on" : "chip", text: `${l.layer}${l.instance ? ` [${l.instance}]` : ""} ${l.items}` });
       b.addEventListener("click", () => {
-        if (on) filter.delete(l.layer);
-        else filter.add(l.layer);
+        const selected = filter.some((f) => f.layer === l.layer && f.instance === l.instance);
+        filter = selected
+          ? filter.filter((f) => f.layer !== l.layer || f.instance !== l.instance)
+          : [...filter, { layer: l.layer, instance: l.instance }];
         void showWindow();
       });
       return b;
@@ -214,7 +217,7 @@ async function showWindow(): Promise<void> {
     const s = w.summary;
     box.replaceChildren(
       el("h3", { text: "Document" }),
-      s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layers to show only them.` }) : "",
+      s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
       nav,
       segmentsView(w),
@@ -245,22 +248,32 @@ async function exportDoc(): Promise<void> {
   }
 }
 
+// Whether the note holds this list's own failure, to take it back on success.
+let formatsFailed = false;
+
 async function loadFormats(): Promise<void> {
   try {
     const f = await analysis.listOutputFormats({});
-    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`));
+    options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
+    if (formatsFailed) say($("analyze-note"), "");
+    formatsFailed = false;
   } catch (e) {
-    say($("analyze-note"), describe(e), "error");
+    const down = reachable() === false;
+    if (!select("analyze-format").value) options(select("analyze-format"), [], undefined, down ? "the server is not reachable" : "the formats could not be listed");
+    formatsFailed = !down;
+    if (!down) say($("analyze-note"), describe(e), "error");
   }
 }
 
 export function init(): void {
-  $("analyze-run").addEventListener("click", run);
+  const go = $("analyze-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, run, $("analyze-stop") as HTMLButtonElement));
   $("analyze-stop").addEventListener("click", stop);
-  $("analyze-export").addEventListener("click", exportDoc);
+  const format = $("analyze-export") as HTMLButtonElement;
+  format.addEventListener("click", () => void busy(format, exportDoc));
   onDoc(() => {
     page = 0;
-    filter = new Set();
+    filter = [];
     void showWindow();
   });
   onCapabilities((c) => {
@@ -271,6 +284,12 @@ export function init(): void {
     options(select("analyze-model"), ["", ...models], ["none", ...models]);
     options(select("analyze-relation-model"), ["", ...relationModels], ["none", ...relationModels]);
   });
-  capabilities().catch(() => undefined);
-  void loadFormats();
+  // Before the first answer, the selects say that there is no server to ask.
+  let filled = false;
+  onCapabilities(() => (filled = true));
+  onReachable((up) => {
+    if (filled || up) return;
+    for (const id of ["analyze-profile", "analyze-model", "analyze-relation-model", "analyze-format"]) options(select(id), [], undefined, "the server is not reachable");
+  });
+  onServed(() => void loadFormats());
 }

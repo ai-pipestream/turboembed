@@ -49,7 +49,7 @@ enum Choice {
 }
 
 pub(super) fn check_digest(text: &str, expected: &str) -> Result<()> {
-    let actual = crate::sha::to_hex(&crate::sha::sha256(text.as_bytes()));
+    let actual = turbo_sha256::to_hex(turbo_sha256::sha256(text.as_bytes()));
     if actual != expected {
         return Err(format!("test.json: SHA-256 is {actual}, expected {expected}"));
     }

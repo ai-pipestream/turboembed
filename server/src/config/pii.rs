@@ -10,7 +10,7 @@ pub const ENV_PII_OUTPUT_ALLOW: &str = "TURBO_KSERVE_PII_OUTPUT_ALLOW";
 pub(super) fn resolve(flag: Option<String>, env: impl Fn(&str) -> Option<String>) -> Result<PiiOutputPolicy, String> {
     match flag.or_else(|| env(ENV_PII_OUTPUT_ALLOW).filter(|v| !v.is_empty())) {
         None => Ok(PiiOutputPolicy::ALL),
-        Some(v) => PiiOutputPolicy::parse(&v).map_err(|e| format!("--pii-output-allow {v}: {e}")),
+        Some(v) => PiiOutputPolicy::parse(&v).map_err(|e| format!("--pii-output-allow: {e}")),
     }
 }
 

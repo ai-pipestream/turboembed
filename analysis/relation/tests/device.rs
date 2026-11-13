@@ -10,6 +10,7 @@ use turbo::safetensors::File;
 use turbo_analysis::ModelRef;
 use turbo_relation::encoder::{DebertaEncoder, EncoderStates};
 use turbo_relation::{gliner2, glirel};
+use turbo_scratch::Scratch;
 
 fn model() -> ModelRef {
     ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() }
@@ -147,7 +148,7 @@ fn a_bert_bundle_is_not_a_deberta_encoder() {
 /// weights is refused before any session is opened.
 #[test]
 fn a_bundle_is_bound_to_the_package_its_heads_were_converted_with() {
-    let dir = std::env::temp_dir().join(format!("turbo-relation-bound-{}", std::process::id()));
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-relation-bound-{}", std::process::id())));
     let (same, other) = (dir.join("same"), dir.join("other"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
@@ -179,8 +180,7 @@ fn a_bundle_is_bound_to_the_package_its_heads_were_converted_with() {
 /// licensed checkpoint alone would reach is traced here.
 #[test]
 fn a_glirel_package_opens_by_the_real_tests_paths() {
-    let dir = std::env::temp_dir().join(format!("turbo-relation-glirel-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = Scratch::at(std::env::temp_dir().join(format!("turbo-relation-glirel-{}", std::process::id())));
     std::fs::create_dir_all(&dir).unwrap();
     let (package, spm_path) = (dir.join("package"), dir.join("spm.model"));
     std::fs::create_dir_all(&package).unwrap();

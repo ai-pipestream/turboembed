@@ -3,17 +3,16 @@
 //! back in, scored by document against the same works.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
+use turbo_scratch::Scratch;
 
 use turbo_trainer_recipes::eval::Metrics;
 use turbo_trainer_recipes::litbank::parse_many;
 use turbo_trainer_recipes::receipt::Receipt;
 
-fn scratch(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("turbo-litbank-peer-{}-{name}", std::process::id()));
-    let _ = fs::remove_dir_all(&d);
-    d
+fn scratch(name: &str) -> Scratch {
+    Scratch::at(std::env::temp_dir().join(format!("turbo-litbank-peer-{}-{name}", std::process::id())))
 }
 
 fn row(doc: &str, tok: usize, word: &str, coref: &str) -> String {

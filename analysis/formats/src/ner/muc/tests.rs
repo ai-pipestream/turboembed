@@ -118,8 +118,7 @@ fn documents_end_at_one_without_samples() {
 
 #[test]
 fn files_come_in_reverse_name_order() {
-    let dir = std::env::temp_dir().join(format!("turbo-muc-files-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-muc-files-{}", std::process::id())));
     std::fs::create_dir_all(dir.join("d.sgm")).unwrap();
     for name in ["a.sgm", "B.SGM", "c.Sgm", "e.txt", "sgm"] {
         std::fs::write(dir.join(name), "").unwrap();

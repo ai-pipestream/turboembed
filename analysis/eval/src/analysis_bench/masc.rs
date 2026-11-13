@@ -15,7 +15,7 @@ use turbo_formats::masc::MascCorpus;
 
 use super::tokenize::TokenDocument;
 use crate::Result;
-use crate::sha::{sha256, to_hex};
+use turbo_sha256::{sha256, to_hex};
 
 /// The recorded MASC 3.0.0 corpus digest (`turbo-train-recipes`'
 /// `masc::RELEASE`, over `corpus_digest`'s manifest).
@@ -69,9 +69,9 @@ pub fn corpus_digest(dir: &Path) -> Result<String> {
     for rel in &files {
         let path = dir.join(rel);
         let bytes = std::fs::read(&path).map_err(|e| format!("MASC: {}: {e}", path.display()))?;
-        writeln!(manifest, "{}  {rel}", to_hex(&sha256(&bytes))).expect("writing to a String");
+        writeln!(manifest, "{}  {rel}", to_hex(sha256(&bytes))).expect("writing to a String");
     }
-    Ok(to_hex(&sha256(manifest.as_bytes())))
+    Ok(to_hex(sha256(manifest.as_bytes())))
 }
 
 /// Whether a document header's `textClass` categories name the
@@ -235,13 +235,14 @@ mod tests {
 
     #[test]
     fn digest_is_a_sorted_sha256sum_manifest() {
-        let dir = std::env::temp_dir().join(format!("turbo-eval-masc-digest-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-eval-masc-digest-{}", std::process::id())),
+        );
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(dir.join("b.txt"), b"two").unwrap();
         std::fs::write(dir.join("sub/a.txt"), b"one").unwrap();
-        let manifest = format!("{}  b.txt\n{}  sub/a.txt\n", to_hex(&sha256(b"two")), to_hex(&sha256(b"one")));
-        assert_eq!(corpus_digest(&dir).unwrap(), to_hex(&sha256(manifest.as_bytes())));
+        let manifest = format!("{}  b.txt\n{}  sub/a.txt\n", to_hex(sha256(b"two")), to_hex(sha256(b"one")));
+        assert_eq!(corpus_digest(&dir).unwrap(), to_hex(sha256(manifest.as_bytes())));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

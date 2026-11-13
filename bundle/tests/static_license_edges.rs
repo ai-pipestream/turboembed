@@ -1,8 +1,9 @@
 use serde_json::{Value, json};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo_bundle::distill::from_base::{self, Options};
+use turbo_scratch::Scratch;
 
 const TEXT: &[u8] = b"Test licence text, preserved byte for byte.\n";
 
@@ -19,8 +20,8 @@ fn copy(from: &Path, to: &Path) {
     }
 }
 
-fn fixture(name: &str, license: &str) -> PathBuf {
-    let root = std::env::temp_dir().join(format!("turbo-license-edge-{}-{name}", std::process::id()));
+fn fixture(name: &str, license: &str) -> Scratch {
+    let root = Scratch::at(std::env::temp_dir().join(format!("turbo-license-edge-{}-{name}", std::process::id())));
     fs::create_dir_all(&root).unwrap();
     let base = root.join("base");
     copy(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"), &base);

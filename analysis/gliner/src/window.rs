@@ -9,6 +9,52 @@ pub(crate) struct Window {
     pub packed: PackedInput,
 }
 
+/// Why an input was not packed. A unit over a limit is counts only, so a
+/// server may tell its caller which limit and by how much.
+#[derive(Debug)]
+pub(crate) enum Refusal {
+    /// A sentence of more tokens than one window holds.
+    Tokens {
+        got: usize,
+    },
+    /// The schema prompt with a sentence, or with one token, is longer
+    /// in pieces than the encoder's sequence.
+    Sequence {
+        max: usize,
+        got: usize,
+    },
+    /// The schema prompt alone leaves no room for a piece of text in
+    /// the encoder's sequence: fewer or shorter labels fit, no text does.
+    Prompt {
+        max: usize,
+        got: usize,
+    },
+    Other(String),
+}
+
+impl From<String> for Refusal {
+    fn from(detail: String) -> Refusal {
+        Refusal::Other(detail)
+    }
+}
+
+impl From<&str> for Refusal {
+    fn from(detail: &str) -> Refusal {
+        Refusal::Other(detail.into())
+    }
+}
+
+impl From<Refusal> for String {
+    fn from(r: Refusal) -> String {
+        match r {
+            Refusal::Tokens { got } => format!("max_tokens limit: {MAX_TOKENS}, got {got}"),
+            Refusal::Sequence { max, got } => format!("max_sequence limit: {max}, got {got}"),
+            Refusal::Prompt { max, got } => format!("label prompt max_sequence limit: {max}, got {got}"),
+            Refusal::Other(detail) => detail,
+        }
+    }
+}
+
 /// Validate sentence ownership before packing. With no sentence layer each
 /// token is an indivisible unit. Supplied sentences are never split or skipped.
 fn units(view: &View, tokens: &Tokens, sentences: Option<&Sentences>) -> Result<Vec<Range<usize>>, String> {
@@ -51,7 +97,7 @@ pub(crate) fn pack_windows(
     view: &View,
     tokens: &Tokens,
     sentences: Option<&Sentences>,
-) -> Result<Vec<Window>, String> {
+) -> Result<Vec<Window>, Refusal> {
     tokens.check()?;
     if tokens.spans.view() != view.id() || tokens.spans.fragment_columns().is_some() {
         return Err("gliner needs contiguous tokens in its input view".into());
@@ -81,7 +127,7 @@ pub(crate) fn pack_windows(
         let kind = if sentences.is_some() { "sentence" } else { "token" };
         let fail = |message: &str| format!("{kind} {index}: {message}");
         if unit.len() > MAX_TOKENS {
-            return Err(fail("max_tokens limit: 384"));
+            return Err(Refusal::Tokens { got: unit.len() });
         }
         ids.clear();
         positions.clear();
@@ -89,11 +135,14 @@ pub(crate) fn pack_windows(
             let word =
                 view.text().get(starts[i] as usize..ends[i] as usize).ok_or_else(|| fail("token UTF-8 bounds"))?;
             let pieces = packer.word(word).map_err(|e| fail(&e))?;
-            if prefix.ids.len() + ids.len() + pieces.len() + 1 > ec.max_sequence {
-                return Err(fail("max_sequence limit exceeded"));
-            }
             positions.push(ids.len());
             ids.extend_from_slice(pieces);
+        }
+        // The unit is never split: with the prompt and the end token it
+        // has to fit one sequence.
+        let needed = prefix.ids.len() + ids.len() + 1;
+        if needed > ec.max_sequence {
+            return Err(Refusal::Sequence { max: ec.max_sequence, got: needed });
         }
         if current.words.len() + unit.len() > MAX_TOKENS || current.ids.len() + ids.len() + 1 > ec.max_sequence {
             current.ids.push(model.config().eos_token);

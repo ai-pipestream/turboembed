@@ -269,8 +269,9 @@ fn a_sentence_of_no_tokens_is_skipped() {
 #[test]
 fn a_corpus_read_with_chunks_reads_the_chunk_files_its_headers_name() {
     use crate::masc::{ChunkFiles, read_document_with};
-    let dir = std::env::temp_dir().join(format!("turbo-formats-masc-chunks-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-formats-masc-chunks-{}", std::process::id())),
+    );
     std::fs::create_dir_all(&dir).unwrap();
     let files = [
         ("d.txt", "a b".to_owned()),

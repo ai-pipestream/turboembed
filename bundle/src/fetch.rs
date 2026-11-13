@@ -16,6 +16,30 @@ pub fn url(repository: &str, commit: &str, path: &str) -> String {
     format!("{}/resolve/{commit}/{path}", repository.trim_end_matches('/'))
 }
 
+/// One upstream file in a recipe's fetch plan: its path in the upstream
+/// directory, the URL it is fetched from, and its pinned SHA-256 when
+/// the recipe gives one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FetchFile {
+    pub path: String,
+    pub url: String,
+    pub sha256: Option<String>,
+}
+
+/// The files `fetch` downloads for `recipe`, in recipe order, each
+/// resolved against its own `repository` and `commit` or
+/// `manifest.model.source`.
+pub fn plan(recipe: &Recipe) -> Result<Vec<FetchFile>> {
+    recipe
+        .upstream
+        .iter()
+        .map(|u| {
+            let (repo, commit) = recipe.upstream_source(u)?;
+            Ok(FetchFile { path: u.path.clone(), url: url(repo, commit, &u.path), sha256: u.sha256.clone() })
+        })
+        .collect()
+}
+
 /// What `fetch` writes beside the files: where they came from, under
 /// which licence and terms, and their hashes.
 pub const PROVENANCE: &str = "turbo-fetch.json";
@@ -40,7 +64,7 @@ pub fn fetch_with(recipe: &Recipe, dir: &Path, consent: &Consent) -> Result<()> 
     let class = crate::licence::check_fetch_with(&recipe.manifest, consent)?;
     crate::licence::check_notice_with(recipe, consent)?;
     let mut files = serde_json::Map::new();
-    for u in &recipe.upstream {
+    for u in plan(recipe)? {
         let dest = dir.join(&u.path);
         let have = fs::read(&dest).ok().map(|b| sha256_hex(&b));
         // A file already there is kept only when its hash is pinned and
@@ -49,7 +73,7 @@ pub fn fetch_with(recipe: &Recipe, dir: &Path, consent: &Consent) -> Result<()> 
         let hash = match (&have, &u.sha256) {
             (Some(h), Some(want)) if h == want => h.clone(),
             _ => {
-                let bytes = get(&url(repository, commit, &u.path))?;
+                let bytes = get(&u.url)?;
                 let h = sha256_hex(&bytes);
                 if let Some(want) = &u.sha256
                     && &h != want
@@ -61,7 +85,7 @@ pub fn fetch_with(recipe: &Recipe, dir: &Path, consent: &Consent) -> Result<()> 
             }
         };
         println!("{hash}  {}", u.path);
-        files.insert(u.path.clone(), hash.into());
+        files.insert(u.path, hash.into());
     }
     let provenance = serde_json::json!({
         "repository": repository,
@@ -130,9 +154,10 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
 mod tests {
     use super::*;
 
-    fn dir(label: &str) -> std::path::PathBuf {
-        let d = std::env::temp_dir().join(format!("turbo-bundle-fetch-{}-{label}", std::process::id()));
-        let _ = fs::remove_dir_all(&d);
+    fn dir(label: &str) -> turbo_scratch::Scratch {
+        let d = turbo_scratch::Scratch::at(
+            std::env::temp_dir().join(format!("turbo-bundle-fetch-{}-{label}", std::process::id())),
+        );
         fs::create_dir_all(&d).unwrap();
         d
     }

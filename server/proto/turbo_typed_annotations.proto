@@ -41,7 +41,8 @@ enum LayerWireStatus
 // Why a layer or view is not OK, as a kind: no free text, no values, no
 // debug formatting (issue #1908). DECLINED is an annotator declining
 // the document; UPSTREAM is a skip because a layer it reads is not
-// complete; the rest are the analysis error kinds.
+// complete; LIMIT is an annotator refusing an input over one of its
+// limits (TURBO_E_CAPACITY); the rest are the analysis error kinds.
 enum LayerErrorKind
 {
   LAYER_ERROR_KIND_UNSPECIFIED = 0;
@@ -59,6 +60,7 @@ enum LayerErrorKind
   LAYER_ERROR_KIND_PANIC = 12;
   LAYER_ERROR_KIND_OFFSET = 13;
   LAYER_ERROR_KIND_SOURCE = 14;
+  LAYER_ERROR_KIND_LIMIT = 15;
 }
 
 // A sanitized layer error: the kind, the turbo status a client routes
@@ -1050,6 +1052,11 @@ enum PiiKindId
   PII_KIND_ID_PHONE_EXTENSION = 38;
   PII_KIND_ID_AGE = 39;
   PII_KIND_ID_STREET_ADDRESS = 40;
+  PII_KIND_ID_DATE = 41;
+  PII_KIND_ID_CURRENCY = 42;
+  PII_KIND_ID_STATE = 43;
+  PII_KIND_ID_COUNTY = 44;
+  PII_KIND_ID_CITY = 45;
 }
 
 // How much the text supports a mention's kind: the same numbers as the C
@@ -1230,8 +1237,7 @@ message PiiMention
 // allows the form, the calling service is granted it for the mention's
 // kind (#1909) and the request's redaction policy's release ceiling for
 // the kind, when set, includes it (#1943); a caller that holds the text slices it with
-// the spans. `token` and `clear` are produced; `ciphertext` waits for
-// #1885.
+// the spans.
 message PiiValue
 {
   oneof form
@@ -1240,7 +1246,7 @@ message PiiValue
     PiiValueWithheld withheld = 1;
     // A keyed token standing for the value.
     PiiValueToken token = 2;
-    // The value encrypted; refused until #1885.
+    // The value encrypted under a registered encryption key (#1885).
     PiiValueCiphertext ciphertext = 3;
     // The normalized value in clear.
     string clear = 4;
@@ -1290,8 +1296,14 @@ message PiiValueToken
   uint32 key_version = 3;
 }
 
-// The value encrypted under a registered key with a named scheme. Not
-// produced until #1885.
+// The value encrypted under a registered encryption key with a named
+// scheme (#1885). The server's one scheme is turbo-pii-aes-256-gcm-v1:
+// `ciphertext` is the UTF-8 text of a turbo-pii AES-256-GCM token, the
+// kind code with its case kept (builtin:3, custom:Badge), ':', and the
+// unpadded base64url of a 12-byte nonce, the encrypted normalized value
+// and the 16-byte tag, its associated data binding the exact kind code
+// and the context turbo-kserve.pii-release.v1. Each release draws a fresh
+// nonce, so equal values give different ciphertexts.
 message PiiValueCiphertext
 {
   // The encrypted bytes, in `scheme`'s encoding.
@@ -1335,8 +1347,8 @@ message PiiOutputOptions
   bool full_text = 2;
   // Candidates and evidence detail (#1903).
   bool detail = 3;
-  // Values in this form; UNSPECIFIED or WITHHELD withholds them. TOKEN
-  // and CLEAR are released by InspectDocumentGraph only, on a server with
+  // Values in this form; UNSPECIFIED or WITHHELD withholds them. TOKEN,
+  // CIPHERTEXT and CLEAR are released by InspectDocumentGraph only, on a server with
   // PII release configured (#1909), and only for the kinds the calling
   // service's verified client certificate is granted; every other mention
   // is withheld with its reason (PiiWithheldReason). A release needs the
@@ -1345,9 +1357,10 @@ message PiiOutputOptions
   // kind at all is refused with TURBO_E_INVALID_STATE (FAILED_PRECONDITION)
   // naming the form. Both are decided before the graph is read (#1931).
   // Each release is recorded with the audit service (turbo_audit.proto)
-  // before the answer leaves, and fails when the record does. CIPHERTEXT,
-  // and TOKEN or CLEAR on any other call or on a server without release,
-  // are refused with TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED).
+  // before the answer leaves, and fails when the record does. A value
+  // form on any other call or on a server without release, and CIPHERTEXT
+  // on a server that releases no ciphertext, are refused with
+  // TURBO_E_UNSUPPORTED_OPTION (UNIMPLEMENTED).
   PiiValueForm values = 4;
 }
 
@@ -1357,6 +1370,9 @@ enum PiiRejectReason
   PII_REJECT_REASON_UNSPECIFIED = 0;
   PII_REJECT_REASON_LABEL_REQUIRED = 1;
   PII_REJECT_REASON_THRESHOLD = 2;
+  // A model's candidate that overlaps a mention a rule found, other than
+  // as its repeat or strictly inside it: the rule's mention stands.
+  PII_REJECT_REASON_RULE_PRECEDENCE = 3;
 }
 
 // Which allow table a rule came from. UNSPECIFIED is refused.
@@ -1466,6 +1482,19 @@ enum PiiStrategy
   PII_STRATEGY_AES_256_GCM = 10;
   // FF1 format-preserving encryption a holder of the key decrypts.
   PII_STRATEGY_FF1 = 11;
+  // HIPAA Safe Harbor ZIP generalization (PiiZipSafeHarborStrategy).
+  PII_STRATEGY_ZIP_SAFE_HARBOR = 12;
+  // HIPAA Safe Harbor age aggregation (PiiAgeSafeHarborStrategy).
+  PII_STRATEGY_AGE_SAFE_HARBOR = 13;
+  // A date truncated to its year (PiiDateStrategy.year).
+  PII_STRATEGY_DATE_YEAR = 14;
+  // A date shifted, in its written form (PiiDateStrategy.shift).
+  PII_STRATEGY_DATE_SHIFT = 15;
+  // A date relative to a reference date (PiiDateStrategy.relative).
+  PII_STRATEGY_DATE_RELATIVE = 16;
+  // A date truncated to its year, with years indicating an age over 89 as
+  // one category (PiiDateStrategy.safe_harbor).
+  PII_STRATEGY_DATE_SAFE_HARBOR = 17;
 }
 
 // Which rule of the rewrite policy chose an edit's strategy: the default,

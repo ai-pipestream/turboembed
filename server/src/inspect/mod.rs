@@ -94,7 +94,8 @@ pub fn inspect_document_window_under(
     };
 
     let (window_proto, window_span) = compute_window(text, req.view, &offsetter, req.page_size, req.page)?;
-    let segments = combined_segments(&doc, view_id, text, window_span, &offsetter, &req.filter_layers)?;
+    let filter = window::LayerFilter { layers: &req.filter_layers, instances: &req.filter_layer_instances };
+    let segments = combined_segments(&doc, view_id, text, window_span, &offsetter, filter)?;
     let chips = document_chips(&doc);
     let heatmap_lanes = build_heatmap_lanes(&doc, view_id, text, &offsetter, req.heatmap_buckets)?;
     let xray = match req.xray_target_view {
