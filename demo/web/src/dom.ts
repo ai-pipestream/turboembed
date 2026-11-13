@@ -93,6 +93,34 @@ export function failed(x: Explained): HTMLElement {
   return el("p", { class: "error" }, failure(x));
 }
 
+/** The legend of a row of heat cells: what a cell is, and the scale from low to high. */
+export function heatKey(what: string): HTMLElement {
+  return el("p", { class: "heat-key muted" }, what, " ", el("span", { class: "ramp", role: "img", "aria-label": "colour scale from low to high" }, "low ", el("i", {}), " high"));
+}
+
+/**
+ * Where the layout is one column (a phone), the results sit below the
+ * form: brings `box` into view, smoothly unless the visitor asked for
+ * less motion. On a wider layout it does nothing.
+ *
+ * A result that grows after its first part (a stream) can call the
+ * returned function to bring the box to the top once more; it does
+ * nothing once the visitor has scrolled on their own.
+ */
+export function reveal(box: Element | null): () => void {
+  if (!box || !matchMedia("(max-width: 820px)").matches) return () => {};
+  const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const show = (): void => box.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  let moved = false;
+  for (const ev of ["wheel", "touchmove", "keydown"]) {
+    addEventListener(ev, () => (moved = true), { once: true, passive: true });
+  }
+  show();
+  return () => {
+    if (!moved) show();
+  };
+}
+
 /** Bytes as a short human size. */
 export function size(n: number | bigint): string {
   const v = Number(n);

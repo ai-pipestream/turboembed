@@ -8,10 +8,11 @@ import { create } from "@bufbuild/protobuf";
 import { InferParameterSchema, type InferParameter, type ModelInferResponse } from "../gen/open_inference_grpc_pb.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
-import { $, el, failed, input, options, say, table } from "../dom.js";
+import { $, el, failed, input, options, reveal, say, table } from "../dom.js";
 import { explain, inference } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, reachable, whyNone } from "../state.js";
-import { cosine, heat, matrix, short, vectorsOf } from "./embed.js";
+import { cosine, matrix, short, vectorsOf } from "./embed.js";
+import { simTable } from "./simtable.js";
 
 const utf8 = new TextEncoder();
 const select = (id: string) => $(id) as HTMLSelectElement;
@@ -52,12 +53,7 @@ async function embed(model: string, query: string, passages: string[]): Promise<
     el("h3", { text: `Nearest neighbours (${model})` }),
     table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
     el("h3", { text: "Passage similarity" }),
-    el(
-      "table",
-      { class: "sim" },
-      el("tr", {}, el("th", {}), passages.map((_, j) => el("th", { text: `#${j + 1}` }))),
-      sim.map((row, i) => el("tr", {}, el("td", { class: "text", title: passages[i], text: `#${i + 1} ${short(passages[i], 22)}` }), row.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) })))),
-    ),
+    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim),
   );
 }
 
@@ -126,6 +122,7 @@ async function run(): Promise<void> {
     jobs.filter(([m]) => m).map(([, box, job]) => job().catch((err) => $(box).replaceChildren(failed(explain(err))))),
   );
   say(note, "");
+  reveal($("sem-sim").parentElement);
 }
 
 export function init(): void {
