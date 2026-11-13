@@ -30,14 +30,15 @@ test("the entity graph draws a labelled arrow per relation and names them for a 
     assert.equal(summary.includes(", 3 relations."), true, summary);
     assert.equal(await page.locator(`${OUT} svg .node`).count(), 4);
 
-    // An arrow per relation, named, pointing from subject to object.
+    // An arrow per relation, named, pointing from subject to object. The graph says
+    // twice that Charles Babbage is in London: one arrow, with the better score.
     assert.equal(await page.locator(`${OUT} svg .edge`).count(), 3);
     assert.deepEqual((await page.locator(`${OUT} svg .edge .edge-name`).allTextContents()).sort(), ["born in", "located in", "works for"]);
     assert.equal(await page.locator(`${OUT} svg .edge line[marker-end="url(#arrow)"]`).count(), 3);
     assert.deepEqual((await page.locator(`${OUT} svg .edge title`).allTextContents()).sort(), [
       "Ada Lovelace works for Charles Babbage, score 0.900",
       "Babbage born in London, score 0.500",
-      "Charles Babbage located in London, score 0.750",
+      "Charles Babbage located in London, score 0.750, found 2 times",
     ]);
     assert.equal(((await page.locator(`${OUT} .legend .arrow-key`).textContent()) ?? "").trim(), "a relation, from subject to object");
 
@@ -57,7 +58,7 @@ test("the entity graph draws a labelled arrow per relation and names them for a 
     assert.deepEqual(rows.sort(), [
       ["Ada Lovelace", "works for", "Charles Babbage", "0.900", "1"],
       ["Babbage", "born in", "London", "0.500", "1"],
-      ["Charles Babbage", "located in", "London", "0.750", "1"],
+      ["Charles Babbage", "located in", "London", "0.750", "2"],
     ]);
     assert.deepEqual(errors, []);
   } finally {

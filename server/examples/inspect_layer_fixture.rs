@@ -29,8 +29,9 @@ const RELATION_TEXT: &str = "Ada Lovelace worked for Charles Babbage in London. 
 /// The entities of [`RELATION_TEXT`]: byte span, token range, kind.
 const ENTITIES: [(u32, u32, u32, u32, u16); 5] =
     [(0, 12, 0, 2, 0), (24, 39, 4, 6, 0), (43, 49, 7, 8, 1), (51, 58, 9, 10, 0), (71, 77, 13, 14, 1)];
-/// The relations between them: subject, object, kind, score.
-const RELATIONS: [(u32, u32, u16, f64); 3] = [(0, 1, 0, 0.9), (1, 2, 1, 0.75), (3, 4, 2, 0.5)];
+/// The relations between them: subject, object, kind, score. The last
+/// repeats the second between the same entities, with a lower score.
+const RELATIONS: [(u32, u32, u16, f64); 4] = [(0, 1, 0, 0.9), (1, 2, 1, 0.75), (3, 4, 2, 0.5), (1, 4, 1, 0.6)];
 
 fn spans<L>(all: impl IntoIterator<Item = (u32, u32)>) -> Spans<L> {
     let mut spans = Spans::new(ViewId::SOURCE);
@@ -40,7 +41,7 @@ fn spans<L>(all: impl IntoIterator<Item = (u32, u32)>) -> Spans<L> {
     spans
 }
 
-/// Two sentences, three people and two places in five mentions, and three
+/// Two sentences, three people and two places in five mentions, and four
 /// relations, as a relation model would write them.
 fn relations() -> Result<Document, Failure> {
     let mut doc = Document::new(RELATION_TEXT);
