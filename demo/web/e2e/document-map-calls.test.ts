@@ -204,6 +204,61 @@ test("a query changed while the map is on its way is the one placed", async () =
   }
 });
 
+test("a query typed into an empty box while the map is on its way is placed, and asked once", async () => {
+  const browser = await chromium.launch();
+  try {
+    const { page, context, calls, errors } = await watch(browser);
+    const hold = await Hold.of(context, CALL);
+    await ready(page);
+    hold.start();
+    await page.click("#analyze-run");
+    await hold.held(page, 1);
+    // Typed, and the map arrives before the typing's timer runs out.
+    await page.fill("#projection-query", SEARCH);
+    await hold.release(page);
+    await placed(page, SEARCH);
+    // Long enough for a timer that was left running to ask again.
+    await page.waitForTimeout(900);
+    assert.equal(calls(), 2, "the drawing, and the typed query once");
+    assert.equal(((await page.locator("#projection-query-out").textContent()) ?? "").startsWith("Embedded by tiny-bert"), true);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("a query's refusal that arrives after a newer drawing is not shown", async () => {
+  const browser = await chromium.launch();
+  try {
+    const { page, context, errors } = await watch(browser);
+    const hold = await Hold.of(context, CALL);
+    await ready(page);
+    await analyze(page);
+    await page.waitForSelector(`${OUT} .matrix canvas`);
+    // A query longer than the server places is asked of this drawing, and its refusal is held back.
+    hold.start();
+    await page.fill("#projection-query", "interest rates and central banks ".repeat(300));
+    await page.press("#projection-query", "Enter");
+    await hold.held(page, 1);
+
+    // Drawn again with a query the server places.
+    await page.fill("#projection-query", BANK);
+    await page.click("#projection-run");
+    await placed(page, BANK);
+    const said = await page.locator("#projection-query-out").textContent();
+    assert.equal((said ?? "").startsWith("Embedded by tiny-bert"), true, said ?? "");
+
+    // The refusal arrives now and belongs to the drawing that is gone.
+    await hold.release(page);
+    assert.equal(await page.locator("#projection-query-out .error").count(), 0);
+    assert.equal(await page.locator("#projection-query-out").textContent(), said);
+    assert.equal(await page.locator(`${OUT} svg .query title`).textContent(), BANK);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
 test("an answer to an older drawing that arrives late is not drawn", async () => {
   const browser = await chromium.launch();
   try {

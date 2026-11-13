@@ -85,6 +85,10 @@ test("a declined call names the part of the request it is about", () => {
   const rows = refusal("TURBO_E_CAPACITY: projected vector rows is 751, over the max_project_rows limit", Code.OutOfRange);
   assert.equal(declinedOver(rows, "query"), false);
   assert.equal(declinedOver(rows, "pairwise"), false);
+  // The part is the one the refusal opens with, not one it mentions.
+  const dims = refusal("TURBO_E_INVALID_ARGUMENT: pca_dims 9 is more than a query or a pairwise matrix can use", Code.InvalidArgument);
+  assert.equal(declinedOver(dims, "query"), false);
+  assert.equal(declinedOver(dims, "pairwise"), false);
   // A failure whose words happen to open with a part's name is not a refusal.
   assert.equal(declinedOver(refusal("query could not be sent", Code.Unavailable), "query"), false);
 });
