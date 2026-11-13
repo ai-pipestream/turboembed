@@ -16,6 +16,7 @@ use turbo_normalize::{
 use turbo_sentdetect::RuleSentenceDetector;
 use turbo_stem::{PorterStemmer, SnowballStemmer, Stemmer};
 use turbo_tokenize::{SimpleTokenizer, TokenizerOptions, WhitespaceTokenizer, WordTokenizer};
+use turbo_unicode::category::{GeneralCategory, general_category};
 
 use crate::error::{ClientError, Result};
 use crate::fingerprint::{
@@ -368,7 +369,8 @@ fn project_sentences(
     let mut rows = Vec::with_capacity(sentences.len().max(1));
     let mut prev_end = 0u32;
     for i in 0..sentences.len() {
-        let mapped = alignment.span_to_parent(sentences.spans.get(Ix::new(i as u32)));
+        let mapped =
+            extend_stripped_marks(source, alignment, alignment.span_to_parent(sentences.spans.get(Ix::new(i as u32))));
         let start = mapped.start.max(prev_end).min(mapped.end);
         let end = mapped.end.max(start);
         if start < end {
@@ -410,7 +412,7 @@ fn project_arcs(
         if term.is_empty() {
             continue;
         }
-        let mapped = alignment.span_to_parent(arc.span);
+        let mapped = extend_stripped_marks(source, alignment, alignment.span_to_parent(arc.span));
         let sent_idx = find_enclosing_sentence(sentences, mapped.start);
         out.push(AnalyzedTokenArc {
             term,
@@ -422,6 +424,26 @@ fn project_arcs(
         });
     }
     out
+}
+
+fn extend_stripped_marks(source: &str, alignment: &Alignment, span: Span) -> Span {
+    if span.is_empty() {
+        return span;
+    }
+    let mut end = span.end;
+    if let Some(tail) = source.get(end as usize..) {
+        for ch in tail.chars() {
+            let is_mark =
+                matches!(general_category(ch), GeneralCategory::Mn | GeneralCategory::Mc | GeneralCategory::Me);
+            let next_end = end + ch.len_utf8() as u32;
+            if is_mark && alignment.span_to_child(Span::new(end, next_end)).is_empty() {
+                end = next_end;
+            } else {
+                break;
+            }
+        }
+    }
+    Span::new(span.start, end)
 }
 
 fn find_enclosing_sentence(sentences: &[AnalyzedSentence], byte_start: u32) -> u32 {

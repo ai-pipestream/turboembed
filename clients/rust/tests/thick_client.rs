@@ -297,3 +297,25 @@ fn handshake_refuses_mismatched_analysis_and_local_or_remote_bundle_fingerprints
         assert!(ok_client.remote().is_some());
     });
 }
+
+#[test]
+fn accent_folded_decomposed_marks_keep_full_grapheme_source_spans() {
+    let cfg = FieldAnalysisConfig {
+        tokenizer: TokenizerKind::Simple,
+        normalizers: vec![NormalizerKind::StripInvisible, NormalizerKind::AccentFold, NormalizerKind::FullCaseFold],
+        stemmer: StemmerKind::None,
+        term_source: TermSourceKind::Tokens,
+        sentence_language: "eng".into(),
+        emit_lattice: true,
+    };
+    let client = TurboClient::builder().with_default_field(cfg).build().unwrap();
+    let src = "caf\u{00E9} cafe\u{0301} foo\u{200B}bar";
+    let analyzed = client.lexical().analyze(src).unwrap();
+    let terms_and_spans: Vec<(&str, u32, u32, (u32, u32))> =
+        analyzed.arcs.iter().map(|a| (a.term.as_str(), a.pos, a.pos_len, a.spans.utf8)).collect();
+    assert_eq!(terms_and_spans[0], ("cafe", 0, 1, (0, 5)));
+    assert_eq!(terms_and_spans[1], ("cafe", 1, 1, (6, 12)));
+    assert_eq!(terms_and_spans[2], ("foo", 2, 1, (13, 16)));
+    assert_eq!(terms_and_spans[3], ("foobar", 2, 2, (13, 22)));
+    assert_eq!(terms_and_spans[4], ("bar", 3, 1, (19, 22)));
+}
