@@ -1,0 +1,16 @@
+# 2252 entity constellation
+ok   one node per entity, however often it is mentioned (10 nodes)
+ok   the line above says how many entities and mentions (10 entities from 24 mentions in turbo:entities; no relation )
+ok   the most mentioned entity is the largest (20.0, 18.6, 17.1 ...)
+ok   entities of one kind share a colour, named in the legend
+ok   entities mentioned in one sentence are joined (19 dotted links)
+ok   pointing at an entity says what it is and what it goes with (Paris (location), 5 mentions. In a sentence with Berlin, Athens, Vienna, London,)
+ok   its row in the strips lights up
+# 2252 mention strips
+ok   one row per entity
+ok   one mark per mention (24 marks)
+ok   the chunks run as a band above (3 chunks)
+ok   pointing at a mark shows its sentence (Berlin (location) at 54: The night train leaves Paris after supper and reaches Berlin befo)
+ok   the same as a table, with CSV
+ok   a graph with no entity layer says how to get one (No entities in this graph. Analyze with an open-sp)
+all checks passed

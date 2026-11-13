@@ -23,4 +23,6 @@ test("a count agrees with its noun", () => {
   assert.equal(count(1, "document"), "1 document");
   assert.equal(count(0, "document"), "0 documents");
   assert.equal(count(12, "document"), "12 documents");
+  assert.equal(count(2, "entity", "entities"), "2 entities");
+  assert.equal(count(1, "entity", "entities"), "1 entity");
 });

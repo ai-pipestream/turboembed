@@ -2107,32 +2107,32 @@ function boot(boot2) {
   const reg = createFileRegistry(root, () => void 0);
   return reg.getFile(root.name);
 }
-function bootFileDescriptorProto(init16) {
+function bootFileDescriptorProto(init17) {
   const proto = /* @__PURE__ */ Object.create({
     syntax: "",
     edition: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init16), { messageType: init16.messageType.map(bootDescriptorProto), enumType: init16.enumType.map(bootEnumDescriptorProto) }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init17), { messageType: init17.messageType.map(bootDescriptorProto), enumType: init17.enumType.map(bootEnumDescriptorProto) }));
 }
-function bootDescriptorProto(init16) {
+function bootDescriptorProto(init17) {
   var _a, _b, _c, _d, _e, _f, _g, _h;
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.DescriptorProto",
-    name: init16.name,
-    field: (_b = (_a = init16.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
+    name: init17.name,
+    field: (_b = (_a = init17.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
     extension: [],
-    nestedType: (_d = (_c = init16.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
-    enumType: (_f = (_e = init16.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
-    extensionRange: (_h = (_g = init16.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
+    nestedType: (_d = (_c = init17.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
+    enumType: (_f = (_e = init17.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
+    extensionRange: (_h = (_g = init17.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
     oneofDecl: [],
     reservedRange: [],
     reservedName: []
   });
 }
-function bootFieldDescriptorProto(init16) {
+function bootFieldDescriptorProto(init17) {
   const proto = /* @__PURE__ */ Object.create({
     label: 1,
     typeName: "",
@@ -2142,9 +2142,9 @@ function bootFieldDescriptorProto(init16) {
     jsonName: "",
     proto3Optional: false
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init16), { options: init16.options ? bootFieldOptions(init16.options) : void 0 }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init17), { options: init17.options ? bootFieldOptions(init17.options) : void 0 }));
 }
-function bootFieldOptions(init16) {
+function bootFieldOptions(init17) {
   var _a, _b, _c;
   const proto = /* @__PURE__ */ Object.create({
     ctype: 0,
@@ -2157,18 +2157,18 @@ function bootFieldOptions(init16) {
     debugRedact: false,
     retention: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init16), { targets: (_a = init16.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init16.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init17), { targets: (_a = init17.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init17.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
 }
-function bootEnumDescriptorProto(init16) {
+function bootEnumDescriptorProto(init17) {
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.EnumDescriptorProto",
-    name: init16.name,
+    name: init17.name,
     reservedName: [],
     reservedRange: [],
-    value: init16.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
+    value: init17.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
   });
 }
 
@@ -2411,11 +2411,11 @@ function isWrapperTypeName(name) {
 var EDITION_PROTO32 = 999;
 var EDITION_PROTO22 = 998;
 var IMPLICIT3 = 2;
-function create(schema, init16) {
-  if (isMessage(init16, schema)) {
-    return init16;
+function create(schema, init17) {
+  if (isMessage(init17, schema)) {
+    return init17;
   }
-  return compiledCreate(schema)(init16);
+  return compiledCreate(schema)(init17);
 }
 var compiledCreates = /* @__PURE__ */ new WeakMap();
 function compiledCreate(desc) {
@@ -2433,7 +2433,7 @@ var INIT_ONEOF = 3;
 function compileCreate(desc) {
   const typeName = desc.typeName;
   const { properties, prototype } = compileInitMessage(desc);
-  return (init16) => {
+  return (init17) => {
     let message;
     if (prototype !== void 0) {
       message = Object.create(prototype);
@@ -2444,7 +2444,7 @@ function compileCreate(desc) {
     for (let i = 0; i < properties.length; i++) {
       const property = properties[i];
       const name = property.name;
-      const initValue = init16 === null || init16 === void 0 ? void 0 : init16[name];
+      const initValue = init17 === null || init17 === void 0 ? void 0 : init17[name];
       switch (property.kind) {
         case INIT_SINGULAR:
           if (initValue != null) {
@@ -3477,11 +3477,11 @@ var ReflectMapImpl = class {
   }
   delete(key3) {
     const k = mapKeyToLocal(key3);
-    const has = Object.prototype.hasOwnProperty.call(this.obj, k);
-    if (has) {
+    const has2 = Object.prototype.hasOwnProperty.call(this.obj, k);
+    if (has2) {
       delete this.obj[k];
     }
-    return has;
+    return has2;
   }
   clear() {
     for (const key3 of Object.keys(this.obj)) {
@@ -4249,12 +4249,14 @@ function put(f, v) {
 }
 var restored = /* @__PURE__ */ new WeakSet();
 function restore(select5) {
-  if (restored.has(select5)) return;
-  const v = select5.id ? recall(select5.id) : null;
-  if (v === null || !select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
-  if (!offered(v, [...select5.options].map((o) => o.value))) return;
+  if (restored.has(select5) || !select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
+  const v = kept(select5.id, select5.hasAttribute("data-unkept"), select5.id ? recall(select5.id) : null, [...select5.options].map((o) => o.value));
+  if (v === null) return;
   select5.value = v;
   restored.add(select5);
+}
+function kept(id, unkept, v, values) {
+  return id !== "" && !unkept && offered(v, values) ? v : null;
 }
 function offered(v, values) {
   return v !== null && values.includes(v);
@@ -4362,24 +4364,24 @@ function failure(x) {
   if (!x.details) return [x.text];
   return [x.text, " ", el("details", { class: "why" }, el("summary", { text: "details" }), el("code", { text: x.details }))];
 }
-function say(box5, what, kind = "") {
+function say(box6, what, kind = "") {
   if (typeof what === "string") {
-    box5.textContent = what;
-    box5.className = kind ? `note ${kind}` : "note";
-    box5.hidden = what === "";
+    box6.textContent = what;
+    box6.className = kind ? `note ${kind}` : "note";
+    box6.hidden = what === "";
     return;
   }
-  box5.replaceChildren();
-  append(box5, failure(what));
-  box5.className = what.text === "Cancelled." ? "note" : "note error";
-  box5.hidden = false;
+  box6.replaceChildren();
+  append(box6, failure(what));
+  box6.className = what.text === "Cancelled." ? "note" : "note error";
+  box6.hidden = false;
 }
-function sending(box5, what) {
+function sending(box6, what) {
   const bar3 = el("progress", { max: "1", value: "0", "aria-label": "Upload progress" });
   const line = el("span", {});
-  box5.replaceChildren(line, bar3);
-  box5.className = "note busy upload";
-  box5.hidden = false;
+  box6.replaceChildren(line, bar3);
+  box6.className = "note busy upload";
+  box6.hidden = false;
   return (sent, total) => {
     bar3.max = Math.max(1, total);
     bar3.value = sent;
@@ -4393,22 +4395,22 @@ function failed(x) {
 function heatKey(what) {
   return el("p", { class: "heat-key muted" }, what, " ", el("span", { class: "ramp", role: "img", "aria-label": "colour scale from low to high" }, "low ", el("i", {}), " high"));
 }
-function reveal(box5) {
-  if (!box5 || !matchMedia("(max-width: 820px)").matches) return () => {
+function reveal(box6) {
+  if (!box6 || !matchMedia("(max-width: 820px)").matches) return () => {
   };
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const show3 = () => box5.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  const show4 = () => box6.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
   let moved = false;
   for (const ev of ["wheel", "touchmove", "keydown"]) {
     addEventListener(ev, () => moved = true, { once: true, passive: true });
   }
-  show3();
+  show4();
   return () => {
-    if (!moved) show3();
+    if (!moved) show4();
   };
 }
-function count(n2, noun) {
-  return `${n2} ${noun}${n2 === 1 ? "" : "s"}`;
+function count(n2, noun, many = `${noun}s`) {
+  return `${n2} ${n2 === 1 ? noun : many}`;
 }
 function size(n2) {
   const v = Number(n2);
@@ -4433,19 +4435,19 @@ function download(name, data, type) {
 function after(s2, prefix2) {
   return s2.startsWith(prefix2) ? s2.slice(prefix2.length) : s2;
 }
-function lazy(details, render6) {
+function lazy(details, render7) {
   let stale2 = true;
   details.addEventListener("toggle", () => {
     if (details.open && stale2) {
       stale2 = false;
-      render6();
+      render7();
     }
   });
   return () => {
     stale2 = true;
     if (details.open) {
       stale2 = false;
-      render6();
+      render7();
     }
   };
 }
@@ -7109,8 +7111,8 @@ function sentence(message) {
   if (!m) return "";
   const first = String.fromCodePoint(m.codePointAt(0));
   const rest = m.slice(first.length);
-  const last2 = m[m.length - 1];
-  return first.toUpperCase() + rest + (last2 === "." || last2 === "!" || last2 === "?" ? "" : ".");
+  const last3 = m[m.length - 1];
+  return first.toUpperCase() + rest + (last3 === "." || last3 === "!" || last3 === "?" ? "" : ".");
 }
 function emptyField(message) {
   for (const end of EMPTY_ENDS) {
@@ -7302,12 +7304,12 @@ function submitter(ev) {
   return ev.target.querySelector("button[type=submit]");
 }
 function confirmed(label, question, act3, off2 = "") {
-  const box5 = el("span", { class: "confirm" });
+  const box6 = el("span", { class: "confirm" });
   const first = (why = "") => {
     const b = el("button", { type: "button", text: label, title: off2 || void 0 });
     b.disabled = off2 !== "";
     b.addEventListener("click", ask);
-    box5.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
+    box6.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
     return b;
   };
   const ask = () => {
@@ -7319,21 +7321,21 @@ function confirmed(label, question, act3, off2 = "") {
       void busy(yes, async () => {
         try {
           await act3();
-          if (box5.isConnected) first();
+          if (box6.isConnected) first();
         } catch (e) {
           first(describe(e)).focus();
         }
       });
     });
-    box5.replaceChildren(el("span", { class: "ask", text: question }), " ", yes, " ", no);
+    box6.replaceChildren(el("span", { class: "ask", text: question }), " ", yes, " ", no);
     no.focus();
   };
-  box5.addEventListener("keydown", (ev) => {
-    const no = box5.querySelector(".ask ~ button:not(.danger)");
+  box6.addEventListener("keydown", (ev) => {
+    const no = box6.querySelector(".ask ~ button:not(.danger)");
     if (ev.key === "Escape" && no && !no.disabled) first().focus();
   });
   first();
-  return box5;
+  return box6;
 }
 
 // demo/web/src/doc.ts
@@ -7372,13 +7374,13 @@ function colourOf(a) {
   if (names(a.layer) && a.label) return { key: `label:${a.label}`, name: a.label };
   return { key: `layer:${layerKey(a.layer, a.instance)}`, name: layerName(a.layer, a.instance) };
 }
-function kept(anns, filter2) {
+function kept2(anns, filter2) {
   return filter2.size ? anns.filter((a) => filter2.has(layerKey(a.layer, a.instance))) : anns;
 }
 function painted(anns, filter2, lead) {
-  let show3 = kept(anns, filter2);
-  if (!filter2.size && lead !== "all") show3 = show3.filter((a) => lead === "naming" ? rank(a) === 0 : sentence2(a));
-  return [...show3].sort((x, y) => rank(x) - rank(y));
+  let show4 = kept2(anns, filter2);
+  if (!filter2.size && lead !== "all") show4 = show4.filter((a) => lead === "naming" ? rank(a) === 0 : sentence2(a));
+  return [...show4].sort((x, y) => rank(x) - rank(y));
 }
 function sentence2(a) {
   return a.layer.toLowerCase().includes("sentences");
@@ -7461,14 +7463,14 @@ function annotated(segs, filter2) {
     const style = `--mark: ${colour(index.get(colourOf(lead).key) ?? 0)}${second ? `; --under: ${colour(index.get(colourOf(second).key) ?? 0)}` : ""}`;
     const cls = `${lead.item % 2 ? "alt" : ""}${second ? " under" : ""}`.trim();
     const mark = el("mark", { class: cls || void 0, style, title: tip(s2.annotations), tabindex: "0", role: "button", text: s2.text });
-    const show3 = () => {
+    const show4 = () => {
       picked2?.classList.remove("picked");
       picked2 = mark;
       mark.classList.add("picked");
       panel.replaceChildren(...inspect(s2.text, s2.annotations));
     };
-    mark.addEventListener("click", show3);
-    mark.addEventListener("focus", show3);
+    mark.addEventListener("click", show4);
+    mark.addEventListener("focus", show4);
     text.append(mark);
   }
   const key3 = swatches.length ? el("div", { class: "legend" }, swatches.map((s2) => el("span", { class: "swatch", style: `--mark: ${colour(s2.index)}` }, el("i", {}), ` ${s2.name} `, el("span", { class: "muted", text: String(s2.items) })))) : el("p", { class: "muted", text: "Nothing is marked: pick a layer above to mark it in the text." });
@@ -7498,7 +7500,7 @@ function set(forwarded, hasUser = true) {
   const was = key();
   writes = forwarded ? new Set(forwarded) : null;
   user = forwarded === null || hasUser;
-  for (const [box5, m] of locked) apply(box5, m);
+  for (const [box6, m] of locked) apply(box6, m);
   if (key() !== was) changed.forEach((l) => l());
 }
 function key() {
@@ -7513,22 +7515,22 @@ function off(m) {
   if (!user && m.parent.typeName === FOR_A_USER) return "Off: this acts for a user. Start the demo with --user NAME";
   return "";
 }
-function apply(box5, m) {
+function apply(box6, m) {
   const why = off(m);
-  box5.inert = why !== "";
-  box5.classList.toggle("off", why !== "");
-  const id = `${box5.id}-off`;
+  box6.inert = why !== "";
+  box6.classList.toggle("off", why !== "");
+  const id = `${box6.id}-off`;
   const old = document.getElementById(id);
   if (!why) return void old?.remove();
   const line = old ?? document.createElement("p");
   line.id = id;
   line.className = "muted off-why";
   line.textContent = why;
-  if (!old) box5.after(line);
+  if (!old) box6.after(line);
 }
-function lock(box5, m) {
-  locked.push([box5, m]);
-  apply(box5, m);
+function lock(box6, m) {
+  locked.push([box6, m]);
+  apply(box6, m);
 }
 
 // demo/web/src/status.ts
@@ -7747,10 +7749,10 @@ async function run() {
   }
 }
 function lanesView(w) {
-  const box5 = el("div", { class: "lanes" });
+  const box6 = el("div", { class: "lanes" });
   for (const lane of w.heatmapLanes) {
     const top = Math.max(1, ...lane.buckets.map((b) => Math.abs(b.score) || b.count));
-    box5.append(
+    box6.append(
       el(
         "div",
         { class: "lane" },
@@ -7766,14 +7768,14 @@ function lanesView(w) {
       )
     );
   }
-  return box5;
+  return box6;
 }
 var freshWindow = latest();
 async function showWindow() {
   const mine = freshWindow();
   const graph = doc()?.graph;
-  const box5 = $("analyze-window");
-  if (!graph) return void box5.replaceChildren();
+  const box6 = $("analyze-window");
+  if (!graph) return void box6.replaceChildren();
   try {
     const picked2 = (shape ?? []).filter((l) => filter.has(layerKey(l.layer, l.instance))).map((l) => ({ layer: l.layer, instance: l.instance }));
     const base2 = { graph, view: 0, offsets: 1 /* UTF16 */, pageSize: 16e3, filterLayerInstances: picked2 };
@@ -7806,7 +7808,7 @@ async function showWindow() {
     next.addEventListener("click", () => (page += 1, void showWindow()));
     nav.append(prev, el("span", { class: "muted", text: win ? ` page ${win.page + 1} of ${win.pageCount}, units ${win.start}..${win.end} ` : "" }), next);
     const s2 = w.summary;
-    box5.replaceChildren(
+    box6.replaceChildren(
       el("h3", { text: "Document" }),
       s2 ? el("p", { class: "muted", text: `${s2.totalBytes} bytes, ${s2.totalUnits} UTF-16 units, ${s2.viewCount} views, ${s2.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
@@ -7820,7 +7822,7 @@ async function showWindow() {
     settle = null;
   } catch (e) {
     if (!mine()) return;
-    box5.replaceChildren(failed(explain(e)));
+    box6.replaceChildren(failed(explain(e)));
   }
 }
 async function exportDoc() {
@@ -7903,11 +7905,11 @@ var note = () => $("coll-note");
 var freshList = latest();
 async function list() {
   const mine = freshList();
-  const box5 = $("coll-list");
+  const box6 = $("coll-list");
   try {
     const r = await search.listCollections({});
     if (!mine()) return;
-    box5.replaceChildren(
+    box6.replaceChildren(
       r.collections.length ? table(
         ["collection", "units", "mean length", "vocabulary", "alert at", "top terms", ""],
         r.collections.map((c) => [
@@ -7923,7 +7925,7 @@ async function list() {
     );
   } catch (e) {
     if (!mine()) return;
-    box5.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
+    box6.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }
 function remove(name) {
@@ -8387,11 +8389,11 @@ async function loadMeta(name) {
 }
 var PICKED = "embed-models";
 function renderModels() {
-  const box5 = $("embed-models");
-  box5.replaceChildren();
+  const box6 = $("embed-models");
+  box6.replaceChildren();
   if (models.size === 0) {
     const down = reachable() === false;
-    box5.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
+    box6.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
   }
   for (const [name, m] of models) {
     const cb = el("input", { type: "checkbox" });
@@ -8401,7 +8403,7 @@ function renderModels() {
       m.checked = cb.checked;
       remember(PICKED, [...models].filter(([, x]) => x.checked).map(([n2]) => n2).join("\n"));
     });
-    box5.append(
+    box6.append(
       el(
         "label",
         { class: "model" },
@@ -8414,8 +8416,8 @@ function renderModels() {
 }
 async function addModels(names2) {
   const fresh = names2.filter((n2) => !models.get(n2)?.meta);
-  const kept2 = recallList(PICKED);
-  for (const n2 of fresh) models.set(n2, { meta: null, error: "", checked: kept2 ? kept2.includes(n2) : true });
+  const kept3 = recallList(PICKED);
+  for (const n2 of fresh) models.set(n2, { meta: null, error: "", checked: kept3 ? kept3.includes(n2) : true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
 }
@@ -8661,22 +8663,486 @@ function init6() {
   });
 }
 
+// demo/web/src/viz/entities.ts
+function keyOf(m) {
+  const name = (m.canonical || m.text).normalize("NFKC").toLocaleLowerCase().split(" ").filter((w) => w.length).join(" ");
+  return `${m.kind}\0${name}`;
+}
+function gather(mentions) {
+  const groups2 = /* @__PURE__ */ new Map();
+  mentions.forEach((m, i) => groups2.set(keyOf(m), [...groups2.get(keyOf(m)) ?? [], i]));
+  const ordered2 = [...groups2.values()].sort((a, b) => b.length - a.length || a[0] - b[0]);
+  const of = new Array(mentions.length).fill(-1);
+  const entities = ordered2.map((members, e) => {
+    for (const i of members) of[i] = e;
+    const first = mentions[members[0]];
+    const counts = /* @__PURE__ */ new Map();
+    for (const i of members) counts.set(mentions[i].text, (counts.get(mentions[i].text) ?? 0) + 1);
+    const common = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    return { name: first.canonical || common, kind: first.kind, mentions: members };
+  });
+  return { entities, of };
+}
+function link(relations, of) {
+  const edges = /* @__PURE__ */ new Map();
+  for (const r of relations) {
+    const from2 = of[r.subject];
+    const to2 = of[r.object];
+    if (from2 === void 0 || to2 === void 0 || from2 < 0 || to2 < 0 || from2 === to2) continue;
+    const key3 = `${from2}\0${to2}\0${r.kind}`;
+    const e = edges.get(key3);
+    if (e) {
+      e.support += 1;
+      if (r.score !== void 0) e.score = Math.max(e.score ?? r.score, r.score);
+    } else edges.set(key3, { from: from2, to: to2, kind: r.kind, support: 1, score: r.score });
+  }
+  return [...edges.values()];
+}
+function layout(n2, edges, w, h, pad = 40) {
+  if (n2 === 0) return [];
+  if (n2 === 1) return [[w / 2, h / 2]];
+  const rx = w / 2 - pad;
+  const ry = h / 2 - pad;
+  const at = Array.from({ length: n2 }, (_, i) => [w / 2 + rx * Math.cos(2 * Math.PI * i / n2 - Math.PI / 2), h / 2 + ry * Math.sin(2 * Math.PI * i / n2 - Math.PI / 2)]);
+  const ideal = 0.8 * Math.sqrt(rx * ry * 4 / n2);
+  for (let step = 0; step < 200; step++) {
+    const heat = (1 - step / 200) * ideal * 0.5;
+    const move = at.map(() => [0, 0]);
+    for (let i = 0; i < n2; i++) {
+      for (let j = i + 1; j < n2; j++) {
+        const dx = at[i][0] - at[j][0];
+        const dy = at[i][1] - at[j][1];
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const push = ideal * ideal / d;
+        move[i][0] += dx / d * push;
+        move[i][1] += dy / d * push;
+        move[j][0] -= dx / d * push;
+        move[j][1] -= dy / d * push;
+      }
+    }
+    for (const e of edges) {
+      const dx = at[e.from][0] - at[e.to][0];
+      const dy = at[e.from][1] - at[e.to][1];
+      const d = Math.max(1, Math.hypot(dx, dy));
+      const pull = d * d / (ideal * 2.5);
+      move[e.from][0] -= dx / d * pull;
+      move[e.from][1] -= dy / d * pull;
+      move[e.to][0] += dx / d * pull;
+      move[e.to][1] += dy / d * pull;
+    }
+    for (let i = 0; i < n2; i++) {
+      const cx = w / 2 - at[i][0];
+      const cy = (h / 2 - at[i][1]) * (rx / ry);
+      const far = Math.hypot(cx, cy);
+      move[i][0] += cx * far / (ideal * 6);
+      move[i][1] += cy * far / (ideal * 6);
+      const d = Math.max(1e-9, Math.hypot(move[i][0], move[i][1]));
+      const by = Math.min(d, heat);
+      at[i][0] = Math.max(pad, Math.min(w - pad, at[i][0] + move[i][0] / d * by));
+      at[i][1] = Math.max(pad, Math.min(h - pad, at[i][1] + move[i][1] / d * by));
+    }
+  }
+  const gap = Math.min(64, ideal);
+  for (let step = 0; step < 40; step++) {
+    for (let i = 0; i < n2; i++) {
+      for (let j = i + 1; j < n2; j++) {
+        const dx = at[i][0] - at[j][0] || 0.5 - (i * 7 + j) % 2;
+        const dy = at[i][1] - at[j][1] || 0.5 - (i + j * 3) % 2;
+        const d = Math.hypot(dx, dy);
+        if (d >= gap) continue;
+        const by = (gap - d) / 2;
+        at[i] = [Math.max(pad, Math.min(w - pad, at[i][0] + dx / d * by)), Math.max(pad, Math.min(h - pad, at[i][1] + dy / d * by))];
+        at[j] = [Math.max(pad, Math.min(w - pad, at[j][0] - dx / d * by)), Math.max(pad, Math.min(h - pad, at[j][1] - dy / d * by))];
+      }
+    }
+  }
+  return at;
+}
+function together(mentions, of, sentences) {
+  const pairs = /* @__PURE__ */ new Map();
+  for (const s2 of sentences) {
+    const inside = [...new Set(mentions.flatMap((m, i) => m.start >= s2.start && m.end <= s2.end && of[i] >= 0 ? [of[i]] : []))].sort((a, b) => a - b);
+    for (let i = 0; i < inside.length; i++) {
+      for (let j = i + 1; j < inside.length; j++) {
+        const key3 = `${inside[i]}\0${inside[j]}`;
+        const p = pairs.get(key3) ?? { from: inside[i], to: inside[j], count: 0 };
+        p.count += 1;
+        pairs.set(key3, p);
+      }
+    }
+  }
+  return [...pairs.values()];
+}
+function finest(spans) {
+  return spans.filter((a) => a.end > a.start && !spans.some((b) => b !== a && b.end > b.start && b.start >= a.start && b.end <= a.end && (b.start !== a.start || b.end !== a.end))).filter((a, i, all) => all.findIndex((b) => b.start === a.start && b.end === a.end) === i).sort((a, b) => a.start - b.start);
+}
+function sentenceAt(text, spans, offset) {
+  const s2 = spans.find((x) => offset >= x.start && offset < x.end);
+  return s2 ? text.slice(s2.start, s2.end).trim() : text.slice(Math.max(0, offset - 60), offset + 60).trim();
+}
+function kindSlots(kinds2, cap) {
+  const slots = /* @__PURE__ */ new Map();
+  for (const k of kinds2) if (!slots.has(k)) slots.set(k, Math.min(slots.size, cap - 1));
+  return slots;
+}
+
+// demo/web/src/viz/model.ts
+function leaves(units) {
+  if (!units.length) return [];
+  const finest2 = Math.min(...units.map((u) => u.level));
+  return units.filter((u) => u.level === finest2).sort((a, b) => a.start - b.start || a.end - b.end);
+}
+function regions(units, leafUnits) {
+  if (!leafUnits.length) return [];
+  const finest2 = leafUnits[0].level;
+  const out = [];
+  for (const u of units) {
+    if (u.level === finest2) continue;
+    const members = leafUnits.flatMap((l, i) => l.start >= u.start && l.end <= u.end && !l.empty ? [i] : []);
+    if (members.length >= 2 && members.length < leafUnits.filter((l) => !l.empty).length) out.push({ unit: u, members });
+  }
+  return out.sort((a, b) => a.unit.start - b.unit.start);
+}
+function hull(pts) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]).filter((q, i, all) => i === 0 || q[0] !== all[i - 1][0] || q[1] !== all[i - 1][1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half2 = (src) => {
+    const h = [];
+    for (const q of src) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+      h.push(q);
+    }
+    h.pop();
+    return h;
+  };
+  return [...half2(p), ...half2([...p].reverse())];
+}
+function scale(lo, hi, a, b) {
+  return hi === lo ? () => (a + b) / 2 : (v) => a + (v - lo) / (hi - lo) * (b - a);
+}
+function spread(chunks) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of chunks) for (const t of new Set(c.map((x) => x.term))) seen.set(t, (seen.get(t) ?? 0) + 1);
+  return seen;
+}
+function telling(here, there, listedIn, count2) {
+  const rare = count2 > 1 ? Math.log(count2 / Math.max(1, listedIn)) : 1;
+  return here * Math.log(here / there) * rare;
+}
+function distinctive(chunk, chunkTotal, doc2, docTotal, k, listed2 = /* @__PURE__ */ new Map(), count2 = 1) {
+  if (!chunk.length || chunkTotal <= 0 || docTotal <= 0) return [];
+  const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
+  const floor = doc2.length ? Math.min(...doc2.map((t) => t.weight / docTotal)) : 1;
+  return chunk.map((t) => ({ term: t.term, score: telling(t.weight / chunkTotal, shares.get(t.term) ?? floor, listed2.get(t.term) ?? 1, count2) })).filter((t) => t.score > 0).sort((a, b) => b.score - a.score || (a.term < b.term ? -1 : 1)).slice(0, k).map((t) => t.term);
+}
+function riverTerms(doc2, docTotal, chunks, k, uneven) {
+  let picked2;
+  if (uneven) {
+    const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
+    const listed2 = spread(chunks.map((c) => c.terms));
+    const best2 = /* @__PURE__ */ new Map();
+    for (const c of chunks) {
+      for (const t of c.terms) {
+        const there = shares.get(t.term);
+        if (there === void 0 || c.total <= 0) continue;
+        best2.set(t.term, Math.max(best2.get(t.term) ?? 0, telling(t.weight / c.total, there, listed2.get(t.term) ?? 1, chunks.length)));
+      }
+    }
+    picked2 = [...best2].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, k).map(([t]) => t);
+  } else {
+    picked2 = [...doc2].sort((a, b) => b.weight - a.weight).slice(0, k).map((t) => t.term);
+  }
+  const peak = (term) => {
+    const w = chunks.map((c) => c.terms.find((t) => t.term === term)?.weight ?? 0);
+    return w.indexOf(Math.max(...w));
+  };
+  return picked2.map((t, i) => ({ t, i, at: peak(t) })).sort((a, b) => a.at - b.at || a.i - b.i).map((x) => x.t);
+}
+function streams(weights) {
+  const cols = weights[0]?.length ?? 0;
+  const out = weights.map(() => ({ lo: new Array(cols).fill(0), hi: new Array(cols).fill(0) }));
+  for (let c = 0; c < cols; c++) {
+    let at = -weights.reduce((s2, w) => s2 + w[c], 0) / 2;
+    weights.forEach((w, t) => {
+      out[t].lo[c] = at;
+      at += w[c];
+      out[t].hi[c] = at;
+    });
+  }
+  return out;
+}
+function pieces(text, chunks, marks) {
+  const clamp = (v) => Math.max(0, Math.min(text.length, v));
+  const edges = /* @__PURE__ */ new Set([0, text.length]);
+  for (const c of chunks) edges.add(clamp(c.start)).add(clamp(c.end));
+  for (const [s2, e] of marks) edges.add(clamp(s2)).add(clamp(e));
+  const cuts = [...edges].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const [s2, e] = [cuts[i], cuts[i + 1]];
+    if (e <= s2) continue;
+    const chunk = chunks.findIndex((c) => s2 >= c.start && e <= c.end);
+    out.push({ text: text.slice(s2, e), start: s2, chunk: chunk < 0 ? null : chunk, marked: marks.some(([a, b]) => s2 >= a && e <= b) });
+  }
+  return out;
+}
+function aroundGap(text, gaps, i) {
+  const at = gaps[i];
+  const from2 = i > 0 ? gaps[i - 1] : 0;
+  const to2 = i + 1 < gaps.length ? gaps[i + 1] : text.length;
+  return [text.slice(from2, at).trim(), text.slice(at, to2).trim()];
+}
+function cutReason(code) {
+  return ["document start", "sentence end", "section", "heading", "paragraph", "topic shift", "clause", "list item", "inside a sentence", "overlap"][code] ?? `reason ${code}`;
+}
+
+// demo/web/src/viz/svg.ts
+var ns = null;
+function namespace() {
+  if (ns === null) {
+    const t = document.createElement("template");
+    t.innerHTML = "<svg></svg>";
+    ns = t.content.firstElementChild.namespaceURI;
+  }
+  return ns;
+}
+function s(tag, attrs = {}, ...children) {
+  const e = document.createElementNS(namespace(), tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== void 0) e.setAttribute(k, String(v));
+  for (const c of children) if (c !== null) e.append(c);
+  return e;
+}
+function figure(w, h, label) {
+  return s("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": label, class: "viz" });
+}
+function n(v) {
+  return String(Math.round(v * 100) / 100);
+}
+function ordered(i, count2) {
+  const share = count2 > 1 ? Math.round(100 * i / (count2 - 1)) : 50;
+  return `color-mix(in oklab, var(--seq-from), var(--seq-to) ${share}%)`;
+}
+
+// demo/web/src/tabs/entities.ts
+var W = 640;
+var MOST = 30;
+var KINDS = 8;
+var box3 = () => $("entities-out");
+var picker = () => $("entities-layer");
+var keyOf2 = (l) => `${l.id}#${l.instance}`;
+var nameOf = (l) => `${l.id}${l.instance ? ` (${l.instance})` : ""}`;
+var has = (l, kind) => l.status === 1 /* OK */ && l.annotations.some((a) => a.value.case === kind);
+function relationsOf(r, entities) {
+  const into = (l) => l.indexesLayer.length === 0 || l.indexesLayer.some((b) => b.layer === entities.id && b.instance === entities.instance);
+  const out = [];
+  for (const l of r.layers.filter((x) => has(x, "relation") && into(x))) {
+    for (const a of l.annotations) if (a.value.case === "relation") out.push({ subject: a.value.value.subjectEntity, object: a.value.value.objectEntity, kind: a.value.value.kind, score: a.probability });
+  }
+  if (out.length) return out;
+  for (const l of r.layers.filter((x) => has(x, "edge") && x.indexesLayer.length > 0 && into(x))) {
+    for (const a of l.annotations) if (a.value.case === "edge") out.push({ subject: a.value.value.fromIndex, object: a.value.value.toIndex, kind: a.value.value.kind, score: a.value.value.score });
+  }
+  return out;
+}
+function constellation(v, info, light, onLight) {
+  const H3 = v.entities.length > 12 ? 420 : 320;
+  const at = layout(v.entities.length, v.edges.length ? v.edges : v.pairs, W, H3, 46);
+  const most = Math.max(...v.entities.map((e) => e.mentions.length));
+  const size2 = (e) => 7 + 13 * Math.sqrt(e.mentions.length / most);
+  const svg = figure(W, H3, `Entity graph: ${count(v.entities.length, "entity", "entities")}, ${count(v.edges.length, "relation")}`);
+  svg.append(s("defs", {}, s("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, s("path", { d: "M0 0 L10 5 L0 10 Z", class: "arrow" }))));
+  const most2 = Math.max(1, ...v.pairs.map((p) => p.count));
+  const dotted = v.pairs.map((p) => {
+    const l = s("line", { x1: n(at[p.from][0]), y1: n(at[p.from][1]), x2: n(at[p.to][0]), y2: n(at[p.to][1]), class: "together", "stroke-width": n(1 + 2 * p.count / most2) }, s("title", {}, `${v.entities[p.from].name} and ${v.entities[p.to].name}: together in ${count(p.count, "sentence")}`));
+    svg.append(l);
+    return l;
+  });
+  const lines = v.edges.map((e) => {
+    const [ax, ay] = at[e.from];
+    const [bx, by] = at[e.to];
+    const d = Math.max(1, Math.hypot(bx - ax, by - ay));
+    const [ra, rb] = [size2(v.entities[e.from]) + 2, size2(v.entities[e.to]) + 4];
+    const g = s(
+      "g",
+      { class: "edge" },
+      s("line", { x1: n(ax + (bx - ax) / d * ra), y1: n(ay + (by - ay) / d * ra), x2: n(bx - (bx - ax) / d * rb), y2: n(by - (by - ay) / d * rb), "marker-end": "url(#arrow)" }),
+      s("text", { x: n((ax + bx) / 2), y: n((ay + by) / 2 - 4), class: "edge-name", "text-anchor": "middle" }, e.kind),
+      s("title", {}, `${v.entities[e.from].name} ${e.kind} ${v.entities[e.to].name}${e.score === void 0 ? "" : `, score ${e.score.toFixed(3)}`}${e.support > 1 ? `, found ${e.support} times` : ""}`)
+    );
+    svg.append(g);
+    return g;
+  });
+  const nodes = v.entities.map((e, i) => {
+    const [x, y] = at[i];
+    const r = size2(e);
+    const g = s(
+      "g",
+      { class: "node", tabindex: 0, role: "button", "aria-label": `${e.name}, ${e.kind}, ${count(e.mentions.length, "mention")}` },
+      s("circle", { cx: n(x), cy: n(y), r: n(Math.max(r, 16)), class: "hit" }),
+      s("circle", { cx: n(x), cy: n(y), r: n(r), class: "mark", style: `fill: var(--m${v.slots.get(e.kind) ?? KINDS - 1})` }),
+      s("text", { x: n(x), y: n(y + r + 13), class: "label", "text-anchor": "middle" }, short(e.name, 24))
+    );
+    g.addEventListener("mouseenter", () => light(i));
+    g.addEventListener("focus", () => light(i));
+    g.addEventListener("mouseleave", () => light(null));
+    g.addEventListener("blur", () => light(null));
+    svg.append(g);
+    return g;
+  });
+  onLight((e) => {
+    svg.classList.toggle("dim", e !== null);
+    const near = new Set(e === null ? [] : [e]);
+    lines.forEach((l, k) => {
+      const on = e !== null && (v.edges[k].from === e || v.edges[k].to === e);
+      l.classList.toggle("lit", on);
+      if (on) near.add(v.edges[k].from).add(v.edges[k].to);
+    });
+    dotted.forEach((l, k) => {
+      const on = e !== null && (v.pairs[k].from === e || v.pairs[k].to === e);
+      l.classList.toggle("lit", on);
+      if (on) near.add(v.pairs[k].from).add(v.pairs[k].to);
+    });
+    nodes.forEach((g, i) => g.classList.toggle("lit", near.has(i)));
+    if (e === null) return;
+    const withThem = v.pairs.filter((x) => x.from === e || x.to === e).sort((a, b) => b.count - a.count).map((x) => v.entities[x.from === e ? x.to : x.from].name);
+    const ent = v.entities[e];
+    const told = v.edges.filter((x) => x.from === e || x.to === e).map((x) => `${v.entities[x.from].name} ${x.kind} ${v.entities[x.to].name}`);
+    info.textContent = `${ent.name} (${ent.kind}), ${count(ent.mentions.length, "mention")}${told.length ? `: ${told.join("; ")}` : ""}${withThem.length ? `. In a sentence with ${withThem.join(", ")}` : ""}.`;
+  });
+  return el("div", { class: "scroll" }, svg);
+}
+function strips(v, info, light, onLight) {
+  const GUTTER2 = 150;
+  const ROW2 = 18;
+  const top = v.chunks.length ? 26 : 8;
+  const H3 = top + v.entities.length * ROW2 + 6;
+  const x = scale(0, Math.max(1, v.text.length), GUTTER2, W - 12);
+  const svg = figure(W, H3, `Mention strips for ${count(v.entities.length, "entity", "entities")}`);
+  if (v.chunks.length) {
+    svg.append(s("text", { x: GUTTER2 - 8, y: 17, class: "row-name", "text-anchor": "end" }, "chunks"));
+    v.chunks.forEach((c, i) => svg.append(s("rect", { x: n(x(c.start) + 1), y: 6, width: n(Math.max(1, x(c.end) - x(c.start) - 2)), height: 12, rx: 3, class: "band plain" }, s("title", {}, `Chunk ${i + 1}`))));
+  }
+  const rows2 = v.entities.map((e, i) => {
+    const y = top + i * ROW2;
+    const g = s(
+      "g",
+      { class: "strip" },
+      s("text", { x: GUTTER2 - 8, y: y + 12, class: "row-name", "text-anchor": "end" }, short(e.name, 22), s("title", {}, `${e.name} (${e.kind})`)),
+      s("rect", { x: GUTTER2, y: y + 2, width: W - 12 - GUTTER2, height: ROW2 - 6, rx: 3, class: "barcode" })
+    );
+    for (const mi of e.mentions) {
+      const m = v.mentions[mi];
+      const mark = s("rect", { x: n(Math.min(x(m.start), W - 16)), y: y + 1, width: n(Math.max(4, x(m.end) - x(m.start))), height: ROW2 - 4, rx: 2, class: "mention", tabindex: 0, role: "button", "aria-label": `${e.name} at ${m.start}`, style: `fill: var(--m${v.slots.get(e.kind) ?? KINDS - 1})` });
+      const show4 = () => {
+        light(i);
+        info.replaceChildren(el("b", { text: `${e.name} (${e.kind})` }), ` at ${m.start}: `, el("span", { class: "quote", text: short(sentenceAt(v.text, v.sentences, m.start), 200) }));
+      };
+      mark.addEventListener("mouseenter", show4);
+      mark.addEventListener("focus", show4);
+      mark.addEventListener("mouseleave", () => light(null));
+      mark.addEventListener("blur", () => light(null));
+      g.append(mark);
+    }
+    svg.append(g);
+    return g;
+  });
+  onLight((e) => rows2.forEach((g, i) => g.classList.toggle("lit", i === e)));
+  return el("div", { class: "scroll" }, svg);
+}
+function show(r) {
+  const layers = r.layers.filter((l) => has(l, "entity"));
+  const keep = picker().value;
+  options(picker(), layers.map(keyOf2), layers.map((l) => `${nameOf(l)} ${l.annotations.length}`), "no entity layer");
+  $("entities-pick").hidden = layers.length < 2;
+  if (!layers.length) {
+    return void box3().replaceChildren(el("p", { class: "muted", text: "No entities in this graph. Analyze with an open-span model and labels, or with a profile that has an entity step (default-v1 finds place names)." }));
+  }
+  const layer = layers.find((l) => keyOf2(l) === keep) ?? [...layers].sort((a, b) => b.annotations.length - a.annotations.length)[0];
+  picker().value = keyOf2(layer);
+  const mentions = layer.annotations.map((a) => {
+    const start2 = a.spans[0]?.start ?? 0;
+    const end = a.spans[a.spans.length - 1]?.end ?? start2;
+    const e = a.value.case === "entity" ? a.value.value : null;
+    return { start: start2, end, kind: e?.kind || "entity", canonical: e?.canonical ?? "", text: r.rawText.slice(start2, end) };
+  });
+  const all = gather(mentions);
+  const edgesAll = link(relationsOf(r, layer), all.of);
+  const entities = all.entities.slice(0, MOST);
+  const edges = edgesAll.filter((e) => e.from < MOST && e.to < MOST);
+  const slots = kindSlots(all.entities.map((e) => e.kind), KINDS);
+  const spansOf = (kind) => r.layers.filter((l) => has(l, kind)).flatMap((l) => l.annotations.flatMap((a) => a.spans.length ? [{ start: a.spans[0].start, end: a.spans[a.spans.length - 1].end }] : []));
+  const sentences = spansOf("sentence");
+  const pairs = together(mentions, all.of, sentences).filter((p) => p.from < MOST && p.to < MOST);
+  const seen = { entities, mentions, edges, pairs, slots, text: r.rawText, sentences, chunks: finest(spansOf("chunk")) };
+  const listeners3 = [];
+  const light = (e) => listeners3.forEach((l) => l(e));
+  const onLight = (l) => void listeners3.push(l);
+  const info = el("p", { class: "info", role: "status", text: "Point at an entity to see its relations, or at a mark to read its sentence." });
+  const shownKinds = [...slots].filter(([, slot], i, list5) => list5.findIndex(([, x]) => x === slot) === i);
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    shownKinds.map(([kind, slot]) => el("span", { class: "swatch", style: `--mark: var(--m${slot})` }, el("i", {}), ` ${slot === KINDS - 1 && slots.size > KINDS ? "other kinds" : kind}`)),
+    el("span", { class: "muted", text: "size: how often it is mentioned" }),
+    edges.length ? el("span", { class: "swatch arrow-key" }, el("i", {}), " a relation, from subject to object") : null,
+    pairs.length ? el("span", { class: "swatch together-key" }, el("i", {}), " mentioned in the same sentence") : null
+  );
+  box3().replaceChildren(
+    el("p", { class: "muted", text: `${count(all.entities.length, "entity", "entities")} from ${count(mentions.length, "mention")} in ${nameOf(layer)}${edgesAll.length ? `, ${count(edgesAll.length, "relation")}` : "; no relation layer indexes it, so there are no arrows (a relation model adds them)"}.${all.entities.length > MOST ? ` The ${MOST} most mentioned are drawn.` : ""}` }),
+    el("h3", { text: "Entity constellation" }),
+    el("div", { class: "figure" }, constellation(seen, info, light, onLight), legend2),
+    el("h3", { text: "Mention strips" }),
+    el("div", { class: "figure" }, strips(seen, info, light, onLight), info),
+    el(
+      "details",
+      { class: "tables" },
+      el("summary", { text: "As tables" }),
+      table(["entity", "kind", "mentions", "at"], all.entities.map((e) => [e.name, e.kind, String(e.mentions.length), e.mentions.map((i) => String(mentions[i].start)).join(", ")])),
+      take("Entities", () => [["entity", "kind", "mentions", "starts"], ...all.entities.map((e) => [e.name, e.kind, String(e.mentions.length), e.mentions.map((i) => String(mentions[i].start)).join(" ")])]),
+      edgesAll.length ? table(["subject", "relation", "object", "score", "found"], edgesAll.map((e) => [all.entities[e.from].name, e.kind, all.entities[e.to].name, e.score === void 0 ? "" : e.score.toFixed(3), String(e.support)])) : ""
+    )
+  );
+}
+var last2 = null;
+var freshRender3 = latest();
+async function render4() {
+  const mine = freshRender3();
+  const d = doc();
+  if (!d) return void box3().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  try {
+    const r = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: 0, offsets: 1 /* UTF16 */ });
+    if (!mine()) return;
+    last2 = r;
+    show(last2);
+  } catch (e) {
+    if (!mine()) return;
+    last2 = null;
+    box3().replaceChildren(failed(explain(e)));
+  }
+}
+function init7() {
+  const again = lazy($("analyze-entities"), () => void render4());
+  onDoc(() => again());
+  picker().addEventListener("change", () => last2 && show(last2));
+}
+
 // demo/web/src/about.ts
 var WHERE = "Load a bundle on the Server tab, or install a model on the Models tab.";
 function needs(tab, tasks) {
-  const has = (t) => tasks.includes(t);
-  if (tab === "embed" && !has("TASK_EMBED")) return `Needs: an embedding model. The server serves none. ${WHERE}`;
-  if (tab === "semantic" && !has("TASK_EMBED") && !has("TASK_RERANK") && !has("TASK_EXTRACTIVE_QA")) {
+  const has2 = (t) => tasks.includes(t);
+  if (tab === "embed" && !has2("TASK_EMBED")) return `Needs: an embedding model. The server serves none. ${WHERE}`;
+  if (tab === "semantic" && !has2("TASK_EMBED") && !has2("TASK_RERANK") && !has2("TASK_EXTRACTIVE_QA")) {
     return `Needs: an embedding model, a reranker or a QA model. The server serves none. ${WHERE}`;
   }
-  if (tab === "search" && !has("TASK_EMBED")) return `Needs: an embedding model to create an index. The server serves none. ${WHERE}`;
+  if (tab === "search" && !has2("TASK_EMBED")) return `Needs: an embedding model to create an index. The server serves none. ${WHERE}`;
   return "";
 }
 var HINTED = ["embed", "semantic", "search"];
 
 // demo/web/src/tabs/hints.ts
-function init7() {
-  const show3 = (tasks) => {
+function init8() {
+  const show4 = (tasks) => {
     for (const tab of HINTED) {
       const line = $(`needs-${tab}`);
       const text = tasks ? needs(tab, tasks) : "";
@@ -8684,9 +9150,9 @@ function init7() {
       line.hidden = text === "";
     }
   };
-  onCapabilities((c) => show3(c.bundles.map((b) => b.task)));
+  onCapabilities((c) => show4(c.bundles.map((b) => b.task)));
   onReachable((up) => {
-    if (!up) show3(null);
+    if (!up) show4(null);
   });
 }
 
@@ -9175,7 +9641,7 @@ async function finish(back) {
     return `Signed in: ${r.source?.name ?? "the Drive"} is registered.`;
   }, load);
 }
-function init8() {
+function init9() {
   $("sources-form").addEventListener("submit", add);
   lock($("sources-form"), TurboCatalogService.method.registerModelSource);
   lock($("sources-drive"), TurboCatalogService.method.startDriveSignIn);
@@ -9254,8 +9720,8 @@ function catalogTable(entries, w) {
   const rows2 = entries.map((e) => entryRow(e, w));
   const list5 = el("div", { class: "catalog" }, rows2);
   const count2 = el("span", { class: "muted", id: "models-count", role: "status" });
-  const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
-  box5.value = filterText;
+  const box6 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
+  box6.value = filterText;
   if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
   const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n2]) => [k, kindName(k), n2])].map(([k, name, n2]) => {
     const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n2}` });
@@ -9281,12 +9747,12 @@ function catalogTable(entries, w) {
     list5.hidden = shown2 === 0;
     none.hidden = shown2 !== 0;
   }
-  box5.addEventListener("input", () => {
-    filterText = box5.value;
+  box6.addEventListener("input", () => {
+    filterText = box6.value;
     apply2();
   });
   apply2();
-  return el("div", {}, el("div", { class: "row filter" }, box5, count2), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
+  return el("div", {}, el("div", { class: "row filter" }, box6, count2), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
 }
 function saveButtons(e, w) {
   if (!w.user || e.missingTerms.length > 0) return null;
@@ -9320,13 +9786,13 @@ async function saveFile(e, f) {
 var freshCatalog = latest();
 async function loadCatalog() {
   const mine = freshCatalog();
-  const box5 = $("models-catalog");
+  const box6 = $("models-catalog");
   say(note3(), "Reading the catalog\u2026", "busy");
   try {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
     if (!mine()) return;
     const w = who(acc);
-    box5.replaceChildren(
+    box6.replaceChildren(
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]), "", "Nothing is installed."),
       el("h3", { text: "Accepted terms" }),
@@ -9378,7 +9844,7 @@ async function installModel(e) {
 var freshTraining = latest();
 async function loadTraining() {
   const mine = freshTraining();
-  const box5 = $("models-static");
+  const box6 = $("models-static");
   try {
     const t = await training.listTeachers({});
     if (!mine()) return;
@@ -9405,12 +9871,12 @@ async function loadTraining() {
       if (!mine()) return;
       made = reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so its static models cannot be listed." }) : failed(explain(e));
     }
-    box5.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
+    box6.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
     if (!mine()) return;
     const down = reachable() === false;
     options($("train-teacher"), [], void 0, down ? "the server is not reachable" : "the teachers could not be listed");
-    box5.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));
+    box6.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));
   }
 }
 function deleteButton(name) {
@@ -9431,7 +9897,7 @@ async function train(ev) {
     $("train-progress").replaceChildren(progress);
     say($("train-note"), "Training\u2026", "busy");
     const t0 = performance.now();
-    let last2 = -1;
+    let last3 = -1;
     try {
       const req = {
         name: input("train-name").value.trim(),
@@ -9454,9 +9920,9 @@ async function train(ev) {
             p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : ""
           ].filter(Boolean);
           const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts2.length ? `: ${facts2.join(", ")}` : ""}`);
-          if (p.stage === last2 && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
+          if (p.stage === last3 && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
           else steps.append(line);
-          last2 = p.stage;
+          last3 = p.stage;
         } else if (u.update.case === "trained") {
           const t = u.update.value;
           progress.value = progress.max;
@@ -9484,7 +9950,7 @@ function stop3() {
   saving = null;
   stopTraining();
 }
-function init9() {
+function init10() {
   const read = $("models-catalog-load");
   read.addEventListener("click", () => void busy(read, loadCatalog));
   $("train-form").addEventListener("submit", train);
@@ -9511,7 +9977,7 @@ function init9() {
     teachers();
     if ($("models-catalog").childElementCount) void loadCatalog();
   });
-  init8();
+  init9();
 }
 
 // demo/web/src/viz/link.ts
@@ -9537,195 +10003,57 @@ function linker() {
   };
 }
 
-// demo/web/src/viz/model.ts
-function leaves(units) {
-  if (!units.length) return [];
-  const finest = Math.min(...units.map((u) => u.level));
-  return units.filter((u) => u.level === finest).sort((a, b) => a.start - b.start || a.end - b.end);
-}
-function regions(units, leafUnits) {
-  if (!leafUnits.length) return [];
-  const finest = leafUnits[0].level;
-  const out = [];
-  for (const u of units) {
-    if (u.level === finest) continue;
-    const members = leafUnits.flatMap((l, i) => l.start >= u.start && l.end <= u.end && !l.empty ? [i] : []);
-    if (members.length >= 2 && members.length < leafUnits.filter((l) => !l.empty).length) out.push({ unit: u, members });
-  }
-  return out.sort((a, b) => a.unit.start - b.unit.start);
-}
-function hull(pts) {
-  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]).filter((q, i, all) => i === 0 || q[0] !== all[i - 1][0] || q[1] !== all[i - 1][1]);
-  if (p.length < 3) return p;
-  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const half2 = (src) => {
-    const h = [];
-    for (const q of src) {
-      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
-      h.push(q);
-    }
-    h.pop();
-    return h;
-  };
-  return [...half2(p), ...half2([...p].reverse())];
-}
-function scale(lo, hi, a, b) {
-  return hi === lo ? () => (a + b) / 2 : (v) => a + (v - lo) / (hi - lo) * (b - a);
-}
-function spread(chunks) {
-  const seen = /* @__PURE__ */ new Map();
-  for (const c of chunks) for (const t of new Set(c.map((x) => x.term))) seen.set(t, (seen.get(t) ?? 0) + 1);
-  return seen;
-}
-function telling(here, there, listedIn, count2) {
-  const rare = count2 > 1 ? Math.log(count2 / Math.max(1, listedIn)) : 1;
-  return here * Math.log(here / there) * rare;
-}
-function distinctive(chunk, chunkTotal, doc2, docTotal, k, listed2 = /* @__PURE__ */ new Map(), count2 = 1) {
-  if (!chunk.length || chunkTotal <= 0 || docTotal <= 0) return [];
-  const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
-  const floor = doc2.length ? Math.min(...doc2.map((t) => t.weight / docTotal)) : 1;
-  return chunk.map((t) => ({ term: t.term, score: telling(t.weight / chunkTotal, shares.get(t.term) ?? floor, listed2.get(t.term) ?? 1, count2) })).filter((t) => t.score > 0).sort((a, b) => b.score - a.score || (a.term < b.term ? -1 : 1)).slice(0, k).map((t) => t.term);
-}
-function riverTerms(doc2, docTotal, chunks, k, uneven) {
-  let picked2;
-  if (uneven) {
-    const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
-    const listed2 = spread(chunks.map((c) => c.terms));
-    const best2 = /* @__PURE__ */ new Map();
-    for (const c of chunks) {
-      for (const t of c.terms) {
-        const there = shares.get(t.term);
-        if (there === void 0 || c.total <= 0) continue;
-        best2.set(t.term, Math.max(best2.get(t.term) ?? 0, telling(t.weight / c.total, there, listed2.get(t.term) ?? 1, chunks.length)));
-      }
-    }
-    picked2 = [...best2].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, k).map(([t]) => t);
-  } else {
-    picked2 = [...doc2].sort((a, b) => b.weight - a.weight).slice(0, k).map((t) => t.term);
-  }
-  const peak = (term) => {
-    const w = chunks.map((c) => c.terms.find((t) => t.term === term)?.weight ?? 0);
-    return w.indexOf(Math.max(...w));
-  };
-  return picked2.map((t, i) => ({ t, i, at: peak(t) })).sort((a, b) => a.at - b.at || a.i - b.i).map((x) => x.t);
-}
-function streams(weights) {
-  const cols = weights[0]?.length ?? 0;
-  const out = weights.map(() => ({ lo: new Array(cols).fill(0), hi: new Array(cols).fill(0) }));
-  for (let c = 0; c < cols; c++) {
-    let at = -weights.reduce((s2, w) => s2 + w[c], 0) / 2;
-    weights.forEach((w, t) => {
-      out[t].lo[c] = at;
-      at += w[c];
-      out[t].hi[c] = at;
-    });
-  }
-  return out;
-}
-function pieces(text, chunks, marks) {
-  const clamp = (v) => Math.max(0, Math.min(text.length, v));
-  const edges = /* @__PURE__ */ new Set([0, text.length]);
-  for (const c of chunks) edges.add(clamp(c.start)).add(clamp(c.end));
-  for (const [s2, e] of marks) edges.add(clamp(s2)).add(clamp(e));
-  const cuts = [...edges].sort((a, b) => a - b);
-  const out = [];
-  for (let i = 0; i + 1 < cuts.length; i++) {
-    const [s2, e] = [cuts[i], cuts[i + 1]];
-    if (e <= s2) continue;
-    const chunk = chunks.findIndex((c) => s2 >= c.start && e <= c.end);
-    out.push({ text: text.slice(s2, e), start: s2, chunk: chunk < 0 ? null : chunk, marked: marks.some(([a, b]) => s2 >= a && e <= b) });
-  }
-  return out;
-}
-function aroundGap(text, gaps, i) {
-  const at = gaps[i];
-  const from2 = i > 0 ? gaps[i - 1] : 0;
-  const to2 = i + 1 < gaps.length ? gaps[i + 1] : text.length;
-  return [text.slice(from2, at).trim(), text.slice(at, to2).trim()];
-}
-function cutReason(code) {
-  return ["document start", "sentence end", "section", "heading", "paragraph", "topic shift", "clause", "list item", "inside a sentence", "overlap"][code] ?? `reason ${code}`;
-}
-
-// demo/web/src/viz/svg.ts
-var ns = null;
-function namespace() {
-  if (ns === null) {
-    const t = document.createElement("template");
-    t.innerHTML = "<svg></svg>";
-    ns = t.content.firstElementChild.namespaceURI;
-  }
-  return ns;
-}
-function s(tag, attrs = {}, ...children) {
-  const e = document.createElementNS(namespace(), tag);
-  for (const [k, v] of Object.entries(attrs)) if (v !== void 0) e.setAttribute(k, String(v));
-  for (const c of children) if (c !== null) e.append(c);
-  return e;
-}
-function figure(w, h, label) {
-  return s("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": label, class: "viz" });
-}
-function n(v) {
-  return String(Math.round(v * 100) / 100);
-}
-function ordered(i, count2) {
-  const share = count2 > 1 ? Math.round(100 * i / (count2 - 1)) : 50;
-  return `color-mix(in oklab, var(--seq-from), var(--seq-to) ${share}%)`;
-}
-
 // demo/web/src/tabs/chunktext.ts
-function chunkText(text, chunks, link, marks) {
-  const box5 = el("div", { class: "doc chunked", tabindex: "0", "aria-label": "The document, by chunk" });
+function chunkText(text, chunks, link2, marks) {
+  const box6 = el("div", { class: "doc chunked", tabindex: "0", "aria-label": "The document, by chunk" });
   let drawn;
-  link.on((f) => {
+  link2.on((f) => {
     if (f.term !== drawn) {
       drawn = f.term;
       const seen = /* @__PURE__ */ new Set();
-      box5.replaceChildren(
+      box6.replaceChildren(
         ...pieces(text, chunks, f.term === null ? [] : marks(f.term)).map((p) => {
           const body2 = p.marked ? el("mark", { class: "occ", text: p.text }) : p.text;
           if (p.chunk === null) return el("span", {}, body2);
           const first = !seen.has(p.chunk);
           seen.add(p.chunk);
           const span = el("span", { class: "ck", "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body2);
-          span.addEventListener("mouseenter", () => link.chunk(p.chunk));
+          span.addEventListener("mouseenter", () => link2.chunk(p.chunk));
           return span;
         })
       );
     }
-    for (const span of box5.querySelectorAll(".ck")) span.classList.toggle("lit", span.dataset.chunk === String(f.chunk));
+    for (const span of box6.querySelectorAll(".ck")) span.classList.toggle("lit", span.dataset.chunk === String(f.chunk));
   });
-  box5.addEventListener("mouseleave", () => link.chunk(null));
-  return box5;
+  box6.addEventListener("mouseleave", () => link2.chunk(null));
+  return box6;
 }
-function follow(box5, link) {
-  link.on((f) => {
-    if (f.chunk === null || box5.matches(":hover")) return;
-    const span = box5.querySelector(`.ck[data-chunk="${f.chunk}"]`);
-    if (span) box5.scrollTop = Math.max(0, span.offsetTop - box5.offsetTop - 12);
+function follow(box6, link2) {
+  link2.on((f) => {
+    if (f.chunk === null || box6.matches(":hover")) return;
+    const span = box6.querySelector(`.ck[data-chunk="${f.chunk}"]`);
+    if (span) box6.scrollTop = Math.max(0, span.offsetTop - box6.offsetTop - 12);
   });
 }
 
 // demo/web/src/tabs/meaningmap.ts
-var W = 640;
+var W2 = 640;
 var H = 340;
 var PAD = { l: 34, r: 16, t: 16, b: 34 };
-function meaningMap(m, link) {
+function meaningMap(m, link2) {
   const placed = m.chunks.map((c, i) => ({ c, i })).filter((p) => !p.c.empty);
   const xs = placed.map((p) => p.c.x);
   const ys = placed.map((p) => p.c.y);
   const zs = placed.map((p) => p.c.z);
-  const sx = scale(Math.min(...xs), Math.max(...xs), PAD.l + 24, W - PAD.r - 24);
+  const sx = scale(Math.min(...xs), Math.max(...xs), PAD.l + 24, W2 - PAD.r - 24);
   const sy = scale(Math.min(...ys), Math.max(...ys), H - PAD.b - 24, PAD.t + 24);
   const sz = scale(Math.min(...zs), Math.max(...zs), 5, 11);
   const at = new Map(placed.map((p) => [p.i, [sx(p.c.x), sy(p.c.y)]]));
   const pct = (v) => v === void 0 ? "" : ` (${(v * 100).toFixed(0)}% of the variance)`;
-  const svg = figure(W, H, `Meaning map of ${placed.length} chunks`);
+  const svg = figure(W2, H, `Meaning map of ${placed.length} chunks`);
   svg.append(
-    s("rect", { x: PAD.l, y: PAD.t, width: W - PAD.l - PAD.r, height: H - PAD.t - PAD.b, class: "frame" }),
-    s("text", { x: (PAD.l + W - PAD.r) / 2, y: H - 10, class: "axis", "text-anchor": "middle" }, `first direction of meaning${pct(m.variance[0])}`),
+    s("rect", { x: PAD.l, y: PAD.t, width: W2 - PAD.l - PAD.r, height: H - PAD.t - PAD.b, class: "frame" }),
+    s("text", { x: (PAD.l + W2 - PAD.r) / 2, y: H - 10, class: "axis", "text-anchor": "middle" }, `first direction of meaning${pct(m.variance[0])}`),
     s("text", { x: 12, y: (PAD.t + H - PAD.b) / 2, class: "axis", "text-anchor": "middle", transform: `rotate(-90 12 ${(PAD.t + H - PAD.b) / 2})` }, `second direction${pct(m.variance[1])}`)
   );
   for (const r of regions(m.units, m.chunks)) {
@@ -9745,7 +10073,7 @@ function meaningMap(m, link) {
     const [x, y] = at.get(p.i);
     const r = m.third ? sz(p.c.z) : 7;
     const names2 = m.terms(p.i);
-    const left = x > W * 0.68;
+    const left = x > W2 * 0.68;
     const label = `${p.i + 1}${few && names2.length ? ` \xB7 ${names2.slice(0, 2).join(", ")}` : ""}`;
     const g = s(
       "g",
@@ -9755,15 +10083,15 @@ function meaningMap(m, link) {
       s("circle", { cx: n(x), cy: n(y), r: n(r), class: "mark", style: `fill: ${ordered(p.i, m.chunks.length)}` }),
       s("text", { x: n(x + (left ? -r - 5 : r + 5)), y: n(y + 4), class: "label", "text-anchor": left ? "end" : "start" }, label)
     );
-    const point = () => link.chunk(p.i);
+    const point = () => link2.chunk(p.i);
     g.addEventListener("mouseenter", point);
     g.addEventListener("focus", point);
-    g.addEventListener("mouseleave", () => link.chunk(null));
-    g.addEventListener("blur", () => link.chunk(null));
+    g.addEventListener("mouseleave", () => link2.chunk(null));
+    g.addEventListener("blur", () => link2.chunk(null));
     dots.set(p.i, g);
     svg.append(g);
   }
-  link.on((f) => {
+  link2.on((f) => {
     for (const [i, g] of dots) g.classList.toggle("lit", i === f.chunk);
     svg.classList.toggle("dim", f.chunk !== null);
     if (f.chunk === null) return;
@@ -9785,15 +10113,15 @@ function meaningMap(m, link) {
 }
 
 // demo/web/src/tabs/river.ts
-var W2 = 640;
+var W3 = 640;
 var H2 = 210;
 var PAD2 = { l: 12, r: 12, t: 22, b: 10 };
-function river(m, link) {
-  const x = scale(0, Math.max(1, m.length), PAD2.l, W2 - PAD2.r);
+function river(m, link2) {
+  const x = scale(0, Math.max(1, m.length), PAD2.l, W3 - PAD2.r);
   const edges = streams(m.weights);
   const reach = Math.max(1e-9, ...edges.flatMap((e) => e.hi), ...edges.flatMap((e) => e.lo.map((v) => -v)));
   const y = scale(-reach, reach, H2 - PAD2.b, PAD2.t);
-  const svg = figure(W2, H2, `Term river: ${m.terms.join(", ")}`);
+  const svg = figure(W3, H2, `Term river: ${m.terms.join(", ")}`);
   const stops2 = m.chunks.flatMap((c) => [x(c.start + (c.end - c.start) * 0.25), x(c.start + (c.end - c.start) * 0.75)]);
   const along = (v) => {
     const pts = v.flatMap((w, c) => [[stops2[2 * c], y(w)], [stops2[2 * c + 1], y(w)]]);
@@ -9813,7 +10141,7 @@ function river(m, link) {
     const up = along(edges[t].hi);
     const down = along(edges[t].lo).reverse();
     const p = s("path", { d: `${curve(up, "M")} ${curve(down, "L")} Z`, class: "stream", style: `fill: var(--m${t})`, tabindex: 0, role: "button", "aria-label": `${term}, ${m.occurrences(term)} occurrences` }, s("title", {}, term));
-    const on = () => link.term(term);
+    const on = () => link2.term(term);
     p.addEventListener("mouseenter", on);
     p.addEventListener("focus", on);
     svg.append(p);
@@ -9829,14 +10157,14 @@ function river(m, link) {
   const info = el("p", { class: "info", role: "status", text: IDLE });
   const keys = m.terms.map((term, t) => {
     const b = el("button", { type: "button", class: "swatch key", style: `--mark: var(--m${t})` }, el("i", {}), ` ${term} `, el("span", { class: "muted", text: String(m.occurrences(term)) }));
-    b.addEventListener("mouseenter", () => link.term(term));
-    b.addEventListener("focus", () => link.term(term));
-    b.addEventListener("click", () => link.term(term));
+    b.addEventListener("mouseenter", () => link2.term(term));
+    b.addEventListener("focus", () => link2.term(term));
+    b.addEventListener("click", () => link2.term(term));
     return b;
   });
   const clear = el("button", { type: "button", class: "small", text: "Clear" });
-  clear.addEventListener("click", () => link.term(null));
-  link.on((f) => {
+  clear.addEventListener("click", () => link2.term(null));
+  link2.on((f) => {
     const at = f.term === null ? -1 : m.terms.indexOf(f.term);
     paths.forEach((p, t) => p.classList.toggle("faded", at >= 0 && t !== at));
     keys.forEach((k, t) => k.classList.toggle("on", t === at));
@@ -9850,38 +10178,38 @@ function river(m, link) {
 }
 
 // demo/web/src/tabs/seismograph.ts
-var W3 = 640;
+var W4 = 640;
 var GUTTER = 150;
 var RIGHT = 12;
 var BAND = 14;
 var CURVE = 120;
 var ROW = 20;
-function seismograph(m, link) {
+function seismograph(m, link2) {
   const len = Math.max(1, m.text.length);
-  const x = scale(0, len, GUTTER, W3 - RIGHT);
+  const x = scale(0, len, GUTTER, W4 - RIGHT);
   const top = 8;
   const curveTop = top + BAND + 10;
   const base2 = curveTop + CURVE;
   const rowsTop = base2 + 26;
   const H3 = rowsTop + (m.strategies.length + 1) * ROW + 6;
   const hasCosine = m.gaps.some((g) => g.smoothed !== void 0);
-  const svg = figure(W3, H3, `Topic seismograph: ${m.gaps.length} sentence gaps, ${m.gaps.filter((g) => g.cut).length} cuts`);
+  const svg = figure(W4, H3, `Topic seismograph: ${m.gaps.length} sentence gaps, ${m.gaps.filter((g) => g.cut).length} cuts`);
   svg.append(s("text", { x: GUTTER - 8, y: top + BAND - 3, class: "row-name", "text-anchor": "end" }, "chunks"));
   const bands = m.chunks.map((c, i) => {
     const r = s("rect", { x: n(x(c.start) + 1), y: top, width: n(Math.max(1, x(c.end) - x(c.start) - 2)), height: BAND, rx: 3, class: "band", style: `fill: ${ordered(i, m.chunks.length)}` }, s("title", {}, `Chunk ${i + 1}`));
-    r.addEventListener("mouseenter", () => link.chunk(i));
-    r.addEventListener("mouseleave", () => link.chunk(null));
+    r.addEventListener("mouseenter", () => link2.chunk(i));
+    r.addEventListener("mouseleave", () => link2.chunk(null));
     return r;
   });
   svg.append(...bands);
-  link.on((f) => bands.forEach((b, i) => b.classList.toggle("lit", i === f.chunk)));
+  link2.on((f) => bands.forEach((b, i) => b.classList.toggle("lit", i === f.chunk)));
   const values = m.gaps.map((g) => hasCosine ? g.smoothed : g.cost);
   const known = values.filter((v) => v !== void 0);
   const lo = hasCosine ? Math.min(...known) : 0;
   const hi = Math.max(...known, lo + 1e-9);
   const y = scale(lo, hi, base2, curveTop + 6);
   svg.append(
-    s("line", { x1: GUTTER, x2: W3 - RIGHT, y1: base2, y2: base2, class: "axis-line" }),
+    s("line", { x1: GUTTER, x2: W4 - RIGHT, y1: base2, y2: base2, class: "axis-line" }),
     s("text", { x: GUTTER - 8, y: curveTop + 10, class: "tick", "text-anchor": "end" }, hasCosine ? hi.toFixed(2) : String(Math.round(hi))),
     s("text", { x: GUTTER - 8, y: base2, class: "tick", "text-anchor": "end" }, hasCosine ? lo.toFixed(2) : "0"),
     s("text", { x: GUTTER - 8, y: (curveTop + base2) / 2 + 4, class: "row-name", "text-anchor": "end" }, hasCosine ? "cosine across the gap" : "cost of a cut here")
@@ -9913,12 +10241,12 @@ function seismograph(m, link) {
     const near = (c) => profile.some((p) => Math.abs(p - c) <= 2) || m.chunks.some((k) => k.start === c);
     svg.append(
       s("text", { x: GUTTER - 8, y: ry + 12, class: "row-name", "text-anchor": "end" }, short(r.name, 20), s("title", {}, `${r.name}: ${r.note}`)),
-      s("rect", { x: GUTTER, y: ry + 2, width: W3 - RIGHT - GUTTER, height: ROW - 6, rx: 3, class: "barcode" }),
+      s("rect", { x: GUTTER, y: ry + 2, width: W4 - RIGHT - GUTTER, height: ROW - 6, rx: 3, class: "barcode" }),
       ...r.cuts.map((c) => s("rect", { x: n(x(c) - 1), y: ry + 2, width: 2, height: ROW - 6, class: i === 0 || near(c) ? "tick-shared" : "tick-apart" }))
     );
   });
   const cross = s("line", { y1: curveTop, y2: base2, class: "cross", visibility: "hidden" });
-  const pad = s("rect", { x: GUTTER, y: curveTop, width: W3 - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, role: "slider", "aria-valuemin": 1, "aria-valuemax": m.gaps.length, "aria-label": "Sentence gaps; point or use the arrow keys" });
+  const pad = s("rect", { x: GUTTER, y: curveTop, width: W4 - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, role: "slider", "aria-valuemin": 1, "aria-valuemax": m.gaps.length, "aria-label": "Sentence gaps; point or use the arrow keys" });
   svg.append(cross, pad);
   const info = el("p", { class: "info", role: "status", text: "Point at the curve to see the two sentences on either side of a gap." });
   const offsets = m.gaps.map((g) => g.offset);
@@ -9942,11 +10270,11 @@ function seismograph(m, link) {
     pad.setAttribute("aria-valuenow", String(i + 1));
     pad.setAttribute("aria-valuetext", `Gap ${i + 1} of ${m.gaps.length}`);
     const at = m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end);
-    link.chunk(at < 0 ? null : at);
+    link2.chunk(at < 0 ? null : at);
   };
   pad.addEventListener("mousemove", (ev) => {
-    const box5 = svg.getBoundingClientRect();
-    const at = (ev.clientX - box5.left) / box5.width * W3;
+    const box6 = svg.getBoundingClientRect();
+    const at = (ev.clientX - box6.left) / box6.width * W4;
     let best2 = 0;
     m.gaps.forEach((g, i) => {
       if (Math.abs(x(g.offset) - at) < Math.abs(x(m.gaps[best2].offset) - at)) best2 = i;
@@ -9959,7 +10287,7 @@ function seismograph(m, link) {
     ev.preventDefault();
     pick(Math.max(0, Math.min(m.gaps.length - 1, picked2 + step)));
   });
-  pad.addEventListener("mouseleave", () => link.chunk(null));
+  pad.addEventListener("mouseleave", () => link2.chunk(null));
   const cuts = m.gaps.filter((g) => g.cut).length;
   const legend2 = el(
     "div",
@@ -9973,7 +10301,7 @@ function seismograph(m, link) {
 }
 
 // demo/web/src/tabs/projection.ts
-var box3 = () => $("projection-out");
+var box4 = () => $("projection-out");
 function budgets(s2) {
   const out = [];
   for (const item of s2.split(",")) {
@@ -9985,10 +10313,10 @@ function budgets(s2) {
   return out;
 }
 var micro = (v) => v === void 0 ? void 0 : Number(v) / 1e6;
-function show(r, text) {
+function show2(r, text) {
   const units = (r.projection?.points ?? []).map((q) => ({ item: q.item, start: q.start, end: q.end, level: q.level, x: q.x, y: q.y, z: q.z, empty: q.empty }));
   const chunks = leaves(units);
-  const link = linker();
+  const link2 = linker();
   const stacks = new Map(r.chunkTermStacks.map((k) => [k.unit, k]));
   const docTerms = r.documentTermStack?.segments ?? [];
   const docTotal = r.documentTermStack?.totalWeight ?? 0;
@@ -10001,15 +10329,15 @@ function show(r, text) {
   const parts = [];
   if (chunks.some((c) => !c.empty)) {
     const model = r.projection?.model;
-    const reader = chunkText(text, chunks, link, (term) => {
+    const reader = chunkText(text, chunks, link2, (term) => {
       const t = docTerms.find((d) => d.term === term);
       return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a]);
     });
-    follow(reader, link);
+    follow(reader, link2);
     parts.push(
       el("h3", { text: "Meaning map" }),
       el("p", { class: "muted", text: `Each dot is one chunk's vector from ${model ? `${model.id}@${model.revision}` : "the graph"}, placed by its two main directions of meaning. The line follows reading order: a document that wanders draws a long trail, and one that stays on a topic stays in one place.` }),
-      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named2[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3 }, link), el("div", {}, el("h4", { text: "The text, by chunk" }), reader))
+      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named2[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3 }, link2), el("div", {}, el("h4", { text: "The text, by chunk" }), reader))
     );
   } else {
     parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
@@ -10027,7 +10355,7 @@ function show(r, text) {
           window: d.window,
           smoothing: d.smoothing
         },
-        link
+        link2
       )
     );
   }
@@ -10040,7 +10368,7 @@ function show(r, text) {
       parts.push(
         el("h3", { text: "Term river" }),
         el("p", { class: "muted", text: uneven ? "The terms whose weight is least evenly spread over the chunks, so words every chunk uses alike are left out. A stream is as thick over a chunk as the term's weight there." : "The document's heaviest terms. A stream is as thick over a chunk as the term's weight there." }),
-        river({ terms, weights, chunks: withStack, occurrences: (t) => docTerms.find((d) => d.term === t)?.occStart?.length ?? 0, length: text.length }, link)
+        river({ terms, weights, chunks: withStack, occurrences: (t) => docTerms.find((d) => d.term === t)?.occStart?.length ?? 0, length: text.length }, link2)
       );
     }
   }
@@ -10060,13 +10388,13 @@ function show(r, text) {
       ) : ""
     )
   );
-  box3().replaceChildren(...parts);
+  box4().replaceChildren(...parts);
 }
-var freshRender3 = latest();
-async function render4() {
-  const mine = freshRender3();
+var freshRender4 = latest();
+async function render5() {
+  const mine = freshRender4();
   const d = doc();
-  if (!d) return void box3().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  if (!d) return void box4().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
     const r = await analysis.projectChunks({
       graph: d.graph,
@@ -10079,18 +10407,18 @@ async function render4() {
       strategyBudgets: budgets(input("projection-budgets").value)
     });
     if (!mine()) return;
-    show(r, d.source);
+    show2(r, d.source);
   } catch (e) {
     if (!mine()) return;
-    box3().replaceChildren(failed(explain(e)));
+    box4().replaceChildren(failed(explain(e)));
   }
 }
-function init10() {
-  const again = lazy($("analyze-projection"), () => void render4());
+function init11() {
+  const again = lazy($("analyze-projection"), () => void render5());
   onDoc(() => again());
   const go2 = $("projection-run");
-  go2.addEventListener("click", () => void busy(go2, render4));
-  $("projection-uneven").addEventListener("change", () => void render4());
+  go2.addEventListener("click", () => void busy(go2, render5));
+  $("projection-uneven").addEventListener("change", () => void render5());
 }
 
 // demo/web/src/frames.ts
@@ -10182,8 +10510,8 @@ function pieces2(text, chunkStart, matches2) {
     const [a, b] = [cuts[i], cuts[i + 1]];
     const on = inside.filter((m) => m.start <= a && m.end >= b);
     const piece = { text: dec.decode(bytes2.subarray(a, b)), sources: [...new Set(on.map((m) => m.source))], labels: [...new Set(on.map((m) => m.label).filter(Boolean))] };
-    const last2 = out[out.length - 1];
-    if (last2 && !last2.sources.length && !piece.sources.length) last2.text += piece.text;
+    const last3 = out[out.length - 1];
+    if (last3 && !last3.sources.length && !piece.sources.length) last3.text += piece.text;
     else out.push(piece);
   }
   return out;
@@ -10249,12 +10577,12 @@ var select2 = (id) => $(id);
 var freshList2 = latest();
 async function list3() {
   const mine = freshList2();
-  const box5 = $("search-indexes");
+  const box6 = $("search-indexes");
   try {
     const r = await search.listIndexes({});
     if (!mine()) return;
     options(select2("search-index"), r.indexes.map((i) => i.indexName), void 0, "no index yet");
-    box5.replaceChildren(
+    box6.replaceChildren(
       r.indexes.length ? table(
         ["index", "model", "dim", "metric", "storage", "documents", "chunks", ""],
         r.indexes.map((i) => [
@@ -10273,7 +10601,7 @@ async function list3() {
     if (!mine()) return;
     const down = reachable() === false;
     options(select2("search-index"), [], void 0, down ? "the server is not reachable" : "the indexes could not be listed");
-    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
+    box6.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
   }
 }
 function deleteButton2(name) {
@@ -10426,7 +10754,7 @@ function stop4() {
   indexing?.abort();
   indexing = null;
 }
-function init11() {
+function init12() {
   $("search-create").addEventListener("submit", createIndex);
   lock($("search-create"), TurboSearchService.method.createIndex);
   lock($("search-add-box"), TurboSearchService.method.indexDocuments);
@@ -10551,12 +10879,12 @@ async function run3() {
     [qa, "sem-qa-out", () => answer(qa, query, passages.join("\n"))]
   ];
   await Promise.all(
-    jobs.filter(([m]) => m).map(([, box5, job]) => job().catch((err) => $(box5).replaceChildren(failed(explain(err)))))
+    jobs.filter(([m]) => m).map(([, box6, job]) => job().catch((err) => $(box6).replaceChildren(failed(explain(err)))))
   );
   say(note5, "");
   reveal($("sem-sim").parentElement);
 }
-function init12() {
+function init13() {
   const go2 = $("sem-run");
   go2.addEventListener("click", () => void busy(go2, run3));
   const kinds2 = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
@@ -10642,7 +10970,7 @@ function watch2() {
   onServed(() => void reload());
 }
 function renderCapabilities(c) {
-  const box5 = $("server-caps");
+  const box6 = $("server-caps");
   const bundles2 = table(
     ["name", "task", "model", "widths", "context", "batch", "roles", ""],
     c.bundles.map((b) => [
@@ -10662,7 +10990,7 @@ function renderCapabilities(c) {
   );
   const l = c.server;
   const limits = l ? el("p", { class: "muted", text: `At most ${l.maxLoadedModels} served models and ${l.maxSessionsPerModel} sessions per model.` }) : "";
-  box5.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
+  box6.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
 }
 function unloadButton(name) {
   return confirmed("Unload", `Unload ${name}?`, async () => {
@@ -10699,7 +11027,7 @@ async function load2(ev) {
     }
   });
 }
-function init13() {
+function init14() {
   const t = input("token");
   t.value = token();
   t.addEventListener("change", () => {
@@ -10742,7 +11070,7 @@ function actions(id) {
 var freshList3 = latest();
 async function list4() {
   const mine = freshList3();
-  const box5 = $("vocab-lists");
+  const box6 = $("vocab-lists");
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
     if (!mine()) return;
@@ -10750,7 +11078,7 @@ async function list4() {
     options(select4("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select4("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
     const l = f.limits;
-    box5.replaceChildren(
+    box6.replaceChildren(
       l ? el("p", {
         class: "muted",
         text: l.store ? `Store on${l.admin ? ", writable" : ", read only"}. Dictionaries up to ${size(l.maxDictionaryUploadBytes)}, learning up to ${size(l.maxLearnBytes)}, n-grams up to ${l.maxNgramSize}.` : "The server keeps no vocabulary store."
@@ -10770,7 +11098,7 @@ async function list4() {
     if (!mine()) return;
     const down = reachable() === false;
     for (const id of ["vocab-format", "vocab-seed"]) options(select4(id), [], void 0, down ? "the server is not reachable" : "the store could not be listed");
-    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
+    box6.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
   }
 }
 async function importDictionary(ev) {
@@ -10867,7 +11195,7 @@ async function fetchArtifact(id, signal) {
     say(note5, explain(e));
   }
 }
-function init14() {
+function init15() {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
   lock($("vocab-import"), TurboVocabularyService.method.importDictionary);
@@ -11165,7 +11493,7 @@ function hex(bytes2, p, n2 = 32) {
 }
 
 // demo/web/src/tabs/wire.ts
-var box4 = () => $("wire-out");
+var box5 = () => $("wire-out");
 var note4 = () => $("wire-note");
 function bar2(p, total) {
   const pct = total ? 100 * p.len / total : 0;
@@ -11183,20 +11511,20 @@ function tree(bytes2, p, total) {
   if (!p.parts?.length) return el("div", { class: "leaf" }, line);
   return el("details", {}, el("summary", {}, line), el("div", { class: "kids" }, p.parts.map((c) => tree(bytes2, c, total))));
 }
-function render5() {
+function render6() {
   const d = doc();
-  if (!d) return void box4().replaceChildren(el("p", { class: "muted", text: "Analyze a document or open a graph file." }));
+  if (!d) return void box5().replaceChildren(el("p", { class: "muted", text: "Analyze a document or open a graph file." }));
   try {
     const g = walkGraph(d.graph);
     const layers = g.parts?.find((p) => p.name === "layers")?.parts ?? [];
     const bodies = layers.reduce((n2, l) => n2 + (l.parts?.find((p) => p.name === "body")?.len ?? 0), 0);
-    box4().replaceChildren(
+    box5().replaceChildren(
       el("p", { class: "muted", text: `${size(d.graph.length)} in all, ${size(bodies)} of it layer bodies. Open a part for its fields; hover for its offsets and first bytes.` }),
       el("div", { class: "kids top" }, (g.parts ?? []).map((p) => tree(d.graph, p, g.len)))
     );
   } catch (e) {
     const where = e instanceof WireError ? ` (byte ${e.at})` : "";
-    box4().replaceChildren(el("p", { class: "error", text: `${e instanceof Error ? e.message : String(e)}${where}` }));
+    box5().replaceChildren(el("p", { class: "error", text: `${e instanceof Error ? e.message : String(e)}${where}` }));
   }
 }
 async function roundTrip() {
@@ -11222,8 +11550,8 @@ async function open() {
     say(note4(), explain(e));
   }
 }
-function init15() {
-  const again = lazy($("analyze-wire"), render5);
+function init16() {
+  const again = lazy($("analyze-wire"), render6);
   onDoc(() => again());
   const go2 = $("wire-roundtrip");
   go2.addEventListener("click", () => void busy(go2, roundTrip));
@@ -11241,7 +11569,7 @@ var stops = {
   vocabulary: stop5,
   models: stop3
 };
-function show2(name) {
+function show3(name) {
   for (const [tab, stop6] of Object.entries(stops)) if (tab !== name) stop6();
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   for (const p of document.querySelectorAll("section.panel")) p.hidden = p.id !== `tab-${name}`;
@@ -11252,7 +11580,7 @@ function named() {
 }
 function go(name) {
   if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);
-  show2(name);
+  show3(name);
 }
 async function start() {
   const tabs = [...document.querySelectorAll("nav.tabs button")];
@@ -11269,23 +11597,24 @@ async function start() {
   });
   await permits();
   init();
-  init7();
-  init13();
+  init8();
+  init14();
   init6();
-  init12();
+  init13();
   init2();
   init4();
   init5();
-  init10();
-  init15();
   init11();
+  init7();
+  init16();
+  init12();
   init3();
-  init14();
-  init9();
-  addEventListener("hashchange", () => show2(named()));
-  addEventListener("popstate", () => show2(named()));
+  init15();
+  init10();
+  addEventListener("hashchange", () => show3(named()));
+  addEventListener("popstate", () => show3(named()));
   const first = named();
   if (location.hash !== `#${first}`) history.replaceState(null, "", `#${first}`);
-  show2(first);
+  show3(first);
 }
 void start();

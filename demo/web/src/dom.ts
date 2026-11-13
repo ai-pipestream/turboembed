@@ -143,9 +143,9 @@ export function reveal(box: Element | null): () => void {
   };
 }
 
-/** A count with its noun: `1 document`, `3 documents`. */
-export function count(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`;
+/** A count with its noun: `1 document`, `3 documents`; `many` is the plural when it is not the noun plus s. */
+export function count(n: number, noun: string, many = `${noun}s`): string {
+  return `${n} ${n === 1 ? noun : many}`;
 }
 
 /** Bytes as a short human size. */

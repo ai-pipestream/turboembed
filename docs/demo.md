@@ -492,7 +492,7 @@ server and there is no JSON.
   separate relation model adds caller relation labels, threshold, and sentence
   scoping over those entities, so one run produces entity and relation evidence
   and edges. The graph retains model identities and source offsets.
-  Four panels below it each call when opened, and again when the graph changes:
+  Five panels below it each call when opened, and again when the graph changes:
   - Normalization X-Ray: `InspectDocumentWindow` with
     `xray_target_view` between any two views, offsets in UTF-8 bytes,
     UTF-16 units or code points, the text with each edit run inserted
@@ -532,6 +532,20 @@ server and there is no JSON.
     (`demo/web/src/viz/model.ts`); a switch draws the heaviest terms
     instead. Pointing at a stream marks the term's occurrences in the
     text.
+  - Entities (open from the start): `InspectDocumentGraph`'s entity
+    layer drawn two ways. The constellation has a node per entity
+    (mentions of one name and kind gathered, whatever the case), sized
+    by how often it is mentioned and coloured by its kind, with each
+    relation the graph holds as a labelled arrow from subject to
+    object. Entities mentioned in one sentence are joined by a dotted
+    line, which is what places the nodes when no relation model ran.
+    The mention strips have a row per entity with a mark at each
+    mention along the document, under the chunks; pointing at a mark
+    shows its sentence. With more than one entity layer a select picks
+    the layer; the 30 most mentioned entities are drawn and all of them
+    are in the table under the figures. A graph with no entity layer
+    says how to get one (an open-span model with labels, or a profile
+    with an entity step).
   - Graph wire inspector: the graph's binary format (`TGRF`, as
     `analysis/core/src/export/graph.rs` writes it) read in the page into
     a tree of its parts with each one's offset,
