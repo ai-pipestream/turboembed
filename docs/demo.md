@@ -116,6 +116,15 @@ writes: they are reached only by `HTTP PUT` (see Uploads), and a Connect
 services, the rest of `TurboSinkService` and every bidi method are not
 in the table.
 
+One call the demo answers itself, with no call to the server:
+`POST /turbo.demo.v1.DemoService/Describe` (`demo/proto/turbo_demo.proto`),
+unary, `application/proto` only, behind the gate like any other call.
+Its reply lists the write methods the demo forwards (`forwarded_writes`,
+each `/<package>.<Service>/<Method>`, uploads included) and whether the
+demo has a user (`has_user`). The page asks it first, so it can turn
+off what would be refused (What the page shows). `demo/tests/describe.rs`
+checks the reply and that the path and fields are the proto's.
+
 ### Uploads
 
 A file goes to the server as an `HTTP PUT` to `/upload` followed by the
@@ -221,7 +230,8 @@ The page's protobuf and Connect-ES code is generated, never written by
 hand: `scripts/generate-web-stubs.sh` runs `buf generate` with
 `server/proto/buf.gen.yaml` and `protoc-gen-es` v2 (`target=ts`) into
 `demo/web/src/gen`, one `*_pb.ts` per proto file with its message
-schemas and service descriptors. The output is committed; the `proto` CI
+schemas and service descriptors, then the same for the demo's own
+service with `demo/proto/buf.gen.yaml`. The output is committed; the `proto` CI
 job regenerates it and fails on any difference, so a `.proto` change
 lands with its regenerated TypeScript. The script needs Node and npm and
 installs the exact versions in `demo/web/package-lock.json`
@@ -350,9 +360,26 @@ the client's key automatically.
 
 The page has a tab per area; leaving a tab cancels its streams and
 uploads. Writes (marked below) are refused with `permission_denied`
-unless the demo is started with `--allow` for them, and the tab says
-so with the call's code, `turbo-code`, field and message, as it does
-for any refused call.
+unless the demo is started with `--allow` for them. The page asks the
+demo which writes it forwards (`DemoService/Describe`) before it draws
+anything: a form whose write is not forwarded is off, with a line
+naming the `--allow` that enables it, and so is each delete, unload,
+install, accept and revoke control.
+A demo that wants a token answers only once the token is typed: until
+then nothing is off, and when the answer arrives every form and control
+follows it.
+
+A refused or failed call is reported as one plain sentence that says
+what to do where that is known ("Pick or create an index first."), with
+the call's code, `turbo-code`, field and raw message behind a "details"
+toggle (`demo/web/src/errors.ts`). An empty input the page can see (no
+index picked, no query, no document) is said before the server is
+asked. Every input and select has a visible label or an accessible
+name. Options that need a kind of model show only when one applies: the
+open-span options on Analyze with an open-span model picked, the
+relation model when one is served and its options when one is picked,
+and the reranker and QA selects on Semantic when the server serves that
+task. What is typed in a hidden group is kept.
 
 - Embed: each served embedding bundle (from `Capabilities`) with its
   tier, model id, dimensions, compute type and device from
@@ -576,6 +603,30 @@ either: every call the page makes goes through the demo to the server.
   on disk has the size and SHA-256 the catalog lists. The Server tab
   loads the installed directory into the running server, and Semantic
   ranks passages with it, with no restart and no page reload.
+- An address change, a link, Back and Forward each open the tab they
+  name, every tab click is one history entry, and an address naming no
+  tab opens the first.
+- Embed, Run, Analyze, Format and Round trip are each off and count the
+  time while their call runs, Analyze's Stop is on only then, and every
+  Stop starts off.
+- Delete index, Delete collection and Unload each ask in place, with
+  focus on Cancel; Cancel and Escape put the button back, and only Yes
+  calls the server. A delete the demo refuses says why beside its own
+  row and leaves the rest of the page alone.
+- The header turns red within one status interval after the server
+  stops, with the notice and Retry, and green again with no reload once
+  it is back, the tabs refilled. A page opened with the server stopped
+  says on each tab that the server is not reachable, and fills on Retry.
+
+`demo/web/e2e/permits.test.ts` starts a demo with a token and one
+`--allow`: nothing is off before the token is typed, and after it the
+other writes are off, the Set button of a collection and each row's
+Delete and Unload among them.
+
+The tests that stop the server, or need writes forwarded or a token, start a
+server and demo of their own from the same binaries
+(`demo/web/e2e/stack.ts`, given the binaries' directory in
+`TURBO_E2E_BIN`).
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

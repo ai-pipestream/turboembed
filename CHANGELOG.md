@@ -383,9 +383,25 @@ stubs must be regenerated.
   check whether it may serve or redistribute the model. The 772-byte
   struct is still accepted, and a `model.license` of 128 bytes or more
   is `BUNDLE_INVALID` (#2019, #2041).
+- A third PII reject reason, `RulePrecedence`: a model's candidate that
+  overlaps a mention a rule found, other than as its repeat or strictly
+  inside it, is kept in `turbo:pii-candidates` as `RejectedByRule {
+  RulePrecedence }` and the rule's mention stands. It is
+  `TURBO_PII_REJECT_RULE_PRECEDENCE` (3) in the C header,
+  `PII_REJECT_REASON_RULE_PRECEDENCE` (3) in
+  `turbo_typed_annotations.proto` and `RULE_PRECEDENCE` in the Java
+  `TurboPiiDisposition.RejectReason` (#2198).
 
 ### Changed
 
+- The model zoo image (`server/Dockerfile.zoo`) builds on Docker
+  Hardened Images pinned by digest and its runtime stage holds only
+  `turbo-kserve`, `turbo-kserve-demo`, `libstdc++` and the CA bundle:
+  no shell, `curl` or `apt`. Its entrypoint, health check and bucket
+  helper are now `turbo-kserve` subcommands, `zoo-start`, `zoo-health`
+  and `zoo-bucket` (symlinked under those names in `/opt/turbo/bin`),
+  in place of the shell scripts under `server/zoo/`. Building it needs
+  a `dhi.io` login (docs/zoo-container.md, #2226, #2289).
 - `--pii-encryption-key` (`TURBO_KSERVE_PII_ENCRYPTION_KEYS`) no longer
   needs `--pii-grant` or mTLS: encrypting during redaction releases no
   value, so a server with no grant loads its encryption keys for the

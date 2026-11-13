@@ -4,7 +4,8 @@
 // (--user); the page never names one. Without a user, or on a server
 // without --admin or --zoo, the page is read-only.
 
-import type { CatalogEntry, LicenceTerms, ListLicenceAcceptancesResponse } from "../gen/turbo_training_pb.js";
+import { TurboCatalogService, type CatalogEntry, type LicenceTerms, type ListLicenceAcceptancesResponse } from "../gen/turbo_training_pb.js";
+import { off } from "../permit.js";
 import { busy, confirmed } from "../act.js";
 import { el, table, type Child } from "../dom.js";
 import { catalog } from "../rpc.js";
@@ -63,7 +64,10 @@ export function termsBlock(e: CatalogEntry, t: LicenceTerms, w: Who, accepted: (
   );
   const notice = el("p", { class: "muted", text: NOTICES[e.licenceClass] ?? "" });
   const body: Child[] = [facts, notice];
-  if (w.canChange) {
+  const refused = off(TurboCatalogService.method.recordLicenceAcceptance);
+  if (w.canChange && refused) {
+    body.push(el("p", { class: "muted", text: refused }));
+  } else if (w.canChange) {
     const read = el("input", { type: "checkbox" });
     const button = el("button", { type: "button", text: `Accept ${t.licence}` });
     button.disabled = true;
@@ -101,7 +105,7 @@ export function acceptedTable(r: ListLicenceAcceptancesResponse, w: Who, revoked
       const t = a.terms;
       let control: Child = "";
       if (t && w.canChange) {
-        control = confirmed("Revoke", `Revoke ${t.licence}?`, () => revoked(t));
+        control = confirmed("Revoke", `Revoke ${t.licence}?`, () => revoked(t), off(TurboCatalogService.method.revokeLicenceAcceptance));
       }
       return [t?.licence ?? "", t ? address(t.text) : "", when(a.acceptedAt), a.artifactId, control];
     }),

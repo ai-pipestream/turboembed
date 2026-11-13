@@ -259,7 +259,7 @@ pub struct Timing {
 impl Timing {
     /// Words read through the encoder a second, or None when none were.
     pub fn words_per_s(&self) -> Option<f64> {
-        (self.feature_words > 0 && self.features > 0.0).then(|| self.feature_words as f64 / self.features)
+        (self.feature_words > 0 && self.features > 0.0).then_some(self.feature_words as f64 / self.features)
     }
 }
 

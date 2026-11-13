@@ -5,10 +5,11 @@
 // back to this page with a code and a state in the address, which the
 // page hands to the server and then clears.
 
-import type { ListModelSourcesResponse, ModelSource } from "../gen/turbo_training_pb.js";
+import { TurboCatalogService, type ListModelSourcesResponse, type ModelSource } from "../gen/turbo_training_pb.js";
+import { lock, off, onChange } from "../permit.js";
 import { busy, confirmed, submitter } from "../act.js";
-import { $, el, input, say, table } from "../dom.js";
-import { catalog, describe } from "../rpc.js";
+import { $, el, failed, input, say, table } from "../dom.js";
+import { catalog, explain } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 import { readOnly, redirected, s3KeysOf, signInText } from "../sourcetext.js";
 
@@ -30,7 +31,7 @@ function sourcesTable(r: ListModelSourcesResponse, changed: () => Promise<void>)
           const gone = await catalog.removeModelSource({ name: s.name });
           await changed();
           say(note(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
-        });
+        }, off(TurboCatalogService.method.removeModelSource));
       }
       return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
     }),
@@ -44,7 +45,7 @@ async function act(change: () => Promise<string>, after: () => Promise<void>): P
     await after();
     say(note(), done);
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 
@@ -60,8 +61,7 @@ export async function load(): Promise<void> {
     else if (saidWhy && note().textContent === saidWhy) say(note(), "");
     saidWhy = why;
   } catch (e) {
-    const why = reachable() === false ? "The server is not reachable, so the sources cannot be listed." : describe(e);
-    $("sources-list").replaceChildren(el("p", { class: "error", text: why }));
+    $("sources-list").replaceChildren(reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so the sources cannot be listed." }) : failed(explain(e)));
     say(note(), "");
   }
 }
@@ -116,6 +116,8 @@ async function finish(back: { code: string; state: string; error: string }): Pro
 /** Wires the controls; on a redirect back from Google, finishes the sign-in. */
 export function init(): boolean {
   $("sources-form").addEventListener("submit", add);
+  lock($("sources-form"), TurboCatalogService.method.registerModelSource);
+  lock($("sources-drive"), TurboCatalogService.method.startDriveSignIn);
   const drive = $("sources-connect") as HTMLButtonElement;
   drive.addEventListener("click", () => void busy(drive, connect));
   const again = $("sources-refresh") as HTMLButtonElement;
@@ -133,6 +135,10 @@ export function init(): boolean {
       finishing = true;
       void finish(b).finally(() => (finishing = false));
     } else if (!finishing) void load();
+  });
+  // Each row's Remove is drawn from what the demo forwards.
+  onChange(() => {
+    if (!pending && !finishing) void load();
   });
   return back !== null;
 }

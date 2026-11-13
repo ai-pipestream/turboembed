@@ -11,7 +11,7 @@ import {
 } from "../gen/open_inference_grpc_pb.js";
 import { busy, submitter } from "../act.js";
 import { $, after, el, input, say, stat } from "../dom.js";
-import { describe, inference } from "../rpc.js";
+import { describe, explain, inference } from "../rpc.js";
 import { bundles, onCapabilities, onCapabilitiesFailed, onReachable, reachable } from "../state.js";
 
 type Model = { meta: ModelMetadataResponse | null; error: string; checked: boolean };
@@ -344,6 +344,7 @@ export function init(): void {
   // The Server tab reads the capabilities for every tab (state.ts onServed).
   onCapabilitiesFailed((e) => {
     renderModels();
-    say($("embed-error"), reachable() === false ? "" : describe(e), "error");
+    if (reachable() === false) say($("embed-error"), "");
+    else say($("embed-error"), explain(e));
   });
 }

@@ -15,6 +15,7 @@ import * as server from "./tabs/server.js";
 import * as vocabularyTab from "./tabs/vocabulary.js";
 import * as wire from "./tabs/wire.js";
 import * as xray from "./tabs/xray.js";
+import { permits } from "./state.js";
 
 const stops: Record<string, () => void> = {
   analyze: analyze.stop,
@@ -41,7 +42,7 @@ function go(name: string): void {
   show(name);
 }
 
-function start(): void {
+async function start(): Promise<void> {
   const tabs = [...document.querySelectorAll<HTMLButtonElement>("nav.tabs button")];
   tabs.forEach((b, i) => {
     b.addEventListener("click", () => go(b.dataset.tab ?? "embed"));
@@ -55,6 +56,8 @@ function start(): void {
       go(next.dataset.tab ?? "embed");
     });
   });
+  // First what the demo forwards, so no control is drawn live and then turned off.
+  await permits();
   server.init();
   embed.init();
   semantic.init();
@@ -75,4 +78,4 @@ function start(): void {
   show(first);
 }
 
-start();
+void start();

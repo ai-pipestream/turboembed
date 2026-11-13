@@ -93,6 +93,29 @@ pub(crate) fn scan(text: &str, hits: &mut Hits) {
     }
 }
 
+/// Whether the city name at `start..end` is read before a state or after
+/// a label (`Columbus, Ohio`, `City: Columbus`), the readings a person
+/// span of a model does not overrule (#2312); one that is not is a bare
+/// reading. Only the text around the name is read again.
+pub(crate) fn anchored_at(text: &str, start: usize, end: usize) -> bool {
+    if text.as_bytes().get(end) == Some(&b',')
+        && let Some(code) = state_after(text, end)
+        && before_state(text, end, code).is_some_and(|(s, _, _)| s == start)
+    {
+        return true;
+    }
+    let mut at = start;
+    for (p, c) in text[..start].char_indices().rev() {
+        if !(whitespace(c) || matches!(c, ':' | '#' | '=')) {
+            break;
+        }
+        at = p;
+    }
+    LABELS.iter().any(|(label, _)| {
+        at.checked_sub(label.len()).is_some_and(|i| text.is_char_boundary(i) && after_label(text, i) == Some(start))
+    }) && after_label_name(text, start).is_some_and(|(_, e, _)| e == end)
+}
+
 /// Whether the bytes `c0`, `c1`, `c2` start an anchor: `, ` and a capital,
 /// a colon, or `of` in either case.
 #[inline(always)]

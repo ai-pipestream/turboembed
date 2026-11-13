@@ -137,3 +137,96 @@ fn a_bare_name_before_a_state_is_left_to_the_state_rule() {
     }
     assert_eq!(written("Springfield, IL 62704"), ["Springfield"]);
 }
+
+#[test]
+fn a_person_who_shares_a_city_name_is_no_mention() {
+    // #2295: person context around a lone bare name.
+    for text in [
+        // A verb that takes a person as its object.
+        "we met Madison at the desk",
+        "please ask Columbus first",
+        "we thanked Dayton for the flowers",
+        "the firm hired Salem last spring",
+        "they invited Paris to the party",
+        // `who`, a reflexive pronoun, or a subject pronoun one word on.
+        "Salem, who runs the class, is out.",
+        "the note from a friend: Paris who knew",
+        "Madison herself drove the van",
+        "Dayton knew she would be late",
+        "then Columbus thought he could help",
+        "Salem realized she was late",
+        "we will introduce Madison tomorrow",
+        // A verb of each first letter the verb rule looks for.
+        "we congratulated Madison",
+        "we emailed Madison",
+        "they fired Madison",
+        "we greeted Madison",
+        "they kissed Madison",
+        "please remind Madison",
+        "we texted Madison",
+        "they phoned Madison",
+        "they promote Dayton next year",
+        // A possessive before a kin or body noun.
+        "Paris's mother called",
+        "Madison\u{2019}s sister wrote",
+        "Columbus's hair was wet",
+    ] {
+        assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
+    }
+}
+
+#[test]
+fn a_city_in_a_place_phrase_stays_a_city_beside_person_words() {
+    // #2295: each person rule leaves a city in a place phrase alone.
+    for (text, want) in [
+        ("we met in Madison last year", "Madison"),
+        ("they asked to fly to Columbus", "Columbus"),
+        ("hired from Dayton in May", "Dayton"),
+        ("a donor in Columbus who funds it", "Columbus"),
+        ("people from Paris, who wrote letters", "Paris"),
+        ("a trip to Salem where he grew up", "Salem"),
+        ("Boston where he lived", "Boston"),
+        ("Paris is where she grew up", "Paris"),
+        ("visited Paris last May", "Paris"),
+        ("left Madison for good", "Madison"),
+        ("Paris's museums are open", "Paris"),
+        ("in Dayton she found work", "Dayton"),
+        // A line break between the place word and the name.
+        ("people in\nParis who wrote letters", "Paris"),
+        ("a source in\r\nBoston told reporters", "Boston"),
+        // A conjunction between the name and a pronoun starts a new clause.
+        ("we loved Boston and she stayed", "Boston"),
+        ("they toured Dayton but he left", "Dayton"),
+        ("a week in Rome or he goes home", "Rome"),
+        // Only a verb of thought or speech makes the pronoun the name's.
+        ("we left Atlanta then she moved", "Atlanta"),
+        ("I miss Boston whenever he travels", "Boston"),
+        ("we toured Chicago once he arrived", "Chicago"),
+        ("we drove past Boston yet he never stopped", "Boston"),
+        ("we love Paris though she does not", "Paris"),
+        ("Dayton unless he calls", "Dayton"),
+        ("Paris's partner company", "Paris"),
+        ("from Madison to Columbus for the conference", "Madison"),
+    ] {
+        assert_eq!(written(text).first().map(String::as_str), Some(want), "{text:?}: {:?}", cities(text));
+    }
+    assert_eq!(written("from Madison to Columbus for the conference"), ["Madison", "Columbus"]);
+}
+
+#[test]
+fn a_line_break_after_a_multi_byte_character_reads_without_a_panic() {
+    // #2296 review: the word before a line break ends in a character of
+    // more than one byte, so its start is found on character boundaries.
+    for text in [
+        "caf\u{e9}\nParis said so",
+        "\u{201C}\nSalem, who runs it",
+        "na\u{ef}ve \u{65e5}\r\nColumbus herself",
+        "\u{1F600}\nDayton knew she would",
+    ] {
+        assert!(cities(text).is_empty(), "{text:?}: {:?}", cities(text));
+    }
+    for (text, want) in [("met in\nParis\u{2019}s caf\u{e9}", "Paris"), ("\u{e9}t\u{e9} in\nSalem, who knew", "Salem")]
+    {
+        assert_eq!(written(text), [want], "{text:?}");
+    }
+}
