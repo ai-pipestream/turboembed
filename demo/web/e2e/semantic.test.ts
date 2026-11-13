@@ -90,6 +90,8 @@ test("the server tab lists every served bundle and every analysis profile", asyn
     const offered = await page.locator("#analyze-profile option").allTextContents();
     assert.deepEqual(offered, ["default", ...profiles]);
     await page.click("nav.tabs button[data-tab=embed]");
+    // Each model is listed once its metadata has been read.
+    await page.waitForFunction((n) => document.querySelectorAll("#embed-models label.model").length === n, SERVED.length);
     const embed = await page.locator("#embed-models label.model").allTextContents();
     for (const name of SERVED) assert.equal(embed.some((t) => t.includes(name)), true, `Embed offers ${name}`);
   } finally {
