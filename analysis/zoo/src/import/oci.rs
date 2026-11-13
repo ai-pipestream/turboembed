@@ -134,7 +134,7 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
     for (path, size, sha256) in layers {
         let url = Url::from_str(&format!("{at}/blobs/sha256:{sha256}")).map_err(fail)?;
         let cached = match &kept {
-            Some(k) => k.held(path.as_str(), size, &sha256)?,
+            Some(k) => k.held(path.as_str(), size, |b| Sha256::of(b) == sha256)?,
             None => None,
         };
         let fresh = cached.is_none();
