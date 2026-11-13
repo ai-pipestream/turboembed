@@ -387,47 +387,47 @@ function unsafeOneofCase(target, oneof) {
   }
   return oneof.fields.find((f) => f.localName === c);
 }
-function unsafeIsSet(target, field2) {
-  const name = field2.localName;
-  if (field2.oneof) {
-    return target[field2.oneof.localName].case === name;
+function unsafeIsSet(target, field3) {
+  const name = field3.localName;
+  if (field3.oneof) {
+    return target[field3.oneof.localName].case === name;
   }
-  if (field2.presence != IMPLICIT) {
+  if (field3.presence != IMPLICIT) {
     return target[name] !== void 0 && Object.prototype.hasOwnProperty.call(target, name);
   }
-  switch (field2.fieldKind) {
+  switch (field3.fieldKind) {
     case "list":
       return target[name].length > 0;
     case "map":
       return Object.keys(target[name]).length > 0;
     case "scalar":
-      return !isScalarZeroValue(field2.scalar, target[name]);
+      return !isScalarZeroValue(field3.scalar, target[name]);
     case "enum":
-      return target[name] !== field2.enum.values[0].number;
+      return target[name] !== field3.enum.values[0].number;
   }
   throw new Error("message field with implicit presence");
 }
 function unsafeIsSetExplicit(target, localName) {
   return Object.prototype.hasOwnProperty.call(target, localName) && target[localName] !== void 0;
 }
-function unsafeGet(target, field2) {
-  if (field2.oneof) {
-    const oneof = target[field2.oneof.localName];
-    if (oneof.case === field2.localName) {
+function unsafeGet(target, field3) {
+  if (field3.oneof) {
+    const oneof = target[field3.oneof.localName];
+    if (oneof.case === field3.localName) {
       return oneof.value;
     }
     return void 0;
   }
-  return target[field2.localName];
+  return target[field3.localName];
 }
-function unsafeSet(target, field2, value) {
-  if (field2.oneof) {
-    target[field2.oneof.localName] = {
-      case: field2.localName,
+function unsafeSet(target, field3, value) {
+  if (field3.oneof) {
+    target[field3.oneof.localName] = {
+      case: field3.localName,
       value
     };
   } else {
-    target[field2.localName] = value;
+    target[field3.localName] = value;
   }
 }
 function setOwn(obj, key3, value) {
@@ -445,17 +445,17 @@ function setOwn(obj, key3, value) {
 function getOwn(obj, key3) {
   return Object.prototype.hasOwnProperty.call(obj, key3) ? obj[key3] : void 0;
 }
-function unsafeClear(target, field2) {
-  const name = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function unsafeClear(target, field3) {
+  const name = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     if (target[oneofLocalName].case === name) {
       target[oneofLocalName] = { case: void 0 };
     }
-  } else if (field2.presence != IMPLICIT) {
+  } else if (field3.presence != IMPLICIT) {
     delete target[name];
   } else {
-    switch (field2.fieldKind) {
+    switch (field3.fieldKind) {
       case "map":
         target[name] = {};
         break;
@@ -463,10 +463,10 @@ function unsafeClear(target, field2) {
         target[name] = [];
         break;
       case "enum":
-        target[name] = field2.enum.values[0].number;
+        target[name] = field3.enum.values[0].number;
         break;
       case "scalar":
-        target[name] = scalarZeroValue(field2.scalar, field2.longAsString);
+        target[name] = scalarZeroValue(field3.scalar, field3.longAsString);
         break;
     }
   }
@@ -1400,8 +1400,8 @@ function createBaseRegistry() {
     get(typeName) {
       return types.get(typeName);
     },
-    getFile(fileName) {
-      return files.get(fileName);
+    getFile(fileName2) {
+      return files.get(fileName2);
     },
     getMessage(typeName) {
       const t = types.get(typeName);
@@ -1625,13 +1625,13 @@ function addFields(message, reg, mapEntries) {
   const oneofsSeen = /* @__PURE__ */ new Set();
   for (const proto of message.proto.field) {
     const oneof = findOneof(proto, allOneofs);
-    const field2 = newField(proto, message, reg, oneof, mapEntries);
-    message.fields.push(field2);
-    message.field[field2.localName] = field2;
+    const field3 = newField(proto, message, reg, oneof, mapEntries);
+    message.fields.push(field3);
+    message.field[field3.localName] = field3;
     if (oneof === void 0) {
-      message.members.push(field2);
+      message.members.push(field3);
     } else {
-      oneof.fields.push(field2);
+      oneof.fields.push(field3);
       if (!oneofsSeen.has(oneof)) {
         oneofsSeen.add(oneof);
         message.members.push(oneof);
@@ -1794,7 +1794,7 @@ function newOneof(proto, parent) {
 function newField(proto, parentOrFile, reg, oneof, mapEntries) {
   var _a, _b, _c;
   const isExtension = mapEntries === void 0;
-  const field2 = {
+  const field3 = {
     kind: "field",
     proto,
     deprecated: (_b = (_a = proto.options) === null || _a === void 0 ? void 0 : _a.deprecated) !== null && _b !== void 0 ? _b : false,
@@ -1818,26 +1818,26 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
     const file = parentOrFile.kind == "file" ? parentOrFile : parentOrFile.file;
     const parent = parentOrFile.kind == "file" ? void 0 : parentOrFile;
     const typeName = makeTypeName(proto, parent, file);
-    field2.kind = "extension";
-    field2.file = file;
-    field2.parent = parent;
-    field2.oneof = void 0;
-    field2.typeName = typeName;
-    field2.jsonName = `[${typeName}]`;
+    field3.kind = "extension";
+    field3.file = file;
+    field3.parent = parent;
+    field3.oneof = void 0;
+    field3.typeName = typeName;
+    field3.jsonName = `[${typeName}]`;
     toStr = () => `extension ${typeName}`;
     const extendee = reg.getMessage(trimLeadingDot(proto.extendee));
     assert(extendee, `invalid FieldDescriptorProto: extendee ${proto.extendee} not found`);
-    field2.extendee = extendee;
+    field3.extendee = extendee;
   } else {
     const parent = parentOrFile;
     assert(parent.kind == "message");
-    field2.parent = parent;
-    field2.oneof = oneof;
-    field2.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
-    field2.jsonName = proto.jsonName;
+    field3.parent = parent;
+    field3.oneof = oneof;
+    field3.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
+    field3.jsonName = proto.jsonName;
     toStr = () => `field ${parent.typeName}.${proto.name}`;
   }
-  Object.defineProperty(field2, "toString", {
+  Object.defineProperty(field3, "toString", {
     value: toStr,
     writable: true,
     enumerable: true,
@@ -1849,69 +1849,69 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
   if (label === LABEL_REPEATED) {
     const mapEntry = type == TYPE_MESSAGE ? mapEntries === null || mapEntries === void 0 ? void 0 : mapEntries.get(trimLeadingDot(proto.typeName)) : void 0;
     if (mapEntry) {
-      field2.fieldKind = "map";
+      field3.fieldKind = "map";
       const { key: key3, value } = findMapEntryFields(mapEntry);
-      field2.mapKey = key3.scalar;
-      field2.mapKind = value.fieldKind;
-      field2.message = value.message;
-      field2.delimitedEncoding = false;
-      field2.enum = value.enum;
-      field2.scalar = value.scalar;
-      return field2;
+      field3.mapKey = key3.scalar;
+      field3.mapKind = value.fieldKind;
+      field3.message = value.message;
+      field3.delimitedEncoding = false;
+      field3.enum = value.enum;
+      field3.scalar = value.scalar;
+      return field3;
     }
-    field2.fieldKind = "list";
+    field3.fieldKind = "list";
     switch (type) {
       case TYPE_MESSAGE:
       case TYPE_GROUP:
-        field2.listKind = "message";
-        field2.message = reg.getMessage(trimLeadingDot(proto.typeName));
-        assert(field2.message);
-        field2.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+        field3.listKind = "message";
+        field3.message = reg.getMessage(trimLeadingDot(proto.typeName));
+        assert(field3.message);
+        field3.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
         break;
       case TYPE_ENUM:
-        field2.listKind = "enum";
-        field2.enum = reg.getEnum(trimLeadingDot(proto.typeName));
-        assert(field2.enum);
+        field3.listKind = "enum";
+        field3.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+        assert(field3.enum);
         break;
       default:
-        field2.listKind = "scalar";
-        field2.scalar = type;
-        field2.longAsString = jstype == JS_STRING;
+        field3.listKind = "scalar";
+        field3.scalar = type;
+        field3.longAsString = jstype == JS_STRING;
         break;
     }
-    field2.packed = isPackedField(proto, parentOrFile);
-    return field2;
+    field3.packed = isPackedField(proto, parentOrFile);
+    return field3;
   }
   switch (type) {
     case TYPE_MESSAGE:
     case TYPE_GROUP:
-      field2.fieldKind = "message";
-      field2.message = reg.getMessage(trimLeadingDot(proto.typeName));
-      assert(field2.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
-      field2.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
-      field2.getDefaultValue = () => void 0;
+      field3.fieldKind = "message";
+      field3.message = reg.getMessage(trimLeadingDot(proto.typeName));
+      assert(field3.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
+      field3.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+      field3.getDefaultValue = () => void 0;
       break;
     case TYPE_ENUM: {
       const enumeration = reg.getEnum(trimLeadingDot(proto.typeName));
       assert(enumeration !== void 0, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
-      field2.fieldKind = "enum";
-      field2.enum = reg.getEnum(trimLeadingDot(proto.typeName));
-      field2.getDefaultValue = () => {
+      field3.fieldKind = "enum";
+      field3.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+      field3.getDefaultValue = () => {
         return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatEnumValue(enumeration, proto.defaultValue) : void 0;
       };
       break;
     }
     default: {
-      field2.fieldKind = "scalar";
-      field2.scalar = type;
-      field2.longAsString = jstype == JS_STRING;
-      field2.getDefaultValue = () => {
+      field3.fieldKind = "scalar";
+      field3.scalar = type;
+      field3.longAsString = jstype == JS_STRING;
+      field3.getDefaultValue = () => {
         return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatScalarValue(type, proto.defaultValue) : void 0;
       };
       break;
     }
   }
-  return field2;
+  return field3;
 }
 function getFileEdition(proto) {
   switch (proto.syntax) {
@@ -2107,32 +2107,32 @@ function boot(boot2) {
   const reg = createFileRegistry(root, () => void 0);
   return reg.getFile(root.name);
 }
-function bootFileDescriptorProto(init14) {
+function bootFileDescriptorProto(init16) {
   const proto = /* @__PURE__ */ Object.create({
     syntax: "",
     edition: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init14), { messageType: init14.messageType.map(bootDescriptorProto), enumType: init14.enumType.map(bootEnumDescriptorProto) }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init16), { messageType: init16.messageType.map(bootDescriptorProto), enumType: init16.enumType.map(bootEnumDescriptorProto) }));
 }
-function bootDescriptorProto(init14) {
+function bootDescriptorProto(init16) {
   var _a, _b, _c, _d, _e, _f, _g, _h;
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.DescriptorProto",
-    name: init14.name,
-    field: (_b = (_a = init14.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
+    name: init16.name,
+    field: (_b = (_a = init16.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
     extension: [],
-    nestedType: (_d = (_c = init14.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
-    enumType: (_f = (_e = init14.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
-    extensionRange: (_h = (_g = init14.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
+    nestedType: (_d = (_c = init16.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
+    enumType: (_f = (_e = init16.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
+    extensionRange: (_h = (_g = init16.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
     oneofDecl: [],
     reservedRange: [],
     reservedName: []
   });
 }
-function bootFieldDescriptorProto(init14) {
+function bootFieldDescriptorProto(init16) {
   const proto = /* @__PURE__ */ Object.create({
     label: 1,
     typeName: "",
@@ -2142,9 +2142,9 @@ function bootFieldDescriptorProto(init14) {
     jsonName: "",
     proto3Optional: false
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init14), { options: init14.options ? bootFieldOptions(init14.options) : void 0 }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init16), { options: init16.options ? bootFieldOptions(init16.options) : void 0 }));
 }
-function bootFieldOptions(init14) {
+function bootFieldOptions(init16) {
   var _a, _b, _c;
   const proto = /* @__PURE__ */ Object.create({
     ctype: 0,
@@ -2157,18 +2157,18 @@ function bootFieldOptions(init14) {
     debugRedact: false,
     retention: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init14), { targets: (_a = init14.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init14.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init16), { targets: (_a = init16.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init16.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
 }
-function bootEnumDescriptorProto(init14) {
+function bootEnumDescriptorProto(init16) {
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.EnumDescriptorProto",
-    name: init14.name,
+    name: init16.name,
     reservedName: [],
     reservedRange: [],
-    value: init14.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
+    value: init16.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
   });
 }
 
@@ -2343,11 +2343,11 @@ function isMessage(arg, schema) {
 function isObject(arg) {
   return arg !== null && typeof arg == "object" && !Array.isArray(arg);
 }
-function isReflectList(arg, field2) {
+function isReflectList(arg, field3) {
   var _a, _b, _c, _d;
   if (isObject(arg) && unsafeLocal in arg && "add" in arg && "field" in arg && typeof arg.field == "function") {
-    if (field2 !== void 0) {
-      const a = field2;
+    if (field3 !== void 0) {
+      const a = field3;
       const b = arg.field();
       return a.listKind == b.listKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === void 0 ? void 0 : _a.typeName) === ((_b = b.message) === null || _b === void 0 ? void 0 : _b.typeName) && ((_c = a.enum) === null || _c === void 0 ? void 0 : _c.typeName) === ((_d = b.enum) === null || _d === void 0 ? void 0 : _d.typeName);
     }
@@ -2355,11 +2355,11 @@ function isReflectList(arg, field2) {
   }
   return false;
 }
-function isReflectMap(arg, field2) {
+function isReflectMap(arg, field3) {
   var _a, _b, _c, _d;
   if (isObject(arg) && unsafeLocal in arg && "has" in arg && "field" in arg && typeof arg.field == "function") {
-    if (field2 !== void 0) {
-      const a = field2, b = arg.field();
+    if (field3 !== void 0) {
+      const a = field3, b = arg.field();
       return a.mapKey === b.mapKey && a.mapKind == b.mapKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === void 0 ? void 0 : _a.typeName) === ((_b = b.message) === null || _b === void 0 ? void 0 : _b.typeName) && ((_c = a.enum) === null || _c === void 0 ? void 0 : _c.typeName) === ((_d = b.enum) === null || _d === void 0 ? void 0 : _d.typeName);
     }
     return true;
@@ -2411,11 +2411,11 @@ function isWrapperTypeName(name) {
 var EDITION_PROTO32 = 999;
 var EDITION_PROTO22 = 998;
 var IMPLICIT3 = 2;
-function create(schema, init14) {
-  if (isMessage(init14, schema)) {
-    return init14;
+function create(schema, init16) {
+  if (isMessage(init16, schema)) {
+    return init16;
   }
-  return compiledCreate(schema)(init14);
+  return compiledCreate(schema)(init16);
 }
 var compiledCreates = /* @__PURE__ */ new WeakMap();
 function compiledCreate(desc) {
@@ -2433,7 +2433,7 @@ var INIT_ONEOF = 3;
 function compileCreate(desc) {
   const typeName = desc.typeName;
   const { properties, prototype } = compileInitMessage(desc);
-  return (init14) => {
+  return (init16) => {
     let message;
     if (prototype !== void 0) {
       message = Object.create(prototype);
@@ -2444,7 +2444,7 @@ function compileCreate(desc) {
     for (let i = 0; i < properties.length; i++) {
       const property = properties[i];
       const name = property.name;
-      const initValue = init14 === null || init14 === void 0 ? void 0 : init14[name];
+      const initValue = init16 === null || init16 === void 0 ? void 0 : init16[name];
       switch (property.kind) {
         case INIT_SINGULAR:
           if (initValue != null) {
@@ -2554,25 +2554,25 @@ function compileInitMessage(desc) {
 }
 function compileConvertOneof(oneof) {
   const converters = /* @__PURE__ */ new Map();
-  for (const field2 of oneof.fields) {
+  for (const field3 of oneof.fields) {
     let convert;
-    if (field2.fieldKind == "message") {
-      convert = compileConvertMessage(field2);
-    } else if (field2.fieldKind == "scalar" && field2.scalar == ScalarType.BYTES) {
+    if (field3.fieldKind == "message") {
+      convert = compileConvertMessage(field3);
+    } else if (field3.fieldKind == "scalar" && field3.scalar == ScalarType.BYTES) {
       convert = toU8Arr;
     }
-    converters.set(field2.localName, convert !== null && convert !== void 0 ? convert : ((value) => value));
+    converters.set(field3.localName, convert !== null && convert !== void 0 ? convert : ((value) => value));
   }
   return converters;
 }
-function compileConvertMessage(field2) {
-  if (field2.fieldKind == "message" && !field2.oneof && isWrapperDesc(field2.message)) {
-    return field2.message.fields[0].scalar == ScalarType.BYTES ? toU8Arr : void 0;
+function compileConvertMessage(field3) {
+  if (field3.fieldKind == "message" && !field3.oneof && isWrapperDesc(field3.message)) {
+    return field3.message.fields[0].scalar == ScalarType.BYTES ? toU8Arr : void 0;
   }
-  if (field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName !== "google.protobuf.Value") {
+  if (field3.message.typeName == "google.protobuf.Struct" && field3.parent.typeName !== "google.protobuf.Value") {
     return void 0;
   }
-  const messageDesc2 = field2.message;
+  const messageDesc2 = field3.message;
   let compiled;
   return (value) => {
     if (!isObject(value) || isMessage(value, messageDesc2)) {
@@ -2595,25 +2595,25 @@ function needsPrototypeChain(desc) {
       return desc.fields.some((f) => f.presence != IMPLICIT3 && f.fieldKind != "message" && !f.oneof);
   }
 }
-function createZeroValue(field2) {
-  const defaultValue = field2.getDefaultValue();
+function createZeroValue(field3) {
+  const defaultValue = field3.getDefaultValue();
   if (defaultValue !== void 0) {
-    return field2.fieldKind == "scalar" && field2.longAsString ? defaultValue.toString() : defaultValue;
+    return field3.fieldKind == "scalar" && field3.longAsString ? defaultValue.toString() : defaultValue;
   }
-  return field2.fieldKind == "scalar" ? scalarZeroValue(field2.scalar, field2.longAsString) : field2.enum.values[0].number;
+  return field3.fieldKind == "scalar" ? scalarZeroValue(field3.scalar, field3.longAsString) : field3.enum.values[0].number;
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/message.js
 var NULL_VALUE = 0;
-function localMessageMapper(field2) {
-  if (usesJsonRepresentation(field2)) {
+function localMessageMapper(field3) {
+  if (usesJsonRepresentation(field3)) {
     return {
       toMessage: (local) => wktStructToReflect(local),
       toLocal: (message) => wktStructToLocal(message)
     };
   }
-  if (field2.fieldKind == "message" && !field2.oneof && isWrapperDesc(field2.message)) {
-    const wrapperDesc = field2.message;
+  if (field3.fieldKind == "message" && !field3.oneof && isWrapperDesc(field3.message)) {
+    const wrapperDesc = field3.message;
     const valueLocalName = wrapperDesc.fields[0].localName;
     return {
       toMessage: (local) => {
@@ -2626,14 +2626,14 @@ function localMessageMapper(field2) {
       toLocal: (message) => message[valueLocalName]
     };
   }
-  const childDesc = field2.message;
+  const childDesc = field3.message;
   return {
     toMessage: (local) => local === void 0 ? create(childDesc) : local,
     toLocal: (message) => message
   };
 }
-function usesJsonRepresentation(field2) {
-  return field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value";
+function usesJsonRepresentation(field3) {
+  return field3.message.typeName == "google.protobuf.Struct" && field3.parent.typeName != "google.protobuf.Value";
 }
 function wktStructToReflect(json) {
   const struct = {
@@ -2753,28 +2753,28 @@ function compileMessage(desc) {
     }
   };
   compiledWriters.set(desc, compiled);
-  for (const field2 of sortedFields) {
-    fieldWriters.push(compileField(field2));
+  for (const field3 of sortedFields) {
+    fieldWriters.push(compileField(field3));
   }
   return compiled;
 }
-function compileField(field2) {
-  switch (field2.fieldKind) {
+function compileField(field3) {
+  switch (field3.fieldKind) {
     case "message":
     case "scalar":
     case "enum":
-      return compileSingularField(field2);
+      return compileSingularField(field3);
     case "list":
-      return compileListField(field2);
+      return compileListField(field3);
     case "map":
-      return compileMapField(field2);
+      return compileMapField(field3);
   }
 }
-function compileSingularField(field2) {
-  const writeValue = compileSingularValue(field2);
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileSingularField(field3) {
+  const writeValue = compileSingularValue(field3);
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (writer, opts, message) => {
       const oneof = message[oneofLocalName];
       if (oneof.case === localName) {
@@ -2782,8 +2782,8 @@ function compileSingularField(field2) {
       }
     };
   }
-  if (field2.presence != IMPLICIT4) {
-    const requiredError = field2.presence == LEGACY_REQUIRED2 ? `cannot encode ${field2} to binary: required field not set` : void 0;
+  if (field3.presence != IMPLICIT4) {
+    const requiredError = field3.presence == LEGACY_REQUIRED2 ? `cannot encode ${field3} to binary: required field not set` : void 0;
     return (writer, opts, message) => {
       const value = message[localName];
       if (value !== void 0 && Object.prototype.hasOwnProperty.call(message, localName)) {
@@ -2793,8 +2793,8 @@ function compileSingularField(field2) {
       }
     };
   }
-  if (field2.fieldKind == "enum") {
-    const zero = field2.enum.values[0].number;
+  if (field3.fieldKind == "enum") {
+    const zero = field3.enum.values[0].number;
     return (writer, opts, message) => {
       const value = message[localName];
       if (value !== zero) {
@@ -2802,7 +2802,7 @@ function compileSingularField(field2) {
       }
     };
   }
-  switch (field2.scalar) {
+  switch (field3.scalar) {
     case ScalarType.BOOL:
       return (writer, opts, message) => {
         const value = message[localName];
@@ -2841,21 +2841,21 @@ function compileSingularField(field2) {
       };
   }
 }
-function compileSingularValue(field2) {
-  switch (field2.fieldKind) {
+function compileSingularValue(field3) {
+  switch (field3.fieldKind) {
     case "message": {
-      const { toMessage } = localMessageMapper(field2);
-      const writeChild = compileChildWriter(field2);
+      const { toMessage } = localMessageMapper(field3);
+      const writeChild = compileChildWriter(field3);
       return (writer, opts, value) => {
         writeChild(writer, opts, toMessage(value));
       };
     }
     case "scalar":
     case "enum": {
-      const scalarType = field2.fieldKind == "enum" ? ScalarType.INT32 : field2.scalar;
-      const fieldNo = field2.number;
+      const scalarType = field3.fieldKind == "enum" ? ScalarType.INT32 : field3.scalar;
+      const fieldNo = field3.number;
       const wireType = writeTypeOfScalar(scalarType);
-      const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
+      const writeScalar = compileScalarValue(scalarType, field3.parent.typeName, field3.name);
       return (writer, opts, value) => {
         writer.tag(fieldNo, wireType);
         writeScalar(writer, value);
@@ -2863,13 +2863,13 @@ function compileSingularValue(field2) {
     }
   }
 }
-function compileListField(field2) {
-  const localName = field2.localName;
-  const fieldNo = field2.number;
-  switch (field2.listKind) {
+function compileListField(field3) {
+  const localName = field3.localName;
+  const fieldNo = field3.number;
+  switch (field3.listKind) {
     case "message": {
-      const { toMessage } = localMessageMapper(field2);
-      const writeChild = compileChildWriter(field2);
+      const { toMessage } = localMessageMapper(field3);
+      const writeChild = compileChildWriter(field3);
       return (writer, opts, message) => {
         const items = message[localName];
         for (let i = 0; i < items.length; i++) {
@@ -2879,9 +2879,9 @@ function compileListField(field2) {
     }
     case "scalar":
     case "enum": {
-      const scalarType = field2.listKind == "enum" ? ScalarType.INT32 : field2.scalar;
-      const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
-      if (field2.packed) {
+      const scalarType = field3.listKind == "enum" ? ScalarType.INT32 : field3.scalar;
+      const writeScalar = compileScalarValue(scalarType, field3.parent.typeName, field3.name);
+      if (field3.packed) {
         return (writer, opts, message) => {
           const items = message[localName];
           if (items.length == 0) {
@@ -2905,13 +2905,13 @@ function compileListField(field2) {
     }
   }
 }
-function compileMapField(field2) {
-  const localName = field2.localName;
-  const fieldNo = field2.number;
-  const writeKey = compileMapKey(field2);
-  if (field2.mapKind == "message") {
-    const { toMessage } = localMessageMapper(field2);
-    const writeMessage = compiledWriter(field2.message);
+function compileMapField(field3) {
+  const localName = field3.localName;
+  const fieldNo = field3.number;
+  const writeKey = compileMapKey(field3);
+  if (field3.mapKind == "message") {
+    const { toMessage } = localMessageMapper(field3);
+    const writeMessage = compiledWriter(field3.message);
     return (writer, opts, message) => {
       const record = message[localName];
       const keys = Object.keys(record);
@@ -2926,9 +2926,9 @@ function compileMapField(field2) {
       }
     };
   }
-  const scalarType = field2.mapKind == "enum" ? ScalarType.INT32 : field2.scalar;
+  const scalarType = field3.mapKind == "enum" ? ScalarType.INT32 : field3.scalar;
   const valueWireType = writeTypeOfScalar(scalarType);
-  const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
+  const writeScalar = compileScalarValue(scalarType, field3.parent.typeName, field3.name);
   return (writer, opts, message) => {
     const record = message[localName];
     const keys = Object.keys(record);
@@ -2942,10 +2942,10 @@ function compileMapField(field2) {
     }
   };
 }
-function compileMapKey(field2) {
-  const wireType = writeTypeOfScalar(field2.mapKey);
-  const writeScalar = compileScalarValue(field2.mapKey, field2.parent.typeName, field2.name);
-  const convertKey = compileMapKeyConverter(field2.mapKey);
+function compileMapKey(field3) {
+  const wireType = writeTypeOfScalar(field3.mapKey);
+  const writeScalar = compileScalarValue(field3.mapKey, field3.parent.typeName, field3.name);
+  const convertKey = compileMapKeyConverter(field3.mapKey);
   return (writer, key3) => {
     writer.tag(1, wireType);
     writeScalar(writer, convertKey(key3));
@@ -3030,13 +3030,13 @@ function compileScalarWrite(type) {
       return (writer, value) => writer.sint32(value);
   }
 }
-function writeField(writer, opts, msg, field2) {
-  compileField(field2)(writer, opts, msg[unsafeLocal]);
+function writeField(writer, opts, msg, field3) {
+  compileField(field3)(writer, opts, msg[unsafeLocal]);
 }
-function compileChildWriter(field2) {
-  const fieldNo = field2.number;
-  const writeMessage = compiledWriter(field2.message);
-  if (field2.delimitedEncoding) {
+function compileChildWriter(field3) {
+  const fieldNo = field3.number;
+  const writeMessage = compiledWriter(field3.message);
+  if (field3.delimitedEncoding) {
     return (writer, opts, child) => {
       writer.tag(fieldNo, WireType.StartGroup);
       writeMessage(writer, opts, child);
@@ -3068,54 +3068,54 @@ function writeTypeOfScalar(type) {
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect-check.js
-function checkField(field2, value) {
-  const check2 = field2.fieldKind == "list" ? isReflectList(value, field2) : field2.fieldKind == "map" ? isReflectMap(value, field2) : checkSingular(field2, value);
+function checkField(field3, value) {
+  const check2 = field3.fieldKind == "list" ? isReflectList(value, field3) : field3.fieldKind == "map" ? isReflectMap(value, field3) : checkSingular(field3, value);
   if (check2 === true) {
     return void 0;
   }
   let reason;
-  switch (field2.fieldKind) {
+  switch (field3.fieldKind) {
     case "list":
-      reason = `expected ${formatReflectList(field2)}, got ${formatVal(value)}`;
+      reason = `expected ${formatReflectList(field3)}, got ${formatVal(value)}`;
       break;
     case "map":
-      reason = `expected ${formatReflectMap(field2)}, got ${formatVal(value)}`;
+      reason = `expected ${formatReflectMap(field3)}, got ${formatVal(value)}`;
       break;
     default: {
-      reason = reasonSingular(field2, value, check2);
+      reason = reasonSingular(field3, value, check2);
     }
   }
-  return new FieldError(field2, reason);
+  return new FieldError(field3, reason);
 }
-function checkListItem(field2, index, value) {
-  const check2 = checkSingular(field2, value);
+function checkListItem(field3, index, value) {
+  const check2 = checkSingular(field3, value);
   if (check2 !== true) {
-    return new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
+    return new FieldError(field3, `list item #${index + 1}: ${reasonSingular(field3, value, check2)}`);
   }
   return void 0;
 }
-function checkMapEntry(field2, key3, value) {
-  const checkKey = checkScalarValue(field2.mapKey)(key3);
+function checkMapEntry(field3, key3, value) {
+  const checkKey = checkScalarValue(field3.mapKey)(key3);
   if (checkKey !== true) {
-    return new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: field2.mapKey }, key3, checkKey)}`);
+    return new FieldError(field3, `invalid map key: ${reasonSingular({ scalar: field3.mapKey }, key3, checkKey)}`);
   }
-  const checkVal = checkSingular(field2, value);
+  const checkVal = checkSingular(field3, value);
   if (checkVal !== true) {
-    return new FieldError(field2, `map entry ${formatVal(key3)}: ${reasonSingular(field2, value, checkVal)}`);
+    return new FieldError(field3, `map entry ${formatVal(key3)}: ${reasonSingular(field3, value, checkVal)}`);
   }
   return void 0;
 }
-function checkSingular(field2, value) {
-  if (field2.scalar !== void 0) {
-    return checkScalarValue(field2.scalar)(value);
+function checkSingular(field3, value) {
+  if (field3.scalar !== void 0) {
+    return checkScalarValue(field3.scalar)(value);
   }
-  if (field2.enum !== void 0) {
-    if (field2.enum.open) {
+  if (field3.enum !== void 0) {
+    if (field3.enum.open) {
       return checkScalarValue(ScalarType.INT32)(value);
     }
-    return field2.enum.values.some((v) => v.number === value);
+    return field3.enum.values.some((v) => v.number === value);
   }
-  return isReflectMessage(value, field2.message);
+  return isReflectMessage(value, field3.message);
 }
 function checkScalarValue(scalar2) {
   switch (scalar2) {
@@ -3194,15 +3194,15 @@ function checkScalarValue(scalar2) {
       };
   }
 }
-function reasonSingular(field2, val, details) {
+function reasonSingular(field3, val, details) {
   details = typeof details == "string" ? `: ${details}` : `, got ${formatVal(val)}`;
-  if (field2.scalar !== void 0) {
-    return `expected ${scalarTypeDescription(field2.scalar)}` + details;
+  if (field3.scalar !== void 0) {
+    return `expected ${scalarTypeDescription(field3.scalar)}` + details;
   }
-  if (field2.enum !== void 0) {
-    return `expected ${field2.enum.toString()}` + details;
+  if (field3.enum !== void 0) {
+    return `expected ${field3.enum.toString()}` + details;
   }
-  return `expected ${formatReflectMessage(field2.message)}` + details;
+  return `expected ${formatReflectMessage(field3.message)}` + details;
 }
 function formatVal(val) {
   switch (typeof val) {
@@ -3244,24 +3244,24 @@ function formatVal(val) {
 function formatReflectMessage(desc) {
   return `ReflectMessage (${desc.typeName})`;
 }
-function formatReflectList(field2) {
-  switch (field2.listKind) {
+function formatReflectList(field3) {
+  switch (field3.listKind) {
     case "message":
-      return `ReflectList (${field2.message.toString()})`;
+      return `ReflectList (${field3.message.toString()})`;
     case "enum":
-      return `ReflectList (${field2.enum.toString()})`;
+      return `ReflectList (${field3.enum.toString()})`;
     case "scalar":
-      return `ReflectList (${ScalarType[field2.scalar]})`;
+      return `ReflectList (${ScalarType[field3.scalar]})`;
   }
 }
-function formatReflectMap(field2) {
-  switch (field2.mapKind) {
+function formatReflectMap(field3) {
+  switch (field3.mapKind) {
     case "message":
-      return `ReflectMap (${ScalarType[field2.mapKey]}, ${field2.message.toString()})`;
+      return `ReflectMap (${ScalarType[field3.mapKey]}, ${field3.message.toString()})`;
     case "enum":
-      return `ReflectMap (${ScalarType[field2.mapKey]}, ${field2.enum.toString()})`;
+      return `ReflectMap (${ScalarType[field3.mapKey]}, ${field3.enum.toString()})`;
     case "scalar":
-      return `ReflectMap (${ScalarType[field2.mapKey]}, ${ScalarType[field2.scalar]})`;
+      return `ReflectMap (${ScalarType[field3.mapKey]}, ${ScalarType[field3.scalar]})`;
   }
 }
 function scalarTypeDescription(scalar2) {
@@ -3328,63 +3328,63 @@ var ReflectMessageImpl = class {
     assertOwn(this.message, oneof);
     return unsafeOneofCase(this.message, oneof);
   }
-  isSet(field2) {
-    assertOwn(this.message, field2);
-    return unsafeIsSet(this.message, field2);
+  isSet(field3) {
+    assertOwn(this.message, field3);
+    return unsafeIsSet(this.message, field3);
   }
-  clear(field2) {
-    assertOwn(this.message, field2);
-    unsafeClear(this.message, field2);
+  clear(field3) {
+    assertOwn(this.message, field3);
+    unsafeClear(this.message, field3);
   }
-  get(field2) {
-    assertOwn(this.message, field2);
-    const value = unsafeGet(this.message, field2);
-    switch (field2.fieldKind) {
+  get(field3) {
+    assertOwn(this.message, field3);
+    const value = unsafeGet(this.message, field3);
+    switch (field3.fieldKind) {
       case "list":
-        let list5 = this.lists.get(field2);
+        let list5 = this.lists.get(field3);
         if (!list5 || list5[unsafeLocal] !== value) {
           this.lists.set(
-            field2,
+            field3,
             // biome-ignore lint/suspicious/noAssignInExpressions: no
-            list5 = new ReflectListImpl(field2, value, this.check)
+            list5 = new ReflectListImpl(field3, value, this.check)
           );
         }
         return list5;
       case "map":
-        let map = this.maps.get(field2);
+        let map = this.maps.get(field3);
         if (!map || map[unsafeLocal] !== value) {
           this.maps.set(
-            field2,
+            field3,
             // biome-ignore lint/suspicious/noAssignInExpressions: no
-            map = new ReflectMapImpl(field2, value, this.check)
+            map = new ReflectMapImpl(field3, value, this.check)
           );
         }
         return map;
       case "message":
-        return messageToReflect(field2, value, this.check);
+        return messageToReflect(field3, value, this.check);
       case "scalar":
-        return value === void 0 ? scalarZeroValue(field2.scalar, false) : longToReflect(field2, value);
+        return value === void 0 ? scalarZeroValue(field3.scalar, false) : longToReflect(field3, value);
       case "enum":
-        return value !== null && value !== void 0 ? value : field2.enum.values[0].number;
+        return value !== null && value !== void 0 ? value : field3.enum.values[0].number;
     }
   }
-  set(field2, value) {
-    assertOwn(this.message, field2);
+  set(field3, value) {
+    assertOwn(this.message, field3);
     if (this.check) {
-      const err = checkField(field2, value);
+      const err = checkField(field3, value);
       if (err) {
         throw err;
       }
     }
     let local;
-    if (field2.fieldKind == "message") {
-      local = messageToLocal(field2, value);
+    if (field3.fieldKind == "message") {
+      local = messageToLocal(field3, value);
     } else if (isReflectMap(value) || isReflectList(value)) {
       local = value[unsafeLocal];
     } else {
-      local = longToLocal(field2, value);
+      local = longToLocal(field3, value);
     }
-    unsafeSet(this.message, field2, local);
+    unsafeSet(this.message, field3, local);
   }
   getUnknown() {
     return this.message.$unknown;
@@ -3405,8 +3405,8 @@ var ReflectListImpl = class {
   get size() {
     return this._arr.length;
   }
-  constructor(field2, unsafeInput, check2) {
-    this._field = field2;
+  constructor(field3, unsafeInput, check2) {
+    this._field = field3;
     this._arr = this[unsafeLocal] = unsafeInput;
     this.check = check2;
   }
@@ -3457,10 +3457,10 @@ var ReflectListImpl = class {
   }
 };
 var ReflectMapImpl = class {
-  constructor(field2, unsafeInput, check2 = true) {
+  constructor(field3, unsafeInput, check2 = true) {
     this.obj = this[unsafeLocal] = unsafeInput !== null && unsafeInput !== void 0 ? unsafeInput : {};
     this.check = check2;
-    this._field = field2;
+    this._field = field3;
   }
   field() {
     return this._field;
@@ -3528,52 +3528,52 @@ var ReflectMapImpl = class {
     }
   }
 };
-function messageToLocal(field2, value) {
+function messageToLocal(field3, value) {
   if (!isReflectMessage(value)) {
     return value;
   }
-  if (isWrapper(value.message) && !field2.oneof && field2.fieldKind == "message") {
+  if (isWrapper(value.message) && !field3.oneof && field3.fieldKind == "message") {
     return value.message.value;
   }
-  if (value.desc.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value") {
+  if (value.desc.typeName == "google.protobuf.Struct" && field3.parent.typeName != "google.protobuf.Value") {
     return wktStructToLocal(value.message);
   }
   return value.message;
 }
-function messageToReflect(field2, value, check2) {
+function messageToReflect(field3, value, check2) {
   if (value !== void 0) {
-    if (isWrapperDesc(field2.message) && !field2.oneof && field2.fieldKind == "message") {
+    if (isWrapperDesc(field3.message) && !field3.oneof && field3.fieldKind == "message") {
       value = {
-        $typeName: field2.message.typeName,
-        value: longToReflect(field2.message.fields[0], value)
+        $typeName: field3.message.typeName,
+        value: longToReflect(field3.message.fields[0], value)
       };
-    } else if (field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value" && isObject(value)) {
+    } else if (field3.message.typeName == "google.protobuf.Struct" && field3.parent.typeName != "google.protobuf.Value" && isObject(value)) {
       value = wktStructToReflect(value);
     }
   }
-  return new ReflectMessageImpl(field2.message, value, check2);
+  return new ReflectMessageImpl(field3.message, value, check2);
 }
-function listItemToLocal(field2, value) {
-  if (field2.listKind == "message") {
-    return messageToLocal(field2, value);
+function listItemToLocal(field3, value) {
+  if (field3.listKind == "message") {
+    return messageToLocal(field3, value);
   }
-  return longToLocal(field2, value);
+  return longToLocal(field3, value);
 }
-function listItemToReflect(field2, value, check2) {
-  if (field2.listKind == "message") {
-    return messageToReflect(field2, value, check2);
+function listItemToReflect(field3, value, check2) {
+  if (field3.listKind == "message") {
+    return messageToReflect(field3, value, check2);
   }
-  return longToReflect(field2, value);
+  return longToReflect(field3, value);
 }
-function mapValueToLocal(field2, value) {
-  if (field2.mapKind == "message") {
-    return messageToLocal(field2, value);
+function mapValueToLocal(field3, value) {
+  if (field3.mapKind == "message") {
+    return messageToLocal(field3, value);
   }
-  return longToLocal(field2, value);
+  return longToLocal(field3, value);
 }
-function mapValueToReflect(field2, value, check2) {
-  if (field2.mapKind == "message") {
-    return messageToReflect(field2, value, check2);
+function mapValueToReflect(field3, value, check2) {
+  if (field3.mapKind == "message") {
+    return messageToReflect(field3, value, check2);
   }
   return value;
 }
@@ -3619,30 +3619,30 @@ function mapKeyToReflect(key3, type) {
   }
   return key3;
 }
-function longToReflect(field2, value) {
-  switch (field2.scalar) {
+function longToReflect(field3, value) {
+  switch (field3.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if ("longAsString" in field2 && field2.longAsString && typeof value == "string") {
+      if ("longAsString" in field3 && field3.longAsString && typeof value == "string") {
         value = protoInt64.parse(value);
       }
       break;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if ("longAsString" in field2 && field2.longAsString && typeof value == "string") {
+      if ("longAsString" in field3 && field3.longAsString && typeof value == "string") {
         value = protoInt64.uParse(value);
       }
       break;
   }
   return value;
 }
-function longToLocal(field2, value) {
-  switch (field2.scalar) {
+function longToLocal(field3, value) {
+  switch (field3.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if ("longAsString" in field2 && field2.longAsString) {
+      if ("longAsString" in field3 && field3.longAsString) {
         value = String(value);
       } else if (typeof value == "string" || typeof value == "number") {
         value = protoInt64.parse(value);
@@ -3650,7 +3650,7 @@ function longToLocal(field2, value) {
       break;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if ("longAsString" in field2 && field2.longAsString) {
+      if ("longAsString" in field3 && field3.longAsString) {
         value = String(value);
       } else if (typeof value == "string" || typeof value == "number") {
         value = protoInt64.uParse(value);
@@ -3856,8 +3856,8 @@ function compileMessage2(desc) {
     readGroup: compileGroupReader(descString, fieldReaders)
   };
   compiledReaders.set(desc, compiled);
-  for (const field2 of desc.fields) {
-    fieldReaders.set(field2.number, compileFieldReader(field2));
+  for (const field3 of desc.fields) {
+    fieldReaders.set(field3.number, compileFieldReader(field3));
   }
   return compiled;
 }
@@ -3920,28 +3920,28 @@ function compileGroupReader(descString, fieldReaders) {
     ctx.depth--;
   };
 }
-function readField(message, reader, field2, wireType, ctx) {
-  compileFieldReader(field2)(message[unsafeLocal], reader, ctx, wireType);
+function readField(message, reader, field3, wireType, ctx) {
+  compileFieldReader(field3)(message[unsafeLocal], reader, ctx, wireType);
 }
-function compileFieldReader(field2) {
-  switch (field2.fieldKind) {
+function compileFieldReader(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
-      return compileScalarFieldReader(field2);
+      return compileScalarFieldReader(field3);
     case "enum":
-      return compileEnumFieldReader(field2);
+      return compileEnumFieldReader(field3);
     case "message":
-      return compileMessageFieldReader(field2);
+      return compileMessageFieldReader(field3);
     case "list":
-      return compileListFieldReader(field2);
+      return compileListFieldReader(field3);
     case "map":
-      return compileMapFieldReader(field2);
+      return compileMapFieldReader(field3);
   }
 }
-function compileScalarFieldReader(field2) {
-  const readScalar = compileScalarReader(field2.scalar, field2.utf8Validation, field2.longAsString);
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileScalarFieldReader(field3) {
+  const readScalar = compileScalarReader(field3.scalar, field3.utf8Validation, field3.longAsString);
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, reader) => {
       message[oneofLocalName] = {
         case: localName,
@@ -3953,11 +3953,11 @@ function compileScalarFieldReader(field2) {
     message[localName] = readScalar(reader);
   };
 }
-function compileEnumFieldReader(field2) {
+function compileEnumFieldReader(field3) {
   var _a;
-  const localName = field2.localName;
-  const oneofLocalName = (_a = field2.oneof) === null || _a === void 0 ? void 0 : _a.localName;
-  if (field2.enum.open) {
+  const localName = field3.localName;
+  const oneofLocalName = (_a = field3.oneof) === null || _a === void 0 ? void 0 : _a.localName;
+  if (field3.enum.open) {
     if (oneofLocalName !== void 0) {
       return (message, reader) => {
         message[oneofLocalName] = { case: localName, value: reader.int32() };
@@ -3967,8 +3967,8 @@ function compileEnumFieldReader(field2) {
       message[localName] = reader.int32();
     };
   }
-  const values = field2.enum.values;
-  const fieldNo = field2.number;
+  const values = field3.enum.values;
+  const fieldNo = field3.number;
   return (message, reader, ctx, wireType) => {
     var _a2;
     const val = reader.int32();
@@ -3991,12 +3991,12 @@ function compileEnumFieldReader(field2) {
     }
   };
 }
-function compileMessageFieldReader(field2) {
-  const localName = field2.localName;
-  const { toMessage, toLocal } = localMessageMapper(field2);
-  const readChild = compileChildReader(field2);
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileMessageFieldReader(field3) {
+  const localName = field3.localName;
+  const { toMessage, toLocal } = localMessageMapper(field3);
+  const readChild = compileChildReader(field3);
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, reader, ctx) => {
       const oneof = message[oneofLocalName];
       const child = toMessage(oneof.case === localName ? oneof.value : void 0);
@@ -4010,28 +4010,28 @@ function compileMessageFieldReader(field2) {
     message[localName] = toLocal(child);
   };
 }
-function compileChildReader(field2) {
-  const compiledChild = compiledReader(field2.message);
-  if (field2.delimitedEncoding) {
-    const fieldNo = field2.number;
+function compileChildReader(field3) {
+  const compiledChild = compiledReader(field3.message);
+  if (field3.delimitedEncoding) {
+    const fieldNo = field3.number;
     return (child, reader, ctx) => compiledChild.readGroup(child, reader, ctx, fieldNo);
   }
   return (child, reader, ctx) => compiledChild.read(child, reader, ctx, reader.uint32());
 }
-function compileListFieldReader(field2) {
-  const localName = field2.localName;
-  if (field2.listKind == "message") {
-    const { toMessage, toLocal } = localMessageMapper(field2);
-    const readChild = compileChildReader(field2);
+function compileListFieldReader(field3) {
+  const localName = field3.localName;
+  if (field3.listKind == "message") {
+    const { toMessage, toLocal } = localMessageMapper(field3);
+    const readChild = compileChildReader(field3);
     return (message, reader, ctx) => {
       const child = toMessage(void 0);
       readChild(child, reader, ctx);
       message[localName].push(toLocal(child));
     };
   }
-  const scalarType = field2.listKind == "enum" ? ScalarType.INT32 : field2.scalar;
-  const longAsString = field2.listKind == "scalar" ? field2.longAsString : false;
-  const readScalar = compileScalarReader(scalarType, field2.utf8Validation, longAsString);
+  const scalarType = field3.listKind == "enum" ? ScalarType.INT32 : field3.scalar;
+  const longAsString = field3.listKind == "scalar" ? field3.longAsString : false;
+  const readScalar = compileScalarReader(scalarType, field3.utf8Validation, longAsString);
   const packedPossible = scalarType != ScalarType.STRING && scalarType != ScalarType.BYTES;
   return (message, reader, ctx, wireType) => {
     const items = message[localName];
@@ -4045,16 +4045,16 @@ function compileListFieldReader(field2) {
     }
   };
 }
-function compileMapFieldReader(field2) {
-  const localName = field2.localName;
-  const readKey = compileScalarReader(field2.mapKey, field2.utf8Validation, false);
-  const keyZero = scalarZeroValue(field2.mapKey, false);
+function compileMapFieldReader(field3) {
+  const localName = field3.localName;
+  const readKey = compileScalarReader(field3.mapKey, field3.utf8Validation, false);
+  const keyZero = scalarZeroValue(field3.mapKey, false);
   let readValue;
   let valueDefault;
-  switch (field2.mapKind) {
+  switch (field3.mapKind) {
     case "scalar": {
-      const scalar2 = field2.scalar;
-      const readScalar = compileScalarReader(scalar2, field2.utf8Validation, false);
+      const scalar2 = field3.scalar;
+      const readScalar = compileScalarReader(scalar2, field3.utf8Validation, false);
       readValue = (reader) => readScalar(reader);
       if (scalar2 == ScalarType.BYTES) {
         valueDefault = () => new Uint8Array(0);
@@ -4065,14 +4065,14 @@ function compileMapFieldReader(field2) {
       break;
     }
     case "enum": {
-      const zero = field2.enum.values[0].number;
+      const zero = field3.enum.values[0].number;
       readValue = (reader) => reader.int32();
       valueDefault = () => zero;
       break;
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field2);
-      const readChild = compiledReader(field2.message).read;
+      const { toMessage, toLocal } = localMessageMapper(field3);
+      const readChild = compiledReader(field3.message).read;
       readValue = (reader, ctx, existing) => {
         const child = toMessage(existing);
         readChild(child, reader, ctx, reader.uint32());
@@ -4206,6 +4206,103 @@ var LayerErrorKind = /* @__PURE__ */ ((LayerErrorKind2) => {
   return LayerErrorKind2;
 })(LayerErrorKind || {});
 
+// demo/web/src/keep.ts
+var PREFIX = "turbo-demo.input.";
+var TABS = ["embed", "semantic", "analyze", "search", "vocabulary"];
+function storable(tag, type) {
+  const t = tag.toLowerCase();
+  if (t === "textarea" || t === "select") return true;
+  if (t !== "input") return false;
+  return !["password", "file", "hidden", "submit", "button", "reset", "image"].includes(type.toLowerCase());
+}
+function stored(type, value, checked) {
+  return type === "checkbox" || type === "radio" ? checked ? "1" : "0" : value;
+}
+function recall(id) {
+  try {
+    return localStorage.getItem(PREFIX + id);
+  } catch {
+    return null;
+  }
+}
+function remember(id, value) {
+  if (resetting) return;
+  try {
+    localStorage.setItem(PREFIX + id, value);
+  } catch {
+  }
+}
+function forget(id) {
+  try {
+    localStorage.removeItem(PREFIX + id);
+  } catch {
+  }
+}
+function fields(panel) {
+  return [...panel.querySelectorAll("input[id], textarea[id], select[id]")].filter((f) => storable(f.tagName, f.type) && !f.hasAttribute("data-unkept"));
+}
+function put(f, v) {
+  if (f instanceof HTMLInputElement && (f.type === "checkbox" || f.type === "radio")) f.checked = v === "1";
+  else if (f instanceof HTMLSelectElement) {
+    if ([...f.options].some((o) => o.value === v)) f.value = v;
+  } else f.value = v;
+}
+function restore(select5) {
+  const v = select5.id ? recall(select5.id) : null;
+  if (v !== null && select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) put(select5, v);
+}
+var resetting = false;
+var resets = /* @__PURE__ */ new Map();
+function onReset(tab, again) {
+  resets.set(tab, [...resets.get(tab) ?? [], again]);
+}
+function reset(tab, panel) {
+  resetting = true;
+  try {
+    for (const f of fields(panel)) {
+      forget(f.id);
+      if (f instanceof HTMLInputElement && (f.type === "checkbox" || f.type === "radio")) f.checked = f.defaultChecked;
+      else if (f instanceof HTMLSelectElement) f.selectedIndex = Math.max(0, [...f.options].findIndex((o) => o.defaultSelected));
+      else f.value = f.defaultValue;
+      f.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    for (const again of resets.get(tab) ?? []) again();
+  } finally {
+    resetting = false;
+  }
+}
+function init() {
+  for (const tab of TABS) {
+    const panel = document.getElementById(`tab-${tab}`);
+    if (!panel) continue;
+    for (const f of fields(panel)) {
+      const v = recall(f.id);
+      if (v !== null) put(f, v);
+    }
+    const keep = (ev) => {
+      const f = ev.target;
+      if (f.id && storable(f.tagName ?? "", f.type ?? "") && !f.hasAttribute("data-unkept")) remember(f.id, stored(f.type, f.value, f.checked === true));
+    };
+    panel.addEventListener("input", keep);
+    panel.addEventListener("change", keep);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "reset";
+    button.id = `${tab}-reset`;
+    button.textContent = "Reset to sample";
+    button.title = "Put this tab's inputs back to the sample and forget what was typed";
+    button.addEventListener("click", () => reset(tab, panel));
+    panel.querySelector(".box")?.append(button);
+  }
+}
+function recallList(id) {
+  const v = recall(id);
+  return v === null ? null : v.split("\n").filter((x) => x.length);
+}
+function forgetOwn(id) {
+  forget(id);
+}
+
 // demo/web/src/dom.ts
 function $(id) {
   const e = document.getElementById(id);
@@ -4251,6 +4348,7 @@ function options(select5, values, labels, none = "") {
   if (!values.length && none) return void select5.replaceChildren(el("option", { value: "", text: none }));
   select5.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
   if (values.includes(keep)) select5.value = keep;
+  restore(select5);
 }
 function failure(x) {
   if (!x.details) return [x.text];
@@ -4267,6 +4365,19 @@ function say(box5, what, kind = "") {
   append(box5, failure(what));
   box5.className = what.text === "Cancelled." ? "note" : "note error";
   box5.hidden = false;
+}
+function sending(box5, what) {
+  const bar3 = el("progress", { max: "1", value: "0", "aria-label": "Upload progress" });
+  const line = el("span", {});
+  box5.replaceChildren(line, bar3);
+  box5.className = "note busy upload";
+  box5.hidden = false;
+  return (sent, total) => {
+    bar3.max = Math.max(1, total);
+    bar3.value = sent;
+    const share = total ? Math.floor(100 * sent / total) : 100;
+    line.textContent = sent < total ? `Uploading ${what}: ${size(sent)} of ${size(total)} (${share}%)` : `Sent ${size(total)} (${what}). The server is working on it\u2026`;
+  };
 }
 function failed(x) {
   return el("p", { class: "error" }, failure(x));
@@ -4287,6 +4398,9 @@ function reveal(box5) {
   return () => {
     if (!moved) show3();
   };
+}
+function count(n, noun) {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 function size(n) {
   const v = Number(n);
@@ -4408,10 +4522,10 @@ var NullValue;
 function getExtension(message, extension, options2) {
   assertExtendee(extension, message);
   const ufs = filterUnknownFields(message.$unknown, extension);
-  const [container, field2, get] = createExtensionContainer(extension);
+  const [container, field3, get] = createExtensionContainer(extension);
   const ctx = makeReadContext(options2);
   for (const uf of ufs) {
-    readField(container, new BinaryReader(uf.data), field2, uf.wireType, ctx);
+    readField(container, new BinaryReader(uf.data), field3, uf.wireType, ctx);
   }
   return get();
 }
@@ -4419,9 +4533,9 @@ function setExtension(message, extension, value) {
   var _a;
   assertExtendee(extension, message);
   const ufs = ((_a = message.$unknown) !== null && _a !== void 0 ? _a : []).filter((uf) => uf.no !== extension.number);
-  const [container, field2] = createExtensionContainer(extension, value);
+  const [container, field3] = createExtensionContainer(extension, value);
   const writer = new BinaryWriter();
-  writeField(writer, { writeUnknownFields: true }, container, field2);
+  writeField(writer, { writeUnknownFields: true }, container, field3);
   const reader = new BinaryReader(writer.finish());
   while (reader.pos < reader.len) {
     const [no, wireType] = reader.tag();
@@ -4445,12 +4559,12 @@ function filterUnknownFields(unknownFields, extension) {
 }
 function createExtensionContainer(extension, value) {
   const localName = extension.typeName;
-  const field2 = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
-  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field2], members: [field2], oneofs: [] });
+  const field3 = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
+  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field3], members: [field3], oneofs: [] });
   const container = create(desc, value !== void 0 ? { [localName]: value } : void 0);
   return [
     reflect(desc, container),
-    field2,
+    field3,
     () => {
       const value2 = container[localName];
       if (value2 === void 0) {
@@ -4534,9 +4648,9 @@ function compileMessage3(desc) {
     return json;
   };
   compiledWriters2.set(desc, compiledWriter3);
-  for (const field2 of sortedFields) {
-    const writeField2 = compileField2(field2);
-    fieldWriters.push(field2.jsonName === "__proto__" || field2.name === "__proto__" ? writeOwnKeys(writeField2) : writeField2);
+  for (const field3 of sortedFields) {
+    const writeField2 = compileField2(field3);
+    fieldWriters.push(field3.jsonName === "__proto__" || field3.name === "__proto__" ? writeOwnKeys(writeField2) : writeField2);
   }
   return compiledWriter3;
 }
@@ -4582,18 +4696,18 @@ function compileWkt(desc) {
       return void 0;
   }
 }
-function compileField2(field2) {
-  switch (field2.fieldKind) {
+function compileField2(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
     case "enum":
     case "message":
-      return compileSingularField2(field2);
+      return compileSingularField2(field3);
     case "list":
     case "map": {
-      const writeValue = field2.fieldKind == "list" ? compileListValue(field2) : compileMapValue(field2);
-      const protoName = field2.name;
-      const jsonKey = field2.jsonName;
-      const localName = field2.localName;
+      const writeValue = field3.fieldKind == "list" ? compileListValue(field3) : compileMapValue(field3);
+      const protoName = field3.name;
+      const jsonKey = field3.jsonName;
+      const localName = field3.localName;
       return (opts, message, json) => {
         const value = writeValue(opts, message[localName]);
         if (value !== void 0) {
@@ -4603,13 +4717,13 @@ function compileField2(field2) {
     }
   }
 }
-function compileSingularField2(field2) {
-  const writeValue = compileSingularValue2(field2);
-  const protoName = field2.name;
-  const jsonKey = field2.jsonName;
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileSingularField2(field3) {
+  const writeValue = compileSingularValue2(field3);
+  const protoName = field3.name;
+  const jsonKey = field3.jsonName;
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (opts, message, json) => {
       const oneof = message[oneofLocalName];
       if (oneof.case === localName) {
@@ -4617,8 +4731,8 @@ function compileSingularField2(field2) {
       }
     };
   }
-  if (field2.presence != IMPLICIT5) {
-    const requiredError = field2.presence == LEGACY_REQUIRED3 ? `cannot encode ${field2} to JSON: required field not set` : void 0;
+  if (field3.presence != IMPLICIT5) {
+    const requiredError = field3.presence == LEGACY_REQUIRED3 ? `cannot encode ${field3} to JSON: required field not set` : void 0;
     return (opts, message, json) => {
       const value = message[localName];
       if (value !== void 0 && Object.prototype.hasOwnProperty.call(message, localName)) {
@@ -4628,8 +4742,8 @@ function compileSingularField2(field2) {
       }
     };
   }
-  if (field2.fieldKind == "enum") {
-    const zero = field2.enum.values[0].number;
+  if (field3.fieldKind == "enum") {
+    const zero = field3.enum.values[0].number;
     return (opts, message, json) => {
       const value = message[localName];
       if (value !== zero || opts.alwaysEmitImplicit) {
@@ -4637,7 +4751,7 @@ function compileSingularField2(field2) {
       }
     };
   }
-  switch (field2.scalar) {
+  switch (field3.scalar) {
     case ScalarType.BOOL:
       return (opts, message, json) => {
         const value = message[localName];
@@ -4676,35 +4790,35 @@ function compileSingularField2(field2) {
       };
   }
 }
-function compileFieldValue(field2) {
-  switch (field2.fieldKind) {
+function compileFieldValue(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
     case "enum":
     case "message":
-      return compileSingularValue2(field2);
+      return compileSingularValue2(field3);
     case "list":
-      return compileListValue(field2);
+      return compileListValue(field3);
     case "map":
-      return compileMapValue(field2);
+      return compileMapValue(field3);
   }
 }
-function compileSingularValue2(field2) {
-  switch (field2.fieldKind) {
+function compileSingularValue2(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
-      return compileScalarValue2(field2);
+      return compileScalarValue2(field3);
     case "enum":
-      return compileEnumValue(field2);
+      return compileEnumValue(field3);
     case "message":
-      return compileMessageValue(field2);
+      return compileMessageValue(field3);
   }
 }
-function compileMessageValue(field2) {
-  const { toMessage } = localMessageMapper(field2);
-  const writeMessage = compiledWriter2(field2.message);
+function compileMessageValue(field3) {
+  const { toMessage } = localMessageMapper(field3);
+  const writeMessage = compiledWriter2(field3.message);
   return (opts, value) => writeMessage(opts, toMessage(value));
 }
-function compileListValue(field2) {
-  const writeItem = compileListItemValue(field2);
+function compileListValue(field3) {
+  const writeItem = compileListItemValue(field3);
   return (opts, value) => {
     const items = value;
     if (items.length == 0 && !opts.alwaysEmitImplicit) {
@@ -4717,18 +4831,18 @@ function compileListValue(field2) {
     return jsonArray;
   };
 }
-function compileListItemValue(field2) {
-  switch (field2.listKind) {
+function compileListItemValue(field3) {
+  switch (field3.listKind) {
     case "scalar":
-      return compileScalarValue2(field2);
+      return compileScalarValue2(field3);
     case "enum":
-      return compileEnumValue(field2);
+      return compileEnumValue(field3);
     case "message":
-      return compileMessageValue(field2);
+      return compileMessageValue(field3);
   }
 }
-function compileMapValue(field2) {
-  const writeMapValue = compileMapEntryValue(field2);
+function compileMapValue(field3) {
+  const writeMapValue = compileMapEntryValue(field3);
   return (opts, value) => {
     const record = value;
     const keys = Object.keys(record);
@@ -4743,18 +4857,18 @@ function compileMapValue(field2) {
     return jsonObject;
   };
 }
-function compileMapEntryValue(field2) {
-  switch (field2.mapKind) {
+function compileMapEntryValue(field3) {
+  switch (field3.mapKind) {
     case "scalar":
-      return compileScalarValue2(field2);
+      return compileScalarValue2(field3);
     case "enum":
-      return compileEnumValue(field2);
+      return compileEnumValue(field3);
     case "message":
-      return compileMessageValue(field2);
+      return compileMessageValue(field3);
   }
 }
-function compileEnumValue(field2) {
-  const desc = field2.enum;
+function compileEnumValue(field3) {
+  const desc = field3.enum;
   if (desc.typeName == "google.protobuf.NullValue") {
     return (opts, value) => {
       if (typeof value != "number") {
@@ -4777,8 +4891,8 @@ function compileEnumValue(field2) {
 function errorEnumValue(desc, value) {
   return new Error(`cannot encode ${desc} to JSON: expected number, got ${formatVal(value)}`);
 }
-function compileScalarValue2(field2) {
-  switch (field2.scalar) {
+function compileScalarValue2(field3) {
+  switch (field3.scalar) {
     // int32, fixed32, uint32: JSON value will be a decimal number. Either numbers or strings are accepted.
     case ScalarType.INT32:
     case ScalarType.SFIXED32:
@@ -4787,7 +4901,7 @@ function compileScalarValue2(field2) {
     case ScalarType.UINT32:
       return (opts, value) => {
         if (typeof value != "number") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         return value;
       };
@@ -4797,7 +4911,7 @@ function compileScalarValue2(field2) {
     case ScalarType.DOUBLE:
       return (opts, value) => {
         if (typeof value != "number") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         if (Number.isNaN(value))
           return "NaN";
@@ -4811,7 +4925,7 @@ function compileScalarValue2(field2) {
     case ScalarType.STRING:
       return (opts, value) => {
         if (typeof value != "string") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         return value;
       };
@@ -4819,7 +4933,7 @@ function compileScalarValue2(field2) {
     case ScalarType.BOOL:
       return (opts, value) => {
         if (typeof value != "boolean") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         return value;
       };
@@ -4833,7 +4947,7 @@ function compileScalarValue2(field2) {
         if (typeof value == "bigint" || typeof value == "string" || typeof value == "number" && Number.isInteger(value)) {
           return value.toString();
         }
-        throw errorScalarValue(field2, value);
+        throw errorScalarValue(field3, value);
       };
     // bytes: JSON value will be the data encoded as a string using standard base64 encoding with paddings.
     // Either standard or URL-safe base64 encoding with/without paddings are accepted.
@@ -4842,13 +4956,13 @@ function compileScalarValue2(field2) {
         if (value instanceof Uint8Array) {
           return base64Encode(value);
         }
-        throw errorScalarValue(field2, value);
+        throw errorScalarValue(field3, value);
       };
   }
 }
-function errorScalarValue(field2, value) {
+function errorScalarValue(field3, value) {
   var _a;
-  return new Error(`cannot encode ${field2} to JSON: ${(_a = checkField(field2, value)) === null || _a === void 0 ? void 0 : _a.message}`);
+  return new Error(`cannot encode ${field3} to JSON: ${(_a = checkField(field3, value)) === null || _a === void 0 ? void 0 : _a.message}`);
 }
 function writeExtensions(json, opts, registry, message, desc) {
   const unknown = message.$unknown;
@@ -4865,9 +4979,9 @@ function writeExtensions(json, opts, registry, message, desc) {
         continue;
       }
       const value = getExtension(message, extension);
-      const [container, field2] = createExtensionContainer(extension, value);
+      const [container, field3] = createExtensionContainer(extension, value);
       const local = container[unsafeLocal];
-      const jsonValue = compileFieldValue(field2)(opts, local[field2.localName]);
+      const jsonValue = compileFieldValue(field3)(opts, local[field3.localName]);
       if (jsonValue !== void 0) {
         json[extension.jsonName] = jsonValue;
       }
@@ -5052,27 +5166,27 @@ function compileMessage4(desc) {
       const jsonValue = json[jsonKey];
       const entry = fieldsByJsonKey.get(jsonKey);
       if (entry !== void 0) {
-        const field2 = entry.field;
-        if (fieldSeen.has(field2)) {
-          throw new FieldError(field2, "set multiple times");
+        const field3 = entry.field;
+        if (fieldSeen.has(field3)) {
+          throw new FieldError(field3, "set multiple times");
         }
-        fieldSeen.add(field2);
+        fieldSeen.add(field3);
         if (entry.oneofScalarNullSkip && jsonValue === null) {
           continue;
         }
         if (entry.oneof) {
           const seen = oneofSeen.get(entry.oneof);
           if (seen !== void 0) {
-            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen.name} and ${field2.name}`);
+            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen.name} and ${field3.name}`);
           }
-          oneofSeen.set(entry.oneof, field2);
+          oneofSeen.set(entry.oneof, field3);
         }
         entry.read(message, jsonValue, ctx);
       } else {
         const extension = jsonKey.startsWith("[") && jsonKey.endsWith("]") ? (_a = ctx.registry) === null || _a === void 0 ? void 0 : _a.getExtension(jsonKey.substring(1, jsonKey.length - 1)) : void 0;
         if ((extension === null || extension === void 0 ? void 0 : extension.extendee.typeName) == typeName) {
-          const [container, field2, get] = createExtensionContainer(extension);
-          compileFieldReader2(field2)(container[unsafeLocal], jsonValue, ctx);
+          const [container, field3, get] = createExtensionContainer(extension);
+          compileFieldReader2(field3)(container[unsafeLocal], jsonValue, ctx);
           setExtension(message, extension, get());
         }
         if (extension === void 0 && !ctx.ignoreUnknownFields) {
@@ -5083,14 +5197,14 @@ function compileMessage4(desc) {
     ctx.depth--;
   };
   compiledReaders2.set(desc, compiled);
-  for (const field2 of desc.fields) {
+  for (const field3 of desc.fields) {
     const entry = {
-      read: compileFieldReader2(field2),
-      field: field2,
-      oneof: field2.oneof,
-      oneofScalarNullSkip: field2.oneof !== void 0 && field2.fieldKind == "scalar"
+      read: compileFieldReader2(field3),
+      field: field3,
+      oneof: field3.oneof,
+      oneofScalarNullSkip: field3.oneof !== void 0 && field3.fieldKind == "scalar"
     };
-    fieldsByJsonKey.set(field2.name, entry).set(field2.jsonName, entry);
+    fieldsByJsonKey.set(field3.name, entry).set(field3.jsonName, entry);
   }
   return compiled;
 }
@@ -5131,25 +5245,25 @@ function compileWkt2(desc) {
       return void 0;
   }
 }
-function compileFieldReader2(field2) {
-  switch (field2.fieldKind) {
+function compileFieldReader2(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
-      return compileScalarFieldReader2(field2);
+      return compileScalarFieldReader2(field3);
     case "enum":
-      return compileEnumFieldReader2(field2);
+      return compileEnumFieldReader2(field3);
     case "message":
-      return compileMessageFieldReader2(field2);
+      return compileMessageFieldReader2(field3);
     case "list":
-      return compileListFieldReader2(field2);
+      return compileListFieldReader2(field3);
     case "map":
-      return compileMapFieldReader2(field2);
+      return compileMapFieldReader2(field3);
   }
 }
-function compileScalarFieldReader2(field2) {
-  const readScalar = compileScalarConverter(field2);
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileScalarFieldReader2(field3) {
+  const readScalar = compileScalarConverter(field3);
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, json) => {
       message[oneofLocalName] = {
         case: localName,
@@ -5157,7 +5271,7 @@ function compileScalarFieldReader2(field2) {
       };
     };
   }
-  const clear = compileClear(field2);
+  const clear = compileClear(field3);
   return (message, json) => {
     if (json === null) {
       clear(message);
@@ -5166,32 +5280,32 @@ function compileScalarFieldReader2(field2) {
     }
   };
 }
-function compileClear(field2) {
-  const localName = field2.localName;
-  if (field2.presence != IMPLICIT6) {
+function compileClear(field3) {
+  const localName = field3.localName;
+  if (field3.presence != IMPLICIT6) {
     return (message) => {
       delete message[localName];
     };
   }
-  if (field2.fieldKind == "enum") {
-    const zero = field2.enum.values[0].number;
+  if (field3.fieldKind == "enum") {
+    const zero = field3.enum.values[0].number;
     return (message) => {
       message[localName] = zero;
     };
   }
-  const scalar2 = field2.scalar;
-  const longAsString = field2.longAsString;
+  const scalar2 = field3.scalar;
+  const longAsString = field3.longAsString;
   return (message) => {
     message[localName] = scalarZeroValue(scalar2, longAsString);
   };
 }
-function compileEnumFieldReader2(field2) {
-  const readEnumValue = compileEnumConverter(field2.enum);
-  const checkEnum = compileEnumCheck(field2.enum);
-  const localName = field2.localName;
-  const nullResets = field2.enum.typeName != "google.protobuf.NullValue";
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileEnumFieldReader2(field3) {
+  const readEnumValue = compileEnumConverter(field3.enum);
+  const checkEnum = compileEnumCheck(field3.enum);
+  const localName = field3.localName;
+  const nullResets = field3.enum.typeName != "google.protobuf.NullValue";
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, json, ctx) => {
       if (json === null && nullResets) {
         const oneof = message[oneofLocalName];
@@ -5206,12 +5320,12 @@ function compileEnumFieldReader2(field2) {
       }
       const check2 = checkEnum(value);
       if (check2 !== true) {
-        throw new FieldError(field2, reasonSingular(field2, value, check2));
+        throw new FieldError(field3, reasonSingular(field3, value, check2));
       }
       message[oneofLocalName] = { case: localName, value };
     };
   }
-  const clear = compileClear(field2);
+  const clear = compileClear(field3);
   return (message, json, ctx) => {
     if (json === null && nullResets) {
       clear(message);
@@ -5223,18 +5337,18 @@ function compileEnumFieldReader2(field2) {
     }
     const check2 = checkEnum(value);
     if (check2 !== true) {
-      throw new FieldError(field2, reasonSingular(field2, value, check2));
+      throw new FieldError(field3, reasonSingular(field3, value, check2));
     }
     message[localName] = value;
   };
 }
-function compileMessageFieldReader2(field2) {
-  const localName = field2.localName;
-  const { toMessage, toLocal } = localMessageMapper(field2);
-  const readChild = compiledReader2(field2.message);
-  const nullResets = field2.message.typeName != "google.protobuf.Value";
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileMessageFieldReader2(field3) {
+  const localName = field3.localName;
+  const { toMessage, toLocal } = localMessageMapper(field3);
+  const readChild = compiledReader2(field3.message);
+  const nullResets = field3.message.typeName != "google.protobuf.Value";
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, json, ctx) => {
       const oneof = message[oneofLocalName];
       if (json === null && nullResets) {
@@ -5258,15 +5372,15 @@ function compileMessageFieldReader2(field2) {
     message[localName] = toLocal(child);
   };
 }
-function compileListFieldReader2(field2) {
-  const localName = field2.localName;
-  const readItem = compileListItemReader(field2);
+function compileListFieldReader2(field3) {
+  const localName = field3.localName;
+  const readItem = compileListItemReader(field3);
   return (message, json, ctx) => {
     if (json === null) {
       return;
     }
     if (!Array.isArray(json)) {
-      throw new FieldError(field2, "expected Array, got " + formatVal(json));
+      throw new FieldError(field3, "expected Array, got " + formatVal(json));
     }
     const items = message[localName];
     for (let i = 0; i < json.length; i++) {
@@ -5277,31 +5391,31 @@ function compileListFieldReader2(field2) {
     }
   };
 }
-function compileListItemReader(field2) {
-  switch (field2.listKind) {
+function compileListItemReader(field3) {
+  switch (field3.listKind) {
     case "scalar": {
-      const parseScalar = compileScalarParse(field2);
-      const checkValue = checkScalarValue(field2.scalar);
-      const toLocal = compileScalarToLocal(field2);
+      const parseScalar = compileScalarParse(field3);
+      const checkValue = checkScalarValue(field3.scalar);
+      const toLocal = compileScalarToLocal(field3);
       return (json, ctx, index) => {
         if (json === null) {
-          throw new FieldError(field2, "list item must not be null");
+          throw new FieldError(field3, "list item must not be null");
         }
         const value = parseScalar(json);
         const check2 = checkValue(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field3, `list item #${index + 1}: ${reasonSingular(field3, value, check2)}`);
         }
         return toLocal(value);
       };
     }
     case "enum": {
-      const readEnumValue = compileEnumConverter(field2.enum);
-      const checkEnum = compileEnumCheck(field2.enum);
-      const nullResets = field2.enum.typeName != "google.protobuf.NullValue";
+      const readEnumValue = compileEnumConverter(field3.enum);
+      const checkEnum = compileEnumCheck(field3.enum);
+      const nullResets = field3.enum.typeName != "google.protobuf.NullValue";
       return (json, ctx, index) => {
         if (json === null && nullResets) {
-          throw new FieldError(field2, "list item must not be null");
+          throw new FieldError(field3, "list item must not be null");
         }
         const value = readEnumValue(json, ctx.ignoreUnknownFields);
         if (value === tokenIgnoredUnknownEnum) {
@@ -5309,18 +5423,18 @@ function compileListItemReader(field2) {
         }
         const check2 = checkEnum(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field3, `list item #${index + 1}: ${reasonSingular(field3, value, check2)}`);
         }
         return value;
       };
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field2);
-      const readChild = compiledReader2(field2.message);
-      const nullResets = field2.message.typeName != "google.protobuf.Value";
+      const { toMessage, toLocal } = localMessageMapper(field3);
+      const readChild = compiledReader2(field3.message);
+      const nullResets = field3.message.typeName != "google.protobuf.Value";
       return (json, ctx) => {
         if (json === null && nullResets) {
-          throw new FieldError(field2, "list item must not be null");
+          throw new FieldError(field3, "list item must not be null");
         }
         const child = toMessage(void 0);
         readChild(child, json, ctx);
@@ -5329,33 +5443,33 @@ function compileListItemReader(field2) {
     }
   }
 }
-function compileMapFieldReader2(field2) {
-  const localName = field2.localName;
-  const mapKey = field2.mapKey;
+function compileMapFieldReader2(field3) {
+  const localName = field3.localName;
+  const mapKey = field3.mapKey;
   const parseMapKey = compileMapKeyParse(mapKey);
   const checkMapKey = checkScalarValue(mapKey);
   let parseValue;
   let checkValue;
   let toLocalValue = (value) => value;
   let nullResets = true;
-  switch (field2.mapKind) {
+  switch (field3.mapKind) {
     case "scalar": {
-      parseValue = compileScalarParse(field2);
-      checkValue = checkScalarValue(field2.scalar);
-      toLocalValue = compileScalarToLocal(field2);
+      parseValue = compileScalarParse(field3);
+      checkValue = checkScalarValue(field3.scalar);
+      toLocalValue = compileScalarToLocal(field3);
       break;
     }
     case "enum": {
-      const readEnumValue = compileEnumConverter(field2.enum);
+      const readEnumValue = compileEnumConverter(field3.enum);
       parseValue = (json, ctx) => readEnumValue(json, ctx.ignoreUnknownFields);
-      checkValue = compileEnumCheck(field2.enum);
-      nullResets = field2.enum.typeName != "google.protobuf.NullValue";
+      checkValue = compileEnumCheck(field3.enum);
+      nullResets = field3.enum.typeName != "google.protobuf.NullValue";
       break;
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field2);
-      const readChild = compiledReader2(field2.message);
-      nullResets = field2.message.typeName != "google.protobuf.Value";
+      const { toMessage, toLocal } = localMessageMapper(field3);
+      const readChild = compiledReader2(field3.message);
+      nullResets = field3.message.typeName != "google.protobuf.Value";
       parseValue = (json, ctx) => {
         const child = toMessage(void 0);
         readChild(child, json, ctx);
@@ -5369,7 +5483,7 @@ function compileMapFieldReader2(field2) {
       return;
     }
     if (typeof json != "object" || Array.isArray(json)) {
-      throw new FieldError(field2, "expected object, got " + formatVal(json));
+      throw new FieldError(field3, "expected object, got " + formatVal(json));
     }
     const record = message[localName];
     const seen = /* @__PURE__ */ new Set();
@@ -5379,11 +5493,11 @@ function compileMapFieldReader2(field2) {
       const jsonMapValue = json[jsonMapKey];
       const key3 = parseMapKey(jsonMapKey);
       if (seen.has(key3)) {
-        throw new FieldError(field2, `duplicate map key "${jsonMapKey}"`);
+        throw new FieldError(field3, `duplicate map key "${jsonMapKey}"`);
       }
       seen.add(key3);
       if (jsonMapValue === null && nullResets) {
-        throw new FieldError(field2, "map value must not be null");
+        throw new FieldError(field3, "map value must not be null");
       }
       const value = parseValue(jsonMapValue, ctx);
       if (value === tokenIgnoredUnknownEnum) {
@@ -5391,12 +5505,12 @@ function compileMapFieldReader2(field2) {
       }
       const checkKey = checkMapKey(key3);
       if (checkKey !== true) {
-        throw new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: mapKey }, key3, checkKey)}`);
+        throw new FieldError(field3, `invalid map key: ${reasonSingular({ scalar: mapKey }, key3, checkKey)}`);
       }
       if (checkValue !== void 0) {
         const check2 = checkValue(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `map entry ${formatVal(key3)}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field3, `map entry ${formatVal(key3)}: ${reasonSingular(field3, value, check2)}`);
         }
       }
       setOwn(record, key3, toLocalValue(value));
@@ -5444,21 +5558,21 @@ function compileEnumCheck(desc) {
   const values = desc.values;
   return (value) => values.some((v) => v.number === value);
 }
-function compileScalarConverter(field2) {
-  const parseScalar = compileScalarParse(field2);
-  const checkValue = checkScalarValue(field2.scalar);
-  const toLocal = compileScalarToLocal(field2);
+function compileScalarConverter(field3) {
+  const parseScalar = compileScalarParse(field3);
+  const checkValue = checkScalarValue(field3.scalar);
+  const toLocal = compileScalarToLocal(field3);
   return (json) => {
     const value = parseScalar(json);
     const check2 = checkValue(value);
     if (check2 !== true) {
-      throw new FieldError(field2, reasonSingular(field2, value, check2));
+      throw new FieldError(field3, reasonSingular(field3, value, check2));
     }
     return toLocal(value);
   };
 }
-function compileScalarParse(field2) {
-  switch (field2.scalar) {
+function compileScalarParse(field3) {
+  switch (field3.scalar) {
     // float, double: JSON value will be a number or one of the special string values "NaN", "Infinity", and "-Infinity".
     // Either numbers or strings are accepted. Exponent notation is also accepted.
     case ScalarType.DOUBLE:
@@ -5472,10 +5586,10 @@ function compileScalarParse(field2) {
           return Number.NEGATIVE_INFINITY;
         if (typeof json == "number") {
           if (Number.isNaN(json)) {
-            throw new FieldError(field2, "unexpected NaN number");
+            throw new FieldError(field3, "unexpected NaN number");
           }
           if (!Number.isFinite(json)) {
-            throw new FieldError(field2, "unexpected infinite number");
+            throw new FieldError(field3, "unexpected infinite number");
           }
           return json;
         }
@@ -5513,7 +5627,7 @@ function compileScalarParse(field2) {
             return base64Decode(json);
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
-            throw new FieldError(field2, message);
+            throw new FieldError(field3, message);
           }
         }
         return json;
@@ -5524,9 +5638,9 @@ function compileScalarParse(field2) {
       return (json) => json;
   }
 }
-function compileScalarToLocal(field2) {
-  const longAsString = field2.fieldKind !== "map" && field2.longAsString;
-  switch (field2.scalar) {
+function compileScalarToLocal(field3) {
+  const longAsString = field3.fieldKind !== "map" && field3.longAsString;
+  switch (field3.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
@@ -5689,13 +5803,13 @@ function anyFromJson(any, json, ctx) {
   if (hasCustomJsonRepresentation(desc) && Object.prototype.hasOwnProperty.call(json, "value")) {
     compiledReader2(desc)(message, json.value, ctx);
   } else {
-    const copy = {};
+    const copy2 = {};
     for (const key3 of Object.keys(json)) {
       if (key3 !== "@type") {
-        setOwn(copy, key3, json[key3]);
+        setOwn(copy2, key3, json[key3]);
       }
     }
-    compiledReader2(desc)(message, copy, ctx);
+    compiledReader2(desc)(message, copy2, ctx);
   }
   anyPack(desc, message, any);
 }
@@ -6259,14 +6373,14 @@ function createClientStreamingFn(transport2, method) {
     const response = await transport2.stream(method, options2 === null || options2 === void 0 ? void 0 : options2.signal, options2 === null || options2 === void 0 ? void 0 : options2.timeoutMs, options2 === null || options2 === void 0 ? void 0 : options2.headers, request, options2 === null || options2 === void 0 ? void 0 : options2.contextValues);
     (_d = options2 === null || options2 === void 0 ? void 0 : options2.onHeader) === null || _d === void 0 ? void 0 : _d.call(options2, response.header);
     let singleMessage;
-    let count = 0;
+    let count2 = 0;
     try {
       for (var _f = true, _g = __asyncValues2(response.message), _h; _h = await _g.next(), _a = _h.done, !_a; _f = true) {
         _c = _h.value;
         _f = false;
         const message = _c;
         singleMessage = message;
-        count++;
+        count2++;
       }
     } catch (e_1_1) {
       e_1 = { error: e_1_1 };
@@ -6280,7 +6394,7 @@ function createClientStreamingFn(transport2, method) {
     if (!singleMessage) {
       throw new ConnectError("protocol error: missing response message", Code.Unimplemented);
     }
-    if (count > 1) {
+    if (count2 > 1) {
       throw new ConnectError("protocol error: received extra messages for client streaming method", Code.Unimplemented);
     }
     (_e = options2 === null || options2 === void 0 ? void 0 : options2.onTrailer) === null || _e === void 0 ? void 0 : _e.call(options2, response.trailer);
@@ -6844,8 +6958,8 @@ function createConnectTransport(options2) {
           } else {
             body2 = serialize(req.message);
           }
-          const fetch2 = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
-          const response = await fetch2(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: body2 }));
+          const fetch = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
+          const response = await fetch(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: body2 }));
           const { isUnaryError, unaryError } = validateResponse(method.methodKind, useBinaryFormat, response.status, response.headers);
           if (isUnaryError) {
             throw errorFromJson(await response.json(), appendHeaders(...trailerDemux(response.headers)), unaryError);
@@ -6927,8 +7041,8 @@ function createConnectTransport(options2) {
         },
         next: async (req) => {
           var _a2;
-          const fetch2 = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
-          const fRes = await fetch2(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: await createRequestBody(req.message) }));
+          const fetch = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
+          const fRes = await fetch(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: await createRequestBody(req.message) }));
           validateResponse(method.methodKind, useBinaryFormat, fRes.status, fRes.headers);
           if (fRes.body === null) {
             throw "missing response body";
@@ -6993,8 +7107,8 @@ function sentence(message) {
 function emptyField(message) {
   for (const end of EMPTY_ENDS) {
     if (!message.endsWith(end)) continue;
-    const field2 = message.slice(0, message.length - end.length);
-    return EMPTY[field2.slice(field2.lastIndexOf(".") + 1)] ?? "";
+    const field3 = message.slice(0, message.length - end.length);
+    return EMPTY[field3.slice(field3.lastIndexOf(".") + 1)] ?? "";
   }
   return "";
 }
@@ -7711,7 +7825,7 @@ function groups() {
   $("analyze-relation-pick").hidden = relationModels.size === 0;
   $("analyze-relation").hidden = relationModels.size === 0 || select("analyze-relation-model").value === "";
 }
-function init() {
+function init2() {
   const go2 = $("analyze-run");
   go2.addEventListener("click", () => void busy(go2, run, $("analyze-stop")));
   $("analyze-stop").addEventListener("click", stop);
@@ -7832,7 +7946,7 @@ function stop2() {
   watching?.abort();
   watching = null;
 }
-function init2() {
+function init3() {
   $("coll-set").addEventListener("submit", set2);
   const setButton = $("coll-set").querySelector("button[type=submit]");
   const gate = () => {
@@ -7964,7 +8078,7 @@ async function render() {
     box().replaceChildren(failed(explain(e)));
   }
 }
-function init3() {
+function init4() {
   const again = lazy($("analyze-xray"), () => void render());
   onDoc((d) => {
     const views = d?.views ?? [];
@@ -8058,7 +8172,7 @@ async function render2() {
     box2().replaceChildren(failed(explain(e)));
   }
 }
-function init4() {
+function init5() {
   const again = lazy($("analyze-drawer"), () => void render2());
   onDoc((d) => {
     const views = d?.views ?? [];
@@ -8067,6 +8181,63 @@ function init4() {
     again();
   });
   viewSelect().addEventListener("change", () => void render2());
+}
+
+// demo/web/src/csv.ts
+function inert(v) {
+  const lead = v.trimStart().charAt(0);
+  if (lead !== "=" && lead !== "+" && lead !== "-" && lead !== "@") return v;
+  const n = v.trim();
+  return n !== "" && Number.isFinite(Number(n)) ? v : `'${v}`;
+}
+function field2(raw) {
+  const v = inert(raw);
+  const quote = v.includes(",") || v.includes('"') || v.includes("\n") || v.includes("\r") || v.startsWith(" ") || v.endsWith(" ");
+  return quote ? `"${v.replaceAll('"', '""')}"` : v;
+}
+function csv(rows2) {
+  return rows2.map((r) => r.map(field2).join(",") + "\r\n").join("");
+}
+function tsv(rows2) {
+  const flat = (v) => v.replaceAll("	", " ").replaceAll("\r\n", " ").replaceAll("\n", " ").replaceAll("\r", " ");
+  return rows2.map((r) => r.map((v) => inert(flat(v))).join("	")).join("\n");
+}
+function fileName(name) {
+  let out = "";
+  for (const ch of name.normalize("NFC")) {
+    const keep = ch.toLowerCase() !== ch.toUpperCase() || ch >= "0" && ch <= "9" || ch > "\x7F";
+    out += keep ? ch : out.endsWith("-") || !out ? "" : "-";
+  }
+  while (out.endsWith("-")) out = out.slice(0, -1);
+  return `${out || "result"}.csv`;
+}
+
+// demo/web/src/tabs/take.ts
+async function copy(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = el("textarea", { class: "offscreen", "aria-hidden": "true" });
+    area.value = text;
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+function take(name, rows2) {
+  const copyButton = el("button", { type: "button", class: "small", text: "Copy", title: "Copy as tab-separated rows, which a spreadsheet pastes into cells" });
+  const said = el("span", { class: "muted", role: "status" });
+  copyButton.addEventListener("click", async () => {
+    const all = rows2();
+    said.textContent = await copy(tsv(all)) ? `Copied ${all.length - 1} rows.` : "The browser did not allow the copy.";
+    setTimeout(() => said.textContent = "", 4e3);
+  });
+  const save = el("button", { type: "button", class: "small", text: "Download CSV" });
+  save.addEventListener("click", () => download(fileName(name), [csv(rows2())], "text/csv;charset=utf-8"));
+  return el("div", { class: "take", "data-take": name }, copyButton, save, said);
 }
 
 // demo/web/src/heat.ts
@@ -8102,7 +8273,7 @@ var own = true;
 function shade(t) {
   return `background: rgba(var(--heat), ${strength(t).toFixed(3)})`;
 }
-function simTable(labels, sim) {
+function simTable(labels, sim, name = "Cosine similarity") {
   const [lo, hi] = range(sim);
   const cells = sim.map((row, i) => {
     const top = best(sim, i);
@@ -8130,11 +8301,13 @@ function simTable(labels, sim) {
     el("label", {}, pick, ` colour by this matrix's own range, ${lo.toFixed(3)} to ${hi.toFixed(3)}`),
     el("span", { class: "muted", text: "outlined: each row's best match" })
   );
-  return el("div", {}, scale, table2);
+  const rows2 = () => [["", ...labels.map((l) => l.full)], ...sim.map((row, i) => [labels[i].full, ...row.map((x) => x.toFixed(6))])];
+  return el("div", {}, scale, table2, take(name, rows2));
 }
 
 // demo/web/src/tabs/embed.ts
 var models = /* @__PURE__ */ new Map();
+var listed = [];
 function tier(meta) {
   const p = meta?.properties["session_info.precision"];
   return p ? after(p, "PRECISION_") : "?";
@@ -8160,6 +8333,7 @@ async function loadMeta(name) {
     m.checked = false;
   }
 }
+var PICKED = "embed-models";
 function renderModels() {
   const box5 = $("embed-models");
   box5.replaceChildren();
@@ -8171,7 +8345,10 @@ function renderModels() {
     const cb = el("input", { type: "checkbox" });
     cb.checked = m.checked;
     cb.disabled = !m.meta;
-    cb.addEventListener("change", () => m.checked = cb.checked);
+    cb.addEventListener("change", () => {
+      m.checked = cb.checked;
+      remember(PICKED, [...models].filter(([, x]) => x.checked).map(([n]) => n).join("\n"));
+    });
     box5.append(
       el(
         "label",
@@ -8185,7 +8362,8 @@ function renderModels() {
 }
 async function addModels(names2) {
   const fresh = names2.filter((n) => !models.get(n)?.meta);
-  for (const n of fresh) models.set(n, { meta: null, error: "", checked: true });
+  const kept2 = recallList(PICKED);
+  for (const n of fresh) models.set(n, { meta: null, error: "", checked: kept2 ? kept2.includes(n) : true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
 }
@@ -8293,7 +8471,8 @@ function card(texts2, r) {
   const v = r.vectors;
   const p = r.reply.parameters;
   const str2 = (k) => p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "";
-  const sim = simTable(texts2.map((t) => ({ short: short(t, 22), full: t })), matrix(v));
+  const sim = simTable(texts2.map((t) => ({ short: short(t, 22), full: t })), matrix(v), `Cosine similarity ${r.name}`);
+  const whole = () => [["text", "norm", ...v[0].map((_, d) => `d${d}`)], ...v.map((row, i) => [texts2[i], String(norm(row)), ...row.map(String)])];
   const previews = el(
     "table",
     {},
@@ -8327,7 +8506,7 @@ function card(texts2, r) {
     ),
     el("h2", { text: "Cosine similarity" }),
     sim,
-    el("details", {}, el("summary", { text: "Vectors" }), previews)
+    el("details", {}, el("summary", { text: "Vectors" }), previews, take(`Vectors ${r.name}`, whole))
   );
 }
 function comparison(texts2, ok) {
@@ -8360,6 +8539,16 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
     if (v[0].length !== baseV[0].length) return "n/a";
     return Math.min(...v.map((row, i) => cosine(row, baseV[i]))).toFixed(6);
   });
+  const pairs = () => {
+    const out = [["text a", "text b", ...ok.map((r) => `${r.name} (${tier(r.meta)})`), "spread"]];
+    for (let i = 0; i < texts2.length; i++) {
+      for (let j = i + 1; j < texts2.length; j++) {
+        const vals = sims.map((m) => m[i][j]);
+        out.push([texts2[i], texts2[j], ...vals.map((x) => x.toFixed(6)), (Math.max(...vals) - Math.min(...vals)).toFixed(6)]);
+      }
+    }
+    return out;
+  };
   const tableEl = el(
     "table",
     { class: "sim cmp" },
@@ -8376,6 +8565,7 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
       text: "Each pair of texts, scored by every model picked. The spread is how much the tiers disagree; the last row is how close each model's vector for a text is to the first model's."
     }),
     tableEl,
+    take("Side by side", pairs),
     widest === 0 ? el("p", { class: "note", text: "Every model gave the same numbers: on this device these tiers compute alike. A device that runs FASTEST in a narrower type shows the difference here." }) : null
   );
 }
@@ -8387,7 +8577,7 @@ function render3(texts2, results) {
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts2, r))));
   reveal(out);
 }
-function init5() {
+function init6() {
   $("embed-add").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const name = input("embed-add-name").value.trim();
@@ -8397,17 +8587,54 @@ function init5() {
       input("embed-add-name").value = "";
     });
   });
+  onReset("embed", () => {
+    forgetOwn(PICKED);
+    for (const m of models.values()) m.checked = m.meta !== null;
+    renderModels();
+  });
   const go2 = $("embed-run");
   go2.addEventListener("click", () => void busy(go2, run2));
   onCapabilities((c) => {
     say($("embed-error"), "");
-    void addModels(bundles(c, "TASK_EMBED"));
+    const served = bundles(c, "TASK_EMBED");
+    for (const n of listed) if (!served.includes(n)) models.delete(n);
+    listed = served;
+    void addModels(served);
   });
   onReachable(renderModels);
   onCapabilitiesFailed((e) => {
     renderModels();
     if (reachable() === false) say($("embed-error"), "");
     else say($("embed-error"), explain(e));
+  });
+}
+
+// demo/web/src/about.ts
+var WHERE = "Load a bundle on the Server tab, or install a model on the Models tab.";
+function needs(tab, tasks) {
+  const has = (t) => tasks.includes(t);
+  if (tab === "embed" && !has("TASK_EMBED")) return `Needs: an embedding model. The server serves none. ${WHERE}`;
+  if (tab === "semantic" && !has("TASK_EMBED") && !has("TASK_RERANK") && !has("TASK_EXTRACTIVE_QA")) {
+    return `Needs: an embedding model, a reranker or a QA model. The server serves none. ${WHERE}`;
+  }
+  if (tab === "search" && !has("TASK_EMBED")) return `Needs: an embedding model to create an index. The server serves none. ${WHERE}`;
+  return "";
+}
+var HINTED = ["embed", "semantic", "search"];
+
+// demo/web/src/tabs/hints.ts
+function init7() {
+  const show3 = (tasks) => {
+    for (const tab of HINTED) {
+      const line = $(`needs-${tab}`);
+      const text = tasks ? needs(tab, tasks) : "";
+      line.textContent = text;
+      line.hidden = text === "";
+    }
+  };
+  onCapabilities((c) => show3(c.bundles.map((b) => b.task)));
+  onReachable((up) => {
+    if (!up) show3(null);
   });
 }
 
@@ -8477,9 +8704,9 @@ function matches(e, kind, text) {
   return words(text).every((w) => hay.includes(w));
 }
 function kinds(entries) {
-  const count = /* @__PURE__ */ new Map();
-  for (const e of entries) count.set(e.kind, (count.get(e.kind) ?? 0) + 1);
-  return [...count];
+  const count2 = /* @__PURE__ */ new Map();
+  for (const e of entries) count2.set(e.kind, (count2.get(e.kind) ?? 0) + 1);
+  return [...count2];
 }
 
 // demo/web/src/sha256.ts
@@ -8568,10 +8795,10 @@ var Sha256 = class {
     let i = 0;
     this.total += data.length;
     if (this.filled) {
-      const take = Math.min(64 - this.filled, data.length);
-      this.block.set(data.subarray(0, take), this.filled);
-      this.filled += take;
-      i = take;
+      const take2 = Math.min(64 - this.filled, data.length);
+      this.block.set(data.subarray(0, take2), this.filled);
+      this.filled += take2;
+      i = take2;
       if (this.filled < 64) return this;
       this.compress(this.block, 0);
       this.filled = 0;
@@ -8892,7 +9119,7 @@ async function finish(back) {
     return `Signed in: ${r.source?.name ?? "the Drive"} is registered.`;
   }, load);
 }
-function init6() {
+function init8() {
   $("sources-form").addEventListener("submit", add);
   lock($("sources-form"), TurboCatalogService.method.registerModelSource);
   lock($("sources-drive"), TurboCatalogService.method.startDriveSignIn);
@@ -8970,7 +9197,7 @@ function catalogTable(entries, w) {
   if (!entries.length) return el("p", { class: "muted", text: "The catalog lists nothing." });
   const rows2 = entries.map((e) => entryRow(e, w));
   const list5 = el("div", { class: "catalog" }, rows2);
-  const count = el("span", { class: "muted", id: "models-count", role: "status" });
+  const count2 = el("span", { class: "muted", id: "models-count", role: "status" });
   const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
   box5.value = filterText;
   if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
@@ -8994,7 +9221,7 @@ function catalogTable(entries, w) {
       chip.classList.toggle("on", k === filterKind);
       chip.setAttribute("aria-pressed", String(k === filterKind));
     }
-    count.textContent = shown2 === entries.length ? `${entries.length} entries` : `${shown2} of ${entries.length} entries`;
+    count2.textContent = shown2 === entries.length ? `${entries.length} entries` : `${shown2} of ${entries.length} entries`;
     list5.hidden = shown2 === 0;
     none.hidden = shown2 !== 0;
   }
@@ -9003,7 +9230,7 @@ function catalogTable(entries, w) {
     apply2();
   });
   apply2();
-  return el("div", {}, el("div", { class: "row filter" }, box5, count), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
+  return el("div", {}, el("div", { class: "row filter" }, box5, count2), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
 }
 function saveButtons(e, w) {
   if (!w.user || e.missingTerms.length > 0) return null;
@@ -9191,7 +9418,7 @@ function stop3() {
   saving = null;
   stopTraining();
 }
-function init7() {
+function init9() {
   const read = $("models-catalog-load");
   read.addEventListener("click", () => void busy(read, loadCatalog));
   $("train-form").addEventListener("submit", train);
@@ -9218,7 +9445,7 @@ function init7() {
     teachers();
     if ($("models-catalog").childElementCount) void loadCatalog();
   });
-  init6();
+  init8();
 }
 
 // demo/web/src/tabs/projection.ts
@@ -9310,12 +9537,12 @@ function drift(d) {
     const h = Math.max(0, Math.min(1, micro(p.depthScoreMicro)));
     g.fillRect(x(i) - 3, y(h), 6, H - PAD - y(h));
   });
-  for (const [field2, color] of [["rawCosineMicro", "hsl(210, 20%, 60%)"], ["smoothedCosineMicro", "hsl(210, 70%, 50%)"]]) {
+  for (const [field3, color] of [["rawCosineMicro", "hsl(210, 20%, 60%)"], ["smoothedCosineMicro", "hsl(210, 70%, 50%)"]]) {
     g.strokeStyle = color;
     g.beginPath();
     let on = false;
     d.gaps.forEach((p, i) => {
-      const v = micro(p[field2]);
+      const v = micro(p[field3]);
       if (Number.isNaN(v)) return void (on = false);
       if (on) g.lineTo(x(i), y(v));
       else g.moveTo(x(i), y(v));
@@ -9383,7 +9610,7 @@ async function render4() {
     box3().replaceChildren(failed(explain(e)));
   }
 }
-function init8() {
+function init10() {
   const again = lazy($("analyze-projection"), () => void render4());
   onDoc(() => again());
   const go2 = $("projection-run");
@@ -9418,16 +9645,16 @@ function varint(n) {
   out.push(v);
   return Uint8Array.from(out);
 }
-function fieldHead(field2, n) {
-  const tag = varint(field2 * 8 + 2);
+function fieldHead(field3, n) {
+  const tag = varint(field3 * 8 + 2);
   const len = varint(n);
   const out = new Uint8Array(tag.length + len.length);
   out.set(tag);
   out.set(len, tag.length);
   return out;
 }
-function textFrame(head, field2, text) {
-  const fh = fieldHead(field2, text.size);
+function textFrame(head, field3, text) {
+  const fh = fieldHead(field3, text.size);
   return [prefix(head.length + fh.length + text.size), head, fh, text];
 }
 function body(parts) {
@@ -9491,28 +9718,49 @@ function unplaced(text, chunkStart, matches2) {
 }
 
 // demo/web/src/upload.ts
-async function put(method, bodyBlob, signal) {
-  const headers = new Headers({ "content-type": "application/octet-stream" });
-  const t = token();
-  if (t) headers.set("authorization", `Bearer ${t}`);
-  const url = `${base()}/upload/${method.parent.typeName}/${method.name}`;
-  const r = await fetch(url, { method: "PUT", headers, body: bodyBlob, signal });
-  if (r.status === 200) return fromBinary(method.output, new Uint8Array(await r.arrayBuffer()));
-  throw refusal(r);
+function put2(method, bodyBlob, signal, sent) {
+  return new Promise((resolve, reject) => {
+    const stopped = () => reject(new ConnectError("the upload was stopped", Code.Canceled));
+    if (signal?.aborted) return stopped();
+    const x = new XMLHttpRequest();
+    x.open("PUT", `${base()}/upload/${method.parent.typeName}/${method.name}`);
+    x.responseType = "arraybuffer";
+    x.setRequestHeader("content-type", "application/octet-stream");
+    const t = token();
+    if (t) x.setRequestHeader("authorization", `Bearer ${t}`);
+    const total = bodyBlob.size;
+    x.upload.addEventListener("progress", (e) => sent?.(e.loaded, total));
+    x.upload.addEventListener("load", () => sent?.(total, total));
+    const abort = () => x.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    x.addEventListener("loadend", () => signal?.removeEventListener("abort", abort));
+    x.addEventListener("abort", stopped);
+    x.addEventListener("error", () => reject(new ConnectError("the demo did not answer the upload", Code.Unavailable)));
+    x.addEventListener("load", () => {
+      if (x.status !== 200) return reject(refusal(x.status, (name) => x.getResponseHeader(name)));
+      try {
+        resolve(fromBinary(method.output, new Uint8Array(x.response)));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    sent?.(0, total);
+    x.send(bodyBlob);
+  });
 }
-function refusal(r) {
-  const status3 = Number(r.headers.get("grpc-status") ?? "");
+function refusal(http, header) {
+  const status3 = Number(header("grpc-status") ?? "");
   const code = status3 > 0 && status3 <= 16 ? status3 : Code.Unknown;
-  let message = r.headers.get("grpc-message") ?? `HTTP ${r.status}`;
+  let message = header("grpc-message") ?? `HTTP ${http}`;
   try {
     message = decodeURIComponent(message);
   } catch {
   }
-  if (r.status === 415) message = "the demo wants application/octet-stream";
-  if (r.status === 413) message = `${message} (HTTP 413: over the 2 GiB cap)`;
+  if (http === 415) message = "the demo wants application/octet-stream";
+  if (http === 413) message = `${message} (HTTP 413: over the 2 GiB cap)`;
   const meta = new Headers();
   for (const k of ["turbo-code", "turbo-field"]) {
-    const v = r.headers.get(k);
+    const v = header(k);
     if (v !== null) meta.set(k, v);
   }
   return new ConnectError(message, code, meta);
@@ -9604,8 +9852,7 @@ async function addDocuments() {
     indexing = ac;
     try {
       const body2 = indexBody(index, docs);
-      say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-      const r = await put(TurboSearchService.method.indexDocuments, body2, ac.signal);
+      const r = await put2(TurboSearchService.method.indexDocuments, body2, ac.signal, sending(note5, count(docs.length, "document")));
       say(note5, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
       await list3();
     } catch (e) {
@@ -9613,7 +9860,7 @@ async function addDocuments() {
     } finally {
       if (indexing === ac) indexing = null;
     }
-  });
+  }, $("search-add-stop"));
 }
 function heatView(r) {
   return el(
@@ -9680,6 +9927,10 @@ async function runSearch(ev) {
         el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
         key3 ?? "",
         ...hits,
+        r.hits.length ? take(`Search hits ${r.resolvedIndex}`, () => [
+          ["rank", "document", "chunk", "score", "text", "signals"],
+          ...r.hits.map((h, i) => [String(i + 1), h.docId, h.chunkId, h.score.toFixed(6), h.text, Object.entries(h.attribution?.signalScores ?? {}).map(([k, v]) => `${k} ${v.toFixed(6)}`).join("; ")])
+        ]) : "",
         r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
         r.documentHeat.length ? heatKey("One cell per chunk, in reading order. Stronger colour is a higher score, relative to that document's best (max).") : "",
         heatView(r)
@@ -9694,11 +9945,12 @@ function stop4() {
   indexing?.abort();
   indexing = null;
 }
-function init9() {
+function init11() {
   $("search-create").addEventListener("submit", createIndex);
   lock($("search-create"), TurboSearchService.method.createIndex);
   lock($("search-add-box"), TurboSearchService.method.indexDocuments);
   $("search-add").addEventListener("click", addDocuments);
+  $("search-add-stop").addEventListener("click", stop4);
   $("search-form").addEventListener("submit", runSearch);
   const refreshButton = $("search-refresh");
   refreshButton.addEventListener("click", () => void busy(refreshButton, list3));
@@ -9753,8 +10005,9 @@ async function embed(model, query, passages) {
   out.replaceChildren(
     el("h3", { text: `Nearest neighbours (${model})` }),
     table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
+    take(`Nearest neighbours ${model}`, () => [["rank", "passage number", "passage", "cosine"], ...near.slice(0, k).map((n, r) => [String(r + 1), String(n.i + 1), passages[n.i], n.s.toFixed(6)])]),
     el("h3", { text: "Passage similarity" }),
-    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim)
+    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim, `Passage similarity ${model}`)
   );
 }
 async function rerank(model, query, passages) {
@@ -9772,7 +10025,8 @@ async function rerank(model, query, passages) {
   $("sem-rerank-out").replaceChildren(
     el("h3", { text: `Reranked (${model})` }),
     el("p", { class: "muted", text: "Relevance logits from the cross-encoder, one per (query, passage) pair; higher is more relevant." }),
-    table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)]))
+    table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)])),
+    take(`Reranked ${model}`, () => [["rank", "passage number", "passage", "logit", "sigmoid"], ...scored.map((x, r) => [String(r + 1), String(x.i + 1), passages[x.i], x.s.toFixed(6), (1 / (1 + Math.exp(-x.s))).toFixed(6)])])
   );
 }
 async function answer(model, question, context) {
@@ -9821,7 +10075,7 @@ async function run3() {
   say(note5, "");
   reveal($("sem-sim").parentElement);
 }
-function init10() {
+function init12() {
   const go2 = $("sem-run");
   go2.addEventListener("click", () => void busy(go2, run3));
   const kinds2 = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
@@ -9958,7 +10212,7 @@ async function load2(ev) {
     }
   });
 }
-function init11() {
+function init13() {
   const t = input("token");
   t.value = token();
   t.addEventListener("change", () => {
@@ -10039,8 +10293,7 @@ async function importDictionary(ev) {
   await busy(submitter(ev), () => stoppable2(async (signal) => {
     try {
       const sha = await sha256Blob(file, (done) => say(note5, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-      say(note5, `Uploading ${size(file.size)}\u2026`, "busy");
-      const d = await put(
+      const d = await put2(
         TurboVocabularyService.method.importDictionary,
         importBody(
           {
@@ -10053,7 +10306,8 @@ async function importDictionary(ev) {
           },
           file
         ),
-        signal
+        signal,
+        sending(note5, file.name)
       );
       say(note5, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list4();
@@ -10086,8 +10340,7 @@ async function learn(ev) {
         },
         docs
       );
-      say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-      const v = await put(TurboVocabularyService.method.learnVocabulary, body2, signal);
+      const v = await put2(TurboVocabularyService.method.learnVocabulary, body2, signal, sending(note5, count(docs.length, "document")));
       say(note5, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list4();
     } catch (e) {
@@ -10117,7 +10370,7 @@ async function fetchArtifact(id, signal) {
     say(note5, explain(e));
   }
 }
-function init12() {
+function init14() {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
   lock($("vocab-import"), TurboVocabularyService.method.importDictionary);
@@ -10472,7 +10725,7 @@ async function open() {
     say(note4(), explain(e));
   }
 }
-function init13() {
+function init15() {
   const again = lazy($("analyze-wire"), render5);
   onDoc(() => again());
   const go2 = $("wire-roundtrip");
@@ -10518,18 +10771,20 @@ async function start() {
     });
   });
   await permits();
-  init11();
+  init();
+  init7();
+  init13();
+  init6();
+  init12();
+  init2();
+  init4();
   init5();
   init10();
-  init();
+  init15();
+  init11();
   init3();
-  init4();
-  init8();
-  init13();
+  init14();
   init9();
-  init2();
-  init12();
-  init7();
   addEventListener("hashchange", () => show2(named()));
   addEventListener("popstate", () => show2(named()));
   const first = named();

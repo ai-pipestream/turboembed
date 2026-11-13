@@ -4,7 +4,7 @@
 
 import { TurboVocabularyService } from "../gen/turbo_vocabulary_pb.js";
 import { busy as working, confirmed, submitter } from "../act.js";
-import { $, download, el, input, options, say, size, table } from "../dom.js";
+import { $, count, download, el, input, options, say, sending, size, table } from "../dom.js";
 import { importBody, learnBody, type Text } from "../frames.js";
 import { lock, off, onChange } from "../permit.js";
 import { describe, explain, vocabulary } from "../rpc.js";
@@ -93,7 +93,6 @@ async function importDictionary(ev: Event): Promise<void> {
   await working(submitter(ev), () => stoppable(async (signal) => {
     try {
       const sha = await sha256Blob(file, (done) => say(note, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-      say(note, `Uploading ${size(file.size)}\u2026`, "busy");
       const d = await put(
         TurboVocabularyService.method.importDictionary,
         importBody(
@@ -108,6 +107,7 @@ async function importDictionary(ev: Event): Promise<void> {
           file,
         ),
         signal,
+        sending(note, file.name),
       );
       say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list();
@@ -144,8 +144,7 @@ async function learn(ev: Event): Promise<void> {
         },
         docs,
       );
-      say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
-      const v = await put(TurboVocabularyService.method.learnVocabulary, body, signal);
+      const v = await put(TurboVocabularyService.method.learnVocabulary, body, signal, sending(note, count(docs.length, "document")));
       say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list();
     } catch (e) {

@@ -236,3 +236,19 @@ table.sim th.wrap { white-space: normal; overflow: visible; text-overflow: clip;
 .heat-key { font-size: 12px; }
 .ramp { white-space: nowrap; }
 .ramp i { display: inline-block; width: 6em; height: 0.7em; border-radius: 2px; vertical-align: middle; background: linear-gradient(to right, rgba(var(--heat), 0.1), rgb(var(--heat))); }
+
+/* An upload in flight: the words, then the bar under them. */
+.note.upload { display: grid; gap: 6px; }
+.note.upload[hidden] { display: none; }
+.note.upload progress { height: 8px; }
+
+/* Copy and Download CSV under a result. */
+.take { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+button.small { font-size: 13px; padding: 3px 10px; }
+.offscreen { position: fixed; left: -2000px; top: 0; }
+button.reset { margin-top: 16px; font-size: 13px; }
+
+/* A tab's one-line description and, when the server serves nothing it can use, what it needs. */
+.panel > .about, .panel > .needs { grid-column: 1 / -1; margin: 0; }
+.panel > .about { color: var(--muted); }
+.panel > .needs { padding: 8px 12px; border: 1px solid var(--m6); border-radius: 8px; background: var(--panel); }

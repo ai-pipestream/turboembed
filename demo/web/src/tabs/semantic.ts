@@ -9,6 +9,7 @@ import { InferParameterSchema, type InferParameter, type ModelInferResponse } fr
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
 import { $, el, failed, input, options, reveal, say, table } from "../dom.js";
+import { take } from "./take.js";
 import { explain, inference } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, reachable, whyNone } from "../state.js";
 import { cosine, matrix, short, vectorsOf } from "./embed.js";
@@ -52,8 +53,9 @@ async function embed(model: string, query: string, passages: string[]): Promise<
   out.replaceChildren(
     el("h3", { text: `Nearest neighbours (${model})` }),
     table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
+    take(`Nearest neighbours ${model}`, () => [["rank", "passage number", "passage", "cosine"], ...near.slice(0, k).map((n, r) => [String(r + 1), String(n.i + 1), passages[n.i], n.s.toFixed(6)])]),
     el("h3", { text: "Passage similarity" }),
-    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim),
+    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim, `Passage similarity ${model}`),
   );
 }
 
@@ -74,6 +76,7 @@ async function rerank(model: string, query: string, passages: string[]): Promise
     el("h3", { text: `Reranked (${model})` }),
     el("p", { class: "muted", text: "Relevance logits from the cross-encoder, one per (query, passage) pair; higher is more relevant." }),
     table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)])),
+    take(`Reranked ${model}`, () => [["rank", "passage number", "passage", "logit", "sigmoid"], ...scored.map((x, r) => [String(r + 1), String(x.i + 1), passages[x.i], x.s.toFixed(6), (1 / (1 + Math.exp(-x.s))).toFixed(6)])]),
   );
 }
 
