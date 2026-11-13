@@ -13,6 +13,7 @@ package turbo.result.v1;
 
 import public "turbo_typed_annotations.proto";
 import public "turbo_search_projection.proto";
+import public "turbo_analyze_query.proto";
 import "turbo_pii_policy.proto";
 
 // Analysis results and the server's bundle capabilities.
@@ -73,6 +74,13 @@ service AnalysisService
 
   // Validates a SearchDocumentProjection and returns it unchanged (#2345).
   rpc RoundTripSearchProjection(SearchDocumentProjection) returns (SearchDocumentProjection) {}
+
+  // Unified one-pass query analysis, structured filter extraction, and
+  // simultaneous dense/Matryoshka + SPLADE query encoding (#2339).
+  rpc AnalyzeQuery(AnalyzeQueryRequest) returns (AnalyzeQueryResponse) {}
+
+  // Validates an AnalyzeQueryResponse and returns it unchanged (#2339).
+  rpc RoundTripAnalyzeQuery(AnalyzeQueryResponse) returns (AnalyzeQueryResponse) {}
 
   // Bulk document analysis over one bidirectional stream (issue #722):
   // the client opens with one AnalyzeStreamHeader naming the ordering and

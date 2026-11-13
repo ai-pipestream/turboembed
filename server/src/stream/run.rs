@@ -346,6 +346,10 @@ pub(crate) fn run_document_graph(
 
 /// The result's whole bytes and dim, read the way the single-document
 /// call reads them, whatever placement the backend produced.
+pub(crate) fn read_output(result: &Output, want_rows: usize) -> Result<(u32, u32, Vec<u8>)> {
+    read(result, want_rows)
+}
+
 fn read(result: &Output, want_rows: usize) -> Result<(u32, u32, Vec<u8>)> {
     let first = result.info()?;
     let data = match first.placement {

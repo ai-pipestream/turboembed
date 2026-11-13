@@ -17,12 +17,13 @@ use crate::kserve::Reply;
 use crate::progressive;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
-    AnalyzePipelineRequest, AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult,
-    DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest, DocumentWindowResponse, ExtractionResult,
-    FormatDocumentRequest, FormatDocumentResponse, InspectDocumentGraphRequest, ListOutputFormatsRequest,
-    ListOutputFormatsResponse, LoadBundleRequest, LoadBundleResponse, MultiResVectorsResult, ProjectChunksRequest,
-    ProjectChunksResponse, ProjectSearchDocumentRequest, RecordsResult, RerankScoresResult, SearchDocumentProjection,
-    SparseTermsResult, TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest, UnloadBundleResponse,
+    AnalyzePipelineRequest, AnalyzeQueryRequest, AnalyzeQueryResponse, AnalyzeStreamRequest, CapabilitiesRequest,
+    CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest,
+    DocumentWindowResponse, ExtractionResult, FormatDocumentRequest, FormatDocumentResponse,
+    InspectDocumentGraphRequest, ListOutputFormatsRequest, ListOutputFormatsResponse, LoadBundleRequest,
+    LoadBundleResponse, MultiResVectorsResult, ProjectChunksRequest, ProjectChunksResponse,
+    ProjectSearchDocumentRequest, RecordsResult, RerankScoresResult, SearchDocumentProjection, SparseTermsResult,
+    TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
@@ -246,6 +247,19 @@ impl AnalysisService for Analysis {
         req: Request<SearchDocumentProjection>,
     ) -> Reply<SearchDocumentProjection> {
         round_trip::<_, SearchDocumentProjection>(req)
+    }
+
+    async fn analyze_query(&self, req: Request<AnalyzeQueryRequest>) -> Reply<AnalyzeQueryResponse> {
+        let req = req.into_inner();
+        let state = self.state.clone();
+        let out = tokio::task::spawn_blocking(move || crate::results::analyze_query::analyze_query(&state, &req))
+            .await
+            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_analyze_query(&self, req: Request<AnalyzeQueryResponse>) -> Reply<AnalyzeQueryResponse> {
+        round_trip::<_, AnalyzeQueryResponse>(req)
     }
 
     async fn analyze_stream(

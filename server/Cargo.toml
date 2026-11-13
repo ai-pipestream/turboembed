@@ -36,6 +36,7 @@ turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
 turbo-group = { path = "../analysis/group" }
 turbo-keywords = { path = "../analysis/keywords" }
+turbo-matcher = { path = "../analysis/matcher" }
 turbo-normalize = { path = "../analysis/normalize" }
 turbo-normalize-layers = { path = "../analysis/normalize-layers" }
 turbo-relation = { path = "../analysis/relation" }

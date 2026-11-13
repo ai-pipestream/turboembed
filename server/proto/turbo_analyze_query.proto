@@ -1,0 +1,250 @@
+// Unified One-Pass Query Analysis and Representation Encoding (#2339):
+// combines ordinal-preserving per-field BM25 query terms, non-backtracking
+// multi-token phrase synonym expansions, enriched structured NLP filters
+// (temporal, ECB money, SI quantities, geo bounding boxes + containment spines,
+// glossary, and KB-linked entities), residual non-filter terms, and
+// simultaneous query-prompted dense/Matryoshka + SPLADE sparse encodings.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package turbo.result.v1;
+
+import "turbo_typed_annotations.proto";
+import "turbo_search_projection.proto";
+
+enum QueryFieldTokenizerProto
+{
+  QUERY_FIELD_TOKENIZER_WORD = 0;
+  QUERY_FIELD_TOKENIZER_WHITESPACE = 1;
+}
+
+enum QueryTermFormProto
+{
+  QUERY_TERM_FORM_STEM = 0;
+  QUERY_TERM_FORM_FOLDED = 1;
+  QUERY_TERM_FORM_SURFACE = 2;
+  QUERY_TERM_FORM_LEMMA = 3;
+}
+
+message QuerySynonymRuleProto
+{
+  repeated string trigger = 1;
+  repeated string expansion = 2;
+  bool bidirectional = 3;
+}
+
+message QueryFieldProfileProto
+{
+  string field = 1;
+  QueryFieldTokenizerProto tokenizer = 2;
+  QueryTermFormProto term_form = 3;
+  string language = 4;
+  bool keep_invisible = 5;
+  bool include_stopwords_in_residual = 6;
+  repeated QuerySynonymRuleProto synonyms = 7;
+}
+
+message QueryDenseTargetProto
+{
+  string target_id = 1;
+  string model = 2;
+  repeated uint32 matryoshka_dims = 3;
+  bool use_residual_text = 4;
+  uint32 turboquant_bits = 5;
+  bool turboquant_calibrate = 6;
+}
+
+message QuerySpladeTargetProto
+{
+  string target_id = 1;
+  string model = 2;
+  uint32 top_k = 3;
+  float floor = 4;
+  uint32 impact_bits = 5;
+  float impact_clip_max = 6;
+  bool emit_term_keys = 7;
+  bool use_residual_text = 8;
+}
+
+message AnalyzeQueryRequest
+{
+  string query = 1;
+  OffsetMode offsets = 2;
+  string default_language = 3;
+  string reference_date_iso = 4;
+  repeated QueryFieldProfileProto field_profiles = 5;
+  repeated QuerySynonymRuleProto global_synonyms = 6;
+  repeated QueryDenseTargetProto dense_targets = 7;
+  repeated QuerySpladeTargetProto splade_targets = 8;
+}
+
+message QueryOrdinalTermProto
+{
+  string term = 1;
+  uint32 ordinal = 2;
+  uint32 pos_len = 3;
+  uint32 span_start = 4;
+  uint32 span_end = 5;
+  string surface = 6;
+  bool is_stopword = 7;
+  bool covered_by_filter = 8;
+}
+
+message QuerySynonymMatchProto
+{
+  uint32 start_ordinal = 1;
+  uint32 end_ordinal = 2;
+  uint32 pos_len = 3;
+  uint32 span_start = 4;
+  uint32 span_end = 5;
+  string surface = 6;
+  repeated string terms = 7;
+}
+
+message QueryFieldPlanProto
+{
+  string field = 1;
+  uint32 total_token_ordinals = 2;
+  repeated uint32 empty_normalized_ordinals = 3;
+  repeated QueryOrdinalTermProto bm25_terms = 4;
+  repeated QueryOrdinalTermProto residual_terms = 5;
+  repeated QuerySynonymMatchProto synonyms = 6;
+}
+
+message QueryTemporalFilterProto
+{
+  optional int64 start_epoch_seconds = 1;
+  optional int64 end_epoch_seconds = 2;
+  optional int64 duration_ms = 3;
+  string value_text = 4;
+  string kind = 5;
+  string grain = 6;
+  string origin = 7;
+  bool ambiguous = 8;
+}
+
+message QueryMoneyFilterProto
+{
+  string currency = 1;
+  string decimal_text = 2;
+  double amount_f64 = 3;
+  string per = 4;
+  optional string ecb_currency = 5;
+  optional string ecb_decimal_text = 6;
+  optional double ecb_amount_f64 = 7;
+}
+
+message QueryQuantityFilterProto
+{
+  string written_unit = 1;
+  string written_decimal_text = 2;
+  string si_base_unit = 3;
+  string si_plain_value = 4;
+  double si_value_f64 = 5;
+  bool is_percent = 6;
+}
+
+message QueryPlaceFilterProto
+{
+  string source = 1;
+  string record_id = 2;
+  string canonical_name = 3;
+  string country_code = 4;
+  repeated string containment = 5;
+  string spine_path = 6;
+  string feature_class = 7;
+  double latitude = 8;
+  double longitude = 9;
+  SearchGeoBbox bbox = 10;
+  int64 population = 11;
+  double confidence = 12;
+}
+
+message QueryGlossaryFilterProto
+{
+  string id = 1;
+  string term = 2;
+  uint32 entry_index = 3;
+}
+
+message QueryEntityFilterProto
+{
+  string entity_type = 1;
+  double score = 2;
+  optional string kb_id = 3;
+  optional string provider_id = 4;
+  optional string canonical_name = 5;
+}
+
+message QueryStructuredFilterProto
+{
+  uint32 span_start = 1;
+  uint32 span_end = 2;
+  uint32 value_span_start = 3;
+  uint32 value_span_end = 4;
+  string surface = 5;
+  string comparison = 6;
+  string layer_id = 7;
+  string annotator = 8;
+  oneof payload
+  {
+    QueryTemporalFilterProto temporal = 9;
+    QueryMoneyFilterProto money = 10;
+    QueryQuantityFilterProto quantity = 11;
+    QueryPlaceFilterProto place = 12;
+    QueryGlossaryFilterProto glossary = 13;
+    QueryEntityFilterProto entity = 14;
+  }
+}
+
+message QueryVectorSliceProto
+{
+  uint32 dim = 1;
+  bytes data = 2;
+  float inv_norm = 3;
+  bytes sha256 = 4;
+  uint32 turboquant_bits = 5;
+  bool turboquant_calibrate = 6;
+  bytes turboquant_codes = 7;
+}
+
+message QueryDenseResultProto
+{
+  string target_id = 1;
+  ModelRef model = 2;
+  QueryVectorSliceProto full = 3;
+  repeated QueryVectorSliceProto matryoshka = 4;
+}
+
+message QuerySpladeResultProto
+{
+  string target_id = 1;
+  ModelRef model = 2;
+  repeated uint32 term_id = 3;
+  repeated float weight = 4;
+  repeated bool has_span = 5;
+  repeated uint32 span_start = 6;
+  repeated uint32 span_end = 7;
+  uint32 impact_bits = 8;
+  repeated uint32 impact = 9;
+  float impact_scale = 10;
+  float impact_clip_max = 11;
+  double l1_rounding_bound = 12;
+  double dot_slack_bound = 13;
+  repeated string term_keys = 14;
+}
+
+message AnalyzeQueryResponse
+{
+  string query = 1;
+  OffsetMode offsets = 2;
+  string detected_language = 3;
+  double language_score = 4;
+  repeated QueryFieldPlanProto fields = 5;
+  repeated QueryStructuredFilterProto filters = 6;
+  repeated QueryOrdinalTermProto residual_terms = 7;
+  string free_text = 8;
+  repeated QueryDenseResultProto dense_results = 9;
+  repeated QuerySpladeResultProto splade_results = 10;
+}

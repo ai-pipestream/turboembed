@@ -11,6 +11,9 @@ use crate::error::{MatchError, PatternError};
 use crate::input::Input;
 use crate::phrase::PhraseMatcher;
 
+/// One matched phrase span `(start_token, end_token, byte_span, target_sequences)`.
+pub type MatchedExpansion<'a> = (usize, usize, Span, &'a [Vec<String>]);
+
 /// Maps multi-token or single-token phrases matched by a [`PhraseMatcher`]
 /// onto synonym token sequences in a [`TokenGraphBuilder`].
 pub struct PhraseSynonymExpander {
@@ -62,22 +65,39 @@ impl PhraseSynonymExpander {
         Ok(())
     }
 
-    /// Emits [`TokenArcKind::Synonym`] arcs onto `builder` for every phrase
-    /// match in `input`.
-    pub fn emit(&self, input: &Input<'_>, tokens: &Tokens, builder: &mut TokenGraphBuilder) -> Result<(), MatchError> {
+    /// Finds all matched token-ordinal spans and their configured target token
+    /// sequences in `input`.
+    pub fn find_expansions<'a>(
+        &'a self,
+        input: &Input<'_>,
+        tokens: &Tokens,
+    ) -> Result<Vec<MatchedExpansion<'a>>, MatchError> {
         let matches = self.matcher.find(input)?;
         let (starts, ends) = tokens.spans.columns();
+        let mut out = Vec::with_capacity(matches.len());
         for m in matches {
             let start = m.tokens.start.get();
             let end = m.tokens.end.get();
-            if start >= end || end > builder.token_count() || end > starts.len() {
+            if start >= end || end > starts.len() {
                 continue;
             }
             let span = Span::new(starts[start], ends[end - 1]);
             if let Some(targets) = self.expansions.get(m.label.0 as usize) {
-                for target in targets {
-                    builder.add_span_sequence(start..end, span, target.iter().cloned(), TokenArcKind::Synonym);
-                }
+                out.push((start, end, span, targets.as_slice()));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Emits [`TokenArcKind::Synonym`] arcs onto `builder` for every phrase
+    /// match in `input`.
+    pub fn emit(&self, input: &Input<'_>, tokens: &Tokens, builder: &mut TokenGraphBuilder) -> Result<(), MatchError> {
+        for (start, end, span, targets) in self.find_expansions(input, tokens)? {
+            if end > builder.token_count() {
+                continue;
+            }
+            for target in targets {
+                builder.add_span_sequence(start..end, span, target.iter().cloned(), TokenArcKind::Synonym);
             }
         }
         Ok(())
