@@ -55,9 +55,17 @@ pub struct RepoImport {
     pub keep: Option<PathBuf>,
 }
 
-/// One file of the listing: its path, its size, and for a file kept in
-/// large file storage the SHA-256 the repository records for it.
+/// One file of the listing: its path in the repository, and what the
+/// importer reads of it there, or why it cannot take it. A file that is
+/// not imported does not hold up those that are.
 struct Listed {
+    name: String,
+    file: Result<ListedFile, String>,
+}
+
+/// A file's path, its size, and for a file kept in large file storage
+/// the SHA-256 the repository records for it.
+struct ListedFile {
     path: RelPath,
     size: u64,
     sha256: Option<Sha256>,
@@ -77,10 +85,20 @@ fn is_repo(s: &str) -> bool {
     matches!(s.split_once('/'), Some((owner, name)) if part(owner) && part(name))
 }
 
-/// A path the importer can name in an address as it is: no character
-/// that an address reads as anything but part of the path.
-fn plain_path(p: &str) -> bool {
-    p.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'_' | b'.' | b'/' | b'+' | b'=' | b'@' | b','))
+/// `path` as an address carries it: a `/` between its parts, and every
+/// byte that an address reads as anything but part of a path, a space
+/// and each byte of a character outside ASCII among them,
+/// percent-encoded.
+fn in_address(path: &RelPath) -> String {
+    let mut out = String::with_capacity(path.as_str().len());
+    for b in path.as_str().bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'/' | b'+' | b'=' | b'@' | b',') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
 }
 
 /// The files of the listing `bytes` hold, directories left out.
@@ -98,24 +116,26 @@ fn listing(fail: &dyn Fn(String) -> ZooError, bytes: &[u8]) -> Result<Vec<Listed
             continue;
         }
         let path = text("path");
-        let bad = |what: &str| fail(format!("the repository listing gives {path:?} {what}"));
+        let bad = |what: &str| format!("the repository listing gives {path:?} {what}");
         let lfs = e.get("lfs").filter(|l| !l.is_null());
         let size = lfs.and_then(|l| l.get("size")).or_else(|| e.get("size")).and_then(|s| s.as_u64());
-        let sha256 = match lfs {
-            Some(l) => Some(
-                l.get("oid")
-                    .and_then(|o| o.as_str())
-                    .and_then(|o| Sha256::from_str(o).ok())
-                    .ok_or_else(|| bad("no SHA-256"))?,
-            ),
-            None => None,
-        };
-        let rel = RelPath::from_str(path).ok().filter(|_| plain_path(path));
-        out.push(Listed {
-            path: rel.ok_or_else(|| bad("a path the zoo does not take"))?,
-            size: size.ok_or_else(|| bad("no size"))?,
-            sha256,
-        });
+        let file = (|| -> Result<ListedFile, String> {
+            let sha256 = match lfs {
+                Some(l) => Some(
+                    l.get("oid")
+                        .and_then(|o| o.as_str())
+                        .and_then(|o| Sha256::from_str(o).ok())
+                        .ok_or_else(|| bad("no SHA-256"))?,
+                ),
+                None => None,
+            };
+            Ok(ListedFile {
+                path: RelPath::from_str(path).map_err(|_| bad("a path the zoo does not take"))?,
+                size: size.ok_or_else(|| bad("no size"))?,
+                sha256,
+            })
+        })();
+        out.push(Listed { name: path.to_owned(), file });
     }
     Ok(out)
 }
@@ -156,7 +176,7 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         for want in &spec.files {
             let at = listed
                 .iter()
-                .position(|l| l.path.as_str() == want)
+                .position(|l| l.name == *want)
                 .ok_or_else(|| fail(format!("the commit holds no file {want:?} (or it is named twice)")))?;
             chosen.push(listed.remove(at));
         }
@@ -170,7 +190,8 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
     let mut files = Vec::with_capacity(listed.len());
     let mut manifest = None;
     for l in listed {
-        let url = address(format!("{endpoint}/{}/resolve/{}/{}", spec.repo, spec.commit, l.path))?;
+        let l = l.file.map_err(fail)?;
+        let url = address(format!("{endpoint}/{}/resolve/{}/{}", spec.repo, spec.commit, in_address(&l.path)))?;
         // Only a file whose SHA-256 the repository records can be taken
         // from the cache: the cached bytes are then held to it.
         let held = match (&kept, &l.sha256) {

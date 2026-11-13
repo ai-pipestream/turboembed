@@ -279,8 +279,6 @@ fn a_listing_the_importer_cannot_take_is_refused() {
         ("[]".to_owned(), "the commit holds no file"),
         (format!("[{}]", many.join(", ")), "may not be all of them"),
         (format!("[{}]", file("../escape.txt")), "a path the zoo does not take"),
-        (format!("[{}]", file("with space.txt")), "a path the zoo does not take"),
-        (format!("[{}]", file("a%2fb.txt")), "a path the zoo does not take"),
         (r#"[{"type": "file", "oid": "a6344aac", "path": "x.txt"}]"#.to_owned(), "no size"),
         (
             r#"[{"type": "file", "size": 2, "lfs": {"oid": "abc", "size": 2}, "path": "x.bin"}]"#.to_owned(),
@@ -294,8 +292,46 @@ fn a_listing_the_importer_cannot_take_is_refused() {
     }
 }
 
-/// Imports `BAAI/bge-small-en-v1.5` at the commit the built-in index pins
-/// and expects the built-in entry, file for file:
+#[test]
+fn a_file_the_importer_cannot_take_holds_up_only_its_own_import() {
+    // The commit's listing with two files the importer cannot take: one
+    // whose path leaves the repository, one in large file storage with
+    // no SHA-256.
+    let tree = format!("{HUGGING_FACE}/api/models/{REPO}/tree/{COMMIT}?recursive=true");
+    let listed = listing();
+    let unusable = r#"{"type": "file", "oid": "a6344aac", "size": 2, "path": "../escape.txt"}, {"type": "file",
+        "size": 2, "lfs": {"oid": "abc", "size": 2}, "path": "x.bin"}"#;
+    let mut hub = Hub::new();
+    hub.serve.insert(tree, format!("[{unusable}, {}", &listed[1..]).into_bytes());
+    let chosen = ["weights/model.safetensors", "tokenizer.json"];
+    let imported = hugging_face(&hub, HUGGING_FACE, spec(&chosen)).unwrap();
+    assert_eq!(imported, hugging_face(&Hub::new(), HUGGING_FACE, spec(&chosen)).unwrap());
+    // Every file of the commit, those among them.
+    let e = hugging_face(&hub, HUGGING_FACE, spec(&[])).unwrap_err().to_string();
+    assert!(e.contains("\"../escape.txt\" a path the zoo does not take"), "{e}");
+    let e = hugging_face(&hub, HUGGING_FACE, spec(&["x.bin"])).unwrap_err().to_string();
+    assert!(e.contains("\"x.bin\" no SHA-256"), "{e}");
+}
+
+#[test]
+fn a_path_an_address_does_not_carry_as_it_is_is_asked_percent_encoded() {
+    let tree = format!("{HUGGING_FACE}/api/models/{REPO}/tree/{COMMIT}?recursive=true");
+    let path = "vocab/Größe 1%.txt";
+    let bytes = "Größe\n".as_bytes().to_vec();
+    let entry = format!(r#"{{"type": "file", "oid": "a6344aac", "size": {}, "path": "{path}"}}"#, bytes.len());
+    let at = format!("{HUGGING_FACE}/{REPO}/resolve/{COMMIT}/vocab/Gr%C3%B6%C3%9Fe%201%25.txt");
+    let mut hub = Hub::new();
+    hub.serve.insert(tree, format!("[{entry}, {}", &listing()[1..]).into_bytes());
+    hub.serve.insert(at.clone(), bytes.clone());
+    let imported = hugging_face(&hub, HUGGING_FACE, spec(&[path, "tokenizer.json"])).unwrap();
+    let file = &imported.files[0];
+    assert_eq!((file.path.as_str(), file.url.as_str(), file.size), (path, at.as_str(), bytes.len() as u64));
+    assert_eq!(file.sha256, Sha256::of(&bytes));
+    // The entry is one the index loads as it is written.
+    let written = Index::to_canonical_json(std::slice::from_ref(&imported));
+    assert_eq!(Index::parse(written.as_bytes()).unwrap().get("tiny").unwrap(), &imported);
+}
+
 /// The cache a network test keeps its downloads in: the directory
 /// `TURBO_TEST_ZOO_CACHE` names, which is left in place so the next run
 /// downloads nothing it holds, or else a directory of the test's own.
@@ -310,6 +346,8 @@ fn network_cache(name: &str) -> (PathBuf, Option<Scratch>) {
     }
 }
 
+/// Imports `BAAI/bge-small-en-v1.5` at the commit the built-in index pins
+/// and expects the built-in entry, file for file:
 /// `cargo test -p turbo-zoo --test import_hugging_face -- --ignored`.
 /// Needs the network. With `TURBO_TEST_ZOO_CACHE=<dir>` the files are
 /// kept there, and a later run does not download again a file whose
