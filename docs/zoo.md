@@ -418,7 +418,7 @@ anything. In the library the importers take the cache directory as
 `keep` (`RepoImport::keep`, `OciImport::keep`), and keep nothing
 without it.
 
-The two network tests keep their downloads in the directory
+The two importer network tests keep their downloads in the directory
 `TURBO_TEST_ZOO_CACHE` names when it is set, and leave it in place, so
 a later run on the same machine does not download the files again.
 
@@ -782,6 +782,23 @@ installs when either host is unreachable. `turbo-zoo show <id>` prints
 every location. `analysis/zoo/tests/builtin/hugging_face.rs` keeps the
 list, and its ignored test installs each model from Hugging Face alone
 (`cargo test -p turbo-zoo -- --ignored hugging_face`).
+
+`turbo-en-masc-pos-modernbert-base-2` is kept in an OCI registry as
+well, as the artifact
+`docker.io/pipestreamai/turbo-en-masc-pos-modernbert-base-2:2` (manifest
+`sha256:ac9d7e33c8f91cfaab3f6279d4b5adccaa8c651f6ac29b5cfece6ccba6fa0092`),
+and each of its files lists a third location, the blob of its own SHA-256
+(`https://registry-1.docker.io/v2/pipestreamai/<id>/blobs/sha256:<hex>`).
+A registry answers only a request that carries its anonymous token, so
+this location is read through `OciRegistry`: `turbo-zoo fetch` asks it
+after plain HTTPS, and a caller of the library adds it to its `Sources`
+the same way. The ignored test
+`the_model_kept_in_a_registry_installs_from_the_registry_alone` installs
+the model from the registry alone
+(`cargo test -p turbo-zoo -- --ignored registry`). It keeps its cache in
+the directory `TURBO_TEST_ZOO_CACHE` names when that is set: a later run
+takes the weights from there, verified against the index, and downloads
+only the small files again, so each run still reads the registry.
 
 ## Reading the index from external clients
 
