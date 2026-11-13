@@ -150,6 +150,7 @@ async fn main() -> ExitCode {
         pii_encryption_keys: args.pii_encryption_keys,
         max_stream_bytes: Some(args.max_stream_bytes),
         tls: args.tls,
+        auth: args.auth,
         metrics_listen: args.metrics_listen,
         ..Serve::default()
     };

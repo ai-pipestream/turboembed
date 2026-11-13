@@ -160,8 +160,7 @@ pub(crate) fn rerank_and_highlight(
     };
 
     let _docs = rerank_loaded.metrics.track_docs(req.candidates.len(), Some(rerank_loaded.device));
-    deadline.check_alive()?;
-    let held = rerank_loaded.take()?;
+    let held = rerank_loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
     let slot = held.slot();
     let max_batch = (slot.info.max_batch as usize).max(1);
     if max_batch > MAX_RERANK_ITEMS as usize {
@@ -171,7 +170,7 @@ pub(crate) fn rerank_and_highlight(
     let q_view = turbo_text { ptr: req.query.as_ptr().cast(), len: req.query.len() as u64 };
     let mut logits = Vec::with_capacity(req.candidates.len());
     for chunk in req.candidates.chunks(max_batch) {
-        deadline.check_alive()?;
+        crate::priority::check_before_exec(deadline, &rerank_loaded.metrics)?;
         let pairs: Vec<turbo_text_pair> = chunk
             .iter()
             .map(|c| turbo_text_pair {
@@ -180,7 +179,7 @@ pub(crate) fn rerank_and_highlight(
             })
             .collect();
         slot.session.write_pairs(&pairs, &rerank_opts)?;
-        deadline.check_alive()?;
+        crate::priority::check_before_exec(deadline, &rerank_loaded.metrics)?;
         rerank_loaded.metrics.record_batch_size(pairs.len());
         state.stream.runs.fetch_add(1, Ordering::Relaxed);
         let output = slot.session.run()?;

@@ -1,7 +1,7 @@
 //! Query-prompted dense/Matryoshka + SPLADE sparse target execution for
 //! `AnalyzeQuery` (`#2339`).
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 use turbo::sparse::SparseOptions as Cut;
 use turbo::{
@@ -17,7 +17,9 @@ use turbo_analysis_embed::{
 use turbo_query::OnePassQueryPlan;
 
 use crate::api::{Failure, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_UNSUPPORTED_OPTION, field};
+use crate::deadline::Deadline;
 use crate::offsets::OffsetMode;
+use crate::priority::{Priority, check_before_exec};
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
 use crate::proto::result::{
     QueryDenseResultProto, QueryDenseTargetProto, QuerySpladeResultProto, QuerySpladeTargetProto, QueryVectorSliceProto,
@@ -58,6 +60,7 @@ pub(super) fn encode_dense_targets(
     state: &State,
     targets: &[QueryDenseTargetProto],
     plan: &OnePassQueryPlan,
+    deadline: &Deadline,
 ) -> Result<Vec<QueryDenseResultProto>> {
     let mut out = Vec::with_capacity(targets.len());
     for t in targets {
@@ -103,7 +106,7 @@ pub(super) fn encode_dense_targets(
             .map_err(|e| Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, e.to_string()))?;
 
         let text = if t.use_residual_text && !plan.free_text.is_empty() { &plan.free_text } else { &plan.query };
-        let held = loaded.take()?;
+        let held = loaded.acquire(Priority::Interactive, deadline)?;
         let slot = held.slot();
         let raw_text = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
         let mut opts = default_query_opts(TURBO_NORMALIZE_NONE);
@@ -115,6 +118,7 @@ pub(super) fn encode_dense_targets(
                 return Err(f);
             }
         }
+        check_before_exec(deadline, &loaded.metrics)?;
         state.stream.metrics.record_batch_size(1);
         state.stream.runs.fetch_add(1, Ordering::Relaxed);
         let result = slot.session.run()?;
@@ -176,9 +180,9 @@ pub(super) fn encode_splade_targets(
     targets: &[QuerySpladeTargetProto],
     plan: &OnePassQueryPlan,
     offsets: OffsetMode,
+    deadline: &Deadline,
 ) -> Result<Vec<QuerySpladeResultProto>> {
     let mut out = Vec::with_capacity(targets.len());
-    let dead = AtomicBool::new(false);
     for t in targets {
         let model_name = t.model.trim();
         if model_name.is_empty() {
@@ -219,11 +223,20 @@ pub(super) fn encode_splade_targets(
         let use_residual = t.use_residual_text && !plan.free_text.is_empty();
         let text = if use_residual { plan.free_text.as_str() } else { plan.query.as_str() };
         let run_offsets = if use_residual { OffsetMode::Utf8 } else { offsets };
-        let held = loaded.take()?;
+        let held = loaded.acquire(Priority::Interactive, deadline)?;
+        check_before_exec(deadline, &loaded.metrics)?;
         held.reserve_token_ranges()?;
         let opts = default_query_opts(0);
         let cut = Cut { top_k: t.top_k, floor: t.floor };
-        let outcomes = embed.run_sparse_batch(&state.stream, &dead, held.slot(), &[text], &opts, run_offsets, cut)?;
+        let outcomes = embed.run_sparse_batch(
+            &state.stream,
+            deadline.cancel_flag(),
+            held.slot(),
+            &[text],
+            &opts,
+            run_offsets,
+            cut,
+        )?;
         drop(held);
         let Some(ProtoOutcome::SparseTerms(st)) = outcomes.into_iter().next() else {
             return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected SparseTerms outcome from SPLADE query batch"));

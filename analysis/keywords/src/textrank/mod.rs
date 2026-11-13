@@ -7,8 +7,9 @@
 pub(crate) mod graph;
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, Key, Layer, Span};
+use turbo_analysis::{Annotator, CorpusIdf, Error, Key, Layer, Span};
 use turbo_analysis_layers::{PosTags, Sentences, Terms, Tokens};
 
 use crate::ranked::RankedKeyword;
@@ -25,13 +26,14 @@ pub struct TextRankExtractor {
     top_n: usize,
     damping: f64,
     epsilon: f64,
+    corpus_idf: Option<Arc<CorpusIdf>>,
 }
 
 impl Default for TextRankExtractor {
     fn default() -> TextRankExtractor {
         // The paper's window, damping and convergence epsilon, with the
         // same top-N default YAKE carries.
-        TextRankExtractor { window: 2, top_n: 30, damping: 0.85, epsilon: 1e-4 }
+        TextRankExtractor { window: 2, top_n: 30, damping: 0.85, epsilon: 1e-4, corpus_idf: None }
     }
 }
 
@@ -75,6 +77,13 @@ impl TextRankExtractor {
     /// The convergence threshold on the L1 delta between iterations.
     pub fn with_epsilon(mut self, epsilon: f64) -> TextRankExtractor {
         self.epsilon = epsilon;
+        self
+    }
+
+    /// Attaches collection-wide BM25 IDF weights (`#2346`) so rare corpus
+    /// vertices outrank ubiquitous boilerplate vertices.
+    pub fn with_corpus_idf(mut self, idf: Arc<CorpusIdf>) -> TextRankExtractor {
+        self.corpus_idf = Some(idf);
         self
     }
 
@@ -153,6 +162,11 @@ impl TextRankExtractor {
             }
         }
         let mut pr = graph.pagerank(self.damping, self.epsilon);
+        if let Some(idf) = &self.corpus_idf {
+            for (id, s) in pr.iter_mut().enumerate() {
+                *s *= idf.rarity_boost(graph.name(id as u32));
+            }
+        }
         let total: f64 = pr.iter().sum();
         if total > 0.0 {
             for s in &mut pr {
@@ -220,12 +234,12 @@ impl TextRankExtractor {
     }
 
     pub(crate) fn config_hash(&self) -> u64 {
-        turbo_analysis::Fnv1a::with_seed(0x9E37_79B9_7F4A_7C15)
-            .u64(self.window as u64)
-            .u64(self.top_n as u64)
-            .f64(self.damping)
-            .f64(self.epsilon)
-            .finish()
+        let mut h = turbo_analysis::Fnv1a::with_seed(0x9E37_79B9_7F4A_7C15);
+        h.u64(self.window as u64).u64(self.top_n as u64).f64(self.damping).f64(self.epsilon);
+        if let Some(idf) = &self.corpus_idf {
+            h.u64(idf.config_hash());
+        }
+        h.finish()
     }
 }
 

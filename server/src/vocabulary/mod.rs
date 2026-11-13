@@ -6,6 +6,7 @@
 //! --admin or without a --vocabulary-dir.
 
 pub(crate) mod bind;
+mod feedback;
 pub(crate) mod formats;
 mod learn;
 mod store;
@@ -352,7 +353,7 @@ impl TurboVocabularyService for Vocabulary {
                 Some(Stored::Vocabulary(v, b)) => Ok((Frame::Vocabulary(v), b)),
                 None => match store.read_suggest(&id).map_err(internal)? {
                     Some((s, b)) => Ok((Frame::SuggestLexicon(s), b)),
-                    None => Err(not_found(&id)),
+                    None => store.read_feedback(&id).map_err(internal)?.ok_or_else(|| not_found(&id)),
                 },
             })
             .await?
@@ -389,5 +390,33 @@ impl TurboVocabularyService for Vocabulary {
 
     async fn spellcheck_query(&self, req: Request<SpellcheckQueryRequest>) -> Reply<SpellcheckQueryResponse> {
         suggest::spellcheck_query(self, req).await
+    }
+
+    async fn import_corpus_statistics(
+        &self,
+        req: Request<Streaming<ImportCorpusStatisticsRequest>>,
+    ) -> Reply<CorpusStatisticsArtifactDescriptor> {
+        feedback::import_corpus_statistics(self, req).await
+    }
+
+    async fn list_corpus_statistics(
+        &self,
+        req: Request<ListCorpusStatisticsRequest>,
+    ) -> Reply<ListCorpusStatisticsResponse> {
+        feedback::list_corpus_statistics(self, req).await
+    }
+
+    async fn train_voronoi_centroids(
+        &self,
+        req: Request<Streaming<TrainVoronoiCentroidsRequest>>,
+    ) -> Reply<VoronoiCentroidArtifactDescriptor> {
+        feedback::train_voronoi(self, req).await
+    }
+
+    async fn list_voronoi_centroids(
+        &self,
+        req: Request<ListVoronoiCentroidsRequest>,
+    ) -> Reply<ListVoronoiCentroidsResponse> {
+        feedback::list_voronoi_centroids(self, req).await
     }
 }

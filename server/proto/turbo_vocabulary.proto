@@ -66,6 +66,20 @@ service TurboVocabularyService
   // Context-aware multi-word query spellcheck ("Did you mean?", #2341)
   // backed by a learned vocabulary artifact's unigram and n-gram counts.
   rpc SpellcheckQuery(SpellcheckQueryRequest) returns (SpellcheckQueryResponse) {}
+
+  // Client-streaming upload of collection-wide (term, df, doc_count) snapshots
+  // (#2346), compiling a deterministic TCIDF001 corpus IDF artifact.
+  rpc ImportCorpusStatistics(stream ImportCorpusStatisticsRequest) returns (CorpusStatisticsArtifactDescriptor) {}
+
+  // Lists stored TCIDF001 corpus IDF statistics artifacts (#2346).
+  rpc ListCorpusStatistics(ListCorpusStatisticsRequest) returns (ListCorpusStatisticsResponse) {}
+
+  // Client-streaming trainer for spherical k-means Voronoi routing centroids
+  // (#2346), exporting a versioned TCENT001 centroid bundle.
+  rpc TrainVoronoiCentroids(stream TrainVoronoiCentroidsRequest) returns (VoronoiCentroidArtifactDescriptor) {}
+
+  // Lists stored TCENT001 Voronoi routing centroid artifacts (#2346).
+  rpc ListVoronoiCentroids(ListVoronoiCentroidsRequest) returns (ListVoronoiCentroidsResponse) {}
 }
 
 message ListDictionaryFormatsRequest {}
@@ -229,6 +243,8 @@ message VocabularyArtifactChunk
     // Every later frame: the next bytes, at most 64 KiB.
     bytes data = 3;
     SuggestLexiconArtifactDescriptor suggest_lexicon = 4;
+    CorpusStatisticsArtifactDescriptor corpus_statistics = 5;
+    VoronoiCentroidArtifactDescriptor voronoi_centroids = 6;
   }
 }
 
@@ -354,4 +370,98 @@ message SpellcheckQueryResponse
   double confidence = 3;
   SpellcheckOffsetMode offsets = 4;
   repeated SpellcheckEditItem edits = 5;
+}
+
+message CorpusStatisticsHeader
+{
+  string language = 1;
+  uint64 doc_count = 2;
+  string name = 3;
+}
+
+message CorpusTermFrequencyEntry
+{
+  string term = 1;
+  uint64 doc_freq = 2;
+}
+
+message CorpusTermFrequencyBatch
+{
+  repeated CorpusTermFrequencyEntry entries = 1;
+}
+
+message ImportCorpusStatisticsRequest
+{
+  oneof frame
+  {
+    CorpusStatisticsHeader header = 1;
+    CorpusTermFrequencyBatch batch = 2;
+  }
+}
+
+message CorpusStatisticsArtifactDescriptor
+{
+  string artifact_id = 1;
+  string language = 2;
+  string name = 3;
+  uint64 doc_count = 4;
+  uint64 term_count = 5;
+  uint64 byte_size = 6;
+  string sha256 = 7;
+}
+
+message ListCorpusStatisticsRequest {}
+
+message ListCorpusStatisticsResponse
+{
+  repeated CorpusStatisticsArtifactDescriptor statistics = 1;
+}
+
+message TrainVoronoiCentroidsHeader
+{
+  string model_id = 1;
+  string model_revision = 2;
+  string model_sha256 = 3;
+  uint32 dim = 4;
+  uint32 num_centroids = 5;
+  uint32 max_iters = 6;
+  uint64 seed = 7;
+  string tag_set_name = 8;
+  double temperature = 9;
+}
+
+message VoronoiSampleBatch
+{
+  repeated float values = 1;
+}
+
+message TrainVoronoiCentroidsRequest
+{
+  oneof frame
+  {
+    TrainVoronoiCentroidsHeader header = 1;
+    VoronoiSampleBatch batch = 2;
+  }
+}
+
+message VoronoiCentroidArtifactDescriptor
+{
+  string artifact_id = 1;
+  string model_id = 2;
+  string model_revision = 3;
+  string model_sha256 = 4;
+  uint32 dim = 5;
+  uint32 num_centroids = 6;
+  uint64 sample_count = 7;
+  double mean_cosine = 8;
+  uint64 byte_size = 9;
+  string sha256 = 10;
+  repeated uint64 cluster_counts = 11;
+}
+
+message ListVoronoiCentroidsRequest {}
+
+message ListVoronoiCentroidsResponse
+{
+  repeated VoronoiCentroidArtifactDescriptor centroids = 1;
 }

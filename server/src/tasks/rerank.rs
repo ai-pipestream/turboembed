@@ -12,6 +12,7 @@ use crate::api::{Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_IN
 use crate::deadline::Deadline;
 use crate::infer::{EMPTY, bad, bad_shape, has_contents, kind, only, shape, split_bytes, view};
 use crate::kserve::{Data, Vectors, datatype, result_parameters};
+use crate::priority::{Priority, check_before_exec};
 use crate::proto::infer_parameter::ParameterChoice;
 use crate::proto::model_infer_response::InferOutputTensor;
 use crate::proto::{InferParameter, ModelInferRequest, ModelInferResponse};
@@ -23,6 +24,7 @@ pub(crate) fn infer_rerank(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
+    priority: Option<Priority>,
     deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     for o in &req.outputs {
@@ -49,12 +51,11 @@ pub(crate) fn infer_rerank(
     }
 
     let _docs = loaded.metrics.track_docs(pairs.len().max(1), Some(loaded.device));
-    deadline.check_alive()?;
-    let held = loaded.take()?;
-    deadline.check_alive()?;
+    let held = loaded.take_or_acquire(priority, deadline)?;
+    check_before_exec(deadline, &loaded.metrics)?;
     let slot = held.slot();
     slot.session.write_pairs(&pairs, &opts)?;
-    deadline.check_alive()?;
+    check_before_exec(deadline, &loaded.metrics)?;
     loaded.metrics.record_batch_size(pairs.len());
     let result = slot.session.run()?;
     deadline.check_alive()?;

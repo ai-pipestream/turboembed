@@ -94,6 +94,11 @@ impl YakeAnnotator {
         self.extractor = self.extractor.with_dedup(dedup);
         self
     }
+
+    pub fn with_corpus_idf(mut self, idf: std::sync::Arc<turbo_analysis::CorpusIdf>) -> YakeAnnotator {
+        self.extractor = self.extractor.with_corpus_idf(idf);
+        self
+    }
 }
 
 impl Annotator for YakeAnnotator {
@@ -148,6 +153,11 @@ impl TextRankAnnotator {
 
     pub fn with_epsilon(mut self, epsilon: f64) -> TextRankAnnotator {
         self.extractor = self.extractor.with_epsilon(epsilon);
+        self
+    }
+
+    pub fn with_corpus_idf(mut self, idf: std::sync::Arc<turbo_analysis::CorpusIdf>) -> TextRankAnnotator {
+        self.extractor = self.extractor.with_corpus_idf(idf);
         self
     }
 }

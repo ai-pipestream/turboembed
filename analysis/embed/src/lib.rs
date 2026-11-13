@@ -48,6 +48,7 @@ pub mod qa;
 pub use qa::{Answers, ExtractiveQaAnnotator, Question};
 pub mod subwords;
 pub mod vectors;
+pub mod voronoi;
 pub mod window;
 
 pub use aspect::{BIO_ASPECT_OPINION_LABELS, LabeledAbsaDoc, LearnedAspectSentiment, bio_aspect_opinion_tagset};
@@ -65,6 +66,7 @@ pub use vectors::{
     ChunkVectors, ContextualTokens, Embedder, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,
     VectorAnnotator, VectorCodesProvider, VectorCodesStep, VectorOptions, VectorsProvider,
 };
+pub use voronoi::{VoronoiCentroids, VoronoiOptions, train_voronoi_centroids};
 
 use turbo::bundle::Bundle;
 use turbo_analysis::ModelRef;

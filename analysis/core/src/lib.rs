@@ -12,6 +12,7 @@ pub mod alternatives;
 pub mod analyzer;
 pub mod annotate;
 pub mod bytes;
+pub mod corpus_idf;
 pub mod doc;
 pub mod error;
 pub mod evidence;
@@ -41,6 +42,7 @@ pub use analyzer::{
 };
 pub use annotate::{Annotator, Bound, Locality, Placed, Refs, Step};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
+pub use corpus_idf::{CORPUS_IDF_MAGIC, CorpusIdf};
 pub use doc::{
     ContentDigest, Document, DuplicateLayerPolicy, InputSnapshotDigest, LayerStatus, PROCESSING_CONFIG_DIGEST_RULE,
     PolicyDigest, ProcessingConfigDigest, ProjectedFragment, ProjectedSpan, ProvenanceDigest, SourceBytesDigest,

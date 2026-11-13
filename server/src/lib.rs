@@ -4,6 +4,7 @@
 
 pub mod analysis;
 pub mod api;
+pub mod auth;
 pub mod capabilities;
 pub mod catalog;
 mod ceiling;
@@ -18,6 +19,7 @@ mod kserve;
 pub mod metrics;
 pub mod offsets;
 pub mod pii_policy;
+pub mod priority;
 pub mod probe;
 pub mod progressive;
 pub mod release;
@@ -32,6 +34,8 @@ pub mod tls;
 mod training;
 pub mod vocabulary;
 
+pub use crate::auth::AuthConfig;
+pub use crate::priority::{MAX_INTERACTIVE_BURST, PRIORITY_HEADER, Priority};
 pub use crate::state::Held;
 pub use crate::tls::TlsConfig;
 
@@ -191,6 +195,7 @@ pub struct Serve {
     /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
     pub max_stream_bytes: Option<u64>,
     pub tls: Option<TlsConfig>,
+    pub auth: Option<AuthConfig>,
     pub metrics_listen: Option<SocketAddr>,
     /// The encoded redaction policies `turbo-pii:redact` serves by name
     /// (`--pii-policy`), converted at start: their key references resolve
@@ -340,6 +345,7 @@ impl Server {
         let task = tokio::spawn(
             builder
                 .layer(metrics::MetricsLayer::new(state.metrics.clone()))
+                .layer(auth::AuthLayer::new(serve.auth))
                 .layer(tower::util::MapRequestLayer::new(ceiling::cap(ceiling)))
                 .add_service(kserve)
                 .add_service(analysis)

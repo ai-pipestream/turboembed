@@ -78,7 +78,7 @@ pub use layout::{
     ChunkCitation, ChunkCitationAnnotator, ChunkCitations, LAYOUT, LayoutBoundaries, LayoutCosts,
     WeighLayoutBoundaries, chunk_citations, layout_boundaries, weigh_with_layout,
 };
-pub use lexical::{LEXICAL, LexicalBoundaries, LexicalForm};
+pub use lexical::{IdfLexicalBoundaries, LEXICAL, LexicalBoundaries, LexicalForm};
 pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{
     ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider, EntityBoundariesProvider,

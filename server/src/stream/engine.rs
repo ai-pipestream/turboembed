@@ -196,6 +196,9 @@ impl Engine {
     ) {
         self.config.deadline.trip();
         dead.set();
+        if !self.pending.is_empty() || !self.stalled.is_empty() {
+            self.shared.metrics.record_cancelled_before_exec();
+        }
         self.pending.clear();
         self.buffer.clear();
         self.stalled.clear();
@@ -315,7 +318,7 @@ impl Engine {
             return;
         }
         let Some(loaded) = docs.first().and_then(|d| d.loaded.clone()) else { return };
-        match loaded.take() {
+        match loaded.try_take_bulk() {
             Ok(held) => {
                 let opts = docs[0].opts;
                 let shared = self.shared.clone();
@@ -397,7 +400,7 @@ impl Engine {
                         continue;
                     }
                     let Some(loaded) = doc.loaded.clone() else { continue };
-                    match loaded.take() {
+                    match loaded.try_take_bulk() {
                         Ok(held) => {
                             let opts = doc.opts;
                             let shared = self.shared.clone();

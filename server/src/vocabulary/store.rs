@@ -17,12 +17,17 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::proto::vocabulary::{
-    DictionaryArtifactDescriptor, SuggestLexiconArtifactDescriptor, VocabularyArtifactDescriptor,
+    CorpusStatisticsArtifactDescriptor, DictionaryArtifactDescriptor, SuggestLexiconArtifactDescriptor,
+    VocabularyArtifactDescriptor, VoronoiCentroidArtifactDescriptor,
 };
+
+use super::feedback::{corpus_stats_meta, read_corpus_stats, read_voronoi, voronoi_meta};
 
 const DICTIONARIES: &str = "dictionaries";
 const VOCABULARIES: &str = "vocabularies";
 const SUGGEST: &str = "suggest";
+const CORPUS_STATS: &str = "corpus_stats";
+const VORONOI: &str = "centroids";
 const TMP: &str = ".tmp-";
 
 /// A stored dictionary: its descriptor and how its upload is read again.
@@ -37,6 +42,8 @@ struct Index {
     dictionaries: BTreeMap<String, Dictionary>,
     vocabularies: BTreeMap<String, VocabularyArtifactDescriptor>,
     suggest_lexicons: BTreeMap<String, SuggestLexiconArtifactDescriptor>,
+    corpus_stats: BTreeMap<String, CorpusStatisticsArtifactDescriptor>,
+    voronoi: BTreeMap<String, VoronoiCentroidArtifactDescriptor>,
 }
 
 pub(crate) struct Store {
@@ -57,7 +64,7 @@ fn io(path: &Path, e: std::io::Error) -> String {
 
 /// `key=value` lines. Values never hold a line break: names and
 /// languages are refused with control characters before they get here.
-fn meta(fields: &[(&str, String)]) -> Vec<u8> {
+pub(super) fn meta(fields: &[(&str, String)]) -> Vec<u8> {
     let mut out = String::new();
     for (k, v) in fields {
         out.push_str(k);
@@ -72,11 +79,11 @@ fn parse_meta(text: &str) -> BTreeMap<&str, &str> {
     text.lines().filter_map(|l| l.split_once('=')).collect()
 }
 
-fn num(m: &BTreeMap<&str, &str>, k: &str) -> Result<u64, String> {
+pub(super) fn num(m: &BTreeMap<&str, &str>, k: &str) -> Result<u64, String> {
     m.get(k).and_then(|v| v.parse().ok()).ok_or_else(|| format!("no number {k}"))
 }
 
-fn text(m: &BTreeMap<&str, &str>, k: &str) -> String {
+pub(super) fn text(m: &BTreeMap<&str, &str>, k: &str) -> String {
     m.get(k).copied().unwrap_or_default().to_owned()
 }
 
@@ -186,7 +193,7 @@ impl Store {
     /// The store in `dir`, made when it does not exist.
     pub(crate) fn open(dir: &Path) -> Result<Store, String> {
         let mut index = Index::default();
-        for sub in [DICTIONARIES, VOCABULARIES, SUGGEST] {
+        for sub in [DICTIONARIES, VOCABULARIES, SUGGEST, CORPUS_STATS, VORONOI] {
             let p = dir.join(sub);
             fs::create_dir_all(&p).map_err(|e| io(&p, e))?;
         }
@@ -198,6 +205,12 @@ impl Store {
         }
         for s in scan(&dir.join(SUGGEST), read_suggest, |s| &s.artifact_id)? {
             index.suggest_lexicons.insert(s.artifact_id.clone(), s);
+        }
+        for c in scan(&dir.join(CORPUS_STATS), read_corpus_stats, |c| &c.artifact_id)? {
+            index.corpus_stats.insert(c.artifact_id.clone(), c);
+        }
+        for vc in scan(&dir.join(VORONOI), read_voronoi, |vc| &vc.artifact_id)? {
+            index.voronoi.insert(vc.artifact_id.clone(), vc);
         }
         Ok(Store { dir: dir.to_owned(), index: Mutex::new(index), seq: AtomicU64::new(0) })
     }
@@ -218,6 +231,14 @@ impl Store {
         self.index().suggest_lexicons.values().cloned().collect()
     }
 
+    pub(crate) fn corpus_statistics(&self) -> Vec<CorpusStatisticsArtifactDescriptor> {
+        self.index().corpus_stats.values().cloned().collect()
+    }
+
+    pub(crate) fn voronoi_centroids(&self) -> Vec<VoronoiCentroidArtifactDescriptor> {
+        self.index().voronoi.values().cloned().collect()
+    }
+
     pub(crate) fn dictionary(&self, id: &str) -> Option<Dictionary> {
         self.index().dictionaries.get(id).cloned()
     }
@@ -235,6 +256,10 @@ impl Store {
             Some(d.descriptor.sha256 == sha256)
         } else if let Some(v) = index.vocabularies.get(id) {
             Some(v.sha256 == sha256)
+        } else if let Some(c) = index.corpus_stats.get(id) {
+            Some(c.sha256 == sha256)
+        } else if let Some(vc) = index.voronoi.get(id) {
+            Some(vc.sha256 == sha256)
         } else {
             index.suggest_lexicons.get(id).map(|s| s.sha256 == sha256)
         }
@@ -309,6 +334,36 @@ impl Store {
         Ok(s)
     }
 
+    pub(crate) fn put_corpus_stats(
+        &self,
+        c: CorpusStatisticsArtifactDescriptor,
+        bytes: &[u8],
+    ) -> Result<CorpusStatisticsArtifactDescriptor, String> {
+        let mut index = self.index();
+        if let Some(have) = index.corpus_stats.get(&c.artifact_id) {
+            return Ok(have.clone());
+        }
+        self.write(CORPUS_STATS, &format!("{}.cidf", c.artifact_id), bytes)?;
+        self.write(CORPUS_STATS, &format!("{}.meta", c.artifact_id), &corpus_stats_meta(&c))?;
+        index.corpus_stats.insert(c.artifact_id.clone(), c.clone());
+        Ok(c)
+    }
+
+    pub(crate) fn put_voronoi(
+        &self,
+        v: VoronoiCentroidArtifactDescriptor,
+        bytes: &[u8],
+    ) -> Result<VoronoiCentroidArtifactDescriptor, String> {
+        let mut index = self.index();
+        if let Some(have) = index.voronoi.get(&v.artifact_id) {
+            return Ok(have.clone());
+        }
+        self.write(VORONOI, &format!("{}.tcent", v.artifact_id), bytes)?;
+        self.write(VORONOI, &format!("{}.meta", v.artifact_id), &voronoi_meta(&v))?;
+        index.voronoi.insert(v.artifact_id.clone(), v.clone());
+        Ok(v)
+    }
+
     /// Removes an artifact, its descriptor first: false when there is none.
     pub(crate) fn delete(&self, id: &str) -> Result<bool, String> {
         let mut index = self.index();
@@ -318,6 +373,10 @@ impl Store {
             (VOCABULARIES, &["meta", "tsv"])
         } else if index.suggest_lexicons.contains_key(id) {
             (SUGGEST, &["meta", "slex"])
+        } else if index.corpus_stats.contains_key(id) {
+            (CORPUS_STATS, &["meta", "cidf"])
+        } else if index.voronoi.contains_key(id) {
+            (VORONOI, &["meta", "tcent"])
         } else {
             return Ok(false);
         };
@@ -331,7 +390,45 @@ impl Store {
         index.dictionaries.remove(id);
         index.vocabularies.remove(id);
         index.suggest_lexicons.remove(id);
+        index.corpus_stats.remove(id);
+        index.voronoi.remove(id);
         Ok(true)
+    }
+
+    pub(crate) fn read_feedback(
+        &self,
+        id: &str,
+    ) -> Result<Option<(crate::proto::vocabulary::vocabulary_artifact_chunk::Frame, Vec<u8>)>, String> {
+        use crate::proto::vocabulary::vocabulary_artifact_chunk::Frame;
+        let (path, size, sha, frame) = {
+            let index = self.index();
+            if let Some(c) = index.corpus_stats.get(id) {
+                (
+                    self.dir.join(CORPUS_STATS).join(format!("{id}.cidf")),
+                    c.byte_size,
+                    c.sha256.clone(),
+                    Frame::CorpusStatistics(c.clone()),
+                )
+            } else if let Some(v) = index.voronoi.get(id) {
+                (
+                    self.dir.join(VORONOI).join(format!("{id}.tcent")),
+                    v.byte_size,
+                    v.sha256.clone(),
+                    Frame::VoronoiCentroids(v.clone()),
+                )
+            } else {
+                return Ok(None);
+            }
+        };
+        let bytes = match fs::read(&path) {
+            Ok(b) => b,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(io(&path, e)),
+        };
+        if bytes.len() as u64 != size || turbo_maxent::sha256(&bytes).to_hex() != sha {
+            return Err(format!("{}: the stored bytes do not match their descriptor", path.display()));
+        }
+        Ok(Some((frame, bytes)))
     }
 
     pub(crate) fn read_suggest(&self, id: &str) -> Result<Option<(SuggestLexiconArtifactDescriptor, Vec<u8>)>, String> {

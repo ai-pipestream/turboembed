@@ -251,11 +251,22 @@ impl AnalysisService for Analysis {
     }
 
     async fn analyze_query(&self, req: Request<AnalyzeQueryRequest>) -> Reply<AnalyzeQueryResponse> {
+        let deadline = crate::deadline::Deadline::from_request(&req)?;
+        if deadline.is_expired() {
+            self.state.metrics.record_cancelled_before_exec();
+            return Err(crate::deadline::deadline_status());
+        }
         let req = req.into_inner();
         let state = self.state.clone();
-        let out = tokio::task::spawn_blocking(move || crate::results::analyze_query::analyze_query(&state, &req))
-            .await
-            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query task failed: {e}"))))?;
+        let worker_deadline = deadline.clone();
+        let out = tokio::task::spawn_blocking(move || {
+            crate::results::analyze_query::analyze_query(&state, &req, &worker_deadline)
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query task failed: {e}"))))?;
+        if deadline.is_expired() {
+            return Err(crate::deadline::deadline_status());
+        }
         Ok(Response::new(out.map_err(plain)?))
     }
 
@@ -265,13 +276,21 @@ impl AnalysisService for Analysis {
 
     async fn rerank_and_highlight(&self, req: Request<RerankAndHighlightRequest>) -> Reply<RerankAndHighlightResponse> {
         let deadline = crate::deadline::Deadline::from_request(&req)?;
+        if deadline.is_expired() {
+            self.state.metrics.record_cancelled_before_exec();
+            return Err(crate::deadline::deadline_status());
+        }
         let req = req.into_inner();
         let state = self.state.clone();
+        let worker_deadline = deadline.clone();
         let out = tokio::task::spawn_blocking(move || {
-            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, &deadline)
+            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, &worker_deadline)
         })
         .await
         .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("rerank_and_highlight task failed: {e}"))))?;
+        if deadline.is_expired() {
+            return Err(crate::deadline::deadline_status());
+        }
         Ok(Response::new(out.map_err(plain)?))
     }
 

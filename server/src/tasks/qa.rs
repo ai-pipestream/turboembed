@@ -49,6 +49,7 @@ pub(crate) fn infer_qa(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
+    priority: Option<crate::priority::Priority>,
     deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     const ALL_OUTPUTS: [&str; 3] = ["spans", "scores", "probabilities"];
@@ -76,9 +77,8 @@ pub(crate) fn infer_qa(
     let map_err = |e: turbo::status::Error| Failure::new(e.code, e.field, e.message);
 
     let _docs = loaded.metrics.track_docs(1, Some(loaded.device));
-    deadline.check_alive()?;
-    let held = loaded.take()?;
-    deadline.check_alive()?;
+    let held = loaded.take_or_acquire(priority, deadline)?;
+    crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     let slot = held.slot();
     let mut cfg = qa.config.clone();
     cfg.max_seq = slot.info.max_seq;
@@ -91,7 +91,7 @@ pub(crate) fn infer_qa(
     let mut last_info = None;
     let fill = qa.tokenizer.fill_id();
     for chunk in windows.chunks(slot.info.max_batch as usize) {
-        deadline.check_alive()?;
+        crate::priority::check_before_exec(deadline, &loaded.metrics)?;
         loaded.metrics.record_batch_size(chunk.len());
         let (batch_logits, info) =
             unsafe { turbo::qa::run_window_batch(slot.session.as_ptr(), fill, &qa.head, chunk) }.map_err(map_err)?;

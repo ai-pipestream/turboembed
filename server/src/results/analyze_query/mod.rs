@@ -222,7 +222,12 @@ fn filter_to_proto(offsetter: &Offsetter, text: &str, f: &StructuredFilterPlan) 
 }
 
 /// Executes one-pass `AnalyzeQuery` against `state` (`#2339`).
-pub(crate) fn analyze_query(state: &State, req: &AnalyzeQueryRequest) -> Result<AnalyzeQueryResponse> {
+pub(crate) fn analyze_query(
+    state: &State,
+    req: &AnalyzeQueryRequest,
+    deadline: &crate::deadline::Deadline,
+) -> Result<AnalyzeQueryResponse> {
+    crate::priority::check_before_exec(deadline, &state.metrics)?;
     let offsets = OffsetMode::from_proto(req.offsets)?;
     let mut builder = OnePassQueryAnalyzer::builder();
     if !req.default_language.trim().is_empty() {
@@ -240,8 +245,8 @@ pub(crate) fn analyze_query(state: &State, req: &AnalyzeQueryRequest) -> Result<
     let analyzer = builder.build().map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
     let plan = analyzer.analyze(&req.query).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
 
-    let dense_results = encode::encode_dense_targets(state, &req.dense_targets, &plan)?;
-    let splade_results = encode::encode_splade_targets(state, &req.splade_targets, &plan, offsets)?;
+    let dense_results = encode::encode_dense_targets(state, &req.dense_targets, &plan, deadline)?;
+    let splade_results = encode::encode_splade_targets(state, &req.splade_targets, &plan, offsets, deadline)?;
 
     let offsetter = Offsetter::new(&plan.query, offsets);
     let (detected_language, language_score) = match &plan.language {

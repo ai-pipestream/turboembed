@@ -135,8 +135,8 @@ fn run_range_pool_highlights(
     let embed = loaded.embed()?;
     let hidden_dim = embed.dim as usize;
 
-    deadline.check_alive()?;
-    let held = loaded.take()?;
+    let held = loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
+    crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     held.reserve_token_ranges()?;
     let slot = held.slot();
 
@@ -198,7 +198,7 @@ fn run_range_pool_highlights(
         if rows.is_empty() {
             return Ok(());
         }
-        deadline.check_alive()?;
+        crate::priority::check_before_exec(deadline, &loaded.metrics)?;
         run_ranges_on_slot(&state.stream, &dead, slot, rows, ranges, hidden_dim as u32, flat)?;
         for (v, &t) in flat.chunks_exact(hidden_dim).zip(targets.iter()) {
             let x: Placed = plan.placed[t as usize];
@@ -267,8 +267,8 @@ fn run_contextual_maxsim_highlights(
 ) -> Result<ModelRef> {
     let (_, loaded) = state.ready(embed_name, "")?;
     let embed = loaded.embed()?;
-    deadline.check_alive()?;
-    let held = loaded.take()?;
+    let held = loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
+    crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     held.reserve_token_ranges()?;
     let slot = held.slot();
     let dead = AtomicBool::new(false);
@@ -339,15 +339,14 @@ fn run_qa_highlights(
     }
 
     let q_clean = clean_query_text(&req.query).map_err(|e| bad(e.to_string()))?;
-    deadline.check_alive()?;
-    let held = loaded.take()?;
+    let held = loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
     let slot = held.slot();
     let mut cfg = qa.config.clone();
     cfg.max_seq = slot.info.max_seq;
     let fill = qa.tokenizer.fill_id();
 
     for (entry, passage) in top.iter_mut().zip(passages) {
-        deadline.check_alive()?;
+        crate::priority::check_before_exec(deadline, &loaded.metrics)?;
         let ctx = passage.clean_text();
         if ctx.trim().is_empty() {
             entry.qa_abstained = true;
@@ -362,7 +361,7 @@ fn run_qa_highlights(
         }
         let mut win_logits = Vec::with_capacity(windows.len());
         for chunk in windows.chunks((slot.info.max_batch as usize).max(1)) {
-            deadline.check_alive()?;
+            crate::priority::check_before_exec(deadline, &loaded.metrics)?;
             loaded.metrics.record_batch_size(chunk.len());
             state.stream.runs.fetch_add(1, Ordering::Relaxed);
             let (batch_logits, _) =
