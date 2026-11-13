@@ -9,13 +9,15 @@ import { $, el, input, say, table } from "../dom.js";
 import { analysis, describe, explain, inference, setToken, token } from "../rpc.js";
 import { lock, off } from "../permit.js";
 import { AnalysisService } from "../gen/turbo_analysis_pb.js";
-import { onReachable, onServed, permits, reachable, refresh, setStatus } from "../state.js";
+import { onCapabilities, onCapabilitiesFailed, onReachable, onServed, permits, reachable, refresh, setStatus } from "../state.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 
 // How often the status is read again while the page is open and in view.
 const EVERY_MS = 10_000;
 
 let checking: Promise<void> | null = null;
+let statusCall = 0;
+let served = false;
 
 /** Whether `e` says nothing answered, rather than an answer that refuses. */
 function unreached(e: unknown): boolean {
@@ -24,14 +26,17 @@ function unreached(e: unknown): boolean {
 }
 
 async function check(): Promise<void> {
+  const id = ++statusCall;
   const s = $("server");
   try {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
+    if (id !== statusCall) return;
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
     setStatus(true, ready.ready);
   } catch (e) {
+    if (id !== statusCall) return;
     if (unreached(e)) {
       s.textContent = "server not reachable";
       s.className = "error status down";
@@ -65,9 +70,17 @@ function watch(): void {
   const retry = $("down-retry") as HTMLButtonElement;
   retry.addEventListener("click", () => void busy(retry, status));
   onReachable((up) => ($("down").hidden = up));
+  onCapabilities(renderCapabilities);
+  onCapabilitiesFailed((e) => {
+    const why = reachable() === false ? "The server is not reachable, so what it serves cannot be listed." : describe(e);
+    $("server-caps").replaceChildren(el("p", { class: "error", text: why }));
+  });
   // What the server serves is read once the status is known, and again
   // when it is back or turns ready, so every tab refills.
-  onServed(() => void reload());
+  onServed(() => {
+    served = true;
+    void reload();
+  });
 }
 
 function renderCapabilities(c: CapabilitiesResponse): void {
@@ -106,10 +119,9 @@ function unloadButton(name: string): HTMLElement {
 
 async function reload(): Promise<void> {
   try {
-    renderCapabilities(await refresh());
-  } catch (e) {
-    const why = reachable() === false ? "The server is not reachable, so what it serves cannot be listed." : describe(e);
-    $("server-caps").replaceChildren(el("p", { class: "error", text: why }));
+    await refresh();
+  } catch {
+    // Drawn by onCapabilitiesFailed when this call is still the latest.
   }
 }
 
@@ -137,10 +149,17 @@ async function load(ev: Event): Promise<void> {
 export function init(): void {
   const t = input("token");
   t.value = token();
+  let tokenCall = 0;
   t.addEventListener("change", () => {
+    const id = ++tokenCall;
     setToken(t.value.trim());
-    void status();
-    void permits().then(reload);
+    void (async () => {
+      await permits();
+      if (id !== tokenCall) return;
+      served = false;
+      await check();
+      if (id === tokenCall && !served) void reload();
+    })();
   });
   $("server-load").addEventListener("submit", load);
   lock($("server-load"), AnalysisService.method.loadBundle);

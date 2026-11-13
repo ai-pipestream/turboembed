@@ -642,6 +642,8 @@ either: every call the page makes goes through the demo to the server.
   stops, with the notice and Retry, and green again with no reload once
   it is back, the tabs refilled. A page opened with the server stopped
   says on each tab that the server is not reachable, and fills on Retry.
+  A late `Capabilities` answer from an earlier refresh does not
+  overwrite a newer one.
 - With no `--allow`, every write form is off and names the `--allow`
   that turns it on, and Unload is off with its reason; with `--allow`
   for CreateIndex only, that form alone is live and creates an index.
@@ -660,7 +662,8 @@ either: every call the page makes goes through the demo to the server.
 - On Analyze the two `turbo:boundaries` chips read apart and pick
   alone; a picked layer is named in the legend, a mark clicked or
   focused lists its annotations beside the text, and two picked layers
-  show in two colours.
+  show in two colours. A late `InspectDocumentWindow` answer from an
+  earlier layer pick does not overwrite a newer pick.
 - A search for "memory safe language" marks those words in its hits,
   each mark naming its signal and the legend naming every signal.
 - At 390 pixels, Run on Embed, Semantic, Analyze and Search brings the

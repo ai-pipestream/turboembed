@@ -7118,7 +7118,7 @@ var bearer = (next) => async (req) => {
   return next(req);
 };
 function base() {
-  return location.origin;
+  return typeof location === "undefined" ? "" : location.origin;
 }
 var transport = createConnectTransport({
   baseUrl: base(),
@@ -7413,21 +7413,27 @@ function stale(was, now) {
 
 // demo/web/src/state.ts
 var current2 = null;
+var capCall = 0;
 var listeners2 = [];
 var failures = [];
-function capabilities() {
+function capabilities(read = () => analysis.capabilities({})) {
   if (!current2) {
-    current2 = analysis.capabilities({});
+    const id = ++capCall;
+    current2 = read();
     current2.then(
-      (c) => listeners2.forEach((l) => l(c)),
-      (e) => failures.forEach((l) => l(e))
+      (c) => {
+        if (id === capCall) listeners2.forEach((l) => l(c));
+      },
+      (e) => {
+        if (id === capCall) failures.forEach((l) => l(e));
+      }
     );
   }
   return current2;
 }
-function refresh() {
+function refresh(read) {
   current2 = null;
-  return capabilities();
+  return capabilities(read);
 }
 function onCapabilities(l) {
   listeners2.push(l);
@@ -7460,17 +7466,20 @@ function onServed(l) {
 function whyNone(what) {
   return reachable() === false ? "the server is not reachable" : `no ${what} is served`;
 }
-async function permits() {
+var permitCall = 0;
+async function permits(read = () => demo.describe({}, { signal: AbortSignal.timeout(3e3) })) {
+  const id = ++permitCall;
   try {
-    const d = await demo.describe({}, { signal: AbortSignal.timeout(3e3) });
-    set(d.forwardedWrites, d.hasUser);
+    const d = await read();
+    if (id === permitCall) set(d.forwardedWrites, d.hasUser);
   } catch {
-    set(null);
+    if (id === permitCall) set(null);
   }
 }
 
 // demo/web/src/tabs/analyze.ts
 var running2 = null;
+var windowCall = 0;
 var page = 0;
 var filter = /* @__PURE__ */ new Set();
 var shape = null;
@@ -7624,6 +7633,7 @@ function lanesView(w) {
   return box5;
 }
 async function showWindow() {
+  const call = ++windowCall;
   const graph = doc()?.graph;
   const box5 = $("analyze-window");
   if (!graph) return void box5.replaceChildren();
@@ -7634,6 +7644,7 @@ async function showWindow() {
       analysis.inspectDocumentWindow({ ...base2, page }),
       analysis.inspectDocumentWindow({ ...base2, page: 0, heatmapBuckets: 96 })
     ]);
+    if (call !== windowCall) return;
     const win = w.window;
     shape = w.summary?.layers ?? [];
     const chips = shape.map((l) => {
@@ -7641,7 +7652,7 @@ async function showWindow() {
       const on = filter.has(key3);
       const b = el("button", { type: "button", class: on ? "chip on" : "chip", "aria-pressed": String(on), text: `${layerName(l.layer, l.instance)} ${l.items}` });
       b.addEventListener("click", () => {
-        if (on) filter.delete(key3);
+        if (filter.has(key3)) filter.delete(key3);
         else filter.add(key3);
         void showWindow();
       });
@@ -7671,6 +7682,7 @@ async function showWindow() {
     settle?.();
     settle = null;
   } catch (e) {
+    if (call !== windowCall) return;
     box5.replaceChildren(failed(explain(e)));
   }
 }
@@ -9702,7 +9714,7 @@ function init9() {
   $("search-form").addEventListener("submit", runSearch);
   const refreshButton = $("search-refresh");
   refreshButton.addEventListener("click", () => void busy(refreshButton, list3));
-  const served = () => {
+  const served2 = () => {
     const embed2 = caps?.bundles.filter((b) => b.task === "TASK_EMBED") ?? [];
     options(select2("search-create-bundle"), embed2.map((b) => b.name), embed2.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`), whyNone("embedding model"));
     const rerank2 = caps?.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name) ?? [];
@@ -9710,15 +9722,15 @@ function init9() {
     else options(select2("search-rerank"), [], void 0, reachable() === false ? "the server is not reachable" : "no rerank");
   };
   onReachable(() => {
-    if (!caps) served();
+    if (!caps) served2();
   });
   onServed(() => void list3());
   onChange(() => void list3());
   onCapabilities((c) => {
     caps = c;
-    served();
+    served2();
   });
-  onCapabilitiesFailed(served);
+  onCapabilitiesFailed(served2);
 }
 
 // demo/web/src/tabs/semantic.ts
@@ -9825,7 +9837,7 @@ function init10() {
   const go2 = $("sem-run");
   go2.addEventListener("click", () => void busy(go2, run3));
   const kinds2 = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
-  const served = () => {
+  const served2 = () => {
     for (const [id, task, what] of kinds2) {
       const names2 = caps2?.bundles.filter((b) => b.task === task).map((b) => b.name) ?? [];
       if (id !== "sem-embed") $(`${id}-pick`).hidden = names2.length === 0;
@@ -9843,13 +9855,13 @@ function init10() {
   onCapabilities((c) => {
     caps2 = c;
     say($("sem-note"), "");
-    served();
+    served2();
   });
   onReachable(() => {
-    if (!caps2) served();
+    if (!caps2) served2();
   });
   onCapabilitiesFailed((err) => {
-    served();
+    served2();
     if (reachable() === false) say($("sem-note"), "");
     else say($("sem-note"), explain(err));
   });
@@ -9858,19 +9870,24 @@ function init10() {
 // demo/web/src/tabs/server.ts
 var EVERY_MS = 1e4;
 var checking = null;
+var statusCall = 0;
+var served = false;
 function unreached(e) {
   const c = ConnectError.from(e).code;
   return c !== Code.Unauthenticated && c !== Code.PermissionDenied;
 }
 async function check() {
+  const id = ++statusCall;
   const s = $("server");
   try {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
+    if (id !== statusCall) return;
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
     s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
     s.className = ready.ready ? "muted status up" : "muted status";
     setStatus(true, ready.ready);
   } catch (e) {
+    if (id !== statusCall) return;
     if (unreached(e)) {
       s.textContent = "server not reachable";
       s.className = "error status down";
@@ -9898,7 +9915,15 @@ function watch2() {
   const retry = $("down-retry");
   retry.addEventListener("click", () => void busy(retry, status));
   onReachable((up) => $("down").hidden = up);
-  onServed(() => void reload());
+  onCapabilities(renderCapabilities);
+  onCapabilitiesFailed((e) => {
+    const why = reachable() === false ? "The server is not reachable, so what it serves cannot be listed." : describe(e);
+    $("server-caps").replaceChildren(el("p", { class: "error", text: why }));
+  });
+  onServed(() => {
+    served = true;
+    void reload();
+  });
 }
 function renderCapabilities(c) {
   const box5 = $("server-caps");
@@ -9932,10 +9957,8 @@ function unloadButton(name) {
 }
 async function reload() {
   try {
-    renderCapabilities(await refresh());
-  } catch (e) {
-    const why = reachable() === false ? "The server is not reachable, so what it serves cannot be listed." : describe(e);
-    $("server-caps").replaceChildren(el("p", { class: "error", text: why }));
+    await refresh();
+  } catch {
   }
 }
 async function load2(ev) {
@@ -9961,10 +9984,17 @@ async function load2(ev) {
 function init11() {
   const t = input("token");
   t.value = token();
+  let tokenCall = 0;
   t.addEventListener("change", () => {
+    const id = ++tokenCall;
     setToken(t.value.trim());
-    void status();
-    void permits().then(reload);
+    void (async () => {
+      await permits();
+      if (id !== tokenCall) return;
+      served = false;
+      await check();
+      if (id === tokenCall && !served) void reload();
+    })();
   });
   $("server-load").addEventListener("submit", load2);
   lock($("server-load"), AnalysisService.method.loadBundle);

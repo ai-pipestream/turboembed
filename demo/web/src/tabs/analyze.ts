@@ -16,6 +16,7 @@ import { analysis, explain } from "../rpc.js";
 import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
 
 let running: AbortController | null = null;
+let windowCall = 0;
 let page = 0;
 // The layers picked to show, as layer keys (marks.ts); empty for all.
 let filter = new Set<string>();
@@ -184,6 +185,7 @@ function lanesView(w: DocumentWindowResponse): HTMLElement {
 }
 
 async function showWindow(): Promise<void> {
+  const call = ++windowCall;
   const graph = doc()?.graph;
   const box = $("analyze-window");
   if (!graph) return void box.replaceChildren();
@@ -195,6 +197,7 @@ async function showWindow(): Promise<void> {
       analysis.inspectDocumentWindow({ ...base, page }),
       analysis.inspectDocumentWindow({ ...base, page: 0, heatmapBuckets: 96 }),
     ]);
+    if (call !== windowCall) return;
     const win = w.window;
     shape = w.summary?.layers ?? [];
     const chips = shape.map((l) => {
@@ -202,7 +205,7 @@ async function showWindow(): Promise<void> {
       const on = filter.has(key);
       const b = el("button", { type: "button", class: on ? "chip on" : "chip", "aria-pressed": String(on), text: `${layerName(l.layer, l.instance)} ${l.items}` });
       b.addEventListener("click", () => {
-        if (on) filter.delete(key);
+        if (filter.has(key)) filter.delete(key);
         else filter.add(key);
         void showWindow();
       });
@@ -233,6 +236,7 @@ async function showWindow(): Promise<void> {
     settle?.();
     settle = null;
   } catch (e) {
+    if (call !== windowCall) return;
     box.replaceChildren(failed(explain(e)));
   }
 }

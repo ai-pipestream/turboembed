@@ -7,24 +7,34 @@ import { analysis, demo } from "./rpc.js";
 import { stale, type Status } from "./status.js";
 
 let current: Promise<CapabilitiesResponse> | null = null;
+let capCall = 0;
 const listeners: ((c: CapabilitiesResponse) => void)[] = [];
 const failures: ((e: unknown) => void)[] = [];
 
 /** The server's capabilities, fetched on first use and after `refresh`. */
-export function capabilities(): Promise<CapabilitiesResponse> {
+export function capabilities(
+  read: () => Promise<CapabilitiesResponse> = () => analysis.capabilities({}),
+): Promise<CapabilitiesResponse> {
   if (!current) {
-    current = analysis.capabilities({});
+    const id = ++capCall;
+    current = read();
     current.then(
-      (c) => listeners.forEach((l) => l(c)),
-      (e) => failures.forEach((l) => l(e)),
+      (c) => {
+        if (id === capCall) listeners.forEach((l) => l(c));
+      },
+      (e) => {
+        if (id === capCall) failures.forEach((l) => l(e));
+      },
     );
   }
   return current;
 }
 
-export function refresh(): Promise<CapabilitiesResponse> {
+export function refresh(
+  read?: () => Promise<CapabilitiesResponse>,
+): Promise<CapabilitiesResponse> {
   current = null;
-  return capabilities();
+  return capabilities(read);
 }
 
 /** Calls `l` with each new capabilities answer. */
@@ -88,13 +98,19 @@ export function whyNone(what: string): string {
   return reachable() === false ? "the server is not reachable" : `no ${what} is served`;
 }
 
+let permitCall = 0;
+
 /** Asks the demo which writes it forwards; with no answer, nothing is turned off. */
-export async function permits(): Promise<void> {
+export async function permits(
+  read: () => Promise<{ forwardedWrites: string[]; hasUser: boolean }> = () =>
+    demo.describe({}, { signal: AbortSignal.timeout(3000) }),
+): Promise<void> {
+  const id = ++permitCall;
   try {
     // A demo that does not answer must not hold the page back.
-    const d = await demo.describe({}, { signal: AbortSignal.timeout(3000) });
-    permit.set(d.forwardedWrites, d.hasUser);
+    const d = await read();
+    if (id === permitCall) permit.set(d.forwardedWrites, d.hasUser);
   } catch {
-    permit.set(null);
+    if (id === permitCall) permit.set(null);
   }
 }

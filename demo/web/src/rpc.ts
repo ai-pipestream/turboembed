@@ -32,7 +32,7 @@ const bearer: Interceptor = (next) => async (req) => {
 
 /** The page's origin: the demo serves the page and forwards its calls. */
 export function base(): string {
-  return location.origin;
+  return typeof location === "undefined" ? "" : location.origin;
 }
 
 const transport = createConnectTransport({
