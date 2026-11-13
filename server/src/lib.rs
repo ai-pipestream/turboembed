@@ -317,7 +317,7 @@ impl Server {
         ))
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);
-        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
+        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary::new(store, serve.admin))
             .max_decoding_message_size(max_message_bytes)
             .max_encoding_message_size(max_reply_bytes);
         let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(

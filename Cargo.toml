@@ -60,6 +60,7 @@ members = [
     "analysis/stem-layers",
     "analysis/stopword",
     "analysis/stopword-layers",
+    "analysis/suggest",
     "analysis/eval",
     "analysis/train",
     "analysis/train-components",

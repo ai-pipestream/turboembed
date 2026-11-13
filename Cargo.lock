@@ -2080,6 +2080,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-sha256",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -2491,6 +2492,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-pins",
  "turbo-stem-layers",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -2559,6 +2561,7 @@ dependencies = [
  "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-structure",
+ "turbo-suggest",
  "turbo-tagger",
  "turbo-tokenize",
  "turbo-tokenize-layers",
@@ -2947,6 +2950,19 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-chunker",
  "turbo-normalize",
+ "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-suggest"
+version = "0.1.0"
+dependencies = [
+ "memmap2",
+ "turbo-analysis",
+ "turbo-ngram",
+ "turbo-normalize",
+ "turbo-stem",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 

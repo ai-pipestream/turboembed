@@ -47,6 +47,25 @@ service TurboVocabularyService
   // vocabulary as learned, in chunks of at most 64 KiB, the descriptor
   // first.
   rpc DownloadVocabulary(DownloadVocabularyRequest) returns (stream VocabularyArtifactChunk) {}
+
+  // Lists compiled stem-to-surface and surface-prefix lexicons (#2341).
+  rpc ListSuggestLexicons(ListSuggestLexiconsRequest) returns (ListSuggestLexiconsResponse) {}
+
+  // Client-streaming builder for a zero-copy stem-to-surface and prefix
+  // lexicon (#2341): one BuildSuggestLexiconHeader followed by either
+  // explicit (surface, stem, count) observations or raw documents.
+  rpc BuildSuggestLexicon(stream BuildSuggestLexiconRequest) returns (SuggestLexiconArtifactDescriptor) {}
+
+  // Completes a surface prefix against a mapped suggest lexicon (#2341),
+  // returning canonical surface completions paired with target stems.
+  rpc SuggestPrefix(SuggestPrefixRequest) returns (SuggestPrefixResponse) {}
+
+  // Looks up canonical surface realizations for an indexed stem (#2341).
+  rpc LookupStemSurfaces(LookupStemSurfacesRequest) returns (LookupStemSurfacesResponse) {}
+
+  // Context-aware multi-word query spellcheck ("Did you mean?", #2341)
+  // backed by a learned vocabulary artifact's unigram and n-gram counts.
+  rpc SpellcheckQuery(SpellcheckQueryRequest) returns (SpellcheckQueryResponse) {}
 }
 
 message ListDictionaryFormatsRequest {}
@@ -209,5 +228,130 @@ message VocabularyArtifactChunk
     VocabularyArtifactDescriptor vocabulary = 2;
     // Every later frame: the next bytes, at most 64 KiB.
     bytes data = 3;
+    SuggestLexiconArtifactDescriptor suggest_lexicon = 4;
   }
+}
+
+message SuggestLexiconArtifactDescriptor
+{
+  string artifact_id = 1;
+  string language = 2;
+  uint64 entry_count = 3;
+  uint64 stem_count = 4;
+  uint64 byte_size = 5;
+  string sha256 = 6;
+}
+
+message ListSuggestLexiconsRequest {}
+
+message ListSuggestLexiconsResponse
+{
+  repeated SuggestLexiconArtifactDescriptor lexicons = 1;
+}
+
+message BuildSuggestLexiconHeader
+{
+  // BCP 47 language tag selecting the server stemmer when raw documents are
+  // streamed (defaults to "en" Snowball English when empty).
+  string language = 1;
+  // Maximum completions stored per folded prefix node (0 uses default 16).
+  uint32 top_k_prefix = 2;
+  // Maximum surface realizations stored per stem (0 uses default 16).
+  uint32 top_k_stem = 3;
+  // When raw documents are streamed, count document frequency (1 per document)
+  // rather than raw term frequency.
+  bool count_doc_freq = 4;
+}
+
+message SuggestObservation
+{
+  string surface = 1;
+  string stem = 2;
+  uint64 count = 3;
+}
+
+message BuildSuggestLexiconRequest
+{
+  oneof frame
+  {
+    BuildSuggestLexiconHeader header = 1;
+    SuggestObservation observation = 2;
+    LearnVocabularyDocument document = 3;
+  }
+}
+
+message SuggestPrefixRequest
+{
+  string artifact_id = 1;
+  string prefix = 2;
+  uint32 limit = 3;
+}
+
+message SurfaceCompletionItem
+{
+  string surface = 1;
+  string stem = 2;
+  uint64 count = 3;
+}
+
+message SuggestPrefixResponse
+{
+  repeated SurfaceCompletionItem completions = 1;
+}
+
+message LookupStemSurfacesRequest
+{
+  string artifact_id = 1;
+  string stem = 2;
+  uint32 limit = 3;
+}
+
+message StemSurfaceItem
+{
+  string surface = 1;
+  uint64 count = 2;
+}
+
+message LookupStemSurfacesResponse
+{
+  repeated StemSurfaceItem surfaces = 1;
+}
+
+enum SpellcheckOffsetMode
+{
+  SPELLCHECK_OFFSET_MODE_UTF8 = 0;
+  SPELLCHECK_OFFSET_MODE_UTF16 = 1;
+  SPELLCHECK_OFFSET_MODE_CODE_POINT = 2;
+}
+
+message SpellcheckSpan
+{
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+message SpellcheckQueryRequest
+{
+  string vocabulary_artifact_id = 1;
+  string query = 2;
+  SpellcheckOffsetMode offsets = 3;
+  repeated SpellcheckSpan protected_spans = 4;
+  uint32 max_edit_distance = 5;
+}
+
+message SpellcheckEditItem
+{
+  SpellcheckSpan span = 1;
+  string original = 2;
+  string replacement = 3;
+  uint32 edit_distance = 4;
+}
+
+message SpellcheckQueryResponse
+{
+  string corrected_query = 1;
+  bool did_change = 2;
+  double confidence = 3;
+  SpellcheckOffsetMode offsets = 4;
+  repeated SpellcheckEditItem edits = 5;
 }

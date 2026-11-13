@@ -9,6 +9,7 @@ pub(crate) mod bind;
 pub(crate) mod formats;
 mod learn;
 mod store;
+mod suggest;
 
 use std::pin::Pin;
 use std::sync::Arc;
@@ -41,6 +42,13 @@ pub(crate) const MAX_LANGUAGE: usize = 64;
 pub(crate) struct Vocabulary {
     pub(crate) store: Option<Arc<Store>>,
     pub(crate) admin: bool,
+    pub(crate) suggest: Arc<suggest::SuggestCache>,
+}
+
+impl Vocabulary {
+    pub(crate) fn new(store: Option<Arc<Store>>, admin: bool) -> Self {
+        Vocabulary { store, admin, suggest: Arc::new(suggest::SuggestCache::default()) }
+    }
 }
 
 fn fail(code: i32, message: impl Into<String>) -> Status {
@@ -210,6 +218,7 @@ impl TurboVocabularyService for Vocabulary {
         if !gone {
             return Err(not_found(&id));
         }
+        self.suggest.evict(&id);
         Ok(Response::new(DeleteVocabularyArtifactResponse {}))
     }
 
@@ -335,19 +344,50 @@ impl TurboVocabularyService for Vocabulary {
     async fn download_vocabulary(&self, req: Request<DownloadVocabularyRequest>) -> Reply<ChunkStream> {
         let id = req.into_inner().artifact_id;
         let store = self.store.clone().ok_or_else(|| not_found(&id))?;
-        let stored = {
-            let id = id.clone();
-            blocking(move || store.read(&id).map_err(internal)).await?
-        };
         use vocabulary_artifact_chunk::Frame;
-        let (head, bytes) = match stored.ok_or_else(|| not_found(&id))? {
-            Stored::Dictionary(d, b) => (Frame::Dictionary(d), b),
-            Stored::Vocabulary(v, b) => (Frame::Vocabulary(v), b),
+        let (head, bytes) = {
+            let id = id.clone();
+            blocking(move || match store.read(&id).map_err(internal)? {
+                Some(Stored::Dictionary(d, b)) => Ok((Frame::Dictionary(d), b)),
+                Some(Stored::Vocabulary(v, b)) => Ok((Frame::Vocabulary(v), b)),
+                None => match store.read_suggest(&id).map_err(internal)? {
+                    Some((s, b)) => Ok((Frame::SuggestLexicon(s), b)),
+                    None => Err(not_found(&id)),
+                },
+            })
+            .await?
         };
         let frames: Vec<Result<VocabularyArtifactChunk, Status>> = std::iter::once(head)
             .chain(bytes.chunks(DOWNLOAD_CHUNK_BYTES).map(|c| Frame::Data(c.to_vec())))
             .map(|f| Ok(VocabularyArtifactChunk { frame: Some(f) }))
             .collect();
         Ok(Response::new(Box::pin(tokio_stream::iter(frames))))
+    }
+
+    async fn list_suggest_lexicons(
+        &self,
+        _: Request<ListSuggestLexiconsRequest>,
+    ) -> Reply<ListSuggestLexiconsResponse> {
+        let lexicons = self.store.as_ref().map(|s| s.suggest_lexicons()).unwrap_or_default();
+        Ok(Response::new(ListSuggestLexiconsResponse { lexicons }))
+    }
+
+    async fn build_suggest_lexicon(
+        &self,
+        req: Request<Streaming<BuildSuggestLexiconRequest>>,
+    ) -> Reply<SuggestLexiconArtifactDescriptor> {
+        suggest::build_suggest_lexicon(self, req).await
+    }
+
+    async fn suggest_prefix(&self, req: Request<SuggestPrefixRequest>) -> Reply<SuggestPrefixResponse> {
+        suggest::suggest_prefix(self, req).await
+    }
+
+    async fn lookup_stem_surfaces(&self, req: Request<LookupStemSurfacesRequest>) -> Reply<LookupStemSurfacesResponse> {
+        suggest::lookup_stem_surfaces(self, req).await
+    }
+
+    async fn spellcheck_query(&self, req: Request<SpellcheckQueryRequest>) -> Reply<SpellcheckQueryResponse> {
+        suggest::spellcheck_query(self, req).await
     }
 }
