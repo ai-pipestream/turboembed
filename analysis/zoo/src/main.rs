@@ -4,8 +4,8 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use turbo_zoo::{
-    Acceptances, Home, Http, Index, Licence, LicenceClass, LocalOnlyReason, OciRegistry, Policy, Requirement, Sha256,
-    Sha512, Sources, UserId, Zoo, ZooError,
+    Acceptances, Home, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512, Sources,
+    UserId, Zoo, ZooError,
 };
 
 mod import_cmd;
@@ -201,7 +201,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             let user = UserId::from_env()?;
             // A file at a registry's blob address is asked for again with
             // the anonymous token the registry wants.
-            let transport = Sources::new().then("address", Http::new()).then("registry", OciRegistry::new());
+            let transport = Sources::https();
             let zoo = Zoo::new(index, home.artifacts(), Policy::default(), &transport);
             // The acceptance file is read only for an artifact that needs it.
             let fetched = zoo.fetch_with(id, &user, || Acceptances::load(&accept_path)).map_err(e)?;

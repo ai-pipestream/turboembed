@@ -7,8 +7,9 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use super::Sources;
 use super::drive::resolve;
-use super::transport::Transport;
+use super::transport::{Http, Transport};
 use crate::digest::Sha256;
 use crate::index::Url;
 
@@ -199,6 +200,18 @@ impl Default for OciRegistry {
 impl Transport for OciRegistry {
     fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
         self.send(url.as_str(), None, size)
+    }
+}
+
+impl Sources {
+    /// An index's addresses as they are read over HTTPS: each one asked
+    /// plainly ([`Http`]), then, when that fails, as a blob of a registry
+    /// ([`OciRegistry`]), since most registries serve a blob only with a
+    /// token, for public repositories too. What `turbo-zoo fetch` and a
+    /// zoo server fetch through, so an entry `import-oci` wrote is read
+    /// by both.
+    pub fn https() -> Sources {
+        Sources::new().then("address", Http::new()).then("registry", OciRegistry::new())
     }
 }
 

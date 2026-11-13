@@ -4247,9 +4247,17 @@ function put(f, v) {
     if ([...f.options].some((o) => o.value === v)) f.value = v;
   } else f.value = v;
 }
+var restored = /* @__PURE__ */ new WeakSet();
 function restore(select5) {
+  if (restored.has(select5)) return;
   const v = select5.id ? recall(select5.id) : null;
-  if (v !== null && select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) put(select5, v);
+  if (v === null || !select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
+  if (!offered(v, [...select5.options].map((o) => o.value))) return;
+  select5.value = v;
+  restored.add(select5);
+}
+function offered(v, values) {
+  return v !== null && values.includes(v);
 }
 var resetting = false;
 var resets = /* @__PURE__ */ new Map();
@@ -9828,6 +9836,7 @@ async function createIndex(ev) {
       say(note5, `Created ${name}.`);
       await list3();
       select2("search-index").value = name;
+      select2("search-index").dispatchEvent(new Event("change", { bubbles: true }));
     } catch (e) {
       say(note5, explain(e));
     }
@@ -10091,9 +10100,15 @@ function init12() {
       const first = !select3(id).dataset.filled;
       options(select3(id), ["", ...names2], ["none", ...names2]);
       select3(id).dataset.filled = "yes";
-      if (first) select3(id).value = names2[0];
+      if (first && !offered(recall(id), ["", ...names2])) select3(id).value = names2[0];
     }
   };
+  onReset("semantic", () => {
+    for (const [id, task] of kinds2) {
+      const first = caps2?.bundles.find((b) => b.task === task)?.name;
+      if (first) select3(id).value = first;
+    }
+  });
   onCapabilities((c) => {
     caps2 = c;
     say($("sem-note"), "");

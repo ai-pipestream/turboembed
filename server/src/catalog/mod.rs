@@ -88,7 +88,9 @@ impl Catalog {
             }
             None => Index::builtin(),
         };
-        let origin = turbo_zoo::Http::new();
+        // An entry's address may be a registry's blob, which is read with
+        // the anonymous token the registry asks for.
+        let origin = turbo_zoo::Sources::https();
         let transport: Arc<dyn Transport + Send + Sync> = match (store, data) {
             (Some(_), Some(_)) => return Err("--catalog-store and --catalog-data are two stores; give one".into()),
             (None, Some(dir)) => return Ok(Catalog::on_data(home, index, Arc::new(origin), DataDir::open(dir)?)),
@@ -126,7 +128,7 @@ impl Catalog {
 
 /// `store`, which keeps what it lacks, then the index's own addresses.
 #[cfg(feature = "catalog-http")]
-fn store_first(store: &str, origin: turbo_zoo::Http) -> Result<turbo_zoo::Sources, String> {
+fn store_first(store: &str, origin: turbo_zoo::Sources) -> Result<turbo_zoo::Sources, String> {
     let list = turbo_zoo::Sources::new();
     let list = if let Some(dir) = store.strip_prefix("file://") {
         if !dir.starts_with('/') {

@@ -10,6 +10,7 @@ import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
 import { $, el, failed, input, options, reveal, say, table } from "../dom.js";
 import { take } from "./take.js";
+import { offered, onReset, recall } from "../keep.js";
 import { explain, inference } from "../rpc.js";
 import { onCapabilities, onCapabilitiesFailed, onReachable, reachable, whyNone } from "../state.js";
 import { cosine, matrix, short, vectorsOf } from "./embed.js";
@@ -143,13 +144,21 @@ export function init(): void {
         options(select(id), [], undefined, whyNone(what));
         continue;
       }
-      // The first time a task has models, its first one is picked.
+      // The first time a task has models, its first one is picked, unless
+      // a pick kept from before a reload (keep.ts) was just put back.
       const first = !select(id).dataset.filled;
       options(select(id), ["", ...names], ["none", ...names]);
       select(id).dataset.filled = "yes";
-      if (first) select(id).value = names[0];
+      if (first && !offered(recall(id), ["", ...names])) select(id).value = names[0];
     }
   };
+  // Reset to sample picks each task's first model again, as a first visit does.
+  onReset("semantic", () => {
+    for (const [id, task] of kinds) {
+      const first = caps?.bundles.find((b) => b.task === task)?.name;
+      if (first) select(id).value = first;
+    }
+  });
   onCapabilities((c) => {
     caps = c;
     say($("sem-note"), "");
