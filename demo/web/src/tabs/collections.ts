@@ -8,15 +8,20 @@ import { TurboSearchService, type CollectionEvent } from "../gen/turbo_search_pb
 import { off, onChange } from "../permit.js";
 import { cancelled, describe, explain, search } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
+import { latest } from "../latest.js";
 
 let watching: AbortController | null = null;
 
 const note = () => $("coll-note");
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("coll-list");
   try {
     const r = await search.listCollections({});
+    if (!mine()) return;
     box.replaceChildren(
       r.collections.length
         ? table(
@@ -34,6 +39,7 @@ async function list(): Promise<void> {
         : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." }),
     );
   } catch (e) {
+    if (!mine()) return;
     box.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }

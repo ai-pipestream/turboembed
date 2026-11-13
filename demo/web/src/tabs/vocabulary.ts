@@ -11,6 +11,7 @@ import { describe, explain, vocabulary } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
 import { put } from "../upload.js";
+import { latest } from "../latest.js";
 
 // Every call in flight: an import, a learn and downloads can run side
 // by side, each with its own signal, and Stop ends them all.
@@ -46,10 +47,14 @@ function actions(id: string): HTMLElement {
   return el("span", {}, get, " ", del);
 }
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("vocab-lists");
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
+    if (!mine()) return;
     const importable = f.formats.filter((x) => x.importable);
     options(select("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
@@ -75,6 +80,7 @@ async function list(): Promise<void> {
       ),
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     // A select is never left blank: it says why there is nothing to pick.
     for (const id of ["vocab-format", "vocab-seed"]) options(select(id), [], undefined, down ? "the server is not reachable" : "the store could not be listed");

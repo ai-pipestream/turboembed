@@ -7539,17 +7539,26 @@ var listeners2 = [];
 var failures = [];
 function capabilities() {
   if (!current2) {
-    current2 = analysis.capabilities({});
-    current2.then(
-      (c) => listeners2.forEach((l) => l(c)),
-      (e) => failures.forEach((l) => l(e))
+    const mine = analysis.capabilities({});
+    current2 = mine;
+    mine.then(
+      (c) => current2 === mine && listeners2.forEach((l) => l(c)),
+      (e) => current2 === mine && failures.forEach((l) => l(e))
     );
   }
   return current2;
 }
-function refresh() {
+async function refresh() {
   current2 = null;
-  return capabilities();
+  for (; ; ) {
+    const mine = capabilities();
+    try {
+      const c = await mine;
+      if (current2 === mine) return c;
+    } catch (e) {
+      if (current2 === mine) throw e;
+    }
+  }
 }
 function onCapabilities(l) {
   listeners2.push(l);
@@ -7589,6 +7598,15 @@ async function permits() {
   } catch {
     set(null);
   }
+}
+
+// demo/web/src/latest.ts
+function latest() {
+  let n = 0;
+  return () => {
+    const mine = ++n;
+    return () => mine === n;
+  };
 }
 
 // demo/web/src/tabs/analyze.ts
@@ -7745,7 +7763,9 @@ function lanesView(w) {
   }
   return box5;
 }
+var freshWindow = latest();
 async function showWindow() {
+  const mine = freshWindow();
   const graph = doc()?.graph;
   const box5 = $("analyze-window");
   if (!graph) return void box5.replaceChildren();
@@ -7756,6 +7776,7 @@ async function showWindow() {
       analysis.inspectDocumentWindow({ ...base2, page }),
       analysis.inspectDocumentWindow({ ...base2, page: 0, heatmapBuckets: 96 })
     ]);
+    if (!mine()) return;
     const win = w.window;
     shape = w.summary?.layers ?? [];
     const chips = shape.map((l) => {
@@ -7793,6 +7814,7 @@ async function showWindow() {
     settle?.();
     settle = null;
   } catch (e) {
+    if (!mine()) return;
     box5.replaceChildren(failed(explain(e)));
   }
 }
@@ -7815,13 +7837,17 @@ async function exportDoc() {
   }
 }
 var formatsFailed = false;
+var freshFormats = latest();
 async function loadFormats() {
+  const mine = freshFormats();
   try {
     const f = await analysis.listOutputFormats({});
+    if (!mine()) return;
     options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
     if (formatsFailed) say($("analyze-note"), "");
     formatsFailed = false;
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     if (!select("analyze-format").value) options(select("analyze-format"), [], void 0, down ? "the server is not reachable" : "the formats could not be listed");
     formatsFailed = !down;
@@ -7869,10 +7895,13 @@ function init2() {
 // demo/web/src/tabs/collections.ts
 var watching = null;
 var note = () => $("coll-note");
+var freshList = latest();
 async function list() {
+  const mine = freshList();
   const box5 = $("coll-list");
   try {
     const r = await search.listCollections({});
+    if (!mine()) return;
     box5.replaceChildren(
       r.collections.length ? table(
         ["collection", "units", "mean length", "vocabulary", "alert at", "top terms", ""],
@@ -7888,6 +7917,7 @@ async function list() {
       ) : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." })
     );
   } catch (e) {
+    if (!mine()) return;
     box5.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }
@@ -8059,7 +8089,9 @@ function runs(x) {
   }
   return text;
 }
+var freshRender = latest();
 async function render() {
+  const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   if (d.views.length < 2) {
@@ -8070,6 +8102,7 @@ async function render() {
   const [offsets, unitName] = UNITS[unit().value] ?? UNITS.utf16;
   try {
     const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets, pageSize: 1, page: 0, xrayTargetView: b });
+    if (!mine()) return;
     const x = r.xray;
     if (!x) return void box().replaceChildren(el("p", { class: "muted", text: "The server gave no X-Ray for these views." }));
     const edits2 = x.runs.filter((r2) => r2.kind !== 0 /* EQUAL */).length;
@@ -8083,6 +8116,7 @@ async function render() {
       )
     );
   } catch (e) {
+    if (!mine()) return;
     box().replaceChildren(failed(explain(e)));
   }
 }
@@ -8164,11 +8198,15 @@ function draw() {
     ) : ""
   );
 }
+var freshRender2 = latest();
 async function render2() {
+  const mine = freshRender2();
   const d = doc();
   if (!d) return void box2().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
-    result = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: 1 /* UTF16 */ });
+    const r = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: 1 /* UTF16 */ });
+    if (!mine()) return;
+    result = r;
     if (!result.layers.some((l) => key2(l) === picked)) {
       const first = result.layers.find((l) => l.annotations.length);
       picked = first ? key2(first) : "";
@@ -8176,6 +8214,7 @@ async function render2() {
     shown = PAGE;
     draw();
   } catch (e) {
+    if (!mine()) return;
     result = null;
     box2().replaceChildren(failed(explain(e)));
   }
@@ -9070,9 +9109,12 @@ async function act(change, after2) {
     say(note2(), explain(e));
   }
 }
+var freshLoad = latest();
 async function load() {
+  const mine = freshLoad();
   try {
     const r = await catalog.listModelSources({});
+    if (!mine()) return;
     $("sources-list").replaceChildren(sourcesTable(r, load));
     const why = readOnly(r);
     $("sources-form").hidden = why !== "";
@@ -9081,6 +9123,7 @@ async function load() {
     else if (saidWhy && note2().textContent === saidWhy) say(note2(), "");
     saidWhy = why;
   } catch (e) {
+    if (!mine()) return;
     $("sources-list").replaceChildren(reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so the sources cannot be listed." }) : failed(explain(e)));
     say(note2(), "");
   }
@@ -9269,11 +9312,14 @@ async function saveFile(e, f) {
     if (saving === ac) saving = null;
   }
 }
+var freshCatalog = latest();
 async function loadCatalog() {
+  const mine = freshCatalog();
   const box5 = $("models-catalog");
   say(note3(), "Reading the catalog\u2026", "busy");
   try {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
+    if (!mine()) return;
     const w = who(acc);
     box5.replaceChildren(
       el("h3", { text: "Installed" }),
@@ -9290,6 +9336,7 @@ async function loadCatalog() {
     );
     say(note3(), "");
   } catch (e) {
+    if (!mine()) return;
     if (reachable() === false) say(note3(), "The server is not reachable, so its catalog cannot be read.", "error");
     else say(note3(), explain(e));
   }
@@ -9323,14 +9370,18 @@ async function installModel(e) {
     if (installing === ac) installing = null;
   }
 }
+var freshTraining = latest();
 async function loadTraining() {
+  const mine = freshTraining();
   const box5 = $("models-static");
   try {
     const t = await training.listTeachers({});
+    if (!mine()) return;
     options($("train-teacher"), t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`), "no teacher is served");
     let made;
     try {
       const s = await training.listStaticModels({});
+      if (!mine()) return;
       made = table(
         ["name", "dims", "words", "learned", "dtype", "teacher", "quality", "served", ""],
         s.models.map((m) => [
@@ -9346,10 +9397,12 @@ async function loadTraining() {
         ])
       );
     } catch (e) {
+      if (!mine()) return;
       made = reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so its static models cannot be listed." }) : failed(explain(e));
     }
     box5.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     options($("train-teacher"), [], void 0, down ? "the server is not reachable" : "the teachers could not be listed");
     box5.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));
@@ -9600,7 +9653,9 @@ function show(r, text) {
     ) : ""
   );
 }
+var freshRender3 = latest();
 async function render4() {
+  const mine = freshRender3();
   const d = doc();
   if (!d) return void box3().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
@@ -9613,8 +9668,10 @@ async function render4() {
       includeStrategyMatrix: true,
       strategyBudgets: budgets(input("projection-budgets").value)
     });
+    if (!mine()) return;
     show(r, d.source);
   } catch (e) {
+    if (!mine()) return;
     box3().replaceChildren(failed(explain(e)));
   }
 }
@@ -9778,10 +9835,13 @@ function refusal(http, header) {
 var caps = null;
 var indexing = null;
 var select2 = (id) => $(id);
+var freshList2 = latest();
 async function list3() {
+  const mine = freshList2();
   const box5 = $("search-indexes");
   try {
     const r = await search.listIndexes({});
+    if (!mine()) return;
     options(select2("search-index"), r.indexes.map((i) => i.indexName), void 0, "no index yet");
     box5.replaceChildren(
       r.indexes.length ? table(
@@ -9799,6 +9859,7 @@ async function list3() {
       ) : el("p", { class: "muted", text: "No index yet: create one from an embedding bundle." })
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     options(select2("search-index"), [], void 0, down ? "the server is not reachable" : "the indexes could not be listed");
     box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
@@ -10267,10 +10328,13 @@ function actions(id) {
   }, off(TurboVocabularyService.method.deleteVocabularyArtifact));
   return el("span", {}, get, " ", del);
 }
+var freshList3 = latest();
 async function list4() {
+  const mine = freshList3();
   const box5 = $("vocab-lists");
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
+    if (!mine()) return;
     const importable = f.formats.filter((x) => x.importable);
     options(select4("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select4("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
@@ -10292,6 +10356,7 @@ async function list4() {
       )
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     for (const id of ["vocab-format", "vocab-seed"]) options(select4(id), [], void 0, down ? "the server is not reachable" : "the store could not be listed");
     box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));

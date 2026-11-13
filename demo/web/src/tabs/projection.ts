@@ -12,6 +12,7 @@ import { $, el, failed, input, lazy, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
 import { analysis, explain } from "../rpc.js";
 import { short } from "./embed.js";
+import { latest } from "../latest.js";
 
 const W = 640;
 const H = 360;
@@ -168,7 +169,10 @@ function show(r: ProjectChunksResponse, text: string): void {
   );
 }
 
+// Only the latest call draws (latest.ts).
+const freshRender = latest();
 async function render(): Promise<void> {
+  const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
@@ -181,8 +185,10 @@ async function render(): Promise<void> {
       includeStrategyMatrix: true,
       strategyBudgets: budgets(input("projection-budgets").value),
     });
+    if (!mine()) return;
     show(r, d.source);
   } catch (e) {
+    if (!mine()) return;
     box().replaceChildren(failed(explain(e)));
   }
 }
