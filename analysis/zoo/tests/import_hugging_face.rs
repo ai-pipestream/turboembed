@@ -252,6 +252,15 @@ fn an_import_that_fails_leaves_the_cache_as_it_found_it() {
     assert!(e.contains("a bundle needs manifest.json"), "{e}");
     assert!(!cache.join("tiny").exists(), "{:?}", files_below(cache.path()));
 
+    // Every file read and verified, the manifest among them, and the
+    // entry refused by the index's own rules: the licence is not the
+    // manifest's.
+    let mut other_licence = spec(&PATHS);
+    (other_licence.keep, other_licence.bundle, other_licence.license) = (keeping.keep.clone(), true, Licence::Mit);
+    let e = hugging_face(&Hub::new(), HUGGING_FACE, other_licence).unwrap_err().to_string();
+    assert!(e.contains("at /model/license, the index says MIT"), "{e}");
+    assert!(!cache.join("tiny").exists(), "{:?}", files_below(cache.path()));
+
     // What the cache already holds under the id, another entry's files
     // among them, is not replaced by an import that fails.
     let tokenizer = cache.join("tiny").join("tokenizer.json");

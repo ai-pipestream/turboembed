@@ -423,7 +423,12 @@ place together once the entry is accepted. An import that fails, on a
 later file or because the entry is refused, removes what it wrote and
 every directory it leaves empty: the cache is as the import found it,
 and files it already held under that id, another entry's among them,
-are not replaced. Run again, a failed import downloads its files again. In the library the importers take the cache directory as
+are not replaced. Run again, a failed import downloads its files again.
+Two cases leave something behind: an import that is killed leaves its
+temporary files, which nothing reads and a later run does not reuse,
+and when one file cannot be put in place after the entry was accepted,
+the files put in place before it stay (each is whole and verified) and
+the import fails. In the library the importers take the cache directory as
 `keep` (`RepoImport::keep`, `OciImport::keep`), and keep nothing
 without it.
 
