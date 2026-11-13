@@ -865,6 +865,14 @@ either: every call the page makes goes through the demo to the server.
   pixels each figure is wider than the phone and scrolls in its own box
   while the page does not scroll sideways
   (`document-map-details.test.ts`).
+- A graph with an entity layer and a relation layer, which
+  `server/examples/inspect_layer_fixture.rs` writes as its second file
+  because no test bundle has a relation model, opened from a file: the
+  entity graph draws one labelled arrow per relation from subject to
+  object, a relation found twice is one arrow that says so and keeps
+  its best score, the legend names the arrows, a pointed-at entity
+  lights its arrows and the status line names its relations, and the
+  relations are a second table (`entity-relations.test.ts`).
 
 `demo/web/e2e/permits.test.ts` starts a demo with a token and one
 `--allow`: nothing is off before the token is typed, and after it the
