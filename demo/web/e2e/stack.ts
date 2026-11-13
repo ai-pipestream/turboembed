@@ -12,7 +12,11 @@ import { tmpdir } from "node:os";
 const BIN = process.env.TURBO_E2E_BIN ?? "";
 const DEVICE = process.env.TURBO_E2E_DEVICE ?? "0";
 
-/** A loopback port nothing listens on now. */
+/**
+ * A loopback port nothing listens on now. Another process can take it
+ * before the server binds it, so a start that finds it taken is retried
+ * (`inUse`).
+ */
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const s = createServer();
@@ -46,6 +50,13 @@ function started(exe: string, args: string[], word: string): Promise<ChildProces
   });
 }
 
+/** Whether `e` is a start that failed because its port was taken. */
+function inUse(e: unknown): boolean {
+  return e instanceof Error && e.message.includes("Address already in use");
+}
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 /** Ends `child` and waits until it has exited, so its port is free again. */
 function ended(child: ChildProcess | null): Promise<void> {
   if (!child || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
@@ -74,8 +85,19 @@ export class Stack {
   private serverArgs: string[] = [];
   private work = "";
 
+  /** Starts a server and demo; a port taken between pick and bind is picked again, up to three times. */
   static async start(o: StackOptions = {}): Promise<Stack> {
     if (!BIN) throw new Error("TURBO_E2E_BIN names no directory: run this through scripts/e2e-web.sh");
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await Stack.once(o);
+      } catch (e) {
+        if (attempt >= 3 || !inUse(e)) throw e;
+      }
+    }
+  }
+
+  private static async once(o: StackOptions): Promise<Stack> {
     const s = new Stack();
     s.work = mkdtempSync(`${tmpdir()}/turbo-e2e-`);
     for (const d of ["vocabulary", "catalog", "training"]) mkdirSync(`${s.work}/${d}`);
@@ -88,7 +110,8 @@ export class Stack {
       ...(o.admin ? ["--admin"] : []),
     ];
     try {
-      await s.startServer();
+      if (serverPort === demoPort) throw new Error("Address already in use: the two picked ports are the same");
+      s.server = await started("turbo-kserve", s.serverArgs, "ready");
       const demoArgs = ["--listen", `127.0.0.1:${demoPort}`, "--server", `http://127.0.0.1:${serverPort}`, ...(o.allow ?? []).flatMap((m) => ["--allow", m])];
       if (o.token) {
         writeFileSync(`${s.work}/token`, o.token, { mode: 0o600 });
@@ -103,9 +126,21 @@ export class Stack {
     return s;
   }
 
-  /** Starts the server again on the same port, with the same flags. */
+  /**
+   * Starts the server again on the same port, with the same flags. The
+   * port is the test's own, so one still held is waited for, up to five
+   * tries a quarter second apart.
+   */
   async startServer(): Promise<void> {
-    this.server = await started("turbo-kserve", this.serverArgs, "ready");
+    for (let attempt = 1; ; attempt++) {
+      try {
+        this.server = await started("turbo-kserve", this.serverArgs, "ready");
+        return;
+      } catch (e) {
+        if (attempt >= 5 || !inUse(e)) throw e;
+        await pause(250);
+      }
+    }
   }
 
   /** Stops the server; the demo keeps running in front of nothing. */
