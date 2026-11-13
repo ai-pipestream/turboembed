@@ -134,7 +134,7 @@ const SHOTS: Shot[] = [
     tab: "vocabulary",
     ready: async (page) => {
       await page.fill("#vocab-docs", PASSAGES);
-      await page.fill("#vocab-language", "en");
+      await page.fill("#vocab-learn-language", "en");
       await page.check("#vocab-stopwords");
       await page.click("#vocab-learn button[type=submit]");
       await page.waitForSelector("#vocab-note:not([hidden])");
