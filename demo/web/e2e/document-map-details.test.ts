@@ -96,7 +96,9 @@ test("on a phone the figures scroll in their own boxes and the page does not", a
   try {
     const page = await mapped(browser, 390, 844);
     // The meaning map, the seismograph and the river: each is wider than the phone and scrolls in its own box.
-    const boxes = await page.locator("#projection-out .figure .scroll").evaluateAll((all) =>
+    // (The similarity matrix of a text this short is narrower than the phone; its box scrolls all the same.)
+    assert.equal(await page.locator("#projection-out .figure.matrix .scroll").evaluate((b) => getComputedStyle(b).overflowX), "auto");
+    const boxes = await page.locator("#projection-out .figure:not(.matrix) .scroll").evaluateAll((all) =>
       all.map((b) => ({ overflow: getComputedStyle(b).overflowX, wider: b.scrollWidth > b.clientWidth })),
     );
     assert.deepEqual(boxes, Array(3).fill({ overflow: "auto", wider: true }));

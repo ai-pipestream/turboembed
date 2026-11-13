@@ -1,0 +1,21 @@
+PASS the matrix draws one row per chunk with a vector (Similarity matrix of 10 chunks: cosines from 0.951 to 0.992)
+PASS a chunk with itself is the dark end of the ramp (16,66,129)
+PASS the pairs take more than three shades of the document's own range (32 shades)
+PASS the matrix is symmetric
+PASS each coarser unit of the map is a block on the diagonal, at its chunk cuts (blocks [[0,2],[3,4],[5,6],[7,9]], regions [[0,2],[3,4],[5,6],[7,9]])
+PASS pointing at a cell names both chunks and their cosine (chunk 3 and chunk 7: cosine 0.986. chunk 3: A century later,)
+PASS the row's chunk lights up in the text
+PASS the arrow keys move from cell to cell (chunk 2 and chunk 3: cosine 0.969. chunk)
+PASS the pairs can be copied or downloaded
+PASS a query lands on the map as a marker (Embedded by tiny-bert-bundle as a query and placed among the chunks.)
+PASS every chunk glows, by its cosine to the query (10 glows, 10 sizes)
+PASS the closest chunks are listed with their scores, greatest first ([["7",0.945],["4",0.944],["3",0.941],["10",0.94],["2",0.939]])
+PASS the listed chunks are marked in the text ([2,3,4,7,10])
+PASS the strongest glow is the first of the list (dot 7)
+PASS typing another query moves the marker, with no key or button
+PASS and re-ranks the list ([["10",0.908],["8",0.907],["7",0.907],["9",0.905],["6",0.9]])
+PASS an empty box takes the query off the map
+PASS in the dark theme the ramp runs the other way (205,226,251)
+PASS at phone width the matrix fits and the page does not scroll sideways (page wider: false, plot fits: true)
+PASS no script error on the page
+20 of 20 pass

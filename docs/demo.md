@@ -501,15 +501,15 @@ server and there is no JSON.
     view, a chip per layer, and the picked layer's annotations, 200 to
     a page, each with its span, text, kind, probability and fields
     named from the protobuf descriptors; then the models that made them.
-  - Document map (open from the start): one `ProjectChunks` call drawn
-    as three linked views, with the same numbers as tables under them.
+  - Document map (open from the start): `ProjectChunks` drawn as
+    linked views, with the same numbers as tables under them.
     Pointing at a chunk in one view lights it in the others and in the
     text beside the map; every mark can be reached with Tab.
     The meaning map places each chunk vector by its two main principal
     components (a third, when asked for, is the dot's size), with the
     share of the variance on each axis, a line through the chunks in
-    reading order, one hue from the first chunk (light) to the last
-    (dark), and each dot named by the terms that tell its chunk from the
+    reading order, one hue running from the first chunk to the last,
+    and each dot named by the terms that tell its chunk from the
     rest. A coarser unit that holds some of the chunks, not all, is a
     shaded region. The projection is of the graph's chunk vectors, so a
     graph needs a profile that embeds (`default-v1` with an embedding
@@ -532,6 +532,26 @@ server and there is no JSON.
     (`demo/web/src/viz/model.ts`); a switch draws the heaviest terms
     instead. Pointing at a stream marks the term's occurrences in the
     text.
+    The similarity matrix (a second call, `pairwise`) is the cosine
+    between every pair of chunk vectors, shaded within the document's
+    own least and greatest cosine, with the chunks each coarser unit
+    holds outlined as a block on the diagonal. Pointing at a cell, or
+    the arrow keys, names its two chunks with their cosine and lights
+    the row's chunk in the text; the pairs can be copied or downloaded.
+    Rows are chunks because the served profiles write chunk vectors; a
+    graph with sentence vectors only gets a row per sentence. The server
+    compares at most 512, and a longer document says so in the matrix's
+    place.
+    A query typed over the map (a third call, `query`) is embedded by
+    the model that made the graph's vectors and lands on the map as a
+    diamond, a little after the typing stops or at once on Enter. Each
+    chunk glows by its cosine to the query, lines join the query to the
+    closest few, and up to five of the closest are listed with their
+    scores and marked in the text. The glow and the list are the true
+    cosines; the marker is the query's place in the map's two
+    directions, so the closest chunk is not always the nearest dot. When
+    that model is not loaded the server's refusal is shown under the box
+    and the map stands as it was.
   - Entities (open from the start): `InspectDocumentGraph`'s entity
     layer drawn two ways. The constellation has a node per entity
     (mentions of one name and kind gathered, whatever the case), sized
