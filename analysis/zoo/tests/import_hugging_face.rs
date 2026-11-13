@@ -214,6 +214,63 @@ fn an_import_that_keeps_its_files_downloads_a_pinned_file_once() {
     assert_eq!(fs::read(&weights).unwrap(), bytes_of("weights/model.safetensors"));
 }
 
+/// Every file below `dir`, by its path from there; none when `dir` is
+/// absent. A directory that holds no file is not listed.
+fn files_below(dir: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut dirs = vec![dir.to_path_buf()];
+    while let Some(d) = dirs.pop() {
+        for e in fs::read_dir(&d).into_iter().flatten().map(|e| e.unwrap()) {
+            if e.file_type().unwrap().is_dir() {
+                dirs.push(e.path());
+            } else {
+                out.push(e.path().strip_prefix(dir).unwrap().to_str().unwrap().replace('\\', "/"));
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+#[test]
+fn an_import_that_fails_leaves_the_cache_as_it_found_it() {
+    let cache = Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-import-hf-failed-{}", std::process::id())));
+    let mut keeping = spec(&["weights/model.safetensors", "tokenizer.json"]);
+    keeping.keep = Some(cache.to_path_buf());
+
+    // The second file is not the size the listing gives: the first was
+    // read and verified by then, and is not left behind.
+    let short = Hub::new().with("tokenizer.json", b"{}".to_vec());
+    let e = hugging_face(&short, HUGGING_FACE, keeping.clone());
+    assert!(matches!(e, Err(ZooError::Integrity { check: Check::Size, .. })), "{e:?}");
+    assert!(!cache.join("tiny").exists(), "{:?}", files_below(cache.path()));
+
+    // Every file read and verified, and the entry then refused.
+    let mut no_manifest = keeping.clone();
+    no_manifest.bundle = true;
+    let e = hugging_face(&Hub::new(), HUGGING_FACE, no_manifest).unwrap_err().to_string();
+    assert!(e.contains("a bundle needs manifest.json"), "{e}");
+    assert!(!cache.join("tiny").exists(), "{:?}", files_below(cache.path()));
+
+    // What the cache already holds under the id, another entry's files
+    // among them, is not replaced by an import that fails.
+    let tokenizer = cache.join("tiny").join("tokenizer.json");
+    fs::create_dir_all(cache.join("tiny").join("weights")).unwrap();
+    fs::write(&tokenizer, b"another entry's tokenizer").unwrap();
+    fs::write(cache.join("tiny").join("weights").join("other.bin"), b"other").unwrap();
+    let mut refused = keeping.clone();
+    refused.bundle = true;
+    assert!(hugging_face(&Hub::new(), HUGGING_FACE, refused).is_err());
+    assert!(hugging_face(&short, HUGGING_FACE, keeping.clone()).is_err());
+    assert_eq!(files_below(&cache.join("tiny")), ["tokenizer.json", "weights/other.bin"]);
+    assert_eq!(fs::read(&tokenizer).unwrap(), b"another entry's tokenizer");
+
+    // The import that is accepted puts its files in place, each whole.
+    hugging_face(&Hub::new(), HUGGING_FACE, keeping).unwrap();
+    assert_eq!(files_below(&cache.join("tiny")), ["tokenizer.json", "weights/model.safetensors", "weights/other.bin"]);
+    assert_eq!(fs::read(&tokenizer).unwrap(), bytes_of("tokenizer.json"));
+}
+
 #[test]
 fn a_revision_that_may_move_is_refused_before_anything_is_asked() {
     for revision in ["main", "v1.5", "refs/pr/1", "0123456789abcdef", "0123456789ABCDEF0123456789ABCDEF01234567", ""] {

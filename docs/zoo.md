@@ -414,7 +414,16 @@ file is held to that size and SHA-256 before it is used, and one that
 holds other bytes is downloaded again and replaced. A Hugging Face file
 outside large file storage has no digest in the listing, so it is read
 from the repository each time. `--no-keep` imports without keeping
-anything. In the library the importers take the cache directory as
+anything.
+
+Only an accepted entry's files go into the cache. While the import
+runs, each file it downloads is written whole under a temporary name
+beside its place (`<name>.partial.<pid>.<n>`), and they are put in
+place together once the entry is accepted. An import that fails, on a
+later file or because the entry is refused, removes what it wrote and
+every directory it leaves empty: the cache is as the import found it,
+and files it already held under that id, another entry's among them,
+are not replaced. Run again, a failed import downloads its files again. In the library the importers take the cache directory as
 `keep` (`RepoImport::keep`, `OciImport::keep`), and keep nothing
 without it.
 
