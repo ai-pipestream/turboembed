@@ -387,47 +387,47 @@ function unsafeOneofCase(target, oneof) {
   }
   return oneof.fields.find((f) => f.localName === c);
 }
-function unsafeIsSet(target, field2) {
-  const name = field2.localName;
-  if (field2.oneof) {
-    return target[field2.oneof.localName].case === name;
+function unsafeIsSet(target, field3) {
+  const name = field3.localName;
+  if (field3.oneof) {
+    return target[field3.oneof.localName].case === name;
   }
-  if (field2.presence != IMPLICIT) {
+  if (field3.presence != IMPLICIT) {
     return target[name] !== void 0 && Object.prototype.hasOwnProperty.call(target, name);
   }
-  switch (field2.fieldKind) {
+  switch (field3.fieldKind) {
     case "list":
       return target[name].length > 0;
     case "map":
       return Object.keys(target[name]).length > 0;
     case "scalar":
-      return !isScalarZeroValue(field2.scalar, target[name]);
+      return !isScalarZeroValue(field3.scalar, target[name]);
     case "enum":
-      return target[name] !== field2.enum.values[0].number;
+      return target[name] !== field3.enum.values[0].number;
   }
   throw new Error("message field with implicit presence");
 }
 function unsafeIsSetExplicit(target, localName) {
   return Object.prototype.hasOwnProperty.call(target, localName) && target[localName] !== void 0;
 }
-function unsafeGet(target, field2) {
-  if (field2.oneof) {
-    const oneof = target[field2.oneof.localName];
-    if (oneof.case === field2.localName) {
+function unsafeGet(target, field3) {
+  if (field3.oneof) {
+    const oneof = target[field3.oneof.localName];
+    if (oneof.case === field3.localName) {
       return oneof.value;
     }
     return void 0;
   }
-  return target[field2.localName];
+  return target[field3.localName];
 }
-function unsafeSet(target, field2, value) {
-  if (field2.oneof) {
-    target[field2.oneof.localName] = {
-      case: field2.localName,
+function unsafeSet(target, field3, value) {
+  if (field3.oneof) {
+    target[field3.oneof.localName] = {
+      case: field3.localName,
       value
     };
   } else {
-    target[field2.localName] = value;
+    target[field3.localName] = value;
   }
 }
 function setOwn(obj, key3, value) {
@@ -445,17 +445,17 @@ function setOwn(obj, key3, value) {
 function getOwn(obj, key3) {
   return Object.prototype.hasOwnProperty.call(obj, key3) ? obj[key3] : void 0;
 }
-function unsafeClear(target, field2) {
-  const name = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function unsafeClear(target, field3) {
+  const name = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     if (target[oneofLocalName].case === name) {
       target[oneofLocalName] = { case: void 0 };
     }
-  } else if (field2.presence != IMPLICIT) {
+  } else if (field3.presence != IMPLICIT) {
     delete target[name];
   } else {
-    switch (field2.fieldKind) {
+    switch (field3.fieldKind) {
       case "map":
         target[name] = {};
         break;
@@ -463,10 +463,10 @@ function unsafeClear(target, field2) {
         target[name] = [];
         break;
       case "enum":
-        target[name] = field2.enum.values[0].number;
+        target[name] = field3.enum.values[0].number;
         break;
       case "scalar":
-        target[name] = scalarZeroValue(field2.scalar, field2.longAsString);
+        target[name] = scalarZeroValue(field3.scalar, field3.longAsString);
         break;
     }
   }
@@ -543,10 +543,10 @@ function unescapeBytesDefaultValue(str2) {
       this.tail = this.tail.substring(1);
       return true;
     },
-    take(n) {
-      if (this.tail.length >= n) {
-        const r = this.tail.substring(0, n);
-        this.tail = this.tail.substring(n);
+    take(n2) {
+      if (this.tail.length >= n2) {
+        const r = this.tail.substring(0, n2);
+        this.tail = this.tail.substring(n2);
         return r;
       }
       return false;
@@ -586,54 +586,54 @@ function unescapeBytesDefaultValue(str2) {
             case "5":
             case "6":
             case "7": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(2);
               if (t === false) {
                 return false;
               }
-              const n = parseInt(s + t, 8);
-              if (Number.isNaN(n)) {
+              const n2 = parseInt(s2 + t, 8);
+              if (Number.isNaN(n2)) {
                 return false;
               }
-              b.push(n);
+              b.push(n2);
               break;
             }
             case "x": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(2);
               if (t === false) {
                 return false;
               }
-              const n = parseInt(s + t, 16);
-              if (Number.isNaN(n)) {
+              const n2 = parseInt(s2 + t, 16);
+              if (Number.isNaN(n2)) {
                 return false;
               }
-              b.push(n);
+              b.push(n2);
               break;
             }
             case "u": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(4);
               if (t === false) {
                 return false;
               }
-              const n = parseInt(s + t, 16);
-              if (Number.isNaN(n)) {
+              const n2 = parseInt(s2 + t, 16);
+              if (Number.isNaN(n2)) {
                 return false;
               }
               const chunk = new Uint8Array(4);
               const view = new DataView(chunk.buffer);
-              view.setInt32(0, n, true);
+              view.setInt32(0, n2, true);
               b.push(chunk[0], chunk[1], chunk[2], chunk[3]);
               break;
             }
             case "U": {
-              const s = input2.c;
+              const s2 = input2.c;
               const t = input2.take(8);
               if (t === false) {
                 return false;
               }
-              const tc = protoInt64.uEnc(s + t);
+              const tc = protoInt64.uEnc(s2 + t);
               const chunk = new Uint8Array(8);
               const view = new DataView(chunk.buffer);
               view.setInt32(0, tc.lo, true);
@@ -1190,9 +1190,9 @@ var BinaryReader = class {
     this.varint64();
     let lo = this.varint64Lo;
     let hi = this.varint64Hi;
-    let s = -(lo & 1);
-    lo = (lo >>> 1 | (hi & 1) << 31) ^ s;
-    hi = hi >>> 1 ^ s;
+    let s2 = -(lo & 1);
+    lo = (lo >>> 1 | (hi & 1) << 31) ^ s2;
+    hi = hi >>> 1 ^ s2;
     return protoInt64.dec(lo, hi);
   }
   /**
@@ -1262,11 +1262,11 @@ var BinaryReader = class {
     if (len <= ASCII_MAX_LENGTH) {
       const codes = new Array(len);
       for (let i = 0; i < len; i++) {
-        const byte = bytes2[i];
-        if (byte > 127) {
+        const byte2 = bytes2[i];
+        if (byte2 > 127) {
           return this.decodeUtf8(bytes2, strict);
         }
-        codes[i] = byte;
+        codes[i] = byte2;
       }
       return String.fromCharCode.apply(String, codes);
     }
@@ -1325,7 +1325,7 @@ function createFileRegistry(...args) {
         if (registry.getFile(protoFileName) != void 0) {
           continue;
         }
-        if (seen.has(protoFileName)) {
+        if (seen2.has(protoFileName)) {
           continue;
         }
         const dep = resolve(protoFileName);
@@ -1335,7 +1335,7 @@ function createFileRegistry(...args) {
         if ("kind" in dep) {
           registry.addFile(dep, false, true);
         } else {
-          seen.add(dep.name);
+          seen2.add(dep.name);
           deps.push(dep);
         }
       }
@@ -1343,7 +1343,7 @@ function createFileRegistry(...args) {
     };
     const input2 = args[0];
     const resolve = args[1];
-    const seen = /* @__PURE__ */ new Set();
+    const seen2 = /* @__PURE__ */ new Set();
     for (const file of [input2, ...recurseDeps(input2)].reverse()) {
       addFile(file, registry);
     }
@@ -1400,8 +1400,8 @@ function createBaseRegistry() {
     get(typeName) {
       return types.get(typeName);
     },
-    getFile(fileName) {
-      return files.get(fileName);
+    getFile(fileName2) {
+      return files.get(fileName2);
     },
     getMessage(typeName) {
       const t = types.get(typeName);
@@ -1625,13 +1625,13 @@ function addFields(message, reg, mapEntries) {
   const oneofsSeen = /* @__PURE__ */ new Set();
   for (const proto of message.proto.field) {
     const oneof = findOneof(proto, allOneofs);
-    const field2 = newField(proto, message, reg, oneof, mapEntries);
-    message.fields.push(field2);
-    message.field[field2.localName] = field2;
+    const field3 = newField(proto, message, reg, oneof, mapEntries);
+    message.fields.push(field3);
+    message.field[field3.localName] = field3;
     if (oneof === void 0) {
-      message.members.push(field2);
+      message.members.push(field3);
     } else {
-      oneof.fields.push(field2);
+      oneof.fields.push(field3);
       if (!oneofsSeen.has(oneof)) {
         oneofsSeen.add(oneof);
         message.members.push(oneof);
@@ -1794,7 +1794,7 @@ function newOneof(proto, parent) {
 function newField(proto, parentOrFile, reg, oneof, mapEntries) {
   var _a, _b, _c;
   const isExtension = mapEntries === void 0;
-  const field2 = {
+  const field3 = {
     kind: "field",
     proto,
     deprecated: (_b = (_a = proto.options) === null || _a === void 0 ? void 0 : _a.deprecated) !== null && _b !== void 0 ? _b : false,
@@ -1818,26 +1818,26 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
     const file = parentOrFile.kind == "file" ? parentOrFile : parentOrFile.file;
     const parent = parentOrFile.kind == "file" ? void 0 : parentOrFile;
     const typeName = makeTypeName(proto, parent, file);
-    field2.kind = "extension";
-    field2.file = file;
-    field2.parent = parent;
-    field2.oneof = void 0;
-    field2.typeName = typeName;
-    field2.jsonName = `[${typeName}]`;
+    field3.kind = "extension";
+    field3.file = file;
+    field3.parent = parent;
+    field3.oneof = void 0;
+    field3.typeName = typeName;
+    field3.jsonName = `[${typeName}]`;
     toStr = () => `extension ${typeName}`;
     const extendee = reg.getMessage(trimLeadingDot(proto.extendee));
     assert(extendee, `invalid FieldDescriptorProto: extendee ${proto.extendee} not found`);
-    field2.extendee = extendee;
+    field3.extendee = extendee;
   } else {
     const parent = parentOrFile;
     assert(parent.kind == "message");
-    field2.parent = parent;
-    field2.oneof = oneof;
-    field2.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
-    field2.jsonName = proto.jsonName;
+    field3.parent = parent;
+    field3.oneof = oneof;
+    field3.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
+    field3.jsonName = proto.jsonName;
     toStr = () => `field ${parent.typeName}.${proto.name}`;
   }
-  Object.defineProperty(field2, "toString", {
+  Object.defineProperty(field3, "toString", {
     value: toStr,
     writable: true,
     enumerable: true,
@@ -1849,69 +1849,69 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
   if (label === LABEL_REPEATED) {
     const mapEntry = type == TYPE_MESSAGE ? mapEntries === null || mapEntries === void 0 ? void 0 : mapEntries.get(trimLeadingDot(proto.typeName)) : void 0;
     if (mapEntry) {
-      field2.fieldKind = "map";
+      field3.fieldKind = "map";
       const { key: key3, value } = findMapEntryFields(mapEntry);
-      field2.mapKey = key3.scalar;
-      field2.mapKind = value.fieldKind;
-      field2.message = value.message;
-      field2.delimitedEncoding = false;
-      field2.enum = value.enum;
-      field2.scalar = value.scalar;
-      return field2;
+      field3.mapKey = key3.scalar;
+      field3.mapKind = value.fieldKind;
+      field3.message = value.message;
+      field3.delimitedEncoding = false;
+      field3.enum = value.enum;
+      field3.scalar = value.scalar;
+      return field3;
     }
-    field2.fieldKind = "list";
+    field3.fieldKind = "list";
     switch (type) {
       case TYPE_MESSAGE:
       case TYPE_GROUP:
-        field2.listKind = "message";
-        field2.message = reg.getMessage(trimLeadingDot(proto.typeName));
-        assert(field2.message);
-        field2.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+        field3.listKind = "message";
+        field3.message = reg.getMessage(trimLeadingDot(proto.typeName));
+        assert(field3.message);
+        field3.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
         break;
       case TYPE_ENUM:
-        field2.listKind = "enum";
-        field2.enum = reg.getEnum(trimLeadingDot(proto.typeName));
-        assert(field2.enum);
+        field3.listKind = "enum";
+        field3.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+        assert(field3.enum);
         break;
       default:
-        field2.listKind = "scalar";
-        field2.scalar = type;
-        field2.longAsString = jstype == JS_STRING;
+        field3.listKind = "scalar";
+        field3.scalar = type;
+        field3.longAsString = jstype == JS_STRING;
         break;
     }
-    field2.packed = isPackedField(proto, parentOrFile);
-    return field2;
+    field3.packed = isPackedField(proto, parentOrFile);
+    return field3;
   }
   switch (type) {
     case TYPE_MESSAGE:
     case TYPE_GROUP:
-      field2.fieldKind = "message";
-      field2.message = reg.getMessage(trimLeadingDot(proto.typeName));
-      assert(field2.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
-      field2.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
-      field2.getDefaultValue = () => void 0;
+      field3.fieldKind = "message";
+      field3.message = reg.getMessage(trimLeadingDot(proto.typeName));
+      assert(field3.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
+      field3.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+      field3.getDefaultValue = () => void 0;
       break;
     case TYPE_ENUM: {
       const enumeration = reg.getEnum(trimLeadingDot(proto.typeName));
       assert(enumeration !== void 0, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
-      field2.fieldKind = "enum";
-      field2.enum = reg.getEnum(trimLeadingDot(proto.typeName));
-      field2.getDefaultValue = () => {
+      field3.fieldKind = "enum";
+      field3.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+      field3.getDefaultValue = () => {
         return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatEnumValue(enumeration, proto.defaultValue) : void 0;
       };
       break;
     }
     default: {
-      field2.fieldKind = "scalar";
-      field2.scalar = type;
-      field2.longAsString = jstype == JS_STRING;
-      field2.getDefaultValue = () => {
+      field3.fieldKind = "scalar";
+      field3.scalar = type;
+      field3.longAsString = jstype == JS_STRING;
+      field3.getDefaultValue = () => {
         return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatScalarValue(type, proto.defaultValue) : void 0;
       };
       break;
     }
   }
-  return field2;
+  return field3;
 }
 function getFileEdition(proto) {
   switch (proto.syntax) {
@@ -2107,32 +2107,32 @@ function boot(boot2) {
   const reg = createFileRegistry(root, () => void 0);
   return reg.getFile(root.name);
 }
-function bootFileDescriptorProto(init14) {
+function bootFileDescriptorProto(init17) {
   const proto = /* @__PURE__ */ Object.create({
     syntax: "",
     edition: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init14), { messageType: init14.messageType.map(bootDescriptorProto), enumType: init14.enumType.map(bootEnumDescriptorProto) }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init17), { messageType: init17.messageType.map(bootDescriptorProto), enumType: init17.enumType.map(bootEnumDescriptorProto) }));
 }
-function bootDescriptorProto(init14) {
+function bootDescriptorProto(init17) {
   var _a, _b, _c, _d, _e, _f, _g, _h;
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.DescriptorProto",
-    name: init14.name,
-    field: (_b = (_a = init14.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
+    name: init17.name,
+    field: (_b = (_a = init17.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
     extension: [],
-    nestedType: (_d = (_c = init14.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
-    enumType: (_f = (_e = init14.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
-    extensionRange: (_h = (_g = init14.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
+    nestedType: (_d = (_c = init17.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
+    enumType: (_f = (_e = init17.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
+    extensionRange: (_h = (_g = init17.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
     oneofDecl: [],
     reservedRange: [],
     reservedName: []
   });
 }
-function bootFieldDescriptorProto(init14) {
+function bootFieldDescriptorProto(init17) {
   const proto = /* @__PURE__ */ Object.create({
     label: 1,
     typeName: "",
@@ -2142,9 +2142,9 @@ function bootFieldDescriptorProto(init14) {
     jsonName: "",
     proto3Optional: false
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init14), { options: init14.options ? bootFieldOptions(init14.options) : void 0 }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init17), { options: init17.options ? bootFieldOptions(init17.options) : void 0 }));
 }
-function bootFieldOptions(init14) {
+function bootFieldOptions(init17) {
   var _a, _b, _c;
   const proto = /* @__PURE__ */ Object.create({
     ctype: 0,
@@ -2157,18 +2157,18 @@ function bootFieldOptions(init14) {
     debugRedact: false,
     retention: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init14), { targets: (_a = init14.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init14.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init17), { targets: (_a = init17.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init17.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
 }
-function bootEnumDescriptorProto(init14) {
+function bootEnumDescriptorProto(init17) {
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.EnumDescriptorProto",
-    name: init14.name,
+    name: init17.name,
     reservedName: [],
     reservedRange: [],
-    value: init14.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
+    value: init17.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
   });
 }
 
@@ -2343,11 +2343,11 @@ function isMessage(arg, schema) {
 function isObject(arg) {
   return arg !== null && typeof arg == "object" && !Array.isArray(arg);
 }
-function isReflectList(arg, field2) {
+function isReflectList(arg, field3) {
   var _a, _b, _c, _d;
   if (isObject(arg) && unsafeLocal in arg && "add" in arg && "field" in arg && typeof arg.field == "function") {
-    if (field2 !== void 0) {
-      const a = field2;
+    if (field3 !== void 0) {
+      const a = field3;
       const b = arg.field();
       return a.listKind == b.listKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === void 0 ? void 0 : _a.typeName) === ((_b = b.message) === null || _b === void 0 ? void 0 : _b.typeName) && ((_c = a.enum) === null || _c === void 0 ? void 0 : _c.typeName) === ((_d = b.enum) === null || _d === void 0 ? void 0 : _d.typeName);
     }
@@ -2355,11 +2355,11 @@ function isReflectList(arg, field2) {
   }
   return false;
 }
-function isReflectMap(arg, field2) {
+function isReflectMap(arg, field3) {
   var _a, _b, _c, _d;
   if (isObject(arg) && unsafeLocal in arg && "has" in arg && "field" in arg && typeof arg.field == "function") {
-    if (field2 !== void 0) {
-      const a = field2, b = arg.field();
+    if (field3 !== void 0) {
+      const a = field3, b = arg.field();
       return a.mapKey === b.mapKey && a.mapKind == b.mapKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === void 0 ? void 0 : _a.typeName) === ((_b = b.message) === null || _b === void 0 ? void 0 : _b.typeName) && ((_c = a.enum) === null || _c === void 0 ? void 0 : _c.typeName) === ((_d = b.enum) === null || _d === void 0 ? void 0 : _d.typeName);
     }
     return true;
@@ -2411,11 +2411,11 @@ function isWrapperTypeName(name) {
 var EDITION_PROTO32 = 999;
 var EDITION_PROTO22 = 998;
 var IMPLICIT3 = 2;
-function create(schema, init14) {
-  if (isMessage(init14, schema)) {
-    return init14;
+function create(schema, init17) {
+  if (isMessage(init17, schema)) {
+    return init17;
   }
-  return compiledCreate(schema)(init14);
+  return compiledCreate(schema)(init17);
 }
 var compiledCreates = /* @__PURE__ */ new WeakMap();
 function compiledCreate(desc) {
@@ -2433,7 +2433,7 @@ var INIT_ONEOF = 3;
 function compileCreate(desc) {
   const typeName = desc.typeName;
   const { properties, prototype } = compileInitMessage(desc);
-  return (init14) => {
+  return (init17) => {
     let message;
     if (prototype !== void 0) {
       message = Object.create(prototype);
@@ -2444,7 +2444,7 @@ function compileCreate(desc) {
     for (let i = 0; i < properties.length; i++) {
       const property = properties[i];
       const name = property.name;
-      const initValue = init14 === null || init14 === void 0 ? void 0 : init14[name];
+      const initValue = init17 === null || init17 === void 0 ? void 0 : init17[name];
       switch (property.kind) {
         case INIT_SINGULAR:
           if (initValue != null) {
@@ -2554,25 +2554,25 @@ function compileInitMessage(desc) {
 }
 function compileConvertOneof(oneof) {
   const converters = /* @__PURE__ */ new Map();
-  for (const field2 of oneof.fields) {
+  for (const field3 of oneof.fields) {
     let convert;
-    if (field2.fieldKind == "message") {
-      convert = compileConvertMessage(field2);
-    } else if (field2.fieldKind == "scalar" && field2.scalar == ScalarType.BYTES) {
+    if (field3.fieldKind == "message") {
+      convert = compileConvertMessage(field3);
+    } else if (field3.fieldKind == "scalar" && field3.scalar == ScalarType.BYTES) {
       convert = toU8Arr;
     }
-    converters.set(field2.localName, convert !== null && convert !== void 0 ? convert : ((value) => value));
+    converters.set(field3.localName, convert !== null && convert !== void 0 ? convert : ((value) => value));
   }
   return converters;
 }
-function compileConvertMessage(field2) {
-  if (field2.fieldKind == "message" && !field2.oneof && isWrapperDesc(field2.message)) {
-    return field2.message.fields[0].scalar == ScalarType.BYTES ? toU8Arr : void 0;
+function compileConvertMessage(field3) {
+  if (field3.fieldKind == "message" && !field3.oneof && isWrapperDesc(field3.message)) {
+    return field3.message.fields[0].scalar == ScalarType.BYTES ? toU8Arr : void 0;
   }
-  if (field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName !== "google.protobuf.Value") {
+  if (field3.message.typeName == "google.protobuf.Struct" && field3.parent.typeName !== "google.protobuf.Value") {
     return void 0;
   }
-  const messageDesc2 = field2.message;
+  const messageDesc2 = field3.message;
   let compiled;
   return (value) => {
     if (!isObject(value) || isMessage(value, messageDesc2)) {
@@ -2595,25 +2595,25 @@ function needsPrototypeChain(desc) {
       return desc.fields.some((f) => f.presence != IMPLICIT3 && f.fieldKind != "message" && !f.oneof);
   }
 }
-function createZeroValue(field2) {
-  const defaultValue = field2.getDefaultValue();
+function createZeroValue(field3) {
+  const defaultValue = field3.getDefaultValue();
   if (defaultValue !== void 0) {
-    return field2.fieldKind == "scalar" && field2.longAsString ? defaultValue.toString() : defaultValue;
+    return field3.fieldKind == "scalar" && field3.longAsString ? defaultValue.toString() : defaultValue;
   }
-  return field2.fieldKind == "scalar" ? scalarZeroValue(field2.scalar, field2.longAsString) : field2.enum.values[0].number;
+  return field3.fieldKind == "scalar" ? scalarZeroValue(field3.scalar, field3.longAsString) : field3.enum.values[0].number;
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/message.js
 var NULL_VALUE = 0;
-function localMessageMapper(field2) {
-  if (usesJsonRepresentation(field2)) {
+function localMessageMapper(field3) {
+  if (usesJsonRepresentation(field3)) {
     return {
       toMessage: (local) => wktStructToReflect(local),
       toLocal: (message) => wktStructToLocal(message)
     };
   }
-  if (field2.fieldKind == "message" && !field2.oneof && isWrapperDesc(field2.message)) {
-    const wrapperDesc = field2.message;
+  if (field3.fieldKind == "message" && !field3.oneof && isWrapperDesc(field3.message)) {
+    const wrapperDesc = field3.message;
     const valueLocalName = wrapperDesc.fields[0].localName;
     return {
       toMessage: (local) => {
@@ -2626,14 +2626,14 @@ function localMessageMapper(field2) {
       toLocal: (message) => message[valueLocalName]
     };
   }
-  const childDesc = field2.message;
+  const childDesc = field3.message;
   return {
     toMessage: (local) => local === void 0 ? create(childDesc) : local,
     toLocal: (message) => message
   };
 }
-function usesJsonRepresentation(field2) {
-  return field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value";
+function usesJsonRepresentation(field3) {
+  return field3.message.typeName == "google.protobuf.Struct" && field3.parent.typeName != "google.protobuf.Value";
 }
 function wktStructToReflect(json) {
   const struct = {
@@ -2753,28 +2753,28 @@ function compileMessage(desc) {
     }
   };
   compiledWriters.set(desc, compiled);
-  for (const field2 of sortedFields) {
-    fieldWriters.push(compileField(field2));
+  for (const field3 of sortedFields) {
+    fieldWriters.push(compileField(field3));
   }
   return compiled;
 }
-function compileField(field2) {
-  switch (field2.fieldKind) {
+function compileField(field3) {
+  switch (field3.fieldKind) {
     case "message":
     case "scalar":
     case "enum":
-      return compileSingularField(field2);
+      return compileSingularField(field3);
     case "list":
-      return compileListField(field2);
+      return compileListField(field3);
     case "map":
-      return compileMapField(field2);
+      return compileMapField(field3);
   }
 }
-function compileSingularField(field2) {
-  const writeValue = compileSingularValue(field2);
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileSingularField(field3) {
+  const writeValue = compileSingularValue(field3);
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (writer, opts, message) => {
       const oneof = message[oneofLocalName];
       if (oneof.case === localName) {
@@ -2782,8 +2782,8 @@ function compileSingularField(field2) {
       }
     };
   }
-  if (field2.presence != IMPLICIT4) {
-    const requiredError = field2.presence == LEGACY_REQUIRED2 ? `cannot encode ${field2} to binary: required field not set` : void 0;
+  if (field3.presence != IMPLICIT4) {
+    const requiredError = field3.presence == LEGACY_REQUIRED2 ? `cannot encode ${field3} to binary: required field not set` : void 0;
     return (writer, opts, message) => {
       const value = message[localName];
       if (value !== void 0 && Object.prototype.hasOwnProperty.call(message, localName)) {
@@ -2793,8 +2793,8 @@ function compileSingularField(field2) {
       }
     };
   }
-  if (field2.fieldKind == "enum") {
-    const zero = field2.enum.values[0].number;
+  if (field3.fieldKind == "enum") {
+    const zero = field3.enum.values[0].number;
     return (writer, opts, message) => {
       const value = message[localName];
       if (value !== zero) {
@@ -2802,7 +2802,7 @@ function compileSingularField(field2) {
       }
     };
   }
-  switch (field2.scalar) {
+  switch (field3.scalar) {
     case ScalarType.BOOL:
       return (writer, opts, message) => {
         const value = message[localName];
@@ -2841,21 +2841,21 @@ function compileSingularField(field2) {
       };
   }
 }
-function compileSingularValue(field2) {
-  switch (field2.fieldKind) {
+function compileSingularValue(field3) {
+  switch (field3.fieldKind) {
     case "message": {
-      const { toMessage } = localMessageMapper(field2);
-      const writeChild = compileChildWriter(field2);
+      const { toMessage } = localMessageMapper(field3);
+      const writeChild = compileChildWriter(field3);
       return (writer, opts, value) => {
         writeChild(writer, opts, toMessage(value));
       };
     }
     case "scalar":
     case "enum": {
-      const scalarType = field2.fieldKind == "enum" ? ScalarType.INT32 : field2.scalar;
-      const fieldNo = field2.number;
+      const scalarType = field3.fieldKind == "enum" ? ScalarType.INT32 : field3.scalar;
+      const fieldNo = field3.number;
       const wireType = writeTypeOfScalar(scalarType);
-      const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
+      const writeScalar = compileScalarValue(scalarType, field3.parent.typeName, field3.name);
       return (writer, opts, value) => {
         writer.tag(fieldNo, wireType);
         writeScalar(writer, value);
@@ -2863,13 +2863,13 @@ function compileSingularValue(field2) {
     }
   }
 }
-function compileListField(field2) {
-  const localName = field2.localName;
-  const fieldNo = field2.number;
-  switch (field2.listKind) {
+function compileListField(field3) {
+  const localName = field3.localName;
+  const fieldNo = field3.number;
+  switch (field3.listKind) {
     case "message": {
-      const { toMessage } = localMessageMapper(field2);
-      const writeChild = compileChildWriter(field2);
+      const { toMessage } = localMessageMapper(field3);
+      const writeChild = compileChildWriter(field3);
       return (writer, opts, message) => {
         const items = message[localName];
         for (let i = 0; i < items.length; i++) {
@@ -2879,9 +2879,9 @@ function compileListField(field2) {
     }
     case "scalar":
     case "enum": {
-      const scalarType = field2.listKind == "enum" ? ScalarType.INT32 : field2.scalar;
-      const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
-      if (field2.packed) {
+      const scalarType = field3.listKind == "enum" ? ScalarType.INT32 : field3.scalar;
+      const writeScalar = compileScalarValue(scalarType, field3.parent.typeName, field3.name);
+      if (field3.packed) {
         return (writer, opts, message) => {
           const items = message[localName];
           if (items.length == 0) {
@@ -2905,13 +2905,13 @@ function compileListField(field2) {
     }
   }
 }
-function compileMapField(field2) {
-  const localName = field2.localName;
-  const fieldNo = field2.number;
-  const writeKey = compileMapKey(field2);
-  if (field2.mapKind == "message") {
-    const { toMessage } = localMessageMapper(field2);
-    const writeMessage = compiledWriter(field2.message);
+function compileMapField(field3) {
+  const localName = field3.localName;
+  const fieldNo = field3.number;
+  const writeKey = compileMapKey(field3);
+  if (field3.mapKind == "message") {
+    const { toMessage } = localMessageMapper(field3);
+    const writeMessage = compiledWriter(field3.message);
     return (writer, opts, message) => {
       const record = message[localName];
       const keys = Object.keys(record);
@@ -2926,9 +2926,9 @@ function compileMapField(field2) {
       }
     };
   }
-  const scalarType = field2.mapKind == "enum" ? ScalarType.INT32 : field2.scalar;
+  const scalarType = field3.mapKind == "enum" ? ScalarType.INT32 : field3.scalar;
   const valueWireType = writeTypeOfScalar(scalarType);
-  const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
+  const writeScalar = compileScalarValue(scalarType, field3.parent.typeName, field3.name);
   return (writer, opts, message) => {
     const record = message[localName];
     const keys = Object.keys(record);
@@ -2942,10 +2942,10 @@ function compileMapField(field2) {
     }
   };
 }
-function compileMapKey(field2) {
-  const wireType = writeTypeOfScalar(field2.mapKey);
-  const writeScalar = compileScalarValue(field2.mapKey, field2.parent.typeName, field2.name);
-  const convertKey = compileMapKeyConverter(field2.mapKey);
+function compileMapKey(field3) {
+  const wireType = writeTypeOfScalar(field3.mapKey);
+  const writeScalar = compileScalarValue(field3.mapKey, field3.parent.typeName, field3.name);
+  const convertKey = compileMapKeyConverter(field3.mapKey);
   return (writer, key3) => {
     writer.tag(1, wireType);
     writeScalar(writer, convertKey(key3));
@@ -2978,8 +2978,8 @@ function compileMapKeyConverter(type) {
       };
     default:
       return (key3) => {
-        const n = Number.parseInt(key3);
-        return Number.isFinite(n) ? n : key3;
+        const n2 = Number.parseInt(key3);
+        return Number.isFinite(n2) ? n2 : key3;
       };
   }
 }
@@ -3030,13 +3030,13 @@ function compileScalarWrite(type) {
       return (writer, value) => writer.sint32(value);
   }
 }
-function writeField(writer, opts, msg, field2) {
-  compileField(field2)(writer, opts, msg[unsafeLocal]);
+function writeField(writer, opts, msg, field3) {
+  compileField(field3)(writer, opts, msg[unsafeLocal]);
 }
-function compileChildWriter(field2) {
-  const fieldNo = field2.number;
-  const writeMessage = compiledWriter(field2.message);
-  if (field2.delimitedEncoding) {
+function compileChildWriter(field3) {
+  const fieldNo = field3.number;
+  const writeMessage = compiledWriter(field3.message);
+  if (field3.delimitedEncoding) {
     return (writer, opts, child) => {
       writer.tag(fieldNo, WireType.StartGroup);
       writeMessage(writer, opts, child);
@@ -3068,54 +3068,54 @@ function writeTypeOfScalar(type) {
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect-check.js
-function checkField(field2, value) {
-  const check2 = field2.fieldKind == "list" ? isReflectList(value, field2) : field2.fieldKind == "map" ? isReflectMap(value, field2) : checkSingular(field2, value);
+function checkField(field3, value) {
+  const check2 = field3.fieldKind == "list" ? isReflectList(value, field3) : field3.fieldKind == "map" ? isReflectMap(value, field3) : checkSingular(field3, value);
   if (check2 === true) {
     return void 0;
   }
   let reason;
-  switch (field2.fieldKind) {
+  switch (field3.fieldKind) {
     case "list":
-      reason = `expected ${formatReflectList(field2)}, got ${formatVal(value)}`;
+      reason = `expected ${formatReflectList(field3)}, got ${formatVal(value)}`;
       break;
     case "map":
-      reason = `expected ${formatReflectMap(field2)}, got ${formatVal(value)}`;
+      reason = `expected ${formatReflectMap(field3)}, got ${formatVal(value)}`;
       break;
     default: {
-      reason = reasonSingular(field2, value, check2);
+      reason = reasonSingular(field3, value, check2);
     }
   }
-  return new FieldError(field2, reason);
+  return new FieldError(field3, reason);
 }
-function checkListItem(field2, index, value) {
-  const check2 = checkSingular(field2, value);
+function checkListItem(field3, index, value) {
+  const check2 = checkSingular(field3, value);
   if (check2 !== true) {
-    return new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
+    return new FieldError(field3, `list item #${index + 1}: ${reasonSingular(field3, value, check2)}`);
   }
   return void 0;
 }
-function checkMapEntry(field2, key3, value) {
-  const checkKey = checkScalarValue(field2.mapKey)(key3);
+function checkMapEntry(field3, key3, value) {
+  const checkKey = checkScalarValue(field3.mapKey)(key3);
   if (checkKey !== true) {
-    return new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: field2.mapKey }, key3, checkKey)}`);
+    return new FieldError(field3, `invalid map key: ${reasonSingular({ scalar: field3.mapKey }, key3, checkKey)}`);
   }
-  const checkVal = checkSingular(field2, value);
+  const checkVal = checkSingular(field3, value);
   if (checkVal !== true) {
-    return new FieldError(field2, `map entry ${formatVal(key3)}: ${reasonSingular(field2, value, checkVal)}`);
+    return new FieldError(field3, `map entry ${formatVal(key3)}: ${reasonSingular(field3, value, checkVal)}`);
   }
   return void 0;
 }
-function checkSingular(field2, value) {
-  if (field2.scalar !== void 0) {
-    return checkScalarValue(field2.scalar)(value);
+function checkSingular(field3, value) {
+  if (field3.scalar !== void 0) {
+    return checkScalarValue(field3.scalar)(value);
   }
-  if (field2.enum !== void 0) {
-    if (field2.enum.open) {
+  if (field3.enum !== void 0) {
+    if (field3.enum.open) {
       return checkScalarValue(ScalarType.INT32)(value);
     }
-    return field2.enum.values.some((v) => v.number === value);
+    return field3.enum.values.some((v) => v.number === value);
   }
-  return isReflectMessage(value, field2.message);
+  return isReflectMessage(value, field3.message);
 }
 function checkScalarValue(scalar2) {
   switch (scalar2) {
@@ -3194,15 +3194,15 @@ function checkScalarValue(scalar2) {
       };
   }
 }
-function reasonSingular(field2, val, details) {
+function reasonSingular(field3, val, details) {
   details = typeof details == "string" ? `: ${details}` : `, got ${formatVal(val)}`;
-  if (field2.scalar !== void 0) {
-    return `expected ${scalarTypeDescription(field2.scalar)}` + details;
+  if (field3.scalar !== void 0) {
+    return `expected ${scalarTypeDescription(field3.scalar)}` + details;
   }
-  if (field2.enum !== void 0) {
-    return `expected ${field2.enum.toString()}` + details;
+  if (field3.enum !== void 0) {
+    return `expected ${field3.enum.toString()}` + details;
   }
-  return `expected ${formatReflectMessage(field2.message)}` + details;
+  return `expected ${formatReflectMessage(field3.message)}` + details;
 }
 function formatVal(val) {
   switch (typeof val) {
@@ -3244,24 +3244,24 @@ function formatVal(val) {
 function formatReflectMessage(desc) {
   return `ReflectMessage (${desc.typeName})`;
 }
-function formatReflectList(field2) {
-  switch (field2.listKind) {
+function formatReflectList(field3) {
+  switch (field3.listKind) {
     case "message":
-      return `ReflectList (${field2.message.toString()})`;
+      return `ReflectList (${field3.message.toString()})`;
     case "enum":
-      return `ReflectList (${field2.enum.toString()})`;
+      return `ReflectList (${field3.enum.toString()})`;
     case "scalar":
-      return `ReflectList (${ScalarType[field2.scalar]})`;
+      return `ReflectList (${ScalarType[field3.scalar]})`;
   }
 }
-function formatReflectMap(field2) {
-  switch (field2.mapKind) {
+function formatReflectMap(field3) {
+  switch (field3.mapKind) {
     case "message":
-      return `ReflectMap (${ScalarType[field2.mapKey]}, ${field2.message.toString()})`;
+      return `ReflectMap (${ScalarType[field3.mapKey]}, ${field3.message.toString()})`;
     case "enum":
-      return `ReflectMap (${ScalarType[field2.mapKey]}, ${field2.enum.toString()})`;
+      return `ReflectMap (${ScalarType[field3.mapKey]}, ${field3.enum.toString()})`;
     case "scalar":
-      return `ReflectMap (${ScalarType[field2.mapKey]}, ${ScalarType[field2.scalar]})`;
+      return `ReflectMap (${ScalarType[field3.mapKey]}, ${ScalarType[field3.scalar]})`;
   }
 }
 function scalarTypeDescription(scalar2) {
@@ -3328,63 +3328,63 @@ var ReflectMessageImpl = class {
     assertOwn(this.message, oneof);
     return unsafeOneofCase(this.message, oneof);
   }
-  isSet(field2) {
-    assertOwn(this.message, field2);
-    return unsafeIsSet(this.message, field2);
+  isSet(field3) {
+    assertOwn(this.message, field3);
+    return unsafeIsSet(this.message, field3);
   }
-  clear(field2) {
-    assertOwn(this.message, field2);
-    unsafeClear(this.message, field2);
+  clear(field3) {
+    assertOwn(this.message, field3);
+    unsafeClear(this.message, field3);
   }
-  get(field2) {
-    assertOwn(this.message, field2);
-    const value = unsafeGet(this.message, field2);
-    switch (field2.fieldKind) {
+  get(field3) {
+    assertOwn(this.message, field3);
+    const value = unsafeGet(this.message, field3);
+    switch (field3.fieldKind) {
       case "list":
-        let list5 = this.lists.get(field2);
+        let list5 = this.lists.get(field3);
         if (!list5 || list5[unsafeLocal] !== value) {
           this.lists.set(
-            field2,
+            field3,
             // biome-ignore lint/suspicious/noAssignInExpressions: no
-            list5 = new ReflectListImpl(field2, value, this.check)
+            list5 = new ReflectListImpl(field3, value, this.check)
           );
         }
         return list5;
       case "map":
-        let map = this.maps.get(field2);
+        let map = this.maps.get(field3);
         if (!map || map[unsafeLocal] !== value) {
           this.maps.set(
-            field2,
+            field3,
             // biome-ignore lint/suspicious/noAssignInExpressions: no
-            map = new ReflectMapImpl(field2, value, this.check)
+            map = new ReflectMapImpl(field3, value, this.check)
           );
         }
         return map;
       case "message":
-        return messageToReflect(field2, value, this.check);
+        return messageToReflect(field3, value, this.check);
       case "scalar":
-        return value === void 0 ? scalarZeroValue(field2.scalar, false) : longToReflect(field2, value);
+        return value === void 0 ? scalarZeroValue(field3.scalar, false) : longToReflect(field3, value);
       case "enum":
-        return value !== null && value !== void 0 ? value : field2.enum.values[0].number;
+        return value !== null && value !== void 0 ? value : field3.enum.values[0].number;
     }
   }
-  set(field2, value) {
-    assertOwn(this.message, field2);
+  set(field3, value) {
+    assertOwn(this.message, field3);
     if (this.check) {
-      const err = checkField(field2, value);
+      const err = checkField(field3, value);
       if (err) {
         throw err;
       }
     }
     let local;
-    if (field2.fieldKind == "message") {
-      local = messageToLocal(field2, value);
+    if (field3.fieldKind == "message") {
+      local = messageToLocal(field3, value);
     } else if (isReflectMap(value) || isReflectList(value)) {
       local = value[unsafeLocal];
     } else {
-      local = longToLocal(field2, value);
+      local = longToLocal(field3, value);
     }
-    unsafeSet(this.message, field2, local);
+    unsafeSet(this.message, field3, local);
   }
   getUnknown() {
     return this.message.$unknown;
@@ -3405,8 +3405,8 @@ var ReflectListImpl = class {
   get size() {
     return this._arr.length;
   }
-  constructor(field2, unsafeInput, check2) {
-    this._field = field2;
+  constructor(field3, unsafeInput, check2) {
+    this._field = field3;
     this._arr = this[unsafeLocal] = unsafeInput;
     this.check = check2;
   }
@@ -3457,10 +3457,10 @@ var ReflectListImpl = class {
   }
 };
 var ReflectMapImpl = class {
-  constructor(field2, unsafeInput, check2 = true) {
+  constructor(field3, unsafeInput, check2 = true) {
     this.obj = this[unsafeLocal] = unsafeInput !== null && unsafeInput !== void 0 ? unsafeInput : {};
     this.check = check2;
-    this._field = field2;
+    this._field = field3;
   }
   field() {
     return this._field;
@@ -3477,11 +3477,11 @@ var ReflectMapImpl = class {
   }
   delete(key3) {
     const k = mapKeyToLocal(key3);
-    const has = Object.prototype.hasOwnProperty.call(this.obj, k);
-    if (has) {
+    const has2 = Object.prototype.hasOwnProperty.call(this.obj, k);
+    if (has2) {
       delete this.obj[k];
     }
-    return has;
+    return has2;
   }
   clear() {
     for (const key3 of Object.keys(this.obj)) {
@@ -3528,52 +3528,52 @@ var ReflectMapImpl = class {
     }
   }
 };
-function messageToLocal(field2, value) {
+function messageToLocal(field3, value) {
   if (!isReflectMessage(value)) {
     return value;
   }
-  if (isWrapper(value.message) && !field2.oneof && field2.fieldKind == "message") {
+  if (isWrapper(value.message) && !field3.oneof && field3.fieldKind == "message") {
     return value.message.value;
   }
-  if (value.desc.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value") {
+  if (value.desc.typeName == "google.protobuf.Struct" && field3.parent.typeName != "google.protobuf.Value") {
     return wktStructToLocal(value.message);
   }
   return value.message;
 }
-function messageToReflect(field2, value, check2) {
+function messageToReflect(field3, value, check2) {
   if (value !== void 0) {
-    if (isWrapperDesc(field2.message) && !field2.oneof && field2.fieldKind == "message") {
+    if (isWrapperDesc(field3.message) && !field3.oneof && field3.fieldKind == "message") {
       value = {
-        $typeName: field2.message.typeName,
-        value: longToReflect(field2.message.fields[0], value)
+        $typeName: field3.message.typeName,
+        value: longToReflect(field3.message.fields[0], value)
       };
-    } else if (field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value" && isObject(value)) {
+    } else if (field3.message.typeName == "google.protobuf.Struct" && field3.parent.typeName != "google.protobuf.Value" && isObject(value)) {
       value = wktStructToReflect(value);
     }
   }
-  return new ReflectMessageImpl(field2.message, value, check2);
+  return new ReflectMessageImpl(field3.message, value, check2);
 }
-function listItemToLocal(field2, value) {
-  if (field2.listKind == "message") {
-    return messageToLocal(field2, value);
+function listItemToLocal(field3, value) {
+  if (field3.listKind == "message") {
+    return messageToLocal(field3, value);
   }
-  return longToLocal(field2, value);
+  return longToLocal(field3, value);
 }
-function listItemToReflect(field2, value, check2) {
-  if (field2.listKind == "message") {
-    return messageToReflect(field2, value, check2);
+function listItemToReflect(field3, value, check2) {
+  if (field3.listKind == "message") {
+    return messageToReflect(field3, value, check2);
   }
-  return longToReflect(field2, value);
+  return longToReflect(field3, value);
 }
-function mapValueToLocal(field2, value) {
-  if (field2.mapKind == "message") {
-    return messageToLocal(field2, value);
+function mapValueToLocal(field3, value) {
+  if (field3.mapKind == "message") {
+    return messageToLocal(field3, value);
   }
-  return longToLocal(field2, value);
+  return longToLocal(field3, value);
 }
-function mapValueToReflect(field2, value, check2) {
-  if (field2.mapKind == "message") {
-    return messageToReflect(field2, value, check2);
+function mapValueToReflect(field3, value, check2) {
+  if (field3.mapKind == "message") {
+    return messageToReflect(field3, value, check2);
   }
   return value;
 }
@@ -3589,9 +3589,9 @@ function mapKeyToReflect(key3, type) {
     case ScalarType.UINT32:
     case ScalarType.SFIXED32:
     case ScalarType.SINT32: {
-      const n = Number.parseInt(key3);
-      if (Number.isFinite(n)) {
-        return n;
+      const n2 = Number.parseInt(key3);
+      if (Number.isFinite(n2)) {
+        return n2;
       }
       break;
     }
@@ -3619,30 +3619,30 @@ function mapKeyToReflect(key3, type) {
   }
   return key3;
 }
-function longToReflect(field2, value) {
-  switch (field2.scalar) {
+function longToReflect(field3, value) {
+  switch (field3.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if ("longAsString" in field2 && field2.longAsString && typeof value == "string") {
+      if ("longAsString" in field3 && field3.longAsString && typeof value == "string") {
         value = protoInt64.parse(value);
       }
       break;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if ("longAsString" in field2 && field2.longAsString && typeof value == "string") {
+      if ("longAsString" in field3 && field3.longAsString && typeof value == "string") {
         value = protoInt64.uParse(value);
       }
       break;
   }
   return value;
 }
-function longToLocal(field2, value) {
-  switch (field2.scalar) {
+function longToLocal(field3, value) {
+  switch (field3.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if ("longAsString" in field2 && field2.longAsString) {
+      if ("longAsString" in field3 && field3.longAsString) {
         value = String(value);
       } else if (typeof value == "string" || typeof value == "number") {
         value = protoInt64.parse(value);
@@ -3650,7 +3650,7 @@ function longToLocal(field2, value) {
       break;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if ("longAsString" in field2 && field2.longAsString) {
+      if ("longAsString" in field3 && field3.longAsString) {
         value = String(value);
       } else if (typeof value == "string" || typeof value == "number") {
         value = protoInt64.uParse(value);
@@ -3856,8 +3856,8 @@ function compileMessage2(desc) {
     readGroup: compileGroupReader(descString, fieldReaders)
   };
   compiledReaders.set(desc, compiled);
-  for (const field2 of desc.fields) {
-    fieldReaders.set(field2.number, compileFieldReader(field2));
+  for (const field3 of desc.fields) {
+    fieldReaders.set(field3.number, compileFieldReader(field3));
   }
   return compiled;
 }
@@ -3920,28 +3920,28 @@ function compileGroupReader(descString, fieldReaders) {
     ctx.depth--;
   };
 }
-function readField(message, reader, field2, wireType, ctx) {
-  compileFieldReader(field2)(message[unsafeLocal], reader, ctx, wireType);
+function readField(message, reader, field3, wireType, ctx) {
+  compileFieldReader(field3)(message[unsafeLocal], reader, ctx, wireType);
 }
-function compileFieldReader(field2) {
-  switch (field2.fieldKind) {
+function compileFieldReader(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
-      return compileScalarFieldReader(field2);
+      return compileScalarFieldReader(field3);
     case "enum":
-      return compileEnumFieldReader(field2);
+      return compileEnumFieldReader(field3);
     case "message":
-      return compileMessageFieldReader(field2);
+      return compileMessageFieldReader(field3);
     case "list":
-      return compileListFieldReader(field2);
+      return compileListFieldReader(field3);
     case "map":
-      return compileMapFieldReader(field2);
+      return compileMapFieldReader(field3);
   }
 }
-function compileScalarFieldReader(field2) {
-  const readScalar = compileScalarReader(field2.scalar, field2.utf8Validation, field2.longAsString);
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileScalarFieldReader(field3) {
+  const readScalar = compileScalarReader(field3.scalar, field3.utf8Validation, field3.longAsString);
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, reader) => {
       message[oneofLocalName] = {
         case: localName,
@@ -3953,11 +3953,11 @@ function compileScalarFieldReader(field2) {
     message[localName] = readScalar(reader);
   };
 }
-function compileEnumFieldReader(field2) {
+function compileEnumFieldReader(field3) {
   var _a;
-  const localName = field2.localName;
-  const oneofLocalName = (_a = field2.oneof) === null || _a === void 0 ? void 0 : _a.localName;
-  if (field2.enum.open) {
+  const localName = field3.localName;
+  const oneofLocalName = (_a = field3.oneof) === null || _a === void 0 ? void 0 : _a.localName;
+  if (field3.enum.open) {
     if (oneofLocalName !== void 0) {
       return (message, reader) => {
         message[oneofLocalName] = { case: localName, value: reader.int32() };
@@ -3967,8 +3967,8 @@ function compileEnumFieldReader(field2) {
       message[localName] = reader.int32();
     };
   }
-  const values = field2.enum.values;
-  const fieldNo = field2.number;
+  const values = field3.enum.values;
+  const fieldNo = field3.number;
   return (message, reader, ctx, wireType) => {
     var _a2;
     const val = reader.int32();
@@ -3991,12 +3991,12 @@ function compileEnumFieldReader(field2) {
     }
   };
 }
-function compileMessageFieldReader(field2) {
-  const localName = field2.localName;
-  const { toMessage, toLocal } = localMessageMapper(field2);
-  const readChild = compileChildReader(field2);
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileMessageFieldReader(field3) {
+  const localName = field3.localName;
+  const { toMessage, toLocal } = localMessageMapper(field3);
+  const readChild = compileChildReader(field3);
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, reader, ctx) => {
       const oneof = message[oneofLocalName];
       const child = toMessage(oneof.case === localName ? oneof.value : void 0);
@@ -4010,28 +4010,28 @@ function compileMessageFieldReader(field2) {
     message[localName] = toLocal(child);
   };
 }
-function compileChildReader(field2) {
-  const compiledChild = compiledReader(field2.message);
-  if (field2.delimitedEncoding) {
-    const fieldNo = field2.number;
+function compileChildReader(field3) {
+  const compiledChild = compiledReader(field3.message);
+  if (field3.delimitedEncoding) {
+    const fieldNo = field3.number;
     return (child, reader, ctx) => compiledChild.readGroup(child, reader, ctx, fieldNo);
   }
   return (child, reader, ctx) => compiledChild.read(child, reader, ctx, reader.uint32());
 }
-function compileListFieldReader(field2) {
-  const localName = field2.localName;
-  if (field2.listKind == "message") {
-    const { toMessage, toLocal } = localMessageMapper(field2);
-    const readChild = compileChildReader(field2);
+function compileListFieldReader(field3) {
+  const localName = field3.localName;
+  if (field3.listKind == "message") {
+    const { toMessage, toLocal } = localMessageMapper(field3);
+    const readChild = compileChildReader(field3);
     return (message, reader, ctx) => {
       const child = toMessage(void 0);
       readChild(child, reader, ctx);
       message[localName].push(toLocal(child));
     };
   }
-  const scalarType = field2.listKind == "enum" ? ScalarType.INT32 : field2.scalar;
-  const longAsString = field2.listKind == "scalar" ? field2.longAsString : false;
-  const readScalar = compileScalarReader(scalarType, field2.utf8Validation, longAsString);
+  const scalarType = field3.listKind == "enum" ? ScalarType.INT32 : field3.scalar;
+  const longAsString = field3.listKind == "scalar" ? field3.longAsString : false;
+  const readScalar = compileScalarReader(scalarType, field3.utf8Validation, longAsString);
   const packedPossible = scalarType != ScalarType.STRING && scalarType != ScalarType.BYTES;
   return (message, reader, ctx, wireType) => {
     const items = message[localName];
@@ -4045,16 +4045,16 @@ function compileListFieldReader(field2) {
     }
   };
 }
-function compileMapFieldReader(field2) {
-  const localName = field2.localName;
-  const readKey = compileScalarReader(field2.mapKey, field2.utf8Validation, false);
-  const keyZero = scalarZeroValue(field2.mapKey, false);
+function compileMapFieldReader(field3) {
+  const localName = field3.localName;
+  const readKey = compileScalarReader(field3.mapKey, field3.utf8Validation, false);
+  const keyZero = scalarZeroValue(field3.mapKey, false);
   let readValue;
   let valueDefault;
-  switch (field2.mapKind) {
+  switch (field3.mapKind) {
     case "scalar": {
-      const scalar2 = field2.scalar;
-      const readScalar = compileScalarReader(scalar2, field2.utf8Validation, false);
+      const scalar2 = field3.scalar;
+      const readScalar = compileScalarReader(scalar2, field3.utf8Validation, false);
       readValue = (reader) => readScalar(reader);
       if (scalar2 == ScalarType.BYTES) {
         valueDefault = () => new Uint8Array(0);
@@ -4065,14 +4065,14 @@ function compileMapFieldReader(field2) {
       break;
     }
     case "enum": {
-      const zero = field2.enum.values[0].number;
+      const zero = field3.enum.values[0].number;
       readValue = (reader) => reader.int32();
       valueDefault = () => zero;
       break;
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field2);
-      const readChild = compiledReader(field2.message).read;
+      const { toMessage, toLocal } = localMessageMapper(field3);
+      const readChild = compiledReader(field3.message).read;
       readValue = (reader, ctx, existing) => {
         const child = toMessage(existing);
         readChild(child, reader, ctx, reader.uint32());
@@ -4206,6 +4206,113 @@ var LayerErrorKind = /* @__PURE__ */ ((LayerErrorKind2) => {
   return LayerErrorKind2;
 })(LayerErrorKind || {});
 
+// demo/web/src/keep.ts
+var PREFIX = "turbo-demo.input.";
+var TABS = ["embed", "semantic", "analyze", "search", "vocabulary"];
+function storable(tag, type) {
+  const t = tag.toLowerCase();
+  if (t === "textarea" || t === "select") return true;
+  if (t !== "input") return false;
+  return !["password", "file", "hidden", "submit", "button", "reset", "image"].includes(type.toLowerCase());
+}
+function stored(type, value, checked) {
+  return type === "checkbox" || type === "radio" ? checked ? "1" : "0" : value;
+}
+function recall(id) {
+  try {
+    return localStorage.getItem(PREFIX + id);
+  } catch {
+    return null;
+  }
+}
+function remember(id, value) {
+  if (resetting) return;
+  try {
+    localStorage.setItem(PREFIX + id, value);
+  } catch {
+  }
+}
+function forget(id) {
+  try {
+    localStorage.removeItem(PREFIX + id);
+  } catch {
+  }
+}
+function fields(panel) {
+  return [...panel.querySelectorAll("input[id], textarea[id], select[id]")].filter((f) => storable(f.tagName, f.type) && !f.hasAttribute("data-unkept"));
+}
+function put(f, v) {
+  if (f instanceof HTMLInputElement && (f.type === "checkbox" || f.type === "radio")) f.checked = v === "1";
+  else if (f instanceof HTMLSelectElement) {
+    if ([...f.options].some((o) => o.value === v)) f.value = v;
+  } else f.value = v;
+}
+var restored = /* @__PURE__ */ new WeakSet();
+function restore(select5) {
+  if (restored.has(select5) || !select5.closest(TABS.map((t) => `#tab-${t}`).join(", "))) return;
+  const v = kept(select5.id, select5.hasAttribute("data-unkept"), select5.id ? recall(select5.id) : null, [...select5.options].map((o) => o.value));
+  if (v === null) return;
+  select5.value = v;
+  restored.add(select5);
+}
+function kept(id, unkept, v, values) {
+  return id !== "" && !unkept && offered(v, values) ? v : null;
+}
+function offered(v, values) {
+  return v !== null && values.includes(v);
+}
+var resetting = false;
+var resets = /* @__PURE__ */ new Map();
+function onReset(tab, again) {
+  resets.set(tab, [...resets.get(tab) ?? [], again]);
+}
+function reset(tab, panel) {
+  resetting = true;
+  try {
+    for (const f of fields(panel)) {
+      forget(f.id);
+      if (f instanceof HTMLInputElement && (f.type === "checkbox" || f.type === "radio")) f.checked = f.defaultChecked;
+      else if (f instanceof HTMLSelectElement) f.selectedIndex = Math.max(0, [...f.options].findIndex((o) => o.defaultSelected));
+      else f.value = f.defaultValue;
+      f.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    for (const again of resets.get(tab) ?? []) again();
+  } finally {
+    resetting = false;
+  }
+}
+function init() {
+  for (const tab of TABS) {
+    const panel = document.getElementById(`tab-${tab}`);
+    if (!panel) continue;
+    for (const f of fields(panel)) {
+      const v = recall(f.id);
+      if (v !== null) put(f, v);
+    }
+    const keep = (ev) => {
+      const f = ev.target;
+      if (f.id && storable(f.tagName ?? "", f.type ?? "") && !f.hasAttribute("data-unkept")) remember(f.id, stored(f.type, f.value, f.checked === true));
+    };
+    panel.addEventListener("input", keep);
+    panel.addEventListener("change", keep);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "reset";
+    button.id = `${tab}-reset`;
+    button.textContent = "Reset to sample";
+    button.title = "Put this tab's inputs back to the sample and forget what was typed";
+    button.addEventListener("click", () => reset(tab, panel));
+    panel.querySelector(".box")?.append(button);
+  }
+}
+function recallList(id) {
+  const v = recall(id);
+  return v === null ? null : v.split("\n").filter((x) => x.length);
+}
+function forgetOwn(id) {
+  forget(id);
+}
+
 // demo/web/src/dom.ts
 function $(id) {
   const e = document.getElementById(id);
@@ -4251,22 +4358,36 @@ function options(select5, values, labels, none = "") {
   if (!values.length && none) return void select5.replaceChildren(el("option", { value: "", text: none }));
   select5.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
   if (values.includes(keep)) select5.value = keep;
+  restore(select5);
 }
 function failure(x) {
   if (!x.details) return [x.text];
   return [x.text, " ", el("details", { class: "why" }, el("summary", { text: "details" }), el("code", { text: x.details }))];
 }
-function say(box5, what, kind = "") {
+function say(box6, what, kind = "") {
   if (typeof what === "string") {
-    box5.textContent = what;
-    box5.className = kind ? `note ${kind}` : "note";
-    box5.hidden = what === "";
+    box6.textContent = what;
+    box6.className = kind ? `note ${kind}` : "note";
+    box6.hidden = what === "";
     return;
   }
-  box5.replaceChildren();
-  append(box5, failure(what));
-  box5.className = what.text === "Cancelled." ? "note" : "note error";
-  box5.hidden = false;
+  box6.replaceChildren();
+  append(box6, failure(what));
+  box6.className = what.text === "Cancelled." ? "note" : "note error";
+  box6.hidden = false;
+}
+function sending(box6, what) {
+  const bar3 = el("progress", { max: "1", value: "0", "aria-label": "Upload progress" });
+  const line = el("span", {});
+  box6.replaceChildren(line, bar3);
+  box6.className = "note busy upload";
+  box6.hidden = false;
+  return (sent, total) => {
+    bar3.max = Math.max(1, total);
+    bar3.value = sent;
+    const share2 = total ? Math.floor(100 * sent / total) : 100;
+    line.textContent = sent < total ? `Uploading ${what}: ${size(sent)} of ${size(total)} (${share2}%)` : `Sent ${size(total)} (${what}). The server is working on it\u2026`;
+  };
 }
 function failed(x) {
   return el("p", { class: "error" }, failure(x));
@@ -4274,22 +4395,25 @@ function failed(x) {
 function heatKey(what) {
   return el("p", { class: "heat-key muted" }, what, " ", el("span", { class: "ramp", role: "img", "aria-label": "colour scale from low to high" }, "low ", el("i", {}), " high"));
 }
-function reveal(box5) {
-  if (!box5 || !matchMedia("(max-width: 820px)").matches) return () => {
+function reveal(box6) {
+  if (!box6 || !matchMedia("(max-width: 820px)").matches) return () => {
   };
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const show3 = () => box5.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+  const show4 = () => box6.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
   let moved = false;
   for (const ev of ["wheel", "touchmove", "keydown"]) {
     addEventListener(ev, () => moved = true, { once: true, passive: true });
   }
-  show3();
+  show4();
   return () => {
-    if (!moved) show3();
+    if (!moved) show4();
   };
 }
-function size(n) {
-  const v = Number(n);
+function count(n2, noun, many = `${noun}s`) {
+  return `${n2} ${n2 === 1 ? noun : many}`;
+}
+function size(n2) {
+  const v = Number(n2);
   if (v < 1024) return `${v} B`;
   if (v < 1 << 20) return `${(v / 1024).toFixed(1)} KiB`;
   if (v < 1 << 30) return `${(v / (1 << 20)).toFixed(1)} MiB`;
@@ -4297,8 +4421,8 @@ function size(n) {
 }
 function elapsed(ms) {
   if (ms < 6e4) return `${(ms / 1e3).toFixed(1)} s`;
-  const s = Math.floor(ms / 1e3);
-  return `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
+  const s2 = Math.floor(ms / 1e3);
+  return `${Math.floor(s2 / 60)} min ${String(s2 % 60).padStart(2, "0")} s`;
 }
 function download(name, data, type) {
   const url = URL.createObjectURL(new Blob(data, { type }));
@@ -4308,22 +4432,22 @@ function download(name, data, type) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1e4);
 }
-function after(s, prefix2) {
-  return s.startsWith(prefix2) ? s.slice(prefix2.length) : s;
+function after(s2, prefix2) {
+  return s2.startsWith(prefix2) ? s2.slice(prefix2.length) : s2;
 }
-function lazy(details, render6) {
+function lazy(details, render7) {
   let stale2 = true;
   details.addEventListener("toggle", () => {
     if (details.open && stale2) {
       stale2 = false;
-      render6();
+      render7();
     }
   });
   return () => {
     stale2 = true;
     if (details.open) {
       stale2 = false;
-      render6();
+      render7();
     }
   };
 }
@@ -4408,10 +4532,10 @@ var NullValue;
 function getExtension(message, extension, options2) {
   assertExtendee(extension, message);
   const ufs = filterUnknownFields(message.$unknown, extension);
-  const [container, field2, get] = createExtensionContainer(extension);
+  const [container, field3, get] = createExtensionContainer(extension);
   const ctx = makeReadContext(options2);
   for (const uf of ufs) {
-    readField(container, new BinaryReader(uf.data), field2, uf.wireType, ctx);
+    readField(container, new BinaryReader(uf.data), field3, uf.wireType, ctx);
   }
   return get();
 }
@@ -4419,9 +4543,9 @@ function setExtension(message, extension, value) {
   var _a;
   assertExtendee(extension, message);
   const ufs = ((_a = message.$unknown) !== null && _a !== void 0 ? _a : []).filter((uf) => uf.no !== extension.number);
-  const [container, field2] = createExtensionContainer(extension, value);
+  const [container, field3] = createExtensionContainer(extension, value);
   const writer = new BinaryWriter();
-  writeField(writer, { writeUnknownFields: true }, container, field2);
+  writeField(writer, { writeUnknownFields: true }, container, field3);
   const reader = new BinaryReader(writer.finish());
   while (reader.pos < reader.len) {
     const [no, wireType] = reader.tag();
@@ -4445,12 +4569,12 @@ function filterUnknownFields(unknownFields, extension) {
 }
 function createExtensionContainer(extension, value) {
   const localName = extension.typeName;
-  const field2 = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
-  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field2], members: [field2], oneofs: [] });
+  const field3 = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
+  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field3], members: [field3], oneofs: [] });
   const container = create(desc, value !== void 0 ? { [localName]: value } : void 0);
   return [
     reflect(desc, container),
-    field2,
+    field3,
     () => {
       const value2 = container[localName];
       if (value2 === void 0) {
@@ -4534,9 +4658,9 @@ function compileMessage3(desc) {
     return json;
   };
   compiledWriters2.set(desc, compiledWriter3);
-  for (const field2 of sortedFields) {
-    const writeField2 = compileField2(field2);
-    fieldWriters.push(field2.jsonName === "__proto__" || field2.name === "__proto__" ? writeOwnKeys(writeField2) : writeField2);
+  for (const field3 of sortedFields) {
+    const writeField2 = compileField2(field3);
+    fieldWriters.push(field3.jsonName === "__proto__" || field3.name === "__proto__" ? writeOwnKeys(writeField2) : writeField2);
   }
   return compiledWriter3;
 }
@@ -4582,18 +4706,18 @@ function compileWkt(desc) {
       return void 0;
   }
 }
-function compileField2(field2) {
-  switch (field2.fieldKind) {
+function compileField2(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
     case "enum":
     case "message":
-      return compileSingularField2(field2);
+      return compileSingularField2(field3);
     case "list":
     case "map": {
-      const writeValue = field2.fieldKind == "list" ? compileListValue(field2) : compileMapValue(field2);
-      const protoName = field2.name;
-      const jsonKey = field2.jsonName;
-      const localName = field2.localName;
+      const writeValue = field3.fieldKind == "list" ? compileListValue(field3) : compileMapValue(field3);
+      const protoName = field3.name;
+      const jsonKey = field3.jsonName;
+      const localName = field3.localName;
       return (opts, message, json) => {
         const value = writeValue(opts, message[localName]);
         if (value !== void 0) {
@@ -4603,13 +4727,13 @@ function compileField2(field2) {
     }
   }
 }
-function compileSingularField2(field2) {
-  const writeValue = compileSingularValue2(field2);
-  const protoName = field2.name;
-  const jsonKey = field2.jsonName;
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileSingularField2(field3) {
+  const writeValue = compileSingularValue2(field3);
+  const protoName = field3.name;
+  const jsonKey = field3.jsonName;
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (opts, message, json) => {
       const oneof = message[oneofLocalName];
       if (oneof.case === localName) {
@@ -4617,8 +4741,8 @@ function compileSingularField2(field2) {
       }
     };
   }
-  if (field2.presence != IMPLICIT5) {
-    const requiredError = field2.presence == LEGACY_REQUIRED3 ? `cannot encode ${field2} to JSON: required field not set` : void 0;
+  if (field3.presence != IMPLICIT5) {
+    const requiredError = field3.presence == LEGACY_REQUIRED3 ? `cannot encode ${field3} to JSON: required field not set` : void 0;
     return (opts, message, json) => {
       const value = message[localName];
       if (value !== void 0 && Object.prototype.hasOwnProperty.call(message, localName)) {
@@ -4628,8 +4752,8 @@ function compileSingularField2(field2) {
       }
     };
   }
-  if (field2.fieldKind == "enum") {
-    const zero = field2.enum.values[0].number;
+  if (field3.fieldKind == "enum") {
+    const zero = field3.enum.values[0].number;
     return (opts, message, json) => {
       const value = message[localName];
       if (value !== zero || opts.alwaysEmitImplicit) {
@@ -4637,7 +4761,7 @@ function compileSingularField2(field2) {
       }
     };
   }
-  switch (field2.scalar) {
+  switch (field3.scalar) {
     case ScalarType.BOOL:
       return (opts, message, json) => {
         const value = message[localName];
@@ -4676,35 +4800,35 @@ function compileSingularField2(field2) {
       };
   }
 }
-function compileFieldValue(field2) {
-  switch (field2.fieldKind) {
+function compileFieldValue(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
     case "enum":
     case "message":
-      return compileSingularValue2(field2);
+      return compileSingularValue2(field3);
     case "list":
-      return compileListValue(field2);
+      return compileListValue(field3);
     case "map":
-      return compileMapValue(field2);
+      return compileMapValue(field3);
   }
 }
-function compileSingularValue2(field2) {
-  switch (field2.fieldKind) {
+function compileSingularValue2(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
-      return compileScalarValue2(field2);
+      return compileScalarValue2(field3);
     case "enum":
-      return compileEnumValue(field2);
+      return compileEnumValue(field3);
     case "message":
-      return compileMessageValue(field2);
+      return compileMessageValue(field3);
   }
 }
-function compileMessageValue(field2) {
-  const { toMessage } = localMessageMapper(field2);
-  const writeMessage = compiledWriter2(field2.message);
+function compileMessageValue(field3) {
+  const { toMessage } = localMessageMapper(field3);
+  const writeMessage = compiledWriter2(field3.message);
   return (opts, value) => writeMessage(opts, toMessage(value));
 }
-function compileListValue(field2) {
-  const writeItem = compileListItemValue(field2);
+function compileListValue(field3) {
+  const writeItem = compileListItemValue(field3);
   return (opts, value) => {
     const items = value;
     if (items.length == 0 && !opts.alwaysEmitImplicit) {
@@ -4717,18 +4841,18 @@ function compileListValue(field2) {
     return jsonArray;
   };
 }
-function compileListItemValue(field2) {
-  switch (field2.listKind) {
+function compileListItemValue(field3) {
+  switch (field3.listKind) {
     case "scalar":
-      return compileScalarValue2(field2);
+      return compileScalarValue2(field3);
     case "enum":
-      return compileEnumValue(field2);
+      return compileEnumValue(field3);
     case "message":
-      return compileMessageValue(field2);
+      return compileMessageValue(field3);
   }
 }
-function compileMapValue(field2) {
-  const writeMapValue = compileMapEntryValue(field2);
+function compileMapValue(field3) {
+  const writeMapValue = compileMapEntryValue(field3);
   return (opts, value) => {
     const record = value;
     const keys = Object.keys(record);
@@ -4743,18 +4867,18 @@ function compileMapValue(field2) {
     return jsonObject;
   };
 }
-function compileMapEntryValue(field2) {
-  switch (field2.mapKind) {
+function compileMapEntryValue(field3) {
+  switch (field3.mapKind) {
     case "scalar":
-      return compileScalarValue2(field2);
+      return compileScalarValue2(field3);
     case "enum":
-      return compileEnumValue(field2);
+      return compileEnumValue(field3);
     case "message":
-      return compileMessageValue(field2);
+      return compileMessageValue(field3);
   }
 }
-function compileEnumValue(field2) {
-  const desc = field2.enum;
+function compileEnumValue(field3) {
+  const desc = field3.enum;
   if (desc.typeName == "google.protobuf.NullValue") {
     return (opts, value) => {
       if (typeof value != "number") {
@@ -4777,8 +4901,8 @@ function compileEnumValue(field2) {
 function errorEnumValue(desc, value) {
   return new Error(`cannot encode ${desc} to JSON: expected number, got ${formatVal(value)}`);
 }
-function compileScalarValue2(field2) {
-  switch (field2.scalar) {
+function compileScalarValue2(field3) {
+  switch (field3.scalar) {
     // int32, fixed32, uint32: JSON value will be a decimal number. Either numbers or strings are accepted.
     case ScalarType.INT32:
     case ScalarType.SFIXED32:
@@ -4787,7 +4911,7 @@ function compileScalarValue2(field2) {
     case ScalarType.UINT32:
       return (opts, value) => {
         if (typeof value != "number") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         return value;
       };
@@ -4797,7 +4921,7 @@ function compileScalarValue2(field2) {
     case ScalarType.DOUBLE:
       return (opts, value) => {
         if (typeof value != "number") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         if (Number.isNaN(value))
           return "NaN";
@@ -4811,7 +4935,7 @@ function compileScalarValue2(field2) {
     case ScalarType.STRING:
       return (opts, value) => {
         if (typeof value != "string") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         return value;
       };
@@ -4819,7 +4943,7 @@ function compileScalarValue2(field2) {
     case ScalarType.BOOL:
       return (opts, value) => {
         if (typeof value != "boolean") {
-          throw errorScalarValue(field2, value);
+          throw errorScalarValue(field3, value);
         }
         return value;
       };
@@ -4833,7 +4957,7 @@ function compileScalarValue2(field2) {
         if (typeof value == "bigint" || typeof value == "string" || typeof value == "number" && Number.isInteger(value)) {
           return value.toString();
         }
-        throw errorScalarValue(field2, value);
+        throw errorScalarValue(field3, value);
       };
     // bytes: JSON value will be the data encoded as a string using standard base64 encoding with paddings.
     // Either standard or URL-safe base64 encoding with/without paddings are accepted.
@@ -4842,13 +4966,13 @@ function compileScalarValue2(field2) {
         if (value instanceof Uint8Array) {
           return base64Encode(value);
         }
-        throw errorScalarValue(field2, value);
+        throw errorScalarValue(field3, value);
       };
   }
 }
-function errorScalarValue(field2, value) {
+function errorScalarValue(field3, value) {
   var _a;
-  return new Error(`cannot encode ${field2} to JSON: ${(_a = checkField(field2, value)) === null || _a === void 0 ? void 0 : _a.message}`);
+  return new Error(`cannot encode ${field3} to JSON: ${(_a = checkField(field3, value)) === null || _a === void 0 ? void 0 : _a.message}`);
 }
 function writeExtensions(json, opts, registry, message, desc) {
   const unknown = message.$unknown;
@@ -4865,9 +4989,9 @@ function writeExtensions(json, opts, registry, message, desc) {
         continue;
       }
       const value = getExtension(message, extension);
-      const [container, field2] = createExtensionContainer(extension, value);
+      const [container, field3] = createExtensionContainer(extension, value);
       const local = container[unsafeLocal];
-      const jsonValue = compileFieldValue(field2)(opts, local[field2.localName]);
+      const jsonValue = compileFieldValue(field3)(opts, local[field3.localName]);
       if (jsonValue !== void 0) {
         json[extension.jsonName] = jsonValue;
       }
@@ -5052,27 +5176,27 @@ function compileMessage4(desc) {
       const jsonValue = json[jsonKey];
       const entry = fieldsByJsonKey.get(jsonKey);
       if (entry !== void 0) {
-        const field2 = entry.field;
-        if (fieldSeen.has(field2)) {
-          throw new FieldError(field2, "set multiple times");
+        const field3 = entry.field;
+        if (fieldSeen.has(field3)) {
+          throw new FieldError(field3, "set multiple times");
         }
-        fieldSeen.add(field2);
+        fieldSeen.add(field3);
         if (entry.oneofScalarNullSkip && jsonValue === null) {
           continue;
         }
         if (entry.oneof) {
-          const seen = oneofSeen.get(entry.oneof);
-          if (seen !== void 0) {
-            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen.name} and ${field2.name}`);
+          const seen2 = oneofSeen.get(entry.oneof);
+          if (seen2 !== void 0) {
+            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen2.name} and ${field3.name}`);
           }
-          oneofSeen.set(entry.oneof, field2);
+          oneofSeen.set(entry.oneof, field3);
         }
         entry.read(message, jsonValue, ctx);
       } else {
         const extension = jsonKey.startsWith("[") && jsonKey.endsWith("]") ? (_a = ctx.registry) === null || _a === void 0 ? void 0 : _a.getExtension(jsonKey.substring(1, jsonKey.length - 1)) : void 0;
         if ((extension === null || extension === void 0 ? void 0 : extension.extendee.typeName) == typeName) {
-          const [container, field2, get] = createExtensionContainer(extension);
-          compileFieldReader2(field2)(container[unsafeLocal], jsonValue, ctx);
+          const [container, field3, get] = createExtensionContainer(extension);
+          compileFieldReader2(field3)(container[unsafeLocal], jsonValue, ctx);
           setExtension(message, extension, get());
         }
         if (extension === void 0 && !ctx.ignoreUnknownFields) {
@@ -5083,14 +5207,14 @@ function compileMessage4(desc) {
     ctx.depth--;
   };
   compiledReaders2.set(desc, compiled);
-  for (const field2 of desc.fields) {
+  for (const field3 of desc.fields) {
     const entry = {
-      read: compileFieldReader2(field2),
-      field: field2,
-      oneof: field2.oneof,
-      oneofScalarNullSkip: field2.oneof !== void 0 && field2.fieldKind == "scalar"
+      read: compileFieldReader2(field3),
+      field: field3,
+      oneof: field3.oneof,
+      oneofScalarNullSkip: field3.oneof !== void 0 && field3.fieldKind == "scalar"
     };
-    fieldsByJsonKey.set(field2.name, entry).set(field2.jsonName, entry);
+    fieldsByJsonKey.set(field3.name, entry).set(field3.jsonName, entry);
   }
   return compiled;
 }
@@ -5131,25 +5255,25 @@ function compileWkt2(desc) {
       return void 0;
   }
 }
-function compileFieldReader2(field2) {
-  switch (field2.fieldKind) {
+function compileFieldReader2(field3) {
+  switch (field3.fieldKind) {
     case "scalar":
-      return compileScalarFieldReader2(field2);
+      return compileScalarFieldReader2(field3);
     case "enum":
-      return compileEnumFieldReader2(field2);
+      return compileEnumFieldReader2(field3);
     case "message":
-      return compileMessageFieldReader2(field2);
+      return compileMessageFieldReader2(field3);
     case "list":
-      return compileListFieldReader2(field2);
+      return compileListFieldReader2(field3);
     case "map":
-      return compileMapFieldReader2(field2);
+      return compileMapFieldReader2(field3);
   }
 }
-function compileScalarFieldReader2(field2) {
-  const readScalar = compileScalarConverter(field2);
-  const localName = field2.localName;
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileScalarFieldReader2(field3) {
+  const readScalar = compileScalarConverter(field3);
+  const localName = field3.localName;
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, json) => {
       message[oneofLocalName] = {
         case: localName,
@@ -5157,7 +5281,7 @@ function compileScalarFieldReader2(field2) {
       };
     };
   }
-  const clear = compileClear(field2);
+  const clear = compileClear(field3);
   return (message, json) => {
     if (json === null) {
       clear(message);
@@ -5166,32 +5290,32 @@ function compileScalarFieldReader2(field2) {
     }
   };
 }
-function compileClear(field2) {
-  const localName = field2.localName;
-  if (field2.presence != IMPLICIT6) {
+function compileClear(field3) {
+  const localName = field3.localName;
+  if (field3.presence != IMPLICIT6) {
     return (message) => {
       delete message[localName];
     };
   }
-  if (field2.fieldKind == "enum") {
-    const zero = field2.enum.values[0].number;
+  if (field3.fieldKind == "enum") {
+    const zero = field3.enum.values[0].number;
     return (message) => {
       message[localName] = zero;
     };
   }
-  const scalar2 = field2.scalar;
-  const longAsString = field2.longAsString;
+  const scalar2 = field3.scalar;
+  const longAsString = field3.longAsString;
   return (message) => {
     message[localName] = scalarZeroValue(scalar2, longAsString);
   };
 }
-function compileEnumFieldReader2(field2) {
-  const readEnumValue = compileEnumConverter(field2.enum);
-  const checkEnum = compileEnumCheck(field2.enum);
-  const localName = field2.localName;
-  const nullResets = field2.enum.typeName != "google.protobuf.NullValue";
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileEnumFieldReader2(field3) {
+  const readEnumValue = compileEnumConverter(field3.enum);
+  const checkEnum = compileEnumCheck(field3.enum);
+  const localName = field3.localName;
+  const nullResets = field3.enum.typeName != "google.protobuf.NullValue";
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, json, ctx) => {
       if (json === null && nullResets) {
         const oneof = message[oneofLocalName];
@@ -5206,12 +5330,12 @@ function compileEnumFieldReader2(field2) {
       }
       const check2 = checkEnum(value);
       if (check2 !== true) {
-        throw new FieldError(field2, reasonSingular(field2, value, check2));
+        throw new FieldError(field3, reasonSingular(field3, value, check2));
       }
       message[oneofLocalName] = { case: localName, value };
     };
   }
-  const clear = compileClear(field2);
+  const clear = compileClear(field3);
   return (message, json, ctx) => {
     if (json === null && nullResets) {
       clear(message);
@@ -5223,18 +5347,18 @@ function compileEnumFieldReader2(field2) {
     }
     const check2 = checkEnum(value);
     if (check2 !== true) {
-      throw new FieldError(field2, reasonSingular(field2, value, check2));
+      throw new FieldError(field3, reasonSingular(field3, value, check2));
     }
     message[localName] = value;
   };
 }
-function compileMessageFieldReader2(field2) {
-  const localName = field2.localName;
-  const { toMessage, toLocal } = localMessageMapper(field2);
-  const readChild = compiledReader2(field2.message);
-  const nullResets = field2.message.typeName != "google.protobuf.Value";
-  if (field2.oneof) {
-    const oneofLocalName = field2.oneof.localName;
+function compileMessageFieldReader2(field3) {
+  const localName = field3.localName;
+  const { toMessage, toLocal } = localMessageMapper(field3);
+  const readChild = compiledReader2(field3.message);
+  const nullResets = field3.message.typeName != "google.protobuf.Value";
+  if (field3.oneof) {
+    const oneofLocalName = field3.oneof.localName;
     return (message, json, ctx) => {
       const oneof = message[oneofLocalName];
       if (json === null && nullResets) {
@@ -5258,15 +5382,15 @@ function compileMessageFieldReader2(field2) {
     message[localName] = toLocal(child);
   };
 }
-function compileListFieldReader2(field2) {
-  const localName = field2.localName;
-  const readItem = compileListItemReader(field2);
+function compileListFieldReader2(field3) {
+  const localName = field3.localName;
+  const readItem = compileListItemReader(field3);
   return (message, json, ctx) => {
     if (json === null) {
       return;
     }
     if (!Array.isArray(json)) {
-      throw new FieldError(field2, "expected Array, got " + formatVal(json));
+      throw new FieldError(field3, "expected Array, got " + formatVal(json));
     }
     const items = message[localName];
     for (let i = 0; i < json.length; i++) {
@@ -5277,31 +5401,31 @@ function compileListFieldReader2(field2) {
     }
   };
 }
-function compileListItemReader(field2) {
-  switch (field2.listKind) {
+function compileListItemReader(field3) {
+  switch (field3.listKind) {
     case "scalar": {
-      const parseScalar = compileScalarParse(field2);
-      const checkValue = checkScalarValue(field2.scalar);
-      const toLocal = compileScalarToLocal(field2);
+      const parseScalar = compileScalarParse(field3);
+      const checkValue = checkScalarValue(field3.scalar);
+      const toLocal = compileScalarToLocal(field3);
       return (json, ctx, index) => {
         if (json === null) {
-          throw new FieldError(field2, "list item must not be null");
+          throw new FieldError(field3, "list item must not be null");
         }
         const value = parseScalar(json);
         const check2 = checkValue(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field3, `list item #${index + 1}: ${reasonSingular(field3, value, check2)}`);
         }
         return toLocal(value);
       };
     }
     case "enum": {
-      const readEnumValue = compileEnumConverter(field2.enum);
-      const checkEnum = compileEnumCheck(field2.enum);
-      const nullResets = field2.enum.typeName != "google.protobuf.NullValue";
+      const readEnumValue = compileEnumConverter(field3.enum);
+      const checkEnum = compileEnumCheck(field3.enum);
+      const nullResets = field3.enum.typeName != "google.protobuf.NullValue";
       return (json, ctx, index) => {
         if (json === null && nullResets) {
-          throw new FieldError(field2, "list item must not be null");
+          throw new FieldError(field3, "list item must not be null");
         }
         const value = readEnumValue(json, ctx.ignoreUnknownFields);
         if (value === tokenIgnoredUnknownEnum) {
@@ -5309,18 +5433,18 @@ function compileListItemReader(field2) {
         }
         const check2 = checkEnum(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field3, `list item #${index + 1}: ${reasonSingular(field3, value, check2)}`);
         }
         return value;
       };
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field2);
-      const readChild = compiledReader2(field2.message);
-      const nullResets = field2.message.typeName != "google.protobuf.Value";
+      const { toMessage, toLocal } = localMessageMapper(field3);
+      const readChild = compiledReader2(field3.message);
+      const nullResets = field3.message.typeName != "google.protobuf.Value";
       return (json, ctx) => {
         if (json === null && nullResets) {
-          throw new FieldError(field2, "list item must not be null");
+          throw new FieldError(field3, "list item must not be null");
         }
         const child = toMessage(void 0);
         readChild(child, json, ctx);
@@ -5329,33 +5453,33 @@ function compileListItemReader(field2) {
     }
   }
 }
-function compileMapFieldReader2(field2) {
-  const localName = field2.localName;
-  const mapKey = field2.mapKey;
+function compileMapFieldReader2(field3) {
+  const localName = field3.localName;
+  const mapKey = field3.mapKey;
   const parseMapKey = compileMapKeyParse(mapKey);
   const checkMapKey = checkScalarValue(mapKey);
   let parseValue;
   let checkValue;
   let toLocalValue = (value) => value;
   let nullResets = true;
-  switch (field2.mapKind) {
+  switch (field3.mapKind) {
     case "scalar": {
-      parseValue = compileScalarParse(field2);
-      checkValue = checkScalarValue(field2.scalar);
-      toLocalValue = compileScalarToLocal(field2);
+      parseValue = compileScalarParse(field3);
+      checkValue = checkScalarValue(field3.scalar);
+      toLocalValue = compileScalarToLocal(field3);
       break;
     }
     case "enum": {
-      const readEnumValue = compileEnumConverter(field2.enum);
+      const readEnumValue = compileEnumConverter(field3.enum);
       parseValue = (json, ctx) => readEnumValue(json, ctx.ignoreUnknownFields);
-      checkValue = compileEnumCheck(field2.enum);
-      nullResets = field2.enum.typeName != "google.protobuf.NullValue";
+      checkValue = compileEnumCheck(field3.enum);
+      nullResets = field3.enum.typeName != "google.protobuf.NullValue";
       break;
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field2);
-      const readChild = compiledReader2(field2.message);
-      nullResets = field2.message.typeName != "google.protobuf.Value";
+      const { toMessage, toLocal } = localMessageMapper(field3);
+      const readChild = compiledReader2(field3.message);
+      nullResets = field3.message.typeName != "google.protobuf.Value";
       parseValue = (json, ctx) => {
         const child = toMessage(void 0);
         readChild(child, json, ctx);
@@ -5369,21 +5493,21 @@ function compileMapFieldReader2(field2) {
       return;
     }
     if (typeof json != "object" || Array.isArray(json)) {
-      throw new FieldError(field2, "expected object, got " + formatVal(json));
+      throw new FieldError(field3, "expected object, got " + formatVal(json));
     }
     const record = message[localName];
-    const seen = /* @__PURE__ */ new Set();
+    const seen2 = /* @__PURE__ */ new Set();
     const jsonMapKeys = Object.keys(json);
     for (let i = 0; i < jsonMapKeys.length; i++) {
       const jsonMapKey = jsonMapKeys[i];
       const jsonMapValue = json[jsonMapKey];
       const key3 = parseMapKey(jsonMapKey);
-      if (seen.has(key3)) {
-        throw new FieldError(field2, `duplicate map key "${jsonMapKey}"`);
+      if (seen2.has(key3)) {
+        throw new FieldError(field3, `duplicate map key "${jsonMapKey}"`);
       }
-      seen.add(key3);
+      seen2.add(key3);
       if (jsonMapValue === null && nullResets) {
-        throw new FieldError(field2, "map value must not be null");
+        throw new FieldError(field3, "map value must not be null");
       }
       const value = parseValue(jsonMapValue, ctx);
       if (value === tokenIgnoredUnknownEnum) {
@@ -5391,12 +5515,12 @@ function compileMapFieldReader2(field2) {
       }
       const checkKey = checkMapKey(key3);
       if (checkKey !== true) {
-        throw new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: mapKey }, key3, checkKey)}`);
+        throw new FieldError(field3, `invalid map key: ${reasonSingular({ scalar: mapKey }, key3, checkKey)}`);
       }
       if (checkValue !== void 0) {
         const check2 = checkValue(value);
         if (check2 !== true) {
-          throw new FieldError(field2, `map entry ${formatVal(key3)}: ${reasonSingular(field2, value, check2)}`);
+          throw new FieldError(field3, `map entry ${formatVal(key3)}: ${reasonSingular(field3, value, check2)}`);
         }
       }
       setOwn(record, key3, toLocalValue(value));
@@ -5444,21 +5568,21 @@ function compileEnumCheck(desc) {
   const values = desc.values;
   return (value) => values.some((v) => v.number === value);
 }
-function compileScalarConverter(field2) {
-  const parseScalar = compileScalarParse(field2);
-  const checkValue = checkScalarValue(field2.scalar);
-  const toLocal = compileScalarToLocal(field2);
+function compileScalarConverter(field3) {
+  const parseScalar = compileScalarParse(field3);
+  const checkValue = checkScalarValue(field3.scalar);
+  const toLocal = compileScalarToLocal(field3);
   return (json) => {
     const value = parseScalar(json);
     const check2 = checkValue(value);
     if (check2 !== true) {
-      throw new FieldError(field2, reasonSingular(field2, value, check2));
+      throw new FieldError(field3, reasonSingular(field3, value, check2));
     }
     return toLocal(value);
   };
 }
-function compileScalarParse(field2) {
-  switch (field2.scalar) {
+function compileScalarParse(field3) {
+  switch (field3.scalar) {
     // float, double: JSON value will be a number or one of the special string values "NaN", "Infinity", and "-Infinity".
     // Either numbers or strings are accepted. Exponent notation is also accepted.
     case ScalarType.DOUBLE:
@@ -5472,10 +5596,10 @@ function compileScalarParse(field2) {
           return Number.NEGATIVE_INFINITY;
         if (typeof json == "number") {
           if (Number.isNaN(json)) {
-            throw new FieldError(field2, "unexpected NaN number");
+            throw new FieldError(field3, "unexpected NaN number");
           }
           if (!Number.isFinite(json)) {
-            throw new FieldError(field2, "unexpected infinite number");
+            throw new FieldError(field3, "unexpected infinite number");
           }
           return json;
         }
@@ -5513,7 +5637,7 @@ function compileScalarParse(field2) {
             return base64Decode(json);
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
-            throw new FieldError(field2, message);
+            throw new FieldError(field3, message);
           }
         }
         return json;
@@ -5524,9 +5648,9 @@ function compileScalarParse(field2) {
       return (json) => json;
   }
 }
-function compileScalarToLocal(field2) {
-  const longAsString = field2.fieldKind !== "map" && field2.longAsString;
-  switch (field2.scalar) {
+function compileScalarToLocal(field3) {
+  const longAsString = field3.fieldKind !== "map" && field3.longAsString;
+  switch (field3.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
@@ -5604,29 +5728,29 @@ function parseJsonString(jsonString, typeName) {
   return json;
 }
 function checkDuplicateKeys(jsonString, typeName) {
-  const stack2 = [];
+  const stack = [];
   let expectKey = false;
   let i = 0;
   while (i < jsonString.length) {
     switch (jsonString[i]) {
       case "{":
-        stack2.push(/* @__PURE__ */ new Set());
+        stack.push(/* @__PURE__ */ new Set());
         expectKey = true;
         i++;
         break;
       case "[":
-        stack2.push(null);
+        stack.push(null);
         expectKey = false;
         i++;
         break;
       case "}":
       case "]":
-        stack2.pop();
+        stack.pop();
         expectKey = false;
         i++;
         break;
       case ",":
-        expectKey = stack2[stack2.length - 1] != null;
+        expectKey = stack[stack.length - 1] != null;
         i++;
         break;
       case ":":
@@ -5648,13 +5772,13 @@ function checkDuplicateKeys(jsonString, typeName) {
           i++;
         }
         const close = i++;
-        const seen = stack2[stack2.length - 1];
-        if (expectKey && seen) {
+        const seen2 = stack[stack.length - 1];
+        if (expectKey && seen2) {
           const name = escaped ? JSON.parse(jsonString.substring(open2, close + 1)) : jsonString.substring(open2 + 1, close);
-          if (seen.has(name)) {
+          if (seen2.has(name)) {
             throw new Error(`cannot decode message ${typeName} from JSON: duplicate object key "${name}"`);
           }
-          seen.add(name);
+          seen2.add(name);
         }
         expectKey = false;
         break;
@@ -5689,13 +5813,13 @@ function anyFromJson(any, json, ctx) {
   if (hasCustomJsonRepresentation(desc) && Object.prototype.hasOwnProperty.call(json, "value")) {
     compiledReader2(desc)(message, json.value, ctx);
   } else {
-    const copy = {};
+    const copy2 = {};
     for (const key3 of Object.keys(json)) {
       if (key3 !== "@type") {
-        setOwn(copy, key3, json[key3]);
+        setOwn(copy2, key3, json[key3]);
       }
     }
-    compiledReader2(desc)(message, copy, ctx);
+    compiledReader2(desc)(message, copy2, ctx);
   }
   anyPack(desc, message, any);
 }
@@ -6071,10 +6195,10 @@ var __asyncValues = function(o) {
   return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
     return this;
   }, i);
-  function verb(n) {
-    i[n] = o[n] && function(v) {
+  function verb(n2) {
+    i[n2] = o[n2] && function(v) {
       return new Promise(function(resolve, reject) {
-        v = o[n](v), settle2(resolve, reject, v.done, v.value);
+        v = o[n2](v), settle2(resolve, reject, v.done, v.value);
       });
     };
   }
@@ -6098,19 +6222,19 @@ var __asyncGenerator = function(thisArg, _arguments, generator) {
       return Promise.resolve(v).then(f, reject);
     };
   }
-  function verb(n, f) {
-    if (g[n]) {
-      i[n] = function(v) {
+  function verb(n2, f) {
+    if (g[n2]) {
+      i[n2] = function(v) {
         return new Promise(function(a, b) {
-          q.push([n, v, a, b]) > 1 || resume(n, v);
+          q.push([n2, v, a, b]) > 1 || resume(n2, v);
         });
       };
-      if (f) i[n] = f(i[n]);
+      if (f) i[n2] = f(i[n2]);
     }
   }
-  function resume(n, v) {
+  function resume(n2, v) {
     try {
-      step(g[n](v));
+      step(g[n2](v));
     } catch (e) {
       settle2(q[0][3], e);
     }
@@ -6135,9 +6259,9 @@ var __asyncDelegator = function(o) {
   }), verb("return"), i[Symbol.iterator] = function() {
     return this;
   }, i;
-  function verb(n, f) {
-    i[n] = o[n] ? function(v) {
-      return (p = !p) ? { value: __await(o[n](v)), done: false } : f ? f(v) : v;
+  function verb(n2, f) {
+    i[n2] = o[n2] ? function(v) {
+      return (p = !p) ? { value: __await(o[n2](v)), done: false } : f ? f(v) : v;
     } : f;
   }
 };
@@ -6154,10 +6278,10 @@ var __asyncValues2 = function(o) {
   return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
     return this;
   }, i);
-  function verb(n) {
-    i[n] = o[n] && function(v) {
+  function verb(n2) {
+    i[n2] = o[n2] && function(v) {
       return new Promise(function(resolve, reject) {
-        v = o[n](v), settle2(resolve, reject, v.done, v.value);
+        v = o[n2](v), settle2(resolve, reject, v.done, v.value);
       });
     };
   }
@@ -6177,9 +6301,9 @@ var __asyncDelegator2 = function(o) {
   }), verb("return"), i[Symbol.iterator] = function() {
     return this;
   }, i;
-  function verb(n, f) {
-    i[n] = o[n] ? function(v) {
-      return (p = !p) ? { value: __await2(o[n](v)), done: false } : f ? f(v) : v;
+  function verb(n2, f) {
+    i[n2] = o[n2] ? function(v) {
+      return (p = !p) ? { value: __await2(o[n2](v)), done: false } : f ? f(v) : v;
     } : f;
   }
 };
@@ -6194,19 +6318,19 @@ var __asyncGenerator2 = function(thisArg, _arguments, generator) {
       return Promise.resolve(v).then(f, reject);
     };
   }
-  function verb(n, f) {
-    if (g[n]) {
-      i[n] = function(v) {
+  function verb(n2, f) {
+    if (g[n2]) {
+      i[n2] = function(v) {
         return new Promise(function(a, b) {
-          q.push([n, v, a, b]) > 1 || resume(n, v);
+          q.push([n2, v, a, b]) > 1 || resume(n2, v);
         });
       };
-      if (f) i[n] = f(i[n]);
+      if (f) i[n2] = f(i[n2]);
     }
   }
-  function resume(n, v) {
+  function resume(n2, v) {
     try {
-      step(g[n](v));
+      step(g[n2](v));
     } catch (e) {
       settle2(q[0][3], e);
     }
@@ -6259,14 +6383,14 @@ function createClientStreamingFn(transport2, method) {
     const response = await transport2.stream(method, options2 === null || options2 === void 0 ? void 0 : options2.signal, options2 === null || options2 === void 0 ? void 0 : options2.timeoutMs, options2 === null || options2 === void 0 ? void 0 : options2.headers, request, options2 === null || options2 === void 0 ? void 0 : options2.contextValues);
     (_d = options2 === null || options2 === void 0 ? void 0 : options2.onHeader) === null || _d === void 0 ? void 0 : _d.call(options2, response.header);
     let singleMessage;
-    let count = 0;
+    let count2 = 0;
     try {
       for (var _f = true, _g = __asyncValues2(response.message), _h; _h = await _g.next(), _a = _h.done, !_a; _f = true) {
         _c = _h.value;
         _f = false;
         const message = _c;
         singleMessage = message;
-        count++;
+        count2++;
       }
     } catch (e_1_1) {
       e_1 = { error: e_1_1 };
@@ -6280,7 +6404,7 @@ function createClientStreamingFn(transport2, method) {
     if (!singleMessage) {
       throw new ConnectError("protocol error: missing response message", Code.Unimplemented);
     }
-    if (count > 1) {
+    if (count2 > 1) {
       throw new ConnectError("protocol error: received extra messages for client streaming method", Code.Unimplemented);
     }
     (_e = options2 === null || options2 === void 0 ? void 0 : options2.onTrailer) === null || _e === void 0 ? void 0 : _e.call(options2, response.trailer);
@@ -6310,7 +6434,7 @@ function handleStreamResponse(stream, options2) {
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol/signals.js
 function createLinkedAbortController(...signals) {
   const controller = new AbortController();
-  const sa = signals.filter((s) => s !== void 0).concat(controller.signal);
+  const sa = signals.filter((s2) => s2 !== void 0).concat(controller.signal);
   for (const signal of sa) {
     if (signal.aborted) {
       onAbort.apply(signal);
@@ -6780,19 +6904,19 @@ var __asyncGenerator3 = function(thisArg, _arguments, generator) {
       return Promise.resolve(v).then(f, reject);
     };
   }
-  function verb(n, f) {
-    if (g[n]) {
-      i[n] = function(v) {
+  function verb(n2, f) {
+    if (g[n2]) {
+      i[n2] = function(v) {
         return new Promise(function(a, b) {
-          q.push([n, v, a, b]) > 1 || resume(n, v);
+          q.push([n2, v, a, b]) > 1 || resume(n2, v);
         });
       };
-      if (f) i[n] = f(i[n]);
+      if (f) i[n2] = f(i[n2]);
     }
   }
-  function resume(n, v) {
+  function resume(n2, v) {
     try {
-      step(g[n](v));
+      step(g[n2](v));
     } catch (e) {
       settle2(q[0][3], e);
     }
@@ -6844,8 +6968,8 @@ function createConnectTransport(options2) {
           } else {
             body2 = serialize(req.message);
           }
-          const fetch2 = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
-          const response = await fetch2(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: body2 }));
+          const fetch = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
+          const response = await fetch(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: body2 }));
           const { isUnaryError, unaryError } = validateResponse(method.methodKind, useBinaryFormat, response.status, response.headers);
           if (isUnaryError) {
             throw errorFromJson(await response.json(), appendHeaders(...trailerDemux(response.headers)), unaryError);
@@ -6927,8 +7051,8 @@ function createConnectTransport(options2) {
         },
         next: async (req) => {
           var _a2;
-          const fetch2 = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
-          const fRes = await fetch2(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: await createRequestBody(req.message) }));
+          const fetch = (_a2 = options2.fetch) !== null && _a2 !== void 0 ? _a2 : globalThis.fetch;
+          const fRes = await fetch(req.url, Object.assign(Object.assign({}, fetchOptions), { method: req.requestMethod, headers: req.header, signal: req.signal, body: await createRequestBody(req.message) }));
           validateResponse(method.methodKind, useBinaryFormat, fRes.status, fRes.headers);
           if (fRes.body === null) {
             throw "missing response body";
@@ -6956,6 +7080,14 @@ function codeName(code) {
 function cancelled(e) {
   if (e instanceof Error && e.name === "AbortError") return true;
   return e instanceof ConnectError && e.code === Code.Canceled;
+}
+function declined(e) {
+  if (!(e instanceof ConnectError)) return false;
+  return ASKED_TOO_MUCH.includes(e.code);
+}
+var ASKED_TOO_MUCH = [Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound, Code.OutOfRange, Code.ResourceExhausted];
+function declinedOver(e, part2) {
+  return declined(e) && unprefixed(e.rawMessage).startsWith(part2);
 }
 var EMPTY = {
   index_name: "Pick or create an index first.",
@@ -6987,14 +7119,14 @@ function sentence(message) {
   if (!m) return "";
   const first = String.fromCodePoint(m.codePointAt(0));
   const rest = m.slice(first.length);
-  const last2 = m[m.length - 1];
-  return first.toUpperCase() + rest + (last2 === "." || last2 === "!" || last2 === "?" ? "" : ".");
+  const last3 = m[m.length - 1];
+  return first.toUpperCase() + rest + (last3 === "." || last3 === "!" || last3 === "?" ? "" : ".");
 }
 function emptyField(message) {
   for (const end of EMPTY_ENDS) {
     if (!message.endsWith(end)) continue;
-    const field2 = message.slice(0, message.length - end.length);
-    return EMPTY[field2.slice(field2.lastIndexOf(".") + 1)] ?? "";
+    const field3 = message.slice(0, message.length - end.length);
+    return EMPTY[field3.slice(field3.lastIndexOf(".") + 1)] ?? "";
   }
   return "";
 }
@@ -7050,7 +7182,7 @@ var GRPCInferenceService = /* @__PURE__ */ serviceDesc(file_open_inference_grpc,
 var file_turbo_pii_policy = /* @__PURE__ */ fileDesc("ChZ0dXJib19waWlfcG9saWN5LnByb3RvEg90dXJiby5yZXN1bHQudjEi8wIKD1JlZGFjdGlvblBvbGljeRIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoBBIUCgxjdXN0b21fa2luZHMYAyADKAkSMAoKa2luZF9ydWxlcxgEIAMoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlLaW5kUnVsZRI9ChBkZWZhdWx0X3N0cmF0ZWd5GAUgASgLMiMudHVyYm8ucmVzdWx0LnYxLlBpaURlZmF1bHRTdHJhdGVneRIsCgVhbGxvdxgGIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd0xpc3QSKgoEZGVueRgHIAMoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlEZW55TGlzdBJAChJjdXN0b21faWRlbnRpZmllcnMYCCADKAsyJC50dXJiby5yZXN1bHQudjEuUGlpQ3VzdG9tSWRlbnRpZmllchIfChdyZWRhY3RfYW5kX2ZsYWdfdW5rbm93bhgJIAEoCCLMAgoLUGlpS2luZFJ1bGUSDwoHcnVsZV9pZBgBIAEoCRIpCgRraW5kGAIgASgLMhsudHVyYm8ucmVzdWx0LnYxLlBpaUtpbmRSZWYSLAoFc3RhdGUYAyABKA4yHS50dXJiby5yZXN1bHQudjEuUGlpUnVsZVN0YXRlEjUKCnN0cmF0ZWdpZXMYBCADKAsyIS50dXJiby5yZXN1bHQudjEuUGlpU3RyYXRlZ3lFbnRyeRIsCgVhbGxvdxgFIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd0xpc3QSMQoGbGFiZWxzGAYgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsT3ZlcnJpZGUSOwoPcmVsZWFzZV9jZWlsaW5nGAcgASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaVJlbGVhc2VDZWlsaW5nIkEKEVBpaVJlbGVhc2VDZWlsaW5nEiwKBWZvcm1zGAEgAygOMh0udHVyYm8ucmVzdWx0LnYxLlBpaVZhbHVlRm9ybSJ5ChBQaWlMYWJlbE92ZXJyaWRlEjkKC3JlcXVpcmVtZW50GAEgASgOMiQudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsUmVxdWlyZW1lbnQSFAoMd2luZG93X3dvcmRzGAIgASgNEhQKDGV4dHJhX2xhYmVscxgDIAMoCSJ+ChBQaWlTdHJhdGVneUVudHJ5EjMKBHdoZW4YASADKAsyJS50dXJiby5yZXN1bHQudjEuUGlpU3RyYXRlZ3lDb25kaXRpb24SNQoIc3RyYXRlZ3kYAiABKAsyIy50dXJiby5yZXN1bHQudjEuUGlpUmV3cml0ZVN0cmF0ZWd5IqMCChRQaWlTdHJhdGVneUNvbmRpdGlvbhJGCg9jaGVja3N1bV9wYXNzZWQYASABKAsyKy50dXJiby5yZXN1bHQudjEuUGlpQ2hlY2tzdW1QYXNzZWRDb25kaXRpb25IABJCCg1sYWJlbF9wcmVzZW50GAIgASgLMikudHVyYm8ucmVzdWx0LnYxLlBpaUxhYmVsUHJlc2VudENvbmRpdGlvbkgAEjkKCGRldGVjdG9yGAMgASgLMiUudHVyYm8ucmVzdWx0LnYxLlBpaURldGVjdG9yQ29uZGl0aW9uSAASPAoOc2NvcmVfYXRfbGVhc3QYBCABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpU2NvcmVDb25kaXRpb25IAEIGCgR0ZXN0IlcKGlBpaUNoZWNrc3VtUGFzc2VkQ29uZGl0aW9uEjkKCmFsZ29yaXRobXMYASADKA4yJS50dXJiby5yZXN1bHQudjEuUGlpQ2hlY2tzdW1BbGdvcml0aG0iGgoYUGlpTGFiZWxQcmVzZW50Q29uZGl0aW9uIjMKFFBpaURldGVjdG9yQ29uZGl0aW9uEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkiYQoRUGlpU2NvcmVDb25kaXRpb24SKwoEa2luZBgBIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5QaWlTY29yZUtpbmQSCwoDbWluGAIgASgCEhIKCmNhbGlicmF0ZWQYAyABKAgi+gYKElBpaVJld3JpdGVTdHJhdGVneRIwCgRtYXNrGAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlBpaU1hc2tTdHJhdGVneUgAEjQKBmZvcm1hdBgCIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5QaWlGb3JtYXRTdHJhdGVneUgAEi4KA21hcBgDIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBTdHJhdGVneUgAEjgKCHRydW5jYXRlGAQgASgLMiQudHVyYm8ucmVzdWx0LnYxLlBpaVRydW5jYXRlU3RyYXRlZ3lIABIzCgZsYXN0X24YBSABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpTGFzdE5TdHJhdGVneUgAEjwKCmFiYnJldmlhdGUYBiABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpQWJicmV2aWF0ZVN0cmF0ZWd5SAASPQoLa2V5ZWRfdG9rZW4YByABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpS2V5ZWRUb2tlblN0cmF0ZWd5SAASNAoGc2hhMjU2GAggASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaVNoYTI1NlN0cmF0ZWd5SAASOQoLc3RhdGljX3RleHQYCSABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpU3RhdGljU3RyYXRlZ3lIABI6Cglwc2V1ZG9ueW0YCiABKAsyJS50dXJiby5yZXN1bHQudjEuUGlpUHNldWRvbnltU3RyYXRlZ3lIABJECg96aXBfc2FmZV9oYXJib3IYCyABKAsyKS50dXJiby5yZXN1bHQudjEuUGlpWmlwU2FmZUhhcmJvclN0cmF0ZWd5SAASRAoPYWdlX3NhZmVfaGFyYm9yGAwgASgLMikudHVyYm8ucmVzdWx0LnYxLlBpaUFnZVNhZmVIYXJib3JTdHJhdGVneUgAEjAKBGRhdGUYDSABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpRGF0ZVN0cmF0ZWd5SAASOQoLYWVzXzI1Nl9nY20YDiABKAsyIi50dXJiby5yZXN1bHQudjEuUGlpQWVzR2NtU3RyYXRlZ3lIABIuCgNmZjEYDyABKAsyHy50dXJiby5yZXN1bHQudjEuUGlpRmYxU3RyYXRlZ3lIAEIKCghzdHJhdGVneSKRAQoSUGlpRGVmYXVsdFN0cmF0ZWd5EjAKBG1hc2sYASABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpTWFza1N0cmF0ZWd5SAASPQoLa2V5ZWRfdG9rZW4YAiABKAsyJi50dXJiby5yZXN1bHQudjEuUGlpS2V5ZWRUb2tlblN0cmF0ZWd5SABCCgoIc3RyYXRlZ3kiOQoPUGlpTWFza1N0cmF0ZWd5EhEKCW1hc2tfY2hhchgBIAEoCRITCgtrZWVwX2Zvcm1hdBgCIAEoCCIlChFQaWlGb3JtYXRTdHJhdGVneRIQCgh0ZW1wbGF0ZRgBIAEoCSJ4ChNQaWlUcnVuY2F0ZVN0cmF0ZWd5EioKBHNpZGUYASABKA4yHC50dXJiby5yZXN1bHQudjEuUGlpS2VlcFNpZGUSDQoFY291bnQYAiABKA0SEQoJbWFza19jaGFyGAMgASgJEhMKC2tlZXBfZm9ybWF0GAQgASgIIkkKEFBpaUxhc3ROU3RyYXRlZ3kSDQoFY291bnQYASABKA0SEQoJbWFza19jaGFyGAIgASgJEhMKC2tlZXBfZm9ybWF0GAMgASgIIm0KFVBpaUFiYnJldmlhdGVTdHJhdGVneRIRCglzZXBhcmF0b3IYASABKAkSEAoIdHJhaWxpbmcYAiABKAkSGAoQcHJlc2VydmVfaHlwaGVucxgDIAEoCBIVCg1wcmVzZXJ2ZV9jYXNlGAQgASgIIkoKGFBpaVppcFNhZmVIYXJib3JTdHJhdGVneRIRCgltYXNrX2NoYXIYASABKAkSGwoTcmVzdHJpY3RlZF9wcmVmaXhlcxgCIAMoCSItChhQaWlBZ2VTYWZlSGFyYm9yU3RyYXRlZ3kSEQoJbWFza19jaGFyGAEgASgJIvsBCg9QaWlEYXRlU3RyYXRlZ3kSLAoEeWVhchgBIAEoCzIcLnR1cmJvLnJlc3VsdC52MS5QaWlEYXRlWWVhckgAEi4KBXNoaWZ0GAIgASgLMh0udHVyYm8ucmVzdWx0LnYxLlBpaURhdGVTaGlmdEgAEjQKCHJlbGF0aXZlGAMgASgLMiAudHVyYm8ucmVzdWx0LnYxLlBpaURhdGVSZWxhdGl2ZUgAEjkKC3NhZmVfaGFyYm9yGAUgASgLMiIudHVyYm8ucmVzdWx0LnYxLlBpaURhdGVTYWZlSGFyYm9ySAASEQoJbWFza19jaGFyGAQgASgJQgYKBG1vZGUiDQoLUGlpRGF0ZVllYXIijQEKDFBpaURhdGVTaGlmdBINCgV5ZWFycxgBIAEoBRIOCgZtb250aHMYAiABKAUSDAoEZGF5cxgDIAEoBRItCgNrZXkYBCABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpUG9saWN5S2V5UmVmEhAKCG1heF9kYXlzGAUgASgNEg8KB2NvbnRleHQYBiABKAkiJAoPUGlpRGF0ZVJlbGF0aXZlEhEKCXJlZmVyZW5jZRgBIAEoCSImChFQaWlEYXRlU2FmZUhhcmJvchIRCglyZWZlcmVuY2UYASABKAkiUwoRUGlpQWVzR2NtU3RyYXRlZ3kSLQoDa2V5GAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlBpaVBvbGljeUtleVJlZhIPCgdjb250ZXh0GAIgASgJIoEBCg5QaWlGZjFTdHJhdGVneRItCgNrZXkYASABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpUG9saWN5S2V5UmVmEjEKCGFscGhhYmV0GAIgASgOMh8udHVyYm8ucmVzdWx0LnYxLlBpaUZmMUFscGhhYmV0Eg0KBXR3ZWFrGAMgASgJIi4KD1BpaVBvbGljeUtleVJlZhIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgNIlYKFVBpaUtleWVkVG9rZW5TdHJhdGVneRItCgNrZXkYASABKAsyIC50dXJiby5yZXN1bHQudjEuUGlpUG9saWN5S2V5UmVmEg4KBmxlbmd0aBgCIAEoDSJIChFQaWlTaGEyNTZTdHJhdGVneRIOCgZsZW5ndGgYASABKA0SEwoLa2luZF9wcmVmaXgYAiABKAgSDgoGcHJlZml4GAMgASgJIigKEVBpaVN0YXRpY1N0cmF0ZWd5EhMKC3JlcGxhY2VtZW50GAEgASgJIjYKFFBpaVBzZXVkb255bVN0cmF0ZWd5Eg4KBnByZWZpeBgBIAEoCRIOCgZzdWZmaXgYAiABKAkigwIKDlBpaU1hcFN0cmF0ZWd5EjEKB2VudHJpZXMYASABKAsyHi50dXJiby5yZXN1bHQudjEuUGlpTWFwRW50cmllc0gAEjcKCmRpY3Rpb25hcnkYAiABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpRGljdGlvbmFyeVJlZkgAEhYKDmNhc2Vfc2Vuc2l0aXZlGAMgASgIEi0KBnRhcmdldBgEIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBUYXJnZXQSNQoIZmFsbGJhY2sYBSABKAsyIy50dXJiby5yZXN1bHQudjEuUGlpUmV3cml0ZVN0cmF0ZWd5QgcKBXRhYmxlIn0KDVBpaU1hcEVudHJpZXMSPAoHZW50cmllcxgBIAMoCzIrLnR1cmJvLnJlc3VsdC52MS5QaWlNYXBFbnRyaWVzLkVudHJpZXNFbnRyeRouCgxFbnRyaWVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI3ChBQaWlEaWN0aW9uYXJ5UmVmEhMKC2FydGlmYWN0X2lkGAEgASgJEg4KBnNoYTI1NhgCIAEoCSJ+Cg1QaWlUZXJtU291cmNlEioKBXRlcm1zGAEgASgLMhkudHVyYm8ucmVzdWx0LnYxLlBpaVRlcm1zSAASNwoKZGljdGlvbmFyeRgCIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5QaWlEaWN0aW9uYXJ5UmVmSABCCAoGc291cmNlIhkKCFBpaVRlcm1zEg0KBXRlcm1zGAEgAygJIm0KD1BpaUFsbG93UGF0dGVybhIxCgZzeW50YXgYASABKA4yIS50dXJiby5yZXN1bHQudjEuUGlpUGF0dGVyblN5bnRheBIPCgdwYXR0ZXJuGAIgASgJEhYKDmNhc2Vfc2Vuc2l0aXZlGAMgASgIIokBCgxQaWlBbGxvd0xpc3QSLQoFdGVybXMYASADKAsyHi50dXJiby5yZXN1bHQudjEuUGlpVGVybVNvdXJjZRIWCg5jYXNlX3NlbnNpdGl2ZRgCIAEoCBIyCghwYXR0ZXJucxgDIAMoCzIgLnR1cmJvLnJlc3VsdC52MS5QaWlBbGxvd1BhdHRlcm4ivQEKC1BpaURlbnlMaXN0Eg8KB3J1bGVfaWQYASABKAkSKQoEa2luZBgCIAEoCzIbLnR1cmJvLnJlc3VsdC52MS5QaWlLaW5kUmVmEi0KBXRlcm1zGAMgASgLMh4udHVyYm8ucmVzdWx0LnYxLlBpaVRlcm1Tb3VyY2USFgoOY2FzZV9zZW5zaXRpdmUYBCABKAgSEQoJbWF4X2VkaXRzGAUgASgNEhgKEGNhcGl0YWxpemVkX29ubHkYBiABKAgieAoTUGlpQ3VzdG9tSWRlbnRpZmllchIPCgdydWxlX2lkGAEgASgJEikKBGtpbmQYAiABKAsyGy50dXJiby5yZXN1bHQudjEuUGlpS2luZFJlZhINCgVzaGFwZRgDIAEoCRIWCg5jYXNlX3NlbnNpdGl2ZRgEIAEoCCJ2ChVQaWlSZWRhY3Rpb25TZWxlY3Rpb24SMgoGaW5saW5lGAEgASgLMiAudHVyYm8ucmVzdWx0LnYxLlJlZGFjdGlvblBvbGljeUgAEg4KBG5hbWUYAiABKAlIABIPCgdkcnlfcnVuGAMgASgIQggKBnBvbGljeSpnCgxQaWlSdWxlU3RhdGUSHgoaUElJX1JVTEVfU1RBVEVfVU5TUEVDSUZJRUQQABIaChZQSUlfUlVMRV9TVEFURV9FTkFCTEVEEAESGwoXUElJX1JVTEVfU1RBVEVfRElTQUJMRUQQAiqiAQoTUGlpTGFiZWxSZXF1aXJlbWVudBIlCiFQSUlfTEFCRUxfUkVRVUlSRU1FTlRfVU5TUEVDSUZJRUQQABIeChpQSUlfTEFCRUxfUkVRVUlSRU1FTlRfTk9ORRABEiIKHlBJSV9MQUJFTF9SRVFVSVJFTUVOVF9SRVFVSVJFRBACEiAKHFBJSV9MQUJFTF9SRVFVSVJFTUVOVF9CT09TVFMQAypcCgtQaWlLZWVwU2lkZRIdChlQSUlfS0VFUF9TSURFX1VOU1BFQ0lGSUVEEAASFwoTUElJX0tFRVBfU0lERV9TVEFSVBABEhUKEVBJSV9LRUVQX1NJREVfRU5EEAIqmwEKDlBpaUZmMUFscGhhYmV0EiAKHFBJSV9GRjFfQUxQSEFCRVRfVU5TUEVDSUZJRUQQABIbChdQSUlfRkYxX0FMUEhBQkVUX0RJR0lUUxABEicKI1BJSV9GRjFfQUxQSEFCRVRfVVBQRVJfQUxQSEFOVU1FUklDEAISIQodUElJX0ZGMV9BTFBIQUJFVF9BTFBIQU5VTUVSSUMQAyqTAQoMUGlpTWFwVGFyZ2V0Eh4KGlBJSV9NQVBfVEFSR0VUX1VOU1BFQ0lGSUVEEAASKAokUElJX01BUF9UQVJHRVRfTk9STUFMSVpFRF9PUl9TVVJGQUNFEAESHQoZUElJX01BUF9UQVJHRVRfTk9STUFMSVpFRBACEhoKFlBJSV9NQVBfVEFSR0VUX1NVUkZBQ0UQAypxChBQaWlQYXR0ZXJuU3ludGF4EiIKHlBJSV9QQVRURVJOX1NZTlRBWF9VTlNQRUNJRklFRBAAEhwKGFBJSV9QQVRURVJOX1NZTlRBWF9TSEFQRRABEhsKF1BJSV9QQVRURVJOX1NZTlRBWF9HTE9CEAJiBnByb3RvMw", [file_turbo_typed_annotations]);
 
 // demo/web/src/gen/turbo_analysis_pb.ts
-var file_turbo_analysis = /* @__PURE__ */ fileDesc("ChR0dXJib19hbmFseXNpcy5wcm90bxIPdHVyYm8ucmVzdWx0LnYxIhUKE0NhcGFiaWxpdGllc1JlcXVlc3Qi4gEKFENhcGFiaWxpdGllc1Jlc3BvbnNlEjQKB2J1bmRsZXMYASADKAsyIy50dXJiby5yZXN1bHQudjEuQnVuZGxlQ2FwYWJpbGl0aWVzEi0KBmxpbWl0cxgCIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5SZXN1bHRMaW1pdHMSLQoGc2VydmVyGAMgASgLMh0udHVyYm8ucmVzdWx0LnYxLlNlcnZlckxpbWl0cxI2Cghwcm9maWxlcxgEIAMoCzIkLnR1cmJvLnJlc3VsdC52MS5Qcm9maWxlQ2FwYWJpbGl0aWVzIm0KE1Byb2ZpbGVDYXBhYmlsaXRpZXMSDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg0KBXN0ZXBzGAMgAygJEg4KBmxheWVycxgEIAMoCRIYChByZXF1aXJlZF9idW5kbGVzGAUgAygJIngKDFNlcnZlckxpbWl0cxIeChZtYXhfc2Vzc2lvbnNfcGVyX21vZGVsGAEgASgNEhkKEW1heF9sb2FkZWRfbW9kZWxzGAIgASgNEi0KBnN0cmVhbRgDIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5TdHJlYW1MaW1pdHMitAIKEkJ1bmRsZUNhcGFiaWxpdGllcxIMCgRuYW1lGAEgASgJEigKBW1vZGVsGAIgASgLMhkudHVyYm8ucmVzdWx0LnYxLk1vZGVsUmVmEgwKBHRhc2sYAyABKAkSDQoFcm9sZXMYBCADKAkSDgoGd2lkdGhzGAUgAygNEhUKDWNvbnRleHRfbGltaXQYBiABKA0SEwoLYmF0Y2hfbGltaXQYByABKA0SLQoGc2NoZW1hGAggASgLMh0udHVyYm8ucmVzdWx0LnYxLlNjaGVtYUxpbWl0cxISCgpoZWFkX3N0ZXBzGAkgAygJEjsKCnZvY2FidWxhcnkYCiABKAsyIi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUJpbmRpbmdIAIgBAUINCgtfdm9jYWJ1bGFyeSI8ChVWb2NhYnVsYXJ5QXJ0aWZhY3RSZWYSEwoLYXJ0aWZhY3RfaWQYASABKAkSDgoGc2hhMjU2GAIgASgJIq0BChFWb2NhYnVsYXJ5QmluZGluZxI+CglzdG9wd29yZHMYASABKAsyJi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUFydGlmYWN0UmVmSACIAQESPQoIZ2xvc3NhcnkYAiABKAsyJi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUFydGlmYWN0UmVmSAGIAQFCDAoKX3N0b3B3b3Jkc0ILCglfZ2xvc3NhcnkiogIKDFNjaGVtYUxpbWl0cxIYChBtYXhfZW50aXR5X3R5cGVzGAEgASgNEiAKGG1heF9jbGFzc2lmaWNhdGlvbl90YXNrcxgFIAEoDRIbChNtYXhfbGFiZWxzX3Blcl90YXNrGAYgASgNEhYKDm1heF9zdHJ1Y3R1cmVzGAcgASgNEiAKGG1heF9maWVsZHNfcGVyX3N0cnVjdHVyZRgIIAEoDRIWCg5tYXhfdGV4dF9ieXRlcxgJIAEoDRIbChNtYXhfcHJvbXB0X3N1YndvcmRzGAogASgNEhEKCW1heF93b3JkcxgLIAEoDUoECAIQA0oECAMQBEoECAQQBVIObWF4X2xhYmVsX3NldHNSCm1heF9maWVsZHNSCW1heF9kZXB0aCLaAgoMUmVzdWx0TGltaXRzEhoKEm1heF9zcGFyc2VfZW50cmllcxgBIAEoBBIeChZtYXhfc3BhcnNlX29jY3VycmVuY2VzGAIgASgEEh4KFm1heF90b2tlbl92ZWN0b3JfYnl0ZXMYAyABKAQSGAoQbWF4X3JlcmFua19pdGVtcxgEIAEoBBITCgttYXhfYW5zd2VycxgFIAEoBBIcChRtYXhfYW5zd2VyX2ZyYWdtZW50cxgGIAEoBBITCgttYXhfd2luZG93cxgHIAEoBBISCgptYXhfY2h1bmtzGAggASgEEhIKCm1heF9sZXZlbHMYCSABKAQSFQoNbWF4X2ZyYWdtZW50cxgKIAEoBBIXCg9tYXhfZ3JhcGhfYnl0ZXMYCyABKAQSGQoRbWF4X3JlY29yZF92YWx1ZXMYDCABKAQSGQoRbWF4X21hcHBpbmdfZWRpdHMYDSABKAQi+wEKEUxvYWRCdW5kbGVSZXF1ZXN0EgwKBG5hbWUYASABKAkSDgoGYnVuZGxlGAIgASgJEg4KBmRldmljZRgDIAEoDRIQCghzZXNzaW9ucxgEIAEoDRIRCglwcmVjaXNpb24YBSABKA0SEQoJbWF4X2JhdGNoGAYgASgNEg8KB21heF9zZXEYByABKA0SFQoNc2VsZWN0X2RldmljZRgLIAEoCBIMCgR1c2VyGAwgASgJEjsKCnZvY2FidWxhcnkYDSABKAsyIi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUJpbmRpbmdIAIgBAUINCgtfdm9jYWJ1bGFyeSJPChJMb2FkQnVuZGxlUmVzcG9uc2USOQoMY2FwYWJpbGl0aWVzGAEgASgLMiMudHVyYm8ucmVzdWx0LnYxLkJ1bmRsZUNhcGFiaWxpdGllcyIjChNVbmxvYWRCdW5kbGVSZXF1ZXN0EgwKBG5hbWUYASABKAkiFgoUVW5sb2FkQnVuZGxlUmVzcG9uc2UikAIKEVNwYXJzZVRlcm1zUmVzdWx0EigKBW1vZGVsGAEgASgLMhkudHVyYm8ucmVzdWx0LnYxLk1vZGVsUmVmEgsKA3JvdxgCIAMoDRIMCgR0ZXJtGAMgAygNEg4KBndlaWdodBgEIAMoAhIQCghoYXNfc3BhbhgFIAMoCBISCgpzcGFuX3N0YXJ0GAYgAygNEhAKCHNwYW5fZW5kGAcgAygNEhEKCW9jY19zdGFydBgIIAMoDRIPCgdvY2NfZW5kGAkgAygNEg4KBm9jY19hdBgKIAMoDRIMCgR0ZXh0GAsgASgJEiwKB29mZnNldHMYDCABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZSLcAQoSVG9rZW5WZWN0b3JzUmVzdWx0EigKBW1vZGVsGAEgASgLMhkudHVyYm8ucmVzdWx0LnYxLk1vZGVsUmVmEgsKA2RpbRgCIAEoDRIMCgRkYXRhGAMgASgMEg0KBWVtcHR5GAQgAygNEgwKBHZpZXcYByABKA0SFAoMd2luZG93X3N0YXJ0GAUgAygNEhIKCndpbmRvd19lbmQYBiADKA0SDAoEdGV4dBgIIAEoCRIsCgdvZmZzZXRzGAkgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUihAEKElJlcmFua1Njb3Jlc1Jlc3VsdBIoCgVtb2RlbBgBIAEoCzIZLnR1cmJvLnJlc3VsdC52MS5Nb2RlbFJlZhIOCgZzb3VyY2UYAiABKAkSFwoPc291cmNlX2luc3RhbmNlGAUgASgJEgwKBGl0ZW0YAyADKA0SDQoFc2NvcmUYBCADKAIitQIKEEV4dHJhY3Rpb25SZXN1bHQSKAoFbW9kZWwYASABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSDAoEdmlldxgCIAEoDRISCgpzcGFuX3N0YXJ0GAMgAygNEhAKCHNwYW5fZW5kGAQgAygNEg0KBXNjb3JlGAUgAygBEhMKC3Byb2JhYmlsaXR5GAYgAygBEhIKCm51bGxfc2NvcmUYByABKAESGAoQbnVsbF9wcm9iYWJpbGl0eRgIIAEoARISCgpmcmFnX3N0YXJ0GAkgAygNEhAKCGZyYWdfZW5kGAogAygNEg8KB2ZyYWdfYXQYCyADKA0SDAoEdGV4dBgMIAEoCRIsCgdvZmZzZXRzGA0gASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUi5QQKDVJlY29yZHNSZXN1bHQSKAoFbW9kZWwYASABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSDAoEdGV4dBgCIAEoCRIMCgR2aWV3GAMgASgNEiwKB29mZnNldHMYBCABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZRISCgp0eXBlc19uYW1lGAUgASgJEg0KBXR5cGVzGAYgAygJEhIKCnBhdGhzX25hbWUYByABKAkSDQoFcGF0aHMYCCADKAkSFAoMY2hvaWNlc19uYW1lGAkgASgJEg8KB2Nob2ljZXMYCiADKAkSEwoLcmVjb3JkX3R5cGUYCyADKA0SFwoPcmVjb3JkX2luc3RhbmNlGAwgAygNEhgKEHZhbHVlX2ZyYWdfc3RhcnQYDSADKA0SFgoOdmFsdWVfZnJhZ19lbmQYDiADKA0SFQoNdmFsdWVfZnJhZ19hdBgPIAMoDRIUCgx2YWx1ZV9yZWNvcmQYECADKA0SEgoKdmFsdWVfcGF0aBgRIAMoDRITCgt2YWx1ZV9zY29yZRgSIAMoARITCgt2YWx1ZV9sb2dpdBgTIAMoARITCgtzdXBwb3J0X2VuZBgUIAMoDRIWCg5zdXBwb3J0X3NvdXJjZRgVIAMoDRITCgtzdXBwb3J0X3JvdxgWIAMoDRIVCg1jaG9pY2VfcmVjb3JkGBcgAygNEhMKC2Nob2ljZV9wYXRoGBggAygNEg4KBmNob2ljZRgZIAMoDRIUCgxjaG9pY2Vfc2NvcmUYGiADKAESFAoMY2hvaWNlX2xvZ2l0GBsgAygBIowBChRBbmFseXplU3RyZWFtUmVxdWVzdBI2CgZoZWFkZXIYASABKAsyJC50dXJiby5yZXN1bHQudjEuQW5hbHl6ZVN0cmVhbUhlYWRlckgAEjQKCGRvY3VtZW50GAIgASgLMiAudHVyYm8ucmVzdWx0LnYxLkFuYWx5emVEb2N1bWVudEgAQgYKBGtpbmQicgoTQW5hbHl6ZVN0cmVhbUhlYWRlchIsCgVvcmRlchgBIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5BbmFseXplT3JkZXISFAoMbWF4X2luZmxpZ2h0GAIgASgNEhcKD2JhdGNoX2xpbmdlcl9tcxgDIAEoDSLwAQoOQW5hbHl6ZU9wdGlvbnMSEAoIdHJ1bmNhdGUYASABKA0SEgoKbWF4X3Rva2VucxgCIAEoDRITCgtwcm9tcHRfcm9sZRgDIAEoDRIRCglub3JtYWxpemUYBCABKA0SDwoHcG9vbGluZxgFIAEoDRISCgpvdXRwdXRfZGltGAYgASgNEhQKDHNwYXJzZV90b3BfaxgHIAEoDRIUCgxzcGFyc2VfZmxvb3IYCCABKAISFAoMdG9rZW5fc3RyaWRlGAkgASgNEhQKDHF1YW50aXphdGlvbhgKIAEoDRITCgtpbnQ4X3JhbmdlcxgLIAMoAiLXAgoPQW5hbHl6ZURvY3VtZW50EgoKAmlkGAEgASgJEg0KBW1vZGVsGAIgASgJEgwKBHRleHQYAyABKAwSMAoHb3B0aW9ucxgEIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5BbmFseXplT3B0aW9ucxIuCgZvdXRwdXQYBSABKA4yHi50dXJiby5yZXN1bHQudjEuQW5hbHl6ZU91dHB1dBIsCgdvZmZzZXRzGAYgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSMwoHYmluZGluZxgHIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5JbnB1dEJpbmRpbmdIAIgBARI7Cgp2b2NhYnVsYXJ5GAggASgLMiIudHVyYm8ucmVzdWx0LnYxLlZvY2FidWxhcnlCaW5kaW5nSAGIAQFCCgoIX2JpbmRpbmdCDQoLX3ZvY2FidWxhcnkizwMKFUFuYWx5emVTdHJlYW1SZXNwb25zZRIKCgJpZBgBIAEoCRIyCgd2ZWN0b3JzGAIgASgLMh8udHVyYm8ucmVzdWx0LnYxLkFuYWx5emVWZWN0b3JzSAASMgoHZmFpbHVyZRgDIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5BbmFseXplRmFpbHVyZUgAEjoKDHNwYXJzZV90ZXJtcxgEIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5TcGFyc2VUZXJtc1Jlc3VsdEgAEjwKDXRva2VuX3ZlY3RvcnMYBSABKAsyIy50dXJiby5yZXN1bHQudjEuVG9rZW5WZWN0b3JzUmVzdWx0SAASOgoMdmVjdG9yX2NvZGVzGAYgASgLMiIudHVyYm8ucmVzdWx0LnYxLlZlY3RvckNvZGVzUmVzdWx0SAASQAoOZG9jdW1lbnRfZ3JhcGgYCCABKAsyJi50dXJiby5yZXN1bHQudjEuRG9jdW1lbnRHcmFwaFJlc3BvbnNlSAASMwoHYmluZGluZxgHIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5JbnB1dEJpbmRpbmdIAYgBAUIJCgdvdXRjb21lQgoKCF9iaW5kaW5nImEKDkFuYWx5emVWZWN0b3JzEg0KBW1vZGVsGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSCwoDZGltGAMgASgNEgwKBGRhdGEYBCABKAwSFAoMcXVhbnRpemF0aW9uGAUgASgNImQKEVZlY3RvckNvZGVzUmVzdWx0Eg0KBW1vZGVsGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSCwoDZGltGAMgASgNEgwKBGRhdGEYBCABKAwSFAoMcXVhbnRpemF0aW9uGAUgASgNIkQKDkFuYWx5emVGYWlsdXJlEhIKCnR1cmJvX2NvZGUYASABKAUSDQoFZmllbGQYAiABKA0SDwoHbWVzc2FnZRgDIAEoCSL/AQoMU3RyZWFtTGltaXRzEiMKG21heF9xdWV1ZWRfaXRlbXNfcGVyX3N0cmVhbRgBIAEoBBIjChttYXhfcXVldWVkX2J5dGVzX3Blcl9zdHJlYW0YAiABKAQSHwoXbWF4X3F1ZXVlZF9pdGVtc19zZXJ2ZXIYAyABKAQSHwoXbWF4X3F1ZXVlZF9ieXRlc19zZXJ2ZXIYBCABKAQSJQodbWF4X2luZmxpZ2h0X2l0ZW1zX3Blcl9zdHJlYW0YBSABKAQSHwoXZGVmYXVsdF9iYXRjaF9saW5nZXJfbXMYBiABKAQSGwoTbWF4X2JhdGNoX2xpbmdlcl9tcxgHIAEoBCKgAgoJTGF5ZXJJbmZvEg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJEjAKBnN0YXR1cxgDIAEoDjIgLnR1cmJvLnJlc3VsdC52MS5MYXllcldpcmVTdGF0dXMSEQoJYW5ub3RhdG9yGAUgASgJEg8KB3ZlcnNpb24YBiABKAkSKAoFbW9kZWwYByABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSEwoLY29uZmlnX2hhc2gYCCABKAQSDQoFaXRlbXMYCSABKA0SLwoFZXJyb3IYCiABKAsyGy50dXJiby5yZXN1bHQudjEuTGF5ZXJFcnJvckgAiAEBQggKBl9lcnJvckoECAQQBVINc3RhdHVzX2RldGFpbCJcChREb2N1bWVudEdyYXBoUmVxdWVzdBINCgVncmFwaBgBIAEoDBI1CgpwaWlfb3V0cHV0GAIgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnMiyQEKFURvY3VtZW50R3JhcGhSZXNwb25zZRINCgVncmFwaBgBIAEoDBIqCgZsYXllcnMYAiADKAsyGi50dXJiby5yZXN1bHQudjEuTGF5ZXJJbmZvEigKBXZpZXdzGAMgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvEhMKC3NvdXJjZV90ZXh0GAQgASgJEjYKCGZpbmRpbmdzGAUgASgLMiQudHVyYm8ucmVzdWx0LnYxLlR5cGVkRG9jdW1lbnRSZXN1bHQisQYKEUNodW5rTGV2ZWxzUmVzdWx0EgwKBHRleHQYASABKAkSDAoEdmlldxgCIAEoDRIsCgdvZmZzZXRzGAMgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSGAoQY2h1bmtfZnJhZ19zdGFydBgEIAMoDRIWCg5jaHVua19mcmFnX2VuZBgFIAMoDRIVCg1jaHVua19mcmFnX2F0GAYgAygNEhMKC2NodW5rX2xldmVsGAcgAygNEhQKDGNodW5rX3BhcmVudBgIIAMoBRIcChRjaHVua19zZW50ZW5jZV9zdGFydBgJIAMoDRIaChJjaHVua19zZW50ZW5jZV9lbmQYCiADKA0SEQoJY2h1bmtfY3V0GAsgAygNEhcKD2NodW5rX2N1dF9ibG9jaxgMIAMoDRISCgpjaHVua19jb3N0GA0gAygDEhoKEmNodW5rX21vZGVsX3Rva2VucxgYIAMoDRIZChFjaHVua19vdmVyX2J1ZGdldBgZIAMoCBIYChBsZXZlbF9mcmFnX3N0YXJ0GA4gAygNEhYKDmxldmVsX2ZyYWdfZW5kGA8gAygNEhUKDWxldmVsX2ZyYWdfYXQYECADKA0SEgoKbGV2ZWxfa2luZBgRIAMoDRIQCghsZXZlbF9peBgSIAMoDRIUCgxsZXZlbF9wYXJlbnQYEyADKAUSKAoFbW9kZWwYFCABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSCwoDZGltGBUgASgNEgwKBGRhdGEYFiABKAwSDQoFZW1wdHkYFyADKA0SGAoQY2h1bmtfcGFnZV9zdGFydBgaIAMoDRIWCg5jaHVua19wYWdlX2VuZBgbIAMoDRIbChNjaHVua19oYXNfcGFnZV9zcGFuGBwgAygIEhUKDWNodW5rX2JveF9yb3cYHSADKA0SFgoOY2h1bmtfYm94X3BhZ2UYHiADKA0SFAoMY2h1bmtfYm94X3gwGB8gAygCEhQKDGNodW5rX2JveF95MBggIAMoAhIUCgxjaHVua19ib3hfeDEYISADKAISFAoMY2h1bmtfYm94X3kxGCIgAygCIpYFChZBbmFseXplUGlwZWxpbmVSZXF1ZXN0Eg4KBmRvY19pZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhQKDHNvdXJjZV9ieXRlcxgDIAEoDBIsCgdvZmZzZXRzGAQgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSDwoHcHJvZmlsZRgFIAEoCRINCgVzdGVwcxgGIAMoCRINCgVtb2RlbBgHIAEoCRIVCg1pbml0aWFsX2dyYXBoGAggASgMEjYKDnN0cnVjdHVyZV9zZWVkGAkgASgLMh4udHVyYm8ucmVzdWx0LnYxLlN0cnVjdHVyZVNlZWQSFQoNb3BlcmF0aW9uX2tleRgKIAEoCRI1CgpwaWlfb3V0cHV0GAsgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnMSPQoNcGlpX3JlZGFjdGlvbhgMIAEoCzImLnR1cmJvLnJlc3VsdC52MS5QaWlSZWRhY3Rpb25TZWxlY3Rpb24SMwoHYmluZGluZxgNIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5JbnB1dEJpbmRpbmdIAIgBARIyCglvcGVuX3NwYW4YDiABKAsyHy50dXJiby5yZXN1bHQudjEuT3BlblNwYW5TY2hlbWESNgoJcmVsYXRpb25zGA8gASgLMiMudHVyYm8ucmVzdWx0LnYxLk9wZW5SZWxhdGlvblNjaGVtYRIWCg5yZWxhdGlvbl9tb2RlbBgQIAEoCRI7Cgp2b2NhYnVsYXJ5GBEgASgLMiIudHVyYm8ucmVzdWx0LnYxLlZvY2FidWxhcnlCaW5kaW5nSAGIAQFCCgoIX2JpbmRpbmdCDQoLX3ZvY2FidWxhcnkiZwoOT3BlblNwYW5TY2hlbWESDgoGbGFiZWxzGAEgAygJEhYKCXRocmVzaG9sZBgCIAEoAkgAiAEBEg4KBm5lc3RlZBgDIAEoCBIPCgdwcm9tcHRzGAQgAygJQgwKCl90aHJlc2hvbGQihwEKEk9wZW5SZWxhdGlvblNjaGVtYRIyCgZsYWJlbHMYASADKAsyIi50dXJiby5yZXN1bHQudjEuT3BlblJlbGF0aW9uTGFiZWwSFgoJdGhyZXNob2xkGAIgASgCSACIAQESFwoPd2l0aGluX3NlbnRlbmNlGAMgASgIQgwKCl90aHJlc2hvbGQieQoRT3BlblJlbGF0aW9uTGFiZWwSDAoEbmFtZRgBIAEoCRIWCgl0aHJlc2hvbGQYAiABKAJIAIgBARIRCglzeW1tZXRyaWMYAyABKAgSDgoGZG9tYWluGAQgAygJEg0KBXJhbmdlGAUgAygJQgwKCl90aHJlc2hvbGQiTgoNU3RydWN0dXJlU2VlZBIMCgR0ZXh0GAEgASgJEi8KBmJsb2NrcxgCIAMoCzIfLnR1cmJvLnJlc3VsdC52MS5TdHJ1Y3R1cmVCbG9jayKOAQoOU3RydWN0dXJlQmxvY2sSMQoEa2luZBgBIAEoDjIjLnR1cmJvLnJlc3VsdC52MS5TdHJ1Y3R1cmVCbG9ja0tpbmQSDQoFc3RhcnQYAiABKA0SCwoDZW5kGAMgASgNEg0KBWxldmVsGAQgASgNEhMKBnBhcmVudBgFIAEoDUgAiAEBQgkKB19wYXJlbnQi1gIKF0FuYWx5emVQcm9ncmVzc2l2ZUV2ZW50EhAKCHNlcXVlbmNlGAEgASgEEjMKB3N0YXJ0ZWQYAiABKAsyIC50dXJiby5yZXN1bHQudjEuQW5hbHlzaXNTdGFydGVkSAASOwoMbGF5ZXJzX3JlYWR5GAMgASgLMiMudHVyYm8ucmVzdWx0LnYxLkFuYWx5c2lzTGF5ZXJCYXRjaEgAEjsKC3N0ZXBfZmFpbGVkGAQgASgLMiQudHVyYm8ucmVzdWx0LnYxLkFuYWx5c2lzU3RlcEZhaWx1cmVIABI6Cghjb21wbGV0ZRgFIAEoCzImLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudEdyYXBoUmVzcG9uc2VIABI1CgdyZWNlaXB0GAYgASgLMiIudHVyYm8ucmVzdWx0LnYxLlByb2Nlc3NpbmdSZWNlaXB0SABCBwoFZXZlbnQiiwEKD0FuYWx5c2lzU3RhcnRlZBIOCgZkb2NfaWQYASABKAkSLAoHb2Zmc2V0cxgCIAEoDjIbLnR1cmJvLnJlc3VsdC52MS5PZmZzZXRNb2RlEhAKCHN0ZXBfaWRzGAMgAygJEigKBXZpZXdzGAQgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvIrUBChJBbmFseXNpc0xheWVyQmF0Y2gSFgoOY29tcGxldGVkX3N0ZXAYASABKAkSDQoFc3RhZ2UYAiABKA0SEwoLZHVyYXRpb25fdXMYAyABKAQSKgoGbGF5ZXJzGAQgAygLMhoudHVyYm8ucmVzdWx0LnYxLkxheWVySW5mbxIoCgV2aWV3cxgFIAMoCzIZLnR1cmJvLnJlc3VsdC52MS5WaWV3SW5mbxINCgVncmFwaBgGIAEoDCLwAQoTQW5hbHlzaXNTdGVwRmFpbHVyZRIPCgdzdGVwX2lkGAEgASgJEg0KBXN0YWdlGAIgASgNEhMKC2R1cmF0aW9uX3VzGAMgASgEEjAKB2ZhaWx1cmUYBCABKAsyHy50dXJiby5yZXN1bHQudjEuQW5hbHl6ZUZhaWx1cmUSGgoSc2tpcHBlZF9kZXBlbmRlbnRzGAUgAygJEioKBmxheWVycxgGIAMoCzIaLnR1cmJvLnJlc3VsdC52MS5MYXllckluZm8SKgoFZXJyb3IYByABKAsyGy50dXJiby5yZXN1bHQudjEuTGF5ZXJFcnJvciI2ChNMYXllckluc3RhbmNlRmlsdGVyEg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJIuQCChVEb2N1bWVudFdpbmRvd1JlcXVlc3QSDQoFZ3JhcGgYASABKAwSDAoEdmlldxgCIAEoDRIsCgdvZmZzZXRzGAMgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSEQoJcGFnZV9zaXplGAQgASgNEgwKBHBhZ2UYBSABKA0SFQoNZmlsdGVyX2xheWVycxgGIAMoCRJEChZmaWx0ZXJfbGF5ZXJfaW5zdGFuY2VzGAogAygLMiQudHVyYm8ucmVzdWx0LnYxLkxheWVySW5zdGFuY2VGaWx0ZXISFwoPaGVhdG1hcF9idWNrZXRzGAcgASgNEh0KEHhyYXlfdGFyZ2V0X3ZpZXcYCCABKA1IAIgBARI1CgpwaWlfb3V0cHV0GAkgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnNCEwoRX3hyYXlfdGFyZ2V0X3ZpZXci0gEKGURvY3VtZW50U2hhcGVTdW1tYXJ5UHJvdG8SDAoEdmlldxgBIAEoDRITCgt0b3RhbF9ieXRlcxgCIAEoDRITCgt0b3RhbF91bml0cxgDIAEoDRISCgp2aWV3X2NvdW50GAQgASgNEhMKC2xheWVyX2NvdW50GAUgASgNEioKBmxheWVycxgGIAMoCzIaLnR1cmJvLnJlc3VsdC52MS5MYXllckluZm8SKAoFdmlld3MYByADKAsyGS50dXJiby5yZXN1bHQudjEuVmlld0luZm8ipgEKE0RvY3VtZW50V2luZG93UHJvdG8SDAoEdmlldxgBIAEoDRISCgpieXRlX3N0YXJ0GAIgASgNEhAKCGJ5dGVfZW5kGAMgASgNEg0KBXN0YXJ0GAQgASgNEgsKA2VuZBgFIAEoDRIMCgRwYWdlGAYgASgNEhIKCnBhZ2VfY291bnQYByABKA0SDwoHY2xhbXBlZBgIIAEoCBIMCgR0ZXh0GAkgASgJImUKFlNlZ21lbnRBbm5vdGF0aW9uUHJvdG8SDQoFbGF5ZXIYASABKAkSEAoIaW5zdGFuY2UYAiABKAkSDAoEaXRlbRgDIAEoDRINCgVsYWJlbBgEIAEoCRINCgVzY29yZRgFIAEoASJ+ChRDb21iaW5lZFNlZ21lbnRQcm90bxINCgVzdGFydBgBIAEoDRILCgNlbmQYAiABKA0SDAoEdGV4dBgDIAEoCRI8Cgthbm5vdGF0aW9ucxgEIAMoCzInLnR1cmJvLnJlc3VsdC52MS5TZWdtZW50QW5ub3RhdGlvblByb3RvIlIKEURvY3VtZW50Q2hpcFByb3RvEg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJEg0KBWxhYmVsGAMgASgJEg0KBXNjb3JlGAQgASgBIqABChJIZWF0bWFwQnVja2V0UHJvdG8SDQoFc3RhcnQYASABKA0SCwoDZW5kGAIgASgNEg0KBXNjb3JlGAMgASgCEg0KBWNvdW50GAQgASgNEhkKDHByaW1hcnlfaXRlbRgFIAEoDUgAiAEBEhIKCmJ5dGVfc3RhcnQYBiABKA0SEAoIYnl0ZV9lbmQYByABKA1CDwoNX3ByaW1hcnlfaXRlbSKWAQoQSGVhdG1hcExhbmVQcm90bxIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJEgwKBHZpZXcYAyABKA0SEQoJbWluX3Njb3JlGAQgASgCEhEKCW1heF9zY29yZRgFIAEoAhI0CgdidWNrZXRzGAYgAygLMiMudHVyYm8ucmVzdWx0LnYxLkhlYXRtYXBCdWNrZXRQcm90byK/AQoQWHJheUVkaXRSdW5Qcm90bxIUCgxwYXJlbnRfc3RhcnQYASABKA0SEgoKcGFyZW50X2VuZBgCIAEoDRITCgtjaGlsZF9zdGFydBgDIAEoDRIRCgljaGlsZF9lbmQYBCABKA0SMAoEa2luZBgFIAEoDjIiLnR1cmJvLnJlc3VsdC52MS5YcmF5RWRpdEtpbmRQcm90bxITCgtwYXJlbnRfdGV4dBgGIAEoCRISCgpjaGlsZF90ZXh0GAcgASgJItgBChRYcmF5U3RlcFN1bW1hcnlQcm90bxIMCgR2aWV3GAEgASgNEhgKC3BhcmVudF92aWV3GAIgASgNSACIAQESEAoIaW5zdGFuY2UYAyABKAkSEQoJYW5ub3RhdG9yGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEwoLY29uZmlnX2hhc2gYBiABKAQSEgoKZWRpdF9jb3VudBgHIAEoDRIUCgxwYXJlbnRfYnl0ZXMYCCABKA0SEwoLY2hpbGRfYnl0ZXMYCSABKA1CDgoMX3BhcmVudF92aWV3ItEBChZOb3JtYWxpemF0aW9uWHJheVByb3RvEhEKCWZyb21fdmlldxgBIAEoDRIPCgd0b192aWV3GAIgASgNEiwKB29mZnNldHMYAyABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZRIvCgRydW5zGAQgAygLMiEudHVyYm8ucmVzdWx0LnYxLlhyYXlFZGl0UnVuUHJvdG8SNAoFc3RlcHMYBSADKAsyJS50dXJiby5yZXN1bHQudjEuWHJheVN0ZXBTdW1tYXJ5UHJvdG8i/wIKFkRvY3VtZW50V2luZG93UmVzcG9uc2USOwoHc3VtbWFyeRgBIAEoCzIqLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudFNoYXBlU3VtbWFyeVByb3RvEjQKBndpbmRvdxgCIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudFdpbmRvd1Byb3RvEjcKCHNlZ21lbnRzGAMgAygLMiUudHVyYm8ucmVzdWx0LnYxLkNvbWJpbmVkU2VnbWVudFByb3RvEjoKDmRvY3VtZW50X2NoaXBzGAQgAygLMiIudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50Q2hpcFByb3RvEjgKDWhlYXRtYXBfbGFuZXMYBSADKAsyIS50dXJiby5yZXN1bHQudjEuSGVhdG1hcExhbmVQcm90bxI6CgR4cmF5GAYgASgLMicudHVyYm8ucmVzdWx0LnYxLk5vcm1hbGl6YXRpb25YcmF5UHJvdG9IAIgBAUIHCgVfeHJheSJsCgpCdWRnZXRTcGVjEgwKBG5hbWUYASABKAkSEgoKbWF4X3Rva2VucxgCIAEoDRIVCg10YXJnZXRfdG9rZW5zGAMgASgNEhMKC3NpemVfd2VpZ2h0GAQgASgNEhAKCG92ZXJoZWFkGAUgASgNIq0CChRQcm9qZWN0Q2h1bmtzUmVxdWVzdBINCgVncmFwaBgBIAEoDBIsCgdvZmZzZXRzGAIgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSEAoIcGNhX2RpbXMYAyABKA0SGgoSbWF4X3N0YWNrX3NlZ21lbnRzGAQgASgNEhsKE2luY2x1ZGVfZHJpZnRfY3VydmUYBSABKAgSHwoXaW5jbHVkZV9zdHJhdGVneV9tYXRyaXgYBiABKAgSNQoQc3RyYXRlZ3lfYnVkZ2V0cxgHIAMoCzIbLnR1cmJvLnJlc3VsdC52MS5CdWRnZXRTcGVjEjUKCnBpaV9vdXRwdXQYCCABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpT3V0cHV0T3B0aW9ucyKwAQoTUHJvamVjdGVkUG9pbnRQcm90bxIMCgRpdGVtGAEgASgNEg0KBXN0YXJ0GAIgASgNEgsKA2VuZBgDIAEoDRINCgVsZXZlbBgEIAEoDRIJCgF4GAUgASgCEgkKAXkYBiABKAISCQoBehgHIAEoAhINCgVlbXB0eRgIIAEoCBIcCg9hZGphY2VudF9jb3NpbmUYCSABKAJIAIgBAUISChBfYWRqYWNlbnRfY29zaW5lIqUBChVWZWN0b3JQcm9qZWN0aW9uUHJvdG8SKAoFbW9kZWwYASABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSEAoIcGNhX2RpbXMYAiABKA0SGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAMgAygCEjQKBnBvaW50cxgEIAMoCzIkLnR1cmJvLnJlc3VsdC52MS5Qcm9qZWN0ZWRQb2ludFByb3RvIvsBChJEcmlmdEdhcFBvaW50UHJvdG8SEAoIc2VudGVuY2UYASABKA0SEgoKZ2FwX29mZnNldBgCIAEoDRIdChByYXdfY29zaW5lX21pY3JvGAMgASgDSACIAQESIgoVc21vb3RoZWRfY29zaW5lX21pY3JvGAQgASgDSAGIAQESGQoRZGVwdGhfc2NvcmVfbWljcm8YBSABKAMSDAoEY29zdBgGIAEoBRIOCgZyZWFzb24YByABKA0SFAoMaXNfY2h1bmtfY3V0GAggASgIQhMKEV9yYXdfY29zaW5lX21pY3JvQhgKFl9zbW9vdGhlZF9jb3NpbmVfbWljcm8ibwoXQm91bmRhcnlEcmlmdEN1cnZlUHJvdG8SDgoGd2luZG93GAEgASgNEhEKCXNtb290aGluZxgCIAEoDRIxCgRnYXBzGAMgAygLMiMudHVyYm8ucmVzdWx0LnYxLkRyaWZ0R2FwUG9pbnRQcm90byKiAQoWVGVybVdlaWdodFNlZ21lbnRQcm90bxIMCgR0ZXJtGAEgASgJEg8KB3Rlcm1faWQYAiABKA0SEQoJZnJlcXVlbmN5GAMgASgNEg4KBndlaWdodBgEIAEoAhINCgVzaGFyZRgFIAEoAhITCgtpc19leHBhbmRlZBgGIAEoCBIRCglvY2Nfc3RhcnQYByADKA0SDwoHb2NjX2VuZBgIIAMoDSLsAQoUVGVybVZlY3RvclN0YWNrUHJvdG8SDAoEdW5pdBgBIAEoDRI5CghzZWdtZW50cxgCIAMoCzInLnR1cmJvLnJlc3VsdC52MS5UZXJtV2VpZ2h0U2VnbWVudFByb3RvEhMKC3RvdGFsX3Rlcm1zGAMgASgNEhcKD3RvdGFsX2ZyZXF1ZW5jeRgEIAEoBBIUCgx0b3RhbF93ZWlnaHQYBSABKAISGAoQb3RoZXJfdGVybV9jb3VudBgGIAEoDRIXCg9vdGhlcl9mcmVxdWVuY3kYByABKAQSFAoMb3RoZXJfd2VpZ2h0GAggASgCIvoBChxTdHJhdGVneUNvbXBhcmlzb25FbnRyeVByb3RvEgwKBG5hbWUYASABKAkSKwoGYnVkZ2V0GAIgASgLMhsudHVyYm8ucmVzdWx0LnYxLkJ1ZGdldFNwZWMSEwoLY2h1bmtfY291bnQYAyABKA0SGQoRb3Zlcl9idWRnZXRfY291bnQYBCABKA0SEgoKdG90YWxfY29zdBgFIAEoAxIiChptYXRjaGVkX2N1dHNfd2l0aF9iYXNlbGluZRgGIAEoDRIjChtkaXNhZ3JlZW1lbnRzX3dpdGhfYmFzZWxpbmUYByABKA0SEgoKY3V0X3N0YXJ0cxgIIAMoDSJYChNTdHJhdGVneU1hdHJpeFByb3RvEkEKCnN0cmF0ZWdpZXMYASADKAsyLS50dXJiby5yZXN1bHQudjEuU3RyYXRlZ3lDb21wYXJpc29uRW50cnlQcm90byKiAwoVUHJvamVjdENodW5rc1Jlc3BvbnNlEjoKCnByb2plY3Rpb24YASABKAsyJi50dXJiby5yZXN1bHQudjEuVmVjdG9yUHJvamVjdGlvblByb3RvEkIKC2RyaWZ0X2N1cnZlGAIgASgLMigudHVyYm8ucmVzdWx0LnYxLkJvdW5kYXJ5RHJpZnRDdXJ2ZVByb3RvSACIAQESQAoRY2h1bmtfdGVybV9zdGFja3MYAyADKAsyJS50dXJiby5yZXN1bHQudjEuVGVybVZlY3RvclN0YWNrUHJvdG8SRwoTZG9jdW1lbnRfdGVybV9zdGFjaxgEIAEoCzIlLnR1cmJvLnJlc3VsdC52MS5UZXJtVmVjdG9yU3RhY2tQcm90b0gBiAEBEkIKD3N0cmF0ZWd5X21hdHJpeBgFIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5TdHJhdGVneU1hdHJpeFByb3RvSAKIAQFCDgoMX2RyaWZ0X2N1cnZlQhYKFF9kb2N1bWVudF90ZXJtX3N0YWNrQhIKEF9zdHJhdGVneV9tYXRyaXgiGgoYTGlzdE91dHB1dEZvcm1hdHNSZXF1ZXN0IsIBChtPdXRwdXRGb3JtYXREZXNjcmlwdG9yUHJvdG8SEQoJZm9ybWF0X2lkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRISCgptZWRpYV90eXBlGAMgASgJEhYKDmZpbGVfZXh0ZW5zaW9uGAQgASgJEg4KBmJpbmFyeRgFIAEoCBIQCghsb3NzbGVzcxgGIAEoCBIXCg9yZXF1aXJlZF9sYXllcnMYByADKAkSEwoLZGVzY3JpcHRpb24YCCABKAkiWgoZTGlzdE91dHB1dEZvcm1hdHNSZXNwb25zZRI9Cgdmb3JtYXRzGAEgAygLMiwudHVyYm8ucmVzdWx0LnYxLk91dHB1dEZvcm1hdERlc2NyaXB0b3JQcm90byKuAQoVRm9ybWF0RG9jdW1lbnRSZXF1ZXN0Eg4KBmRvY19pZBgBIAEoCRINCgVncmFwaBgCIAEoDBIRCglmb3JtYXRfaWQYAyABKAkSLAoHb2Zmc2V0cxgEIAEoDjIbLnR1cmJvLnJlc3VsdC52MS5PZmZzZXRNb2RlEjUKCnBpaV9vdXRwdXQYBSABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpT3V0cHV0T3B0aW9ucyJoChZGb3JtYXREb2N1bWVudFJlc3BvbnNlEhEKCWZvcm1hdF9pZBgBIAEoCRISCgptZWRpYV90eXBlGAIgASgJEhYKDmZpbGVfZXh0ZW5zaW9uGAMgASgJEg8KB2NvbnRlbnQYBCABKAwqRQoMQW5hbHl6ZU9yZGVyEhcKE0FOQUxZWkVfT1JERVJfSU5QVVQQABIcChhBTkFMWVpFX09SREVSX0NPTVBMRVRJT04QASqyAQoNQW5hbHl6ZU91dHB1dBIaChZBTkFMWVpFX09VVFBVVF9WRUNUT1JTEAASHwobQU5BTFlaRV9PVVRQVVRfU1BBUlNFX1RFUk1TEAESIAocQU5BTFlaRV9PVVRQVVRfVE9LRU5fVkVDVE9SUxACEh8KG0FOQUxZWkVfT1VUUFVUX1ZFQ1RPUl9DT0RFUxADEiEKHUFOQUxZWkVfT1VUUFVUX0RPQ1VNRU5UX0dSQVBIEAQq4gQKElN0cnVjdHVyZUJsb2NrS2luZBIkCiBTVFJVQ1RVUkVfQkxPQ0tfS0lORF9VTlNQRUNJRklFRBAAEiAKHFNUUlVDVFVSRV9CTE9DS19LSU5EX1NFQ1RJT04QARIgChxTVFJVQ1RVUkVfQkxPQ0tfS0lORF9IRUFESU5HEAISIgoeU1RSVUNUVVJFX0JMT0NLX0tJTkRfUEFSQUdSQVBIEAMSHQoZU1RSVUNUVVJFX0JMT0NLX0tJTkRfTElTVBAEEiIKHlNUUlVDVFVSRV9CTE9DS19LSU5EX0xJU1RfSVRFTRAFEh4KGlNUUlVDVFVSRV9CTE9DS19LSU5EX1RBQkxFEAYSIgoeU1RSVUNUVVJFX0JMT0NLX0tJTkRfVEFCTEVfUk9XEAcSIwofU1RSVUNUVVJFX0JMT0NLX0tJTkRfVEFCTEVfQ0VMTBAIEh0KGVNUUlVDVFVSRV9CTE9DS19LSU5EX0NPREUQCRIeChpTVFJVQ1RVUkVfQkxPQ0tfS0lORF9RVU9URRAKEiAKHFNUUlVDVFVSRV9CTE9DS19LSU5EX0NBUFRJT04QCxIhCh1TVFJVQ1RVUkVfQkxPQ0tfS0lORF9GT09UTk9URRAMEiQKIFNUUlVDVFVSRV9CTE9DS19LSU5EX1BBR0VfSEVBREVSEA0SJAogU1RSVUNUVVJFX0JMT0NLX0tJTkRfUEFHRV9GT09URVIQDhIjCh9TVFJVQ1RVUkVfQkxPQ0tfS0lORF9MT09TRV9MSVNUEA8SHQoZU1RSVUNUVVJFX0JMT0NLX0tJTkRfSFRNTBAQKpsBChFYcmF5RWRpdEtpbmRQcm90bxIeChpYUkFZX0VESVRfS0lORF9QUk9UT19FUVVBTBAAEiEKHVhSQVlfRURJVF9LSU5EX1BST1RPX1JFUExBQ0VEEAESIQodWFJBWV9FRElUX0tJTkRfUFJPVE9fSU5TRVJURUQQAhIgChxYUkFZX0VESVRfS0lORF9QUk9UT19ERUxFVEVEEAMyqA4KD0FuYWx5c2lzU2VydmljZRJdCgxDYXBhYmlsaXRpZXMSJC50dXJiby5yZXN1bHQudjEuQ2FwYWJpbGl0aWVzUmVxdWVzdBolLnR1cmJvLnJlc3VsdC52MS5DYXBhYmlsaXRpZXNSZXNwb25zZSIAElcKCkxvYWRCdW5kbGUSIi50dXJiby5yZXN1bHQudjEuTG9hZEJ1bmRsZVJlcXVlc3QaIy50dXJiby5yZXN1bHQudjEuTG9hZEJ1bmRsZVJlc3BvbnNlIgASXQoMVW5sb2FkQnVuZGxlEiQudHVyYm8ucmVzdWx0LnYxLlVubG9hZEJ1bmRsZVJlcXVlc3QaJS50dXJiby5yZXN1bHQudjEuVW5sb2FkQnVuZGxlUmVzcG9uc2UiABJgChRSb3VuZFRyaXBTcGFyc2VUZXJtcxIiLnR1cmJvLnJlc3VsdC52MS5TcGFyc2VUZXJtc1Jlc3VsdBoiLnR1cmJvLnJlc3VsdC52MS5TcGFyc2VUZXJtc1Jlc3VsdCIAEmMKFVJvdW5kVHJpcFRva2VuVmVjdG9ycxIjLnR1cmJvLnJlc3VsdC52MS5Ub2tlblZlY3RvcnNSZXN1bHQaIy50dXJiby5yZXN1bHQudjEuVG9rZW5WZWN0b3JzUmVzdWx0IgASYwoVUm91bmRUcmlwUmVyYW5rU2NvcmVzEiMudHVyYm8ucmVzdWx0LnYxLlJlcmFua1Njb3Jlc1Jlc3VsdBojLnR1cmJvLnJlc3VsdC52MS5SZXJhbmtTY29yZXNSZXN1bHQiABJdChNSb3VuZFRyaXBFeHRyYWN0aW9uEiEudHVyYm8ucmVzdWx0LnYxLkV4dHJhY3Rpb25SZXN1bHQaIS50dXJiby5yZXN1bHQudjEuRXh0cmFjdGlvblJlc3VsdCIAElQKEFJvdW5kVHJpcFJlY29yZHMSHi50dXJiby5yZXN1bHQudjEuUmVjb3Jkc1Jlc3VsdBoeLnR1cmJvLnJlc3VsdC52MS5SZWNvcmRzUmVzdWx0IgASYAoUUm91bmRUcmlwQ2h1bmtMZXZlbHMSIi50dXJiby5yZXN1bHQudjEuQ2h1bmtMZXZlbHNSZXN1bHQaIi50dXJiby5yZXN1bHQudjEuQ2h1bmtMZXZlbHNSZXN1bHQiABJpChZSb3VuZFRyaXBEb2N1bWVudEdyYXBoEiUudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50R3JhcGhSZXF1ZXN0GiYudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50R3JhcGhSZXNwb25zZSIAEmwKFEluc3BlY3REb2N1bWVudEdyYXBoEiwudHVyYm8ucmVzdWx0LnYxLkluc3BlY3REb2N1bWVudEdyYXBoUmVxdWVzdBokLnR1cmJvLnJlc3VsdC52MS5UeXBlZERvY3VtZW50UmVzdWx0IgASZgoWUm91bmRUcmlwVHlwZWREb2N1bWVudBIkLnR1cmJvLnJlc3VsdC52MS5UeXBlZERvY3VtZW50UmVzdWx0GiQudHVyYm8ucmVzdWx0LnYxLlR5cGVkRG9jdW1lbnRSZXN1bHQiABJkCg1BbmFseXplU3RyZWFtEiUudHVyYm8ucmVzdWx0LnYxLkFuYWx5emVTdHJlYW1SZXF1ZXN0GiYudHVyYm8ucmVzdWx0LnYxLkFuYWx5emVTdHJlYW1SZXNwb25zZSIAKAEwARJzChpBbmFseXplRG9jdW1lbnRQcm9ncmVzc2l2ZRInLnR1cmJvLnJlc3VsdC52MS5BbmFseXplUGlwZWxpbmVSZXF1ZXN0GigudHVyYm8ucmVzdWx0LnYxLkFuYWx5emVQcm9ncmVzc2l2ZUV2ZW50IgAwARJqChVJbnNwZWN0RG9jdW1lbnRXaW5kb3cSJi50dXJiby5yZXN1bHQudjEuRG9jdW1lbnRXaW5kb3dSZXF1ZXN0GicudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50V2luZG93UmVzcG9uc2UiABJgCg1Qcm9qZWN0Q2h1bmtzEiUudHVyYm8ucmVzdWx0LnYxLlByb2plY3RDaHVua3NSZXF1ZXN0GiYudHVyYm8ucmVzdWx0LnYxLlByb2plY3RDaHVua3NSZXNwb25zZSIAEmwKEUxpc3RPdXRwdXRGb3JtYXRzEikudHVyYm8ucmVzdWx0LnYxLkxpc3RPdXRwdXRGb3JtYXRzUmVxdWVzdBoqLnR1cmJvLnJlc3VsdC52MS5MaXN0T3V0cHV0Rm9ybWF0c1Jlc3BvbnNlIgASYwoORm9ybWF0RG9jdW1lbnQSJi50dXJiby5yZXN1bHQudjEuRm9ybWF0RG9jdW1lbnRSZXF1ZXN0GicudHVyYm8ucmVzdWx0LnYxLkZvcm1hdERvY3VtZW50UmVzcG9uc2UiAFAAYgZwcm90bzM", [file_turbo_typed_annotations, file_turbo_pii_policy]);
+var file_turbo_analysis = /* @__PURE__ */ fileDesc("ChR0dXJib19hbmFseXNpcy5wcm90bxIPdHVyYm8ucmVzdWx0LnYxIhUKE0NhcGFiaWxpdGllc1JlcXVlc3Qi4gEKFENhcGFiaWxpdGllc1Jlc3BvbnNlEjQKB2J1bmRsZXMYASADKAsyIy50dXJiby5yZXN1bHQudjEuQnVuZGxlQ2FwYWJpbGl0aWVzEi0KBmxpbWl0cxgCIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5SZXN1bHRMaW1pdHMSLQoGc2VydmVyGAMgASgLMh0udHVyYm8ucmVzdWx0LnYxLlNlcnZlckxpbWl0cxI2Cghwcm9maWxlcxgEIAMoCzIkLnR1cmJvLnJlc3VsdC52MS5Qcm9maWxlQ2FwYWJpbGl0aWVzIm0KE1Byb2ZpbGVDYXBhYmlsaXRpZXMSDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg0KBXN0ZXBzGAMgAygJEg4KBmxheWVycxgEIAMoCRIYChByZXF1aXJlZF9idW5kbGVzGAUgAygJIngKDFNlcnZlckxpbWl0cxIeChZtYXhfc2Vzc2lvbnNfcGVyX21vZGVsGAEgASgNEhkKEW1heF9sb2FkZWRfbW9kZWxzGAIgASgNEi0KBnN0cmVhbRgDIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5TdHJlYW1MaW1pdHMitAIKEkJ1bmRsZUNhcGFiaWxpdGllcxIMCgRuYW1lGAEgASgJEigKBW1vZGVsGAIgASgLMhkudHVyYm8ucmVzdWx0LnYxLk1vZGVsUmVmEgwKBHRhc2sYAyABKAkSDQoFcm9sZXMYBCADKAkSDgoGd2lkdGhzGAUgAygNEhUKDWNvbnRleHRfbGltaXQYBiABKA0SEwoLYmF0Y2hfbGltaXQYByABKA0SLQoGc2NoZW1hGAggASgLMh0udHVyYm8ucmVzdWx0LnYxLlNjaGVtYUxpbWl0cxISCgpoZWFkX3N0ZXBzGAkgAygJEjsKCnZvY2FidWxhcnkYCiABKAsyIi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUJpbmRpbmdIAIgBAUINCgtfdm9jYWJ1bGFyeSI8ChVWb2NhYnVsYXJ5QXJ0aWZhY3RSZWYSEwoLYXJ0aWZhY3RfaWQYASABKAkSDgoGc2hhMjU2GAIgASgJIq0BChFWb2NhYnVsYXJ5QmluZGluZxI+CglzdG9wd29yZHMYASABKAsyJi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUFydGlmYWN0UmVmSACIAQESPQoIZ2xvc3NhcnkYAiABKAsyJi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUFydGlmYWN0UmVmSAGIAQFCDAoKX3N0b3B3b3Jkc0ILCglfZ2xvc3NhcnkiogIKDFNjaGVtYUxpbWl0cxIYChBtYXhfZW50aXR5X3R5cGVzGAEgASgNEiAKGG1heF9jbGFzc2lmaWNhdGlvbl90YXNrcxgFIAEoDRIbChNtYXhfbGFiZWxzX3Blcl90YXNrGAYgASgNEhYKDm1heF9zdHJ1Y3R1cmVzGAcgASgNEiAKGG1heF9maWVsZHNfcGVyX3N0cnVjdHVyZRgIIAEoDRIWCg5tYXhfdGV4dF9ieXRlcxgJIAEoDRIbChNtYXhfcHJvbXB0X3N1YndvcmRzGAogASgNEhEKCW1heF93b3JkcxgLIAEoDUoECAIQA0oECAMQBEoECAQQBVIObWF4X2xhYmVsX3NldHNSCm1heF9maWVsZHNSCW1heF9kZXB0aCLaAgoMUmVzdWx0TGltaXRzEhoKEm1heF9zcGFyc2VfZW50cmllcxgBIAEoBBIeChZtYXhfc3BhcnNlX29jY3VycmVuY2VzGAIgASgEEh4KFm1heF90b2tlbl92ZWN0b3JfYnl0ZXMYAyABKAQSGAoQbWF4X3JlcmFua19pdGVtcxgEIAEoBBITCgttYXhfYW5zd2VycxgFIAEoBBIcChRtYXhfYW5zd2VyX2ZyYWdtZW50cxgGIAEoBBITCgttYXhfd2luZG93cxgHIAEoBBISCgptYXhfY2h1bmtzGAggASgEEhIKCm1heF9sZXZlbHMYCSABKAQSFQoNbWF4X2ZyYWdtZW50cxgKIAEoBBIXCg9tYXhfZ3JhcGhfYnl0ZXMYCyABKAQSGQoRbWF4X3JlY29yZF92YWx1ZXMYDCABKAQSGQoRbWF4X21hcHBpbmdfZWRpdHMYDSABKAQi+wEKEUxvYWRCdW5kbGVSZXF1ZXN0EgwKBG5hbWUYASABKAkSDgoGYnVuZGxlGAIgASgJEg4KBmRldmljZRgDIAEoDRIQCghzZXNzaW9ucxgEIAEoDRIRCglwcmVjaXNpb24YBSABKA0SEQoJbWF4X2JhdGNoGAYgASgNEg8KB21heF9zZXEYByABKA0SFQoNc2VsZWN0X2RldmljZRgLIAEoCBIMCgR1c2VyGAwgASgJEjsKCnZvY2FidWxhcnkYDSABKAsyIi50dXJiby5yZXN1bHQudjEuVm9jYWJ1bGFyeUJpbmRpbmdIAIgBAUINCgtfdm9jYWJ1bGFyeSJPChJMb2FkQnVuZGxlUmVzcG9uc2USOQoMY2FwYWJpbGl0aWVzGAEgASgLMiMudHVyYm8ucmVzdWx0LnYxLkJ1bmRsZUNhcGFiaWxpdGllcyIjChNVbmxvYWRCdW5kbGVSZXF1ZXN0EgwKBG5hbWUYASABKAkiFgoUVW5sb2FkQnVuZGxlUmVzcG9uc2UikAIKEVNwYXJzZVRlcm1zUmVzdWx0EigKBW1vZGVsGAEgASgLMhkudHVyYm8ucmVzdWx0LnYxLk1vZGVsUmVmEgsKA3JvdxgCIAMoDRIMCgR0ZXJtGAMgAygNEg4KBndlaWdodBgEIAMoAhIQCghoYXNfc3BhbhgFIAMoCBISCgpzcGFuX3N0YXJ0GAYgAygNEhAKCHNwYW5fZW5kGAcgAygNEhEKCW9jY19zdGFydBgIIAMoDRIPCgdvY2NfZW5kGAkgAygNEg4KBm9jY19hdBgKIAMoDRIMCgR0ZXh0GAsgASgJEiwKB29mZnNldHMYDCABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZSLcAQoSVG9rZW5WZWN0b3JzUmVzdWx0EigKBW1vZGVsGAEgASgLMhkudHVyYm8ucmVzdWx0LnYxLk1vZGVsUmVmEgsKA2RpbRgCIAEoDRIMCgRkYXRhGAMgASgMEg0KBWVtcHR5GAQgAygNEgwKBHZpZXcYByABKA0SFAoMd2luZG93X3N0YXJ0GAUgAygNEhIKCndpbmRvd19lbmQYBiADKA0SDAoEdGV4dBgIIAEoCRIsCgdvZmZzZXRzGAkgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUihAEKElJlcmFua1Njb3Jlc1Jlc3VsdBIoCgVtb2RlbBgBIAEoCzIZLnR1cmJvLnJlc3VsdC52MS5Nb2RlbFJlZhIOCgZzb3VyY2UYAiABKAkSFwoPc291cmNlX2luc3RhbmNlGAUgASgJEgwKBGl0ZW0YAyADKA0SDQoFc2NvcmUYBCADKAIitQIKEEV4dHJhY3Rpb25SZXN1bHQSKAoFbW9kZWwYASABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSDAoEdmlldxgCIAEoDRISCgpzcGFuX3N0YXJ0GAMgAygNEhAKCHNwYW5fZW5kGAQgAygNEg0KBXNjb3JlGAUgAygBEhMKC3Byb2JhYmlsaXR5GAYgAygBEhIKCm51bGxfc2NvcmUYByABKAESGAoQbnVsbF9wcm9iYWJpbGl0eRgIIAEoARISCgpmcmFnX3N0YXJ0GAkgAygNEhAKCGZyYWdfZW5kGAogAygNEg8KB2ZyYWdfYXQYCyADKA0SDAoEdGV4dBgMIAEoCRIsCgdvZmZzZXRzGA0gASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUi5QQKDVJlY29yZHNSZXN1bHQSKAoFbW9kZWwYASABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSDAoEdGV4dBgCIAEoCRIMCgR2aWV3GAMgASgNEiwKB29mZnNldHMYBCABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZRISCgp0eXBlc19uYW1lGAUgASgJEg0KBXR5cGVzGAYgAygJEhIKCnBhdGhzX25hbWUYByABKAkSDQoFcGF0aHMYCCADKAkSFAoMY2hvaWNlc19uYW1lGAkgASgJEg8KB2Nob2ljZXMYCiADKAkSEwoLcmVjb3JkX3R5cGUYCyADKA0SFwoPcmVjb3JkX2luc3RhbmNlGAwgAygNEhgKEHZhbHVlX2ZyYWdfc3RhcnQYDSADKA0SFgoOdmFsdWVfZnJhZ19lbmQYDiADKA0SFQoNdmFsdWVfZnJhZ19hdBgPIAMoDRIUCgx2YWx1ZV9yZWNvcmQYECADKA0SEgoKdmFsdWVfcGF0aBgRIAMoDRITCgt2YWx1ZV9zY29yZRgSIAMoARITCgt2YWx1ZV9sb2dpdBgTIAMoARITCgtzdXBwb3J0X2VuZBgUIAMoDRIWCg5zdXBwb3J0X3NvdXJjZRgVIAMoDRITCgtzdXBwb3J0X3JvdxgWIAMoDRIVCg1jaG9pY2VfcmVjb3JkGBcgAygNEhMKC2Nob2ljZV9wYXRoGBggAygNEg4KBmNob2ljZRgZIAMoDRIUCgxjaG9pY2Vfc2NvcmUYGiADKAESFAoMY2hvaWNlX2xvZ2l0GBsgAygBIowBChRBbmFseXplU3RyZWFtUmVxdWVzdBI2CgZoZWFkZXIYASABKAsyJC50dXJiby5yZXN1bHQudjEuQW5hbHl6ZVN0cmVhbUhlYWRlckgAEjQKCGRvY3VtZW50GAIgASgLMiAudHVyYm8ucmVzdWx0LnYxLkFuYWx5emVEb2N1bWVudEgAQgYKBGtpbmQicgoTQW5hbHl6ZVN0cmVhbUhlYWRlchIsCgVvcmRlchgBIAEoDjIdLnR1cmJvLnJlc3VsdC52MS5BbmFseXplT3JkZXISFAoMbWF4X2luZmxpZ2h0GAIgASgNEhcKD2JhdGNoX2xpbmdlcl9tcxgDIAEoDSLwAQoOQW5hbHl6ZU9wdGlvbnMSEAoIdHJ1bmNhdGUYASABKA0SEgoKbWF4X3Rva2VucxgCIAEoDRITCgtwcm9tcHRfcm9sZRgDIAEoDRIRCglub3JtYWxpemUYBCABKA0SDwoHcG9vbGluZxgFIAEoDRISCgpvdXRwdXRfZGltGAYgASgNEhQKDHNwYXJzZV90b3BfaxgHIAEoDRIUCgxzcGFyc2VfZmxvb3IYCCABKAISFAoMdG9rZW5fc3RyaWRlGAkgASgNEhQKDHF1YW50aXphdGlvbhgKIAEoDRITCgtpbnQ4X3JhbmdlcxgLIAMoAiLXAgoPQW5hbHl6ZURvY3VtZW50EgoKAmlkGAEgASgJEg0KBW1vZGVsGAIgASgJEgwKBHRleHQYAyABKAwSMAoHb3B0aW9ucxgEIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5BbmFseXplT3B0aW9ucxIuCgZvdXRwdXQYBSABKA4yHi50dXJiby5yZXN1bHQudjEuQW5hbHl6ZU91dHB1dBIsCgdvZmZzZXRzGAYgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSMwoHYmluZGluZxgHIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5JbnB1dEJpbmRpbmdIAIgBARI7Cgp2b2NhYnVsYXJ5GAggASgLMiIudHVyYm8ucmVzdWx0LnYxLlZvY2FidWxhcnlCaW5kaW5nSAGIAQFCCgoIX2JpbmRpbmdCDQoLX3ZvY2FidWxhcnkizwMKFUFuYWx5emVTdHJlYW1SZXNwb25zZRIKCgJpZBgBIAEoCRIyCgd2ZWN0b3JzGAIgASgLMh8udHVyYm8ucmVzdWx0LnYxLkFuYWx5emVWZWN0b3JzSAASMgoHZmFpbHVyZRgDIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5BbmFseXplRmFpbHVyZUgAEjoKDHNwYXJzZV90ZXJtcxgEIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5TcGFyc2VUZXJtc1Jlc3VsdEgAEjwKDXRva2VuX3ZlY3RvcnMYBSABKAsyIy50dXJiby5yZXN1bHQudjEuVG9rZW5WZWN0b3JzUmVzdWx0SAASOgoMdmVjdG9yX2NvZGVzGAYgASgLMiIudHVyYm8ucmVzdWx0LnYxLlZlY3RvckNvZGVzUmVzdWx0SAASQAoOZG9jdW1lbnRfZ3JhcGgYCCABKAsyJi50dXJiby5yZXN1bHQudjEuRG9jdW1lbnRHcmFwaFJlc3BvbnNlSAASMwoHYmluZGluZxgHIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5JbnB1dEJpbmRpbmdIAYgBAUIJCgdvdXRjb21lQgoKCF9iaW5kaW5nImEKDkFuYWx5emVWZWN0b3JzEg0KBW1vZGVsGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSCwoDZGltGAMgASgNEgwKBGRhdGEYBCABKAwSFAoMcXVhbnRpemF0aW9uGAUgASgNImQKEVZlY3RvckNvZGVzUmVzdWx0Eg0KBW1vZGVsGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSCwoDZGltGAMgASgNEgwKBGRhdGEYBCABKAwSFAoMcXVhbnRpemF0aW9uGAUgASgNIkQKDkFuYWx5emVGYWlsdXJlEhIKCnR1cmJvX2NvZGUYASABKAUSDQoFZmllbGQYAiABKA0SDwoHbWVzc2FnZRgDIAEoCSL/AQoMU3RyZWFtTGltaXRzEiMKG21heF9xdWV1ZWRfaXRlbXNfcGVyX3N0cmVhbRgBIAEoBBIjChttYXhfcXVldWVkX2J5dGVzX3Blcl9zdHJlYW0YAiABKAQSHwoXbWF4X3F1ZXVlZF9pdGVtc19zZXJ2ZXIYAyABKAQSHwoXbWF4X3F1ZXVlZF9ieXRlc19zZXJ2ZXIYBCABKAQSJQodbWF4X2luZmxpZ2h0X2l0ZW1zX3Blcl9zdHJlYW0YBSABKAQSHwoXZGVmYXVsdF9iYXRjaF9saW5nZXJfbXMYBiABKAQSGwoTbWF4X2JhdGNoX2xpbmdlcl9tcxgHIAEoBCKgAgoJTGF5ZXJJbmZvEg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJEjAKBnN0YXR1cxgDIAEoDjIgLnR1cmJvLnJlc3VsdC52MS5MYXllcldpcmVTdGF0dXMSEQoJYW5ub3RhdG9yGAUgASgJEg8KB3ZlcnNpb24YBiABKAkSKAoFbW9kZWwYByABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSEwoLY29uZmlnX2hhc2gYCCABKAQSDQoFaXRlbXMYCSABKA0SLwoFZXJyb3IYCiABKAsyGy50dXJiby5yZXN1bHQudjEuTGF5ZXJFcnJvckgAiAEBQggKBl9lcnJvckoECAQQBVINc3RhdHVzX2RldGFpbCJcChREb2N1bWVudEdyYXBoUmVxdWVzdBINCgVncmFwaBgBIAEoDBI1CgpwaWlfb3V0cHV0GAIgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnMiyQEKFURvY3VtZW50R3JhcGhSZXNwb25zZRINCgVncmFwaBgBIAEoDBIqCgZsYXllcnMYAiADKAsyGi50dXJiby5yZXN1bHQudjEuTGF5ZXJJbmZvEigKBXZpZXdzGAMgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvEhMKC3NvdXJjZV90ZXh0GAQgASgJEjYKCGZpbmRpbmdzGAUgASgLMiQudHVyYm8ucmVzdWx0LnYxLlR5cGVkRG9jdW1lbnRSZXN1bHQisQYKEUNodW5rTGV2ZWxzUmVzdWx0EgwKBHRleHQYASABKAkSDAoEdmlldxgCIAEoDRIsCgdvZmZzZXRzGAMgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSGAoQY2h1bmtfZnJhZ19zdGFydBgEIAMoDRIWCg5jaHVua19mcmFnX2VuZBgFIAMoDRIVCg1jaHVua19mcmFnX2F0GAYgAygNEhMKC2NodW5rX2xldmVsGAcgAygNEhQKDGNodW5rX3BhcmVudBgIIAMoBRIcChRjaHVua19zZW50ZW5jZV9zdGFydBgJIAMoDRIaChJjaHVua19zZW50ZW5jZV9lbmQYCiADKA0SEQoJY2h1bmtfY3V0GAsgAygNEhcKD2NodW5rX2N1dF9ibG9jaxgMIAMoDRISCgpjaHVua19jb3N0GA0gAygDEhoKEmNodW5rX21vZGVsX3Rva2VucxgYIAMoDRIZChFjaHVua19vdmVyX2J1ZGdldBgZIAMoCBIYChBsZXZlbF9mcmFnX3N0YXJ0GA4gAygNEhYKDmxldmVsX2ZyYWdfZW5kGA8gAygNEhUKDWxldmVsX2ZyYWdfYXQYECADKA0SEgoKbGV2ZWxfa2luZBgRIAMoDRIQCghsZXZlbF9peBgSIAMoDRIUCgxsZXZlbF9wYXJlbnQYEyADKAUSKAoFbW9kZWwYFCABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSCwoDZGltGBUgASgNEgwKBGRhdGEYFiABKAwSDQoFZW1wdHkYFyADKA0SGAoQY2h1bmtfcGFnZV9zdGFydBgaIAMoDRIWCg5jaHVua19wYWdlX2VuZBgbIAMoDRIbChNjaHVua19oYXNfcGFnZV9zcGFuGBwgAygIEhUKDWNodW5rX2JveF9yb3cYHSADKA0SFgoOY2h1bmtfYm94X3BhZ2UYHiADKA0SFAoMY2h1bmtfYm94X3gwGB8gAygCEhQKDGNodW5rX2JveF95MBggIAMoAhIUCgxjaHVua19ib3hfeDEYISADKAISFAoMY2h1bmtfYm94X3kxGCIgAygCIpYFChZBbmFseXplUGlwZWxpbmVSZXF1ZXN0Eg4KBmRvY19pZBgBIAEoCRIMCgR0ZXh0GAIgASgJEhQKDHNvdXJjZV9ieXRlcxgDIAEoDBIsCgdvZmZzZXRzGAQgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSDwoHcHJvZmlsZRgFIAEoCRINCgVzdGVwcxgGIAMoCRINCgVtb2RlbBgHIAEoCRIVCg1pbml0aWFsX2dyYXBoGAggASgMEjYKDnN0cnVjdHVyZV9zZWVkGAkgASgLMh4udHVyYm8ucmVzdWx0LnYxLlN0cnVjdHVyZVNlZWQSFQoNb3BlcmF0aW9uX2tleRgKIAEoCRI1CgpwaWlfb3V0cHV0GAsgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnMSPQoNcGlpX3JlZGFjdGlvbhgMIAEoCzImLnR1cmJvLnJlc3VsdC52MS5QaWlSZWRhY3Rpb25TZWxlY3Rpb24SMwoHYmluZGluZxgNIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5JbnB1dEJpbmRpbmdIAIgBARIyCglvcGVuX3NwYW4YDiABKAsyHy50dXJiby5yZXN1bHQudjEuT3BlblNwYW5TY2hlbWESNgoJcmVsYXRpb25zGA8gASgLMiMudHVyYm8ucmVzdWx0LnYxLk9wZW5SZWxhdGlvblNjaGVtYRIWCg5yZWxhdGlvbl9tb2RlbBgQIAEoCRI7Cgp2b2NhYnVsYXJ5GBEgASgLMiIudHVyYm8ucmVzdWx0LnYxLlZvY2FidWxhcnlCaW5kaW5nSAGIAQFCCgoIX2JpbmRpbmdCDQoLX3ZvY2FidWxhcnkiZwoOT3BlblNwYW5TY2hlbWESDgoGbGFiZWxzGAEgAygJEhYKCXRocmVzaG9sZBgCIAEoAkgAiAEBEg4KBm5lc3RlZBgDIAEoCBIPCgdwcm9tcHRzGAQgAygJQgwKCl90aHJlc2hvbGQihwEKEk9wZW5SZWxhdGlvblNjaGVtYRIyCgZsYWJlbHMYASADKAsyIi50dXJiby5yZXN1bHQudjEuT3BlblJlbGF0aW9uTGFiZWwSFgoJdGhyZXNob2xkGAIgASgCSACIAQESFwoPd2l0aGluX3NlbnRlbmNlGAMgASgIQgwKCl90aHJlc2hvbGQieQoRT3BlblJlbGF0aW9uTGFiZWwSDAoEbmFtZRgBIAEoCRIWCgl0aHJlc2hvbGQYAiABKAJIAIgBARIRCglzeW1tZXRyaWMYAyABKAgSDgoGZG9tYWluGAQgAygJEg0KBXJhbmdlGAUgAygJQgwKCl90aHJlc2hvbGQiTgoNU3RydWN0dXJlU2VlZBIMCgR0ZXh0GAEgASgJEi8KBmJsb2NrcxgCIAMoCzIfLnR1cmJvLnJlc3VsdC52MS5TdHJ1Y3R1cmVCbG9jayKOAQoOU3RydWN0dXJlQmxvY2sSMQoEa2luZBgBIAEoDjIjLnR1cmJvLnJlc3VsdC52MS5TdHJ1Y3R1cmVCbG9ja0tpbmQSDQoFc3RhcnQYAiABKA0SCwoDZW5kGAMgASgNEg0KBWxldmVsGAQgASgNEhMKBnBhcmVudBgFIAEoDUgAiAEBQgkKB19wYXJlbnQi1gIKF0FuYWx5emVQcm9ncmVzc2l2ZUV2ZW50EhAKCHNlcXVlbmNlGAEgASgEEjMKB3N0YXJ0ZWQYAiABKAsyIC50dXJiby5yZXN1bHQudjEuQW5hbHlzaXNTdGFydGVkSAASOwoMbGF5ZXJzX3JlYWR5GAMgASgLMiMudHVyYm8ucmVzdWx0LnYxLkFuYWx5c2lzTGF5ZXJCYXRjaEgAEjsKC3N0ZXBfZmFpbGVkGAQgASgLMiQudHVyYm8ucmVzdWx0LnYxLkFuYWx5c2lzU3RlcEZhaWx1cmVIABI6Cghjb21wbGV0ZRgFIAEoCzImLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudEdyYXBoUmVzcG9uc2VIABI1CgdyZWNlaXB0GAYgASgLMiIudHVyYm8ucmVzdWx0LnYxLlByb2Nlc3NpbmdSZWNlaXB0SABCBwoFZXZlbnQiiwEKD0FuYWx5c2lzU3RhcnRlZBIOCgZkb2NfaWQYASABKAkSLAoHb2Zmc2V0cxgCIAEoDjIbLnR1cmJvLnJlc3VsdC52MS5PZmZzZXRNb2RlEhAKCHN0ZXBfaWRzGAMgAygJEigKBXZpZXdzGAQgAygLMhkudHVyYm8ucmVzdWx0LnYxLlZpZXdJbmZvIrUBChJBbmFseXNpc0xheWVyQmF0Y2gSFgoOY29tcGxldGVkX3N0ZXAYASABKAkSDQoFc3RhZ2UYAiABKA0SEwoLZHVyYXRpb25fdXMYAyABKAQSKgoGbGF5ZXJzGAQgAygLMhoudHVyYm8ucmVzdWx0LnYxLkxheWVySW5mbxIoCgV2aWV3cxgFIAMoCzIZLnR1cmJvLnJlc3VsdC52MS5WaWV3SW5mbxINCgVncmFwaBgGIAEoDCLwAQoTQW5hbHlzaXNTdGVwRmFpbHVyZRIPCgdzdGVwX2lkGAEgASgJEg0KBXN0YWdlGAIgASgNEhMKC2R1cmF0aW9uX3VzGAMgASgEEjAKB2ZhaWx1cmUYBCABKAsyHy50dXJiby5yZXN1bHQudjEuQW5hbHl6ZUZhaWx1cmUSGgoSc2tpcHBlZF9kZXBlbmRlbnRzGAUgAygJEioKBmxheWVycxgGIAMoCzIaLnR1cmJvLnJlc3VsdC52MS5MYXllckluZm8SKgoFZXJyb3IYByABKAsyGy50dXJiby5yZXN1bHQudjEuTGF5ZXJFcnJvciI2ChNMYXllckluc3RhbmNlRmlsdGVyEg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJIuQCChVEb2N1bWVudFdpbmRvd1JlcXVlc3QSDQoFZ3JhcGgYASABKAwSDAoEdmlldxgCIAEoDRIsCgdvZmZzZXRzGAMgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSEQoJcGFnZV9zaXplGAQgASgNEgwKBHBhZ2UYBSABKA0SFQoNZmlsdGVyX2xheWVycxgGIAMoCRJEChZmaWx0ZXJfbGF5ZXJfaW5zdGFuY2VzGAogAygLMiQudHVyYm8ucmVzdWx0LnYxLkxheWVySW5zdGFuY2VGaWx0ZXISFwoPaGVhdG1hcF9idWNrZXRzGAcgASgNEh0KEHhyYXlfdGFyZ2V0X3ZpZXcYCCABKA1IAIgBARI1CgpwaWlfb3V0cHV0GAkgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnNCEwoRX3hyYXlfdGFyZ2V0X3ZpZXci0gEKGURvY3VtZW50U2hhcGVTdW1tYXJ5UHJvdG8SDAoEdmlldxgBIAEoDRITCgt0b3RhbF9ieXRlcxgCIAEoDRITCgt0b3RhbF91bml0cxgDIAEoDRISCgp2aWV3X2NvdW50GAQgASgNEhMKC2xheWVyX2NvdW50GAUgASgNEioKBmxheWVycxgGIAMoCzIaLnR1cmJvLnJlc3VsdC52MS5MYXllckluZm8SKAoFdmlld3MYByADKAsyGS50dXJiby5yZXN1bHQudjEuVmlld0luZm8ipgEKE0RvY3VtZW50V2luZG93UHJvdG8SDAoEdmlldxgBIAEoDRISCgpieXRlX3N0YXJ0GAIgASgNEhAKCGJ5dGVfZW5kGAMgASgNEg0KBXN0YXJ0GAQgASgNEgsKA2VuZBgFIAEoDRIMCgRwYWdlGAYgASgNEhIKCnBhZ2VfY291bnQYByABKA0SDwoHY2xhbXBlZBgIIAEoCBIMCgR0ZXh0GAkgASgJImUKFlNlZ21lbnRBbm5vdGF0aW9uUHJvdG8SDQoFbGF5ZXIYASABKAkSEAoIaW5zdGFuY2UYAiABKAkSDAoEaXRlbRgDIAEoDRINCgVsYWJlbBgEIAEoCRINCgVzY29yZRgFIAEoASJ+ChRDb21iaW5lZFNlZ21lbnRQcm90bxINCgVzdGFydBgBIAEoDRILCgNlbmQYAiABKA0SDAoEdGV4dBgDIAEoCRI8Cgthbm5vdGF0aW9ucxgEIAMoCzInLnR1cmJvLnJlc3VsdC52MS5TZWdtZW50QW5ub3RhdGlvblByb3RvIlIKEURvY3VtZW50Q2hpcFByb3RvEg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJEg0KBWxhYmVsGAMgASgJEg0KBXNjb3JlGAQgASgBIqABChJIZWF0bWFwQnVja2V0UHJvdG8SDQoFc3RhcnQYASABKA0SCwoDZW5kGAIgASgNEg0KBXNjb3JlGAMgASgCEg0KBWNvdW50GAQgASgNEhkKDHByaW1hcnlfaXRlbRgFIAEoDUgAiAEBEhIKCmJ5dGVfc3RhcnQYBiABKA0SEAoIYnl0ZV9lbmQYByABKA1CDwoNX3ByaW1hcnlfaXRlbSKWAQoQSGVhdG1hcExhbmVQcm90bxIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJEgwKBHZpZXcYAyABKA0SEQoJbWluX3Njb3JlGAQgASgCEhEKCW1heF9zY29yZRgFIAEoAhI0CgdidWNrZXRzGAYgAygLMiMudHVyYm8ucmVzdWx0LnYxLkhlYXRtYXBCdWNrZXRQcm90byK/AQoQWHJheUVkaXRSdW5Qcm90bxIUCgxwYXJlbnRfc3RhcnQYASABKA0SEgoKcGFyZW50X2VuZBgCIAEoDRITCgtjaGlsZF9zdGFydBgDIAEoDRIRCgljaGlsZF9lbmQYBCABKA0SMAoEa2luZBgFIAEoDjIiLnR1cmJvLnJlc3VsdC52MS5YcmF5RWRpdEtpbmRQcm90bxITCgtwYXJlbnRfdGV4dBgGIAEoCRISCgpjaGlsZF90ZXh0GAcgASgJItgBChRYcmF5U3RlcFN1bW1hcnlQcm90bxIMCgR2aWV3GAEgASgNEhgKC3BhcmVudF92aWV3GAIgASgNSACIAQESEAoIaW5zdGFuY2UYAyABKAkSEQoJYW5ub3RhdG9yGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEwoLY29uZmlnX2hhc2gYBiABKAQSEgoKZWRpdF9jb3VudBgHIAEoDRIUCgxwYXJlbnRfYnl0ZXMYCCABKA0SEwoLY2hpbGRfYnl0ZXMYCSABKA1CDgoMX3BhcmVudF92aWV3ItEBChZOb3JtYWxpemF0aW9uWHJheVByb3RvEhEKCWZyb21fdmlldxgBIAEoDRIPCgd0b192aWV3GAIgASgNEiwKB29mZnNldHMYAyABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZRIvCgRydW5zGAQgAygLMiEudHVyYm8ucmVzdWx0LnYxLlhyYXlFZGl0UnVuUHJvdG8SNAoFc3RlcHMYBSADKAsyJS50dXJiby5yZXN1bHQudjEuWHJheVN0ZXBTdW1tYXJ5UHJvdG8i/wIKFkRvY3VtZW50V2luZG93UmVzcG9uc2USOwoHc3VtbWFyeRgBIAEoCzIqLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudFNoYXBlU3VtbWFyeVByb3RvEjQKBndpbmRvdxgCIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudFdpbmRvd1Byb3RvEjcKCHNlZ21lbnRzGAMgAygLMiUudHVyYm8ucmVzdWx0LnYxLkNvbWJpbmVkU2VnbWVudFByb3RvEjoKDmRvY3VtZW50X2NoaXBzGAQgAygLMiIudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50Q2hpcFByb3RvEjgKDWhlYXRtYXBfbGFuZXMYBSADKAsyIS50dXJiby5yZXN1bHQudjEuSGVhdG1hcExhbmVQcm90bxI6CgR4cmF5GAYgASgLMicudHVyYm8ucmVzdWx0LnYxLk5vcm1hbGl6YXRpb25YcmF5UHJvdG9IAIgBAUIHCgVfeHJheSJsCgpCdWRnZXRTcGVjEgwKBG5hbWUYASABKAkSEgoKbWF4X3Rva2VucxgCIAEoDRIVCg10YXJnZXRfdG9rZW5zGAMgASgNEhMKC3NpemVfd2VpZ2h0GAQgASgNEhAKCG92ZXJoZWFkGAUgASgNIpUDChRQcm9qZWN0Q2h1bmtzUmVxdWVzdBINCgVncmFwaBgBIAEoDBIsCgdvZmZzZXRzGAIgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSEAoIcGNhX2RpbXMYAyABKA0SGgoSbWF4X3N0YWNrX3NlZ21lbnRzGAQgASgNEhsKE2luY2x1ZGVfZHJpZnRfY3VydmUYBSABKAgSHwoXaW5jbHVkZV9zdHJhdGVneV9tYXRyaXgYBiABKAgSNQoQc3RyYXRlZ3lfYnVkZ2V0cxgHIAMoCzIbLnR1cmJvLnJlc3VsdC52MS5CdWRnZXRTcGVjEjUKCnBpaV9vdXRwdXQYCCABKAsyIS50dXJiby5yZXN1bHQudjEuUGlpT3V0cHV0T3B0aW9ucxI7CghwYWlyd2lzZRgJIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5QYWlyd2lzZUNvc2luZXNTcGVjSACIAQESEgoFcXVlcnkYCiABKAlIAYgBAUILCglfcGFpcndpc2VCCAoGX3F1ZXJ5IjcKE1BhaXJ3aXNlQ29zaW5lc1NwZWMSDQoFbGV2ZWwYASABKA0SEQoJbWF4X2l0ZW1zGAIgASgNIkUKFFBhaXJ3aXNlQ29zaW5lc1Byb3RvEg0KBWxldmVsGAEgASgNEg0KBWl0ZW1zGAIgAygNEg8KB2Nvc2luZXMYAyADKAIiVwoPUXVlcnlQb2ludFByb3RvEgkKAXgYASABKAISCQoBeRgCIAEoAhIJCgF6GAMgASgCEg8KB2Nvc2luZXMYBCADKAISEgoKbW9kZWxfbmFtZRgFIAEoCSKwAQoTUHJvamVjdGVkUG9pbnRQcm90bxIMCgRpdGVtGAEgASgNEg0KBXN0YXJ0GAIgASgNEgsKA2VuZBgDIAEoDRINCgVsZXZlbBgEIAEoDRIJCgF4GAUgASgCEgkKAXkYBiABKAISCQoBehgHIAEoAhINCgVlbXB0eRgIIAEoCBIcCg9hZGphY2VudF9jb3NpbmUYCSABKAJIAIgBAUISChBfYWRqYWNlbnRfY29zaW5lIqUBChVWZWN0b3JQcm9qZWN0aW9uUHJvdG8SKAoFbW9kZWwYASABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWYSEAoIcGNhX2RpbXMYAiABKA0SGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAMgAygCEjQKBnBvaW50cxgEIAMoCzIkLnR1cmJvLnJlc3VsdC52MS5Qcm9qZWN0ZWRQb2ludFByb3RvIvsBChJEcmlmdEdhcFBvaW50UHJvdG8SEAoIc2VudGVuY2UYASABKA0SEgoKZ2FwX29mZnNldBgCIAEoDRIdChByYXdfY29zaW5lX21pY3JvGAMgASgDSACIAQESIgoVc21vb3RoZWRfY29zaW5lX21pY3JvGAQgASgDSAGIAQESGQoRZGVwdGhfc2NvcmVfbWljcm8YBSABKAMSDAoEY29zdBgGIAEoBRIOCgZyZWFzb24YByABKA0SFAoMaXNfY2h1bmtfY3V0GAggASgIQhMKEV9yYXdfY29zaW5lX21pY3JvQhgKFl9zbW9vdGhlZF9jb3NpbmVfbWljcm8ibwoXQm91bmRhcnlEcmlmdEN1cnZlUHJvdG8SDgoGd2luZG93GAEgASgNEhEKCXNtb290aGluZxgCIAEoDRIxCgRnYXBzGAMgAygLMiMudHVyYm8ucmVzdWx0LnYxLkRyaWZ0R2FwUG9pbnRQcm90byKiAQoWVGVybVdlaWdodFNlZ21lbnRQcm90bxIMCgR0ZXJtGAEgASgJEg8KB3Rlcm1faWQYAiABKA0SEQoJZnJlcXVlbmN5GAMgASgNEg4KBndlaWdodBgEIAEoAhINCgVzaGFyZRgFIAEoAhITCgtpc19leHBhbmRlZBgGIAEoCBIRCglvY2Nfc3RhcnQYByADKA0SDwoHb2NjX2VuZBgIIAMoDSLsAQoUVGVybVZlY3RvclN0YWNrUHJvdG8SDAoEdW5pdBgBIAEoDRI5CghzZWdtZW50cxgCIAMoCzInLnR1cmJvLnJlc3VsdC52MS5UZXJtV2VpZ2h0U2VnbWVudFByb3RvEhMKC3RvdGFsX3Rlcm1zGAMgASgNEhcKD3RvdGFsX2ZyZXF1ZW5jeRgEIAEoBBIUCgx0b3RhbF93ZWlnaHQYBSABKAISGAoQb3RoZXJfdGVybV9jb3VudBgGIAEoDRIXCg9vdGhlcl9mcmVxdWVuY3kYByABKAQSFAoMb3RoZXJfd2VpZ2h0GAggASgCIvoBChxTdHJhdGVneUNvbXBhcmlzb25FbnRyeVByb3RvEgwKBG5hbWUYASABKAkSKwoGYnVkZ2V0GAIgASgLMhsudHVyYm8ucmVzdWx0LnYxLkJ1ZGdldFNwZWMSEwoLY2h1bmtfY291bnQYAyABKA0SGQoRb3Zlcl9idWRnZXRfY291bnQYBCABKA0SEgoKdG90YWxfY29zdBgFIAEoAxIiChptYXRjaGVkX2N1dHNfd2l0aF9iYXNlbGluZRgGIAEoDRIjChtkaXNhZ3JlZW1lbnRzX3dpdGhfYmFzZWxpbmUYByABKA0SEgoKY3V0X3N0YXJ0cxgIIAMoDSJYChNTdHJhdGVneU1hdHJpeFByb3RvEkEKCnN0cmF0ZWdpZXMYASADKAsyLS50dXJiby5yZXN1bHQudjEuU3RyYXRlZ3lDb21wYXJpc29uRW50cnlQcm90byKtBAoVUHJvamVjdENodW5rc1Jlc3BvbnNlEjoKCnByb2plY3Rpb24YASABKAsyJi50dXJiby5yZXN1bHQudjEuVmVjdG9yUHJvamVjdGlvblByb3RvEkIKC2RyaWZ0X2N1cnZlGAIgASgLMigudHVyYm8ucmVzdWx0LnYxLkJvdW5kYXJ5RHJpZnRDdXJ2ZVByb3RvSACIAQESQAoRY2h1bmtfdGVybV9zdGFja3MYAyADKAsyJS50dXJiby5yZXN1bHQudjEuVGVybVZlY3RvclN0YWNrUHJvdG8SRwoTZG9jdW1lbnRfdGVybV9zdGFjaxgEIAEoCzIlLnR1cmJvLnJlc3VsdC52MS5UZXJtVmVjdG9yU3RhY2tQcm90b0gBiAEBEkIKD3N0cmF0ZWd5X21hdHJpeBgFIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5TdHJhdGVneU1hdHJpeFByb3RvSAKIAQESPAoIcGFpcndpc2UYBiABKAsyJS50dXJiby5yZXN1bHQudjEuUGFpcndpc2VDb3NpbmVzUHJvdG9IA4gBARI0CgVxdWVyeRgHIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5RdWVyeVBvaW50UHJvdG9IBIgBAUIOCgxfZHJpZnRfY3VydmVCFgoUX2RvY3VtZW50X3Rlcm1fc3RhY2tCEgoQX3N0cmF0ZWd5X21hdHJpeEILCglfcGFpcndpc2VCCAoGX3F1ZXJ5IhoKGExpc3RPdXRwdXRGb3JtYXRzUmVxdWVzdCLCAQobT3V0cHV0Rm9ybWF0RGVzY3JpcHRvclByb3RvEhEKCWZvcm1hdF9pZBgBIAEoCRIUCgxkaXNwbGF5X25hbWUYAiABKAkSEgoKbWVkaWFfdHlwZRgDIAEoCRIWCg5maWxlX2V4dGVuc2lvbhgEIAEoCRIOCgZiaW5hcnkYBSABKAgSEAoIbG9zc2xlc3MYBiABKAgSFwoPcmVxdWlyZWRfbGF5ZXJzGAcgAygJEhMKC2Rlc2NyaXB0aW9uGAggASgJIloKGUxpc3RPdXRwdXRGb3JtYXRzUmVzcG9uc2USPQoHZm9ybWF0cxgBIAMoCzIsLnR1cmJvLnJlc3VsdC52MS5PdXRwdXRGb3JtYXREZXNjcmlwdG9yUHJvdG8irgEKFUZvcm1hdERvY3VtZW50UmVxdWVzdBIOCgZkb2NfaWQYASABKAkSDQoFZ3JhcGgYAiABKAwSEQoJZm9ybWF0X2lkGAMgASgJEiwKB29mZnNldHMYBCABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZRI1CgpwaWlfb3V0cHV0GAUgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBpaU91dHB1dE9wdGlvbnMiaAoWRm9ybWF0RG9jdW1lbnRSZXNwb25zZRIRCglmb3JtYXRfaWQYASABKAkSEgoKbWVkaWFfdHlwZRgCIAEoCRIWCg5maWxlX2V4dGVuc2lvbhgDIAEoCRIPCgdjb250ZW50GAQgASgMKkUKDEFuYWx5emVPcmRlchIXChNBTkFMWVpFX09SREVSX0lOUFVUEAASHAoYQU5BTFlaRV9PUkRFUl9DT01QTEVUSU9OEAEqsgEKDUFuYWx5emVPdXRwdXQSGgoWQU5BTFlaRV9PVVRQVVRfVkVDVE9SUxAAEh8KG0FOQUxZWkVfT1VUUFVUX1NQQVJTRV9URVJNUxABEiAKHEFOQUxZWkVfT1VUUFVUX1RPS0VOX1ZFQ1RPUlMQAhIfChtBTkFMWVpFX09VVFBVVF9WRUNUT1JfQ09ERVMQAxIhCh1BTkFMWVpFX09VVFBVVF9ET0NVTUVOVF9HUkFQSBAEKuIEChJTdHJ1Y3R1cmVCbG9ja0tpbmQSJAogU1RSVUNUVVJFX0JMT0NLX0tJTkRfVU5TUEVDSUZJRUQQABIgChxTVFJVQ1RVUkVfQkxPQ0tfS0lORF9TRUNUSU9OEAESIAocU1RSVUNUVVJFX0JMT0NLX0tJTkRfSEVBRElORxACEiIKHlNUUlVDVFVSRV9CTE9DS19LSU5EX1BBUkFHUkFQSBADEh0KGVNUUlVDVFVSRV9CTE9DS19LSU5EX0xJU1QQBBIiCh5TVFJVQ1RVUkVfQkxPQ0tfS0lORF9MSVNUX0lURU0QBRIeChpTVFJVQ1RVUkVfQkxPQ0tfS0lORF9UQUJMRRAGEiIKHlNUUlVDVFVSRV9CTE9DS19LSU5EX1RBQkxFX1JPVxAHEiMKH1NUUlVDVFVSRV9CTE9DS19LSU5EX1RBQkxFX0NFTEwQCBIdChlTVFJVQ1RVUkVfQkxPQ0tfS0lORF9DT0RFEAkSHgoaU1RSVUNUVVJFX0JMT0NLX0tJTkRfUVVPVEUQChIgChxTVFJVQ1RVUkVfQkxPQ0tfS0lORF9DQVBUSU9OEAsSIQodU1RSVUNUVVJFX0JMT0NLX0tJTkRfRk9PVE5PVEUQDBIkCiBTVFJVQ1RVUkVfQkxPQ0tfS0lORF9QQUdFX0hFQURFUhANEiQKIFNUUlVDVFVSRV9CTE9DS19LSU5EX1BBR0VfRk9PVEVSEA4SIwofU1RSVUNUVVJFX0JMT0NLX0tJTkRfTE9PU0VfTElTVBAPEh0KGVNUUlVDVFVSRV9CTE9DS19LSU5EX0hUTUwQECqbAQoRWHJheUVkaXRLaW5kUHJvdG8SHgoaWFJBWV9FRElUX0tJTkRfUFJPVE9fRVFVQUwQABIhCh1YUkFZX0VESVRfS0lORF9QUk9UT19SRVBMQUNFRBABEiEKHVhSQVlfRURJVF9LSU5EX1BST1RPX0lOU0VSVEVEEAISIAocWFJBWV9FRElUX0tJTkRfUFJPVE9fREVMRVRFRBADMqgOCg9BbmFseXNpc1NlcnZpY2USXQoMQ2FwYWJpbGl0aWVzEiQudHVyYm8ucmVzdWx0LnYxLkNhcGFiaWxpdGllc1JlcXVlc3QaJS50dXJiby5yZXN1bHQudjEuQ2FwYWJpbGl0aWVzUmVzcG9uc2UiABJXCgpMb2FkQnVuZGxlEiIudHVyYm8ucmVzdWx0LnYxLkxvYWRCdW5kbGVSZXF1ZXN0GiMudHVyYm8ucmVzdWx0LnYxLkxvYWRCdW5kbGVSZXNwb25zZSIAEl0KDFVubG9hZEJ1bmRsZRIkLnR1cmJvLnJlc3VsdC52MS5VbmxvYWRCdW5kbGVSZXF1ZXN0GiUudHVyYm8ucmVzdWx0LnYxLlVubG9hZEJ1bmRsZVJlc3BvbnNlIgASYAoUUm91bmRUcmlwU3BhcnNlVGVybXMSIi50dXJiby5yZXN1bHQudjEuU3BhcnNlVGVybXNSZXN1bHQaIi50dXJiby5yZXN1bHQudjEuU3BhcnNlVGVybXNSZXN1bHQiABJjChVSb3VuZFRyaXBUb2tlblZlY3RvcnMSIy50dXJiby5yZXN1bHQudjEuVG9rZW5WZWN0b3JzUmVzdWx0GiMudHVyYm8ucmVzdWx0LnYxLlRva2VuVmVjdG9yc1Jlc3VsdCIAEmMKFVJvdW5kVHJpcFJlcmFua1Njb3JlcxIjLnR1cmJvLnJlc3VsdC52MS5SZXJhbmtTY29yZXNSZXN1bHQaIy50dXJiby5yZXN1bHQudjEuUmVyYW5rU2NvcmVzUmVzdWx0IgASXQoTUm91bmRUcmlwRXh0cmFjdGlvbhIhLnR1cmJvLnJlc3VsdC52MS5FeHRyYWN0aW9uUmVzdWx0GiEudHVyYm8ucmVzdWx0LnYxLkV4dHJhY3Rpb25SZXN1bHQiABJUChBSb3VuZFRyaXBSZWNvcmRzEh4udHVyYm8ucmVzdWx0LnYxLlJlY29yZHNSZXN1bHQaHi50dXJiby5yZXN1bHQudjEuUmVjb3Jkc1Jlc3VsdCIAEmAKFFJvdW5kVHJpcENodW5rTGV2ZWxzEiIudHVyYm8ucmVzdWx0LnYxLkNodW5rTGV2ZWxzUmVzdWx0GiIudHVyYm8ucmVzdWx0LnYxLkNodW5rTGV2ZWxzUmVzdWx0IgASaQoWUm91bmRUcmlwRG9jdW1lbnRHcmFwaBIlLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudEdyYXBoUmVxdWVzdBomLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudEdyYXBoUmVzcG9uc2UiABJsChRJbnNwZWN0RG9jdW1lbnRHcmFwaBIsLnR1cmJvLnJlc3VsdC52MS5JbnNwZWN0RG9jdW1lbnRHcmFwaFJlcXVlc3QaJC50dXJiby5yZXN1bHQudjEuVHlwZWREb2N1bWVudFJlc3VsdCIAEmYKFlJvdW5kVHJpcFR5cGVkRG9jdW1lbnQSJC50dXJiby5yZXN1bHQudjEuVHlwZWREb2N1bWVudFJlc3VsdBokLnR1cmJvLnJlc3VsdC52MS5UeXBlZERvY3VtZW50UmVzdWx0IgASZAoNQW5hbHl6ZVN0cmVhbRIlLnR1cmJvLnJlc3VsdC52MS5BbmFseXplU3RyZWFtUmVxdWVzdBomLnR1cmJvLnJlc3VsdC52MS5BbmFseXplU3RyZWFtUmVzcG9uc2UiACgBMAEScwoaQW5hbHl6ZURvY3VtZW50UHJvZ3Jlc3NpdmUSJy50dXJiby5yZXN1bHQudjEuQW5hbHl6ZVBpcGVsaW5lUmVxdWVzdBooLnR1cmJvLnJlc3VsdC52MS5BbmFseXplUHJvZ3Jlc3NpdmVFdmVudCIAMAESagoVSW5zcGVjdERvY3VtZW50V2luZG93EiYudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50V2luZG93UmVxdWVzdBonLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudFdpbmRvd1Jlc3BvbnNlIgASYAoNUHJvamVjdENodW5rcxIlLnR1cmJvLnJlc3VsdC52MS5Qcm9qZWN0Q2h1bmtzUmVxdWVzdBomLnR1cmJvLnJlc3VsdC52MS5Qcm9qZWN0Q2h1bmtzUmVzcG9uc2UiABJsChFMaXN0T3V0cHV0Rm9ybWF0cxIpLnR1cmJvLnJlc3VsdC52MS5MaXN0T3V0cHV0Rm9ybWF0c1JlcXVlc3QaKi50dXJiby5yZXN1bHQudjEuTGlzdE91dHB1dEZvcm1hdHNSZXNwb25zZSIAEmMKDkZvcm1hdERvY3VtZW50EiYudHVyYm8ucmVzdWx0LnYxLkZvcm1hdERvY3VtZW50UmVxdWVzdBonLnR1cmJvLnJlc3VsdC52MS5Gb3JtYXREb2N1bWVudFJlc3BvbnNlIgBQAGIGcHJvdG8z", [file_turbo_typed_annotations, file_turbo_pii_policy]);
 var AnalysisService = /* @__PURE__ */ serviceDesc(file_turbo_analysis, 0);
 
 // demo/web/src/gen/turbo_demo_pb.ts
@@ -7073,7 +7205,7 @@ var DistanceMetric = /* @__PURE__ */ ((DistanceMetric2) => {
 var TurboSearchService = /* @__PURE__ */ serviceDesc(file_turbo_search, 0);
 
 // demo/web/src/gen/turbo_training_pb.ts
-var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiXgoLTW9kZWxTb3VyY2USDAoEbmFtZRgBIAEoCRIPCgdhZGRyZXNzGAIgASgJEjAKB3NpZ25faW4YAyABKA4yHy50dXJiby50cmFpbmluZy52MS5Tb3VyY2VTaWduSW4iJwoXTGlzdE1vZGVsU291cmNlc1JlcXVlc3QSDAoEdXNlchgBIAEoCSJ/ChhMaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USDAoEdXNlchgBIAEoCRIvCgdzb3VyY2VzGAIgAygLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2USDQoFYWRtaW4YAyABKAgSFQoNZHJpdmVfc2lnbl9pbhgEIAEoCCKGAQoaUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QSDAoEdXNlchgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2FkZHJlc3MYAyABKAkSDwoHYXBpX2tleRgEIAEoCRIqCgdzM19rZXlzGAUgASgLMhkudHVyYm8udHJhaW5pbmcudjEuUzNLZXlzInMKBlMzS2V5cxIVCg1hY2Nlc3Nfa2V5X2lkGAEgASgJEhkKEXNlY3JldF9hY2Nlc3Nfa2V5GAIgASgJEhUKDXNlc3Npb25fdG9rZW4YAyABKAkSDgoGcmVnaW9uGAQgASgJEhAKCGVuZHBvaW50GAUgASgJIlsKG1JlZ2lzdGVyTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEi4KBnNvdXJjZRgCIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsU291cmNlIjYKGFJlbW92ZU1vZGVsU291cmNlUmVxdWVzdBIMCgR1c2VyGAEgASgJEgwKBG5hbWUYAiABKAkiQQoZUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEhYKDndhc19yZWdpc3RlcmVkGAIgASgIIkYKF1N0YXJ0RHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdhZGRyZXNzGAMgASgJIlQKGFN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRIVCg1hdXRob3JpemVfdXJsGAEgASgJEg0KBXN0YXRlGAIgASgJEhIKCmV4cGlyZXNfaW4YAyABKA0iRQoYRmluaXNoRHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDQoFc3RhdGUYAiABKAkSDAoEY29kZRgDIAEoCSJZChlGaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlEgwKBHVzZXIYASABKAkSLgoGc291cmNlGAIgASgLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2UiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwieAoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCRITCgthcnRpZmFjdF9pZBgEIAEoCRITCgt0ZXh0X3NoYTI1NhgFIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiTgoeUmV2b2tlTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMAoHcmV2b2tlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIUCgx3YXNfYWNjZXB0ZWQYAyABKAgiggEKEUxpY2VuY2VBY2NlcHRhbmNlEi4KBXRlcm1zGAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhMKC2FjY2VwdGVkX2F0GAIgASgEEhMKC2FydGlmYWN0X2lkGAMgASgJEhMKC3RleHRfc2hhMjU2GAQgASgJIi0KHUxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0EgwKBHVzZXIYASABKAkidQoeTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEgwKBHVzZXIYASABKAkSNgoIYWNjZXB0ZWQYAiADKAsyJC50dXJiby50cmFpbmluZy52MS5MaWNlbmNlQWNjZXB0YW5jZRINCgVhZG1pbhgDIAEoCCI4ChNJbnN0YWxsTW9kZWxSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkihgEKD0luc3RhbGxQcm9ncmVzcxIuCgVzdGFnZRgBIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxTdGFnZRISCgpmaWxlX2luZGV4GAIgASgNEhIKCmZpbGVfY291bnQYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVieXRlcxgFIAEoBCKOAQoSSW5zdGFsbE1vZGVsVXBkYXRlEjYKCHByb2dyZXNzGAEgASgLMiIudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFByb2dyZXNzSAASNgoJaW5zdGFsbGVkGAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWxIAEIICgZ1cGRhdGUiOQoURGVzY3JpYmVNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSJHChVEZXNjcmliZU1vZGVsUmVzcG9uc2USLgoFZW50cnkYASABKAsyHy50dXJiby50cmFpbmluZy52MS5DYXRhbG9nRW50cnkiSAoTUmVzb2x2ZU1vZGVsUmVxdWVzdBIOCgZzaGEyNTYYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEdXNlchgDIAEoCSJUChRSZXNvbHZlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeRIMCgRwYXRoGAIgASgJIlcKFFJlYWRNb2RlbEZpbGVSZXF1ZXN0EgwKBHVzZXIYASABKAkSEwoLYXJ0aWZhY3RfaWQYAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZzaGEyNTYYBCABKAkiWQoOTW9kZWxGaWxlQ2h1bmsSLgoEZmlsZRgBIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlSAASDgoEZGF0YRgCIAEoDEgAQgcKBWZyYW1lIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCLuAQoTVHJhaW5Db21wb25lbnRTdGFydBIzCgljb21wb25lbnQYASABKA4yIC50dXJiby50cmFpbmluZy52MS5Db21wb25lbnRLaW5kEhAKCGxhbmd1YWdlGAIgASgJEkoKCnBhcmFtZXRlcnMYAyADKAsyNi50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFN0YXJ0LlBhcmFtZXRlcnNFbnRyeRIRCgluYW1lX3R5cGUYBCABKAkaMQoPUGFyYW1ldGVyc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiawoVVHJhaW5Db21wb25lbnRSZXF1ZXN0EjcKBXN0YXJ0GAEgASgLMiYudHVyYm8udHJhaW5pbmcudjEuVHJhaW5Db21wb25lbnRTdGFydEgAEhEKB3NhbXBsZXMYAiABKAxIAEIGCgRwYXJ0Iq8BChZUcmFpbkNvbXBvbmVudFByb2dyZXNzEjAKBXN0YWdlGAEgASgOMiEudHVyYm8udHJhaW5pbmcudjEuQ29tcG9uZW50U3RhZ2USDwoHc2FtcGxlcxgCIAEoBBIRCglpdGVyYXRpb24YAyABKA0SDwoHY29ycmVjdBgEIAEoBBIOCgZldmVudHMYBSABKAQSDwoHbWVhc3VyZRgGIAEoCRINCgV2YWx1ZRgHIAEoASJ2ChBUcmFpbmVkQ29tcG9uZW50EjMKCWNvbXBvbmVudBgBIAEoDjIgLnR1cmJvLnRyYWluaW5nLnYxLkNvbXBvbmVudEtpbmQSDwoHc2FtcGxlcxgCIAEoBBIMCgRzaXplGAMgASgEEg4KBnNoYTI1NhgEIAEoCSKoAQoUVHJhaW5Db21wb25lbnRVcGRhdGUSPQoIcHJvZ3Jlc3MYASABKAsyKS50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFByb2dyZXNzSAASDwoFbW9kZWwYAiABKAxIABI2Cgd0cmFpbmVkGAMgASgLMiMudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZENvbXBvbmVudEgAQggKBnVwZGF0ZSKoAQoYU3RyZWFtaW5nVHJhaW5pbmdSZXF1ZXN0EjoKBXN0YXJ0GAEgASgLMikudHVyYm8udHJhaW5pbmcudjEuU3RyZWFtaW5nVHJhaW5pbmdTdGFydEgAEjUKCGRvY3VtZW50GAIgASgLMiEudHVyYm8udHJhaW5pbmcudjEuQ29ycHVzRG9jdW1lbnRIABIRCgdzYW1wbGVzGAMgASgMSABCBgoEcGFydCKVAQoWU3RyZWFtaW5nVHJhaW5pbmdTdGFydBIzCgZjb3JwdXMYASABKAsyIS50dXJiby50cmFpbmluZy52MS5Db3JwdXNUcmFpbmluZ0gAEj8KCWNvbXBvbmVudBgCIAEoCzIqLnR1cmJvLnRyYWluaW5nLnYxLk5ldXJhbENvbXBvbmVudFRyYWluaW5nSABCBQoDam9iIi4KDkNvcnB1c0RvY3VtZW50Eg4KBmRvY19pZBgBIAEoCRIMCgR0ZXh0GAIgASgJIrMBCg5Db3JwdXNUcmFpbmluZxI3Cgp2b2NhYnVsYXJ5GAEgASgLMiMudHVyYm8udHJhaW5pbmcudjEuQ29ycHVzVm9jYWJ1bGFyeRI5CgVtb2RlbBgCIAEoCzIqLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxSZXF1ZXN0Ei0KBWluZGV4GAMgASgLMh4udHVyYm8udHJhaW5pbmcudjEuQ29ycHVzSW5kZXgi+QEKEENvcnB1c1ZvY2FidWxhcnkSGgoSbWluX3Rlcm1fZnJlcXVlbmN5GAEgASgNEhEKCW1heF90ZXJtcxgCIAEoDRIRCglsb3dlcmNhc2UYAyABKAgSGAoQZmlsdGVyX3N0b3B3b3JkcxgEIAEoCBIWCg5pbmNsdWRlX25ncmFtcxgFIAEoCBIWCg5taW5fbmdyYW1fc2l6ZRgGIAEoDRIWCg5tYXhfbmdyYW1fc2l6ZRgHIAEoDRIPCgdtaW5fcG1pGAggASgBEh4KFmRpY3Rpb25hcnlfYXJ0aWZhY3RfaWQYCSABKAkSEAoIbGFuZ3VhZ2UYCiABKAkivAEKC0NvcnB1c0luZGV4EhIKCmluZGV4X25hbWUYASABKAkSNgoHc3RvcmFnZRgCIAEoDjIlLnR1cmJvLnRyYWluaW5nLnYxLkNvcnB1c0luZGV4U3RvcmFnZRISCgpxdWFudF9iaXRzGAMgASgNEhcKD3F1YW50X2NhbGlicmF0ZRgEIAEoCBIXCg9jb2xsZWN0aW9uX25hbWUYBSABKAkSGwoTY2h1bmtfYnVkZ2V0X3Rva2VucxgGIAEoDSLmAwoXTmV1cmFsQ29tcG9uZW50VHJhaW5pbmcSOQoJY29tcG9uZW50GAEgASgOMiYudHVyYm8udHJhaW5pbmcudjEuTmV1cmFsQ29tcG9uZW50S2luZBIvCgZ0YWdzZXQYAiABKA4yHy50dXJiby50cmFpbmluZy52MS5Db25sbHVUYWdzZXQSFgoOZW1iZWRkaW5nX3NpemUYAyABKA0SEwoLaGlkZGVuX3NpemUYBCABKA0SDgoGZXBvY2hzGAUgASgNEhIKCmJhdGNoX3NpemUYBiABKA0SFQoNbGVhcm5pbmdfcmF0ZRgHIAEoARIPCgJsMhgIIAEoAUgAiAEBEhQKB2Ryb3BvdXQYCSABKAFIAYgBARIYCgt3b3JkX2N1dG9mZhgKIAEoDUgCiAEBEhEKBHNlZWQYCyABKANIA4gBARI6CgZsYXlvdXQYDCABKA4yKi50dXJiby50cmFpbmluZy52MS5EZXBlbmRlbmN5RmVhdHVyZUxheW91dBI7CgphY3RpdmF0aW9uGA0gASgOMicudHVyYm8udHJhaW5pbmcudjEuRGVwZW5kZW5jeUFjdGl2YXRpb25CBQoDX2wyQgoKCF9kcm9wb3V0Qg4KDF93b3JkX2N1dG9mZkIHCgVfc2VlZCLMAQoZU3RyZWFtaW5nVHJhaW5pbmdQcm9ncmVzcxIwCgVzdGFnZRgBIAEoDjIhLnR1cmJvLnRyYWluaW5nLnYxLlN0cmVhbWluZ1N0YWdlEhcKD2NvbXBsZXRlZF9pdGVtcxgCIAEoBBITCgt0b3RhbF9pdGVtcxgDIAEoBBJBCgxkaXN0aWxsYXRpb24YBCABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3MSDAoEbG9zcxgFIAEoASKYAgoNQ29ycHVzVHJhaW5lZBIeChZ2b2NhYnVsYXJ5X2FydGlmYWN0X2lkGAEgASgJEhkKEXZvY2FidWxhcnlfc2hhMjU2GAIgASgJEhoKEnZvY2FidWxhcnlfY3JlYXRlZBgDIAEoCBIYChB2b2NhYnVsYXJ5X3Rlcm1zGAQgASgEEhkKEXZvY2FidWxhcnlfbmdyYW1zGAUgASgEEjQKBW1vZGVsGAYgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsEhIKCmluZGV4X25hbWUYByABKAkSGQoRaW5kZXhlZF9kb2N1bWVudHMYCCABKAQSFgoOaW5kZXhlZF9jaHVua3MYCSABKAQiggEKFlRyYWluZWROZXVyYWxDb21wb25lbnQSOQoJY29tcG9uZW50GAEgASgOMiYudHVyYm8udHJhaW5pbmcudjEuTmV1cmFsQ29tcG9uZW50S2luZBIPCgdzYW1wbGVzGAIgASgEEgwKBHNpemUYAyABKAQSDgoGc2hhMjU2GAQgASgJIuoBChdTdHJlYW1pbmdUcmFpbmluZ1VwZGF0ZRJACghwcm9ncmVzcxgBIAEoCzIsLnR1cmJvLnRyYWluaW5nLnYxLlN0cmVhbWluZ1RyYWluaW5nUHJvZ3Jlc3NIABIPCgVtb2RlbBgCIAEoDEgAEjIKBmNvcnB1cxgDIAEoCzIgLnR1cmJvLnRyYWluaW5nLnYxLkNvcnB1c1RyYWluZWRIABI+Cgljb21wb25lbnQYBCABKAsyKS50dXJiby50cmFpbmluZy52MS5UcmFpbmVkTmV1cmFsQ29tcG9uZW50SABCCAoGdXBkYXRlKqEBCgxTb3VyY2VTaWduSW4SHgoaU09VUkNFX1NJR05fSU5fVU5TUEVDSUZJRUQQABIeChpTT1VSQ0VfU0lHTl9JTl9FTlZJUk9OTUVOVBABEhkKFVNPVVJDRV9TSUdOX0lOX0dPT0dMRRACEhoKFlNPVVJDRV9TSUdOX0lOX0FQSV9LRVkQAxIaChZTT1VSQ0VfU0lHTl9JTl9TM19LRVlTEAQqogEKDEluc3RhbGxTdGFnZRIdChlJTlNUQUxMX1NUQUdFX1VOU1BFQ0lGSUVEEAASGgoWSU5TVEFMTF9TVEFHRV9BRE1JVFRFRBABEh0KGUlOU1RBTExfU1RBR0VfRE9XTkxPQURJTkcQAhIcChhJTlNUQUxMX1NUQUdFX0RPV05MT0FERUQQAxIaChZJTlNUQUxMX1NUQUdFX1ZFUklGSUVEEAQqVwoLU3RhdGljRHR5cGUSHAoYU1RBVElDX0RUWVBFX1VOU1BFQ0lGSUVEEAASFAoQU1RBVElDX0RUWVBFX0YzMhABEhQKEFNUQVRJQ19EVFlQRV9GMTYQAirXAQoKVHJhaW5TdGFnZRIbChdUUkFJTl9TVEFHRV9VTlNQRUNJRklFRBAAEhgKFFRSQUlOX1NUQUdFX0FETUlUVEVEEAESFAoQVFJBSU5fU1RBR0VfS0VQVBACEhkKFVRSQUlOX1NUQUdFX0VNQkVERElORxADEhcKE1RSQUlOX1NUQUdFX1JFRFVDRUQQBBIYChRUUkFJTl9TVEFHRV9NRUFTVVJFRBAFEhYKElRSQUlOX1NUQUdFX1NFQUxFRBAGEhYKElRSQUlOX1NUQUdFX0xPQURFRBAHKrwCCg1Db21wb25lbnRLaW5kEh4KGkNPTVBPTkVOVF9LSU5EX1VOU1BFQ0lGSUVEEAASJAogQ09NUE9ORU5UX0tJTkRfU0VOVEVOQ0VfREVURUNUT1IQARIcChhDT01QT05FTlRfS0lORF9UT0tFTklaRVIQAhIdChlDT01QT05FTlRfS0lORF9QT1NfVEFHR0VSEAMSHQoZQ09NUE9ORU5UX0tJTkRfTEVNTUFUSVpFUhAEEhoKFkNPTVBPTkVOVF9LSU5EX0NIVU5LRVIQBRIeChpDT01QT05FTlRfS0lORF9OQU1FX0ZJTkRFUhAGEicKI0NPTVBPTkVOVF9LSU5EX0RPQ1VNRU5UX0NBVEVHT1JJWkVSEAcSJAogQ09NUE9ORU5UX0tJTkRfTEFOR1VBR0VfREVURUNUT1IQCCqmAQoOQ29tcG9uZW50U3RhZ2USHwobQ09NUE9ORU5UX1NUQUdFX1VOU1BFQ0lGSUVEEAASHAoYQ09NUE9ORU5UX1NUQUdFX0FETUlUVEVEEAESGAoUQ09NUE9ORU5UX1NUQUdFX1JFQUQQAhIdChlDT01QT05FTlRfU1RBR0VfSVRFUkFUSU9OEAMSHAoYQ09NUE9ORU5UX1NUQUdFX1BBQ0tBR0VEEAQqXQoSQ29ycHVzSW5kZXhTdG9yYWdlEiEKHUNPUlBVU19JTkRFWF9TVE9SQUdFX0ZMQVRfRjMyEAASJAogQ09SUFVTX0lOREVYX1NUT1JBR0VfVFVSQk9fUVVBTlQQASppChNOZXVyYWxDb21wb25lbnRLaW5kEiUKIU5FVVJBTF9DT01QT05FTlRfS0lORF9VTlNQRUNJRklFRBAAEisKJ05FVVJBTF9DT01QT05FTlRfS0lORF9ERVBFTkRFTkNZX1BBUlNFUhABKj4KDENvbmxsdVRhZ3NldBIWChJDT05MTFVfVEFHU0VUX1VQT1MQABIWChJDT05MTFVfVEFHU0VUX1hQT1MQASpyChdEZXBlbmRlbmN5RmVhdHVyZUxheW91dBItCilERVBFTkRFTkNZX0ZFQVRVUkVfTEFZT1VUX0NIRU5fTUFOTklOR18xOBAAEigKJERFUEVOREVOQ1lfRkVBVFVSRV9MQVlPVVRfQ09NUEFDVF8xNBABKlYKFERlcGVuZGVuY3lBY3RpdmF0aW9uEh4KGkRFUEVOREVOQ1lfQUNUSVZBVElPTl9DVUJFEAASHgoaREVQRU5ERU5DWV9BQ1RJVkFUSU9OX1JFTFUQASrNAgoOU3RyZWFtaW5nU3RhZ2USHwobU1RSRUFNSU5HX1NUQUdFX1VOU1BFQ0lGSUVEEAASHAoYU1RSRUFNSU5HX1NUQUdFX0FETUlUVEVEEAESHQoZU1RSRUFNSU5HX1NUQUdFX0FOQUxZWklORxACEicKI1NUUkVBTUlOR19TVEFHRV9MRUFSTklOR19WT0NBQlVMQVJZEAMSJAogU1RSRUFNSU5HX1NUQUdFX0RJU1RJTExJTkdfTU9ERUwQBBIcChhTVFJFQU1JTkdfU1RBR0VfSU5ERVhJTkcQBRIdChlTVFJFQU1JTkdfU1RBR0VfQ09NUExFVEVEEAYSGAoUU1RSRUFNSU5HX1NUQUdFX1JFQUQQBxIZChVTVFJFQU1JTkdfU1RBR0VfRVBPQ0gQCBIcChhTVFJFQU1JTkdfU1RBR0VfUEFDS0FHRUQQCTKyDAoTVHVyYm9DYXRhbG9nU2VydmljZRJrChBMaXN0TW9kZWxDYXRhbG9nEioudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1JlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USdAoTTGlzdEluc3RhbGxlZE1vZGVscxItLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXF1ZXN0Gi4udHVyYm8udHJhaW5pbmcudjEuTGlzdEluc3RhbGxlZE1vZGVsc1Jlc3BvbnNlEoABChdSZWNvcmRMaWNlbmNlQWNjZXB0YW5jZRIxLnR1cmJvLnRyYWluaW5nLnYxLlJlY29yZExpY2VuY2VBY2NlcHRhbmNlUmVxdWVzdBoyLnR1cmJvLnRyYWluaW5nLnYxLlJlY29yZExpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USXwoMSW5zdGFsbE1vZGVsEiYudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbE1vZGVsUmVxdWVzdBolLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFVwZGF0ZTABEmIKDURlc2NyaWJlTW9kZWwSJy50dXJiby50cmFpbmluZy52MS5EZXNjcmliZU1vZGVsUmVxdWVzdBooLnR1cmJvLnRyYWluaW5nLnYxLkRlc2NyaWJlTW9kZWxSZXNwb25zZRJfCgxSZXNvbHZlTW9kZWwSJi50dXJiby50cmFpbmluZy52MS5SZXNvbHZlTW9kZWxSZXF1ZXN0GicudHVyYm8udHJhaW5pbmcudjEuUmVzb2x2ZU1vZGVsUmVzcG9uc2USXQoNUmVhZE1vZGVsRmlsZRInLnR1cmJvLnRyYWluaW5nLnYxLlJlYWRNb2RlbEZpbGVSZXF1ZXN0GiEudHVyYm8udHJhaW5pbmcudjEuTW9kZWxGaWxlQ2h1bmswARKAAQoXUmV2b2tlTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEn0KFkxpc3RMaWNlbmNlQWNjZXB0YW5jZXMSMC50dXJiby50cmFpbmluZy52MS5MaXN0TGljZW5jZUFjY2VwdGFuY2VzUmVxdWVzdBoxLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXNwb25zZRJrChBMaXN0TW9kZWxTb3VyY2VzEioudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsU291cmNlc1JlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USdAoTUmVnaXN0ZXJNb2RlbFNvdXJjZRItLnR1cmJvLnRyYWluaW5nLnYxLlJlZ2lzdGVyTW9kZWxTb3VyY2VSZXF1ZXN0Gi4udHVyYm8udHJhaW5pbmcudjEuUmVnaXN0ZXJNb2RlbFNvdXJjZVJlc3BvbnNlEm4KEVJlbW92ZU1vZGVsU291cmNlEisudHVyYm8udHJhaW5pbmcudjEuUmVtb3ZlTW9kZWxTb3VyY2VSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRJrChBTdGFydERyaXZlU2lnbkluEioudHVyYm8udHJhaW5pbmcudjEuU3RhcnREcml2ZVNpZ25JblJlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5TdGFydERyaXZlU2lnbkluUmVzcG9uc2USbgoRRmluaXNoRHJpdmVTaWduSW4SKy50dXJiby50cmFpbmluZy52MS5GaW5pc2hEcml2ZVNpZ25JblJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5GaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlMpwFChRUdXJib1RyYWluaW5nU2VydmljZRJfCgxMaXN0VGVhY2hlcnMSJi50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXF1ZXN0GicudHVyYm8udHJhaW5pbmcudjEuTGlzdFRlYWNoZXJzUmVzcG9uc2USawoQVHJhaW5TdGF0aWNNb2RlbBIqLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxSZXF1ZXN0GikudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFVwZGF0ZTABEmsKEExpc3RTdGF0aWNNb2RlbHMSKi50dXJiby50cmFpbmluZy52MS5MaXN0U3RhdGljTW9kZWxzUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRJuChFEZWxldGVTdGF0aWNNb2RlbBIrLnR1cmJvLnRyYWluaW5nLnYxLkRlbGV0ZVN0YXRpY01vZGVsUmVxdWVzdBosLnR1cmJvLnRyYWluaW5nLnYxLkRlbGV0ZVN0YXRpY01vZGVsUmVzcG9uc2USZwoOVHJhaW5Db21wb25lbnQSKC50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFJlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFVwZGF0ZSgBMAEScAoRU3RyZWFtaW5nVHJhaW5pbmcSKy50dXJiby50cmFpbmluZy52MS5TdHJlYW1pbmdUcmFpbmluZ1JlcXVlc3QaKi50dXJiby50cmFpbmluZy52MS5TdHJlYW1pbmdUcmFpbmluZ1VwZGF0ZSgBMAFiBnByb3RvMw");
+var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiXgoLTW9kZWxTb3VyY2USDAoEbmFtZRgBIAEoCRIPCgdhZGRyZXNzGAIgASgJEjAKB3NpZ25faW4YAyABKA4yHy50dXJiby50cmFpbmluZy52MS5Tb3VyY2VTaWduSW4iJwoXTGlzdE1vZGVsU291cmNlc1JlcXVlc3QSDAoEdXNlchgBIAEoCSJ/ChhMaXN0TW9kZWxTb3VyY2VzUmVzcG9uc2USDAoEdXNlchgBIAEoCRIvCgdzb3VyY2VzGAIgAygLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2USDQoFYWRtaW4YAyABKAgSFQoNZHJpdmVfc2lnbl9pbhgEIAEoCCKGAQoaUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QSDAoEdXNlchgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2FkZHJlc3MYAyABKAkSDwoHYXBpX2tleRgEIAEoCRIqCgdzM19rZXlzGAUgASgLMhkudHVyYm8udHJhaW5pbmcudjEuUzNLZXlzInMKBlMzS2V5cxIVCg1hY2Nlc3Nfa2V5X2lkGAEgASgJEhkKEXNlY3JldF9hY2Nlc3Nfa2V5GAIgASgJEhUKDXNlc3Npb25fdG9rZW4YAyABKAkSDgoGcmVnaW9uGAQgASgJEhAKCGVuZHBvaW50GAUgASgJIlsKG1JlZ2lzdGVyTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEi4KBnNvdXJjZRgCIAEoCzIeLnR1cmJvLnRyYWluaW5nLnYxLk1vZGVsU291cmNlIjYKGFJlbW92ZU1vZGVsU291cmNlUmVxdWVzdBIMCgR1c2VyGAEgASgJEgwKBG5hbWUYAiABKAkiQQoZUmVtb3ZlTW9kZWxTb3VyY2VSZXNwb25zZRIMCgR1c2VyGAEgASgJEhYKDndhc19yZWdpc3RlcmVkGAIgASgIIkYKF1N0YXJ0RHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdhZGRyZXNzGAMgASgJIlQKGFN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRIVCg1hdXRob3JpemVfdXJsGAEgASgJEg0KBXN0YXRlGAIgASgJEhIKCmV4cGlyZXNfaW4YAyABKA0iRQoYRmluaXNoRHJpdmVTaWduSW5SZXF1ZXN0EgwKBHVzZXIYASABKAkSDQoFc3RhdGUYAiABKAkSDAoEY29kZRgDIAEoCSJZChlGaW5pc2hEcml2ZVNpZ25JblJlc3BvbnNlEgwKBHVzZXIYASABKAkSLgoGc291cmNlGAIgASgLMh4udHVyYm8udHJhaW5pbmcudjEuTW9kZWxTb3VyY2UiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKqAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCRIMCgRhbHNvGAkgAygJIrgDCgxDYXRhbG9nRW50cnkSCgoCaWQYASABKAkSDAoEa2luZBgCIAEoCRIRCgljb21wb25lbnQYAyABKAkSEAoIbGFuZ3VhZ2UYBCABKAkSDgoGZm9ybWF0GAUgASgJEg8KB3ZlcnNpb24YBiABKAkSDwoHbGljZW5jZRgHIAEoCRIVCg1saWNlbmNlX3Rlcm1zGAggASgJEhUKDWxpY2VuY2VfY2xhc3MYCSABKAkSEwoLYXR0cmlidXRpb24YCiABKAkSNQoKdHJhaW5lZF9vbhgLIAMoCzIhLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluaW5nU291cmNlEi0KBWZpbGVzGAwgAygLMh4udHVyYm8udHJhaW5pbmcudjEuQ2F0YWxvZ0ZpbGUSEwoLdG90YWxfYnl0ZXMYDSABKAQSLgoFdGVybXMYDiADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSNgoNbWlzc2luZ190ZXJtcxgPIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxIRCglpbnN0YWxsZWQYECABKAgiRwoXTGlzdE1vZGVsQ2F0YWxvZ1JlcXVlc3QSDAoEdXNlchgBIAEoCRIMCgRraW5kGAIgASgJEhAKCGxhbmd1YWdlGAMgASgJIkwKGExpc3RNb2RlbENhdGFsb2dSZXNwb25zZRIwCgdlbnRyaWVzGAEgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQ2F0YWxvZ0VudHJ5Il4KDkluc3RhbGxlZE1vZGVsEgoKAmlkGAEgASgJEg8KB3ZlcnNpb24YAiABKAkSCwoDZGlyGAMgASgJEg0KBWZpbGVzGAQgAygJEhMKC3RvdGFsX2J5dGVzGAUgASgEIhwKGkxpc3RJbnN0YWxsZWRNb2RlbHNSZXF1ZXN0IlAKG0xpc3RJbnN0YWxsZWRNb2RlbHNSZXNwb25zZRIxCgZtb2RlbHMYASADKAsyIS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsZWRNb2RlbCJ4Ch5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QSDAoEdXNlchgBIAEoCRIPCgdsaWNlbmNlGAIgASgJEg0KBXRlcm1zGAMgASgJEhMKC2FydGlmYWN0X2lkGAQgASgJEhMKC3RleHRfc2hhMjU2GAUgASgJIncKH1JlY29yZExpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USDAoEdXNlchgBIAEoCRIxCghhY2NlcHRlZBgCIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VUZXJtcxITCgthY2NlcHRlZF9hdBgDIAEoBCJOCh5SZXZva2VMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QSDAoEdXNlchgBIAEoCRIPCgdsaWNlbmNlGAIgASgJEg0KBXRlcm1zGAMgASgJIncKH1Jldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USDAoEdXNlchgBIAEoCRIwCgdyZXZva2VkGAIgASgLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEhQKDHdhc19hY2NlcHRlZBgDIAEoCCKCAQoRTGljZW5jZUFjY2VwdGFuY2USLgoFdGVybXMYASABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAiABKAQSEwoLYXJ0aWZhY3RfaWQYAyABKAkSEwoLdGV4dF9zaGEyNTYYBCABKAkiLQodTGlzdExpY2VuY2VBY2NlcHRhbmNlc1JlcXVlc3QSDAoEdXNlchgBIAEoCSJ1Ch5MaXN0TGljZW5jZUFjY2VwdGFuY2VzUmVzcG9uc2USDAoEdXNlchgBIAEoCRI2CghhY2NlcHRlZBgCIAMoCzIkLnR1cmJvLnRyYWluaW5nLnYxLkxpY2VuY2VBY2NlcHRhbmNlEg0KBWFkbWluGAMgASgIIjgKE0luc3RhbGxNb2RlbFJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCSKGAQoPSW5zdGFsbFByb2dyZXNzEi4KBXN0YWdlGAEgASgOMh8udHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbFN0YWdlEhIKCmZpbGVfaW5kZXgYAiABKA0SEgoKZmlsZV9jb3VudBgDIAEoDRIMCgRwYXRoGAQgASgJEg0KBWJ5dGVzGAUgASgEIo4BChJJbnN0YWxsTW9kZWxVcGRhdGUSNgoIcHJvZ3Jlc3MYASABKAsyIi50dXJiby50cmFpbmluZy52MS5JbnN0YWxsUHJvZ3Jlc3NIABI2CglpbnN0YWxsZWQYAiABKAsyIS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsZWRNb2RlbEgAQggKBnVwZGF0ZSI5ChREZXNjcmliZU1vZGVsUmVxdWVzdBIMCgR1c2VyGAEgASgJEhMKC2FydGlmYWN0X2lkGAIgASgJIkcKFURlc2NyaWJlTW9kZWxSZXNwb25zZRIuCgVlbnRyeRgBIAEoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJIChNSZXNvbHZlTW9kZWxSZXF1ZXN0Eg4KBnNoYTI1NhgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCRIMCgR1c2VyGAMgASgJIlQKFFJlc29sdmVNb2RlbFJlc3BvbnNlEi4KBWVudHJ5GAEgASgLMh8udHVyYm8udHJhaW5pbmcudjEuQ2F0YWxvZ0VudHJ5EgwKBHBhdGgYAiABKAkiVwoUUmVhZE1vZGVsRmlsZVJlcXVlc3QSDAoEdXNlchgBIAEoCRITCgthcnRpZmFjdF9pZBgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBnNoYTI1NhgEIAEoCSJZCg5Nb2RlbEZpbGVDaHVuaxIuCgRmaWxlGAEgASgLMh4udHVyYm8udHJhaW5pbmcudjEuQ2F0YWxvZ0ZpbGVIABIOCgRkYXRhGAIgASgMSABCBwoFZnJhbWUieAoHVGVhY2hlchIMCgRuYW1lGAEgASgJEhAKCG1vZGVsX2lkGAIgASgJEhAKCHJldmlzaW9uGAMgASgJEhcKD21hbmlmZXN0X3NoYTI1NhgEIAEoCRIOCgZoaWRkZW4YBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDSIVChNMaXN0VGVhY2hlcnNSZXF1ZXN0IkQKFExpc3RUZWFjaGVyc1Jlc3BvbnNlEiwKCHRlYWNoZXJzGAEgAygLMhoudHVyYm8udHJhaW5pbmcudjEuVGVhY2hlciL5AQoXVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QSDAoEbmFtZRgBIAEoCRIPCgd0ZWFjaGVyGAIgASgJEhAKCHBjYV9kaW1zGAMgASgNEhcKD3NpZl9jb2VmZmljaWVudBgEIAEoARItCgVkdHlwZRgFIAEoDjIeLnR1cmJvLnRyYWluaW5nLnYxLlN0YXRpY0R0eXBlEhIKCm1heF9sZW5ndGgYBiABKA0SHgoWdm9jYWJ1bGFyeV9hcnRpZmFjdF9pZBgHIAEoCRINCgV0ZXJtcxgIIAMoCRIQCghyZXZpc2lvbhgJIAEoCRIQCghzZXNzaW9ucxgKIAEoDSL2AQoYVHJhaW5TdGF0aWNNb2RlbFByb2dyZXNzEiwKBXN0YWdlGAEgASgOMh0udHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGFnZRIXCg9jb21wbGV0ZWRfaXRlbXMYAiABKAQSEwoLdG90YWxfaXRlbXMYAyABKAQSEwoLYWRkZWRfdGVybXMYBCABKAQSFQoNcmVmdXNlZF90ZXJtcxgFIAEoBBIaChJleHBsYWluZWRfdmFyaWFuY2UYBiABKAESNgoHcXVhbGl0eRgHIAEoCzIlLnR1cmJvLnRyYWluaW5nLnYxLlN0YXRpY01vZGVsUXVhbGl0eSJQChFUZWFjaGVyUHJvdmVuYW5jZRIQCghtb2RlbF9pZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYAyABKAkiWQoSU3RhdGljTW9kZWxRdWFsaXR5EhEKCWJhc2VfdG9wMRgBIAEoARITCgtzdGF0aWNfdG9wMRgCIAEoARIbChNzaW1pbGFyaXR5X3NwZWFybWFuGAMgASgBIjoKDEFydGlmYWN0RmlsZRIMCgRwYXRoGAEgASgJEgwKBHNpemUYAiABKAQSDgoGc2hhMjU2GAMgASgJIvwCChVTdGF0aWNNb2RlbERlc2NyaXB0b3ISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDAoEZGltcxgFIAEoDRISCgp2b2NhYl9zaXplGAYgASgNEhUKDWxlYXJuZWRfdGVybXMYByABKA0SDQoFZHR5cGUYCCABKAkSNQoHdGVhY2hlchgJIAEoCzIkLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXJQcm92ZW5hbmNlEjYKB3F1YWxpdHkYCiABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkSLgoFZmlsZXMYCyADKAsyHy50dXJiby50cmFpbmluZy52MS5BcnRpZmFjdEZpbGUSEAoIdmVyaWZpZWQYDCABKAgSDwoHcHJvYmxlbRgNIAEoCRIOCgZzZXJ2ZWQYDiABKAgiKwoLUmVmdXNlZFRlcm0SDAoEdGVybRgBIAEoCRIOCgZyZWFzb24YAiABKAki1AEKElRyYWluZWRTdGF0aWNNb2RlbBI3CgVtb2RlbBgBIAEoCzIoLnR1cmJvLnRyYWluaW5nLnYxLlN0YXRpY01vZGVsRGVzY3JpcHRvchITCgthZGRlZF90ZXJtcxgCIAMoCRI1Cg1yZWZ1c2VkX3Rlcm1zGAMgAygLMh4udHVyYm8udHJhaW5pbmcudjEuUmVmdXNlZFRlcm0SHgoWdm9jYWJ1bGFyeV9hcnRpZmFjdF9pZBgEIAEoCRIZChF2b2NhYnVsYXJ5X3NoYTI1NhgFIAEoCSKdAQoWVHJhaW5TdGF0aWNNb2RlbFVwZGF0ZRI/Cghwcm9ncmVzcxgBIAEoCzIrLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxQcm9ncmVzc0gAEjgKB3RyYWluZWQYAiABKAsyJS50dXJiby50cmFpbmluZy52MS5UcmFpbmVkU3RhdGljTW9kZWxIAEIICgZ1cGRhdGUiGQoXTGlzdFN0YXRpY01vZGVsc1JlcXVlc3QiVAoYTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEjgKBm1vZGVscxgBIAMoCzIoLnR1cmJvLnRyYWluaW5nLnYxLlN0YXRpY01vZGVsRGVzY3JpcHRvciIoChhEZWxldGVTdGF0aWNNb2RlbFJlcXVlc3QSDAoEbmFtZRgBIAEoCSItChlEZWxldGVTdGF0aWNNb2RlbFJlc3BvbnNlEhAKCHVubG9hZGVkGAEgASgIIu4BChNUcmFpbkNvbXBvbmVudFN0YXJ0EjMKCWNvbXBvbmVudBgBIAEoDjIgLnR1cmJvLnRyYWluaW5nLnYxLkNvbXBvbmVudEtpbmQSEAoIbGFuZ3VhZ2UYAiABKAkSSgoKcGFyYW1ldGVycxgDIAMoCzI2LnR1cmJvLnRyYWluaW5nLnYxLlRyYWluQ29tcG9uZW50U3RhcnQuUGFyYW1ldGVyc0VudHJ5EhEKCW5hbWVfdHlwZRgEIAEoCRoxCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASJrChVUcmFpbkNvbXBvbmVudFJlcXVlc3QSNwoFc3RhcnQYASABKAsyJi50dXJiby50cmFpbmluZy52MS5UcmFpbkNvbXBvbmVudFN0YXJ0SAASEQoHc2FtcGxlcxgCIAEoDEgAQgYKBHBhcnQirwEKFlRyYWluQ29tcG9uZW50UHJvZ3Jlc3MSMAoFc3RhZ2UYASABKA4yIS50dXJiby50cmFpbmluZy52MS5Db21wb25lbnRTdGFnZRIPCgdzYW1wbGVzGAIgASgEEhEKCWl0ZXJhdGlvbhgDIAEoDRIPCgdjb3JyZWN0GAQgASgEEg4KBmV2ZW50cxgFIAEoBBIPCgdtZWFzdXJlGAYgASgJEg0KBXZhbHVlGAcgASgBInYKEFRyYWluZWRDb21wb25lbnQSMwoJY29tcG9uZW50GAEgASgOMiAudHVyYm8udHJhaW5pbmcudjEuQ29tcG9uZW50S2luZBIPCgdzYW1wbGVzGAIgASgEEgwKBHNpemUYAyABKAQSDgoGc2hhMjU2GAQgASgJIqgBChRUcmFpbkNvbXBvbmVudFVwZGF0ZRI9Cghwcm9ncmVzcxgBIAEoCzIpLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluQ29tcG9uZW50UHJvZ3Jlc3NIABIPCgVtb2RlbBgCIAEoDEgAEjYKB3RyYWluZWQYAyABKAsyIy50dXJiby50cmFpbmluZy52MS5UcmFpbmVkQ29tcG9uZW50SABCCAoGdXBkYXRlIqgBChhTdHJlYW1pbmdUcmFpbmluZ1JlcXVlc3QSOgoFc3RhcnQYASABKAsyKS50dXJiby50cmFpbmluZy52MS5TdHJlYW1pbmdUcmFpbmluZ1N0YXJ0SAASNQoIZG9jdW1lbnQYAiABKAsyIS50dXJiby50cmFpbmluZy52MS5Db3JwdXNEb2N1bWVudEgAEhEKB3NhbXBsZXMYAyABKAxIAEIGCgRwYXJ0IpUBChZTdHJlYW1pbmdUcmFpbmluZ1N0YXJ0EjMKBmNvcnB1cxgBIAEoCzIhLnR1cmJvLnRyYWluaW5nLnYxLkNvcnB1c1RyYWluaW5nSAASPwoJY29tcG9uZW50GAIgASgLMioudHVyYm8udHJhaW5pbmcudjEuTmV1cmFsQ29tcG9uZW50VHJhaW5pbmdIAEIFCgNqb2IiLgoOQ29ycHVzRG9jdW1lbnQSDgoGZG9jX2lkGAEgASgJEgwKBHRleHQYAiABKAkiswEKDkNvcnB1c1RyYWluaW5nEjcKCnZvY2FidWxhcnkYASABKAsyIy50dXJiby50cmFpbmluZy52MS5Db3JwdXNWb2NhYnVsYXJ5EjkKBW1vZGVsGAIgASgLMioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QSLQoFaW5kZXgYAyABKAsyHi50dXJiby50cmFpbmluZy52MS5Db3JwdXNJbmRleCL5AQoQQ29ycHVzVm9jYWJ1bGFyeRIaChJtaW5fdGVybV9mcmVxdWVuY3kYASABKA0SEQoJbWF4X3Rlcm1zGAIgASgNEhEKCWxvd2VyY2FzZRgDIAEoCBIYChBmaWx0ZXJfc3RvcHdvcmRzGAQgASgIEhYKDmluY2x1ZGVfbmdyYW1zGAUgASgIEhYKDm1pbl9uZ3JhbV9zaXplGAYgASgNEhYKDm1heF9uZ3JhbV9zaXplGAcgASgNEg8KB21pbl9wbWkYCCABKAESHgoWZGljdGlvbmFyeV9hcnRpZmFjdF9pZBgJIAEoCRIQCghsYW5ndWFnZRgKIAEoCSK8AQoLQ29ycHVzSW5kZXgSEgoKaW5kZXhfbmFtZRgBIAEoCRI2CgdzdG9yYWdlGAIgASgOMiUudHVyYm8udHJhaW5pbmcudjEuQ29ycHVzSW5kZXhTdG9yYWdlEhIKCnF1YW50X2JpdHMYAyABKA0SFwoPcXVhbnRfY2FsaWJyYXRlGAQgASgIEhcKD2NvbGxlY3Rpb25fbmFtZRgFIAEoCRIbChNjaHVua19idWRnZXRfdG9rZW5zGAYgASgNIuYDChdOZXVyYWxDb21wb25lbnRUcmFpbmluZxI5Cgljb21wb25lbnQYASABKA4yJi50dXJiby50cmFpbmluZy52MS5OZXVyYWxDb21wb25lbnRLaW5kEi8KBnRhZ3NldBgCIAEoDjIfLnR1cmJvLnRyYWluaW5nLnYxLkNvbmxsdVRhZ3NldBIWCg5lbWJlZGRpbmdfc2l6ZRgDIAEoDRITCgtoaWRkZW5fc2l6ZRgEIAEoDRIOCgZlcG9jaHMYBSABKA0SEgoKYmF0Y2hfc2l6ZRgGIAEoDRIVCg1sZWFybmluZ19yYXRlGAcgASgBEg8KAmwyGAggASgBSACIAQESFAoHZHJvcG91dBgJIAEoAUgBiAEBEhgKC3dvcmRfY3V0b2ZmGAogASgNSAKIAQESEQoEc2VlZBgLIAEoA0gDiAEBEjoKBmxheW91dBgMIAEoDjIqLnR1cmJvLnRyYWluaW5nLnYxLkRlcGVuZGVuY3lGZWF0dXJlTGF5b3V0EjsKCmFjdGl2YXRpb24YDSABKA4yJy50dXJiby50cmFpbmluZy52MS5EZXBlbmRlbmN5QWN0aXZhdGlvbkIFCgNfbDJCCgoIX2Ryb3BvdXRCDgoMX3dvcmRfY3V0b2ZmQgcKBV9zZWVkIswBChlTdHJlYW1pbmdUcmFpbmluZ1Byb2dyZXNzEjAKBXN0YWdlGAEgASgOMiEudHVyYm8udHJhaW5pbmcudjEuU3RyZWFtaW5nU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEkEKDGRpc3RpbGxhdGlvbhgEIAEoCzIrLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIMCgRsb3NzGAUgASgBIpgCCg1Db3JwdXNUcmFpbmVkEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYASABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYAiABKAkSGgoSdm9jYWJ1bGFyeV9jcmVhdGVkGAMgASgIEhgKEHZvY2FidWxhcnlfdGVybXMYBCABKAQSGQoRdm9jYWJ1bGFyeV9uZ3JhbXMYBSABKAQSNAoFbW9kZWwYBiABKAsyJS50dXJiby50cmFpbmluZy52MS5UcmFpbmVkU3RhdGljTW9kZWwSEgoKaW5kZXhfbmFtZRgHIAEoCRIZChFpbmRleGVkX2RvY3VtZW50cxgIIAEoBBIWCg5pbmRleGVkX2NodW5rcxgJIAEoBCKCAQoWVHJhaW5lZE5ldXJhbENvbXBvbmVudBI5Cgljb21wb25lbnQYASABKA4yJi50dXJiby50cmFpbmluZy52MS5OZXVyYWxDb21wb25lbnRLaW5kEg8KB3NhbXBsZXMYAiABKAQSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAki6gEKF1N0cmVhbWluZ1RyYWluaW5nVXBkYXRlEkAKCHByb2dyZXNzGAEgASgLMiwudHVyYm8udHJhaW5pbmcudjEuU3RyZWFtaW5nVHJhaW5pbmdQcm9ncmVzc0gAEg8KBW1vZGVsGAIgASgMSAASMgoGY29ycHVzGAMgASgLMiAudHVyYm8udHJhaW5pbmcudjEuQ29ycHVzVHJhaW5lZEgAEj4KCWNvbXBvbmVudBgEIAEoCzIpLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluZWROZXVyYWxDb21wb25lbnRIAEIICgZ1cGRhdGUqoQEKDFNvdXJjZVNpZ25JbhIeChpTT1VSQ0VfU0lHTl9JTl9VTlNQRUNJRklFRBAAEh4KGlNPVVJDRV9TSUdOX0lOX0VOVklST05NRU5UEAESGQoVU09VUkNFX1NJR05fSU5fR09PR0xFEAISGgoWU09VUkNFX1NJR05fSU5fQVBJX0tFWRADEhoKFlNPVVJDRV9TSUdOX0lOX1MzX0tFWVMQBCqiAQoMSW5zdGFsbFN0YWdlEh0KGUlOU1RBTExfU1RBR0VfVU5TUEVDSUZJRUQQABIaChZJTlNUQUxMX1NUQUdFX0FETUlUVEVEEAESHQoZSU5TVEFMTF9TVEFHRV9ET1dOTE9BRElORxACEhwKGElOU1RBTExfU1RBR0VfRE9XTkxPQURFRBADEhoKFklOU1RBTExfU1RBR0VfVkVSSUZJRUQQBCpXCgtTdGF0aWNEdHlwZRIcChhTVEFUSUNfRFRZUEVfVU5TUEVDSUZJRUQQABIUChBTVEFUSUNfRFRZUEVfRjMyEAESFAoQU1RBVElDX0RUWVBFX0YxNhACKtcBCgpUcmFpblN0YWdlEhsKF1RSQUlOX1NUQUdFX1VOU1BFQ0lGSUVEEAASGAoUVFJBSU5fU1RBR0VfQURNSVRURUQQARIUChBUUkFJTl9TVEFHRV9LRVBUEAISGQoVVFJBSU5fU1RBR0VfRU1CRURESU5HEAMSFwoTVFJBSU5fU1RBR0VfUkVEVUNFRBAEEhgKFFRSQUlOX1NUQUdFX01FQVNVUkVEEAUSFgoSVFJBSU5fU1RBR0VfU0VBTEVEEAYSFgoSVFJBSU5fU1RBR0VfTE9BREVEEAcqvAIKDUNvbXBvbmVudEtpbmQSHgoaQ09NUE9ORU5UX0tJTkRfVU5TUEVDSUZJRUQQABIkCiBDT01QT05FTlRfS0lORF9TRU5URU5DRV9ERVRFQ1RPUhABEhwKGENPTVBPTkVOVF9LSU5EX1RPS0VOSVpFUhACEh0KGUNPTVBPTkVOVF9LSU5EX1BPU19UQUdHRVIQAxIdChlDT01QT05FTlRfS0lORF9MRU1NQVRJWkVSEAQSGgoWQ09NUE9ORU5UX0tJTkRfQ0hVTktFUhAFEh4KGkNPTVBPTkVOVF9LSU5EX05BTUVfRklOREVSEAYSJwojQ09NUE9ORU5UX0tJTkRfRE9DVU1FTlRfQ0FURUdPUklaRVIQBxIkCiBDT01QT05FTlRfS0lORF9MQU5HVUFHRV9ERVRFQ1RPUhAIKqYBCg5Db21wb25lbnRTdGFnZRIfChtDT01QT05FTlRfU1RBR0VfVU5TUEVDSUZJRUQQABIcChhDT01QT05FTlRfU1RBR0VfQURNSVRURUQQARIYChRDT01QT05FTlRfU1RBR0VfUkVBRBACEh0KGUNPTVBPTkVOVF9TVEFHRV9JVEVSQVRJT04QAxIcChhDT01QT05FTlRfU1RBR0VfUEFDS0FHRUQQBCpdChJDb3JwdXNJbmRleFN0b3JhZ2USIQodQ09SUFVTX0lOREVYX1NUT1JBR0VfRkxBVF9GMzIQABIkCiBDT1JQVVNfSU5ERVhfU1RPUkFHRV9UVVJCT19RVUFOVBABKmkKE05ldXJhbENvbXBvbmVudEtpbmQSJQohTkVVUkFMX0NPTVBPTkVOVF9LSU5EX1VOU1BFQ0lGSUVEEAASKwonTkVVUkFMX0NPTVBPTkVOVF9LSU5EX0RFUEVOREVOQ1lfUEFSU0VSEAEqPgoMQ29ubGx1VGFnc2V0EhYKEkNPTkxMVV9UQUdTRVRfVVBPUxAAEhYKEkNPTkxMVV9UQUdTRVRfWFBPUxABKnIKF0RlcGVuZGVuY3lGZWF0dXJlTGF5b3V0Ei0KKURFUEVOREVOQ1lfRkVBVFVSRV9MQVlPVVRfQ0hFTl9NQU5OSU5HXzE4EAASKAokREVQRU5ERU5DWV9GRUFUVVJFX0xBWU9VVF9DT01QQUNUXzE0EAEqVgoURGVwZW5kZW5jeUFjdGl2YXRpb24SHgoaREVQRU5ERU5DWV9BQ1RJVkFUSU9OX0NVQkUQABIeChpERVBFTkRFTkNZX0FDVElWQVRJT05fUkVMVRABKs0CCg5TdHJlYW1pbmdTdGFnZRIfChtTVFJFQU1JTkdfU1RBR0VfVU5TUEVDSUZJRUQQABIcChhTVFJFQU1JTkdfU1RBR0VfQURNSVRURUQQARIdChlTVFJFQU1JTkdfU1RBR0VfQU5BTFlaSU5HEAISJwojU1RSRUFNSU5HX1NUQUdFX0xFQVJOSU5HX1ZPQ0FCVUxBUlkQAxIkCiBTVFJFQU1JTkdfU1RBR0VfRElTVElMTElOR19NT0RFTBAEEhwKGFNUUkVBTUlOR19TVEFHRV9JTkRFWElORxAFEh0KGVNUUkVBTUlOR19TVEFHRV9DT01QTEVURUQQBhIYChRTVFJFQU1JTkdfU1RBR0VfUkVBRBAHEhkKFVNUUkVBTUlOR19TVEFHRV9FUE9DSBAIEhwKGFNUUkVBTUlOR19TVEFHRV9QQUNLQUdFRBAJMrIMChNUdXJib0NhdGFsb2dTZXJ2aWNlEmsKEExpc3RNb2RlbENhdGFsb2cSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxDYXRhbG9nUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXNwb25zZRJ0ChNMaXN0SW5zdGFsbGVkTW9kZWxzEi0udHVyYm8udHJhaW5pbmcudjEuTGlzdEluc3RhbGxlZE1vZGVsc1JlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USgAEKF1JlY29yZExpY2VuY2VBY2NlcHRhbmNlEjEudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0GjIudHVyYm8udHJhaW5pbmcudjEuUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXNwb25zZRJfCgxJbnN0YWxsTW9kZWwSJi50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxSZXF1ZXN0GiUudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbE1vZGVsVXBkYXRlMAESYgoNRGVzY3JpYmVNb2RlbBInLnR1cmJvLnRyYWluaW5nLnYxLkRlc2NyaWJlTW9kZWxSZXF1ZXN0GigudHVyYm8udHJhaW5pbmcudjEuRGVzY3JpYmVNb2RlbFJlc3BvbnNlEl8KDFJlc29sdmVNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLlJlc29sdmVNb2RlbFJlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5SZXNvbHZlTW9kZWxSZXNwb25zZRJdCg1SZWFkTW9kZWxGaWxlEicudHVyYm8udHJhaW5pbmcudjEuUmVhZE1vZGVsRmlsZVJlcXVlc3QaIS50dXJiby50cmFpbmluZy52MS5Nb2RlbEZpbGVDaHVuazABEoABChdSZXZva2VMaWNlbmNlQWNjZXB0YW5jZRIxLnR1cmJvLnRyYWluaW5nLnYxLlJldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVxdWVzdBoyLnR1cmJvLnRyYWluaW5nLnYxLlJldm9rZUxpY2VuY2VBY2NlcHRhbmNlUmVzcG9uc2USfQoWTGlzdExpY2VuY2VBY2NlcHRhbmNlcxIwLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RMaWNlbmNlQWNjZXB0YW5jZXNSZXF1ZXN0GjEudHVyYm8udHJhaW5pbmcudjEuTGlzdExpY2VuY2VBY2NlcHRhbmNlc1Jlc3BvbnNlEmsKEExpc3RNb2RlbFNvdXJjZXMSKi50dXJiby50cmFpbmluZy52MS5MaXN0TW9kZWxTb3VyY2VzUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbFNvdXJjZXNSZXNwb25zZRJ0ChNSZWdpc3Rlck1vZGVsU291cmNlEi0udHVyYm8udHJhaW5pbmcudjEuUmVnaXN0ZXJNb2RlbFNvdXJjZVJlcXVlc3QaLi50dXJiby50cmFpbmluZy52MS5SZWdpc3Rlck1vZGVsU291cmNlUmVzcG9uc2USbgoRUmVtb3ZlTW9kZWxTb3VyY2USKy50dXJiby50cmFpbmluZy52MS5SZW1vdmVNb2RlbFNvdXJjZVJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5SZW1vdmVNb2RlbFNvdXJjZVJlc3BvbnNlEmsKEFN0YXJ0RHJpdmVTaWduSW4SKi50dXJiby50cmFpbmluZy52MS5TdGFydERyaXZlU2lnbkluUmVxdWVzdBorLnR1cmJvLnRyYWluaW5nLnYxLlN0YXJ0RHJpdmVTaWduSW5SZXNwb25zZRJuChFGaW5pc2hEcml2ZVNpZ25JbhIrLnR1cmJvLnRyYWluaW5nLnYxLkZpbmlzaERyaXZlU2lnbkluUmVxdWVzdBosLnR1cmJvLnRyYWluaW5nLnYxLkZpbmlzaERyaXZlU2lnbkluUmVzcG9uc2UynAUKFFR1cmJvVHJhaW5pbmdTZXJ2aWNlEl8KDExpc3RUZWFjaGVycxImLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1JlcXVlc3QaJy50dXJiby50cmFpbmluZy52MS5MaXN0VGVhY2hlcnNSZXNwb25zZRJrChBUcmFpblN0YXRpY01vZGVsEioudHVyYm8udHJhaW5pbmcudjEuVHJhaW5TdGF0aWNNb2RlbFJlcXVlc3QaKS50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsVXBkYXRlMAESawoQTGlzdFN0YXRpY01vZGVscxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1Jlc3BvbnNlEm4KEURlbGV0ZVN0YXRpY01vZGVsEisudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0GiwudHVyYm8udHJhaW5pbmcudjEuRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRJnCg5UcmFpbkNvbXBvbmVudBIoLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluQ29tcG9uZW50UmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluQ29tcG9uZW50VXBkYXRlKAEwARJwChFTdHJlYW1pbmdUcmFpbmluZxIrLnR1cmJvLnRyYWluaW5nLnYxLlN0cmVhbWluZ1RyYWluaW5nUmVxdWVzdBoqLnR1cmJvLnRyYWluaW5nLnYxLlN0cmVhbWluZ1RyYWluaW5nVXBkYXRlKAEwAWIGcHJvdG8z");
 var InstallStage = /* @__PURE__ */ ((InstallStage2) => {
   InstallStage2[InstallStage2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
   InstallStage2[InstallStage2["ADMITTED"] = 1] = "ADMITTED";
@@ -7142,11 +7274,16 @@ function describe(e) {
 
 // demo/web/src/act.ts
 var running = /* @__PURE__ */ new WeakSet();
+var disabled = /* @__PURE__ */ new WeakMap();
+function setDisabled(button, off2) {
+  disabled.set(button, off2);
+  button.disabled = off2 || running.has(button);
+}
 var stoppable = /* @__PURE__ */ new WeakMap();
 function hold(stop6, by) {
-  const n = Math.max(0, (stoppable.get(stop6) ?? 0) + by);
-  stoppable.set(stop6, n);
-  stop6.disabled = n === 0;
+  const n2 = Math.max(0, (stoppable.get(stop6) ?? 0) + by);
+  stoppable.set(stop6, n2);
+  stop6.disabled = n2 === 0;
 }
 async function busy(button, job, stop6) {
   if (running.has(button)) return;
@@ -7163,7 +7300,7 @@ async function busy(button, job, stop6) {
   } finally {
     clearInterval(tick);
     clock.remove();
-    button.disabled = false;
+    button.disabled = disabled.get(button) ?? false;
     button.removeAttribute("aria-busy");
     running.delete(button);
     if (stop6) hold(stop6, -1);
@@ -7175,15 +7312,15 @@ function submitter(ev) {
   return ev.target.querySelector("button[type=submit]");
 }
 function confirmed(label, question, act3, off2 = "") {
-  const box5 = el("span", { class: "confirm" });
+  const box6 = el("span", { class: "confirm" });
   const first = (why = "") => {
     const b = el("button", { type: "button", text: label, title: off2 || void 0 });
     b.disabled = off2 !== "";
-    b.addEventListener("click", ask);
-    box5.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
+    b.addEventListener("click", ask2);
+    box6.replaceChildren(b, why ? el("span", { class: "error", role: "alert", text: ` ${why}` }) : "");
     return b;
   };
-  const ask = () => {
+  const ask2 = () => {
     const yes = el("button", { type: "button", class: "danger", text: "Yes" });
     const no = el("button", { type: "button", text: "Cancel" });
     no.addEventListener("click", () => first().focus());
@@ -7192,24 +7329,28 @@ function confirmed(label, question, act3, off2 = "") {
       void busy(yes, async () => {
         try {
           await act3();
-          if (box5.isConnected) first();
+          if (box6.isConnected) first();
         } catch (e) {
           first(describe(e)).focus();
         }
       });
     });
-    box5.replaceChildren(el("span", { class: "ask", text: question }), " ", yes, " ", no);
+    box6.replaceChildren(el("span", { class: "ask", text: question }), " ", yes, " ", no);
     no.focus();
   };
-  box5.addEventListener("keydown", (ev) => {
-    const no = box5.querySelector(".ask ~ button:not(.danger)");
+  box6.addEventListener("keydown", (ev) => {
+    const no = box6.querySelector(".ask ~ button:not(.danger)");
     if (ev.key === "Escape" && no && !no.disabled) first().focus();
   });
   first();
-  return box5;
+  return box6;
 }
 
 // demo/web/src/doc.ts
+var PLACED = ["turbo:embeddings<turbo:chunks>", "turbo:embeddings<turbo:sentences>"];
+function hasVectors(layers) {
+  return layers.some((l) => PLACED.includes(l.layer) && l.instance === "" && l.status === 1 /* OK */ && l.items > 0);
+}
 var current = null;
 var listeners = [];
 function doc() {
@@ -7233,39 +7374,39 @@ function layerName(layer, instance) {
 var NAMING = ["entities", "pii", "numbers", "language"];
 function names(layer) {
   const l = layer.toLowerCase();
-  return NAMING.some((n) => l.includes(n));
+  return NAMING.some((n2) => l.includes(n2));
 }
 var ORDER = ["subwords", "tokens", "sentences", "chunks", "structure"];
 function rank(a) {
   if (names(a.layer) && a.label) return 0;
-  const at = ORDER.findIndex((n) => a.layer.toLowerCase().includes(n));
+  const at = ORDER.findIndex((n2) => a.layer.toLowerCase().includes(n2));
   return at < 0 ? ORDER.length + 1 : at + 1;
 }
 function colourOf(a) {
   if (names(a.layer) && a.label) return { key: `label:${a.label}`, name: a.label };
   return { key: `layer:${layerKey(a.layer, a.instance)}`, name: layerName(a.layer, a.instance) };
 }
-function kept(anns, filter2) {
+function kept2(anns, filter2) {
   return filter2.size ? anns.filter((a) => filter2.has(layerKey(a.layer, a.instance))) : anns;
 }
 function painted(anns, filter2, lead) {
-  let show3 = kept(anns, filter2);
-  if (!filter2.size && lead !== "all") show3 = show3.filter((a) => lead === "naming" ? rank(a) === 0 : sentence2(a));
-  return [...show3].sort((x, y) => rank(x) - rank(y));
+  let show4 = kept2(anns, filter2);
+  if (!filter2.size && lead !== "all") show4 = show4.filter((a) => lead === "naming" ? rank(a) === 0 : sentence2(a));
+  return [...show4].sort((x, y) => rank(x) - rank(y));
 }
 function sentence2(a) {
   return a.layer.toLowerCase().includes("sentences");
 }
 function leadOf(segs) {
-  if (segs.some((s) => s.annotations.some((a) => rank(a) === 0))) return "naming";
-  return segs.some((s) => s.annotations.some(sentence2)) ? "sentences" : "all";
+  if (segs.some((s2) => s2.annotations.some((a) => rank(a) === 0))) return "naming";
+  return segs.some((s2) => s2.annotations.some(sentence2)) ? "sentences" : "all";
 }
 function legend(segs, filter2) {
   const any = leadOf(segs);
   const out = /* @__PURE__ */ new Map();
-  const seen = /* @__PURE__ */ new Set();
-  for (const s of segs) {
-    for (const a of painted(s.annotations, filter2, any)) {
+  const seen2 = /* @__PURE__ */ new Set();
+  for (const s2 of segs) {
+    for (const a of painted(s2.annotations, filter2, any)) {
       const c = colourOf(a);
       let sw = out.get(c.key);
       if (!sw) {
@@ -7273,8 +7414,8 @@ function legend(segs, filter2) {
         out.set(c.key, sw);
       }
       const item = `${layerKey(a.layer, a.instance)}#${a.item}`;
-      if (!seen.has(`${c.key} ${item}`)) {
-        seen.add(`${c.key} ${item}`);
+      if (!seen2.has(`${c.key} ${item}`)) {
+        seen2.add(`${c.key} ${item}`);
         sw.items++;
       }
     }
@@ -7283,13 +7424,13 @@ function legend(segs, filter2) {
 }
 function found(segs) {
   const items = /* @__PURE__ */ new Map();
-  for (const s of segs) {
-    for (const a of s.annotations) {
+  for (const s2 of segs) {
+    for (const a of s2.annotations) {
       if (rank(a) !== 0) continue;
       const key3 = `${layerKey(a.layer, a.instance)}#${a.item}`;
       const it = items.get(key3);
-      if (it) it.text += s.text;
-      else items.set(key3, { label: a.label, text: s.text });
+      if (it) it.text += s2.text;
+      else items.set(key3, { label: a.label, text: s2.text });
     }
   }
   const groups2 = /* @__PURE__ */ new Map();
@@ -7319,32 +7460,32 @@ function inspect(text, anns) {
 function annotated(segs, filter2) {
   const any = leadOf(segs);
   const swatches = legend(segs, filter2);
-  const index = new Map(swatches.map((s) => [s.key, s.index]));
+  const index = new Map(swatches.map((s2) => [s2.key, s2.index]));
   const panel = el("div", { class: "inspect", "aria-live": "polite" }, el("p", { class: "muted", text: "Pick a marked stretch of text to list what is annotated on it." }));
   const text = el("div", { class: "doc" });
   let picked2 = null;
-  for (const s of segs) {
-    const paint = painted(s.annotations, filter2, any);
+  for (const s2 of segs) {
+    const paint = painted(s2.annotations, filter2, any);
     if (!paint.length) {
-      text.append(s.text);
+      text.append(s2.text);
       continue;
     }
     const lead = paint[0];
     const second = paint.find((a) => colourOf(a).key !== colourOf(lead).key);
     const style = `--mark: ${colour(index.get(colourOf(lead).key) ?? 0)}${second ? `; --under: ${colour(index.get(colourOf(second).key) ?? 0)}` : ""}`;
     const cls = `${lead.item % 2 ? "alt" : ""}${second ? " under" : ""}`.trim();
-    const mark = el("mark", { class: cls || void 0, style, title: tip(s.annotations), tabindex: "0", role: "button", text: s.text });
-    const show3 = () => {
+    const mark = el("mark", { class: cls || void 0, style, title: tip(s2.annotations), tabindex: "0", role: "button", text: s2.text });
+    const show4 = () => {
       picked2?.classList.remove("picked");
       picked2 = mark;
       mark.classList.add("picked");
-      panel.replaceChildren(...inspect(s.text, s.annotations));
+      panel.replaceChildren(...inspect(s2.text, s2.annotations));
     };
-    mark.addEventListener("click", show3);
-    mark.addEventListener("focus", show3);
+    mark.addEventListener("click", show4);
+    mark.addEventListener("focus", show4);
     text.append(mark);
   }
-  const key3 = swatches.length ? el("div", { class: "legend" }, swatches.map((s) => el("span", { class: "swatch", style: `--mark: ${colour(s.index)}` }, el("i", {}), ` ${s.name} `, el("span", { class: "muted", text: String(s.items) })))) : el("p", { class: "muted", text: "Nothing is marked: pick a layer above to mark it in the text." });
+  const key3 = swatches.length ? el("div", { class: "legend" }, swatches.map((s2) => el("span", { class: "swatch", style: `--mark: ${colour(s2.index)}` }, el("i", {}), ` ${s2.name} `, el("span", { class: "muted", text: String(s2.items) })))) : el("p", { class: "muted", text: "Nothing is marked: pick a layer above to mark it in the text." });
   return el("div", { class: "annotated" }, key3, text, panel);
 }
 function foundList(segs) {
@@ -7371,7 +7512,7 @@ function set(forwarded, hasUser = true) {
   const was = key();
   writes = forwarded ? new Set(forwarded) : null;
   user = forwarded === null || hasUser;
-  for (const [box5, m] of locked) apply(box5, m);
+  for (const [box6, m] of locked) apply(box6, m);
   if (key() !== was) changed.forEach((l) => l());
 }
 function key() {
@@ -7386,22 +7527,22 @@ function off(m) {
   if (!user && m.parent.typeName === FOR_A_USER) return "Off: this acts for a user. Start the demo with --user NAME";
   return "";
 }
-function apply(box5, m) {
+function apply(box6, m) {
   const why = off(m);
-  box5.inert = why !== "";
-  box5.classList.toggle("off", why !== "");
-  const id = `${box5.id}-off`;
+  box6.inert = why !== "";
+  box6.classList.toggle("off", why !== "");
+  const id = `${box6.id}-off`;
   const old = document.getElementById(id);
   if (!why) return void old?.remove();
   const line = old ?? document.createElement("p");
   line.id = id;
   line.className = "muted off-why";
   line.textContent = why;
-  if (!old) box5.after(line);
+  if (!old) box6.after(line);
 }
-function lock(box5, m) {
-  locked.push([box5, m]);
-  apply(box5, m);
+function lock(box6, m) {
+  locked.push([box6, m]);
+  apply(box6, m);
 }
 
 // demo/web/src/status.ts
@@ -7417,17 +7558,26 @@ var listeners2 = [];
 var failures = [];
 function capabilities() {
   if (!current2) {
-    current2 = analysis.capabilities({});
-    current2.then(
-      (c) => listeners2.forEach((l) => l(c)),
-      (e) => failures.forEach((l) => l(e))
+    const mine = analysis.capabilities({});
+    current2 = mine;
+    mine.then(
+      (c) => current2 === mine && listeners2.forEach((l) => l(c)),
+      (e) => current2 === mine && failures.forEach((l) => l(e))
     );
   }
   return current2;
 }
-function refresh() {
+async function refresh() {
   current2 = null;
-  return capabilities();
+  for (; ; ) {
+    const mine = capabilities();
+    try {
+      const c = await mine;
+      if (current2 === mine) return c;
+    } catch (e) {
+      if (current2 === mine) throw e;
+    }
+  }
 }
 function onCapabilities(l) {
   listeners2.push(l);
@@ -7469,6 +7619,15 @@ async function permits() {
   }
 }
 
+// demo/web/src/latest.ts
+function latest() {
+  let n2 = 0;
+  return () => {
+    const mine = ++n2;
+    return () => mine === n2;
+  };
+}
+
 // demo/web/src/tabs/analyze.ts
 var running2 = null;
 var page = 0;
@@ -7477,8 +7636,8 @@ var shape = null;
 var openSpanModels = /* @__PURE__ */ new Set();
 var relationModels = /* @__PURE__ */ new Set();
 var select = (id) => $(id);
-function statusName(s) {
-  return LayerWireStatus[s] ?? String(s);
+function statusName(s2) {
+  return LayerWireStatus[s2] ?? String(s2);
 }
 function layerRows(layers) {
   return table(
@@ -7594,7 +7753,7 @@ async function run() {
       }
     }
     say(note5, "");
-    if (graph) setDoc({ graph, views, source });
+    if (graph) setDoc({ graph, views, source, vectors: hasVectors([...layers.values()]) });
   } catch (e) {
     say(note5, explain(e));
   } finally {
@@ -7602,10 +7761,10 @@ async function run() {
   }
 }
 function lanesView(w) {
-  const box5 = el("div", { class: "lanes" });
+  const box6 = el("div", { class: "lanes" });
   for (const lane of w.heatmapLanes) {
     const top = Math.max(1, ...lane.buckets.map((b) => Math.abs(b.score) || b.count));
-    box5.append(
+    box6.append(
       el(
         "div",
         { class: "lane" },
@@ -7621,12 +7780,14 @@ function lanesView(w) {
       )
     );
   }
-  return box5;
+  return box6;
 }
+var freshWindow = latest();
 async function showWindow() {
+  const mine = freshWindow();
   const graph = doc()?.graph;
-  const box5 = $("analyze-window");
-  if (!graph) return void box5.replaceChildren();
+  const box6 = $("analyze-window");
+  if (!graph) return void box6.replaceChildren();
   try {
     const picked2 = (shape ?? []).filter((l) => filter.has(layerKey(l.layer, l.instance))).map((l) => ({ layer: l.layer, instance: l.instance }));
     const base2 = { graph, view: 0, offsets: 1 /* UTF16 */, pageSize: 16e3, filterLayerInstances: picked2 };
@@ -7634,6 +7795,7 @@ async function showWindow() {
       analysis.inspectDocumentWindow({ ...base2, page }),
       analysis.inspectDocumentWindow({ ...base2, page: 0, heatmapBuckets: 96 })
     ]);
+    if (!mine()) return;
     const win = w.window;
     shape = w.summary?.layers ?? [];
     const chips = shape.map((l) => {
@@ -7657,10 +7819,10 @@ async function showWindow() {
     prev.addEventListener("click", () => (page = Math.max(0, page - 1), void showWindow()));
     next.addEventListener("click", () => (page += 1, void showWindow()));
     nav.append(prev, el("span", { class: "muted", text: win ? ` page ${win.page + 1} of ${win.pageCount}, units ${win.start}..${win.end} ` : "" }), next);
-    const s = w.summary;
-    box5.replaceChildren(
+    const s2 = w.summary;
+    box6.replaceChildren(
       el("h3", { text: "Document" }),
-      s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
+      s2 ? el("p", { class: "muted", text: `${s2.totalBytes} bytes, ${s2.totalUnits} UTF-16 units, ${s2.viewCount} views, ${s2.layerCount} layers. Pick layer instances to filter text annotations.` }) : "",
       el("div", { class: "chips" }, chips),
       nav,
       annotated(w.segments, filter),
@@ -7671,7 +7833,8 @@ async function showWindow() {
     settle?.();
     settle = null;
   } catch (e) {
-    box5.replaceChildren(failed(explain(e)));
+    if (!mine()) return;
+    box6.replaceChildren(failed(explain(e)));
   }
 }
 async function exportDoc() {
@@ -7693,13 +7856,17 @@ async function exportDoc() {
   }
 }
 var formatsFailed = false;
+var freshFormats = latest();
 async function loadFormats() {
+  const mine = freshFormats();
   try {
     const f = await analysis.listOutputFormats({});
+    if (!mine()) return;
     options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
     if (formatsFailed) say($("analyze-note"), "");
     formatsFailed = false;
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     if (!select("analyze-format").value) options(select("analyze-format"), [], void 0, down ? "the server is not reachable" : "the formats could not be listed");
     formatsFailed = !down;
@@ -7711,7 +7878,7 @@ function groups() {
   $("analyze-relation-pick").hidden = relationModels.size === 0;
   $("analyze-relation").hidden = relationModels.size === 0 || select("analyze-relation-model").value === "";
 }
-function init() {
+function init2() {
   const go2 = $("analyze-run");
   go2.addEventListener("click", () => void busy(go2, run, $("analyze-stop")));
   $("analyze-stop").addEventListener("click", stop);
@@ -7747,11 +7914,14 @@ function init() {
 // demo/web/src/tabs/collections.ts
 var watching = null;
 var note = () => $("coll-note");
+var freshList = latest();
 async function list() {
-  const box5 = $("coll-list");
+  const mine = freshList();
+  const box6 = $("coll-list");
   try {
     const r = await search.listCollections({});
-    box5.replaceChildren(
+    if (!mine()) return;
+    box6.replaceChildren(
       r.collections.length ? table(
         ["collection", "units", "mean length", "vocabulary", "alert at", "top terms", ""],
         r.collections.map((c) => [
@@ -7766,7 +7936,8 @@ async function list() {
       ) : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." })
     );
   } catch (e) {
-    box5.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
+    if (!mine()) return;
+    box6.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }
 function remove(name) {
@@ -7832,12 +8003,12 @@ function stop2() {
   watching?.abort();
   watching = null;
 }
-function init2() {
+function init3() {
   $("coll-set").addEventListener("submit", set2);
   const setButton = $("coll-set").querySelector("button[type=submit]");
   const gate = () => {
     const why = off(TurboSearchService.method.setCollection);
-    setButton.disabled = why !== "";
+    setDisabled(setButton, why !== "");
     setButton.title = why;
   };
   gate();
@@ -7866,9 +8037,9 @@ function scalar(v) {
 function unset(v) {
   return v === void 0 || v === 0 || v === "" || v === false || v === 0n || v instanceof Uint8Array && v.length === 0;
 }
-function enumName(e, n) {
-  const v = e.value[n];
-  if (!v) return String(n);
+function enumName(e, n2) {
+  const v = e.value[n2];
+  if (!v) return String(n2);
   const pre = e.sharedPrefix ?? "";
   return v.name.toLowerCase().startsWith(pre) ? v.name.slice(pre.length) : v.name;
 }
@@ -7892,8 +8063,8 @@ function field(f, v, depth) {
     case "list":
       return v.length ? list2(f, v, depth) : "";
     case "map": {
-      const n = Object.keys(v).length;
-      return n ? `{${n} entries}` : "";
+      const n2 = Object.keys(v).length;
+      return n2 ? `{${n2} entries}` : "";
     }
   }
 }
@@ -7907,8 +8078,8 @@ function brief(desc, m, depth = 0, skip = []) {
       if (f) out.push(`${f.localName} ${field(f, o?.value, depth) || "{}"}`);
       continue;
     }
-    const s = field(member, m[member.localName], depth);
-    if (s) out.push(`${member.localName} ${s}`);
+    const s2 = field(member, m[member.localName], depth);
+    if (s2) out.push(`${member.localName} ${s2}`);
   }
   return out.join(", ");
 }
@@ -7937,7 +8108,9 @@ function runs(x) {
   }
   return text;
 }
+var freshRender = latest();
 async function render() {
+  const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   if (d.views.length < 2) {
@@ -7948,6 +8121,7 @@ async function render() {
   const [offsets, unitName] = UNITS[unit().value] ?? UNITS.utf16;
   try {
     const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets, pageSize: 1, page: 0, xrayTargetView: b });
+    if (!mine()) return;
     const x = r.xray;
     if (!x) return void box().replaceChildren(el("p", { class: "muted", text: "The server gave no X-Ray for these views." }));
     const edits2 = x.runs.filter((r2) => r2.kind !== 0 /* EQUAL */).length;
@@ -7957,14 +8131,15 @@ async function render() {
       el("h3", { text: "Steps" }),
       table(
         ["view", "parent", "instance", "annotator", "edits", "bytes in", "bytes out"],
-        x.steps.map((s) => [String(s.view), s.parentView === void 0 ? "" : String(s.parentView), s.instance, `${s.annotator} ${s.version}`, String(s.editCount), String(s.parentBytes), String(s.childBytes)])
+        x.steps.map((s2) => [String(s2.view), s2.parentView === void 0 ? "" : String(s2.parentView), s2.instance, `${s2.annotator} ${s2.version}`, String(s2.editCount), String(s2.parentBytes), String(s2.childBytes)])
       )
     );
   } catch (e) {
+    if (!mine()) return;
     box().replaceChildren(failed(explain(e)));
   }
 }
-function init3() {
+function init4() {
   const again = lazy($("analyze-xray"), () => void render());
   onDoc((d) => {
     const views = d?.views ?? [];
@@ -7996,8 +8171,8 @@ function kindOf(name) {
 }
 function rows(r, l) {
   const list5 = l.annotations.slice(0, shown).map((a, i) => {
-    const spans = a.spans.map((s) => `${s.start}..${s.end}`).join(" ");
-    const text = a.spans.map((s) => r.rawText.slice(s.start, s.end)).join(" \u2026 ");
+    const spans = a.spans.map((s2) => `${s2.start}..${s2.end}`).join(" ");
+    const text = a.spans.map((s2) => r.rawText.slice(s2.start, s2.end)).join(" \u2026 ");
     const kind = kindOf(a.value.case);
     const detail = kind && a.value.value ? brief(kind, a.value.value) : "";
     return [String(i), spans, el("span", { class: "quote", text }), a.value.case ?? "", a.probability === void 0 ? "" : a.probability.toFixed(3), el("span", { class: "vec", text: detail })];
@@ -8042,11 +8217,15 @@ function draw() {
     ) : ""
   );
 }
+var freshRender2 = latest();
 async function render2() {
+  const mine = freshRender2();
   const d = doc();
   if (!d) return void box2().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
-    result = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: 1 /* UTF16 */ });
+    const r = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: 1 /* UTF16 */ });
+    if (!mine()) return;
+    result = r;
     if (!result.layers.some((l) => key2(l) === picked)) {
       const first = result.layers.find((l) => l.annotations.length);
       picked = first ? key2(first) : "";
@@ -8054,11 +8233,12 @@ async function render2() {
     shown = PAGE;
     draw();
   } catch (e) {
+    if (!mine()) return;
     result = null;
     box2().replaceChildren(failed(explain(e)));
   }
 }
-function init4() {
+function init5() {
   const again = lazy($("analyze-drawer"), () => void render2());
   onDoc((d) => {
     const views = d?.views ?? [];
@@ -8067,6 +8247,63 @@ function init4() {
     again();
   });
   viewSelect().addEventListener("change", () => void render2());
+}
+
+// demo/web/src/csv.ts
+function inert(v) {
+  const lead = v.trimStart().charAt(0);
+  if (lead !== "=" && lead !== "+" && lead !== "-" && lead !== "@") return v;
+  const n2 = v.trim();
+  return n2 !== "" && Number.isFinite(Number(n2)) ? v : `'${v}`;
+}
+function field2(raw) {
+  const v = inert(raw);
+  const quote = v.includes(",") || v.includes('"') || v.includes("\n") || v.includes("\r") || v.startsWith(" ") || v.endsWith(" ");
+  return quote ? `"${v.replaceAll('"', '""')}"` : v;
+}
+function csv(rows2) {
+  return rows2.map((r) => r.map(field2).join(",") + "\r\n").join("");
+}
+function tsv(rows2) {
+  const flat = (v) => v.replaceAll("	", " ").replaceAll("\r\n", " ").replaceAll("\n", " ").replaceAll("\r", " ");
+  return rows2.map((r) => r.map((v) => inert(flat(v))).join("	")).join("\n");
+}
+function fileName(name) {
+  let out = "";
+  for (const ch of name.normalize("NFC")) {
+    const keep = ch.toLowerCase() !== ch.toUpperCase() || ch >= "0" && ch <= "9" || ch > "\x7F";
+    out += keep ? ch : out.endsWith("-") || !out ? "" : "-";
+  }
+  while (out.endsWith("-")) out = out.slice(0, -1);
+  return `${out || "result"}.csv`;
+}
+
+// demo/web/src/tabs/take.ts
+async function copy(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = el("textarea", { class: "offscreen", "aria-hidden": "true" });
+    area.value = text;
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+function take(name, rows2) {
+  const copyButton = el("button", { type: "button", class: "small", text: "Copy", title: "Copy as tab-separated rows, which a spreadsheet pastes into cells" });
+  const said = el("span", { class: "muted", role: "status" });
+  copyButton.addEventListener("click", async () => {
+    const all = rows2();
+    said.textContent = await copy(tsv(all)) ? `Copied ${all.length - 1} rows.` : "The browser did not allow the copy.";
+    setTimeout(() => said.textContent = "", 4e3);
+  });
+  const save = el("button", { type: "button", class: "small", text: "Download CSV" });
+  save.addEventListener("click", () => download(fileName(name), [csv(rows2())], "text/csv;charset=utf-8"));
+  return el("div", { class: "take", "data-take": name }, copyButton, save, said);
 }
 
 // demo/web/src/heat.ts
@@ -8102,7 +8339,7 @@ var own = true;
 function shade(t) {
   return `background: rgba(var(--heat), ${strength(t).toFixed(3)})`;
 }
-function simTable(labels, sim) {
+function simTable(labels, sim, name = "Cosine similarity") {
   const [lo, hi] = range(sim);
   const cells = sim.map((row, i) => {
     const top = best(sim, i);
@@ -8124,17 +8361,19 @@ function simTable(labels, sim) {
     el("tr", {}, el("th", {}), labels.map((_, j) => el("th", { text: `#${j + 1}` }))),
     labels.map((l, i) => el("tr", {}, el("td", { class: "text", title: l.full, text: `#${i + 1} ${l.short}` }), cells[i]))
   );
-  const scale = el(
+  const scale2 = el(
     "div",
     { class: "scale" },
     el("label", {}, pick, ` colour by this matrix's own range, ${lo.toFixed(3)} to ${hi.toFixed(3)}`),
     el("span", { class: "muted", text: "outlined: each row's best match" })
   );
-  return el("div", {}, scale, table2);
+  const rows2 = () => [["", ...labels.map((l) => l.full)], ...sim.map((row, i) => [labels[i].full, ...row.map((x) => x.toFixed(6))])];
+  return el("div", {}, scale2, table2, take(name, rows2));
 }
 
 // demo/web/src/tabs/embed.ts
 var models = /* @__PURE__ */ new Map();
+var listed = [];
 function tier(meta) {
   const p = meta?.properties["session_info.precision"];
   return p ? after(p, "PRECISION_") : "?";
@@ -8160,19 +8399,23 @@ async function loadMeta(name) {
     m.checked = false;
   }
 }
+var PICKED = "embed-models";
 function renderModels() {
-  const box5 = $("embed-models");
-  box5.replaceChildren();
+  const box6 = $("embed-models");
+  box6.replaceChildren();
   if (models.size === 0) {
     const down = reachable() === false;
-    box5.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
+    box6.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
   }
   for (const [name, m] of models) {
     const cb = el("input", { type: "checkbox" });
     cb.checked = m.checked;
     cb.disabled = !m.meta;
-    cb.addEventListener("change", () => m.checked = cb.checked);
-    box5.append(
+    cb.addEventListener("change", () => {
+      m.checked = cb.checked;
+      remember(PICKED, [...models].filter(([, x]) => x.checked).map(([n2]) => n2).join("\n"));
+    });
+    box6.append(
       el(
         "label",
         { class: "model" },
@@ -8184,8 +8427,9 @@ function renderModels() {
   }
 }
 async function addModels(names2) {
-  const fresh = names2.filter((n) => !models.get(n)?.meta);
-  for (const n of fresh) models.set(n, { meta: null, error: "", checked: true });
+  const fresh = names2.filter((n2) => !models.get(n2)?.meta);
+  const kept3 = recallList(PICKED);
+  for (const n2 of fresh) models.set(n2, { meta: null, error: "", checked: kept3 ? kept3.includes(n2) : true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
 }
@@ -8201,18 +8445,18 @@ function cosine(a, b) {
   return na && nb ? d / Math.sqrt(na * nb) : 0;
 }
 function norm(a) {
-  return Math.sqrt(a.reduce((s, x) => s + x * x, 0));
+  return Math.sqrt(a.reduce((s2, x) => s2 + x * x, 0));
 }
 function matrix(vectors) {
   return vectors.map((a) => vectors.map((b) => cosine(a, b)));
 }
 function half(bits) {
-  const s = bits & 32768 ? -1 : 1;
+  const s2 = bits & 32768 ? -1 : 1;
   const e = bits >> 10 & 31;
   const f = bits & 1023;
-  if (e === 0) return s * f * 2 ** -24;
-  if (e === 31) return f ? NaN : s * Infinity;
-  return s * (1 + f / 1024) * 2 ** (e - 15);
+  if (e === 0) return s2 * f * 2 ** -24;
+  if (e === 31) return f ? NaN : s2 * Infinity;
+  return s2 * (1 + f / 1024) * 2 ** (e - 15);
 }
 function vectorsOf(reply) {
   const out = reply.outputs[0];
@@ -8256,7 +8500,7 @@ function parameters() {
 }
 async function run2() {
   const texts2 = document.getElementById("embed-texts").value.split("\n").map((t) => t.trim()).filter((t) => t.length);
-  const chosen = [...models].filter(([, m]) => m.checked && m.meta).map(([n]) => n);
+  const chosen = [...models].filter(([, m]) => m.checked && m.meta).map(([n2]) => n2);
   const err = $("embed-error");
   say(err, "");
   if (!texts2.length || !chosen.length) {
@@ -8281,9 +8525,9 @@ async function run2() {
   }
   render3(texts2, results);
 }
-function short(t, n = 28) {
+function short(t, n2 = 28) {
   const chars = typeof Intl !== "undefined" && Intl.Segmenter ? Array.from(new Intl.Segmenter(void 0, { granularity: "grapheme" }).segment(t), (g) => g.segment) : Array.from(t);
-  return chars.length > n ? chars.slice(0, n - 1).join("") + "\u2026" : t;
+  return chars.length > n2 ? chars.slice(0, n2 - 1).join("") + "\u2026" : t;
 }
 function card(texts2, r) {
   const head = el("div", { class: "head" }, el("h3", {}, r.name, el("span", { class: "tag", text: tier(r.meta) })));
@@ -8293,7 +8537,8 @@ function card(texts2, r) {
   const v = r.vectors;
   const p = r.reply.parameters;
   const str2 = (k) => p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "";
-  const sim = simTable(texts2.map((t) => ({ short: short(t, 22), full: t })), matrix(v));
+  const sim = simTable(texts2.map((t) => ({ short: short(t, 22), full: t })), matrix(v), `Cosine similarity ${r.name}`);
+  const whole = () => [["text", "norm", ...v[0].map((_, d) => `d${d}`)], ...v.map((row, i) => [texts2[i], String(norm(row)), ...row.map(String)])];
   const previews = el(
     "table",
     {},
@@ -8327,7 +8572,7 @@ function card(texts2, r) {
     ),
     el("h2", { text: "Cosine similarity" }),
     sim,
-    el("details", {}, el("summary", { text: "Vectors" }), previews)
+    el("details", {}, el("summary", { text: "Vectors" }), previews, take(`Vectors ${r.name}`, whole))
   );
 }
 function comparison(texts2, ok) {
@@ -8340,8 +8585,8 @@ function comparison(texts2, ok) {
   for (let i = 0; i < texts2.length; i++) {
     for (let j = i + 1; j < texts2.length; j++) {
       const vals = sims.map((m) => m[i][j]);
-      const spread = Math.max(...vals) - Math.min(...vals);
-      widest = Math.max(widest, spread);
+      const spread2 = Math.max(...vals) - Math.min(...vals);
+      widest = Math.max(widest, spread2);
       rows2.push(
         el(
           "tr",
@@ -8349,7 +8594,7 @@ function comparison(texts2, ok) {
           el("td", { class: "text", title: `${texts2[i]}
 ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
           vals.map((x) => el("td", { class: "cell", style: shade(place(x, lo, hi)), text: x.toFixed(4) })),
-          el("td", { text: spread.toFixed(4) })
+          el("td", { text: spread2.toFixed(4) })
         )
       );
     }
@@ -8360,6 +8605,16 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
     if (v[0].length !== baseV[0].length) return "n/a";
     return Math.min(...v.map((row, i) => cosine(row, baseV[i]))).toFixed(6);
   });
+  const pairs2 = () => {
+    const out = [["text a", "text b", ...ok.map((r) => `${r.name} (${tier(r.meta)})`), "spread"]];
+    for (let i = 0; i < texts2.length; i++) {
+      for (let j = i + 1; j < texts2.length; j++) {
+        const vals = sims.map((m) => m[i][j]);
+        out.push([texts2[i], texts2[j], ...vals.map((x) => x.toFixed(6)), (Math.max(...vals) - Math.min(...vals)).toFixed(6)]);
+      }
+    }
+    return out;
+  };
   const tableEl = el(
     "table",
     { class: "sim cmp" },
@@ -8376,6 +8631,7 @@ ${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
       text: "Each pair of texts, scored by every model picked. The spread is how much the tiers disagree; the last row is how close each model's vector for a text is to the first model's."
     }),
     tableEl,
+    take("Side by side", pairs2),
     widest === 0 ? el("p", { class: "note", text: "Every model gave the same numbers: on this device these tiers compute alike. A device that runs FASTEST in a narrower type shows the difference here." }) : null
   );
 }
@@ -8387,7 +8643,7 @@ function render3(texts2, results) {
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts2, r))));
   reveal(out);
 }
-function init5() {
+function init6() {
   $("embed-add").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const name = input("embed-add-name").value.trim();
@@ -8397,17 +8653,518 @@ function init5() {
       input("embed-add-name").value = "";
     });
   });
+  onReset("embed", () => {
+    forgetOwn(PICKED);
+    for (const m of models.values()) m.checked = m.meta !== null;
+    renderModels();
+  });
   const go2 = $("embed-run");
   go2.addEventListener("click", () => void busy(go2, run2));
   onCapabilities((c) => {
     say($("embed-error"), "");
-    void addModels(bundles(c, "TASK_EMBED"));
+    const served = bundles(c, "TASK_EMBED");
+    for (const n2 of listed) if (!served.includes(n2)) models.delete(n2);
+    listed = served;
+    void addModels(served);
   });
   onReachable(renderModels);
   onCapabilitiesFailed((e) => {
     renderModels();
     if (reachable() === false) say($("embed-error"), "");
     else say($("embed-error"), explain(e));
+  });
+}
+
+// demo/web/src/viz/entities.ts
+function keyOf(m) {
+  const name = (m.canonical || m.text).normalize("NFKC").toLocaleLowerCase().split(" ").filter((w) => w.length).join(" ");
+  return `${m.kind}\0${name}`;
+}
+function gather(mentions) {
+  const groups2 = /* @__PURE__ */ new Map();
+  mentions.forEach((m, i) => groups2.set(keyOf(m), [...groups2.get(keyOf(m)) ?? [], i]));
+  const ordered2 = [...groups2.values()].sort((a, b) => b.length - a.length || a[0] - b[0]);
+  const of = new Array(mentions.length).fill(-1);
+  const entities = ordered2.map((members, e) => {
+    for (const i of members) of[i] = e;
+    const first = mentions[members[0]];
+    const counts = /* @__PURE__ */ new Map();
+    for (const i of members) counts.set(mentions[i].text, (counts.get(mentions[i].text) ?? 0) + 1);
+    const common = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    return { name: first.canonical || common, kind: first.kind, mentions: members };
+  });
+  return { entities, of };
+}
+function link(relations, of) {
+  const edges = /* @__PURE__ */ new Map();
+  for (const r of relations) {
+    const from2 = of[r.subject];
+    const to2 = of[r.object];
+    if (from2 === void 0 || to2 === void 0 || from2 < 0 || to2 < 0 || from2 === to2) continue;
+    const key3 = `${from2}\0${to2}\0${r.kind}`;
+    const e = edges.get(key3);
+    if (e) {
+      e.support += 1;
+      if (r.score !== void 0) e.score = Math.max(e.score ?? r.score, r.score);
+    } else edges.set(key3, { from: from2, to: to2, kind: r.kind, support: 1, score: r.score });
+  }
+  return [...edges.values()];
+}
+function layout(n2, edges, w, h, pad = 40) {
+  if (n2 === 0) return [];
+  if (n2 === 1) return [[w / 2, h / 2]];
+  const rx = w / 2 - pad;
+  const ry = h / 2 - pad;
+  const at = Array.from({ length: n2 }, (_, i) => [w / 2 + rx * Math.cos(2 * Math.PI * i / n2 - Math.PI / 2), h / 2 + ry * Math.sin(2 * Math.PI * i / n2 - Math.PI / 2)]);
+  const ideal = 0.8 * Math.sqrt(rx * ry * 4 / n2);
+  for (let step = 0; step < 200; step++) {
+    const heat = (1 - step / 200) * ideal * 0.5;
+    const move = at.map(() => [0, 0]);
+    for (let i = 0; i < n2; i++) {
+      for (let j = i + 1; j < n2; j++) {
+        const dx = at[i][0] - at[j][0];
+        const dy = at[i][1] - at[j][1];
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const push = ideal * ideal / d;
+        move[i][0] += dx / d * push;
+        move[i][1] += dy / d * push;
+        move[j][0] -= dx / d * push;
+        move[j][1] -= dy / d * push;
+      }
+    }
+    for (const e of edges) {
+      const dx = at[e.from][0] - at[e.to][0];
+      const dy = at[e.from][1] - at[e.to][1];
+      const d = Math.max(1, Math.hypot(dx, dy));
+      const pull = d * d / (ideal * 2.5);
+      move[e.from][0] -= dx / d * pull;
+      move[e.from][1] -= dy / d * pull;
+      move[e.to][0] += dx / d * pull;
+      move[e.to][1] += dy / d * pull;
+    }
+    for (let i = 0; i < n2; i++) {
+      const cx = w / 2 - at[i][0];
+      const cy = (h / 2 - at[i][1]) * (rx / ry);
+      const far = Math.hypot(cx, cy);
+      move[i][0] += cx * far / (ideal * 6);
+      move[i][1] += cy * far / (ideal * 6);
+      const d = Math.max(1e-9, Math.hypot(move[i][0], move[i][1]));
+      const by = Math.min(d, heat);
+      at[i][0] = Math.max(pad, Math.min(w - pad, at[i][0] + move[i][0] / d * by));
+      at[i][1] = Math.max(pad, Math.min(h - pad, at[i][1] + move[i][1] / d * by));
+    }
+  }
+  const gap = Math.min(64, ideal);
+  for (let step = 0; step < 40; step++) {
+    for (let i = 0; i < n2; i++) {
+      for (let j = i + 1; j < n2; j++) {
+        const dx = at[i][0] - at[j][0] || 0.5 - (i * 7 + j) % 2;
+        const dy = at[i][1] - at[j][1] || 0.5 - (i + j * 3) % 2;
+        const d = Math.hypot(dx, dy);
+        if (d >= gap) continue;
+        const by = (gap - d) / 2;
+        at[i] = [Math.max(pad, Math.min(w - pad, at[i][0] + dx / d * by)), Math.max(pad, Math.min(h - pad, at[i][1] + dy / d * by))];
+        at[j] = [Math.max(pad, Math.min(w - pad, at[j][0] - dx / d * by)), Math.max(pad, Math.min(h - pad, at[j][1] - dy / d * by))];
+      }
+    }
+  }
+  return at;
+}
+function together(mentions, of, sentences) {
+  const pairs2 = /* @__PURE__ */ new Map();
+  for (const s2 of sentences) {
+    const inside = [...new Set(mentions.flatMap((m, i) => m.start >= s2.start && m.end <= s2.end && of[i] >= 0 ? [of[i]] : []))].sort((a, b) => a - b);
+    for (let i = 0; i < inside.length; i++) {
+      for (let j = i + 1; j < inside.length; j++) {
+        const key3 = `${inside[i]}\0${inside[j]}`;
+        const p = pairs2.get(key3) ?? { from: inside[i], to: inside[j], count: 0 };
+        p.count += 1;
+        pairs2.set(key3, p);
+      }
+    }
+  }
+  return [...pairs2.values()];
+}
+function finest(spans) {
+  return spans.filter((a) => a.end > a.start && !spans.some((b) => b !== a && b.end > b.start && b.start >= a.start && b.end <= a.end && (b.start !== a.start || b.end !== a.end))).filter((a, i, all) => all.findIndex((b) => b.start === a.start && b.end === a.end) === i).sort((a, b) => a.start - b.start);
+}
+function sentenceAt(text, spans, offset) {
+  const s2 = spans.find((x) => offset >= x.start && offset < x.end);
+  return s2 ? text.slice(s2.start, s2.end).trim() : text.slice(Math.max(0, offset - 60), offset + 60).trim();
+}
+function kindSlots(kinds2, cap) {
+  const slots = /* @__PURE__ */ new Map();
+  for (const k of kinds2) if (!slots.has(k)) slots.set(k, Math.min(slots.size, cap - 1));
+  return slots;
+}
+
+// demo/web/src/viz/model.ts
+function leaves(units) {
+  if (!units.length) return [];
+  const finest2 = Math.min(...units.map((u) => u.level));
+  return units.filter((u) => u.level === finest2).sort((a, b) => a.start - b.start || a.end - b.end);
+}
+function regions(units, leafUnits) {
+  if (!leafUnits.length) return [];
+  const finest2 = leafUnits[0].level;
+  const out = [];
+  for (const u of units) {
+    if (u.level === finest2) continue;
+    const members = leafUnits.flatMap((l, i) => l.start >= u.start && l.end <= u.end && !l.empty ? [i] : []);
+    if (members.length >= 2 && members.length < leafUnits.filter((l) => !l.empty).length) out.push({ unit: u, members });
+  }
+  return out.sort((a, b) => a.unit.start - b.unit.start);
+}
+function hull(pts) {
+  const p = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]).filter((q, i, all) => i === 0 || q[0] !== all[i - 1][0] || q[1] !== all[i - 1][1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half2 = (src) => {
+    const h = [];
+    for (const q of src) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+      h.push(q);
+    }
+    h.pop();
+    return h;
+  };
+  return [...half2(p), ...half2([...p].reverse())];
+}
+function scale(lo, hi, a, b) {
+  return hi === lo ? () => (a + b) / 2 : (v) => a + (v - lo) / (hi - lo) * (b - a);
+}
+function spread(chunks) {
+  const seen2 = /* @__PURE__ */ new Map();
+  for (const c of chunks) for (const t of new Set(c.map((x) => x.term))) seen2.set(t, (seen2.get(t) ?? 0) + 1);
+  return seen2;
+}
+function telling(here, there, listedIn, count2) {
+  const rare = count2 > 1 ? Math.log(count2 / Math.max(1, listedIn)) : 1;
+  return here * Math.log(here / there) * rare;
+}
+function distinctive(chunk, chunkTotal, doc2, docTotal, k, listed2 = /* @__PURE__ */ new Map(), count2 = 1) {
+  if (!chunk.length || chunkTotal <= 0 || docTotal <= 0) return [];
+  const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
+  const floor = doc2.length ? Math.min(...doc2.map((t) => t.weight / docTotal)) : 1;
+  return chunk.map((t) => ({ term: t.term, score: telling(t.weight / chunkTotal, shares.get(t.term) ?? floor, listed2.get(t.term) ?? 1, count2) })).filter((t) => t.score > 0).sort((a, b) => b.score - a.score || (a.term < b.term ? -1 : 1)).slice(0, k).map((t) => t.term);
+}
+function riverTerms(doc2, docTotal, chunks, k, uneven) {
+  let picked2;
+  if (uneven) {
+    const shares = new Map(doc2.map((t) => [t.term, t.weight / docTotal]));
+    const listed2 = spread(chunks.map((c) => c.terms));
+    const best2 = /* @__PURE__ */ new Map();
+    for (const c of chunks) {
+      for (const t of c.terms) {
+        const there = shares.get(t.term);
+        if (there === void 0 || c.total <= 0) continue;
+        best2.set(t.term, Math.max(best2.get(t.term) ?? 0, telling(t.weight / c.total, there, listed2.get(t.term) ?? 1, chunks.length)));
+      }
+    }
+    picked2 = [...best2].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, k).map(([t]) => t);
+  } else {
+    picked2 = [...doc2].sort((a, b) => b.weight - a.weight).slice(0, k).map((t) => t.term);
+  }
+  const peak = (term) => {
+    const w = chunks.map((c) => c.terms.find((t) => t.term === term)?.weight ?? 0);
+    return w.indexOf(Math.max(...w));
+  };
+  return picked2.map((t, i) => ({ t, i, at: peak(t) })).sort((a, b) => a.at - b.at || a.i - b.i).map((x) => x.t);
+}
+function streams(weights) {
+  const cols = weights[0]?.length ?? 0;
+  const out = weights.map(() => ({ lo: new Array(cols).fill(0), hi: new Array(cols).fill(0) }));
+  for (let c = 0; c < cols; c++) {
+    let at = -weights.reduce((s2, w) => s2 + w[c], 0) / 2;
+    weights.forEach((w, t) => {
+      out[t].lo[c] = at;
+      at += w[c];
+      out[t].hi[c] = at;
+    });
+  }
+  return out;
+}
+function pieces(text, chunks, marks) {
+  const clamp = (v) => Math.max(0, Math.min(text.length, v));
+  const edges = /* @__PURE__ */ new Set([0, text.length]);
+  for (const c of chunks) edges.add(clamp(c.start)).add(clamp(c.end));
+  for (const [s2, e] of marks) edges.add(clamp(s2)).add(clamp(e));
+  const cuts = [...edges].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const [s2, e] = [cuts[i], cuts[i + 1]];
+    if (e <= s2) continue;
+    const chunk = chunks.findIndex((c) => s2 >= c.start && e <= c.end);
+    out.push({ text: text.slice(s2, e), start: s2, chunk: chunk < 0 ? null : chunk, marked: marks.some(([a, b]) => s2 >= a && e <= b) });
+  }
+  return out;
+}
+function aroundGap(text, gaps, i) {
+  const at = gaps[i];
+  const from2 = i > 0 ? gaps[i - 1] : 0;
+  const to2 = i + 1 < gaps.length ? gaps[i + 1] : text.length;
+  return [text.slice(from2, at).trim(), text.slice(at, to2).trim()];
+}
+function cutReason(code) {
+  return ["document start", "sentence end", "section", "heading", "paragraph", "topic shift", "clause", "list item", "inside a sentence", "overlap"][code] ?? `reason ${code}`;
+}
+
+// demo/web/src/viz/svg.ts
+var ns = null;
+function namespace() {
+  if (ns === null) {
+    const t = document.createElement("template");
+    t.innerHTML = "<svg></svg>";
+    ns = t.content.firstElementChild.namespaceURI;
+  }
+  return ns;
+}
+function s(tag, attrs = {}, ...children) {
+  const e = document.createElementNS(namespace(), tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== void 0) e.setAttribute(k, String(v));
+  for (const c of children) if (c !== null) e.append(c);
+  return e;
+}
+function figure(w, h, label) {
+  return s("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": label, class: "viz" });
+}
+function n(v) {
+  return String(Math.round(v * 100) / 100);
+}
+function ordered(i, count2) {
+  const share2 = count2 > 1 ? Math.round(100 * i / (count2 - 1)) : 50;
+  return `color-mix(in oklab, var(--seq-from), var(--seq-to) ${share2}%)`;
+}
+
+// demo/web/src/tabs/entities.ts
+var W = 640;
+var MOST = 30;
+var KINDS = 8;
+var box3 = () => $("entities-out");
+var picker = () => $("entities-layer");
+var keyOf2 = (l) => `${l.id}#${l.instance}`;
+var nameOf = (l) => `${l.id}${l.instance ? ` (${l.instance})` : ""}`;
+var has = (l, kind) => l.status === 1 /* OK */ && l.annotations.some((a) => a.value.case === kind);
+function relationsOf(r, entities) {
+  const into = (l) => l.indexesLayer.length === 0 || l.indexesLayer.some((b) => b.layer === entities.id && b.instance === entities.instance);
+  const out = [];
+  for (const l of r.layers.filter((x) => has(x, "relation") && into(x))) {
+    for (const a of l.annotations) if (a.value.case === "relation") out.push({ subject: a.value.value.subjectEntity, object: a.value.value.objectEntity, kind: a.value.value.kind, score: a.probability });
+  }
+  if (out.length) return out;
+  for (const l of r.layers.filter((x) => has(x, "edge") && x.indexesLayer.length > 0 && into(x))) {
+    for (const a of l.annotations) if (a.value.case === "edge") out.push({ subject: a.value.value.fromIndex, object: a.value.value.toIndex, kind: a.value.value.kind, score: a.value.value.score });
+  }
+  return out;
+}
+function constellation(v, info, light, onLight) {
+  const H3 = v.entities.length > 12 ? 420 : 320;
+  const at = layout(v.entities.length, v.edges.length ? v.edges : v.pairs, W, H3, 46);
+  const most = Math.max(...v.entities.map((e) => e.mentions.length));
+  const size2 = (e) => 7 + 13 * Math.sqrt(e.mentions.length / most);
+  const svg = figure(W, H3, `Entity graph: ${count(v.entities.length, "entity", "entities")}, ${count(v.edges.length, "relation")}`);
+  svg.append(s("defs", {}, s("marker", { id: "arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, s("path", { d: "M0 0 L10 5 L0 10 Z", class: "arrow" }))));
+  const most2 = Math.max(1, ...v.pairs.map((p) => p.count));
+  const dotted = v.pairs.map((p) => {
+    const l = s("line", { x1: n(at[p.from][0]), y1: n(at[p.from][1]), x2: n(at[p.to][0]), y2: n(at[p.to][1]), class: "together", "stroke-width": n(1 + 2 * p.count / most2) }, s("title", {}, `${v.entities[p.from].name} and ${v.entities[p.to].name}: together in ${count(p.count, "sentence")}`));
+    svg.append(l);
+    return l;
+  });
+  const lines = v.edges.map((e) => {
+    const [ax, ay] = at[e.from];
+    const [bx, by] = at[e.to];
+    const d = Math.max(1, Math.hypot(bx - ax, by - ay));
+    const [ra, rb] = [size2(v.entities[e.from]) + 2, size2(v.entities[e.to]) + 4];
+    const g = s(
+      "g",
+      { class: "edge" },
+      s("line", { x1: n(ax + (bx - ax) / d * ra), y1: n(ay + (by - ay) / d * ra), x2: n(bx - (bx - ax) / d * rb), y2: n(by - (by - ay) / d * rb), "marker-end": "url(#arrow)" }),
+      s("text", { x: n((ax + bx) / 2), y: n((ay + by) / 2 - 4), class: "edge-name", "text-anchor": "middle" }, e.kind),
+      s("title", {}, `${v.entities[e.from].name} ${e.kind} ${v.entities[e.to].name}${e.score === void 0 ? "" : `, score ${e.score.toFixed(3)}`}${e.support > 1 ? `, found ${e.support} times` : ""}`)
+    );
+    svg.append(g);
+    return g;
+  });
+  const nodes = v.entities.map((e, i) => {
+    const [x, y] = at[i];
+    const r = size2(e);
+    const g = s(
+      "g",
+      { class: "node", tabindex: 0, role: "button", "aria-label": `${e.name}, ${e.kind}, ${count(e.mentions.length, "mention")}` },
+      s("circle", { cx: n(x), cy: n(y), r: n(Math.max(r, 16)), class: "hit" }),
+      s("circle", { cx: n(x), cy: n(y), r: n(r), class: "mark", style: `fill: var(--m${v.slots.get(e.kind) ?? KINDS - 1})` }),
+      s("text", { x: n(x), y: n(y + r + 13), class: "label", "text-anchor": "middle" }, short(e.name, 24))
+    );
+    g.addEventListener("mouseenter", () => light(i));
+    g.addEventListener("focus", () => light(i));
+    g.addEventListener("mouseleave", () => light(null));
+    g.addEventListener("blur", () => light(null));
+    svg.append(g);
+    return g;
+  });
+  onLight((e) => {
+    svg.classList.toggle("dim", e !== null);
+    const near = new Set(e === null ? [] : [e]);
+    lines.forEach((l, k) => {
+      const on = e !== null && (v.edges[k].from === e || v.edges[k].to === e);
+      l.classList.toggle("lit", on);
+      if (on) near.add(v.edges[k].from).add(v.edges[k].to);
+    });
+    dotted.forEach((l, k) => {
+      const on = e !== null && (v.pairs[k].from === e || v.pairs[k].to === e);
+      l.classList.toggle("lit", on);
+      if (on) near.add(v.pairs[k].from).add(v.pairs[k].to);
+    });
+    nodes.forEach((g, i) => g.classList.toggle("lit", near.has(i)));
+    if (e === null) return;
+    const withThem = v.pairs.filter((x) => x.from === e || x.to === e).sort((a, b) => b.count - a.count).map((x) => v.entities[x.from === e ? x.to : x.from].name);
+    const ent = v.entities[e];
+    const told = v.edges.filter((x) => x.from === e || x.to === e).map((x) => `${v.entities[x.from].name} ${x.kind} ${v.entities[x.to].name}`);
+    info.textContent = `${ent.name} (${ent.kind}), ${count(ent.mentions.length, "mention")}${told.length ? `: ${told.join("; ")}` : ""}${withThem.length ? `. In a sentence with ${withThem.join(", ")}` : ""}.`;
+  });
+  return el("div", { class: "scroll" }, svg);
+}
+function strips(v, info, light, onLight) {
+  const GUTTER2 = 150;
+  const ROW2 = 18;
+  const top = v.chunks.length ? 26 : 8;
+  const H3 = top + v.entities.length * ROW2 + 6;
+  const x = scale(0, Math.max(1, v.text.length), GUTTER2, W - 12);
+  const svg = figure(W, H3, `Mention strips for ${count(v.entities.length, "entity", "entities")}`);
+  if (v.chunks.length) {
+    svg.append(s("text", { x: GUTTER2 - 8, y: 17, class: "row-name", "text-anchor": "end" }, "chunks"));
+    v.chunks.forEach((c, i) => svg.append(s("rect", { x: n(x(c.start) + 1), y: 6, width: n(Math.max(1, x(c.end) - x(c.start) - 2)), height: 12, rx: 3, class: "band plain" }, s("title", {}, `Chunk ${i + 1}`))));
+  }
+  const rows2 = v.entities.map((e, i) => {
+    const y = top + i * ROW2;
+    const g = s(
+      "g",
+      { class: "strip" },
+      s("text", { x: GUTTER2 - 8, y: y + 12, class: "row-name", "text-anchor": "end" }, short(e.name, 22), s("title", {}, `${e.name} (${e.kind})`)),
+      s("rect", { x: GUTTER2, y: y + 2, width: W - 12 - GUTTER2, height: ROW2 - 6, rx: 3, class: "barcode" })
+    );
+    for (const mi of e.mentions) {
+      const m = v.mentions[mi];
+      const mark = s("rect", { x: n(Math.min(x(m.start), W - 16)), y: y + 1, width: n(Math.max(4, x(m.end) - x(m.start))), height: ROW2 - 4, rx: 2, class: "mention", tabindex: 0, role: "button", "aria-label": `${e.name} at ${m.start}`, style: `fill: var(--m${v.slots.get(e.kind) ?? KINDS - 1})` });
+      const show4 = () => {
+        light(i);
+        info.replaceChildren(el("b", { text: `${e.name} (${e.kind})` }), ` at ${m.start}: `, el("span", { class: "quote", text: short(sentenceAt(v.text, v.sentences, m.start), 200) }));
+      };
+      mark.addEventListener("mouseenter", show4);
+      mark.addEventListener("focus", show4);
+      mark.addEventListener("mouseleave", () => light(null));
+      mark.addEventListener("blur", () => light(null));
+      g.append(mark);
+    }
+    svg.append(g);
+    return g;
+  });
+  onLight((e) => rows2.forEach((g, i) => g.classList.toggle("lit", i === e)));
+  return el("div", { class: "scroll" }, svg);
+}
+function show(r) {
+  const layers = r.layers.filter((l) => has(l, "entity"));
+  const keep = picker().value;
+  options(picker(), layers.map(keyOf2), layers.map((l) => `${nameOf(l)} ${l.annotations.length}`), "no entity layer");
+  $("entities-pick").hidden = layers.length < 2;
+  if (!layers.length) {
+    return void box3().replaceChildren(el("p", { class: "muted", text: "No entities in this graph. Analyze with an open-span model and labels, or with a profile that has an entity step (default-v1 finds place names)." }));
+  }
+  const layer = layers.find((l) => keyOf2(l) === keep) ?? [...layers].sort((a, b) => b.annotations.length - a.annotations.length)[0];
+  picker().value = keyOf2(layer);
+  const mentions = layer.annotations.map((a) => {
+    const start2 = a.spans[0]?.start ?? 0;
+    const end = a.spans[a.spans.length - 1]?.end ?? start2;
+    const e = a.value.case === "entity" ? a.value.value : null;
+    return { start: start2, end, kind: e?.kind || "entity", canonical: e?.canonical ?? "", text: r.rawText.slice(start2, end) };
+  });
+  const all = gather(mentions);
+  const edgesAll = link(relationsOf(r, layer), all.of);
+  const entities = all.entities.slice(0, MOST);
+  const edges = edgesAll.filter((e) => e.from < MOST && e.to < MOST);
+  const slots = kindSlots(all.entities.map((e) => e.kind), KINDS);
+  const spansOf = (kind) => r.layers.filter((l) => has(l, kind)).flatMap((l) => l.annotations.flatMap((a) => a.spans.length ? [{ start: a.spans[0].start, end: a.spans[a.spans.length - 1].end }] : []));
+  const sentences = spansOf("sentence");
+  const pairs2 = together(mentions, all.of, sentences).filter((p) => p.from < MOST && p.to < MOST);
+  const seen2 = { entities, mentions, edges, pairs: pairs2, slots, text: r.rawText, sentences, chunks: finest(spansOf("chunk")) };
+  const listeners3 = [];
+  const light = (e) => listeners3.forEach((l) => l(e));
+  const onLight = (l) => void listeners3.push(l);
+  const info = el("p", { class: "info", role: "status", text: "Point at an entity to see its relations, or at a mark to read its sentence." });
+  const shownKinds = [...slots].filter(([, slot], i, list5) => list5.findIndex(([, x]) => x === slot) === i);
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    shownKinds.map(([kind, slot]) => el("span", { class: "swatch", style: `--mark: var(--m${slot})` }, el("i", {}), ` ${slot === KINDS - 1 && slots.size > KINDS ? "other kinds" : kind}`)),
+    el("span", { class: "muted", text: "size: how often it is mentioned" }),
+    edges.length ? el("span", { class: "swatch arrow-key" }, el("i", {}), " a relation, from subject to object") : null,
+    pairs2.length ? el("span", { class: "swatch together-key" }, el("i", {}), " mentioned in the same sentence") : null
+  );
+  box3().replaceChildren(
+    el("p", { class: "muted", text: `${count(all.entities.length, "entity", "entities")} from ${count(mentions.length, "mention")} in ${nameOf(layer)}${edgesAll.length ? `, ${count(edgesAll.length, "relation")}` : "; no relation layer indexes it, so there are no arrows (a relation model adds them)"}.${all.entities.length > MOST ? ` The ${MOST} most mentioned are drawn.` : ""}` }),
+    el("h3", { text: "Entity constellation" }),
+    el("div", { class: "figure" }, constellation(seen2, info, light, onLight), legend2),
+    el("h3", { text: "Mention strips" }),
+    el("div", { class: "figure" }, strips(seen2, info, light, onLight), info),
+    el(
+      "details",
+      { class: "tables" },
+      el("summary", { text: "As tables" }),
+      table(["entity", "kind", "mentions", "at"], all.entities.map((e) => [e.name, e.kind, String(e.mentions.length), e.mentions.map((i) => String(mentions[i].start)).join(", ")])),
+      take("Entities", () => [["entity", "kind", "mentions", "starts"], ...all.entities.map((e) => [e.name, e.kind, String(e.mentions.length), e.mentions.map((i) => String(mentions[i].start)).join(" ")])]),
+      edgesAll.length ? table(["subject", "relation", "object", "score", "found"], edgesAll.map((e) => [all.entities[e.from].name, e.kind, all.entities[e.to].name, e.score === void 0 ? "" : e.score.toFixed(3), String(e.support)])) : ""
+    )
+  );
+}
+var last2 = null;
+var freshRender3 = latest();
+async function render4() {
+  const mine = freshRender3();
+  const d = doc();
+  if (!d) return void box3().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  try {
+    const r = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: 0, offsets: 1 /* UTF16 */ });
+    if (!mine()) return;
+    last2 = r;
+    show(last2);
+  } catch (e) {
+    if (!mine()) return;
+    last2 = null;
+    box3().replaceChildren(failed(explain(e)));
+  }
+}
+function init7() {
+  const again = lazy($("analyze-entities"), () => void render4());
+  onDoc(() => again());
+  picker().addEventListener("change", () => last2 && show(last2));
+}
+
+// demo/web/src/about.ts
+var WHERE = "Load a bundle on the Server tab, or install a model on the Models tab.";
+function needs(tab, tasks) {
+  const has2 = (t) => tasks.includes(t);
+  if (tab === "embed" && !has2("TASK_EMBED")) return `Needs: an embedding model. The server serves none. ${WHERE}`;
+  if (tab === "semantic" && !has2("TASK_EMBED") && !has2("TASK_RERANK") && !has2("TASK_EXTRACTIVE_QA")) {
+    return `Needs: an embedding model, a reranker or a QA model. The server serves none. ${WHERE}`;
+  }
+  if (tab === "search" && !has2("TASK_EMBED")) return `Needs: an embedding model to create an index. The server serves none. ${WHERE}`;
+  return "";
+}
+var HINTED = ["embed", "semantic", "search"];
+
+// demo/web/src/tabs/hints.ts
+function init8() {
+  const show4 = (tasks) => {
+    for (const tab of HINTED) {
+      const line = $(`needs-${tab}`);
+      const text = tasks ? needs(tab, tasks) : "";
+      line.textContent = text;
+      line.hidden = text === "";
+    }
+  };
+  onCapabilities((c) => show4(c.bundles.map((b) => b.task)));
+  onReachable((up) => {
+    if (!up) show4(null);
   });
 }
 
@@ -8477,9 +9234,9 @@ function matches(e, kind, text) {
   return words(text).every((w) => hay.includes(w));
 }
 function kinds(entries) {
-  const count = /* @__PURE__ */ new Map();
-  for (const e of entries) count.set(e.kind, (count.get(e.kind) ?? 0) + 1);
-  return [...count];
+  const count2 = /* @__PURE__ */ new Map();
+  for (const e of entries) count2.set(e.kind, (count2.get(e.kind) ?? 0) + 1);
+  return [...count2];
 }
 
 // demo/web/src/sha256.ts
@@ -8568,10 +9325,10 @@ var Sha256 = class {
     let i = 0;
     this.total += data.length;
     if (this.filled) {
-      const take = Math.min(64 - this.filled, data.length);
-      this.block.set(data.subarray(0, take), this.filled);
-      this.filled += take;
-      i = take;
+      const take2 = Math.min(64 - this.filled, data.length);
+      this.block.set(data.subarray(0, take2), this.filled);
+      this.filled += take2;
+      i = take2;
       if (this.filled < 64) return this;
       this.compress(this.block, 0);
       this.filled = 0;
@@ -8638,17 +9395,17 @@ var Sha256 = class {
   }
 };
 async function sha256Blob(b, progress) {
-  const s = new Sha256();
+  const s2 = new Sha256();
   const reader = b.stream().getReader();
   let read = 0;
   for (; ; ) {
     const { done, value } = await reader.read();
     if (done) break;
-    s.update(value);
+    s2.update(value);
     read += value.length;
     progress?.(read);
   }
-  return s.hex();
+  return s2.hex();
 }
 
 // demo/web/src/tabs/licences.ts
@@ -8677,7 +9434,7 @@ function address(text) {
   return el("a", { href: text, target: "_blank", rel: "noopener noreferrer", text });
 }
 function termsBlock(e, t, w, accepted) {
-  const sources = e.trainedOn.map((s) => `${s.name} (${s.licence})`).join(", ");
+  const sources = e.trainedOn.map((s2) => `${s2.name} (${s2.licence})`).join(", ");
   const facts2 = el(
     "dl",
     {},
@@ -8742,7 +9499,7 @@ function nc(licence) {
   return /^CC-BY-NC(-|$)/.test(licence);
 }
 function nonCommercial(e) {
-  return nc(e.licence) || e.trainedOn.some((s) => nc(s.licence));
+  return nc(e.licence) || e.trainedOn.some((s2) => nc(s2.licence));
 }
 function mismatch(f, got, sha256) {
   if (BigInt(got) !== f.size) return `${f.path}: ${got} bytes arrived, the catalog lists ${f.size}`;
@@ -8775,11 +9532,11 @@ async function download2(e, f, status3, signal) {
 }
 
 // demo/web/src/sourcetext.ts
-function signInText(s) {
-  if (s === 2 /* GOOGLE */) return "Google sign-in";
-  if (s === 3 /* API_KEY */) return "API key";
-  if (s === 4 /* S3_KEYS */) return "S3 keys";
-  if (s === 1 /* ENVIRONMENT */) return "the server's own";
+function signInText(s2) {
+  if (s2 === 2 /* GOOGLE */) return "Google sign-in";
+  if (s2 === 3 /* API_KEY */) return "API key";
+  if (s2 === 4 /* S3_KEYS */) return "S3 keys";
+  if (s2 === 1 /* ENVIRONMENT */) return "the server's own";
   return "";
 }
 function s3KeysOf(f) {
@@ -8812,16 +9569,16 @@ function sourcesTable(r, changed2) {
   if (!r.sources.length) return el("p", { class: "muted", text: `${r.user} has no sources: installs read the catalog's own.` });
   return table(
     ["name", "address", "signs in with", ""],
-    r.sources.map((s) => {
+    r.sources.map((s2) => {
       let control = "";
       if (!why) {
-        control = confirmed("Remove", `Remove ${s.name}?`, async () => {
-          const gone = await catalog.removeModelSource({ name: s.name });
+        control = confirmed("Remove", `Remove ${s2.name}?`, async () => {
+          const gone = await catalog.removeModelSource({ name: s2.name });
           await changed2();
-          say(note2(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
+          say(note2(), gone.wasRegistered ? `Removed ${s2.name}.` : `${s2.name} was not registered.`);
         }, off(TurboCatalogService.method.removeModelSource));
       }
-      return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
+      return [s2.name, el("code", { text: s2.address }), signInText(s2.signIn), control];
     })
   );
 }
@@ -8835,9 +9592,12 @@ async function act(change, after2) {
     say(note2(), explain(e));
   }
 }
+var freshLoad = latest();
 async function load() {
+  const mine = freshLoad();
   try {
     const r = await catalog.listModelSources({});
+    if (!mine()) return;
     $("sources-list").replaceChildren(sourcesTable(r, load));
     const why = readOnly(r);
     $("sources-form").hidden = why !== "";
@@ -8846,6 +9606,7 @@ async function load() {
     else if (saidWhy && note2().textContent === saidWhy) say(note2(), "");
     saidWhy = why;
   } catch (e) {
+    if (!mine()) return;
     $("sources-list").replaceChildren(reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so the sources cannot be listed." }) : failed(explain(e)));
     say(note2(), "");
   }
@@ -8892,7 +9653,7 @@ async function finish(back) {
     return `Signed in: ${r.source?.name ?? "the Drive"} is registered.`;
   }, load);
 }
-function init6() {
+function init9() {
   $("sources-form").addEventListener("submit", add);
   lock($("sources-form"), TurboCatalogService.method.registerModelSource);
   lock($("sources-drive"), TurboCatalogService.method.startDriveSignIn);
@@ -8970,12 +9731,12 @@ function catalogTable(entries, w) {
   if (!entries.length) return el("p", { class: "muted", text: "The catalog lists nothing." });
   const rows2 = entries.map((e) => entryRow(e, w));
   const list5 = el("div", { class: "catalog" }, rows2);
-  const count = el("span", { class: "muted", id: "models-count", role: "status" });
-  const box5 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
-  box5.value = filterText;
+  const count2 = el("span", { class: "muted", id: "models-count", role: "status" });
+  const box6 = el("input", { id: "models-filter", type: "search", placeholder: "filter by name, purpose, kind, language or licence", autocomplete: "off", "aria-label": "Filter the catalog" });
+  box6.value = filterText;
   if (filterKind && !entries.some((e) => e.kind === filterKind)) filterKind = "";
-  const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n]) => [k, kindName(k), n])].map(([k, name, n]) => {
-    const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n}` });
+  const chips = [["", "all", entries.length], ...kinds(entries).map(([k, n2]) => [k, kindName(k), n2])].map(([k, name, n2]) => {
+    const chip = el("button", { type: "button", class: "chip", "data-kind": k, text: `${name} ${n2}` });
     chip.addEventListener("click", () => {
       filterKind = k;
       apply2();
@@ -8994,16 +9755,16 @@ function catalogTable(entries, w) {
       chip.classList.toggle("on", k === filterKind);
       chip.setAttribute("aria-pressed", String(k === filterKind));
     }
-    count.textContent = shown2 === entries.length ? `${entries.length} entries` : `${shown2} of ${entries.length} entries`;
+    count2.textContent = shown2 === entries.length ? `${entries.length} entries` : `${shown2} of ${entries.length} entries`;
     list5.hidden = shown2 === 0;
     none.hidden = shown2 !== 0;
   }
-  box5.addEventListener("input", () => {
-    filterText = box5.value;
+  box6.addEventListener("input", () => {
+    filterText = box6.value;
     apply2();
   });
   apply2();
-  return el("div", {}, el("div", { class: "row filter" }, box5, count), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
+  return el("div", {}, el("div", { class: "row filter" }, box6, count2), el("div", { class: "chips" }, chips.map(([, c]) => c)), list5, none);
 }
 function saveButtons(e, w) {
   if (!w.user || e.missingTerms.length > 0) return null;
@@ -9034,13 +9795,16 @@ async function saveFile(e, f) {
     if (saving === ac) saving = null;
   }
 }
+var freshCatalog = latest();
 async function loadCatalog() {
-  const box5 = $("models-catalog");
+  const mine = freshCatalog();
+  const box6 = $("models-catalog");
   say(note3(), "Reading the catalog\u2026", "busy");
   try {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
+    if (!mine()) return;
     const w = who(acc);
-    box5.replaceChildren(
+    box6.replaceChildren(
       el("h3", { text: "Installed" }),
       table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]), "", "Nothing is installed."),
       el("h3", { text: "Accepted terms" }),
@@ -9055,6 +9819,7 @@ async function loadCatalog() {
     );
     say(note3(), "");
   } catch (e) {
+    if (!mine()) return;
     if (reachable() === false) say(note3(), "The server is not reachable, so its catalog cannot be read.", "error");
     else say(note3(), explain(e));
   }
@@ -9088,17 +9853,21 @@ async function installModel(e) {
     if (installing === ac) installing = null;
   }
 }
+var freshTraining = latest();
 async function loadTraining() {
-  const box5 = $("models-static");
+  const mine = freshTraining();
+  const box6 = $("models-static");
   try {
     const t = await training.listTeachers({});
+    if (!mine()) return;
     options($("train-teacher"), t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`), "no teacher is served");
     let made;
     try {
-      const s = await training.listStaticModels({});
+      const s2 = await training.listStaticModels({});
+      if (!mine()) return;
       made = table(
         ["name", "dims", "words", "learned", "dtype", "teacher", "quality", "served", ""],
-        s.models.map((m) => [
+        s2.models.map((m) => [
           m.name,
           String(m.dims),
           String(m.vocabSize),
@@ -9111,13 +9880,15 @@ async function loadTraining() {
         ])
       );
     } catch (e) {
+      if (!mine()) return;
       made = reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so its static models cannot be listed." }) : failed(explain(e));
     }
-    box5.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
+    box6.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     options($("train-teacher"), [], void 0, down ? "the server is not reachable" : "the teachers could not be listed");
-    box5.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));
+    box6.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));
   }
 }
 function deleteButton(name) {
@@ -9138,7 +9909,7 @@ async function train(ev) {
     $("train-progress").replaceChildren(progress);
     say($("train-note"), "Training\u2026", "busy");
     const t0 = performance.now();
-    let last2 = -1;
+    let last3 = -1;
     try {
       const req = {
         name: input("train-name").value.trim(),
@@ -9161,9 +9932,9 @@ async function train(ev) {
             p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : ""
           ].filter(Boolean);
           const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts2.length ? `: ${facts2.join(", ")}` : ""}`);
-          if (p.stage === last2 && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
+          if (p.stage === last3 && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
           else steps.append(line);
-          last2 = p.stage;
+          last3 = p.stage;
         } else if (u.update.case === "trained") {
           const t = u.update.value;
           progress.value = progress.max;
@@ -9191,7 +9962,7 @@ function stop3() {
   saving = null;
   stopTraining();
 }
-function init7() {
+function init10() {
   const read = $("models-catalog-load");
   read.addEventListener("click", () => void busy(read, loadCatalog));
   $("train-form").addEventListener("submit", train);
@@ -9218,17 +9989,546 @@ function init7() {
     teachers();
     if ($("models-catalog").childElementCount) void loadCatalog();
   });
-  init6();
+  init9();
+}
+
+// demo/web/src/viz/link.ts
+function linker() {
+  const focus = { chunk: null, term: null };
+  const listeners3 = [];
+  const tell = () => listeners3.forEach((l) => l(focus));
+  return {
+    on(l) {
+      listeners3.push(l);
+      l(focus);
+    },
+    chunk(i) {
+      if (focus.chunk === i) return;
+      focus.chunk = i;
+      tell();
+    },
+    term(t) {
+      if (focus.term === t) return;
+      focus.term = t;
+      tell();
+    }
+  };
+}
+
+// demo/web/src/viz/matrix.ts
+function cosineAt(upper, n2, a, b) {
+  if (a === b) return 1;
+  const [i, j] = a < b ? [a, b] : [b, a];
+  return upper[i * (2 * n2 - i - 1) / 2 + (j - i - 1)];
+}
+function extent(values) {
+  if (!values.length) return [0, 1];
+  let lo = values[0];
+  let hi = values[0];
+  for (const v of values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+function share(v, lo, hi) {
+  if (hi === lo) return 0.5;
+  return Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+}
+function blocks(groups2, rowOf) {
+  const out = [];
+  for (const g of groups2) {
+    const rows2 = g.flatMap((leaf) => rowOf.has(leaf) ? [rowOf.get(leaf)] : []);
+    if (rows2.length >= 2) out.push({ from: Math.min(...rows2), to: Math.max(...rows2) });
+  }
+  return out;
+}
+function nearest(cosines, k) {
+  const all = cosines.flatMap((c, at) => c === void 0 ? [] : [{ at, cosine: c }]);
+  return all.sort((a, b) => b.cosine - a.cosine || a.at - b.at).slice(0, Math.max(0, k));
+}
+function labelled(n2) {
+  const every = n2 <= 24 ? 1 : n2 <= 60 ? 5 : n2 <= 140 ? 10 : n2 <= 300 ? 25 : 50;
+  const out = [];
+  for (let i = 0; i < n2; i++) if (i === 0 || (i + 1) % every === 0) out.push(i);
+  return out;
+}
+function channel(hex2, at) {
+  const v = parseInt(hex2.slice(at, at + 2), 16) / 255;
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+function toLab(hex2) {
+  const h = hex2.trim();
+  if (h.length !== 7 || h[0] !== "#" || Number.isNaN(parseInt(h.slice(1), 16))) return null;
+  const [r, g, b] = [channel(h, 1), channel(h, 3), channel(h, 5)];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s2 = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s2, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s2, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s2];
+}
+function byte(linear) {
+  const v = linear <= 31308e-7 ? 12.92 * linear : 1.055 * Math.pow(linear, 1 / 2.4) - 0.055;
+  return Math.round(255 * Math.min(1, Math.max(0, v)));
+}
+function mix(from2, to2, t) {
+  const [a, b] = [toLab(from2), toLab(to2)];
+  if (!a || !b) return "rgb(128 128 128)";
+  const [L, A, B] = [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * Math.min(1, Math.max(0, t)));
+  const l = Math.pow(L + 0.3963377774 * A + 0.2158037573 * B, 3);
+  const m = Math.pow(L - 0.1055613458 * A - 0.0638541728 * B, 3);
+  const s2 = Math.pow(L - 0.0894841775 * A - 1.291485548 * B, 3);
+  return `rgb(${byte(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s2)} ${byte(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s2)} ${byte(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s2)})`;
+}
+
+// demo/web/src/tabs/chunktext.ts
+function chunkText(text, chunks, link2, marks, near = /* @__PURE__ */ new Map()) {
+  const box6 = el("div", { class: "doc chunked", tabindex: "0", "aria-label": "The document, by chunk" });
+  let drawn;
+  link2.on((f) => {
+    if (f.term !== drawn) {
+      drawn = f.term;
+      const seen2 = /* @__PURE__ */ new Set();
+      box6.replaceChildren(
+        ...pieces(text, chunks, f.term === null ? [] : marks(f.term)).map((p) => {
+          const body2 = p.marked ? el("mark", { class: "occ", text: p.text }) : p.text;
+          if (p.chunk === null) return el("span", {}, body2);
+          const first = !seen2.has(p.chunk);
+          seen2.add(p.chunk);
+          const span = el("span", { class: near.has(p.chunk) ? "ck near" : "ck", title: near.get(p.chunk), "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body2);
+          span.addEventListener("mouseenter", () => link2.chunk(p.chunk));
+          return span;
+        })
+      );
+    }
+    for (const span of box6.querySelectorAll(".ck")) span.classList.toggle("lit", span.dataset.chunk === String(f.chunk));
+  });
+  box6.addEventListener("mouseleave", () => link2.chunk(null));
+  return box6;
+}
+function follow(box6, link2) {
+  link2.on((f) => {
+    if (f.chunk === null || box6.matches(":hover")) return;
+    const span = box6.querySelector(`.ck[data-chunk="${f.chunk}"]`);
+    if (span) box6.scrollTop = Math.max(0, span.offsetTop - box6.offsetTop - 12);
+  });
+}
+
+// demo/web/src/tabs/matrix.ts
+var SIDE = 520;
+function similarityMatrix(m, link2) {
+  const n2 = m.rows.length;
+  const [lo, hi] = extent(m.upper);
+  const cell = Math.max(1, Math.min(44, Math.floor(SIDE / n2)));
+  const side = n2 * cell;
+  const canvas = el("canvas", { role: "img", "aria-label": `Similarity matrix of ${n2} chunks: cosines from ${lo.toFixed(3)} to ${hi.toFixed(3)}` });
+  const draw2 = () => {
+    const ratio = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const px = Math.max(1, Math.round(cell * ratio));
+    canvas.width = n2 * px;
+    canvas.height = n2 * px;
+    const g = canvas.getContext("2d");
+    if (!g) return;
+    const css = getComputedStyle(document.documentElement);
+    const [from2, to2] = [css.getPropertyValue("--seq-from"), css.getPropertyValue("--seq-to")];
+    const steps = Array.from({ length: 64 }, (_, i) => mix(from2, to2, i / 63));
+    for (let a = 0; a < n2; a++) {
+      for (let b = 0; b < n2; b++) {
+        g.fillStyle = steps[a === b ? 63 : Math.round(63 * share(cosineAt(m.upper, n2, a, b), lo, hi))];
+        g.fillRect(b * px, a * px, px, px);
+      }
+    }
+  };
+  draw2();
+  const scheme = matchMedia("(prefers-color-scheme: dark)");
+  const recolour = () => {
+    if (canvas.isConnected) draw2();
+    else scheme.removeEventListener("change", recolour);
+  };
+  scheme.addEventListener("change", recolour);
+  const over = s("svg", { viewBox: `0 0 ${n2} ${n2}`, preserveAspectRatio: "none", class: "viz over", "aria-hidden": "true" });
+  const rowOf = new Map(m.rows.map((leaf, row) => [leaf, row]));
+  for (const b of blocks(m.groups, rowOf)) over.append(s("rect", { x: b.from, y: b.from, width: b.to - b.from + 1, height: b.to - b.from + 1, class: "block" }));
+  const across = s("rect", { x: 0, width: n2, height: 1, class: "cross-band" });
+  const down = s("rect", { y: 0, width: 1, height: n2, class: "cross-band" });
+  const pick = s("rect", { width: 1, height: 1, class: "cross-cell" });
+  const cross = s("g", { class: "cross-on", visibility: "hidden" }, across, down, pick);
+  over.append(cross);
+  const name = (row) => `chunk ${m.rows[row] + 1}`;
+  const said = (row) => {
+    const c = m.chunks[m.rows[row]];
+    return short(m.text.slice(c.start, c.end), 90);
+  };
+  const rest = `Point at a cell to read its two chunks. Cosines here run from ${lo.toFixed(3)} to ${hi.toFixed(3)}.`;
+  const info = el("p", { class: "info", role: "status", text: rest });
+  let at = null;
+  const show4 = (row, col) => {
+    at = [row, col];
+    across.setAttribute("y", String(row));
+    down.setAttribute("x", String(col));
+    pick.setAttribute("x", String(col));
+    pick.setAttribute("y", String(row));
+    cross.setAttribute("visibility", "visible");
+    info.textContent = row === col ? `${name(row)} with itself: ${said(row)}` : `${name(row)} and ${name(col)}: cosine ${cosineAt(m.upper, n2, row, col).toFixed(3)}. ${name(row)}: ${said(row)} / ${name(col)}: ${said(col)}`;
+    link2.chunk(m.rows[row]);
+  };
+  const leave = () => {
+    at = null;
+    cross.setAttribute("visibility", "hidden");
+    info.textContent = rest;
+    link2.chunk(null);
+  };
+  const plot = el("div", { class: "plot", tabindex: "0", role: "application", "aria-label": "Similarity matrix: the arrow keys move from cell to cell", style: `width: ${side}px` }, canvas);
+  plot.append(over);
+  plot.addEventListener("mousemove", (e) => {
+    const box6 = plot.getBoundingClientRect();
+    const to2 = (v, size2) => Math.min(n2 - 1, Math.max(0, Math.floor(v / size2 * n2)));
+    show4(to2(e.clientY - box6.top, box6.height), to2(e.clientX - box6.left, box6.width));
+  });
+  plot.addEventListener("mouseleave", leave);
+  plot.addEventListener("blur", leave);
+  plot.addEventListener("keydown", (e) => {
+    const step = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+    const d = step[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const [row, col] = at ?? [0, 0];
+    show4(at ? Math.min(n2 - 1, Math.max(0, row + d[0])) : 0, at ? Math.min(n2 - 1, Math.max(0, col + d[1])) : Math.min(1, n2 - 1));
+  });
+  link2.on((f) => {
+    if (at) return;
+    const row = f.chunk === null ? void 0 : rowOf.get(f.chunk);
+    cross.setAttribute("visibility", row === void 0 ? "hidden" : "visible");
+    if (row === void 0) return;
+    across.setAttribute("y", String(row));
+    down.setAttribute("x", String(row));
+    pick.setAttribute("x", String(row));
+    pick.setAttribute("y", String(row));
+  });
+  const marks = labelled(n2);
+  const top = el("div", { class: "ticks top", "aria-hidden": "true", style: `width: ${side}px` }, ...marks.map((i) => el("span", { style: `left: ${(i + 0.5) / n2 * 100}%`, text: String(m.rows[i] + 1) })));
+  const left = el("div", { class: "ticks left", "aria-hidden": "true" }, ...marks.map((i) => el("span", { style: `top: ${(i + 0.5) / n2 * 100}%`, text: String(m.rows[i] + 1) })));
+  const outlined = over.querySelector(".block") !== null;
+  const without = m.chunks.length - n2;
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    el("span", { class: "swatch ramp-key" }, `cosine ${lo.toFixed(3)} `, el("i", {}), ` ${hi.toFixed(3)}; a chunk with itself takes the far end`),
+    outlined ? el("span", { class: "swatch block-key" }, el("i", {}), " chunks one coarser unit holds") : null,
+    without > 0 ? el("span", { class: "muted", text: `${without} ${without === 1 ? "chunk has" : "chunks have"} no vector and no row` }) : null
+  );
+  const rows2 = () => {
+    const out = [["chunk", "other chunk", "cosine"]];
+    for (let a = 0; a < n2; a++) for (let b = a + 1; b < n2; b++) out.push([String(m.rows[a] + 1), String(m.rows[b] + 1), String(cosineAt(m.upper, n2, a, b))]);
+    return out;
+  };
+  return el("div", { class: "figure matrix" }, el("div", { class: "scroll" }, el("div", { class: "grid" }, el("div", {}), top, left, plot)), legend2, info, take("Similarity matrix", rows2));
+}
+
+// demo/web/src/tabs/meaningmap.ts
+var W2 = 640;
+var H = 340;
+var PAD = { l: 34, r: 16, t: 16, b: 34 };
+function meaningMap(m, link2) {
+  const placed2 = m.chunks.map((c, i) => ({ c, i })).filter((p) => !p.c.empty);
+  const xs = [...placed2.map((p) => p.c.x), ...m.spot ? [m.spot.x] : []];
+  const ys = [...placed2.map((p) => p.c.y), ...m.spot ? [m.spot.y] : []];
+  const zs = placed2.map((p) => p.c.z);
+  const sx = scale(Math.min(...xs), Math.max(...xs), PAD.l + 24, W2 - PAD.r - 24);
+  const sy = scale(Math.min(...ys), Math.max(...ys), H - PAD.b - 24, PAD.t + 24);
+  const sz = scale(Math.min(...zs), Math.max(...zs), 5, 11);
+  const at = new Map(placed2.map((p) => [p.i, [sx(p.c.x), sy(p.c.y)]]));
+  const pct = (v) => v === void 0 ? "" : ` (${(v * 100).toFixed(0)}% of the variance)`;
+  const near = m.spot ? m.chunks.map((_, i) => m.spot.cosine(i)) : [];
+  const [lo, hi] = extent(near.flatMap((c) => c === void 0 ? [] : [c]));
+  const svg = figure(W2, H, `Meaning map of ${placed2.length} chunks${m.spot ? `, with the query "${short(m.spot.text, 60)}" placed among them` : ""}`);
+  svg.append(
+    s("rect", { x: PAD.l, y: PAD.t, width: W2 - PAD.l - PAD.r, height: H - PAD.t - PAD.b, class: "frame" }),
+    s("text", { x: (PAD.l + W2 - PAD.r) / 2, y: H - 10, class: "axis", "text-anchor": "middle" }, `first direction of meaning${pct(m.variance[0])}`),
+    s("text", { x: 12, y: (PAD.t + H - PAD.b) / 2, class: "axis", "text-anchor": "middle", transform: `rotate(-90 12 ${(PAD.t + H - PAD.b) / 2})` }, `second direction${pct(m.variance[1])}`)
+  );
+  for (const r of regions(m.units, m.chunks)) {
+    const pts = r.members.flatMap((i) => at.has(i) ? [at.get(i)] : []);
+    const h = hull(pts);
+    const g = s("g", { class: "region" });
+    if (h.length >= 3) g.append(s("polygon", { points: h.map(([x, y]) => `${n(x)},${n(y)}`).join(" ") }));
+    else if (h.length === 2) g.append(s("line", { x1: n(h[0][0]), y1: n(h[0][1]), x2: n(h[1][0]), y2: n(h[1][1]) }));
+    g.append(s("title", {}, `Level ${r.unit.level} unit ${r.unit.item}: chunks ${r.members[0] + 1} to ${r.members[r.members.length - 1] + 1}`));
+    svg.append(g);
+  }
+  if (placed2.length > 1) svg.append(s("polyline", { class: "trail", points: placed2.map((p) => at.get(p.i).map(n).join(",")).join(" ") }));
+  if (m.spot) {
+    const [qx, qy] = [sx(m.spot.x), sy(m.spot.y)];
+    for (const hit of nearest(near, Math.min(3, Math.max(1, Math.floor(placed2.length / 2))))) {
+      const to2 = at.get(hit.at);
+      if (to2) svg.append(s("line", { x1: n(qx), y1: n(qy), x2: n(to2[0]), y2: n(to2[1]), class: "ray" }));
+    }
+  }
+  const info = el("p", { class: "info", role: "status", text: "Point at a dot to read its chunk; the same chunk lights up in the text." });
+  const dots = /* @__PURE__ */ new Map();
+  const few = placed2.length <= 14;
+  for (const p of placed2) {
+    const [x, y] = at.get(p.i);
+    const r = m.third ? sz(p.c.z) : 7;
+    const names2 = m.terms(p.i);
+    const left = x > W2 * 0.68;
+    const label = `${p.i + 1}${few && names2.length ? ` \xB7 ${names2.slice(0, 2).join(", ")}` : ""}`;
+    const cos = near[p.i];
+    const warm = cos === void 0 ? 0 : share(cos, lo, hi);
+    const g = s(
+      "g",
+      { class: "dot", tabindex: 0, role: "button", "aria-label": `Chunk ${p.i + 1} of ${m.chunks.length}${names2.length ? `: ${names2.join(", ")}` : ""}${cos === void 0 ? "" : `, cosine to the query ${cos.toFixed(3)}`}` },
+      // A target larger than the mark.
+      s("circle", { cx: n(x), cy: n(y), r: 18, class: "hit" }),
+      // The glow: wider and stronger the closer the chunk is to the query.
+      cos === void 0 ? null : s("circle", { cx: n(x), cy: n(y), r: n(r + 3 + 9 * warm), class: "glow", "fill-opacity": n(0.12 + 0.6 * warm) }),
+      s("circle", { cx: n(x), cy: n(y), r: n(r), class: "mark", style: `fill: ${ordered(p.i, m.chunks.length)}` }),
+      s("text", { x: n(x + (left ? -r - 5 : r + 5)), y: n(y + 4), class: "label", "text-anchor": left ? "end" : "start" }, label)
+    );
+    const point = () => link2.chunk(p.i);
+    g.addEventListener("mouseenter", point);
+    g.addEventListener("focus", point);
+    g.addEventListener("mouseleave", () => link2.chunk(null));
+    g.addEventListener("blur", () => link2.chunk(null));
+    dots.set(p.i, g);
+    svg.append(g);
+  }
+  if (m.spot) {
+    const [qx, qy] = [sx(m.spot.x), sy(m.spot.y)];
+    const left = qx > W2 * 0.68;
+    svg.append(
+      s(
+        "g",
+        { class: "query", role: "img", "aria-label": `The query: ${short(m.spot.text, 80)}` },
+        s("path", { d: `M ${n(qx)} ${n(qy - 10)} L ${n(qx + 10)} ${n(qy)} L ${n(qx)} ${n(qy + 10)} L ${n(qx - 10)} ${n(qy)} Z`, class: "mark" }),
+        s("text", { x: n(qx + (left ? -14 : 14)), y: n(qy + 4), class: "label", "text-anchor": left ? "end" : "start" }, "query"),
+        s("title", {}, m.spot.text)
+      )
+    );
+  }
+  link2.on((f) => {
+    for (const [i, g] of dots) g.classList.toggle("lit", i === f.chunk);
+    svg.classList.toggle("dim", f.chunk !== null);
+    if (f.chunk === null) return;
+    const c = m.chunks[f.chunk];
+    const cos = m.toNext(f.chunk);
+    const names2 = m.terms(f.chunk);
+    info.textContent = `Chunk ${f.chunk + 1} of ${m.chunks.length}, characters ${c.start} to ${c.end}${names2.length ? `, told apart by ${names2.join(", ")}` : ""}${cos === void 0 ? "" : `, cosine to the next ${cos.toFixed(3)}`}${near[f.chunk] === void 0 ? "" : `, cosine to the query ${near[f.chunk].toFixed(3)}`}: ${short(m.text.slice(c.start, c.end), 140)}`;
+  });
+  const others = m.units.length - m.chunks.length;
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    el("span", { class: "swatch ramp-key" }, "a chunk, coloured from the first ", el("i", {}), " to the last"),
+    el("span", { class: "swatch trail-key" }, el("i", {}), " reading order"),
+    m.third ? el("span", { class: "muted", text: "size: the third direction" }) : null,
+    m.spot ? el("span", { class: "swatch query-key" }, el("i", {}), " the query") : null,
+    m.spot ? el("span", { class: "swatch glow-key" }, el("i", {}), ` glow: cosine to the query, from ${lo.toFixed(3)} to ${hi.toFixed(3)}; lines join it to the closest`) : null,
+    others > 0 ? el("span", { class: "muted", text: `${others} coarser ${others === 1 ? "unit is" : "units are"} not drawn as dots; one holding some of the chunks is a shaded region` }) : null
+  );
+  return el("div", { class: "figure" }, el("div", { class: "scroll" }, svg), legend2, info);
+}
+
+// demo/web/src/tabs/river.ts
+var W3 = 640;
+var H2 = 210;
+var PAD2 = { l: 12, r: 12, t: 22, b: 10 };
+function river(m, link2) {
+  const x = scale(0, Math.max(1, m.length), PAD2.l, W3 - PAD2.r);
+  const edges = streams(m.weights);
+  const reach = Math.max(1e-9, ...edges.flatMap((e) => e.hi), ...edges.flatMap((e) => e.lo.map((v) => -v)));
+  const y = scale(-reach, reach, H2 - PAD2.b, PAD2.t);
+  const svg = figure(W3, H2, `Term river: ${m.terms.join(", ")}`);
+  const stops2 = m.chunks.flatMap((c) => [x(c.start + (c.end - c.start) * 0.25), x(c.start + (c.end - c.start) * 0.75)]);
+  const along = (v) => {
+    const pts = v.flatMap((w, c) => [[stops2[2 * c], y(w)], [stops2[2 * c + 1], y(w)]]);
+    return pts.length ? [[x(m.chunks[0].start), pts[0][1]], ...pts, [x(m.chunks[m.chunks.length - 1].end), pts[pts.length - 1][1]]] : pts;
+  };
+  const curve = (pts, first) => pts.map(([px, py], i) => {
+    if (i === 0) return `${first}${n(px)} ${n(py)}`;
+    const [qx, qy] = pts[i - 1];
+    const mid = (qx + px) / 2;
+    return `C${n(mid)} ${n(qy)} ${n(mid)} ${n(py)} ${n(px)} ${n(py)}`;
+  }).join(" ");
+  m.chunks.forEach((c, i) => {
+    if (i) svg.append(s("line", { x1: n(x(c.start)), x2: n(x(c.start)), y1: PAD2.t - 4, y2: H2 - PAD2.b, class: "cut-line" }));
+    svg.append(s("text", { x: n(x((c.start + c.end) / 2)), y: 12, class: "tick", "text-anchor": "middle" }, String(i + 1)));
+  });
+  const paths = m.terms.map((term, t) => {
+    const up = along(edges[t].hi);
+    const down = along(edges[t].lo).reverse();
+    const p = s("path", { d: `${curve(up, "M")} ${curve(down, "L")} Z`, class: "stream", style: `fill: var(--m${t})`, tabindex: 0, role: "button", "aria-label": `${term}, ${m.occurrences(term)} occurrences` }, s("title", {}, term));
+    const on = () => link2.term(term);
+    p.addEventListener("mouseenter", on);
+    p.addEventListener("focus", on);
+    svg.append(p);
+    const widest = m.weights[t].indexOf(Math.max(...m.weights[t]));
+    const thick = y(edges[t].lo[widest]) - y(edges[t].hi[widest]);
+    if (thick >= 14 && m.chunks[widest]) {
+      const c = m.chunks[widest];
+      svg.append(s("text", { x: n(x((c.start + c.end) / 2)), y: n((y(edges[t].lo[widest]) + y(edges[t].hi[widest])) / 2 + 4), class: "stream-name", "text-anchor": "middle" }, term));
+    }
+    return p;
+  });
+  const IDLE = "Point at a stream or a name to mark that term in the text.";
+  const info = el("p", { class: "info", role: "status", text: IDLE });
+  const keys = m.terms.map((term, t) => {
+    const b = el("button", { type: "button", class: "swatch key", style: `--mark: var(--m${t})` }, el("i", {}), ` ${term} `, el("span", { class: "muted", text: String(m.occurrences(term)) }));
+    b.addEventListener("mouseenter", () => link2.term(term));
+    b.addEventListener("focus", () => link2.term(term));
+    b.addEventListener("click", () => link2.term(term));
+    return b;
+  });
+  const clear = el("button", { type: "button", class: "small", text: "Clear" });
+  clear.addEventListener("click", () => link2.term(null));
+  link2.on((f) => {
+    const at = f.term === null ? -1 : m.terms.indexOf(f.term);
+    paths.forEach((p, t) => p.classList.toggle("faded", at >= 0 && t !== at));
+    keys.forEach((k, t) => k.classList.toggle("on", t === at));
+    clear.hidden = at < 0;
+    if (at >= 0) {
+      const where = m.weights[at].flatMap((w, c) => w > 0 ? [c + 1] : []);
+      info.textContent = `"${m.terms[at]}" occurs ${m.occurrences(m.terms[at])} times; it is among the listed terms of ${where.length === 1 ? "chunk" : "chunks"} ${where.join(", ")}. Its occurrences are marked in the text.`;
+    } else info.textContent = IDLE;
+  });
+  return el("div", { class: "figure" }, el("div", { class: "scroll" }, svg), el("div", { class: "legend" }, keys, clear), info);
+}
+
+// demo/web/src/tabs/seismograph.ts
+var W4 = 640;
+var GUTTER = 150;
+var RIGHT = 12;
+var BAND = 14;
+var CURVE = 120;
+var ROW = 20;
+function seismograph(m, link2) {
+  const len = Math.max(1, m.text.length);
+  const x = scale(0, len, GUTTER, W4 - RIGHT);
+  const top = 8;
+  const curveTop = top + BAND + 10;
+  const base2 = curveTop + CURVE;
+  const rowsTop = base2 + 26;
+  const H3 = rowsTop + (m.strategies.length + 1) * ROW + 6;
+  const hasCosine = m.gaps.some((g) => g.smoothed !== void 0);
+  const svg = figure(W4, H3, `Topic seismograph: ${m.gaps.length} sentence gaps, ${m.gaps.filter((g) => g.cut).length} cuts`);
+  svg.append(s("text", { x: GUTTER - 8, y: top + BAND - 3, class: "row-name", "text-anchor": "end" }, "chunks"));
+  const bands = m.chunks.map((c, i) => {
+    const r = s("rect", { x: n(x(c.start) + 1), y: top, width: n(Math.max(1, x(c.end) - x(c.start) - 2)), height: BAND, rx: 3, class: "band", style: `fill: ${ordered(i, m.chunks.length)}` }, s("title", {}, `Chunk ${i + 1}`));
+    r.addEventListener("mouseenter", () => link2.chunk(i));
+    r.addEventListener("mouseleave", () => link2.chunk(null));
+    return r;
+  });
+  svg.append(...bands);
+  link2.on((f) => bands.forEach((b, i) => b.classList.toggle("lit", i === f.chunk)));
+  const values = m.gaps.map((g) => hasCosine ? g.smoothed : g.cost);
+  const known = values.filter((v) => v !== void 0);
+  const lo = hasCosine ? Math.min(...known) : 0;
+  const hi = Math.max(...known, lo + 1e-9);
+  const y = scale(lo, hi, base2, curveTop + 6);
+  svg.append(
+    s("line", { x1: GUTTER, x2: W4 - RIGHT, y1: base2, y2: base2, class: "axis-line" }),
+    s("text", { x: GUTTER - 8, y: curveTop + 10, class: "tick", "text-anchor": "end" }, hasCosine ? hi.toFixed(2) : String(Math.round(hi))),
+    s("text", { x: GUTTER - 8, y: base2, class: "tick", "text-anchor": "end" }, hasCosine ? lo.toFixed(2) : "0"),
+    s("text", { x: GUTTER - 8, y: (curveTop + base2) / 2 + 4, class: "row-name", "text-anchor": "end" }, hasCosine ? "cosine across the gap" : "cost of a cut here")
+  );
+  if (hasCosine) {
+    const pts = m.gaps.flatMap((g) => g.smoothed === void 0 ? [] : [[x(g.offset), y(g.smoothed)]]);
+    if (pts.length > 1) {
+      const line = pts.map(([px, py], i) => `${i ? "L" : "M"}${n(px)} ${n(py)}`).join(" ");
+      svg.append(s("path", { d: `${line} L${n(pts[pts.length - 1][0])} ${base2} L${n(pts[0][0])} ${base2} Z`, class: "area" }), s("path", { d: line, class: "line" }));
+    }
+    const raw = m.gaps.flatMap((g) => g.raw === void 0 ? [] : [[x(g.offset), y(Math.max(lo, Math.min(hi, g.raw)))]]);
+    if (raw.length > 1) svg.append(s("path", { d: raw.map(([px, py], i) => `${i ? "L" : "M"}${n(px)} ${n(py)}`).join(" "), class: "line raw" }));
+  } else {
+    for (const g of m.gaps) svg.append(s("line", { x1: n(x(g.offset)), x2: n(x(g.offset)), y1: base2, y2: n(y(g.cost)), class: g.cut ? "stem cut" : "stem" }));
+  }
+  for (const g of m.gaps) {
+    if (!g.cut) continue;
+    const gx = x(g.offset);
+    const gy = y(hasCosine ? g.smoothed ?? lo : g.cost);
+    svg.append(s("line", { x1: n(gx), x2: n(gx), y1: curveTop, y2: base2, class: "cut-line" }), s("path", { d: `M${n(gx)} ${n(gy - 6)} L${n(gx + 5)} ${n(gy)} L${n(gx)} ${n(gy + 6)} L${n(gx - 5)} ${n(gy)} Z`, class: "cut-mark" }));
+  }
+  const profile = m.gaps.filter((g) => g.cut).map((g) => g.offset);
+  const rows2 = [
+    { name: "this profile", note: `${m.chunks.length} chunks`, cuts: m.chunks.slice(1).map((c) => c.start) },
+    ...m.strategies.map((t) => ({ name: t.name, note: `${t.chunks} chunks, ${t.shared} cuts shared, ${t.apart} not`, cuts: t.cuts.filter((c) => c > 0) }))
+  ];
+  rows2.forEach((r, i) => {
+    const ry = rowsTop + i * ROW;
+    const near = (c) => profile.some((p) => Math.abs(p - c) <= 2) || m.chunks.some((k) => k.start === c);
+    svg.append(
+      s("text", { x: GUTTER - 8, y: ry + 12, class: "row-name", "text-anchor": "end" }, short(r.name, 20), s("title", {}, `${r.name}: ${r.note}`)),
+      s("rect", { x: GUTTER, y: ry + 2, width: W4 - RIGHT - GUTTER, height: ROW - 6, rx: 3, class: "barcode" }),
+      ...r.cuts.map((c) => s("rect", { x: n(x(c) - 1), y: ry + 2, width: 2, height: ROW - 6, class: i === 0 || near(c) ? "tick-shared" : "tick-apart" }))
+    );
+  });
+  const cross = s("line", { y1: curveTop, y2: base2, class: "cross", visibility: "hidden" });
+  const pad = s("rect", { x: GUTTER, y: curveTop, width: W4 - RIGHT - GUTTER, height: CURVE, class: "pad", tabindex: 0, role: "slider", "aria-valuemin": 1, "aria-valuemax": m.gaps.length, "aria-label": "Sentence gaps; point or use the arrow keys" });
+  svg.append(cross, pad);
+  const info = el("p", { class: "info", role: "status", text: "Point at the curve to see the two sentences on either side of a gap." });
+  const offsets = m.gaps.map((g) => g.offset);
+  let picked2 = -1;
+  const pick = (i) => {
+    if (i < 0 || i >= m.gaps.length) return;
+    picked2 = i;
+    const g = m.gaps[i];
+    cross.setAttribute("x1", n(x(g.offset)));
+    cross.setAttribute("x2", n(x(g.offset)));
+    cross.setAttribute("visibility", "visible");
+    const [before, after2] = aroundGap(m.text, offsets, i);
+    const value = g.smoothed !== void 0 ? `cosine ${g.smoothed.toFixed(3)}${g.depth > 0 ? `, depth ${g.depth.toFixed(3)}` : ""}` : `cost ${g.cost}`;
+    info.replaceChildren(
+      el("b", { text: `Gap ${i + 1} of ${m.gaps.length}${g.cut ? " (cut)" : ""}` }),
+      `, ${cutReason(g.reason)}, ${value}. `,
+      el("span", { class: "quote", text: short(before, 110) }),
+      el("span", { class: "muted", text: g.cut ? "  \u2702  " : "  \xB7  " }),
+      el("span", { class: "quote", text: short(after2, 110) || "(the end)" })
+    );
+    pad.setAttribute("aria-valuenow", String(i + 1));
+    pad.setAttribute("aria-valuetext", `Gap ${i + 1} of ${m.gaps.length}`);
+    const at = m.chunks.findIndex((c) => g.offset > c.start && g.offset <= c.end);
+    link2.chunk(at < 0 ? null : at);
+  };
+  pad.addEventListener("mousemove", (ev) => {
+    const box6 = svg.getBoundingClientRect();
+    const at = (ev.clientX - box6.left) / box6.width * W4;
+    let best2 = 0;
+    m.gaps.forEach((g, i) => {
+      if (Math.abs(x(g.offset) - at) < Math.abs(x(m.gaps[best2].offset) - at)) best2 = i;
+    });
+    pick(best2);
+  });
+  pad.addEventListener("keydown", (ev) => {
+    const step = ev.key === "ArrowRight" ? 1 : ev.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    ev.preventDefault();
+    pick(Math.max(0, Math.min(m.gaps.length - 1, picked2 + step)));
+  });
+  pad.addEventListener("mouseleave", () => link2.chunk(null));
+  const cuts = m.gaps.filter((g) => g.cut).length;
+  const legend2 = el(
+    "div",
+    { class: "legend" },
+    el("span", { class: "swatch cut-key" }, el("i", {}), ` a gap the chunker cut at (${cuts})`),
+    m.strategies.length ? el("span", { class: "swatch shared-key" }, el("i", {}), " a cut this profile also makes") : null,
+    m.strategies.length ? el("span", { class: "swatch apart-key" }, el("i", {}), " a cut only that budget makes") : null
+  );
+  const how = hasCosine ? `The line is the cosine between the sentences on each side of a gap, smoothed over ${m.smoothing} (window ${m.window}); the thin line is the raw value. A valley is a change of topic.` : "This graph holds no sentence vectors, so there is no cosine to draw: each stem is what the chunker charges to cut at that gap, and a short stem is an easy cut (a paragraph or a heading).";
+  return el("div", { class: "figure" }, el("p", { class: "muted", text: how }), el("div", { class: "scroll" }, svg), legend2, info);
 }
 
 // demo/web/src/tabs/projection.ts
-var W = 640;
-var H = 360;
-var PAD = 24;
-var box3 = () => $("projection-out");
-function budgets(s) {
+var box4 = () => $("projection-out");
+var MATRIX_ROWS = 512;
+var CLOSEST = 5;
+var seen = null;
+var pairs = null;
+var unpaired = null;
+var spot = null;
+var freshAsk = latest();
+var typed;
+function budgets(s2) {
   const out = [];
-  for (const item of s.split(",")) {
+  for (const item of s2.split(",")) {
     const [name, max, target] = item.split(":").map((x) => x.trim());
     const m = parseInt(max ?? "", 10);
     const t = parseInt(target ?? "", 10);
@@ -9236,158 +10536,232 @@ function budgets(s) {
   }
   return out;
 }
-function hue(level) {
-  return `hsl(${(level * 67 + 210) % 360}, 65%, 50%)`;
-}
-function canvas() {
-  const c = el("canvas", { width: String(W), height: String(H), class: "plot" });
-  return [c, c.getContext("2d")];
-}
-function scatter(p, text) {
-  const [c, g] = canvas();
-  const pts = p.points.filter((q) => !q.empty);
-  const xs = pts.map((q) => q.x);
-  const ys = pts.map((q) => q.y);
-  const zs = pts.map((q) => q.z);
-  const span = (v) => [Math.min(...v), Math.max(...v) - Math.min(...v) || 1];
-  const [x0, xw] = span(xs);
-  const [y0, yw] = span(ys);
-  const [z0, zw] = span(zs);
-  const at = pts.map((q) => [PAD + (q.x - x0) / xw * (W - 2 * PAD), H - PAD - (q.y - y0) / yw * (H - 2 * PAD)]);
-  g.lineWidth = 1;
-  for (let i = 1; i < pts.length; i++) {
-    if (pts[i].level !== pts[i - 1].level) continue;
-    g.strokeStyle = hue(pts[i].level);
-    g.globalAlpha = 0.35;
-    g.beginPath();
-    g.moveTo(at[i - 1][0], at[i - 1][1]);
-    g.lineTo(at[i][0], at[i][1]);
-    g.stroke();
+var micro = (v) => v === void 0 ? void 0 : Number(v) / 1e6;
+function show2(r, text) {
+  const units = (r.projection?.points ?? []).map((q) => ({ item: q.item, start: q.start, end: q.end, level: q.level, x: q.x, y: q.y, z: q.z, empty: q.empty }));
+  const chunks = leaves(units);
+  const link2 = linker();
+  const stacks = new Map(r.chunkTermStacks.map((k) => [k.unit, k]));
+  const docTerms = r.documentTermStack?.segments ?? [];
+  const docTotal = r.documentTermStack?.totalWeight ?? 0;
+  const listed2 = spread(chunks.map((c) => stacks.get(c.item)?.segments ?? []));
+  const named2 = chunks.map((c) => {
+    const k = stacks.get(c.item);
+    return k ? distinctive(k.segments, k.totalWeight, docTerms, docTotal, 3, listed2, chunks.length) : [];
+  });
+  const cosines = new Map((r.projection?.points ?? []).map((q) => [q.item, q.adjacentCosine]));
+  const parts = [];
+  if (chunks.some((c) => !c.empty)) {
+    const model = r.projection?.model;
+    const toQuery = spot ? chunks.map((c) => c.empty ? void 0 : spot.byItem.get(c.item)) : [];
+    const close = nearest(toQuery, Math.min(CLOSEST, Math.max(1, Math.floor(toQuery.filter((c) => c !== void 0).length / 2))));
+    const reader = chunkText(
+      text,
+      chunks,
+      link2,
+      (term) => {
+        const t = docTerms.find((d) => d.term === term);
+        return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a]);
+      },
+      new Map(close.map((h, rank2) => [h.at, `Closest to the query: number ${rank2 + 1}, cosine ${h.cosine.toFixed(3)}`]))
+    );
+    follow(reader, link2);
+    parts.push(
+      el("h3", { text: "Meaning map" }),
+      el("p", { class: "muted", text: `Each dot is one chunk's vector from ${model ? `${model.id}@${model.revision}` : "the graph"}, placed by its two main directions of meaning. The line follows reading order: a document that wanders draws a long trail, and one that stays on a topic stays in one place.` }),
+      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named2[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3, spot: spot ? { text: spot.text, x: spot.x, y: spot.y, cosine: (i) => toQuery[i] } : void 0 }, link2), el("div", {}, el("h4", { text: "The text, by chunk" }), reader))
+    );
+    if (spot && close.length) {
+      const list5 = el("ol", { class: "closest", id: "projection-closest" });
+      for (const h of close) {
+        const c = chunks[h.at];
+        const row = el("li", { tabindex: "0", "data-chunk": String(h.at) }, el("b", { text: `chunk ${h.at + 1}` }), ` ${h.cosine.toFixed(3)} `, el("span", { class: "muted", text: short(text.slice(c.start, c.end), 110) }));
+        row.addEventListener("mouseenter", () => link2.chunk(h.at));
+        row.addEventListener("focus", () => link2.chunk(h.at));
+        row.addEventListener("mouseleave", () => link2.chunk(null));
+        row.addEventListener("blur", () => link2.chunk(null));
+        list5.append(row);
+      }
+      parts.push(el("h4", { text: `Closest to "${short(spot.text, 60)}" by cosine` }), list5, el("p", { class: "muted", text: "The glow and this list are the true cosines between the query's vector and each chunk's. Where the query sits is its shadow in the map's two directions, so the closest chunk is not always the nearest dot." }));
+    }
+    const place2 = new Map(chunks.map((c, i) => [c.item, i]));
+    const rows3 = pairs ? pairs.items.flatMap((item) => place2.has(item) ? [place2.get(item)] : []) : [];
+    if (pairs && rows3.length === pairs.items.length && rows3.length > 1) {
+      parts.push(
+        el("h3", { text: "Similarity matrix" }),
+        el("p", { class: "muted", text: "Every chunk against every other: a cell is the cosine between two chunks' vectors, shaded within this document's own range, so the picture has contrast even when every pair is close. A square in the diagonal's own colour around it is a run of chunks that say similar things; a cell of that colour far from the diagonal is the text coming back to something it said before." }),
+        similarityMatrix({ chunks, rows: rows3, upper: pairs.upper, groups: regions(units, chunks).map((g) => g.members), text }, link2)
+      );
+    } else if (unpaired !== null) {
+      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: ${unpaired}` }));
+    }
+  } else {
+    parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
   }
-  pts.forEach((q, i) => {
-    g.globalAlpha = p.pcaDims === 3 ? 0.35 + 0.65 * ((q.z - z0) / zw) : 0.9;
-    g.fillStyle = hue(q.level);
-    g.beginPath();
-    g.arc(at[i][0], at[i][1], 5, 0, 2 * Math.PI);
-    g.fill();
-  });
-  const tip2 = el("p", { class: "muted", text: "Hover a point." });
-  c.addEventListener("mousemove", (ev2) => {
-    const r = c.getBoundingClientRect();
-    const mx = (ev2.clientX - r.left) * W / r.width;
-    const my = (ev2.clientY - r.top) * H / r.height;
-    let best2 = -1;
-    let dist = 100;
-    at.forEach(([x, y], i) => {
-      const d = (x - mx) ** 2 + (y - my) ** 2;
-      if (d < dist) [best2, dist] = [i, d];
-    });
-    if (best2 < 0) return;
-    const q = pts[best2];
-    const cos = q.adjacentCosine === void 0 ? "" : `, cosine to the next ${q.adjacentCosine.toFixed(3)}`;
-    tip2.textContent = `item ${q.item}, level ${q.level}, ${q.start}..${q.end}${cos}: ${short(text.slice(q.start, q.end), 120)}`;
-  });
-  const levels = [...new Set(pts.map((q) => q.level))].sort((a, b) => a - b);
-  const legend2 = el("div", { class: "chips" }, levels.map((l) => el("span", { class: "chip", style: `border-color: ${hue(l)}; color: ${hue(l)}`, text: `level ${l}` })));
-  const ev = p.explainedVariance.map((v) => `${(v * 100).toFixed(1)}%`).join(", ");
-  return el(
-    "div",
-    {},
-    el("p", { class: "muted", text: `${pts.length} vectors from ${p.model ? `${p.model.id}@${p.model.revision}` : "the graph"}; explained variance ${ev}${p.pcaDims === 3 ? "; the third component is the opacity" : ""}.` }),
-    legend2,
-    c,
-    tip2
-  );
-}
-function drift(d) {
-  const [c, g] = canvas();
-  const n = d.gaps.length;
-  const x = (i) => PAD + (n > 1 ? i / (n - 1) * (W - 2 * PAD) : (W - 2 * PAD) / 2);
-  const y = (v) => H - PAD - Math.max(0, Math.min(1, v)) * (H - 2 * PAD);
-  const micro = (v) => v === void 0 ? NaN : Number(v) / 1e6;
-  g.fillStyle = "rgba(127, 127, 127, 0.25)";
-  d.gaps.forEach((p, i) => {
-    const h = Math.max(0, Math.min(1, micro(p.depthScoreMicro)));
-    g.fillRect(x(i) - 3, y(h), 6, H - PAD - y(h));
-  });
-  for (const [field2, color] of [["rawCosineMicro", "hsl(210, 20%, 60%)"], ["smoothedCosineMicro", "hsl(210, 70%, 50%)"]]) {
-    g.strokeStyle = color;
-    g.beginPath();
-    let on = false;
-    d.gaps.forEach((p, i) => {
-      const v = micro(p[field2]);
-      if (Number.isNaN(v)) return void (on = false);
-      if (on) g.lineTo(x(i), y(v));
-      else g.moveTo(x(i), y(v));
-      on = true;
-    });
-    g.stroke();
+  if (r.driftCurve?.gaps.length) {
+    const d = r.driftCurve;
+    parts.push(
+      el("h3", { text: "Topic seismograph" }),
+      seismograph(
+        {
+          gaps: d.gaps.map((g) => ({ offset: g.gapOffset, raw: micro(g.rawCosineMicro), smoothed: micro(g.smoothedCosineMicro), depth: Number(g.depthScoreMicro) / 1e6, cost: g.cost, reason: g.reason, cut: g.isChunkCut })),
+          chunks,
+          strategies: (r.strategyMatrix?.strategies ?? []).map((t) => ({ name: t.name, chunks: t.chunkCount, shared: t.matchedCutsWithBaseline, apart: t.disagreementsWithBaseline, cuts: t.cutStarts })),
+          text,
+          window: d.window,
+          smoothing: d.smoothing
+        },
+        link2
+      )
+    );
   }
-  g.strokeStyle = "hsl(10, 75%, 50%)";
-  d.gaps.forEach((p, i) => {
-    if (!p.isChunkCut) return;
-    g.beginPath();
-    g.moveTo(x(i), PAD);
-    g.lineTo(x(i), H - PAD);
-    g.stroke();
-  });
-  const cuts = d.gaps.filter((p) => p.isChunkCut).length;
-  return el(
-    "div",
-    {},
-    el("p", { class: "muted", text: `${n} sentence gaps (window ${d.window}, smoothing ${d.smoothing}), ${cuts} chunk cuts in red. Lines: cosine across each gap, raw and smoothed; bars: depth score.` }),
-    c
-  );
-}
-function stack(s, label) {
-  const bar3 = el(
-    "div",
-    { class: "stack" },
-    s.segments.map((t) => el("span", { title: `${t.term}: ${t.frequency}x, weight ${t.weight.toFixed(3)}${t.isExpanded ? ", expanded" : ""}`, style: `flex: ${Math.max(t.share, 1e-3)}`, text: t.term })),
-    s.otherTermCount ? el("span", { class: "other", title: `${s.otherTermCount} more terms`, style: `flex: ${Math.max(1 - s.segments.reduce((a, t) => a + t.share, 0), 1e-3)}`, text: "\u2026" }) : null
-  );
-  return el("div", { class: "lane" }, el("span", { class: "lane-name", text: label }), bar3);
-}
-function show(r, text) {
+  const withStack = chunks.filter((c) => stacks.has(c.item));
+  if (docTerms.length && withStack.length > 1) {
+    const uneven = input("projection-uneven").checked;
+    const terms = riverTerms(docTerms, docTotal, withStack.map((c) => ({ terms: stacks.get(c.item).segments, total: stacks.get(c.item).totalWeight })), 8, uneven);
+    const weights = terms.map((t) => withStack.map((c) => stacks.get(c.item).segments.find((x) => x.term === t)?.weight ?? 0));
+    if (terms.length) {
+      parts.push(
+        el("h3", { text: "Term river" }),
+        el("p", { class: "muted", text: uneven ? "The terms whose weight is least evenly spread over the chunks, so words every chunk uses alike are left out. A stream is as thick over a chunk as the term's weight there." : "The document's heaviest terms. A stream is as thick over a chunk as the term's weight there." }),
+        river({ terms, weights, chunks: withStack, occurrences: (t) => docTerms.find((d) => d.term === t)?.occStart?.length ?? 0, length: text.length }, link2)
+      );
+    }
+  }
   const m = r.strategyMatrix;
-  box3().replaceChildren(
-    el("h3", { text: "Projection" }),
-    r.projection?.points.length ? scatter(r.projection, text) : el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }),
-    r.driftCurve ? el("h3", { text: "Boundary drift" }) : "",
-    r.driftCurve ? drift(r.driftCurve) : "",
-    el("h3", { text: "Term vector stacks" }),
-    r.documentTermStack ? stack(r.documentTermStack, "document") : "",
-    ...r.chunkTermStacks.map((s) => stack(s, `chunk ${s.unit}`)),
-    m?.strategies.length ? el("h3", { text: "Strategies" }) : "",
-    m?.strategies.length ? table(
-      ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
-      m.strategies.map((s) => [s.name, String(s.budget?.maxTokens ?? ""), String(s.budget?.targetTokens ?? ""), String(s.chunkCount), String(s.overBudgetCount), String(s.totalCost), String(s.matchedCutsWithBaseline), String(s.disagreementsWithBaseline)])
-    ) : ""
+  const rows2 = chunks.map((c, i) => [String(i + 1), `${c.start}..${c.end}`, named2[i].join(", "), (stacks.get(c.item)?.segments ?? []).slice(0, 6).map((t) => `${t.term} ${t.weight.toFixed(1)}`).join(", "), short(text.slice(c.start, c.end), 60)]);
+  parts.push(
+    el(
+      "details",
+      { class: "tables" },
+      el("summary", { text: "As tables" }),
+      chunks.length ? table(["chunk", "characters", "told apart by", "heaviest terms", "text"], rows2) : "",
+      chunks.length ? take("Chunks", () => [["chunk", "start", "end", "told apart by", "x", "y", "text"], ...chunks.map((c, i) => [String(i + 1), String(c.start), String(c.end), named2[i].join(" "), String(c.x), String(c.y), text.slice(c.start, c.end)])]) : "",
+      m?.strategies.length ? el("h4", { text: "Chunking budgets" }) : "",
+      m?.strategies.length ? table(
+        ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
+        m.strategies.map((t) => [t.name, String(t.budget?.maxTokens ?? ""), String(t.budget?.targetTokens ?? ""), String(t.chunkCount), String(t.overBudgetCount), String(t.totalCost), String(t.matchedCutsWithBaseline), String(t.disagreementsWithBaseline)])
+      ) : ""
+    )
   );
+  box4().replaceChildren(...parts);
 }
-async function render4() {
-  const d = doc();
-  if (!d) return void box3().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+var dims = () => $("projection-dims").value === "3" ? 3 : 2;
+function placed(r, text) {
+  const q = r.query;
+  if (!q) return null;
+  return { text, x: q.x, y: q.y, byItem: new Map((r.projection?.points ?? []).map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
+}
+async function ask() {
+  const now = seen;
+  const out = $("projection-query-out");
+  const text = input("projection-query").value.trim();
+  const mine = freshAsk();
+  if (!now || !text) {
+    out.replaceChildren();
+    if (spot && now) {
+      spot = null;
+      show2(now.r, now.text);
+    }
+    spot = null;
+    return;
+  }
+  if (!(now.r.projection?.points ?? []).some((q) => !q.empty)) return void say(out, "This graph has no vectors to place a query among.");
+  say(out, "Placing the query\u2026", "busy");
   try {
-    const r = await analysis.projectChunks({
-      graph: d.graph,
-      offsets: 1 /* UTF16 */,
-      pcaDims: $("projection-dims").value === "3" ? 3 : 2,
-      maxStackSegments: 8,
-      includeDriftCurve: input("projection-drift").checked,
-      includeStrategyMatrix: true,
-      strategyBudgets: budgets(input("projection-budgets").value)
-    });
-    show(r, d.source);
+    const r = await analysis.projectChunks({ graph: now.graph, offsets: 1 /* UTF16 */, pcaDims: dims(), maxStackSegments: 1, query: text });
+    if (!mine() || seen !== now) return;
+    spot = placed(r, text);
+    if (!spot) return void say(out, "The server answered without a query point: it is older than this page.", "error");
+    show2(now.r, now.text);
+    say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
   } catch (e) {
-    box3().replaceChildren(failed(explain(e)));
+    if (!mine() || seen !== now) return;
+    out.replaceChildren(failed(explain(e)));
   }
 }
-function init8() {
-  const again = lazy($("analyze-projection"), () => void render4());
+async function answer(base2, vectors, text) {
+  let pairwise = vectors ? { level: 0, maxItems: MATRIX_ROWS } : void 0;
+  let query = vectors && text ? text : void 0;
+  let noQuery;
+  let noMatrix;
+  for (; ; ) {
+    try {
+      return { r: await analysis.projectChunks({ ...base2, pairwise, query }), noQuery, noMatrix };
+    } catch (e) {
+      if (query !== void 0 && declinedOver(e, "query")) {
+        query = void 0;
+        noQuery = e;
+      } else if (pairwise && declinedOver(e, "pairwise")) {
+        pairwise = void 0;
+        noMatrix = e;
+      } else throw e;
+    }
+  }
+}
+var freshRender4 = latest();
+async function render5() {
+  const mine = freshRender4();
+  const d = doc();
+  if (!d) return void box4().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  clearTimeout(typed);
+  const text = input("projection-query").value.trim();
+  const out = $("projection-query-out");
+  try {
+    const got = await answer(
+      {
+        graph: d.graph,
+        offsets: 1 /* UTF16 */,
+        pcaDims: dims(),
+        // Enough of each stack to tell a chunk's own terms from the document's.
+        maxStackSegments: 32,
+        includeDriftCurve: true,
+        includeStrategyMatrix: true,
+        strategyBudgets: budgets(input("projection-budgets").value)
+      },
+      d.vectors,
+      text
+    );
+    if (!mine()) return;
+    const r = got.r;
+    seen = { r, text: d.source, graph: d.graph };
+    pairs = r.pairwise ? { items: r.pairwise.items, upper: r.pairwise.cosines } : null;
+    unpaired = got.noMatrix === void 0 ? null : explain(got.noMatrix).text;
+    clearTimeout(typed);
+    const edited = input("projection-query").value.trim() !== text;
+    spot = text && !edited ? placed(r, text) : null;
+    show2(r, d.source);
+    if (edited) await ask();
+    else if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+    else if (got.noQuery !== void 0) out.replaceChildren(failed(explain(got.noQuery)));
+    else if (text) await ask();
+    else out.replaceChildren();
+  } catch (e) {
+    if (!mine()) return;
+    seen = null;
+    box4().replaceChildren(failed(explain(e)));
+  }
+}
+function init11() {
+  const again = lazy($("analyze-projection"), () => void render5());
   onDoc(() => again());
   const go2 = $("projection-run");
-  go2.addEventListener("click", () => void busy(go2, render4));
+  go2.addEventListener("click", () => void busy(go2, render5));
+  $("projection-uneven").addEventListener("change", () => seen ? show2(seen.r, seen.text) : void render5());
+  const query = input("projection-query");
+  const place2 = $("projection-ask");
+  const now = () => {
+    clearTimeout(typed);
+    void busy(place2, ask);
+  };
+  place2.addEventListener("click", now);
+  query.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") now();
+  });
+  query.addEventListener("input", () => {
+    clearTimeout(typed);
+    typed = setTimeout(() => void ask(), 500);
+  });
 }
 
 // demo/web/src/frames.ts
@@ -9396,10 +10770,10 @@ var MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
 function bytes(b) {
   return b;
 }
-function prefix(n) {
-  if (n > MAX_FRAME_BYTES) throw new RangeError(`a frame of ${n} bytes is over the ${MAX_FRAME_BYTES} byte limit`);
+function prefix(n2) {
+  if (n2 > MAX_FRAME_BYTES) throw new RangeError(`a frame of ${n2} bytes is over the ${MAX_FRAME_BYTES} byte limit`);
   const p = new Uint8Array(5);
-  new DataView(p.buffer).setUint32(1, n, false);
+  new DataView(p.buffer).setUint32(1, n2, false);
   return p;
 }
 function envelope(message) {
@@ -9408,9 +10782,9 @@ function envelope(message) {
   out.set(message, 5);
   return out;
 }
-function varint(n) {
+function varint(n2) {
   const out = [];
-  let v = n;
+  let v = n2;
   while (v >= 128) {
     out.push(v % 128 | 128);
     v = Math.floor(v / 128);
@@ -9418,16 +10792,16 @@ function varint(n) {
   out.push(v);
   return Uint8Array.from(out);
 }
-function fieldHead(field2, n) {
-  const tag = varint(field2 * 8 + 2);
-  const len = varint(n);
+function fieldHead(field3, n2) {
+  const tag = varint(field3 * 8 + 2);
+  const len = varint(n2);
   const out = new Uint8Array(tag.length + len.length);
   out.set(tag);
   out.set(len, tag.length);
   return out;
 }
-function textFrame(head, field2, text) {
-  const fh = fieldHead(field2, text.size);
+function textFrame(head, field3, text) {
+  const fh = fieldHead(field3, text.size);
   return [prefix(head.length + fh.length + text.size), head, fh, text];
 }
 function body(parts) {
@@ -9469,7 +10843,7 @@ function boundary(bytes2, at) {
   while (i > 0 && i < bytes2.length && (bytes2[i] & 192) === 128) i--;
   return i;
 }
-function pieces(text, chunkStart, matches2) {
+function pieces2(text, chunkStart, matches2) {
   const bytes2 = new TextEncoder().encode(text);
   const inside = matches2.map((m) => ({ ...m, start: boundary(bytes2, m.start - chunkStart), end: boundary(bytes2, m.end - chunkStart) })).filter((m, i) => matches2[i].start >= chunkStart && matches2[i].end - chunkStart <= bytes2.length && m.end > m.start && !(m.start === 0 && m.end === bytes2.length));
   const cuts = [.../* @__PURE__ */ new Set([0, bytes2.length, ...inside.flatMap((m) => [m.start, m.end])])].sort((a, b) => a - b);
@@ -9479,8 +10853,8 @@ function pieces(text, chunkStart, matches2) {
     const [a, b] = [cuts[i], cuts[i + 1]];
     const on = inside.filter((m) => m.start <= a && m.end >= b);
     const piece = { text: dec.decode(bytes2.subarray(a, b)), sources: [...new Set(on.map((m) => m.source))], labels: [...new Set(on.map((m) => m.label).filter(Boolean))] };
-    const last2 = out[out.length - 1];
-    if (last2 && !last2.sources.length && !piece.sources.length) last2.text += piece.text;
+    const last3 = out[out.length - 1];
+    if (last3 && !last3.sources.length && !piece.sources.length) last3.text += piece.text;
     else out.push(piece);
   }
   return out;
@@ -9491,28 +10865,49 @@ function unplaced(text, chunkStart, matches2) {
 }
 
 // demo/web/src/upload.ts
-async function put(method, bodyBlob, signal) {
-  const headers = new Headers({ "content-type": "application/octet-stream" });
-  const t = token();
-  if (t) headers.set("authorization", `Bearer ${t}`);
-  const url = `${base()}/upload/${method.parent.typeName}/${method.name}`;
-  const r = await fetch(url, { method: "PUT", headers, body: bodyBlob, signal });
-  if (r.status === 200) return fromBinary(method.output, new Uint8Array(await r.arrayBuffer()));
-  throw refusal(r);
+function put2(method, bodyBlob, signal, sent) {
+  return new Promise((resolve, reject) => {
+    const stopped = () => reject(new ConnectError("the upload was stopped", Code.Canceled));
+    if (signal?.aborted) return stopped();
+    const x = new XMLHttpRequest();
+    x.open("PUT", `${base()}/upload/${method.parent.typeName}/${method.name}`);
+    x.responseType = "arraybuffer";
+    x.setRequestHeader("content-type", "application/octet-stream");
+    const t = token();
+    if (t) x.setRequestHeader("authorization", `Bearer ${t}`);
+    const total = bodyBlob.size;
+    x.upload.addEventListener("progress", (e) => sent?.(e.loaded, total));
+    x.upload.addEventListener("load", () => sent?.(total, total));
+    const abort = () => x.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    x.addEventListener("loadend", () => signal?.removeEventListener("abort", abort));
+    x.addEventListener("abort", stopped);
+    x.addEventListener("error", () => reject(new ConnectError("the demo did not answer the upload", Code.Unavailable)));
+    x.addEventListener("load", () => {
+      if (x.status !== 200) return reject(refusal(x.status, (name) => x.getResponseHeader(name)));
+      try {
+        resolve(fromBinary(method.output, new Uint8Array(x.response)));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    sent?.(0, total);
+    x.send(bodyBlob);
+  });
 }
-function refusal(r) {
-  const status3 = Number(r.headers.get("grpc-status") ?? "");
+function refusal(http, header) {
+  const status3 = Number(header("grpc-status") ?? "");
   const code = status3 > 0 && status3 <= 16 ? status3 : Code.Unknown;
-  let message = r.headers.get("grpc-message") ?? `HTTP ${r.status}`;
+  let message = header("grpc-message") ?? `HTTP ${http}`;
   try {
     message = decodeURIComponent(message);
   } catch {
   }
-  if (r.status === 415) message = "the demo wants application/octet-stream";
-  if (r.status === 413) message = `${message} (HTTP 413: over the 2 GiB cap)`;
+  if (http === 415) message = "the demo wants application/octet-stream";
+  if (http === 413) message = `${message} (HTTP 413: over the 2 GiB cap)`;
   const meta = new Headers();
   for (const k of ["turbo-code", "turbo-field"]) {
-    const v = r.headers.get(k);
+    const v = header(k);
     if (v !== null) meta.set(k, v);
   }
   return new ConnectError(message, code, meta);
@@ -9522,12 +10917,15 @@ function refusal(r) {
 var caps = null;
 var indexing = null;
 var select2 = (id) => $(id);
+var freshList2 = latest();
 async function list3() {
-  const box5 = $("search-indexes");
+  const mine = freshList2();
+  const box6 = $("search-indexes");
   try {
     const r = await search.listIndexes({});
+    if (!mine()) return;
     options(select2("search-index"), r.indexes.map((i) => i.indexName), void 0, "no index yet");
-    box5.replaceChildren(
+    box6.replaceChildren(
       r.indexes.length ? table(
         ["index", "model", "dim", "metric", "storage", "documents", "chunks", ""],
         r.indexes.map((i) => [
@@ -9543,9 +10941,10 @@ async function list3() {
       ) : el("p", { class: "muted", text: "No index yet: create one from an embedding bundle." })
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     options(select2("search-index"), [], void 0, down ? "the server is not reachable" : "the indexes could not be listed");
-    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
+    box6.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
   }
 }
 function deleteButton2(name) {
@@ -9580,6 +10979,7 @@ async function createIndex(ev) {
       say(note5, `Created ${name}.`);
       await list3();
       select2("search-index").value = name;
+      select2("search-index").dispatchEvent(new Event("change", { bubbles: true }));
     } catch (e) {
       say(note5, explain(e));
     }
@@ -9588,10 +10988,10 @@ async function createIndex(ev) {
 async function addDocuments() {
   const note5 = $("search-add-note");
   const index = select2("search-index").value;
-  const typed = document.getElementById("search-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
+  const typed2 = document.getElementById("search-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
   const files = [...input("search-files").files ?? []];
   const docs = [
-    ...typed.map((t, i) => ({ id: `typed-${Date.now()}-${i + 1}`, text: t })),
+    ...typed2.map((t, i) => ({ id: `typed-${Date.now()}-${i + 1}`, text: t })),
     ...files.map((f) => ({ id: f.name, text: f }))
   ];
   if (!index || !docs.length) {
@@ -9604,8 +11004,7 @@ async function addDocuments() {
     indexing = ac;
     try {
       const body2 = indexBody(index, docs);
-      say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-      const r = await put(TurboSearchService.method.indexDocuments, body2, ac.signal);
+      const r = await put2(TurboSearchService.method.indexDocuments, body2, ac.signal, sending(note5, count(docs.length, "document")));
       say(note5, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
       await list3();
     } catch (e) {
@@ -9613,7 +11012,7 @@ async function addDocuments() {
     } finally {
       if (indexing === ac) indexing = null;
     }
-  });
+  }, $("search-add-stop"));
 }
 function heatView(r) {
   return el(
@@ -9628,10 +11027,10 @@ function heatView(r) {
           "span",
           { class: "cells" },
           d.segments.map(
-            (s) => el("span", {
+            (s2) => el("span", {
               class: "hcell",
-              title: `${s.chunkId} ${s.span?.start ?? 0}..${s.span?.end ?? 0}: ${s.score.toFixed(3)}`,
-              style: `opacity: ${(0.1 + 0.9 * (d.maxScore ? s.score / d.maxScore : 0)).toFixed(2)}`
+              title: `${s2.chunkId} ${s2.span?.start ?? 0}..${s2.span?.end ?? 0}: ${s2.score.toFixed(3)}`,
+              style: `opacity: ${(0.1 + 0.9 * (d.maxScore ? s2.score / d.maxScore : 0)).toFixed(2)}`
             })
           )
         )
@@ -9662,7 +11061,7 @@ async function runSearch(ev) {
         const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
         const matches2 = (a?.matchedSpans ?? []).map((m) => ({ source: m.source, label: m.label, start: m.span?.start ?? 0, end: m.span?.end ?? 0 }));
         const at = h.chunkSpan?.start ?? 0;
-        const text = pieces(h.text, at, matches2).map(
+        const text = pieces2(h.text, at, matches2).map(
           (p) => p.sources.length ? el("mark", { style: `--mark: ${colour2(p.sources[0])}`, title: `${p.sources.join(", ")}${p.labels.length ? `: ${p.labels.join(", ")}` : ""}` }, p.text, el("sup", { text: p.sources.join("+") })) : p.text
         );
         const rest = unplaced(h.text, at, matches2).map((m) => `${m.source}${m.label ? `:${m.label}` : ""}`);
@@ -9680,6 +11079,10 @@ async function runSearch(ev) {
         el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
         key3 ?? "",
         ...hits,
+        r.hits.length ? take(`Search hits ${r.resolvedIndex}`, () => [
+          ["rank", "document", "chunk", "score", "text", "signals"],
+          ...r.hits.map((h, i) => [String(i + 1), h.docId, h.chunkId, h.score.toFixed(6), h.text, Object.entries(h.attribution?.signalScores ?? {}).map(([k, v]) => `${k} ${v.toFixed(6)}`).join("; ")])
+        ]) : "",
         r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
         r.documentHeat.length ? heatKey("One cell per chunk, in reading order. Stronger colour is a higher score, relative to that document's best (max).") : "",
         heatView(r)
@@ -9694,11 +11097,12 @@ function stop4() {
   indexing?.abort();
   indexing = null;
 }
-function init9() {
+function init12() {
   $("search-create").addEventListener("submit", createIndex);
   lock($("search-create"), TurboSearchService.method.createIndex);
   lock($("search-add-box"), TurboSearchService.method.indexDocuments);
   $("search-add").addEventListener("click", addDocuments);
+  $("search-add-stop").addEventListener("click", stop4);
   $("search-form").addEventListener("submit", runSearch);
   const refreshButton = $("search-refresh");
   refreshButton.addEventListener("click", () => void busy(refreshButton, list3));
@@ -9752,14 +11156,15 @@ async function embed(model, query, passages) {
   const near = pv.map((v, i) => ({ i, s: cosine(qv, v) })).sort((a, b) => b.s - a.s);
   out.replaceChildren(
     el("h3", { text: `Nearest neighbours (${model})` }),
-    table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
+    table(["rank", "passage", "cosine"], near.slice(0, k).map((n2, r) => [String(r + 1), el("span", { class: "quote", title: passages[n2.i], text: `#${n2.i + 1} ${short(passages[n2.i], 60)}` }), n2.s.toFixed(4)])),
+    take(`Nearest neighbours ${model}`, () => [["rank", "passage number", "passage", "cosine"], ...near.slice(0, k).map((n2, r) => [String(r + 1), String(n2.i + 1), passages[n2.i], n2.s.toFixed(6)])]),
     el("h3", { text: "Passage similarity" }),
-    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim)
+    simTable(passages.map((t) => ({ short: short(t, 22), full: t })), sim, `Passage similarity ${model}`)
   );
 }
 async function rerank(model, query, passages) {
   const meta = await inference.modelMetadata({ name: model });
-  const limits = ["model_info.max_batch", "session_info.max_batch"].map((k) => parseInt(meta.properties[k] ?? "", 10)).filter((n) => n > 0);
+  const limits = ["model_info.max_batch", "session_info.max_batch"].map((k) => parseInt(meta.properties[k] ?? "", 10)).filter((n2) => n2 > 0);
   const batch = limits.length ? Math.min(...limits) : passages.length;
   const logits = [];
   for (let at = 0; at < passages.length; at += batch) {
@@ -9768,14 +11173,15 @@ async function rerank(model, query, passages) {
     const { dv } = output(r, "scores");
     part2.forEach((_, i) => logits.push(dv.getFloat32(i * 4, true)));
   }
-  const scored = logits.map((s, i) => ({ i, s })).sort((a, b) => b.s - a.s);
+  const scored = logits.map((s2, i) => ({ i, s: s2 })).sort((a, b) => b.s - a.s);
   $("sem-rerank-out").replaceChildren(
     el("h3", { text: `Reranked (${model})` }),
     el("p", { class: "muted", text: "Relevance logits from the cross-encoder, one per (query, passage) pair; higher is more relevant." }),
-    table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)]))
+    table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)])),
+    take(`Reranked ${model}`, () => [["rank", "passage number", "passage", "logit", "sigmoid"], ...scored.map((x, r) => [String(r + 1), String(x.i + 1), passages[x.i], x.s.toFixed(6), (1 / (1 + Math.exp(-x.s))).toFixed(6)])])
   );
 }
-async function answer(model, question, context) {
+async function answer2(model, question, context) {
   const topK = Math.max(1, parseInt(input("sem-topk").value, 10) || 3);
   const r = await inference.modelInfer({
     modelName: model,
@@ -9789,8 +11195,8 @@ async function answer(model, question, context) {
   const dec = new TextDecoder();
   const rows2 = [];
   for (let i = 0; i < spans.shape[0]; i++) {
-    const [s, e] = [spans.dv.getInt32(i * 8, true), spans.dv.getInt32(i * 8 + 4, true)];
-    rows2.push([String(i + 1), el("span", { class: "quote", text: dec.decode(bytes2.subarray(s, e)) }), `${s}..${e}`, scores.dv.getFloat64(i * 8, true).toFixed(3), probs.dv.getFloat64(i * 8, true).toFixed(4)]);
+    const [s2, e] = [spans.dv.getInt32(i * 8, true), spans.dv.getInt32(i * 8 + 4, true)];
+    rows2.push([String(i + 1), el("span", { class: "quote", text: dec.decode(bytes2.subarray(s2, e)) }), `${s2}..${e}`, scores.dv.getFloat64(i * 8, true).toFixed(3), probs.dv.getFloat64(i * 8, true).toFixed(4)]);
   }
   const p = r.parameters;
   const abstained = p.abstained?.parameterChoice.case === "boolParam" && p.abstained.parameterChoice.value;
@@ -9813,15 +11219,15 @@ async function run3() {
   const jobs = [
     [e, "sem-sim", () => embed(e, query, passages)],
     [rr, "sem-rerank-out", () => rerank(rr, query, passages)],
-    [qa, "sem-qa-out", () => answer(qa, query, passages.join("\n"))]
+    [qa, "sem-qa-out", () => answer2(qa, query, passages.join("\n"))]
   ];
   await Promise.all(
-    jobs.filter(([m]) => m).map(([, box5, job]) => job().catch((err) => $(box5).replaceChildren(failed(explain(err)))))
+    jobs.filter(([m]) => m).map(([, box6, job]) => job().catch((err) => $(box6).replaceChildren(failed(explain(err)))))
   );
   say(note5, "");
   reveal($("sem-sim").parentElement);
 }
-function init10() {
+function init13() {
   const go2 = $("sem-run");
   go2.addEventListener("click", () => void busy(go2, run3));
   const kinds2 = [["sem-embed", "TASK_EMBED", "embedding model"], ["sem-rerank", "TASK_RERANK", "reranker"], ["sem-qa", "TASK_EXTRACTIVE_QA", "QA model"]];
@@ -9837,9 +11243,15 @@ function init10() {
       const first = !select3(id).dataset.filled;
       options(select3(id), ["", ...names2], ["none", ...names2]);
       select3(id).dataset.filled = "yes";
-      if (first) select3(id).value = names2[0];
+      if (first && !offered(recall(id), ["", ...names2])) select3(id).value = names2[0];
     }
   };
+  onReset("semantic", () => {
+    for (const [id, task] of kinds2) {
+      const first = caps2?.bundles.find((b) => b.task === task)?.name;
+      if (first) select3(id).value = first;
+    }
+  });
   onCapabilities((c) => {
     caps2 = c;
     say($("sem-note"), "");
@@ -9863,22 +11275,22 @@ function unreached(e) {
   return c !== Code.Unauthenticated && c !== Code.PermissionDenied;
 }
 async function check() {
-  const s = $("server");
+  const s2 = $("server");
   try {
     const [live, ready, meta] = await Promise.all([inference.serverLive({}), inference.serverReady({}), inference.serverMetadata({})]);
     const state = ready.ready ? "ready" : live.live ? "live, still loading" : "not live";
-    s.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
-    s.className = ready.ready ? "muted status up" : "muted status";
+    s2.textContent = `${meta.name || "server"} ${meta.version}: ${state}`;
+    s2.className = ready.ready ? "muted status up" : "muted status";
     setStatus(true, ready.ready);
   } catch (e) {
     if (unreached(e)) {
-      s.textContent = "server not reachable";
-      s.className = "error status down";
+      s2.textContent = "server not reachable";
+      s2.className = "error status down";
       $("down-why").textContent = describe(e);
       setStatus(false, false);
     } else {
-      s.textContent = describe(e);
-      s.className = "error status";
+      s2.textContent = describe(e);
+      s2.className = "error status";
       setStatus(true, false);
     }
   }
@@ -9901,7 +11313,7 @@ function watch2() {
   onServed(() => void reload());
 }
 function renderCapabilities(c) {
-  const box5 = $("server-caps");
+  const box6 = $("server-caps");
   const bundles2 = table(
     ["name", "task", "model", "widths", "context", "batch", "roles", ""],
     c.bundles.map((b) => [
@@ -9921,7 +11333,7 @@ function renderCapabilities(c) {
   );
   const l = c.server;
   const limits = l ? el("p", { class: "muted", text: `At most ${l.maxLoadedModels} served models and ${l.maxSessionsPerModel} sessions per model.` }) : "";
-  box5.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
+  box6.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
 }
 function unloadButton(name) {
   return confirmed("Unload", `Unload ${name}?`, async () => {
@@ -9958,7 +11370,7 @@ async function load2(ev) {
     }
   });
 }
-function init11() {
+function init14() {
   const t = input("token");
   t.value = token();
   t.addEventListener("change", () => {
@@ -9998,15 +11410,18 @@ function actions(id) {
   }, off(TurboVocabularyService.method.deleteVocabularyArtifact));
   return el("span", {}, get, " ", del);
 }
+var freshList3 = latest();
 async function list4() {
-  const box5 = $("vocab-lists");
+  const mine = freshList3();
+  const box6 = $("vocab-lists");
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
+    if (!mine()) return;
     const importable = f.formats.filter((x) => x.importable);
     options(select4("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select4("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
     const l = f.limits;
-    box5.replaceChildren(
+    box6.replaceChildren(
       l ? el("p", {
         class: "muted",
         text: l.store ? `Store on${l.admin ? ", writable" : ", read only"}. Dictionaries up to ${size(l.maxDictionaryUploadBytes)}, learning up to ${size(l.maxLearnBytes)}, n-grams up to ${l.maxNgramSize}.` : "The server keeps no vocabulary store."
@@ -10023,9 +11438,10 @@ async function list4() {
       )
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     for (const id of ["vocab-format", "vocab-seed"]) options(select4(id), [], void 0, down ? "the server is not reachable" : "the store could not be listed");
-    box5.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
+    box6.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its store cannot be listed." : describe(e) }));
   }
 }
 async function importDictionary(ev) {
@@ -10039,8 +11455,7 @@ async function importDictionary(ev) {
   await busy(submitter(ev), () => stoppable2(async (signal) => {
     try {
       const sha = await sha256Blob(file, (done) => say(note5, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-      say(note5, `Uploading ${size(file.size)}\u2026`, "busy");
-      const d = await put(
+      const d = await put2(
         TurboVocabularyService.method.importDictionary,
         importBody(
           {
@@ -10053,7 +11468,8 @@ async function importDictionary(ev) {
           },
           file
         ),
-        signal
+        signal,
+        sending(note5, file.name)
       );
       say(note5, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list4();
@@ -10065,16 +11481,22 @@ async function importDictionary(ev) {
 async function learn(ev) {
   ev.preventDefault();
   const note5 = $("vocab-note");
-  const typed = document.getElementById("vocab-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
-  const docs = [...typed, ...[...input("vocab-learn-files").files ?? []]];
+  const typed2 = document.getElementById("vocab-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
+  const docs = [...typed2, ...[...input("vocab-learn-files").files ?? []]];
   if (!docs.length) {
     say(note5, "Type documents (a blank line between) or pick files.", "error");
+    return;
+  }
+  const language = input("vocab-learn-language").value.trim();
+  if (input("vocab-stopwords").checked && !language) {
+    say(note5, "Dropping stopwords needs a language, such as en: the server drops that language's bundled list.", "error");
     return;
   }
   await busy(submitter(ev), () => stoppable2(async (signal) => {
     try {
       const body2 = learnBody(
         {
+          language,
           minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
           maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
           lowercase: input("vocab-lowercase").checked,
@@ -10086,8 +11508,7 @@ async function learn(ev) {
         },
         docs
       );
-      say(note5, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
-      const v = await put(TurboVocabularyService.method.learnVocabulary, body2, signal);
+      const v = await put2(TurboVocabularyService.method.learnVocabulary, body2, signal, sending(note5, count(docs.length, "document")));
       say(note5, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list4();
     } catch (e) {
@@ -10117,7 +11538,7 @@ async function fetchArtifact(id, signal) {
     say(note5, explain(e));
   }
 }
-function init12() {
+function init15() {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
   lock($("vocab-import"), TurboVocabularyService.method.importDictionary);
@@ -10149,10 +11570,10 @@ var Cursor = class {
   at = 0;
   dv;
   utf8 = new TextDecoder("utf-8", { fatal: true });
-  take(n) {
-    if (this.at + n > this.buf.length) throw new WireError("truncated", this.at);
-    const out = this.buf.subarray(this.at, this.at + n);
-    this.at += n;
+  take(n2) {
+    if (this.at + n2 > this.buf.length) throw new WireError("truncated", this.at);
+    const out = this.buf.subarray(this.at, this.at + n2);
+    this.at += n2;
     return out;
   }
   u8() {
@@ -10201,14 +11622,14 @@ function layerRef(c, name) {
 }
 function edits(c, name) {
   return part(c, name, (c2) => {
-    const n = c2.u32();
+    const n2 = c2.u32();
     const parts = [];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < n2; i++) {
       const at = c2.at;
       const [ps, pe, cs, ce] = [c2.u32(), c2.u32(), c2.u32(), c2.u32()];
       if (i < LISTED2) parts.push({ name: `edit ${i}`, at, len: 16, value: `${ps}..${pe} \u2192 ${cs}..${ce}` });
     }
-    return { value: `${n} edits${n > LISTED2 ? `, first ${LISTED2} listed` : ""}`, parts };
+    return { value: `${n2} edits${n2 > LISTED2 ? `, first ${LISTED2} listed` : ""}`, parts };
   });
 }
 function error(c) {
@@ -10289,18 +11710,18 @@ function option(c, name, what, read) {
 }
 function refs(c, name) {
   return part(c, name, (c2) => {
-    const n = c2.u32();
+    const n2 = c2.u32();
     const parts = [];
-    for (let i = 0; i < n; i++) parts.push(layerRef(c2, `${name} ${i}`));
+    for (let i = 0; i < n2; i++) parts.push(layerRef(c2, `${name} ${i}`));
     return { value: parts.map((p) => p.value).join(", ") || "none", parts };
   });
 }
 function digest(c, name) {
   return option(c, name, "a digest", (c2) => {
     const b = c2.take(32);
-    let s = "";
-    for (const x of b) s += x.toString(16).padStart(2, "0");
-    return { value: s };
+    let s2 = "";
+    for (const x of b) s2 += x.toString(16).padStart(2, "0");
+    return { value: s2 };
   });
 }
 function provenance(c) {
@@ -10330,9 +11751,9 @@ function provenance(c) {
 }
 function sized(c, name) {
   return part(c, name, (c2) => {
-    const n = c2.u32();
-    c2.take(n);
-    return { value: `${n} bytes` };
+    const n2 = c2.u32();
+    c2.take(n2);
+    return { value: `${n2} bytes` };
   });
 }
 function walkGraph(bytes2) {
@@ -10357,9 +11778,9 @@ function walkGraph(bytes2) {
   parts.push(option(c, "source alignment", "an alignment", (c2) => ({ parts: [edits(c2, "edits")] })));
   parts.push(
     part(c, "views", (c2) => {
-      const n = c2.u32();
+      const n2 = c2.u32();
       const views = [];
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < n2; i++) {
         views.push(
           part(c2, `view ${i}`, (c3) => {
             const p = [
@@ -10374,14 +11795,14 @@ function walkGraph(bytes2) {
           })
         );
       }
-      return { value: `${n} views`, parts: views };
+      return { value: `${n2} views`, parts: views };
     })
   );
   parts.push(
     part(c, "layers", (c2) => {
-      const n = c2.u32();
+      const n2 = c2.u32();
       const layers = [];
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < n2; i++) {
         layers.push(
           part(c2, `layer ${i}`, (c3) => {
             const p = [
@@ -10392,30 +11813,30 @@ function walkGraph(bytes2) {
               status2(c3),
               provenance(c3),
               option(c3, "body", "a body", (c4) => {
-                const n2 = c4.u32();
-                c4.take(n2);
-                return { value: `${n2} bytes` };
+                const n3 = c4.u32();
+                c4.take(n3);
+                return { value: `${n3} bytes` };
               })
             ];
             return { value: `${p[0].value}#${p[1].value}`, parts: p };
           })
         );
       }
-      return { value: `${n} layers`, parts: layers };
+      return { value: `${n2} layers`, parts: layers };
     })
   );
   if (c.at !== bytes2.length) throw new WireError(`${bytes2.length - c.at} trailing bytes`, c.at);
   return { name: "document graph", at: 0, len: bytes2.length, value: `format ${FORMAT_VERSION}`, parts };
 }
-function hex(bytes2, p, n = 32) {
-  const b = bytes2.subarray(p.at, p.at + Math.min(p.len, n));
-  let s = "";
-  for (const x of b) s += (s ? " " : "") + x.toString(16).padStart(2, "0");
-  return p.len > n ? `${s} \u2026` : s;
+function hex(bytes2, p, n2 = 32) {
+  const b = bytes2.subarray(p.at, p.at + Math.min(p.len, n2));
+  let s2 = "";
+  for (const x of b) s2 += (s2 ? " " : "") + x.toString(16).padStart(2, "0");
+  return p.len > n2 ? `${s2} \u2026` : s2;
 }
 
 // demo/web/src/tabs/wire.ts
-var box4 = () => $("wire-out");
+var box5 = () => $("wire-out");
 var note4 = () => $("wire-note");
 function bar2(p, total) {
   const pct = total ? 100 * p.len / total : 0;
@@ -10433,20 +11854,20 @@ function tree(bytes2, p, total) {
   if (!p.parts?.length) return el("div", { class: "leaf" }, line);
   return el("details", {}, el("summary", {}, line), el("div", { class: "kids" }, p.parts.map((c) => tree(bytes2, c, total))));
 }
-function render5() {
+function render6() {
   const d = doc();
-  if (!d) return void box4().replaceChildren(el("p", { class: "muted", text: "Analyze a document or open a graph file." }));
+  if (!d) return void box5().replaceChildren(el("p", { class: "muted", text: "Analyze a document or open a graph file." }));
   try {
     const g = walkGraph(d.graph);
     const layers = g.parts?.find((p) => p.name === "layers")?.parts ?? [];
-    const bodies = layers.reduce((n, l) => n + (l.parts?.find((p) => p.name === "body")?.len ?? 0), 0);
-    box4().replaceChildren(
+    const bodies = layers.reduce((n2, l) => n2 + (l.parts?.find((p) => p.name === "body")?.len ?? 0), 0);
+    box5().replaceChildren(
       el("p", { class: "muted", text: `${size(d.graph.length)} in all, ${size(bodies)} of it layer bodies. Open a part for its fields; hover for its offsets and first bytes.` }),
       el("div", { class: "kids top" }, (g.parts ?? []).map((p) => tree(d.graph, p, g.len)))
     );
   } catch (e) {
     const where = e instanceof WireError ? ` (byte ${e.at})` : "";
-    box4().replaceChildren(el("p", { class: "error", text: `${e instanceof Error ? e.message : String(e)}${where}` }));
+    box5().replaceChildren(el("p", { class: "error", text: `${e instanceof Error ? e.message : String(e)}${where}` }));
   }
 }
 async function roundTrip() {
@@ -10466,14 +11887,14 @@ async function open() {
   try {
     const graph = new Uint8Array(await f.arrayBuffer());
     const r = await analysis.roundTripDocumentGraph({ graph });
-    setDoc({ graph, views: r.views, source: r.sourceText });
+    setDoc({ graph, views: r.views, source: r.sourceText, vectors: hasVectors(r.layers) });
     say(note4(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
   } catch (e) {
     say(note4(), explain(e));
   }
 }
-function init13() {
-  const again = lazy($("analyze-wire"), render5);
+function init16() {
+  const again = lazy($("analyze-wire"), render6);
   onDoc(() => again());
   const go2 = $("wire-roundtrip");
   go2.addEventListener("click", () => void busy(go2, roundTrip));
@@ -10491,7 +11912,7 @@ var stops = {
   vocabulary: stop5,
   models: stop3
 };
-function show2(name) {
+function show3(name) {
   for (const [tab, stop6] of Object.entries(stops)) if (tab !== name) stop6();
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   for (const p of document.querySelectorAll("section.panel")) p.hidden = p.id !== `tab-${name}`;
@@ -10502,7 +11923,7 @@ function named() {
 }
 function go(name) {
   if (location.hash !== `#${name}`) history.pushState(null, "", `#${name}`);
-  show2(name);
+  show3(name);
 }
 async function start() {
   const tabs = [...document.querySelectorAll("nav.tabs button")];
@@ -10518,22 +11939,25 @@ async function start() {
     });
   });
   await permits();
-  init11();
-  init5();
-  init10();
   init();
-  init3();
-  init4();
   init8();
+  init14();
+  init6();
   init13();
-  init9();
   init2();
-  init12();
+  init4();
+  init5();
+  init11();
   init7();
-  addEventListener("hashchange", () => show2(named()));
-  addEventListener("popstate", () => show2(named()));
+  init16();
+  init12();
+  init3();
+  init15();
+  init10();
+  addEventListener("hashchange", () => show3(named()));
+  addEventListener("popstate", () => show3(named()));
   const first = named();
   if (location.hash !== `#${first}`) history.replaceState(null, "", `#${first}`);
-  show2(first);
+  show3(first);
 }
 void start();

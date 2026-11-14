@@ -45,10 +45,6 @@ impl Mention {
         self.origin == Origin::Pronoun
     }
 
-    pub fn named_entity(&self) -> bool {
-        self.entity.is_some()
-    }
-
     /// Whether either span lies inside the other, the i-within-i
     /// configuration no sieve may link.
     pub fn nests(&self, other: &Mention) -> bool {

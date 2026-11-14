@@ -4,9 +4,6 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
 import { create, fromBinary, toBinary } from "@bufbuild/protobuf";
 import { chromium, type Page } from "playwright";
@@ -18,6 +15,7 @@ import {
 } from "../src/gen/turbo_training_pb.js";
 import { Stack } from "./stack.js";
 
+const INDEX = process.env.TURBO_E2E_INSTALL_INDEX ?? "";
 const RECORD = "/turbo.training.v1.TurboCatalogService/RecordLicenceAcceptance";
 const LIST = "/turbo.training.v1.TurboCatalogService/ListLicenceAcceptances";
 const INSTALL = "/turbo.training.v1.TurboCatalogService/InstallModel";
@@ -26,63 +24,10 @@ const ID = "tiny-bert-sa";
 const TERMS = "https://creativecommons.org/licenses/by-sa/4.0/legalcode";
 const TOKEN = "isolation-test-token";
 
-interface ShareAlikeCatalog {
-  work: string;
-  index: string;
-  store: string;
-}
-
-/** Builds a temporary file:// store and catalog index for one share-alike bundle. */
-function makeShareAlikeCatalog(): ShareAlikeCatalog {
-  const work = mkdtempSync(`${tmpdir()}/turbo-e2e-cat-`);
-  const bundle = join(work, "bundle");
-  const store = join(work, "store");
-  cpSync("testdata/tiny-bert-bundle", bundle, { recursive: true });
-  const manifestPath = join(bundle, "manifest.json");
-  const manifest = readFileSync(manifestPath, "utf8").replace('"license": "Apache-2.0"', '"license": "CC-BY-SA-4.0"');
-  writeFileSync(manifestPath, manifest);
-
-  const files: string[] = [];
-  (function walk(dir: string) {
-    for (const name of readdirSync(dir).sort()) {
-      const full = join(dir, name);
-      if (statSync(full).isDirectory()) walk(full);
-      else files.push(full.slice(bundle.length + 1).split("\\").join("/"));
-    }
-  })(bundle);
-
-  mkdirSync(join(store, "blobs", "sha256"), { recursive: true });
-  const entries = files.map((rel) => {
-    const bytes = readFileSync(join(bundle, rel));
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
-    writeFileSync(join(store, "blobs", "sha256", sha256), bytes);
-    const sha512 = createHash("sha512").update(bytes).digest("hex");
-    return { path: rel, url: `https://example.org/${ID}/${rel}`, size: bytes.length, sha256, sha512 };
-  });
-
-  const index = join(work, "index.json");
-  writeFileSync(
-    index,
-    JSON.stringify({
-      zoo_version: 1,
-      artifacts: [
-        {
-          id: ID,
-          kind: "KIND_MODEL",
-          language: "en",
-          format: "FORMAT_SAFETENSORS",
-          version: "1",
-          license: "CC-BY-SA-4.0",
-          license_terms: TERMS,
-          trained_on: [],
-          class: "CLASS_SHARE_ALIKE",
-          attribution: "The tiny test bundle under share-alike terms.",
-          files: entries,
-        },
-      ],
-    }),
-  );
-  return { work, index, store: `file://${store}` };
+/** Returns the catalog index and sibling file:// store built by scripts/e2e-web.sh. */
+function shareAlikeCatalog(): { index: string; store: string } {
+  assert.notEqual(INDEX, "", "TURBO_E2E_INSTALL_INDEX names the share-alike catalog index (scripts/e2e-web.sh)");
+  return { index: INDEX, store: `file://${INDEX.replace(/\/[^/]+$/, "")}/store` };
 }
 
 /** Sends a binary protobuf POST from inside `page` and returns status and raw bytes. */
@@ -102,7 +47,7 @@ async function postProto(page: Page, path: string, payload: Uint8Array): Promise
 }
 
 test("per-user acceptance isolation and anti-spoofing in the browser", async () => {
-  const cat = makeShareAlikeCatalog();
+  const cat = shareAlikeCatalog();
   const stack = await Stack.start({
     admin: true,
     catalogIndex: cat.index,
@@ -160,7 +105,7 @@ test("per-user acceptance isolation and anti-spoofing in the browser", async () 
 
     // Alice's browser attempts to spoof Bob in RecordLicenceAcceptance and ListLicenceAcceptances:
     // the demo proxy replaces field 1 with Alice's identity.
-    const termsDigest = createHash("sha256").update(TERMS).digest("hex");
+    const termsDigest = createHash("sha256").update(new TextEncoder().encode(TERMS)).digest("hex");
     const spoofRecord = toBinary(
       RecordLicenceAcceptanceRequestSchema,
       create(RecordLicenceAcceptanceRequestSchema, {
@@ -194,12 +139,11 @@ test("per-user acceptance isolation and anti-spoofing in the browser", async () 
   } finally {
     await browser.close();
     await stack.close();
-    rmSync(cat.work, { recursive: true, force: true });
   }
 });
 
 test("authenticated write controls enforce --user, bearer token, and --allow in the browser", async () => {
-  const cat = makeShareAlikeCatalog();
+  const cat = shareAlikeCatalog();
   const stack = await Stack.start({
     admin: true,
     catalogIndex: cat.index,
@@ -230,7 +174,7 @@ test("authenticated write controls enforce --user, bearer token, and --allow in 
         licence: "CC-BY-SA-4.0",
         terms: "",
         artifactId: ID,
-        textSha256: createHash("sha256").update(TERMS).digest("hex"),
+        textSha256: createHash("sha256").update(new TextEncoder().encode(TERMS)).digest("hex"),
       }),
     );
     const anonWrite = await postProto(anon, RECORD, spoof);
@@ -283,6 +227,5 @@ test("authenticated write controls enforce --user, bearer token, and --allow in 
   } finally {
     await browser.close();
     await stack.close();
-    rmSync(cat.work, { recursive: true, force: true });
   }
 });

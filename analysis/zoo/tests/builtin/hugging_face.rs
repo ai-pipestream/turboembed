@@ -1,6 +1,7 @@
 //! The Hugging Face copies of the permissive `turbo-*` models (#2192):
 //! each file's second location, at a pinned commit of the model's own
-//! repository.
+//! repository. One model is kept in an OCI registry as well (#2213):
+//! each of its files lists the blob of its own SHA-256 as a third.
 
 use turbo_zoo::{Index, LicenceClass, Transport, Url};
 
@@ -17,6 +18,10 @@ const COPIES: [(&str, &str); 8] = [
     ("turbo-en-masc-pos-modernbert-base-bilstm256x2-1", "68c03ef3ca2731c282a8e51c64de0e21172afa8e"),
 ];
 
+/// The model kept as an OCI artifact too, and its repository there.
+const IN_REGISTRY: &str = "turbo-en-masc-pos-modernbert-base-2";
+const REGISTRY: &str = "registry-1.docker.io/v2/pipestreamai/turbo-en-masc-pos-modernbert-base-2";
+
 #[test]
 fn each_published_model_lists_its_hugging_face_copy_at_a_pinned_commit() {
     let index = Index::builtin();
@@ -26,7 +31,11 @@ fn each_published_model_lists_its_hugging_face_copy_at_a_pinned_commit() {
         assert_eq!(a.class, LicenceClass::Permissive, "{id}");
         for f in &a.files {
             let copy = format!("https://huggingface.co/pipestream-ai/{id}/resolve/{commit}/{}", f.path.as_str());
-            assert_eq!(f.also.iter().map(Url::as_str).collect::<Vec<_>>(), [copy.as_str()], "{id} {}", f.path);
+            let mut listed = vec![copy];
+            if id == IN_REGISTRY {
+                listed.push(format!("https://{REGISTRY}/blobs/sha256:{}", f.sha256));
+            }
+            assert_eq!(f.also.iter().map(Url::as_str).collect::<Vec<_>>(), listed, "{id} {}", f.path);
             assert!(f.url.as_str().starts_with("https://github.com/ai-pipestream/turboembed/releases/download/"));
         }
     }
@@ -62,11 +71,11 @@ impl Transport for HuggingFaceOnly {
 #[ignore]
 #[cfg(feature = "http")]
 fn each_published_model_installs_from_hugging_face_alone() {
-    let cache = std::env::temp_dir().join(format!("turbo-zoo-hugging-face-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&cache);
+    let cache =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-zoo-hugging-face-{}", std::process::id())));
     let user: turbo_zoo::UserId = "turbo-zoo-test".parse().unwrap();
     let transport = HuggingFaceOnly(turbo_zoo::Http::new());
-    let zoo = turbo_zoo::Zoo::new(Index::builtin(), cache.clone(), turbo_zoo::Policy::default(), &transport);
+    let zoo = turbo_zoo::Zoo::new(Index::builtin(), cache.to_path_buf(), turbo_zoo::Policy::default(), &transport);
     for (id, _) in COPIES {
         let f = zoo.fetch(id, &user, &turbo_zoo::Acceptances::default()).unwrap();
         for (path, file) in f.files.iter().zip(&f.artifact.files) {
@@ -75,5 +84,46 @@ fn each_published_model_installs_from_hugging_face_alone() {
             assert_eq!(turbo_zoo::Sha512::of(&bytes), file.sha512, "{id} {}", file.path);
         }
     }
-    std::fs::remove_dir_all(&cache).unwrap();
+}
+
+/// Installs the model kept in a registry from the registry alone: an
+/// `OciRegistry` refuses every address that is not a blob's.
+/// `cargo test -p turbo-zoo -- --ignored registry`. Needs the network.
+/// With `TURBO_TEST_ZOO_CACHE=<dir>` the cache is that directory, left
+/// in place, and a later run takes the weights from it. Every run still
+/// reads the registry: the small files are removed first, so each is
+/// downloaded again, and every file is held to both digests at the end.
+#[test]
+#[ignore]
+#[cfg(feature = "http")]
+fn the_model_kept_in_a_registry_installs_from_the_registry_alone() {
+    /// A file this size or larger is taken from a kept cache.
+    const KEPT_FROM: u64 = 64 << 20;
+    let (cache, _own) = match std::env::var_os("TURBO_TEST_ZOO_CACHE") {
+        Some(dir) => (std::path::PathBuf::from(dir), None),
+        None => {
+            let own = turbo_scratch::Scratch::at(
+                std::env::temp_dir().join(format!("turbo-zoo-registry-{}", std::process::id())),
+            );
+            (own.to_path_buf(), Some(own))
+        }
+    };
+    let index = Index::builtin();
+    let small: Vec<_> = index.get(IN_REGISTRY).unwrap().files.iter().filter(|f| f.size < KEPT_FROM).collect();
+    assert!(!small.is_empty(), "no file left to ask the registry for");
+    for f in small {
+        match std::fs::remove_file(cache.join(IN_REGISTRY).join(f.path.as_str())) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => panic!("{}: {e}", f.path),
+            _ => {}
+        }
+    }
+    let user: turbo_zoo::UserId = "turbo-zoo-test".parse().unwrap();
+    let transport = turbo_zoo::OciRegistry::new();
+    let zoo = turbo_zoo::Zoo::new(index, cache, turbo_zoo::Policy::default(), &transport);
+    let f = zoo.fetch(IN_REGISTRY, &user, &turbo_zoo::Acceptances::default()).unwrap();
+    for (path, file) in f.files.iter().zip(&f.artifact.files) {
+        let bytes = std::fs::read(path).unwrap();
+        assert_eq!(turbo_zoo::Sha256::of(&bytes), file.sha256, "{}", file.path);
+        assert_eq!(turbo_zoo::Sha512::of(&bytes), file.sha512, "{}", file.path);
+    }
 }

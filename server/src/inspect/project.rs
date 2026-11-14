@@ -13,13 +13,15 @@ use turbo_chunker::{
 };
 
 use super::bindings::require_default_binding;
+use super::pairwise::pairwise;
 use super::pca::{compute_pca, validate_finite_vectors};
+use super::query::{Embed, wanted_query};
 use super::stacks::build_term_stacks;
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
     BoundaryDriftCurveProto, BudgetSpec, DriftGapPointProto, ProjectChunksRequest, ProjectChunksResponse,
-    StrategyComparisonEntryProto, StrategyMatrixProto, VectorProjectionProto,
+    QueryPointProto, StrategyComparisonEntryProto, StrategyMatrixProto, VectorProjectionProto,
 };
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy};
 use crate::results::document::codecs;
@@ -48,6 +50,16 @@ pub fn project_chunks_under(
     req: &ProjectChunksRequest,
     policy: PiiOutputPolicy,
 ) -> Result<ProjectChunksResponse, Failure> {
+    project_chunks_with(req, policy, None)
+}
+
+/// [`project_chunks_under`] with the server's way to embed a query text
+/// (#2249). Without one, a request carrying `query` is refused.
+pub(crate) fn project_chunks_with(
+    req: &ProjectChunksRequest,
+    policy: PiiOutputPolicy,
+    embed: Option<&Embed<'_>>,
+) -> Result<ProjectChunksResponse, Failure> {
     let disclosure = Disclosure::decide(req.pii_output.as_ref(), policy)?;
     if req.graph.len() as u64 > MAX_GRAPH_BYTES {
         return Err(over("max_graph_bytes", "document graph bytes", req.graph.len() as u64));
@@ -69,6 +81,8 @@ pub fn project_chunks_under(
         return Err(over("max_sparse_entries", "max_stack_segments", max_stack_segments as u64));
     }
 
+    let query = wanted_query(req, embed)?;
+
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;
 
@@ -77,7 +91,7 @@ pub fn project_chunks_under(
     let text = doc.text(view);
     let offsetter = Offsetter::new(text, offset_mode);
 
-    let projection = build_projection(&doc, text, &offsetter, pca_dims)?;
+    let (projection, query) = build_projection(&doc, text, &offsetter, pca_dims, query)?;
     let drift_curve = if req.include_drift_curve { build_drift_curve(&doc, text, &offsetter)? } else { None };
     let (chunk_term_stacks, document_term_stack) =
         build_term_stacks(&doc, view, text, &offsetter, max_stack_segments as usize, disclosure.graph(&doc))?;
@@ -87,7 +101,14 @@ pub fn project_chunks_under(
         None
     };
 
+    let pairwise = match &req.pairwise {
+        Some(spec) => Some(pairwise(&doc, spec, &projection.points)?),
+        None => None,
+    };
+
     Ok(ProjectChunksResponse {
+        pairwise,
+        query,
         projection: Some(projection),
         drift_curve,
         chunk_term_stacks,
@@ -141,7 +162,8 @@ fn build_projection(
     text: &str,
     offsetter: &Offsetter,
     pca_dims: u32,
-) -> Result<VectorProjectionProto, Failure> {
+    query: Option<(&str, &Embed<'_>)>,
+) -> Result<(VectorProjectionProto, Option<QueryPointProto>), Failure> {
     if let Some(vecs) = doc.get::<Vectors<Chunks>>() {
         require_default_binding::<Vectors<Chunks>, Chunks>(doc)?;
         let chunks =
@@ -157,7 +179,7 @@ fn build_projection(
             )));
         }
         let spans: Vec<Span> = (0..chunks.spans.len()).map(|i| chunks.spans.get(Ix::new(i as u32))).collect();
-        return compute_pca(vecs, &spans, &chunks.level, text, offsetter, pca_dims);
+        return compute_pca(vecs, &spans, &chunks.level, text, offsetter, pca_dims, query);
     }
     if let Some(vecs) = doc.get::<Vectors<Sentences>>() {
         require_default_binding::<Vectors<Sentences>, Sentences>(doc)?;
@@ -176,14 +198,18 @@ fn build_projection(
         }
         let spans: Vec<Span> = (0..sentences.spans.len()).map(|i| sentences.spans.get(Ix::new(i as u32))).collect();
         let levels = vec![0u8; spans.len()];
-        return compute_pca(vecs, &spans, &levels, text, offsetter, pca_dims);
+        return compute_pca(vecs, &spans, &levels, text, offsetter, pca_dims, query);
     }
-    Ok(VectorProjectionProto {
+    if query.is_some() {
+        return Err(bad("query: the document graph carries no chunk or sentence vectors to place a query among"));
+    }
+    let none = VectorProjectionProto {
         model: None,
         pca_dims,
         explained_variance: vec![0.0; pca_dims as usize],
         points: Vec::new(),
-    })
+    };
+    Ok((none, None))
 }
 
 fn cut_code(c: Cut) -> u32 {

@@ -76,6 +76,8 @@ test("with --allow for one write only its form is live", async () => {
       else assert.equal(s.inert && s.marked && s.why.startsWith("Off: "), true, id);
     }
     await page.click("nav.tabs button[data-tab=search]");
+    // The bundle list is read after the status: Create asks for a bundle until it is filled.
+    await page.waitForSelector("#search-create-bundle option[value=tiny-bert-bundle]", { state: "attached" });
     await page.click("#search-create button[type=submit]");
     await page.waitForSelector("#search-create-note:has-text('Created demo.')");
   } finally {

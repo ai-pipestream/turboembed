@@ -9,11 +9,12 @@ import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
 import { busy } from "../act.js";
 import { $, download, el, failed, heatKey, options, reveal, say, table } from "../dom.js";
-import { doc, onDoc, setDoc } from "../doc.js";
+import { doc, hasVectors, onDoc, setDoc } from "../doc.js";
 import { layerKey, layerName } from "../marks.js";
 import { annotated, foundList } from "./annotated.js";
 import { analysis, explain } from "../rpc.js";
 import { bundles, onCapabilities, onReachable, onServed, reachable } from "../state.js";
+import { latest } from "../latest.js";
 
 let running: AbortController | null = null;
 let page = 0;
@@ -152,7 +153,7 @@ async function run(): Promise<void> {
       }
     }
     say(note, "");
-    if (graph) setDoc({ graph, views, source });
+    if (graph) setDoc({ graph, views, source, vectors: hasVectors([...layers.values()]) });
   } catch (e) {
     say(note, explain(e));
   } finally {
@@ -183,7 +184,10 @@ function lanesView(w: DocumentWindowResponse): HTMLElement {
   return box;
 }
 
+// Only the latest call draws (latest.ts).
+const freshWindow = latest();
 async function showWindow(): Promise<void> {
+  const mine = freshWindow();
   const graph = doc()?.graph;
   const box = $("analyze-window");
   if (!graph) return void box.replaceChildren();
@@ -195,6 +199,7 @@ async function showWindow(): Promise<void> {
       analysis.inspectDocumentWindow({ ...base, page }),
       analysis.inspectDocumentWindow({ ...base, page: 0, heatmapBuckets: 96 }),
     ]);
+    if (!mine()) return;
     const win = w.window;
     shape = w.summary?.layers ?? [];
     const chips = shape.map((l) => {
@@ -233,6 +238,7 @@ async function showWindow(): Promise<void> {
     settle?.();
     settle = null;
   } catch (e) {
+    if (!mine()) return;
     box.replaceChildren(failed(explain(e)));
   }
 }
@@ -259,13 +265,18 @@ async function exportDoc(): Promise<void> {
 // Whether the note holds this list's own failure, to take it back on success.
 let formatsFailed = false;
 
+// Only the latest call draws (latest.ts).
+const freshFormats = latest();
 async function loadFormats(): Promise<void> {
+  const mine = freshFormats();
   try {
     const f = await analysis.listOutputFormats({});
+    if (!mine()) return;
     options(select("analyze-format"), f.formats.map((x) => x.formatId), f.formats.map((x) => `${x.displayName} (${x.mediaType})`), "the server lists no format");
     if (formatsFailed) say($("analyze-note"), "");
     formatsFailed = false;
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     if (!select("analyze-format").value) options(select("analyze-format"), [], undefined, down ? "the server is not reachable" : "the formats could not be listed");
     formatsFailed = !down;

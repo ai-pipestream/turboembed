@@ -36,7 +36,7 @@ pub mod licence;
 pub mod transfer;
 
 pub use accept::{Acceptance, Acceptances, Shown, UserId};
-pub use digest::{Sha256, Sha512};
+pub use digest::{GitBlob, Sha256, Sha512};
 pub use error::{Check, ZooError};
 pub use fetch::{
     Blobs, CacheStatus, Directory, Fetched, Keep, Offline, Sources, Transport, Zoo, most_bytes, unpack, verify,
@@ -44,7 +44,7 @@ pub use fetch::{
 #[cfg(feature = "http")]
 pub use fetch::{
     DRIVE_ENDPOINT, DRIVE_READONLY, DriveAuth, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleDrive, GoogleOAuth,
-    Grant, Http, Mirror, Pkce, Renewing, S3Bucket, sigv4,
+    Grant, Http, Mirror, OciRegistry, Pkce, Renewing, S3Bucket, sigv4,
 };
 pub use holders::{HOLDERS_VERSION, Holder, Holders, SignIn};
 pub use home::Home;

@@ -320,6 +320,123 @@ refused licence. `turbo-zoo index` prints the index the command reads
 any entry the zoo refuses, to
 start an index file that also lists the built-in entries.
 
+### Importing from Hugging Face
+
+`turbo-zoo import-hf <owner/name> <commit>` (`import::hugging_face`)
+writes the entry of a Hugging Face model repository at one commit. The
+commit is 40 lowercase hex digits; a branch or a tag may move and is
+refused before anything is asked. The importer reads the repository's
+own listing of that commit
+(`/api/models/<owner>/<name>/tree/<commit>?recursive=true`), fetches
+each file at `https://huggingface.co/<owner>/<name>/resolve/<commit>/<path>`,
+which becomes its `url`, and refuses a file that is not the size the
+listing gives or not the bytes the repository records for it: by
+SHA-256 for a file in large file storage, and for any other by the id
+git gives the file (the listing's `oid`, the SHA-1 of `blob <size>`, a
+zero byte and the bytes). The git id only ties the file to the commit;
+the entry pins the size, SHA-256 and SHA-512 of the bytes read. A listing of 1000 entries or more is refused, since
+it may have been cut. A file's path is percent-encoded in its address
+where an address would not carry it as it is (a space, a character
+outside ASCII). A file the importer cannot take (a path that leaves the
+repository, a file in large file storage with no SHA-256, any other
+file with no git id) is refused
+when it is imported, and holds up no other: with `--file`, only the
+files named are read.
+
+| Flag | Entry field |
+|---|---|
+| `--id`, `--license-terms`, `--trained-on`, `--attribution`, `--origin`, `--component`, `--language`, `--into` | As for `import-bundle`. |
+| `--license <SPDX id>` | `license`. Required: the importer does not read a model card for it. |
+| `--kind <KIND_*>`, `--format <FORMAT_*>` | `kind` and `format` of an analysis artifact. Required without `--bundle`. |
+| `--version <text>` | `version`; the commit when left out. |
+| `--file <path>` | One file of the repository to list; repeat it, in the entry's order. Without it every file of the commit is listed, in the listing's order. |
+| `--bundle` | The repository holds a sealed bundle directory: the entry is a `TYPE_ENCODER_BUNDLE` one, with `kind`, `format`, `version` and `bundle` from `manifest.json`, checked against the entry as fetch rule 6 does. `--license` must be the manifest's. |
+
+A model whose class is `CLASS_LOCAL_ONLY` takes
+`--origin https://huggingface.co/<owner>/<name>`, which every file's
+address lies under.
+
+### Importing an OCI artifact
+
+`turbo-zoo import-oci <registry>/<name>@sha256:<digest>` (`import::oci`)
+writes the entry of an OCI artifact in a registry, such as one `oras
+push` made from a model's files. The reference names the manifest by
+its digest; a tag may move and is refused before anything is asked. The
+manifest is held to that digest and each layer to the size and SHA-256
+digest the manifest gives it. A layer is one file: its `path` is the
+layer's `org.opencontainers.image.title` annotation and its `url` is the
+blob's own address, `https://<registry>/v2/<name>/blobs/sha256:<hex>`,
+which names its bytes. The flags are `import-hf`'s without `--file`;
+`version` is `sha256:<digest>` when left out, and `--bundle` reads a
+sealed bundle directory from the layers.
+
+Docker Hub's registry is `registry-1.docker.io`. A reference that names
+`docker.io` or `index.docker.io`, as image references spell it, is read
+as that host, and the entry's addresses name it.
+
+An image index, a layer that names no file (a container image's file
+system layer, so a model packed into an image's file system is not
+imported), a layer that is a directory packed as one archive (what
+`oras push` makes of a directory; push each file as a layer of its
+own), and a digest that is not SHA-256 are refused.
+
+`OciRegistry` (the `http` feature) is the registry client and a
+`Transport`: it reads manifests and blobs by digest without
+credentials, answers a registry's `WWW-Authenticate: Bearer` challenge
+once per repository with an anonymous token from the service the
+challenge names, and follows a redirect to the registry's storage
+without the token, over HTTPS only. Each redirect is followed one hop at a time, and a manifest
+request that any hop sends on to another host is reported as that
+redirect and is not followed.
+Most registries ask for such a
+token for public repositories too, so a file at a blob address is
+fetched through it: `turbo-zoo fetch` and a zoo server (`Catalog::http`)
+read an index's addresses through `Sources::https()`, which asks each
+address plainly and then through `OciRegistry`. The ignored test
+`analysis/zoo/tests/registry_address.rs` fetches a file of the
+published POS model from its Docker Hub blob address that way. `OciRegistry::with` sends a registry's requests
+to another address: an `https://` one, such as a pull-through mirror,
+or `http://` on this machine alone (`127.0.0.1` or `localhost`), and
+refuses any other.
+`analysis/zoo/tests/import_oci.rs` runs the importer against an
+in-process registry that issues the challenge, the token and the
+redirect. The manifest and the challenge Docker Hub itself
+serves for the published model are kept as recorded
+(`analysis/zoo/testdata/recorded/`, the manifest held to its digest),
+and unit tests read them.
+
+### What an import keeps
+
+`import-hf` and `import-oci` read every file to pin it, and keep each
+one in the cache as the entry's file (`<cache>/<id>/<path>`, the
+directory `fetch` uses), so the `fetch` that follows downloads nothing
+more. Run again, the same import takes every file from the cache: its
+source names each one's bytes beforehand, by SHA-256 for a layer of an
+OCI artifact and a Hugging Face file in large file storage, by git id
+for any other Hugging Face file. A kept file is held to that size and
+digest before it is used, and one that holds other bytes is downloaded
+again and replaced. `--no-keep` imports without keeping anything.
+
+Only an accepted entry's files go into the cache. While the import
+runs, each file it downloads is written whole under a temporary name
+beside its place (`<name>.partial.<pid>.<n>`), and they are put in
+place together once the entry is accepted. An import that fails, on a
+later file or because the entry is refused, removes what it wrote and
+every directory it leaves empty: the cache is as the import found it,
+and files it already held under that id, another entry's among them,
+are not replaced. Run again, a failed import downloads its files again.
+Two cases leave something behind: an import that is killed leaves its
+temporary files, which nothing reads and a later run does not reuse,
+and when one file cannot be put in place after the entry was accepted,
+the files put in place before it stay (each is whole and verified) and
+the import fails. In the library the importers take the cache directory as
+`keep` (`RepoImport::keep`, `OciImport::keep`), and keep nothing
+without it.
+
+The two importer network tests keep their downloads in the directory
+`TURBO_TEST_ZOO_CACHE` names when it is set, and leave it in place, so
+a later run on the same machine does not download the files again.
+
 A zoo server lists the imported bundles when it is started with that
 file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
 from its store or from a directory that holds the bundle at
@@ -680,6 +797,23 @@ installs when either host is unreachable. `turbo-zoo show <id>` prints
 every location. `analysis/zoo/tests/builtin/hugging_face.rs` keeps the
 list, and its ignored test installs each model from Hugging Face alone
 (`cargo test -p turbo-zoo -- --ignored hugging_face`).
+
+`turbo-en-masc-pos-modernbert-base-2` is kept in an OCI registry as
+well, as the artifact
+`docker.io/pipestreamai/turbo-en-masc-pos-modernbert-base-2:2` (manifest
+`sha256:ac9d7e33c8f91cfaab3f6279d4b5adccaa8c651f6ac29b5cfece6ccba6fa0092`),
+and each of its files lists a third location, the blob of its own SHA-256
+(`https://registry-1.docker.io/v2/pipestreamai/<id>/blobs/sha256:<hex>`).
+A registry answers only a request that carries its anonymous token, so
+this location is read through `OciRegistry`: `turbo-zoo fetch` asks it
+after plain HTTPS, and a caller of the library adds it to its `Sources`
+the same way. The ignored test
+`the_model_kept_in_a_registry_installs_from_the_registry_alone` installs
+the model from the registry alone
+(`cargo test -p turbo-zoo -- --ignored registry`). It keeps its cache in
+the directory `TURBO_TEST_ZOO_CACHE` names when that is set: a later run
+takes the weights from there, verified against the index, and downloads
+only the small files again, so each run still reads the registry.
 
 ## Reading the index from external clients
 

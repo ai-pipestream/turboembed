@@ -4,6 +4,7 @@
 
 import { el } from "../dom.js";
 import { best, place, range, strength } from "../heat.js";
+import { take } from "./take.js";
 
 // The scale picked last, kept for the next table drawn.
 let own = true;
@@ -15,9 +16,10 @@ export function shade(t: number): string {
 
 /**
  * The matrix `sim` over `labels` (each a short label and its full text),
- * with the scale switch above it.
+ * with the scale switch above it and the controls to take it away
+ * (`name` names the file).
  */
-export function simTable(labels: { short: string; full: string }[], sim: number[][]): HTMLElement {
+export function simTable(labels: { short: string; full: string }[], sim: number[][], name = "Cosine similarity"): HTMLElement {
   const [lo, hi] = range(sim);
   const cells: HTMLElement[][] = sim.map((row, i) => {
     const top = best(sim, i);
@@ -45,5 +47,6 @@ export function simTable(labels: { short: string; full: string }[], sim: number[
     el("label", {}, pick, ` colour by this matrix's own range, ${lo.toFixed(3)} to ${hi.toFixed(3)}`),
     el("span", { class: "muted", text: "outlined: each row's best match" }),
   );
-  return el("div", {}, scale, table);
+  const rows = (): string[][] => [["", ...labels.map((l) => l.full)], ...sim.map((row, i) => [labels[i].full, ...row.map((x) => x.toFixed(6))])];
+  return el("div", {}, scale, table, take(name, rows));
 }

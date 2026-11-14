@@ -13,6 +13,7 @@ import { onCapabilities, onServed, reachable, refresh } from "../state.js";
 import { accept, acceptedTable, revoke, termsBlock, who, type Who } from "./licences.js";
 import { download, nonCommercial } from "./download.js";
 import * as sources from "./sources.js";
+import { latest } from "../latest.js";
 
 let installing: AbortController | null = null;
 let saving: AbortController | null = null;
@@ -149,11 +150,15 @@ async function saveFile(e: CatalogEntry, f: CatalogFile): Promise<void> {
   }
 }
 
+// Only the latest call draws (latest.ts).
+const freshCatalog = latest();
 async function loadCatalog(): Promise<void> {
+  const mine = freshCatalog();
   const box = $("models-catalog");
   say(note(), "Reading the catalog\u2026", "busy");
   try {
     const [cat, installed, acc] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({}), catalog.listLicenceAcceptances({})]);
+    if (!mine()) return;
     const w = who(acc);
     box.replaceChildren(
       el("h3", { text: "Installed" }),
@@ -170,6 +175,7 @@ async function loadCatalog(): Promise<void> {
     );
     say(note(), "");
   } catch (e) {
+    if (!mine()) return;
     if (reachable() === false) say(note(), "The server is not reachable, so its catalog cannot be read.", "error");
     else say(note(), explain(e));
   }
@@ -205,14 +211,19 @@ async function installModel(e: CatalogEntry): Promise<void> {
   }
 }
 
+// Only the latest call draws (latest.ts).
+const freshTraining = latest();
 async function loadTraining(): Promise<void> {
+  const mine = freshTraining();
   const box = $("models-static");
   try {
     const t = await training.listTeachers({});
+    if (!mine()) return;
     options($("train-teacher") as HTMLSelectElement, t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`), "no teacher is served");
     let made: HTMLElement;
     try {
       const s = await training.listStaticModels({});
+      if (!mine()) return;
       made = table(
         ["name", "dims", "words", "learned", "dtype", "teacher", "quality", "served", ""],
         s.models.map((m) => [
@@ -228,10 +239,12 @@ async function loadTraining(): Promise<void> {
         ]),
       );
     } catch (e) {
+      if (!mine()) return;
       made = reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so its static models cannot be listed." }) : failed(explain(e));
     }
     box.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     options($("train-teacher") as HTMLSelectElement, [], undefined, down ? "the server is not reachable" : "the teachers could not be listed");
     box.replaceChildren(down ? el("p", { class: "error", text: "The server is not reachable, so its teachers and static models cannot be listed." }) : failed(explain(e)));

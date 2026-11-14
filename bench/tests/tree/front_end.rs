@@ -96,7 +96,7 @@ pub fn violations(root: &Path) -> Vec<String> {
 
 /// What the page's own TypeScript may not say outside a comment: each
 /// is a way JSON gets onto the RPC path or a call leaves Connect-ES.
-const WEB_FORBIDDEN: [&str; 9] = [
+const WEB_FORBIDDEN: [&str; 8] = [
     "JSON.",
     "toJson",
     "fromJson",
@@ -104,14 +104,14 @@ const WEB_FORBIDDEN: [&str; 9] = [
     "connect+json",
     "useHttpGet: true",
     "useBinaryFormat: false",
-    "XMLHttpRequest",
     "/api/",
 ];
 
 /// The page's transport settings, each required in its client module.
 const WEB_TRANSPORT: [&str; 2] = ["useBinaryFormat: true", "useHttpGet: false"];
 
-/// The one module that may call `fetch`: the upload PUT.
+/// The one module that may make a request outside the Connect clients: the
+/// upload PUT, as an `XMLHttpRequest` so the page can show how much was sent.
 const WEB_UPLOAD: &str = "demo/web/src/upload.ts";
 
 /// The hand-written TypeScript under `dir`, without the generated stubs.
@@ -151,6 +151,9 @@ pub fn web_violations(root: &Path) -> Vec<String> {
             }
             if line.contains("fetch(") && rel != WEB_UPLOAD {
                 found.push(format!("{rel}: fetch outside the upload module"));
+            }
+            if line.contains("XMLHttpRequest") && rel != WEB_UPLOAD {
+                found.push(format!("{rel}: XMLHttpRequest outside the upload module"));
             }
         }
     }
@@ -256,7 +259,7 @@ fn each_web_check_fails_on_a_planted_violation() {
         );
         write(
             "demo/web/src/upload.ts",
-            "// Not JSON.parse: binary.\nconst r = await fetch(url, { method: \"PUT\" });\n",
+            "// Not JSON.parse: binary.\nconst r = await fetch(url, { method: \"PUT\" });\nconst x = new XMLHttpRequest();\n",
         );
         write("demo/web/src/gen/x_pb.ts", "const j = JSON.stringify(x);\n");
         write("demo/web/src/tabs/a.ts", " * Never toJson.\nconst a = 1;\n");
@@ -278,6 +281,9 @@ fn each_web_check_fails_on_a_planted_violation() {
         web_violations(&dir),
         ["demo/web/src/tabs/a.ts: application/json", "demo/web/src/tabs/a.ts: fetch outside the upload module"]
     );
+    clean();
+    write("demo/web/src/tabs/a.ts", "const x = new XMLHttpRequest();\n");
+    assert_eq!(web_violations(&dir), ["demo/web/src/tabs/a.ts: XMLHttpRequest outside the upload module"]);
     clean();
     write("demo/web/src/rpc.ts", "const t = createConnectTransport({ useBinaryFormat: false, useHttpGet: false });\n");
     assert_eq!(

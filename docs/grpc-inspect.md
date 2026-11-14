@@ -138,6 +138,49 @@ The baseline is the document's existing chunks or, without those, the
 last computed strategy. Budget entries do not request a matrix when
 `include_strategy_matrix` is false.
 
+`pairwise` (`PairwiseCosinesSpec`) asks for the cosine between every pair
+of one level's items, for a similarity matrix. `level` names a
+`ProjectedPointProto.level`: 0 is the finest (the chunks, or the sentences
+when the graph carries sentence vectors only). The answer's `items` are
+that level's `item` values that can be compared, ascending: an empty row
+or a vector of zero length is left out. `cosines` is the strict upper
+triangle over `items`, row-major: (0,1), (0,2), ..., (0,n-1), (1,2), ...,
+so n(n-1)/2 values for n items, computed from the stored vectors and not
+from the projected coordinates. `max_items` is the most items the caller
+will take: 0 defaults to 256 and the ceiling is 512. A level with more
+comparable items than that is refused with `TURBO_E_CAPACITY`
+(`OUT_OF_RANGE`) naming the cap, and nothing is cut down to fit. A level
+nothing sits at answers with no items; a graph without chunk or sentence
+vectors is refused with `INVALID_ARGUMENT`.
+
+`query` is a text to place in the projection. The server embeds it with
+the loaded `TASK_EMBED` model whose identity (id, revision and manifest
+digest) equals the vectors' `ModelRef` and which serves the vectors'
+dimension, in the query prompt role (the bundle's query prefix when it
+lists one), L2-normalized when every stored vector is of unit length
+within 0.001 and unnormalized otherwise (stored vectors that were
+quantized or cut to a shorter width without being normalized again fall
+outside that, so the query is left unnormalized: the cosines hold either
+way, while the placed point is then scaled as the model gave it). The
+text is not truncated: one longer than the model's token limit is the
+model's own refusal. The projection's basis is built only when a query is
+asked for. The answer's `query`
+(`QueryPointProto`) carries the query vector's coordinates, centred on the
+same mean and laid on the same principal components as the points, the
+served model name that embedded it, and one cosine per `projection.points`
+entry in that order (0 for an empty row or a vector of zero length). With
+fewer than two rows that carry a vector there is no direction of variance,
+so the coordinates are zero while the cosines still stand; likewise an
+axis the rows do not vary along (the second axis of two rows, say) holds
+the query at 0. The text must
+hold something besides white space (`INVALID_ARGUMENT`) and at most 8,192
+bytes (`TURBO_E_CAPACITY`). A graph with no chunk or sentence vectors, or
+with every row empty, is refused with `INVALID_ARGUMENT`; vectors of a
+model that is not loaded at that dimension are refused with
+`TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`) naming the model, and a model
+whose sessions are all held answers `TURBO_E_BUSY`. The query text is the
+caller's own and is not returned.
+
 ## ListOutputFormats and FormatDocument
 
 `ListOutputFormats({})` returns descriptors sorted by `format_id` for

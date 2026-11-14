@@ -263,6 +263,20 @@ fn projection_gradients_match_finite_differences() {
             assert_eq!(built.projection_offset(), Some(output + 20));
             assert_eq!(built.params.len(), output + 22);
             check_gradients(heads);
+            let (mut input, candidates) = fixture();
+            input.encoder_inputs = vec![0.4, -0.1, 0.3, 0.6, -0.2, 0.4, 0.3, 0.2, 0.5];
+            let (_, dencoder) =
+                built.gradients_with_encoder(&input, &candidates, &GOLD, &mut built.zero_grads()).unwrap();
+            for (at, &actual) in dencoder.iter().enumerate() {
+                let original = input.encoder_inputs[at];
+                input.encoder_inputs[at] = original + 0.001;
+                let plus = built.gradients(&input, &candidates, &GOLD, &mut built.zero_grads()).unwrap();
+                input.encoder_inputs[at] = original - 0.001;
+                let minus = built.gradients(&input, &candidates, &GOLD, &mut built.zero_grads()).unwrap();
+                input.encoder_inputs[at] = original;
+                let expected = (plus - minus) / 0.002;
+                assert!((actual as f64 - expected).abs() < 0.002, "encoder input {at}");
+            }
         }
     }
 }

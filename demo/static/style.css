@@ -10,7 +10,8 @@
   --ok: #1a7f37;
   --heat: 47, 111, 219;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --m0: #2f6fdb; --m1: #d9480f; --m2: #2b8a3e; --m3: #9c36b5; --m4: #c2255c; --m5: #0c8599; --m6: #b88600; --m7: #5f6b7a;
+  --m0: #2a78d6; --m1: #eb6834; --m2: #1baf7a; --m3: #eda100; --m4: #e87ba4; --m5: #008300; --m6: #6250d6; --m7: #e34948;
+  --seq-from: #86b6ef; --seq-to: #104281;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -23,6 +24,8 @@
     --error: #f97066;
     --ok: #3fb950;
     --heat: 91, 143, 240;
+    --m0: #3987e5; --m1: #d95926; --m2: #199e70; --m3: #c98500; --m4: #d55181; --m5: #008300; --m6: #9085e9; --m7: #e66767;
+    --seq-from: #256abf; --seq-to: #cde2fb;
   }
 }
 * { box-sizing: border-box; }
@@ -58,7 +61,7 @@ label.token input { width: 16em; max-width: 100%; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; min-width: 0; }
 .row > select { flex: 0 1 auto; min-width: 0; }
 .row > label { display: flex; gap: 6px; align-items: center; min-width: 0; color: var(--muted); white-space: nowrap; }
-.row > label.grow { flex: 1 1 12em; }
+.row > label.grow { flex: 1 1 auto; }
 .row > label > input, .row > label > select { color: var(--text); min-width: 0; }
 .options.group { margin-top: 0; padding-left: 10px; border-left: 2px solid var(--line); }
 .options.group[hidden], .options label[hidden] { display: none; }
@@ -236,3 +239,122 @@ table.sim th.wrap { white-space: normal; overflow: visible; text-overflow: clip;
 .heat-key { font-size: 12px; }
 .ramp { white-space: nowrap; }
 .ramp i { display: inline-block; width: 6em; height: 0.7em; border-radius: 2px; vertical-align: middle; background: linear-gradient(to right, rgba(var(--heat), 0.1), rgb(var(--heat))); }
+
+/* An upload in flight: the words, then the bar under them. */
+.note.upload { display: grid; gap: 6px; }
+.note.upload[hidden] { display: none; }
+.note.upload progress { height: 8px; }
+
+/* Copy and Download CSV under a result. */
+.take { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+button.small { font-size: 13px; padding: 3px 10px; }
+.offscreen { position: fixed; left: -2000px; top: 0; }
+button.reset { margin-top: 16px; font-size: 13px; }
+
+/* A tab's one-line description and, when the server serves nothing it can use, what it needs. */
+.panel > .about, .panel > .needs { grid-column: 1 / -1; margin: 0; }
+.panel > .about { color: var(--muted); }
+.panel > .needs { padding: 8px 12px; border: 1px solid var(--m6); border-radius: 8px; background: var(--panel); }
+
+/* The document views: figures drawn in SVG, text in the page's own inks. */
+.figure { margin: 8px 0 16px; }
+.figure .scroll { overflow-x: auto; }
+svg.viz { display: block; width: 100%; min-width: 420px; height: auto; font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; }
+svg.viz text { fill: var(--text); }
+svg.viz text.axis, svg.viz text.tick, svg.viz text.row-name { fill: var(--muted); }
+svg.viz .frame { fill: none; stroke: var(--line); }
+svg.viz .axis-line { stroke: var(--line); }
+svg.viz .trail { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-opacity: 0.55; stroke-linejoin: round; }
+svg.viz .region { opacity: 0.13; }
+svg.viz .region polygon, svg.viz .region line { fill: var(--muted); stroke: var(--muted); stroke-width: 36; stroke-linejoin: round; stroke-linecap: round; }
+svg.viz .dot { cursor: pointer; outline: none; }
+svg.viz .dot .hit { fill: transparent; }
+svg.viz .dot .mark { stroke: var(--panel); stroke-width: 2; }
+svg.viz .dot .label { paint-order: stroke; stroke: var(--panel); stroke-width: 3; }
+svg.viz.dim .dot:not(.lit) { opacity: 0.45; }
+svg.viz .dot.lit .mark, svg.viz .dot:focus-visible .mark { stroke: var(--text); }
+svg.viz .dot.lit .label { font-weight: 600; }
+svg.viz .band { stroke: none; opacity: 0.85; }
+svg.viz .band.lit { stroke: var(--text); stroke-width: 1.5; opacity: 1; }
+svg.viz .area { fill: var(--m0); fill-opacity: 0.12; }
+svg.viz .line { fill: none; stroke: var(--m0); stroke-width: 2; stroke-linejoin: round; }
+svg.viz .line.raw { stroke: var(--muted); stroke-width: 1; stroke-opacity: 0.6; }
+svg.viz .stem { stroke: var(--m0); stroke-width: 2; stroke-linecap: round; }
+svg.viz .stem.cut { stroke: var(--m1); }
+svg.viz .cut-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; stroke-opacity: 0.7; }
+svg.viz .cut-mark { fill: var(--m1); stroke: var(--panel); stroke-width: 2; }
+svg.viz .barcode { fill: var(--bg); }
+svg.viz .tick-shared { fill: var(--m0); }
+svg.viz .tick-apart { fill: var(--m1); }
+svg.viz .cross { stroke: var(--text); stroke-width: 1; }
+svg.viz .pad { fill: transparent; cursor: crosshair; outline: none; }
+svg.viz .pad:focus-visible { stroke: var(--accent); stroke-width: 1; }
+svg.viz .stream { stroke: var(--panel); stroke-width: 2; cursor: pointer; outline: none; transition: opacity 120ms; }
+svg.viz .stream.faded { opacity: 0.2; }
+svg.viz .stream:focus-visible { stroke: var(--text); }
+svg.viz .stream-name { pointer-events: none; paint-order: stroke; stroke: var(--panel); stroke-width: 3; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { svg.viz .stream { transition: none; } }
+.figure .info { min-height: 3em; margin: 6px 0 0; font-size: 13px; }
+.figure .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; margin-top: 6px; }
+.swatch.ramp-key i { background: linear-gradient(90deg, var(--seq-from), var(--seq-to)); border: 0; width: 2.4em; border-radius: 6px; }
+.swatch.trail-key i { background: none; border: 0; border-top: 2px solid var(--muted); width: 1.6em; height: 0; vertical-align: 0.25em; border-radius: 0; }
+.swatch.cut-key i { background: var(--m1); border: 0; transform: rotate(45deg) scale(0.8); border-radius: 1px; }
+.swatch.shared-key i { background: var(--m0); border: 0; width: 3px; border-radius: 0; }
+.swatch.apart-key i { background: var(--m1); border: 0; width: 3px; border-radius: 0; }
+button.swatch.key { font-size: 13px; padding: 2px 8px; border-radius: 12px; }
+button.swatch.key.on { border-color: var(--text); }
+.map-and-text { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr)); gap: 16px; align-items: start; }
+.map-and-text h4, details.tables h4 { margin: 0 0 6px; font-size: 13px; }
+.doc.chunked { max-height: 420px; overflow-y: auto; }
+.doc.chunked .ck { box-shadow: inset 0 -3px 0 var(--ck); border-radius: 2px; }
+.doc.chunked .ck sup { font-size: 10px; color: var(--muted); margin-right: 2px; font-weight: 600; }
+.doc.chunked .ck.lit { background: color-mix(in srgb, var(--ck) 22%, transparent); }
+.doc.chunked mark.occ { background: none; color: inherit; outline: 2px solid var(--text); outline-offset: 0; border-radius: 2px; cursor: default; }
+details.tables { margin-top: 8px; }
+details.tables > summary { color: var(--muted); cursor: pointer; }
+#analyze-projection .row > label.grow { flex-wrap: wrap; white-space: normal; }
+svg.viz .band.plain { fill: var(--line); opacity: 1; }
+svg.viz .edge line { stroke: var(--muted); stroke-width: 1.5; }
+svg.viz .arrow { fill: var(--muted); }
+svg.viz .edge-name { fill: var(--muted); paint-order: stroke; stroke: var(--panel); stroke-width: 3; }
+svg.viz .edge.lit line { stroke: var(--text); stroke-width: 2; }
+svg.viz .edge.lit .edge-name { fill: var(--text); font-weight: 600; }
+svg.viz .node { cursor: pointer; outline: none; }
+svg.viz .node .hit { fill: transparent; }
+svg.viz .node .mark { stroke: var(--panel); stroke-width: 2; }
+svg.viz .node .label { paint-order: stroke; stroke: var(--panel); stroke-width: 3; }
+svg.viz.dim .node:not(.lit), svg.viz.dim .edge:not(.lit) { opacity: 0.3; }
+svg.viz .node.lit .mark, svg.viz .node:focus-visible .mark { stroke: var(--text); }
+svg.viz .mention { stroke: var(--panel); stroke-width: 1; cursor: pointer; outline: none; }
+svg.viz .mention:hover, svg.viz .mention:focus-visible { stroke: var(--text); stroke-width: 1.5; }
+svg.viz .strip.lit .row-name { fill: var(--text); font-weight: 600; }
+svg.viz .together { stroke: var(--muted); stroke-dasharray: 2 4; stroke-linecap: round; stroke-opacity: 0.7; }
+svg.viz .together.lit { stroke: var(--text); stroke-opacity: 1; }
+svg.viz.dim .together:not(.lit) { opacity: 0.25; }
+.swatch.together-key i { background: none; border: 0; border-top: 2px dotted var(--muted); width: 1.6em; height: 0; vertical-align: 0.25em; border-radius: 0; }
+.swatch.arrow-key i { background: none; border: 0; border-top: 2px solid var(--muted); width: 1.6em; height: 0; vertical-align: 0.25em; border-radius: 0; }
+.row[hidden] { display: none; }
+svg.viz .glow { fill: var(--m1); stroke: none; pointer-events: none; }
+svg.viz .ray { stroke: var(--m1); stroke-width: 1.5; stroke-dasharray: 4 3; stroke-opacity: 0.8; }
+svg.viz .query .mark { fill: var(--m1); stroke: var(--panel); stroke-width: 2; }
+svg.viz .query .label { font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3; }
+.swatch.query-key i { background: var(--m1); border: 0; transform: rotate(45deg) scale(0.8); border-radius: 1px; }
+.swatch.glow-key i { background: color-mix(in srgb, var(--m1) 45%, transparent); border: 0; border-radius: 50%; }
+.doc.chunked .ck.near { background: color-mix(in srgb, var(--m1) 16%, transparent); outline: 1px solid color-mix(in srgb, var(--m1) 70%, transparent); }
+.doc.chunked .ck.near.lit { background: color-mix(in srgb, var(--m1) 30%, transparent); }
+ol.closest { margin: 4px 0 6px; padding-left: 1.6em; font-size: 13px; }
+ol.closest li { padding: 2px 4px; border-radius: 4px; cursor: default; }
+ol.closest li:hover, ol.closest li:focus-visible { background: color-mix(in srgb, var(--m1) 16%, transparent); outline: none; }
+.matrix .grid { display: grid; grid-template-columns: 28px minmax(0, max-content); grid-template-rows: 16px auto; width: max-content; max-width: 100%; }
+.matrix .plot { position: relative; max-width: 100%; aspect-ratio: 1 / 1; cursor: crosshair; outline: none; border: 1px solid var(--line); box-sizing: content-box; }
+.matrix .plot:focus-visible { border-color: var(--accent); }
+.matrix .plot canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.matrix svg.viz.over { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; pointer-events: none; }
+.matrix .block { fill: none; stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.matrix .cross-band { fill: var(--text); fill-opacity: 0.12; }
+.matrix .cross-cell { fill: none; stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.matrix .ticks { position: relative; font-size: 10px; color: var(--muted); max-width: 100%; }
+.matrix .ticks span { position: absolute; line-height: 1; }
+.matrix .ticks.top span { transform: translateX(-50%); top: 2px; }
+.matrix .ticks.left span { transform: translateY(-50%); right: 4px; }
+.swatch.block-key i { background: none; border: 2px solid var(--text); border-radius: 0; }

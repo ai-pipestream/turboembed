@@ -12,7 +12,11 @@ import { tmpdir } from "node:os";
 const BIN = process.env.TURBO_E2E_BIN ?? "";
 const DEVICE = process.env.TURBO_E2E_DEVICE ?? "0";
 
-/** A loopback port nothing listens on now. */
+/**
+ * A loopback port nothing listens on now. Another process can take it
+ * before the server binds it, so a start that finds it taken is retried
+ * (`inUse`).
+ */
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const s = createServer();
@@ -29,6 +33,7 @@ function started(exe: string, args: string[], word: string): Promise<ChildProces
   return new Promise((resolve, reject) => {
     const child = spawn(`${BIN}/${exe}`, args, { stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
+    said.set(child, () => out.slice(-2000));
     const timer = setTimeout(() => (child.kill(), reject(new Error(`${exe} was not ready in 60 s:\n${out}`))), 60_000);
     const read = (d: Uint8Array) => {
       out += new TextDecoder().decode(d);
@@ -46,12 +51,36 @@ function started(exe: string, args: string[], word: string): Promise<ChildProces
   });
 }
 
-/** Ends `child` and waits until it has exited, so its port is free again. */
-function ended(child: ChildProcess | null): Promise<void> {
+/** Whether `e` is a start that failed because its port was taken. */
+function inUse(e: unknown): boolean {
+  return e instanceof Error && e.message.includes("Address already in use");
+}
+
+const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** What each started process has written, its last 2000 characters, for an error that names it. */
+const said = new WeakMap<ChildProcess, () => string>();
+
+/**
+ * Sends `child` SIGTERM and waits until it has exited, so its port is free
+ * again. One still running after `ms` is killed outright, and the promise
+ * rejects naming it with its last output, so a process that does not stop
+ * fails the test instead of hanging the run.
+ */
+export function ended(child: ChildProcess | null, name: string, ms = 10_000): Promise<void> {
   if (!child || child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
-  return new Promise((resolve) => {
-    child.once("exit", () => resolve());
-    child.kill();
+  return new Promise((resolve, reject) => {
+    let killed = false;
+    const timer = setTimeout(() => {
+      killed = true;
+      child.kill("SIGKILL");
+    }, ms);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      if (!killed) return resolve();
+      reject(new Error(`${name} did not stop within ${ms} ms of SIGTERM and was killed. It last wrote:\n${said.get(child)?.() ?? ""}`));
+    });
+    child.kill("SIGTERM");
   });
 }
 
@@ -87,8 +116,19 @@ export class Stack {
   private work = "";
   private tokenIndex = 0;
 
+  /** Starts a server and demo; a port taken between pick and bind is picked again, up to three times. */
   static async start(o: StackOptions = {}): Promise<Stack> {
     if (!BIN) throw new Error("TURBO_E2E_BIN names no directory: run this through scripts/e2e-web.sh");
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await Stack.once(o);
+      } catch (e) {
+        if (attempt >= 3 || !inUse(e)) throw e;
+      }
+    }
+  }
+
+  private static async once(o: StackOptions): Promise<Stack> {
     const s = new Stack();
     s.work = mkdtempSync(`${tmpdir()}/turbo-e2e-`);
     for (const d of ["vocabulary", "catalog", "training"]) mkdirSync(`${s.work}/${d}`);
@@ -113,38 +153,62 @@ export class Stack {
     return s;
   }
 
-  /** Starts an additional demo proxy in front of the same server. */
+  /** Starts an additional demo proxy in front of the same server; retries up to three times if the picked port is taken. */
   async addDemo(o: DemoOptions = {}): Promise<string> {
-    const demoPort = await freePort();
-    const demoArgs = [
-      "--listen", `127.0.0.1:${demoPort}`,
-      "--server", `http://127.0.0.1:${this.serverPort}`,
-      ...(o.allow ?? []).flatMap((m) => ["--allow", m]),
-      ...(o.user ? ["--user", o.user] : []),
-    ];
+    const tokenArgs: string[] = [];
     if (o.token) {
       const tokenPath = `${this.work}/token-${this.tokenIndex++}`;
       writeFileSync(tokenPath, o.token, { mode: 0o600 });
-      demoArgs.push("--token-file", tokenPath);
+      tokenArgs.push("--token-file", tokenPath);
     }
-    const demo = await started("turbo-kserve-demo", demoArgs, "open http");
-    this.demos.push(demo);
-    return `http://127.0.0.1:${demoPort}`;
+    for (let attempt = 1; ; attempt++) {
+      const demoPort = await freePort();
+      const demoArgs = [
+        "--listen", `127.0.0.1:${demoPort}`,
+        "--server", `http://127.0.0.1:${this.serverPort}`,
+        ...(o.allow ?? []).flatMap((m) => ["--allow", m]),
+        ...(o.user ? ["--user", o.user] : []),
+        ...tokenArgs,
+      ];
+      try {
+        const demo = await started("turbo-kserve-demo", demoArgs, "open http");
+        this.demos.push(demo);
+        return `http://127.0.0.1:${demoPort}`;
+      } catch (e) {
+        if (attempt >= 3 || !inUse(e)) throw e;
+      }
+    }
   }
 
-  /** Starts the server again on the same port, with the same flags. */
+  /**
+   * Starts the server again on the same port, with the same flags. The
+   * port is the test's own, so one still held is waited for, up to five
+   * tries a quarter second apart.
+   */
   async startServer(): Promise<void> {
-    this.server = await started("turbo-kserve", this.serverArgs, "ready");
+    for (let attempt = 1; ; attempt++) {
+      try {
+        this.server = await started("turbo-kserve", this.serverArgs, "ready");
+        return;
+      } catch (e) {
+        if (attempt >= 5 || !inUse(e)) throw e;
+        await pause(250);
+      }
+    }
   }
 
   /** Stops the server; the demo keeps running in front of nothing. */
   async stopServer(): Promise<void> {
-    await ended(this.server);
+    const server = this.server;
     this.server = null;
+    await ended(server, "turbo-kserve");
   }
 
+  /** Stops the demos and the server; rejects naming any one that had to be killed. */
   async close(): Promise<void> {
-    await Promise.all([...this.demos.map((d) => ended(d)), ended(this.server)]);
+    const all = await Promise.allSettled([...this.demos.map((d) => ended(d, "turbo-kserve-demo")), ended(this.server, "turbo-kserve")]);
     if (this.work) rmSync(this.work, { recursive: true, force: true });
+    const failed = all.find((r): r is PromiseRejectedResult => r.status === "rejected");
+    if (failed) throw failed.reason;
   }
 }

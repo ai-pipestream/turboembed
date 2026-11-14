@@ -189,6 +189,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             include_strategy_matrix: true,
             strategy_budgets: Vec::new(),
             pii_output: None,
+            ..Default::default()
         })
         .await
         .unwrap()
@@ -216,6 +217,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             include_strategy_matrix: true,
             strategy_budgets: too_many_budgets,
             pii_output: None,
+            ..Default::default()
         })
         .await
         .unwrap_err();
@@ -260,6 +262,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
             include_strategy_matrix: false,
             strategy_budgets: Vec::new(),
             pii_output: None,
+            ..Default::default()
         })
         .await
         .unwrap_err();

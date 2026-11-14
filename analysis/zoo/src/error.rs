@@ -17,6 +17,8 @@ pub enum Check {
     DownloadSha256,
     /// The compressed bytes do not unpack to the file's size.
     Unpack,
+    /// An importer's check of a file against the id git gives it.
+    GitBlob,
 }
 
 impl fmt::Display for Check {
@@ -28,6 +30,7 @@ impl fmt::Display for Check {
             Check::DownloadSize => "download size",
             Check::DownloadSha256 => "download SHA-256",
             Check::Unpack => "unpacked file",
+            Check::GitBlob => "git blob id",
         })
     }
 }
@@ -56,6 +59,8 @@ pub enum ZooError {
     Integrity { id: ArtifactId, path: String, check: Check, expected: String, actual: String },
     /// An encoder bundle's manifest is not the one its entry describes.
     Bundle { id: ArtifactId, message: String },
+    /// A model in another layout cannot be imported as it is.
+    Import { id: ArtifactId, message: String },
     /// The transport could not fetch an address.
     Transport { url: String, message: String },
     /// Reading or writing a local file failed.
@@ -95,6 +100,7 @@ impl fmt::Display for ZooError {
                 write!(f, "{id}/{path}: {check} is {actual}, the index says {expected}")
             }
             ZooError::Bundle { id, message } => write!(f, "{id}: {message}"),
+            ZooError::Import { id, message } => write!(f, "{id}: {message}"),
             ZooError::Transport { url, message } => write!(f, "GET {url}: {message}"),
             ZooError::Io { path, message } => write!(f, "{}: {message}", path.display()),
         }

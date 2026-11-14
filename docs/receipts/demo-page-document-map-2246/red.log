@@ -1,0 +1,29 @@
+# 2246 meaning map
+FAIL the map draws one dot per chunk (0 dots)
+FAIL a trail joins them in reading order
+FAIL the axes say how much of the variance each carries
+FAIL each dot is named by terms of its own chunk
+FAIL pointing at a dot lights its chunk in the text
+FAIL and says which chunk it is
+FAIL pointing at a chunk in the text lights its dot
+FAIL a dot can be reached by keyboard
+# 2247 topic seismograph
+FAIL the curve draws a value at each sentence gap (0 stems, 0 lines)
+FAIL the cuts are marked (0 marks)
+FAIL the chunks run as a band above
+FAIL one row of ticks per budget, after the profile's own (0 rows)
+FAIL each budget row carries its agreement with the profile
+FAIL pointing at a gap shows the sentence on each side
+# 2251 term river
+FAIL the river draws a stream per term (0 streams)
+FAIL with a legend naming each
+FAIL words every chunk uses are left out
+FAIL the chunk boundaries are marked
+FAIL pointing at a term marks its occurrences in the text
+FAIL and lists where it occurs
+FAIL the switch draws the heaviest terms instead (no switch)
+FAIL the same numbers are there as tables (0 tables)
+# on a phone, and with no vectors
+FAIL at 390 px the page does not scroll sideways (0 figures)
+FAIL a graph with no vectors says how to get them
+24 checks failed
