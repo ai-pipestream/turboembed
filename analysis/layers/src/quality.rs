@@ -12,11 +12,13 @@ pub(crate) mod grammar;
 mod morphology;
 mod overlap;
 mod phonetics;
+mod work;
 pub use gates::{QualityPredicate, lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on};
 pub use grammar::{
     GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
     MAX_RULE_ID_BYTES, builtin_rule_id,
 };
+pub use work::GrammarCheckWork;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct QualityFlags(pub u16);
