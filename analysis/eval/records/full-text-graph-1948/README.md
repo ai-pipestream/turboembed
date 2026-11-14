@@ -64,7 +64,7 @@ GLINER_PACKAGE=gliner-small-v2.5-package GLINER2_PACKAGE=gliner2-package \
   cargo test --release -p turbo-kserve --test full_text_graph_served -- --include-ignored
   # 4 passed, 9.75 s
 scripts/e2e-web.sh
-  # 33 passed, 0 skipped
+  # 70 passed, 0 skipped
 ```
 
 ## Not covered
