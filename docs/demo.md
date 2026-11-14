@@ -906,9 +906,10 @@ either: every call the page makes goes through the demo to the server.
   server's byte limit costs one more call and leaves the map and the
   matrix drawn with the refusal under the box; a document of more rows
   than the server places is refused once and not asked again in parts;
-  a query changed while the map was on its way is the one placed; and
-  an answer to an older drawing that arrives after a newer one is not
-  drawn (`document-map-calls.test.ts`). The matrix's diagonal is the
+  a query changed while the map was on its way, or typed into an empty
+  box meanwhile, is the one placed and is asked once; and an answer or
+  a query's refusal that belongs to an older drawing and arrives after
+  a newer one changes nothing (`document-map-calls.test.ts`). The matrix's diagonal is the
   far end of its colour ramp (`matrix-spotlight.test.ts`).
 - A graph with an entity layer and a relation layer, which
   `server/examples/inspect_layer_fixture.rs` writes as its second file
