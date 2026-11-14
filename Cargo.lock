@@ -3082,6 +3082,8 @@ dependencies = [
  "turbo-formats",
  "turbo-gliner",
  "turbo-pins",
+ "turbo-relation",
+ "turbo-schema-extract",
  "turbo-scratch",
  "turbo-sentdetect",
  "turbo-tagger",

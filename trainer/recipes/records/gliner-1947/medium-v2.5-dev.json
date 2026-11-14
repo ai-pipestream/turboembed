@@ -1,0 +1,4052 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "./turbo-train-head",
+    "eval-gliner",
+    "--corpus",
+    "wnut17,multiconer2-en",
+    "--dir",
+    "corpora/emerging_entities_17,corpora/multiconer2023",
+    "--package",
+    "gliner/medium-v2.5",
+    "--encoder-bundle",
+    "bundles/medium-v2.5-encoder",
+    "--device",
+    "cuda",
+    "--hold-out",
+    "location,VisualWork,Scientist,Clothing",
+    "--split",
+    "dev",
+    "--calibrate",
+    "--threshold",
+    "0.8",
+    "--threads",
+    "4",
+    "--commit",
+    "e7b0ad4cf",
+    "--out",
+    "runs/1947-medium-v2.5-dev"
+  ],
+  "commit": "e7b0ad4cf",
+  "unix_time": 1794565164,
+  "corpus": {
+    "id": "wnut17,multiconer2-en",
+    "name": "WNUT-17 + MultiCoNER v2, English",
+    "task": "bio",
+    "licence": "CC BY 4.0 + CC BY-SA 4.0",
+    "spdx": "CC-BY-SA-4.0",
+    "terms": "https://github.com/leondz/emerging_entities_17/blob/e52a2d2a71ac1a051ca2d532eef28653c5c02603/README.md + https://arxiv.org/abs/2310.13213",
+    "attribution": "Trained on WNUT 2017 Emerging and Rare Entity Recognition, Derczynski et al., CC BY 4.0. Corpus: https://github.com/leondz/emerging_entities_17 + Trained on MultiCoNER v2 (Fetahu et al., SemEval-2023 Task 2: Fine-grained Multilingual Named Entity Recognition), by Amazon, published at https://registry.opendata.aws/multiconer/; its sentences are from Wikipedia. Used under the Creative Commons Attribution-ShareAlike 4.0 International licence (https://creativecommons.org/licenses/by-sa/4.0/), which the dataset paper states.",
+    "recorded": true,
+    "files": [
+      {
+        "path": "wnut17/wnut17train.conll",
+        "size": 493781,
+        "sha256": "731820e13f71af324c6b55a1575ec2ce59fbaa2a0806f8f0400b98d56cd6a7a5"
+      },
+      {
+        "path": "wnut17/emerging.dev.conll",
+        "size": 114749,
+        "sha256": "e053b752b8155113ca66e7db08af5f2f5f43ab993694e4774f1ec5bad42312d8"
+      },
+      {
+        "path": "wnut17/emerging.test.annotated",
+        "size": 192425,
+        "sha256": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0"
+      },
+      {
+        "path": "multiconer2-en/EN-English/en_train.conll",
+        "size": 4348311,
+        "sha256": "1e1af77f95e92aa287c40feb7c10b384192c8ff026c916114a54713f331138ea"
+      },
+      {
+        "path": "multiconer2-en/EN-English/en_dev.conll",
+        "size": 227151,
+        "sha256": "cef0633da09ab2ee3386576818acad0aef47e124ca7c7ec557e18de6974326df"
+      },
+      {
+        "path": "multiconer2-en/EN-English/en_test.conll",
+        "size": 70582472,
+        "sha256": "67ff1545244c757c2d56edb50eb5afd0d9bd8bdd877ea719a3a1e5932f5d7d77"
+      }
+    ],
+    "split": "publisher train/dev/test files at e52a2d2a71ac1a051ca2d532eef28653c5c02603; no repartitioning + the release's own train, dev and test files",
+    "train": {
+      "sentences": 20172,
+      "words": 315741
+    },
+    "dev": {
+      "sentences": 1880,
+      "words": 29056
+    },
+    "test": {
+      "sentences": 251267,
+      "words": 3797065
+    },
+    "skipped": 0
+  },
+  "peer": {
+    "name": "gliner:gliner-community/gliner_medium-v2.5@88c3b98b57ad5e7d66fb209ed61c53f4b1fd05da#0db32ea7f922f45c3edf5ba7142c037667eccc2d3d3e81c45228a44a4c122d2f;threshold=0.8;decode=flat;label_batch=32;schema=ac5dd68f3f4a7d27;calibration=e0b77183c598efd14372d22c8de6401ae4436fa58c42ad577907cc76933e312b",
+    "column": "bio",
+    "predictions": {
+      "path": "predictions.bio",
+      "size": 232664,
+      "sha256": "d58833edfc43c32d9a26fd868eaab423985be06516305ec9afc073fd080a26b7"
+    }
+  },
+  "eval": {
+    "split": "dev",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 2132,
+          "found": 1929,
+          "correct": 540,
+          "precision": 0.27993779160186627,
+          "recall": 0.25328330206378985,
+          "f1": 0.2659443486825905
+        },
+        "per_type": {
+          "AerospaceManufacturer": {
+            "gold": 10,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "AnatomicalStructure": {
+            "gold": 17,
+            "found": 21,
+            "correct": 7,
+            "precision": 0.3333333333333333,
+            "recall": 0.4117647058823529,
+            "f1": 0.3684210526315789
+          },
+          "ArtWork": {
+            "gold": 13,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Artist": {
+            "gold": 212,
+            "found": 278,
+            "correct": 109,
+            "precision": 0.3920863309352518,
+            "recall": 0.5141509433962265,
+            "f1": 0.4448979591836735
+          },
+          "Athlete": {
+            "gold": 79,
+            "found": 63,
+            "correct": 18,
+            "precision": 0.2857142857142857,
+            "recall": 0.22784810126582278,
+            "f1": 0.2535211267605634
+          },
+          "CarManufacturer": {
+            "gold": 13,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Cleric": {
+            "gold": 15,
+            "found": 15,
+            "correct": 4,
+            "precision": 0.26666666666666666,
+            "recall": 0.26666666666666666,
+            "f1": 0.26666666666666666
+          },
+          "Clothing": {
+            "gold": 10,
+            "found": 12,
+            "correct": 3,
+            "precision": 0.25,
+            "recall": 0.3,
+            "f1": 0.2727272727272727
+          },
+          "Disease": {
+            "gold": 18,
+            "found": 13,
+            "correct": 4,
+            "precision": 0.3076923076923077,
+            "recall": 0.2222222222222222,
+            "f1": 0.25806451612903225
+          },
+          "Drink": {
+            "gold": 11,
+            "found": 21,
+            "correct": 6,
+            "precision": 0.2857142857142857,
+            "recall": 0.5454545454545454,
+            "f1": 0.375
+          },
+          "Facility": {
+            "gold": 52,
+            "found": 100,
+            "correct": 28,
+            "precision": 0.28,
+            "recall": 0.5384615384615384,
+            "f1": 0.3684210526315789
+          },
+          "Food": {
+            "gold": 19,
+            "found": 37,
+            "correct": 7,
+            "precision": 0.1891891891891892,
+            "recall": 0.3684210526315789,
+            "f1": 0.25
+          },
+          "HumanSettlement": {
+            "gold": 109,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "MedicalProcedure": {
+            "gold": 13,
+            "found": 8,
+            "correct": 4,
+            "precision": 0.5,
+            "recall": 0.3076923076923077,
+            "f1": 0.38095238095238093
+          },
+          "Medication/Vaccine": {
+            "gold": 18,
+            "found": 30,
+            "correct": 12,
+            "precision": 0.4,
+            "recall": 0.6666666666666666,
+            "f1": 0.5
+          },
+          "MusicalGRP": {
+            "gold": 37,
+            "found": 20,
+            "correct": 3,
+            "precision": 0.15,
+            "recall": 0.08108108108108109,
+            "f1": 0.10526315789473684
+          },
+          "MusicalWork": {
+            "gold": 61,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ORG": {
+            "gold": 78,
+            "found": 2,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "OtherLOC": {
+            "gold": 16,
+            "found": 6,
+            "correct": 2,
+            "precision": 0.3333333333333333,
+            "recall": 0.125,
+            "f1": 0.18181818181818182
+          },
+          "OtherPER": {
+            "gold": 91,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "OtherPROD": {
+            "gold": 49,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Politician": {
+            "gold": 53,
+            "found": 52,
+            "correct": 13,
+            "precision": 0.25,
+            "recall": 0.24528301886792453,
+            "f1": 0.24761904761904763
+          },
+          "PrivateCorp": {
+            "gold": 11,
+            "found": 8,
+            "correct": 1,
+            "precision": 0.125,
+            "recall": 0.09090909090909091,
+            "f1": 0.10526315789473684
+          },
+          "PublicCorp": {
+            "gold": 28,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Scientist": {
+            "gold": 15,
+            "found": 8,
+            "correct": 3,
+            "precision": 0.375,
+            "recall": 0.2,
+            "f1": 0.2608695652173913
+          },
+          "Software": {
+            "gold": 26,
+            "found": 69,
+            "correct": 9,
+            "precision": 0.13043478260869565,
+            "recall": 0.34615384615384615,
+            "f1": 0.18947368421052632
+          },
+          "SportsGRP": {
+            "gold": 41,
+            "found": 116,
+            "correct": 31,
+            "precision": 0.2672413793103448,
+            "recall": 0.7560975609756098,
+            "f1": 0.39490445859872614
+          },
+          "SportsManager": {
+            "gold": 16,
+            "found": 75,
+            "correct": 12,
+            "precision": 0.16,
+            "recall": 0.75,
+            "f1": 0.26373626373626374
+          },
+          "Station": {
+            "gold": 20,
+            "found": 19,
+            "correct": 8,
+            "precision": 0.42105263157894735,
+            "recall": 0.4,
+            "f1": 0.41025641025641024
+          },
+          "Symptom": {
+            "gold": 10,
+            "found": 26,
+            "correct": 4,
+            "precision": 0.15384615384615385,
+            "recall": 0.4,
+            "f1": 0.2222222222222222
+          },
+          "Vehicle": {
+            "gold": 20,
+            "found": 109,
+            "correct": 9,
+            "precision": 0.08256880733944955,
+            "recall": 0.45,
+            "f1": 0.13953488372093023
+          },
+          "VisualWork": {
+            "gold": 61,
+            "found": 64,
+            "correct": 11,
+            "precision": 0.171875,
+            "recall": 0.18032786885245902,
+            "f1": 0.176
+          },
+          "WrittenWork": {
+            "gold": 54,
+            "found": 74,
+            "correct": 22,
+            "precision": 0.2972972972972973,
+            "recall": 0.4074074074074074,
+            "f1": 0.34375
+          },
+          "corporation": {
+            "gold": 34,
+            "found": 25,
+            "correct": 3,
+            "precision": 0.12,
+            "recall": 0.08823529411764706,
+            "f1": 0.1016949152542373
+          },
+          "creative-work": {
+            "gold": 105,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "group": {
+            "gold": 39,
+            "found": 12,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "location": {
+            "gold": 74,
+            "found": 142,
+            "correct": 32,
+            "precision": 0.22535211267605634,
+            "recall": 0.43243243243243246,
+            "f1": 0.2962962962962963
+          },
+          "person": {
+            "gold": 470,
+            "found": 415,
+            "correct": 160,
+            "precision": 0.3855421686746988,
+            "recall": 0.3404255319148936,
+            "f1": 0.3615819209039548
+          },
+          "product": {
+            "gold": 114,
+            "found": 77,
+            "correct": 15,
+            "precision": 0.19480519480519481,
+            "recall": 0.13157894736842105,
+            "f1": 0.15706806282722513
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 2132,
+          "found": 1672,
+          "correct": 251,
+          "precision": 0.15011961722488038,
+          "recall": 0.1177298311444653,
+          "f1": 0.13196635120925343
+        },
+        "per_type": {
+          "AerospaceManufacturer": {
+            "gold": 10,
+            "found": 16,
+            "correct": 5,
+            "precision": 0.3125,
+            "recall": 0.5,
+            "f1": 0.38461538461538464
+          },
+          "AnatomicalStructure": {
+            "gold": 17,
+            "found": 19,
+            "correct": 9,
+            "precision": 0.47368421052631576,
+            "recall": 0.5294117647058824,
+            "f1": 0.5
+          },
+          "ArtWork": {
+            "gold": 13,
+            "found": 19,
+            "correct": 1,
+            "precision": 0.05263157894736842,
+            "recall": 0.07692307692307693,
+            "f1": 0.0625
+          },
+          "Artist": {
+            "gold": 212,
+            "found": 390,
+            "correct": 37,
+            "precision": 0.09487179487179487,
+            "recall": 0.17452830188679244,
+            "f1": 0.12292358803986711
+          },
+          "Athlete": {
+            "gold": 79,
+            "found": 143,
+            "correct": 9,
+            "precision": 0.06293706293706294,
+            "recall": 0.11392405063291139,
+            "f1": 0.08108108108108109
+          },
+          "CarManufacturer": {
+            "gold": 13,
+            "found": 18,
+            "correct": 7,
+            "precision": 0.3888888888888889,
+            "recall": 0.5384615384615384,
+            "f1": 0.45161290322580644
+          },
+          "Cleric": {
+            "gold": 15,
+            "found": 14,
+            "correct": 2,
+            "precision": 0.14285714285714285,
+            "recall": 0.13333333333333333,
+            "f1": 0.13793103448275862
+          },
+          "Clothing": {
+            "gold": 10,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "gold": 18,
+            "found": 23,
+            "correct": 3,
+            "precision": 0.13043478260869565,
+            "recall": 0.16666666666666666,
+            "f1": 0.14634146341463414
+          },
+          "Drink": {
+            "gold": 11,
+            "found": 11,
+            "correct": 5,
+            "precision": 0.45454545454545453,
+            "recall": 0.45454545454545453,
+            "f1": 0.45454545454545453
+          },
+          "Facility": {
+            "gold": 52,
+            "found": 65,
+            "correct": 8,
+            "precision": 0.12307692307692308,
+            "recall": 0.15384615384615385,
+            "f1": 0.13675213675213677
+          },
+          "Food": {
+            "gold": 19,
+            "found": 12,
+            "correct": 4,
+            "precision": 0.3333333333333333,
+            "recall": 0.21052631578947367,
+            "f1": 0.25806451612903225
+          },
+          "HumanSettlement": {
+            "gold": 109,
+            "found": 138,
+            "correct": 39,
+            "precision": 0.2826086956521739,
+            "recall": 0.3577981651376147,
+            "f1": 0.3157894736842105
+          },
+          "MedicalProcedure": {
+            "gold": 13,
+            "found": 10,
+            "correct": 2,
+            "precision": 0.2,
+            "recall": 0.15384615384615385,
+            "f1": 0.17391304347826086
+          },
+          "Medication/Vaccine": {
+            "gold": 18,
+            "found": 13,
+            "correct": 5,
+            "precision": 0.38461538461538464,
+            "recall": 0.2777777777777778,
+            "f1": 0.3225806451612903
+          },
+          "MusicalGRP": {
+            "gold": 37,
+            "found": 42,
+            "correct": 1,
+            "precision": 0.023809523809523808,
+            "recall": 0.02702702702702703,
+            "f1": 0.02531645569620253
+          },
+          "MusicalWork": {
+            "gold": 61,
+            "found": 39,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ORG": {
+            "gold": 78,
+            "found": 117,
+            "correct": 18,
+            "precision": 0.15384615384615385,
+            "recall": 0.23076923076923078,
+            "f1": 0.18461538461538463
+          },
+          "OtherLOC": {
+            "gold": 16,
+            "found": 18,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "OtherPER": {
+            "gold": 91,
+            "found": 111,
+            "correct": 6,
+            "precision": 0.05405405405405406,
+            "recall": 0.06593406593406594,
+            "f1": 0.0594059405940594
+          },
+          "OtherPROD": {
+            "gold": 49,
+            "found": 32,
+            "correct": 7,
+            "precision": 0.21875,
+            "recall": 0.14285714285714285,
+            "f1": 0.1728395061728395
+          },
+          "Politician": {
+            "gold": 53,
+            "found": 52,
+            "correct": 3,
+            "precision": 0.057692307692307696,
+            "recall": 0.05660377358490566,
+            "f1": 0.05714285714285714
+          },
+          "PrivateCorp": {
+            "gold": 11,
+            "found": 11,
+            "correct": 3,
+            "precision": 0.2727272727272727,
+            "recall": 0.2727272727272727,
+            "f1": 0.2727272727272727
+          },
+          "PublicCorp": {
+            "gold": 28,
+            "found": 11,
+            "correct": 2,
+            "precision": 0.18181818181818182,
+            "recall": 0.07142857142857142,
+            "f1": 0.10256410256410256
+          },
+          "Scientist": {
+            "gold": 15,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Software": {
+            "gold": 26,
+            "found": 29,
+            "correct": 6,
+            "precision": 0.20689655172413793,
+            "recall": 0.23076923076923078,
+            "f1": 0.21818181818181817
+          },
+          "SportsGRP": {
+            "gold": 41,
+            "found": 55,
+            "correct": 14,
+            "precision": 0.2545454545454545,
+            "recall": 0.34146341463414637,
+            "f1": 0.2916666666666667
+          },
+          "SportsManager": {
+            "gold": 16,
+            "found": 5,
+            "correct": 1,
+            "precision": 0.2,
+            "recall": 0.0625,
+            "f1": 0.09523809523809523
+          },
+          "Station": {
+            "gold": 20,
+            "found": 31,
+            "correct": 1,
+            "precision": 0.03225806451612903,
+            "recall": 0.05,
+            "f1": 0.0392156862745098
+          },
+          "Symptom": {
+            "gold": 10,
+            "found": 16,
+            "correct": 6,
+            "precision": 0.375,
+            "recall": 0.6,
+            "f1": 0.46153846153846156
+          },
+          "Vehicle": {
+            "gold": 20,
+            "found": 11,
+            "correct": 3,
+            "precision": 0.2727272727272727,
+            "recall": 0.15,
+            "f1": 0.1935483870967742
+          },
+          "VisualWork": {
+            "gold": 61,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "WrittenWork": {
+            "gold": 54,
+            "found": 76,
+            "correct": 3,
+            "precision": 0.039473684210526314,
+            "recall": 0.05555555555555555,
+            "f1": 0.046153846153846156
+          },
+          "corporation": {
+            "gold": 34,
+            "found": 6,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "creative-work": {
+            "gold": 105,
+            "found": 17,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "group": {
+            "gold": 39,
+            "found": 13,
+            "correct": 1,
+            "precision": 0.07692307692307693,
+            "recall": 0.02564102564102564,
+            "f1": 0.038461538461538464
+          },
+          "location": {
+            "gold": 74,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "person": {
+            "gold": 470,
+            "found": 74,
+            "correct": 39,
+            "precision": 0.527027027027027,
+            "recall": 0.08297872340425531,
+            "f1": 0.14338235294117646
+          },
+          "product": {
+            "gold": 114,
+            "found": 15,
+            "correct": 1,
+            "precision": 0.06666666666666667,
+            "recall": 0.008771929824561403,
+            "f1": 0.015503875968992248
+          }
+        }
+      }
+    },
+    "dictionary": {
+      "spans": {
+        "all": {
+          "gold": 2132,
+          "found": 69,
+          "correct": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "per_type": {
+          "AerospaceManufacturer": {
+            "gold": 10,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "AnatomicalStructure": {
+            "gold": 17,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ArtWork": {
+            "gold": 13,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Artist": {
+            "gold": 212,
+            "found": 8,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Athlete": {
+            "gold": 79,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "CarManufacturer": {
+            "gold": 13,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Cleric": {
+            "gold": 15,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Clothing": {
+            "gold": 10,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "gold": 18,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Drink": {
+            "gold": 11,
+            "found": 3,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Facility": {
+            "gold": 52,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Food": {
+            "gold": 19,
+            "found": 7,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "HumanSettlement": {
+            "gold": 109,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "MedicalProcedure": {
+            "gold": 13,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Medication/Vaccine": {
+            "gold": 18,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "MusicalGRP": {
+            "gold": 37,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "MusicalWork": {
+            "gold": 61,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ORG": {
+            "gold": 78,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "OtherLOC": {
+            "gold": 16,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "OtherPER": {
+            "gold": 91,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "OtherPROD": {
+            "gold": 49,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Politician": {
+            "gold": 53,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "PrivateCorp": {
+            "gold": 11,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "PublicCorp": {
+            "gold": 28,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Scientist": {
+            "gold": 15,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Software": {
+            "gold": 26,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "SportsGRP": {
+            "gold": 41,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "SportsManager": {
+            "gold": 16,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Station": {
+            "gold": 20,
+            "found": 11,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Symptom": {
+            "gold": 10,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Vehicle": {
+            "gold": 20,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "VisualWork": {
+            "gold": 61,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "WrittenWork": {
+            "gold": 54,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "corporation": {
+            "gold": 34,
+            "found": 4,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "creative-work": {
+            "gold": 105,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "group": {
+            "gold": 39,
+            "found": 10,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "location": {
+            "gold": 74,
+            "found": 5,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "person": {
+            "gold": 470,
+            "found": 6,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "product": {
+            "gold": 114,
+            "found": 1,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        }
+      }
+    },
+    "open_span": {
+      "seen_types": [
+        "person",
+        "group",
+        "creative-work",
+        "corporation",
+        "product",
+        "AerospaceManufacturer",
+        "AnatomicalStructure",
+        "ArtWork",
+        "Artist",
+        "Athlete",
+        "CarManufacturer",
+        "Cleric",
+        "Disease",
+        "Drink",
+        "Facility",
+        "Food",
+        "HumanSettlement",
+        "MedicalProcedure",
+        "Medication/Vaccine",
+        "MusicalGRP",
+        "MusicalWork",
+        "ORG",
+        "OtherLOC",
+        "OtherPER",
+        "OtherPROD",
+        "Politician",
+        "PrivateCorp",
+        "PublicCorp",
+        "Software",
+        "SportsGRP",
+        "SportsManager",
+        "Station",
+        "Symptom",
+        "Vehicle",
+        "WrittenWork"
+      ],
+      "held_out_types": [
+        "location",
+        "VisualWork",
+        "Scientist",
+        "Clothing"
+      ],
+      "seen_model": {
+        "spans": {
+          "all": {
+            "gold": 1972,
+            "found": 1962,
+            "correct": 483,
+            "precision": 0.24617737003058104,
+            "recall": 0.2449290060851927,
+            "f1": 0.24555160142348753
+          },
+          "per_type": {
+            "AerospaceManufacturer": {
+              "gold": 10,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "AnatomicalStructure": {
+              "gold": 17,
+              "found": 18,
+              "correct": 5,
+              "precision": 0.2777777777777778,
+              "recall": 0.29411764705882354,
+              "f1": 0.2857142857142857
+            },
+            "ArtWork": {
+              "gold": 13,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Artist": {
+              "gold": 212,
+              "found": 283,
+              "correct": 111,
+              "precision": 0.392226148409894,
+              "recall": 0.5235849056603774,
+              "f1": 0.4484848484848485
+            },
+            "Athlete": {
+              "gold": 79,
+              "found": 148,
+              "correct": 37,
+              "precision": 0.25,
+              "recall": 0.46835443037974683,
+              "f1": 0.32599118942731276
+            },
+            "CarManufacturer": {
+              "gold": 13,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Cleric": {
+              "gold": 15,
+              "found": 13,
+              "correct": 4,
+              "precision": 0.3076923076923077,
+              "recall": 0.26666666666666666,
+              "f1": 0.2857142857142857
+            },
+            "Disease": {
+              "gold": 18,
+              "found": 15,
+              "correct": 6,
+              "precision": 0.4,
+              "recall": 0.3333333333333333,
+              "f1": 0.36363636363636365
+            },
+            "Drink": {
+              "gold": 11,
+              "found": 23,
+              "correct": 6,
+              "precision": 0.2608695652173913,
+              "recall": 0.5454545454545454,
+              "f1": 0.35294117647058826
+            },
+            "Facility": {
+              "gold": 52,
+              "found": 87,
+              "correct": 24,
+              "precision": 0.27586206896551724,
+              "recall": 0.46153846153846156,
+              "f1": 0.34532374100719426
+            },
+            "Food": {
+              "gold": 19,
+              "found": 34,
+              "correct": 6,
+              "precision": 0.17647058823529413,
+              "recall": 0.3157894736842105,
+              "f1": 0.22641509433962265
+            },
+            "HumanSettlement": {
+              "gold": 109,
+              "found": 5,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MedicalProcedure": {
+              "gold": 13,
+              "found": 6,
+              "correct": 4,
+              "precision": 0.6666666666666666,
+              "recall": 0.3076923076923077,
+              "f1": 0.42105263157894735
+            },
+            "Medication/Vaccine": {
+              "gold": 18,
+              "found": 28,
+              "correct": 11,
+              "precision": 0.39285714285714285,
+              "recall": 0.6111111111111112,
+              "f1": 0.4782608695652174
+            },
+            "MusicalGRP": {
+              "gold": 37,
+              "found": 82,
+              "correct": 4,
+              "precision": 0.04878048780487805,
+              "recall": 0.10810810810810811,
+              "f1": 0.06722689075630252
+            },
+            "MusicalWork": {
+              "gold": 61,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "ORG": {
+              "gold": 78,
+              "found": 22,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OtherLOC": {
+              "gold": 16,
+              "found": 26,
+              "correct": 1,
+              "precision": 0.038461538461538464,
+              "recall": 0.0625,
+              "f1": 0.047619047619047616
+            },
+            "OtherPER": {
+              "gold": 91,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OtherPROD": {
+              "gold": 49,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Politician": {
+              "gold": 53,
+              "found": 56,
+              "correct": 14,
+              "precision": 0.25,
+              "recall": 0.2641509433962264,
+              "f1": 0.25688073394495414
+            },
+            "PrivateCorp": {
+              "gold": 11,
+              "found": 13,
+              "correct": 1,
+              "precision": 0.07692307692307693,
+              "recall": 0.09090909090909091,
+              "f1": 0.08333333333333333
+            },
+            "PublicCorp": {
+              "gold": 28,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Software": {
+              "gold": 26,
+              "found": 74,
+              "correct": 9,
+              "precision": 0.12162162162162163,
+              "recall": 0.34615384615384615,
+              "f1": 0.18
+            },
+            "SportsGRP": {
+              "gold": 41,
+              "found": 8,
+              "correct": 7,
+              "precision": 0.875,
+              "recall": 0.17073170731707318,
+              "f1": 0.2857142857142857
+            },
+            "SportsManager": {
+              "gold": 16,
+              "found": 2,
+              "correct": 2,
+              "precision": 1.0,
+              "recall": 0.125,
+              "f1": 0.2222222222222222
+            },
+            "Station": {
+              "gold": 20,
+              "found": 2,
+              "correct": 2,
+              "precision": 1.0,
+              "recall": 0.1,
+              "f1": 0.18181818181818182
+            },
+            "Symptom": {
+              "gold": 10,
+              "found": 26,
+              "correct": 4,
+              "precision": 0.15384615384615385,
+              "recall": 0.4,
+              "f1": 0.2222222222222222
+            },
+            "Vehicle": {
+              "gold": 20,
+              "found": 166,
+              "correct": 11,
+              "precision": 0.06626506024096386,
+              "recall": 0.55,
+              "f1": 0.11827956989247312
+            },
+            "WrittenWork": {
+              "gold": 54,
+              "found": 228,
+              "correct": 29,
+              "precision": 0.12719298245614036,
+              "recall": 0.5370370370370371,
+              "f1": 0.20567375886524822
+            },
+            "corporation": {
+              "gold": 34,
+              "found": 25,
+              "correct": 3,
+              "precision": 0.12,
+              "recall": 0.08823529411764706,
+              "f1": 0.1016949152542373
+            },
+            "creative-work": {
+              "gold": 105,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "group": {
+              "gold": 39,
+              "found": 9,
+              "correct": 1,
+              "precision": 0.1111111111111111,
+              "recall": 0.02564102564102564,
+              "f1": 0.041666666666666664
+            },
+            "person": {
+              "gold": 470,
+              "found": 450,
+              "correct": 167,
+              "precision": 0.3711111111111111,
+              "recall": 0.3553191489361702,
+              "f1": 0.3630434782608696
+            },
+            "product": {
+              "gold": 114,
+              "found": 109,
+              "correct": 14,
+              "precision": 0.12844036697247707,
+              "recall": 0.12280701754385964,
+              "f1": 0.12556053811659193
+            }
+          }
+        }
+      },
+      "seen_baseline": {
+        "spans": {
+          "all": {
+            "gold": 1972,
+            "found": 1672,
+            "correct": 251,
+            "precision": 0.15011961722488038,
+            "recall": 0.12728194726166328,
+            "f1": 0.13776070252469813
+          },
+          "per_type": {
+            "AerospaceManufacturer": {
+              "gold": 10,
+              "found": 16,
+              "correct": 5,
+              "precision": 0.3125,
+              "recall": 0.5,
+              "f1": 0.38461538461538464
+            },
+            "AnatomicalStructure": {
+              "gold": 17,
+              "found": 19,
+              "correct": 9,
+              "precision": 0.47368421052631576,
+              "recall": 0.5294117647058824,
+              "f1": 0.5
+            },
+            "ArtWork": {
+              "gold": 13,
+              "found": 19,
+              "correct": 1,
+              "precision": 0.05263157894736842,
+              "recall": 0.07692307692307693,
+              "f1": 0.0625
+            },
+            "Artist": {
+              "gold": 212,
+              "found": 390,
+              "correct": 37,
+              "precision": 0.09487179487179487,
+              "recall": 0.17452830188679244,
+              "f1": 0.12292358803986711
+            },
+            "Athlete": {
+              "gold": 79,
+              "found": 143,
+              "correct": 9,
+              "precision": 0.06293706293706294,
+              "recall": 0.11392405063291139,
+              "f1": 0.08108108108108109
+            },
+            "CarManufacturer": {
+              "gold": 13,
+              "found": 18,
+              "correct": 7,
+              "precision": 0.3888888888888889,
+              "recall": 0.5384615384615384,
+              "f1": 0.45161290322580644
+            },
+            "Cleric": {
+              "gold": 15,
+              "found": 14,
+              "correct": 2,
+              "precision": 0.14285714285714285,
+              "recall": 0.13333333333333333,
+              "f1": 0.13793103448275862
+            },
+            "Disease": {
+              "gold": 18,
+              "found": 23,
+              "correct": 3,
+              "precision": 0.13043478260869565,
+              "recall": 0.16666666666666666,
+              "f1": 0.14634146341463414
+            },
+            "Drink": {
+              "gold": 11,
+              "found": 11,
+              "correct": 5,
+              "precision": 0.45454545454545453,
+              "recall": 0.45454545454545453,
+              "f1": 0.45454545454545453
+            },
+            "Facility": {
+              "gold": 52,
+              "found": 65,
+              "correct": 8,
+              "precision": 0.12307692307692308,
+              "recall": 0.15384615384615385,
+              "f1": 0.13675213675213677
+            },
+            "Food": {
+              "gold": 19,
+              "found": 12,
+              "correct": 4,
+              "precision": 0.3333333333333333,
+              "recall": 0.21052631578947367,
+              "f1": 0.25806451612903225
+            },
+            "HumanSettlement": {
+              "gold": 109,
+              "found": 138,
+              "correct": 39,
+              "precision": 0.2826086956521739,
+              "recall": 0.3577981651376147,
+              "f1": 0.3157894736842105
+            },
+            "MedicalProcedure": {
+              "gold": 13,
+              "found": 10,
+              "correct": 2,
+              "precision": 0.2,
+              "recall": 0.15384615384615385,
+              "f1": 0.17391304347826086
+            },
+            "Medication/Vaccine": {
+              "gold": 18,
+              "found": 13,
+              "correct": 5,
+              "precision": 0.38461538461538464,
+              "recall": 0.2777777777777778,
+              "f1": 0.3225806451612903
+            },
+            "MusicalGRP": {
+              "gold": 37,
+              "found": 42,
+              "correct": 1,
+              "precision": 0.023809523809523808,
+              "recall": 0.02702702702702703,
+              "f1": 0.02531645569620253
+            },
+            "MusicalWork": {
+              "gold": 61,
+              "found": 39,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "ORG": {
+              "gold": 78,
+              "found": 117,
+              "correct": 18,
+              "precision": 0.15384615384615385,
+              "recall": 0.23076923076923078,
+              "f1": 0.18461538461538463
+            },
+            "OtherLOC": {
+              "gold": 16,
+              "found": 18,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OtherPER": {
+              "gold": 91,
+              "found": 111,
+              "correct": 6,
+              "precision": 0.05405405405405406,
+              "recall": 0.06593406593406594,
+              "f1": 0.0594059405940594
+            },
+            "OtherPROD": {
+              "gold": 49,
+              "found": 32,
+              "correct": 7,
+              "precision": 0.21875,
+              "recall": 0.14285714285714285,
+              "f1": 0.1728395061728395
+            },
+            "Politician": {
+              "gold": 53,
+              "found": 52,
+              "correct": 3,
+              "precision": 0.057692307692307696,
+              "recall": 0.05660377358490566,
+              "f1": 0.05714285714285714
+            },
+            "PrivateCorp": {
+              "gold": 11,
+              "found": 11,
+              "correct": 3,
+              "precision": 0.2727272727272727,
+              "recall": 0.2727272727272727,
+              "f1": 0.2727272727272727
+            },
+            "PublicCorp": {
+              "gold": 28,
+              "found": 11,
+              "correct": 2,
+              "precision": 0.18181818181818182,
+              "recall": 0.07142857142857142,
+              "f1": 0.10256410256410256
+            },
+            "Software": {
+              "gold": 26,
+              "found": 29,
+              "correct": 6,
+              "precision": 0.20689655172413793,
+              "recall": 0.23076923076923078,
+              "f1": 0.21818181818181817
+            },
+            "SportsGRP": {
+              "gold": 41,
+              "found": 55,
+              "correct": 14,
+              "precision": 0.2545454545454545,
+              "recall": 0.34146341463414637,
+              "f1": 0.2916666666666667
+            },
+            "SportsManager": {
+              "gold": 16,
+              "found": 5,
+              "correct": 1,
+              "precision": 0.2,
+              "recall": 0.0625,
+              "f1": 0.09523809523809523
+            },
+            "Station": {
+              "gold": 20,
+              "found": 31,
+              "correct": 1,
+              "precision": 0.03225806451612903,
+              "recall": 0.05,
+              "f1": 0.0392156862745098
+            },
+            "Symptom": {
+              "gold": 10,
+              "found": 16,
+              "correct": 6,
+              "precision": 0.375,
+              "recall": 0.6,
+              "f1": 0.46153846153846156
+            },
+            "Vehicle": {
+              "gold": 20,
+              "found": 11,
+              "correct": 3,
+              "precision": 0.2727272727272727,
+              "recall": 0.15,
+              "f1": 0.1935483870967742
+            },
+            "WrittenWork": {
+              "gold": 54,
+              "found": 76,
+              "correct": 3,
+              "precision": 0.039473684210526314,
+              "recall": 0.05555555555555555,
+              "f1": 0.046153846153846156
+            },
+            "corporation": {
+              "gold": 34,
+              "found": 6,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "creative-work": {
+              "gold": 105,
+              "found": 17,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "group": {
+              "gold": 39,
+              "found": 13,
+              "correct": 1,
+              "precision": 0.07692307692307693,
+              "recall": 0.02564102564102564,
+              "f1": 0.038461538461538464
+            },
+            "person": {
+              "gold": 470,
+              "found": 74,
+              "correct": 39,
+              "precision": 0.527027027027027,
+              "recall": 0.08297872340425531,
+              "f1": 0.14338235294117646
+            },
+            "product": {
+              "gold": 114,
+              "found": 15,
+              "correct": 1,
+              "precision": 0.06666666666666667,
+              "recall": 0.008771929824561403,
+              "f1": 0.015503875968992248
+            }
+          }
+        }
+      },
+      "seen_dictionary": {
+        "spans": {
+          "all": {
+            "gold": 1972,
+            "found": 63,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "per_type": {
+            "AerospaceManufacturer": {
+              "gold": 10,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "AnatomicalStructure": {
+              "gold": 17,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "ArtWork": {
+              "gold": 13,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Artist": {
+              "gold": 212,
+              "found": 8,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Athlete": {
+              "gold": 79,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "CarManufacturer": {
+              "gold": 13,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Cleric": {
+              "gold": 15,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Disease": {
+              "gold": 18,
+              "found": 4,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Drink": {
+              "gold": 11,
+              "found": 3,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Facility": {
+              "gold": 52,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Food": {
+              "gold": 19,
+              "found": 7,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "HumanSettlement": {
+              "gold": 109,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MedicalProcedure": {
+              "gold": 13,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Medication/Vaccine": {
+              "gold": 18,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MusicalGRP": {
+              "gold": 37,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "MusicalWork": {
+              "gold": 61,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "ORG": {
+              "gold": 78,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OtherLOC": {
+              "gold": 16,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OtherPER": {
+              "gold": 91,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "OtherPROD": {
+              "gold": 49,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Politician": {
+              "gold": 53,
+              "found": 4,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "PrivateCorp": {
+              "gold": 11,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "PublicCorp": {
+              "gold": 28,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Software": {
+              "gold": 26,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "SportsGRP": {
+              "gold": 41,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "SportsManager": {
+              "gold": 16,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Station": {
+              "gold": 20,
+              "found": 11,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Symptom": {
+              "gold": 10,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Vehicle": {
+              "gold": 20,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "WrittenWork": {
+              "gold": 54,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "corporation": {
+              "gold": 34,
+              "found": 4,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "creative-work": {
+              "gold": 105,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "group": {
+              "gold": 39,
+              "found": 10,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "person": {
+              "gold": 470,
+              "found": 6,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "product": {
+              "gold": 114,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      },
+      "held_out_model": {
+        "spans": {
+          "all": {
+            "gold": 160,
+            "found": 696,
+            "correct": 81,
+            "precision": 0.11637931034482758,
+            "recall": 0.50625,
+            "f1": 0.18925233644859812
+          },
+          "per_type": {
+            "Clothing": {
+              "gold": 10,
+              "found": 99,
+              "correct": 5,
+              "precision": 0.050505050505050504,
+              "recall": 0.5,
+              "f1": 0.09174311926605505
+            },
+            "Scientist": {
+              "gold": 15,
+              "found": 175,
+              "correct": 8,
+              "precision": 0.045714285714285714,
+              "recall": 0.5333333333333333,
+              "f1": 0.08421052631578947
+            },
+            "VisualWork": {
+              "gold": 61,
+              "found": 134,
+              "correct": 13,
+              "precision": 0.09701492537313433,
+              "recall": 0.21311475409836064,
+              "f1": 0.13333333333333333
+            },
+            "location": {
+              "gold": 74,
+              "found": 288,
+              "correct": 55,
+              "precision": 0.1909722222222222,
+              "recall": 0.7432432432432432,
+              "f1": 0.30386740331491713
+            }
+          }
+        }
+      },
+      "held_out_baseline": {
+        "spans": {
+          "all": {
+            "gold": 160,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "per_type": {
+            "Clothing": {
+              "gold": 10,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Scientist": {
+              "gold": 15,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "VisualWork": {
+              "gold": 61,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "location": {
+              "gold": 74,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      },
+      "held_out_dictionary": {
+        "spans": {
+          "all": {
+            "gold": 160,
+            "found": 6,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "per_type": {
+            "Clothing": {
+              "gold": 10,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Scientist": {
+              "gold": 15,
+              "found": 1,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "VisualWork": {
+              "gold": 61,
+              "found": 0,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "location": {
+              "gold": 74,
+              "found": 5,
+              "correct": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          }
+        }
+      },
+      "dictionary_comparison": {
+        "model": 0.2659443486825905,
+        "baseline": 0.0,
+        "delta": 0.2659443486825905,
+        "low": 0.24705599615477047,
+        "high": 0.28564282141070535,
+        "resamples": 1000,
+        "seed": 1
+      },
+      "held_out_comparison": {
+        "model": 0.18925233644859812,
+        "baseline": 0.0,
+        "delta": 0.18925233644859812,
+        "low": 0.14953271028037382,
+        "high": 0.2302325581395349,
+        "resamples": 1000,
+        "seed": 1
+      },
+      "held_out_dictionary_comparison": {
+        "model": 0.18925233644859812,
+        "baseline": 0.0,
+        "delta": 0.18925233644859812,
+        "low": 0.14953271028037382,
+        "high": 0.2302325581395349,
+        "resamples": 1000,
+        "seed": 1
+      },
+      "datasets": [
+        {
+          "corpus_id": "wnut17",
+          "model": {
+            "spans": {
+              "all": {
+                "gold": 836,
+                "found": 858,
+                "correct": 210,
+                "precision": 0.24475524475524477,
+                "recall": 0.2511961722488038,
+                "f1": 0.24793388429752067
+              },
+              "per_type": {
+                "AerospaceManufacturer": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "AnatomicalStructure": {
+                  "gold": 0,
+                  "found": 6,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Artist": {
+                  "gold": 0,
+                  "found": 81,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Athlete": {
+                  "gold": 0,
+                  "found": 23,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Cleric": {
+                  "gold": 0,
+                  "found": 7,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Clothing": {
+                  "gold": 0,
+                  "found": 2,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Disease": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Drink": {
+                  "gold": 0,
+                  "found": 4,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Facility": {
+                  "gold": 0,
+                  "found": 22,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Food": {
+                  "gold": 0,
+                  "found": 19,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "HumanSettlement": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MedicalProcedure": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Medication/Vaccine": {
+                  "gold": 0,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MusicalGRP": {
+                  "gold": 0,
+                  "found": 6,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MusicalWork": {
+                  "gold": 0,
+                  "found": 2,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "ORG": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherLOC": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Politician": {
+                  "gold": 0,
+                  "found": 31,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "PrivateCorp": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "PublicCorp": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Scientist": {
+                  "gold": 0,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Software": {
+                  "gold": 0,
+                  "found": 44,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "SportsGRP": {
+                  "gold": 0,
+                  "found": 61,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "SportsManager": {
+                  "gold": 0,
+                  "found": 31,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Station": {
+                  "gold": 0,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Symptom": {
+                  "gold": 0,
+                  "found": 8,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Vehicle": {
+                  "gold": 0,
+                  "found": 60,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "VisualWork": {
+                  "gold": 0,
+                  "found": 37,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "WrittenWork": {
+                  "gold": 0,
+                  "found": 20,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "corporation": {
+                  "gold": 34,
+                  "found": 4,
+                  "correct": 3,
+                  "precision": 0.75,
+                  "recall": 0.08823529411764706,
+                  "f1": 0.15789473684210525
+                },
+                "creative-work": {
+                  "gold": 105,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 39,
+                  "found": 9,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 74,
+                  "found": 35,
+                  "correct": 32,
+                  "precision": 0.9142857142857143,
+                  "recall": 0.43243243243243246,
+                  "f1": 0.5871559633027523
+                },
+                "person": {
+                  "gold": 470,
+                  "found": 284,
+                  "correct": 160,
+                  "precision": 0.5633802816901409,
+                  "recall": 0.3404255319148936,
+                  "f1": 0.4244031830238727
+                },
+                "product": {
+                  "gold": 114,
+                  "found": 43,
+                  "correct": 15,
+                  "precision": 0.3488372093023256,
+                  "recall": 0.13157894736842105,
+                  "f1": 0.1910828025477707
+                }
+              }
+            }
+          },
+          "baseline": {
+            "spans": {
+              "all": {
+                "gold": 836,
+                "found": 137,
+                "correct": 44,
+                "precision": 0.32116788321167883,
+                "recall": 0.05263157894736842,
+                "f1": 0.09044193216855087
+              },
+              "per_type": {
+                "corporation": {
+                  "gold": 34,
+                  "found": 6,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "creative-work": {
+                  "gold": 105,
+                  "found": 20,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 39,
+                  "found": 13,
+                  "correct": 1,
+                  "precision": 0.07692307692307693,
+                  "recall": 0.02564102564102564,
+                  "f1": 0.038461538461538464
+                },
+                "location": {
+                  "gold": 74,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "person": {
+                  "gold": 470,
+                  "found": 78,
+                  "correct": 41,
+                  "precision": 0.5256410256410257,
+                  "recall": 0.08723404255319149,
+                  "f1": 0.14963503649635038
+                },
+                "product": {
+                  "gold": 114,
+                  "found": 20,
+                  "correct": 2,
+                  "precision": 0.1,
+                  "recall": 0.017543859649122806,
+                  "f1": 0.029850746268656716
+                }
+              }
+            }
+          },
+          "dictionary": {
+            "spans": {
+              "all": {
+                "gold": 836,
+                "found": 16,
+                "correct": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "per_type": {
+                "Artist": {
+                  "gold": 0,
+                  "found": 3,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Drink": {
+                  "gold": 0,
+                  "found": 2,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Food": {
+                  "gold": 0,
+                  "found": 4,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "corporation": {
+                  "gold": 34,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "creative-work": {
+                  "gold": 105,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 39,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 74,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "person": {
+                  "gold": 470,
+                  "found": 6,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "product": {
+                  "gold": 114,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "comparison": {
+            "model": 0.24793388429752067,
+            "baseline": 0.09044193216855087,
+            "delta": 0.1574919521289698,
+            "low": 0.11779475061186599,
+            "high": 0.19932841235331655,
+            "resamples": 1000,
+            "seed": 1
+          },
+          "dictionary_comparison": {
+            "model": 0.24793388429752067,
+            "baseline": 0.0,
+            "delta": 0.24793388429752067,
+            "low": 0.21764032073310424,
+            "high": 0.2807221898660454,
+            "resamples": 1000,
+            "seed": 1
+          },
+          "held_out_model": {
+            "spans": {
+              "all": {
+                "gold": 74,
+                "found": 280,
+                "correct": 55,
+                "precision": 0.19642857142857142,
+                "recall": 0.7432432432432432,
+                "f1": 0.3107344632768362
+              },
+              "per_type": {
+                "Clothing": {
+                  "gold": 0,
+                  "found": 55,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Scientist": {
+                  "gold": 0,
+                  "found": 56,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "VisualWork": {
+                  "gold": 0,
+                  "found": 84,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 74,
+                  "found": 85,
+                  "correct": 55,
+                  "precision": 0.6470588235294118,
+                  "recall": 0.7432432432432432,
+                  "f1": 0.6918238993710691
+                }
+              }
+            }
+          },
+          "held_out_baseline": {
+            "spans": {
+              "all": {
+                "gold": 74,
+                "found": 0,
+                "correct": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "per_type": {
+                "location": {
+                  "gold": 74,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "held_out_dictionary": {
+            "spans": {
+              "all": {
+                "gold": 74,
+                "found": 0,
+                "correct": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "per_type": {
+                "location": {
+                  "gold": 74,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "held_out_comparison": {
+            "model": 0.3107344632768362,
+            "baseline": 0.0,
+            "delta": 0.3107344632768362,
+            "low": 0.23768115942028986,
+            "high": 0.38596491228070173,
+            "resamples": 1000,
+            "seed": 1
+          },
+          "held_out_dictionary_comparison": {
+            "model": 0.3107344632768362,
+            "baseline": 0.0,
+            "delta": 0.3107344632768362,
+            "low": 0.23768115942028986,
+            "high": 0.38596491228070173,
+            "resamples": 1000,
+            "seed": 1
+          }
+        },
+        {
+          "corpus_id": "multiconer2-en",
+          "model": {
+            "spans": {
+              "all": {
+                "gold": 1296,
+                "found": 1071,
+                "correct": 330,
+                "precision": 0.3081232492997199,
+                "recall": 0.25462962962962965,
+                "f1": 0.2788339670468948
+              },
+              "per_type": {
+                "AerospaceManufacturer": {
+                  "gold": 10,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "AnatomicalStructure": {
+                  "gold": 17,
+                  "found": 15,
+                  "correct": 7,
+                  "precision": 0.4666666666666667,
+                  "recall": 0.4117647058823529,
+                  "f1": 0.4375
+                },
+                "ArtWork": {
+                  "gold": 13,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Artist": {
+                  "gold": 212,
+                  "found": 197,
+                  "correct": 109,
+                  "precision": 0.5532994923857868,
+                  "recall": 0.5141509433962265,
+                  "f1": 0.5330073349633252
+                },
+                "Athlete": {
+                  "gold": 79,
+                  "found": 40,
+                  "correct": 18,
+                  "precision": 0.45,
+                  "recall": 0.22784810126582278,
+                  "f1": 0.3025210084033613
+                },
+                "CarManufacturer": {
+                  "gold": 13,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Cleric": {
+                  "gold": 15,
+                  "found": 8,
+                  "correct": 4,
+                  "precision": 0.5,
+                  "recall": 0.26666666666666666,
+                  "f1": 0.34782608695652173
+                },
+                "Clothing": {
+                  "gold": 10,
+                  "found": 10,
+                  "correct": 3,
+                  "precision": 0.3,
+                  "recall": 0.3,
+                  "f1": 0.3
+                },
+                "Disease": {
+                  "gold": 18,
+                  "found": 12,
+                  "correct": 4,
+                  "precision": 0.3333333333333333,
+                  "recall": 0.2222222222222222,
+                  "f1": 0.26666666666666666
+                },
+                "Drink": {
+                  "gold": 11,
+                  "found": 17,
+                  "correct": 6,
+                  "precision": 0.35294117647058826,
+                  "recall": 0.5454545454545454,
+                  "f1": 0.42857142857142855
+                },
+                "Facility": {
+                  "gold": 52,
+                  "found": 78,
+                  "correct": 28,
+                  "precision": 0.358974358974359,
+                  "recall": 0.5384615384615384,
+                  "f1": 0.4307692307692308
+                },
+                "Food": {
+                  "gold": 19,
+                  "found": 18,
+                  "correct": 7,
+                  "precision": 0.3888888888888889,
+                  "recall": 0.3684210526315789,
+                  "f1": 0.3783783783783784
+                },
+                "HumanSettlement": {
+                  "gold": 109,
+                  "found": 3,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MedicalProcedure": {
+                  "gold": 13,
+                  "found": 7,
+                  "correct": 4,
+                  "precision": 0.5714285714285714,
+                  "recall": 0.3076923076923077,
+                  "f1": 0.4
+                },
+                "Medication/Vaccine": {
+                  "gold": 18,
+                  "found": 25,
+                  "correct": 12,
+                  "precision": 0.48,
+                  "recall": 0.6666666666666666,
+                  "f1": 0.5581395348837209
+                },
+                "MusicalGRP": {
+                  "gold": 37,
+                  "found": 14,
+                  "correct": 3,
+                  "precision": 0.21428571428571427,
+                  "recall": 0.08108108108108109,
+                  "f1": 0.11764705882352941
+                },
+                "MusicalWork": {
+                  "gold": 61,
+                  "found": 2,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "ORG": {
+                  "gold": 78,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherLOC": {
+                  "gold": 16,
+                  "found": 5,
+                  "correct": 2,
+                  "precision": 0.4,
+                  "recall": 0.125,
+                  "f1": 0.19047619047619047
+                },
+                "OtherPER": {
+                  "gold": 91,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherPROD": {
+                  "gold": 49,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Politician": {
+                  "gold": 53,
+                  "found": 21,
+                  "correct": 13,
+                  "precision": 0.6190476190476191,
+                  "recall": 0.24528301886792453,
+                  "f1": 0.35135135135135137
+                },
+                "PrivateCorp": {
+                  "gold": 11,
+                  "found": 7,
+                  "correct": 1,
+                  "precision": 0.14285714285714285,
+                  "recall": 0.09090909090909091,
+                  "f1": 0.1111111111111111
+                },
+                "PublicCorp": {
+                  "gold": 28,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Scientist": {
+                  "gold": 15,
+                  "found": 7,
+                  "correct": 3,
+                  "precision": 0.42857142857142855,
+                  "recall": 0.2,
+                  "f1": 0.2727272727272727
+                },
+                "Software": {
+                  "gold": 26,
+                  "found": 25,
+                  "correct": 9,
+                  "precision": 0.36,
+                  "recall": 0.34615384615384615,
+                  "f1": 0.35294117647058826
+                },
+                "SportsGRP": {
+                  "gold": 41,
+                  "found": 55,
+                  "correct": 31,
+                  "precision": 0.5636363636363636,
+                  "recall": 0.7560975609756098,
+                  "f1": 0.6458333333333334
+                },
+                "SportsManager": {
+                  "gold": 16,
+                  "found": 44,
+                  "correct": 12,
+                  "precision": 0.2727272727272727,
+                  "recall": 0.75,
+                  "f1": 0.4
+                },
+                "Station": {
+                  "gold": 20,
+                  "found": 14,
+                  "correct": 8,
+                  "precision": 0.5714285714285714,
+                  "recall": 0.4,
+                  "f1": 0.47058823529411764
+                },
+                "Symptom": {
+                  "gold": 10,
+                  "found": 18,
+                  "correct": 4,
+                  "precision": 0.2222222222222222,
+                  "recall": 0.4,
+                  "f1": 0.2857142857142857
+                },
+                "Vehicle": {
+                  "gold": 20,
+                  "found": 49,
+                  "correct": 9,
+                  "precision": 0.1836734693877551,
+                  "recall": 0.45,
+                  "f1": 0.2608695652173913
+                },
+                "VisualWork": {
+                  "gold": 61,
+                  "found": 27,
+                  "correct": 11,
+                  "precision": 0.4074074074074074,
+                  "recall": 0.18032786885245902,
+                  "f1": 0.25
+                },
+                "WrittenWork": {
+                  "gold": 54,
+                  "found": 54,
+                  "correct": 22,
+                  "precision": 0.4074074074074074,
+                  "recall": 0.4074074074074074,
+                  "f1": 0.4074074074074074
+                },
+                "corporation": {
+                  "gold": 0,
+                  "found": 21,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 0,
+                  "found": 3,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 0,
+                  "found": 107,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "person": {
+                  "gold": 0,
+                  "found": 131,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "product": {
+                  "gold": 0,
+                  "found": 34,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              },
+              "coarse": {
+                "CreativeWork": {
+                  "gold": 215,
+                  "found": 108,
+                  "correct": 56,
+                  "precision": 0.5185185185185185,
+                  "recall": 0.26046511627906976,
+                  "f1": 0.34674922600619196
+                },
+                "Group": {
+                  "gold": 218,
+                  "found": 79,
+                  "correct": 50,
+                  "precision": 0.6329113924050633,
+                  "recall": 0.22935779816513763,
+                  "f1": 0.3367003367003367
+                },
+                "Location": {
+                  "gold": 197,
+                  "found": 100,
+                  "correct": 58,
+                  "precision": 0.58,
+                  "recall": 0.29441624365482233,
+                  "f1": 0.39057239057239057
+                },
+                "Medical": {
+                  "gold": 76,
+                  "found": 77,
+                  "correct": 38,
+                  "precision": 0.4935064935064935,
+                  "recall": 0.5,
+                  "f1": 0.49673202614379086
+                },
+                "Person": {
+                  "gold": 481,
+                  "found": 317,
+                  "correct": 243,
+                  "precision": 0.7665615141955836,
+                  "recall": 0.5051975051975052,
+                  "f1": 0.6090225563909775
+                },
+                "Product": {
+                  "gold": 109,
+                  "found": 94,
+                  "correct": 34,
+                  "precision": 0.3617021276595745,
+                  "recall": 0.3119266055045872,
+                  "f1": 0.33497536945812806
+                },
+                "corporation": {
+                  "gold": 0,
+                  "found": 21,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 0,
+                  "found": 3,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 0,
+                  "found": 107,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "person": {
+                  "gold": 0,
+                  "found": 131,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "product": {
+                  "gold": 0,
+                  "found": 34,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "baseline": {
+            "spans": {
+              "all": {
+                "gold": 1296,
+                "found": 1339,
+                "correct": 220,
+                "precision": 0.16430171769977595,
+                "recall": 0.1697530864197531,
+                "f1": 0.16698292220113853
+              },
+              "per_type": {
+                "AerospaceManufacturer": {
+                  "gold": 10,
+                  "found": 14,
+                  "correct": 5,
+                  "precision": 0.35714285714285715,
+                  "recall": 0.5,
+                  "f1": 0.4166666666666667
+                },
+                "AnatomicalStructure": {
+                  "gold": 17,
+                  "found": 17,
+                  "correct": 10,
+                  "precision": 0.5882352941176471,
+                  "recall": 0.5882352941176471,
+                  "f1": 0.5882352941176471
+                },
+                "ArtWork": {
+                  "gold": 13,
+                  "found": 16,
+                  "correct": 1,
+                  "precision": 0.0625,
+                  "recall": 0.07692307692307693,
+                  "f1": 0.06896551724137931
+                },
+                "Artist": {
+                  "gold": 212,
+                  "found": 342,
+                  "correct": 38,
+                  "precision": 0.1111111111111111,
+                  "recall": 0.1792452830188679,
+                  "f1": 0.1371841155234657
+                },
+                "Athlete": {
+                  "gold": 79,
+                  "found": 115,
+                  "correct": 9,
+                  "precision": 0.0782608695652174,
+                  "recall": 0.11392405063291139,
+                  "f1": 0.09278350515463918
+                },
+                "CarManufacturer": {
+                  "gold": 13,
+                  "found": 15,
+                  "correct": 7,
+                  "precision": 0.4666666666666667,
+                  "recall": 0.5384615384615384,
+                  "f1": 0.5
+                },
+                "Cleric": {
+                  "gold": 15,
+                  "found": 14,
+                  "correct": 2,
+                  "precision": 0.14285714285714285,
+                  "recall": 0.13333333333333333,
+                  "f1": 0.13793103448275862
+                },
+                "Clothing": {
+                  "gold": 10,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Disease": {
+                  "gold": 18,
+                  "found": 26,
+                  "correct": 3,
+                  "precision": 0.11538461538461539,
+                  "recall": 0.16666666666666666,
+                  "f1": 0.13636363636363635
+                },
+                "Drink": {
+                  "gold": 11,
+                  "found": 8,
+                  "correct": 5,
+                  "precision": 0.625,
+                  "recall": 0.45454545454545453,
+                  "f1": 0.5263157894736842
+                },
+                "Facility": {
+                  "gold": 52,
+                  "found": 60,
+                  "correct": 8,
+                  "precision": 0.13333333333333333,
+                  "recall": 0.15384615384615385,
+                  "f1": 0.14285714285714285
+                },
+                "Food": {
+                  "gold": 19,
+                  "found": 7,
+                  "correct": 4,
+                  "precision": 0.5714285714285714,
+                  "recall": 0.21052631578947367,
+                  "f1": 0.3076923076923077
+                },
+                "HumanSettlement": {
+                  "gold": 109,
+                  "found": 133,
+                  "correct": 43,
+                  "precision": 0.3233082706766917,
+                  "recall": 0.3944954128440367,
+                  "f1": 0.35537190082644626
+                },
+                "MedicalProcedure": {
+                  "gold": 13,
+                  "found": 10,
+                  "correct": 3,
+                  "precision": 0.3,
+                  "recall": 0.23076923076923078,
+                  "f1": 0.2608695652173913
+                },
+                "Medication/Vaccine": {
+                  "gold": 18,
+                  "found": 11,
+                  "correct": 5,
+                  "precision": 0.45454545454545453,
+                  "recall": 0.2777777777777778,
+                  "f1": 0.3448275862068966
+                },
+                "MusicalGRP": {
+                  "gold": 37,
+                  "found": 29,
+                  "correct": 1,
+                  "precision": 0.034482758620689655,
+                  "recall": 0.02702702702702703,
+                  "f1": 0.030303030303030304
+                },
+                "MusicalWork": {
+                  "gold": 61,
+                  "found": 36,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "ORG": {
+                  "gold": 78,
+                  "found": 103,
+                  "correct": 18,
+                  "precision": 0.17475728155339806,
+                  "recall": 0.23076923076923078,
+                  "f1": 0.19889502762430938
+                },
+                "OtherLOC": {
+                  "gold": 16,
+                  "found": 17,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherPER": {
+                  "gold": 91,
+                  "found": 88,
+                  "correct": 7,
+                  "precision": 0.07954545454545454,
+                  "recall": 0.07692307692307693,
+                  "f1": 0.0782122905027933
+                },
+                "OtherPROD": {
+                  "gold": 49,
+                  "found": 25,
+                  "correct": 8,
+                  "precision": 0.32,
+                  "recall": 0.16326530612244897,
+                  "f1": 0.21621621621621623
+                },
+                "Politician": {
+                  "gold": 53,
+                  "found": 42,
+                  "correct": 3,
+                  "precision": 0.07142857142857142,
+                  "recall": 0.05660377358490566,
+                  "f1": 0.06315789473684211
+                },
+                "PrivateCorp": {
+                  "gold": 11,
+                  "found": 10,
+                  "correct": 3,
+                  "precision": 0.3,
+                  "recall": 0.2727272727272727,
+                  "f1": 0.2857142857142857
+                },
+                "PublicCorp": {
+                  "gold": 28,
+                  "found": 10,
+                  "correct": 2,
+                  "precision": 0.2,
+                  "recall": 0.07142857142857142,
+                  "f1": 0.10526315789473684
+                },
+                "Scientist": {
+                  "gold": 15,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Software": {
+                  "gold": 26,
+                  "found": 21,
+                  "correct": 6,
+                  "precision": 0.2857142857142857,
+                  "recall": 0.23076923076923078,
+                  "f1": 0.2553191489361702
+                },
+                "SportsGRP": {
+                  "gold": 41,
+                  "found": 51,
+                  "correct": 14,
+                  "precision": 0.27450980392156865,
+                  "recall": 0.34146341463414637,
+                  "f1": 0.30434782608695654
+                },
+                "SportsManager": {
+                  "gold": 16,
+                  "found": 5,
+                  "correct": 1,
+                  "precision": 0.2,
+                  "recall": 0.0625,
+                  "f1": 0.09523809523809523
+                },
+                "Station": {
+                  "gold": 20,
+                  "found": 31,
+                  "correct": 1,
+                  "precision": 0.03225806451612903,
+                  "recall": 0.05,
+                  "f1": 0.0392156862745098
+                },
+                "Symptom": {
+                  "gold": 10,
+                  "found": 14,
+                  "correct": 6,
+                  "precision": 0.42857142857142855,
+                  "recall": 0.6,
+                  "f1": 0.5
+                },
+                "Vehicle": {
+                  "gold": 20,
+                  "found": 10,
+                  "correct": 3,
+                  "precision": 0.3,
+                  "recall": 0.15,
+                  "f1": 0.2
+                },
+                "VisualWork": {
+                  "gold": 61,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "WrittenWork": {
+                  "gold": 54,
+                  "found": 59,
+                  "correct": 4,
+                  "precision": 0.06779661016949153,
+                  "recall": 0.07407407407407407,
+                  "f1": 0.07079646017699115
+                }
+              },
+              "coarse": {
+                "CreativeWork": {
+                  "gold": 215,
+                  "found": 132,
+                  "correct": 12,
+                  "precision": 0.09090909090909091,
+                  "recall": 0.05581395348837209,
+                  "f1": 0.069164265129683
+                },
+                "Group": {
+                  "gold": 218,
+                  "found": 232,
+                  "correct": 54,
+                  "precision": 0.23275862068965517,
+                  "recall": 0.24770642201834864,
+                  "f1": 0.24
+                },
+                "Location": {
+                  "gold": 197,
+                  "found": 241,
+                  "correct": 55,
+                  "precision": 0.22821576763485477,
+                  "recall": 0.27918781725888325,
+                  "f1": 0.2511415525114155
+                },
+                "Medical": {
+                  "gold": 76,
+                  "found": 78,
+                  "correct": 27,
+                  "precision": 0.34615384615384615,
+                  "recall": 0.35526315789473684,
+                  "f1": 0.35064935064935066
+                },
+                "Person": {
+                  "gold": 481,
+                  "found": 606,
+                  "correct": 74,
+                  "precision": 0.12211221122112212,
+                  "recall": 0.15384615384615385,
+                  "f1": 0.13615455381784727
+                },
+                "Product": {
+                  "gold": 109,
+                  "found": 50,
+                  "correct": 20,
+                  "precision": 0.4,
+                  "recall": 0.1834862385321101,
+                  "f1": 0.25157232704402516
+                }
+              }
+            }
+          },
+          "dictionary": {
+            "spans": {
+              "all": {
+                "gold": 1296,
+                "found": 53,
+                "correct": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "per_type": {
+                "AerospaceManufacturer": {
+                  "gold": 10,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "AnatomicalStructure": {
+                  "gold": 17,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "ArtWork": {
+                  "gold": 13,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Artist": {
+                  "gold": 212,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Athlete": {
+                  "gold": 79,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "CarManufacturer": {
+                  "gold": 13,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Cleric": {
+                  "gold": 15,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Clothing": {
+                  "gold": 10,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Disease": {
+                  "gold": 18,
+                  "found": 4,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Drink": {
+                  "gold": 11,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Facility": {
+                  "gold": 52,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Food": {
+                  "gold": 19,
+                  "found": 3,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "HumanSettlement": {
+                  "gold": 109,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MedicalProcedure": {
+                  "gold": 13,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Medication/Vaccine": {
+                  "gold": 18,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MusicalGRP": {
+                  "gold": 37,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "MusicalWork": {
+                  "gold": 61,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "ORG": {
+                  "gold": 78,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherLOC": {
+                  "gold": 16,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherPER": {
+                  "gold": 91,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "OtherPROD": {
+                  "gold": 49,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Politician": {
+                  "gold": 53,
+                  "found": 4,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "PrivateCorp": {
+                  "gold": 11,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "PublicCorp": {
+                  "gold": 28,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Scientist": {
+                  "gold": 15,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Software": {
+                  "gold": 26,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "SportsGRP": {
+                  "gold": 41,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "SportsManager": {
+                  "gold": 16,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Station": {
+                  "gold": 20,
+                  "found": 11,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Symptom": {
+                  "gold": 10,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Vehicle": {
+                  "gold": 20,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "VisualWork": {
+                  "gold": 61,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "WrittenWork": {
+                  "gold": 54,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "corporation": {
+                  "gold": 0,
+                  "found": 4,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 0,
+                  "found": 10,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 0,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              },
+              "coarse": {
+                "CreativeWork": {
+                  "gold": 215,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Group": {
+                  "gold": 218,
+                  "found": 2,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Location": {
+                  "gold": 197,
+                  "found": 12,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Medical": {
+                  "gold": 76,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Person": {
+                  "gold": 481,
+                  "found": 10,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Product": {
+                  "gold": 109,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "corporation": {
+                  "gold": 0,
+                  "found": 4,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "group": {
+                  "gold": 0,
+                  "found": 10,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 0,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "comparison": {
+            "model": 0.2788339670468948,
+            "baseline": 0.16698292220113853,
+            "delta": 0.11185104484575625,
+            "low": 0.07936886579806535,
+            "high": 0.14460803928757765,
+            "resamples": 1000,
+            "seed": 1
+          },
+          "dictionary_comparison": {
+            "model": 0.2788339670468948,
+            "baseline": 0.0,
+            "delta": 0.2788339670468948,
+            "low": 0.2528066528066528,
+            "high": 0.30517241379310345,
+            "resamples": 1000,
+            "seed": 1
+          },
+          "held_out_model": {
+            "spans": {
+              "all": {
+                "gold": 86,
+                "found": 416,
+                "correct": 26,
+                "precision": 0.0625,
+                "recall": 0.3023255813953488,
+                "f1": 0.10358565737051793
+              },
+              "per_type": {
+                "Clothing": {
+                  "gold": 10,
+                  "found": 44,
+                  "correct": 5,
+                  "precision": 0.11363636363636363,
+                  "recall": 0.5,
+                  "f1": 0.18518518518518517
+                },
+                "Scientist": {
+                  "gold": 15,
+                  "found": 119,
+                  "correct": 8,
+                  "precision": 0.06722689075630252,
+                  "recall": 0.5333333333333333,
+                  "f1": 0.11940298507462686
+                },
+                "VisualWork": {
+                  "gold": 61,
+                  "found": 50,
+                  "correct": 13,
+                  "precision": 0.26,
+                  "recall": 0.21311475409836064,
+                  "f1": 0.23423423423423423
+                },
+                "location": {
+                  "gold": 0,
+                  "found": 203,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "held_out_baseline": {
+            "spans": {
+              "all": {
+                "gold": 86,
+                "found": 0,
+                "correct": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "per_type": {
+                "Clothing": {
+                  "gold": 10,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Scientist": {
+                  "gold": 15,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "VisualWork": {
+                  "gold": 61,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "held_out_dictionary": {
+            "spans": {
+              "all": {
+                "gold": 86,
+                "found": 6,
+                "correct": 0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0
+              },
+              "per_type": {
+                "Clothing": {
+                  "gold": 10,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "Scientist": {
+                  "gold": 15,
+                  "found": 1,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "VisualWork": {
+                  "gold": 61,
+                  "found": 0,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                },
+                "location": {
+                  "gold": 0,
+                  "found": 5,
+                  "correct": 0,
+                  "precision": 0.0,
+                  "recall": 0.0,
+                  "f1": 0.0
+                }
+              }
+            }
+          },
+          "held_out_comparison": {
+            "model": 0.10358565737051793,
+            "baseline": 0.0,
+            "delta": 0.10358565737051793,
+            "low": 0.06722689075630252,
+            "high": 0.14163090128755365,
+            "resamples": 1000,
+            "seed": 1
+          },
+          "held_out_dictionary_comparison": {
+            "model": 0.10358565737051793,
+            "baseline": 0.0,
+            "delta": 0.10358565737051793,
+            "low": 0.06722689075630252,
+            "high": 0.14163090128755365,
+            "resamples": 1000,
+            "seed": 1
+          }
+        }
+      ]
+    },
+    "comparison": {
+      "model": 0.2659443486825905,
+      "baseline": 0.13196635120925343,
+      "delta": 0.13397799747333705,
+      "low": 0.10978684346036291,
+      "high": 0.15784179183696795,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 0.767437711,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 107.22531486,
+    "feature_words": 0
+  },
+  "outputs": [
+    {
+      "path": "predictions.bio",
+      "size": 232664,
+      "sha256": "d58833edfc43c32d9a26fd868eaab423985be06516305ec9afc073fd080a26b7"
+    },
+    {
+      "path": "thresholds.json",
+      "size": 1134,
+      "sha256": "e0b77183c598efd14372d22c8de6401ae4436fa58c42ad577907cc76933e312b"
+    }
+  ]
+}
