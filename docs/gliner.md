@@ -472,27 +472,58 @@ checkpoint's own training data.
 This is an evaluation path, not evidence that the checkpoint passes a corpus's
 shipping gate.
 
-## Mixed-corpus development evidence
+## Mixed-corpus and held-out release evidence (#1947, #2053)
 
-The release sweep uses WNUT-17 plus MultiCoNER v2 English with `location`,
-`VisualWork`, `Scientist`, and `Clothing` held out. It covers 1,880 development
-sentences, 29,056 words, 39 labels, independent per-dataset scores, majority and
-dictionary baselines, and paired bootstrap. These are development results, not
-test results:
+All receipts below run on the combined WNUT-17 plus MultiCoNER v2 English
+corpus (`wnut17,multiconer2-en`, 39 labels: 1,880 dev sentences / 29,056 words;
+251,267 test sentences / 378,884 gold spans). Per-label thresholds (both
+all-label and independent held-out decoding) are fitted on `dev` only with
+`--calibrate` and frozen in `thresholds.json` before one final `test` run per
+candidate at commit `e7b0ad4cf`.
 
-| Model, threshold | Overall F1 | Held-out F1 | WNUT F1 | MultiCoNER F1 |
-|---|---:|---:|---:|---:|
-| small v2.5, 0.8 | 0.2644 | 0.1457 | 0.3490 | 0.2061 |
-| small v2.5, 0.9 | 0.2073 | 0.1792 | 0.3040 | 0.1412 |
-| medium v2.5, 0.8 | 0.2049 | 0.1340 | 0.1488 | 0.2423 |
-| medium v2.5, 0.9 | 0.1822 | 0.1525 | 0.1347 | 0.2134 |
+### Mixed-corpus release evaluation (#1947)
 
-Threshold 0.8 gives each candidate its highest overall development F1 and is
-frozen for the single final test run per candidate. The higher held-out scores
-at 0.9 remain visible rather than hidden; they do not change the selected
-operating point. Earlier WNUT-only results are not comparable to this mixed
-fine-grained schema. Both candidates beat the held-out baselines, but these
-scores still call for caution on unseen fine-grained types.
+Held-out schema: `location,VisualWork,Scientist,Clothing` (schema digest
+`ac5dd68f3f4a7d27` for GLiNER v2.5, `6e0319e50234c648` for GLiNER2). Receipts
+live under `trainer/recipes/records/gliner-1947/`:
+
+| Candidate | Split | Overall F1 (vs Maj / Dict) | 95% Bootstrap Delta | Seen F1 | Held-out F1 | WNUT F1 (Held) | MultiCoNER F1 (Held) | Prediction SHA-256 (prefix) |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| `small-v2.5` | dev | 0.2983 (0.1320 / 0.0000) | +0.1664 [+0.1372, +0.1926] | 0.2708 | 0.2296 | 0.3599 (0.3878) | 0.2572 (0.1321) | `50b8cbf8ce25` |
+| `small-v2.5` | test | 0.2202 (0.1414 / 0.0001) | +0.0788 [+0.0768, +0.0809] | 0.2171 | 0.1085 | 0.2566 (0.4299) | 0.2201 (0.1075) | `75ced3b03b5a` |
+| `medium-v2.5` | dev | 0.2659 (0.1320 / 0.0000) | +0.1340 [+0.1098, +0.1578] | 0.2456 | 0.1893 | 0.2479 (0.3107) | 0.2788 (0.1036) | `d58833edfc43` |
+| `medium-v2.5` | test | 0.2447 (0.1414 / 0.0001) | +0.1033 [+0.1012, +0.1054] | 0.2482 | 0.1018 | 0.1515 (0.4124) | 0.2450 (0.1008) | `1b4973a88ed0` |
+| `gliner2-base-v1` | dev | 0.1787 (0.1320 / 0.0000) | +0.0467 [+0.0246, +0.0675] | 0.1591 | 0.1429 | 0.1781 (0.1894) | 0.1792 (0.1012) | `1cd6b869a920` |
+| `gliner2-base-v1` | test | 0.1482 (0.1414 / 0.0001) | +0.0068 [+0.0051, +0.0086] | 0.1476 | 0.0825 | 0.1377 (0.2910) | 0.1483 (0.0817) | `6bcf24f8d74f` |
+
+Per-type held-out test F1:
+- `small-v2.5`: `Clothing` 0.1405 (423/3778/2244), `Scientist` 0.1445 (2293/26820/4928), `VisualWork` 0.1912 (2620/7728/19678), `location` 0.0040 (69/34260/150; 0.4299 on WNUT-17 alone).
+- `medium-v2.5`: `Clothing` 0.1248 (870/11702/2244), `Scientist` 0.1481 (2693/31443/4928), `VisualWork` 0.2415 (4092/14214/19678), `location` 0.0027 (93/67925/150; 0.4124 on WNUT-17 alone).
+- `gliner2-base-v1`: `Clothing` 0.1431 (1177/14204/2244), `Scientist` 0.1324 (1797/22226/4928), `VisualWork` 0.2231 (5338/28178/19678), `location` 0.0018 (103/112497/150; 0.2910 on WNUT-17 alone).
+
+Comparison and release decision (#1947):
+- Earlier custom `HEAD_OPEN_SPAN` (`trainer/recipes/records/open-span-1735/`): WNUT-17 all-6 test F1 0.2708; WNUT-17 holdout-`location` test F1 0.2601 overall / 0.2829 seen / 0.0460 held-out `location`. All three GLiNER checkpoints beat `HEAD_OPEN_SPAN` on held-out `location` on WNUT-17 (0.4299, 0.4124, 0.2910 vs 0.0460).
+- GLiNER2 vs GLiNER2.5: `medium-v2.5` (0.2447 overall) and `small-v2.5` (0.2202 overall) outperform `gliner2-base-v1` (0.1482 overall) on the 39-label mixed schema.
+- Release gate: **FAIL** for all three candidates against the 0.45 overall / 0.30 held-out release floor. None of the zero-shot checkpoints meets release quality on unseen fine-grained types.
+
+### Independent held-out schema groups (#2053)
+
+Three independent held-out groups (`location`, `VisualWork,Scientist`, `Clothing`)
+were calibrated on `dev` (`trainer/recipes/records/open-span-2053/`):
+- `NuNER_Zero-span` (raw calibrated dev): overall 0.3112, `location` 0.3851 (31/87/74), `Clothing` 0.3158 (3/9/10), `VisualWork,Scientist` 0.1156 (`VisualWork` 0.1262, `Scientist` 0.0000). Short aliases (`open-span-aliases-v1.json`) on Group 2 raised `Scientist` to 0.0851 but dropped `VisualWork` to 0.0495 (overall 0.2831).
+- `medium-v2.5` (raw calibrated dev): overall 0.2659, `location` 0.3269, `VisualWork,Scientist` 0.1265, `Clothing` 0.0426.
+- `small-v2.5` (raw calibrated dev): overall 0.2983, `location` 0.2879, `VisualWork,Scientist` 0.1290, `Clothing` 0.0325. On Group 2, `open-span-aliases-v1.json` reached 0.1515 held-out (0.2561 overall), and `open-span-held-guidelines-v1.json` scored 0.0919 held-out (0.2848 overall).
+- `train-gliner` full-head smoke test (`--train-boundaries --train-prompt --train-recurrent --train-projection --balance --max-train 4000 --epochs 2 --lr 5e-6 --anchor 1e-4`): epoch 0 zero-shot 0.2644 was retained after epochs 1-2 regressed (0.1537, 0.2214) with frozen encoder features.
+
+Frozen test receipts for `small-v2.5` across the three independent groups (`schema=ac5dd68f3f4a7d27`, `commit=e7b0ad4cf`):
+
+| Group | Calibration SHA-256 (prefix) | Test Overall F1 (vs Maj / Dict) | Seen F1 | Held-out F1 (vs Maj / Dict) | Per-type Held-out Test F1 | Gate (0.45 / 0.30) |
+|---|---|---:|---:|---:|---|---|
+| `location` | `67a1a750df8d` | 0.2202 (0.1416 / 0.0001) | 0.2088 | 0.0033 (0.0000 / 0.0000) | `location`: 0.0033 (73/44130/150; 0.5551 on WNUT-17) | **FAIL** |
+| `VisualWork,Scientist` | `88be16cd804e` | 0.2202 (0.1427 / 0.0001) | 0.2033 | 0.1746 (0.0000 / 0.0000) | `Scientist`: 0.1223 (2586/37350/4928), `VisualWork`: 0.2409 (4012/13627/19678) | **FAIL** |
+| `Clothing` | `226d7ad8a9a5` | 0.2202 (0.1403 / 0.0001) | 0.2015 | 0.0619 (0.0000 / 0.0017) | `Clothing`: 0.0619 (458/12548/2244) | **FAIL** |
+
+All three groups share the test all-label prediction SHA-256 `75ced3b03b5ad9e568b1d13b732b47c9304d2534199ed172d8592ce45743f01f`. Every group fails both the 0.45 overall floor and the 0.30 held-out group floor; closing the gap requires unfreezing the DeBERTa encoder (LoRA) or stronger negative supervision on cross-corpus unannotated types.
 
 ## Numerical and boundary proof
 

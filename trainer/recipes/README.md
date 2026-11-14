@@ -271,6 +271,19 @@ for held-out decoding. Candidate tensors are
 reused for calibrated all-label and held-out predictions; only seen labels are
 scored again.
 
+`eval-gliner2` evaluates native GLiNER2 extraction with the same corpora,
+held-out metrics, flat decoding and dev-only per-label calibration. Use
+`--package <GLiNER2 checkpoint>` with the checkpoint's `encoder/` package,
+`model.safetensors`, `spm.model`, `added_tokens.json`, and `config.json`.
+`--guidelines <json>` supplies label-to-description prompts. Raw span logits
+are converted to the shared candidate format, so `--calibrate`, `--thresholds`,
+`--split dev`, and `--threads N` have the same meaning and ordered schema
+binding as in `eval-gliner`. Label batches fit each sentence's prompt and
+encoder limits while preserving global label indexes. The receipt uses the
+encoder package's source metadata and a digest over every effective package
+input. GLiNER2's count head can cap recall. Over-limit inputs fail rather than
+being windowed. The current command supports the CPU encoder.
+
 `train-gliner` fine-tunes the two-layer markerV0 `out_project` MLP or NuNER's
 single-linear `out_project` in Rust on frozen encoder, prompt, recurrent and
 boundary features. `--train-boundaries` also trains the marker start and end
