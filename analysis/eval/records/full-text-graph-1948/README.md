@@ -44,12 +44,18 @@ boundary layers and the chunker.
   page.
 - A model step without its model is refused by name in process.
 
-The browser side, run by `scripts/e2e-web.sh` (`demo/web/e2e/install.test.ts`):
-a user sees a model's terms still to accept, accepts the exact text,
-installs the model, every file verifies against the catalog, and the
-model is loaded into the running server and used, with no restart. That
-run uses the tiny test bundle under share-alike terms from a local
-catalog, not these packages.
+The browser side, run by `scripts/e2e-web.sh` (`demo/web/e2e/install.test.ts`
+and `demo/web/e2e/acceptance_isolation.test.ts`): a user sees a model's
+terms still to accept, accepts the exact text, installs the model, every
+file verifies against the catalog, and the model is loaded into the
+running server and used, with no restart. A second user against the same
+server keeps isolated acceptances and cannot load the share-alike
+bundle before accepting; a browser sending a spoofed user name in a
+binary protobuf request has its user field overwritten by the demo proxy;
+an anonymous demo without `--user` is read-only (403 on direct writes);
+and a token-protected demo enforces the bearer token (401 without it)
+and `--allow` write controls. That run uses the tiny test bundle under
+share-alike terms from a local catalog, not these packages.
 
 ## Result
 
@@ -58,7 +64,7 @@ GLINER_PACKAGE=gliner-small-v2.5-package GLINER2_PACKAGE=gliner2-package \
   cargo test --release -p turbo-kserve --test full_text_graph_served -- --include-ignored
   # 4 passed, 9.75 s
 scripts/e2e-web.sh
-  # 14 passed, 0 skipped
+  # 70 passed, 0 skipped
 ```
 
 ## Not covered

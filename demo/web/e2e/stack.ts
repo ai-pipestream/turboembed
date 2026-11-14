@@ -84,24 +84,37 @@ export function ended(child: ChildProcess | null, name: string, ms = 10_000): Pr
   });
 }
 
-export interface StackOptions {
-  /** `--model` values; the default serves the tiny BERT bundle. */
-  models?: string[];
-  /** Starts the server with `--admin`. */
-  admin?: boolean;
+export interface DemoOptions {
+  /** The user this demo acts for (`--user`). */
+  user?: string;
   /** Method paths the demo forwards with `--allow`. */
   allow?: string[];
   /** The bearer token every call to the demo must carry (`--token-file`). */
   token?: string;
 }
 
-/** A server and the demo in front of it. */
+export interface StackOptions extends DemoOptions {
+  /** `--model` values; the default serves the tiny BERT bundle. */
+  models?: string[];
+  /** Starts the server with `--admin`. */
+  admin?: boolean;
+  /** Starts the server with `--zoo`. */
+  zoo?: boolean;
+  /** `--catalog-index` path. */
+  catalogIndex?: string;
+  /** `--catalog-store` URL. */
+  catalogStore?: string;
+}
+
+/** A server and one or more demos in front of it. */
 export class Stack {
   url = "";
   private server: ChildProcess | null = null;
-  private demo: ChildProcess | null = null;
+  private demos: ChildProcess[] = [];
+  private serverPort = 0;
   private serverArgs: string[] = [];
   private work = "";
+  private tokenIndex = 0;
 
   /** Starts a server and demo; a port taken between pick and bind is picked again, up to three times. */
   static async start(o: StackOptions = {}): Promise<Stack> {
@@ -119,29 +132,52 @@ export class Stack {
     const s = new Stack();
     s.work = mkdtempSync(`${tmpdir()}/turbo-e2e-`);
     for (const d of ["vocabulary", "catalog", "training"]) mkdirSync(`${s.work}/${d}`);
-    const [serverPort, demoPort] = [await freePort(), await freePort()];
+    s.serverPort = await freePort();
     const models = o.models ?? [`bundle=testdata/tiny-bert-bundle,device=${DEVICE},sessions=1`];
     s.serverArgs = [
-      "--listen", `127.0.0.1:${serverPort}`,
+      "--listen", `127.0.0.1:${s.serverPort}`,
       "--vocabulary-dir", `${s.work}/vocabulary`, "--catalog-dir", `${s.work}/catalog`, "--training-dir", `${s.work}/training`,
       ...models.flatMap((m) => ["--model", m]),
       ...(o.admin ? ["--admin"] : []),
+      ...(o.zoo ? ["--zoo"] : []),
+      ...(o.catalogIndex ? ["--catalog-index", o.catalogIndex] : []),
+      ...(o.catalogStore ? ["--catalog-store", o.catalogStore] : []),
     ];
     try {
-      if (serverPort === demoPort) throw new Error("Address already in use: the two picked ports are the same");
-      s.server = await started("turbo-kserve", s.serverArgs, "ready");
-      const demoArgs = ["--listen", `127.0.0.1:${demoPort}`, "--server", `http://127.0.0.1:${serverPort}`, ...(o.allow ?? []).flatMap((m) => ["--allow", m])];
-      if (o.token) {
-        writeFileSync(`${s.work}/token`, o.token, { mode: 0o600 });
-        demoArgs.push("--token-file", `${s.work}/token`);
-      }
-      s.demo = await started("turbo-kserve-demo", demoArgs, "open http");
+      await s.startServer();
+      s.url = await s.addDemo(o);
     } catch (e) {
       await s.close();
       throw e;
     }
-    s.url = `http://127.0.0.1:${demoPort}`;
     return s;
+  }
+
+  /** Starts an additional demo proxy in front of the same server; retries up to three times if the picked port is taken. */
+  async addDemo(o: DemoOptions = {}): Promise<string> {
+    const tokenArgs: string[] = [];
+    if (o.token) {
+      const tokenPath = `${this.work}/token-${this.tokenIndex++}`;
+      writeFileSync(tokenPath, o.token, { mode: 0o600 });
+      tokenArgs.push("--token-file", tokenPath);
+    }
+    for (let attempt = 1; ; attempt++) {
+      const demoPort = await freePort();
+      const demoArgs = [
+        "--listen", `127.0.0.1:${demoPort}`,
+        "--server", `http://127.0.0.1:${this.serverPort}`,
+        ...(o.allow ?? []).flatMap((m) => ["--allow", m]),
+        ...(o.user ? ["--user", o.user] : []),
+        ...tokenArgs,
+      ];
+      try {
+        const demo = await started("turbo-kserve-demo", demoArgs, "open http");
+        this.demos.push(demo);
+        return `http://127.0.0.1:${demoPort}`;
+      } catch (e) {
+        if (attempt >= 3 || !inUse(e)) throw e;
+      }
+    }
   }
 
   /**
@@ -168,9 +204,9 @@ export class Stack {
     await ended(server, "turbo-kserve");
   }
 
-  /** Stops the demo and the server; rejects naming either one that had to be killed. */
+  /** Stops the demos and the server; rejects naming any one that had to be killed. */
   async close(): Promise<void> {
-    const all = await Promise.allSettled([ended(this.demo, "turbo-kserve-demo"), ended(this.server, "turbo-kserve")]);
+    const all = await Promise.allSettled([...this.demos.map((d) => ended(d, "turbo-kserve-demo")), ended(this.server, "turbo-kserve")]);
     if (this.work) rmSync(this.work, { recursive: true, force: true });
     const failed = all.find((r): r is PromiseRejectedResult => r.status === "rejected");
     if (failed) throw failed.reason;
