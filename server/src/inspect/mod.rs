@@ -3,8 +3,10 @@
 
 mod bindings;
 pub mod heatmap;
+pub mod pairwise;
 pub mod pca;
 pub mod project;
+pub(crate) mod query;
 pub mod stacks;
 pub mod window;
 pub mod xray;

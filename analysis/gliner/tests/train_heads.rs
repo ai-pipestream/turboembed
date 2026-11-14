@@ -7,10 +7,14 @@
 use std::path::{Path, PathBuf};
 
 use turbo::deberta::{Config as EncoderConfig, Encoder};
+use turbo::safetensors::File;
 use turbo_analysis::ModelRef;
+use turbo_gliner::package::Manifest;
 use turbo_gliner::train::{OutputTrainer, output_optimizer};
 use turbo_gliner::{Candidate, Config, Decode, ExtractionSchema, Model};
 use turbo_trainer::adamw::Settings;
+use turbo_trainer::encoder::deberta_layer::DebertaLayer;
+use turbo_trainer::rng::Rng;
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -82,6 +86,39 @@ fn model(config: &Config, heads: &[u8]) -> Model {
     let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
     let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
     Model::new(encoder, config.clone(), heads, &spm, identity).unwrap()
+}
+
+fn source_package(config: &Config, heads: &[u8], encoder: &[u8], layers: usize) -> turbo_scratch::Scratch {
+    use turbo::deberta::package::{PackageManifest, digest};
+
+    let dir = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-gliner-lora-source-{}-{layers}", std::process::id())),
+    );
+    std::fs::create_dir_all(dir.join("encoder")).unwrap();
+    let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
+    let encoder_manifest = PackageManifest {
+        version: 1,
+        config: encoder_config(),
+        source_repository: "turboembed/tiny-deberta".into(),
+        source_revision: "0000000000000000000000000000000000000001".into(),
+        source_license: "Apache-2.0".into(),
+        weights_sha256: digest(encoder),
+    };
+    let encoder_meta = serde_json::to_vec_pretty(&encoder_manifest).unwrap();
+    let manifest = Manifest {
+        version: 1,
+        config: config.clone(),
+        encoder_sha256: digest(&encoder_meta),
+        heads_sha256: digest(heads),
+        tokenizer_sha256: digest(&spm),
+    };
+    std::fs::write(dir.join("encoder/deberta.json"), encoder_meta).unwrap();
+    std::fs::write(dir.join("encoder/weights.safetensors"), encoder).unwrap();
+    std::fs::write(dir.join("heads.safetensors"), heads).unwrap();
+    std::fs::write(dir.join("spm.model"), spm).unwrap();
+    std::fs::write(dir.join("gliner.json"), serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
+    Manifest::load(&dir).unwrap();
+    dir
 }
 
 const WORDS: [&str; 6] = ["Alice", "visited", "Paris", "in", "May", "."];
@@ -199,4 +236,147 @@ fn recurrent_training_needs_boundaries_and_an_even_hidden_size() {
     assert!(refused(&odd, true).contains("even hidden size"));
     let projection = OutputTrainer::load_with_heads(&even, &bytes, false, false, false, true).map(|_| ()).unwrap_err();
     assert!(projection.contains("requires recurrent and prompt training"));
+}
+
+#[test]
+fn lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
+    lora_train_install_reload(1, 0.0001);
+}
+
+#[test]
+fn multi_layer_lora_trains_with_the_heads_and_merges_back_to_the_native_encoder() {
+    lora_train_install_reload(2, 0.0001);
+}
+
+#[test]
+fn earlier_lora_layer_changes_scores_and_merged_export() {
+    let config = config(true, 4);
+    let original = heads(&config);
+    let encoder_original =
+        std::fs::read(root().join("testdata/tiny-deberta-bundle/weights/model.safetensors")).unwrap();
+    let mut tuned = model(&config, &original);
+    tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, 2).unwrap();
+    let before = tuned.training_input_lora(&WORDS, &schema()).unwrap().candidates;
+    let mut grads = tuned.lora_zero_grads().unwrap();
+    grads[1][0] = 1.0;
+    let lens: Vec<usize> = grads.iter().map(Vec::len).collect();
+    let settings = Settings { lr: 1e-2, total: 1, ..Settings::default() };
+    let mut optimizer = turbo_trainer::adamw::AdamW::new(settings, &lens).unwrap();
+    tuned.lora_step(&mut optimizer, &mut grads).unwrap();
+    let after = tuned.training_input_lora(&WORDS, &schema()).unwrap().candidates;
+    assert_ne!(after, before);
+
+    let merged = tuned.write_lora(&encoder_original).unwrap();
+    let encoder = Encoder::from_safetensors(encoder_config(), &merged).unwrap().with_threads(1).unwrap();
+    let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
+    let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
+    let reloaded = Model::new(encoder, config, &original, &spm, identity).unwrap();
+    let exported = reloaded.training_input(&WORDS, &schema()).unwrap().1;
+    assert_eq!(exported.len(), after.len());
+    for (exported, after) in exported.iter().zip(&after) {
+        assert_eq!((exported.start, exported.end, exported.label), (after.start, after.end, after.label));
+        assert!((exported.logit - after.logit).abs() < 0.0001);
+    }
+}
+
+fn lora_train_install_reload(layers: usize, tolerance: f32) {
+    let config = config(true, 4);
+    let original = heads(&config);
+    let encoder_original =
+        std::fs::read(root().join("testdata/tiny-deberta-bundle/weights/model.safetensors")).unwrap();
+    let mut tuned = model(&config, &original);
+    let before = scores(&tuned);
+    let close = |a: &[Candidate], b: &[Candidate], tolerance: f32| {
+        assert_eq!(a.len(), b.len());
+        for (a, b) in a.iter().zip(b) {
+            assert_eq!((a.start, a.end, a.label), (b.start, b.end, b.label));
+            assert!((a.logit - b.logit).abs() < tolerance, "logit {} != {}", a.logit, b.logit);
+        }
+    };
+    assert!(tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, 0).is_err());
+    assert!(tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, 3).is_err());
+    tuned.enable_lora_layers(&encoder_original, 2, 4.0, 17, layers).unwrap();
+    let initial = tuned.training_input_lora(&WORDS, &schema()).unwrap();
+    close(&initial.candidates, &before, tolerance);
+
+    let mut trainer = OutputTrainer::load_with_heads(&config, &original, true, true, true, true).unwrap();
+    let mut head_grads = trainer.zero_grads();
+    let (_, dencoder) =
+        trainer.gradients_with_encoder(&initial.training, &initial.candidates, &GOLD, &mut head_grads).unwrap();
+    let mut encoder_grads = tuned.lora_zero_grads().unwrap();
+    tuned.lora_backward(&initial, &dencoder, &mut encoder_grads).unwrap();
+    if layers > 1 {
+        let file = File::parse("encoder", &encoder_original).unwrap();
+        let relative = DebertaLayer::<f32>::relative(&encoder_config(), &file).unwrap();
+        let mut rng = Rng::new(17);
+        let independent: Vec<DebertaLayer<f32>> = (encoder_config().layers - layers..encoder_config().layers)
+            .map(|index| DebertaLayer::load(encoder_config(), &file, index, 2, 4.0, &mut rng).unwrap())
+            .collect();
+        let packed = tuned.pack(&WORDS, &schema()).unwrap();
+        let h = encoder_config().hidden;
+        let mut dx = vec![0.0; initial.work.last().unwrap().out.len()];
+        for (row, &at) in packed.prompts.iter().chain(&packed.words).enumerate() {
+            dx[at * h..(at + 1) * h].copy_from_slice(&dencoder[row * h..(row + 1) * h]);
+        }
+        let mut expected: Vec<Vec<f32>> = independent.iter().flat_map(|layer| layer.zero_grads()).collect();
+        let mut offset = expected.len();
+        for (layer, work) in independent.iter().zip(&initial.work).rev() {
+            offset -= layer.params().len();
+            dx = layer.backward(work, &relative, &dx, &mut expected[offset..offset + layer.params().len()]);
+        }
+        assert_eq!(encoder_grads, expected);
+    }
+    assert!(head_grads.iter().flatten().any(|&x| x != 0.0));
+    assert_eq!(encoder_grads.len(), 8 * layers);
+    assert!(encoder_grads.chunks(8).all(|grads| grads.iter().flatten().any(|&x| x != 0.0)));
+
+    let settings = Settings { lr: 1e-2, total: 1, ..Settings::default() };
+    let mut head_optimizer = output_optimizer(settings, &trainer).unwrap();
+    trainer.step(&mut head_optimizer, &mut head_grads).unwrap();
+    tuned.apply_output(&trainer).unwrap();
+    let lens: Vec<usize> = encoder_grads.iter().map(Vec::len).collect();
+    let mut encoder_optimizer = turbo_trainer::adamw::AdamW::new(settings, &lens).unwrap();
+    tuned.lora_step(&mut encoder_optimizer, &mut encoder_grads).unwrap();
+
+    let after = tuned.training_input_lora(&WORDS, &schema()).unwrap().candidates;
+    assert_ne!(after, before);
+    assert_eq!(tuned.training_input(&WORDS, &schema()).unwrap().1, after);
+    let merged = tuned.write_lora(&encoder_original).unwrap();
+    assert_ne!(merged, encoder_original);
+    let encoder = Encoder::from_safetensors(encoder_config(), &merged).unwrap().with_threads(1).unwrap();
+    let spm = std::fs::read(root().join("testdata/sentencepiece/unigram-identity.model")).unwrap();
+    let identity = ModelRef { id: "turboembed/tiny-deberta".into(), revision: "1".into(), sha256: String::new() };
+    let written = trainer.write_heads(&original).unwrap();
+    let reloaded = Model::new(encoder, config.clone(), &written, &spm, identity).unwrap();
+    close(&reloaded.training_input(&WORDS, &schema()).unwrap().1, &after, tolerance);
+
+    let source = source_package(&config, &original, &encoder_original, layers);
+    let out = turbo_scratch::Scratch::at(source.with_extension("tuned"));
+    Manifest::write_tuned_encoder(&source, &out, &written, &merged).unwrap();
+    let packaged = Manifest::load(&out).unwrap();
+    close(&packaged.training_input(&WORDS, &schema()).unwrap().1, &after, tolerance);
+}
+
+#[test]
+#[ignore = "loads the real small-v2.5 package for LoRA parity"]
+fn real_lora_initialization_preserves_encoder_states_and_scores() {
+    let root = std::env::var_os("GLINER_V2_5_PACKAGE").expect("GLINER_V2_5_PACKAGE");
+    let encoder_original = std::fs::read(turbo_pins::require(&root).join("encoder/weights.safetensors")).unwrap();
+    let baseline_model = Manifest::load(&turbo_pins::require(&root)).unwrap();
+    let schema = ExtractionSchema::new(vec!["person".into(), "location".into()], 0.5, Decode::Flat).unwrap();
+    let packed = baseline_model.pack(&WORDS, &schema).unwrap();
+    let before = baseline_model.states(&packed, &schema).unwrap();
+    let baseline = baseline_model.training_input(&WORDS, &schema).unwrap().1;
+    for layers in [1, 2] {
+        let mut model = Manifest::load(&turbo_pins::require(&root)).unwrap();
+        model.enable_lora_layers(&encoder_original, 1, 2.0, 17, layers).unwrap();
+        let after = model.states(&packed, &schema).unwrap();
+        let maximum = before.iter().zip(&after).map(|(a, b)| (a - b).abs()).fold(0.0, f32::max);
+        let initial = model.training_input_lora(&WORDS, &schema).unwrap();
+        let candidates = initial.candidates.clone();
+        let logit = baseline.iter().zip(&candidates).map(|(a, b)| (a.logit - b.logit).abs()).fold(0.0, f32::max);
+        println!("real LoRA layers {layers}: maximum state error {maximum}, logit error {logit}");
+        assert!(maximum < 0.002);
+        assert!(logit < 0.002);
+    }
 }

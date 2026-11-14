@@ -155,11 +155,3 @@ fn token_indexes_past_the_tokens_are_refused() {
     l.tokens.sentence = Some(vec![Ix::new(0), Ix::new(4)]);
     l.refused("token 1 names sentence 4 past 1 sentences");
 }
-
-#[test]
-fn hand_built_input_is_validated_for_training_too() {
-    use turbo_coref::train::{GoldMention, TrainingDocument, pairs};
-    let l = Layers::new("A", &[(0, 1)], (0, 5));
-    let doc = TrainingDocument { input: l.input(), gold: vec![GoldMention { span: Span::new(0, 1), chain: 0 }] };
-    assert!(pairs(&doc, &CorefAnnotator::default()).is_err());
-}

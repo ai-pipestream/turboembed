@@ -256,13 +256,11 @@ fn no_mentions_and_no_tokens_yield_empty_layers() {
 }
 
 #[test]
-fn invalid_type_sets_and_thresholds_are_rejected() {
+fn invalid_type_sets_are_rejected() {
     assert!(CorefAnnotator::rules(&[], &["organization"]).is_err());
     assert!(CorefAnnotator::rules(&[" "], &["organization"]).is_err());
     assert!(CorefAnnotator::rules(&["person"], &[]).is_err());
     assert!(CorefAnnotator::rules(&["person"], &[" "]).is_err());
-    assert!(CorefAnnotator::new(&["person"], &["org"], None, 1.5, None, None).is_err());
-    assert!(CorefAnnotator::new(&["person"], &["org"], None, f64::NAN, None, None).is_err());
 }
 
 fn two_sentences() -> Fixture {

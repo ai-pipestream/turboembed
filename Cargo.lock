@@ -2102,7 +2102,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
- "turbo-coref",
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
@@ -2201,11 +2200,9 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-maxent",
  "turbo-normalize",
  "turbo-sentdetect",
  "turbo-tokenize",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -3064,6 +3061,7 @@ dependencies = [
 name = "turbo-trainer"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "turbo",
  "turbo-pins",
 ]

@@ -66,4 +66,4 @@ export function refused(e: unknown): boolean {
   return c === Code.PermissionDenied || c === Code.Unauthenticated || c === Code.Unimplemented;
 }
 
-export { cancelled, explain } from "./errors.js";
+export { cancelled, declinedOver, explain } from "./errors.js";

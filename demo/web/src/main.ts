@@ -7,6 +7,7 @@ import * as analyze from "./tabs/analyze.js";
 import * as collections from "./tabs/collections.js";
 import * as drawer from "./tabs/drawer.js";
 import * as embed from "./tabs/embed.js";
+import * as entities from "./tabs/entities.js";
 import * as hints from "./tabs/hints.js";
 import * as models from "./tabs/models.js";
 import * as projection from "./tabs/projection.js";
@@ -70,6 +71,7 @@ async function start(): Promise<void> {
   xray.init();
   drawer.init();
   projection.init();
+  entities.init();
   wire.init();
   searchTab.init();
   collections.init();

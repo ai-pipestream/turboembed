@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use super::{Described, described, manifest_record};
-use crate::digest::{Sha256, Sha512};
+use crate::digest::{GitBlob, Sha256, Sha512};
 use crate::error::{Check, ZooError};
 use crate::fetch::{Kept, Transport};
 use crate::index::{Artifact, ArtifactId, File, Format, Kind, MANIFEST, ModelType, RelPath, Url};
@@ -63,12 +63,34 @@ struct Listed {
     file: Result<ListedFile, String>,
 }
 
-/// A file's path, its size, and for a file kept in large file storage
-/// the SHA-256 the repository records for it.
+/// A file's path, its size, and what the repository records of its
+/// bytes.
 struct ListedFile {
     path: RelPath,
     size: u64,
-    sha256: Option<Sha256>,
+    recorded: Recorded,
+}
+
+/// What a listing records of a file's bytes: for a file kept in large
+/// file storage its SHA-256, for any other the id git gives it.
+enum Recorded {
+    Sha256(Sha256),
+    Blob(GitBlob),
+}
+
+impl Recorded {
+    /// The check `bytes` fail, with what was recorded and what they are;
+    /// none when they are the file.
+    fn differs(&self, bytes: &[u8]) -> Option<(Check, String, String)> {
+        match self {
+            Recorded::Sha256(r) => {
+                Some(Sha256::of(bytes)).filter(|h| h != r).map(|h| (Check::Sha256, r.to_string(), h.to_string()))
+            }
+            Recorded::Blob(r) => {
+                Some(GitBlob::of(bytes)).filter(|h| h != r).map(|h| (Check::GitBlob, r.to_string(), h.to_string()))
+            }
+        }
+    }
 }
 
 fn is_commit(s: &str) -> bool {
@@ -120,20 +142,14 @@ fn listing(fail: &dyn Fn(String) -> ZooError, bytes: &[u8]) -> Result<Vec<Listed
         let lfs = e.get("lfs").filter(|l| !l.is_null());
         let size = lfs.and_then(|l| l.get("size")).or_else(|| e.get("size")).and_then(|s| s.as_u64());
         let file = (|| -> Result<ListedFile, String> {
-            let sha256 = match lfs {
-                Some(l) => Some(
-                    l.get("oid")
-                        .and_then(|o| o.as_str())
-                        .and_then(|o| Sha256::from_str(o).ok())
-                        .ok_or_else(|| bad("no SHA-256"))?,
-                ),
-                None => None,
+            let path = RelPath::from_str(path).map_err(|_| bad("a path the zoo does not take"))?;
+            let size = size.ok_or_else(|| bad("no size"))?;
+            let oid = |of: &serde_json::Value| of.get("oid").and_then(|o| o.as_str()).map(str::to_owned);
+            let recorded = match lfs {
+                Some(l) => Recorded::Sha256(oid(l).and_then(|o| o.parse().ok()).ok_or_else(|| bad("no SHA-256"))?),
+                None => Recorded::Blob(oid(e).and_then(|o| o.parse().ok()).ok_or_else(|| bad("no git blob id"))?),
             };
-            Ok(ListedFile {
-                path: RelPath::from_str(path).map_err(|_| bad("a path the zoo does not take"))?,
-                size: size.ok_or_else(|| bad("no size"))?,
-                sha256,
-            })
+            Ok(ListedFile { path, size, recorded })
         })();
         out.push(Listed { name: path.to_owned(), file });
     }
@@ -143,9 +159,10 @@ fn listing(fail: &dyn Fn(String) -> ZooError, bytes: &[u8]) -> Result<Vec<Listed
 /// The entry of the repository `spec.repo` at `spec.commit`, read through
 /// `transport` from `endpoint` ([`HUGGING_FACE`]). Each file's address is
 /// `<endpoint>/<repo>/resolve/<commit>/<path>`. A file is refused when it
-/// is not the size the listing gives, or, for a file in large file
-/// storage, not the SHA-256 the repository records; the entry then pins
-/// the size, SHA-256 and SHA-512 of the bytes read. A revision that is
+/// is not the size the listing gives, or not the bytes the repository
+/// records: by SHA-256 for a file in large file storage, by the id git
+/// gives it for any other. The entry then pins the size, SHA-256 and
+/// SHA-512 of the bytes read. A revision that is
 /// not a commit, a file the commit does not hold, and an entry the index
 /// would not load are refused too.
 pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport) -> Result<Artifact, ZooError> {
@@ -186,17 +203,17 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         return Err(fail("the commit holds no file".into()));
     }
 
-    let kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
+    let mut kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
     let mut files = Vec::with_capacity(listed.len());
     let mut manifest = None;
     for l in listed {
         let l = l.file.map_err(fail)?;
         let url = address(format!("{endpoint}/{}/resolve/{}/{}", spec.repo, spec.commit, in_address(&l.path)))?;
-        // Only a file whose SHA-256 the repository records can be taken
-        // from the cache: the cached bytes are then held to it.
-        let held = match (&kept, &l.sha256) {
-            (Some(k), Some(recorded)) => k.held(l.path.as_str(), l.size, recorded)?,
-            _ => None,
+        // A kept file is taken from the cache when it is the bytes the
+        // repository records.
+        let held = match &kept {
+            Some(k) => k.held(l.path.as_str(), l.size, |b| l.recorded.differs(b).is_none())?,
+            None => None,
         };
         let fresh = held.is_none();
         let bytes = match held {
@@ -213,11 +230,11 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         if bytes.len() as u64 != l.size {
             return Err(differs(Check::Size, l.size.to_string(), bytes.len().to_string()));
         }
-        let sha256 = Sha256::of(&bytes);
-        if let Some(recorded) = l.sha256.filter(|r| *r != sha256) {
-            return Err(differs(Check::Sha256, recorded.to_string(), sha256.to_string()));
+        if let Some((check, expected, actual)) = l.recorded.differs(&bytes) {
+            return Err(differs(check, expected, actual));
         }
-        if let Some(k) = kept.as_ref().filter(|_| fresh) {
+        let sha256 = Sha256::of(&bytes);
+        if let Some(k) = kept.as_mut().filter(|_| fresh) {
             k.keep(l.path.as_str(), &bytes)?;
         }
         files.push(File {
@@ -259,5 +276,10 @@ pub fn hugging_face(transport: &dyn Transport, endpoint: &str, spec: RepoImport)
         bundle: record,
         files,
     };
-    described(artifact, manifest.as_deref())
+    let artifact = described(artifact, manifest.as_deref())?;
+    // Only an accepted entry's files go into the cache.
+    if let Some(k) = kept {
+        k.accept()?;
+    }
+    Ok(artifact)
 }

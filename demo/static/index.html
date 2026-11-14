@@ -149,15 +149,27 @@ The engine was never built, but her notes describe how it could compute Bernoull
       <div class="row"><label>View <select id="drawer-view"><option value="">analyze a document first</option></select></label></div>
       <div id="drawer-out"></div>
     </details>
-    <details class="card" id="analyze-projection">
-      <summary>Chunk projection</summary>
+    <details class="card" id="analyze-projection" open>
+      <summary>Document map</summary>
       <div class="row">
-        <label>Dimensions <select id="projection-dims"><option value="2">2D</option><option value="3">3D</option></select></label>
-        <label><input id="projection-drift" type="checkbox" checked> drift curve</label>
-        <label class="grow">Chunking budgets, name:max:target <input id="projection-budgets" value="small:32:24, large:128:96"></label>
-        <button id="projection-run" type="button">Project</button>
+        <label>Directions <select id="projection-dims"><option value="2">2</option><option value="3">3 (the third as size)</option></select></label>
+        <label><input id="projection-uneven" type="checkbox" checked> river: skip words every chunk uses</label>
       </div>
+      <div class="row">
+        <label class="grow">Chunking budgets, name:max:target <input id="projection-budgets" value="small:32:24, large:128:96"></label>
+        <button id="projection-run" type="button">Draw</button>
+      </div>
+      <div class="row">
+        <label class="grow">Place a query on the map <input id="projection-query" type="search" placeholder="a question or a phrase; it lands among the chunks nearest in meaning" autocomplete="off"></label>
+        <button id="projection-ask" type="button">Place</button>
+      </div>
+      <div id="projection-query-out" role="status"></div>
       <div id="projection-out"></div>
+    </details>
+    <details class="card" id="analyze-entities" open>
+      <summary>Entities</summary>
+      <div class="row" id="entities-pick" hidden><label>Entity layer <select id="entities-layer" data-unkept><option value="">analyze a document first</option></select></label></div>
+      <div id="entities-out"></div>
     </details>
     <details class="card" id="analyze-wire">
       <summary>Graph wire inspector</summary>
@@ -250,6 +262,7 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <input id="vocab-learn-files" type="file" multiple aria-label="Document files">
       <label>Min term frequency <input id="vocab-min-tf" type="number" min="1" value="1" class="narrow"></label>
       <label>Max terms <input id="vocab-max-terms" type="number" min="0" value="0" class="narrow"></label>
+      <label>Language <input id="vocab-learn-language" value="en" autocomplete="off" class="narrow"></label>
       <label><input id="vocab-lowercase" type="checkbox" checked> lowercase</label>
       <label><input id="vocab-stopwords" type="checkbox"> drop stopwords</label>
       <label><input id="vocab-ngrams" type="checkbox"> n-grams</label>

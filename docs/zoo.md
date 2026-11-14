@@ -330,13 +330,16 @@ own listing of that commit
 (`/api/models/<owner>/<name>/tree/<commit>?recursive=true`), fetches
 each file at `https://huggingface.co/<owner>/<name>/resolve/<commit>/<path>`,
 which becomes its `url`, and refuses a file that is not the size the
-listing gives or, for a file in large file storage, not the SHA-256 the
-repository records for it. The entry pins the size, SHA-256 and SHA-512
-of the bytes read. A listing of 1000 entries or more is refused, since
+listing gives or not the bytes the repository records for it: by
+SHA-256 for a file in large file storage, and for any other by the id
+git gives the file (the listing's `oid`, the SHA-1 of `blob <size>`, a
+zero byte and the bytes). The git id only ties the file to the commit;
+the entry pins the size, SHA-256 and SHA-512 of the bytes read. A listing of 1000 entries or more is refused, since
 it may have been cut. A file's path is percent-encoded in its address
 where an address would not carry it as it is (a space, a character
 outside ASCII). A file the importer cannot take (a path that leaves the
-repository, a file in large file storage with no SHA-256) is refused
+repository, a file in large file storage with no SHA-256, any other
+file with no git id) is refused
 when it is imported, and holds up no other: with `--file`, only the
 files named are read.
 
@@ -407,14 +410,26 @@ and unit tests read them.
 `import-hf` and `import-oci` read every file to pin it, and keep each
 one in the cache as the entry's file (`<cache>/<id>/<path>`, the
 directory `fetch` uses), so the `fetch` that follows downloads nothing
-more. Run again, the same import takes from the cache every file whose
-SHA-256 its source names beforehand: every layer of an OCI artifact, and
-each file a Hugging Face repository keeps in large file storage. A kept
-file is held to that size and SHA-256 before it is used, and one that
-holds other bytes is downloaded again and replaced. A Hugging Face file
-outside large file storage has no digest in the listing, so it is read
-from the repository each time. `--no-keep` imports without keeping
-anything. In the library the importers take the cache directory as
+more. Run again, the same import takes every file from the cache: its
+source names each one's bytes beforehand, by SHA-256 for a layer of an
+OCI artifact and a Hugging Face file in large file storage, by git id
+for any other Hugging Face file. A kept file is held to that size and
+digest before it is used, and one that holds other bytes is downloaded
+again and replaced. `--no-keep` imports without keeping anything.
+
+Only an accepted entry's files go into the cache. While the import
+runs, each file it downloads is written whole under a temporary name
+beside its place (`<name>.partial.<pid>.<n>`), and they are put in
+place together once the entry is accepted. An import that fails, on a
+later file or because the entry is refused, removes what it wrote and
+every directory it leaves empty: the cache is as the import found it,
+and files it already held under that id, another entry's among them,
+are not replaced. Run again, a failed import downloads its files again.
+Two cases leave something behind: an import that is killed leaves its
+temporary files, which nothing reads and a later run does not reuse,
+and when one file cannot be put in place after the entry was accepted,
+the files put in place before it stay (each is whole and verified) and
+the import fails. In the library the importers take the cache directory as
 `keep` (`RepoImport::keep`, `OciImport::keep`), and keep nothing
 without it.
 

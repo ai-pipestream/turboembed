@@ -40,9 +40,14 @@ impl Transport for Fixed {
     }
 }
 
+/// The further locations of `hello.txt`, in the index's order.
+const COPIES: [&str; 2] = ["https://copy-one.example.org/hello.txt", "https://copy-two.example.org/tiny/hello.txt"];
+
 fn file(path: &str, bytes: &[u8]) -> String {
+    let also =
+        if path == "hello.txt" { format!(r#", "also": ["{}", "{}"]"#, COPIES[0], COPIES[1]) } else { String::new() };
     format!(
-        r#"{{"path": "{path}", "url": "{BASE}/{path}", "size": {}, "sha256": "{}", "sha512": "{}"}}"#,
+        r#"{{"path": "{path}", "url": "{BASE}/{path}", "size": {}, "sha256": "{}", "sha512": "{}"{also}}}"#,
         bytes.len(),
         Sha256::of(bytes),
         Sha512::of(bytes),
@@ -152,6 +157,25 @@ async fn read(c: &mut Client, req: ReadModelFileRequest) -> Result<(CatalogFile,
         bytes.extend_from_slice(&d);
     }
     Ok((head, lens, bytes))
+}
+
+#[tokio::test]
+async fn a_file_is_listed_and_read_with_its_further_locations_in_order() {
+    let home = Home::new("also");
+    let (s, mut c) = start(&home.0, true).await;
+    let listed = c.list_model_catalog(ListModelCatalogRequest::default()).await.unwrap().into_inner().entries;
+    let tiny = &listed[0].files;
+    assert_eq!((tiny[0].path.as_str(), tiny[0].url.as_str()), ("hello.txt", "https://example.org/models/hello.txt"));
+    assert_eq!(tiny[0].also, COPIES);
+    assert!(tiny[1].also.is_empty() && listed[1].files[0].also.is_empty());
+    let req = DescribeModelRequest { user: "".into(), artifact_id: "tiny".into() };
+    assert_eq!(c.describe_model(req).await.unwrap().into_inner().entry.unwrap().files[0].also, COPIES);
+    install(&mut c, "alice", "tiny").await;
+    let (head, _, bytes) = read(&mut c, read_req("alice", "tiny", "hello.txt", "")).await.unwrap();
+    assert_eq!((head.also, bytes.as_slice()), (COPIES.map(String::from).to_vec(), TEXT));
+    let (head, _, _) = read(&mut c, read_req("alice", "tiny", "weights.bin", "")).await.unwrap();
+    assert!(head.also.is_empty());
+    s.stop().await;
 }
 
 #[tokio::test]
