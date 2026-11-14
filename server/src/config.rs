@@ -5,125 +5,12 @@
 use std::net::SocketAddr;
 use std::path::PathBuf;
 
-use crate::api::names;
+pub use crate::auth::AuthConfig;
 pub use crate::tls::TlsConfig;
+pub use auth::{ENV_ADMIN_BEARER_TOKENS, ENV_BEARER_TOKENS};
+pub use model::{Device, ModelConfig, names, names_with};
+use refused::SWITCH;
 pub(crate) use refused::refused;
-use refused::{MODEL_SETTINGS, SWITCH, number};
-
-/// Where the model runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Device {
-    /// A runtime device index, for turbo_context_create.
-    Index(u32),
-    /// The index turbo_runtime_select gives for TURBO_TASK_EMBED.
-    Select,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ModelConfig {
-    pub bundle: String,
-    /// The model name a request uses; None is the bundle's directory name.
-    pub name: Option<String>,
-    pub device: Device,
-    /// turbo_session_desc.precision, TURBO_PRECISION_*.
-    pub precision: u32,
-    /// turbo_session_desc.max_batch; 0 is the model's.
-    pub max_batch: u32,
-    /// turbo_session_desc.max_seq; 0 is the model's.
-    pub max_seq: u32,
-    /// How many sessions turbo_session_create makes; at least 1.
-    pub sessions: u32,
-}
-
-impl ModelConfig {
-    /// The model name: the `name` setting, or the last component of the
-    /// bundle path, exactly as it is spelled. None for a path whose last
-    /// component is empty, `.` or `..`, which names no bundle.
-    pub fn name(&self) -> Option<&str> {
-        if let Some(n) = &self.name {
-            return Some(n);
-        }
-        let last = self.bundle.rsplit(std::path::is_separator).next().unwrap_or("");
-        (!matches!(last, "" | "." | "..")).then_some(last)
-    }
-
-    /// One `--model` value.
-    pub fn parse(s: &str) -> Result<ModelConfig, String> {
-        let (mut bundle, mut name, mut device, mut sessions) = (None, None, None, None);
-        let (mut precision, mut max_batch, mut max_seq) = (None, None, None);
-        for part in s.split(',') {
-            let (k, v) = part
-                .split_once('=')
-                .ok_or_else(|| format!("--model: a setting ({} bytes, not shown) is not key=value", part.len()))?;
-            let seen = match k {
-                "bundle" => bundle.replace(v.to_string()).is_some(),
-                "name" => {
-                    if v.is_empty() {
-                        return Err("--model: name is empty".into());
-                    }
-                    name.replace(v.to_string()).is_some()
-                }
-                "device" => {
-                    let d = if v == "select" { Device::Select } else { Device::Index(number(k, v)?) };
-                    device.replace(d).is_some()
-                }
-                "precision" => {
-                    let p = names::PRECISION.iter().find(|(_, n)| *n == v).map(|(p, _)| *p).ok_or_else(|| {
-                        refused("--model precision", v, "PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT")
-                    })?;
-                    precision.replace(p).is_some()
-                }
-                "max_batch" => max_batch.replace(number(k, v)?).is_some(),
-                "max_seq" => max_seq.replace(number(k, v)?).is_some(),
-                "sessions" => sessions.replace(number(k, v)?).is_some(),
-                _ => return Err(format!("--model: a setting ({} bytes, not shown) is not {MODEL_SETTINGS}", k.len())),
-            };
-            if seen {
-                return Err(format!("--model: {k} given twice"));
-            }
-        }
-        let sessions = sessions.ok_or("--model: sessions is required")?;
-        if sessions == 0 {
-            return Err("--model: sessions must be at least 1".into());
-        }
-        Ok(ModelConfig {
-            bundle: bundle.ok_or("--model: bundle is required")?,
-            name,
-            device: device.ok_or("--model: device is required")?,
-            precision: precision.unwrap_or(0),
-            max_batch: max_batch.unwrap_or(0),
-            max_seq: max_seq.unwrap_or(0),
-            sessions,
-        })
-    }
-}
-
-/// Every model's name, refusing an empty model list, zero sessions, a path
-/// that names no bundle, and two models of one name.
-pub fn names(models: &[ModelConfig]) -> Result<Vec<String>, String> {
-    names_with(models, false)
-}
-
-/// Every model's name, allowing an empty model list when `empty_ok` is true:
-/// an admin server starts empty and accepts LoadBundle calls, and a zoo
-/// serves only its catalog.
-pub fn names_with(models: &[ModelConfig], empty_ok: bool) -> Result<Vec<String>, String> {
-    if models.is_empty() && !empty_ok {
-        return Err("at least one --model is required".into());
-    }
-    let mut out: Vec<String> = Vec::new();
-    for m in models {
-        let name = m.name().ok_or_else(|| format!("bundle {}: the path names no bundle", m.bundle))?;
-        if m.sessions == 0 {
-            return Err(format!("bundle {}: sessions must be at least 1", m.bundle));
-        }
-        if out.iter().any(|n| n == name) {
-            return Err(format!("bundle {}: a model named {name} is already served", m.bundle));
-        }
-        out.push(name.to_string());
-    }
-    Ok(out)
-}
 
 /// The command line.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,6 +31,9 @@ pub struct Args {
     /// Where completed analysis documents are forwarded, and the queue's
     /// bounds.
     pub sink: Option<crate::sink::SinkConfig>,
+    /// Optional one-pass search projection on sink document items
+    /// (`--sink-search-projection`).
+    pub sink_search_projection: Option<crate::sink::SinkTyped>,
     /// What a request's PiiOutputOptions may turn on (`--pii-output-allow`).
     pub pii_output: crate::results::disclosure::PiiOutputPolicy,
     /// PII value release to granted services (`--pii-grant`, #1909).
@@ -172,6 +62,8 @@ pub struct Args {
     pub training_dir: Option<String>,
     /// Optional TLS and mutual-TLS (mTLS) certificates for the gRPC listener.
     pub tls: Option<TlsConfig>,
+    /// Optional constant-time bearer token gates (`#2346`).
+    pub auth: Option<AuthConfig>,
     /// Optional HTTP listener serving Prometheus `/metrics`.
     pub metrics_listen: Option<SocketAddr>,
 }
@@ -240,7 +132,7 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
 [--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
-[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] \
+[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] [--sink-search-projection] \
 [--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
 [--pii-output-allow none|rewritten-text,full-text,detail] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT] [--pii-policy PATH ...]\n\
@@ -283,7 +175,8 @@ impl Args {
         let (mut max_message_bytes, mut max_stream_bytes) = (None, None);
         let (mut admin, mut zoo) = (None, None);
         let (mut vocabulary_dir, mut training_dir, mut bundle_dir) = (None, None, None);
-        let (mut sink_flags, mut release_flags) = (sink::SinkFlags::default(), release::ReleaseFlags::default());
+        let (mut sink_flags, mut release_flags, mut auth_flags) =
+            (sink::SinkFlags::default(), release::ReleaseFlags::default(), auth::AuthFlags::default());
         let (mut catalog_dir, mut catalog_index, mut catalog_store, mut catalog_data) = (None, None, None, None);
         let (mut catalog_prefetch, mut pii_output_allow) = (None, None);
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
@@ -297,6 +190,7 @@ impl Args {
             let mut value = || inline.clone().or_else(|| it.next()).ok_or_else(|| format!("{flag} needs a value"));
             if sink_flags.take(&flag, inline.is_some(), &mut value)?
                 || release_flags.take(&flag, inline.is_some(), &mut value)?
+                || auth_flags.take(&flag, &mut value)?
             {
                 continue;
             }
@@ -429,7 +323,7 @@ impl Args {
         if catalog_store.is_some() && catalog_data.is_some() {
             return Err("--catalog-store and --catalog-data are two stores; give one".into());
         }
-        let sink = sink_flags.resolve(&env)?;
+        let (sink, sink_search_projection) = sink_flags.resolve(&env)?;
         let pii_output = pii::resolve(pii_output_allow, &env)?;
         if let Some(s) = &sink
             && !pii_output.allows(&s.pii_output)
@@ -448,6 +342,7 @@ impl Args {
             _ => return Err("--tls-cert and --tls-key must be given together".into()),
         };
         let (pii_release, pii_encryption_keys) = release_flags.resolve(&env, tls.as_ref())?;
+        let auth = auth_flags.resolve(&env)?;
         if metrics_listen.is_none()
             && let Some(v) = env(ENV_METRICS_LISTEN).filter(|v| !v.is_empty())
         {
@@ -466,6 +361,7 @@ impl Args {
             admin,
             vocabulary_dir,
             sink,
+            sink_search_projection,
             pii_output,
             pii_release,
             pii_encryption_keys,
@@ -477,13 +373,16 @@ impl Args {
             catalog_prefetch,
             training_dir,
             tls,
+            auth,
             metrics_listen,
             pii_policies,
         })
     }
 }
 
+mod auth;
 mod bundles;
+mod model;
 mod pii;
 mod refused;
 mod release;

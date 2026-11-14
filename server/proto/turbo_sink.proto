@@ -52,6 +52,11 @@ message DocumentSinkItem {
   // are this one. A parse_artifact_digest without a parse_artifact_id is
   // rejected.
   optional turbo.result.v1.InputBinding binding = 10;
+
+  // Schema-driven Search Index Envelope Projection (#2345): chunks,
+  // sentences, token lattice, typed NLP columns, entity polarities,
+  // near-duplicate sketches, and replay provenance digests.
+  optional turbo.result.v1.SearchDocumentProjection search_projection = 11;
 }
 
 message DocumentSinkSummary {

@@ -19,7 +19,8 @@ turbo = { path = "../core" }
 # invariants, which the message validation re-proves.
 turbo-analysis = { path = "../analysis/core" }
 turbo-analysis-layers = { path = "../analysis/layers" }
-turbo-analysis-embed = { path = "../analysis/embed" }
+turbo-analysis-embed = { path = "../analysis/embed", features = ["turboquant"] }
+turbo-calibration = { path = "../analysis/calibration" }
 turbo-abbrev = { path = "../analysis/abbrev" }
 turbo-chunker = { path = "../analysis/chunker" }
 turbo-coref = { path = "../analysis/coref" }
@@ -36,6 +37,7 @@ turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
 turbo-group = { path = "../analysis/group" }
 turbo-keywords = { path = "../analysis/keywords" }
+turbo-matcher = { path = "../analysis/matcher" }
 turbo-normalize = { path = "../analysis/normalize" }
 turbo-normalize-layers = { path = "../analysis/normalize-layers" }
 turbo-relation = { path = "../analysis/relation" }
@@ -61,6 +63,7 @@ turbo-lemmatizer = { path = "../analysis/lemmatizer" }
 turbo-maxent = { path = "../analysis/maxent" }
 turbo-sequence = { path = "../analysis/sequence" }
 turbo-stopword = { path = "../analysis/stopword" }
+turbo-suggest = { path = "../analysis/suggest", features = ["mmap"] }
 turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-wordnet = { path = "../analysis/wordnet" }
 # The model catalog: the zoo index, licence acceptances, verified fetches.
@@ -97,6 +100,7 @@ protox = "0.9"
 tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
 
 [dev-dependencies]
+turbo-encoding = { path = "../analysis/encoding" }
 turbo-scratch = { path = "../analysis/scratch" }
 # Real wire deadline tests bypass tonic clients' own timeout wrapper.
 h2 = "0.4"

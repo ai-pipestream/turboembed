@@ -49,7 +49,7 @@ pub use complex::{
     ComplexScript, ComplexSegmenter, DictionaryWordTokenizer, UntypedDictionaryWordTokenizer, dictionary_word_tokens,
 };
 pub use detok::{Detokenizer, DetokenizerDictionary, DictionaryError, DictionaryOperation, Operation};
-pub use lattice::{DictionaryFormat, LatticeAnalyzer, LatticeTokenizer, MecabDictionary};
+pub use lattice::{DictionaryFormat, LatticeAnalyzer, LatticeGraphAnnotator, LatticeTokenizer, MecabDictionary};
 pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{Readings, WordType, WordTypes};
 pub use uax29::{UntypedWordTokenizer, WordTokenizer, word_boundaries, word_tokens};

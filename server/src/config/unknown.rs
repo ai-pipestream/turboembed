@@ -6,6 +6,8 @@
 
 const KNOWN_FLAGS: &[&str] = &[
     "--admin",
+    "--admin-bearer-token",
+    "--bearer-token",
     "--bundle-dir",
     "--catalog-data",
     "--catalog-dir",
@@ -32,6 +34,7 @@ const KNOWN_FLAGS: &[&str] = &[
     "--sink-pii-output",
     "--sink-queue-bytes",
     "--sink-queue-items",
+    "--sink-search-projection",
     "--sink-typed-offsets",
     "--sink-typed-view",
     "--tls-cert",
@@ -130,7 +133,9 @@ mod tests {
         // every flag the parser matches is in KNOWN_FLAGS so a near-miss
         // typo of it is named.
         let mut parsed_flags = Vec::new();
-        for src in [include_str!("../config.rs"), include_str!("sink.rs"), include_str!("release.rs")] {
+        for src in
+            [include_str!("../config.rs"), include_str!("auth.rs"), include_str!("sink.rs"), include_str!("release.rs")]
+        {
             for line in src.lines() {
                 if let Some((quoted, _)) = line.trim().split_once("=>")
                     && let Some(flag) = quoted.trim().strip_prefix("\"--").and_then(|s| s.strip_suffix('"'))

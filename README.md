@@ -355,6 +355,7 @@ release.md.
 
 | Path | What it is |
 |---|---|
+| `clients/rust` | `turbo-client`, unified Rust thick client combining in-process lexical/NLP analysis, local `libturbo` sessions, and pooled `turbo-kserve` gRPC offload ([README](clients/rust/README.md)) |
 | `clients/python` | `turboembed-proto`, generated Python gRPC stubs for every service ([README](clients/python/README.md)) |
 | `clients/java` | `ai.pipestream:turboembed-grpc`, generated Java gRPC stubs |
 | `clients/java-api` | `ai.pipestream:turboembed-api`, the in-process Java API (Java 21+) shared by both native bridges ([README](clients/java-api/README.md)) |

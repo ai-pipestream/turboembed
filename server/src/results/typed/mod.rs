@@ -19,6 +19,7 @@ mod layers_quotations;
 mod layers_sentiment;
 mod layers_shared;
 mod layers_structure;
+mod layers_token_graph;
 pub mod project;
 pub mod scoped;
 mod validate;
@@ -360,6 +361,7 @@ pub fn document_to_typed_bound(
             .or_else(|| layers_pii_edits::project_pii_edits_layer(&mut cx, key))
             .or_else(|| layers_quality::project_quality_layer(&mut cx, key))
             .or_else(|| layers_quotations::project_quotations(&mut cx, key))
+            .or_else(|| layers_token_graph::project_token_graph(&mut cx, key))
             .or_else(|| layers_structure::project_structure_layer(&mut cx, key))
             .or_else(|| layers_shared::project_shared_layer(&mut cx, key))
             .or_else(|| layers_context::project_context_layer(&mut cx, key))

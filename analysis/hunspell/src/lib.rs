@@ -59,6 +59,7 @@ mod dictionary;
 mod error;
 mod flag;
 mod hash;
+mod lattice;
 mod morphology;
 mod read;
 mod settings;
@@ -71,9 +72,10 @@ pub use condition::Condition;
 pub use dictionary::Dictionary;
 pub use error::{LoadError, Stream};
 pub use flag::{Flag, FlagSet};
+pub use lattice::{HunspellLatticeAnnotator, emit_hunspell_lattice};
 pub use read::MAX_FILE_BYTES;
 pub use read::bytes::UnsupportedDirective;
-pub use stemmer::Stemmer;
+pub use stemmer::{CompoundSegment, Stemmer};
 pub use turbo_stem_layers::Stems;
 
 /// What a load does with a directive the reader does not support:

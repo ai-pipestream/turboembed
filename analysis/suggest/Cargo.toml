@@ -1,0 +1,22 @@
+[package]
+name = "turbo-suggest"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_suggest"
+
+[dependencies]
+turbo-analysis = { path = "../core" }
+turbo-ngram = { path = "../ngram" }
+turbo-normalize = { path = "../normalize" }
+turbo-stem = { path = "../stem" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-unicode = { path = "../unicode" }
+memmap2 = { version = "0.9.11", optional = true }
+
+[features]
+default = ["mmap"]
+mmap = ["dep:memmap2"]

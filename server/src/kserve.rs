@@ -17,6 +17,7 @@ use turbo::{
 use crate::api::{self, *};
 use crate::deadline::{Deadline, deadline_status};
 use crate::infer::{self, Rows};
+use crate::priority::{Priority, check_before_exec};
 use crate::proto::grpc_inference_service_server::GrpcInferenceService;
 use crate::proto::infer_parameter::ParameterChoice;
 use crate::proto::model_infer_response::InferOutputTensor;
@@ -162,33 +163,43 @@ fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
 
 /// One ModelInfer: one write, one run and one read on one held session.
 fn infer(
-    state: &State,
+    served: &Arc<Served>,
+    loaded: &Arc<Loaded>,
     req: ModelInferRequest,
+    held: Held,
     deadline: &Deadline,
 ) -> std::result::Result<ModelInferResponse, (Failure, &'static [&'static str])> {
-    deadline.check_alive().map_err(|f| (f, &[][..]))?;
-    let (served, loaded) = state.ready(&req.model_name, &req.model_version).map_err(|f| (f, &[][..]))?;
+    check_before_exec(deadline, &loaded.metrics).map_err(|f| (f, &[][..]))?;
     match loaded.task {
-        TURBO_TASK_EMBED => infer_embed(&served, &loaded, req, deadline).map_err(|f| (f, &EMBED_OPTIONS[..])),
+        TURBO_TASK_EMBED => infer_embed(served, loaded, req, held, deadline).map_err(|f| (f, &EMBED_OPTIONS[..])),
         TURBO_TASK_RERANK => {
-            crate::tasks::infer_rerank(&served, &loaded, req, deadline).map_err(|f| (f, &RERANK_OPTIONS[..]))
+            crate::tasks::infer_rerank(served, loaded, req, held, deadline).map_err(|f| (f, &RERANK_OPTIONS[..]))
         }
         TURBO_TASK_EXTRACTIVE_QA => {
-            crate::tasks::infer_qa(&served, &loaded, req, deadline).map_err(|f| (f, &QA_OPTIONS[..]))
+            crate::tasks::infer_qa(served, loaded, req, held, deadline).map_err(|f| (f, &QA_OPTIONS[..]))
         }
         other => Err((Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {other}")), &[][..])),
     }
+}
+
+fn validate_embed_request(loaded: &Loaded, req: &ModelInferRequest) -> Result<()> {
+    let plan = infer::plan(req)?;
+    // Every session of a model is made alike, so the first one's limits are
+    // the held one's: an oversized raw request is refused before BUSY.
+    if let Rows::Raw { batch, seq, .. } = plan.rows {
+        fits(&loaded.slots[0].info, batch, seq)?;
+    }
+    Ok(())
 }
 
 fn infer_embed(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
+    held: Held,
     deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     let plan = infer::plan(&req)?;
-    // Every session of a model is made alike, so the first one's limits are
-    // the held one's: an oversized raw request is refused before BUSY.
     if let Rows::Raw { batch, seq, .. } = plan.rows {
         fits(&loaded.slots[0].info, batch, seq)?;
     }
@@ -197,9 +208,7 @@ fn infer_embed(
         Rows::Typed { batch, .. } | Rows::Raw { batch, .. } => *batch as usize,
     };
     let _docs = loaded.metrics.track_docs(batch_len.max(1), Some(loaded.device));
-    deadline.check_alive()?;
-    let held = loaded.take()?;
-    deadline.check_alive()?;
+    check_before_exec(deadline, &loaded.metrics)?;
     let slot = held.slot();
     let mut opts: turbo_embed_options = plan.opts;
     if let Some(r) = &plan.int8_ranges {
@@ -230,7 +239,7 @@ fn infer_embed(
             slot.session.write_tokens(&b, opts)?
         }
     }
-    deadline.check_alive()?;
+    check_before_exec(deadline, &loaded.metrics)?;
     loaded.metrics.record_batch_size(batch_len);
     let result = slot.session.run()?;
     deadline.check_alive()?;
@@ -355,16 +364,34 @@ impl GrpcInferenceService for Inference {
     }
 
     async fn model_infer(&self, req: Request<ModelInferRequest>) -> Reply<ModelInferResponse> {
+        let priority = Priority::from_metadata(req.metadata())?;
         let deadline = Deadline::from_request(&req)?;
-        deadline.check()?;
+        if deadline.is_expired() {
+            self.state.metrics.record_cancelled_before_exec();
+            return Err(deadline_status());
+        }
         let state = self.state.clone();
         let req = req.into_inner();
+        let (served, loaded) = state.ready(&req.model_name, &req.model_version).map_err(|f| to_status(&f, &[]))?;
+        if loaded.task == TURBO_TASK_EMBED {
+            validate_embed_request(&loaded, &req).map_err(|f| to_status(&f, &EMBED_OPTIONS[..]))?;
+        }
+        let held = match loaded.take_or_acquire_async(priority, &deadline).await {
+            Ok(held) => held,
+            Err(f) => {
+                if deadline.is_expired() {
+                    return Err(deadline_status());
+                }
+                return Err(to_status(&f, &[]));
+            }
+        };
         let worker_deadline = deadline.clone();
         // The run blocks; a request whose client goes away keeps its
         // session until the run ends and the result is released.
-        let out = tokio::task::spawn_blocking(move || infer(&state, req, &worker_deadline)).await.map_err(|e| {
-            to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[])
-        })?;
+        let out =
+            tokio::task::spawn_blocking(move || infer(&served, &loaded, req, held, &worker_deadline)).await.map_err(
+                |e| to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[]),
+            )?;
         if deadline.is_expired() {
             return Err(deadline_status());
         }

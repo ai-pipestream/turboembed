@@ -22,6 +22,22 @@ pub mod encoder;
 pub mod export;
 pub use export::{codecs, register_codecs};
 pub mod heads;
+pub mod impacts;
+pub use impacts::{
+    DEFAULT_IMPACT_CLIP_MAX, ImpactBits as ImpactBitWidth, ImpactQuantizerConfig, QuantizedImpacts, format_token_key,
+    parse_token_key,
+};
+pub mod multires;
+pub use multires::{
+    MultiResInput, MultiResOptions, MultiResVectors, VectorTier, build_tier_from_unnormalized, compute_inv_norm,
+    normalize_matryoshka_dims, row_le_sha256, validate_turboquant_options,
+};
+pub mod rerank_highlight;
+pub use rerank_highlight::{
+    CalibratedRerankScore, HighlightCandidateSpan, RERANK_CALIBRATION_LABELS, RerankCalibrator, SourcePassage,
+    clean_query_text, score_spans_contextual_maxsim, score_spans_pooled_cosine, score_spans_subword_tokenizer,
+    select_top_non_overlapping,
+};
 pub mod levels;
 pub mod rerank;
 pub mod sparse;
@@ -32,6 +48,7 @@ pub mod qa;
 pub use qa::{Answers, ExtractiveQaAnnotator, Question};
 pub mod subwords;
 pub mod vectors;
+pub mod voronoi;
 pub mod window;
 
 pub use aspect::{BIO_ASPECT_OPINION_LABELS, LabeledAbsaDoc, LearnedAspectSentiment, bio_aspect_opinion_tagset};
@@ -49,6 +66,7 @@ pub use vectors::{
     ChunkVectors, ContextualTokens, Embedder, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,
     VectorAnnotator, VectorCodesProvider, VectorCodesStep, VectorOptions, VectorsProvider,
 };
+pub use voronoi::{VoronoiCentroids, VoronoiOptions, train_voronoi_centroids};
 
 use turbo::bundle::Bundle;
 use turbo_analysis::ModelRef;

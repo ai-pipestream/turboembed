@@ -21,6 +21,7 @@ use crate::metrics::TrackedStream;
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_request::Kind;
 use crate::proto::result::{AnalyzeOptions, AnalyzeOrder, AnalyzeOutput, AnalyzeStreamRequest, AnalyzeStreamResponse};
+use crate::results::multires::MultiResRequestOptions;
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
@@ -54,6 +55,7 @@ pub(crate) struct DocOptions {
     pub(crate) offsets: OffsetMode,
     pub(crate) sparse_top_k: u32,
     pub(crate) sparse_floor: f32,
+    pub(crate) multires: MultiResRequestOptions,
     pub(crate) token_stride: u32,
 }
 
@@ -65,7 +67,7 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
             TURBO_E_INVALID_ENUM,
             0,
             format!(
-                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS, ANALYZE_OUTPUT_VECTOR_CODES, ANALYZE_OUTPUT_DOCUMENT_GRAPH"
+                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS, ANALYZE_OUTPUT_VECTOR_CODES, ANALYZE_OUTPUT_DOCUMENT_GRAPH, ANALYZE_OUTPUT_MULTIRES_VECTORS"
             ),
         )
     })?;
@@ -98,6 +100,14 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
         ));
     }
     let int8_ranges = (!raw.int8_ranges.is_empty()).then(|| Arc::from(raw.int8_ranges.as_slice()));
+    let multires = MultiResRequestOptions::from_proto(
+        output,
+        &raw.matryoshka_dims,
+        raw.emit_sentence_vectors,
+        raw.emit_row_sha256,
+        raw.turboquant_bits,
+        raw.turboquant_calibrate,
+    )?;
     Ok(DocOptions {
         embed,
         int8_ranges,
@@ -105,6 +115,7 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
         offsets,
         sparse_top_k: raw.sparse_top_k,
         sparse_floor: raw.sparse_floor,
+        multires,
         token_stride: raw.token_stride,
     })
 }

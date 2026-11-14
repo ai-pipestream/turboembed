@@ -98,6 +98,7 @@ pub struct VectorAnnotator {
     /// The width of the vectors written: `hidden`, or the declared
     /// `output_dim` they are cut to.
     dim: u32,
+    declared_dims: Vec<u32>,
     l2: bool,
     /// The template's leading special tokens, then the prompt's prefix.
     head: Vec<i32>,
@@ -197,6 +198,7 @@ impl VectorAnnotator {
         }
         let stride = if o.stride == 0 { default_token_stride(width) } else { o.stride };
         let declared = bundle.manifest.embed.as_ref().map_or(&[][..], |e| &e.output_dims[..]);
+        let declared_dims = declared.to_vec();
         let out = output_dim(o.output_dim, info.dim, declared)?;
         let fill_id = tokenizer.fill_id();
         let state = State {
@@ -223,6 +225,7 @@ impl VectorAnnotator {
             execution: info.execution,
             hidden: info.dim,
             dim: out,
+            declared_dims,
             l2: info.l2,
             head,
             tail,
@@ -314,6 +317,16 @@ impl VectorAnnotator {
     /// The encoder's hidden width, before any cut.
     pub fn hidden_dim(&self) -> u32 {
         self.hidden
+    }
+
+    /// Declared Matryoshka output widths (`embed.output_dims`) in the bundle manifest.
+    pub fn output_dims(&self) -> &[u32] {
+        &self.declared_dims
+    }
+
+    /// Whether the bundle L2-normalizes pooled sentence/chunk vectors.
+    pub fn is_l2_normalized(&self) -> bool {
+        self.l2
     }
 
     /// Output width of per-token contextual vectors (`projection.dim` when

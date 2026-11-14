@@ -87,6 +87,8 @@ itself.
 | `--tls-cert FILE` | Server TLS certificate chain in PEM format; requires `--tls-key`. | Off (plaintext). |
 | `--tls-key FILE` | Server TLS private key in PEM format; requires `--tls-cert`. | Off (plaintext). |
 | `--tls-client-ca FILE` | Client CA bundle in PEM format for mutual TLS (mTLS); requires `--tls-cert` and `--tls-key`. Connections without a valid client certificate are refused during the TLS handshake. | Off. |
+| `--bearer-token TOKEN` | Constant-time SHA-256 bearer token authorizing read/inference RPCs (`Authorization: Bearer TOKEN`); repeat for multiple tokens. `grpc.health.v1.Health/{Check,Watch}` remain unauthenticated for health probes. | Off. |
+| `--admin-bearer-token TOKEN` | Constant-time SHA-256 bearer token authorizing both read/inference and state-mutating admin RPCs; repeat for multiple tokens. | Off. |
 | `--metrics-listen ADDR:PORT` | Serve Prometheus metrics in text exposition format (`0.0.4`) on `GET /metrics` over HTTP. | Off. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` or `--zoo` is set. |
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
@@ -176,6 +178,8 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_TLS_CERT` | `--tls-cert` |
 | `TURBO_KSERVE_TLS_KEY` | `--tls-key` |
 | `TURBO_KSERVE_TLS_CLIENT_CA` | `--tls-client-ca` |
+| `TURBO_KSERVE_BEARER_TOKENS` | `--bearer-token` (comma-separated tokens) |
+| `TURBO_KSERVE_ADMIN_BEARER_TOKENS` | `--admin-bearer-token` (comma-separated tokens) |
 | `TURBO_KSERVE_METRICS_LISTEN` | `--metrics-listen` |
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_BUNDLE_DIR` | `--bundle-dir` |
@@ -327,6 +331,22 @@ interface. It exposes these metrics:
 | `turbo_kserve_bundle_loads_total` | counter | `status` | Bundle load attempts (`ok` or `error`). |
 | `turbo_kserve_bundle_unloads_total` | counter | none | Unloaded model bundles. |
 | `turbo_kserve_loaded_bundles` | gauge | none | Currently loaded model bundles. |
+| `turbo_kserve_cancelled_before_exec_total` | counter | none | Calls cancelled or expired (`grpc-timeout`) before touching a device session. |
+
+Bearer token authentication (`--bearer-token` / `--admin-bearer-token` or
+`TURBO_KSERVE_BEARER_TOKENS` / `TURBO_KSERVE_ADMIN_BEARER_TOKENS`) checks
+`authorization: Bearer <token>` in constant time against SHA-256 digests:
+infer tokens authorize read/inference RPCs and return `PERMISSION_DENIED` on
+state-mutating admin RPCs, while admin tokens authorize both.
+`grpc.health.v1.Health/{Check,Watch}` are exempt so `turbo-kserve health`
+succeeds without embedding credentials.
+
+Per-call `x-turbo-priority` metadata (`interactive` or `bulk`) routes
+`ModelInfer`, `AnalyzeQuery`, and `RerankAndHighlight` through a bounded
+two-lane session queue (`MAX_QUEUE_DEPTH`) in front of each model's session
+pool. `interactive` preempts queued `bulk` work while yielding one slot every
+`MAX_INTERACTIVE_BURST` grants so bulk ingest never starves; excess queued
+callers are refused immediately with `UNAVAILABLE` (`TURBO_E_BUSY`).
 
 Per-call `grpc-timeout` metadata is propagated into unary (`ModelInfer`)
 and streaming (`AnalyzeStream`, `AnalyzeDocumentProgressive`) workers.

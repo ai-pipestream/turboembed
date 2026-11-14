@@ -74,6 +74,7 @@ where
             }
         };
         if deadline.is_expired() {
+            metrics.record_cancelled_before_exec();
             let res = status_response(deadline_status(), Arc::clone(&metrics), service, method, start);
             return Box::pin(async move { Ok(res) });
         }
@@ -84,6 +85,7 @@ where
         Box::pin(async move {
             let mut cancel_guard = CallCancelGuard {
                 metrics: Arc::clone(&metrics),
+                deadline: deadline.clone(),
                 service: service.clone(),
                 method: method.clone(),
                 start,
@@ -129,6 +131,7 @@ where
 
 struct CallCancelGuard {
     metrics: Arc<Metrics>,
+    deadline: Deadline,
     service: String,
     method: String,
     start: Instant,
@@ -138,6 +141,7 @@ struct CallCancelGuard {
 impl Drop for CallCancelGuard {
     fn drop(&mut self) {
         if !self.disarmed {
+            self.deadline.trip();
             self.metrics.record_rpc(&self.service, &self.method, Code::Cancelled, self.start.elapsed());
         }
     }

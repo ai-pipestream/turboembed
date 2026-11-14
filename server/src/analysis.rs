@@ -17,16 +17,19 @@ use crate::kserve::Reply;
 use crate::progressive;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
-    AnalyzePipelineRequest, AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult,
-    DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest, DocumentWindowResponse, ExtractionResult,
-    FormatDocumentRequest, FormatDocumentResponse, InspectDocumentGraphRequest, ListOutputFormatsRequest,
-    ListOutputFormatsResponse, LoadBundleRequest, LoadBundleResponse, ProjectChunksRequest, ProjectChunksResponse,
-    RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest,
-    UnloadBundleResponse,
+    AnalyzePipelineRequest, AnalyzeQueryRequest, AnalyzeQueryResponse, AnalyzeStreamRequest, CapabilitiesRequest,
+    CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest,
+    DocumentWindowResponse, ExtractionResult, FormatDocumentRequest, FormatDocumentResponse,
+    InspectDocumentGraphRequest, ListOutputFormatsRequest, ListOutputFormatsResponse, LoadBundleRequest,
+    LoadBundleResponse, MultiResVectorsResult, ProjectChunksRequest, ProjectChunksResponse,
+    ProjectSearchDocumentRequest, RecordsResult, RerankAndHighlightRequest, RerankAndHighlightResponse,
+    RerankScoresResult, SearchDocumentProjection, SparseTermsResult, TokenVectorsResult, TypedDocumentResult,
+    UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
-    extraction::Extraction, layers::ChunkLevels, records::RecordSet, rerank::RerankScores, tokens::TokenVectors,
+    extraction::Extraction, layers::ChunkLevels, multires::MultiResVectorsWire, records::RecordSet,
+    rerank::RerankScores, tokens::TokenVectors,
 };
 use crate::state::State;
 use crate::status::to_status;
@@ -168,6 +171,10 @@ impl AnalysisService for Analysis {
         round_trip::<_, TokenVectors>(req)
     }
 
+    async fn round_trip_multi_res_vectors(&self, req: Request<MultiResVectorsResult>) -> Reply<MultiResVectorsResult> {
+        round_trip::<_, MultiResVectorsWire>(req)
+    }
+
     async fn round_trip_rerank_scores(&self, req: Request<RerankScoresResult>) -> Reply<RerankScoresResult> {
         round_trip::<_, RerankScores>(req)
     }
@@ -220,6 +227,82 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_typed_document(&self, req: Request<TypedDocumentResult>) -> Reply<TypedDocumentResult> {
         round_trip::<_, TypedDocumentResult>(req)
+    }
+
+    async fn project_search_document(
+        &self,
+        req: Request<ProjectSearchDocumentRequest>,
+    ) -> Reply<SearchDocumentProjection> {
+        let req = req.into_inner();
+        let policy = self.pii_policy;
+        let out = tokio::task::spawn_blocking(move || {
+            crate::results::search_projection::project_search_document_under(&req, policy)
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_search_document task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_search_projection(
+        &self,
+        req: Request<SearchDocumentProjection>,
+    ) -> Reply<SearchDocumentProjection> {
+        round_trip::<_, SearchDocumentProjection>(req)
+    }
+
+    async fn analyze_query(&self, req: Request<AnalyzeQueryRequest>) -> Reply<AnalyzeQueryResponse> {
+        let priority =
+            crate::priority::Priority::from_metadata(req.metadata())?.unwrap_or(crate::priority::Priority::Interactive);
+        let deadline = crate::deadline::Deadline::from_request(&req)?;
+        if deadline.is_expired() {
+            self.state.metrics.record_cancelled_before_exec();
+            return Err(crate::deadline::deadline_status());
+        }
+        let req = req.into_inner();
+        let state = self.state.clone();
+        let worker_deadline = deadline.clone();
+        let out = tokio::task::spawn_blocking(move || {
+            crate::results::analyze_query::analyze_query(&state, &req, priority, &worker_deadline)
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query task failed: {e}"))))?;
+        if deadline.is_expired() {
+            return Err(crate::deadline::deadline_status());
+        }
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_analyze_query(&self, req: Request<AnalyzeQueryResponse>) -> Reply<AnalyzeQueryResponse> {
+        round_trip::<_, AnalyzeQueryResponse>(req)
+    }
+
+    async fn rerank_and_highlight(&self, req: Request<RerankAndHighlightRequest>) -> Reply<RerankAndHighlightResponse> {
+        let priority =
+            crate::priority::Priority::from_metadata(req.metadata())?.unwrap_or(crate::priority::Priority::Interactive);
+        let deadline = crate::deadline::Deadline::from_request(&req)?;
+        if deadline.is_expired() {
+            self.state.metrics.record_cancelled_before_exec();
+            return Err(crate::deadline::deadline_status());
+        }
+        let req = req.into_inner();
+        let state = self.state.clone();
+        let worker_deadline = deadline.clone();
+        let out = tokio::task::spawn_blocking(move || {
+            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, priority, &worker_deadline)
+        })
+        .await
+        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("rerank_and_highlight task failed: {e}"))))?;
+        if deadline.is_expired() {
+            return Err(crate::deadline::deadline_status());
+        }
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_rerank_and_highlight(
+        &self,
+        req: Request<RerankAndHighlightResponse>,
+    ) -> Reply<RerankAndHighlightResponse> {
+        round_trip::<_, RerankAndHighlightResponse>(req)
     }
 
     async fn analyze_stream(

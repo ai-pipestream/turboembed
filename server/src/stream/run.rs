@@ -20,6 +20,7 @@ use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
 use crate::proto::result::{AnalyzeOutput, InputBinding};
 use crate::results::disclosure::Disclosure;
 use crate::results::document::export_document_response;
+use crate::results::multires::MultiResRequestOptions;
 use crate::state::{Held, Loaded};
 use crate::stream::{BatchKey, Room, Shared};
 use crate::vocabulary::ResolvedVocabulary;
@@ -42,6 +43,7 @@ pub(crate) struct Doc {
     pub(crate) offsets: OffsetMode,
     pub(crate) sparse_top_k: u32,
     pub(crate) sparse_floor: f32,
+    pub(crate) multires: MultiResRequestOptions,
     pub(crate) token_stride: u32,
     pub(crate) vocabulary: ResolvedVocabulary,
     pub(crate) loaded: Option<Arc<Loaded>>,
@@ -98,11 +100,12 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
         AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes => (0, 0, 0, 0),
         AnalyzeOutput::SparseTerms => (d.offsets.to_proto(), d.sparse_top_k, d.sparse_floor.to_bits(), 0),
         AnalyzeOutput::TokenVectors => (d.offsets.to_proto(), 0, 0, d.token_stride),
-        AnalyzeOutput::DocumentGraph => (d.offsets.to_proto(), 0, 0, 0),
+        AnalyzeOutput::DocumentGraph | AnalyzeOutput::MultiresVectors => (d.offsets.to_proto(), 0, 0, 0),
     };
     let ranges = d.int8_ranges.as_ref().map(|r| r.iter().map(|v| v.to_bits()).collect()).unwrap_or_default();
     let vocab_key = d.vocabulary.batch_key();
     let load_ptr = d.loaded.as_ref().map_or(0, |l| Arc::as_ptr(l) as usize);
+    let multires_key = if d.output == AnalyzeOutput::MultiresVectors { d.multires.batch_key() } else { Vec::new() };
     (
         (
             load_ptr,
@@ -118,7 +121,7 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
             floor,
             stride,
         ),
-        (o.quantization, ranges, vocab_key),
+        (o.quantization, ranges, vocab_key, multires_key),
     )
 }
 
@@ -244,6 +247,9 @@ fn run_structured(
         AnalyzeOutput::TokenVectors => {
             embed.run_token_vectors_batch(shared, dead, slot, &texts, opts, offsets, docs[0].token_stride)
         }
+        AnalyzeOutput::MultiresVectors => {
+            embed.run_multires_batch(shared, dead, slot, &texts, opts, offsets, &docs[0].multires)
+        }
         AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes | AnalyzeOutput::DocumentGraph => unreachable!(),
     };
     drop(texts);
@@ -340,6 +346,10 @@ pub(crate) fn run_document_graph(
 
 /// The result's whole bytes and dim, read the way the single-document
 /// call reads them, whatever placement the backend produced.
+pub(crate) fn read_output(result: &Output, want_rows: usize) -> Result<(u32, u32, Vec<u8>)> {
+    read(result, want_rows)
+}
+
 fn read(result: &Output, want_rows: usize) -> Result<(u32, u32, Vec<u8>)> {
     let first = result.info()?;
     let data = match first.placement {

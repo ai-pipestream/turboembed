@@ -20,19 +20,23 @@ turbo-vector-index = { path = "../vector-index" }
 # DocumentCategorizerDL trait and scoring types (#208), plus the lexicon
 # sentiment baseline (#320) compared in tests/heads_sentiment.rs.
 turbo-doccat = { path = "../doccat" }
+turbo-sha256 = { path = "../sha256" }
 turbo-trainer = { path = "../../trainer" }
+turbo-calibration = { path = "../calibration" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-normalize = { path = "../normalize" }
+
+[features]
+default = []
+turboquant = ["turbo-vector-index/turboquant"]
 
 [dev-dependencies]
 turbo-scratch = { path = "../scratch" }
 turbo-pins = { path = "../pins" }
-# Native sentence boundaries for the mandatory sentence-vector snapshot.
-turbo-sentdetect = { path = "../sentdetect" }
 # The tests build the levels with the chunker crate's builder.
 turbo-chunker = { path = "../chunker" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
 turbo-goldens = { path = "../goldens" }
-# Emoji layer (#183) for sarcasm/irony pragmatics integration tests (#324).
-turbo-normalize = { path = "../normalize" }
 # Tokenization for the lexicon sentiment baseline comparison.
 turbo-tokenize = { path = "../tokenize" }
 # Unicode's nonspacing marks, which the JVM's spans run over and ours

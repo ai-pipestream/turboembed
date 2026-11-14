@@ -64,6 +64,7 @@ mod sparse;
 mod structure;
 mod tables;
 mod temporal;
+mod token_graph;
 mod vectors;
 
 use helpers::*;
@@ -81,6 +82,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<crate::Calibrated<Entities>>()
         .register::<Sentences>()
         .register::<Tokens>()
+        .register::<crate::TokenGraph>()
         .register::<Words>()
         .register::<Subwords>()
         .register::<TokenVectorWindows>()
