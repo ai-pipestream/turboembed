@@ -126,9 +126,11 @@ inline float get(const Stream &s, const uint8_t *frame, size_t i) {
 
 } // namespace
 
-Failure Model::load(hailort::VDevice &vdevice, const ModelDesc &desc, std::unique_ptr<Model> &out) {
+Failure Model::load(hailort::VDevice &vdevice, const ModelDesc &desc, const std::shared_ptr<std::mutex> &runs,
+                    std::unique_ptr<Model> &out) {
     std::unique_ptr<Model> m(new Model());
     m->desc_ = desc;
+    m->runs_ = runs;
     auto infer = vdevice.create_infer_model(hailort::MemoryView::create_const(desc.hef, desc.hef_bytes));
     if (!infer) return hailort_failed(infer.status(), "create_infer_model");
     m->infer_ = infer.release();

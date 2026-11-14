@@ -86,17 +86,18 @@ class Model {
   public:
     /* The HEF configured on vdevice, checked against desc: two inputs, the
      * rows [seq, hidden] and the bias [seq, heads * seq], and one output
-     * [seq, hidden]. */
-    static Failure load(hailort::VDevice &vdevice, const ModelDesc &desc, std::unique_ptr<Model> &out);
+     * [seq, hidden]. Runs shares the lock of every model on the vdevice. */
+    static Failure load(hailort::VDevice &vdevice, const ModelDesc &desc, const std::shared_ptr<std::mutex> &runs,
+                        std::unique_ptr<Model> &out);
 
     const ModelDesc &desc() const { return desc_; }
     const Stream &rows() const { return rows_; }
     const Stream &bias() const { return bias_; }
     const Stream &hidden() const { return hidden_; }
 
-    /* The configured model runs one frame set at a time from whichever
-     * session holds this lock; HailoRT's pipeline is shared. */
-    std::mutex &runs() { return runs_; }
+    /* Runs on every configured model of one vdevice take turns from
+     * whichever session holds this shared lock. */
+    std::mutex &runs() { return *runs_; }
     hailort::ConfiguredInferModel &configured() { return *configured_; }
 
     /* Frames the device runs through each context before it switches to
@@ -126,7 +127,7 @@ class Model {
     std::unique_ptr<hailort::ConfiguredInferModel> configured_;
     Stream rows_, bias_, hidden_;
     uint32_t burst_ = 0, queue_ = 0;
-    std::mutex runs_;
+    std::shared_ptr<std::mutex> runs_;
     std::mutex retired_mu_;
     std::vector<std::unique_ptr<Slot>> retired_;
 };

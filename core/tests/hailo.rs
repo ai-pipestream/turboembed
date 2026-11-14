@@ -184,7 +184,13 @@ fn embed_is_offered_in_i8_and_exact_is_refused() {
     };
     for p in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
         let c = cap(p);
-        assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
+        if c.status == backend::TURBO_CAP_SUPPORTED {
+            let name = field(&c.benchmark);
+            assert!(name.starts_with(&format!("{}.hailo.embed.", field(&rt.info(d).arch))), "{name}");
+            assert!(c.cosine_floor > 0.0 && c.speed_ratio > 0.0, "a record's numbers");
+        } else {
+            assert_eq!(c.status, backend::TURBO_CAP_EXPERIMENTAL, "{}", field(&c.reason));
+        }
         assert_eq!(c.dtype, TURBO_DTYPE_I8);
         assert_eq!(c.options_honored, 0b1111_1111, "every field of turbo_embed_options but layers (9)");
     }
@@ -373,6 +379,29 @@ fn every_row_of_a_full_batch_keeps_its_own_vector() {
     for (i, t) in texts.iter().enumerate() {
         assert_eq!(all[i], one.embed(&[t], None).unwrap()[0], "row {i}");
     }
+}
+
+/// Separately loaded models on one vdevice take turns, so concurrent callers
+/// cannot abort each other's streams. Both compute the same vectors.
+#[test]
+#[ignore = "needs a Hailo device and TURBO_TEST_BUNDLE with a HEF for it"]
+fn separate_models_on_one_vdevice_take_turns() {
+    let batch = on_hailo().info().max_batch;
+    let texts: Vec<String> = (0..batch).map(|i| format!("sentence number {i} about item {}", i * 7 % 13)).collect();
+    let texts: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let runs = std::thread::scope(|scope| {
+        let mut threads = Vec::new();
+        for _ in 0..2 {
+            let texts = &texts;
+            threads.push(scope.spawn(move || {
+                let l = on_hailo();
+                let s = Session::create(l.m, Some(&session_desc(batch, 0, TURBO_PRECISION_MODEL))).unwrap();
+                (0..4).map(|_| s.embed(texts, None).unwrap()).collect::<Vec<_>>()
+            }));
+        }
+        threads.into_iter().map(|t| t.join().unwrap()).collect::<Vec<_>>()
+    });
+    assert_eq!(runs[0], runs[1]);
 }
 
 /// The HEF computes token type 0 only: rows with another type are refused,

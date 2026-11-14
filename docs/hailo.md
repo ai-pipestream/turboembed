@@ -89,7 +89,8 @@ device.
   fills on the host while the other runs, and each frame's hidden states
   are dequantized, pooled (mean over the mask, the first token, or the
   last live one), cut to `output_dim`, and normalized on the host as the
-  frame comes back. Runs on one model take turns. A frame that fails or
+  frame comes back. Runs on every configured model of one vdevice take
+  turns. A frame that fails or
   times out on the device (10 s) fails the run with `TURBO_E_RUNTIME`
   and HailoRT's status, and the session then refuses every write and run
   with `TURBO_E_INVALID_STATE`: the device may still own the frame's

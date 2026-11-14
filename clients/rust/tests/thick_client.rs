@@ -12,6 +12,7 @@
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::ptr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -28,6 +29,23 @@ use turbo_kserve::{AuthConfig, Serve, Server};
 
 fn tiny_bundle_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
+}
+
+fn cpu_device() -> u32 {
+    let mut rt = ptr::null_mut();
+    assert_eq!(unsafe { turbo::turbo_runtime_create(ptr::null(), &mut rt, ptr::null_mut()) }, 0);
+    let mut count = 0;
+    assert_eq!(unsafe { turbo::turbo_runtime_device_count(rt, &mut count, ptr::null_mut()) }, 0);
+    let device = (0..count)
+        .find(|&i| {
+            let mut info: turbo::turbo_device_info = unsafe { std::mem::zeroed() };
+            info.struct_size = size_of::<turbo::turbo_device_info>() as u32;
+            assert_eq!(unsafe { turbo::turbo_runtime_device_info(rt, i, &mut info, ptr::null_mut()) }, 0);
+            info.kind == turbo::TURBO_DEVICE_CPU
+        })
+        .expect("the cpu backend lists the host");
+    unsafe { turbo::turbo_runtime_release(rt) };
+    device
 }
 
 struct TestServerGuard {
@@ -52,8 +70,9 @@ impl Drop for TestServerGuard {
 fn start_test_server(bearer: Option<&str>) -> TestServerGuard {
     let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap();
     let model = ModelConfig::parse(&format!(
-        "bundle={},name=tiny-bert-bundle,device=0,sessions=2",
-        tiny_bundle_dir().display()
+        "bundle={},name=tiny-bert-bundle,device={},sessions=2",
+        tiny_bundle_dir().display(),
+        cpu_device()
     ))
     .expect("parse ModelConfig");
     let mut serve = Serve::default();

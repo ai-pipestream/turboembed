@@ -311,6 +311,12 @@ int32_t failed(turbo_error *err, const turbo_hailo::Failure &f) {
 
 struct Context {
     std::shared_ptr<hailort::VDevice> vdevice;
+    std::shared_ptr<std::mutex> runs;
+};
+
+struct DeviceEntry {
+    std::weak_ptr<hailort::VDevice> vdevice;
+    std::weak_ptr<std::mutex> runs;
 };
 
 /* The open vdevices by device id. An entry stays until its vdevice is
@@ -319,16 +325,22 @@ struct Context {
  * is still being torn down. */
 std::mutex vdevices_lock;
 std::condition_variable vdevices_gone;
-std::vector<std::pair<std::string, std::weak_ptr<hailort::VDevice>>> vdevices;
+std::vector<std::pair<std::string, DeviceEntry>> vdevices;
 
-std::shared_ptr<hailort::VDevice> shared_vdevice(const hailo_device_id_t &id, hailo_status &status) {
+std::shared_ptr<hailort::VDevice> shared_vdevice(const hailo_device_id_t &id, hailo_status &status,
+                                                 std::shared_ptr<std::mutex> &runs) {
     std::unique_lock<std::mutex> g(vdevices_lock);
     const std::string key = counted(id.id, sizeof id.id, sizeof id.id);
     auto entry = [&] {
         return std::find_if(vdevices.begin(), vdevices.end(), [&](const auto &e) { return e.first == key; });
     };
     for (auto e = entry(); e != vdevices.end(); e = entry()) {
-        if (auto v = e->second.lock()) return v;
+        if (auto v = e->second.vdevice.lock()) {
+            runs = e->second.runs.lock();
+            if (runs) return v;
+            status = HAILO_INTERNAL_FAILURE;
+            return nullptr;
+        }
         // Expired: the last context let it go and its destructor is running.
         vdevices_gone.wait(g);
     }
@@ -352,7 +364,8 @@ std::shared_ptr<hailort::VDevice> shared_vdevice(const hailo_device_id_t &id, ha
         if (e != vdevices.end()) vdevices.erase(e);
         vdevices_gone.notify_all();
     });
-    vdevices.emplace_back(key, shared);
+    runs = std::make_shared<std::mutex>();
+    vdevices.emplace_back(key, DeviceEntry{shared, runs});
     return shared;
 }
 
@@ -361,11 +374,12 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn, void *, void **out, turbo
         const Device &d = listing().devices.at(ordinal);
         if (!d.failure.empty()) return refuse(err, TURBO_E_DEVICE_UNAVAILABLE, "%s", d.failure.c_str());
         hailo_status s = HAILO_SUCCESS;
-        auto v = shared_vdevice(d.id, s);
+        std::shared_ptr<std::mutex> runs;
+        auto v = shared_vdevice(d.id, s, runs);
         if (!v)
             return refuse(err, TURBO_E_DEVICE_UNAVAILABLE, "hailo device %s: VDevice::create: %s",
                           counted(d.id.id, sizeof d.id.id, sizeof d.id.id).c_str(), status_text(s).c_str());
-        *out = new Context{v};
+        *out = new Context{v, runs};
         return TURBO_OK;
     });
 }
@@ -426,6 +440,7 @@ int32_t buffer_export(void *buf, uint32_t kind, turbo_native_handle *out, turbo_
 
 struct Model {
     std::shared_ptr<hailort::VDevice> vdevice;
+    std::shared_ptr<std::mutex> runs;
     std::unique_ptr<turbo_hailo::Model> hef;
 };
 
@@ -470,7 +485,8 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         d.seq = desc->fixed_seq;
         std::unique_ptr<Model> m(new Model());
         m->vdevice = static_cast<Context *>(ctx)->vdevice;
-        const turbo_hailo::Failure f = turbo_hailo::Model::load(*m->vdevice, d, m->hef);
+        m->runs = static_cast<Context *>(ctx)->runs;
+        const turbo_hailo::Failure f = turbo_hailo::Model::load(*m->vdevice, d, m->runs, m->hef);
         if (f) return failed(err, f);
         *out = m.release();
         return TURBO_OK;
