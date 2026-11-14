@@ -12,6 +12,7 @@ use turbo_analysis::{
 use crate::{Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
 
 use super::agreement::check_sentence_rules;
+use super::work::GrammarCheckWork;
 
 /// Grammatical or morphological category of a [`GrammarDiagnostic`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -379,6 +380,20 @@ impl GrammarChecker {
         deps: Option<&Dependencies>,
         morph: Option<&MorphFeatures<Tokens>>,
     ) -> Result<GrammarDiagnostics, Error> {
+        self.check_view_inner(view, sentences, tokens, pos, lemmas, deps, morph).map(|(out, _)| out)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn check_view_inner(
+        &self,
+        view: &View,
+        sentences: &Sentences,
+        tokens: &Tokens,
+        pos: &PosTags,
+        lemmas: Option<&Lemmas>,
+        deps: Option<&Dependencies>,
+        morph: Option<&MorphFeatures<Tokens>>,
+    ) -> Result<(GrammarDiagnostics, GrammarCheckWork), Error> {
         sentences.check_contiguous_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         tokens.check_contiguous_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         if pos.len() != tokens.len() {
@@ -414,7 +429,7 @@ impl GrammarChecker {
             });
         }
 
-        let mut items = check_sentence_rules(self, view.text(), sentences, tokens, pos, lemmas, deps, morph);
+        let (mut items, work) = check_sentence_rules(self, view.text(), sentences, tokens, pos, lemmas, deps, morph);
         items.sort_by(|a, b| {
             (a.span.start, a.span.end, a.category.as_u8()).cmp(&(b.span.start, b.span.end, b.category.as_u8()))
         });
@@ -425,7 +440,7 @@ impl GrammarChecker {
             out.push(item);
         }
         out.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
-        Ok(out)
+        Ok((out, work))
     }
 
     /// Convenience helper that fetches default layer instances from `doc` and runs [`Self::check_view_with_morph`].

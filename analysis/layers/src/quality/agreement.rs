@@ -1,6 +1,8 @@
 //! Syntactic and morphological agreement rules (`SVA-001` and `DET-001`) and
 //! sentence rule orchestration.
 
+use std::cell::Cell;
+
 use turbo_analysis::{Ix, IxRange, Layer, Span};
 
 use crate::{Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
@@ -11,6 +13,7 @@ use super::clause::{
 };
 use super::grammar::{GrammarCategory, GrammarChecker, GrammarDiagnostic};
 use super::morphology::{SubjectPersonNumber, check_and_repair_sva_verb, classify_subject_token};
+use super::work::GrammarCheckWork;
 
 const INTERVENING_ADVERBS: &[&str] = &[
     "not",
@@ -82,6 +85,7 @@ pub(crate) struct SentCtx<'a> {
     pub(crate) morph: Option<&'a MorphFeatures<Tokens>>,
     pub(crate) dep_children: Vec<Vec<usize>>,
     pub(crate) range: IxRange<Tokens>,
+    pub(crate) work: Cell<GrammarCheckWork>,
 }
 
 impl<'a> SentCtx<'a> {
@@ -99,8 +103,10 @@ impl<'a> SentCtx<'a> {
         let start = range.start.get();
         let end = range.end.get();
         let mut dep_children = Vec::new();
+        let mut work = GrammarCheckWork::default();
         if let Some(d) = deps {
             dep_children.resize_with(end - start, Vec::new);
+            work.dep_lookups = end - start;
             for (t, head) in d.head.iter().enumerate().take(end).skip(start) {
                 if let Some(h) = head.map(Ix::get)
                     && (start..end).contains(&h)
@@ -109,7 +115,25 @@ impl<'a> SentCtx<'a> {
                 }
             }
         }
-        Self { checker, text, tokens, pos, lemmas, deps, morph, dep_children, range }
+        Self { checker, text, tokens, pos, lemmas, deps, morph, dep_children, range, work: Cell::new(work) }
+    }
+
+    pub(crate) fn record_dep_lookups(&self, n: usize) {
+        let mut w = self.work.get();
+        w.dep_lookups = w.dep_lookups.saturating_add(n);
+        self.work.set(w);
+    }
+
+    pub(crate) fn record_window_scans(&self, n: usize) {
+        let mut w = self.work.get();
+        w.window_scans = w.window_scans.saturating_add(n);
+        self.work.set(w);
+    }
+
+    pub(crate) fn record_tokens_visited(&self, n: usize) {
+        let mut w = self.work.get();
+        w.tokens_visited = w.tokens_visited.saturating_add(n);
+        self.work.set(w);
     }
 
     pub(crate) fn span(&self, i: usize) -> Span {
@@ -133,10 +157,12 @@ impl<'a> SentCtx<'a> {
     }
 
     pub(crate) fn dep_head(&self, i: usize) -> Option<usize> {
+        self.record_dep_lookups(1);
         self.deps.and_then(|d| d.head[i].map(Ix::get))
     }
 
     pub(crate) fn dep_rel(&self, i: usize) -> Option<&'a str> {
+        self.record_dep_lookups(1);
         self.deps.map(|d| d.relations.label(d.relation[i]))
     }
 }
@@ -151,45 +177,56 @@ pub(crate) fn check_sentence_rules(
     lemmas: Option<&Lemmas>,
     deps: Option<&Dependencies>,
     morph: Option<&MorphFeatures<Tokens>>,
-) -> Vec<GrammarDiagnostic> {
+) -> (Vec<GrammarDiagnostic>, GrammarCheckWork) {
     let mut out = Vec::new();
+    let mut work = GrammarCheckWork::default();
     let sent_count = sentences.len();
     if sent_count == 0 && tokens.len() > 0 {
         let range = IxRange::new(0, tokens.len() as u32);
         let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
         run_on_sentence(&cx, &mut out);
-        return out;
+        work.add(cx.work.get());
+        return (out, work);
     }
     for s_ix in 0..sent_count {
         let range = tokens.in_sentence(sentences, Ix::new(s_ix as u32));
         if !range.is_empty() {
             let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
             run_on_sentence(&cx, &mut out);
+            work.add(cx.work.get());
         }
     }
-    out
+    (out, work)
 }
 
 fn run_on_sentence(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
+    let n = cx.range.end.get() - cx.range.start.get();
     if cx.checker.check_article_phonetics {
+        cx.record_tokens_visited(n);
         check_articles(cx, out);
     }
     if cx.checker.check_repeated_tokens {
+        cx.record_tokens_visited(n);
         check_repetitions(cx, out);
     }
     if cx.checker.check_auxiliary_verb_form {
+        cx.record_tokens_visited(n);
         check_auxiliaries(cx, out);
     }
     if cx.checker.check_determiner_noun_agreement {
+        cx.record_tokens_visited(n);
         check_determiners(cx, out);
     }
     if cx.checker.check_subject_verb_agreement {
+        cx.record_tokens_visited(n);
         check_sva(cx, out);
     }
     if cx.checker.check_case_government {
+        cx.record_tokens_visited(n);
         check_case_government(cx, out);
     }
     if cx.checker.check_clause_punctuation {
+        cx.record_tokens_visited(n);
         check_punctuation(cx, out);
     }
 }
@@ -263,6 +300,7 @@ fn is_governed_by_preceding_aux_or_to(cx: &SentCtx<'_>, v: usize) -> bool {
     let mut k = v;
     while k > start && v - k < 3 {
         k -= 1;
+        cx.record_window_scans(1);
         let prev_lower = cx.surface(k).to_ascii_lowercase();
         if is_intervening_adverb(cx.surface(k), cx.pos_str(k)) {
             continue;
@@ -285,6 +323,7 @@ fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectP
         };
         if (start..end).contains(&head_for_subj) {
             let children = &cx.dep_children[head_for_subj - start];
+            cx.record_dep_lookups(children.len());
             if children.iter().any(|&t| cx.dep_rel(t) == Some("expl") || cx.surface(t).eq_ignore_ascii_case("there")) {
                 return None;
             }
@@ -393,6 +432,7 @@ fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Opt
     }
     let min_c = *conjuncts.iter().min().unwrap();
     let max_c = *conjuncts.iter().max().unwrap();
+    cx.record_window_scans(max_c + 1 - min_c);
     if (min_c..=max_c).any(|i| matches!(cx.surface(i).to_ascii_lowercase().as_str(), "or" | "nor")) {
         has_disj = true;
     }
