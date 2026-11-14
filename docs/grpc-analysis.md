@@ -314,7 +314,10 @@ rpcs from the same messages.
 - `SparseTermsResult`: the `SparseTerms` layer (issue #708): sparse rows
   by column, one entry per (unit, term), ascending term ids, finite
   weights over 0, a source span per input term (expanded terms carry
-  none), occurrence spans where the producer recorded them.
+  none), occurrence spans where the producer recorded them, and optional
+  calibrated `u8` / `u16` integer impacts (`impact`, `impact_bits`,
+  `impact_scale`, `impact_w_max`, `impact_l1_rounding_bound`,
+  `impact_dot_error_bound`, and `term_key`, issue #2343).
 - `TokenVectorsResult`: the `Vectors<Subwords>` and `TokenVectorWindows`
   layers (issue #709): one contextual vector per model token
   (little-endian f32, row-major, the way `raw_output_contents` carries
