@@ -74,7 +74,7 @@ pub(crate) fn graph_item(
         None => listed.findings.take().map(|f| bound(TypedDocumentResult { doc_id: doc_id.to_owned(), ..f }, binding)),
     };
     let search_projection = match search_projection {
-        Some(sp) => Some(project_search_document(&ProjectSearchDocumentRequest {
+        Some(sp) => match project_search_document(&ProjectSearchDocumentRequest {
             doc_id: doc_id.to_owned(),
             graph: source.to_vec(),
             view: sp.view,
@@ -82,7 +82,11 @@ pub(crate) fn graph_item(
             pii_output: options,
             binding: binding.cloned(),
             analyzer_config_digest: Vec::new(),
-        })?),
+        }) {
+            Ok(proj) => Some(proj),
+            Err(f) if listed.graph.is_empty() && f.code == TURBO_E_INVALID_STATE => None,
+            Err(f) => return Err(f),
+        },
         None => None,
     };
     Ok(DocumentSinkItem {
@@ -128,7 +132,11 @@ pub(crate) fn exported_item(
             let view = u16::try_from(sp.view)
                 .map_err(|_| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, format!("view {} exceeds u16::MAX", sp.view)))?;
             let offsets = crate::offsets::OffsetMode::from_proto(sp.offsets as i32)?;
-            Some(document_to_search_projection_bound(doc_id, doc, ViewId(view), offsets, binding, &[], disclosure)?)
+            if disclosure.view_text(doc, ViewId(view)) {
+                Some(document_to_search_projection_bound(doc_id, doc, ViewId(view), offsets, binding, &[], disclosure)?)
+            } else {
+                None
+            }
         }
         None => None,
     };
@@ -208,4 +216,42 @@ pub(crate) fn check_binding_agrees(item: &DocumentSinkItem) -> Result<(), String
 /// The refusal for a graph forwarded to a server that has no sink.
 pub(crate) fn no_sink() -> Failure {
     Failure::new(TURBO_E_INVALID_STATE, 0, "the server forwards to no sink")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Key, Provenance, Span};
+    use turbo_analysis_layers::{Pii, PiiEvidence, PiiKind, PiiMention};
+
+    #[test]
+    fn pii_document_with_search_projection_omits_graph_and_preserves_findings() {
+        let text = "contact alice@example.com";
+        let mut doc = Document::new(text);
+        let mut pii = Pii::new(ViewId::SOURCE);
+        let detector = pii.detector("test", "1").unwrap();
+        let evidence = [PiiEvidence::Shape];
+        pii.push(PiiMention {
+            span: Span::new(8, 25),
+            kind: PiiKind::Email,
+            detector,
+            evidence: &evidence,
+            score: None,
+            normalized: "alice@example.com",
+        });
+        doc.add(&Key::DEFAULT, pii, Provenance::by("turbo-pii:pii")).unwrap();
+        let bytes = export_document_response(&doc, &Disclosure::FULL).unwrap().graph.to_vec();
+        let sp = Some(SinkTyped { view: 0, offsets: OffsetMode::Utf8 });
+
+        let item = graph_item("doc-pii", bytes, None, sp, &Disclosure::FINDINGS, None).unwrap();
+        assert!(item.graph.is_empty(), "graph must be omitted when PII full_text is off");
+        assert!(item.typed.is_some(), "findings projection must still be carried");
+        assert!(item.search_projection.is_none(), "search_projection must be omitted without full_text");
+
+        let exported = export_document_response(&doc, &Disclosure::FINDINGS).unwrap();
+        let exp_item = exported_item("doc-pii", exported, &doc, None, sp, &Disclosure::FINDINGS, None).unwrap();
+        assert!(exp_item.graph.is_empty());
+        assert!(exp_item.typed.is_some());
+        assert!(exp_item.search_projection.is_none());
+    }
 }

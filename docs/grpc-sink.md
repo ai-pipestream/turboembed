@@ -40,7 +40,7 @@ binding than the item.
 
 `search_projection` (field 11, issue #2345) optionally carries the graph's
 one-pass `SearchDocumentProjection` (`--sink-search-projection` /
-`SinkConfig::search_projection`), giving downstream search indexers chunks,
+`Serve::sink_search_projection`), giving downstream search indexers chunks,
 sentences, lexical lattices, numeric/temporal/geospatial columns, sentiment,
 quality summaries, affirmed vs negated entities, and near-duplicate sketches
 in original source coordinates without decoding the binary graph.

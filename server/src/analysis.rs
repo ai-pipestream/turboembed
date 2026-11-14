@@ -251,6 +251,8 @@ impl AnalysisService for Analysis {
     }
 
     async fn analyze_query(&self, req: Request<AnalyzeQueryRequest>) -> Reply<AnalyzeQueryResponse> {
+        let priority =
+            crate::priority::Priority::from_metadata(req.metadata())?.unwrap_or(crate::priority::Priority::Interactive);
         let deadline = crate::deadline::Deadline::from_request(&req)?;
         if deadline.is_expired() {
             self.state.metrics.record_cancelled_before_exec();
@@ -260,7 +262,7 @@ impl AnalysisService for Analysis {
         let state = self.state.clone();
         let worker_deadline = deadline.clone();
         let out = tokio::task::spawn_blocking(move || {
-            crate::results::analyze_query::analyze_query(&state, &req, &worker_deadline)
+            crate::results::analyze_query::analyze_query(&state, &req, priority, &worker_deadline)
         })
         .await
         .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query task failed: {e}"))))?;
@@ -275,6 +277,8 @@ impl AnalysisService for Analysis {
     }
 
     async fn rerank_and_highlight(&self, req: Request<RerankAndHighlightRequest>) -> Reply<RerankAndHighlightResponse> {
+        let priority =
+            crate::priority::Priority::from_metadata(req.metadata())?.unwrap_or(crate::priority::Priority::Interactive);
         let deadline = crate::deadline::Deadline::from_request(&req)?;
         if deadline.is_expired() {
             self.state.metrics.record_cancelled_before_exec();
@@ -284,7 +288,7 @@ impl AnalysisService for Analysis {
         let state = self.state.clone();
         let worker_deadline = deadline.clone();
         let out = tokio::task::spawn_blocking(move || {
-            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, &worker_deadline)
+            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, priority, &worker_deadline)
         })
         .await
         .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("rerank_and_highlight task failed: {e}"))))?;

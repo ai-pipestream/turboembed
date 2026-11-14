@@ -35,7 +35,7 @@ mod training;
 pub mod vocabulary;
 
 pub use crate::auth::AuthConfig;
-pub use crate::priority::{MAX_INTERACTIVE_BURST, PRIORITY_HEADER, Priority};
+pub use crate::priority::{MAX_INTERACTIVE_BURST, MAX_QUEUE_DEPTH, PRIORITY_HEADER, Priority};
 pub use crate::state::Held;
 pub use crate::tls::TlsConfig;
 
@@ -355,6 +355,12 @@ impl Server {
     pub fn hold(&self, model: &str) -> api::Result<Held> {
         let (_, loaded) = self.state.ready(model, "")?;
         loaded.take()
+    }
+
+    /// Current `(interactive_queued, bulk_queued)` waiter counts for `model`.
+    pub fn priority_queue_depths(&self, model: &str) -> api::Result<(usize, usize)> {
+        let (_, loaded) = self.state.ready(model, "")?;
+        Ok(loaded.queue_depths())
     }
 
     /// The streaming bulk analysis call's gauges: model executions

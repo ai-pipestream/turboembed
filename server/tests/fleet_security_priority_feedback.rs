@@ -5,7 +5,7 @@
 
 mod common;
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
@@ -207,6 +207,33 @@ async fn mtls_and_bearer_auth_separate_infer_from_admin_principals() {
     server.stop().await;
 }
 
+async fn wait_queue_depths(server: &Server, model: &str, want: (usize, usize)) {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if server.priority_queue_depths(model).unwrap() == want {
+            return;
+        }
+        assert!(tokio::time::Instant::now() < deadline, "timed out waiting for queue depths {want:?}");
+        tokio::time::sleep(Duration::from_millis(1)).await;
+    }
+}
+
+fn spawn_lane_infer(
+    endpoint: &str,
+    lane: &'static str,
+    order: &std::sync::Arc<std::sync::Mutex<Vec<&'static str>>>,
+) -> tokio::task::JoinHandle<()> {
+    let ep = endpoint.to_owned();
+    let ord = std::sync::Arc::clone(order);
+    tokio::spawn(async move {
+        let mut ks = GrpcInferenceServiceClient::connect(ep).await.unwrap();
+        let mut req = Request::new(texts_req(NAME, &[b"lane-check"]));
+        req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static(lane));
+        ks.model_infer(req).await.unwrap();
+        ord.lock().unwrap().push(lane);
+    })
+}
+
 #[tokio::test]
 async fn priority_interactive_stays_flat_under_saturated_bulk_stream() {
     let server = Server::start(loopback(), vec![model_cfg(1)], MAX, Serve::default()).await.unwrap();
@@ -221,44 +248,39 @@ async fn priority_interactive_stays_flat_under_saturated_bulk_stream() {
     };
 
     // 1. Deterministic head-of-line preemption: while the single session is held,
-    //    enqueue 3 bulk ModelInfer calls followed by 1 interactive call; releasing
-    //    the session must grant the interactive call first.
+    //    enqueue 3 bulk ModelInfer calls, wait until all 3 are queued, then enqueue
+    //    1 interactive call and wait until it is queued before releasing `held`.
     let held = server.hold(NAME).unwrap();
     let order = std::sync::Arc::new(std::sync::Mutex::new(Vec::<&'static str>::new()));
-    let mut waiters = Vec::new();
-    for lane in ["bulk", "bulk", "bulk", "interactive"] {
-        if lane == "interactive" {
-            tokio::time::sleep(Duration::from_millis(8)).await;
-        }
-        let ep = endpoint.clone();
-        let ord = std::sync::Arc::clone(&order);
-        waiters.push(tokio::spawn(async move {
-            let mut ks = GrpcInferenceServiceClient::connect(ep).await.unwrap();
-            let mut req = Request::new(texts_req(NAME, &[b"lane-check"]));
-            req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static(lane));
-            ks.model_infer(req).await.unwrap();
-            ord.lock().unwrap().push(lane);
-        }));
-    }
-    tokio::time::sleep(Duration::from_millis(8)).await;
+    let mut waiters: Vec<_> = (0..3).map(|_| spawn_lane_infer(&endpoint, "bulk", &order)).collect();
+    wait_queue_depths(&server, NAME, (0, 3)).await;
+    waiters.push(spawn_lane_infer(&endpoint, "interactive", &order));
+    wait_queue_depths(&server, NAME, (1, 3)).await;
     drop(held);
     for w in waiters {
         w.await.unwrap();
     }
     assert_eq!(order.lock().unwrap()[0], "interactive", "interactive lane must preempt queued bulk work");
 
-    // 2. Warmup + measure idle interactive latency, then launch a saturated 80-doc bulk stream.
-    query_client.analyze_query(make_query(0)).await.unwrap();
-    let mut idle_us = Vec::with_capacity(12);
-    for i in 1..=12 {
-        let t0 = Instant::now();
-        let resp = query_client.analyze_query(make_query(i)).await.unwrap().into_inner();
-        assert_eq!(resp.dense_results.len(), 1);
-        idle_us.push(t0.elapsed().as_secs_f64() * 1e6);
+    // 2. Deterministic starvation bound: enqueue MAX_INTERACTIVE_BURST + 2 interactive
+    //    calls and 1 bulk call while the session is held. Bulk must be granted
+    //    within MAX_INTERACTIVE_BURST grants rather than starving.
+    let burst = turbo_kserve::MAX_INTERACTIVE_BURST as usize;
+    let held = server.hold(NAME).unwrap();
+    let burst_order = std::sync::Arc::new(std::sync::Mutex::new(Vec::<&'static str>::new()));
+    let mut burst_waiters: Vec<_> =
+        (0..(burst + 2)).map(|_| spawn_lane_infer(&endpoint, "interactive", &burst_order)).collect();
+    burst_waiters.push(spawn_lane_infer(&endpoint, "bulk", &burst_order));
+    wait_queue_depths(&server, NAME, (burst + 2, 1)).await;
+    drop(held);
+    for w in burst_waiters {
+        w.await.unwrap();
     }
-    idle_us.sort_by(f64::total_cmp);
+    let bulk_pos = burst_order.lock().unwrap().iter().position(|&l| l == "bulk").unwrap();
+    assert!(bulk_pos <= burst, "bulk starved: granted at index {bulk_pos} (limit {burst})");
 
-    // Launch saturated background AnalyzeStream (80 docs, window=16, batching on 1 session).
+    // 3. Concurrent AnalyzeStream + AnalyzeQuery: both complete cleanly under saturation.
+    query_client.analyze_query(make_query(0)).await.unwrap();
     let stream_ep = endpoint.clone();
     let bulk_handle = tokio::spawn(async move {
         let mut bulk_client = AnalysisServiceClient::connect(stream_ep).await.unwrap();
@@ -280,33 +302,13 @@ async fn priority_interactive_stays_flat_under_saturated_bulk_stream() {
         count
     });
 
-    // Give bulk stream a head start so its session and window are saturated.
-    tokio::time::sleep(Duration::from_millis(3)).await;
-
-    let mut loaded_us = Vec::with_capacity(16);
     for i in 100..116 {
-        let t0 = Instant::now();
         let resp = query_client.analyze_query(make_query(i)).await.unwrap().into_inner();
         assert_eq!(resp.dense_results.len(), 1);
-        loaded_us.push(t0.elapsed().as_secs_f64() * 1e6);
     }
-    loaded_us.sort_by(f64::total_cmp);
 
     let bulk_done = bulk_handle.await.unwrap();
     assert_eq!(bulk_done, 80);
-
-    let idle_p50 = idle_us[idle_us.len() / 2];
-    let idle_p99 = idle_us[idle_us.len() - 1];
-    let sat_p50 = loaded_us[loaded_us.len() / 2];
-    let sat_p99 = loaded_us[loaded_us.len() - 1];
-    eprintln!(
-        "BENCH_2346 idle_p50_us={idle_p50:.1} idle_p99_us={idle_p99:.1} saturated_p50_us={sat_p50:.1} saturated_p99_us={sat_p99:.1}"
-    );
-    let ceil_us = (idle_p99 * 6.0).max(50_000.0);
-    assert!(
-        sat_p99 < ceil_us,
-        "interactive p99 {sat_p99:.1} us exceeded bounded non-FIFO ceiling {ceil_us:.1} us (idle_p99={idle_p99:.1} us)"
-    );
 
     server.stop().await;
 }

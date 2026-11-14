@@ -163,35 +163,43 @@ fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
 
 /// One ModelInfer: one write, one run and one read on one held session.
 fn infer(
-    state: &State,
+    served: &Arc<Served>,
+    loaded: &Arc<Loaded>,
     req: ModelInferRequest,
-    priority: Option<Priority>,
+    held: Held,
     deadline: &Deadline,
 ) -> std::result::Result<ModelInferResponse, (Failure, &'static [&'static str])> {
-    check_before_exec(deadline, &state.metrics).map_err(|f| (f, &[][..]))?;
-    let (served, loaded) = state.ready(&req.model_name, &req.model_version).map_err(|f| (f, &[][..]))?;
+    check_before_exec(deadline, &loaded.metrics).map_err(|f| (f, &[][..]))?;
     match loaded.task {
-        TURBO_TASK_EMBED => infer_embed(&served, &loaded, req, priority, deadline).map_err(|f| (f, &EMBED_OPTIONS[..])),
+        TURBO_TASK_EMBED => infer_embed(served, loaded, req, held, deadline).map_err(|f| (f, &EMBED_OPTIONS[..])),
         TURBO_TASK_RERANK => {
-            crate::tasks::infer_rerank(&served, &loaded, req, priority, deadline).map_err(|f| (f, &RERANK_OPTIONS[..]))
+            crate::tasks::infer_rerank(served, loaded, req, held, deadline).map_err(|f| (f, &RERANK_OPTIONS[..]))
         }
         TURBO_TASK_EXTRACTIVE_QA => {
-            crate::tasks::infer_qa(&served, &loaded, req, priority, deadline).map_err(|f| (f, &QA_OPTIONS[..]))
+            crate::tasks::infer_qa(served, loaded, req, held, deadline).map_err(|f| (f, &QA_OPTIONS[..]))
         }
         other => Err((Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {other}")), &[][..])),
     }
+}
+
+fn validate_embed_request(loaded: &Loaded, req: &ModelInferRequest) -> Result<()> {
+    let plan = infer::plan(req)?;
+    // Every session of a model is made alike, so the first one's limits are
+    // the held one's: an oversized raw request is refused before BUSY.
+    if let Rows::Raw { batch, seq, .. } = plan.rows {
+        fits(&loaded.slots[0].info, batch, seq)?;
+    }
+    Ok(())
 }
 
 fn infer_embed(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
-    priority: Option<Priority>,
+    held: Held,
     deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     let plan = infer::plan(&req)?;
-    // Every session of a model is made alike, so the first one's limits are
-    // the held one's: an oversized raw request is refused before BUSY.
     if let Rows::Raw { batch, seq, .. } = plan.rows {
         fits(&loaded.slots[0].info, batch, seq)?;
     }
@@ -200,7 +208,6 @@ fn infer_embed(
         Rows::Typed { batch, .. } | Rows::Raw { batch, .. } => *batch as usize,
     };
     let _docs = loaded.metrics.track_docs(batch_len.max(1), Some(loaded.device));
-    let held = loaded.take_or_acquire(priority, deadline)?;
     check_before_exec(deadline, &loaded.metrics)?;
     let slot = held.slot();
     let mut opts: turbo_embed_options = plan.opts;
@@ -365,13 +372,26 @@ impl GrpcInferenceService for Inference {
         }
         let state = self.state.clone();
         let req = req.into_inner();
+        let (served, loaded) = state.ready(&req.model_name, &req.model_version).map_err(|f| to_status(&f, &[]))?;
+        if loaded.task == TURBO_TASK_EMBED {
+            validate_embed_request(&loaded, &req).map_err(|f| to_status(&f, &EMBED_OPTIONS[..]))?;
+        }
+        let held = match loaded.take_or_acquire_async(priority, &deadline).await {
+            Ok(held) => held,
+            Err(f) => {
+                if deadline.is_expired() {
+                    return Err(deadline_status());
+                }
+                return Err(to_status(&f, &[]));
+            }
+        };
         let worker_deadline = deadline.clone();
         // The run blocks; a request whose client goes away keeps its
         // session until the run ends and the result is released.
         let out =
-            tokio::task::spawn_blocking(move || infer(&state, req, priority, &worker_deadline)).await.map_err(|e| {
-                to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[])
-            })?;
+            tokio::task::spawn_blocking(move || infer(&served, &loaded, req, held, &worker_deadline)).await.map_err(
+                |e| to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[]),
+            )?;
         if deadline.is_expired() {
             return Err(deadline_status());
         }

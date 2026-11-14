@@ -7,6 +7,7 @@
 //! `ModelMetadata`.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -105,7 +106,7 @@ impl RemotePriority {
 
 /// Optional TLS / mutual-TLS material for `https://` `turbo-kserve` endpoints.
 #[cfg(feature = "tls")]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RemoteTlsConfig {
     /// PEM-encoded CA certificate bundle verifying the server certificate.
     pub server_ca_pem: Vec<u8>,
@@ -115,8 +116,19 @@ pub struct RemoteTlsConfig {
     pub domain_name: Option<String>,
 }
 
+#[cfg(feature = "tls")]
+impl fmt::Debug for RemoteTlsConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RemoteTlsConfig")
+            .field("server_ca_pem_len", &self.server_ca_pem.len())
+            .field("has_client_identity", &self.client_identity_pem.is_some())
+            .field("domain_name", &self.domain_name)
+            .finish()
+    }
+}
+
 /// Connection, authentication, priority, and deadline policy for a remote `turbo-kserve` endpoint.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RemoteEndpointConfig {
     /// HTTP/2 gRPC URI (`http://host:port` or `https://host:port`).
     pub endpoint: String,
@@ -129,6 +141,19 @@ pub struct RemoteEndpointConfig {
     /// Optional TLS / mTLS configuration (`feature = "tls"`).
     #[cfg(feature = "tls")]
     pub tls: Option<RemoteTlsConfig>,
+}
+
+impl fmt::Debug for RemoteEndpointConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("RemoteEndpointConfig");
+        s.field("endpoint", &self.endpoint)
+            .field("has_bearer_token", &self.bearer_token.is_some())
+            .field("default_priority", &self.default_priority)
+            .field("default_timeout", &self.default_timeout);
+        #[cfg(feature = "tls")]
+        s.field("tls", &self.tls);
+        s.finish()
+    }
 }
 
 impl RemoteEndpointConfig {

@@ -116,6 +116,7 @@ pub(super) fn to_wire_highlights(
 pub(crate) fn rerank_and_highlight(
     state: &State,
     req: &RerankAndHighlightRequest,
+    priority: crate::priority::Priority,
     deadline: &Deadline,
 ) -> Result<RerankAndHighlightResponse> {
     let offsets = OffsetMode::from_proto(req.offsets)?;
@@ -160,7 +161,7 @@ pub(crate) fn rerank_and_highlight(
     };
 
     let _docs = rerank_loaded.metrics.track_docs(req.candidates.len(), Some(rerank_loaded.device));
-    let held = rerank_loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
+    let held = rerank_loaded.acquire(priority, deadline)?;
     let slot = held.slot();
     let max_batch = (slot.info.max_batch as usize).max(1);
     if max_batch > MAX_RERANK_ITEMS as usize {
@@ -239,6 +240,7 @@ pub(crate) fn rerank_and_highlight(
             mode,
             &mut results[..top_k],
             max_snippets,
+            priority,
             deadline,
         )?
     };

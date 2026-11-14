@@ -31,6 +31,9 @@ pub struct Args {
     /// Where completed analysis documents are forwarded, and the queue's
     /// bounds.
     pub sink: Option<crate::sink::SinkConfig>,
+    /// Optional one-pass search projection on sink document items
+    /// (`--sink-search-projection`).
+    pub sink_search_projection: Option<crate::sink::SinkTyped>,
     /// What a request's PiiOutputOptions may turn on (`--pii-output-allow`).
     pub pii_output: crate::results::disclosure::PiiOutputPolicy,
     /// PII value release to granted services (`--pii-grant`, #1909).
@@ -129,7 +132,7 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
 [--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
-[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] \
+[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] [--sink-search-projection] \
 [--sink-typed-offsets utf8|utf16|code-point [--sink-typed-view N]] [--sink-pii-output LIST]] \
 [--pii-output-allow none|rewritten-text,full-text,detail] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT] [--pii-policy PATH ...]\n\
@@ -320,7 +323,7 @@ impl Args {
         if catalog_store.is_some() && catalog_data.is_some() {
             return Err("--catalog-store and --catalog-data are two stores; give one".into());
         }
-        let sink = sink_flags.resolve(&env)?;
+        let (sink, sink_search_projection) = sink_flags.resolve(&env)?;
         let pii_output = pii::resolve(pii_output_allow, &env)?;
         if let Some(s) = &sink
             && !pii_output.allows(&s.pii_output)
@@ -358,6 +361,7 @@ impl Args {
             admin,
             vocabulary_dir,
             sink,
+            sink_search_projection,
             pii_output,
             pii_release,
             pii_encryption_keys,
