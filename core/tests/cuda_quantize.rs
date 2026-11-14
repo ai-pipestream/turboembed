@@ -47,7 +47,25 @@ fn cases() -> Vec<(usize, Vec<f32>, Vec<f32>)> {
             }
             r
         }),
+        edges(),
     ]
+}
+
+/// Values on int8 bucket edges: each dimension's maximum, and minimum plus
+/// a whole number of steps. `(x - min) / step` lands on or a rounding away
+/// from a whole bucket there, so a division that is not correctly rounded
+/// floors one bucket low or high.
+fn edges() -> (usize, Vec<f32>, Vec<f32>) {
+    const DIM: usize = 256;
+    let lo: Vec<f32> = (0..DIM).map(|d| -0.05 - 0.0013 * d as f32).collect();
+    let hi: Vec<f32> = (0..DIM).map(|d| 0.07 + 0.0017 * d as f32).collect();
+    let x = (0..DIM)
+        .map(|d| match d % 4 {
+            0 => hi[d],
+            k => lo[d] + (hi[d] - lo[d]) / 255.0 * (d as f32 * 7.0 + k as f32).rem_euclid(256.0).floor(),
+        })
+        .collect();
+    (DIM, x, lo.into_iter().chain(hi).collect())
 }
 
 fn host_codes(q: Quantization, x: &[f32], dim: usize, ranges: &[f32]) -> Vec<u8> {
