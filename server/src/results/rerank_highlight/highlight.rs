@@ -54,6 +54,7 @@ pub(super) fn attribute_top_k(
     mode: RerankHighlightMode,
     top: &mut [RerankedCandidateProto],
     max_snippets: usize,
+    priority: crate::priority::Priority,
     deadline: &Deadline,
 ) -> Result<Option<ModelRef>> {
     let embed_name = req.embed_model.trim();
@@ -82,13 +83,14 @@ pub(super) fn attribute_top_k(
             if qa_name.is_empty() {
                 return Err(bad("qa_model is required for RERANK_HIGHLIGHT_MODE_EXTRACTIVE_QA"));
             }
-            run_qa_highlights(state, qa_name, req, offsets, &passages, top, max_snippets, deadline).map(Some)
+            run_qa_highlights(state, qa_name, req, offsets, &passages, top, max_snippets, priority, deadline).map(Some)
         }
         RerankHighlightMode::RangePool => {
             if embed_name.is_empty() {
                 return Err(bad("embed_model is required for RERANK_HIGHLIGHT_MODE_RANGE_POOL"));
             }
-            run_range_pool_highlights(state, embed_name, req, offsets, &passages, top, max_snippets, deadline).map(Some)
+            run_range_pool_highlights(state, embed_name, req, offsets, &passages, top, max_snippets, priority, deadline)
+                .map(Some)
         }
         RerankHighlightMode::SubwordMaxsim => {
             if !embed_name.is_empty() {
@@ -100,6 +102,7 @@ pub(super) fn attribute_top_k(
                     &passages,
                     top,
                     max_snippets,
+                    priority,
                     deadline,
                 )
                 .map(Some)
@@ -129,13 +132,14 @@ fn run_range_pool_highlights(
     passages: &[SourcePassage<'_>],
     top: &mut [RerankedCandidateProto],
     max_snippets: usize,
+    priority: crate::priority::Priority,
     deadline: &Deadline,
 ) -> Result<ModelRef> {
     let (_, loaded) = state.ready(embed_name, "")?;
     let embed = loaded.embed()?;
     let hidden_dim = embed.dim as usize;
 
-    let held = loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
+    let held = loaded.acquire(priority, deadline)?;
     crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     held.reserve_token_ranges()?;
     let slot = held.slot();
@@ -263,11 +267,12 @@ fn run_contextual_maxsim_highlights(
     passages: &[SourcePassage<'_>],
     top: &mut [RerankedCandidateProto],
     max_snippets: usize,
+    priority: crate::priority::Priority,
     deadline: &Deadline,
 ) -> Result<ModelRef> {
     let (_, loaded) = state.ready(embed_name, "")?;
     let embed = loaded.embed()?;
-    let held = loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
+    let held = loaded.acquire(priority, deadline)?;
     crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     held.reserve_token_ranges()?;
     let slot = held.slot();
@@ -312,6 +317,7 @@ fn run_qa_highlights(
     passages: &[SourcePassage<'_>],
     top: &mut [RerankedCandidateProto],
     max_snippets: usize,
+    priority: crate::priority::Priority,
     deadline: &Deadline,
 ) -> Result<ModelRef> {
     let (_, loaded) = state.ready(qa_name, "")?;
@@ -339,7 +345,7 @@ fn run_qa_highlights(
     }
 
     let q_clean = clean_query_text(&req.query).map_err(|e| bad(e.to_string()))?;
-    let held = loaded.acquire(crate::priority::Priority::Interactive, deadline)?;
+    let held = loaded.acquire(priority, deadline)?;
     let slot = held.slot();
     let mut cfg = qa.config.clone();
     cfg.max_seq = slot.info.max_seq;

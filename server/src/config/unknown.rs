@@ -34,6 +34,7 @@ const KNOWN_FLAGS: &[&str] = &[
     "--sink-pii-output",
     "--sink-queue-bytes",
     "--sink-queue-items",
+    "--sink-search-projection",
     "--sink-typed-offsets",
     "--sink-typed-view",
     "--tls-cert",

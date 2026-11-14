@@ -60,6 +60,7 @@ pub(super) fn encode_dense_targets(
     state: &State,
     targets: &[QueryDenseTargetProto],
     plan: &OnePassQueryPlan,
+    priority: Priority,
     deadline: &Deadline,
 ) -> Result<Vec<QueryDenseResultProto>> {
     let mut out = Vec::with_capacity(targets.len());
@@ -106,7 +107,7 @@ pub(super) fn encode_dense_targets(
             .map_err(|e| Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, e.to_string()))?;
 
         let text = if t.use_residual_text && !plan.free_text.is_empty() { &plan.free_text } else { &plan.query };
-        let held = loaded.acquire(Priority::Interactive, deadline)?;
+        let held = loaded.acquire(priority, deadline)?;
         let slot = held.slot();
         let raw_text = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
         let mut opts = default_query_opts(TURBO_NORMALIZE_NONE);
@@ -180,6 +181,7 @@ pub(super) fn encode_splade_targets(
     targets: &[QuerySpladeTargetProto],
     plan: &OnePassQueryPlan,
     offsets: OffsetMode,
+    priority: Priority,
     deadline: &Deadline,
 ) -> Result<Vec<QuerySpladeResultProto>> {
     let mut out = Vec::with_capacity(targets.len());
@@ -223,7 +225,7 @@ pub(super) fn encode_splade_targets(
         let use_residual = t.use_residual_text && !plan.free_text.is_empty();
         let text = if use_residual { plan.free_text.as_str() } else { plan.query.as_str() };
         let run_offsets = if use_residual { OffsetMode::Utf8 } else { offsets };
-        let held = loaded.acquire(Priority::Interactive, deadline)?;
+        let held = loaded.acquire(priority, deadline)?;
         check_before_exec(deadline, &loaded.metrics)?;
         held.reserve_token_ranges()?;
         let opts = default_query_opts(0);

@@ -145,6 +145,7 @@ async fn main() -> ExitCode {
         catalog,
         training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
+        sink_search_projection: args.sink_search_projection,
         pii_output: args.pii_output,
         pii_release: args.pii_release,
         pii_encryption_keys: args.pii_encryption_keys,

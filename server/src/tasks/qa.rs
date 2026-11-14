@@ -49,7 +49,7 @@ pub(crate) fn infer_qa(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
-    priority: Option<crate::priority::Priority>,
+    held: crate::priority::Held,
     deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     const ALL_OUTPUTS: [&str; 3] = ["spans", "scores", "probabilities"];
@@ -77,7 +77,6 @@ pub(crate) fn infer_qa(
     let map_err = |e: turbo::status::Error| Failure::new(e.code, e.field, e.message);
 
     let _docs = loaded.metrics.track_docs(1, Some(loaded.device));
-    let held = loaded.take_or_acquire(priority, deadline)?;
     crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     let slot = held.slot();
     let mut cfg = qa.config.clone();

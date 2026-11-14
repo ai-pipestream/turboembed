@@ -34,7 +34,7 @@ impl<'d> Stemmer<'d> {
         if !d.compounds_declared() || d.first_forbidden(d.lookup(&input)) {
             return None;
         }
-        let mut results = Results::new(false);
+        let mut results = Results::for_compound_segments();
         let all_caps = case_type(&input) == CaseType::Upper;
         let variants = self.variants(&input);
         for variant in &variants {

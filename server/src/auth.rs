@@ -104,7 +104,13 @@ impl AuthConfig {
     }
 
     /// Verifies `headers` for `grpc_path`.
+    /// Standard gRPC health probes (`grpc.health.v1.Health/{Check,Watch}`)
+    /// are exempt so container/orchestrator healthchecks succeed without
+    /// embedding bearer credentials.
     pub fn check(&self, headers: &HeaderMap, grpc_path: &str) -> Result<(), Status> {
+        if is_health_method(grpc_path) {
+            return Ok(());
+        }
         let Some(token) = parse_bearer(headers) else {
             return Err(Status::unauthenticated("missing or malformed Authorization Bearer token"));
         };
@@ -170,6 +176,10 @@ fn trim_ascii(mut b: &[u8]) -> &[u8] {
         }
     }
     b
+}
+
+fn is_health_method(path: &str) -> bool {
+    matches!(path, "/grpc.health.v1.Health/Check" | "/grpc.health.v1.Health/Watch")
 }
 
 pub(crate) fn is_admin_method(path: &str) -> bool {

@@ -225,6 +225,7 @@ fn filter_to_proto(offsetter: &Offsetter, text: &str, f: &StructuredFilterPlan) 
 pub(crate) fn analyze_query(
     state: &State,
     req: &AnalyzeQueryRequest,
+    priority: crate::priority::Priority,
     deadline: &crate::deadline::Deadline,
 ) -> Result<AnalyzeQueryResponse> {
     crate::priority::check_before_exec(deadline, &state.metrics)?;
@@ -245,8 +246,8 @@ pub(crate) fn analyze_query(
     let analyzer = builder.build().map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
     let plan = analyzer.analyze(&req.query).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
 
-    let dense_results = encode::encode_dense_targets(state, &req.dense_targets, &plan, deadline)?;
-    let splade_results = encode::encode_splade_targets(state, &req.splade_targets, &plan, offsets, deadline)?;
+    let dense_results = encode::encode_dense_targets(state, &req.dense_targets, &plan, priority, deadline)?;
+    let splade_results = encode::encode_splade_targets(state, &req.splade_targets, &plan, offsets, priority, deadline)?;
 
     let offsetter = Offsetter::new(&plan.query, offsets);
     let (detected_language, language_score) = match &plan.language {
