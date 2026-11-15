@@ -83,6 +83,7 @@ pub(super) fn file(f: &turbo_zoo::File) -> CatalogFile {
         compression: d.map(|d| compression(d.compression).to_owned()).unwrap_or_default(),
         download_bytes: d.map_or(0, |d| d.download_bytes),
         download_sha256: d.map(|d| d.download_sha256.to_string()).unwrap_or_default(),
+        also: f.also.iter().map(|u| u.to_string()).collect(),
     }
 }
 

@@ -60,6 +60,7 @@ fn project(graph: &[u8], pii_output: Option<PiiOutputOptions>) -> ProjectChunksR
         include_strategy_matrix: false,
         strategy_budgets: Vec::new(),
         pii_output,
+        ..Default::default()
     }
 }
 

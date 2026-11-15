@@ -189,6 +189,9 @@ message CatalogFile {
   string compression = 6;
   uint64 download_bytes = 7;
   string download_sha256 = 8;
+  // The file's further locations, in the order they are tried after
+  // `url`. Each serves the same bytes; empty when the index lists none.
+  repeated string also = 9;
 }
 
 message CatalogEntry {

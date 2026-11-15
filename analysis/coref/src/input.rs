@@ -100,8 +100,7 @@ pub(crate) struct Prepared<'a> {
 
 /// The Unicode lower case of `text` (full mappings, with the final
 /// sigma rule): the form mentions, labels and lexicon words are compared
-/// in, and the key of the word vectors and of the ranker's features, so
-/// a vector table or model trained on lowercased text finds its words.
+/// in.
 pub(crate) fn lowercase(text: &str) -> String {
     text.to_lowercase()
 }
@@ -262,8 +261,7 @@ pub(crate) fn ix<L>(i: usize) -> Ix<L> {
 mod tests {
     use super::lowercase;
 
-    /// Lower case, not a case fold: `ß` stays `ß`, so a vector table or
-    /// model keyed by lowercased words finds it; a word-final capital
+    /// Lower case, not a case fold: `ß` stays `ß`; a word-final capital
     /// sigma becomes `ς`.
     #[test]
     fn lowercase_is_unicode_lower_case_not_a_fold() {

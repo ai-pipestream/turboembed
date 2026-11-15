@@ -112,6 +112,9 @@ use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularySe
 use crate::sink::{SinkConfig, SinkForwarder, SinkReceiver, SinkStats};
 use crate::state::State;
 
+/// How long [`Server::stop`] waits for calls in flight before cutting them.
+pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// tonic refuses a request message over the decoding limit with
 /// OUT_OF_RANGE, read from the frame's length prefix before the message.
 /// The services' own refusals all carry turbo-code, so an OUT_OF_RANGE
@@ -456,20 +459,35 @@ impl Server {
         Some(sink.stats())
     }
 
-    /// Stops answering and waits for the server to finish, then for the
-    /// documents queued for the sink, up to 10 seconds.
-    pub async fn stop(mut self) {
+    /// Stops answering and waits for the server to finish, up to
+    /// [`STOP_GRACE`], then for the documents queued for the sink, up to
+    /// 10 seconds. See [`Self::stop_within`].
+    pub async fn stop(self) {
+        self.stop_within(STOP_GRACE).await;
+    }
+
+    /// [`Self::stop`] with the wait for calls in flight given: every open
+    /// watch ends at once, and a call still open after `grace` (a stream
+    /// its caller never closes) is cut. Answers whether every call ended
+    /// by itself.
+    pub async fn stop_within(mut self, grace: std::time::Duration) -> bool {
         self.state.shutdown();
+        self.search_registry.stopping.send_replace(true);
         if let Some(s) = self.stop.take() {
             let _ = s.send(());
         }
         if let Some(s) = self.metrics_stop.take() {
             let _ = s.send(());
         }
-        let _ = (&mut self.task).await;
+        let clean = tokio::time::timeout(grace, &mut self.task).await.is_ok();
+        if !clean {
+            self.task.abort();
+            let _ = (&mut self.task).await;
+        }
         if let Some(m) = self.metrics_task.take() {
             let _ = m.await;
         }
         self.close_sink(std::time::Duration::from_secs(10)).await;
+        clean
     }
 }

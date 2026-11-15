@@ -2,21 +2,26 @@
 // ListCollections, GetCollection, DeleteCollection) and WatchCollection,
 // a live stream of vocabulary drift reports as documents are indexed.
 
-import { busy, confirmed, submitter } from "../act.js";
+import { busy, confirmed, setDisabled, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
 import { TurboSearchService, type CollectionEvent } from "../gen/turbo_search_pb.js";
 import { off, onChange } from "../permit.js";
 import { cancelled, describe, explain, search } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
+import { latest } from "../latest.js";
 
 let watching: AbortController | null = null;
 
 const note = () => $("coll-note");
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("coll-list");
   try {
     const r = await search.listCollections({});
+    if (!mine()) return;
     box.replaceChildren(
       r.collections.length
         ? table(
@@ -34,6 +39,7 @@ async function list(): Promise<void> {
         : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." }),
     );
   } catch (e) {
+    if (!mine()) return;
     box.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }
@@ -114,7 +120,7 @@ export function init(): void {
   const setButton = $("coll-set").querySelector("button[type=submit]") as HTMLButtonElement;
   const gate = (): void => {
     const why = off(TurboSearchService.method.setCollection);
-    setButton.disabled = why !== "";
+    setDisabled(setButton, why !== "");
     setButton.title = why;
   };
   gate();

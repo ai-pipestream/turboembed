@@ -93,6 +93,14 @@ read-only directory, and recording or revoking an acceptance is refused
 | `RevokeLicenceAcceptance` | yes, or zoo mode | Withdraws a user's acceptance of a licence's terms. |
 | `ListLicenceAcceptances` | no | The terms a user accepted, and whether the admin calls are served. |
 
+Each file of an entry (`CatalogFile`) carries its path, size, SHA-256
+and SHA-512, the address it is fetched from (`url`) and, in `also`, the
+further locations the index lists for it, in the order they are tried
+after `url` (docs/zoo.md). Each location serves the same bytes, so a
+client that downloads a file itself may ask any of them and verifies
+what it gets against the entry. `also` is empty for a file the index
+gives one address.
+
 The admin calls are served only when the server is started with
 `--admin` or `--zoo`; without either they refuse with `UNIMPLEMENTED`
 and touch no file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.

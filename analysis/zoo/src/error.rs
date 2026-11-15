@@ -17,6 +17,8 @@ pub enum Check {
     DownloadSha256,
     /// The compressed bytes do not unpack to the file's size.
     Unpack,
+    /// An importer's check of a file against the id git gives it.
+    GitBlob,
 }
 
 impl fmt::Display for Check {
@@ -28,6 +30,7 @@ impl fmt::Display for Check {
             Check::DownloadSize => "download size",
             Check::DownloadSha256 => "download SHA-256",
             Check::Unpack => "unpacked file",
+            Check::GitBlob => "git blob id",
         })
     }
 }

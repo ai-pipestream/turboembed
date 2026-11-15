@@ -128,13 +128,13 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         .map_err(|message| ZooError::Transport { url: format!("{at}/manifests/sha256:{pin}"), message })?;
     let layers = layers(&manifest).map_err(fail)?;
 
-    let kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
+    let mut kept = spec.keep.as_deref().map(|cache| Kept::new(cache, id.as_str()));
     let mut files = Vec::with_capacity(layers.len());
     let mut bundle_manifest = None;
     for (path, size, sha256) in layers {
         let url = Url::from_str(&format!("{at}/blobs/sha256:{sha256}")).map_err(fail)?;
         let cached = match &kept {
-            Some(k) => k.held(path.as_str(), size, &sha256)?,
+            Some(k) => k.held(path.as_str(), size, |b| Sha256::of(b) == sha256)?,
             None => None,
         };
         let fresh = cached.is_none();
@@ -158,7 +158,7 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         if held != sha256 {
             return Err(differs(Check::Sha256, sha256.to_string(), held.to_string()));
         }
-        if let Some(k) = kept.as_ref().filter(|_| fresh) {
+        if let Some(k) = kept.as_mut().filter(|_| fresh) {
             k.keep(path.as_str(), &bytes)?;
         }
         let is_manifest = path.as_str() == MANIFEST;
@@ -195,7 +195,12 @@ pub fn oci(registry: &OciRegistry, spec: OciImport) -> Result<Artifact, ZooError
         bundle: record,
         files,
     };
-    described(artifact, bundle_manifest.as_deref())
+    let artifact = described(artifact, bundle_manifest.as_deref())?;
+    // Only an accepted entry's files go into the cache.
+    if let Some(k) = kept {
+        k.accept()?;
+    }
+    Ok(artifact)
 }
 
 #[cfg(test)]

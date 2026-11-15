@@ -1,0 +1,37 @@
+# 2244 upload progress and Stop
+FAIL learning from a 3 MiB file shows a progress bar
+FAIL the bar moves while the body goes out (0% then 0%)
+FAIL the line says how much was sent of how much
+ok   the upload still ends with the server's answer (Learned vocab-e2b523dea2996f187ed158c2: 14 terms and 0 n-grams from 1 documents.)
+FAIL the Search upload has a Stop, off while nothing runs
+FAIL Stop is on while the upload runs
+FAIL Stop aborts the upload and says so (Uploading 4 documents, 3.0 MiB…)
+FAIL the upload button is on again
+# 2241 typed input survives a reload
+FAIL Embed texts are back after a reload (A cat is sleeping on the windowsill. / A kitten naps in the warm sun by the window.
+The central bank raised interest rates again.
+Inflation pushed borrowing costs higher this quarter.
+How do I reset my router?)
+FAIL a picked option is back
+FAIL the picked models are back (true,true,true,true)
+FAIL the Semantic query is back
+FAIL the Analyze document is back
+ok   the bearer token is not in localStorage
+FAIL Embed has "Reset to sample"
+ok   reset puts the sample back (A cat is sleeping on the windowsill.)
+ok   and it stays the sample after a reload
+FAIL another tab keeps its own input through that reset
+# 2243 copy and CSV
+FAIL each Embed result offers Copy and Download CSV (0 sets of controls)
+FAIL the similarity CSV has a header and one row per text (no download)
+FAIL Copy puts tab-separated rows on the clipboard (nothing copied)
+FAIL the vectors CSV has every dimension (no download)
+FAIL the nearest neighbours CSV has rank, passage and cosine (no download)
+FAIL the search hits CSV has rank, document, chunk, score, text and signals (no download)
+# 2245 what each tab does and needs
+FAIL every tab opens with a line on what it does (0000000)
+ok   with an embedding model served there is no hint
+FAIL after the only model is unloaded, Embed says what it needs
+FAIL Search says what creating an index needs
+FAIL Semantic says what it needs
+24 checks failed

@@ -282,6 +282,9 @@ drift across one or more indexes:
     with `collection_name`, a fresh `CollectionState` (with
     `total_units` reset and `oov_alert_threshold = 0.0`) is created and
     existing watchers receive the new `CollectionEvent`s.
+  - When the server stops, every open watch ends with `UNAVAILABLE` and
+    the message `the server is stopping`. A watch whose caller has gone
+    is dropped at once, not at the next event.
 
 ## Errors and status codes
 

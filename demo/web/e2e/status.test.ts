@@ -42,7 +42,7 @@ test("the header turns red when the server stops and green when it is back, with
     assert.match((await page.textContent("#server")) ?? "", /: ready$/);
     await page.waitForSelector("#down", { state: "hidden" });
     // The tabs read what the server serves again.
-    await page.waitForSelector("#server-caps table");
+    await page.waitForSelector("#server-caps td:has-text('tiny-bert-bundle')");
     assert.deepEqual(await page.locator("#server-caps table").first().locator("td:first-child").allTextContents(), ["tiny-bert-bundle"]);
     await page.click("nav.tabs button[data-tab=embed]");
     await page.waitForSelector("#embed-models label.model");
@@ -68,6 +68,8 @@ test("a page opened with the server stopped says why each tab is empty, and fill
     assert.equal(await page.textContent("#embed-models .empty"), DOWN);
     assert.equal(await page.locator("#embed-models label.model").count(), 0);
     for (const id of ["#sem-embed", "#sem-rerank", "#sem-qa", "#search-index"]) {
+      // Each list says so once its own read has failed.
+      await page.waitForSelector(`${id} option`, { state: "attached" });
       assert.deepEqual(await choices(page, id), ["the server is not reachable"], id);
     }
     await page.click("nav.tabs button[data-tab=search]");
@@ -82,6 +84,8 @@ test("a page opened with the server stopped says why each tab is empty, and fill
     await page.waitForSelector("#search-indexes p.muted");
     assert.equal(await page.textContent("#search-indexes p.muted"), "No index yet: create one from an embedding bundle.");
     assert.deepEqual(await choices(page, "#search-index"), ["no index yet"]);
+    // What the server serves is read after the status.
+    await page.waitForSelector("#sem-embed option[value=tiny-bert-bundle]", { state: "attached" });
     assert.deepEqual(await choices(page, "#sem-embed"), ["none", "tiny-bert-bundle"]);
     // Tasks the server does not serve now say so, rather than blaming the server.
     assert.deepEqual(await choices(page, "#sem-rerank"), ["no reranker is served"]);

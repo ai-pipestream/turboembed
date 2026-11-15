@@ -12,6 +12,7 @@ import { $, el, failed, input, say, table } from "../dom.js";
 import { catalog, explain } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 import { readOnly, redirected, s3KeysOf, signInText } from "../sourcetext.js";
+import { latest } from "../latest.js";
 
 const note = () => $("sources-note");
 // The read-only reason the last read put in the note, to take it back
@@ -49,10 +50,14 @@ async function act(change: () => Promise<string>, after: () => Promise<void>): P
   }
 }
 
+// Only the latest call draws (latest.ts).
+const freshLoad = latest();
 /** Reads the user's sources into the card, and shows the controls that apply. */
 export async function load(): Promise<void> {
+  const mine = freshLoad();
   try {
     const r = await catalog.listModelSources({});
+    if (!mine()) return;
     $("sources-list").replaceChildren(sourcesTable(r, load));
     const why = readOnly(r);
     ($("sources-form") as HTMLFormElement).hidden = why !== "";
@@ -61,6 +66,7 @@ export async function load(): Promise<void> {
     else if (saidWhy && note().textContent === saidWhy) say(note(), "");
     saidWhy = why;
   } catch (e) {
+    if (!mine()) return;
     $("sources-list").replaceChildren(reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so the sources cannot be listed." }) : failed(explain(e)));
     say(note(), "");
   }

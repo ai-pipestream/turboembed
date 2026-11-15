@@ -15,11 +15,12 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::StreamExt;
-use tonic::Code;
+use tokio::sync::watch;
 use tonic::client::Grpc;
 use tonic::codec::Streaming;
 use tonic::codegen::http::uri::PathAndQuery;
 use tonic::metadata::{KeyAndValueRef, MetadataMap};
+use tonic::{Code, Status};
 
 use crate::App;
 use crate::budget::Budget;
@@ -144,7 +145,7 @@ async fn forward(app: &App, req: Request) -> Response {
                 Err(s) => unary_error(s.code(), s.message(), s.metadata()),
             },
             Protocol::Stream => match grpc.server_streaming(request, path, Raw).await {
-                Ok(r) => stream(r.into_inner(), budget),
+                Ok(r) => stream(r.into_inner(), budget, app.stopping.clone()),
                 Err(s) => stream_reply(Body::from(end(Some((s.code(), s.message())), s.metadata()))),
             },
         }
@@ -250,6 +251,9 @@ fn unary_error(code: Code, message: &str, meta: &MetadataMap) -> Response {
     (http_status(code), headers, error(code, message)).into_response()
 }
 
+/// What an open stream is told when the demo stops under it.
+const STOPPING: &str = "the demo is stopping";
+
 fn stream_reply(body: Body) -> Response {
     ([(header::CONTENT_TYPE, STREAM)], body).into_response()
 }
@@ -257,11 +261,17 @@ fn stream_reply(body: Body) -> Response {
 /// The server's messages as they come, each in an envelope, then the
 /// end-of-stream envelope with the call's status and trailers. When the
 /// page goes away the body is dropped, and with it the call to the server.
-fn stream(messages: Streaming<Bytes>, budget: Budget) -> Response {
-    let frames = futures_util::stream::unfold(Some(messages), move |state| async move {
-        let mut messages = state?;
-        let frame = match budget.wait(messages.message()).await.and_then(|r| r) {
-            Ok(Some(m)) => return Some((Ok::<Bytes, Infallible>(envelope(0, &m)), Some(messages))),
+/// When the demo stops the stream ends there, as `unavailable`: a stream
+/// with no end of its own would otherwise hold the stop.
+fn stream(messages: Streaming<Bytes>, budget: Budget, stopping: watch::Receiver<bool>) -> Response {
+    let frames = futures_util::stream::unfold(Some((messages, stopping)), move |state| async move {
+        let (mut messages, mut stopping) = state?;
+        let next = tokio::select! {
+            m = budget.wait(messages.message()) => m.and_then(|r| r),
+            () = async { drop(stopping.wait_for(|s| *s).await) } => Err(Status::unavailable(STOPPING)),
+        };
+        let frame = match next {
+            Ok(Some(m)) => return Some((Ok::<Bytes, Infallible>(envelope(0, &m)), Some((messages, stopping)))),
             Ok(None) => match budget.wait(messages.trailers()).await.and_then(|r| r) {
                 Ok(t) => end(None, &t.unwrap_or_default()),
                 Err(s) => end(Some((s.code(), s.message())), s.metadata()),

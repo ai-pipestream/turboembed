@@ -154,3 +154,33 @@ fn only_a_person_span_around_the_whole_name_overrules_the_city() {
         assert_eq!(mentions, owned(&[(whole, "first-name")]), "{whole:?}");
     }
 }
+
+/// Two person spans side by side that together cover a bare city
+/// (`Salt` as a first name, `Lake City` as a last name) do not overrule
+/// it: each span must hold the whole name on its own, so the city stands
+/// and both person candidates nest in it.
+#[test]
+fn adjacent_person_spans_that_together_cover_a_city_leave_it() {
+    let rules = PiiDetector::pack(Pack::Places);
+    let text = "We heard that Salt Lake City won the vote.";
+    let kinds = nemotron_custom_kinds();
+    let (first, last) = (kinds.find("first-name").unwrap(), kinds.find("last-name").unwrap());
+    let opts = ModelResolution {
+        rules: Some(&rules),
+        model_kinds: &kinds,
+        provenance: PROVENANCE,
+        min_score: Some(0.5),
+        extra_allow: None,
+    };
+    let model = [
+        ModelCandidate { span: span_of(text, "Salt"), kind: first, probability: 0.9 },
+        ModelCandidate { span: span_of(text, "Lake City"), kind: last, probability: 0.9 },
+    ];
+    let (pii, candidates) = resolve_model_with_rules(text, ViewId::SOURCE, &opts, &model).unwrap();
+    candidates.check_against(&pii).unwrap();
+    let mentions: Vec<(&str, &str)> =
+        pii.mentions().map(|m| (&text[m.span.range()], pii.kind_name(m.kind).unwrap())).collect();
+    assert_eq!(mentions, [("Salt Lake City", "city")]);
+    let nested = candidates.candidates().filter(|c| matches!(c.disposition, PiiDisposition::NestedIn { .. })).count();
+    assert_eq!(nested, 2, "both person candidates nest in the city");
+}

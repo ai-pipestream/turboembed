@@ -13,18 +13,33 @@ const failures: ((e: unknown) => void)[] = [];
 /** The server's capabilities, fetched on first use and after `refresh`. */
 export function capabilities(): Promise<CapabilitiesResponse> {
   if (!current) {
-    current = analysis.capabilities({});
-    current.then(
-      (c) => listeners.forEach((l) => l(c)),
-      (e) => failures.forEach((l) => l(e)),
+    // Only the latest read tells the tabs: an older one answered after a
+    // `refresh` would refill them with what was served before.
+    const mine = analysis.capabilities({});
+    current = mine;
+    mine.then(
+      (c) => current === mine && listeners.forEach((l) => l(c)),
+      (e) => current === mine && failures.forEach((l) => l(e)),
     );
   }
   return current;
 }
 
-export function refresh(): Promise<CapabilitiesResponse> {
+/**
+ * Reads the capabilities again. Resolves with the answer of the latest
+ * read, also for a caller whose own read was overtaken by a later one.
+ */
+export async function refresh(): Promise<CapabilitiesResponse> {
   current = null;
-  return capabilities();
+  for (;;) {
+    const mine = capabilities();
+    try {
+      const c = await mine;
+      if (current === mine) return c;
+    } catch (e) {
+      if (current === mine) throw e;
+    }
+  }
 }
 
 /** Calls `l` with each new capabilities answer. */

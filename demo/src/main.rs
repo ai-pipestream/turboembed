@@ -206,7 +206,9 @@ async fn main() -> ExitCode {
     };
     eprintln!("turbo-kserve-demo: open {scheme}://{} (calling {})", demo.local_addr(), args.server);
     stop_signal().await;
-    demo.stop().await;
+    if !demo.stop_within(turbo_kserve_demo::STOP_GRACE).await {
+        eprintln!("turbo-kserve-demo: calls still open after {} s were cut", turbo_kserve_demo::STOP_GRACE.as_secs());
+    }
     ExitCode::SUCCESS
 }
 

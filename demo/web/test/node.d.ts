@@ -10,6 +10,7 @@ declare module "node:assert/strict" {
     deepEqual(actual: unknown, expected: unknown, message?: string): void;
     notEqual(actual: unknown, expected: unknown, message?: string): void;
     match(actual: string, expected: RegExp, message?: string): void;
+    rejects(promise: Promise<unknown>, expected: RegExp, message?: string): Promise<void>;
     throws(fn: () => unknown, expected?: unknown): void;
   };
   export default assert;
@@ -50,7 +51,7 @@ declare module "node:child_process" {
     exitCode: number | null;
     signalCode: string | null;
     once(event: "exit", l: (code: number | null) => void): void;
-    kill(): boolean;
+    kill(signal?: "SIGTERM" | "SIGKILL"): boolean;
   }
   export function spawn(command: string, args: string[], options: { stdio: string[] }): ChildProcess;
 }

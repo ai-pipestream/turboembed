@@ -4,13 +4,14 @@
 
 import { TurboVocabularyService } from "../gen/turbo_vocabulary_pb.js";
 import { busy as working, confirmed, submitter } from "../act.js";
-import { $, download, el, input, options, say, size, table } from "../dom.js";
+import { $, count, download, el, input, options, say, sending, size, table } from "../dom.js";
 import { importBody, learnBody, type Text } from "../frames.js";
 import { lock, off, onChange } from "../permit.js";
 import { describe, explain, vocabulary } from "../rpc.js";
 import { onServed, reachable } from "../state.js";
 import { sha256Blob } from "../sha256.js";
 import { put } from "../upload.js";
+import { latest } from "../latest.js";
 
 // Every call in flight: an import, a learn and downloads can run side
 // by side, each with its own signal, and Stop ends them all.
@@ -46,10 +47,14 @@ function actions(id: string): HTMLElement {
   return el("span", {}, get, " ", del);
 }
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("vocab-lists");
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
+    if (!mine()) return;
     const importable = f.formats.filter((x) => x.importable);
     options(select("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`), "the server imports no format");
     options(select("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
@@ -75,6 +80,7 @@ async function list(): Promise<void> {
       ),
     );
   } catch (e) {
+    if (!mine()) return;
     const down = reachable() === false;
     // A select is never left blank: it says why there is nothing to pick.
     for (const id of ["vocab-format", "vocab-seed"]) options(select(id), [], undefined, down ? "the server is not reachable" : "the store could not be listed");
@@ -93,7 +99,6 @@ async function importDictionary(ev: Event): Promise<void> {
   await working(submitter(ev), () => stoppable(async (signal) => {
     try {
       const sha = await sha256Blob(file, (done) => say(note, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-      say(note, `Uploading ${size(file.size)}\u2026`, "busy");
       const d = await put(
         TurboVocabularyService.method.importDictionary,
         importBody(
@@ -108,6 +113,7 @@ async function importDictionary(ev: Event): Promise<void> {
           file,
         ),
         signal,
+        sending(note, file.name),
       );
       say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
       await list();
@@ -129,10 +135,16 @@ async function learn(ev: Event): Promise<void> {
     say(note, "Type documents (a blank line between) or pick files.", "error");
     return;
   }
+  const language = input("vocab-learn-language").value.trim();
+  if (input("vocab-stopwords").checked && !language) {
+    say(note, "Dropping stopwords needs a language, such as en: the server drops that language's bundled list.", "error");
+    return;
+  }
   await working(submitter(ev), () => stoppable(async (signal) => {
     try {
       const body = learnBody(
         {
+          language,
           minTermFrequency: parseInt(input("vocab-min-tf").value, 10) || 1,
           maxTerms: parseInt(input("vocab-max-terms").value, 10) || 0,
           lowercase: input("vocab-lowercase").checked,
@@ -144,8 +156,7 @@ async function learn(ev: Event): Promise<void> {
         },
         docs,
       );
-      say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
-      const v = await put(TurboVocabularyService.method.learnVocabulary, body, signal);
+      const v = await put(TurboVocabularyService.method.learnVocabulary, body, signal, sending(note, count(docs.length, "document")));
       say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
       await list();
     } catch (e) {
