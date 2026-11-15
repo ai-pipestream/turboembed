@@ -9,10 +9,13 @@
 //! library path does not stop it; the test moves the built file aside for
 //! the run and puts it back, as a machine that lost the file would have it.
 //!
-//! Built with the `levelzero-onednn` feature only. Skipped, and passing,
-//! where the backend lists no device (TURBO_TEST_REQUIRE_LEVELZERO=1 fails
-//! instead) and where this checkout is not a clean pushed commit, the only
-//! tree the tool measures from (TURBO_BENCH_REQUIRE_RECORD=1 fails instead).
+//! Built with the `levelzero-onednn` feature only.
+//!
+//! SKIPS, and passes, on any checkout that is not a clean pushed commit,
+//! the only tree the tool measures from: a green run there has checked
+//! nothing. TURBO_BENCH_REQUIRE_RECORD=1 makes that a failure instead.
+//! Skips the same way where the backend lists no device
+//! (TURBO_TEST_REQUIRE_LEVELZERO=1 fails instead).
 
 #![cfg(feature = "levelzero-onednn")]
 
@@ -141,7 +144,8 @@ fn each_measuring_command_says_once_when_onednn_cannot_open() {
 
     let common = ["--device", "levelzero", "--repo", repo, "--warmup", "1", "--iterations", "2"];
     let commands: [(&str, Vec<&str>); 4] = [
-        ("record", vec!["record", "--bundle", embed, "--batch", "12", "--no-tei"]),
+        // `record` wants each reference program for the backend named or turned off: TEI and OpenVINO here.
+        ("record", vec!["record", "--bundle", embed, "--batch", "12", "--no-tei", "--no-openvino"]),
         ("ranges", vec!["ranges", "--bundle", embed, "--batch", "2", "--seq", "32", "--chunk", "8"]),
         ("qa", vec!["qa", "--bundle", qa, "--questions", questions, "--batch", "1", "--per-bin", "1"]),
         (
