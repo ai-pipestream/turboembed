@@ -62,67 +62,7 @@ pub(crate) fn write_fallback(out: &mut impl Write, backend: &str, choices: &str,
 /// Prints one line on `stderr` when a measured `levelzero` session ran
 /// without oneDNN because opening `libturbo_onednn.so` or oneDNN failed.
 pub(crate) fn note_fallback(backend: &str, choices: &str, warnings: &[String]) {
-    #[cfg(test)]
-    if TEST_SINK.with(|cell| {
-        let mut guard = cell.borrow_mut();
-        let Some(sink) = guard.as_mut() else { return false };
-        sink.calls.push((backend.to_owned(), choices.to_owned(), warnings.to_vec()));
-        match &sink.override_inputs {
-            Some((b, c, w)) => write_fallback(&mut sink.stderr, b, c, w),
-            None => write_fallback(&mut sink.stderr, backend, choices, warnings),
-        }
-        true
-    }) {
-        return;
-    }
     write_fallback(&mut io::stderr().lock(), backend, choices, warnings);
-}
-
-#[cfg(test)]
-struct TestSink {
-    override_inputs: Option<(String, String, Vec<String>)>,
-    calls: Vec<(String, String, Vec<String>)>,
-    stderr: Vec<u8>,
-}
-
-#[cfg(test)]
-std::thread_local! {
-    static TEST_SINK: std::cell::RefCell<Option<TestSink>> = const { std::cell::RefCell::new(None) };
-}
-
-#[cfg(test)]
-pub(crate) struct CapturedFallback {
-    pub calls: Vec<(String, String, Vec<String>)>,
-    pub stderr: String,
-}
-
-#[cfg(test)]
-pub(crate) fn capture_fallback<T>(
-    override_inputs: Option<(&str, &str, Vec<String>)>,
-    f: impl FnOnce() -> T,
-) -> (T, CapturedFallback) {
-    struct Reset;
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            TEST_SINK.with(|cell| {
-                *cell.borrow_mut() = None;
-            });
-        }
-    }
-    TEST_SINK.with(|cell| {
-        *cell.borrow_mut() = Some(TestSink {
-            override_inputs: override_inputs.map(|(b, c, w)| (b.to_owned(), c.to_owned(), w)),
-            calls: Vec::new(),
-            stderr: Vec::new(),
-        });
-    });
-    let _reset = Reset;
-    let out = f();
-    let captured = TEST_SINK.with(|cell| {
-        let sink = cell.borrow_mut().take().expect("test sink present");
-        CapturedFallback { calls: sink.calls, stderr: String::from_utf8(sink.stderr).unwrap() }
-    });
-    (out, captured)
 }
 
 #[cfg(test)]

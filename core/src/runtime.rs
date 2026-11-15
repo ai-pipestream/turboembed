@@ -183,6 +183,8 @@ pub(super) fn probe(b: &'static backend::turbo_backend, ordinal: u32) -> Result<
     Ok(info)
 }
 
+const MAX_RUNTIME_WARNINGS: usize = 64;
+
 /// Warning and error messages collected from a `turbo_runtime`'s log callback
 /// for a safe Rust session wrapper (`ExtractiveQa`, `Reranker`).
 ///
@@ -232,7 +234,10 @@ pub(crate) unsafe extern "C" fn collect_runtime_warning(user_data: *mut c_void, 
         unsafe { std::slice::from_raw_parts(message.ptr.cast::<u8>(), message.len as usize) }
     };
     let lock = unsafe { &*(user_data as *const std::sync::Mutex<Vec<String>>) };
-    lock.lock().unwrap_or_else(|p| p.into_inner()).push(String::from_utf8_lossy(bytes).into_owned());
+    let mut guard = lock.lock().unwrap_or_else(|p| p.into_inner());
+    if guard.len() < MAX_RUNTIME_WARNINGS {
+        guard.push(String::from_utf8_lossy(bytes).into_owned());
+    }
 }
 
 #[cfg(test)]
@@ -258,5 +263,21 @@ mod tests {
             warnings.snapshot(),
             vec!["error zero".to_owned(), "levelzero device 0: oneDNN not used".to_owned(), String::new(),]
         );
+    }
+
+    #[test]
+    fn runtime_warnings_caps_stored_messages() {
+        let warnings = RuntimeWarnings::new();
+        let desc = warnings.runtime_desc();
+        let cb = desc.log.expect("log callback installed");
+        for i in 0..(MAX_RUNTIME_WARNINGS + 10) {
+            let msg = format!("warning {i}");
+            let t = turbo_text { ptr: msg.as_ptr().cast(), len: msg.len() as u64 };
+            unsafe { cb(desc.log_user_data, LOG_WARNING, t) };
+        }
+        let snap = warnings.snapshot();
+        assert_eq!(snap.len(), MAX_RUNTIME_WARNINGS);
+        assert_eq!(snap.first().map(String::as_str), Some("warning 0"));
+        assert_eq!(snap.last().map(String::as_str), Some(format!("warning {}", MAX_RUNTIME_WARNINGS - 1).as_str()));
     }
 }

@@ -56,6 +56,8 @@ pub struct Runtime {
     warnings: Warnings,
 }
 
+const MAX_WARNINGS: usize = 64;
+
 pub(crate) unsafe extern "C" fn collect_warning(user_data: *mut c_void, level: u32, message: turbo_text) {
     if level > LOG_WARNING || user_data.is_null() {
         return;
@@ -66,7 +68,10 @@ pub(crate) unsafe extern "C" fn collect_warning(user_data: *mut c_void, level: u
         unsafe { std::slice::from_raw_parts(message.ptr.cast::<u8>(), message.len as usize) }
     };
     let lock = unsafe { &*(user_data as *const Mutex<Vec<String>>) };
-    lock.lock().unwrap_or_else(|p| p.into_inner()).push(String::from_utf8_lossy(bytes).into_owned());
+    let mut guard = lock.lock().unwrap_or_else(|p| p.into_inner());
+    if guard.len() < MAX_WARNINGS {
+        guard.push(String::from_utf8_lossy(bytes).into_owned());
+    }
 }
 
 impl Runtime {
