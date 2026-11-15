@@ -143,6 +143,9 @@ fn best_in(
     n: usize,
     pass: &mut dyn FnMut() -> Result<()>,
 ) -> Result<f64> {
+    if n == 0 {
+        return Err("text set must not be empty".into());
+    }
     pass()?;
     let mut top = 0f64;
     clock.before_timed();
@@ -234,6 +237,9 @@ pub(crate) fn measure_for(
     for (name, path) in &plan.sets {
         let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let t: Vec<String> = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+        if t.is_empty() {
+            return Err(format!("{}: text set is empty", path.display()));
+        }
         sets.push(TextSet { name: name.clone(), texts: t.len() as u32, sha256: turbo::bundle::sha256_hex(&bytes) });
         texts.push(t);
     }

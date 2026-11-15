@@ -66,34 +66,18 @@ fn committed_records_pass_their_check() {
 }
 
 #[test]
-fn statics_reads_gpu_clock_outside_timed_passes() {
+fn statics_cpu_records_no_gpu_clock_and_best_in_runs_warmup_and_three_passes() {
     use turbo::TURBO_PRECISION_MODEL;
-    use turbo::record::{ClockReading, GpuClock};
 
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
-    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let events_r = std::rc::Rc::clone(&events);
-    let calls = std::cell::Cell::new(0u32);
-    let clock = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let n = calls.get();
-            calls.set(n + 1);
-            events_r.borrow_mut().push(format!("clock:{backend}:{n}"));
-            Some(if n == 0 { before } else { after })
-        },
-        || {
-            let mut w = crate::gpu_clock::Window::new("levelzero", 1);
-            best_in(Duration::ZERO, &mut w, 2, &mut || {
-                events.borrow_mut().push("pass".into());
-                Ok(())
-            })
-            .unwrap();
-            w.finish()
-        },
-    );
-    assert_eq!(clock, Some(GpuClock { before, after }));
-    assert_eq!(*events.borrow(), ["pass", "clock:levelzero:0", "pass", "pass", "pass", "clock:levelzero:1"]);
+    let mut passes = 0u32;
+    let mut w = crate::gpu_clock::Window::none();
+    best_in(Duration::ZERO, &mut w, 2, &mut || {
+        passes += 1;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(passes, 4);
+    assert_eq!(w.finish(), None);
 
     let scratch =
         turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-static-{}", std::process::id())));
@@ -115,30 +99,39 @@ fn statics_reads_gpu_clock_outside_timed_passes() {
     let cpu_record = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap();
     assert_eq!(cpu_record.device.clock, None);
     check(&cpu_record).unwrap();
+    std::fs::remove_dir_all(&scratch).unwrap();
+}
 
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let clocked = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap(),
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
-    check(&clocked).unwrap();
+#[test]
+fn empty_text_set_is_rejected_immediately() {
+    use turbo::TURBO_PRECISION_MODEL;
 
-    let calls = std::cell::Cell::new(0u32);
-    let incomplete = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap(),
+    let mut calls = 0u32;
+    let mut w = crate::gpu_clock::Window::none();
+    let err = best_in(Duration::from_secs(60), &mut w, 0, &mut || {
+        calls += 1;
+        assert!(calls <= 5, "best_in looped on n == 0");
+        Ok(())
+    })
+    .unwrap_err();
+    assert!(err.contains("empty"), "{err}");
+    assert_eq!(calls, 0);
+
+    let scratch = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-bench-static-empty-{}", std::process::id())),
     );
-    assert_eq!(incomplete.device.clock, None);
+    std::fs::create_dir_all(&scratch).unwrap();
+    let empty_set = scratch.join("empty.json");
+    std::fs::write(&empty_set, "[]").unwrap();
+    let plan = StaticPlan {
+        bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-static-bundle"),
+        precision: TURBO_PRECISION_MODEL,
+        sets: vec![("empty".into(), empty_set)],
+        batches: vec![1],
+        peers: None,
+    };
+    let p = Provenance { top: String::new(), commit: "d".repeat(40), pushed_to: vec!["origin/main".into()] };
+    let err = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::from_secs(60)).unwrap_err();
+    assert!(err.contains("empty"), "{err}");
     std::fs::remove_dir_all(&scratch).unwrap();
 }

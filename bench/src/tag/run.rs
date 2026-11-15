@@ -108,68 +108,6 @@ pub fn cmd(args: &[String]) -> Result<()> {
         return Err(format!("{}: no sentence", corpus_path.display()));
     }
     let file = corpus_path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_owned();
-    let r = measure(
-        &model_path,
-        &device,
-        &precision,
-        numerics_name,
-        numerics,
-        weights,
-        file,
-        &corpus_bytes,
-        &test,
-        per_call,
-        rounds,
-        cpus.as_ref(),
-        recorded_at,
-        || {
-            let after = git::provenance(&repo)?;
-            if after != before {
-                return Err(format!(
-                    "the working tree moved from {} to {} during the run",
-                    before.commit, after.commit
-                ));
-            }
-            Ok(after)
-        },
-    )?;
-    let dir = out.unwrap_or_else(|| Path::new(&before.top).join(TAG_DIR));
-    let words = r.corpus.words;
-    let correct = r.correct;
-    let path = super::write(&r, &dir)?;
-    eprintln!(
-        "{} {}: {correct}/{words} correct; cold {:.0} words/s (p50 {:.3} ms, p99 {:.3} ms); warm {:.0} words/s (p50 \
-         {:.3} ms, p99 {:.3} ms)",
-        r.tier.device,
-        r.tier.precision,
-        r.cold.words_per_second,
-        r.cold.call_p50_ms,
-        r.cold.call_p99_ms,
-        r.warm.words_per_second,
-        r.warm.call_p50_ms,
-        r.warm.call_p99_ms
-    );
-    println!("{}", path.display());
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-fn measure(
-    model_path: &Path,
-    device: &str,
-    precision: &str,
-    numerics_name: &str,
-    numerics: Numerics,
-    weights: &[&str],
-    file: String,
-    corpus_bytes: &[u8],
-    test: &[Sentence],
-    per_call: u32,
-    rounds: u32,
-    cpus: Option<&Cpus>,
-    recorded_at: String,
-    provenance: impl FnOnce() -> Result<git::Provenance>,
-) -> Result<TagRecord> {
     let words: usize = test.iter().map(|s| s.words.len()).sum();
     let all: Vec<&Sentence> = test.iter().collect();
     let rt = Runtime::create()?;
@@ -178,7 +116,7 @@ fn measure(
     let mut clock = crate::gpu_clock::Window::new(&backend, 1);
 
     // Cold: the first pass of a tagger loaded just before it.
-    let (model, source_sha256, bundle_sha256, weights_name) = load(model_path, weights)?;
+    let (model, source_sha256, bundle_sha256, weights_name) = load(&model_path, weights)?;
     let tagger = BilstmPosTagger::with_numerics(model, numerics).map_err(|e| format!("{numerics:?}: {e}"))?;
     clock.before_timed();
     let (cold_secs, cold_calls) = pass(&tagger, &all, per_call as usize)?;
@@ -193,14 +131,17 @@ fn measure(
     let cold = speed(&[cold_secs], cold_calls, words);
     let warm = speed(&passes, calls, words);
     let mut correct = 0u32;
-    for s in test {
+    for s in &test {
         let tags = tagger.tag(&s.words).map_err(|e| e.to_string())?;
         correct += tags.iter().zip(&s.tags).filter(|(a, b)| a == b).count() as u32;
     }
 
-    let after = provenance()?;
+    let after = git::provenance(&repo)?;
+    if after != before {
+        return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));
+    }
     let model_ref = tagger.model().model_ref();
-    Ok(TagRecord {
+    let r = TagRecord {
         record_version: super::TAG_RECORD_VERSION,
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: field(&d.name), os: std::env::consts::OS.into() },
@@ -221,7 +162,7 @@ fn measure(
             pushed_to: after.pushed_to.clone(),
             settings: Vec::new(),
         },
-        procedure: match cpus {
+        procedure: match &cpus {
             Some(c) => format!("the tool ran pinned to CPUs {}, the tagger on one thread", c.list),
             None => "the tool ran unpinned, the tagger on one thread".into(),
         },
@@ -229,7 +170,7 @@ fn measure(
             "cargo run --release -p turbo-bench --features postag -- tag --model <{}> --corpus <dir>/{file} --device \
              {device} --precision {precision} --sentences-per-call {per_call} --rounds {rounds}{}",
             if bundle_sha256.is_empty() { "model" } else { "bundle" },
-            cpus.map_or(String::new(), |c| format!(" --cpus {}", c.list))
+            cpus.as_ref().map_or(String::new(), |c| format!(" --cpus {}", c.list))
         ),
         model: TagModel {
             id: model_ref.id.to_string(),
@@ -241,16 +182,32 @@ fn measure(
             tags: tagger.model().tags().len() as u32,
         },
         tier: Tier {
-            device: device.to_owned(),
-            precision: precision.to_owned(),
+            device,
+            precision,
             numerics: numerics_name.into(),
             config_hash: format!("{:016x}", tagger.config_hash()),
         },
-        corpus: Treebank { file, sha256: sha256_hex(corpus_bytes), sentences: test.len() as u32, words: words as u32 },
+        corpus: Treebank { file, sha256: sha256_hex(&corpus_bytes), sentences: test.len() as u32, words: words as u32 },
         sentences_per_call: per_call,
         rounds,
         correct,
         cold,
         warm,
-    })
+    };
+    let dir = out.unwrap_or_else(|| Path::new(&after.top).join(TAG_DIR));
+    let path = super::write(&r, &dir)?;
+    eprintln!(
+        "{} {}: {correct}/{words} correct; cold {:.0} words/s (p50 {:.3} ms, p99 {:.3} ms); warm {:.0} words/s (p50 \
+         {:.3} ms, p99 {:.3} ms)",
+        r.tier.device,
+        r.tier.precision,
+        r.cold.words_per_second,
+        r.cold.call_p50_ms,
+        r.cold.call_p99_ms,
+        r.warm.words_per_second,
+        r.warm.call_p50_ms,
+        r.warm.call_p99_ms
+    );
+    println!("{}", path.display());
+    Ok(())
 }

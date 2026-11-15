@@ -18,46 +18,20 @@ const LEVELZERO: &str = "levelzero";
 /// levelzero backend can list is one of these.
 const INTEL: &str = "0x8086";
 
-#[cfg(test)]
-type TestReader = Box<dyn FnMut(&str) -> Option<ClockReading>>;
-
-#[cfg(test)]
-std::thread_local! {
-    static TEST_READER: std::cell::RefCell<Option<TestReader>> = const { std::cell::RefCell::new(None) };
-}
-
-/// Override `read` on the current thread while `f` runs, so builder tests
-/// can check `device.clock` and where around the timed loop it is sampled.
-#[cfg(test)]
-pub(crate) fn with_test_reader<T>(
-    reader: impl FnMut(&str) -> Option<ClockReading> + 'static,
-    f: impl FnOnce() -> T,
-) -> T {
-    struct Reset;
-    impl Drop for Reset {
-        fn drop(&mut self) {
-            TEST_READER.with(|slot| *slot.borrow_mut() = None);
-        }
-    }
-    TEST_READER.with(|slot| *slot.borrow_mut() = Some(Box::new(reader)));
-    let _reset = Reset;
-    f()
-}
-
 /// The clock of the measured GPU, for `backend`; None for any other
 /// backend or off Linux. The files do not say which device was measured,
 /// so the reading is taken only when the machine has exactly one Intel GPU
 /// and that GPU has the xe frequency files. With a second Intel GPU, under
 /// xe or i915, or one GPU without the files, there is no reading.
 pub fn read(backend: &str) -> Option<ClockReading> {
-    #[cfg(test)]
-    if let Some(out) = TEST_READER.with(|slot| slot.borrow_mut().as_mut().map(|r| r(backend))) {
-        return out;
-    }
+    read_from(backend, Path::new(DRM))
+}
+
+fn read_from(backend: &str, drm: &Path) -> Option<ClockReading> {
     if backend != LEVELZERO || !cfg!(target_os = "linux") {
         return None;
     }
-    xe_freq_dir(Path::new(DRM)).as_deref().and_then(reading)
+    xe_freq_dir(drm).as_deref().and_then(reading)
 }
 
 /// Pair the readings taken before the first timed run and after the last
@@ -71,6 +45,7 @@ pub fn span(before: Option<ClockReading>, after: Option<ClockReading>) -> Option
 /// and `after_timed` reads once after the last timed loop.
 pub(crate) struct Window {
     backend: String,
+    drm: PathBuf,
     remaining: usize,
     started: bool,
     before: Option<ClockReading>,
@@ -79,7 +54,19 @@ pub(crate) struct Window {
 
 impl Window {
     pub(crate) fn new(backend: impl Into<String>, steps: usize) -> Self {
-        Self { backend: backend.into(), remaining: steps, started: false, before: None, after: None }
+        Self {
+            backend: backend.into(),
+            drm: PathBuf::from(DRM),
+            remaining: steps,
+            started: false,
+            before: None,
+            after: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_drm(backend: impl Into<String>, steps: usize, drm: impl Into<PathBuf>) -> Self {
+        Self { backend: backend.into(), drm: drm.into(), remaining: steps, started: false, before: None, after: None }
     }
 
     pub(crate) fn none() -> Self {
@@ -89,7 +76,7 @@ impl Window {
     pub(crate) fn before_timed(&mut self) {
         if !self.started && self.remaining > 0 {
             self.started = true;
-            self.before = read(&self.backend);
+            self.before = read_from(&self.backend, &self.drm);
         }
     }
 
@@ -97,7 +84,7 @@ impl Window {
         if self.remaining > 0 {
             self.remaining -= 1;
             if self.remaining == 0 {
-                self.after = read(&self.backend);
+                self.after = read_from(&self.backend, &self.drm);
             }
         }
     }
@@ -216,30 +203,35 @@ mod tests {
         assert_eq!(span(Some(b), None), None);
         assert_eq!(span(None, Some(a)), None);
 
-        let log = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-        let log_r = std::rc::Rc::clone(&log);
-        let readings = std::cell::Cell::new(0u32);
-        let clock = with_test_reader(
-            move |backend| {
-                let n = readings.get();
-                readings.set(n + 1);
-                log_r.borrow_mut().push(format!("read:{backend}:{n}"));
-                Some(if n == 0 { b } else { a })
-            },
-            || {
-                let mut w = Window::new("levelzero", 2);
-                log.borrow_mut().push("warm-0".into());
-                w.before_timed();
-                log.borrow_mut().push("timed-0".into());
-                w.after_timed();
-                log.borrow_mut().push("warm-1".into());
-                w.before_timed();
-                log.borrow_mut().push("timed-1".into());
-                w.after_timed();
-                w.finish()
-            },
-        );
-        assert_eq!(clock, Some(GpuClock { before: b, after: a }));
-        assert_eq!(*log.borrow(), ["warm-0", "read:levelzero:0", "timed-0", "warm-1", "timed-1", "read:levelzero:1"]);
+        let drm = scratch("window");
+        write_card(&drm, "card0", INTEL, Some(["2200", "2200", "0"]));
+        let act = drm.join("card0").join(FREQ).join("act_freq");
+
+        assert_eq!(read_from("cpu", &drm), None);
+        let mut w = Window::with_drm("levelzero", 2, &drm);
+        w.before_timed();
+        // Mutating act_freq between the first and last timed steps must not
+        // show up in `before` or `after` if intermediate calls do not read.
+        std::fs::write(&act, "9999\n").unwrap();
+        w.after_timed();
+        w.before_timed();
+        std::fs::write(&act, "2200\n").unwrap();
+        w.after_timed();
+        let clock = w.finish();
+        if cfg!(target_os = "linux") {
+            assert_eq!(clock, Some(GpuClock { before: b, after: a }));
+        } else {
+            assert_eq!(clock, None);
+        }
+
+        // An unreadable frequency at the end yields None for the whole span.
+        std::fs::write(&act, "idle\n").unwrap();
+        let mut incomplete = Window::with_drm("levelzero", 1, &drm);
+        std::fs::write(&act, "0\n").unwrap();
+        incomplete.before_timed();
+        std::fs::write(&act, "idle\n").unwrap();
+        incomplete.after_timed();
+        assert_eq!(incomplete.finish(), None);
+        std::fs::remove_dir_all(&drm).unwrap();
     }
 }

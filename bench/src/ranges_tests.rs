@@ -84,40 +84,20 @@ fn the_three_ways_run_on_the_small_bert() {
 }
 
 #[test]
-fn ranges_reads_gpu_clock_outside_timed_rounds() {
-    use turbo::record::{ClockReading, GpuClock};
-
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 0 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2150 };
-    let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let events_r = std::rc::Rc::clone(&events);
-    let calls = std::cell::Cell::new(0u32);
-    let clock = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let n = calls.get();
-            calls.set(n + 1);
-            events_r.borrow_mut().push(format!("clock:{backend}:{n}"));
-            Some(if n == 0 { before } else { after })
-        },
-        || {
-            let mut w = crate::gpu_clock::Window::new("levelzero", 1);
-            let mut a = || {
-                events.borrow_mut().push("run-a".into());
-                Ok(())
-            };
-            let mut b = || {
-                events.borrow_mut().push("run-b".into());
-                Ok(())
-            };
-            time(1, 2, &mut w, &mut [(1, &mut a), (1, &mut b)]).unwrap();
-            w.finish()
-        },
-    );
-    assert_eq!(clock, Some(GpuClock { before, after }));
-    assert_eq!(
-        *events.borrow(),
-        ["run-a", "run-b", "clock:levelzero:0", "run-a", "run-b", "run-b", "run-a", "clock:levelzero:1"]
-    );
+fn ranges_cpu_records_no_gpu_clock_and_alternates_rounds() {
+    let events = std::cell::RefCell::new(Vec::new());
+    let mut w = crate::gpu_clock::Window::none();
+    let mut a = || {
+        events.borrow_mut().push("run-a");
+        Ok(())
+    };
+    let mut b = || {
+        events.borrow_mut().push("run-b");
+        Ok(())
+    };
+    time(1, 2, &mut w, &mut [(1, &mut a), (1, &mut b)]).unwrap();
+    assert_eq!(w.finish(), None);
+    assert_eq!(*events.borrow(), ["run-a", "run-b", "run-a", "run-b", "run-b", "run-a"]);
 
     let plan = RangePlan {
         bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"),
@@ -130,28 +110,7 @@ fn ranges_reads_gpu_clock_outside_timed_rounds() {
         iterations: 2,
     };
     let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let r = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(r.device.clock, Some(GpuClock { before, after }));
+    let r = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+    assert_eq!(r.device.clock, None);
     check(&r).unwrap();
-
-    let calls = std::cell::Cell::new(0u32);
-    let missing = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(missing.device.clock, None);
 }

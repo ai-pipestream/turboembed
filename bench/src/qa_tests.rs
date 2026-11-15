@@ -1,7 +1,6 @@
 use serde_json::{Value, json};
 use turbo::TURBO_PRECISION_MODEL;
 use turbo::bundle::sha256_hex;
-use turbo::record::{ClockReading, GpuClock};
 
 use super::*;
 
@@ -111,32 +110,5 @@ fn qa_measures_bins_and_carries_gpu_clock_across_active_bins() {
     assert_eq!(cpu_record.bins.len(), 2);
     assert_eq!(cpu_record.device.clock, None);
     check(&cpu_record).unwrap();
-
-    let before = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2200 };
-    let after = ClockReading { min_mhz: 2200, max_mhz: 2200, act_mhz: 2100 };
-    let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-    let seen_r = std::rc::Rc::clone(&seen);
-    let clocked = crate::gpu_clock::with_test_reader(
-        move |backend| {
-            let mut s = seen_r.borrow_mut();
-            s.push(backend.to_owned());
-            Some(if s.len() == 1 { before } else { after })
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(*seen.borrow(), ["cpu", "cpu"]);
-    assert_eq!(clocked.device.clock, Some(GpuClock { before, after }));
-    check(&clocked).unwrap();
-
-    let calls = std::cell::Cell::new(0u32);
-    let incomplete = crate::gpu_clock::with_test_reader(
-        move |_| {
-            let n = calls.get();
-            calls.set(n + 1);
-            (n == 0).then_some(before)
-        },
-        || measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap(),
-    );
-    assert_eq!(incomplete.device.clock, None);
     std::fs::remove_dir_all(&scratch).unwrap();
 }
