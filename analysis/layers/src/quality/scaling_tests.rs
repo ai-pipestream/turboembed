@@ -127,3 +127,75 @@ fn rescanning_tags_per_verb_is_caught() {
 fn rescanning_spans_per_verb_is_caught() {
     assert_caught("span", &work_with(|cx| for_each_verb_rescan(cx, |v, t| cx.span(t).end <= cx.span(v).start)));
 }
+
+#[test]
+fn rescanning_gaps_per_verb_is_caught() {
+    assert_caught(
+        "gap_after",
+        &work_with(|cx| for_each_verb_rescan(cx, |_, t| t + 1 < cx.range.end.get() && cx.gap_after(t) == " ")),
+    );
+}
+
+#[test]
+fn rescanning_lemmas_and_morphology_per_verb_is_caught() {
+    assert_caught("lemma_str", &work_with(|cx| for_each_verb_rescan(cx, |_, t| cx.lemma_str(t).is_some())));
+    assert_caught("morph_str", &work_with(|cx| for_each_verb_rescan(cx, |_, t| cx.morph_str(t).is_some())));
+}
+
+#[test]
+fn walking_the_root_child_list_per_verb_is_caught() {
+    // Token 1 heads every other verb, so its child list grows with the sentence.
+    assert_caught(
+        "dep_children",
+        &work_with(|cx| {
+            let (start, end) = (cx.range.start.get(), cx.range.end.get());
+            let seen: usize = (start..end).filter(|v| v % 3 == 1).map(|_| cx.dep_children(1).len()).sum();
+            assert!(seen > 0);
+        }),
+    );
+}
+
+#[test]
+fn index_build_counts_each_head_it_visits() {
+    let checker = GrammarChecker::new();
+    let f = fixture(250);
+    let n = f.tokens.len();
+    let range = IxRange::new(0, n as u32);
+    let with_deps = SentCtx::new(&checker, &f.text, &f.tokens, &f.pos, None, Some(&f.deps), None, range);
+    assert_eq!(with_deps.work(), GrammarCheckWork { token_reads: 0, dep_lookups: n });
+    let without = SentCtx::new(&checker, &f.text, &f.tokens, &f.pos, None, None, None, range);
+    assert_eq!(without.work(), GrammarCheckWork::default());
+}
+
+#[test]
+fn indexing_the_whole_document_for_every_sentence_is_caught() {
+    // What a per-sentence index build would cost if it walked every head in
+    // the document instead of only the heads in its own sentence.
+    let checker = GrammarChecker::new();
+    let samples: Vec<_> = CLAUSE_COUNTS
+        .iter()
+        .map(|&clauses| {
+            let f = fixture(clauses);
+            let whole = IxRange::new(0, f.tokens.len() as u32);
+            let mut work = GrammarCheckWork::default();
+            for _sentence in 0..clauses {
+                work.add(SentCtx::new(&checker, &f.text, &f.tokens, &f.pos, None, Some(&f.deps), None, whole).work());
+            }
+            (clauses * 3, work)
+        })
+        .collect();
+    assert_caught("index build", &samples);
+}
+
+#[test]
+fn check_rejects_samples_that_cannot_show_scaling() {
+    let w = GrammarCheckWork { token_reads: 10, dep_lookups: 10 };
+    assert!(GrammarCheckWork::check_linear_scaling(&[(100, w)]).is_err());
+    assert!(GrammarCheckWork::check_linear_scaling(&[(100, w), (300, w)]).is_err());
+    let doubled = GrammarCheckWork { token_reads: 20, dep_lookups: 20 };
+    GrammarCheckWork::check_linear_scaling(&[(100, w), (200, doubled)]).unwrap();
+    // One counter flat, the other quadratic: the flat one must not hide it.
+    let skewed = GrammarCheckWork { token_reads: 20, dep_lookups: 40 };
+    let err = GrammarCheckWork::check_linear_scaling(&[(100, w), (200, skewed)]).unwrap_err();
+    assert!(err.contains("dep_lookups"), "{err}");
+}

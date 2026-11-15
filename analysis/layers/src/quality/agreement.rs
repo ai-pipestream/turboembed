@@ -147,7 +147,6 @@ fn check_sva(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
     let start = cx.range.start.get();
     let end = cx.range.end.get();
     for v in start..end {
-        cx.record_tokens_visited(1);
         let v_surf = cx.surface(v);
         let v_pos = cx.pos_str(v);
         let v_lower = v_surf.to_ascii_lowercase();
@@ -200,7 +199,6 @@ fn is_governed_by_preceding_aux_or_to(cx: &SentCtx<'_>, v: usize) -> bool {
     let mut k = v;
     while k > start && v - k < 3 {
         k -= 1;
-        cx.record_window_scans(1);
         let prev_lower = cx.surface(k).to_ascii_lowercase();
         if is_intervening_adverb(cx.surface(k), cx.pos_str(k)) {
             continue;
@@ -331,7 +329,6 @@ fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Opt
     }
     let min_c = *conjuncts.iter().min().unwrap();
     let max_c = *conjuncts.iter().max().unwrap();
-    cx.record_window_scans(max_c + 1 - min_c);
     if (min_c..=max_c).any(|i| matches!(cx.surface(i).to_ascii_lowercase().as_str(), "or" | "nor")) {
         has_disj = true;
     }
