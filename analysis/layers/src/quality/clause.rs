@@ -4,13 +4,14 @@
 
 use turbo_analysis::Span;
 
-use super::agreement::{SVA_AUX_VERBS, SentCtx, is_intervening_adverb, is_preposition};
+use super::agreement::{SVA_AUX_VERBS, is_intervening_adverb, is_preposition};
 use super::grammar::{GrammarCategory, GrammarDiagnostic};
 use super::morphology::{
     NounNumber, classify_noun_number, inflected_verb_to_base, irregular_verb_base, match_case,
     nominative_to_objective_pronoun, pluralize_noun, singularize_noun,
 };
 use super::phonetics::{replacement_article, requires_an};
+use super::sent_ctx::SentCtx;
 
 const PARTITIVE_DETERMINERS: &[&str] = &["the", "these", "those", "my", "our", "their", "his", "her", "its"];
 
@@ -67,6 +68,7 @@ pub(crate) fn check_articles(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>)
     let start = cx.range.start.get();
     let end = cx.range.end.get();
     for i in start..end.saturating_sub(1) {
+        cx.record_tokens_visited(1);
         let surf = cx.surface(i);
         if !matches!(surf, "a" | "A" | "an" | "An" | "AN") {
             continue;
@@ -102,6 +104,7 @@ pub(crate) fn check_repetitions(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
     let end = cx.range.end.get();
     let mut i = start;
     while i + 1 < end {
+        cx.record_tokens_visited(1);
         let s1 = cx.surface(i);
         let s2 = cx.surface(i + 1);
         if !s1.is_empty()
@@ -133,6 +136,7 @@ pub(crate) fn check_determiners(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
     let end = cx.range.end.get();
 
     for i in start..end.saturating_sub(3) {
+        cx.record_tokens_visited(1);
         if cx.surface(i).eq_ignore_ascii_case("one")
             && cx.surface(i + 1).eq_ignore_ascii_case("of")
             && PARTITIVE_DETERMINERS.contains(&cx.surface(i + 2).to_ascii_lowercase().as_str())
@@ -151,6 +155,7 @@ pub(crate) fn check_determiners(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
     }
 
     for i in start..end.saturating_sub(1) {
+        cx.record_tokens_visited(1);
         let det_surf = cx.surface(i);
         let det_lower = det_surf.to_ascii_lowercase();
         if !matches!(
@@ -272,6 +277,7 @@ pub(crate) fn check_auxiliaries(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
     let start = cx.range.start.get();
     let end = cx.range.end.get();
     for i in start..end.saturating_sub(1) {
+        cx.record_tokens_visited(1);
         let i_pos = cx.pos_str(i);
         if matches!(i_pos, "NN" | "NNS" | "NNP" | "NNPS" | "NOUN" | "PROPN") {
             continue;
@@ -292,7 +298,7 @@ pub(crate) fn check_auxiliaries(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
         if j >= end {
             continue;
         }
-        if is_inf_to && cx.deps.is_some() && !(cx.dep_rel(i) == Some("mark") && cx.dep_head(i) == Some(j)) {
+        if is_inf_to && cx.has_deps() && !(cx.dep_rel(i) == Some("mark") && cx.dep_head(i) == Some(j)) {
             continue;
         }
         let v_surf = cx.surface(j);
@@ -355,6 +361,7 @@ pub(crate) fn check_case_government(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagn
     let start = cx.range.start.get();
     let end = cx.range.end.get();
     for i in start..end.saturating_sub(1) {
+        cx.record_tokens_visited(1);
         let surf = cx.surface(i);
         if matches!(surf.to_ascii_lowercase().as_str(), "than" | "as") {
             continue;
@@ -418,6 +425,7 @@ pub(crate) fn check_punctuation(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
     let end = cx.range.end.get();
     let mut i = start;
     while i < end {
+        cx.record_tokens_visited(1);
         let surf = cx.surface(i);
         if matches!(surf, ".." | ",," | ";;" | "!!" | "??") {
             let single = &surf[..1];

@@ -12,6 +12,7 @@ pub(crate) mod grammar;
 mod morphology;
 mod overlap;
 mod phonetics;
+mod sent_ctx;
 mod work;
 pub use gates::{QualityPredicate, lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on};
 pub use grammar::{

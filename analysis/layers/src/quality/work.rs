@@ -21,10 +21,11 @@ pub struct GrammarCheckWork {
 }
 
 impl GrammarCheckWork {
-    /// Total deterministic work units across token passes, dependency lookups,
-    /// and local window scans.
+    /// Total scaling-sensitive work units (`dep_lookups + window_scans`),
+    /// excluding linear `tokens_visited` so token-pass counts cannot dilute
+    /// superlinear growth in dependency lookups or window scans.
     pub fn total_units(self) -> usize {
-        self.tokens_visited.saturating_add(self.dep_lookups).saturating_add(self.window_scans)
+        self.dep_lookups.saturating_add(self.window_scans)
     }
 
     pub(crate) fn add(&mut self, other: Self) {

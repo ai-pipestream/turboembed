@@ -1,9 +1,7 @@
 //! Syntactic and morphological agreement rules (`SVA-001` and `DET-001`) and
 //! sentence rule orchestration.
 
-use std::cell::Cell;
-
-use turbo_analysis::{Ix, IxRange, Layer, Span};
+use turbo_analysis::{Ix, IxRange, Layer};
 
 use crate::{Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
 
@@ -13,6 +11,7 @@ use super::clause::{
 };
 use super::grammar::{GrammarCategory, GrammarChecker, GrammarDiagnostic};
 use super::morphology::{SubjectPersonNumber, check_and_repair_sva_verb, classify_subject_token};
+use super::sent_ctx::SentCtx;
 use super::work::GrammarCheckWork;
 
 const INTERVENING_ADVERBS: &[&str] = &[
@@ -75,98 +74,6 @@ pub(crate) const SVA_AUX_VERBS: &[&str] = &[
     "haven't", "doesn't", "don't",
 ];
 
-pub(crate) struct SentCtx<'a> {
-    pub(crate) checker: &'a GrammarChecker,
-    pub(crate) text: &'a str,
-    pub(crate) tokens: &'a Tokens,
-    pub(crate) pos: &'a PosTags,
-    pub(crate) lemmas: Option<&'a Lemmas>,
-    pub(crate) deps: Option<&'a Dependencies>,
-    pub(crate) morph: Option<&'a MorphFeatures<Tokens>>,
-    pub(crate) dep_children: Vec<Vec<usize>>,
-    pub(crate) range: IxRange<Tokens>,
-    pub(crate) work: Cell<GrammarCheckWork>,
-}
-
-impl<'a> SentCtx<'a> {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        checker: &'a GrammarChecker,
-        text: &'a str,
-        tokens: &'a Tokens,
-        pos: &'a PosTags,
-        lemmas: Option<&'a Lemmas>,
-        deps: Option<&'a Dependencies>,
-        morph: Option<&'a MorphFeatures<Tokens>>,
-        range: IxRange<Tokens>,
-    ) -> Self {
-        let start = range.start.get();
-        let end = range.end.get();
-        let mut dep_children = Vec::new();
-        let mut work = GrammarCheckWork::default();
-        if let Some(d) = deps {
-            dep_children.resize_with(end - start, Vec::new);
-            work.dep_lookups = end - start;
-            for (t, head) in d.head.iter().enumerate().take(end).skip(start) {
-                if let Some(h) = head.map(Ix::get)
-                    && (start..end).contains(&h)
-                {
-                    dep_children[h - start].push(t);
-                }
-            }
-        }
-        Self { checker, text, tokens, pos, lemmas, deps, morph, dep_children, range, work: Cell::new(work) }
-    }
-
-    pub(crate) fn record_dep_lookups(&self, n: usize) {
-        let mut w = self.work.get();
-        w.dep_lookups = w.dep_lookups.saturating_add(n);
-        self.work.set(w);
-    }
-
-    pub(crate) fn record_window_scans(&self, n: usize) {
-        let mut w = self.work.get();
-        w.window_scans = w.window_scans.saturating_add(n);
-        self.work.set(w);
-    }
-
-    pub(crate) fn record_tokens_visited(&self, n: usize) {
-        let mut w = self.work.get();
-        w.tokens_visited = w.tokens_visited.saturating_add(n);
-        self.work.set(w);
-    }
-
-    pub(crate) fn span(&self, i: usize) -> Span {
-        self.tokens.spans.get(Ix::new(i as u32))
-    }
-
-    pub(crate) fn surface(&self, i: usize) -> &'a str {
-        &self.text[self.span(i).range()]
-    }
-
-    pub(crate) fn pos_str(&self, i: usize) -> &'a str {
-        self.pos.tagset.label(self.pos.tags[i])
-    }
-
-    pub(crate) fn lemma_str(&self, i: usize) -> Option<&'a str> {
-        self.lemmas.map(|l| l.lemma.get(i))
-    }
-
-    pub(crate) fn morph_str(&self, i: usize) -> Option<&'a str> {
-        self.morph.map(|m| m.feats.get(i))
-    }
-
-    pub(crate) fn dep_head(&self, i: usize) -> Option<usize> {
-        self.record_dep_lookups(1);
-        self.deps.and_then(|d| d.head[i].map(Ix::get))
-    }
-
-    pub(crate) fn dep_rel(&self, i: usize) -> Option<&'a str> {
-        self.record_dep_lookups(1);
-        self.deps.map(|d| d.relations.label(d.relation[i]))
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_sentence_rules(
     checker: &GrammarChecker,
@@ -185,7 +92,7 @@ pub(crate) fn check_sentence_rules(
         let range = IxRange::new(0, tokens.len() as u32);
         let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
         run_on_sentence(&cx, &mut out);
-        work.add(cx.work.get());
+        work.add(cx.work());
         return (out, work);
     }
     for s_ix in 0..sent_count {
@@ -193,40 +100,32 @@ pub(crate) fn check_sentence_rules(
         if !range.is_empty() {
             let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
             run_on_sentence(&cx, &mut out);
-            work.add(cx.work.get());
+            work.add(cx.work());
         }
     }
     (out, work)
 }
 
 fn run_on_sentence(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
-    let n = cx.range.end.get() - cx.range.start.get();
     if cx.checker.check_article_phonetics {
-        cx.record_tokens_visited(n);
         check_articles(cx, out);
     }
     if cx.checker.check_repeated_tokens {
-        cx.record_tokens_visited(n);
         check_repetitions(cx, out);
     }
     if cx.checker.check_auxiliary_verb_form {
-        cx.record_tokens_visited(n);
         check_auxiliaries(cx, out);
     }
     if cx.checker.check_determiner_noun_agreement {
-        cx.record_tokens_visited(n);
         check_determiners(cx, out);
     }
     if cx.checker.check_subject_verb_agreement {
-        cx.record_tokens_visited(n);
         check_sva(cx, out);
     }
     if cx.checker.check_case_government {
-        cx.record_tokens_visited(n);
         check_case_government(cx, out);
     }
     if cx.checker.check_clause_punctuation {
-        cx.record_tokens_visited(n);
         check_punctuation(cx, out);
     }
 }
@@ -248,6 +147,7 @@ fn check_sva(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
     let start = cx.range.start.get();
     let end = cx.range.end.get();
     for v in start..end {
+        cx.record_tokens_visited(1);
         let v_surf = cx.surface(v);
         let v_pos = cx.pos_str(v);
         let v_lower = v_surf.to_ascii_lowercase();
@@ -316,14 +216,13 @@ fn is_governed_by_preceding_aux_or_to(cx: &SentCtx<'_>, v: usize) -> bool {
 fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectPersonNumber)> {
     let start = cx.range.start.get();
     let end = cx.range.end.get();
-    if cx.deps.is_some() {
+    if cx.has_deps() {
         let head_for_subj = match cx.dep_rel(v) {
             Some("cop" | "aux" | "aux:pass" | "auxpass") => cx.dep_head(v).unwrap_or(v),
             _ => v,
         };
         if (start..end).contains(&head_for_subj) {
-            let children = &cx.dep_children[head_for_subj - start];
-            cx.record_dep_lookups(children.len());
+            let children = cx.dep_children(head_for_subj);
             if children.iter().any(|&t| cx.dep_rel(t) == Some("expl") || cx.surface(t).eq_ignore_ascii_case("there")) {
                 return None;
             }
@@ -408,7 +307,7 @@ fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Opt
     let mut has_and = false;
     let mut has_disj = false;
 
-    for &t in &cx.dep_children[eff_subj - start] {
+    for &t in cx.dep_children(eff_subj) {
         let low = cx.surface(t).to_ascii_lowercase();
         if matches!(low.as_str(), "or" | "nor" | "either" | "neither") {
             has_disj = true;
@@ -417,7 +316,7 @@ fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Opt
         }
         if cx.dep_rel(t) == Some("conj") && (start..end).contains(&t) {
             conjuncts.push(t);
-            for &ct in &cx.dep_children[t - start] {
+            for &ct in cx.dep_children(t) {
                 let clow = cx.surface(ct).to_ascii_lowercase();
                 if matches!(clow.as_str(), "or" | "nor" | "either" | "neither") {
                     has_disj = true;
@@ -492,4 +391,99 @@ fn is_relative_marker(cx: &SentCtx<'_>, i: usize) -> bool {
 
 fn is_relative_pronoun(surface: &str, pos_tag: &str) -> bool {
     matches!(pos_tag, "WP" | "WDT") || matches!(surface.to_ascii_lowercase().as_str(), "who" | "whom" | "which")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Document, Span, Spans, TagSet, ViewId};
+
+    fn check_linear_scaling(work_by_size: &[(usize, GrammarCheckWork)]) -> Result<(), String> {
+        for pair in work_by_size.windows(2) {
+            let (n_prev, w_prev) = pair[0];
+            let (n_curr, w_curr) = pair[1];
+            if w_curr.dep_lookups > w_prev.dep_lookups.saturating_mul(3) {
+                return Err(format!(
+                    "2x token increase ({n_prev} -> {n_curr}) exceeded 3x in dep_lookups: {} -> {}",
+                    w_prev.dep_lookups, w_curr.dep_lookups
+                ));
+            }
+            if w_curr.total_units() > w_prev.total_units().saturating_mul(3) {
+                return Err(format!(
+                    "2x token increase ({n_prev} -> {n_curr}) exceeded 3x in total_units: {} -> {}",
+                    w_prev.total_units(),
+                    w_curr.total_units()
+                ));
+            }
+        }
+        let (n_first, w_first) = work_by_size[0];
+        let (n_last, w_last) = *work_by_size.last().unwrap();
+        if w_last.dep_lookups > w_first.dep_lookups.saturating_mul(10) {
+            return Err(format!(
+                "8x token increase ({n_first} -> {n_last}) exceeded 10x in dep_lookups: {} -> {}",
+                w_first.dep_lookups, w_last.dep_lookups
+            ));
+        }
+        if w_last.total_units() > w_first.total_units().saturating_mul(10) {
+            return Err(format!(
+                "8x token increase ({n_first} -> {n_last}) exceeded 10x in total_units: {} -> {}",
+                w_first.total_units(),
+                w_last.total_units()
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn quadratic_dep_lookup_fails_scaling_assertion() {
+        let checker = GrammarChecker::new();
+        let mut work_by_size = Vec::new();
+        for clauses in [250usize, 500, 1000, 2000] {
+            let text = std::iter::repeat_n("They work and ", clauses).collect::<String>();
+            let _doc = Document::new(text.clone());
+            let mut spans = Spans::new(ViewId::SOURCE);
+            let tagset = TagSet::new("penn", &["PRP", "VBP", "CC"]);
+            let relations = TagSet::new("ud", &["nsubj", "root", "cc", "conj"]);
+            let mut tags = Vec::new();
+            let mut head = Vec::new();
+            let mut relation = Vec::new();
+            for k in 0..clauses {
+                for (offset, len, tag) in [(0, 4, "PRP"), (5, 4, "VBP"), (10, 3, "CC")] {
+                    spans.push(Span::new((k * 14 + offset) as u32, (k * 14 + offset + len) as u32));
+                    tags.push(tagset.tag(tag).unwrap());
+                }
+                head.extend([
+                    Some(Ix::new((3 * k + 1) as u32)),
+                    if k == 0 { None } else { Some(Ix::new(1)) },
+                    Some(Ix::new((3 * k + 1) as u32)),
+                ]);
+                relation.extend([
+                    relations.tag("nsubj").unwrap(),
+                    relations.tag(if k == 0 { "root" } else { "conj" }).unwrap(),
+                    relations.tag("cc").unwrap(),
+                ]);
+            }
+            let tokens = Tokens { spans, sentence: None };
+            let pos = PosTags { tagset, tags, prob: None };
+            let deps = Dependencies { head, relation, relations };
+            let range = IxRange::new(0, tokens.len() as u32);
+            let cx = SentCtx::new(&checker, &text, &tokens, &pos, None, Some(&deps), None, range);
+
+            // Deliberately quadratic O(N^2) dependency scan per verb through SentCtx's counting accessor.
+            let start = cx.range.start.get();
+            let end = cx.range.end.get();
+            for v in start..end {
+                cx.record_tokens_visited(1);
+                if cx.pos_str(v) == "VBP" {
+                    let children_count = (start..end).filter(|&t| cx.dep_head(t) == Some(v)).count();
+                    assert!(children_count > 0);
+                }
+            }
+            work_by_size.push((clauses * 3, cx.work()));
+        }
+
+        let err = check_linear_scaling(&work_by_size)
+            .expect_err("quadratic dependency scan must fail linear scaling assertion");
+        assert!(err.contains("dep_lookups"), "unexpected failure message: {err}");
+    }
 }
