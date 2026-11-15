@@ -344,6 +344,9 @@ impl<A: SubwordPieces> Step for NormalizedSubwordsStep<A> {
 pub(super) struct NormalizedNameStep {
     pub(super) annotator: NameAnnotator,
     pub(super) norm_view: &'static str,
+    /// The `Entities` instance written: the default, or the place-name
+    /// instance when another step writes the default.
+    pub(super) instance: &'static str,
 }
 
 impl Step for NormalizedNameStep {
@@ -360,7 +363,7 @@ impl Step for NormalizedNameStep {
     }
 
     fn writes(&self) -> Vec<KeyId> {
-        vec![Key::<Entities>::DEFAULT.id()]
+        vec![Key::<Entities>::named(self.instance).id()]
     }
 
     fn anchors(&self) -> Vec<AnchorUse> {
@@ -397,7 +400,8 @@ impl Step for NormalizedNameStep {
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
         let view_id = Key::<View>::named(self.norm_view).id();
         let tok_id = Key::<Tokens>::DEFAULT.id();
-        store_single(out, Key::<Entities>::DEFAULT, &self.annotator, |_| vec![view_id, tok_id], docs, status);
+        let key = Key::<Entities>::named(self.instance);
+        store_single(out, key, &self.annotator, |_| vec![view_id, tok_id], docs, status);
     }
 }
 
