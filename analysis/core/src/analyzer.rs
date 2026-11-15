@@ -128,7 +128,12 @@ impl Analyzer {
             [] => Vec::new(),
             [one] => vec![self.steps[*one].compute(docs)],
             _ => std::thread::scope(|s| {
-                let running: Vec<_> = steps.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs))).collect();
+                let pooled = WorkerPool::in_worker_thread();
+                let compute = move |i: usize| {
+                    WorkerPool::inherit_worker_thread(pooled);
+                    self.steps[i].compute(docs)
+                };
+                let running: Vec<_> = steps.iter().map(|&i| s.spawn(move || compute(i))).collect();
                 running.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()
             }),
         }

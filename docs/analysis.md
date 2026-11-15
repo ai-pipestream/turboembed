@@ -213,7 +213,10 @@ inspected via `Analyzer::dag_plan()`, `predecessors()`, `dependents()`, and
   bit-identical layer outputs, `DocumentGraph` wire bytes, and per-document
   failure/panic isolation across `1`, `2`, `4`, and `8` worker threads. Nested
   `Analyzer::run` calls from inside a pool worker fall back to `run_staged` so
-  occupied workers never deadlock. `Analyzer::run_staged` retains the
+  occupied workers never deadlock, and the threads a pipeline spawns for
+  side-by-side steps while a pool worker waits on it (`run_staged`,
+  `run_incremental`, `run_progressive`) count as that worker, so a pipeline
+  nested any number of levels deep stays off the pool. `Analyzer::run_staged` retains the
   stage-barrier `std::thread::scope` baseline for head-to-head benchmarking.
 
 ### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)

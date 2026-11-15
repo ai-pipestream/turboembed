@@ -2,6 +2,7 @@
 //! [`WorkerPool`] worker threads (#2337).
 
 use std::marker::PhantomData;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::Duration;
@@ -53,6 +54,8 @@ define_layers!(
     Outer5 => "nested:outer-5",
     Outer6 => "nested:outer-6",
     Outer7 => "nested:outer-7",
+    Top0 => "nested:top-0",
+    Top1 => "nested:top-1",
 );
 
 struct InnerStep<W>(PhantomData<W>);
@@ -123,6 +126,73 @@ impl_outer_step!(Outer5, "nested:outer-step-5");
 impl_outer_step!(Outer6, "nested:outer-step-6");
 impl_outer_step!(Outer7, "nested:outer-step-7");
 
+/// The entry point a top step uses for the outer pipeline. Each one but
+/// `Run` computes side-by-side steps on threads of its own.
+#[derive(Clone, Copy, Debug)]
+enum Middle {
+    Run,
+    Incremental,
+    Progressive,
+}
+
+/// A step one level further out: it runs the eight-step outer pipeline,
+/// whose own steps each run the inner pipeline.
+struct TopStep<W> {
+    outer: Arc<Analyzer>,
+    how: Middle,
+    _marker: PhantomData<W>,
+}
+
+macro_rules! impl_top_step {
+    ($layer:ident, $id:expr) => {
+        impl Annotator for TopStep<$layer> {
+            const ID: &'static str = $id;
+            type Reads = (View,);
+            type Writes = ($layer,);
+            fn annotate(&self, (v,): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+                let mut docs = vec![Document::new(v.text())];
+                match self.how {
+                    Middle::Run => self.outer.run(&mut docs).into_iter().collect::<Result<(), Error>>()?,
+                    Middle::Incremental => {
+                        self.outer.run_incremental(&mut docs).into_iter().collect::<Result<Vec<_>, Error>>()?;
+                    }
+                    Middle::Progressive => self
+                        .outer
+                        .run_progressive(&mut docs, &AtomicBool::new(false), |_| {})
+                        .into_iter()
+                        .collect::<Result<(), Error>>()?,
+                }
+                assert!(docs[0].get::<Outer0>().is_some());
+                assert!(docs[0].get::<Outer7>().is_some());
+                Ok(($layer(Tag { view: v.id(), len: v.text().len() as u32 }),))
+            }
+        }
+    };
+}
+
+impl_top_step!(Top0, "nested:top-step-0");
+impl_top_step!(Top1, "nested:top-step-1");
+
+fn build_top(pool: Option<WorkerPool>, how: Middle) -> Analyzer {
+    let outer = Arc::new(build_outer(pool.clone()));
+    let mut builder = Analyzer::builder()
+        .add(TopStep::<Top0> { outer: Arc::clone(&outer), how, _marker: PhantomData })
+        .add(TopStep::<Top1> { outer, how, _marker: PhantomData });
+    if let Some(p) = pool {
+        builder = builder.worker_pool(p);
+    }
+    builder.build().unwrap()
+}
+
+fn run_top(top: &Analyzer) {
+    let mut docs = vec![Document::new("Top step runs outer steps that run inner steps.")];
+    for res in top.run(&mut docs) {
+        res.unwrap();
+    }
+    assert!(docs[0].get::<Top0>().is_some());
+    assert!(docs[0].get::<Top1>().is_some());
+}
+
 fn build_outer(pool: Option<WorkerPool>) -> Analyzer {
     let mut inner_builder = Analyzer::builder().add(InnerStep::<InnerA>::new()).add(InnerStep::<InnerB>::new());
     if let Some(p) = &pool {
@@ -177,4 +247,25 @@ fn nested_analyzer_run_across_eight_parallel_outer_steps_does_not_deadlock() {
         assert!(docs[0].get::<Outer0>().is_some());
         assert!(docs[0].get::<Outer7>().is_some());
     });
+}
+
+/// Three levels deep: a pool worker runs a top step, which runs the outer
+/// pipeline off the pool. Whichever entry point that is, it computes the
+/// eight outer steps on threads of its own, and each of them runs the inner
+/// pipeline. Those threads must count as pool work too, or the inner run
+/// queues on the pool whose workers are all waiting for it.
+#[test]
+fn pipeline_nested_three_deep_does_not_deadlock_through_any_entry_point() {
+    for how in [Middle::Run, Middle::Incremental, Middle::Progressive] {
+        let (tx, rx) = mpsc::channel();
+        thread::spawn(move || {
+            run_top(&build_top(Some(WorkerPool::new(1)), how));
+            for _ in 0..4 {
+                run_top(&build_top(None, how));
+            }
+            let _ = tx.send(());
+        });
+        rx.recv_timeout(Duration::from_secs(10))
+            .unwrap_or_else(|_| panic!("three-deep run through {how:?} deadlocked after 10s"));
+    }
 }

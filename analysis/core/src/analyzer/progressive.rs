@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Instant;
 
-use super::Analyzer;
+use super::{Analyzer, WorkerPool};
 use crate::doc::{Document, Status, View};
 use crate::error::Error;
 use crate::layer::KeyId;
@@ -159,6 +159,7 @@ impl Analyzer {
                         return;
                     }
                     let snapshot: Arc<[Document]> = Arc::from(docs.to_vec());
+                    let pooled = WorkerPool::in_worker_thread();
                     for i in to_spawn {
                         step_state[i] = 1;
                         *inflight += 1;
@@ -166,6 +167,7 @@ impl Analyzer {
                         let snap = Arc::clone(&snapshot);
                         let step = &*self.steps[i];
                         s.spawn(move || {
+                            WorkerPool::inherit_worker_thread(pooled);
                             let start = Instant::now();
                             let out = step.compute(&snap);
                             let duration_us = start.elapsed().as_micros() as u64;

@@ -154,8 +154,20 @@ impl WorkerPool {
         self.inner.state.cross_lane_dispatches.load(AtomicOrdering::Relaxed)
     }
 
+    /// Whether the current thread is a pool worker, or a thread this crate
+    /// spawned for a step while one was waiting on it.
     pub(crate) fn in_worker_thread() -> bool {
         IN_WORKER_POOL.with(Cell::get)
+    }
+
+    /// Marks a thread spawned to compute a step with the spawner's
+    /// [`WorkerPool::in_worker_thread`] value. A pool worker blocks until
+    /// that thread is done, so a pipeline run from it has to stay off the
+    /// pool exactly as one run from the worker itself.
+    pub(crate) fn inherit_worker_thread(inherited: bool) {
+        if inherited {
+            IN_WORKER_POOL.with(|flag| flag.set(true));
+        }
     }
 
     pub(crate) fn next_request_id(&self) -> u64 {
