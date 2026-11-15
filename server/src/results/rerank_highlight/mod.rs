@@ -5,6 +5,7 @@ mod highlight;
 mod validate;
 
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use turbo::{TURBO_DTYPE_F32, TURBO_TASK_RERANK, turbo_rerank_options, turbo_text, turbo_text_pair};
@@ -113,12 +114,13 @@ pub(super) fn to_wire_highlights(
 
 /// Executes calibrated cross-encoder reranking plus top-K semantic highlight
 /// attribution (`#2342`).
-pub(crate) fn rerank_and_highlight(
-    state: &State,
-    req: &RerankAndHighlightRequest,
+pub(crate) async fn rerank_and_highlight(
+    state: Arc<State>,
+    req: RerankAndHighlightRequest,
     priority: crate::priority::Priority,
-    deadline: &Deadline,
+    deadline: Deadline,
 ) -> Result<RerankAndHighlightResponse> {
+    let req = Arc::new(req);
     let offsets = OffsetMode::from_proto(req.offsets)?;
     let mode = RerankHighlightMode::try_from(req.highlight_mode)
         .map_err(|_| bad(format!("unknown RerankHighlightMode {}", req.highlight_mode)))?;
@@ -153,77 +155,85 @@ pub(crate) fn rerank_and_highlight(
         });
     }
 
-    let rerank_opts = turbo_rerank_options {
-        struct_size: std::mem::size_of::<turbo_rerank_options>() as u32,
-        query_tokens: req.query_tokens,
-        max_tokens: req.max_tokens,
-        stride: req.stride,
-    };
-
-    let _docs = rerank_loaded.metrics.track_docs(req.candidates.len(), Some(rerank_loaded.device));
-    let held = rerank_loaded.acquire(priority, deadline)?;
-    let slot = held.slot();
-    let max_batch = (slot.info.max_batch as usize).max(1);
-    if max_batch > MAX_RERANK_ITEMS as usize {
-        return Err(Failure::new(TURBO_E_CAPACITY, 0, "invalid session max_batch"));
-    }
-
-    let q_view = turbo_text { ptr: req.query.as_ptr().cast(), len: req.query.len() as u64 };
-    let mut logits = Vec::with_capacity(req.candidates.len());
-    for chunk in req.candidates.chunks(max_batch) {
-        crate::priority::check_before_exec(deadline, &rerank_loaded.metrics)?;
-        let pairs: Vec<turbo_text_pair> = chunk
-            .iter()
-            .map(|c| turbo_text_pair {
-                query: q_view,
-                passage: turbo_text { ptr: c.text.as_ptr().cast(), len: c.text.len() as u64 },
-            })
-            .collect();
-        slot.session.write_pairs(&pairs, &rerank_opts)?;
-        crate::priority::check_before_exec(deadline, &rerank_loaded.metrics)?;
-        rerank_loaded.metrics.record_batch_size(pairs.len());
-        state.stream.runs.fetch_add(1, Ordering::Relaxed);
-        let output = slot.session.run()?;
-        let (dim, dtype, bytes) = read_output(&output, pairs.len())?;
-        drop(output);
-        if dtype != TURBO_DTYPE_F32 || (dim != 1 && dim != 2) {
-            return Err(Failure::new(
-                TURBO_E_INTERNAL,
-                0,
-                format!("unexpected rerank output shape: dim={dim}, dtype={dtype}"),
-            ));
+    let held = rerank_loaded.acquire_async(priority, &deadline).await?;
+    let state_c = Arc::clone(&state);
+    let loaded_c = Arc::clone(&rerank_loaded);
+    let req_c = Arc::clone(&req);
+    let deadline_c = deadline.clone();
+    let mut results = tokio::task::spawn_blocking(move || {
+        let rerank_opts = turbo_rerank_options {
+            struct_size: std::mem::size_of::<turbo_rerank_options>() as u32,
+            query_tokens: req_c.query_tokens,
+            max_tokens: req_c.max_tokens,
+            stride: req_c.stride,
+        };
+        let _docs = loaded_c.metrics.track_docs(req_c.candidates.len(), Some(loaded_c.device));
+        let slot = held.slot();
+        let max_batch = (slot.info.max_batch as usize).max(1);
+        if max_batch > MAX_RERANK_ITEMS as usize {
+            return Err(Failure::new(TURBO_E_CAPACITY, 0, "invalid session max_batch"));
         }
-        let vals = f32s(&bytes);
-        if dim == 1 {
-            logits.extend_from_slice(&vals);
-        } else {
-            for &[neg, pos] in vals.as_chunks::<2>().0 {
-                logits.push(pos - neg);
+
+        let q_view = turbo_text { ptr: req_c.query.as_ptr().cast(), len: req_c.query.len() as u64 };
+        let mut logits = Vec::with_capacity(req_c.candidates.len());
+        for chunk in req_c.candidates.chunks(max_batch) {
+            crate::priority::check_before_exec(&deadline_c, &loaded_c.metrics)?;
+            let pairs: Vec<turbo_text_pair> = chunk
+                .iter()
+                .map(|c| turbo_text_pair {
+                    query: q_view,
+                    passage: turbo_text { ptr: c.text.as_ptr().cast(), len: c.text.len() as u64 },
+                })
+                .collect();
+            slot.session.write_pairs(&pairs, &rerank_opts)?;
+            crate::priority::check_before_exec(&deadline_c, &loaded_c.metrics)?;
+            loaded_c.metrics.record_batch_size(pairs.len());
+            state_c.stream.runs.fetch_add(1, Ordering::Relaxed);
+            let output = slot.session.run()?;
+            let (dim, dtype, bytes) = read_output(&output, pairs.len())?;
+            drop(output);
+            if dtype != TURBO_DTYPE_F32 || (dim != 1 && dim != 2) {
+                return Err(Failure::new(
+                    TURBO_E_INTERNAL,
+                    0,
+                    format!("unexpected rerank output shape: dim={dim}, dtype={dtype}"),
+                ));
+            }
+            let vals = f32s(&bytes);
+            if dim == 1 {
+                logits.extend_from_slice(&vals);
+            } else {
+                for &[neg, pos] in vals.as_chunks::<2>().0 {
+                    logits.push(pos - neg);
+                }
             }
         }
-    }
-    drop(held);
+        drop(held);
 
-    let mut results = Vec::with_capacity(req.candidates.len());
-    for (idx, (cand, &raw_logit)) in req.candidates.iter().zip(&logits).enumerate() {
-        let cal = calibrator.score(raw_logit).map_err(bad)?;
-        results.push(RerankedCandidateProto {
-            input_index: idx as u32,
-            doc_id: cand.doc_id.clone(),
-            raw_logit: cal.raw_logit,
-            calibrated_probability: cal.calibrated_probability,
-            conformal_p_value: cal.conformal_p_value,
-            highlights: Vec::new(),
-            qa_abstained: false,
-            qa_null_probability: None,
+        let mut results = Vec::with_capacity(req_c.candidates.len());
+        for (idx, (cand, &raw_logit)) in req_c.candidates.iter().zip(&logits).enumerate() {
+            let cal = calibrator.score(raw_logit).map_err(bad)?;
+            results.push(RerankedCandidateProto {
+                input_index: idx as u32,
+                doc_id: cand.doc_id.clone(),
+                raw_logit: cal.raw_logit,
+                calibrated_probability: cal.calibrated_probability,
+                conformal_p_value: cal.conformal_p_value,
+                highlights: Vec::new(),
+                qa_abstained: false,
+                qa_null_probability: None,
+            });
+        }
+        results.sort_by(|a, b| {
+            b.calibrated_probability
+                .total_cmp(&a.calibrated_probability)
+                .then_with(|| b.raw_logit.total_cmp(&a.raw_logit))
+                .then_with(|| a.input_index.cmp(&b.input_index))
         });
-    }
-    results.sort_by(|a, b| {
-        b.calibrated_probability
-            .total_cmp(&a.calibrated_probability)
-            .then_with(|| b.raw_logit.total_cmp(&a.raw_logit))
-            .then_with(|| a.input_index.cmp(&b.input_index))
-    });
+        Ok(results)
+    })
+    .await
+    .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("rerank_and_highlight task failed: {e}")))??;
 
     let top_k = if req.highlight_top_k == 0 { 10 } else { req.highlight_top_k as usize }.min(results.len());
     let max_snippets = if req.max_snippets_per_candidate == 0 { 2 } else { req.max_snippets_per_candidate as usize };
@@ -232,17 +242,18 @@ pub(crate) fn rerank_and_highlight(
         None
     } else {
         highlight::attribute_top_k(
-            state,
+            &state,
             &rerank_loaded,
             &rerank_mref,
-            req,
+            &req,
             offsets,
             mode,
             &mut results[..top_k],
             max_snippets,
             priority,
-            deadline,
-        )?
+            &deadline,
+        )
+        .await?
     };
 
     Ok(RerankAndHighlightResponse {

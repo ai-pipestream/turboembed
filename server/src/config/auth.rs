@@ -35,6 +35,14 @@ impl AuthFlags {
                 self.admin_bearer.push(v);
                 Ok(true)
             }
+            "--bearer-token-file" => {
+                self.bearer.push(read_token_file("--bearer-token-file", &value()?)?);
+                Ok(true)
+            }
+            "--admin-bearer-token-file" => {
+                self.admin_bearer.push(read_token_file("--admin-bearer-token-file", &value()?)?);
+                Ok(true)
+            }
             _ => Ok(false),
         }
     }
@@ -59,6 +67,19 @@ impl AuthFlags {
         }
         AuthConfig::from_tokens(&self.bearer, &self.admin_bearer).map(Some)
     }
+}
+
+fn read_token_file(flag: &str, path: &str) -> Result<String, String> {
+    let p = path.trim();
+    if p.is_empty() {
+        return Err(format!("{flag} path must not be empty"));
+    }
+    let raw = std::fs::read_to_string(p).map_err(|e| format!("{flag} {p}: {e}"))?;
+    let tok = raw.trim();
+    if tok.is_empty() {
+        return Err(format!("{flag} {p} must not be empty"));
+    }
+    Ok(tok.to_owned())
 }
 
 fn split_tokens(raw: &str, source: &str) -> Result<Vec<String>, String> {

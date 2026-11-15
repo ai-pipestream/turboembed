@@ -259,13 +259,8 @@ impl AnalysisService for Analysis {
             return Err(crate::deadline::deadline_status());
         }
         let req = req.into_inner();
-        let state = self.state.clone();
-        let worker_deadline = deadline.clone();
-        let out = tokio::task::spawn_blocking(move || {
-            crate::results::analyze_query::analyze_query(&state, &req, priority, &worker_deadline)
-        })
-        .await
-        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query task failed: {e}"))))?;
+        let out =
+            crate::results::analyze_query::analyze_query(self.state.clone(), req, priority, deadline.clone()).await;
         if deadline.is_expired() {
             return Err(crate::deadline::deadline_status());
         }
@@ -285,13 +280,9 @@ impl AnalysisService for Analysis {
             return Err(crate::deadline::deadline_status());
         }
         let req = req.into_inner();
-        let state = self.state.clone();
-        let worker_deadline = deadline.clone();
-        let out = tokio::task::spawn_blocking(move || {
-            crate::results::rerank_highlight::rerank_and_highlight(&state, &req, priority, &worker_deadline)
-        })
-        .await
-        .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("rerank_and_highlight task failed: {e}"))))?;
+        let out =
+            crate::results::rerank_highlight::rerank_and_highlight(self.state.clone(), req, priority, deadline.clone())
+                .await;
         if deadline.is_expired() {
             return Err(crate::deadline::deadline_status());
         }

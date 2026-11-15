@@ -20,6 +20,8 @@ pub mod local;
 pub mod coalesce;
 #[cfg(feature = "grpc")]
 pub mod remote;
+#[cfg(feature = "grpc")]
+mod remote_auth;
 
 use std::collections::HashMap;
 #[cfg(feature = "local-core")]

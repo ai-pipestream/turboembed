@@ -7,7 +7,9 @@
 const KNOWN_FLAGS: &[&str] = &[
     "--admin",
     "--admin-bearer-token",
+    "--admin-bearer-token-file",
     "--bearer-token",
+    "--bearer-token-file",
     "--bundle-dir",
     "--catalog-data",
     "--catalog-dir",

@@ -16,7 +16,10 @@ use turbo_kserve::proto::ServerReadyRequest;
 use turbo_kserve::proto::grpc_inference_service_client::GrpcInferenceServiceClient;
 use turbo_kserve::proto::health::health_check_response::ServingStatus;
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
-use turbo_kserve::proto::result::{AnalyzeQueryRequest, QueryDenseTargetProto, RerankAndHighlightRequest};
+use turbo_kserve::proto::result::{
+    AnalyzeQueryRequest, QueryDenseTargetProto, RerankAndHighlightRequest, RerankCandidateInputProto,
+    RerankHighlightMode,
+};
 use turbo_kserve::{AuthConfig, MAX_QUEUE_DEPTH, PRIORITY_HEADER, Serve, Server};
 
 use common::*;
@@ -147,6 +150,122 @@ async fn analyze_query_and_rerank_validate_priority_header() {
     });
     bulk_q.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static("bulk"));
     assert_eq!(client.analyze_query(bulk_q).await.unwrap().into_inner().dense_results.len(), 1);
+
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn multi_pool_queued_analyze_and_rerank_never_starve_blocking_pool() {
+    let rerank_bundle = make_rerank_bundle("PAIR_BERT");
+    let mut models: Vec<ModelConfig> =
+        (0..4).map(|i| ModelConfig { name: Some(format!("e{i}")), ..model_cfg(1) }).collect();
+    models.push(ModelConfig {
+        bundle: rerank_bundle.0.to_str().unwrap().to_string(),
+        name: Some("r0".into()),
+        device: Device::Index(cpu()),
+        precision: 0,
+        max_batch: 0,
+        max_seq: 0,
+        sessions: 1,
+    });
+    models.push(ModelConfig { name: Some("free".into()), ..model_cfg(1) });
+
+    let server = Server::start(loopback(), models, MAX, Serve::default()).await.unwrap();
+    server.load().await.unwrap();
+    let endpoint = format!("http://{}", server.local_addr());
+    let shared_ch = tonic::transport::Endpoint::from_shared(endpoint).unwrap().connect().await.unwrap();
+
+    let held_pools = [
+        server.hold("e0").unwrap(),
+        server.hold("e1").unwrap(),
+        server.hold("e2").unwrap(),
+        server.hold("e3").unwrap(),
+        server.hold("r0").unwrap(),
+    ];
+
+    // Queue MAX_QUEUE_DEPTH calls on each of 5 pools (640 total > 512 Tokio blocking threads).
+    let mut handles = Vec::with_capacity(5 * MAX_QUEUE_DEPTH);
+    for pool_idx in 0..4 {
+        let model_name = format!("e{pool_idx}");
+        for _ in 0..MAX_QUEUE_DEPTH {
+            let ch = shared_ch.clone();
+            let name = model_name.clone();
+            handles.push(tokio::spawn(async move {
+                let mut client = AnalysisServiceClient::new(ch);
+                let mut req = Request::new(AnalyzeQueryRequest {
+                    query: "hello world".into(),
+                    dense_targets: vec![QueryDenseTargetProto { model: name, ..Default::default() }],
+                    ..Default::default()
+                });
+                req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static("interactive"));
+                client.analyze_query(req).await.map(|_| ())
+            }));
+        }
+    }
+    for _ in 0..MAX_QUEUE_DEPTH {
+        let ch = shared_ch.clone();
+        handles.push(tokio::spawn(async move {
+            let mut client = AnalysisServiceClient::new(ch);
+            let mut req = Request::new(RerankAndHighlightRequest {
+                query: "hello".into(),
+                rerank_model: "r0".into(),
+                highlight_mode: RerankHighlightMode::None as i32,
+                candidates: vec![RerankCandidateInputProto {
+                    doc_id: "d1".into(),
+                    text: "hello world".into(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            });
+            req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static("interactive"));
+            client.rerank_and_highlight(req).await.map(|_| ())
+        }));
+    }
+
+    let wait_until = tokio::time::Instant::now() + Duration::from_secs(10);
+    let pool_names = ["e0", "e1", "e2", "e3", "r0"];
+    loop {
+        let all_full = pool_names.iter().all(|name| {
+            let (iq, bq) = server.priority_queue_depths(name).unwrap();
+            iq + bq == MAX_QUEUE_DEPTH
+        });
+        if all_full {
+            break;
+        }
+        assert!(tokio::time::Instant::now() < wait_until, "pools did not fill to {MAX_QUEUE_DEPTH}");
+        tokio::time::sleep(Duration::from_millis(2)).await;
+    }
+
+    // Plain ModelInfer on a held pool must answer UNAVAILABLE immediately, and
+    // an unheld AnalyzeQuery must complete immediately without blocking-pool starvation.
+    let mut ks = GrpcInferenceServiceClient::new(shared_ch.clone());
+    let plain_err =
+        tokio::time::timeout(Duration::from_secs(1), ks.model_infer(Request::new(texts_req("e0", &[b"plain"]))))
+            .await
+            .expect("plain ModelInfer must not stall")
+            .unwrap_err();
+    assert_eq!(plain_err.code(), Code::Unavailable);
+
+    let mut analysis = AnalysisServiceClient::new(shared_ch.clone());
+    let free_res = tokio::time::timeout(
+        Duration::from_secs(1),
+        analysis.analyze_query(Request::new(AnalyzeQueryRequest {
+            query: "hello world".into(),
+            dense_targets: vec![QueryDenseTargetProto { model: "free".into(), ..Default::default() }],
+            ..Default::default()
+        })),
+    )
+    .await
+    .expect("unheld AnalyzeQuery must not stall behind 640 queued calls")
+    .unwrap()
+    .into_inner();
+    assert_eq!(free_res.dense_results.len(), 1);
+
+    drop(held_pools);
+
+    for h in handles {
+        h.await.unwrap().unwrap();
+    }
 
     server.stop().await;
 }

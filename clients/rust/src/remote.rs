@@ -261,6 +261,7 @@ impl RemoteChannelPool {
 }
 
 fn build_endpoint(cfg: &RemoteEndpointConfig) -> Result<Endpoint> {
+    crate::remote_auth::ensure_secure_bearer_transport(cfg)?;
     #[allow(unused_mut)]
     let mut ep = Endpoint::from_shared(cfg.endpoint.clone())
         .map_err(|e| ClientError::InvalidArgument(format!("invalid gRPC endpoint `{}`: {e}", cfg.endpoint)))?
@@ -321,6 +322,7 @@ impl RemoteClient {
         let prio = priority.unwrap_or(self.config.default_priority);
         req.metadata_mut().insert(PRIORITY_METADATA_KEY, MetadataValue::from_static(prio.header_value()));
         if let Some(token) = &self.config.bearer_token {
+            crate::remote_auth::ensure_secure_bearer_transport(&self.config)?;
             let header = format!("Bearer {}", token.trim());
             let val = MetadataValue::try_from(header)
                 .map_err(|e| ClientError::InvalidArgument(format!("invalid bearer token header: {e}")))?;

@@ -1,6 +1,7 @@
 //! Query-prompted dense/Matryoshka + SPLADE sparse target execution for
 //! `AnalyzeQuery` (`#2339`).
 
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use turbo::sparse::SparseOptions as Cut;
@@ -56,8 +57,8 @@ fn tier_to_slice_proto(tier: &VectorTier) -> QueryVectorSliceProto {
     }
 }
 
-pub(super) fn encode_dense_targets(
-    state: &State,
+pub(super) async fn encode_dense_targets(
+    state: &Arc<State>,
     targets: &[QueryDenseTargetProto],
     plan: &OnePassQueryPlan,
     priority: Priority,
@@ -106,78 +107,87 @@ pub(super) fn encode_dense_targets(
         validate_turboquant_options("analyze_query", full_dim, tq)
             .map_err(|e| Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, e.to_string()))?;
 
-        let text = if t.use_residual_text && !plan.free_text.is_empty() { &plan.free_text } else { &plan.query };
-        let held = loaded.acquire(priority, deadline)?;
-        let slot = held.slot();
-        let raw_text = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
-        let mut opts = default_query_opts(TURBO_NORMALIZE_NONE);
-        if let Err(f) = slot.session.write_text(&raw_text, &opts) {
-            if f.code == TURBO_E_UNSUPPORTED_OPTION {
-                opts.normalize = 0;
-                slot.session.write_text(&raw_text, &opts)?;
-            } else {
-                return Err(f);
+        let text =
+            if t.use_residual_text && !plan.free_text.is_empty() { plan.free_text.clone() } else { plan.query.clone() };
+        let target_id = if t.target_id.is_empty() { model_name.to_owned() } else { t.target_id.clone() };
+        let held = loaded.acquire_async(priority, deadline).await?;
+        let state_c = Arc::clone(state);
+        let deadline_c = deadline.clone();
+        let res = tokio::task::spawn_blocking(move || {
+            let slot = held.slot();
+            let raw_text = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
+            let mut opts = default_query_opts(TURBO_NORMALIZE_NONE);
+            if let Err(f) = slot.session.write_text(&raw_text, &opts) {
+                if f.code == TURBO_E_UNSUPPORTED_OPTION {
+                    opts.normalize = 0;
+                    slot.session.write_text(&raw_text, &opts)?;
+                } else {
+                    return Err(f);
+                }
             }
-        }
-        check_before_exec(deadline, &loaded.metrics)?;
-        state.stream.metrics.record_batch_size(1);
-        state.stream.runs.fetch_add(1, Ordering::Relaxed);
-        let result = slot.session.run()?;
-        let (dim, dtype, bytes) = read_output(&result, 1)?;
-        drop(held);
-        if dtype != TURBO_DTYPE_F32 || dim != full_dim || bytes.len() != full_dim as usize * 4 {
-            return Err(Failure::new(
-                TURBO_E_INTERNAL,
-                0,
-                format!("unexpected dense query output shape: dim={dim}, dtype={dtype}, bytes={}", bytes.len()),
-            ));
-        }
-        let raw_vec = f32s(&bytes);
-        let empty: &[u32] = if raw_vec.iter().all(|&v| v == 0.0) { &[0] } else { &[] };
-        let mref =
-            ModelRef { id: field(&mi.model_id), revision: field(&mi.revision), sha256: field(&mi.manifest_sha256) };
-        let l2 = mi.normalize == TURBO_NORMALIZE_L2;
-        let full_tier = build_tier_from_unnormalized(
-            "analyze_query",
-            &mref,
-            &raw_vec,
-            full_dim as usize,
-            full_dim,
-            l2,
-            empty,
-            true,
-            tq,
-        )
-        .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
-        let mut matryoshka = Vec::with_capacity(prefixes.len());
-        for m_dim in prefixes {
-            let mtier = build_tier_from_unnormalized(
+            check_before_exec(&deadline_c, &loaded.metrics)?;
+            state_c.stream.metrics.record_batch_size(1);
+            state_c.stream.runs.fetch_add(1, Ordering::Relaxed);
+            let result = slot.session.run()?;
+            let (dim, dtype, bytes) = read_output(&result, 1)?;
+            drop(result);
+            drop(held);
+            if dtype != TURBO_DTYPE_F32 || dim != full_dim || bytes.len() != full_dim as usize * 4 {
+                return Err(Failure::new(
+                    TURBO_E_INTERNAL,
+                    0,
+                    format!("unexpected dense query output shape: dim={dim}, dtype={dtype}, bytes={}", bytes.len()),
+                ));
+            }
+            let raw_vec = f32s(&bytes);
+            let empty: &[u32] = if raw_vec.iter().all(|&v| v == 0.0) { &[0] } else { &[] };
+            let mref =
+                ModelRef { id: field(&mi.model_id), revision: field(&mi.revision), sha256: field(&mi.manifest_sha256) };
+            let l2 = mi.normalize == TURBO_NORMALIZE_L2;
+            let full_tier = build_tier_from_unnormalized(
                 "analyze_query",
                 &mref,
                 &raw_vec,
                 full_dim as usize,
-                m_dim,
-                true,
+                full_dim,
+                l2,
                 empty,
                 true,
-                None,
+                tq,
             )
             .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
-            matryoshka.push(tier_to_slice_proto(&mtier));
-        }
-        let target_id = if t.target_id.is_empty() { model_name.to_owned() } else { t.target_id.clone() };
-        out.push(QueryDenseResultProto {
-            target_id,
-            model: Some(model_to_proto(&mref)),
-            full: Some(tier_to_slice_proto(&full_tier)),
-            matryoshka,
-        });
+            let mut matryoshka = Vec::with_capacity(prefixes.len());
+            for m_dim in prefixes {
+                let mtier = build_tier_from_unnormalized(
+                    "analyze_query",
+                    &mref,
+                    &raw_vec,
+                    full_dim as usize,
+                    m_dim,
+                    true,
+                    empty,
+                    true,
+                    None,
+                )
+                .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
+                matryoshka.push(tier_to_slice_proto(&mtier));
+            }
+            Ok(QueryDenseResultProto {
+                target_id,
+                model: Some(model_to_proto(&mref)),
+                full: Some(tier_to_slice_proto(&full_tier)),
+                matryoshka,
+            })
+        })
+        .await
+        .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("encode_dense_targets task failed: {e}")))??;
+        out.push(res);
     }
     Ok(out)
 }
 
-pub(super) fn encode_splade_targets(
-    state: &State,
+pub(super) async fn encode_splade_targets(
+    state: &Arc<State>,
     targets: &[QuerySpladeTargetProto],
     plan: &OnePassQueryPlan,
     offsets: OffsetMode,
@@ -191,7 +201,7 @@ pub(super) fn encode_splade_targets(
             return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "splade_targets[].model must be non-empty"));
         }
         let (_, loaded) = state.ready(model_name, "")?;
-        let embed = loaded.embed()?;
+        let _ = loaded.embed()?;
         let bits = match t.impact_bits {
             0 => None,
             8 => Some(ImpactBits::U8),
@@ -223,76 +233,90 @@ pub(super) fn encode_splade_targets(
             t.impact_clip_max
         };
         let use_residual = t.use_residual_text && !plan.free_text.is_empty();
-        let text = if use_residual { plan.free_text.as_str() } else { plan.query.as_str() };
+        let text = if use_residual { plan.free_text.clone() } else { plan.query.clone() };
         let run_offsets = if use_residual { OffsetMode::Utf8 } else { offsets };
-        let held = loaded.acquire(priority, deadline)?;
-        check_before_exec(deadline, &loaded.metrics)?;
-        held.reserve_token_ranges()?;
-        let opts = default_query_opts(0);
-        let cut = Cut { top_k: t.top_k, floor: t.floor };
-        let outcomes = embed.run_sparse_batch(
-            &state.stream,
-            deadline.cancel_flag(),
-            held.slot(),
-            &[text],
-            &opts,
-            run_offsets,
-            cut,
-        )?;
-        drop(held);
-        let Some(ProtoOutcome::SparseTerms(st)) = outcomes.into_iter().next() else {
-            return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected SparseTerms outcome from SPLADE query batch"));
-        };
-        let (has_span, span_start, span_end) =
-            if use_residual { (Vec::new(), Vec::new(), Vec::new()) } else { (st.has_span, st.span_start, st.span_end) };
-        let (impact_bits, impact, impact_scale, impact_clip_max, l1_rounding_bound, dot_slack_bound) =
-            if let Some(b) = bits {
-                let cfg = ImpactQuantizerConfig { bits: b, top_k_doc: 0, top_k_query: 0, min_weight: 0.0, clip_max };
-                let pairs: Vec<(u32, f32)> = st.term.iter().copied().zip(st.weight.iter().copied()).collect();
-                let q = cfg.quantize_query_pairs(&pairs).map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e))?;
-                let impacts: Vec<u32> = st
-                    .term
+        let target_id = if t.target_id.is_empty() { model_name.to_owned() } else { t.target_id.clone() };
+        let (top_k, floor, emit_term_keys) = (t.top_k, t.floor, t.emit_term_keys);
+        let held = loaded.acquire_async(priority, deadline).await?;
+        let state_c = Arc::clone(state);
+        let deadline_c = deadline.clone();
+        let res = tokio::task::spawn_blocking(move || {
+            let embed = loaded.embed()?;
+            check_before_exec(&deadline_c, &loaded.metrics)?;
+            held.reserve_token_ranges()?;
+            let opts = default_query_opts(0);
+            let cut = Cut { top_k, floor };
+            let outcomes = embed.run_sparse_batch(
+                &state_c.stream,
+                deadline_c.cancel_flag(),
+                held.slot(),
+                &[text.as_str()],
+                &opts,
+                run_offsets,
+                cut,
+            )?;
+            drop(held);
+            let Some(ProtoOutcome::SparseTerms(st)) = outcomes.into_iter().next() else {
+                return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected SparseTerms outcome from SPLADE query batch"));
+            };
+            let (has_span, span_start, span_end) = if use_residual {
+                (Vec::new(), Vec::new(), Vec::new())
+            } else {
+                (st.has_span, st.span_start, st.span_end)
+            };
+            let (impact_bits, impact, impact_scale, impact_clip_max, l1_rounding_bound, dot_slack_bound) =
+                if let Some(b) = bits {
+                    let cfg =
+                        ImpactQuantizerConfig { bits: b, top_k_doc: 0, top_k_query: 0, min_weight: 0.0, clip_max };
+                    let pairs: Vec<(u32, f32)> = st.term.iter().copied().zip(st.weight.iter().copied()).collect();
+                    let q =
+                        cfg.quantize_query_pairs(&pairs).map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e))?;
+                    let impacts: Vec<u32> = st
+                        .term
+                        .iter()
+                        .map(|&id| {
+                            let idx = q.pairs().binary_search_by_key(&id, |&(tid, _)| tid).unwrap_or(0);
+                            u32::from(q.pairs().get(idx).map_or(1, |&(_, imp)| imp))
+                        })
+                        .collect();
+                    (b.bits(), impacts, q.scale, q.clip_max, q.l1_rounding_bound, q.dot_slack_bound)
+                } else {
+                    (0, Vec::new(), 0.0, 0.0, 0.0, 0.0)
+                };
+            let term_keys = if emit_term_keys {
+                st.term
                     .iter()
                     .map(|&id| {
-                        let idx = q.pairs().binary_search_by_key(&id, |&(tid, _)| tid).unwrap_or(0);
-                        u32::from(q.pairs().get(idx).map_or(1, |&(_, imp)| imp))
+                        embed
+                            .tokenizer
+                            .piece(id as i32)
+                            .filter(|s| !s.is_empty())
+                            .map_or_else(|| format_token_key(id), str::to_owned)
                     })
-                    .collect();
-                (b.bits(), impacts, q.scale, q.clip_max, q.l1_rounding_bound, q.dot_slack_bound)
+                    .collect()
             } else {
-                (0, Vec::new(), 0.0, 0.0, 0.0, 0.0)
+                Vec::new()
             };
-        let term_keys = if t.emit_term_keys {
-            st.term
-                .iter()
-                .map(|&id| {
-                    embed
-                        .tokenizer
-                        .piece(id as i32)
-                        .filter(|s| !s.is_empty())
-                        .map_or_else(|| format_token_key(id), str::to_owned)
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let target_id = if t.target_id.is_empty() { model_name.to_owned() } else { t.target_id.clone() };
-        out.push(QuerySpladeResultProto {
-            target_id,
-            model: st.model,
-            term_id: st.term,
-            weight: st.weight,
-            has_span,
-            span_start,
-            span_end,
-            impact_bits,
-            impact,
-            impact_scale,
-            impact_clip_max,
-            l1_rounding_bound,
-            dot_slack_bound,
-            term_keys,
-        });
+            Ok(QuerySpladeResultProto {
+                target_id,
+                model: st.model,
+                term_id: st.term,
+                weight: st.weight,
+                has_span,
+                span_start,
+                span_end,
+                impact_bits,
+                impact,
+                impact_scale,
+                impact_clip_max,
+                l1_rounding_bound,
+                dot_slack_bound,
+                term_keys,
+            })
+        })
+        .await
+        .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("encode_splade_targets task failed: {e}")))??;
+        out.push(res);
     }
     Ok(out)
 }

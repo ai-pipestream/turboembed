@@ -222,32 +222,38 @@ fn filter_to_proto(offsetter: &Offsetter, text: &str, f: &StructuredFilterPlan) 
 }
 
 /// Executes one-pass `AnalyzeQuery` against `state` (`#2339`).
-pub(crate) fn analyze_query(
-    state: &State,
-    req: &AnalyzeQueryRequest,
+pub(crate) async fn analyze_query(
+    state: Arc<State>,
+    req: AnalyzeQueryRequest,
     priority: crate::priority::Priority,
-    deadline: &crate::deadline::Deadline,
+    deadline: crate::deadline::Deadline,
 ) -> Result<AnalyzeQueryResponse> {
-    crate::priority::check_before_exec(deadline, &state.metrics)?;
-    let offsets = OffsetMode::from_proto(req.offsets)?;
-    let mut builder = OnePassQueryAnalyzer::builder();
-    if !req.default_language.trim().is_empty() {
-        builder = builder.with_default_language(req.default_language.trim());
-    }
-    if !req.reference_date_iso.trim().is_empty() {
-        builder = builder.with_reference_date(parse_iso_date(req.reference_date_iso.trim())?);
-    }
-    if let Some(syns) = compile_synonyms(&req.global_synonyms)? {
-        builder = builder.with_synonyms(syns);
-    }
-    for fp in &req.field_profiles {
-        builder = builder.add_field(compile_field_spec(fp)?);
-    }
-    let analyzer = builder.build().map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
-    let plan = analyzer.analyze(&req.query).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
+    crate::priority::check_before_exec(&deadline, &state.metrics)?;
+    let (req, offsets, plan) = tokio::task::spawn_blocking(move || {
+        let offsets = OffsetMode::from_proto(req.offsets)?;
+        let mut builder = OnePassQueryAnalyzer::builder();
+        if !req.default_language.trim().is_empty() {
+            builder = builder.with_default_language(req.default_language.trim());
+        }
+        if !req.reference_date_iso.trim().is_empty() {
+            builder = builder.with_reference_date(parse_iso_date(req.reference_date_iso.trim())?);
+        }
+        if let Some(syns) = compile_synonyms(&req.global_synonyms)? {
+            builder = builder.with_synonyms(syns);
+        }
+        for fp in &req.field_profiles {
+            builder = builder.add_field(compile_field_spec(fp)?);
+        }
+        let analyzer = builder.build().map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
+        let plan = analyzer.analyze(&req.query).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
+        Ok::<_, Failure>((req, offsets, plan))
+    })
+    .await
+    .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("analyze_query plan task failed: {e}")))??;
 
-    let dense_results = encode::encode_dense_targets(state, &req.dense_targets, &plan, priority, deadline)?;
-    let splade_results = encode::encode_splade_targets(state, &req.splade_targets, &plan, offsets, priority, deadline)?;
+    let dense_results = encode::encode_dense_targets(&state, &req.dense_targets, &plan, priority, &deadline).await?;
+    let splade_results =
+        encode::encode_splade_targets(&state, &req.splade_targets, &plan, offsets, priority, &deadline).await?;
 
     let offsetter = Offsetter::new(&plan.query, offsets);
     let (detected_language, language_score) = match &plan.language {

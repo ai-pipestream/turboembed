@@ -88,7 +88,9 @@ itself.
 | `--tls-key FILE` | Server TLS private key in PEM format; requires `--tls-cert`. | Off (plaintext). |
 | `--tls-client-ca FILE` | Client CA bundle in PEM format for mutual TLS (mTLS); requires `--tls-cert` and `--tls-key`. Connections without a valid client certificate are refused during the TLS handshake. | Off. |
 | `--bearer-token TOKEN` | Constant-time SHA-256 bearer token authorizing read/inference RPCs (`Authorization: Bearer TOKEN`); repeat for multiple tokens. `grpc.health.v1.Health/{Check,Watch}` remain unauthenticated for health probes. | Off. |
+| `--bearer-token-file PATH` | File holding a bearer token authorizing read/inference RPCs (trimmed); repeat for multiple files. | Off. |
 | `--admin-bearer-token TOKEN` | Constant-time SHA-256 bearer token authorizing both read/inference and state-mutating admin RPCs; repeat for multiple tokens. | Off. |
+| `--admin-bearer-token-file PATH` | File holding an admin bearer token authorizing both read/inference and state-mutating admin RPCs (trimmed); repeat for multiple files. | Off. |
 | `--metrics-listen ADDR:PORT` | Serve Prometheus metrics in text exposition format (`0.0.4`) on `GET /metrics` over HTTP. | Off. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` or `--zoo` is set. |
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
@@ -333,7 +335,8 @@ interface. It exposes these metrics:
 | `turbo_kserve_loaded_bundles` | gauge | none | Currently loaded model bundles. |
 | `turbo_kserve_cancelled_before_exec_total` | counter | none | Calls cancelled or expired (`grpc-timeout`) before touching a device session. |
 
-Bearer token authentication (`--bearer-token` / `--admin-bearer-token` or
+Bearer token authentication (`--bearer-token` / `--bearer-token-file` /
+`--admin-bearer-token` / `--admin-bearer-token-file` or
 `TURBO_KSERVE_BEARER_TOKENS` / `TURBO_KSERVE_ADMIN_BEARER_TOKENS`) checks
 `authorization: Bearer <token>` in constant time against SHA-256 digests:
 infer tokens authorize read/inference RPCs and return `PERMISSION_DENIED` on

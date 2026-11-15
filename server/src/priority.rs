@@ -259,12 +259,6 @@ impl Loaded {
         }
     }
 
-    /// Synchronous wrapper around [`Loaded::acquire_async`] for blocking worker
-    /// tasks (`AnalyzeQuery`, `RerankAndHighlight`).
-    pub(crate) fn acquire(self: &Arc<Loaded>, priority: Priority, deadline: &Deadline) -> api::Result<Held> {
-        tokio::runtime::Handle::current().block_on(self.acquire_async(priority, deadline))
-    }
-
     /// Queues in `priority` until a session is granted or `deadline` expires,
     /// without holding a Tokio blocking thread while waiting. Refuses with
     /// `TURBO_E_BUSY` immediately when [`MAX_QUEUE_DEPTH`] is reached.
