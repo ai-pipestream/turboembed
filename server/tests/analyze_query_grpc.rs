@@ -15,6 +15,8 @@ use common::*;
 use serde_json::{Value, json};
 use turbo::TURBO_PROMPT_QUERY;
 use turbo::bundle::sha256_hex;
+use turbo::sparse::SparseTerm;
+use turbo_analysis_embed::{ImpactBits, ImpactQuantizer};
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_stream_request::Kind;
@@ -22,9 +24,39 @@ use turbo_kserve::proto::result::analyze_stream_response::Outcome;
 use turbo_kserve::proto::result::{
     AnalyzeDocument, AnalyzeOptions, AnalyzeOutput, AnalyzeQueryRequest, AnalyzeStreamRequest,
     OffsetMode as ProtoOffsetMode, QueryDenseTargetProto, QueryFieldProfileProto, QueryFieldTokenizerProto,
-    QuerySpladeTargetProto, QuerySynonymRuleProto, QueryTermFormProto,
+    QuerySpladeResultProto, QuerySpladeTargetProto, QuerySynonymRuleProto, QueryTermFormProto,
 };
 use turbo_kserve::{Serve, Server};
+
+/// The query impacts are what the document quantizer (`ImpactQuantizer`,
+/// #2343) gives for the same terms at 8 bits and `w_max` 5.0: one fixed
+/// scale of `max_impact / w_max`, never a scale chosen per query, so integer
+/// scores against indexed documents use the same units on both sides.
+fn query_impacts_match_the_document_quantizer(splade: &QuerySpladeResultProto) {
+    assert!(!splade.term_id.is_empty(), "the query must have SPLADE terms for this check to mean anything");
+    let quantizer = ImpactQuantizer::new(ImpactBits::U8, 5.0).unwrap();
+    let terms: Vec<SparseTerm> =
+        splade.term_id.iter().zip(&splade.weight).map(|(&term, &weight)| SparseTerm { term, weight }).collect();
+    // The same call the document side makes, with no pruning in either.
+    let as_document = quantizer.quantize_doc_terms(&terms, None).unwrap();
+    let want: Vec<u32> = splade
+        .term_id
+        .iter()
+        .map(|id| {
+            let at = as_document.impacts().binary_search_by_key(id, |&(term, _)| term).unwrap();
+            u32::from(as_document.impacts()[at].1)
+        })
+        .collect();
+    assert_eq!(splade.impact, want, "weights {:?}", splade.weight);
+    assert_eq!(splade.impact_scale, quantizer.scale());
+    assert_eq!(splade.impact_clip_max, quantizer.w_max());
+    let cert = as_document.certificate();
+    assert_eq!(splade.l1_rounding_bound, f64::from(cert.l1_rounding_bound));
+    assert_eq!(splade.dot_slack_bound, f64::from(cert.dot_error_bound));
+    // The peak weight sits under w_max, so a per-query scale would differ.
+    let peak = splade.weight.iter().copied().fold(0.0f32, f32::max);
+    assert!(peak < quantizer.w_max(), "peak {peak}: the fixture no longer tells the two scales apart");
+}
 
 struct TempBundle(PathBuf);
 
@@ -198,6 +230,7 @@ async fn analyze_query_end_to_end_offsets_synonyms_filters_and_query_prompt_pari
         assert_eq!(splade.impact_bits, 8);
         assert_eq!(splade.impact.len(), splade.term_id.len());
         assert_eq!(splade.term_keys.len(), splade.term_id.len());
+        query_impacts_match_the_document_quantizer(splade);
 
         // RoundTripAnalyzeQuery validates every offset, ordinal, surface, and vector invariant.
         let echoed = client.round_trip_analyze_query(resp.clone()).await.unwrap().into_inner();
