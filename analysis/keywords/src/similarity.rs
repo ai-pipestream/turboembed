@@ -75,6 +75,33 @@ fn trigram_jaccard(a: &str, b: &str) -> f64 {
     if union == 0 { 0.0 } else { inter as f64 / union as f64 }
 }
 
+/// The deduplication pass configuration: which similarity decides
+/// near-duplicates and above which value a candidate is dropped. The
+/// default is the design's token overlap at 0.8, the value the
+/// calibration record pins until a marked-up fixture says otherwise.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Dedup {
+    pub similarity: PhraseSimilarity,
+    pub threshold: f64,
+}
+
+impl Default for Dedup {
+    fn default() -> Dedup {
+        Dedup { similarity: PhraseSimilarity::TokenOverlap, threshold: 0.8 }
+    }
+}
+
+impl Dedup {
+    /// The threshold as a provenance config hash contribution.
+    pub(crate) fn config_hash(&self) -> u64 {
+        let disc = match self.similarity {
+            PhraseSimilarity::TokenOverlap => 0xD1u64,
+            PhraseSimilarity::TrigramJaccard => 0xD2u64,
+        };
+        (disc << 56) ^ self.threshold.to_bits()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,32 +130,5 @@ mod tests {
         assert_eq!(sim.similarity(&v(&["ab"]), &v(&["cd"])), 0.0);
         // Two empty phrases agree.
         assert_eq!(sim.similarity(&[], &[]), 1.0);
-    }
-}
-
-/// The deduplication pass configuration: which similarity decides
-/// near-duplicates and above which value a candidate is dropped. The
-/// default is the design's token overlap at 0.8, the value the
-/// calibration record pins until a marked-up fixture says otherwise.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct Dedup {
-    pub similarity: PhraseSimilarity,
-    pub threshold: f64,
-}
-
-impl Default for Dedup {
-    fn default() -> Dedup {
-        Dedup { similarity: PhraseSimilarity::TokenOverlap, threshold: 0.8 }
-    }
-}
-
-impl Dedup {
-    /// The threshold as a provenance config hash contribution.
-    pub(crate) fn config_hash(&self) -> u64 {
-        let disc = match self.similarity {
-            PhraseSimilarity::TokenOverlap => 0xD1u64,
-            PhraseSimilarity::TrigramJaccard => 0xD2u64,
-        };
-        (disc << 56) ^ self.threshold.to_bits()
     }
 }

@@ -1,0 +1,16 @@
+# 2252 entity constellation
+FAIL one node per entity, however often it is mentioned (0 nodes)
+FAIL the line above says how many entities and mentions
+FAIL the most mentioned entity is the largest ( ...)
+FAIL entities of one kind share a colour, named in the legend
+FAIL entities mentioned in one sentence are joined (0 dotted links)
+FAIL pointing at an entity says what it is and what it goes with
+FAIL its row in the strips lights up
+# 2252 mention strips
+FAIL one row per entity
+FAIL one mark per mention (0 marks)
+FAIL the chunks run as a band above (0 chunks)
+FAIL pointing at a mark shows its sentence
+FAIL the same as a table, with CSV
+FAIL a graph with no entity layer says how to get one
+13 checks failed

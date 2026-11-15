@@ -1,0 +1,35 @@
+# 2230 tab links and Back
+ok   an address change to #search opens Search
+ok   a tab click opens Models
+ok   Back returns to Search (#search)
+ok   Forward returns to Models (#models)
+# 2232 busy state
+ok   Stop is off when nothing runs
+ok   Analyze is off and shows the time while it runs (Analyze 0.0 s)
+ok   Stop is on only while Analyze runs
+ok   Format is off and shows the time while it runs (Format 0.0 s)
+ok   Project is off and shows the time while it runs (Project 0.0 s)
+ok   Round trip on the server is off and shows the time while it runs (Round trip on the server 0.0 s)
+ok   Run is off and shows the time while it runs (Run 0.0 s)
+ok   Upload to the index is off and shows the time while it runs (Upload to the index 0.0 s)
+# 2231 confirm before delete
+ok   one click on Delete asks and deletes nothing
+ok   Cancel puts Delete back
+ok   a refused delete reports beside its row ( permission_denied: /turbo.search.v1.TurboSearchService/Dele)
+ok   Delete collection asks first
+ok   Yes deletes the index
+ok   one click on Unload asks and unloads nothing
+# 2228 header status follows the server
+ok   header turns red within one interval after the server stops (server not reachable)
+ok   the page says the server is not reachable and offers a retry
+ok   header turns green again without a reload (turboembed 0.1.0 cpu: ready)
+ok   the notice clears
+ok   the Server tab refills
+# 2229 opened with the server stopped
+ok   a page-level notice shows
+ok   Embed says why its model list is empty (The server is not reachable, so its embedding models cannot be listed.)
+ok   Semantic selects say why they are empty (the server is not reachable)
+ok   Search index select says why it is empty (the server is not reachable)
+ok   the tabs refill once the server answers, without a reload
+ok   Embed lists the served models
+all checks passed

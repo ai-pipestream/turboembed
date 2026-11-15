@@ -15,9 +15,18 @@ impl Recurrent {
         out
     }
 
-    pub(crate) fn backward(&self, params: &[Vec<f32>], words: &[f32], dout: &[f32], grads: &mut [Vec<f32>], h: usize) {
-        direction_backward(&params[..4], &self.forward, words, dout, h, 0, false, &mut grads[..4]);
-        direction_backward(&params[4..], &self.reverse, words, dout, h, h / 2, true, &mut grads[4..]);
+    pub(crate) fn backward(
+        &self,
+        params: &[Vec<f32>],
+        words: &[f32],
+        dout: &[f32],
+        grads: &mut [Vec<f32>],
+        h: usize,
+    ) -> Vec<f32> {
+        let mut dprojected = vec![0.0; words.len()];
+        direction_backward(&params[..4], &self.forward, words, dout, h, 0, false, &mut grads[..4], &mut dprojected);
+        direction_backward(&params[4..], &self.reverse, words, dout, h, h / 2, true, &mut grads[4..], &mut dprojected);
+        dprojected
     }
 }
 
@@ -53,6 +62,7 @@ fn direction_backward(
     offset: usize,
     reverse: bool,
     grads: &mut [Vec<f32>],
+    dprojected: &mut [f32],
 ) {
     let bias: Vec<f32> = params[2].iter().zip(&params[3]).map(|(a, b)| a + b).collect();
     let mut db = vec![0.0; bias.len()];
@@ -68,7 +78,7 @@ fn direction_backward(
         offset,
         cache,
         Grad { w: &mut w[0], u: &mut u[0], b: &mut db },
-        None,
+        Some(dprojected),
     );
     for (a, b) in grads[2].iter_mut().zip(&db) {
         *a += b;

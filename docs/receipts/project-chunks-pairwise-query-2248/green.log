@@ -1,0 +1,15 @@
+running 3 tests
+test a_query_is_refused_without_vectors_or_their_model ... ok
+test pairwise_cosines_are_the_stored_vectors_cosines ... ok
+test a_query_lands_in_the_projections_own_basis ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+running 8 tests
+test empty_rows_are_excluded_and_zeroed ... ok
+test drift_curve_matches_drift_bit_for_bit ... ok
+test degenerate_inputs_project_to_zero ... ok
+test collinear_points_project_onto_one_axis ... ok
+test finite_inputs_with_unrepresentable_projection_are_refused ... ok
+test large_finite_representable_projections_are_preserved ... ok
+test place_puts_a_vector_where_its_row_is ... ok
+test projection_refusals ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

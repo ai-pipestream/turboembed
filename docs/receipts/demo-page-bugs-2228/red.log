@@ -1,0 +1,35 @@
+# 2230 tab links and Back
+FAIL an address change to #search opens Search
+ok   a tab click opens Models
+FAIL Back returns to Search (#embed)
+ok   Forward returns to Models (#models)
+# 2232 busy state
+FAIL Stop is off when nothing runs
+FAIL Analyze is off and shows the time while it runs (never off)
+FAIL Stop is on only while Analyze runs
+FAIL Format is off and shows the time while it runs (never off)
+FAIL Project is off and shows the time while it runs (never off)
+FAIL Round trip on the server is off and shows the time while it runs (never off)
+FAIL Run is off and shows the time while it runs (never off)
+FAIL Upload to the index is off and shows the time while it runs (never off)
+# 2231 confirm before delete
+FAIL one click on Delete asks and deletes nothing
+FAIL Cancel puts Delete back
+FAIL a refused delete reports beside its row (in the New index note: permission_denied: /turbo.search.v1.Turb)
+FAIL Delete collection asks first
+ok   Yes deletes the index
+FAIL one click on Unload asks and unloads nothing
+# 2228 header status follows the server
+FAIL header turns red within one interval after the server stops (turboembed 0.1.0 cpu: ready)
+FAIL the page says the server is not reachable and offers a retry
+ok   header turns green again without a reload (turboembed 0.1.0 cpu: ready)
+ok   the notice clears
+ok   the Server tab refills
+# 2229 opened with the server stopped
+FAIL a page-level notice shows
+FAIL Embed says why its model list is empty (blank)
+FAIL Semantic selects say why they are empty (blank)
+FAIL Search index select says why it is empty (blank)
+FAIL the tabs refill once the server answers, without a reload
+FAIL Embed lists the served models
+23 checks failed

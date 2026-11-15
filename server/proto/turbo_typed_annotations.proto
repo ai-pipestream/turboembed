@@ -1370,6 +1370,9 @@ enum PiiRejectReason
   PII_REJECT_REASON_UNSPECIFIED = 0;
   PII_REJECT_REASON_LABEL_REQUIRED = 1;
   PII_REJECT_REASON_THRESHOLD = 2;
+  // A model's candidate that overlaps a mention a rule found, other than
+  // as its repeat or strictly inside it: the rule's mention stands.
+  PII_REJECT_REASON_RULE_PRECEDENCE = 3;
 }
 
 // Which allow table a rule came from. UNSPECIFIED is refused.

@@ -188,7 +188,8 @@ fn indivisible_token_and_prompt_overflow_are_named_errors() {
     let crowded = ExtractionSchema::new(vec!["a".into(), "b".into()], 0.0, Decode::Flat).unwrap();
     let error =
         pack_windows(&model, &crowded, doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), None).err().unwrap();
-    assert!(matches!(error, Refusal::Sequence { max: 8, got } if got > 8), "{error:?}");
+    // The labels fill the sequence on their own: no text fits, however short.
+    assert!(matches!(error, Refusal::Prompt { max: 8, got } if got > 8), "{error:?}");
 }
 
 #[test]

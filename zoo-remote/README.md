@@ -76,6 +76,11 @@ The S3 bucket itself, `S3Bucket`, is turbo-zoo's (docs/zoo.md), so a
 zoo server can keep its files in one too; its tests are turbo-zoo's
 `tests/s3.rs`.
 
+`tests/bundle.rs` starts a zoo server whose index lists a sealed encoder
+bundle imported with `turbo_zoo::import::bundle`, and loads the bundle
+over `grpc://`: every file verified against the index, and the bundle's
+manifest against its entry, on the server and in the library.
+
 ## Features
 
 - `tls` (default): `grpcs://`. Without it a `grpcs://` source is refused.

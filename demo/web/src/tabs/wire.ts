@@ -4,10 +4,11 @@
 // to check the server re-exports the same bytes; and a graph file opened
 // from disk, saved, or handed to the other panels.
 
+import { busy } from "../act.js";
 import { $, download, el, input, lazy, say, size } from "../dom.js";
-import { doc, onDoc, setDoc } from "../doc.js";
+import { doc, hasVectors, onDoc, setDoc } from "../doc.js";
 import { WireError, hex, walkGraph, type Part } from "../graphwire.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 
 const box = () => $("wire-out");
 const note = () => $("wire-note");
@@ -56,7 +57,7 @@ async function roundTrip(): Promise<void> {
     const same = r.graph.length === d.graph.length && r.graph.every((b, i) => b === d.graph[i]);
     say(note(), `The server re-exported ${size(r.graph.length)}, ${r.layers.length} layers and ${r.views.length} views: ${same ? "byte for byte the same" : "different bytes"}.`, same ? "" : "error");
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 
@@ -67,17 +68,18 @@ async function open(): Promise<void> {
   try {
     const graph = new Uint8Array(await f.arrayBuffer());
     const r = await analysis.roundTripDocumentGraph({ graph });
-    setDoc({ graph, views: r.views, source: r.sourceText });
+    setDoc({ graph, views: r.views, source: r.sourceText, vectors: hasVectors(r.layers) });
     say(note(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 
 export function init(): void {
   const again = lazy($("analyze-wire") as HTMLDetailsElement, render);
   onDoc(() => again());
-  $("wire-roundtrip").addEventListener("click", () => void roundTrip());
+  const go = $("wire-roundtrip") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, roundTrip));
   $("wire-file").addEventListener("change", () => void open());
   $("wire-save").addEventListener("click", () => {
     const d = doc();

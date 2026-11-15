@@ -1,0 +1,24 @@
+// What the demo itself answers, without calling the server: which of the
+// server's write methods it forwards, so its page can turn off the forms
+// that would be refused (docs/demo.md). The demo serves this over the
+// Connect protocol with the binary codec, like every call it forwards.
+syntax = "proto3";
+
+package turbo.demo.v1;
+
+service DemoService {
+  // The demo's own settings that decide what a page can do.
+  rpc Describe(DescribeRequest) returns (DescribeResponse);
+}
+
+message DescribeRequest {}
+
+message DescribeResponse {
+  // The write methods the demo forwards, each `/<package>.<Service>/<Method>`,
+  // uploads included: those named with `--allow`. Reads are always forwarded
+  // and are not listed.
+  repeated string forwarded_writes = 1;
+  // Whether the demo was started with a user (`--user`), which the catalog's
+  // writes need. The name is not sent.
+  bool has_user = 2;
+}

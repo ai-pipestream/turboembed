@@ -93,6 +93,14 @@ read-only directory, and recording or revoking an acceptance is refused
 | `RevokeLicenceAcceptance` | yes, or zoo mode | Withdraws a user's acceptance of a licence's terms. |
 | `ListLicenceAcceptances` | no | The terms a user accepted, and whether the admin calls are served. |
 
+Each file of an entry (`CatalogFile`) carries its path, size, SHA-256
+and SHA-512, the address it is fetched from (`url`) and, in `also`, the
+further locations the index lists for it, in the order they are tried
+after `url` (docs/zoo.md). Each location serves the same bytes, so a
+client that downloads a file itself may ask any of them and verifies
+what it gets against the entry. `also` is empty for a file the index
+gives one address.
+
 The admin calls are served only when the server is started with
 `--admin` or `--zoo`; without either they refuse with `UNIMPLEMENTED`
 and touch no file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.
@@ -239,7 +247,12 @@ from the cache. Each fetched file is checked as docs/zoo.md says, by its
 wire size and SHA-256 when served compressed, then unpacked and checked
 by size, SHA-256 and SHA-512, before it is written; it is written under
 its name only whole. A file that fails ends the stream with `DATA_LOSS`
-(`TURBO_E_BUNDLE_INTEGRITY`) naming the check, and is never cached. A
+(`TURBO_E_BUNDLE_INTEGRITY`) naming the check, and is never cached. For
+an encoder bundle entry (`TYPE_ENCODER_BUNDLE`, docs/zoo.md, Model
+types), once every file is verified the bundle's `manifest.json` must
+describe the entry; one that names another model or other files ends
+the stream with the same `DATA_LOSS` (`TURBO_E_BUNDLE_INTEGRITY`), and
+no `Installed` answer is sent. A
 transport or disk failure ends it with `INTERNAL` (`TURBO_E_RUNTIME`).
 An install the client abandons carries on to its end, so the files it
 fetched are cached for the next one.

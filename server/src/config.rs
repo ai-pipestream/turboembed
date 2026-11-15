@@ -279,21 +279,15 @@ impl Args {
         args: impl IntoIterator<Item = String>,
         env: impl Fn(&str) -> Option<String>,
     ) -> Result<Args, String> {
-        let mut listen = None;
-        let mut max_message_bytes = None;
-        let mut max_stream_bytes = None;
+        let (mut listen, mut metrics_listen) = (None, None);
+        let (mut max_message_bytes, mut max_stream_bytes) = (None, None);
         let (mut admin, mut zoo) = (None, None);
-        let mut vocabulary_dir = None;
+        let (mut vocabulary_dir, mut training_dir, mut bundle_dir) = (None, None, None);
         let (mut sink_flags, mut release_flags) = (sink::SinkFlags::default(), release::ReleaseFlags::default());
         let (mut catalog_dir, mut catalog_index, mut catalog_store, mut catalog_data) = (None, None, None, None);
-        let mut catalog_prefetch = None;
-        let mut training_dir = None;
-        let mut bundle_dir = None;
+        let (mut catalog_prefetch, mut pii_output_allow) = (None, None);
         let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
-        let mut metrics_listen = None;
-        let mut pii_output_allow = None;
-        let mut models = Vec::new();
-        let mut pii_policies = Vec::new();
+        let (mut models, mut pii_policies) = (Vec::new(), Vec::new());
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
             let (flag, inline) = match a.split_once('=') {
@@ -370,6 +364,7 @@ impl Args {
                 _ => return Err(unknown::unknown_argument(&flag, inline.is_some())),
             }
         }
+        let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
         if listen.is_none()
             && let Some(v) = env(ENV_LISTEN).filter(|v| !v.is_empty())
         {
@@ -382,11 +377,7 @@ impl Args {
                 models.push(ModelConfig::parse(m).map_err(|e| format!("{ENV_MODELS}: {e}"))?);
             }
         }
-        if bundle_dir.is_none()
-            && let Some(v) = env(ENV_BUNDLE_DIR).filter(|v| !v.is_empty())
-        {
-            bundle_dir = Some(v);
-        }
+        bundle_dir = from_env(bundle_dir, ENV_BUNDLE_DIR);
         if max_message_bytes.is_none()
             && let Some(v) = env(ENV_MAX_MESSAGE_BYTES).filter(|v| !v.is_empty())
         {
@@ -413,15 +404,14 @@ impl Args {
                 },
             }
         };
-        let admin = switch(admin, ENV_ADMIN)?;
-        let zoo = switch(zoo, ENV_ZOO)?;
-        vocabulary_dir = vocabulary_dir.or_else(|| env(ENV_VOCABULARY_DIR).filter(|v| !v.is_empty()));
-        catalog_dir = catalog_dir.or_else(|| env(ENV_CATALOG_DIR).filter(|v| !v.is_empty()));
-        catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
-        training_dir = training_dir.or_else(|| env(ENV_TRAINING_DIR).filter(|v| !v.is_empty()));
-        catalog_store = catalog_store.or_else(|| env(ENV_CATALOG_STORE).filter(|v| !v.is_empty()));
-        catalog_data = catalog_data.or_else(|| env(ENV_CATALOG_DATA).filter(|v| !v.is_empty()));
-        let catalog_prefetch = match catalog_prefetch.or_else(|| env(ENV_CATALOG_PREFETCH).filter(|v| !v.is_empty())) {
+        let (admin, zoo) = (switch(admin, ENV_ADMIN)?, switch(zoo, ENV_ZOO)?);
+        vocabulary_dir = from_env(vocabulary_dir, ENV_VOCABULARY_DIR);
+        catalog_dir = from_env(catalog_dir, ENV_CATALOG_DIR);
+        catalog_index = from_env(catalog_index, ENV_CATALOG_INDEX);
+        training_dir = from_env(training_dir, ENV_TRAINING_DIR);
+        catalog_store = from_env(catalog_store, ENV_CATALOG_STORE);
+        catalog_data = from_env(catalog_data, ENV_CATALOG_DATA);
+        let catalog_prefetch = match from_env(catalog_prefetch, ENV_CATALOG_PREFETCH) {
             None => false,
             Some(v) if v == "permissive" => true,
             Some(v) => return Err(refused("--catalog-prefetch", &v, "permissive, the one mode")),
@@ -436,7 +426,9 @@ impl Args {
         if let Some((flag, _)) = needs_dir.iter().find(|(_, set)| *set && catalog_dir.is_none()) {
             return Err(format!("{flag} needs --catalog-dir"));
         }
-        let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
+        if catalog_store.is_some() && catalog_data.is_some() {
+            return Err("--catalog-store and --catalog-data are two stores; give one".into());
+        }
         let sink = sink_flags.resolve(&env)?;
         let pii_output = pii::resolve(pii_output_allow, &env)?;
         if let Some(s) = &sink

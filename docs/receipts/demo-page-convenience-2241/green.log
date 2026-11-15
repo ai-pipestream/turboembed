@@ -1,0 +1,34 @@
+# 2244 upload progress and Stop
+ok   learning from a 3 MiB file shows a progress bar
+ok   the bar moves while the body goes out (23% then 57%)
+ok   the line says how much was sent of how much (Uploading 1 document: 720.0 KiB of 3.0 MiB (23%))
+ok   the upload still ends with the server's answer (Learned vocab-e2b523dea2996f187ed158c2: 14 terms and 0 n-grams from 1 documents.)
+ok   the Search upload has a Stop, off while nothing runs
+ok   Stop is on while the upload runs
+ok   Stop aborts the upload and says so (Cancelled.)
+ok   the upload button is on again
+# 2241 typed input survives a reload
+ok   Embed texts are back after a reload (Grüße aus Köln / 世界こんにちは)
+ok   a picked option is back
+ok   the picked models are back (true,false,true,true)
+ok   the Semantic query is back
+ok   the Analyze document is back
+ok   the bearer token is not in localStorage
+ok   Embed has "Reset to sample"
+ok   reset puts the sample back (A cat is sleeping on the windowsill.)
+ok   and it stays the sample after a reload
+ok   another tab keeps its own input through that reset
+# 2243 copy and CSV
+ok   each Embed result offers Copy and Download CSV (9 sets of controls)
+ok   the similarity CSV has a header and one row per text (Cosine-similarity-tiny-bert-bundle.csv: 6 rows, 6 columns)
+ok   Copy puts tab-separated rows on the clipboard (6 lines)
+ok   the vectors CSV has every dimension (6 rows, 34 columns)
+ok   the nearest neighbours CSV has rank, passage and cosine (rank|passage number|passage|cosine)
+ok   the search hits CSV has rank, document, chunk, score, text and signals (2 hits)
+# 2245 what each tab does and needs
+ok   every tab opens with a line on what it does (1111111)
+ok   with an embedding model served there is no hint
+ok   after the only model is unloaded, Embed says what it needs (Needs: an embedding model. The server serves none. Load a bu)
+ok   Search says what creating an index needs (Needs: an embedding model to create an index. The server ser)
+ok   Semantic says what it needs (Needs: an embedding model, a reranker or a QA model. The ser)
+all checks passed

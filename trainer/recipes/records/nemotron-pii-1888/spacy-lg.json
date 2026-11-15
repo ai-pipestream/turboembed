@@ -1,0 +1,1160 @@
+{
+  "schema": "turboembed.trainer.receipt/1",
+  "command": [
+    "turbo-train-head",
+    "peer",
+    "--corpus",
+    "nemotron-pii",
+    "--dir",
+    "corpora/nemotron-pii",
+    "--peer",
+    "spacy-3.8.7-en_core_web_lg-3.8.0",
+    "--predictions",
+    "peers.spacy-lg-raw.tsv",
+    "--out",
+    "runs/peer-spacy-lg",
+    "--column",
+    "bio",
+    "--map",
+    "B-ORG=B-company_name,I-ORG=I-company_name,B-DATE=B-date,I-DATE=I-date,B-TIME=B-time,I-TIME=I-time,B-LANGUAGE=B-language,I-LANGUAGE=I-language",
+    "--commit",
+    "735f516c7ca50c0db8cd25470bf3d70f239ab25a"
+  ],
+  "commit": "735f516c7ca50c0db8cd25470bf3d70f239ab25a",
+  "unix_time": 1794380430,
+  "corpus": {
+    "id": "nemotron-pii",
+    "name": "NVIDIA Nemotron-PII",
+    "task": "bio",
+    "licence": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "terms": "https://creativecommons.org/licenses/by/4.0/legalcode",
+    "attribution": "Trained on Nemotron-PII (Amy Steier, Andre Manoel, Alexa Haushalter and Maarten Van Segbroeck, \"Nemotron-PII: Synthesized Data for Privacy-Preserving AI\", NVIDIA Corporation, 2025, https://huggingface.co/datasets/nvidia/Nemotron-PII, revision b70ffaf5ff39e079776134c5bf4381f00a9fd1ed), synthetic data generated with NVIDIA NeMo Data Designer grounded on Nemotron-Personas, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode).",
+    "recorded": true,
+    "files": [
+      {
+        "path": "README.md",
+        "size": 4969,
+        "sha256": "18c6215fb72c66e5c9fc833130f589e407cae906760f8977409deba0f1f5af4e"
+      },
+      {
+        "path": "data/train-00000-of-00001.parquet",
+        "size": 156334329,
+        "sha256": "9cb1a88c339ab84ddbc35ccdde4f6bb713300f5585881f9e02b8db1e0dfdbece"
+      },
+      {
+        "path": "data/test-00000-of-00001.parquet",
+        "size": 150968398,
+        "sha256": "1a4b0512ecb5370f0992d29d0f9c07351e6de13f0d7ea33bb18cecb984780247"
+      }
+    ],
+    "split": "publisher train/test Parquet at b70ffaf5ff39e079776134c5bf4381f00a9fd1ed; dev carved from train by persona uid ordinal (uid_ord % 10 == 9, keeping us and intl pairs together), SimpleTokenizer words",
+    "train": {
+      "sentences": 90000,
+      "words": 17631946
+    },
+    "dev": {
+      "sentences": 10000,
+      "words": 1969973
+    },
+    "test": {
+      "sentences": 100000,
+      "words": 18710937
+    },
+    "skipped": 0
+  },
+  "peer": {
+    "name": "spacy-3.8.7-en_core_web_lg-3.8.0",
+    "column": "bio",
+    "predictions": {
+      "path": "peers.spacy-lg-raw.tsv",
+      "size": 141240145,
+      "sha256": "623bff9da10b8289729a0d59b421a158c49d49912c87b68835c93d02db6306da"
+    },
+    "map": {
+      "B-DATE": "B-date",
+      "B-LANGUAGE": "B-language",
+      "B-ORG": "B-company_name",
+      "B-TIME": "B-time",
+      "I-DATE": "I-date",
+      "I-LANGUAGE": "I-language",
+      "I-ORG": "I-company_name",
+      "I-TIME": "I-time"
+    }
+  },
+  "eval": {
+    "split": "test",
+    "model": {
+      "spans": {
+        "all": {
+          "gold": 848257,
+          "found": 408919,
+          "correct": 82941,
+          "precision": 0.20282990029810305,
+          "recall": 0.09777814978243622,
+          "f1": 0.13194811227703998
+        },
+        "per_type": {
+          "account_number": {
+            "gold": 16693,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "age": {
+            "gold": 7135,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "api_key": {
+            "gold": 4667,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "bank_routing_number": {
+            "gold": 8354,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "biometric_identifier": {
+            "gold": 11378,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "blood_type": {
+            "gold": 5539,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "certificate_license_number": {
+            "gold": 3002,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "city": {
+            "gold": 18328,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "company_name": {
+            "gold": 54826,
+            "found": 197785,
+            "correct": 34203,
+            "precision": 0.1729302019870061,
+            "recall": 0.6238463502717688,
+            "f1": 0.2707958085752402
+          },
+          "coordinate": {
+            "gold": 7659,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "country": {
+            "gold": 23332,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "county": {
+            "gold": 8357,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "credit_debit_card": {
+            "gold": 12867,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "customer_id": {
+            "gold": 20502,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "cvv": {
+            "gold": 4843,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "date": {
+            "gold": 73337,
+            "found": 183450,
+            "correct": 41528,
+            "precision": 0.22637230853093485,
+            "recall": 0.5662625959611111,
+            "f1": 0.3234431649577276
+          },
+          "date_of_birth": {
+            "gold": 18079,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "date_time": {
+            "gold": 13221,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "device_identifier": {
+            "gold": 2507,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "education_level": {
+            "gold": 9345,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "email": {
+            "gold": 53928,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "employee_id": {
+            "gold": 8878,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "employment_status": {
+            "gold": 10941,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "fax_number": {
+            "gold": 6422,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "first_name": {
+            "gold": 84021,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "gender": {
+            "gold": 7645,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "health_plan_beneficiary_number": {
+            "gold": 10558,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "http_cookie": {
+            "gold": 4891,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ipv4": {
+            "gold": 6078,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ipv6": {
+            "gold": 3139,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "language": {
+            "gold": 8637,
+            "found": 5154,
+            "correct": 4882,
+            "precision": 0.9472254559565386,
+            "recall": 0.5652425610744471,
+            "f1": 0.7079979696903778
+          },
+          "last_name": {
+            "gold": 59565,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "license_plate": {
+            "gold": 4078,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "mac_address": {
+            "gold": 4250,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "medical_record_number": {
+            "gold": 11098,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "national_id": {
+            "gold": 2847,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "occupation": {
+            "gold": 36070,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "password": {
+            "gold": 6983,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "phone_number": {
+            "gold": 23927,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "pin": {
+            "gold": 6456,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "political_view": {
+            "gold": 6339,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "postcode": {
+            "gold": 6277,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "race_ethnicity": {
+            "gold": 9229,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "religious_belief": {
+            "gold": 6240,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "sexuality": {
+            "gold": 3261,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ssn": {
+            "gold": 6062,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "state": {
+            "gold": 18280,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "street_address": {
+            "gold": 16851,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "swift_bic": {
+            "gold": 5559,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "tax_id": {
+            "gold": 1302,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "time": {
+            "gold": 24489,
+            "found": 22530,
+            "correct": 2328,
+            "precision": 0.1033288948069241,
+            "recall": 0.09506308955041039,
+            "f1": 0.0990237988898105
+          },
+          "unique_id": {
+            "gold": 1777,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "url": {
+            "gold": 37847,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "user_name": {
+            "gold": 15800,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "vehicle_identifier": {
+            "gold": 4561,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "coarse": {
+          "contact": {
+            "gold": 122124,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "credential_network": {
+            "gold": 32515,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "financial": {
+            "gold": 54772,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "government_id": {
+            "gold": 23629,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "location": {
+            "gold": 99084,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "medical_phi": {
+            "gold": 38573,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "organization_work": {
+            "gold": 140562,
+            "found": 197785,
+            "correct": 38316,
+            "precision": 0.19372551002351038,
+            "recall": 0.2725914543048619,
+            "f1": 0.22648937333565836
+          },
+          "person": {
+            "gold": 159386,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "temporal_demographic": {
+            "gold": 177612,
+            "found": 211134,
+            "correct": 64646,
+            "precision": 0.3061846978695994,
+            "recall": 0.3639731549670067,
+            "f1": 0.3325873449501731
+          }
+        }
+      }
+    },
+    "baseline": {
+      "spans": {
+        "all": {
+          "gold": 848257,
+          "found": 1923585,
+          "correct": 232403,
+          "precision": 0.12081763997951742,
+          "recall": 0.27397710835277517,
+          "f1": 0.16768849018089776
+        },
+        "per_type": {
+          "account_number": {
+            "gold": 16693,
+            "found": 12559,
+            "correct": 540,
+            "precision": 0.04299705390556573,
+            "recall": 0.03234888875576589,
+            "f1": 0.03692055244085875
+          },
+          "age": {
+            "gold": 7135,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "api_key": {
+            "gold": 4667,
+            "found": 52731,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "bank_routing_number": {
+            "gold": 8354,
+            "found": 701,
+            "correct": 693,
+            "precision": 0.9885877318116976,
+            "recall": 0.08295427340196314,
+            "f1": 0.1530646051905025
+          },
+          "biometric_identifier": {
+            "gold": 11378,
+            "found": 13170,
+            "correct": 266,
+            "precision": 0.02019741837509491,
+            "recall": 0.023378449639655477,
+            "f1": 0.021671826625386997
+          },
+          "blood_type": {
+            "gold": 5539,
+            "found": 3694,
+            "correct": 17,
+            "precision": 0.0046020573903627505,
+            "recall": 0.003069146055244629,
+            "f1": 0.0036824434095093688
+          },
+          "certificate_license_number": {
+            "gold": 3002,
+            "found": 6084,
+            "correct": 26,
+            "precision": 0.004273504273504274,
+            "recall": 0.008660892738174551,
+            "f1": 0.00572309046885318
+          },
+          "city": {
+            "gold": 18328,
+            "found": 18735,
+            "correct": 11486,
+            "precision": 0.6130771283693621,
+            "recall": 0.6266914011348756,
+            "f1": 0.6198095135310148
+          },
+          "company_name": {
+            "gold": 54826,
+            "found": 67219,
+            "correct": 9468,
+            "precision": 0.14085303262470433,
+            "recall": 0.172691788567468,
+            "f1": 0.1551558851243394
+          },
+          "coordinate": {
+            "gold": 7659,
+            "found": 25879,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "country": {
+            "gold": 23332,
+            "found": 27100,
+            "correct": 22765,
+            "precision": 0.8400369003690037,
+            "recall": 0.97569861134922,
+            "f1": 0.9027998096446701
+          },
+          "county": {
+            "gold": 8357,
+            "found": 12249,
+            "correct": 4323,
+            "precision": 0.3529267695322067,
+            "recall": 0.5172908938614336,
+            "f1": 0.41958652819567116
+          },
+          "credit_debit_card": {
+            "gold": 12867,
+            "found": 43362,
+            "correct": 4818,
+            "precision": 0.1111111111111111,
+            "recall": 0.3744462578689671,
+            "f1": 0.17137064504081523
+          },
+          "customer_id": {
+            "gold": 20502,
+            "found": 16450,
+            "correct": 2221,
+            "precision": 0.13501519756838906,
+            "recall": 0.10833089454687347,
+            "f1": 0.12021000216497077
+          },
+          "cvv": {
+            "gold": 4843,
+            "found": 0,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "date": {
+            "gold": 73337,
+            "found": 249290,
+            "correct": 3971,
+            "precision": 0.01592923903887039,
+            "recall": 0.05414729263536823,
+            "f1": 0.024616662585586452
+          },
+          "date_of_birth": {
+            "gold": 18079,
+            "found": 21069,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "date_time": {
+            "gold": 13221,
+            "found": 111910,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "device_identifier": {
+            "gold": 2507,
+            "found": 1220,
+            "correct": 548,
+            "precision": 0.4491803278688525,
+            "recall": 0.21858795372955725,
+            "f1": 0.29407029782667027
+          },
+          "education_level": {
+            "gold": 9345,
+            "found": 14853,
+            "correct": 1111,
+            "precision": 0.07479970376354945,
+            "recall": 0.11888710540395933,
+            "f1": 0.09182577072485329
+          },
+          "email": {
+            "gold": 53928,
+            "found": 121216,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "employee_id": {
+            "gold": 8878,
+            "found": 12045,
+            "correct": 1915,
+            "precision": 0.15898713158987132,
+            "recall": 0.21570173462491551,
+            "f1": 0.18305214357405725
+          },
+          "employment_status": {
+            "gold": 10941,
+            "found": 4690,
+            "correct": 2654,
+            "precision": 0.5658848614072495,
+            "recall": 0.24257380495384334,
+            "f1": 0.3395816006653445
+          },
+          "fax_number": {
+            "gold": 6422,
+            "found": 4201,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "first_name": {
+            "gold": 84021,
+            "found": 80074,
+            "correct": 71783,
+            "precision": 0.8964582760946125,
+            "recall": 0.8543459373251925,
+            "f1": 0.8748956397208933
+          },
+          "gender": {
+            "gold": 7645,
+            "found": 7953,
+            "correct": 7468,
+            "precision": 0.9390167232490884,
+            "recall": 0.9768476128188358,
+            "f1": 0.9575586613668419
+          },
+          "health_plan_beneficiary_number": {
+            "gold": 10558,
+            "found": 11989,
+            "correct": 105,
+            "precision": 0.0087580281925098,
+            "recall": 0.009945065353286608,
+            "f1": 0.009313877677739833
+          },
+          "http_cookie": {
+            "gold": 4891,
+            "found": 62061,
+            "correct": 1,
+            "precision": 0.00001611317896907881,
+            "recall": 0.00020445716622367614,
+            "f1": 0.00002987214720994145
+          },
+          "ipv4": {
+            "gold": 6078,
+            "found": 34854,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "ipv6": {
+            "gold": 3139,
+            "found": 75316,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "language": {
+            "gold": 8637,
+            "found": 9959,
+            "correct": 7639,
+            "precision": 0.7670448840245004,
+            "recall": 0.8844506194280422,
+            "f1": 0.8215745321574532
+          },
+          "last_name": {
+            "gold": 59565,
+            "found": 48856,
+            "correct": 39014,
+            "precision": 0.79855084329458,
+            "recall": 0.6549819524888777,
+            "f1": 0.7196760775126589
+          },
+          "license_plate": {
+            "gold": 4078,
+            "found": 5788,
+            "correct": 57,
+            "precision": 0.009847961299239807,
+            "recall": 0.013977439921530162,
+            "f1": 0.011554834786134198
+          },
+          "mac_address": {
+            "gold": 4250,
+            "found": 32912,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "medical_record_number": {
+            "gold": 11098,
+            "found": 7538,
+            "correct": 391,
+            "precision": 0.05187052268506235,
+            "recall": 0.035231573256442605,
+            "f1": 0.04196179437647564
+          },
+          "national_id": {
+            "gold": 2847,
+            "found": 977,
+            "correct": 71,
+            "precision": 0.07267144319344933,
+            "recall": 0.024938531787846857,
+            "f1": 0.03713389121338912
+          },
+          "occupation": {
+            "gold": 36070,
+            "found": 32040,
+            "correct": 4046,
+            "precision": 0.1262796504369538,
+            "recall": 0.11217077904075409,
+            "f1": 0.11880781089414183
+          },
+          "password": {
+            "gold": 6983,
+            "found": 9649,
+            "correct": 403,
+            "precision": 0.04176598611255052,
+            "recall": 0.05771158527853358,
+            "f1": 0.04846079846079846
+          },
+          "phone_number": {
+            "gold": 23927,
+            "found": 99088,
+            "correct": 477,
+            "precision": 0.004813902793476506,
+            "recall": 0.019935637564257952,
+            "f1": 0.007755151810754786
+          },
+          "pin": {
+            "gold": 6456,
+            "found": 1926,
+            "correct": 177,
+            "precision": 0.09190031152647975,
+            "recall": 0.02741635687732342,
+            "f1": 0.04223335719398712
+          },
+          "political_view": {
+            "gold": 6339,
+            "found": 10609,
+            "correct": 3590,
+            "precision": 0.3383919313790178,
+            "recall": 0.566335384129989,
+            "f1": 0.4236488081189521
+          },
+          "postcode": {
+            "gold": 6277,
+            "found": 2717,
+            "correct": 1817,
+            "precision": 0.6687523003312477,
+            "recall": 0.2894694917954437,
+            "f1": 0.40404714253947077
+          },
+          "race_ethnicity": {
+            "gold": 9229,
+            "found": 9067,
+            "correct": 6927,
+            "precision": 0.7639792654681813,
+            "recall": 0.7505688590313143,
+            "f1": 0.7572146917358985
+          },
+          "religious_belief": {
+            "gold": 6240,
+            "found": 7508,
+            "correct": 4137,
+            "precision": 0.5510122535961641,
+            "recall": 0.6629807692307692,
+            "f1": 0.6018329938900203
+          },
+          "sexuality": {
+            "gold": 3261,
+            "found": 3372,
+            "correct": 3049,
+            "precision": 0.9042111506524317,
+            "recall": 0.9349892670959828,
+            "f1": 0.9193426805367104
+          },
+          "ssn": {
+            "gold": 6062,
+            "found": 5097,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "state": {
+            "gold": 18280,
+            "found": 19354,
+            "correct": 12647,
+            "precision": 0.6534566497881575,
+            "recall": 0.6918490153172866,
+            "f1": 0.6721050114258383
+          },
+          "street_address": {
+            "gold": 16851,
+            "found": 27506,
+            "correct": 857,
+            "precision": 0.0311568385079619,
+            "recall": 0.05085751587442882,
+            "f1": 0.03864102621908605
+          },
+          "swift_bic": {
+            "gold": 5559,
+            "found": 6232,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "tax_id": {
+            "gold": 1302,
+            "found": 814,
+            "correct": 10,
+            "precision": 0.012285012285012284,
+            "recall": 0.007680491551459293,
+            "f1": 0.00945179584120983
+          },
+          "time": {
+            "gold": 24489,
+            "found": 45699,
+            "correct": 491,
+            "precision": 0.01074421759775925,
+            "recall": 0.020049818285760954,
+            "f1": 0.013990995611785491
+          },
+          "unique_id": {
+            "gold": 1777,
+            "found": 1479,
+            "correct": 63,
+            "precision": 0.04259634888438134,
+            "recall": 0.03545301069217783,
+            "f1": 0.0386977886977887
+          },
+          "url": {
+            "gold": 37847,
+            "found": 387167,
+            "correct": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "user_name": {
+            "gold": 15800,
+            "found": 5042,
+            "correct": 359,
+            "precision": 0.07120190400634668,
+            "recall": 0.02272151898734177,
+            "f1": 0.03444966893772191
+          },
+          "vehicle_identifier": {
+            "gold": 4561,
+            "found": 30515,
+            "correct": 2,
+            "precision": 0.00006554153694904145,
+            "recall": 0.0004385003288752467,
+            "f1": 0.00011403808872163302
+          }
+        },
+        "coarse": {
+          "contact": {
+            "gold": 122124,
+            "found": 611672,
+            "correct": 515,
+            "precision": 0.0008419545115682915,
+            "recall": 0.004217025318528709,
+            "f1": 0.001403659872771179
+          },
+          "credential_network": {
+            "gold": 32515,
+            "found": 268743,
+            "correct": 952,
+            "precision": 0.003542417849023044,
+            "recall": 0.029278794402583422,
+            "f1": 0.0063201641118244166
+          },
+          "financial": {
+            "gold": 54772,
+            "found": 64780,
+            "correct": 6835,
+            "precision": 0.10551096017289287,
+            "recall": 0.12479003870590813,
+            "f1": 0.11434354925053533
+          },
+          "government_id": {
+            "gold": 23629,
+            "found": 50754,
+            "correct": 259,
+            "precision": 0.005103046065334752,
+            "recall": 0.010961107114139406,
+            "f1": 0.006963956818090155
+          },
+          "location": {
+            "gold": 99084,
+            "found": 133540,
+            "correct": 56000,
+            "precision": 0.419350007488393,
+            "recall": 0.5651770215170966,
+            "f1": 0.4814636494944632
+          },
+          "medical_phi": {
+            "gold": 38573,
+            "found": 36391,
+            "correct": 879,
+            "precision": 0.024154323871286857,
+            "recall": 0.022787960490498534,
+            "f1": 0.02345125660316952
+          },
+          "organization_work": {
+            "gold": 140562,
+            "found": 147297,
+            "correct": 21513,
+            "precision": 0.14605185441658688,
+            "recall": 0.15304989968839372,
+            "f1": 0.14946901086990505
+          },
+          "person": {
+            "gold": 159386,
+            "found": 133972,
+            "correct": 115241,
+            "precision": 0.8601872032962111,
+            "recall": 0.72303088100586,
+            "f1": 0.785668023370762
+          },
+          "temporal_demographic": {
+            "gold": 177612,
+            "found": 476436,
+            "correct": 41967,
+            "precision": 0.08808528322796766,
+            "recall": 0.2362847104925343,
+            "f1": 0.1283300308234258
+          }
+        }
+      }
+    },
+    "comparison": {
+      "model": 0.13194811227703998,
+      "baseline": 0.16768849018089776,
+      "delta": -0.035740377903857784,
+      "low": -0.037623121916393165,
+      "high": -0.03400442119561348,
+      "resamples": 1000,
+      "seed": 1
+    }
+  },
+  "timing_s": {
+    "read": 38.829885284,
+    "features": 0.0,
+    "train": 0.0,
+    "eval": 15.373552935,
+    "feature_words": 0
+  }
+}

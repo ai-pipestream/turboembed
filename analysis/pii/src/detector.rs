@@ -167,14 +167,14 @@ impl Pack {
 /// for OpenNLP parity.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PiiDetector {
-    scanners: Vec<Scanner>,
-    custom_kinds: CustomKinds,
-    keep_nested: bool,
-    window: WindowConfig,
-    global_allow: AllowList,
-    kind_allow: Vec<(PiiKind, AllowList)>,
-    deny_lists: Vec<DenyList>,
-    min_score: Option<f32>,
+    pub(crate) scanners: Vec<Scanner>,
+    pub(crate) custom_kinds: CustomKinds,
+    pub(crate) keep_nested: bool,
+    pub(crate) window: WindowConfig,
+    pub(crate) global_allow: AllowList,
+    pub(crate) kind_allow: Vec<(PiiKind, AllowList)>,
+    pub(crate) deny_lists: Vec<DenyList>,
+    pub(crate) min_score: Option<f32>,
 }
 
 impl PiiDetector {
@@ -408,7 +408,7 @@ impl PiiDetector {
 
     /// The allow rule that suppresses a mention: the global list first,
     /// then the list scoped to `kind`.
-    fn allow_rule(&self, kind: PiiKind, covered: &str, normalized: &str) -> AllowDecision {
+    pub(crate) fn allow_rule(&self, kind: PiiKind, covered: &str, normalized: &str) -> AllowDecision {
         if let Some(rule) = self.global_allow.find_rule(covered, normalized) {
             return Some((AllowScope::Global, rule));
         }

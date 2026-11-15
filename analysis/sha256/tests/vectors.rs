@@ -1,7 +1,7 @@
 //! The FIPS 180-4 and RFC 4231 vectors, and updates split at every
 //! offset of messages that cross block borders.
 
-use turbo_sha256::{Sha256, Sha512, hmac_sha256, sha256, sha512, to_hex};
+use turbo_sha256::{Sha256, Sha512, git_blob_id, hmac_sha256, sha1, sha256, sha512, to_hex};
 
 const ABC: &[u8] = b"abc";
 const M448: &[u8] = b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
@@ -75,4 +75,32 @@ fn updates_split_at_every_offset_hash_as_one_buffer() {
             assert_eq!(b.finish(), want512, "sha512 of {len} bytes cut at {cut}");
         }
     }
+}
+
+#[test]
+fn sha1_fips_vectors_and_split_messages() {
+    let hex = |d: &[u8]| to_hex(sha1(&[d]));
+    assert_eq!(hex(b""), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+    assert_eq!(hex(ABC), "a9993e364706816aba3e25717850c26c9cd0d89d");
+    assert_eq!(hex(M448), "84983e441c3bd26ebaae4aa1f95129e5e54670f1");
+    assert_eq!(hex(M896), "a49b2446a02c645bf419f995b67091253a04a259");
+    assert_eq!(hex(&vec![b'a'; 1_000_000]), "34aa973cd4c4daa4f61eeb2bdbad27316534016f");
+    // Every byte value, across twelve blocks.
+    let all: Vec<u8> = (0..768).map(|i| i as u8).collect();
+    assert_eq!(hex(&all), "ac2a264c8ec1f4232a40854e8239bc3a697ab1d2");
+    // A message given in parts is the message: every split of lengths
+    // around the block and padding borders.
+    for len in [0, 1, 55, 56, 57, 63, 64, 65, 119, 120, 128, 200] {
+        let whole = sha1(&[&all[..len]]);
+        for at in 0..=len {
+            assert_eq!(sha1(&[&all[..at], &[], &all[at..len]]), whole, "{len} split at {at}");
+        }
+    }
+}
+
+#[test]
+fn git_blob_ids_are_the_ones_git_gives() {
+    // `git hash-object` of an empty file and of `hello` with a newline.
+    assert_eq!(to_hex(git_blob_id(b"")), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+    assert_eq!(to_hex(git_blob_id(b"hello\n")), "ce013625030ba8dba906f756967f9e9ca394464a");
 }

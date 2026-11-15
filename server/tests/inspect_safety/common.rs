@@ -89,6 +89,7 @@ pub fn project(bytes: Vec<u8>) -> ProjectChunksRequest {
         include_strategy_matrix: false,
         strategy_budgets: Vec::new(),
         pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
+        ..Default::default()
     }
 }
 

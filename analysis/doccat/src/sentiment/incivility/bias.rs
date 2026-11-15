@@ -216,7 +216,7 @@ pub fn evaluate_incivility_bias(
                         bnsp_auc: roc_auc(&sub_pos, &back_neg),
                         neutral_mentions: sub_neg.len(),
                         neutral_false_positives: flagged,
-                        neutral_fpr: (!sub_neg.is_empty()).then(|| flagged as f64 / sub_neg.len() as f64),
+                        neutral_fpr: (!sub_neg.is_empty()).then_some(flagged as f64 / sub_neg.len() as f64),
                     }
                 })
                 .collect();

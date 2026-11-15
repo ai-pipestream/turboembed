@@ -4,9 +4,11 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use turbo_zoo::{
-    Acceptances, Home, Http, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512,
+    Acceptances, Home, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512, Sources,
     UserId, Zoo, ZooError,
 };
+
+mod import_cmd;
 
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   list                 the artifacts the zoo may fetch, with class and licences
@@ -21,6 +23,17 @@ const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
   accepted             the licences you have accepted
   fetch <id>           fetch and verify an artifact; prints its local files
   hash <file>...       size, SHA-256 and SHA-512 of files, for an index entry
+  index                the index in its canonical form, to start an index file from
+  import-bundle <bundle-dir> --id <id> --base <url> --license-terms <url> [...]
+                       a sealed bundle directory as an index entry, every file
+                       verified against its manifest; with --into <zoo.json>,
+                       added to that index file (`turbo-zoo import-bundle` lists the flags)
+  import-hf <owner/name> <commit> --id <id> --license <SPDX id> --license-terms <url> [...]
+                       a Hugging Face model repository at a commit as an index entry,
+                       every file fetched and held to the repository's own listing
+  import-oci <registry>/<name>@sha256:<digest> --id <id> --license <SPDX id> --license-terms <url> [...]
+                       an OCI artifact in a registry as an index entry, the manifest and
+                       every layer held to its digest
 
 The zoo keeps its cache and acceptance file in $TURBO_ZOO_HOME, else
 $XDG_DATA_HOME/turbo-zoo, else ~/.local/share/turbo-zoo. The user is $USER
@@ -64,14 +77,26 @@ fn acceptable(licence: &str, verb: &str) -> Result<Licence, String> {
 }
 
 fn run(mut args: Vec<String>) -> Result<(), String> {
+    let import = match args.first().map(String::as_str) {
+        Some("import-bundle") => Some(import_cmd::bundle_dir as fn(&[&str]) -> Result<(), String>),
+        Some("import-hf") => Some(import_cmd::repo as fn(&[&str]) -> Result<(), String>),
+        Some("import-oci") => Some(import_cmd::artifact as fn(&[&str]) -> Result<(), String>),
+        _ => None,
+    };
+    if let Some(import) = import {
+        return import(&args[1..].iter().map(String::as_str).collect::<Vec<_>>());
+    }
+    // The index's own text is kept: it holds the entries the zoo refuses
+    // and does not list, which `index` prints with the rest.
+    let mut text = turbo_zoo::index::BUILTIN.as_bytes().to_vec();
     let index = if args.first().map(String::as_str) == Some("--index") {
         if args.len() < 2 {
             return Err(USAGE.into());
         }
         let path = args.remove(1);
         args.remove(0);
-        let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
-        Index::parse(&bytes).map_err(|e| e.to_string())?
+        text = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
+        Index::parse(&text).map_err(|e| e.to_string())?
     } else {
         Index::builtin()
     };
@@ -174,13 +199,19 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
         }
         ["fetch", id] => {
             let user = UserId::from_env()?;
-            let transport = Http::new();
+            // A file at a registry's blob address is asked for again with
+            // the anonymous token the registry wants.
+            let transport = Sources::https();
             let zoo = Zoo::new(index, home.artifacts(), Policy::default(), &transport);
             // The acceptance file is read only for an artifact that needs it.
             let fetched = zoo.fetch_with(id, &user, || Acceptances::load(&accept_path)).map_err(e)?;
             for f in &fetched.files {
                 println!("{}", f.display());
             }
+            Ok(())
+        }
+        ["index"] => {
+            print!("{}", Index::to_canonical_json(&Index::written(&text).map_err(e)?));
             Ok(())
         }
         ["hash", files @ ..] if !files.is_empty() => {

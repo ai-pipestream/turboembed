@@ -226,6 +226,15 @@ fn the_catalog_comes_from_its_flags_or_their_variables() {
     let parsed = Args::parse_with(format!("{base} --catalog-dir /z").split_whitespace().map(String::from), env);
     assert_eq!(parsed.unwrap().catalog_data.as_deref(), Some("/shared"));
     assert_eq!(args(&format!("{base} --catalog-data /d")).unwrap_err(), "--catalog-data needs --catalog-dir");
+    assert_eq!(
+        args(&format!("{base} --catalog-dir /z --catalog-store s3://models/zoo --catalog-data /data")).unwrap_err(),
+        "--catalog-store and --catalog-data are two stores; give one"
+    );
+    let both = Args::parse_with(
+        format!("{base} --catalog-dir /z --catalog-store s3://models/zoo").split_whitespace().map(String::from),
+        env,
+    );
+    assert_eq!(both.unwrap_err(), "--catalog-store and --catalog-data are two stores; give one");
 }
 
 #[test]

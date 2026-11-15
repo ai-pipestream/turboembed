@@ -125,10 +125,27 @@ mod tests {
         // A misspelled flag with no value is still named, so a typo is easy
         // to find.
         assert_eq!(err(&["--lisen", "127.0.0.1:0"]), "unknown argument --lisen");
-        // Every known flag in KNOWN_FLAGS is claimed by the parser.
-        for &flag in KNOWN_FLAGS {
+        assert_eq!(err(&["--catalog-date", "/d"]), "unknown argument --catalog-date");
+        // Every known flag in KNOWN_FLAGS is claimed by the parser, and
+        // every flag the parser matches is in KNOWN_FLAGS so a near-miss
+        // typo of it is named.
+        let mut parsed_flags = Vec::new();
+        for src in [include_str!("../config.rs"), include_str!("sink.rs"), include_str!("release.rs")] {
+            for line in src.lines() {
+                if let Some((quoted, _)) = line.trim().split_once("=>")
+                    && let Some(flag) = quoted.trim().strip_prefix("\"--").and_then(|s| s.strip_suffix('"'))
+                {
+                    parsed_flags.push(format!("--{flag}"));
+                }
+            }
+        }
+        parsed_flags.sort();
+        assert_eq!(parsed_flags, KNOWN_FLAGS);
+        for flag in &parsed_flags {
             let e = err(&[flag]);
             assert!(!e.starts_with("unknown argument"), "{flag}: {e}");
+            let typo = format!("{flag}z");
+            assert_eq!(err(&[&typo]), format!("unknown argument {typo}"));
         }
     }
 }

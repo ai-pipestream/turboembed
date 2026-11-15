@@ -1,0 +1,10 @@
+# The demo's own service (turbo_demo.proto) for the page, beside the
+# server's stubs. Run by scripts/generate-web-stubs.sh after the server's
+# template, which cleans the directory; this one must not.
+version: v2
+plugins:
+  - local: protoc-gen-es
+    out: demo/web/src/gen
+    opt:
+      - target=ts
+      - import_extension=js

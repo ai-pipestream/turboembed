@@ -34,6 +34,8 @@ pub mod attention;
 mod bert;
 #[cfg(any(feature = "cuda", feature = "cuda-shim"))]
 pub mod cuda;
+pub mod deberta;
+pub mod deberta_layer;
 pub mod dropout;
 mod export;
 mod export_bert;

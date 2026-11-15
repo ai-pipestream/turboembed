@@ -66,4 +66,24 @@ else
   echo "ok   unreadable paths need both lanes"
 fi
 
+# A pull request or merge group without both ends is a usage error that
+# names the missing end, and it prints no lane lines, so a caller cannot
+# take silence for "skip".
+# usage <name> <words the error must have> <arguments...>
+usage() {
+  local name="$1" says="$2" out err rc=0
+  shift 2
+  out="$("$lanes" "$@" 2>"$repo/err")" || rc=$?
+  err="$(cat "$repo/err")"
+  rm -f "$repo/err"
+  if [ "$rc" = 0 ] || [ -n "$out" ] || [[ "$err" != *"$says"* ]] || [[ "$err" == *"unbound variable"* ]]; then
+    echo "FAIL $name: rc $rc, output '$out', error '$err'" >&2
+    failed=1
+  else
+    echo "ok   $name"
+  fi
+}
+usage "a missing base is named" "the base of the change" pull_request
+usage "a missing head is named" "the head of the change" merge_group "$base"
+
 exit "$failed"

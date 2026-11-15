@@ -323,7 +323,9 @@ and final separator. Empty sentences consume no window space. A supplied
 sentence that cannot fit is refused as an over-limit error that names
 `max_tokens` or `encoder max_sequence` with the limit and the count
 measured, and no text, so a server passes it on as a capacity refusal; it
-is never truncated. Sentence spans must be
+is never truncated. A label prompt that fills the encoder context on its
+own, so that no text fits beside it, is refused the same way under the
+name `label prompt max_sequence`: use fewer or shorter labels. Sentence spans must be
 contiguous, in the input view, on UTF-8 boundaries, and cover every token.
 When token sentence indices exist, they must agree with those spans.
 

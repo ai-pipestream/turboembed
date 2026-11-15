@@ -69,6 +69,16 @@ be answered, refuses new connections, logs `stopped` and exits 0. A
 signal during load takes effect once the load returns; the library has
 no way to stop a load part way.
 
+The wait for requests in flight has a limit, so a stream nobody closes
+cannot hold the stop. A `WatchCollection` stream, which has no end of
+its own, ends at once with `UNAVAILABLE` and the message `the server is
+stopping`. Any other call still open 5 s after the signal (an
+`AnalyzeStream` its caller never closes, say) is cut, and the server
+logs `calls still open after 5 s were cut` before `stopped`. Library
+callers get the same from `Server::stop`, and choose the wait with
+`Server::stop_within`, which answers whether every call ended by
+itself.
+
 ### Flags
 
 | Flag | Meaning | Absent |
@@ -234,8 +244,11 @@ the certificate's name is not the address, and `--tls-cert FILE` with
 `--tls-key FILE` when the server requires a client certificate
 (`TURBO_KSERVE_HEALTH_TLS_CA`, `TURBO_KSERVE_HEALTH_TLS_NAME`,
 `TURBO_KSERVE_HEALTH_TLS_CERT`, `TURBO_KSERVE_HEALTH_TLS_KEY`). These
-are the probe's client credentials, not the listener's. The image, its `/bundles` volume, its variables
-and the Kubernetes probes for it are in docs/release.md, Images.
+are the probe's client credentials, not the listener's. The release
+image, its `/bundles` volume, its variables and the Kubernetes probes
+for it are in docs/release.md, Images. The model zoo image's entrypoint,
+health check and bucket helper are subcommands of the same binary,
+`zoo-start`, `zoo-health` and `zoo-bucket` (docs/zoo-container.md).
 
 A `ModelInfer` carries either `texts` (BYTES, `[batch]`) or token rows
 `ids` and `mask` (INT32, `[batch, seq]`), with `types` optional, and

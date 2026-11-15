@@ -426,9 +426,11 @@ impl RuleAspectSentiment {
                             let adversative = has_adversative_between(o_tok, cand, token_lower);
                             let negated =
                                 is_token_negated(cand, sent_start, sent_end, token_lower, clause_ids, Some(deps));
-                            let base_pol = self
-                                .token_opinion_valence(w)
-                                .unwrap_or_else(|| if adversative { -op.polarity } else { op.polarity });
+                            let base_pol = self.token_opinion_valence(w).unwrap_or(if adversative {
+                                -op.polarity
+                            } else {
+                                op.polarity
+                            });
                             opinions.push(ExtractedOpinion {
                                 tokens: IxRange::new(cand as u32, (cand + 1) as u32),
                                 head_token: cand,

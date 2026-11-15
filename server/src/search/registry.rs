@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock, RwLock};
 
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 use turbo::TURBO_TASK_EMBED;
 use turbo_analysis::{ModelRef, Span};
 use turbo_chunker::terms::{Bm25PostingIndex, Bm25PostingIndexBuilder};
@@ -117,6 +117,8 @@ pub struct SearchRegistry {
     pub aliases: RwLock<BTreeMap<String, String>>,
     pub collections: RwLock<BTreeMap<String, CollectionState>>,
     pub events: broadcast::Sender<CollectionEvent>,
+    /// Turns true once the server is stopping: every open watch ends.
+    pub stopping: watch::Sender<bool>,
     pub snapshot_dir: RwLock<PathBuf>,
 }
 
@@ -135,6 +137,7 @@ impl SearchRegistry {
             aliases: RwLock::new(BTreeMap::new()),
             collections: RwLock::new(BTreeMap::new()),
             events,
+            stopping: watch::channel(false).0,
             snapshot_dir: RwLock::new(default_snap),
         }
     }

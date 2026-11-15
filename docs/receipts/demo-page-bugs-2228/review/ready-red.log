@@ -1,0 +1,5 @@
+PASS the page opened while the server was live and still loading (turboembed 0.1.0 cpu: live, still loading)
+PASS while it loads, the Analyze tab has no model to offer (none)
+FAIL once the server is ready the Analyze tab lists its models, with no reload (1 options: none)
+FAIL and the Server tab lists the bundles (5 rows)
+2 of 4 pass

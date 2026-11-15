@@ -199,6 +199,7 @@ impl GlinerAnnotator {
         let refused = |r: Refusal| match r {
             Refusal::Tokens { got } => Error::over_limit(Self::ID, "max_tokens", MAX_TOKENS, got),
             Refusal::Sequence { max, got } => Error::over_limit(Self::ID, "encoder max_sequence", max, got),
+            Refusal::Prompt { max, got } => Error::over_limit(Self::ID, "label prompt max_sequence", max, got),
             Refusal::Other(detail) => fail(detail),
         };
         let windows = crate::window::pack_windows(model, &self.schema, view, tokens, sentences).map_err(refused)?;

@@ -1381,6 +1381,59 @@ message ProjectChunksRequest
   // and term stacks carry the projected view's words, so such a document
   // needs that view's text disclosed, as for DocumentWindowRequest.
   PiiOutputOptions pii_output = 8;
+  // Asks for the cosine between every pair of one level's items (#2248).
+  optional PairwiseCosinesSpec pairwise = 9;
+  // A text to place in the projection (#2249). The server embeds it with
+  // the served embedding model whose identity equals the vectors' ModelRef
+  // (in the query prompt role), at the vectors' dimension, L2-normalized
+  // when the stored vectors are. Refused when the graph carries no chunk
+  // or sentence vectors, when no such model is served and loaded, or when
+  // the text is empty or longer than 8192 bytes.
+  optional string query = 10;
+}
+
+// Which projected items `ProjectChunksResponse.pairwise` covers.
+message PairwiseCosinesSpec
+{
+  // The `ProjectedPointProto.level` whose items are compared: 0 is the
+  // finest (the chunks, or the sentences when the graph carries sentence
+  // vectors only).
+  uint32 level = 1;
+  // The most items the caller will take: 0 defaults to 256, and the
+  // server's own ceiling is 512. A level holding more comparable items is
+  // refused with TURBO_E_CAPACITY, never cut down.
+  uint32 max_items = 2;
+}
+
+// The cosine between every pair of one level's items, from the stored
+// vectors and not from the projected coordinates.
+message PairwiseCosinesProto
+{
+  uint32 level = 1;
+  // The compared `ProjectedPointProto.item` values, ascending: the level's
+  // items that have a vector of non-zero length.
+  repeated uint32 items = 2;
+  // The strict upper triangle, row-major over `items`: (0,1), (0,2), ...,
+  // (0,n-1), (1,2), ..., (n-2,n-1), so n(n-1)/2 values for n items.
+  repeated float cosines = 3;
+}
+
+// Where a query text falls in a projection, and how close it is to each
+// projected item.
+message QueryPointProto
+{
+  // The query vector centred on the same mean and laid on the same
+  // principal components as `projection.points`. `z` is 0 for a 2D
+  // projection.
+  float x = 1;
+  float y = 2;
+  float z = 3;
+  // One value per `projection.points` entry, in that order: the cosine
+  // between the query vector and the item's stored vector, or 0 for an
+  // empty item or a vector of zero length.
+  repeated float cosines = 4;
+  // The served model name that embedded the query.
+  string model_name = 5;
 }
 
 message ProjectedPointProto
@@ -1471,6 +1524,10 @@ message ProjectChunksResponse
   repeated TermVectorStackProto chunk_term_stacks = 3;
   optional TermVectorStackProto document_term_stack = 4;
   optional StrategyMatrixProto strategy_matrix = 5;
+  // Present when the request carried `pairwise`.
+  optional PairwiseCosinesProto pairwise = 6;
+  // Present when the request carried `query`.
+  optional QueryPointProto query = 7;
 }
 
 message ListOutputFormatsRequest {}

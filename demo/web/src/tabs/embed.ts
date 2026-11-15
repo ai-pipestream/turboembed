@@ -9,14 +9,21 @@ import {
   type ModelInferResponse,
   type ModelMetadataResponse,
 } from "../gen/open_inference_grpc_pb.js";
-import { $, after, el, input, say, stat } from "../dom.js";
-import { describe, inference } from "../rpc.js";
-import { bundles, capabilities, onCapabilities } from "../state.js";
+import { busy, submitter } from "../act.js";
+import { $, after, el, input, reveal, say, stat } from "../dom.js";
+import { take } from "./take.js";
+import { forgetOwn, onReset, recallList, remember } from "../keep.js";
+import { describe, explain, inference } from "../rpc.js";
+import { place, range } from "../heat.js";
+import { shade, simTable } from "./simtable.js";
+import { bundles, onCapabilities, onCapabilitiesFailed, onReachable, reachable } from "../state.js";
 
 type Model = { meta: ModelMetadataResponse | null; error: string; checked: boolean };
 type Result = { name: string; meta: ModelMetadataResponse | null; ms: number; vectors?: number[][]; reply?: ModelInferResponse; error?: string };
 
 const models = new Map<string, Model>();
+// The names the last Capabilities answer served, as opposed to names typed in.
+let listed: string[] = [];
 
 function tier(meta: ModelMetadataResponse | null): string {
   const p = meta?.properties["session_info.precision"];
@@ -46,15 +53,24 @@ async function loadMeta(name: string): Promise<void> {
   }
 }
 
+/** The key the picked model names are kept under (keep.ts). */
+const PICKED = "embed-models";
+
 function renderModels(): void {
   const box = $("embed-models");
   box.replaceChildren();
-  if (models.size === 0) box.append(el("p", { class: "muted", text: "No embedding model is served: add a name below." }));
+  if (models.size === 0) {
+    const down = reachable() === false;
+    box.append(el("p", { class: down ? "error empty" : "muted empty", text: down ? "The server is not reachable, so its embedding models cannot be listed." : "No embedding model is served: add a name below." }));
+  }
   for (const [name, m] of models) {
     const cb = el("input", { type: "checkbox" });
     cb.checked = m.checked;
     cb.disabled = !m.meta;
-    cb.addEventListener("change", () => (m.checked = cb.checked));
+    cb.addEventListener("change", () => {
+      m.checked = cb.checked;
+      remember(PICKED, [...models].filter(([, x]) => x.checked).map(([n]) => n).join("\n"));
+    });
     box.append(
       el(
         "label",
@@ -68,8 +84,11 @@ function renderModels(): void {
 }
 
 async function addModels(names: string[]): Promise<void> {
-  const fresh = names.filter((n) => !models.has(n));
-  for (const n of fresh) models.set(n, { meta: null, error: "", checked: true });
+  // Names not seen yet, and those whose metadata could not be read before.
+  const fresh = names.filter((n) => !models.get(n)?.meta);
+  // The models picked before a reload stay picked; with nothing kept, all are.
+  const kept = recallList(PICKED);
+  for (const n of fresh) models.set(n, { meta: null, error: "", checked: kept ? kept.includes(n) : true });
   await Promise.all(fresh.map(loadMeta));
   renderModels();
 }
@@ -164,9 +183,6 @@ async function run(): Promise<void> {
     say(err, !texts.length ? "Enter at least one text." : "Pick at least one model.", "error");
     return;
   }
-  const btn = $("embed-run") as HTMLButtonElement;
-  btn.disabled = true;
-  btn.textContent = "Embedding\u2026";
   const encoder = new TextEncoder();
   const results: Result[] = [];
   // One request at a time, so no call waits behind another.
@@ -184,17 +200,10 @@ async function run(): Promise<void> {
       results.push({ name, meta, ms: performance.now() - t0, error: describe(e) });
     }
   }
-  btn.disabled = false;
-  btn.textContent = "Embed";
   render(texts, results);
 }
 
 // ---- Results --------------------------------------------------------------
-
-export function heat(v: number): string {
-  const a = Math.max(0, Math.min(1, v));
-  return `background: rgba(var(--heat), ${(a * a * 0.85).toFixed(3)})`;
-}
 
 // Cuts `t` to at most `n` characters, the last an ellipsis when it was cut.
 // A character is a grapheme cluster where the browser has Intl.Segmenter,
@@ -215,20 +224,9 @@ function card(texts: string[], r: Result): HTMLElement {
   const v = r.vectors;
   const p = r.reply.parameters;
   const str = (k: string) => (p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "");
-  const sim = matrix(v);
-  const simTable = el(
-    "table",
-    { class: "sim" },
-    el("tr", {}, el("th", {}), texts.map((_, j) => el("th", { text: `#${j + 1}` }))),
-    texts.map((t, i) =>
-      el(
-        "tr",
-        {},
-        el("td", { class: "text", title: t, text: `#${i + 1} ${short(t, 22)}` }),
-        sim[i].map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) })),
-      ),
-    ),
-  );
+  const sim = simTable(texts.map((t) => ({ short: short(t, 22), full: t })), matrix(v), `Cosine similarity ${r.name}`);
+  // Every value of every vector, as the server sent them.
+  const whole = (): string[][] => [["text", "norm", ...v[0].map((_, d) => `d${d}`)], ...v.map((row, i) => [texts[i], String(norm(row)), ...row.map(String)])];
   const previews = el(
     "table",
     {},
@@ -261,8 +259,8 @@ function card(texts: string[], r: Result): HTMLElement {
       str("compute_dtype") ? stat(after(str("compute_dtype"), "DTYPE_"), "computed in") : null,
     ),
     el("h2", { text: "Cosine similarity" }),
-    simTable,
-    el("details", {}, el("summary", { text: "Vectors" }), previews),
+    sim,
+    el("details", {}, el("summary", { text: "Vectors" }), previews, take(`Vectors ${r.name}`, whole)),
   );
 }
 
@@ -270,6 +268,10 @@ function card(texts: string[], r: Result): HTMLElement {
 // and how far each model's vectors are from the first model's.
 function comparison(texts: string[], ok: Result[]): HTMLElement {
   const sims = ok.map((r) => matrix(r.vectors!));
+  // One scale for the whole table: the range of every model's pairs.
+  const all = sims.map((m) => range(m));
+  const lo = Math.min(...all.map((r) => r[0]));
+  const hi = Math.max(...all.map((r) => r[1]));
   const rows: HTMLElement[] = [];
   let widest = 0;
   for (let i = 0; i < texts.length; i++) {
@@ -282,8 +284,8 @@ function comparison(texts: string[], ok: Result[]): HTMLElement {
           "tr",
           {},
           el("td", { class: "text", title: `${texts[i]}\n${texts[j]}`, text: `#${i + 1} \u00b7 #${j + 1}` }),
-          vals.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(4) })),
-          el("td", { text: spread === 0 ? "0" : spread.toExponential(1) }),
+          vals.map((x) => el("td", { class: "cell", style: shade(place(x, lo, hi)), text: x.toFixed(4) })),
+          el("td", { text: spread.toFixed(4) }),
         ),
       );
     }
@@ -294,12 +296,22 @@ function comparison(texts: string[], ok: Result[]): HTMLElement {
     if (v[0].length !== baseV[0].length) return "n/a";
     return Math.min(...v.map((row, i) => cosine(row, baseV[i]))).toFixed(6);
   });
+  const pairs = (): string[][] => {
+    const out = [["text a", "text b", ...ok.map((r) => `${r.name} (${tier(r.meta)})`), "spread"]];
+    for (let i = 0; i < texts.length; i++) {
+      for (let j = i + 1; j < texts.length; j++) {
+        const vals = sims.map((m) => m[i][j]);
+        out.push([texts[i], texts[j], ...vals.map((x) => x.toFixed(6)), (Math.max(...vals) - Math.min(...vals)).toFixed(6)]);
+      }
+    }
+    return out;
+  };
   const tableEl = el(
     "table",
     { class: "sim cmp" },
     el("tr", {}, el("th", { class: "text", text: "pair" }), ok.map((r) => el("th", { text: `${r.name} (${tier(r.meta)})` })), el("th", { text: "spread" })),
     rows,
-    el("tr", {}, el("th", { class: "text", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {})),
+    el("tr", {}, el("th", { class: "text wrap", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {})),
   );
   return el(
     "div",
@@ -310,6 +322,7 @@ function comparison(texts: string[], ok: Result[]): HTMLElement {
       text: "Each pair of texts, scored by every model picked. The spread is how much the tiers disagree; the last row is how close each model's vector for a text is to the first model's.",
     }),
     tableEl,
+    take("Side by side", pairs),
     widest === 0
       ? el("p", { class: "note", text: "Every model gave the same numbers: on this device these tiers compute alike. A device that runs FASTEST in a narrower type shows the difference here." })
       : null,
@@ -322,17 +335,39 @@ function render(texts: string[], results: Result[]): void {
   const ok = results.filter((r) => r.vectors);
   if (ok.length > 1 && texts.length > 1) out.append(comparison(texts, ok));
   out.append(el("div", { class: "cards" }, results.map((r) => card(texts, r))));
+  reveal(out);
 }
 
 export function init(): void {
-  $("embed-add").addEventListener("submit", async (ev) => {
+  $("embed-add").addEventListener("submit", (ev) => {
     ev.preventDefault();
     const name = input("embed-add-name").value.trim();
     if (!name) return;
-    await addModels([name]);
-    input("embed-add-name").value = "";
+    void busy(submitter(ev), async () => {
+      await addModels([name]);
+      input("embed-add-name").value = "";
+    });
   });
-  $("embed-run").addEventListener("click", run);
-  onCapabilities((c) => void addModels(bundles(c, "TASK_EMBED")));
-  capabilities().catch((e) => say($("embed-error"), describe(e), "error"));
+  onReset("embed", () => {
+    forgetOwn(PICKED);
+    for (const m of models.values()) m.checked = m.meta !== null;
+    renderModels();
+  });
+  const go = $("embed-run") as HTMLButtonElement;
+  go.addEventListener("click", () => void busy(go, run));
+  onCapabilities((c) => {
+    say($("embed-error"), "");
+    const served = bundles(c, "TASK_EMBED");
+    // A model the server listed before and no longer serves goes; a name typed in stays.
+    for (const n of listed) if (!served.includes(n)) models.delete(n);
+    listed = served;
+    void addModels(served);
+  });
+  onReachable(renderModels);
+  // The Server tab reads the capabilities for every tab (state.ts onServed).
+  onCapabilitiesFailed((e) => {
+    renderModels();
+    if (reachable() === false) say($("embed-error"), "");
+    else say($("embed-error"), explain(e));
+  });
 }

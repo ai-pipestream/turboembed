@@ -318,6 +318,13 @@ impl AllowList {
             .or_else(|| (normalized != covered).then(|| self.find_rule_for_value(normalized)).flatten())
     }
 
+    /// Deterministic configuration fingerprint for annotator schedule keys.
+    pub fn config_hash(&self) -> u64 {
+        let mut h = Fnv1a::new();
+        self.fold_hash(&mut h);
+        h.finish()
+    }
+
     pub(crate) fn fold_hash(&self, h: &mut Fnv1a) {
         h.u8(case_tag(self.case)).usize(self.terms.len());
         for (term, case) in &self.terms {

@@ -22,7 +22,9 @@ case "$event" in
   pull_request | merge_group)
     # Without rename detection: a file moved out of a watched directory
     # is then listed under its old path too.
-    if paths="$(git diff --name-only --no-renames "${2:?base}...${3:?head}")"; then
+    base="${2:?the base of the change}"
+    head="${3:?the head of the change}"
+    if paths="$(git diff --name-only --no-renames "$base...$head")"; then
       linux=false
       macos=false
       if grep -qE "$both" <<<"$paths"; then
@@ -32,7 +34,7 @@ case "$event" in
         linux=true
       fi
     else
-      echo "cannot read the changed paths between $2 and $3: both lanes run" >&2
+      echo "cannot read the changed paths between $base and $head: both lanes run" >&2
     fi
     ;;
 esac

@@ -99,6 +99,7 @@ impl Error {
 pub const KNOWN_LIMITS: &[&str] = &[
     "encoder max_sequence",
     "glirel max_len",
+    "label prompt max_sequence",
     "max_classification_tasks",
     "max_entity_types",
     "max_fields_per_structure",

@@ -2,18 +2,26 @@
 // ListCollections, GetCollection, DeleteCollection) and WatchCollection,
 // a live stream of vocabulary drift reports as documents are indexed.
 
+import { busy, confirmed, setDisabled, submitter } from "../act.js";
 import { $, el, input, say, table } from "../dom.js";
-import type { CollectionEvent } from "../gen/turbo_search_pb.js";
-import { describe, search } from "../rpc.js";
+import { TurboSearchService, type CollectionEvent } from "../gen/turbo_search_pb.js";
+import { off, onChange } from "../permit.js";
+import { cancelled, describe, explain, search } from "../rpc.js";
+import { onServed, reachable } from "../state.js";
+import { latest } from "../latest.js";
 
 let watching: AbortController | null = null;
 
 const note = () => $("coll-note");
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("coll-list");
   try {
     const r = await search.listCollections({});
+    if (!mine()) return;
     box.replaceChildren(
       r.collections.length
         ? table(
@@ -31,38 +39,35 @@ async function list(): Promise<void> {
         : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." }),
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    if (!mine()) return;
+    box.replaceChildren(el("p", { class: "error", text: reachable() === false ? "The server is not reachable, so its collections cannot be listed." : describe(e) }));
   }
 }
 
 function remove(name: string): HTMLElement {
-  const b = el("button", { type: "button", text: "Delete" });
-  b.addEventListener("click", async () => {
-    try {
-      await search.deleteCollection({ collectionName: name });
-      await list();
-    } catch (e) {
-      say(note(), describe(e), "error");
-    }
-  });
-  return b;
+  return confirmed("Delete", `Delete ${name}?`, async () => {
+    await search.deleteCollection({ collectionName: name });
+    await list();
+  }, off(TurboSearchService.method.deleteCollection));
 }
 
 async function set(ev: Event): Promise<void> {
   ev.preventDefault();
   const name = input("coll-name").value.trim();
   if (!name) return say(note(), "Name the collection.", "error");
-  try {
-    const r = await search.setCollection({
-      collectionName: name,
-      baselineTerms: input("coll-baseline").value.split(" ").map((t) => t.trim()).filter((t) => t.length),
-      oovAlertThreshold: Math.min(1, Math.max(0, parseFloat(input("coll-threshold").value) || 0)),
-    });
-    say(note(), `Set ${r.collection?.collectionName ?? name}.`);
-    await list();
-  } catch (e) {
-    say(note(), describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      const r = await search.setCollection({
+        collectionName: name,
+        baselineTerms: input("coll-baseline").value.split(" ").map((t) => t.trim()).filter((t) => t.length),
+        oovAlertThreshold: Math.min(1, Math.max(0, parseFloat(input("coll-threshold").value) || 0)),
+      });
+      say(note(), `Set ${r.collection?.collectionName ?? name}.`);
+      await list();
+    } catch (e) {
+      say(note(), explain(e));
+    }
+  });
 }
 
 function event(ev: CollectionEvent): HTMLElement {
@@ -79,25 +84,28 @@ function event(ev: CollectionEvent): HTMLElement {
 }
 
 async function watch(): Promise<void> {
-  stop();
   const name = input("coll-name").value.trim();
   if (!name) return say(note(), "Name the collection to watch.", "error");
-  const ac = new AbortController();
-  watching = ac;
   const log = $("coll-events");
-  say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
-  try {
-    for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
-      log.prepend(event(ev));
-      void list();
+  await busy($("coll-watch") as HTMLButtonElement, async () => {
+    // Inside, so a click while a watch runs (which busy ignores) does not end it.
+    stop();
+    const ac = new AbortController();
+    watching = ac;
+    say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
+    try {
+      for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
+        log.prepend(event(ev));
+        void list();
+      }
+      say(note(), "The server ended the watch.");
+    } catch (e) {
+      if (cancelled(e)) say(note(), "Stopped watching.");
+      else say(note(), explain(e));
+    } finally {
+      if (watching === ac) watching = null;
     }
-    say(note(), "The server ended the watch.");
-  } catch (e) {
-    const why = describe(e);
-    say(note(), why === "cancelled" ? "Stopped watching." : why, why === "cancelled" ? "" : "error");
-  } finally {
-    if (watching === ac) watching = null;
-  }
+  }, $("coll-stop") as HTMLButtonElement);
 }
 
 /** Ends the watch in flight, if any. */
@@ -108,8 +116,22 @@ export function stop(): void {
 
 export function init(): void {
   $("coll-set").addEventListener("submit", set);
-  $("coll-refresh").addEventListener("click", () => void list());
+  // Watching is a read: only the Set button is the write.
+  const setButton = $("coll-set").querySelector("button[type=submit]") as HTMLButtonElement;
+  const gate = (): void => {
+    const why = off(TurboSearchService.method.setCollection);
+    setDisabled(setButton, why !== "");
+    setButton.title = why;
+  };
+  gate();
+  // The answer can come later (a token typed): Set and each row's Delete follow it.
+  onChange(() => {
+    gate();
+    void list();
+  });
+  const again = $("coll-refresh") as HTMLButtonElement;
+  again.addEventListener("click", () => void busy(again, list));
+  onServed(() => void list());
   $("coll-watch").addEventListener("click", () => void watch());
   $("coll-stop").addEventListener("click", stop);
-  void list();
 }

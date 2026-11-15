@@ -1,4 +1,5 @@
-//! SHA-256 and SHA-512 digests, written as lowercase hex.
+//! SHA-256 and SHA-512 digests, and the id git gives a file, written as
+//! lowercase hex.
 
 use std::fmt;
 use std::str::FromStr;
@@ -11,6 +12,14 @@ pub struct Hex<const N: usize>(pub [u8; N]);
 
 pub type Sha256 = Hex<32>;
 pub type Sha512 = Hex<64>;
+/// The id git gives a file: the SHA-1 of its blob.
+pub type GitBlob = Hex<20>;
+
+impl GitBlob {
+    pub fn of(bytes: &[u8]) -> GitBlob {
+        Hex(turbo_sha256::git_blob_id(bytes))
+    }
+}
 
 impl Sha256 {
     pub fn of(bytes: &[u8]) -> Sha256 {

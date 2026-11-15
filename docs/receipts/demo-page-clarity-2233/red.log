@@ -1,0 +1,26 @@
+# 2233 writes the demo does not forward are off
+FAIL with no --allow, CreateIndex is off and says which --allow enables it (live, no reason)
+FAIL with no --allow, IndexDocuments is off and says which --allow enables it (live, no reason)
+FAIL with no --allow, ImportDictionary is off and says which --allow enables it (live, no reason)
+FAIL with no --allow, LearnVocabulary is off and says which --allow enables it (live, no reason)
+FAIL with no --allow, LoadBundle is off and says which --allow enables it (live, no reason)
+FAIL with no --allow, TrainStaticModel is off and says which --allow enables it (live, no reason)
+FAIL with no --allow, Set collection is off
+FAIL with no --allow, Unload is off
+FAIL with --allow for CreateIndex only, that form is live and the upload is still off
+ok   with every write allowed, every form is live
+# 2234 plain errors, details behind a toggle
+FAIL Search with no index says what to do (invalid_argument, turbo-code 256: TURBO_E_INVALID_ARGUMENT: index_name)
+FAIL a refused call leads with a sentence, not a protocol code (not_found, turbo-code 1280: TURBO_E_BUNDLE_NOT_FOUND: model nope: turbo_model_lo)
+FAIL the code and raw message are behind a details toggle
+FAIL opening it shows the code and the raw message
+# 2235 every control has a label
+FAIL no visible input, select or textarea is without a label or accessible name (embed:embed-texts embed:embed-add-name semantic:sem-query semantic:sem-passages analyze:analyze-text analyze:analyze-format analyze:xray-from analyze:xray-to analyze:xray-offsets analyze:drawer-view analyze:projection-dims analyze:projection-budgets search:search-docs search:search-files search:search-index search:search-query search:search-k search:search-rerank search:coll-name search:coll-baseline search:coll-threshold vocabulary:vocab-file vocabulary:vocab-docs vocabulary:vocab-learn-files models:train-terms)
+ok   with no index, the index select says so (no index yet)
+# 2236 options only when a model applies
+FAIL Analyze hides the open-span options with no open-span model
+FAIL Analyze hides the relation model and its options when none is served
+FAIL Semantic hides Reranker, QA model and Answers when none is served
+ok   Semantic keeps the embedding model and Neighbours
+ok   Semantic still runs
+17 checks failed

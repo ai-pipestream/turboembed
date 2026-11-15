@@ -432,6 +432,7 @@ async fn inspect_project_and_format_rpcs_end_to_end() {
                     },
                 ],
                 pii_output: Some(PiiOutputOptions { full_text: true, ..Default::default() }),
+                ..Default::default()
             })
             .await
             .expect("ProjectChunks succeeds")

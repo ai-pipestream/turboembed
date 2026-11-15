@@ -116,6 +116,15 @@ writes: they are reached only by `HTTP PUT` (see Uploads), and a Connect
 services, the rest of `TurboSinkService` and every bidi method are not
 in the table.
 
+One call the demo answers itself, with no call to the server:
+`POST /turbo.demo.v1.DemoService/Describe` (`demo/proto/turbo_demo.proto`),
+unary, `application/proto` only, behind the gate like any other call.
+Its reply lists the write methods the demo forwards (`forwarded_writes`,
+each `/<package>.<Service>/<Method>`, uploads included) and whether the
+demo has a user (`has_user`). The page asks it first, so it can turn
+off what would be refused (What the page shows). `demo/tests/describe.rs`
+checks the reply and that the path and fields are the proto's.
+
 ### Uploads
 
 A file goes to the server as an `HTTP PUT` to `/upload` followed by the
@@ -221,7 +230,8 @@ The page's protobuf and Connect-ES code is generated, never written by
 hand: `scripts/generate-web-stubs.sh` runs `buf generate` with
 `server/proto/buf.gen.yaml` and `protoc-gen-es` v2 (`target=ts`) into
 `demo/web/src/gen`, one `*_pb.ts` per proto file with its message
-schemas and service descriptors. The output is committed; the `proto` CI
+schemas and service descriptors, then the same for the demo's own
+service with `demo/proto/buf.gen.yaml`. The output is committed; the `proto` CI
 job regenerates it and fails on any difference, so a `.proto` change
 lands with its regenerated TypeScript. The script needs Node and npm and
 installs the exact versions in `demo/web/package-lock.json`
@@ -242,14 +252,21 @@ framework.
 
 In `demo/web/src`, `rpc.ts` makes the one Connect transport (binary,
 POST only, the bearer token from the page's token field) and a client
-per service, and `upload.ts` makes the one `fetch`, the upload PUT;
+per service, and `upload.ts` makes the one request outside them, the
+upload PUT, as an `XMLHttpRequest` because that reports how much of the
+body has gone out;
 `frames.ts` builds the upload bodies as Blobs, so a picked file is sent
 from disk without being read into memory, and `sha256.ts` hashes a
 dictionary for its import header. The tree test
 (`bench/tests/tree/front_end.rs`) holds the page's own TypeScript to
 this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
-`connect+json`, no JSON or GET transport, and no `fetch` outside
-`upload.ts`.
+`connect+json`, no JSON or GET transport, and no `fetch` or
+`XMLHttpRequest` outside `upload.ts`.
+
+While an upload's body goes out the page shows a bar and the bytes sent
+of the total, then that the server is working on it, and every upload
+(documents to an index, a dictionary, documents to learn from) has a
+Stop that aborts it.
 
 The page keeps to a few layout rules, which the browser run (Tests,
 below) checks on every tab at 1280 and 390 CSS pixels: the page never
@@ -258,8 +275,27 @@ control leaves the box it is in, a long select or file picker shrinking
 to the box's width; a card with nothing in it is not drawn; and a list
 with no rows says "None." in place of bare column headings. The tabs
 are an ARIA tab list: the left and right arrow keys move between them.
+Each tab is an address (`#search`) and a history entry: a link opens its
+tab, and Back and Forward move between the tabs visited.
 The header shows the server's name, version and state with a dot, green
-once `ServerReady` says ready and red when the demo cannot reach it.
+once `ServerReady` says ready and red when the demo cannot reach it. The
+state is read again every 10 seconds while the page is in view and when
+it comes back into view. While the server does not answer, a notice
+under the tabs says so and offers "Retry now", and a list with nothing
+in it says why: the server is not reachable, or it serves none of that
+kind. When the server answers again, or turns ready after loading, every
+tab reads its lists again, with no reload. A demo that refuses a call
+for want of its token counts as reachable: type the token and the tabs
+fill.
+
+Every action follows one pattern. A button that calls the server is off
+and shows the elapsed time while its call runs, and a Stop button is on
+only while there is something to stop. Anything that removes state
+(delete an index, a collection, a vocabulary artifact or a static
+model, unload a bundle, revoke a licence acceptance, remove a model
+source) asks in place first, "Delete demo?" with Yes and Cancel, and
+reports a refusal beside the row it concerns. While Yes is running the
+question stays put: Escape does not bring the first button back.
 
 ## Starting it
 
@@ -327,13 +363,98 @@ Library callers use `Options.upstream_tls: Option<UpstreamTls>` and the
 paired `ClientIdentity` type. The server's private key is never used as
 the client's key automatically.
 
+SIGTERM and SIGINT (Ctrl-C) stop the demo: it closes the listener and
+ends every open stream there with an `unavailable` end-of-stream
+envelope, message `the demo is stopping`, so a `WatchCollection` a page
+holds open does not hold the stop. Calls in flight get 5 s to finish;
+one still open then (a request whose body never arrives, say) is cut,
+and the demo logs `calls still open after 5 s were cut`. Library callers
+get the same from `Demo::stop`, and choose the wait with
+`Demo::stop_within`, which answers whether every call ended by itself.
+A stream the
+server ends because it is stopping reaches the page with the server's
+message, `the server is stopping`.
+
 ## What the page shows
 
 The page has a tab per area; leaving a tab cancels its streams and
 uploads. Writes (marked below) are refused with `permission_denied`
-unless the demo is started with `--allow` for them, and the tab says
-so with the call's code, `turbo-code`, field and message, as it does
-for any refused call.
+unless the demo is started with `--allow` for them. The page asks the
+demo which writes it forwards (`DemoService/Describe`) before it draws
+anything: a form whose write is not forwarded is off, with a line
+naming the `--allow` that enables it, and so is each delete, unload,
+install, accept and revoke control.
+A demo that wants a token answers only once the token is typed: until
+then nothing is off, and when the answer arrives every form and control
+follows it.
+
+A refused or failed call is reported as one plain sentence that says
+what to do where that is known ("Pick or create an index first."), with
+the call's code, `turbo-code`, field and raw message behind a "details"
+toggle (`demo/web/src/errors.ts`). An empty input the page can see (no
+index picked, no query, no document) is said before the server is
+asked. Every input and select has a visible label or an accessible
+name. Options that need a kind of model show only when one applies: the
+open-span options on Analyze with an open-span model picked, the
+relation model when one is served and its options when one is picked,
+and the reranker and QA selects on Semantic when the server serves that
+task. What is typed in a hidden group is kept.
+
+Results are drawn so they can be read without the numbers
+(`demo/web/src/heat.ts`, `marks.ts`, `highlight.ts`):
+
+- A similarity table is coloured by its own lowest and highest
+  off-diagonal cosine, which it names, so a model whose cosines all sit
+  in a narrow band still shows which pairs are closer. A switch goes
+  back to the absolute scale from 0 to 1, and each row's best match is
+  outlined.
+- Annotated text has a legend, a colour per picked layer: the first
+  fills, the next underlines, so layers over the same words stay
+  apart. With no layer picked the text marks what was named, or its
+  sentences when nothing was, or every layer when it has neither. A
+  marked stretch can be clicked, or reached with Tab, to list
+  every annotation on it with its layer, label and score. The legend
+  names a picked layer as its chip does, instance included.
+- A search hit marks the words that matched in place, each with the
+  signal that matched it, and the legend names the signals. Signals
+  whose spans the page cannot place in the chunk are named under the
+  hit.
+- The search heat and the Analyze heatmap each say what their colour
+  means and show the scale.
+- Where the layout is one column (820 px and narrower), a finished
+  run brings its results into view, without animation when the
+  visitor asked for less motion.
+
+Each tab opens with one line on what it does. When the server serves
+nothing a tab can use, Embed, Semantic and Search say what they need
+and where to get it (`demo/web/src/about.ts`); a model the server no
+longer serves leaves the Embed list.
+
+What is typed or picked on Embed, Semantic, Analyze, Search and
+Vocabulary is kept in the browser's `localStorage` and put back after a
+reload, the models picked on Embed included; "Reset to sample" under a
+tab's form puts that tab back and forgets what was kept
+(`demo/web/src/keep.ts`). A pick from a list the server fills (a
+model, an index) is put back the first time the list offers it; after
+that the list keeps what is picked now, so the index the page picks
+after creating one stays picked. A password, a picked file, and everything on
+Models and Server are never kept, and the bearer token stays in
+`sessionStorage`. With storage blocked the page works the same and
+keeps nothing.
+What is kept stays in that browser until Reset or until the site's data
+is cleared, so on a shared machine use Reset, or a private window,
+after pasting text that others should not read.
+
+The similarity matrices, the vectors, the side-by-side table, the
+nearest neighbours, the rerank scores and the search hits each have
+"Copy" and "Download CSV" (`demo/web/src/csv.ts`). The file is CSV as
+RFC 4180 writes it, with the full texts and six decimals (the vectors
+as the server sent them); Copy puts the same rows on the clipboard
+separated by tabs, which a spreadsheet pastes into cells. A value that
+a sheet would read as a formula (it starts with `=`, `+`, `-` or `@` and
+is not a number) gets a leading apostrophe in both. Both are
+built in the page from values it already has; nothing is asked of the
+server and there is no JSON.
 
 - Embed: each served embedding bundle (from `Capabilities`) with its
   tier, model id, dimensions, compute type and device from
@@ -371,7 +492,7 @@ for any refused call.
   separate relation model adds caller relation labels, threshold, and sentence
   scoping over those entities, so one run produces entity and relation evidence
   and edges. The graph retains model identities and source offsets.
-  Four panels below it each call when opened, and again when the graph changes:
+  Five panels below it each call when opened, and again when the graph changes:
   - Normalization X-Ray: `InspectDocumentWindow` with
     `xray_target_view` between any two views, offsets in UTF-8 bytes,
     UTF-16 units or code points, the text with each edit run inserted
@@ -380,11 +501,81 @@ for any refused call.
     view, a chip per layer, and the picked layer's annotations, 200 to
     a page, each with its span, text, kind, probability and fields
     named from the protobuf descriptors; then the models that made them.
-  - Chunk projection: `ProjectChunks` in 2 or 3 dimensions, the chunk
-    vectors drawn on a canvas by level, the boundary drift curve with
-    its cuts, the term vector stacks, and the strategy matrix for the
-    budgets typed as `name:max:target`. A graph has vectors only when
-    its profile embeds (`default-v1` with an embedding bundle).
+  - Document map (open from the start): `ProjectChunks` drawn as
+    linked views, with the same numbers as tables under them.
+    Pointing at a chunk in one view lights it in the others and in the
+    text beside the map; every mark can be reached with Tab.
+    The meaning map places each chunk vector by its two main principal
+    components (a third, when asked for, is the dot's size), with the
+    share of the variance on each axis, a line through the chunks in
+    reading order, one hue running from the first chunk to the last,
+    and each dot named by the terms that tell its chunk from the
+    rest. A coarser unit that holds some of the chunks, not all, is a
+    shaded region. The projection is of the graph's chunk vectors, so a
+    graph needs a profile that embeds (`default-v1` with an embedding
+    bundle); without vectors the map says so.
+    The topic seismograph runs along the document: the chunks as a
+    band, a value at each sentence gap, the gaps the chunker cut at
+    marked with a diamond, and under it one row of ticks for the
+    profile's own cuts and one per budget typed as `name:max:target`,
+    with how many cuts each shares with the profile. With sentence
+    vectors the value is the smoothed cosine across the gap; a graph
+    without them (the served profiles write chunk vectors only) shows
+    the chunker's cost of cutting there and says so. Pointing at the
+    curve, or the arrow keys, shows the sentence on each side of a gap.
+    The term river draws up to eight terms as streams, each as thick
+    over a chunk as its weight in that chunk's stack, ordered by the
+    chunk each is heaviest in. By default the terms are those that tell
+    chunks apart: a term is scored by its share of a chunk against its
+    share of the document and by how few chunks list it, so words every
+    chunk uses drop out in any language with no stop list
+    (`demo/web/src/viz/model.ts`); a switch draws the heaviest terms
+    instead. Pointing at a stream marks the term's occurrences in the
+    text.
+    The similarity matrix (`pairwise`, asked in the same call) is the
+    cosine between every pair of chunk vectors, shaded within the document's
+    own least and greatest cosine, with the chunks each coarser unit
+    holds outlined as a block on the diagonal. Pointing at a cell, or
+    the arrow keys, names its two chunks with their cosine and lights
+    the row's chunk in the text; the pairs can be copied or downloaded.
+    Rows are chunks because the served profiles write chunk vectors; a
+    graph with sentence vectors only gets a row per sentence. The server
+    places and compares at most 512 rows, and a longer document gets its
+    refusal in the panel's place.
+    A query typed over the map (`query`) is embedded by the model that
+    made the graph's vectors and lands on the map as a diamond, a
+    little after the typing stops or at once on Enter. Each
+    chunk glows by its cosine to the query, lines join the query to the
+    closest few, and up to five of the closest are listed with their
+    scores and marked in the text. The glow and the list are the true
+    cosines; the marker is the query's place in the map's two
+    directions, so the closest chunk is not always the nearest dot. When
+    that model is not loaded the server's refusal is shown under the box
+    and the map stands as it was.
+    One Analyze sends the graph once: the map, the matrix and a query
+    already in the box come back from one `ProjectChunks` call. A graph
+    whose chunk or sentence vectors did not run, or hold nothing, is not
+    asked for a matrix or a query. The server refuses a whole call when
+    it cannot answer the query or the matrix and names that part, so the
+    page asks again without the part named, shows the refusal in that
+    part's place and draws the rest; any other refusal is the panel's
+    and is not asked again. A query typed afterwards is a call of its
+    own, and one changed while the map was on its way is asked of the
+    new map.
+  - Entities (open from the start): `InspectDocumentGraph`'s entity
+    layer drawn two ways. The constellation has a node per entity
+    (mentions of one name and kind gathered, whatever the case), sized
+    by how often it is mentioned and coloured by its kind, with each
+    relation the graph holds as a labelled arrow from subject to
+    object. Entities mentioned in one sentence are joined by a dotted
+    line, which is what places the nodes when no relation model ran.
+    The mention strips have a row per entity with a mark at each
+    mention along the document, under the chunks; pointing at a mark
+    shows its sentence. With more than one entity layer a select picks
+    the layer; the 30 most mentioned entities are drawn and all of them
+    are in the table under the figures. A graph with no entity layer
+    says how to get one (an open-span model with labels, or a profile
+    with an entity step).
   - Graph wire inspector: the graph's binary format (`TGRF`, as
     `analysis/core/src/export/graph.rs` writes it) read in the page into
     a tree of its parts with each one's offset,
@@ -402,7 +593,8 @@ for any refused call.
   coverage, new terms) as documents are indexed, until stopped.
 - Vocabulary: the store's limits and formats, the stored dictionaries
   and vocabularies, `ImportDictionary` and `LearnVocabulary` as uploads
-  (writes), `DownloadVocabulary` streamed into a file, and
+  (writes; learning sends the form's language, which "drop stopwords"
+  needs), `DownloadVocabulary` streamed into a file, and
   `DeleteVocabularyArtifact` (write).
 - Server: the server's name, version and readiness (`ServerLive`,
   `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, with task
@@ -462,6 +654,87 @@ through the demo and the server, with the models called one after
 another. It includes the browser and the HTTP hop through the demo, so it is
 a look at the call, not a measure of the library; docs/benchmarks.md says how speed is measured.
 
+## Screenshots
+
+The pictures below are in `docs/images/demo`, one per tab in the light
+and the dark scheme, 1280 px wide. They are the page in a real browser
+in front of a real server on the CPU, serving the static models
+`minishlab/potion-base-8M` and `minishlab/potion-base-32M` (MIT, made
+with `turbo-bundle make bundle/recipes/potion/potion-base-8M.json
+UPSTREAM BUNDLE`) with `max_seq=128`, so the chunker, which sizes
+chunks from the model's width, cuts the sample document into several
+chunks; every number in them is the server's answer.
+`TURBO_SHOTS_MAX_SEQ=128 scripts/demo-screenshots.sh BUNDLE [BUNDLE...]`
+takes them again:
+it builds both binaries in release, serves the bundles with a demo that
+forwards creating and filling an index and learning a vocabulary, and
+runs `demo/web/e2e/screenshots.ts`, which uses each tab as a visitor
+would first and writes `NAME-light.png` and `NAME-dark.png`. It starts
+a fresh server for each scheme. The browser tests do not run it.
+
+Embed: two static models compared on the same five texts, side by side and each with its own similarity table.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/embed-dark.png">
+  <img alt="Embed tab of the demo page" src="images/demo/embed-light.png" width="640">
+</picture>
+
+Semantic: one query against five passages, the nearest by cosine and the passages' similarity matrix.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/semantic-dark.png">
+  <img alt="Semantic tab of the demo page" src="images/demo/semantic-light.png" width="640">
+</picture>
+
+Analyze: a document on four topics run through `default-v1` with an embedding model, its steps, layers, the place names found, the heatmap and the document map.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-dark.png">
+  <img alt="Analyze tab of the demo page" src="images/demo/analyze-light.png" width="640">
+</picture>
+
+Analyze, Document map: the same document's chunks placed by their two main directions of meaning, the topic seismograph with the chunker's cuts, and the term river.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-map-dark.png">
+  <img alt="Analyze, Document map tab of the demo page" src="images/demo/analyze-map-light.png" width="640">
+</picture>
+
+Analyze, Graph wire inspector: the graph's binary format read in the page, after a byte-for-byte round trip on the server.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/analyze-wire-dark.png">
+  <img alt="Analyze, Graph wire inspector tab of the demo page" src="images/demo/analyze-wire-light.png" width="640">
+</picture>
+
+Search: an index created and filled from the page, a query's hits with the words that matched, and the collection the index feeds.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/search-dark.png">
+  <img alt="Search tab of the demo page" src="images/demo/search-light.png" width="640">
+</picture>
+
+Vocabulary: the store after learning an English vocabulary from typed documents with the stopwords dropped.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/vocabulary-dark.png">
+  <img alt="Vocabulary tab of the demo page" src="images/demo/vocabulary-light.png" width="640">
+</picture>
+
+Models: the built-in catalog as cards, with licences, sizes and the terms still to accept.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/models-dark.png">
+  <img alt="Models tab of the demo page" src="images/demo/models-light.png" width="640">
+</picture>
+
+Server: the bundles served and the analysis profiles with what each needs.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/demo/server-dark.png">
+  <img alt="Server tab of the demo page" src="images/demo/server-light.png" width="640">
+</picture>
+
 ## Tests
 
 `cargo test -p turbo-kserve-demo` starts the server in-process on the
@@ -477,6 +750,9 @@ the server's prost types. Nothing is mocked.
 - `demo/tests/stream.rs`: `AnalyzeDocumentProgressive` giving the
   server's events; `WatchCollection` giving an event when a document is
   indexed; the server's refusals in the end-of-stream envelope.
+- `demo/tests/stop.rs`: a watch held open ends as `unavailable` when
+  the demo stops and when the server stops, and neither stop waits; a
+  request whose body never arrives is cut after the wait given.
 - `demo/tests/admin.rs`: `TrainStaticModel` and `InstallModel` (from a
   catalog served from memory) when allowed; a refused field's
   `turbo-code` and `turbo-field`; a page that goes away mid-training,
@@ -557,6 +833,110 @@ either: every call the page makes goes through the demo to the server.
   on disk has the size and SHA-256 the catalog lists. The Server tab
   loads the installed directory into the running server, and Semantic
   ranks passages with it, with no restart and no page reload.
+- An address change, a link, Back and Forward each open the tab they
+  name, every tab click is one history entry, and an address naming no
+  tab opens the first.
+- Embed, Run, Analyze, Format and Round trip are each off and count the
+  time while their call runs, Analyze's Stop is on only then, and every
+  Stop starts off.
+- Delete index, Delete collection and Unload each ask in place, with
+  focus on Cancel; Cancel and Escape put the button back, and only Yes
+  calls the server. A delete the demo refuses says why beside its own
+  row and leaves the rest of the page alone.
+- The header turns red within one status interval after the server
+  stops, with the notice and Retry, and green again with no reload once
+  it is back, the tabs refilled. A page opened with the server stopped
+  says on each tab that the server is not reachable, and fills on Retry.
+- With no `--allow`, every write form is off and names the `--allow`
+  that turns it on, and Unload is off with its reason; with `--allow`
+  for CreateIndex only, that form alone is live and creates an index.
+- A refused LoadBundle leads with a sentence, with the Connect code,
+  turbo-code and raw message behind a closed details toggle; Search
+  with no index says so before the server is asked.
+- Every input, select and text box on every tab has a label or an
+  accessible name.
+- With only embedding models served, the open-span and relation
+  options on Analyze and the Reranker, QA and Answers controls on
+  Semantic are hidden, and Semantic still runs.
+- Each similarity matrix on Embed colours from faint to strong across
+  its own range, the absolute switch narrows that, each row outlines
+  its greatest cosine off the diagonal, and the side-by-side spread is
+  in fixed decimals with its last label whole.
+- On Analyze the two `turbo:boundaries` chips read apart and pick
+  alone; a picked layer is named in the legend, a mark clicked or
+  focused lists its annotations beside the text, and two picked layers
+  show in two colours.
+- A search for "memory safe language" marks those words in its hits,
+  each mark naming its signal and the legend naming every signal.
+- At 390 pixels, Run on Embed, Semantic, Analyze and Search brings the
+  results into view.
+- Text typed on Embed, Semantic and Analyze is back after a reload,
+  the bearer token is never in localStorage, and Reset to sample puts
+  one tab back for good while the others keep theirs.
+- Each Embed matrix, its vectors and the side-by-side table offer Copy
+  and Download CSV; the files hold the rows the page shows, Copy puts
+  tab-separated rows on the clipboard, and Semantic's neighbours CSV
+  has rank, passage number, passage and cosine.
+- A 3 MiB upload held to a slow link shows a moving bar and its bytes
+  sent, then the server's answer; Stop on the Search upload ends it,
+  says so, and nothing reaches the index.
+- Every tab opens with a line on what it does; with the only model
+  unloaded, Embed, Semantic and Search say what they need.
+- Learning a vocabulary with "drop stopwords" sends the form's language
+  and learns without that language's stopwords; an empty language is
+  asked for before anything is sent, and one with no bundled list shows
+  the server's refusal. From 390 to 1280 pixels no two fields of the
+  collection form overlap.
+- Beyond `document-map.test.ts`, a four-paragraph document analyzed
+  with `default-v1` numbers the map's dots in reading order and lights
+  the last dot from the last chunk of text; a term picked on the river
+  fades the other streams and marks as many words in the text as its
+  key counts, until Clear; the numbers are tables too; at 390 pixels
+  each figure but the similarity matrix is wider than the phone and
+  scrolls in its own box while the page does not scroll sideways; and
+  the similarity matrix's CSV and Copy hold each pair of chunks once,
+  with cosines inside the range its label gives, and every row carries
+  the cosine its own cell reads out when the arrow keys reach it
+  (`document-map-details.test.ts`).
+- One Analyze is one `ProjectChunks` call, with the query box empty or
+  filled, and a query typed afterwards is a second; a graph without
+  vectors (`minimal-v1`) is one call with or without a query and shows
+  no line for a matrix; a query typed just before Draw is asked once,
+  not again when the typing timer would have run; a query over the
+  server's byte limit costs one more call and leaves the map and the
+  matrix drawn with the refusal under the box; a document of more rows
+  than the server places is refused once and not asked again in parts;
+  a query changed while the map was on its way, or typed into an empty
+  box meanwhile, is the one placed and is asked once; and an answer or
+  a query's refusal that belongs to an older drawing and arrives after
+  a newer one changes nothing (`document-map-calls.test.ts`). The matrix's diagonal is the
+  far end of its colour ramp (`matrix-spotlight.test.ts`).
+- A graph with an entity layer and a relation layer, which
+  `server/examples/inspect_layer_fixture.rs` writes as its second file
+  because no test bundle has a relation model, opened from a file: the
+  entity graph draws one labelled arrow per relation from subject to
+  object, a relation found twice is one arrow that says so and keeps
+  its best score, the legend names the arrows, a pointed-at entity
+  lights its arrows and the status line names its relations, and the
+  relations are a second table (`entity-relations.test.ts`).
+
+`demo/web/e2e/permits.test.ts` starts a demo with a token and one
+`--allow`: nothing is off before the token is typed, and after it the
+other writes are off, the Set button of a collection and each row's
+Delete and Unload among them.
+
+`demo/web/e2e/busy-permission.test.ts` pauses an actual Set request while
+a token brings a Describe answer, then resumes it through the real token
+gate. Permission changes preserve the busy state, and completion preserves
+the current permission. An allowed retry and read Watch/Stop also recover.
+
+The tests that stop the server, or need writes forwarded or a token, start a
+server and demo of their own from the same binaries
+(`demo/web/e2e/stack.ts`, given the binaries' directory in
+`TURBO_E2E_BIN`). A port taken between pick and bind is picked again,
+and a process still running 10 s after SIGTERM is killed and the test
+fails naming it, so one that does not stop cannot hang the run
+(`stack.test.ts` checks this on a shell that ignores SIGTERM).
 
 Given a directory, `scripts/e2e-web.sh DIR` also writes a full-page PNG
 of every tab at each width there, at the device scale factor in

@@ -74,13 +74,13 @@ fn each_entity_has_one_record_mapped_to_the_source() {
     // "New York" spans its closing tag in the source, as the view's
     // alignment widens a cut edit; "new</i> york" keeps the tag inside.
     assert_eq!(texts, ["Ann", "New York", "new</i> york"]);
-    for i in 0..3 {
+    assert_eq!(entities.tokens.len(), 3);
+    for (i, t) in entities.tokens.iter().enumerate() {
         let p = ev.producer_of(i);
         assert_eq!((p.annotator.as_str(), &p.model), ("turbo-namefind:dictionary", &None));
         // A rule-backed finder has no score, so none is recorded.
         assert_eq!((ev.raw_of(i), ev.calibrated_of(i), ev.abstention_of(i)), (None, None, None));
         let s = ev.support_of(i)[0];
-        let t = entities.tokens[i];
         assert_eq!((s.start, s.end), (t.start.get() as u32, t.end.get() as u32));
     }
     assert_eq!(ev.layers[0].layer, "turbo:tokens");
