@@ -23,6 +23,11 @@ pub mod statics;
 pub mod tag;
 pub mod tei;
 pub mod tensorrt;
+/// The small QA and rerank bundles the unit tests measure, shared with
+/// the tests of the built tool.
+#[cfg(test)]
+#[path = "../tests/common/heads.rs"]
+mod test_heads;
 pub mod throughput;
 
 use std::fs;

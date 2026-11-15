@@ -56,7 +56,9 @@ pub struct Runtime {
     warnings: Warnings,
 }
 
-const MAX_WARNINGS: usize = 64;
+/// How many messages a runtime keeps: the first ones, which hold what a
+/// session says as it is made.
+pub(crate) const MAX_WARNINGS: usize = 64;
 
 pub(crate) unsafe extern "C" fn collect_warning(user_data: *mut c_void, level: u32, message: turbo_text) {
     if level > LOG_WARNING || user_data.is_null() {

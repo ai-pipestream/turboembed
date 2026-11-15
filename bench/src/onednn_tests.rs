@@ -88,3 +88,26 @@ fn runtime_log_callback_and_out_of_order_handle_drop_keep_warnings_intact() {
     let recorded = sink.lock().unwrap().clone();
     assert_eq!(recorded, vec!["err".to_owned(), SAMPLE_WARNING.to_owned(), String::new()]);
 }
+
+/// The list stops at its cap and keeps the first messages, where a
+/// session's oneDNN warning is: it is logged as the session is made.
+#[test]
+fn the_warning_list_keeps_the_first_messages_up_to_its_cap() {
+    let sink: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let user_data = std::sync::Arc::as_ptr(&sink).cast_mut().cast();
+    let send = |msg: &str| {
+        let t = turbo_text { ptr: msg.as_ptr().cast(), len: msg.len() as u64 };
+        unsafe { crate::api::collect_warning(user_data, 1, t) };
+    };
+    send(SAMPLE_WARNING);
+    for i in 0..crate::api::MAX_WARNINGS + 10 {
+        send(&format!("warning {i}"));
+    }
+    let kept = sink.lock().unwrap().clone();
+    assert_eq!(kept.len(), crate::api::MAX_WARNINGS);
+    assert_eq!(kept.last().unwrap(), &format!("warning {}", crate::api::MAX_WARNINGS - 2));
+    // The line is still said from a list that filled after it.
+    let mut out = Vec::new();
+    write_fallback(&mut out, "levelzero", "", &kept);
+    assert_eq!(String::from_utf8(out).unwrap(), format!("turbo-bench: {SAMPLE_WARNING}\n"));
+}
