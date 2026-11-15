@@ -124,13 +124,53 @@ pub(crate) fn reading(dir: &Path) -> Option<ClockReading> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn scratch(name: &str) -> PathBuf {
         let d = std::env::temp_dir().join(format!("turbo-bench-gpu-clock-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
+    }
+
+    /// A temporary tree of the xe driver's files with one Intel card, for
+    /// a builder's timing function to read as a levelzero run reads
+    /// `/sys/class/drm`. Removed when dropped.
+    pub(crate) struct Tree(PathBuf);
+
+    impl Tree {
+        pub(crate) const MIN: u32 = 1200;
+        pub(crate) const MAX: u32 = 2800;
+
+        /// The tree for the test `name`, with the GPU idle (`act_freq` 0).
+        pub(crate) fn new(name: &str) -> Self {
+            let drm = scratch(name);
+            write_card(&drm, "card0", INTEL, Some(["1200", "2800", "0"]));
+            Self(drm)
+        }
+
+        /// Write `act_freq`, as the driver does while the GPU works.
+        pub(crate) fn set_act(&self, mhz: u32) {
+            std::fs::write(self.0.join("card0").join(FREQ).join("act_freq"), format!("{mhz}\n")).unwrap();
+        }
+
+        /// A levelzero window of `steps` timed loops over this tree.
+        pub(crate) fn window(&self, steps: usize) -> Window {
+            Window::with_drm(LEVELZERO, steps, &self.0)
+        }
+
+        /// What a window over this tree finishes with when `act_freq` read
+        /// `before` and `after` at its two readings: off Linux, no clock.
+        pub(crate) fn clock(before: u32, after: u32) -> Option<GpuClock> {
+            let at = |act_mhz| ClockReading { min_mhz: Self::MIN, max_mhz: Self::MAX, act_mhz };
+            cfg!(target_os = "linux").then(|| GpuClock { before: at(before), after: at(after) })
+        }
+    }
+
+    impl Drop for Tree {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     fn write_card(drm: &Path, card: &str, vendor: &str, freqs: Option<[&str; 3]>) {

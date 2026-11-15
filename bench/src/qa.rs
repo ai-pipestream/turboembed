@@ -109,6 +109,29 @@ pub fn bin_of(tokens: u32) -> usize {
     BINS.iter().rposition(|&b| tokens >= b).unwrap_or(0)
 }
 
+/// Time `pass` over one bin `iterations` times after `warmup` untimed
+/// runs: each timed run's milliseconds and the windows of the last run.
+fn time(
+    warmup: u32,
+    iterations: u32,
+    clock: &mut crate::gpu_clock::Window,
+    pass: &mut dyn FnMut() -> Result<u32>,
+) -> Result<(Vec<f64>, u32)> {
+    let mut windows = 0;
+    for _ in 0..warmup {
+        windows = pass()?;
+    }
+    clock.before_timed();
+    let mut ms = Vec::with_capacity(iterations as usize);
+    for _ in 0..iterations {
+        let t = Instant::now();
+        windows = pass()?;
+        ms.push(t.elapsed().as_secs_f64() * 1e3);
+    }
+    clock.after_timed();
+    Ok((ms, windows))
+}
+
 pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaRecord> {
     if plan.batch == 0 || plan.iterations == 0 || plan.per_bin == 0 {
         return Err("--batch, --iterations and --per-bin must be above 0".into());
@@ -154,18 +177,7 @@ pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaR
             }
             Ok(windows)
         };
-        let mut windows = 0;
-        for _ in 0..plan.warmup {
-            windows = pass()?;
-        }
-        clock.before_timed();
-        let mut ms = Vec::with_capacity(plan.iterations as usize);
-        for _ in 0..plan.iterations {
-            let t = Instant::now();
-            windows = pass()?;
-            ms.push(t.elapsed().as_secs_f64() * 1e3);
-        }
-        clock.after_timed();
+        let (mut ms, windows) = time(plan.warmup, plan.iterations, &mut clock, &mut pass)?;
         ms.sort_by(f64::total_cmp);
         let p50 = percentile(&ms, 50.0);
         out.push(Bin {

@@ -132,6 +132,30 @@ fn empty_text_set_is_rejected_immediately() {
     };
     let p = Provenance { top: String::new(), commit: "d".repeat(40), pushed_to: vec!["origin/main".into()] };
     let err = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::from_secs(60)).unwrap_err();
-    assert!(err.contains("empty"), "{err}");
+    // Refused when the file is read, by name, before anything is timed.
+    assert!(err.contains("empty.json: text set is empty"), "{err}");
     std::fs::remove_dir_all(&scratch).unwrap();
+}
+
+/// The populated case, over the driver's files in a temporary tree: with
+/// two sets the clock is read once after the first set's warm pass and
+/// once after the last set's timed passes, and not between.
+#[test]
+fn best_in_reads_the_clock_after_the_first_warm_pass_and_after_the_last_set() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("static");
+    let mut calls = 0u32;
+    let mut w = tree.window(2);
+    // Each pass leaves its number in act_freq, so a reading says which
+    // pass it followed.
+    let mut pass = || {
+        calls += 1;
+        tree.set_act(calls * 100);
+        Ok(())
+    };
+    // A zero window is one warm pass and three timed ones.
+    best_in(Duration::ZERO, &mut w, 2, &mut pass).unwrap();
+    best_in(Duration::ZERO, &mut w, 2, &mut pass).unwrap();
+    assert_eq!(w.finish(), Tree::clock(100, 800));
 }

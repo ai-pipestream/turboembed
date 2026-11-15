@@ -112,3 +112,27 @@ fn qa_measures_bins_and_carries_gpu_clock_across_active_bins() {
     check(&cpu_record).unwrap();
     std::fs::remove_dir_all(&scratch).unwrap();
 }
+
+/// The populated case, over the driver's files in a temporary tree: with
+/// two bins the clock is read once after the first bin's warmup and once
+/// after the last bin's timed runs, and not between.
+#[test]
+fn qa_time_reads_the_clock_after_the_first_warmup_and_after_the_last_bin() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("qa");
+    let mut calls = 0u32;
+    let mut w = tree.window(2);
+    // Each run leaves its number in act_freq, so a reading says which run
+    // it followed.
+    let mut pass = || {
+        calls += 1;
+        tree.set_act(calls * 100);
+        Ok(calls)
+    };
+    let (ms, windows) = time(1, 2, &mut w, &mut pass).unwrap();
+    assert_eq!((ms.len(), windows), (2, 3));
+    let (ms, windows) = time(1, 2, &mut w, &mut pass).unwrap();
+    assert_eq!((ms.len(), windows), (2, 6));
+    assert_eq!(w.finish(), Tree::clock(100, 600));
+}

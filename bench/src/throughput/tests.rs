@@ -166,3 +166,26 @@ fn grammar_measure_cpu_records_no_gpu_clock() {
     cpu_record.cargo_build = None;
     check(&cpu_record).unwrap();
 }
+
+/// The populated case, over the driver's files in a temporary tree: with
+/// two phases the clock is read once after the first phase's warm pass
+/// and once after the last phase's timed passes, and not between.
+#[cfg(any(feature = "grammar", feature = "lattice"))]
+#[test]
+fn median_pass_reads_the_clock_after_the_first_warm_pass_and_after_the_last_phase() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("throughput");
+    let calls = std::cell::Cell::new(0u32);
+    let mut w = tree.window(2);
+    // Each pass leaves its number in act_freq, so a reading says which
+    // pass it followed.
+    let pass = || {
+        calls.set(calls.get() + 1);
+        tree.set_act(calls.get() * 100);
+        Ok(u64::from(calls.get()))
+    };
+    assert_eq!(super::measure::median_pass(&mut w, 2, pass).unwrap().0, 1);
+    assert_eq!(super::measure::median_pass(&mut w, 1, pass).unwrap().0, 4);
+    assert_eq!(w.finish(), Tree::clock(100, 500));
+}

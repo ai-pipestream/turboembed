@@ -142,3 +142,25 @@ fn rerank_cpu_records_no_gpu_clock() {
     check(&cpu_record).unwrap();
     std::fs::remove_dir_all(&scratch).unwrap();
 }
+
+/// The populated case, over the driver's files in a temporary tree: the
+/// clock is read once after the warmup runs and once after the last timed
+/// run, and not between.
+#[test]
+fn rerank_time_reads_the_clock_after_warmup_and_after_the_last_run() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("rerank");
+    let mut calls = 0u32;
+    let mut w = tree.window(1);
+    // Each run leaves its number in act_freq, so a reading says which run
+    // it followed.
+    let (ms, scores) = time(2, 3, &mut w, &mut || {
+        calls += 1;
+        tree.set_act(calls * 100);
+        Ok(vec![calls as f32])
+    })
+    .unwrap();
+    assert_eq!((ms.len(), scores), (3, vec![5.0]));
+    assert_eq!(w.finish(), Tree::clock(200, 500));
+}
