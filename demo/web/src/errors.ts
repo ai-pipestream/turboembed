@@ -29,6 +29,27 @@ export function cancelled(e: unknown): boolean {
   return e instanceof ConnectError && e.code === Code.Canceled;
 }
 
+/**
+ * Whether the server read the call and would not answer it as asked (a
+ * limit, a missing model, a graph without what was asked for), so that
+ * asking for less can succeed. A server that is away, a stopped call
+ * and a withheld permission are not.
+ */
+export function declined(e: unknown): boolean {
+  if (!(e instanceof ConnectError)) return false;
+  return ASKED_TOO_MUCH.includes(e.code);
+}
+const ASKED_TOO_MUCH = [Code.InvalidArgument, Code.FailedPrecondition, Code.NotFound, Code.OutOfRange, Code.ResourceExhausted];
+
+/**
+ * Whether the server declined the call over its `part`: the server opens
+ * such a refusal with the request field it is about (`query: ...`,
+ * `pairwise.max_items ...`), so the call can be asked again without it.
+ */
+export function declinedOver(e: unknown, part: string): boolean {
+  return declined(e) && unprefixed((e as ConnectError).rawMessage).startsWith(part);
+}
+
 // What to do about an empty field, by the name the server gives it.
 const EMPTY: Record<string, string> = {
   index_name: "Pick or create an index first.",

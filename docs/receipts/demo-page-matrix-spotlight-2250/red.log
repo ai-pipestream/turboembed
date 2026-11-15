@@ -1,0 +1,21 @@
+FAIL the matrix draws one row per chunk with a vector (no matrix)
+FAIL a chunk with itself is the dark end of the ramp (null)
+FAIL the pairs take more than three shades of the document's own range (0 shades)
+FAIL the matrix is symmetric
+FAIL each coarser unit of the map is a block on the diagonal, at its chunk cuts (blocks [], regions [[0,2],[3,4],[5,6],[7,9]])
+FAIL pointing at a cell names both chunks and their cosine
+FAIL the row's chunk lights up in the text
+FAIL the arrow keys move from cell to cell
+FAIL the pairs can be copied or downloaded
+FAIL a query lands on the map as a marker (no query box)
+FAIL every chunk glows, by its cosine to the query (0 glows, 0 sizes)
+FAIL the closest chunks are listed with their scores, greatest first ([])
+FAIL the listed chunks are marked in the text ([])
+FAIL the strongest glow is the first of the list (dot 0)
+FAIL typing another query moves the marker, with no key or button
+FAIL and re-ranks the list ([])
+FAIL an empty box takes the query off the map
+FAIL in the dark theme the ramp runs the other way (null)
+FAIL at phone width the matrix fits and the page does not scroll sideways (page wider: false, plot fits: false)
+PASS no script error on the page
+1 of 20 pass

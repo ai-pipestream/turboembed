@@ -334,3 +334,27 @@ svg.viz.dim .together:not(.lit) { opacity: 0.25; }
 .swatch.together-key i { background: none; border: 0; border-top: 2px dotted var(--muted); width: 1.6em; height: 0; vertical-align: 0.25em; border-radius: 0; }
 .swatch.arrow-key i { background: none; border: 0; border-top: 2px solid var(--muted); width: 1.6em; height: 0; vertical-align: 0.25em; border-radius: 0; }
 .row[hidden] { display: none; }
+svg.viz .glow { fill: var(--m1); stroke: none; pointer-events: none; }
+svg.viz .ray { stroke: var(--m1); stroke-width: 1.5; stroke-dasharray: 4 3; stroke-opacity: 0.8; }
+svg.viz .query .mark { fill: var(--m1); stroke: var(--panel); stroke-width: 2; }
+svg.viz .query .label { font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3; }
+.swatch.query-key i { background: var(--m1); border: 0; transform: rotate(45deg) scale(0.8); border-radius: 1px; }
+.swatch.glow-key i { background: color-mix(in srgb, var(--m1) 45%, transparent); border: 0; border-radius: 50%; }
+.doc.chunked .ck.near { background: color-mix(in srgb, var(--m1) 16%, transparent); outline: 1px solid color-mix(in srgb, var(--m1) 70%, transparent); }
+.doc.chunked .ck.near.lit { background: color-mix(in srgb, var(--m1) 30%, transparent); }
+ol.closest { margin: 4px 0 6px; padding-left: 1.6em; font-size: 13px; }
+ol.closest li { padding: 2px 4px; border-radius: 4px; cursor: default; }
+ol.closest li:hover, ol.closest li:focus-visible { background: color-mix(in srgb, var(--m1) 16%, transparent); outline: none; }
+.matrix .grid { display: grid; grid-template-columns: 28px minmax(0, max-content); grid-template-rows: 16px auto; width: max-content; max-width: 100%; }
+.matrix .plot { position: relative; max-width: 100%; aspect-ratio: 1 / 1; cursor: crosshair; outline: none; border: 1px solid var(--line); box-sizing: content-box; }
+.matrix .plot:focus-visible { border-color: var(--accent); }
+.matrix .plot canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.matrix svg.viz.over { position: absolute; inset: 0; width: 100%; height: 100%; min-width: 0; pointer-events: none; }
+.matrix .block { fill: none; stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.matrix .cross-band { fill: var(--text); fill-opacity: 0.12; }
+.matrix .cross-cell { fill: none; stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.matrix .ticks { position: relative; font-size: 10px; color: var(--muted); max-width: 100%; }
+.matrix .ticks span { position: absolute; line-height: 1; }
+.matrix .ticks.top span { transform: translateX(-50%); top: 2px; }
+.matrix .ticks.left span { transform: translateY(-50%); right: 4px; }
+.swatch.block-key i { background: none; border: 2px solid var(--text); border-radius: 0; }

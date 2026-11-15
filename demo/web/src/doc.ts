@@ -2,9 +2,22 @@
 // views, shared by the panels that inspect it (window, X-Ray, annotation
 // drawer, projection, wire inspector).
 
-import type { ViewInfo } from "./gen/turbo_typed_annotations_pb.js";
+import { LayerWireStatus, type ViewInfo } from "./gen/turbo_typed_annotations_pb.js";
 
-export type Doc = { graph: Uint8Array; views: ViewInfo[]; source: string };
+/** `vectors`: whether the graph holds chunk or sentence vectors, so a panel knows before it asks. */
+export type Doc = { graph: Uint8Array; views: ViewInfo[]; source: string; vectors: boolean };
+
+/** The layers ProjectChunks places and compares: vectors over the chunks, else over the sentences. */
+const PLACED = ["turbo:embeddings<turbo:chunks>", "turbo:embeddings<turbo:sentences>"];
+
+/**
+ * Whether a graph's layer list holds vectors a projection can use: a
+ * layer that ran, of the default instance (the one the server reads), with
+ * at least one item. A skipped or failed step still lists its layer.
+ */
+export function hasVectors(layers: { layer: string; instance: string; status: LayerWireStatus; items: number }[]): boolean {
+  return layers.some((l) => PLACED.includes(l.layer) && l.instance === "" && l.status === LayerWireStatus.OK && l.items > 0);
+}
 
 let current: Doc | null = null;
 const listeners: ((d: Doc | null) => void)[] = [];
