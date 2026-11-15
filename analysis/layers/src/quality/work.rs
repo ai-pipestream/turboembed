@@ -28,6 +28,33 @@ impl GrammarCheckWork {
         self.dep_lookups.saturating_add(self.window_scans)
     }
 
+    /// Checks that work grows no faster than near-linearly over `samples`,
+    /// given as `(token_count, work)` with the token count doubling from one
+    /// sample to the next.
+    ///
+    /// The scaling probe and the tests that prove the probe catches slow
+    /// lookups both call this, so they cannot drift apart.
+    pub fn check_linear_scaling(samples: &[(usize, Self)]) -> Result<(), String> {
+        if samples.len() < 2 {
+            return Err(format!("need at least two samples, got {}", samples.len()));
+        }
+        for pair in samples.windows(2) {
+            let (n_prev, w_prev) = pair[0];
+            let (n_curr, w_curr) = pair[1];
+            for (name, prev, curr) in [
+                ("dep_lookups", w_prev.dep_lookups, w_curr.dep_lookups),
+                ("total_units", w_prev.total_units(), w_curr.total_units()),
+            ] {
+                if curr > prev.saturating_mul(3) {
+                    return Err(format!(
+                        "{name} grew faster than linear when tokens doubled ({n_prev} -> {n_curr}): {prev} -> {curr}"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn add(&mut self, other: Self) {
         self.tokens_visited = self.tokens_visited.saturating_add(other.tokens_visited);
         self.dep_lookups = self.dep_lookups.saturating_add(other.dep_lookups);

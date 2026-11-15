@@ -106,7 +106,7 @@ pub(crate) fn check_sentence_rules(
     (out, work)
 }
 
-fn run_on_sentence(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
+pub(super) fn run_on_sentence(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
     if cx.checker.check_article_phonetics {
         check_articles(cx, out);
     }
@@ -391,99 +391,4 @@ fn is_relative_marker(cx: &SentCtx<'_>, i: usize) -> bool {
 
 fn is_relative_pronoun(surface: &str, pos_tag: &str) -> bool {
     matches!(pos_tag, "WP" | "WDT") || matches!(surface.to_ascii_lowercase().as_str(), "who" | "whom" | "which")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use turbo_analysis::{Document, Span, Spans, TagSet, ViewId};
-
-    fn check_linear_scaling(work_by_size: &[(usize, GrammarCheckWork)]) -> Result<(), String> {
-        for pair in work_by_size.windows(2) {
-            let (n_prev, w_prev) = pair[0];
-            let (n_curr, w_curr) = pair[1];
-            if w_curr.dep_lookups > w_prev.dep_lookups.saturating_mul(3) {
-                return Err(format!(
-                    "2x token increase ({n_prev} -> {n_curr}) exceeded 3x in dep_lookups: {} -> {}",
-                    w_prev.dep_lookups, w_curr.dep_lookups
-                ));
-            }
-            if w_curr.total_units() > w_prev.total_units().saturating_mul(3) {
-                return Err(format!(
-                    "2x token increase ({n_prev} -> {n_curr}) exceeded 3x in total_units: {} -> {}",
-                    w_prev.total_units(),
-                    w_curr.total_units()
-                ));
-            }
-        }
-        let (n_first, w_first) = work_by_size[0];
-        let (n_last, w_last) = *work_by_size.last().unwrap();
-        if w_last.dep_lookups > w_first.dep_lookups.saturating_mul(10) {
-            return Err(format!(
-                "8x token increase ({n_first} -> {n_last}) exceeded 10x in dep_lookups: {} -> {}",
-                w_first.dep_lookups, w_last.dep_lookups
-            ));
-        }
-        if w_last.total_units() > w_first.total_units().saturating_mul(10) {
-            return Err(format!(
-                "8x token increase ({n_first} -> {n_last}) exceeded 10x in total_units: {} -> {}",
-                w_first.total_units(),
-                w_last.total_units()
-            ));
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn quadratic_dep_lookup_fails_scaling_assertion() {
-        let checker = GrammarChecker::new();
-        let mut work_by_size = Vec::new();
-        for clauses in [250usize, 500, 1000, 2000] {
-            let text = std::iter::repeat_n("They work and ", clauses).collect::<String>();
-            let _doc = Document::new(text.clone());
-            let mut spans = Spans::new(ViewId::SOURCE);
-            let tagset = TagSet::new("penn", &["PRP", "VBP", "CC"]);
-            let relations = TagSet::new("ud", &["nsubj", "root", "cc", "conj"]);
-            let mut tags = Vec::new();
-            let mut head = Vec::new();
-            let mut relation = Vec::new();
-            for k in 0..clauses {
-                for (offset, len, tag) in [(0, 4, "PRP"), (5, 4, "VBP"), (10, 3, "CC")] {
-                    spans.push(Span::new((k * 14 + offset) as u32, (k * 14 + offset + len) as u32));
-                    tags.push(tagset.tag(tag).unwrap());
-                }
-                head.extend([
-                    Some(Ix::new((3 * k + 1) as u32)),
-                    if k == 0 { None } else { Some(Ix::new(1)) },
-                    Some(Ix::new((3 * k + 1) as u32)),
-                ]);
-                relation.extend([
-                    relations.tag("nsubj").unwrap(),
-                    relations.tag(if k == 0 { "root" } else { "conj" }).unwrap(),
-                    relations.tag("cc").unwrap(),
-                ]);
-            }
-            let tokens = Tokens { spans, sentence: None };
-            let pos = PosTags { tagset, tags, prob: None };
-            let deps = Dependencies { head, relation, relations };
-            let range = IxRange::new(0, tokens.len() as u32);
-            let cx = SentCtx::new(&checker, &text, &tokens, &pos, None, Some(&deps), None, range);
-
-            // Deliberately quadratic O(N^2) dependency scan per verb through SentCtx's counting accessor.
-            let start = cx.range.start.get();
-            let end = cx.range.end.get();
-            for v in start..end {
-                cx.record_tokens_visited(1);
-                if cx.pos_str(v) == "VBP" {
-                    let children_count = (start..end).filter(|&t| cx.dep_head(t) == Some(v)).count();
-                    assert!(children_count > 0);
-                }
-            }
-            work_by_size.push((clauses * 3, cx.work()));
-        }
-
-        let err = check_linear_scaling(&work_by_size)
-            .expect_err("quadratic dependency scan must fail linear scaling assertion");
-        assert!(err.contains("dep_lookups"), "unexpected failure message: {err}");
-    }
 }
