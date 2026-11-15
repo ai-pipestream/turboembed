@@ -166,11 +166,18 @@ export type QuerySpladeTargetProto = Message<"turbo.result.v1.QuerySpladeTargetP
   floor: number;
 
   /**
+   * 0 for no impacts, or 8 or 16 for integer impacts from the calibrated
+   * SPLADE impact quantizer that documents use (issue #2343).
+   *
    * @generated from field: uint32 impact_bits = 5;
    */
   impactBits: number;
 
   /**
+   * The quantizer's saturation ceiling w_max; 0 means 6.0. It must be the
+   * w_max the indexed documents were quantized with
+   * (SparseTermsResult.impact_w_max), or the integer scores are wrong.
+   *
    * @generated from field: float impact_clip_max = 6;
    */
   impactClipMax: number;
@@ -880,21 +887,32 @@ export type QuerySpladeResultProto = Message<"turbo.result.v1.QuerySpladeResultP
   impactBits: number;
 
   /**
+   * One impact per term_id, in 1..=255 or 1..=65535.
+   *
    * @generated from field: repeated uint32 impact = 9;
    */
   impact: number[];
 
   /**
+   * max_impact / w_max: the same scale as a document quantized with the
+   * same impact_bits and w_max, never a per-query scale.
+   *
    * @generated from field: float impact_scale = 10;
    */
   impactScale: number;
 
   /**
+   * The w_max that was used.
+   *
    * @generated from field: float impact_clip_max = 11;
    */
   impactClipMax: number;
 
   /**
+   * The quantizer's certificate for this query: the L1 rounding and
+   * clipping error, and the bound on the error of a rescaled integer dot
+   * product against an unsaturated document at the same bits and w_max.
+   *
    * @generated from field: double l1_rounding_bound = 12;
    */
   l1RoundingBound: number;

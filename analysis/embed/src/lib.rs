@@ -22,11 +22,6 @@ pub mod encoder;
 pub mod export;
 pub use export::{codecs, register_codecs};
 pub mod heads;
-pub mod impacts;
-pub use impacts::{
-    DEFAULT_IMPACT_CLIP_MAX, ImpactBits as ImpactBitWidth, ImpactQuantizerConfig, QuantizedImpacts, format_token_key,
-    parse_token_key,
-};
 pub mod multires;
 pub use multires::{
     MultiResInput, MultiResOptions, MultiResVectors, VectorTier, build_tier_from_unnormalized, compute_inv_norm,

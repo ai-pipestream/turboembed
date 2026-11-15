@@ -61,7 +61,12 @@ message QuerySpladeTargetProto
   string model = 2;
   uint32 top_k = 3;
   float floor = 4;
+  // 0 for no impacts, or 8 or 16 for integer impacts from the calibrated
+  // SPLADE impact quantizer that documents use (issue #2343).
   uint32 impact_bits = 5;
+  // The quantizer's saturation ceiling w_max; 0 means 6.0. It must be the
+  // w_max the indexed documents were quantized with
+  // (SparseTermsResult.impact_w_max), or the integer scores are wrong.
   float impact_clip_max = 6;
   bool emit_term_keys = 7;
   bool use_residual_text = 8;
@@ -227,9 +232,16 @@ message QuerySpladeResultProto
   repeated uint32 span_start = 6;
   repeated uint32 span_end = 7;
   uint32 impact_bits = 8;
+  // One impact per term_id, in 1..=255 or 1..=65535.
   repeated uint32 impact = 9;
+  // max_impact / w_max: the same scale as a document quantized with the
+  // same impact_bits and w_max, never a per-query scale.
   float impact_scale = 10;
+  // The w_max that was used.
   float impact_clip_max = 11;
+  // The quantizer's certificate for this query: the L1 rounding and
+  // clipping error, and the bound on the error of a rescaled integer dot
+  // product against an unsaturated document at the same bits and w_max.
   double l1_rounding_bound = 12;
   double dot_slack_bound = 13;
   repeated string term_keys = 14;

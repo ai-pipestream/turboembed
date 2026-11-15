@@ -32,11 +32,11 @@ use crate::lexical::ProjectedSpanSet;
 
 pub use turbo::manifest::PromptRole as EmbedPromptRole;
 pub use turbo::rerank::{RerankOptions as LocalRerankOptions, RerankSessionOptions as LocalRerankSessionOptions};
-pub use turbo_analysis_embed::impacts::ImpactBits;
 pub use turbo_analysis_embed::{
-    CalibratedRerankScore as RerankScore, EncoderOptions as LocalEncoderOptions, ImpactQuantizerConfig,
-    MultiResOptions, MultiResVectors, Precision as LocalPrecision, QuantizedImpacts, RerankCalibrator, SparseOptions,
-    VectorTier, VoronoiCentroids, VoronoiOptions, train_voronoi_centroids as calibrate_voronoi_centroids,
+    CalibratedRerankScore as RerankScore, EncoderOptions as LocalEncoderOptions, ImpactBits, ImpactErrorCertificate,
+    ImpactQuantizer, MultiResOptions, MultiResVectors, Precision as LocalPrecision, QuantizedSparseTerms,
+    RerankCalibrator, SparseOptions, VectorTier, VoronoiCentroids, VoronoiOptions,
+    train_voronoi_centroids as calibrate_voronoi_centroids,
 };
 
 /// One source-attributed semantic highlight snippet in UTF-8, UTF-16, and code points.
@@ -283,13 +283,15 @@ impl LocalEmbedEngine {
     }
 
     /// Encodes `text` with the loaded MLM SPLADE head and quantizes its active
-    /// weights into sorted `(vocab_id, impact)` pairs with L1 / dot certificates.
+    /// weights with `quant`, the same quantizer the server uses (`#2343`), into
+    /// sorted `(vocab_id, impact)` pairs with their error certificate. Queries
+    /// and documents must share one `quant` (bit width and `w_max`).
     pub fn encode_sparse_impacts(
         &self,
         text: &str,
         is_query: bool,
-        quant: &ImpactQuantizerConfig,
-    ) -> Result<QuantizedImpacts> {
+        quant: &ImpactQuantizer,
+    ) -> Result<QuantizedSparseTerms> {
         let sa = self.sparse.as_ref().ok_or_else(|| {
             ClientError::FailedPrecondition("bundle was opened without SparseOptions / MLM SPLADE head".into())
         })?;
@@ -297,7 +299,8 @@ impl LocalEmbedEngine {
         let view = doc.require(&Key::<View>::DEFAULT)?;
         let (sw,) = self.subwords.annotate((view, None))?;
         let (terms,) = sa.annotate((view, &sw))?;
-        quant.quantize_sparse_terms(&terms, 0, is_query).map_err(ClientError::InvalidArgument)
+        let quantized = if is_query { sa.quantize_query(&terms, quant) } else { sa.quantize_doc(&terms, quant) };
+        Ok(quantized?)
     }
 }
 

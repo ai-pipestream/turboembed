@@ -47,10 +47,10 @@ pub use nlp::{
 
 #[cfg(feature = "local-core")]
 pub use local::{
-    EmbedPromptRole, ImpactBits, ImpactQuantizerConfig, LocalEmbedEngine, LocalEncoderOptions, LocalHighlightSnippet,
-    LocalPrecision, LocalRerankEngine, LocalRerankOptions, LocalRerankSessionOptions, MultiResOptions, MultiResVectors,
-    QuantizedImpacts, RerankCalibrator, RerankScore, SparseOptions, VectorTier, VoronoiCentroids, VoronoiOptions,
-    calibrate_voronoi_centroids,
+    EmbedPromptRole, ImpactBits, ImpactErrorCertificate, ImpactQuantizer, LocalEmbedEngine, LocalEncoderOptions,
+    LocalHighlightSnippet, LocalPrecision, LocalRerankEngine, LocalRerankOptions, LocalRerankSessionOptions,
+    MultiResOptions, MultiResVectors, QuantizedSparseTerms, RerankCalibrator, RerankScore, SparseOptions, VectorTier,
+    VoronoiCentroids, VoronoiOptions, calibrate_voronoi_centroids,
 };
 
 #[cfg(feature = "grpc")]
