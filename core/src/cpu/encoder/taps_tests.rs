@@ -53,7 +53,7 @@ fn run(
         output_dim: od as u32,
         head: 0,
         taps,
-        reserved: 0,
+        tap_alone: 0,
     };
     let mut pool = Pool::new(threads);
     let mut out = vec![f32::NAN; taps_n * ranges.len() * od];

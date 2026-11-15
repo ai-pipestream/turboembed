@@ -76,6 +76,14 @@ pub fn open_words(dir: &Path, o: &EncoderOptions, taps: usize) -> Result<WordEnc
     WordEncoder::open(dir, &eo)
 }
 
+/// Whether a head of `spec` reads the first of `taps` encoder layers and
+/// no other (`layer_mix.layer` with `layers` of `taps`), so that a word
+/// encoder serving such heads alone may read that one layer
+/// ([`WordEncoder::first_tap_alone`]).
+pub fn first_tap_alone(spec: &HeadSpec, taps: usize) -> bool {
+    taps > 1 && spec.layer_mix.is_some_and(|m| m.layer.is_some() && m.layers as usize == taps)
+}
+
 pub(crate) use turbo::head::run::tail_taps;
 
 impl HeadRunner {
@@ -85,7 +93,8 @@ impl HeadRunner {
         let bundle = Bundle::open(dir)?;
         let spec = find_head(&bundle, name, layer, HeadKind::TokenTagger)?;
         let tagger = TokenTagger::load(&bundle, &spec.name)?;
-        let words = open_words(dir, o, tagger.taps())?;
+        let mut words = open_words(dir, o, tagger.taps())?;
+        words.first_tap_alone(first_tap_alone(spec, tagger.taps()));
         if words.hidden() != tagger.hidden() {
             return Err(refuse(format!(
                 "the head reads {} values a word, the encoder gives {}",

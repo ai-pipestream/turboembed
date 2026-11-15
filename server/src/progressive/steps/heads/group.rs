@@ -29,7 +29,7 @@ use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{
     Dependencies, Entities, Lemmas, MorphFeatures, PosTags, Sentences, Subwords, Tokens, Words,
 };
-use turbo_tagger::annotate::{HeadRunner, find_head, open_words};
+use turbo_tagger::annotate::{HeadRunner, find_head, first_tap_alone, open_words};
 use turbo_tagger::multi::{Head, HeadLayer, Input};
 use turbo_tagger::{CorefHead, RelationHead, SpanHead, WordEncoder};
 
@@ -71,6 +71,15 @@ impl GroupHead {
         match self {
             GroupHead::Layer(h) => h.poolings(),
             _ => vec![self.spec().word_pooling],
+        }
+    }
+
+    /// Whether the head reads the first of `taps` layers and no other
+    /// (`layer_mix.layer`), through a word reader.
+    fn reads_first_tap_alone(&self, taps: usize) -> bool {
+        match self {
+            GroupHead::Layer(h) => h.reads_first_tap_alone(taps),
+            _ => first_tap_alone(self.spec(), taps),
         }
     }
 
@@ -149,7 +158,9 @@ impl HeadGroup {
             heads.push((*s, open_head(*s, &bundle, spec)?));
         }
         let taps = heads.iter().map(|(_, h)| h.taps()).max().unwrap_or(1);
-        let words = open_words(dir, o, taps)?;
+        let mut words = open_words(dir, o, taps)?;
+        // Heads that all read one same layer need no other from the encoder.
+        words.first_tap_alone(heads.iter().all(|(_, h)| h.reads_first_tap_alone(taps)));
         for (_, h) in &heads {
             if let Some(&n) = h.hidden().iter().find(|&&n| n != words.hidden()) {
                 return Err(refuse(format!(

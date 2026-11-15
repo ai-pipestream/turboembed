@@ -427,7 +427,12 @@ typedef struct turbo_backend_embed_rows {
                                     passes T > 1 only to a backend whose cell sets field
                                     9's bit, on a family that takes it;
                                     head is then 0 and T * count at most max_ranges */
-    uint32_t       reserved;     /* 0 */
+    uint32_t       tap_alone;    /* 0, or 1 with T > 1: the first of those T layers alone,
+                                    layer L - T + 1, the run's output [count, output_dim],
+                                    what a model cut after that layer writes; the backend
+                                    need not run the layers after it. The core passes 1
+                                    only to a backend whose cell sets field 10's bit, and
+                                    count is then at most max_ranges */
 } turbo_backend_embed_rows;
 
 /* What a run produced and what it cost: turbo_result_info's fields that
@@ -465,7 +470,8 @@ typedef struct turbo_backend {
      * The core honors the options it applies before the backend sees the
      * rows (for embed: truncate, max_tokens and prompt_role) and sets
      * their bits itself; the backend sets the bits of those its run takes,
-     * embed's layers (field 9) where its range writes take taps above 1;
+     * embed's layers (field 9) where its range writes take taps above 1,
+     * and layer_alone (field 10) where they take tap_alone;
      * reason (NUL-terminated, reason_len bytes) says why it is not
      * EXPERIMENTAL, else is empty. */
     int32_t (*capability)(uint32_t ordinal, uint32_t task, uint32_t precision,

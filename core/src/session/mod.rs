@@ -86,7 +86,7 @@ pub struct turbo_embed_options {
     pub quantization: u32,
     pub int8_ranges: *const f32,
     pub layers: u32,
-    pub reserved: u32,
+    pub layer_alone: u32,
 }
 
 // int8_ranges is read during a write call alone, as turbo.h says: the

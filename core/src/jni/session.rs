@@ -134,7 +134,7 @@ fn embed_options(values: &[i32], ranges: &[f32]) -> Result<turbo_embed_options> 
         quantization: o[6],
         int8_ranges: if ranges.is_empty() { std::ptr::null() } else { ranges.as_ptr() },
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     })
 }
 

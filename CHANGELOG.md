@@ -247,6 +247,16 @@ stubs must be regenerated.
 
 ### Added
 
+- `turbo_embed_options.layer_alone` (field 10, in the struct's spare
+  word, so its size is unchanged): with `layers` K above 1 on a range
+  write, 1 pools each range from the first of those K layers alone,
+  `[count, dim]`, and the device may stop its encoder there. The cpu
+  and cuda backends set the field's bit in
+  `turbo_capability.options_honored`; elsewhere the write is
+  `TURBO_E_UNSUPPORTED_OPTION` naming field 10. The backend interface
+  carries it as `turbo_backend_embed_rows.tap_alone`, in that struct's
+  spare word (#2000).
+
 - A per-document PII risk score and level for routing in the indexing
   pipeline: the `turbo-pii:risk` step writes `turbo:pii-risk`
   (`TypedAnnotation.pii_risk` = 100, `PiiRiskAnnotation`, `PiiRiskKind`,

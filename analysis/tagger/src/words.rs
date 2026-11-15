@@ -57,6 +57,8 @@ pub struct WordEncoder {
     /// Layers each range is read at: the last `taps` (1, the final one,
     /// but within `layer_features`).
     taps: usize,
+    /// Only the first of those layers is read (`first_tap_alone`).
+    alone: bool,
 }
 
 /// One window: its sequence, its words `first..end`, and each word's
@@ -121,6 +123,7 @@ impl WordEncoder {
             tokenized: 0,
             rows: 0,
             taps,
+            alone: false,
         })
     }
 
@@ -237,6 +240,13 @@ impl WordEncoder {
     pub fn taps(&self) -> usize {
         self.taps
     }
+    /// For heads that all read the first of the `taps` layers and no
+    /// other (`layer_mix.layer`): reads that layer alone, so a device
+    /// that can stops its encoder there. The features keep their
+    /// `[taps, words, hidden]` shape, the layers after the first zero.
+    pub fn first_tap_alone(&mut self, alone: bool) {
+        self.alone = alone;
+    }
     /// Pieces a row holds beside its special tokens.
     pub fn width(&self) -> usize {
         self.width
@@ -302,9 +312,9 @@ impl WordEncoder {
         }
         let pieces: Vec<Vec<Vec<i32>>> =
             sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
-        let saved = std::mem::replace(&mut self.taps, layers as usize);
+        let saved = (std::mem::replace(&mut self.taps, layers as usize), std::mem::take(&mut self.alone));
         let out = self.features_of(&pieces, &[pooling]);
-        self.taps = saved;
+        (self.taps, self.alone) = saved;
         out
     }
 
@@ -397,14 +407,17 @@ impl WordEncoder {
         if !ranges.is_empty() {
             if self.taps == 1 {
                 self.encoder.run_ranges(rows, ranges, states)?;
+            } else if self.alone {
+                self.encoder.run_layer_alone(rows, ranges, self.taps as u32, states)?;
             } else {
                 self.encoder.run_layer_ranges(rows, ranges, self.taps as u32, states)?;
             }
             self.rows += u64::from(rows.len());
             let (h, n, taps) = (self.hidden, ranges.len(), self.taps);
             let per = out.len() / taps;
-            // states: [taps, ranges, hidden].
-            for t in 0..taps {
+            // states: [taps, ranges, hidden], or [ranges, hidden] for the
+            // first tap alone, the later taps left zero.
+            for t in 0..if self.alone { 1 } else { taps } {
                 for (r, o) in owners.iter().enumerate() {
                     let state = &states[(t * n + r) * h..][..h];
                     let Some(p) = o.pooling else {
