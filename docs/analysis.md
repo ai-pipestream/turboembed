@@ -202,17 +202,19 @@ inspected via `Analyzer::dag_plan()`, `predecessors()`, `dependents()`, and
   so whenever relation, sentiment-target, clause-chunker, or modality annotators
   depend on syntactic head-modifier arcs, `turbo-depparse` is scheduled ahead of
   leaf siblings on the CPU critical path.
-- **Zero-barrier readiness on a bounded work-stealing `WorkerPool`**:
+- **Zero-barrier readiness on a bounded shared priority-ordered `WorkerPool`**:
   `Analyzer::run`, `Analyzer::run_with_pool`, and `Analyzer::run_with_workers`
   (configured via `Builder::worker_pool` or `Builder::workers`, or backed by
   `WorkerPool::shared()`) dispatch ready steps onto persistent worker threads
-  with per-worker local deques and cross-worker stealing. Downstream steps
-  trigger as soon as their specific `predecessors` reach zero (`remaining == 0`)
-  without waiting at coarse stage barriers, while preserving bit-identical
-  layer outputs, `DocumentGraph` wire bytes, and per-document failure/panic
-  isolation across `1`, `2`, `4`, and `8` worker threads. `Analyzer::run_staged`
-  retains the stage-barrier `std::thread::scope` baseline for head-to-head
-  benchmarking.
+  with shared priority-ordered lanes (request-level FIFO fairness across
+  concurrent callers, critical-path priority within each request). Downstream
+  steps trigger as soon as their specific `predecessors` reach zero
+  (`remaining == 0`) without waiting at coarse stage barriers, while preserving
+  bit-identical layer outputs, `DocumentGraph` wire bytes, and per-document
+  failure/panic isolation across `1`, `2`, `4`, and `8` worker threads. Nested
+  `Analyzer::run` calls from inside a pool worker fall back to `run_staged` so
+  occupied workers never deadlock. `Analyzer::run_staged` retains the
+  stage-barrier `std::thread::scope` baseline for head-to-head benchmarking.
 
 ### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
 

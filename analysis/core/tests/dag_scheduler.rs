@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
 
@@ -198,53 +198,56 @@ fn dag_plan_records_exact_edges_and_schedules_depparse_early_on_critical_path() 
 }
 
 struct SlowRootStep {
-    fast_c_finished: Arc<AtomicBool>,
-    fast_c_finished_while_slow_running: Arc<AtomicBool>,
+    barrier: Arc<Barrier>,
+    fast_c_entered: Arc<AtomicBool>,
+    fast_c_entered_while_slow_running: Arc<AtomicBool>,
 }
 impl Annotator for SlowRootStep {
     const ID: &'static str = "test:slow-root";
     type Reads = (View,);
     type Writes = (SlowALayer,);
     fn annotate(&self, (v,): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let deadline = Instant::now() + Duration::from_millis(80);
-        while Instant::now() < deadline {
-            if self.fast_c_finished.load(Ordering::Acquire) {
-                self.fast_c_finished_while_slow_running.store(true, Ordering::Release);
-                break;
-            }
-            thread::sleep(Duration::from_millis(1));
+        self.barrier.wait();
+        if self.fast_c_entered.load(Ordering::Acquire) {
+            self.fast_c_entered_while_slow_running.store(true, Ordering::Release);
         }
         Ok((SlowALayer(TagData::single(v.id(), v.text().len() as u32, "slow-a")),))
     }
 }
 
 struct FastLeafStep {
-    finished: Arc<AtomicBool>,
+    barrier: Option<Arc<Barrier>>,
+    entered: Arc<AtomicBool>,
 }
 impl Annotator for FastLeafStep {
     const ID: &'static str = "test:fast-leaf";
     type Reads = (View, FastBLayer);
     type Writes = (FastCLayer,);
     fn annotate(&self, (v, _): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.finished.store(true, Ordering::Release);
+        self.entered.store(true, Ordering::Release);
+        if let Some(barrier) = &self.barrier {
+            barrier.wait();
+        }
         Ok((FastCLayer(TagData::single(v.id(), v.text().len() as u32, "fast-c")),))
     }
 }
 
 #[test]
 fn zero_barrier_dag_completes_multi_stage_fast_branch_while_stage0_slow_branch_is_running() {
-    let fast_c_done = Arc::new(AtomicBool::new(false));
+    let barrier = Arc::new(Barrier::new(2));
+    let fast_c_entered = Arc::new(AtomicBool::new(false));
     let overlapped = Arc::new(AtomicBool::new(false));
     let analyzer = Analyzer::builder()
         .workers(2)
         .add(SlowRootStep {
-            fast_c_finished: Arc::clone(&fast_c_done),
-            fast_c_finished_while_slow_running: Arc::clone(&overlapped),
+            barrier: Arc::clone(&barrier),
+            fast_c_entered: Arc::clone(&fast_c_entered),
+            fast_c_entered_while_slow_running: Arc::clone(&overlapped),
         })
         .add(SlowChildStep)
         .add(FastRootStep)
         .add(FastMidStep)
-        .add(FastLeafStep { finished: Arc::clone(&fast_c_done) })
+        .add(FastLeafStep { barrier: Some(barrier), entered: fast_c_entered })
         .build()
         .unwrap();
 
@@ -252,7 +255,7 @@ fn zero_barrier_dag_completes_multi_stage_fast_branch_while_stage0_slow_branch_i
     for res in analyzer.run(&mut docs) {
         res.unwrap();
     }
-    assert!(overlapped.load(Ordering::Acquire), "stage-2 fast-leaf must finish while stage-0 slow-root is running");
+    assert!(overlapped.load(Ordering::Acquire), "stage-2 fast-leaf must run while stage-0 slow-root is blocked");
     assert!(docs[0].get::<SlowBLayer>().is_some());
     assert!(docs[0].get::<FastCLayer>().is_some());
 }
@@ -291,7 +294,7 @@ fn bit_identical_outputs_view_alignments_and_wire_bytes_across_1_2_4_8_workers()
         .step(Bound::new(ModalityStep(Arc::clone(&log))).read(0, "norm_a"))
         .step(Bound::new(FastRootStep).read(0, "norm_b"))
         .step(Bound::new(FastMidStep).read(0, "norm_b"))
-        .step(Bound::new(FastLeafStep { finished: Arc::new(AtomicBool::new(false)) }).read(0, "norm_b"))
+        .step(Bound::new(FastLeafStep { barrier: None, entered: Arc::new(AtomicBool::new(false)) }).read(0, "norm_b"))
         .build()
         .unwrap();
 
@@ -346,7 +349,7 @@ fn partial_failure_and_panic_isolation_matches_across_1_2_4_8_workers() {
             .add(SlowChildStep)
             .add(FastRootStep)
             .add(FastMidStep)
-            .add(FastLeafStep { finished: Arc::new(AtomicBool::new(false)) })
+            .add(FastLeafStep { barrier: None, entered: Arc::new(AtomicBool::new(false)) })
             .build()
             .unwrap();
 
@@ -442,6 +445,7 @@ impl_timed_annotator!("bench:fast-stage1", (View, FastALayer), FastBLayer, (v, _
 impl_timed_annotator!("bench:fast-stage2", (View, FastBLayer), FastCLayer, (v, _) => v);
 
 #[test]
+#[ignore = "manual latency/throughput benchmark; run with --ignored"]
 fn staged_vs_dag_scheduler_latency_and_throughput_benchmark() {
     let pool = WorkerPool::new(2);
     let analyzer = Analyzer::builder()

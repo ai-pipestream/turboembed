@@ -1,6 +1,7 @@
-//! Bounded work-stealing worker pool with critical-path priority ordering
-//! for zero-barrier DAG execution.
+//! Bounded shared priority-ordered worker pool with request-level FIFO
+//! fairness and critical-path ordering for zero-barrier DAG execution.
 
+use std::cell::Cell;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -8,13 +9,21 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering as AtomicOrdering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 
-/// Priority key ordering ready DAG steps on the critical path.
+thread_local! {
+    static IN_WORKER_POOL: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Priority key ordering ready DAG steps with request-level FIFO fairness
+/// and critical-path priority within each request.
 ///
-/// Higher `critical_path_cost`, higher `transitive_dependents`, and higher
-/// `cost_hint` win first; ties break by lower `topo_rank` and lower `seq`
-/// so execution order is deterministic.
+/// Lower `request_id` wins first so earlier callers are not starved by later
+/// callers' expensive steps. Within a request, higher `critical_path_cost`,
+/// higher `transitive_dependents`, and higher `cost_hint` win first; ties
+/// break by lower `topo_rank` and lower `seq` so execution order is
+/// deterministic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct PriorityKey {
+    pub(crate) request_id: u64,
     pub(crate) critical_path_cost: u64,
     pub(crate) transitive_dependents: usize,
     pub(crate) cost_hint: u32,
@@ -24,8 +33,10 @@ pub(crate) struct PriorityKey {
 
 impl Ord for PriorityKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.critical_path_cost
-            .cmp(&other.critical_path_cost)
+        other
+            .request_id
+            .cmp(&self.request_id)
+            .then_with(|| self.critical_path_cost.cmp(&other.critical_path_cost))
             .then_with(|| self.transitive_dependents.cmp(&other.transitive_dependents))
             .then_with(|| self.cost_hint.cmp(&other.cost_hint))
             .then_with(|| other.topo_rank.cmp(&self.topo_rank))
@@ -53,8 +64,9 @@ struct PoolState {
     threads: usize,
     queues: Mutex<PoolQueues>,
     cv: Condvar,
+    next_request_id: AtomicU64,
     next_seq: AtomicU64,
-    steals: AtomicUsize,
+    cross_lane_dispatches: AtomicUsize,
 }
 
 struct PoolHandle {
@@ -80,8 +92,8 @@ impl Drop for PoolHandle {
 }
 
 /// A bounded pool of persistent worker threads that execute ready pipeline
-/// steps in critical-path priority order with work stealing across per-worker
-/// deques.
+/// steps from shared priority-ordered lanes with request-level FIFO fairness
+/// and critical-path priority within each request.
 #[derive(Clone)]
 pub struct WorkerPool {
     inner: Arc<PoolHandle>,
@@ -91,7 +103,7 @@ impl std::fmt::Debug for WorkerPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WorkerPool")
             .field("threads", &self.thread_count())
-            .field("steals", &self.steal_count())
+            .field("cross_lane_dispatches", &self.cross_lane_dispatch_count())
             .finish()
     }
 }
@@ -106,8 +118,9 @@ impl WorkerPool {
             threads,
             queues: Mutex::new(PoolQueues { locals, shutdown: false }),
             cv: Condvar::new(),
+            next_request_id: AtomicU64::new(1),
             next_seq: AtomicU64::new(0),
-            steals: AtomicUsize::new(0),
+            cross_lane_dispatches: AtomicUsize::new(0),
         });
         let mut workers = Vec::with_capacity(threads);
         for worker_idx in 0..threads {
@@ -136,9 +149,17 @@ impl WorkerPool {
         self.inner.state.threads
     }
 
-    /// Total number of cross-worker deque steals performed by this pool.
-    pub fn steal_count(&self) -> usize {
-        self.inner.state.steals.load(AtomicOrdering::Relaxed)
+    /// Total number of cross-lane pops performed by workers in this shared pool.
+    pub fn cross_lane_dispatch_count(&self) -> usize {
+        self.inner.state.cross_lane_dispatches.load(AtomicOrdering::Relaxed)
+    }
+
+    pub(crate) fn in_worker_thread() -> bool {
+        IN_WORKER_POOL.with(Cell::get)
+    }
+
+    pub(crate) fn next_request_id(&self) -> u64 {
+        self.inner.state.next_request_id.fetch_add(1, AtomicOrdering::Relaxed)
     }
 
     pub(crate) fn next_seq(&self) -> u64 {
@@ -159,13 +180,14 @@ impl WorkerPool {
 }
 
 fn worker_loop(worker_idx: usize, state: Arc<PoolState>) {
+    IN_WORKER_POOL.with(|flag| flag.set(true));
     loop {
         let next = {
             let mut q = state.queues.lock().unwrap_or_else(|e| e.into_inner());
             loop {
                 if let Some((source_idx, job)) = pop_highest_priority(&mut q.locals, worker_idx) {
                     if source_idx != worker_idx {
-                        state.steals.fetch_add(1, AtomicOrdering::Relaxed);
+                        state.cross_lane_dispatches.fetch_add(1, AtomicOrdering::Relaxed);
                     }
                     break Some(job);
                 }
@@ -202,4 +224,75 @@ fn pop_highest_priority(locals: &mut [VecDeque<PrioritizedJob>], worker_idx: usi
     let idx = best_idx?;
     let job = locals[idx].pop_front().expect("best deque non-empty");
     Some((idx, job))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+
+    use super::*;
+
+    #[test]
+    fn request_fifo_fairness_prevents_expensive_later_request_from_starving_earlier_cheap_request() {
+        let pool = WorkerPool::new(1);
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let blocker_req = pool.next_request_id();
+        pool.spawn(
+            0,
+            PriorityKey {
+                request_id: blocker_req,
+                critical_path_cost: 1,
+                transitive_dependents: 0,
+                cost_hint: 1,
+                topo_rank: 0,
+                seq: pool.next_seq(),
+            },
+            move || {
+                let _ = started_tx.send(());
+                let _ = release_rx.recv();
+            },
+        );
+        started_rx.recv().unwrap();
+
+        let (order_tx, order_rx) = mpsc::channel();
+        let cheap_req = pool.next_request_id();
+        let expensive_req = pool.next_request_id();
+
+        // Enqueue the expensive later request first, then the cheap earlier request.
+        let tx_exp = order_tx.clone();
+        pool.spawn(
+            0,
+            PriorityKey {
+                request_id: expensive_req,
+                critical_path_cost: 1000,
+                transitive_dependents: 10,
+                cost_hint: 100,
+                topo_rank: 0,
+                seq: pool.next_seq(),
+            },
+            move || {
+                let _ = tx_exp.send("expensive-later");
+            },
+        );
+        pool.spawn(
+            0,
+            PriorityKey {
+                request_id: cheap_req,
+                critical_path_cost: 1,
+                transitive_dependents: 0,
+                cost_hint: 1,
+                topo_rank: 0,
+                seq: pool.next_seq(),
+            },
+            move || {
+                let _ = order_tx.send("cheap-earlier");
+            },
+        );
+
+        release_tx.send(()).unwrap();
+        let first = order_rx.recv().unwrap();
+        let second = order_rx.recv().unwrap();
+        assert_eq!((first, second), ("cheap-earlier", "expensive-later"));
+    }
 }

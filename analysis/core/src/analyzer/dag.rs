@@ -201,7 +201,7 @@ impl Analyzer {
         let mut heap = BinaryHeap::new();
         for (i, d) in self.dag.iter().enumerate() {
             if rem[i] == 0 {
-                heap.push(ReadyStep { priority: self.step_priority(d, i as u64), step_idx: i });
+                heap.push(ReadyStep { priority: self.step_priority(0, d, i as u64), step_idx: i });
             }
         }
         let mut seq = n as u64;
@@ -212,7 +212,7 @@ impl Analyzer {
             for &dep in &self.dag[u].dependents {
                 rem[dep] -= 1;
                 if rem[dep] == 0 {
-                    heap.push(ReadyStep { priority: self.step_priority(&self.dag[dep], seq), step_idx: dep });
+                    heap.push(ReadyStep { priority: self.step_priority(0, &self.dag[dep], seq), step_idx: dep });
                     seq += 1;
                 }
             }
@@ -220,8 +220,9 @@ impl Analyzer {
         out
     }
 
-    fn step_priority(&self, node: &DagStep, seq: u64) -> PriorityKey {
+    fn step_priority(&self, request_id: u64, node: &DagStep, seq: u64) -> PriorityKey {
         PriorityKey {
+            request_id,
             critical_path_cost: node.critical_path_cost,
             transitive_dependents: node.transitive_dependents,
             cost_hint: node.cost_hint,
@@ -232,8 +233,16 @@ impl Analyzer {
 
     /// Executes the pipeline on `docs` using `pool` with zero stage barriers:
     /// each step is dispatched as soon as its specific `predecessors` finish,
-    /// prioritized by critical-path cost.
+    /// prioritized by request-level FIFO fairness and critical-path cost.
+    ///
+    /// When called from inside a [`WorkerPool`] worker thread (for example a
+    /// step whose `annotate` invokes a nested `Analyzer::run`), this falls
+    /// back to [`Analyzer::run_staged`] so occupied pool workers never
+    /// deadlock waiting for inner pool jobs.
     pub fn run_with_pool(&self, docs: &mut [Document], pool: &WorkerPool) -> Vec<Result<(), Error>> {
+        if WorkerPool::in_worker_thread() {
+            return self.run_staged(docs);
+        }
         if docs.is_empty() {
             return Vec::new();
         }
@@ -241,6 +250,7 @@ impl Analyzer {
         if n == 0 {
             return (0..docs.len()).map(|_| Ok(())).collect();
         }
+        let request_id = pool.next_request_id();
 
         // Chain View-writing steps in canonical stage order so ViewId assignment
         // in Document::add is deterministic regardless of worker count.
@@ -262,7 +272,10 @@ impl Analyzer {
         let mut ready = BinaryHeap::new();
         for (i, count) in rem_preds.iter().enumerate() {
             if count.load(Ordering::Relaxed) == 0 {
-                ready.push(ReadyStep { priority: self.step_priority(&self.dag[i], pool.next_seq()), step_idx: i });
+                ready.push(ReadyStep {
+                    priority: self.step_priority(request_id, &self.dag[i], pool.next_seq()),
+                    step_idx: i,
+                });
             }
         }
 
@@ -314,7 +327,7 @@ impl Analyzer {
             for &dep in self.dag[done_idx].dependents.iter().chain(&extra_dependents[done_idx]) {
                 if rem_preds[dep].fetch_sub(1, Ordering::AcqRel) == 1 {
                     ready.push(ReadyStep {
-                        priority: self.step_priority(&self.dag[dep], pool.next_seq()),
+                        priority: self.step_priority(request_id, &self.dag[dep], pool.next_seq()),
                         step_idx: dep,
                     });
                 }
