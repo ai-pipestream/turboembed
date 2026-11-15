@@ -247,6 +247,9 @@ stubs must be regenerated.
 
 ### Added
 
+- The zoo index lists `gliner-community-gliner-small-v2.5`
+  (`gliner-community/gliner_small-v2.5` at `f227d3cd`), local-only by its
+  training data, with its own `spm.model` (#2392).
 - A per-document PII risk score and level for routing in the indexing
   pipeline: the `turbo-pii:risk` step writes `turbo:pii-risk`
   (`TypedAnnotation.pii_risk` = 100, `PiiRiskAnnotation`, `PiiRiskKind`,
@@ -394,6 +397,10 @@ stubs must be regenerated.
 
 ### Changed
 
+- `AnalyzeDocumentProgressive`: in a request with `turbo:gliner`,
+  `turbo-geo:names` writes the `places` instance of `turbo:entities` and
+  GLiNER the default, so both run in one request; without GLiNER the
+  place names stay the default (#2392).
 - The model zoo image (`server/Dockerfile.zoo`) builds on Docker
   Hardened Images pinned by digest and its runtime stage holds only
   `turbo-kserve`, `turbo-kserve-demo`, `libstdc++` and the CA bundle:
