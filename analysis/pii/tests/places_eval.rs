@@ -123,3 +123,56 @@ fn person_spans_of_the_head_settle_the_names_standing_alone() {
     eprintln!("\nplaces with person spans on the person-name memo: tp {tp} fp {fp} fn {fn_}");
     assert_eq!((tp, fp, fn_), (13, 0, 0));
 }
+
+/// #2388: what the trained head gave on the memo (the gated run of
+/// `pii_places_person.rs`): a `first-name` span on `Madison` alone, and
+/// its own `city` span on every other use of the names. The person rules
+/// turn down the head's cities they turned down as bare readings, so
+/// only the four names standing alone that no person span covers are
+/// left as false cities (`Paris won`, `Columbus drove`, `called Salem`,
+/// `Dayton answered`), one fewer than with the rules alone.
+#[test]
+fn head_cities_on_names_the_person_rules_refuse_are_no_city() {
+    let kinds = nemotron_custom_kinds();
+    let first_name = kinds.find("first-name").unwrap();
+    let rules = pack(Pack::Places);
+    let provenance = ModelProvenance {
+        detector_id: "turbo-tagger:pii",
+        detector_version: "0.1.0",
+        model_id: "turbo-en-nemotron-pii-modernbert-base-1",
+        model_version: "1",
+        calibrated: true,
+    };
+    let opts = ModelResolution {
+        rules: Some(&rules),
+        model_kinds: &kinds,
+        provenance,
+        min_score: Some(0.5),
+        extra_allow: None,
+    };
+    for l in &person_memo() {
+        let mut spans: Vec<ModelCandidate> =
+            person_spans(&l.text, first_name).into_iter().filter(|c| &l.text[c.span.range()] == "Madison").collect();
+        assert_eq!(spans.len(), 4, "every person use of Madison");
+        for name in PEOPLE.into_iter().filter(|&n| n != "Madison") {
+            for (start, _) in l.text.match_indices(name) {
+                let span = Span::new(start as u32, (start + name.len()) as u32);
+                spans.push(ModelCandidate { span, kind: PiiKind::City, probability: 0.9 });
+            }
+        }
+        let (pii, candidates) = resolve_model_with_rules(&l.text, ViewId::SOURCE, &opts, &spans).unwrap();
+        candidates.check_against(&pii).unwrap();
+        let cities: Vec<(u32, u32, &str)> =
+            pii.mentions().filter(|m| m.kind == PiiKind::City).map(|m| (m.span.start, m.span.end, "city")).collect();
+        let mut false_cities: Vec<&str> =
+            cities.iter().filter(|c| !l.labels.contains(c)).map(|&(s, e, _)| &l.text[s as usize..e as usize]).collect();
+        false_cities.sort_unstable();
+        let missed = l.labels.iter().filter(|g| !cities.contains(g)).count();
+        eprintln!(
+            "\nplaces with the head's own cities on the person-name memo: false {false_cities:?}, missed {missed}"
+        );
+        assert_eq!(false_cities, ["Columbus", "Dayton", "Paris", "Salem"]);
+        assert_eq!(missed, 0);
+        assert_eq!(pii.mentions().filter(|m| m.kind == first_name).count(), 4);
+    }
+}

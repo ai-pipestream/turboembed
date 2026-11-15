@@ -4,6 +4,10 @@
 //! head loaded, its person spans settle the rest. Only a bare reading
 //! gives way: a name before a state or after a city label
 //! (`Paris, TX`, `City: Paris`) stays a city whatever the head says.
+//!
+//! The head's own `city` candidates answer to the same person rules
+//! (#2388): one on a name with a person word around it (`we met
+//! Madison`, `Salem, who`) is turned down, as the bare reading was.
 
 use turbo_analysis::Span;
 use turbo_analysis_layers::{CustomKinds, PiiDetectorRef};
@@ -11,6 +15,7 @@ use turbo_analysis_layers::{CustomKinds, PiiDetectorRef};
 use super::ModelCandidate;
 use crate::hits::Hits;
 use crate::scan::city::anchored_at;
+use crate::scan::city_bare::person_context;
 
 /// The head's kinds for a person's name, as `Nemotron-PII` labels them.
 const PERSON_KINDS: [&str; 2] = ["first-name", "last-name"];
@@ -46,4 +51,12 @@ pub(super) fn bare_cities_in_persons(
                 && !anchored_at(text, c.start as usize, c.end as usize)
         })
         .collect()
+}
+
+/// Whether a `city` candidate of the head on `span` stands on a name the
+/// person rules of the bare reading refuse (`we met Madison`, `Dayton
+/// knew she`), and no state after it or city label before it anchors it.
+pub(super) fn city_reads_as_person(text: &str, span: Span) -> bool {
+    let (start, end) = (span.start as usize, span.end as usize);
+    person_context(text, start, end) && !anchored_at(text, start, end)
 }

@@ -7,7 +7,7 @@ mod age;
 mod br;
 mod card;
 pub(crate) mod city;
-mod city_bare;
+pub(crate) mod city_bare;
 mod city_person;
 mod county;
 mod crypto;

@@ -41,6 +41,7 @@ pub enum RejectReason {
     Threshold,
     /// A model's candidate that overlaps a mention a rule found, other
     /// than as its repeat or strictly inside it: the rule's mention stands.
+    /// Also a model's city on a name the city rules read as a person's.
     RulePrecedence,
 }
 
