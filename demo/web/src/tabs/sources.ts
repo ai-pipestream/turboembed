@@ -5,12 +5,19 @@
 // back to this page with a code and a state in the address, which the
 // page hands to the server and then clears.
 
-import type { ListModelSourcesResponse, ModelSource } from "../gen/turbo_training_pb.js";
-import { $, el, input, say, table } from "../dom.js";
-import { catalog, describe } from "../rpc.js";
+import { TurboCatalogService, type ListModelSourcesResponse, type ModelSource } from "../gen/turbo_training_pb.js";
+import { lock, off, onChange } from "../permit.js";
+import { busy, confirmed, submitter } from "../act.js";
+import { $, el, failed, input, say, table } from "../dom.js";
+import { catalog, explain } from "../rpc.js";
+import { onServed, reachable } from "../state.js";
 import { readOnly, redirected, s3KeysOf, signInText } from "../sourcetext.js";
+import { latest } from "../latest.js";
 
 const note = () => $("sources-note");
+// The read-only reason the last read put in the note, to take it back
+// when a later read finds the sources writable.
+let saidWhy = "";
 
 function sourcesTable(r: ListModelSourcesResponse, changed: () => Promise<void>): HTMLElement {
   const why = readOnly(r);
@@ -21,12 +28,11 @@ function sourcesTable(r: ListModelSourcesResponse, changed: () => Promise<void>)
     r.sources.map((s: ModelSource) => {
       let control: HTMLElement | string = "";
       if (!why) {
-        const b = el("button", { type: "button", text: "Remove" });
-        b.addEventListener("click", () => void act(async () => {
+        control = confirmed("Remove", `Remove ${s.name}?`, async () => {
           const gone = await catalog.removeModelSource({ name: s.name });
-          return gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`;
-        }, changed));
-        control = b;
+          await changed();
+          say(note(), gone.wasRegistered ? `Removed ${s.name}.` : `${s.name} was not registered.`);
+        }, off(TurboCatalogService.method.removeModelSource));
       }
       return [s.name, el("code", { text: s.address }), signInText(s.signIn), control];
     }),
@@ -40,21 +46,29 @@ async function act(change: () => Promise<string>, after: () => Promise<void>): P
     await after();
     say(note(), done);
   } catch (e) {
-    say(note(), describe(e), "error");
+    say(note(), explain(e));
   }
 }
 
+// Only the latest call draws (latest.ts).
+const freshLoad = latest();
 /** Reads the user's sources into the card, and shows the controls that apply. */
 export async function load(): Promise<void> {
+  const mine = freshLoad();
   try {
     const r = await catalog.listModelSources({});
+    if (!mine()) return;
     $("sources-list").replaceChildren(sourcesTable(r, load));
     const why = readOnly(r);
     ($("sources-form") as HTMLFormElement).hidden = why !== "";
     $("sources-drive").hidden = why !== "" || !r.driveSignIn;
     if (why) say(note(), why);
+    else if (saidWhy && note().textContent === saidWhy) say(note(), "");
+    saidWhy = why;
   } catch (e) {
-    say(note(), describe(e), "error");
+    if (!mine()) return;
+    $("sources-list").replaceChildren(reachable() === false ? el("p", { class: "error", text: "The server is not reachable, so the sources cannot be listed." }) : failed(explain(e)));
+    say(note(), "");
   }
 }
 
@@ -69,21 +83,22 @@ function add(ev: Event): void {
     region: input("sources-s3-region").value,
     endpoint: input("sources-s3-endpoint").value,
   });
-  void act(async () => {
+  const register = async (): Promise<string> => {
     const r = await catalog.registerModelSource({ name, address, apiKey, s3Keys });
     input("sources-key").value = "";
     input("sources-s3-key-id").value = "";
     input("sources-s3-secret").value = "";
     return `Registered ${r.source?.name ?? name}.`;
-  }, load);
+  };
+  void busy(submitter(ev), () => act(register, load));
 }
 
 /** Sends the user to Google's consent page for a Drive folder. */
-function connect(): void {
+function connect(): Promise<void> {
   const name = input("sources-drive-name").value.trim() || "Google Drive";
   const folder = input("sources-drive-folder").value.trim() || "root";
   const address = folder.startsWith("gdrive://") ? folder : `gdrive://${folder}`;
-  void act(async () => {
+  return act(async () => {
     const r = await catalog.startDriveSignIn({ name, address });
     location.assign(r.authorizeUrl);
     return "Opening Google sign-in.";
@@ -94,6 +109,7 @@ function connect(): void {
 async function finish(back: { code: string; state: string; error: string }): Promise<void> {
   history.replaceState(null, "", `${location.pathname}#models`);
   if (back.error) {
+    await load();
     say(note(), `Google sign-in was not completed: ${back.error}`, "error");
     return;
   }
@@ -106,10 +122,29 @@ async function finish(back: { code: string; state: string; error: string }): Pro
 /** Wires the controls; on a redirect back from Google, finishes the sign-in. */
 export function init(): boolean {
   $("sources-form").addEventListener("submit", add);
-  $("sources-connect").addEventListener("click", connect);
-  $("sources-refresh").addEventListener("click", () => void load());
+  lock($("sources-form"), TurboCatalogService.method.registerModelSource);
+  lock($("sources-drive"), TurboCatalogService.method.startDriveSignIn);
+  const drive = $("sources-connect") as HTMLButtonElement;
+  drive.addEventListener("click", () => void busy(drive, connect));
+  const again = $("sources-refresh") as HTMLButtonElement;
+  again.addEventListener("click", () => void busy(again, load));
   const back = redirected(location.search);
-  if (back) void finish(back);
-  else void load();
+  // The list is read with every other list (state.ts onServed). A
+  // sign-in that came back is finished in place of the first read, which
+  // reads the list itself.
+  let pending = back;
+  let finishing = false;
+  onServed(() => {
+    if (pending) {
+      const b = pending;
+      pending = null;
+      finishing = true;
+      void finish(b).finally(() => (finishing = false));
+    } else if (!finishing) void load();
+  });
+  // Each row's Remove is drawn from what the demo forwards.
+  onChange(() => {
+    if (!pending && !finishing) void load();
+  });
   return back !== null;
 }

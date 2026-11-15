@@ -53,6 +53,7 @@ fn the_three_ways_run_on_the_small_bert() {
     };
     let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
     let r = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+    assert_eq!(r.device.clock, None);
     // 30 text tokens a row: chunks of 8, 8, 8 and 6.
     assert_eq!((r.shape.chunks_per_row, r.rows.vectors, r.ranges.vectors, r.chunk_rows.vectors), (4, 2, 8, 8));
     // A range over a whole row is the row's vector, to the bit.
@@ -80,4 +81,104 @@ fn the_three_ways_run_on_the_small_bert() {
     let dir =
         turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-ranges-{}", std::process::id())));
     assert!(write(&bad, &dir).is_err());
+}
+
+#[test]
+fn ranges_cpu_records_no_gpu_clock_and_alternates_rounds() {
+    let events = std::cell::RefCell::new(Vec::new());
+    let mut w = crate::gpu_clock::Window::none();
+    let mut a = || {
+        events.borrow_mut().push("run-a");
+        Ok(())
+    };
+    let mut b = || {
+        events.borrow_mut().push("run-b");
+        Ok(())
+    };
+    time(1, 2, &mut w, &mut [(1, &mut a), (1, &mut b)]).unwrap();
+    assert_eq!(w.finish(), None);
+    assert_eq!(*events.borrow(), ["run-a", "run-b", "run-a", "run-b", "run-b", "run-a"]);
+
+    let plan = RangePlan {
+        bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"),
+        device: "cpu".into(),
+        precision: TURBO_PRECISION_MODEL,
+        batch: Some(2),
+        seq: Some(32),
+        chunk: 8,
+        warmup: 1,
+        iterations: 2,
+    };
+    let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
+    let r = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+    assert_eq!(r.device.clock, None);
+    check(&r).unwrap();
+}
+
+/// The populated case, over the driver's files in a temporary tree: the
+/// clock is read once after the warmup rounds and once after the last
+/// timed round, and not between.
+#[test]
+fn ranges_time_reads_the_clock_after_warmup_and_after_the_last_round() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("ranges");
+    let calls = std::cell::Cell::new(0u32);
+    // Each run leaves its number in act_freq, so a reading says which run
+    // it followed.
+    let run = || {
+        calls.set(calls.get() + 1);
+        tree.set_act(calls.get() * 100);
+        Ok(())
+    };
+    let (mut a, mut b) = (run, run);
+    let mut w = tree.window(1);
+    let modes = time(1, 2, &mut w, &mut [(1, &mut a), (1, &mut b)]).unwrap();
+    assert_eq!((modes.len(), calls.get()), (2, 6));
+    // Two warmup runs, then four timed ones.
+    assert_eq!(w.finish(), Tree::clock(200, 600));
+}
+
+/// On a levelzero device the range record carries the clock the driver
+/// reports. Skipped where the backend lists no device, unless
+/// TURBO_TEST_REQUIRE_LEVELZERO=1.
+#[cfg(feature = "levelzero")]
+#[test]
+fn a_levelzero_range_record_carries_the_gpu_clock() {
+    let test = "a_levelzero_range_record_carries_the_gpu_clock";
+    if crate::api::Runtime::create().unwrap().find("levelzero").is_err() {
+        let required = std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1");
+        assert!(!required, "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        println!("{test}: skipped: the levelzero feature is on and the levelzero backend lists no device");
+        return;
+    }
+    let plan = RangePlan {
+        bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle"),
+        device: "levelzero".into(),
+        precision: TURBO_PRECISION_MODEL,
+        batch: Some(2),
+        seq: Some(32),
+        chunk: 8,
+        warmup: 1,
+        iterations: 2,
+    };
+    let p = Provenance { top: String::new(), commit: "a".repeat(40), pushed_to: vec!["origin/main".into()] };
+    let r = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+    assert_eq!(r.device.backend, "levelzero");
+    // The driver's files say whether this machine has a clock to carry:
+    // one Intel GPU under xe has, and then the record must hold it.
+    match crate::gpu_clock::read("levelzero") {
+        Some(now) => {
+            let c = r
+                .device
+                .clock
+                .as_ref()
+                .expect("the machine has the xe frequency files, so the record carries the clock");
+            for at in [&c.before, &c.after] {
+                assert_eq!((at.min_mhz, at.max_mhz), (now.min_mhz, now.max_mhz));
+            }
+        }
+        None => assert_eq!(r.device.clock, None),
+    }
+    check(&r).unwrap();
 }

@@ -2102,7 +2102,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
- "turbo-coref",
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
@@ -2201,11 +2200,9 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-maxent",
  "turbo-normalize",
  "turbo-sentdetect",
  "turbo-tokenize",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2518,6 +2515,7 @@ dependencies = [
  "protox",
  "serde_json",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tonic",
  "tonic-prost",
@@ -2569,6 +2567,7 @@ dependencies = [
  "turbo-vector-index",
  "turbo-wordnet",
  "turbo-zoo",
+ "ureq",
 ]
 
 [[package]]
@@ -2961,9 +2960,11 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-morfologik",
+ "turbo-pii",
  "turbo-pins",
  "turbo-relation",
  "turbo-scratch",
+ "turbo-tokenize",
  "turbo-unicode",
  "turbo-wordnet",
  "turbo-zoo",
@@ -3060,6 +3061,7 @@ dependencies = [
 name = "turbo-trainer"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "turbo",
  "turbo-pins",
 ]
@@ -3074,12 +3076,14 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-eval",
  "turbo-formats",
  "turbo-gliner",
  "turbo-pins",
  "turbo-scratch",
  "turbo-sentdetect",
  "turbo-tagger",
+ "turbo-tokenize",
  "turbo-train-recipes",
  "turbo-trainer",
  "turbo-zoo",

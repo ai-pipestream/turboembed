@@ -1,0 +1,13 @@
+# what is served
+ok   the bundle is listed at first
+ok   one read is held (1)
+ok   after the unload the bundle is gone from the table
+ok   the older answer, arriving late, does not bring it back (0 rows)
+ok   nor to the Analyze model list (none|tiny-bert-bundle|tiny-bert-fastest|tiny-modernbert-bundle)
+# the document window
+ok   the first pick's two calls are held (2)
+ok   two layers picked, two in the legend ( turbo:tokens 35| turbo:sentences 3)
+ok   the older answer, arriving late, leaves both in the legend (2 chips on, legend:  turbo:tokens 35| turbo:sentences 3)
+ok   and the text still shows both layers (35 stretches with both)
+ok   no script error on the page
+all checks passed

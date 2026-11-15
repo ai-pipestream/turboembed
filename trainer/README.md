@@ -110,12 +110,14 @@ What is here:
   and tested on a GPU.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
-`trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
-output; the edit-tree head (R1c); the rest of R2 (the device encoder
-under `Tuned` and the loop, with the step on the device; a tiled GEMM
-in place of the register-tiled one; full fine-tuning runs on a corpus
-and bundle output,
-#1519); distillation (R3, #1520).
+`trainer/recipes` (R1b), with the layer cache on disk (`cache`,
+`fit-cache`) and bundle output (`assemble`). The edit-tree lemma head
+(R1c) is `lemma` and `fit_lemma` here. Not yet here: the rest of R2 (the
+device encoder under `Tuned` and the loop, with the step on the device;
+a tiled GEMM in place of the register-tiled one; full fine-tuning runs
+on a corpus and bundle output, #1519); a distilled student (R3, #1520:
+`distill` and `distill_gate` are its tooling, and no student is
+recorded yet).
 
 ```text
 cargo test -p turbo-trainer

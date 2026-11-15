@@ -359,3 +359,13 @@ fn document_region_annotator_config_hash_reflects_location_types() {
     assert_ne!(default_ann.config_hash(), multi_a.config_hash());
     assert_eq!(multi_a.config_hash(), multi_b.config_hash());
 }
+
+#[test]
+fn english_country_reads_a_country_name_in_any_case_and_nothing_else() {
+    for (name, code) in [("Kuwait", "KW"), ("KUWAIT", "KW"), ("Luxembourg", "LU"), ("  djibouti ", "DJ")] {
+        assert_eq!(english_country(name).map(|c| c.as_str().to_owned()), Some(code.to_owned()), "{name:?}");
+    }
+    for name in ["Rouen", "Kuwait City", "", "  "] {
+        assert_eq!(english_country(name), None, "{name:?}");
+    }
+}

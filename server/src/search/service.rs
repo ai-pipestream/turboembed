@@ -24,6 +24,8 @@ use crate::state::State;
 use crate::status::{describe, to_status};
 
 const MAX_STREAM_DOCUMENTS: usize = 4_096;
+/// What a watch is told when the server stops under it.
+const STOPPING: &str = "the server is stopping";
 
 pub struct SearchService {
     pub(crate) state: Arc<State>,
@@ -414,23 +416,37 @@ impl TurboSearchService for SearchService {
             return reply(Err(bad_arg("collection_name must not be empty")));
         }
         let mut rx = self.registry.events.subscribe();
+        let mut stopping = self.registry.stopping.subscribe();
+        if *stopping.borrow() {
+            return Err(Status::unavailable(STOPPING));
+        }
         let (tx, out_rx) = mpsc::channel(32);
         let col_name = r.collection_name;
         let min_oov = r.min_oov_ratio.max(0.0);
+        // A watch has no end of its own, so the task ends it when the
+        // server stops (a stop would otherwise wait on it without limit)
+        // and ends itself as soon as the caller is gone.
         tokio::spawn(async move {
             loop {
-                match rx.recv().await {
-                    Ok(ev) => {
-                        if ev.collection_name != col_name {
-                            continue;
+                tokio::select! {
+                    ev = rx.recv() => match ev {
+                        Ok(ev) => {
+                            if ev.collection_name != col_name {
+                                continue;
+                            }
+                            let oov = ev.report.as_ref().map_or(0.0, |rep| rep.oov_ratio);
+                            if oov >= min_oov && tx.send(Ok(ev)).await.is_err() {
+                                break;
+                            }
                         }
-                        let oov = ev.report.as_ref().map_or(0.0, |rep| rep.oov_ratio);
-                        if oov >= min_oov && tx.send(Ok(ev)).await.is_err() {
-                            break;
-                        }
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    },
+                    () = async { drop(stopping.wait_for(|s| *s).await) } => {
+                        let _ = tx.send(Err(Status::unavailable(STOPPING))).await;
+                        break;
                     }
-                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(broadcast::error::RecvError::Closed) => break,
+                    () = tx.closed() => break,
                 }
             }
         });

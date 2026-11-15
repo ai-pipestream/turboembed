@@ -4,9 +4,10 @@
 
 import { OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import { XrayEditKindProto, type NormalizationXrayProto } from "../gen/turbo_analysis_pb.js";
-import { $, el, lazy, options, table } from "../dom.js";
+import { $, el, failed, lazy, options, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
+import { latest } from "../latest.js";
 
 const box = () => $("xray-out");
 const from = () => $("xray-from") as HTMLSelectElement;
@@ -34,7 +35,10 @@ function runs(x: NormalizationXrayProto): HTMLElement {
   return text;
 }
 
+// Only the latest call draws (latest.ts).
+const freshRender = latest();
 async function render(): Promise<void> {
+  const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   if (d.views.length < 2) {
@@ -45,6 +49,7 @@ async function render(): Promise<void> {
   const [offsets, unitName] = UNITS[unit().value] ?? UNITS.utf16;
   try {
     const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets, pageSize: 1, page: 0, xrayTargetView: b });
+    if (!mine()) return;
     const x = r.xray;
     if (!x) return void box().replaceChildren(el("p", { class: "muted", text: "The server gave no X-Ray for these views." }));
     const edits = x.runs.filter((r) => r.kind !== XrayEditKindProto.EQUAL).length;
@@ -58,7 +63,8 @@ async function render(): Promise<void> {
       ),
     );
   } catch (e) {
-    box().replaceChildren(el("p", { class: "error", text: describe(e) }));
+    if (!mine()) return;
+    box().replaceChildren(failed(explain(e)));
   }
 }
 
@@ -68,8 +74,8 @@ export function init(): void {
     const views = d?.views ?? [];
     const values = views.map((_, i) => String(i));
     const labels = views.map((v, i) => viewName(v.instance, i));
-    options(from(), values, labels);
-    options(to(), values, labels);
+    options(from(), values, labels, "analyze a document first");
+    options(to(), values, labels, "analyze a document first");
     from().value = "0";
     to().value = String(Math.max(0, views.length - 1));
     again();

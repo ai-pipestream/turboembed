@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Generates the demo page's TypeScript protobuf and Connect-ES service
-# code from server/proto into demo/web/src/gen with the buf CLI and
+# code from server/proto and demo/proto into demo/web/src/gen with the buf CLI and
 # protoc-gen-es pinned in demo/web/package-lock.json (issue #1374).
 # With --check, fails when the committed output differs from what the
 # protos generate. Cargo never runs this; it needs Node and npm.
@@ -12,13 +12,15 @@ cd "$ROOT"
 npm ci --prefix demo/web --ignore-scripts --no-audit --no-fund >/dev/null
 BIN="$ROOT/demo/web/node_modules/.bin"
 PATH="$BIN:$PATH" buf generate server/proto --template server/proto/buf.gen.yaml
+# The demo's own service; after the line above, which cleans the directory.
+PATH="$BIN:$PATH" buf generate demo/proto --template demo/proto/buf.gen.yaml
 
 if [[ "${1:-}" == "--check" ]]; then
   if [[ -n "$(git status --porcelain -- demo/web/src/gen)" ]]; then
     git status --short -- demo/web/src/gen
     git diff --stat -- demo/web/src/gen
-    echo "error: demo/web/src/gen is not what server/proto generates; run scripts/generate-web-stubs.sh and commit the result" >&2
+    echo "error: demo/web/src/gen is not what server/proto and demo/proto generate; run scripts/generate-web-stubs.sh and commit the result" >&2
     exit 1
   fi
-  echo "demo/web/src/gen matches server/proto"
+  echo "demo/web/src/gen matches server/proto and demo/proto"
 fi

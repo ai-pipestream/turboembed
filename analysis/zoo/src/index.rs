@@ -446,6 +446,15 @@ impl Index {
         Ok(Index { artifacts, refused })
     }
 
+    /// Every artifact the index `bytes` writes down, the refused ones
+    /// among them, in its order, once it parses: what a tool that
+    /// rewrites an index file carries over.
+    pub fn written(bytes: &[u8]) -> Result<Vec<Artifact>, ZooError> {
+        Index::parse(bytes)?;
+        let file: IndexFile = serde_json::from_slice(bytes).map_err(|e| ZooError::Index(e.to_string()))?;
+        Ok(file.artifacts)
+    }
+
     /// The artifacts the zoo lists, in index order. No refused artifact is
     /// among them.
     pub fn list(&self) -> &[Artifact] {

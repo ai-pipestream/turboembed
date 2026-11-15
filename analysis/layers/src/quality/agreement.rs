@@ -101,8 +101,8 @@ impl<'a> SentCtx<'a> {
         let mut dep_children = Vec::new();
         if let Some(d) = deps {
             dep_children.resize_with(end - start, Vec::new);
-            for t in start..end {
-                if let Some(h) = d.head[t].map(Ix::get)
+            for (t, head) in d.head.iter().enumerate().take(end).skip(start) {
+                if let Some(h) = head.map(Ix::get)
                     && (start..end).contains(&h)
                 {
                     dep_children[h - start].push(t);

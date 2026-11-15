@@ -46,6 +46,8 @@ constant_enum! {
         LateInteractionEncoder => "COMPONENT_LATE_INTERACTION_ENCODER",
         /// Aspect spans and the polarity expressed towards each.
         AspectSentiment => "COMPONENT_ASPECT_SENTIMENT",
+        /// Personally identifiable information spans (`turbo:pii`, `PiiTagger`).
+        PiiDetector => "COMPONENT_PII_DETECTOR",
     }
 }
 

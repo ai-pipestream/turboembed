@@ -64,3 +64,98 @@ fn committed_records_pass_their_check() {
         assert_eq!(path.file_name().unwrap().to_str().unwrap(), file_name(&r));
     }
 }
+
+#[test]
+fn statics_cpu_records_no_gpu_clock_and_best_in_runs_warmup_and_three_passes() {
+    use turbo::TURBO_PRECISION_MODEL;
+
+    let mut passes = 0u32;
+    let mut w = crate::gpu_clock::Window::none();
+    best_in(Duration::ZERO, &mut w, 2, &mut || {
+        passes += 1;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(passes, 4);
+    assert_eq!(w.finish(), None);
+
+    let scratch =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-static-{}", std::process::id())));
+    std::fs::create_dir_all(&scratch).unwrap();
+    let set_a = scratch.join("a.json");
+    let set_b = scratch.join("b.json");
+    std::fs::write(&set_a, r#"["hello world","second row"]"#).unwrap();
+    std::fs::write(&set_b, r#"["another row"]"#).unwrap();
+
+    let plan = StaticPlan {
+        bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-static-bundle"),
+        precision: TURBO_PRECISION_MODEL,
+        sets: vec![("a".into(), set_a), ("b".into(), set_b)],
+        batches: vec![1, 2],
+        peers: None,
+    };
+    let p = Provenance { top: String::new(), commit: "d".repeat(40), pushed_to: vec!["origin/main".into()] };
+
+    let cpu_record = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::ZERO).unwrap();
+    assert_eq!(cpu_record.device.clock, None);
+    check(&cpu_record).unwrap();
+    std::fs::remove_dir_all(&scratch).unwrap();
+}
+
+#[test]
+fn empty_text_set_is_rejected_immediately() {
+    use turbo::TURBO_PRECISION_MODEL;
+
+    let mut calls = 0u32;
+    let mut w = crate::gpu_clock::Window::none();
+    let err = best_in(Duration::from_secs(60), &mut w, 0, &mut || {
+        calls += 1;
+        assert!(calls <= 5, "best_in looped on n == 0");
+        Ok(())
+    })
+    .unwrap_err();
+    assert!(err.contains("empty"), "{err}");
+    assert_eq!(calls, 0);
+
+    let scratch = turbo_scratch::Scratch::at(
+        std::env::temp_dir().join(format!("turbo-bench-static-empty-{}", std::process::id())),
+    );
+    std::fs::create_dir_all(&scratch).unwrap();
+    let empty_set = scratch.join("empty.json");
+    std::fs::write(&empty_set, "[]").unwrap();
+    let plan = StaticPlan {
+        bundle: Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-static-bundle"),
+        precision: TURBO_PRECISION_MODEL,
+        sets: vec![("empty".into(), empty_set)],
+        batches: vec![1],
+        peers: None,
+    };
+    let p = Provenance { top: String::new(), commit: "d".repeat(40), pushed_to: vec!["origin/main".into()] };
+    let err = measure_for(&plan, &p, "2026-10-22T00:00:00Z".into(), Duration::from_secs(60)).unwrap_err();
+    // Refused when the file is read, by name, before anything is timed.
+    assert!(err.contains("empty.json: text set is empty"), "{err}");
+    std::fs::remove_dir_all(&scratch).unwrap();
+}
+
+/// The populated case, over the driver's files in a temporary tree: with
+/// two sets the clock is read once after the first set's warm pass and
+/// once after the last set's timed passes, and not between.
+#[test]
+fn best_in_reads_the_clock_after_the_first_warm_pass_and_after_the_last_set() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("static");
+    let mut calls = 0u32;
+    let mut w = tree.window(2);
+    // Each pass leaves its number in act_freq, so a reading says which
+    // pass it followed.
+    let mut pass = || {
+        calls += 1;
+        tree.set_act(calls * 100);
+        Ok(())
+    };
+    // A zero window is one warm pass and three timed ones.
+    best_in(Duration::ZERO, &mut w, 2, &mut pass).unwrap();
+    best_in(Duration::ZERO, &mut w, 2, &mut pass).unwrap();
+    assert_eq!(w.finish(), Tree::clock(100, 800));
+}

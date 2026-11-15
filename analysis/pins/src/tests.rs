@@ -19,7 +19,9 @@ fn every_line_of_models_txt_parses_and_no_digest_is_pinned_twice() {
 
 #[test]
 fn the_zoo_and_the_references_are_pinned_too() {
-    assert!(pins().iter().filter(|p| p.source == "analysis/zoo/index/zoo.json").count() >= 90);
+    let zoo: Vec<&Pin> = pins().iter().filter(|p| p.source == "analysis/zoo/index/zoo.json").collect();
+    assert!(zoo.len() >= 90);
+    assert!(zoo.iter().any(|p| p.name == "manifest.json" && p.kind == Kind::Bundle));
     let text = "# a comment\n\
                 1111111111111111111111111111111111111111111111111111111111111111 https://example.org/a/kept.bin\n\
                 2222222222222222222222222222222222222222222222222222222222222222 https://example.org/models-1.5/gone.bin\n";

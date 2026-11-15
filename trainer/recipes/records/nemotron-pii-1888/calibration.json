@@ -1,0 +1,61 @@
+{
+  "schema": "turboembed.trainer.tagger-calibration/1",
+  "command": [
+    "turbo-train-head",
+    "calibrate",
+    "--corpus",
+    "nemotron-pii",
+    "--dir",
+    "corpora/nemotron-pii",
+    "--cache",
+    "cache/nemotron-pii",
+    "--run",
+    "runs/nemotron-pii",
+    "--out",
+    "runs/nemotron-pii/calibration.json",
+    "--layer",
+    "22",
+    "--commit",
+    "735f516c7ca50c0db8cd25470bf3d70f239ab25a"
+  ],
+  "commit": "735f516c7ca50c0db8cd25470bf3d70f239ab25a",
+  "unix_time": 1794383332,
+  "corpus_id": "nemotron-pii",
+  "split": "dev",
+  "layer": 22,
+  "head_files": [
+    {
+      "path": "head.json",
+      "size": 2671,
+      "sha256": "144017d505e46ed88b51b25443c992518a119d63608563a1ca01adc3e1e48696"
+    },
+    {
+      "path": "head.safetensors",
+      "size": 6201372,
+      "sha256": "b8cb82e3708629e101990487add3dea807b2d56fb2cda15cbcfd06dcb054f9e6"
+    },
+    {
+      "path": "receipt.json",
+      "size": 39367,
+      "sha256": "87b4482b49a7f2cb60c4a006bef7e961fe38948b1d1a760c550e84b165c05f2b"
+    }
+  ],
+  "dev_sentences": 10000,
+  "dev_tokens": 1969973,
+  "dev_entity_tokens": 380348,
+  "temperature": 1.0937580385971386,
+  "uncalibrated": {
+    "nll": 0.09078771060812613,
+    "ece": 0.0024620329453341255,
+    "entity_ece": 0.04807857574799615,
+    "brier": 0.038600633201833094,
+    "accuracy": 0.9750494042304133
+  },
+  "calibrated": {
+    "nll": 0.09004598729466365,
+    "ece": 0.001973871737203775,
+    "entity_ece": 0.038478425455657175,
+    "brier": 0.03863273609548921,
+    "accuracy": 0.9750494042304133
+  }
+}

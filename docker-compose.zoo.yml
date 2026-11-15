@@ -45,7 +45,7 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile.zoo
-    entrypoint: ["zoo-bucket"]
+    entrypoint: ["turbo-kserve", "zoo-bucket"]
     environment: *store
     depends_on:
       - rustfs

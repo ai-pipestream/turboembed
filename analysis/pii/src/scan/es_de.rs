@@ -71,7 +71,7 @@ pub(crate) fn scan_es_nie(text: &str, hits: &mut Hits) {
     let b = text.as_bytes();
     let mut i = 0;
     while i + 9 <= b.len() {
-        if !matches!(b[i], b'X' | b'Y' | b'Z') || !clean_token_start(text, i) {
+        if !matches!(b[i], b'X'..=b'Z') || !clean_token_start(text, i) {
             i += 1;
             continue;
         }

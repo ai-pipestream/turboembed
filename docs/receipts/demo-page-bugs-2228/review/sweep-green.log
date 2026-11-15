@@ -1,0 +1,25 @@
+PASS opened with the server stopped: no select is left blank
+PASS and no list or note shows a raw connection error
+PASS the teachers box says the server is not reachable (The server is not reachable, so its teachers and static mode)
+PASS the sources list says so too, and is not left loading (The server is not reachable, so the sources cannot be listed)
+PASS the teacher select says why it is empty (the server is not reachable)
+PASS after the server starts: the notice is gone
+PASS the sources list loaded with no reload (demo has no sources: installs read the catalog's own.)
+PASS the sources note holds no old error
+PASS the teacher select lists the served model (tiny-bert-bundle (hidden 32, 30522 words))
+PASS the vocabulary formats are listed (9)
+PASS the rerank select offers no rerank
+PASS nothing still says the server is not reachable
+PASS the server stopped under the open page: lists say so, none blank, none raw
+PASS a demo that refuses for want of a token is not shown as unreachable (unauthenticated: a bearer token is required (the demo wants its token:)
+PASS with the token typed, the tabs fill (none|tiny-bert-bundle)
+PASS opened while the server loads (turboembed 0.1.0 cpu: live, still loading)
+PASS once ready, the teacher select lists the models, with no reload (60 options)
+PASS and so does the Teachers table (61 rows)
+PASS Escape while Yes is running does not bring Delete back
+PASS the delete was sent once (1 calls)
+PASS Add on the Embed tab is off and counting while its call runs
+PASS Accept is off and counting while its call runs
+PASS Install is off and counting while its call runs
+PASS no script error on the page
+24 of 24 pass

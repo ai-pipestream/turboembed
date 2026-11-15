@@ -6,10 +6,11 @@
 import { LayerErrorKind, LayerWireStatus, OffsetMode, TypedAnnotationSchema, type TypedDocumentResult, type TypedLayer } from "../gen/turbo_typed_annotations_pb.js";
 import type { DescMessage } from "@bufbuild/protobuf";
 import { brief } from "../brief.js";
-import { $, el, lazy, options, table } from "../dom.js";
+import { $, el, failed, lazy, options, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, describe } from "../rpc.js";
+import { analysis, explain } from "../rpc.js";
 import { viewName } from "./xray.js";
+import { latest } from "../latest.js";
 
 const PAGE = 200;
 let result: TypedDocumentResult | null = null;
@@ -79,11 +80,16 @@ function draw(): void {
   );
 }
 
+// Only the latest call draws (latest.ts).
+const freshRender = latest();
 async function render(): Promise<void> {
+  const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
   try {
-    result = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: OffsetMode.UTF16 });
+    const r = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: OffsetMode.UTF16 });
+    if (!mine()) return;
+    result = r;
     if (!result.layers.some((l) => key(l) === picked)) {
       const first = result.layers.find((l) => l.annotations.length);
       picked = first ? key(first) : "";
@@ -91,8 +97,9 @@ async function render(): Promise<void> {
     shown = PAGE;
     draw();
   } catch (e) {
+    if (!mine()) return;
     result = null;
-    box().replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box().replaceChildren(failed(explain(e)));
   }
 }
 
@@ -100,7 +107,7 @@ export function init(): void {
   const again = lazy($("analyze-drawer") as HTMLDetailsElement, () => void render());
   onDoc((d) => {
     const views = d?.views ?? [];
-    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)));
+    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)), "analyze a document first");
     viewSelect().value = "0";
     again();
   });

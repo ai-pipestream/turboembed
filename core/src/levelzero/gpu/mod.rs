@@ -185,7 +185,17 @@ pub(crate) use quantize::buffer_quantize;
 impl Drop for Context {
     fn drop(&mut self) {
         if profiling() {
-            let p = std::mem::take(self.profile.get_mut().unwrap_or_else(|p| p.into_inner()));
+            #[cfg_attr(not(feature = "levelzero-onednn"), allow(unused_mut))]
+            let mut p = std::mem::take(self.profile.get_mut().unwrap_or_else(|p| p.into_inner()));
+            // oneDNN's primitives run on its own queue, timed there.
+            #[cfg(feature = "levelzero-onednn")]
+            if let Some(Some(d)) = self.dnnl.get() {
+                for (name, n, ns) in d.profile() {
+                    let entry = p.entry(name).or_default();
+                    entry.0 += n;
+                    entry.1 += ns;
+                }
+            }
             let total: u64 = p.values().map(|v| v.1).sum();
             for (name, (n, ns)) in p.iter() {
                 let share = 100.0 * *ns as f64 / total.max(1) as f64;

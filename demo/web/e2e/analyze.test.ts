@@ -11,9 +11,10 @@ import { chromium, type Browser, type Page } from "playwright";
 const BASE = process.env.TURBO_E2E_URL ?? "http://127.0.0.1:8080";
 
 /** Opens the Analyze tab, runs the default profile on the sample text and waits for the document. */
-async function analyzed(browser: Browser): Promise<Page> {
+async function analyzed(browser: Browser, errors: string[] = []): Promise<Page> {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   const page = await context.newPage();
+  page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(`${BASE}/#analyze`);
   await page.waitForSelector("#analyze-profile option", { state: "attached" });
   await page.waitForSelector("#analyze-format option", { state: "attached" });
@@ -35,9 +36,8 @@ function layerRows(page: Page): Promise<[string, number][]> {
 test("analyze streams every step of the profile and shows the document it built", async () => {
   const browser = await chromium.launch();
   try {
-    const page = await analyzed(browser);
     const errors: string[] = [];
-    page.on("pageerror", (e) => errors.push(e.message));
+    const page = await analyzed(browser, errors);
     const source = await page.inputValue("#analyze-text");
 
     // The first line names the steps; one line per finished step; the last says complete.

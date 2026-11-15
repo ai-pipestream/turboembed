@@ -43,13 +43,8 @@ pub(super) fn is_negated_in_dependencies(
 
     let rel = deps.relation.get(tok_global).map(|&t| deps.relations.label(t)).unwrap_or("");
     let base_rel = rel.split(':').next().unwrap_or(rel);
-    if matches!(base_rel, "acomp" | "xcomp" | "ccomp" | "amod" | "conj" | "advmod" | "attr" | "oprd" | "dep")
+    matches!(base_rel, "acomp" | "xcomp" | "ccomp" | "amod" | "conj" | "advmod" | "attr" | "oprd" | "dep")
         && has_direct_negation_dependent(head_global, sent_start, sent_end, lower_words, lexicon, deps)
-    {
-        return true;
-    }
-
-    false
 }
 
 pub(super) fn has_direct_negation_dependent(

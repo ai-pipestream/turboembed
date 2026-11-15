@@ -16,7 +16,7 @@ fn project(rows: &[[f32; 4]], k: u32) -> Vec<(f32, f32)> {
     let spans: Vec<Span> = (0..rows.len() as u32).map(|i| Span::new(i, i + 1)).collect();
     let levels = vec![0u8; rows.len()];
     let off = Offsetter::new(text, OffsetMode::Utf8);
-    let p = compute_pca(&vectors, &spans, &levels, text, &off, k).unwrap();
+    let p = compute_pca(&vectors, &spans, &levels, text, &off, k, None).unwrap().0;
     p.points.iter().map(|q| (q.x, q.y)).collect()
 }
 
@@ -52,7 +52,7 @@ fn gram_and_covariance_three_axis_projection_preserve_scale_and_variance() {
         let run = |scale: f32| {
             let data = rows[..n].iter().flatten().map(|x| x * scale).collect();
             let vectors = Vectors::<Chunks>::new(4, data, Vec::new(), model());
-            compute_pca(&vectors, &spans, &levels, text, &offsetter, 3).unwrap()
+            compute_pca(&vectors, &spans, &levels, text, &offsetter, 3, None).unwrap().0
         };
         let base = run(1.0);
         assert_eq!(base.points.len(), n);

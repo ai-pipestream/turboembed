@@ -16,8 +16,11 @@ use crate::licence::Policy;
 
 #[cfg(feature = "http")]
 mod drive;
+mod kept;
 #[cfg(feature = "http")]
 mod oauth;
+#[cfg(feature = "http")]
+mod oci;
 #[cfg(feature = "http")]
 mod s3;
 #[cfg(feature = "http")]
@@ -28,8 +31,11 @@ mod transport;
 
 #[cfg(feature = "http")]
 pub use drive::{DRIVE_ENDPOINT, DriveAuth, GoogleDrive};
+pub(crate) use kept::Kept;
 #[cfg(feature = "http")]
 pub use oauth::{DRIVE_READONLY, GOOGLE_AUTH_ENDPOINT, GOOGLE_TOKEN_ENDPOINT, GoogleOAuth, Grant, Pkce, Renewing};
+#[cfg(feature = "http")]
+pub use oci::OciRegistry;
 #[cfg(feature = "http")]
 pub use s3::S3Bucket;
 pub use sources::{Blobs, Directory, Keep, Sources};
@@ -289,6 +295,18 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
 /// [`write_atomic`]; with `private`, the file is made readable and
 /// writable by its owner alone on Unix, before any byte is written.
 pub(crate) fn write_atomic_as(dest: &Path, bytes: &[u8], private: bool) -> Result<(), ZooError> {
+    let tmp = write_partial(dest, bytes, private)?;
+    let renamed = put_in_place(&tmp, dest);
+    if renamed.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    renamed
+}
+
+/// The first half of [`write_atomic_as`]: `bytes` written whole and
+/// synced under a temporary name beside `dest`, which is returned. The
+/// temporary file is removed when the write fails.
+pub(crate) fn write_partial(dest: &Path, bytes: &[u8], private: bool) -> Result<PathBuf, ZooError> {
     static WRITES: AtomicU64 = AtomicU64::new(0);
     let io = |p: &Path, e: std::io::Error| ZooError::Io { path: p.to_path_buf(), message: e.to_string() };
     let parent = dest
@@ -321,11 +339,17 @@ pub(crate) fn write_atomic_as(dest: &Path, bytes: &[u8], private: bool) -> Resul
     };
     let written = f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| io(&tmp, e));
     drop(f);
-    let renamed = written.and_then(|_| denied_again(|| fs::rename(&tmp, dest)).map_err(|e| io(dest, e)));
-    if renamed.is_err() {
+    if written.is_err() {
         let _ = fs::remove_file(&tmp);
     }
-    renamed
+    written.map(|()| tmp)
+}
+
+/// The second half of [`write_atomic_as`]: the rename that puts the whole
+/// file `tmp` in place as `dest`.
+pub(crate) fn put_in_place(tmp: &Path, dest: &Path) -> Result<(), ZooError> {
+    denied_again(|| fs::rename(tmp, dest))
+        .map_err(|e| ZooError::Io { path: dest.to_path_buf(), message: e.to_string() })
 }
 
 /// `op`, tried again on Windows while it is denied, up to about a second.

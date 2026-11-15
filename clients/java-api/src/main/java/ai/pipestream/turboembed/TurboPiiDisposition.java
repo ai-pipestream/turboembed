@@ -96,7 +96,8 @@ public sealed interface TurboPiiDisposition
     /** Native {@code TURBO_PII_REJECT_*} codes. */
     enum RejectReason {
         LABEL_REQUIRED(1),
-        THRESHOLD(2);
+        THRESHOLD(2),
+        RULE_PRECEDENCE(3);
 
         private final int nativeCode;
 

@@ -15,15 +15,6 @@ const NARRATOR: &str = "";
 const ATTRIBUTION_DISTANCE: usize = 2;
 
 impl Resolver<'_> {
-    /// The speaker of mention `j`, assigned once.
-    pub fn speaker_of(&mut self, j: usize) -> &str {
-        if self.speaker_of.is_none() {
-            let speakers = self.speaker_of_mentions();
-            self.speaker_of = Some(speakers);
-        }
-        &self.speaker_of.as_ref().expect("assigned above")[j]
-    }
-
     /// Chains the first and second person mentions of each speaker,
     /// keeping a speaker's `I` apart from `we`.
     pub(super) fn speaker_sieve(&mut self) {

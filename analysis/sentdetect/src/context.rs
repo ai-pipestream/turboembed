@@ -49,7 +49,7 @@ impl Lookup {
     pub(crate) fn release_large(&mut self, max: usize) {
         for s in [&mut self.probe, &mut self.lower] {
             if s.capacity() > max {
-                *s = String::new();
+                drop(std::mem::take(s));
             }
         }
     }

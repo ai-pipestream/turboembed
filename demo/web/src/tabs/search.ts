@@ -3,23 +3,32 @@
 // each hit's signal scores, matched spans and the document heat.
 
 import { DistanceMetric, NormalizationMode, TurboSearchService, VectorStorageKind, type SearchResponse } from "../gen/turbo_search_pb.js";
-import { $, el, input, options, say, size, table } from "../dom.js";
+import { busy, confirmed, submitter } from "../act.js";
+import { $, count, el, failed, heatKey, input, options, reveal, say, sending, table } from "../dom.js";
+import { take } from "./take.js";
 import { indexBody, type Text } from "../frames.js";
-import { describe, search } from "../rpc.js";
-import { capabilities, onCapabilities } from "../state.js";
+import { pieces, unplaced, type Match } from "../highlight.js";
+import { lock, off, onChange } from "../permit.js";
+import { describe, explain, search } from "../rpc.js";
+import { onCapabilities, onCapabilitiesFailed, onReachable, onServed, reachable, whyNone } from "../state.js";
 import { put } from "../upload.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
+import { latest } from "../latest.js";
 
 let caps: CapabilitiesResponse | null = null;
 let indexing: AbortController | null = null;
 
 const select = (id: string) => $(id) as HTMLSelectElement;
 
+// Only the latest call draws (latest.ts).
+const freshList = latest();
 async function list(): Promise<void> {
+  const mine = freshList();
   const box = $("search-indexes");
   try {
     const r = await search.listIndexes({});
-    options(select("search-index"), r.indexes.map((i) => i.indexName));
+    if (!mine()) return;
+    options(select("search-index"), r.indexes.map((i) => i.indexName), undefined, "no index yet");
     box.replaceChildren(
       r.indexes.length
         ? table(
@@ -38,21 +47,18 @@ async function list(): Promise<void> {
         : el("p", { class: "muted", text: "No index yet: create one from an embedding bundle." }),
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    if (!mine()) return;
+    const down = reachable() === false;
+    options(select("search-index"), [], undefined, down ? "the server is not reachable" : "the indexes could not be listed");
+    box.replaceChildren(el("p", { class: "error", text: down ? "The server is not reachable, so its indexes cannot be listed." : describe(e) }));
   }
 }
 
 function deleteButton(name: string): HTMLElement {
-  const b = el("button", { type: "button", text: "Delete" });
-  b.addEventListener("click", async () => {
-    try {
-      await search.deleteIndex({ indexName: name });
-      await list();
-    } catch (e) {
-      say($("search-create-note"), describe(e), "error");
-    }
-  });
-  return b;
+  return confirmed("Delete", `Delete ${name}?`, async () => {
+    await search.deleteIndex({ indexName: name });
+    await list();
+  }, off(TurboSearchService.method.deleteIndex));
 }
 
 async function createIndex(ev: Event): Promise<void> {
@@ -60,28 +66,33 @@ async function createIndex(ev: Event): Promise<void> {
   const note = $("search-create-note");
   const name = input("search-create-name").value.trim();
   const bundle = caps?.bundles.find((b) => b.name === select("search-create-bundle").value);
-  if (!name || !bundle?.model) {
+  const model = bundle?.model;
+  if (!name || !bundle || !model) {
     say(note, "Name the index and pick an embedding bundle.", "error");
     return;
   }
-  try {
-    await search.createIndex({
-      spec: {
-        indexName: name,
-        space: { model: { id: bundle.model.id, revision: bundle.model.revision, sha256: bundle.model.sha256 }, dim: bundle.widths[0] ?? 0, normalization: NormalizationMode.UNIT },
-        metric: DistanceMetric.COSINE,
-        storage: VectorStorageKind.FLAT_F32,
-        embedBundle: bundle.name,
-        collectionName: input("search-create-collection").value.trim(),
-        chunkBudgetTokens: 0,
-      },
-    });
-    say(note, `Created ${name}.`);
-    await list();
-    select("search-index").value = name;
-  } catch (e) {
-    say(note, describe(e), "error");
-  }
+  await busy(submitter(ev), async () => {
+    try {
+      await search.createIndex({
+        spec: {
+          indexName: name,
+          space: { model: { id: model.id, revision: model.revision, sha256: model.sha256 }, dim: bundle.widths[0] ?? 0, normalization: NormalizationMode.UNIT },
+          metric: DistanceMetric.COSINE,
+          storage: VectorStorageKind.FLAT_F32,
+          embedBundle: bundle.name,
+          collectionName: input("search-create-collection").value.trim(),
+          chunkBudgetTokens: 0,
+        },
+      });
+      say(note, `Created ${name}.`);
+      await list();
+      select("search-index").value = name;
+      // As if picked by hand, so the new index is the one kept (keep.ts).
+      select("search-index").dispatchEvent(new Event("change", { bubbles: true }));
+    } catch (e) {
+      say(note, explain(e));
+    }
+  });
 }
 
 async function addDocuments(): Promise<void> {
@@ -100,20 +111,22 @@ async function addDocuments(): Promise<void> {
     say(note, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
     return;
   }
-  indexing?.abort();
-  const ac = new AbortController();
-  indexing = ac;
-  try {
-    const body = indexBody(index, docs);
-    say(note, `Uploading ${docs.length} documents, ${size(body.size)}\u2026`, "busy");
-    const r = await put(TurboSearchService.method.indexDocuments, body, ac.signal);
-    say(note, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
-    await list();
-  } catch (e) {
-    say(note, describe(e), "error");
-  } finally {
-    if (indexing === ac) indexing = null;
-  }
+  await busy($("search-add") as HTMLButtonElement, async () => {
+    // Inside, so a click while the upload runs (which busy ignores) does not end it.
+    indexing?.abort();
+    const ac = new AbortController();
+    indexing = ac;
+    try {
+      const body = indexBody(index, docs);
+      const r = await put(TurboSearchService.method.indexDocuments, body, ac.signal, sending(note, count(docs.length, "document")));
+      say(note, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
+      await list();
+    } catch (e) {
+      say(note, explain(e));
+    } finally {
+      if (indexing === ac) indexing = null;
+    }
+  }, $("search-add-stop") as HTMLButtonElement);
 }
 
 function heatView(r: SearchResponse): HTMLElement {
@@ -144,35 +157,65 @@ function heatView(r: SearchResponse): HTMLElement {
 async function runSearch(ev: Event): Promise<void> {
   ev.preventDefault();
   const out = $("search-results");
-  try {
-    const r = await search.search({
-      indexName: select("search-index").value,
-      naturalQuery: input("search-query").value,
-      topK: Math.max(1, parseInt(input("search-k").value, 10) || 10),
-      rerankBundle: select("search-rerank").value,
-    });
-    const hits = r.hits.map((h, i) => {
-      const a = h.attribution;
-      const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
-      const spans = (a?.matchedSpans ?? []).map((m) => `${m.source}${m.label ? `:${m.label}` : ""} ${m.span?.start ?? 0}..${m.span?.end ?? 0}`);
-      return el(
-        "div",
-        { class: "hit" },
-        el("div", { class: "head" }, el("b", { text: `${i + 1}. ${h.docId}` }), el("span", { class: "tag", text: h.score.toFixed(4) }), el("span", { class: "muted", text: ` ${h.chunkId}` })),
-        el("p", { text: h.text }),
-        signals ? el("p", { class: "muted", text: `signals: ${signals}` }) : null,
-        spans.length ? el("p", { class: "muted", text: `matched: ${spans.join("; ")}` }) : null,
+  // The obvious gaps are said here, before the server is asked.
+  const missing = !select("search-index").value ? "Pick or create an index first." : !input("search-query").value.trim() ? "Enter something to search for." : "";
+  if (missing) return void out.replaceChildren(el("p", { class: "error", text: missing }));
+  await busy(submitter(ev), async () => {
+    try {
+      const r = await search.search({
+        indexName: select("search-index").value,
+        naturalQuery: input("search-query").value,
+        topK: Math.max(1, parseInt(input("search-k").value, 10) || 10),
+        rerankBundle: select("search-rerank").value,
+      });
+      // One colour per signal, in the order the hits first name them.
+      const sources: string[] = [];
+      const colour = (source: string): string => {
+        if (!sources.includes(source)) sources.push(source);
+        return `var(--m${sources.indexOf(source) % 8})`;
+      };
+      const hits = r.hits.map((h, i) => {
+        const a = h.attribution;
+        const signals = a ? Object.entries(a.signalScores).map(([k, v]) => `${k} ${v.toFixed(3)}`).join(", ") : "";
+        const matches: Match[] = (a?.matchedSpans ?? []).map((m) => ({ source: m.source, label: m.label, start: m.span?.start ?? 0, end: m.span?.end ?? 0 }));
+        const at = h.chunkSpan?.start ?? 0;
+        const text = pieces(h.text, at, matches).map((p) =>
+          p.sources.length
+            ? el("mark", { style: `--mark: ${colour(p.sources[0])}`, title: `${p.sources.join(", ")}${p.labels.length ? `: ${p.labels.join(", ")}` : ""}` }, p.text, el("sup", { text: p.sources.join("+") }))
+            : p.text,
+        );
+        const rest = unplaced(h.text, at, matches).map((m) => `${m.source}${m.label ? `:${m.label}` : ""}`);
+        return el(
+          "div",
+          { class: "hit" },
+          el("div", { class: "head" }, el("b", { text: `${i + 1}. ${h.docId}` }), el("span", { class: "tag", text: h.score.toFixed(4) }), el("span", { class: "muted", text: ` ${h.chunkId}` })),
+          el("p", { class: "doc flat" }, text),
+          signals ? el("p", { class: "muted", text: `signals: ${signals}` }) : null,
+          rest.length ? el("p", { class: "muted", text: `matched the whole passage: ${[...new Set(rest)].join("; ")}` }) : null,
+        );
+      });
+      const key = sources.length
+        ? el("div", { class: "legend" }, el("span", { class: "muted", text: "matched by" }), sources.map((x) => el("span", { class: "swatch", style: `--mark: ${colour(x)}` }, el("i", {}), ` ${x}`)))
+        : null;
+      out.replaceChildren(
+        el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
+        key ?? "",
+        ...hits,
+        r.hits.length
+          ? take(`Search hits ${r.resolvedIndex}`, () => [
+              ["rank", "document", "chunk", "score", "text", "signals"],
+              ...r.hits.map((h, i) => [String(i + 1), h.docId, h.chunkId, h.score.toFixed(6), h.text, Object.entries(h.attribution?.signalScores ?? {}).map(([k, v]) => `${k} ${v.toFixed(6)}`).join("; ")]),
+            ])
+          : "",
+        r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
+        r.documentHeat.length ? heatKey("One cell per chunk, in reading order. Stronger colour is a higher score, relative to that document's best (max).") : "",
+        heatView(r),
       );
-    });
-    out.replaceChildren(
-      el("p", { class: "muted", text: `${r.hits.length} hits in ${r.resolvedIndex}; query terms: ${r.analyzedQueryTerms.join(" ") || "none"}` }),
-      ...hits,
-      r.documentHeat.length ? el("h3", { text: "Document heat" }) : "",
-      heatView(r),
-    );
-  } catch (e) {
-    out.replaceChildren(el("p", { class: "error", text: describe(e) }));
-  }
+      reveal(out);
+    } catch (e) {
+      out.replaceChildren(failed(explain(e)));
+    }
+  });
 }
 
 export function stop(): void {
@@ -182,16 +225,30 @@ export function stop(): void {
 
 export function init(): void {
   $("search-create").addEventListener("submit", createIndex);
+  lock($("search-create"), TurboSearchService.method.createIndex);
+  lock($("search-add-box"), TurboSearchService.method.indexDocuments);
   $("search-add").addEventListener("click", addDocuments);
+  $("search-add-stop").addEventListener("click", stop);
   $("search-form").addEventListener("submit", runSearch);
-  $("search-refresh").addEventListener("click", list);
+  const refreshButton = $("search-refresh") as HTMLButtonElement;
+  refreshButton.addEventListener("click", () => void busy(refreshButton, list));
+  const served = (): void => {
+    const embed = caps?.bundles.filter((b) => b.task === "TASK_EMBED") ?? [];
+    options(select("search-create-bundle"), embed.map((b) => b.name), embed.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`), whyNone("embedding model"));
+    // Before the first answer the rerank select says why it is empty too.
+    const rerank = caps?.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name) ?? [];
+    if (caps) options(select("search-rerank"), ["", ...rerank], ["no rerank", ...rerank]);
+    else options(select("search-rerank"), [], undefined, reachable() === false ? "the server is not reachable" : "no rerank");
+  };
+  onReachable(() => {
+    if (!caps) served();
+  });
+  onServed(() => void list());
+  // Each row's Delete is drawn from what the demo forwards.
+  onChange(() => void list());
   onCapabilities((c) => {
     caps = c;
-    const embed = c.bundles.filter((b) => b.task === "TASK_EMBED");
-    options(select("search-create-bundle"), embed.map((b) => b.name), embed.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`));
-    const rerank = c.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name);
-    options(select("search-rerank"), ["", ...rerank], ["no rerank", ...rerank]);
+    served();
   });
-  capabilities().catch(() => undefined);
-  void list();
+  onCapabilitiesFailed(served);
 }

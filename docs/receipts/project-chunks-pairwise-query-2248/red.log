@@ -1,0 +1,80 @@
+error[E0432]: unresolved import `turbo_kserve::inspect::pairwise`
+  --> server/tests/inspect_pairwise_query.rs:15:28
+   |
+15 | use turbo_kserve::inspect::pairwise::{DEFAULT_PAIRWISE_ITEMS, MAX_PAIRWISE_ITEMS};
+   |                            ^^^^^^^^ could not find `pairwise` in `inspect`
+
+error[E0432]: unresolved import `turbo_kserve::proto::result::PairwiseCosinesSpec`
+  --> server/tests/inspect_pairwise_query.rs:18:38
+   |
+18 |     CapabilitiesRequest, OffsetMode, PairwiseCosinesSpec, ProjectChunksRequest, ProjectChunksResponse,
+   |                                      ^^^^^^^^^^^^^^^^^^^ no `PairwiseCosinesSpec` in `proto::result`
+
+error[E0609]: no field `pairwise` on type `ProjectChunksResponse`
+   --> server/tests/inspect_pairwise_query.rs:119:22
+    |
+119 |     assert_eq!(plain.pairwise, None);
+    |                      ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `projection`, `drift_curve`, `chunk_term_stacks`, `document_term_stack`, `strategy_matrix`
+--
+error[E0609]: no field `query` on type `ProjectChunksResponse`
+   --> server/tests/inspect_pairwise_query.rs:120:22
+    |
+120 |     assert_eq!(plain.query, None);
+    |                      ^^^^^ unknown field
+    |
+    = note: available fields are: `projection`, `drift_curve`, `chunk_term_stacks`, `document_term_stack`, `strategy_matrix`
+--
+error[E0609]: no field `pairwise` on type `ProjectChunksRequest`
+   --> server/tests/inspect_pairwise_query.rs:123:7
+    |
+123 |     r.pairwise = Some(PairwiseCosinesSpec { level: 0, max_items: 0 });
+    |       ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `graph`, `offsets`, `pca_dims`, `max_stack_segments`, `include_drift_curve` ... and 3 others
+--
+error[E0609]: no field `pairwise` on type `ProjectChunksResponse`
+   --> server/tests/inspect_pairwise_query.rs:126:21
+    |
+126 |     let pairs = out.pairwise.unwrap();
+    |                     ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `projection`, `drift_curve`, `chunk_term_stacks`, `document_term_stack`, `strategy_matrix`
+--
+error[E0609]: no field `pairwise` on type `ProjectChunksRequest`
+   --> server/tests/inspect_pairwise_query.rs:138:7
+    |
+138 |     r.pairwise = Some(PairwiseCosinesSpec { level: 1, max_items: 1 });
+    |       ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `graph`, `offsets`, `pca_dims`, `max_stack_segments`, `include_drift_curve` ... and 3 others
+--
+error[E0609]: no field `pairwise` on type `ProjectChunksResponse`
+   --> server/tests/inspect_pairwise_query.rs:139:48
+    |
+139 |     let top = project(&mut c, r.clone()).await.pairwise.unwrap();
+    |                                                ^^^^^^^^ unknown field
+    |
+    = note: available fields are: `projection`, `drift_curve`, `chunk_term_stacks`, `document_term_stack`, `strategy_matrix`
+--
+error[E0599]: no method named `place` found for struct `VectorProjection<L>` in the current scope
+   --> analysis/chunker/tests/projection.rs:187:32
+    |
+187 |                 let placed = p.place(row).unwrap();
+    |                                ^^^^^ method not found in `VectorProjection<turbo_analysis_layers::Chunks>`
+
+error[E0609]: no field `mean` on type `VectorProjection<turbo_analysis_layers::Chunks>`
+   --> analysis/chunker/tests/projection.rs:192:36
+    |
+192 |             let mean: Vec<f32> = p.mean.iter().map(|&x| x as f32).collect();
+    |                                    ^^^^ unknown field
+    |
+    = note: available fields are: `model`, `dims`, `coords`, `empty`, `explained_variance` ... and 2 others
+--
+error[E0599]: no method named `place` found for struct `VectorProjection<L>` in the current scope
+   --> analysis/chunker/tests/projection.rs:193:23
+    |
+193 |             assert!(p.place(&mean).unwrap().iter().all(|x| x.abs() < 1e-5));
+    |                       ^^^^^ method not found in `VectorProjection<turbo_analysis_layers::Chunks>`
+

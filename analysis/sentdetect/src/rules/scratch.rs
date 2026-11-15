@@ -38,7 +38,7 @@ pub(crate) fn retained_capacity() -> usize {
 
 fn release<T>(v: &mut Vec<T>) {
     if v.capacity() > RETAINED {
-        *v = Vec::new();
+        drop(std::mem::take(v));
     }
 }
 

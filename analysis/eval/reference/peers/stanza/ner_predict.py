@@ -1,11 +1,13 @@
 """Write Stanza BIO entity labels for gold-tokenized sentences.
 
-Usage: ner_predict.py GOLD.tsv OUT.tsv [LABELSET]
+Usage: ner_predict.py [--with-tokens] [--gpu] GOLD.tsv OUT.tsv [LABELSET]
 
 The gold file is `token<TAB>label` lines with blank lines between
 sentences (the bench's entity gold form). Stanza runs with
 pretokenized input, as WNUT-17 and MultiCoNER are conventionally
 run. Models are baked into the image; nothing downloads at run time.
+With `--with-tokens`, output lines are `token<TAB>label` for
+`turbo-train-head peer --column bio`; `--gpu` enables GPU execution.
 
 Label maps, chosen by LABELSET (default wnut). wnut (Stanza
 OntoNotes to the WNUT-17 label set): PERSON to person, ORG to
@@ -13,6 +15,10 @@ corporation, GPE, LOC and FAC to location, PRODUCT to product,
 WORK_OF_ART to creative-work, NORP to group. multiconer (to the
 MultiCoNER v2 coarse groups): PERSON to PER, ORG and NORP to GRP,
 GPE, LOC and FAC to LOC, PRODUCT to PROD, WORK_OF_ART to CW.
+nemotron-pii (to shared Nemotron-PII types, #1888): ORG to
+company_name, DATE to date, TIME to time, LANGUAGE to language
+(nemotron-pii-raw keeps those four OntoNotes names for explicit
+`turbo-train-head peer --map` provenance).
 Every other type is dropped. The map is part of the record's
 conditioning.
 """
@@ -44,6 +50,18 @@ MAPS = {
         "PRODUCT": "PROD",
         "WORK_OF_ART": "CW",
     },
+    "nemotron-pii": {
+        "ORG": "company_name",
+        "DATE": "date",
+        "TIME": "time",
+        "LANGUAGE": "language",
+    },
+    "nemotron-pii-raw": {
+        "ORG": "ORG",
+        "DATE": "DATE",
+        "TIME": "TIME",
+        "LANGUAGE": "LANGUAGE",
+    },
 }
 
 
@@ -66,8 +84,11 @@ def gold_sentences(path):
 
 
 def main():
-    gold, out = sys.argv[1], sys.argv[2]
-    labelset = sys.argv[3] if len(sys.argv) > 3 else "wnut"
+    args = [a for a in sys.argv[1:] if a not in ("--with-tokens", "--gpu")]
+    with_tokens = "--with-tokens" in sys.argv[1:]
+    use_gpu = "--gpu" in sys.argv[1:]
+    gold, out = args[0], args[1]
+    labelset = args[2] if len(args) > 2 else "wnut"
     label_map = MAPS[labelset]
     nlp = stanza.Pipeline(
         lang="en",
@@ -75,7 +96,7 @@ def main():
         processors="tokenize,ner",
         tokenize_pretokenized=True,
         download_method=DownloadMethod.NONE,
-        use_gpu=False,
+        use_gpu=use_gpu,
         verbose=False,
     )
     print(json.dumps({
@@ -84,6 +105,8 @@ def main():
         "processors": "tokenize,ner (pretokenized)",
         "label_map": label_map,
         "label_set": labelset,
+        "with_tokens": with_tokens,
+        "gpu": use_gpu,
     }), file=sys.stderr)
     sentences = gold_sentences(gold)
     # One pipeline call per chunk of sentences (a single pretokenized
@@ -112,7 +135,10 @@ def main():
                     for token in ent.tokens[1:]:
                         index = token.id[-1] - 1 if isinstance(token.id, tuple) else token.id - 1
                         labels[index] = f"I-{kind}"
-                f.write("\n".join(labels) + "\n")
+                if with_tokens:
+                    f.write("\n".join(f"{t}\t{l}" for t, l in zip(tokens, labels)) + "\n")
+                else:
+                    f.write("\n".join(labels) + "\n")
             done += len(batch)
             if done % 5000 < chunk or done == len(sentences):
                 print(f"sentences {done}/{len(sentences)}", file=sys.stderr, flush=True)

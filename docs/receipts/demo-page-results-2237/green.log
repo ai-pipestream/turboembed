@@ -1,0 +1,24 @@
+# 2238 similarity colours
+ok   cosines in a narrow band show visible contrast (cosines 0.892 to 0.968, colour strength 0.06 to 0.86)
+ok   each row marks its best match
+ok   the switch goes back to the absolute scale (colour strength 0.77 to 0.83)
+ok   the spread column is in fixed decimals (0.2178)
+ok   the last row label is not cut off (lowest cosine to tiny-bert-bundle, same text)
+# 2237 annotated text
+ok   a legend names the colours ( turbo:sentences 3)
+ok   clicking a mark lists its annotations beside the text (Ada layer instance label score item turbo:sentences S0 1.000 0 turbo:structure P)
+ok   a mark can be reached by keyboard
+ok   two picked layers are told apart by colour ( turbo:tokens 35 turbo:sentences 3)
+# 2240 layer chips
+ok   the two turbo:boundaries chips read differently (turbo:boundaries 3 | turbo:boundaries [lexical] 3)
+ok   picking one of them picks only that one (turbo:boundaries [lexical] 3)
+# 2239 search hits
+ok   a hit for "memory safe language" shows its matched words marked in place (language)
+ok   the hits have a legend of the signals
+ok   the document heat has a legend and a scale
+# 2242 on a phone, results come into view
+ok   at 390 px, embed: the result is in view after Run
+ok   at 390 px, semantic: the result is in view after Run
+ok   at 390 px, analyze: the result is in view after Run
+ok   at 390 px, search: the result is in view after Run
+all checks passed
