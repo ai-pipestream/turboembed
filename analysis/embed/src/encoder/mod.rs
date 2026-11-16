@@ -120,6 +120,9 @@ pub struct Encoder {
     model_info: turbo_model_info,
     desc: turbo_session_desc,
     layers: u32,
+    /// The device named field 10 when asked for one layer alone
+    /// (`run_layer_alone`): its writes are of every layer from then on.
+    every_layer: bool,
     #[cfg(test)]
     runs: (usize, usize),
 }
@@ -193,6 +196,7 @@ impl Encoder {
             model_info: unsafe { std::mem::zeroed() },
             desc: unsafe { std::mem::zeroed() },
             layers: o.layers,
+            every_layer: false,
             #[cfg(test)]
             runs: (0, 0),
         };
@@ -374,7 +378,7 @@ fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
         quantization: 0,
         int8_ranges: std::ptr::null(),
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     }
 }
 

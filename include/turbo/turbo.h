@@ -316,7 +316,9 @@ typedef struct turbo_capability {
                                    * (layers), whose 0 and 1 every device takes, the bit
                                    * says the device reads the earlier layers of the
                                    * encoder families turbo_embed_write_layer_ranges
-                                   * names; a static model has its table alone there */
+                                   * names; a static model has its table alone there.
+                                   * Field 10's bit (layer_alone) says the device reads
+                                   * one of them alone */
     float    cosine_floor;        /* lowest cosine against the fp32 reference in the record, 0 if none */
     float    speed_ratio;         /* our p50 latency over the fastest reference program's, from the
                                    * record, 0 if none */
@@ -593,7 +595,17 @@ typedef struct turbo_embed_options {
                                see turbo_embed_write_layer_ranges, which says what is
                                refused and in what order); refused above 1 on row
                                writes */
-    uint32_t reserved;      /* must be 0 */
+    uint32_t layer_alone;   /* 10: 0, or 1 with layers K above 1 on a range write to pool
+                               each range from the first of those K layers alone, layer
+                               L - K + 1 of the model's L: the run's rows are [count,
+                               dim], block 0 of the K-layer write bit for bit, and what
+                               the model cut after that layer writes; the device may
+                               stop its encoder there. 1 with layers 0 or 1 is the
+                               final layer, as 0. Over 1, or 1 on a row write, is
+                               TURBO_E_INVALID_ARGUMENT naming field 10; 1 with layers
+                               above 1 on a device whose options_honored lacks field
+                               10's bit is TURBO_E_UNSUPPORTED_OPTION naming it, after
+                               everything layers is refused for */
 } turbo_embed_options;
 
 /* Caller-prepared rows, [batch, seq] int32, row_stride elements between row
@@ -716,6 +728,9 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * cuda, levelzero and metal backends set the bit and read the earlier layers of
  * their BERT, RoBERTa, ModernBERT, nomic-bert and DeBERTa-v2 encoders.
  * count times layers over the session's max_ranges is TURBO_E_CAPACITY.
+ * With opts->layer_alone 1 (field 10) the rows are the first of those
+ * layers' alone, [count, dim], and count alone is held to max_ranges; the
+ * cpu and cuda backends set that field's bit.
  * Everything else is as
  * for turbo_embed_write_ranges, each row cut and normalized as there. */
 int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch *batch,

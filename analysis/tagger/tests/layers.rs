@@ -71,6 +71,47 @@ fn a_head_with_a_layer_mix_reads_the_tapped_word_features() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A head trained on one lower layer (`layer_mix.layer`) needs that layer
+/// and no other (#2000): the word encoder reads it alone, giving the
+/// tapped features' first block with the later layers zero, and the head
+/// decodes what it decodes from every tap.
+#[test]
+fn a_head_on_one_layer_reads_that_layer_alone() {
+    let words: Vec<&str> = LONG.split(' ').collect();
+    let seqs = [words.clone(), TEXT.split(' ').collect()];
+    let dir = bundle("one-layer", |m| {
+        m["heads"][0]["layer_mix"] = json!({"layers": 2, "layer": 1});
+    });
+    let runner = HeadRunner::open(&dir, Some("pos"), "turboembed:pos", &EncoderOptions::default()).unwrap();
+    assert_eq!(runner.tagger().taps(), 2);
+    let pooling = runner.tagger().spec().word_pooling;
+    let mut enc = WordEncoder::open(&dir, &EncoderOptions { layers: 2, ..EncoderOptions::default() }).unwrap();
+    let every = enc.features(&seqs, pooling).unwrap();
+    let rows = enc.rows();
+    enc.first_tap_alone(true);
+    let one = enc.features(&seqs, pooling).unwrap();
+    assert_eq!(enc.rows(), 2 * rows, "the same rows read for one layer as for both");
+    for (s, (a, b)) in one.iter().zip(&every).enumerate() {
+        let half = b.len() / 2;
+        assert_eq!(a.len(), b.len(), "seq {s}: the shape is the tapped features'");
+        assert_eq!(a[..half], b[..half], "seq {s}: the first layer");
+        assert!(a[half..].iter().all(|&v| v == 0.0), "seq {s}: the layer after it is not read");
+        assert_ne!(b[..half], b[half..], "seq {s}: the two layers differ");
+    }
+    // Reading every layer again is as before.
+    enc.first_tap_alone(false);
+    assert_eq!(enc.features(&seqs, pooling).unwrap(), every);
+
+    // The runner reads the one layer; a decode from every tap agrees.
+    let got = runner.decode(&seqs).unwrap();
+    let want = turbo::head::run::decode_tagger(runner.tagger(), &every, &seqs).unwrap();
+    assert_eq!(got.len(), want.len());
+    for (g, w) in got.iter().zip(&want) {
+        assert_eq!((&g.tags, &g.prob), (&w.tags, &w.prob));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn layers_outside_the_model_or_a_read_are_refused() {
     let words: Vec<&str> = TEXT.split(' ').collect();

@@ -95,7 +95,10 @@ pub(super) struct Size {
 }
 
 pub(super) struct Encoder {
+    /// The layers a run computes: the model's `depth`, or fewer after a
+    /// range write of one tap alone (turbo_backend.h, `tap_alone`).
     layers: usize,
+    depth: usize,
     hidden: usize,
     heads: usize,
     intermediate: usize,
@@ -192,6 +195,7 @@ impl Encoder {
         ranges.try_reserve_exact(max_ranges).map_err(|_| max_ranges.saturating_mul(size_of::<turbo_token_range>()))?;
         Ok(Encoder {
             layers: d.layers as usize,
+            depth: d.layers as usize,
             hidden: h,
             heads: d.heads as usize,
             intermediate: i,
@@ -286,6 +290,9 @@ impl Encoder {
         self.normalize = r.normalize;
         self.output_dim = r.output_dim as usize;
         self.taps = (r.taps as usize).max(1);
+        // One tap alone is the model cut after that layer, read plainly.
+        (self.layers, self.taps) =
+            if r.tap_alone == 1 { (self.depth + 1 - self.taps, 1) } else { (self.depth, self.taps) };
     }
 
     /// The block of the output layer `l`'s states are pooled into when it

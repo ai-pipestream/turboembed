@@ -9,6 +9,7 @@
 #[path = "../common/mod.rs"]
 mod common;
 
+mod alone;
 mod layers;
 mod overlap;
 mod plain;

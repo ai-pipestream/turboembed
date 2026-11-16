@@ -112,7 +112,7 @@ impl Model {
             output_dim: self.desc.hidden,
             head: 0,
             taps: 0,
-            reserved: 0,
+            tap_alone: 0,
         };
         let mut out = vec![f32::NAN; batch * self.desc.hidden as usize];
         // More than once, to see later runs on the same session agree.
@@ -213,7 +213,7 @@ fn ranged(
         output_dim: output_dim as u32,
         head: 0,
         taps: 0,
-        reserved: 0,
+        tap_alone: 0,
     };
     let mut out = vec![f32::NAN; ranges.len() * output_dim];
     e.write_ranges(&rows, ids, mask, None, ranges);
@@ -350,7 +350,7 @@ fn a_write_of_rows_after_ranges_pools_rows() {
         output_dim: h as u32,
         head: 0,
         taps: 0,
-        reserved: 0,
+        tap_alone: 0,
     };
     let mut out = vec![f32::NAN; b * h];
     e.write_ranges(&rows, &ids, &mask, None, &[range(0, 0, 5), range(1, 0, 1), range(2, 0, 3)]);
