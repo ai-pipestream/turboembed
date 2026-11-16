@@ -271,7 +271,7 @@ impl OnePassNlpBuilder {
             b = b.step(Bound::new(dp).read(0, CLEAN_VIEW_INSTANCE));
         }
         if let Some(df) = self.dict_finder {
-            b = b.step(Bound::new(df));
+            b = b.step(Bound::new(df).read(0, CLEAN_VIEW_INSTANCE));
         } else {
             b = b.step(Bound::new(RegexNameFinder::defaults(&BuiltIn::ALL)).read(0, CLEAN_VIEW_INSTANCE));
         }
