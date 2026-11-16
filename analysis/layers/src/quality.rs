@@ -12,6 +12,8 @@ pub(crate) mod grammar;
 mod morphology;
 mod overlap;
 mod phonetics;
+#[cfg(test)]
+mod scaling_tests;
 mod sent_ctx;
 mod work;
 pub use gates::{QualityPredicate, lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on};
