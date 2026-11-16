@@ -478,8 +478,10 @@ All receipts below run on the combined WNUT-17 plus MultiCoNER v2 English
 corpus (`wnut17,multiconer2-en`, 39 labels: 1,880 dev sentences / 29,056 words;
 251,267 test sentences / 378,884 gold spans). Per-label thresholds (both
 all-label and independent held-out decoding) are fitted on `dev` only with
-`--calibrate` and frozen in `thresholds.json` before one final `test` run per
-candidate at commit `e7b0ad4cf`.
+`--calibrate` and frozen in `thresholds.json` before the frozen `test` runs
+recorded against commit `e7b0ad4cf`. The GLiNER2 receipts
+(`gliner2-base-v1-dev.json` and `gliner2-base-v1-test.json`) were made with
+`eval-gliner2` as this change adds it, on the tree of `e7b0ad4cf`.
 
 ### Mixed-corpus release evaluation (#1947)
 
