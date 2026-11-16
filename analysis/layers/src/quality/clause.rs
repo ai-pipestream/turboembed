@@ -4,13 +4,14 @@
 
 use turbo_analysis::Span;
 
-use super::agreement::{SVA_AUX_VERBS, SentCtx, is_intervening_adverb, is_preposition};
+use super::agreement::{SVA_AUX_VERBS, is_intervening_adverb, is_preposition};
 use super::grammar::{GrammarCategory, GrammarDiagnostic};
 use super::morphology::{
     NounNumber, classify_noun_number, inflected_verb_to_base, irregular_verb_base, match_case,
     nominative_to_objective_pronoun, pluralize_noun, singularize_noun,
 };
 use super::phonetics::{replacement_article, requires_an};
+use super::sent_ctx::SentCtx;
 
 const PARTITIVE_DETERMINERS: &[&str] = &["the", "these", "those", "my", "our", "their", "his", "her", "its"];
 
@@ -71,7 +72,7 @@ pub(crate) fn check_articles(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>)
         if !matches!(surf, "a" | "A" | "an" | "An" | "AN") {
             continue;
         }
-        let gap = &cx.text[cx.span(i).end as usize..cx.span(i + 1).start as usize];
+        let gap = cx.gap_after(i);
         if !gap.chars().all(char::is_whitespace) {
             continue;
         }
@@ -107,7 +108,7 @@ pub(crate) fn check_repetitions(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
         if !s1.is_empty()
             && s1.chars().all(char::is_alphabetic)
             && s1.eq_ignore_ascii_case(s2)
-            && cx.text[cx.span(i).end as usize..cx.span(i + 1).start as usize].chars().all(char::is_whitespace)
+            && cx.gap_after(i).chars().all(char::is_whitespace)
         {
             let lower = s1.to_ascii_lowercase();
             if !ALLOWED_REDUPLICATIONS.contains(&lower.as_str()) {
@@ -292,7 +293,7 @@ pub(crate) fn check_auxiliaries(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnosti
         if j >= end {
             continue;
         }
-        if is_inf_to && cx.deps.is_some() && !(cx.dep_rel(i) == Some("mark") && cx.dep_head(i) == Some(j)) {
+        if is_inf_to && cx.has_deps() && !(cx.dep_rel(i) == Some("mark") && cx.dep_head(i) == Some(j)) {
             continue;
         }
         let v_surf = cx.surface(j);
