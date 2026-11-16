@@ -32,7 +32,7 @@ use turbo_analysis_layers::{Chunks, Entities, Pii, Sentences, Tokens};
 use turbo_gliner::{Decode, ExtractionSchema};
 use turbo_kserve::api::TURBO_E_CAPACITY;
 use turbo_kserve::config::DEFAULT_MAX_MESSAGE_BYTES as MAX;
-use turbo_kserve::progressive::{Models, compile_analyzer_with_models};
+use turbo_kserve::progressive::{Models, PLACES, compile_analyzer_with_models};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
 use turbo_kserve::proto::result::analyze_progressive_event::Event;
 use turbo_kserve::proto::result::*;
@@ -42,9 +42,9 @@ use turbo_relation::{Gliner2Relations, RelationLabel, Relations, ZeroShotRelatio
 
 type Client = AnalysisServiceClient<tonic::transport::Channel>;
 
-/// Every model-free stage of the in-process acceptance but the place-name
-/// gazetteer, whose `Entities` GLiNER writes here, then the model stages
-/// and the chunker.
+/// Every model-free stage of the in-process acceptance, then the model
+/// stages and the chunker. GLiNER writes the default `Entities`, so the
+/// place-name gazetteer writes the `places` instance beside it.
 const STEPS: &[&str] = &[
     "turbo:normalize",
     "turbo-structure:blocks",
@@ -55,6 +55,7 @@ const STEPS: &[&str] = &[
     "turbo-stem:stemmer",
     "turbo-stopword:bundled",
     "turbo-keywords:yake",
+    "turbo-geo:names",
     "turbo-pii:pii",
     "turbo-numeric:numbers",
     "turbo-numeric:money",
@@ -230,6 +231,12 @@ async fn the_served_graph_is_the_in_process_graph() {
     for name in ["Acme Corporation", "Berlin"] {
         assert!(names.contains(&name), "entity {name:?} in {names:?}");
     }
+    let places = doc.get_key(&Key::<Entities>::named(PLACES)).expect("the gazetteer's places");
+    let places: Vec<_> = places.spans.iter().map(|(_, s)| slice(&doc, s.start, s.end)).collect();
+    assert_eq!(places, ["São Paulo", "Berlin"], "gazetteer places");
+    let by = |key| doc.provenance(key).unwrap().annotator;
+    assert_eq!(by(Key::<Entities>::DEFAULT.id()), "turbo:gliner");
+    assert_eq!(by(Key::<Entities>::named(PLACES).id()), "turbo-geo:names");
     let pii: Vec<_> = doc.get::<Pii>().unwrap().spans.iter().map(|(_, s)| slice(&doc, s.start, s.end)).collect();
     assert!(pii.contains(&"zoe.muller@example.com"), "{pii:?}");
     assert_eq!(doc.get::<Sentences>().unwrap().spans.len(), 3, "three sentences");
@@ -389,7 +396,9 @@ async fn the_inspection_apis_read_the_served_graph_as_it_is() {
         let window = w.window.unwrap();
         text.push_str(&window.text);
         for s in &w.segments {
-            labelled.extend(s.annotations.iter().filter(|a| a.layer == "turbo:entities").map(|a| a.item));
+            labelled.extend(
+                s.annotations.iter().filter(|a| a.layer == "turbo:entities" && a.instance.is_empty()).map(|a| a.item),
+            );
         }
         page += 1;
         if page >= window.page_count {

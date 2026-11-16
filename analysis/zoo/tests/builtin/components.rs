@@ -11,7 +11,11 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::RelationExtractor), ["jackboyla-glirel-large-v0"]);
     assert_eq!(
         ids("en", Component::EntityExtractor),
-        ["turbo-en-wnut17-modernbert-base-l12-open-span-1", "urchade-gliner-small-v2.1"]
+        [
+            "turbo-en-wnut17-modernbert-base-l12-open-span-1",
+            "urchade-gliner-small-v2.1",
+            "gliner-community-gliner-small-v2.5"
+        ]
     );
     assert_eq!(ids("mul", Component::EntityExtractor), ["urchade-gliner-multi-v2.1"]);
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
