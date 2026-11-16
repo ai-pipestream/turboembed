@@ -452,7 +452,11 @@ impl OnePassQueryAnalyzer {
         let joined = target_seq.join(" ");
         let syn_doc = Document::new(joined.as_str());
         let syn_view = syn_doc.require(&Key::<View>::DEFAULT)?;
-        let (syn_tokens, _) = self.word_tok.annotate((syn_view, None))?;
+        // The field's own tokenizer: its index holds the terms that one makes.
+        let syn_tokens = match cf.spec.tokenizer {
+            FieldTokenizerKind::Word => self.word_tok.annotate((syn_view, None))?.0,
+            FieldTokenizerKind::Whitespace => self.ws_tok.annotate((syn_view, None))?.0,
+        };
         let (ling,) = cf.term_annotator.annotate((syn_view, &syn_tokens, field_lang, None, None))?;
         let (vocab, indexed) = NormalizedTermIndexer { form: cf.spec.term_form }.annotate((&ling, &syn_tokens))?;
         Ok(indexed.term.iter().filter_map(|slot| slot.map(|ix| vocab.get(ix).to_owned())).collect())
