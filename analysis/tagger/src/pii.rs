@@ -17,7 +17,7 @@ use turbo_pii::{
     register_nemotron_kinds, resolve_model_with_rules, resolve_nemotron_kind,
 };
 
-use crate::annotate::HeadRunner;
+use crate::annotate::{HeadRunner, LabelMass};
 
 /// Detector id recorded in `Pii::detectors` for [`PiiTagger`] candidates.
 pub const PII_TAGGER_DETECTOR: &str = "turbo-tagger:pii";
@@ -34,6 +34,9 @@ pub struct PiiTagger {
     run: HeadRunner,
     custom_kinds: CustomKinds,
     type_kinds: Vec<PiiKind>,
+    /// The person-name labels of the head, read on the words it decodes
+    /// to a `city` label.
+    person_on_city: LabelMass,
     model_id: String,
     model_version: String,
     temperature: Option<f32>,
@@ -62,12 +65,26 @@ impl PiiTagger {
                 .map_err(|e| CoreError::new(INVALID_ARGUMENT, format!("pii head label {raw:?}: {e}")))?;
             type_kinds.push(kind);
         }
+        // A label's type is what follows its BIO or BILOU letter.
+        let marks = |wanted: &dyn Fn(PiiKind) -> bool| -> Vec<bool> {
+            let types = run.tagger().types();
+            let of_label = |l: &String| {
+                let name = l.split_once('-').map(|(_, t)| t)?;
+                types.iter().position(|t| t == name).map(|i| wanted(type_kinds[i]))
+            };
+            run.tagger().labels().iter().map(|l| of_label(l).unwrap_or(false)).collect()
+        };
+        let person_on_city = LabelMass {
+            of: marks(&|k| custom_kinds.name(k).is_some_and(|n| n == "first-name" || n == "last-name")),
+            on: marks(&|k| k == PiiKind::City),
+        };
         let model_id = format!("{}:{}", run.model().id, run.tagger().spec().name);
         let model_version = run.model().revision.clone();
         Ok(PiiTagger {
             run,
             custom_kinds,
             type_kinds,
+            person_on_city,
             model_id,
             model_version,
             temperature: None,
@@ -148,21 +165,33 @@ impl PiiTagger {
         tokens: &Tokens,
         subwords: Option<&Subwords>,
     ) -> Result<Vec<ModelCandidate>, String> {
+        Ok(self.model_candidates_person(view, tokens, subwords)?.into_iter().map(|(mc, _)| mc).collect())
+    }
+
+    /// As [`PiiTagger::model_candidates`], and beside each `city`
+    /// candidate the share of probability the head gives a person's name
+    /// on its words (the mean over them of the `first-name` and
+    /// `last-name` labels together); 0 beside every other kind.
+    pub fn model_candidates_person(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        subwords: Option<&Subwords>,
+    ) -> Result<Vec<(ModelCandidate, f32)>, String> {
         let seqs = HeadRunner::sequences(view, tokens, None)?;
-        let decoded = self.run.decode_tokens_temperature(view, tokens, &seqs, subwords, self.temperature)?;
+        let decoded =
+            self.run.decode_tokens_mass(view, tokens, &seqs, subwords, self.temperature, Some(&self.person_on_city))?;
         let mut out = Vec::new();
-        for (s, d) in seqs.iter().zip(&decoded) {
+        for (s, (d, person)) in seqs.iter().zip(&decoded) {
             for w in self.run.tagger().spans(&d.tags).map_err(|e| e.to_string())? {
                 let (a, b) = (s[w.start as usize], s[w.end as usize - 1]);
                 let start = tokens.spans.get(Ix::new(a as u32)).start;
                 let end = tokens.spans.get(Ix::new(b as u32)).end;
-                let p = &d.prob[w.start as usize..w.end as usize];
-                let mean_prob = (p.iter().sum::<f64>() / p.len() as f64).clamp(0.0, 1.0) as f32;
-                out.push(ModelCandidate {
-                    span: Span::new(start, end),
-                    kind: self.type_kinds[w.kind as usize],
-                    probability: mean_prob,
-                });
+                let words = w.start as usize..w.end as usize;
+                let mean = |p: &[f64]| (p.iter().sum::<f64>() / p.len() as f64).clamp(0.0, 1.0) as f32;
+                let kind = self.type_kinds[w.kind as usize];
+                let person = if kind == PiiKind::City { mean(&person[words.clone()]) } else { 0.0 };
+                out.push((ModelCandidate { span: Span::new(start, end), kind, probability: mean(&d.prob[words]) }, person));
             }
         }
         Ok(out)
