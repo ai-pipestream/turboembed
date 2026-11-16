@@ -9,7 +9,7 @@ use crate::doc::{Document, ProvenanceDigest, Status};
 use crate::error::Error;
 use crate::layer::KeyId;
 
-use super::{Analyzer, LayerExecution};
+use super::{Analyzer, LayerExecution, WorkerPool};
 
 /// Cache decision for a pipeline step during [`Analyzer::analyze_incremental`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -231,9 +231,17 @@ impl Analyzer {
                         vec![self.steps[to_run[0]].compute(docs)]
                     } else {
                         let docs_ref: &[Document] = &*docs;
+                        let pooled = WorkerPool::in_worker_thread();
                         std::thread::scope(|s| {
-                            let handles: Vec<_> =
-                                to_run.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs_ref))).collect();
+                            let handles: Vec<_> = to_run
+                                .iter()
+                                .map(|&i| {
+                                    s.spawn(move || {
+                                        WorkerPool::inherit_worker_thread(pooled);
+                                        self.steps[i].compute(docs_ref)
+                                    })
+                                })
+                                .collect();
                             handles.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()
                         })
                     };
@@ -277,13 +285,17 @@ impl Analyzer {
                     let b = &batches[0];
                     vec![self.steps[b.step_idx].compute(&b.sub_docs)]
                 } else {
+                    let pooled = WorkerPool::in_worker_thread();
                     std::thread::scope(|s| {
                         let handles: Vec<_> = batches
                             .iter()
                             .map(|b| {
                                 let step = self.steps[b.step_idx].as_ref();
                                 let sub_docs = &b.sub_docs;
-                                s.spawn(move || step.compute(sub_docs))
+                                s.spawn(move || {
+                                    WorkerPool::inherit_worker_thread(pooled);
+                                    step.compute(sub_docs)
+                                })
                             })
                             .collect();
                         handles.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()

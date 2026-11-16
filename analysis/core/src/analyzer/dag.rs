@@ -401,8 +401,8 @@ impl Analyzer {
     }
 
     /// Executes the pipeline using the stage-barrier `std::thread::scope`
-    /// schedule, retained as a baseline for head-to-head latency and throughput
-    /// comparisons.
+    /// schedule, with threads of its own for each stage of several steps.
+    /// This is what [`Analyzer::run`] does when no pool is bound.
     pub fn run_staged(&self, docs: &mut [Document]) -> Vec<Result<(), Error>> {
         let mut status: Vec<Result<(), Error>> = (0..docs.len()).map(|_| Ok(())).collect();
         for stage in &self.stages {

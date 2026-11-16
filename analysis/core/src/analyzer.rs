@@ -86,14 +86,16 @@ impl Analyzer {
     /// that need them are skipped and say why, the others still run, and
     /// no other document is touched. Each document's result is its first
     /// failure.
+    ///
+    /// A pipeline built with [`Builder::worker_pool`] or [`Builder::workers`]
+    /// runs on that pool without stage barriers. Any other pipeline runs
+    /// stage by stage on threads of its own, so concurrent callers never
+    /// queue behind one another on a process-wide pool.
     pub fn run(&self, docs: &mut [Document]) -> Vec<Result<(), Error>> {
-        if let Some(pool) = &self.pool {
-            return self.run_with_pool(docs, pool);
+        match &self.pool {
+            Some(pool) => self.run_with_pool(docs, pool),
+            None => self.run_staged(docs),
         }
-        if self.stages.iter().any(|s| s.len() > 1) {
-            return self.run_with_pool(docs, WorkerPool::shared());
-        }
-        self.run_staged(docs)
     }
 
     /// Computes `steps`, side by side when there are several, then stores
@@ -128,7 +130,12 @@ impl Analyzer {
             [] => Vec::new(),
             [one] => vec![self.steps[*one].compute(docs)],
             _ => std::thread::scope(|s| {
-                let running: Vec<_> = steps.iter().map(|&i| s.spawn(move || self.steps[i].compute(docs))).collect();
+                let pooled = WorkerPool::in_worker_thread();
+                let compute = move |i: usize| {
+                    WorkerPool::inherit_worker_thread(pooled);
+                    self.steps[i].compute(docs)
+                };
+                let running: Vec<_> = steps.iter().map(|&i| s.spawn(move || compute(i))).collect();
                 running.into_iter().map(|h| h.join().expect("an annotator's panics are caught")).collect()
             }),
         }

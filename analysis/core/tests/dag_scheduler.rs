@@ -2,8 +2,7 @@
 //! bounded [`WorkerPool`] (#2337).
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
 
@@ -197,67 +196,60 @@ fn dag_plan_records_exact_edges_and_schedules_depparse_early_on_critical_path() 
     assert_eq!(executed[0], "turbo-depparse:parser");
 }
 
-struct SlowRootStep {
-    barrier: Arc<Barrier>,
-    fast_c_entered: Arc<AtomicBool>,
-    fast_c_entered_while_slow_running: Arc<AtomicBool>,
-}
+/// Returns only once the stage-2 fast leaf has started, or fails after the
+/// wait it was given: under a stage barrier the leaf cannot start first.
+struct SlowRootStep(Mutex<mpsc::Receiver<()>>, Duration);
 impl Annotator for SlowRootStep {
     const ID: &'static str = "test:slow-root";
     type Reads = (View,);
     type Writes = (SlowALayer,);
     fn annotate(&self, (v,): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.barrier.wait();
-        if self.fast_c_entered.load(Ordering::Acquire) {
-            self.fast_c_entered_while_slow_running.store(true, Ordering::Release);
-        }
+        let leaf_started = self.0.lock().unwrap().recv_timeout(self.1);
+        leaf_started.expect("stage-2 fast-leaf must start while stage-0 slow-root is still running");
         Ok((SlowALayer(TagData::single(v.id(), v.text().len() as u32, "slow-a")),))
     }
 }
 
-struct FastLeafStep {
-    barrier: Option<Arc<Barrier>>,
-    entered: Arc<AtomicBool>,
-}
+struct FastLeafStep(Option<mpsc::Sender<()>>);
 impl Annotator for FastLeafStep {
     const ID: &'static str = "test:fast-leaf";
     type Reads = (View, FastBLayer);
     type Writes = (FastCLayer,);
     fn annotate(&self, (v, _): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.entered.store(true, Ordering::Release);
-        if let Some(barrier) = &self.barrier {
-            barrier.wait();
+        if let Some(started) = &self.0 {
+            let _ = started.send(());
         }
         Ok((FastCLayer(TagData::single(v.id(), v.text().len() as u32, "fast-c")),))
     }
 }
 
-#[test]
-fn zero_barrier_dag_completes_multi_stage_fast_branch_while_stage0_slow_branch_is_running() {
-    let barrier = Arc::new(Barrier::new(2));
-    let fast_c_entered = Arc::new(AtomicBool::new(false));
-    let overlapped = Arc::new(AtomicBool::new(false));
-    let analyzer = Analyzer::builder()
+fn zero_barrier_pipeline(wait: Duration) -> Analyzer {
+    let (started_tx, started_rx) = mpsc::channel();
+    Analyzer::builder()
         .workers(2)
-        .add(SlowRootStep {
-            barrier: Arc::clone(&barrier),
-            fast_c_entered: Arc::clone(&fast_c_entered),
-            fast_c_entered_while_slow_running: Arc::clone(&overlapped),
-        })
+        .add(SlowRootStep(Mutex::new(started_rx), wait))
         .add(SlowChildStep)
         .add(FastRootStep)
         .add(FastMidStep)
-        .add(FastLeafStep { barrier: Some(barrier), entered: fast_c_entered })
+        .add(FastLeafStep(Some(started_tx)))
         .build()
-        .unwrap();
+        .unwrap()
+}
 
+#[test]
+fn zero_barrier_dag_completes_multi_stage_fast_branch_while_stage0_slow_branch_is_running() {
     let mut docs = vec![Document::new("Zero-barrier execution test.")];
-    for res in analyzer.run(&mut docs) {
+    for res in zero_barrier_pipeline(Duration::from_secs(10)).run(&mut docs) {
         res.unwrap();
     }
-    assert!(overlapped.load(Ordering::Acquire), "stage-2 fast-leaf must run while stage-0 slow-root is blocked");
     assert!(docs[0].get::<SlowBLayer>().is_some());
     assert!(docs[0].get::<FastCLayer>().is_some());
+
+    // Control: the stage-barrier schedule holds the leaf back until stage 0
+    // is done, so the same handshake cannot complete there.
+    let mut staged = vec![Document::new("Zero-barrier execution test.")];
+    let res = zero_barrier_pipeline(Duration::from_millis(200)).run_staged(&mut staged);
+    assert!(res[0].is_err(), "the handshake must not complete behind a stage barrier");
 }
 
 struct TrimPrefixViewStep;
@@ -294,7 +286,7 @@ fn bit_identical_outputs_view_alignments_and_wire_bytes_across_1_2_4_8_workers()
         .step(Bound::new(ModalityStep(Arc::clone(&log))).read(0, "norm_a"))
         .step(Bound::new(FastRootStep).read(0, "norm_b"))
         .step(Bound::new(FastMidStep).read(0, "norm_b"))
-        .step(Bound::new(FastLeafStep { barrier: None, entered: Arc::new(AtomicBool::new(false)) }).read(0, "norm_b"))
+        .step(Bound::new(FastLeafStep(None)).read(0, "norm_b"))
         .build()
         .unwrap();
 
@@ -349,7 +341,7 @@ fn partial_failure_and_panic_isolation_matches_across_1_2_4_8_workers() {
             .add(SlowChildStep)
             .add(FastRootStep)
             .add(FastMidStep)
-            .add(FastLeafStep { barrier: None, entered: Arc::new(AtomicBool::new(false)) })
+            .add(FastLeafStep(None))
             .build()
             .unwrap();
 
