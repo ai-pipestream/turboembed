@@ -271,7 +271,7 @@ impl OnePassNlpBuilder {
             b = b.step(Bound::new(dp).read(0, CLEAN_VIEW_INSTANCE));
         }
         if let Some(df) = self.dict_finder {
-            b = b.step(Bound::new(df));
+            b = b.step(Bound::new(df).read(0, CLEAN_VIEW_INSTANCE));
         } else {
             b = b.step(Bound::new(RegexNameFinder::defaults(&BuiltIn::ALL)).read(0, CLEAN_VIEW_INSTANCE));
         }
@@ -317,5 +317,26 @@ impl OnePassDocumentNlp {
                 project_document(src, doc, self.shingle_width)
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use turbo_namefind::{Dictionary, DictionaryNameFinder};
+
+    use super::*;
+
+    #[test]
+    fn dictionary_finder_binds_to_clean_view_across_normalization() {
+        let dict = Dictionary::from_entries(true, vec![("ORG".to_owned(), vec!["Alphabet".to_owned()])]);
+        let finder = DictionaryNameFinder::new(dict).unwrap();
+        let nlp = OnePassDocumentNlp::builder().with_dictionary_finder(finder).build().unwrap();
+
+        let proj = nlp.analyze("\u{200B}Alphabet builds tools.").unwrap();
+        assert!(
+            proj.affirmed_entities.iter().any(|e| e.kind == "ORG" && e.surface == "Alphabet"),
+            "expected ORG entity for Alphabet, got {:?}",
+            proj.affirmed_entities
+        );
     }
 }

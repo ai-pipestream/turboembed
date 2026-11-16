@@ -323,7 +323,7 @@ fn joined(doc: &Document, key: KeyId) -> impl Iterator<Item = KeyId> + '_ {
 }
 
 #[path = "disclosure_lineage.rs"]
-mod lineage;
+pub(crate) mod lineage;
 
 #[cfg(test)]
 #[path = "disclosure_tests.rs"]

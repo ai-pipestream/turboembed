@@ -253,6 +253,9 @@ impl QuantizedSparseTerms {
                 format!("term_key length {} does not match impacts length {}", term_keys.len(), impacts.len()),
             ));
         }
+        if impacts.windows(2).any(|w| w[0].0 >= w[1].0) {
+            return Err(CoreError::new(INVALID_ARGUMENT, "impacts must be sorted by strictly increasing vocab_id"));
+        }
         if term_keys.iter().any(String::is_empty) {
             return Err(CoreError::new(INVALID_ARGUMENT, "term_key: every entry must be non-empty"));
         }

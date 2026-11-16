@@ -243,6 +243,10 @@ impl Store {
         self.index().dictionaries.get(id).cloned()
     }
 
+    pub(crate) fn vocabulary_descriptor(&self, id: &str) -> Option<VocabularyArtifactDescriptor> {
+        self.index().vocabularies.get(id).cloned()
+    }
+
     pub(crate) fn suggest_file(&self, id: &str) -> Option<(SuggestLexiconArtifactDescriptor, PathBuf)> {
         let desc = self.index().suggest_lexicons.get(id)?.clone();
         Some((desc, self.dir.join(SUGGEST).join(format!("{id}.slex"))))

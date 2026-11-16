@@ -200,18 +200,20 @@ impl TokenGraphBuilder {
         }
         let mut width = vec![1u32; n];
         for (t, w) in width.iter_mut().enumerate() {
-            if let Some(split) = &self.splits[t] {
-                *w = (*w).max(split.parts.len() as u32);
+            if let Some(split) = &self.splits[t]
+                && split.parts.len() > 1
+            {
+                *w += (split.parts.len() - 1) as u32;
             }
             for exp in &self.single_expansions[t] {
-                *w = (*w).max(exp.terms.len() as u32);
+                if exp.terms.len() > 1 {
+                    *w += (exp.terms.len() - 1) as u32;
+                }
             }
         }
         for seq in &self.span_sequences {
-            let cur: u32 = width[seq.token_range.clone()].iter().sum();
-            let need = seq.terms.len() as u32;
-            if need > cur {
-                width[seq.token_range.end - 1] += need - cur;
+            if seq.terms.len() > 1 {
+                width[seq.token_range.end - 1] += (seq.terms.len() - 1) as u32;
             }
         }
 
@@ -226,21 +228,24 @@ impl TokenGraphBuilder {
             pos_offset.push(next);
         }
         let num_positions = *pos_offset.last().unwrap();
+        let mut next_internal: Vec<u32> = pos_offset[..n].iter().map(|&p| p + 1).collect();
 
         let mut raw: Vec<(u32, u32, Span, TokenArcKind, String)> = Vec::with_capacity(n * 2);
         for t in 0..n {
             let p = pos_offset[t];
+            let p_end = pos_offset[t + 1];
             let w = width[t];
             let base_span = self.base_spans[t];
             let base_term = &self.base_terms[t];
             if let Some(split) = &self.splits[t] {
                 raw.push((p, w, base_span, split.whole_kind, base_term.clone()));
-                let k = split.parts.len() as u32;
-                for (j, part) in split.parts.iter().enumerate() {
-                    let j_u32 = j as u32;
-                    let len = if j_u32 + 1 == k { w - j_u32 } else { 1 };
-                    raw.push((p + j_u32, len, part.span, part.kind, part.term.clone()));
-                }
+                emit_branch(
+                    &mut raw,
+                    p,
+                    p_end,
+                    &mut next_internal[t],
+                    split.parts.iter().map(|part| (part.span, part.kind, part.term.clone())),
+                );
             } else {
                 raw.push((p, w, base_span, TokenArcKind::Primary, base_term.clone()));
             }
@@ -248,24 +253,26 @@ impl TokenGraphBuilder {
                 raw.push((p, w, *span, *kind, term.clone()));
             }
             for exp in &self.single_expansions[t] {
-                let m = exp.terms.len() as u32;
-                for (j, word) in exp.terms.iter().enumerate() {
-                    let j_u32 = j as u32;
-                    let len = if j_u32 + 1 == m { w - j_u32 } else { 1 };
-                    raw.push((p + j_u32, len, base_span, exp.kind, word.clone()));
-                }
+                emit_branch(
+                    &mut raw,
+                    p,
+                    p_end,
+                    &mut next_internal[t],
+                    exp.terms.iter().map(|word| (base_span, exp.kind, word.clone())),
+                );
             }
         }
         for seq in &self.span_sequences {
             let p_start = pos_offset[seq.token_range.start];
             let p_end = pos_offset[seq.token_range.end];
-            let w_span = p_end - p_start;
-            let m = seq.terms.len() as u32;
-            for (j, word) in seq.terms.iter().enumerate() {
-                let j_u32 = j as u32;
-                let len = if j_u32 + 1 == m { w_span - j_u32 } else { 1 };
-                raw.push((p_start + j_u32, len, seq.span, seq.kind, word.clone()));
-            }
+            let owner = seq.token_range.end - 1;
+            emit_branch(
+                &mut raw,
+                p_start,
+                p_end,
+                &mut next_internal[owner],
+                seq.terms.iter().map(|word| (seq.span, seq.kind, word.clone())),
+            );
         }
 
         raw.sort_by(|a, b| {
@@ -285,5 +292,31 @@ impl TokenGraphBuilder {
         }
         turbo_analysis::Layer::check(&graph)?;
         Ok(graph)
+    }
+}
+
+fn emit_branch(
+    raw: &mut Vec<(u32, u32, Span, TokenArcKind, String)>,
+    start_pos: u32,
+    end_pos: u32,
+    internal_cursor: &mut u32,
+    items: impl ExactSizeIterator<Item = (Span, TokenArcKind, String)>,
+) {
+    let m = items.len();
+    if m == 0 {
+        return;
+    }
+    if m == 1 {
+        for (span, kind, term) in items {
+            raw.push((start_pos, end_pos - start_pos, span, kind, term));
+        }
+        return;
+    }
+    let first_internal = *internal_cursor;
+    *internal_cursor += (m - 1) as u32;
+    for (j, (span, kind, term)) in items.enumerate() {
+        let pos = if j == 0 { start_pos } else { first_internal + (j as u32 - 1) };
+        let next = if j + 1 == m { end_pos } else { first_internal + j as u32 };
+        raw.push((pos, next - pos, span, kind, term));
     }
 }

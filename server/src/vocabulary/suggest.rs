@@ -68,10 +68,15 @@ impl SuggestCache {
             1..=2 => max_edit_distance,
             other => return Err(invalid(format!("max_edit_distance {other} must be 0, 1, or 2"))),
         };
-        let Some(Stored::Vocabulary(desc, bytes)) = store.read(id).map_err(internal)? else {
+        let desc = store.vocabulary_descriptor(id).ok_or_else(|| not_found(id))?;
+        let key = (desc.artifact_id, desc.sha256, dist);
+        if let Some(hit) = self.spellcheckers.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
+            return Ok(Arc::clone(hit));
+        }
+        let Some(Stored::Vocabulary(read_desc, bytes)) = store.read(id).map_err(internal)? else {
             return Err(not_found(id));
         };
-        let key = (desc.artifact_id, desc.sha256, dist);
+        let key = (read_desc.artifact_id, read_desc.sha256, dist);
         if let Some(hit) = self.spellcheckers.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
             return Ok(Arc::clone(hit));
         }
@@ -299,4 +304,49 @@ pub(super) async fn spellcheck_query(
     })
     .await?;
     Ok(Response::new(out))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn put_vocab(store: &super::super::Store, id: &str, tsv: &[u8]) {
+        let sha256 = turbo_maxent::sha256(tsv).to_hex();
+        let desc = VocabularyArtifactDescriptor {
+            artifact_id: id.to_owned(),
+            sha256,
+            byte_size: tsv.len() as u64,
+            term_count: tsv.split(|&b| b == b'\n').filter(|l| !l.is_empty()).count() as u64,
+            ..Default::default()
+        };
+        let (_, inserted) = store.put_vocabulary(desc, tsv).unwrap();
+        assert!(inserted);
+    }
+
+    #[test]
+    fn spellchecker_warm_cache_skips_tsv_read_and_reloads_on_replacement() {
+        let dir =
+            turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("suggest-warm-cache-{}", std::process::id())));
+        std::fs::create_dir_all(&*dir).unwrap();
+        let store = super::super::Store::open(&dir).unwrap();
+        let cache = SuggestCache::default();
+
+        put_vocab(&store, "v1", b"apple\tterm\t100\t10\n");
+        let first = cache.spellchecker(&store, "v1", 2).unwrap();
+
+        // Delete the underlying TSV file on disk while keeping the store index
+        // intact: a warm-cache hit must not open, read, or hash the TSV file.
+        let tsv_path = dir.join("vocabularies").join("v1.tsv");
+        std::fs::remove_file(&tsv_path).unwrap();
+        let warm = cache.spellchecker(&store, "v1", 2).unwrap();
+        assert!(Arc::ptr_eq(&first, &warm));
+
+        // Store-managed replacement updates the descriptor digest and reloads.
+        assert!(store.delete("v1").unwrap());
+        put_vocab(&store, "v1", b"banana\tterm\t200\t20\n");
+        let reloaded = cache.spellchecker(&store, "v1", 2).unwrap();
+        assert!(!Arc::ptr_eq(&first, &reloaded));
+        let res = reloaded.check_query("banan", &[]);
+        assert_eq!(res.corrected_query, "banana");
+    }
 }

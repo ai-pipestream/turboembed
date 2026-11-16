@@ -143,3 +143,49 @@ fn property_random_splits_expansions_and_synonyms_always_form_valid_dag() {
         assert!(graph.check().is_ok());
     }
 }
+
+fn graph_accepts_phrase(graph: &TokenGraph, phrase: &[&str]) -> bool {
+    let mut positions = vec![0u32];
+    for &want in phrase {
+        let mut next = Vec::new();
+        for &p in &positions {
+            for (_, arc) in graph.iter() {
+                if arc.position == p && arc.term == want {
+                    next.push(p + arc.position_length);
+                }
+            }
+        }
+        next.sort_unstable();
+        next.dedup();
+        if next.is_empty() {
+            return false;
+        }
+        positions = next;
+    }
+    positions.contains(&graph.num_positions)
+}
+
+#[test]
+fn alternative_multi_token_expansions_do_not_cross_paths() {
+    // Base tokens: "visit x tomorrow"
+    let base_spans = vec![Span::new(0, 5), Span::new(6, 7), Span::new(8, 16)];
+    let base_terms = vec!["visit".into(), "x".into(), "tomorrow".into()];
+    let mut builder = TokenGraphBuilder::from_base_tokens(ViewId::SOURCE, base_spans.clone(), base_terms);
+    builder.expand_token_sequence(1, ["new", "york"], TokenArcKind::Synonym);
+    builder.expand_token_sequence(1, ["los", "angeles"], TokenArcKind::Synonym);
+    // Also test span sequences spanning multiple tokens (0..2 = "visit x").
+    builder.add_span_sequence(0..2, Span::new(0, 7), ["tour", "nyc"], TokenArcKind::Synonym);
+    builder.add_span_sequence(0..2, Span::new(0, 7), ["see", "la"], TokenArcKind::Synonym);
+
+    let graph = builder.finish().unwrap();
+    assert!(graph_accepts_phrase(&graph, &["visit", "x", "tomorrow"]));
+    assert!(graph_accepts_phrase(&graph, &["visit", "new", "york", "tomorrow"]));
+    assert!(graph_accepts_phrase(&graph, &["visit", "los", "angeles", "tomorrow"]));
+    assert!(!graph_accepts_phrase(&graph, &["visit", "new", "angeles", "tomorrow"]));
+    assert!(!graph_accepts_phrase(&graph, &["visit", "los", "york", "tomorrow"]));
+
+    assert!(graph_accepts_phrase(&graph, &["tour", "nyc", "tomorrow"]));
+    assert!(graph_accepts_phrase(&graph, &["see", "la", "tomorrow"]));
+    assert!(!graph_accepts_phrase(&graph, &["tour", "la", "tomorrow"]));
+    assert!(!graph_accepts_phrase(&graph, &["see", "nyc", "tomorrow"]));
+}

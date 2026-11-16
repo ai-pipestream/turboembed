@@ -19,8 +19,8 @@ use std::any::TypeId;
 use std::collections::HashMap;
 
 use turbo_analysis::export::{DocumentGraph, export, import};
-use turbo_analysis::{Document, Execution, Ix, Key, Layer, Provenance, Span, View, ViewId};
-use turbo_analysis_layers::{Boilerplate, Chunks, Lemmas, Sentences, Stems, TokenGraph, Tokens};
+use turbo_analysis::{Document, Execution, Ix, Key, KeyId, Layer, Provenance, Span, View, ViewId};
+use turbo_analysis_layers::{Boilerplate, Chunks, Entities, Lemmas, Modality, Sentences, Stems, TokenGraph, Tokens};
 use turbo_group::Sketches;
 
 use entities::{boilerplate_kind_str, cut_reason_str, token_arc_kind_str};
@@ -58,21 +58,39 @@ pub(crate) struct SearchProjCx<'a> {
     pub(crate) doc: &'a Document,
     pub(crate) target_view: ViewId,
     pub(crate) target_text: &'a str,
+    pub(crate) disclosure: &'a Disclosure,
     pub(crate) offsetter: Offsetter,
     pub(crate) models: Vec<ModelProvenance>,
     model_map: HashMap<ProvKey, String>,
 }
 
 impl<'a> SearchProjCx<'a> {
-    fn new(doc: &'a Document, target_view: ViewId, target_text: &'a str, offsets: OffsetMode) -> Self {
+    fn new(
+        doc: &'a Document,
+        target_view: ViewId,
+        target_text: &'a str,
+        offsets: OffsetMode,
+        disclosure: &'a Disclosure,
+    ) -> Self {
         Self {
             doc,
             target_view,
             target_text,
+            disclosure,
             offsetter: Offsetter::new(target_text, offsets),
             models: Vec::new(),
             model_map: HashMap::new(),
         }
+    }
+
+    pub(crate) fn is_layer_withheld(&self, key: KeyId, own_view: Option<ViewId>) -> bool {
+        if self.disclosure.graph(self.doc) {
+            return false;
+        }
+        let mut lineage = super::disclosure::lineage::Lineage::new(self.doc, self.disclosure, |k| {
+            if k == key { own_view } else { layer_own_view(self.doc, k) }
+        });
+        lineage.withheld(key)
     }
 
     pub(crate) fn register_provenance(&mut self, prov: &Provenance) -> String {
@@ -121,6 +139,24 @@ impl<'a> SearchProjCx<'a> {
             })?
         };
         Ok(self.offsetter.to_wire(self.target_text, mapped))
+    }
+}
+
+fn layer_own_view(doc: &Document, key: KeyId) -> Option<ViewId> {
+    if key.ty == TypeId::of::<Tokens>() {
+        doc.get_key(&Key::<Tokens>::named(key.name)).map(|l| l.spans.view())
+    } else if key.ty == TypeId::of::<TokenGraph>() {
+        doc.get_key(&Key::<TokenGraph>::named(key.name)).map(|l| l.spans.view())
+    } else if key.ty == TypeId::of::<Entities>() {
+        doc.get_key(&Key::<Entities>::named(key.name)).map(|l| l.spans.view())
+    } else if key.ty == TypeId::of::<Sentences>() {
+        doc.get_key(&Key::<Sentences>::named(key.name)).map(|l| l.spans.view())
+    } else if key.ty == TypeId::of::<Chunks>() {
+        doc.get_key(&Key::<Chunks>::named(key.name)).map(|l| l.spans.view())
+    } else if key.ty == TypeId::of::<Modality>() {
+        doc.get_key(&Key::<Modality>::named(key.name)).map(|l| l.spans.view())
+    } else {
+        None
     }
 }
 
@@ -179,7 +215,7 @@ pub fn document_to_search_projection_bound(
     disclosure.require_view_text(doc, target_view, "ProjectSearchDocument")?;
 
     let target_text = view_ref.text();
-    let mut cx = SearchProjCx::new(doc, target_view, target_text, offsets);
+    let mut cx = SearchProjCx::new(doc, target_view, target_text, offsets, disclosure);
     for k in doc.layers() {
         if let Some(p) = doc.provenance(k) {
             cx.register_provenance(p);
@@ -319,8 +355,11 @@ fn project_lexical_tokens(
     let mut had_graph = false;
     for k in cx.doc.layers().filter(|k| k.ty == TypeId::of::<TokenGraph>()) {
         let Some(tg) = cx.doc.get_key(&Key::<TokenGraph>::named(k.name)) else { continue };
-        had_graph = true;
         let view = tg.spans.view();
+        if cx.is_layer_withheld(k, Some(view)) {
+            continue;
+        }
+        had_graph = true;
         for (_, arc) in tg.iter() {
             if arc.term.is_empty() {
                 continue;
@@ -342,9 +381,12 @@ fn project_lexical_tokens(
         return Ok(out);
     }
     if let Some(tokens) = cx.doc.get::<Tokens>() {
-        let stems = cx.doc.get::<Stems>();
-        let lemmas = cx.doc.get::<Lemmas>();
         let view = tokens.spans.view();
+        if cx.is_layer_withheld(Key::<Tokens>::DEFAULT.id(), Some(view)) {
+            return Ok(out);
+        }
+        let stems = cx.doc.get::<Stems>().filter(|_| !cx.is_layer_withheld(Key::<Stems>::DEFAULT.id(), None));
+        let lemmas = cx.doc.get::<Lemmas>().filter(|_| !cx.is_layer_withheld(Key::<Lemmas>::DEFAULT.id(), None));
         let view_text = cx.doc.text(view);
         for i in 0..tokens.len() {
             let span = tokens.spans.get(Ix::new(i as u32));

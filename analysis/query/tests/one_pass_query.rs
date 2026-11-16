@@ -184,3 +184,52 @@ fn structured_filters_split_residual_terms_with_ecb_si_geo_and_kb_linking() {
         other => panic!("expected SI Quantity filter, got {other:?}"),
     }
 }
+
+#[test]
+fn whitespace_profile_synonym_target_matches_direct_analysis() {
+    let mut syn = PhraseSynonymExpander::lower();
+    syn.add_equivalent_group(&[&["x"], &["foo-bar"]]).unwrap();
+    let analyzer = OnePassQueryAnalyzer::builder()
+        .with_synonyms(Arc::new(syn))
+        .add_field(FieldQuerySpec::new("ws_code").with_tokenizer(FieldTokenizerKind::Whitespace))
+        .build()
+        .unwrap();
+
+    let direct = analyzer.analyze("foo-bar").unwrap();
+    let direct_terms: Vec<&str> = direct.fields[0].bm25_terms.iter().map(|t| t.term.as_str()).collect();
+    assert_eq!(direct_terms, vec!["foo-bar"]);
+
+    let expanded = analyzer.analyze("x").unwrap();
+    assert_eq!(expanded.fields[0].synonyms.len(), 1);
+    assert_eq!(expanded.fields[0].synonyms[0].terms, direct_terms);
+}
+
+#[test]
+fn negated_and_positive_numeric_bounds_preserve_operator_and_span() {
+    let analyzer = OnePassQueryAnalyzer::builder().add_field(FieldQuerySpec::new("body")).build().unwrap();
+
+    let cases = [
+        ("deals no less than $50", "no less than $50", QueryComparisonOp::Gte),
+        ("deals not more than $50", "not more than $50", QueryComparisonOp::Lte),
+        ("deals more than $50", "more than $50", QueryComparisonOp::Gt),
+        ("deals less than $50", "less than $50", QueryComparisonOp::Lt),
+        ("deals at least $50", "at least $50", QueryComparisonOp::Gte),
+        ("deals at most $50", "at most $50", QueryComparisonOp::Lte),
+        ("packages not under 10 kg", "not under 10 kg", QueryComparisonOp::Gte),
+        ("packages not over 10 kg", "not over 10 kg", QueryComparisonOp::Lte),
+    ];
+
+    for (query, expected_surface, expected_op) in cases {
+        let plan = analyzer.analyze(query).unwrap();
+        assert_eq!(plan.filters.len(), 1, "query {query:?} filters: {:?}", plan.filters);
+        let f = &plan.filters[0];
+        assert_eq!(f.comparison, expected_op, "query {query:?}");
+        assert_eq!(f.surface, expected_surface, "query {query:?}");
+        assert_eq!(&query[f.span.range()], expected_surface, "query {query:?}");
+        assert!(
+            plan.residual_terms.iter().all(|t| t.surface == "deals" || t.surface == "packages"),
+            "query {query:?} residual: {:?}",
+            plan.residual_terms
+        );
+    }
+}

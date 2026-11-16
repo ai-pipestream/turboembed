@@ -3,7 +3,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::Ordering;
 
 use turbo::bundle::Bundle;
 use turbo::tokenizer::Tokenizer;
@@ -215,7 +215,7 @@ async fn run_range_pool_highlights(
         let mut targets: Vec<u32> = Vec::new();
         let mut flat: Vec<f32> = Vec::new();
         let head_len = head.len() as u32;
-        let dead = AtomicBool::new(false);
+        let dead = deadline.cancel_flag();
         let mut p_at = 0usize;
 
         let flush = |rows: &mut Rows,
@@ -228,7 +228,7 @@ async fn run_range_pool_highlights(
                 return Ok(());
             }
             crate::priority::check_before_exec(&deadline, &loaded.metrics)?;
-            run_ranges_on_slot(&state.stream, &dead, slot, rows, ranges, hidden_dim as u32, flat)?;
+            run_ranges_on_slot(&state.stream, dead, slot, rows, ranges, hidden_dim as u32, flat)?;
             for (v, &t) in flat.chunks_exact(hidden_dim).zip(targets.iter()) {
                 let x: Placed = plan.placed[t as usize];
                 let i = x.target.item as usize;
@@ -308,14 +308,14 @@ async fn run_contextual_maxsim_highlights(
         crate::priority::check_before_exec(&deadline, &loaded.metrics)?;
         held.reserve_token_ranges()?;
         let slot = held.slot();
-        let dead = AtomicBool::new(false);
+        let dead = deadline.cancel_flag();
 
         let passages = build_passages(&req, &top, offsets)?;
         let q_clean = clean_query_text(&req.query).map_err(|e| bad(e.to_string()))?;
         let q_opts = embed_opts(TURBO_PROMPT_QUERY, 0);
         let q_outcomes = embed.run_token_vectors_batch(
             &state.stream,
-            &dead,
+            dead,
             slot,
             &[q_clean.as_str()],
             &q_opts,
@@ -328,10 +328,11 @@ async fn run_contextual_maxsim_highlights(
         let dim = q_tv.dim as usize;
         let q_vecs = f32s(&q_tv.data);
 
+        crate::priority::check_before_exec(&deadline, &loaded.metrics)?;
         let d_texts: Vec<&str> = passages.iter().map(SourcePassage::clean_text).collect();
         let d_opts = embed_opts(TURBO_PROMPT_DOCUMENT, 0);
         let d_outcomes =
-            embed.run_token_vectors_batch(&state.stream, &dead, slot, &d_texts, &d_opts, OffsetMode::Utf8, 0)?;
+            embed.run_token_vectors_batch(&state.stream, dead, slot, &d_texts, &d_opts, OffsetMode::Utf8, 0)?;
         drop(held);
 
         for ((entry, passage), outcome) in top.iter_mut().zip(passages).zip(d_outcomes) {
@@ -451,3 +452,7 @@ async fn run_qa_highlights(
     .await
     .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("qa highlight task failed: {e}")))?
 }
+
+#[cfg(test)]
+#[path = "highlight_tests.rs"]
+mod tests;
