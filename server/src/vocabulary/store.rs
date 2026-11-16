@@ -254,6 +254,7 @@ impl Store {
         self.index().vocabularies.get(id).cloned()
     }
 
+    #[cfg(test)]
     pub(crate) fn body_reads(&self) -> u64 {
         self.body_reads.load(Ordering::Relaxed)
     }

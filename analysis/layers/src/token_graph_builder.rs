@@ -282,7 +282,6 @@ impl TokenGraphBuilder {
                 &mut seq.terms.iter().map(|w| (seq.span, seq.kind, w.as_str())),
             );
         }
-        drop(chain);
 
         raw.sort_by(|a, b| {
             (a.0, a.1, a.2.start, a.2.end, a.3, a.4.as_str()).cmp(&(b.0, b.1, b.2.start, b.2.end, b.3, b.4.as_str()))
