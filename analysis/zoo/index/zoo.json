@@ -322,6 +322,59 @@
       ]
     },
     {
+      "id": "gliner-community-gliner-small-v2.5",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_ENTITY_EXTRACTOR",
+      "language": "en",
+      "format": "FORMAT_PYTORCH",
+      "version": "f227d3cd637bd4e6757ae143935316d062393341",
+      "license": "Apache-2.0",
+      "license_terms": "https://huggingface.co/gliner-community/gliner_small-v2.5/blob/f227d3cd637bd4e6757ae143935316d062393341/README.md",
+      "trained_on": [
+        {
+          "name": "microsoft/deberta-v3-small",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/microsoft/deberta-v3-small"
+        },
+        {
+          "name": "urchade/pile-mistral-v0.1",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
+        },
+        {
+          "name": "The Pile",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "gliner-community/gliner_small-v2.5 at f227d3cd637bd4e6757ae143935316d062393341 (Apache-2.0, https://huggingface.co/gliner-community/gliner_small-v2.5/blob/f227d3cd637bd4e6757ae143935316d062393341/README.md), derived from microsoft/deberta-v3-small (MIT, https://huggingface.co/microsoft/deberta-v3-small); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1); The Pile (LicenseRef-RestrictedPublic, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "origin": "https://huggingface.co/gliner-community/gliner_small-v2.5",
+      "files": [
+        {
+          "path": "pytorch_model.bin",
+          "url": "https://huggingface.co/gliner-community/gliner_small-v2.5/resolve/f227d3cd637bd4e6757ae143935316d062393341/pytorch_model.bin",
+          "size": 664140326,
+          "sha256": "f3aa07b0bbd2c7d551e935fe998ceaaaa1d387f7d92f05ec70396c1264f41d22",
+          "sha512": "ea9e1c789589af6bf1a55131156828c9dba7c65f02d35c4465ee6f3a01d97345143ebf394818befebe3f842d4aa8b003b096fae0a06770a9bd4d786b99d14d58"
+        },
+        {
+          "path": "gliner_config.json",
+          "url": "https://huggingface.co/gliner-community/gliner_small-v2.5/resolve/f227d3cd637bd4e6757ae143935316d062393341/gliner_config.json",
+          "size": 676,
+          "sha256": "8e1eb4b733638be3935981feeb7c6a2e7e22e2600c58df66f74da4677f06c009",
+          "sha512": "05c8ef42b85ae5eb72270dc3a53d0ff89cead4c27e7b5c2d0c60fc276fbd642581a5f2967c7d9828f7740fae464578c06512ad181635109b60ced9e9ff88b226"
+        },
+        {
+          "path": "spm.model",
+          "url": "https://huggingface.co/gliner-community/gliner_small-v2.5/resolve/f227d3cd637bd4e6757ae143935316d062393341/spm.model",
+          "size": 2464616,
+          "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+          "sha512": "950cf1b397c25342053efaea576419e104f11e085796d741e5e78d6765ffe5474f4f096ee578099b04a611bde03e12808c51e2b6e89d2962a8665a35da6eb081"
+        }
+      ]
+    },
+    {
       "id": "microsoft-deberta-v3-small-tokenizer",
       "kind": "KIND_MODEL",
       "language": "en",

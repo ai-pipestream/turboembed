@@ -147,7 +147,7 @@ checkpoint zero-shot categorization considers (docs/doccat.md), and the
 SQuAD 2.0 checkpoint the extractive QA benchmarks run
 (docs/extractive-qa.md), and the learned-sparse and late-interaction
 checkpoints the SPLATE study runs (docs/splate.md, #913), and the BGE
-v1.5 dense encoders the bundle recipes make (#1068). Fourteen are
+v1.5 dense encoders the bundle recipes make (#1068). Fifteen are
 in the zoo's index:
 `deepset/roberta-base-squad2` (`deepset-roberta-base-squad2`,
 share-alike through its training data, fetched only after the user
@@ -156,7 +156,9 @@ accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
 2026-10-28, fetched after the user accepts the terms below) and its base tokenizer
 `microsoft/deberta-v3-small`'s `spm.model` and `config.json`
 (`microsoft-deberta-v3-small-tokenizer`, permissive), `urchade/gliner_multi-v2.1`
-(`urchade-gliner-multi-v2.1`, local-only the same way) and its base tokenizer
+(`urchade-gliner-multi-v2.1`, local-only the same way),
+`gliner-community/gliner_small-v2.5` (`gliner-community-gliner-small-v2.5`,
+local-only the same way, with its own `spm.model`) and its base tokenizer
 `microsoft/mdeberta-v3-base`'s `spm.model` and `config.json`
 (`microsoft-mdeberta-v3-base-tokenizer`, permissive), `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
 local-only the same way), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
@@ -237,7 +239,7 @@ which puts the checkpoint in `CLASS_LOCAL_ONLY`: fetched only from its
 publisher (`origin`), after the user accepts that page, never bundled,
 checked in or shipped, and any model trained from it stays local. It
 applies to `fastino-gliner2-base-v1`, `urchade-gliner-small-v2.1`,
-`urchade-gliner-multi-v2.1`, and to `gliner_multi_pii-v1` and GlotLID
+`urchade-gliner-multi-v2.1`, `gliner-community-gliner-small-v2.5`, and to `gliner_multi_pii-v1` and GlotLID
 when they are entered. Should the decision change, only the
 training-data entries and the class move back. The same review withdrew
 the recommendation to refuse GoEmotions: its data is CC BY 4.0 and its

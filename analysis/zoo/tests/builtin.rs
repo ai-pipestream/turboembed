@@ -92,12 +92,13 @@ pub(crate) const CHECKPOINTS: [&str; 4] = [
 /// The Apache-2.0 checkpoints whose training data is unreleased or
 /// LLM-labelled web text (Kristian, 2026-10-28): local-only, fetched from
 /// their publisher after the user accepts the terms on its card.
-pub(crate) const UNRELEASED_DATA_CHECKPOINTS: [(&str, &str); 3] = [
+pub(crate) const UNRELEASED_DATA_CHECKPOINTS: [(&str, &str); 4] = [
     (
         "fastino-gliner2-base-v1",
         "https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md",
     ),
     ("urchade-gliner-small-v2.1", "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"),
+    ("gliner-community-gliner-small-v2.5", "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"),
     ("urchade-gliner-multi-v2.1", "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"),
 ];
 

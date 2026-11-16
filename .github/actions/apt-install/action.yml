@@ -11,7 +11,9 @@ inputs:
     description: >
       Ubuntu archive mirrors outside ubuntu.com, separated by spaces, tried
       after the runner's own mirrors and only when their host resolves.
-    default: https://mirrors.edge.kernel.org/ubuntu/ https://mirror.math.princeton.edu/pub/ubuntu/
+      Empty by default, so a caller that passes none installs from the
+      runner's official Ubuntu mirrors only.
+    default: ""
 runs:
   using: composite
   steps:
@@ -21,8 +23,8 @@ runs:
     # cannot resolve those hosts, every Ubuntu fetch fails while other
     # repositories still download (merge-queue run 43045747818). So each
     # listed mirror whose host does not resolve is dropped, and the
-    # fallback mirrors, which are not under ubuntu.com, are appended when
-    # they resolve. The packages are still the archive's signed packages:
+    # caller's fallback mirrors, which are not under ubuntu.com, are
+    # appended when they resolve. The packages are still the archive's signed packages:
     # apt checks every index against the Ubuntu archive key whichever
     # mirror serves it.
     - name: Drop unresolvable mirrors, add fallbacks, install
