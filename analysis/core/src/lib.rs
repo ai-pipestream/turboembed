@@ -36,8 +36,8 @@ pub mod xray;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::{
-    Analyzer, ExecutionReport, IncrementalReport, LayerExecution, SpliceReport, StageCacheStatus,
-    StageIncrementalReport, StepEvent, StepExecution, StepRun, StepTiming,
+    Analyzer, DagNode, DagStep, ExecutionReport, IncrementalReport, LayerExecution, SpliceReport, StageCacheStatus,
+    StageIncrementalReport, StepEvent, StepExecution, StepRun, StepTiming, WorkerPool,
 };
 pub use annotate::{Annotator, Bound, Locality, Placed, Refs, Step};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};

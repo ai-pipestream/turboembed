@@ -81,6 +81,11 @@ pub trait Step: Send + Sync {
     fn locality(&self) -> Locality {
         Locality::Document
     }
+    /// Relative execution cost hint (`>= 1`) used by [`Analyzer`](crate::Analyzer)'s
+    /// critical-path DAG scheduler.
+    fn cost_hint(&self) -> u32 {
+        1
+    }
     /// For each output, how to splice its items across an edit, when its
     /// layer type supports that (`Layer::splicer`). Empty when the step
     /// cannot say: it is then re-run whole.
@@ -147,6 +152,10 @@ impl<A: Annotator> Step for Bound<A> {
 
     fn config_hash(&self) -> u64 {
         self.annotator.config_hash()
+    }
+
+    fn cost_hint(&self) -> u32 {
+        self.effective_cost_hint()
     }
 
     fn is_cacheable(&self) -> bool {

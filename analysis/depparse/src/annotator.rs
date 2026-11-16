@@ -109,6 +109,10 @@ impl<A: WordOrTokenAnchor> Annotator for DependencyAnnotator<A> {
     fn locality(&self) -> Locality {
         Locality::Partition(Key::<Sentences>::DEFAULT.id())
     }
+
+    fn cost_hint(&self) -> u32 {
+        10
+    }
 }
 
 /// Selects the parser while retaining typed token/word annotation.
