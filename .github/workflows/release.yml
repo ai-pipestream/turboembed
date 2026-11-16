@@ -50,6 +50,7 @@ jobs:
           curl -fsSLO --retry 5 --retry-all-errors --retry-delay 5 \
             https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
+      # Official Ubuntu mirrors only: no fallback-mirrors for a release.
       - name: the CUDA toolkit, nvcc and the runtime's headers and static library only
         uses: ./.github/actions/apt-install
         with:
