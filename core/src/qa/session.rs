@@ -36,6 +36,7 @@ pub struct ExtractiveQa {
     context: *mut turbo_context,
     model: *mut turbo_model,
     session: *mut turbo_session,
+    warnings: RuntimeWarnings,
     tokenizer: Tokenizer,
     head: Head,
     config: Qa,
@@ -88,6 +89,7 @@ impl ExtractiveQa {
             context: ptr::null_mut(),
             model: ptr::null_mut(),
             session: ptr::null_mut(),
+            warnings: RuntimeWarnings::new(),
             tokenizer: Tokenizer::load(&bundle)?,
             head: Head::load(&bundle)?,
             family,
@@ -99,9 +101,10 @@ impl ExtractiveQa {
             manifest_sha256: bundle.manifest_sha256.clone(),
         };
         let path = path.to_str().ok_or_else(|| Error::new(INVALID_ARGUMENT, "QA bundle path is not UTF-8"))?;
+        let rt_desc = s.warnings.runtime_desc();
         let mut e = error();
         unsafe {
-            check(turbo_runtime_create(ptr::null(), &mut s.runtime, &mut e), &e)?;
+            check(turbo_runtime_create(&rt_desc, &mut s.runtime, &mut e), &e)?;
             let device = match &o.backend {
                 Some(name) => device_of(s.runtime, name)?,
                 None => {
@@ -149,6 +152,10 @@ impl ExtractiveQa {
     /// Windows per run.
     pub fn max_batch(&self) -> u32 {
         self.max_batch
+    }
+    /// Warning and error messages logged by the session's runtime.
+    pub fn warnings(&self) -> Vec<String> {
+        self.warnings.snapshot()
     }
     pub fn config(&self) -> &Qa {
         &self.config

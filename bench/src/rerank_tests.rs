@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::test_heads::tiny_rerank_bundle;
+
 #[test]
 fn rerank_scores_come_back_in_passage_order() {
     let body = r#"[{"index":2,"score":-1.5},{"index":0,"score":3.25},{"index":1,"score":0.5}]"#;
@@ -53,47 +55,6 @@ fn committed_records_pass_their_check() {
         check(&r).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         assert_eq!(path.file_name().unwrap().to_str().unwrap(), file_name(&r));
     }
-}
-
-fn tiny_rerank_bundle(dir: &Path) -> PathBuf {
-    let bundle = dir.join("bundle");
-    std::fs::create_dir_all(bundle.join("weights")).unwrap();
-    std::fs::create_dir_all(bundle.join("reference")).unwrap();
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-    let tiny = root.join("testdata/tiny-bert-bundle");
-    let reference = root.join("testdata/tiny-rerank-reference");
-    let mut manifest: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(tiny.join("manifest.json")).unwrap()).unwrap();
-    manifest.as_object_mut().unwrap().remove("embed");
-    manifest["task"] = "TASK_RERANK".into();
-    manifest["rerank"] = json!({"max_seq": 32, "max_batch": 4, "query_tokens": 8, "pair_template": "PAIR_BERT"});
-    manifest["classifier"] = json!({"kind": "CLASSIFIER_SEQUENCE", "labels": ["LABEL_0"]});
-    manifest["artifacts"][0]["files"] = json!(["weights/model.safetensors", "weights/head.safetensors"]);
-    let names = manifest["artifacts"][0]["tensor_names"].as_object_mut().unwrap();
-    for (k, v) in [
-        ("pooler_weight", "bert.pooler.dense.weight"),
-        ("pooler_bias", "bert.pooler.dense.bias"),
-        ("classifier_weight", "classifier.weight"),
-        ("classifier_bias", "classifier.bias"),
-    ] {
-        names.insert(k.into(), v.into());
-    }
-    manifest["reference"]["cases"] =
-        serde_json::from_slice(&std::fs::read(reference.join("cases.json")).unwrap()).unwrap();
-    let mut files = Vec::new();
-    for (src, dest) in [
-        (tiny.join("tokenizer.json"), "tokenizer.json"),
-        (tiny.join("weights/model.safetensors"), "weights/model.safetensors"),
-        (reference.join("head.safetensors"), "weights/head.safetensors"),
-        (reference.join("reference.safetensors"), "reference/reference.safetensors"),
-    ] {
-        let b = std::fs::read(src).unwrap();
-        std::fs::write(bundle.join(dest), &b).unwrap();
-        files.push(json!({"path": dest, "size": b.len(), "sha256": turbo::bundle::sha256_hex(&b)}));
-    }
-    manifest["files"] = files.into();
-    std::fs::write(bundle.join("manifest.json"), serde_json::to_vec_pretty(&manifest).unwrap()).unwrap();
-    bundle
 }
 
 #[test]

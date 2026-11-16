@@ -166,6 +166,7 @@ pub fn measure(plan: &QaPlan, p: &Provenance, recorded_at: String) -> Result<QaR
     let mut qa = ExtractiveQa::open_with(&plan.bundle, &o).map_err(|e| e.message)?;
     let d = qa.device_info().map_err(|e| e.message)?;
     let backend = field(&d.backend);
+    crate::onednn::note_fallback(&backend, &crate::onednn::env_choices(), &qa.warnings());
     let active: Vec<_> = bins.iter().enumerate().filter(|(_, s)| !s.is_empty()).collect();
     let mut clock = crate::gpu_clock::Window::new(&backend, active.len());
     let mut out = Vec::new();
