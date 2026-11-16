@@ -300,7 +300,8 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         }
     }
     let mut ms = Vec::with_capacity(plan.iterations as usize);
-    let clock_before = crate::gpu_clock::read(&backend_name);
+    let mut clock = crate::gpu_clock::Window::new(&backend_name, 1);
+    clock.before_timed();
     let started = Instant::now();
     for i in 0..plan.iterations {
         let t = Instant::now();
@@ -317,9 +318,8 @@ pub fn measure(plan: &Plan) -> Result<Measurement> {
         ms.push(t.elapsed().as_secs_f64() * 1e3);
     }
     let total = started.elapsed().as_secs_f64();
-    let clock = clock_before
-        .zip(crate::gpu_clock::read(&backend_name))
-        .map(|(before, after)| turbo::record::GpuClock { before, after });
+    clock.after_timed();
+    let clock = clock.finish();
     let timed = last;
     for (r, v) in timed.iter().enumerate() {
         if rows.whole(r, &reference) {

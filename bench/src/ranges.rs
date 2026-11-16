@@ -164,7 +164,12 @@ pub fn chunk_rows(rows: &Rows, ranges: &[turbo_token_range], pad: i32) -> Rows {
 /// each of `runs` once, in turn, so a change of clock or temperature
 /// falls on all of them alike, and round `i` starts at run `i mod n`, so
 /// none always follows the same one.
-fn time(warmup: u32, iterations: u32, runs: &mut [(u32, &mut dyn FnMut() -> Result<()>)]) -> Result<Vec<Mode>> {
+fn time(
+    warmup: u32,
+    iterations: u32,
+    clock: &mut crate::gpu_clock::Window,
+    runs: &mut [(u32, &mut dyn FnMut() -> Result<()>)],
+) -> Result<Vec<Mode>> {
     for _ in 0..warmup {
         for (_, f) in runs.iter_mut() {
             f()?;
@@ -172,6 +177,7 @@ fn time(warmup: u32, iterations: u32, runs: &mut [(u32, &mut dyn FnMut() -> Resu
     }
     let n = runs.len();
     let mut ms = vec![Vec::with_capacity(iterations as usize); n];
+    clock.before_timed();
     for i in 0..iterations as usize {
         // Each round starts one later, so no mode always follows the same
         // one.
@@ -182,6 +188,7 @@ fn time(warmup: u32, iterations: u32, runs: &mut [(u32, &mut dyn FnMut() -> Resu
             ms[at].push(t.elapsed().as_secs_f64() * 1e3);
         }
     }
+    clock.after_timed();
     Ok(runs
         .iter()
         .zip(ms)
@@ -269,6 +276,8 @@ pub fn measure(plan: &RangePlan, p: &Provenance, recorded_at: String) -> Result<
 
     let (w, it) = (plan.warmup, plan.iterations);
     let n = ranges.len() as u32;
+    let backend = field(&d.backend);
+    let mut clock = crate::gpu_clock::Window::new(&backend, 1);
     let mut by_rows = || session.embed_into(&rows.as_batch(), &mut row_vectors).map(drop);
     let mut by_ranges = || session.embed_ranges_into(&rows.as_batch(), &ranges, &mut range_vectors).map(drop);
     let mut by_chunk_rows = || {
@@ -281,10 +290,10 @@ pub fn measure(plan: &RangePlan, p: &Provenance, recorded_at: String) -> Result<
         Ok(())
     };
     let mut modes =
-        time(w, it, &mut [(batch, &mut by_rows), (n, &mut by_ranges), (n, &mut by_chunk_rows)])?.into_iter();
+        time(w, it, &mut clock, &mut [(batch, &mut by_rows), (n, &mut by_ranges), (n, &mut by_chunk_rows)])?
+            .into_iter();
     let (rows_mode, ranges_mode, chunk_mode) = (modes.next().unwrap(), modes.next().unwrap(), modes.next().unwrap());
 
-    let backend = field(&d.backend);
     let r = RangeRecord {
         record_version: RANGE_RECORD_VERSION,
         recorded_at,
@@ -297,7 +306,7 @@ pub fn measure(plan: &RangePlan, p: &Provenance, recorded_at: String) -> Result<
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),

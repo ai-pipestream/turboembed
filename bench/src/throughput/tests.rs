@@ -125,3 +125,67 @@ fn cargo_optimization_is_independent_of_profile_family_and_assertions() {
         }
     }
 }
+
+#[cfg(any(feature = "grammar", feature = "lattice"))]
+#[test]
+fn median_pass_runs_warmup_and_timed_passes() {
+    let mut phase1 = 0u32;
+    let mut phase2 = 0u32;
+    let mut w = crate::gpu_clock::Window::none();
+    let (u1, _) = super::measure::median_pass(&mut w, 2, || {
+        phase1 += 1;
+        Ok(5)
+    })
+    .unwrap();
+    let (u2, _) = super::measure::median_pass(&mut w, 1, || {
+        phase2 += 1;
+        Ok(3)
+    })
+    .unwrap();
+    assert_eq!((u1, phase1), (5, 3));
+    assert_eq!((u2, phase2), (3, 2));
+    assert_eq!(w.finish(), None);
+}
+
+#[cfg(feature = "grammar")]
+#[test]
+fn grammar_measure_cpu_records_no_gpu_clock() {
+    let prov = || {
+        Ok(crate::git::Provenance { top: String::new(), commit: "1".repeat(40), pushed_to: vec!["origin/main".into()] })
+    };
+    let mut cpu_record = super::grammar::measure(
+        "12 km and $5 on 2020-01-02\n",
+        "fixture".into(),
+        None,
+        1,
+        "2026-10-22T00:00:00Z".into(),
+        prov,
+    )
+    .unwrap();
+    assert_eq!(cpu_record.device.clock, None);
+    cpu_record.cargo_build = None;
+    check(&cpu_record).unwrap();
+}
+
+/// The populated case, over the driver's files in a temporary tree: with
+/// two phases the clock is read once after the first phase's warm pass
+/// and once after the last phase's timed passes, and not between.
+#[cfg(any(feature = "grammar", feature = "lattice"))]
+#[test]
+fn median_pass_reads_the_clock_after_the_first_warm_pass_and_after_the_last_phase() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("throughput");
+    let calls = std::cell::Cell::new(0u32);
+    let mut w = tree.window(2);
+    // Each pass leaves its number in act_freq, so a reading says which
+    // pass it followed.
+    let pass = || {
+        calls.set(calls.get() + 1);
+        tree.set_act(calls.get() * 100);
+        Ok(u64::from(calls.get()))
+    };
+    assert_eq!(super::measure::median_pass(&mut w, 2, pass).unwrap().0, 1);
+    assert_eq!(super::measure::median_pass(&mut w, 1, pass).unwrap().0, 4);
+    assert_eq!(w.finish(), Tree::clock(100, 500));
+}

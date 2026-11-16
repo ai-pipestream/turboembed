@@ -12,7 +12,7 @@ use turbo_analysis_layers::Tokens;
 use turbo_tokenize::lattice::{DictionaryFormat, Scratch, UnidicLayout};
 use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary};
 
-use super::measure::{Options, goldens_text, median_pass, now, out_dir, record, run, same_tree};
+use super::measure::{ClockedDevice, Options, goldens_text, median_pass, now, out_dir, record, run, same_tree};
 use super::{Subject, write};
 use crate::cpus::{Cpus, SYSFS_CPUS, pin};
 use crate::{BUILD_CHANGES, BUILD_COMMIT, Result, check_build, git};
@@ -73,18 +73,19 @@ pub fn cmd(args: &[String]) -> Result<()> {
 
     for setup in SETUPS.iter().filter(|s| named.is_empty() || named.iter().any(|n| n == s.name)) {
         let path = dir.join(setup.dir);
+        let (text, source) = goldens_text(&top, &[setup.inputs], TEN_MIB)?;
+        eprintln!("{} ({}): {} bytes from inputs/{}", setup.name, setup.dir, text.len(), setup.inputs);
+        let mut device = ClockedDevice::open(if readings { 2 } else { 1 })?;
         let t = Instant::now();
         let dictionary = MecabDictionary::load(&path)
             .map_err(|e| format!("{}: {e} (run turbo-goldens fetch-models)", path.display()))?;
         let load_seconds = t.elapsed().as_secs_f64();
         let tokenizer = LatticeTokenizer::new(dictionary);
         let subject_hash = tokenizer.dictionary().sha256().to_hex();
-        let (text, source) = goldens_text(&top, &[setup.inputs], TEN_MIB)?;
-        eprintln!("{} ({}): {} bytes from inputs/{}", setup.name, setup.dir, text.len(), setup.inputs);
 
         let mut scratch = Scratch::new();
         let mut morphemes = Vec::new();
-        let (units, secs) = median_pass(rounds, || {
+        let (units, secs) = median_pass(&mut device.clock, rounds, || {
             morphemes.clear();
             tokenizer.analyze_with(black_box(&text), &mut scratch, &mut morphemes).map_err(|e| e.to_string())?;
             Ok(morphemes.len() as u64)
@@ -95,7 +96,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
         if readings {
             let analyzer = LatticeAnalyzer::new(tokenizer, setup.format).map_err(|e| e.to_string())?;
             let pipeline = Analyzer::builder().add(analyzer).build().map_err(|e| e.to_string())?;
-            let (units, secs) = median_pass(rounds, || {
+            let (units, secs) = median_pass(&mut device.clock, rounds, || {
                 let mut docs = vec![Document::new(text.as_str())];
                 pipeline.run(&mut docs)[0].clone().map_err(|e| format!("{e:?}"))?;
                 black_box(&docs);
@@ -115,6 +116,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
         let after = git::provenance(&repo)?;
         same_tree(&before, &after)?;
         let r = record(
+            device,
             "lattice",
             Subject { name: setup.name.into(), sha256: subject_hash, load_seconds: Some(load_seconds) },
             source,
@@ -125,7 +127,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
             runs,
             &after,
             recorded_at.clone(),
-        )?;
+        );
         let path = write(&r, &out_dir(out.clone(), &after))?;
         println!("{}", path.display());
     }

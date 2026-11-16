@@ -166,17 +166,24 @@ fn side(warmup: u32, mut ms: Vec<f64>, pairs: usize) -> Side {
 
 /// Time `pass` `iterations` times after `warmup` untimed runs; the scores
 /// of the last.
-fn time(warmup: u32, iterations: u32, pass: &mut dyn FnMut() -> Result<Vec<f32>>) -> Result<(Vec<f64>, Vec<f32>)> {
+fn time(
+    warmup: u32,
+    iterations: u32,
+    clock: &mut crate::gpu_clock::Window,
+    pass: &mut dyn FnMut() -> Result<Vec<f32>>,
+) -> Result<(Vec<f64>, Vec<f32>)> {
     let mut scores = Vec::new();
     for _ in 0..warmup {
         scores = pass()?;
     }
     let mut ms = Vec::with_capacity(iterations as usize);
+    clock.before_timed();
     for _ in 0..iterations {
         let t = Instant::now();
         scores = pass()?;
         ms.push(t.elapsed().as_secs_f64() * 1e3);
     }
+    clock.after_timed();
     Ok((ms, scores))
 }
 
@@ -196,7 +203,10 @@ pub fn measure(plan: &RerankPlan, p: &Provenance, recorded_at: String) -> Result
 
     let o = RerankSessionOptions { backend: Some(plan.device.clone()), precision: plan.precision, cpu_threads: 0 };
     let mut r = Reranker::open_with(&plan.bundle, &o).map_err(|e| e.message)?;
-    let (ms, turbo_scores) = time(plan.warmup, plan.iterations, &mut || {
+    let d = r.device_info().map_err(|e| e.message)?;
+    let backend = field(&d.backend);
+    let mut clock = crate::gpu_clock::Window::new(&backend, 1);
+    let (ms, turbo_scores) = time(plan.warmup, plan.iterations, &mut clock, &mut || {
         let mut all = Vec::with_capacity(pairs);
         for (q, ps) in &reqs {
             let pairs: Vec<(&str, &str)> = ps.iter().map(|p| (q.as_str(), p.as_str())).collect();
@@ -209,21 +219,20 @@ pub fn measure(plan: &RerankPlan, p: &Provenance, recorded_at: String) -> Result
         Some((image, dir)) => Some(tei(image, dir, plan, &reqs, &turbo_scores, &turbo)?),
         None => None,
     };
-    let d = r.device_info().map_err(|e| e.message)?;
     let id = r.identity().clone();
     Ok(RerankRecord {
         record_version: RERANK_RECORD_VERSION,
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: String::new(), os: std::env::consts::OS.into() },
         device: Device {
-            backend: field(&d.backend),
+            backend,
             kind: crate::kind_name(d.kind).into(),
             name: field(&d.name),
             vendor: field(&d.vendor),
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),
@@ -298,7 +307,7 @@ fn tei(image: &str, dir: &Path, plan: &RerankPlan, reqs: &[Request], ours: &[f32
         .iter()
         .map(|(q, ps)| json!({"query": q, "texts": ps, "raw_scores": true, "truncate": false}).to_string())
         .collect();
-    let (ms, theirs) = time(plan.warmup, plan.iterations, &mut || {
+    let (ms, theirs) = time(plan.warmup, plan.iterations, &mut crate::gpu_clock::Window::none(), &mut || {
         let mut all = Vec::new();
         for (body, (_, ps)) in bodies.iter().zip(reqs) {
             let mut resp = ureq::post(&url)
