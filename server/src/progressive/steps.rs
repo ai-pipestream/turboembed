@@ -145,6 +145,9 @@ pub(super) fn register_given_layers(mut builder: Builder, initial_doc: &Document
 
 mod embed;
 mod gliner;
+mod models;
+
+pub use models::{Models, PLACES, compile_analyzer_with_models};
 
 pub(crate) use embed::EmbedContext;
 use embed::resolve_embed_context;
@@ -191,41 +194,6 @@ pub fn compile_analyzer_with_redaction(
 ) -> Result<Analyzer, Failure> {
     let options = StepOptions { redaction: Some(redaction), ..StepOptions::default() };
     compile_analyzer_with_state(initial_doc, step_names, None, "", "", &[], options)
-}
-
-/// The models [`compile_analyzer_with_models`] runs `turbo:gliner` and
-/// `turbo:zero-shot-relations` with, in place of the loaded packages a
-/// served request names.
-#[derive(Default)]
-pub struct Models {
-    /// A GLiNER package's model and the label schema it extracts.
-    pub gliner: Option<(std::sync::Arc<turbo_gliner::Model>, ExtractionSchema)>,
-    /// A GLiNER2 package's relation model and its relation labels.
-    pub relations: Option<(std::sync::Arc<turbo_relation::Gliner2Relations>, ZeroShotRelationConfig)>,
-}
-
-/// [`compile_analyzer`] with the model steps resolved against `models`: the
-/// in-process form of a served request that names a GLiNER and a GLiNER2
-/// package. A model step without its model, or a model without its step,
-/// is refused as the served request refuses it.
-pub fn compile_analyzer_with_models(
-    initial_doc: &Document,
-    step_names: &[&str],
-    models: Models,
-) -> Result<Analyzer, Failure> {
-    let canonical: Vec<_> = step_names.iter().map(|&s| turbo_analysis::ids::canonical_layer_name(s)).collect();
-    let wants = |step: &str| canonical.iter().any(|s| s.as_ref() == step);
-    for (step, given) in
-        [("turbo:gliner", models.gliner.is_some()), ("turbo:zero-shot-relations", models.relations.is_some())]
-    {
-        match (wants(step), given) {
-            (true, false) => return Err(bad(format!("{step} requires its model"))),
-            (false, true) => return Err(bad(format!("a model is given but the steps do not include {step}"))),
-            _ => {}
-        }
-    }
-    let vocabulary = ResolvedVocabulary::default();
-    compile_pipeline_with(initial_doc, step_names, None, models.gliner, models.relations, "", None, &vocabulary)
 }
 
 /// Builds an [`Analyzer`] from `initial_doc`, resolving model-backed steps and
@@ -453,11 +421,14 @@ fn compile_pipeline_with(
             }
             "turbo-geo:names" | "turbo:entities" => {
                 // Place names are matched as written, like rule sentences.
+                // Beside GLiNER, which writes the default entities, they
+                // are the `places` instance.
+                let instance = if gliner.is_some() { PLACES } else { Key::<Entities>::DEFAULT.name };
                 let ann = NameAnnotator::new(bundled_name_finder());
                 if let Some(nv) = cased_norm_view {
-                    builder.step(NormalizedNameStep { annotator: ann, norm_view: nv })
+                    builder.step(NormalizedNameStep { annotator: ann, norm_view: nv, instance })
                 } else {
-                    builder.add(ann)
+                    builder.step(Bound::new(ann).write(0, instance))
                 }
             }
             "turbo:subwords" | "subwords" => {

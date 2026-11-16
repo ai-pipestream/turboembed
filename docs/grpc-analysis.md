@@ -222,9 +222,12 @@ real server with the release packages: GLiNER small v2.5 for
 `turbo:gliner` and GLiNER2 base v1 for `turbo:zero-shot-relations`, both
 loaded with `LoadBundle` and named by `turbo_pins::require` (set
 `GLINER_PACKAGE` and `GLINER2_PACKAGE`, run with `--ignored`). Its steps
-are the model-free stages above without the gazetteer, whose `Entities`
-GLiNER writes, then `turbo:subwords`, both model stages and
-`turbo:chunker`. The served graph is byte-identical to the graph
+are the model-free stages above, then `turbo:subwords`, both model stages
+and `turbo:chunker`. In a request with `turbo:gliner`, GLiNER writes the
+default `Entities` and the place-name gazetteer (`turbo-geo:names`)
+writes the `places` instance beside it (`turbo_kserve::progressive::PLACES`);
+without GLiNER the gazetteer writes the default. Relations and the other
+readers of the default `Entities` read GLiNER's. The served graph is byte-identical to the graph
 `compile_analyzer_with_models` writes in process from the same packages,
 for that text, for empty text, and for a sentence whose word pieces are
 over the relation encoder's 512, where the relation step fails with

@@ -497,6 +497,10 @@ jobs:
         uses: ./.github/actions/apt-install
         with:
           packages: cuda-nvcc-${{ env.CUDA_PACKAGE }} cuda-cudart-dev-${{ env.CUDA_PACKAGE }} cuda-cccl-${{ env.CUDA_PACKAGE }} clang-20
+          # CI only: third-party archive mirrors, used when the runner's
+          # Ubuntu mirrors do not resolve. Release builds install from the
+          # official mirrors only.
+          fallback-mirrors: https://mirrors.edge.kernel.org/ubuntu/ https://mirror.math.princeton.edu/pub/ubuntu/
       - name: the installed nvcc and clang 20
         run: |
           /usr/local/cuda-$CUDA_VERSION/bin/nvcc --version | tail -1

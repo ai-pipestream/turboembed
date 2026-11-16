@@ -21,7 +21,8 @@ sentences in two paragraphs, with diacritics, an emoji and an ideograph
 outside the Basic Multilingual Plane, an NFKC ligature, a currency sign,
 an email address and a phone number. The steps are normalization,
 structure, sentences, tokens, abbreviations, terms, stems, stopwords,
-keywords, PII, numbers, money, dates, subwords, GLiNER entities (person,
+keywords, place names (the `places` instance of `Entities`, beside
+GLiNER's default), PII, numbers, money, dates, subwords, GLiNER entities (person,
 organization, location at 0.5), GLiNER2 relations (works for, founded,
 located in, typed by entity kind, within a sentence, at 0.5), both
 boundary layers and the chunker.
@@ -63,8 +64,8 @@ scripts/e2e-web.sh
 
 ## Not covered
 
-- Gazetteer places and GLiNER entities in one request: both write
-  `Entities`, so the served run leaves out `turbo-geo:names`. The
-  in-process model-free run (`server/tests/full_text_graph.rs`) has it.
-- The release packages installed through the catalog: the browser run
-  installs a test bundle.
+- The release packages installed through the catalog's browser flow: the
+  browser run installs a test bundle. GLiNER small v2.5 is in the zoo
+  (`gliner-community-gliner-small-v2.5`); `gliner-convert` of its files
+  is the package pinned `e4ebd6b4`, and the served run with it passes
+  the same 4 tests.
