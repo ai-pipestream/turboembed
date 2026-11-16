@@ -109,3 +109,7 @@ pub(super) async fn run_contextual_maxsim_highlights(
     .await
     .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("contextual_maxsim highlight task failed: {e}")))?
 }
+
+#[cfg(test)]
+#[path = "maxsim_tests.rs"]
+mod tests;
