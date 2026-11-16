@@ -156,6 +156,15 @@ fn widen_numeric_cue(src: &str, toks: &[Span], val_span: Span) -> (Span, QueryCo
             _ => None,
         };
         if let Some(op) = two_word {
+            // "no less than" and "not more than": a negation right before a
+            // "... than" bound flips it and keeps the equal case.
+            if l1 == "than"
+                && let (Some((sp3, w3)), _) = prev_tokens(src, toks, sp2.start)
+                && matches!(w3.to_ascii_lowercase().as_str(), "no" | "not")
+            {
+                let negated = if op == QueryComparisonOp::Lt { QueryComparisonOp::Gte } else { QueryComparisonOp::Lte };
+                return (Span::new(sp3.start, val_span.end), negated);
+            }
             return (Span::new(sp2.start, val_span.end), op);
         }
     }
