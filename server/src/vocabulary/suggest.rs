@@ -300,3 +300,7 @@ pub(super) async fn spellcheck_query(
     .await?;
     Ok(Response::new(out))
 }
+
+#[cfg(test)]
+#[path = "suggest_tests.rs"]
+mod tests;
