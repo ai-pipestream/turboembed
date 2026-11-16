@@ -8,8 +8,9 @@
 //!
 //! What the counters cannot see is work inside this module (an accessor that
 //! itself scans). Keep every accessor O(1) per unit it counts. The allocation
-//! probe in `tests/grammar_scaling_allocs.rs` and the ignored wall-clock probe
-//! measure from outside and do not rely on these counters.
+//! probe (`allocation_scaling` in `tests/grammar_scaling_probe.rs`) and the
+//! ignored wall-clock probe measure from outside and do not rely on these
+//! counters.
 
 use std::cell::Cell;
 
