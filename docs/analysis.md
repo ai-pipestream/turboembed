@@ -203,9 +203,10 @@ inspected via `Analyzer::dag_plan()`, `predecessors()`, `dependents()`, and
   depend on syntactic head-modifier arcs, `turbo-depparse` is scheduled ahead of
   leaf siblings on the CPU critical path.
 - **Zero-barrier readiness on a bounded shared priority-ordered `WorkerPool`**:
-  `Analyzer::run`, `Analyzer::run_with_pool`, and `Analyzer::run_with_workers`
-  (configured via `Builder::worker_pool` or `Builder::workers`, or backed by
-  `WorkerPool::shared()`) dispatch ready steps onto persistent worker threads
+  the pool is opt-in. `Analyzer::run` on a pipeline built with
+  `Builder::worker_pool` or `Builder::workers`, `Analyzer::run_with_pool`
+  (with a caller-owned pool or the process-wide `WorkerPool::shared()`), and
+  `Analyzer::run_with_workers` dispatch ready steps onto persistent worker threads
   with shared priority-ordered lanes (request-level FIFO fairness across
   concurrent callers, critical-path priority within each request). Downstream
   steps trigger as soon as their specific `predecessors` reach zero
@@ -216,8 +217,10 @@ inspected via `Analyzer::dag_plan()`, `predecessors()`, `dependents()`, and
   occupied workers never deadlock, and the threads a pipeline spawns for
   side-by-side steps while a pool worker waits on it (`run_staged`,
   `run_incremental`, `run_progressive`) count as that worker, so a pipeline
-  nested any number of levels deep stays off the pool. `Analyzer::run_staged` retains the
-  stage-barrier `std::thread::scope` baseline for head-to-head benchmarking.
+  nested any number of levels deep stays off the pool. `Analyzer::run` on a
+  pipeline with no pool bound runs `Analyzer::run_staged`, the stage-barrier
+  `std::thread::scope` schedule with threads of its own per run, so concurrent
+  callers (a server's requests) are never limited to one pool's thread count.
 
 ### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
 

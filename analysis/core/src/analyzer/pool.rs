@@ -135,7 +135,10 @@ impl WorkerPool {
     }
 
     /// Returns a process-wide shared bounded worker pool sized to available
-    /// hardware parallelism (clamped to `1..=8` threads).
+    /// hardware parallelism (clamped to `1..=8` threads). Nothing uses it
+    /// unless a caller passes it to `Analyzer::run_with_pool` or binds it
+    /// with `Builder::worker_pool`: every pipeline that does shares those
+    /// threads, which caps their combined throughput.
     pub fn shared() -> &'static WorkerPool {
         static SHARED: OnceLock<WorkerPool> = OnceLock::new();
         SHARED.get_or_init(|| {

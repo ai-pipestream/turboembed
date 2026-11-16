@@ -227,7 +227,7 @@ fn run_with_timeout(name: &'static str, f: impl FnOnce() + Send + 'static) {
 #[test]
 fn nested_analyzer_run_across_eight_parallel_outer_steps_does_not_deadlock() {
     run_with_timeout("shared-pool nested run", || {
-        let outer = build_outer(None);
+        let outer = build_outer(Some(WorkerPool::shared().clone()));
         for _ in 0..4 {
             let mut docs = vec![Document::new("Eight parallel outer steps calling inner Analyzer::run.")];
             for res in outer.run(&mut docs) {
@@ -261,7 +261,7 @@ fn pipeline_nested_three_deep_does_not_deadlock_through_any_entry_point() {
         thread::spawn(move || {
             run_top(&build_top(Some(WorkerPool::new(1)), how));
             for _ in 0..4 {
-                run_top(&build_top(None, how));
+                run_top(&build_top(Some(WorkerPool::shared().clone()), how));
             }
             let _ = tx.send(());
         });
