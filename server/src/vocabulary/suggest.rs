@@ -68,13 +68,18 @@ impl SuggestCache {
             1..=2 => max_edit_distance,
             other => return Err(invalid(format!("max_edit_distance {other} must be 0, 1, or 2"))),
         };
-        let Some(Stored::Vocabulary(desc, bytes)) = store.read(id).map_err(internal)? else {
-            return Err(not_found(id));
-        };
-        let key = (desc.artifact_id, desc.sha256, dist);
+        // The store's index answers what is stored under `id` now; the file
+        // is read and hashed only when no checker is cached for that digest.
+        let listed = store.vocabulary(id).ok_or_else(|| not_found(id))?;
+        let key = (listed.artifact_id, listed.sha256, dist);
         if let Some(hit) = self.spellcheckers.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
             return Ok(Arc::clone(hit));
         }
+        let Some(Stored::Vocabulary(desc, bytes)) = store.read(id).map_err(internal)? else {
+            return Err(not_found(id));
+        };
+        // Replaced between the two looks: key the checker by what was read.
+        let key = (desc.artifact_id, desc.sha256, dist);
         let cfg = SpellcheckConfig { max_edit_distance: dist as usize, ..SpellcheckConfig::default() };
         let checker = QuerySpellchecker::from_vocabulary_tsv(&bytes, cfg).map_err(invalid)?;
         let arc = Arc::new(checker);
