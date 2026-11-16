@@ -139,7 +139,7 @@ pub(crate) fn options(o: Option<&AnalyzeOptions>) -> Result<turbo::turbo_embed_o
         quantization: pick("quantization", o.quantization, names::QUANTIZE)?,
         int8_ranges: std::ptr::null(),
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     })
 }
 

@@ -27,6 +27,8 @@ pub(super) struct EmbedOptions {
     pub(super) int8_ranges: *const f32,
     /// Encoder layers from the end to tap on range writes (0 when none given).
     pub(super) layers: u32,
+    /// turbo.h, field 10: the first of those layers alone.
+    pub(super) layer_alone: bool,
 }
 
 pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_options) -> Result<EmbedOptions> {
@@ -46,7 +48,7 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             quantization: 0,
             int8_ranges: std::ptr::null(),
             layers: 0,
-            reserved: 0,
+            layer_alone: 0,
         }
     } else if size as usize == TURBO_EMBED_OPTIONS_SIZE_V1 {
         let v1 = unsafe { std::slice::from_raw_parts(opts as *const u32, 7) };
@@ -61,7 +63,7 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             quantization: 0,
             int8_ranges: std::ptr::null(),
             layers: 0,
-            reserved: 0,
+            layer_alone: 0,
         }
     } else if size as usize == TURBO_EMBED_OPTIONS_SIZE_V2 {
         let v2 = unsafe { std::slice::from_raw_parts(opts as *const u32, 8) };
@@ -78,13 +80,13 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
             quantization: v2[7],
             int8_ranges,
             layers: 0,
-            reserved: 0,
+            layer_alone: 0,
         }
     } else {
         sized(size, size_of::<turbo_embed_options>(), "turbo_embed_options")?;
         let raw = unsafe { *opts };
-        if raw.reserved != 0 {
-            return Err(Error::new(INVALID_ARGUMENT, "turbo_embed_options.reserved must be 0"));
+        if raw.layer_alone > 1 {
+            return Err(Error::field(INVALID_ARGUMENT, 10, format!("layer_alone {}: 0 or 1", raw.layer_alone)));
         }
         raw
     };
@@ -154,7 +156,21 @@ pub(super) unsafe fn embed_options(s: &SessionInner, opts: *const turbo_embed_op
         quantization,
         int8_ranges: o.int8_ranges,
         layers: o.layers,
+        layer_alone: o.layer_alone == 1,
     })
+}
+
+/// turbo.h: rows written as text or tokens are the final layer's, so
+/// layers above 1 and layer_alone are refused naming their fields.
+pub(super) fn final_layer_alone(o: &EmbedOptions) -> Result<()> {
+    if o.layers > 1 {
+        let why = format!("layers {}: per-layer taps apply to range writes, not row writes", o.layers);
+        return Err(Error::field(INVALID_ARGUMENT, 9, why));
+    }
+    if o.layer_alone {
+        return Err(Error::field(INVALID_ARGUMENT, 10, "layer_alone 1: it applies to range writes, not row writes"));
+    }
+    Ok(())
 }
 
 /// Field 8 is given exactly when field 7 asks for int8, and then holds a
@@ -254,7 +270,7 @@ pub(super) fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u
         output_dim: o.output_dim,
         head: 0,
         taps: 0,
-        reserved: 0,
+        tap_alone: 0,
     }
 }
 

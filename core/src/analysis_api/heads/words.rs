@@ -394,7 +394,7 @@ impl Words {
             quantization: 0,
             int8_ranges: ptr::null(),
             layers: 0,
-            reserved: 0,
+            layer_alone: 0,
         };
         let mut err = new_error();
         let (n, taps) = (ranges.len() as u32, self.taps as u32);

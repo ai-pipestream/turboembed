@@ -140,7 +140,9 @@ pub struct turbo_backend_embed_rows {
     /// turbo_backend.h: 0 or 1 for the final layer; T > 1 on a range
     /// write for the last T layers, [T, count, output_dim].
     pub taps: u32,
-    pub reserved: u32,
+    /// turbo_backend.h: 1 with T > 1 for the first of those layers alone,
+    /// [count, output_dim].
+    pub tap_alone: u32,
 }
 
 #[repr(C)]

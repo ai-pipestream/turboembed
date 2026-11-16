@@ -89,6 +89,42 @@ impl Encoder {
         self.run(n.saturating_mul(layers), out)
     }
 
+    /// `run_layer_ranges` for the first of those `layers` alone, layer L -
+    /// layers + 1 (`turbo_embed_options.layer_alone`): into `out`,
+    /// `[ranges.len(), dim]`, block 0 of what `run_layer_ranges` gives.
+    /// A device that reads one layer alone stops its encoder there; one
+    /// whose cell lacks that field's bit names the field, and the same
+    /// vectors are then read from its write of every layer, here and on
+    /// each later call. `layers` times the ranges is at most the
+    /// session's max_ranges on either.
+    pub fn run_layer_alone(
+        &mut self,
+        rows: &Rows,
+        ranges: &[turbo_token_range],
+        layers: u32,
+        out: &mut Vec<f32>,
+    ) -> Result<(), Error> {
+        let n = ranges.len() as u32;
+        if layers > 1 && !self.every_layer {
+            let o = turbo_embed_options { layer_alone: 1, ..options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE) };
+            let mut err = new_error();
+            let rc = unsafe {
+                turbo_embed_write_layer_ranges(self.session, &rows.batch(), ranges.as_ptr(), n, layers, &o, &mut err)
+            };
+            match check(rc, &err) {
+                Ok(()) => {
+                    forwarded(rows);
+                    return self.run(n, out);
+                }
+                Err(e) if e.code == UNSUPPORTED_OPTION && e.field == 10 => self.every_layer = true,
+                Err(e) => return Err(needs_range_write(e, &self.info.execution.backend)),
+            }
+        }
+        self.run_layer_ranges(rows, ranges, layers, out)?;
+        out.truncate(ranges.len() * self.info.dim as usize);
+        Ok(())
+    }
+
     /// The row path, for comparing a range with its row: a mean-pooled
     /// vector per row into `out`, normalized when `l2`.
     pub fn run_rows(&mut self, rows: &Rows, l2: bool, out: &mut Vec<f32>) -> Result<(), Error> {

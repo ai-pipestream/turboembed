@@ -103,13 +103,13 @@ impl Encoder {
         mask: &[bool],
         out: &mut [f32],
     ) -> Result<()> {
-        self.encode_taps_into(pool, run, (ids, mask), 1, out, |_, _| {})
+        self.encode_taps_into(pool, run, (ids, mask), 1, out, |_, _| true)
     }
 
     /// As `encode_into`, calling `on_tap(k, out)` with `[ids.len(), hidden]`
     /// in `out` after each of the last `taps` encoder layers (`k = 0..taps`,
     /// from layer `layers - taps` up to the final layer) in one forward pass,
-    /// without allocating.
+    /// without allocating. The pass ends after a tap whose `on_tap` is false.
     pub(crate) fn encode_taps_into(
         &self,
         pool: &mut Pool,
@@ -117,7 +117,7 @@ impl Encoder {
         (ids, mask): (&[u32], &[bool]),
         taps: usize,
         out: &mut [f32],
-        mut on_tap: impl FnMut(usize, &[f32]),
+        mut on_tap: impl FnMut(usize, &[f32]) -> bool,
     ) -> Result<()> {
         self.check(ids, mask)?;
         run.reuse(&self.config, mask);
@@ -134,7 +134,9 @@ impl Encoder {
             run.layer(c, layer, &self.weights.relative, Some(pool))?;
             if i >= first {
                 scatter_into(run, h, out);
-                on_tap(i - first, out);
+                if !on_tap(i - first, out) {
+                    break;
+                }
             }
         }
         Ok(())

@@ -336,7 +336,7 @@ pub fn options(params: &HashMap<String, InferParameter>) -> Result<turbo_embed_o
         quantization: v[6],
         int8_ranges: std::ptr::null(),
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     })
 }
 

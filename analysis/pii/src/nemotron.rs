@@ -232,6 +232,12 @@ pub struct ModelResolution<'a> {
 /// label before it) inside an admitted `first-name` or `last-name`
 /// candidate (#2312): the city candidate is taken out and the person
 /// candidate stands, so `Paris won the race` names a person.
+///
+/// The person rules of the city scanner also decide the head's own `city`
+/// candidates (#2388): one on a name they refuse as a bare city (`we met
+/// Madison`, `Salem, who`), with no state after it and no city label
+/// before it, is rejected by rule precedence though no rule mention
+/// overlaps it. Without the city scanner among the rules, it stands.
 pub fn resolve_model_with_rules(
     text: &str,
     view: ViewId,
@@ -334,7 +340,18 @@ pub fn resolve_model_with_rules(
         }
 
         let overlaps_rule = admitted_rules.iter().any(|&(rs, _, _)| mc.span.start < rs.end && rs.start < mc.span.end);
-        if !overlaps_rule {
+        if !overlaps_rule
+            && kind == PiiKind::City
+            && city_detector.is_some()
+            && person_city::city_reads_as_person(text, mc.span)
+        {
+            // The person rules of the city scanner refused this name as a
+            // bare city (#2388), so they refuse the head's city on it too.
+            let norm = normalize_model_value(kind, covered);
+            if hits.add_candidate(start, end, kind, &[PiiEvidence::Shape], score, |s| s.push_str(&norm)) {
+                hits.reject_last(RejectReason::RulePrecedence);
+            }
+        } else if !overlaps_rule {
             let norm = normalize_model_value(kind, covered);
             hits.add_candidate(start, end, kind, &[PiiEvidence::Shape], score, |s| s.push_str(&norm));
         } else if let Some((_, _, rule_norm)) = admitted_rules.iter().find(|&&(rs, rk, _)| rs == mc.span && rk == kind)

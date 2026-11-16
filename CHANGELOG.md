@@ -247,6 +247,15 @@ stubs must be regenerated.
 
 ### Added
 
+- `turbo_embed_options.layer_alone` (field 10, in the struct's spare
+  word, so its size is unchanged): with `layers` K above 1 on a range
+  write, 1 pools each range from the first of those K layers alone,
+  `[count, dim]`, and the device may stop its encoder there. The cpu
+  and cuda backends set the field's bit in
+  `turbo_capability.options_honored`; elsewhere the write is
+  `TURBO_E_UNSUPPORTED_OPTION` naming field 10. The backend interface
+  carries it as `turbo_backend_embed_rows.tap_alone`, in that struct's
+  spare word (#2393).
 - The zoo index lists `gliner-community-gliner-small-v2.5`
   (`gliner-community/gliner_small-v2.5` at `f227d3cd`), local-only by its
   training data, with its own `spm.model` (#2392).
