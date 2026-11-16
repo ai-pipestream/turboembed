@@ -38,11 +38,11 @@ pub(super) fn query_vectors(run: &Run<'_>, req: &RerankAndHighlightRequest) -> R
     let Run { state, loaded, slot, deadline } = *run;
     crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     let embed = loaded.embed()?;
-    let dead = AtomicBool::new(false);
+    let dead: &AtomicBool = deadline.cancel_flag();
     let q_clean = clean_query_text(&req.query).map_err(|e| bad(e.to_string()))?;
     let q_opts = embed_opts(TURBO_PROMPT_QUERY, 0);
     let q_outcomes =
-        embed.run_token_vectors_batch(&state.stream, &dead, slot, &[q_clean.as_str()], &q_opts, OffsetMode::Utf8, 0)?;
+        embed.run_token_vectors_batch(&state.stream, dead, slot, &[q_clean.as_str()], &q_opts, OffsetMode::Utf8, 0)?;
     let Some(ProtoOutcome::TokenVectors(q_tv)) = q_outcomes.into_iter().next() else {
         return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected TokenVectors outcome for query"));
     };
@@ -59,14 +59,17 @@ pub(super) fn candidate_highlights(
     max_snippets: usize,
     query: &QueryVectors,
 ) -> Result<()> {
-    let Run { state, loaded, slot, .. } = *run;
+    let Run { state, loaded, slot, deadline } = *run;
+    // The call may have ended while the query ran: its flag, not one made
+    // here, stops the candidate windows.
+    crate::priority::check_before_exec(deadline, &loaded.metrics)?;
     let embed = loaded.embed()?;
-    let dead = AtomicBool::new(false);
+    let dead: &AtomicBool = deadline.cancel_flag();
     let passages = build_passages(req, top, offsets)?;
     let d_texts: Vec<&str> = passages.iter().map(SourcePassage::clean_text).collect();
     let d_opts = embed_opts(TURBO_PROMPT_DOCUMENT, 0);
     let d_outcomes =
-        embed.run_token_vectors_batch(&state.stream, &dead, slot, &d_texts, &d_opts, OffsetMode::Utf8, 0)?;
+        embed.run_token_vectors_batch(&state.stream, dead, slot, &d_texts, &d_opts, OffsetMode::Utf8, 0)?;
     for ((entry, passage), outcome) in top.iter_mut().zip(passages).zip(d_outcomes) {
         let ProtoOutcome::TokenVectors(d_tv) = outcome else {
             return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected TokenVectors outcome for candidate"));

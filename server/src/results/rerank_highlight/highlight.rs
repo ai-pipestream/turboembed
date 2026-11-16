@@ -214,7 +214,7 @@ async fn run_range_pool_highlights(
         let mut targets: Vec<u32> = Vec::new();
         let mut flat: Vec<f32> = Vec::new();
         let head_len = head.len() as u32;
-        let dead = AtomicBool::new(false);
+        let dead: &AtomicBool = deadline.cancel_flag();
         let mut p_at = 0usize;
 
         let flush = |rows: &mut Rows,
@@ -227,7 +227,7 @@ async fn run_range_pool_highlights(
                 return Ok(());
             }
             crate::priority::check_before_exec(&deadline, &loaded.metrics)?;
-            run_ranges_on_slot(&state.stream, &dead, slot, rows, ranges, hidden_dim as u32, flat)?;
+            run_ranges_on_slot(&state.stream, dead, slot, rows, ranges, hidden_dim as u32, flat)?;
             for (v, &t) in flat.chunks_exact(hidden_dim).zip(targets.iter()) {
                 let x: Placed = plan.placed[t as usize];
                 let i = x.target.item as usize;
