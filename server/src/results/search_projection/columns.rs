@@ -108,15 +108,15 @@ fn push_money_layer(
 
 pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNumericTemporalColumns, Failure> {
     let mut money = Vec::new();
-    if let Some(raw_m) = cx.doc.get_key(&Key::<Money>::DEFAULT) {
+    if let Some(raw_m) = cx.kept::<Money>() {
         push_money_layer(cx, raw_m, false, &mut money)?;
     }
-    if let Some(ecb_m) = cx.doc.get_key(&CONVERTED_MONEY) {
+    if let Some(ecb_m) = cx.kept_key(&CONVERTED_MONEY) {
         push_money_layer(cx, ecb_m, true, &mut money)?;
     }
 
     let mut quantities = Vec::new();
-    if let Some(q) = cx.doc.get::<Quantities>() {
+    if let Some(q) = cx.kept::<Quantities>() {
         let view = q.spans.view();
         for i in 0..q.len() {
             let ix = Ix::new(i as u32);
@@ -137,7 +137,7 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
         }
     }
 
-    let document_date = cx.doc.get::<DocumentDate>().and_then(|dd| dd.date).map(|d| SearchUtcDate {
+    let document_date = cx.kept::<DocumentDate>().and_then(|dd| dd.date).map(|d| SearchUtcDate {
         iso: d.to_string(),
         epoch_seconds: date_epoch_seconds(d),
         year: d.year(),
@@ -146,7 +146,7 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
     });
 
     let mut temporals = Vec::new();
-    if let Some(t) = cx.doc.get::<Temporals>() {
+    if let Some(t) = cx.kept::<Temporals>() {
         let view = t.spans.view();
         for i in 0..t.len() {
             let ix = Ix::new(i as u32);
@@ -166,7 +166,7 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
     }
 
     let mut times = Vec::new();
-    if let Some(tm) = cx.doc.get::<Times>() {
+    if let Some(tm) = cx.kept::<Times>() {
         let view = tm.spans.view();
         for i in 0..tm.len() {
             let ix = Ix::new(i as u32);
@@ -190,10 +190,10 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
 }
 
 pub(crate) fn project_geo(cx: &SearchProjCx<'_>) -> Result<Vec<SearchGeoPoint>, Failure> {
-    let Some(locs) = cx.doc.get::<Locations>() else {
+    let Some(locs) = cx.kept::<Locations>() else {
         return Ok(Vec::new());
     };
-    let cont_layer = cx.doc.get::<Containment>();
+    let cont_layer = cx.kept::<Containment>();
     let view = locs.spans.view();
     let mut out = Vec::with_capacity(locs.len());
     for i in 0..locs.len() {
@@ -251,9 +251,9 @@ pub(crate) fn project_geo(cx: &SearchProjCx<'_>) -> Result<Vec<SearchGeoPoint>, 
     Ok(out)
 }
 
-fn collect_categories<S: CategoryScope>(doc: &Document, scope_name: &str, out: &mut Vec<SearchCategoryRow>) {
-    for k in doc.layers().filter(|k| k.ty == TypeId::of::<Categories<S>>()) {
-        let Some(cat) = doc.get_key(&Key::<Categories<S>>::named(k.name)) else { continue };
+fn collect_categories<S: CategoryScope>(cx: &SearchProjCx<'_>, scope_name: &str, out: &mut Vec<SearchCategoryRow>) {
+    for k in cx.doc.layers().filter(|k| k.ty == TypeId::of::<Categories<S>>()) {
+        let Some(cat) = cx.kept_key(&Key::<Categories<S>>::named(k.name)) else { continue };
         for i in 0..cat.len() {
             let Some(row) = cat.get(i) else { continue };
             let abstained = row.best_tag == Tag::NONE;
@@ -281,9 +281,9 @@ fn collect_categories<S: CategoryScope>(doc: &Document, scope_name: &str, out: &
 
 pub(crate) fn project_categories_sentiment(cx: &SearchProjCx<'_>) -> Result<SearchCategorySentiment, Failure> {
     let mut categories = Vec::new();
-    collect_categories::<View>(cx.doc, "document", &mut categories);
-    collect_categories::<Chunks>(cx.doc, "chunk", &mut categories);
-    collect_categories::<Sentences>(cx.doc, "sentence", &mut categories);
+    collect_categories::<View>(cx, "document", &mut categories);
+    collect_categories::<Chunks>(cx, "chunk", &mut categories);
+    collect_categories::<Sentences>(cx, "sentence", &mut categories);
 
     let mut sentiment_label = None;
     let mut sentiment_score = None;
@@ -298,7 +298,7 @@ pub(crate) fn project_categories_sentiment(cx: &SearchProjCx<'_>) -> Result<Sear
     }
 
     let mut aspects = Vec::new();
-    if let Some(asp) = cx.doc.get::<Aspects>() {
+    if let Some(asp) = cx.kept::<Aspects>() {
         let toks = cx.doc.get_key(&asp.tokens_key);
         let sents = cx.doc.get_key(&asp.sentences_key);
         for i in 0..asp.len() {

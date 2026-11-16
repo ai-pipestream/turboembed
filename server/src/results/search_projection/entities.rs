@@ -90,13 +90,16 @@ fn find_view(doc: &Document, view_id: ViewId) -> Option<&View> {
         .find_map(|k| doc.get_key(&Key::<View>::named(k.name)).filter(|v| v.id() == view_id))
 }
 
-fn resolve_modality_layer(doc: &Document) -> Option<Modality> {
-    if let Some(existing) = doc.get::<Modality>() {
-        return Some(existing.clone());
+/// The modality layer, or one made here from the tokens; a cue is quoted
+/// from its view, so only layers the disclosure lets leave are read.
+fn resolve_modality_layer(cx: &SearchProjCx<'_>) -> Option<Modality> {
+    let doc = cx.doc;
+    if doc.get::<Modality>().is_some() {
+        return cx.kept::<Modality>().cloned();
     }
-    let tokens = doc.get::<Tokens>()?;
+    let tokens = cx.kept::<Tokens>()?;
     let view = find_view(doc, tokens.spans.view())?;
-    let deps = doc.get::<Dependencies>();
+    let deps = cx.kept::<Dependencies>();
     ModalityAnnotator::new().annotate((view, tokens, deps)).ok().map(|(m,)| m)
 }
 
@@ -198,13 +201,13 @@ fn classify_entity_modality(
 }
 
 pub(crate) fn project_entities(cx: &SearchProjCx<'_>) -> Result<SearchEntityPolarities, Failure> {
-    let modality = resolve_modality_layer(cx.doc);
+    let modality = resolve_modality_layer(cx);
     let mut affirmed = Vec::new();
     let mut negated = Vec::new();
     let mut uncertain = Vec::new();
 
     for key in cx.doc.layers().filter(|k| k.ty == TypeId::of::<Entities>()) {
-        let Some(ents) = cx.doc.get_key(&Key::<Entities>::named(key.name)) else { continue };
+        let Some(ents) = cx.kept_key(&Key::<Entities>::named(key.name)) else { continue };
         let linked = find_aligned_to::<LinkedEntities>(cx.doc, key);
         let view = ents.spans.view();
         let view_text = cx.doc.text(view);

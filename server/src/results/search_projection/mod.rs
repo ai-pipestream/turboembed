@@ -13,6 +13,7 @@
 
 pub mod columns;
 pub mod entities;
+mod gate;
 pub mod validate;
 
 use std::any::TypeId;
@@ -60,19 +61,37 @@ pub(crate) struct SearchProjCx<'a> {
     pub(crate) target_text: &'a str,
     pub(crate) offsetter: Offsetter,
     pub(crate) models: Vec<ModelProvenance>,
+    gate: gate::Gate,
     model_map: HashMap<ProvKey, String>,
 }
 
 impl<'a> SearchProjCx<'a> {
-    fn new(doc: &'a Document, target_view: ViewId, target_text: &'a str, offsets: OffsetMode) -> Self {
+    fn new(
+        doc: &'a Document,
+        target_view: ViewId,
+        target_text: &'a str,
+        offsets: OffsetMode,
+        disclosure: &Disclosure,
+    ) -> Self {
         Self {
             doc,
             target_view,
             target_text,
             offsetter: Offsetter::new(target_text, offsets),
             models: Vec::new(),
+            gate: gate::Gate::new(doc, disclosure),
             model_map: HashMap::new(),
         }
+    }
+
+    /// The layer under `key`, unless the disclosure holds its data back.
+    pub(crate) fn kept_key<L: Layer>(&self, key: &Key<L>) -> Option<&'a L> {
+        self.doc.get_key(key).filter(|_| self.gate.keeps(key.id()))
+    }
+
+    /// The default instance of `L`, unless the disclosure holds it back.
+    pub(crate) fn kept<L: Layer>(&self) -> Option<&'a L> {
+        self.kept_key(&Key::<L>::DEFAULT)
     }
 
     pub(crate) fn register_provenance(&mut self, prov: &Provenance) -> String {
@@ -179,7 +198,7 @@ pub fn document_to_search_projection_bound(
     disclosure.require_view_text(doc, target_view, "ProjectSearchDocument")?;
 
     let target_text = view_ref.text();
-    let mut cx = SearchProjCx::new(doc, target_view, target_text, offsets);
+    let mut cx = SearchProjCx::new(doc, target_view, target_text, offsets, disclosure);
     for k in doc.layers() {
         if let Some(p) = doc.provenance(k) {
             cx.register_provenance(p);
@@ -210,7 +229,7 @@ pub fn document_to_search_projection_bound(
     let categories_sentiment = columns::project_categories_sentiment(&cx)?;
     let quality = columns::project_quality(doc)?;
     let entities = entities::project_entities(&cx)?;
-    let document_sketch = doc.get::<Sketches<View>>().and_then(|s| sketch_row(s, 0));
+    let document_sketch = cx.kept::<Sketches<View>>().and_then(|s| sketch_row(s, 0));
 
     let (_, target_text_len) = cx.offsetter.to_wire(target_text, Span::new(0, target_text.len() as u32));
     let provenance = SearchReplayProvenance {
@@ -274,7 +293,7 @@ fn project_chunks(cx: &SearchProjCx<'_>) -> Result<Vec<SearchChunkRow>, Failure>
         return Ok(Vec::new());
     };
     let bp = cx.doc.get::<Boilerplate<Chunks>>();
-    let sketches = cx.doc.get::<Sketches<Chunks>>();
+    let sketches = cx.kept::<Sketches<Chunks>>();
     let mut rows = Vec::with_capacity(chunks.len());
     for i in 0..chunks.len() {
         let (span_start, span_end) = cx.map_to_wire(chunks.spans.view(), chunks.spans.get(Ix::new(i as u32)))?;
@@ -318,7 +337,7 @@ fn project_lexical_tokens(
     let mut out = Vec::new();
     let mut had_graph = false;
     for k in cx.doc.layers().filter(|k| k.ty == TypeId::of::<TokenGraph>()) {
-        let Some(tg) = cx.doc.get_key(&Key::<TokenGraph>::named(k.name)) else { continue };
+        let Some(tg) = cx.kept_key(&Key::<TokenGraph>::named(k.name)) else { continue };
         had_graph = true;
         let view = tg.spans.view();
         for (_, arc) in tg.iter() {
@@ -341,9 +360,9 @@ fn project_lexical_tokens(
     if had_graph {
         return Ok(out);
     }
-    if let Some(tokens) = cx.doc.get::<Tokens>() {
-        let stems = cx.doc.get::<Stems>();
-        let lemmas = cx.doc.get::<Lemmas>();
+    if let Some(tokens) = cx.kept::<Tokens>() {
+        let stems = cx.kept::<Stems>();
+        let lemmas = cx.kept::<Lemmas>();
         let view = tokens.spans.view();
         let view_text = cx.doc.text(view);
         for i in 0..tokens.len() {
