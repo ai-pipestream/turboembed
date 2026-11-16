@@ -198,20 +198,34 @@ impl TokenGraphBuilder {
         if n == 0 {
             return Ok(TokenGraph::new(self.view));
         }
+        // Each alternative of two or more terms gets inner positions of its
+        // own, inside its last token: a path then reads one alternative
+        // whole, never the head of one and the tail of another.
         let mut width = vec![1u32; n];
-        for (t, w) in width.iter_mut().enumerate() {
-            if let Some(split) = &self.splits[t] {
-                *w = (*w).max(split.parts.len() as u32);
-            }
+        let mut inner = |t: usize, terms: usize| -> u32 {
+            let first = width[t];
+            width[t] = width[t].saturating_add(terms as u32 - 1);
+            first
+        };
+        let split_at: Vec<u32> =
+            (0..n).map(|t| self.splits[t].as_ref().map_or(0, |s| inner(t, s.parts.len()))).collect();
+        let mut expansions: Vec<Vec<(&SingleExpansion, u32)>> = Vec::with_capacity(n);
+        for t in 0..n {
+            let mut kept: Vec<(&SingleExpansion, u32)> = Vec::new();
             for exp in &self.single_expansions[t] {
-                *w = (*w).max(exp.terms.len() as u32);
+                if !kept.iter().any(|(k, _)| k.terms == exp.terms && k.kind == exp.kind) {
+                    kept.push((exp, inner(t, exp.terms.len())));
+                }
             }
+            expansions.push(kept);
         }
+        let mut sequences: Vec<(&SpanSequence, u32)> = Vec::new();
         for seq in &self.span_sequences {
-            let cur: u32 = width[seq.token_range.clone()].iter().sum();
-            let need = seq.terms.len() as u32;
-            if need > cur {
-                width[seq.token_range.end - 1] += need - cur;
+            let same = |k: &SpanSequence| {
+                k.token_range == seq.token_range && k.span == seq.span && k.terms == seq.terms && k.kind == seq.kind
+            };
+            if !sequences.iter().any(|(k, _)| same(k)) {
+                sequences.push((seq, inner(seq.token_range.end - 1, seq.terms.len())));
             }
         }
 
@@ -228,45 +242,47 @@ impl TokenGraphBuilder {
         let num_positions = *pos_offset.last().unwrap();
 
         let mut raw: Vec<(u32, u32, Span, TokenArcKind, String)> = Vec::with_capacity(n * 2);
-        for t in 0..n {
-            let p = pos_offset[t];
-            let w = width[t];
-            let base_span = self.base_spans[t];
-            let base_term = &self.base_terms[t];
-            if let Some(split) = &self.splits[t] {
-                raw.push((p, w, base_span, split.whole_kind, base_term.clone()));
-                let k = split.parts.len() as u32;
-                for (j, part) in split.parts.iter().enumerate() {
-                    let j_u32 = j as u32;
-                    let len = if j_u32 + 1 == k { w - j_u32 } else { 1 };
-                    raw.push((p + j_u32, len, part.span, part.kind, part.term.clone()));
+        // The arcs of one alternative from `from` to `to`, through its own
+        // inner positions starting at `first`.
+        let mut chain =
+            |from: u32, to: u32, first: u32, items: &mut dyn Iterator<Item = (Span, TokenArcKind, &str)>| {
+                let mut at = from;
+                let mut next = first;
+                let mut items = items.peekable();
+                while let Some((span, kind, term)) = items.next() {
+                    let end = if items.peek().is_some() { next } else { to };
+                    raw.push((at, end - at, span, kind, term.to_owned()));
+                    at = end;
+                    next = end + 1;
                 }
+            };
+        for t in 0..n {
+            let (p, end) = (pos_offset[t], pos_offset[t + 1]);
+            let base_span = self.base_spans[t];
+            let base_term = self.base_terms[t].as_str();
+            if let Some(split) = &self.splits[t] {
+                chain(p, end, p, &mut [(base_span, split.whole_kind, base_term)].into_iter());
+                chain(p, end, p + split_at[t], &mut split.parts.iter().map(|x| (x.span, x.kind, x.term.as_str())));
             } else {
-                raw.push((p, w, base_span, TokenArcKind::Primary, base_term.clone()));
+                chain(p, end, p, &mut [(base_span, TokenArcKind::Primary, base_term)].into_iter());
             }
             for (span, term, kind) in &self.extra_unit_arcs[t] {
-                raw.push((p, w, *span, *kind, term.clone()));
+                chain(p, end, p, &mut [(*span, *kind, term.as_str())].into_iter());
             }
-            for exp in &self.single_expansions[t] {
-                let m = exp.terms.len() as u32;
-                for (j, word) in exp.terms.iter().enumerate() {
-                    let j_u32 = j as u32;
-                    let len = if j_u32 + 1 == m { w - j_u32 } else { 1 };
-                    raw.push((p + j_u32, len, base_span, exp.kind, word.clone()));
-                }
+            for (exp, first) in &expansions[t] {
+                chain(p, end, p + first, &mut exp.terms.iter().map(|w| (base_span, exp.kind, w.as_str())));
             }
         }
-        for seq in &self.span_sequences {
-            let p_start = pos_offset[seq.token_range.start];
-            let p_end = pos_offset[seq.token_range.end];
-            let w_span = p_end - p_start;
-            let m = seq.terms.len() as u32;
-            for (j, word) in seq.terms.iter().enumerate() {
-                let j_u32 = j as u32;
-                let len = if j_u32 + 1 == m { w_span - j_u32 } else { 1 };
-                raw.push((p_start + j_u32, len, seq.span, seq.kind, word.clone()));
-            }
+        for (seq, first) in &sequences {
+            let last = seq.token_range.end - 1;
+            chain(
+                pos_offset[seq.token_range.start],
+                pos_offset[last + 1],
+                pos_offset[last] + first,
+                &mut seq.terms.iter().map(|w| (seq.span, seq.kind, w.as_str())),
+            );
         }
+        drop(chain);
 
         raw.sort_by(|a, b| {
             (a.0, a.1, a.2.start, a.2.end, a.3, a.4.as_str()).cmp(&(b.0, b.1, b.2.start, b.2.end, b.3, b.4.as_str()))
