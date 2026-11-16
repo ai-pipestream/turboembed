@@ -255,7 +255,7 @@ stubs must be regenerated.
   `turbo_capability.options_honored`; elsewhere the write is
   `TURBO_E_UNSUPPORTED_OPTION` naming field 10. The backend interface
   carries it as `turbo_backend_embed_rows.tap_alone`, in that struct's
-  spare word (#2000).
+  spare word (#2393).
 
 - A per-document PII risk score and level for routing in the indexing
   pipeline: the `turbo-pii:risk` step writes `turbo:pii-risk`
