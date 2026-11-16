@@ -17,11 +17,11 @@ const TEXT = [
   "London sits apart from all this. The tunnel carries trains from London to Paris, and from Paris a traveller can be in Berlin, Vienna or Rome by the next morning. Rome and Athens were once linked by ferry and rail through Brindisi.",
 ].join("\n\n");
 
-/** Opens Analyze, analyzes TEXT with `profile` and waits for the document. */
-async function analyze(page: Page, profile: string): Promise<void> {
+/** Opens Analyze, analyzes `text` with `profile` and waits for the document. */
+async function analyze(page: Page, profile: string, text: string = TEXT): Promise<void> {
   await page.goto(`${BASE}/#analyze`);
   await page.waitForSelector("#analyze-profile option", { state: "attached" });
-  await page.fill("#analyze-text", TEXT);
+  await page.fill("#analyze-text", text);
   await page.selectOption("#analyze-profile", profile);
   await page.click("#analyze-run");
   await page.waitForSelector("#analyze-window .doc");
@@ -66,6 +66,31 @@ test("the entity views draw a node and a strip per entity and say what is pointe
     await page.locator(`${OUT} details.tables summary`).click();
     assert.equal((await page.locator(`${OUT} details.tables table`).count()) > 0, true);
     assert.equal(await page.locator(`${OUT} details.tables .take`).count(), 1);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("past thirty entities the thirty most mentioned are drawn, and the page says so", async () => {
+  // Thirty-six cities, each named once, and Paris twice more.
+  const cities = ["Paris", "Berlin", "Warsaw", "Vienna", "Budapest", "Belgrade", "Athens", "London", "Rome", "Madrid", "Lisbon", "Dublin", "Oslo", "Stockholm", "Helsinki", "Copenhagen", "Amsterdam", "Brussels", "Prague", "Bratislava", "Zagreb", "Sofia", "Bucharest", "Kyiv", "Riga", "Vilnius", "Tallinn", "Ankara", "Cairo", "Nairobi", "Tokyo", "Seoul", "Beijing", "Canberra", "Ottawa", "Lima"];
+  const text = `${cities.map((c, i) => `Stop ${i + 1} on the long way round is ${c}.`).join(" ")} The journey ends in Paris, because every journey of this kind ends in Paris.`;
+  const browser = await chromium.launch();
+  try {
+    const page = await (await browser.newContext({ viewport: { width: 1400, height: 1000 } })).newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await analyze(page, "default-v1", text);
+    await page.waitForSelector(`${OUT} svg .node`);
+    const summary = (await page.locator(`${OUT} > p`).first().textContent()) ?? "";
+    const found = Number(summary.split(" ")[0]);
+    assert.equal(found > 30, true, summary);
+    assert.equal(summary.includes("The 30 most mentioned are drawn."), true, summary);
+    assert.equal(await page.locator(`${OUT} svg .node`).count(), 30);
+    assert.equal(await page.locator(`${OUT} svg .strip`).count(), 30);
+    // The most mentioned comes first and is among those drawn.
+    assert.equal(((await page.locator(`${OUT} svg .strip .row-name`).first().textContent()) ?? "").startsWith("Paris"), true);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

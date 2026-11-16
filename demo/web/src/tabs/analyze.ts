@@ -9,7 +9,7 @@ import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb
 import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
 import { busy } from "../act.js";
 import { $, download, el, failed, heatKey, options, reveal, say, table } from "../dom.js";
-import { doc, onDoc, setDoc } from "../doc.js";
+import { doc, hasVectors, onDoc, setDoc } from "../doc.js";
 import { layerKey, layerName } from "../marks.js";
 import { annotated, foundList } from "./annotated.js";
 import { analysis, explain } from "../rpc.js";
@@ -153,7 +153,7 @@ async function run(): Promise<void> {
       }
     }
     say(note, "");
-    if (graph) setDoc({ graph, views, source });
+    if (graph) setDoc({ graph, views, source, vectors: hasVectors([...layers.values()]) });
   } catch (e) {
     say(note, explain(e));
   } finally {

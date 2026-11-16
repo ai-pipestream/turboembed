@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { cancelled, codeName, explain, sentence, unprefixed } from "../src/errors.js";
+import { cancelled, codeName, declined, declinedOver, explain, sentence, unprefixed } from "../src/errors.js";
 
 function refusal(message: string, code: Code, meta: Record<string, string> = {}): ConnectError {
   return new ConnectError(message, code, new Headers(meta));
@@ -60,4 +60,35 @@ test("a sentence starts with a capital, whatever the script, and ends once", () 
   assert.equal(sentence("Done."), "Done.");
   assert.equal(sentence("  "), "");
   assert.equal(codeName(Code.PermissionDenied), "permission_denied");
+});
+
+test("only a call the server read and would not answer as asked is worth asking for less", () => {
+  assert.equal(declined(refusal("query bytes is 9900, over the max_query_bytes limit", Code.InvalidArgument)), true);
+  assert.equal(declined(refusal("query: placing a query needs a server with its embedding model loaded", Code.FailedPrecondition)), true);
+  assert.equal(declined(refusal("no such bundle", Code.NotFound)), true);
+  assert.equal(declined(refusal("over the limit", Code.ResourceExhausted)), true);
+  assert.equal(declined(refusal("upstream is away", Code.Unavailable)), false);
+  assert.equal(declined(refusal("too slow", Code.DeadlineExceeded)), false);
+  assert.equal(declined(refusal("stopped", Code.Canceled)), false);
+  assert.equal(declined(refusal("no token", Code.Unauthenticated)), false);
+  assert.equal(declined(new TypeError("Failed to fetch")), false);
+});
+
+test("a declined call names the part of the request it is about", () => {
+  const long = refusal("TURBO_E_CAPACITY: query bytes is 9900, over the max_query_bytes limit", Code.OutOfRange);
+  assert.equal(declinedOver(long, "query"), true);
+  assert.equal(declinedOver(long, "pairwise"), false);
+  const none = refusal("TURBO_E_INVALID_ARGUMENT: pairwise: the document graph carries no chunk or sentence vectors to compare", Code.InvalidArgument);
+  assert.equal(declinedOver(none, "pairwise"), true);
+  assert.equal(declinedOver(none, "query"), false);
+  // A graph too long to place is neither part's refusal.
+  const rows = refusal("TURBO_E_CAPACITY: projected vector rows is 751, over the max_project_rows limit", Code.OutOfRange);
+  assert.equal(declinedOver(rows, "query"), false);
+  assert.equal(declinedOver(rows, "pairwise"), false);
+  // The part is the one the refusal opens with, not one it mentions.
+  const dims = refusal("TURBO_E_INVALID_ARGUMENT: pca_dims 9 is more than a query or a pairwise matrix can use", Code.InvalidArgument);
+  assert.equal(declinedOver(dims, "query"), false);
+  assert.equal(declinedOver(dims, "pairwise"), false);
+  // A failure whose words happen to open with a part's name is not a refusal.
+  assert.equal(declinedOver(refusal("query could not be sent", Code.Unavailable), "query"), false);
 });

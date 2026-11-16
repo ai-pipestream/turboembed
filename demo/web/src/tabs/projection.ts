@@ -1,28 +1,50 @@
-// The document views in Analyze, all from one ProjectChunks call over
-// the analyzed graph: the meaning map with the text beside it, the
-// topic seismograph, the term river, and the same numbers as tables.
-// The views share one focus (viz/link.ts): a chunk pointed at in one
-// lights up in the others and in the text.
+// The document views in Analyze, from ProjectChunks over the analyzed
+// graph: the meaning map with the text beside it, the similarity
+// matrix, the topic seismograph, the term river, and the same numbers
+// as tables. The views share one focus (viz/link.ts): a chunk pointed
+// at in one lights up in the others and in the text. One call carries
+// the matrix and the query in the box with the rest; when the server
+// refuses that, the page asks again without the refused part, so a
+// document too long for the matrix, or a model that is not loaded for
+// the query, leaves the rest standing.
 
 import { OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { ProjectChunksResponse } from "../gen/turbo_analysis_pb.js";
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { BudgetSpecSchema } from "../gen/turbo_analysis_pb.js";
 import { busy } from "../act.js";
-import { $, el, failed, input, lazy, table } from "../dom.js";
+import { $, el, failed, input, lazy, say, table } from "../dom.js";
 import { doc, onDoc } from "../doc.js";
-import { analysis, explain } from "../rpc.js";
+import { analysis, declinedOver, explain } from "../rpc.js";
 import { linker } from "../viz/link.js";
-import { distinctive, leaves, riverTerms, spread, type Term, type Unit } from "../viz/model.js";
+import { nearest } from "../viz/matrix.js";
+import { distinctive, leaves, regions, riverTerms, spread, type Term, type Unit } from "../viz/model.js";
 import { chunkText, follow } from "./chunktext.js";
 import { short } from "./embed.js";
 import { latest } from "../latest.js";
+import { similarityMatrix } from "./matrix.js";
 import { meaningMap } from "./meaningmap.js";
 import { river } from "./river.js";
 import { seismograph } from "./seismograph.js";
 import { take } from "./take.js";
 
 const box = () => $("projection-out");
+
+/** The most chunks the matrix is asked for: the server's own ceiling. */
+const MATRIX_ROWS = 512;
+/** How many of the chunks closest to a query are listed and marked. */
+const CLOSEST = 5;
+
+/** What is on show: the answer, with its matrix and its query when it has them. */
+let seen: { r: ProjectChunksResponse; text: string; graph: Uint8Array } | null = null;
+let pairs: { items: number[]; upper: number[] } | null = null;
+/** Why the matrix call was refused, when it was. */
+let unpaired: string | null = null;
+let spot: { text: string; x: number; y: number; byItem: Map<number, number>; model: string } | null = null;
+/** Only the latest query asked is drawn (latest.ts). */
+const freshAsk = latest();
+/** The typed query waiting for the typing to stop. */
+let typed: ReturnType<typeof setTimeout> | undefined;
 
 /** Budgets as `name:max:target`, comma separated; a bad entry is left out. */
 export function budgets(s: string): MessageInitShape<typeof BudgetSpecSchema>[] {
@@ -56,16 +78,49 @@ function show(r: ProjectChunksResponse, text: string): void {
 
   if (chunks.some((c) => !c.empty)) {
     const model = r.projection?.model;
-    const reader = chunkText(text, chunks, link, (term) => {
-      const t = docTerms.find((d) => d.term === term);
-      return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a] as [number, number]);
-    });
+    const toQuery = spot ? chunks.map((c) => (c.empty ? undefined : spot!.byItem.get(c.item))) : [];
+    // At most half the chunks, so "closest" still tells some from the rest.
+    const close = nearest(toQuery, Math.min(CLOSEST, Math.max(1, Math.floor(toQuery.filter((c) => c !== undefined).length / 2))));
+    const reader = chunkText(
+      text,
+      chunks,
+      link,
+      (term) => {
+        const t = docTerms.find((d) => d.term === term);
+        return (t?.occStart ?? []).map((a, i) => [a, t?.occEnd?.[i] ?? a] as [number, number]);
+      },
+      new Map(close.map((h, rank) => [h.at, `Closest to the query: number ${rank + 1}, cosine ${h.cosine.toFixed(3)}`])),
+    );
     follow(reader, link);
     parts.push(
       el("h3", { text: "Meaning map" }),
       el("p", { class: "muted", text: `Each dot is one chunk's vector from ${model ? `${model.id}@${model.revision}` : "the graph"}, placed by its two main directions of meaning. The line follows reading order: a document that wanders draws a long trail, and one that stays on a topic stays in one place.` }),
-      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3 }, link), el("div", {}, el("h4", { text: "The text, by chunk" }), reader)),
+      el("div", { class: "map-and-text" }, meaningMap({ units, chunks, variance: r.projection?.explainedVariance ?? [], terms: (i) => named[i], toNext: (i) => cosines.get(chunks[i].item), text, third: r.projection?.pcaDims === 3, spot: spot ? { text: spot.text, x: spot.x, y: spot.y, cosine: (i) => toQuery[i] } : undefined }, link), el("div", {}, el("h4", { text: "The text, by chunk" }), reader)),
     );
+    if (spot && close.length) {
+      const list = el("ol", { class: "closest", id: "projection-closest" });
+      for (const h of close) {
+        const c = chunks[h.at];
+        const row = el("li", { tabindex: "0", "data-chunk": String(h.at) }, el("b", { text: `chunk ${h.at + 1}` }), ` ${h.cosine.toFixed(3)} `, el("span", { class: "muted", text: short(text.slice(c.start, c.end), 110) }));
+        row.addEventListener("mouseenter", () => link.chunk(h.at));
+        row.addEventListener("focus", () => link.chunk(h.at));
+        row.addEventListener("mouseleave", () => link.chunk(null));
+        row.addEventListener("blur", () => link.chunk(null));
+        list.append(row);
+      }
+      parts.push(el("h4", { text: `Closest to "${short(spot.text, 60)}" by cosine` }), list, el("p", { class: "muted", text: "The glow and this list are the true cosines between the query's vector and each chunk's. Where the query sits is its shadow in the map's two directions, so the closest chunk is not always the nearest dot." }));
+    }
+    const place = new Map(chunks.map((c, i) => [c.item, i]));
+    const rows = pairs ? pairs.items.flatMap((item) => (place.has(item) ? [place.get(item)!] : [])) : [];
+    if (pairs && rows.length === pairs.items.length && rows.length > 1) {
+      parts.push(
+        el("h3", { text: "Similarity matrix" }),
+        el("p", { class: "muted", text: "Every chunk against every other: a cell is the cosine between two chunks' vectors, shaded within this document's own range, so the picture has contrast even when every pair is close. A square in the diagonal's own colour around it is a run of chunks that say similar things; a cell of that colour far from the diagonal is the text coming back to something it said before." }),
+        similarityMatrix({ chunks, rows, upper: pairs.upper, groups: regions(units, chunks).map((g) => g.members), text }, link),
+      );
+    } else if (unpaired !== null) {
+      parts.push(el("h3", { text: "Similarity matrix" }), el("p", { class: "muted", id: "matrix-none", text: `Not drawn: ${unpaired}` }));
+    }
   } else {
     parts.push(el("h3", { text: "Meaning map" }), el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }));
   }
@@ -124,27 +179,122 @@ function show(r: ProjectChunksResponse, text: string): void {
   box().replaceChildren(...parts);
 }
 
+const dims = (): number => (($("projection-dims") as HTMLSelectElement).value === "3" ? 3 : 2);
+
+/** A placed query as the page keeps it: its cosines by the item they belong to. */
+function placed(r: ProjectChunksResponse, text: string): typeof spot {
+  const q = r.query;
+  if (!q) return null;
+  return { text, x: q.x, y: q.y, byItem: new Map((r.projection?.points ?? []).map((p, i) => [p.item, q.cosines[i]])), model: q.modelName };
+}
+
+/** Places the query box's text on the map of what is on show; an empty box takes the query off. */
+async function ask(): Promise<void> {
+  const now = seen;
+  const out = $("projection-query-out");
+  const text = input("projection-query").value.trim();
+  const mine = freshAsk();
+  if (!now || !text) {
+    out.replaceChildren();
+    if (spot && now) {
+      spot = null;
+      show(now.r, now.text);
+    }
+    spot = null;
+    return;
+  }
+  if (!(now.r.projection?.points ?? []).some((q) => !q.empty)) return void say(out, "This graph has no vectors to place a query among.");
+  say(out, "Placing the query\u2026", "busy");
+  try {
+    const r = await analysis.projectChunks({ graph: now.graph, offsets: OffsetMode.UTF16, pcaDims: dims(), maxStackSegments: 1, query: text });
+    if (!mine() || seen !== now) return;
+    spot = placed(r, text);
+    if (!spot) return void say(out, "The server answered without a query point: it is older than this page.", "error");
+    show(now.r, now.text);
+    say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+  } catch (e) {
+    // A refusal that comes after a newer drawing is that drawing's no longer.
+    if (!mine() || seen !== now) return;
+    out.replaceChildren(failed(explain(e)));
+  }
+}
+
+/** What every call for the panel asks. */
+type Ask = { graph: Uint8Array; offsets: OffsetMode; pcaDims: number; maxStackSegments: number; includeDriftCurve: boolean; includeStrategyMatrix: boolean; strategyBudgets: MessageInitShape<typeof BudgetSpecSchema>[] };
+
+/**
+ * One answer for the whole panel. A graph with vectors is asked for the
+ * matrix of its leaf chunks (level 0, the ones the page draws) and for the
+ * query in the box in the same call. The server refuses the whole call
+ * when it cannot answer one part and names the part, so the call is asked
+ * again without the part it named: what the server can answer is drawn
+ * and each refusal is kept to be said. Any other refusal or failure (a
+ * graph too long to place, the server away) is the whole panel's.
+ */
+async function answer(base: Ask, vectors: boolean, text: string): Promise<{ r: ProjectChunksResponse; noQuery?: unknown; noMatrix?: unknown }> {
+  let pairwise = vectors ? { level: 0, maxItems: MATRIX_ROWS } : undefined;
+  // Without vectors there is nothing to place a query among either.
+  let query = vectors && text ? text : undefined;
+  let noQuery: unknown;
+  let noMatrix: unknown;
+  for (;;) {
+    try {
+      return { r: await analysis.projectChunks({ ...base, pairwise, query }), noQuery, noMatrix };
+    } catch (e) {
+      if (query !== undefined && declinedOver(e, "query")) {
+        query = undefined;
+        noQuery = e;
+      } else if (pairwise && declinedOver(e, "pairwise")) {
+        pairwise = undefined;
+        noMatrix = e;
+      } else throw e;
+    }
+  }
+}
+
 // Only the latest call draws (latest.ts).
 const freshRender = latest();
 async function render(): Promise<void> {
   const mine = freshRender();
   const d = doc();
   if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  // The query in the box rides on this call, so one still waiting on the typing is not asked twice.
+  clearTimeout(typed);
+  const text = input("projection-query").value.trim();
+  const out = $("projection-query-out");
   try {
-    const r = await analysis.projectChunks({
-      graph: d.graph,
-      offsets: OffsetMode.UTF16,
-      pcaDims: ($("projection-dims") as HTMLSelectElement).value === "3" ? 3 : 2,
-      // Enough of each stack to tell a chunk's own terms from the document's.
-      maxStackSegments: 32,
-      includeDriftCurve: true,
-      includeStrategyMatrix: true,
-      strategyBudgets: budgets(input("projection-budgets").value),
-    });
+    const got = await answer(
+      {
+        graph: d.graph,
+        offsets: OffsetMode.UTF16,
+        pcaDims: dims(),
+        // Enough of each stack to tell a chunk's own terms from the document's.
+        maxStackSegments: 32,
+        includeDriftCurve: true,
+        includeStrategyMatrix: true,
+        strategyBudgets: budgets(input("projection-budgets").value),
+      },
+      d.vectors,
+      text,
+    );
     if (!mine()) return;
+    const r = got.r;
+    seen = { r, text: d.source, graph: d.graph };
+    pairs = r.pairwise ? { items: r.pairwise.items, upper: r.pairwise.cosines } : null;
+    unpaired = got.noMatrix === undefined ? null : explain(got.noMatrix).text;
+    // A query typed or changed while the answer was on its way is asked of this drawing.
+    clearTimeout(typed);
+    const edited = input("projection-query").value.trim() !== text;
+    spot = text && !edited ? placed(r, text) : null;
     show(r, d.source);
+    if (edited) await ask();
+    else if (spot) say(out, `Embedded by ${spot.model} as a query and placed among the chunks.`);
+    else if (got.noQuery !== undefined) out.replaceChildren(failed(explain(got.noQuery)));
+    else if (text) await ask();
+    else out.replaceChildren();
   } catch (e) {
     if (!mine()) return;
+    seen = null;
     box().replaceChildren(failed(explain(e)));
   }
 }
@@ -154,5 +304,21 @@ export function init(): void {
   onDoc(() => again());
   const go = $("projection-run") as HTMLButtonElement;
   go.addEventListener("click", () => void busy(go, render));
-  $("projection-uneven").addEventListener("change", () => void render());
+  // The switch only chooses which terms the river draws: what is on show is drawn again, and nothing is asked.
+  $("projection-uneven").addEventListener("change", () => (seen ? show(seen.r, seen.text) : void render()));
+  // A query is placed on Enter or the button, and a little after the typing stops.
+  const query = input("projection-query");
+  const place = $("projection-ask") as HTMLButtonElement;
+  const now = (): void => {
+    clearTimeout(typed);
+    void busy(place, ask);
+  };
+  place.addEventListener("click", now);
+  query.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") now();
+  });
+  query.addEventListener("input", () => {
+    clearTimeout(typed);
+    typed = setTimeout(() => void ask(), 500);
+  });
 }

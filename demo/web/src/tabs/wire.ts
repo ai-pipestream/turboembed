@@ -6,7 +6,7 @@
 
 import { busy } from "../act.js";
 import { $, download, el, input, lazy, say, size } from "../dom.js";
-import { doc, onDoc, setDoc } from "../doc.js";
+import { doc, hasVectors, onDoc, setDoc } from "../doc.js";
 import { WireError, hex, walkGraph, type Part } from "../graphwire.js";
 import { analysis, explain } from "../rpc.js";
 
@@ -68,7 +68,7 @@ async function open(): Promise<void> {
   try {
     const graph = new Uint8Array(await f.arrayBuffer());
     const r = await analysis.roundTripDocumentGraph({ graph });
-    setDoc({ graph, views: r.views, source: r.sourceText });
+    setDoc({ graph, views: r.views, source: r.sourceText, vectors: hasVectors(r.layers) });
     say(note(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
   } catch (e) {
     say(note(), explain(e));

@@ -6,8 +6,7 @@
 use std::path::Path;
 
 use turbo::sparse::SparseOptions;
-use turbo_analysis_embed::impacts::ImpactBits;
-use turbo_analysis_embed::{ImpactQuantizerConfig, QuantizedImpacts};
+use turbo_analysis_embed::{ImpactBits, ImpactQuantizer, QuantizedSparseTerms};
 use turbo_eval::metrics::{Hit, Ranking, Run, evaluate};
 use turbo_eval::set::LoadedSet;
 use turbo_eval::sets;
@@ -40,23 +39,20 @@ fn evaluate_splade_quantization(set: &LoadedSet) {
         .collect();
     let float_scores = evaluate(&Run::new(float_rankings).unwrap(), &set.qrels).unwrap();
 
-    // Collect corpus document weights to calibrate the uniform posting `clip_max`.
+    // Collect corpus document weights to calibrate the one `w_max` that
+    // documents and queries share.
     let sample_weights: Vec<f32> = encoded.docs.iter().flat_map(|d| d.splade_terms.iter().map(|t| t.weight)).collect();
 
     for bits in [ImpactBits::U8, ImpactBits::U16] {
-        let cfg = ImpactQuantizerConfig::calibrate_from_weights(
-            bits,
-            doc_cut.top_k as usize,
-            query_cut.top_k as usize,
-            0.0,
-            &sample_weights,
-        );
+        let cfg = ImpactQuantizer::calibrate(bits, &sample_weights, 0.9995)
+            .and_then(|q| q.with_pruning(doc_cut.top_k, query_cut.top_k, 0.0))
+            .expect("calibrate quantizer");
         // Build inverted postings of `(doc_idx, impact)` from quantized documents.
         let mut postings: Vec<Vec<(u32, u16)>> = vec![Vec::new(); encoded.vocab_size];
-        let mut doc_impacts: Vec<QuantizedImpacts> = Vec::with_capacity(encoded.docs.len());
+        let mut doc_impacts: Vec<QuantizedSparseTerms> = Vec::with_capacity(encoded.docs.len());
         for (di, d) in encoded.docs.iter().enumerate() {
-            let qi = cfg.quantize_sparse_slice(&d.splade_terms, false).expect("quantize doc");
-            for &(term, imp) in qi.pairs() {
+            let qi = cfg.quantize_doc_terms(&d.splade_terms, None).expect("quantize doc");
+            for &(term, imp) in qi.impacts() {
                 postings[term as usize].push((di as u32, imp));
             }
             doc_impacts.push(qi);
@@ -66,8 +62,8 @@ fn evaluate_splade_quantization(set: &LoadedSet) {
         let mut scores_buf = vec![0u64; encoded.docs.len()];
         let mut touched = Vec::new();
         for q in &encoded.queries {
-            let qq = cfg.quantize_sparse_slice(&q.splade_terms, true).expect("quantize query");
-            for &(term, q_imp) in qq.pairs() {
+            let qq = cfg.quantize_query_terms(&q.splade_terms, None).expect("quantize query");
+            for &(term, q_imp) in qq.impacts() {
                 let q_imp = u64::from(q_imp);
                 for &(di, d_imp) in &postings[term as usize] {
                     let slot = &mut scores_buf[di as usize];
@@ -77,7 +73,7 @@ fn evaluate_splade_quantization(set: &LoadedSet) {
                     *slot += q_imp * u64::from(d_imp);
                 }
             }
-            let denom = f64::from(qq.scale) * f64::from(cfg.scale());
+            let denom = f64::from(qq.scale()) * f64::from(cfg.scale());
             let mut scored: Vec<(u32, f64)> = touched
                 .drain(..)
                 .map(|di| {
@@ -97,10 +93,10 @@ fn evaluate_splade_quantization(set: &LoadedSet) {
         let quant_scores = evaluate(&Run::new(quant_rankings).unwrap(), &set.qrels).unwrap();
         let delta = (quant_scores.ndcg_at_10 - float_scores.ndcg_at_10).abs();
         println!(
-            "dataset={} bits={} clip_max={:.4} float_ndcg@10={:.6} quant_ndcg@10={:.6} abs_delta={:.6} recall@10={:.4}->{:.4}",
+            "dataset={} bits={} w_max={:.4} float_ndcg@10={:.6} quant_ndcg@10={:.6} abs_delta={:.6} recall@10={:.4}->{:.4}",
             set.name,
             bits.bits(),
-            cfg.clip_max,
+            cfg.w_max(),
             float_scores.ndcg_at_10,
             quant_scores.ndcg_at_10,
             delta,

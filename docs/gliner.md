@@ -439,6 +439,19 @@ turbo-bundle gliner-convert config.json gliner_config.json model.safetensors spm
 turbo-bundle gliner-verify new-gliner-multi
 ```
 
+`gliner-community/gliner_small-v2.5` at
+`f227d3cd637bd4e6757ae143935316d062393341` is in the zoo as
+`gliner-community-gliner-small-v2.5` (local-only by its training data, as
+v2.1): `pytorch_model.bin`, `gliner_config.json` and its `spm.model`. With
+the `config.json` of `microsoft-deberta-v3-small-tokenizer`,
+`turbo-bundle gliner-convert config.json gliner_config.json
+pytorch_model.bin spm.model gliner-community/gliner_small-v2.5
+f227d3cd637bd4e6757ae143935316d062393341 Apache-2.0 new-gliner-small-v2.5`
+writes the package `analysis/pins/models.txt` pins as `e4ebd6b4`. Its
+encoder, heads and tokenizer digests are those of the earlier conversion
+`8a1d791d`, whose `gliner.json` predates the projection fields the
+converter now records.
+
 The new directory contains `encoder/`, `heads.safetensors`, `spm.model` and
 `gliner.json`. Existing directories are preserved. A failed write may leave an
 incomplete directory, which fails loading. The package verifies SHA-256 for

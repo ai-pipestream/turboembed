@@ -106,7 +106,7 @@ fn the_gliner2_checkpoint_is_pinned_local_only_and_needs_its_card_terms() {
 }
 
 #[test]
-fn the_gliner_v2_1_checkpoints_are_local_only_and_their_tokenizers_permissive() {
+fn the_gliner_checkpoints_are_local_only_and_their_tokenizers_permissive() {
     let index = Index::builtin();
     for (id, repo, rev, format, licence, lang, files) in [
         (
@@ -117,6 +117,15 @@ fn the_gliner_v2_1_checkpoints_are_local_only_and_their_tokenizers_permissive() 
             Licence::Apache2,
             "en",
             &["pytorch_model.bin", "gliner_config.json"][..],
+        ),
+        (
+            "gliner-community-gliner-small-v2.5",
+            "gliner-community/gliner_small-v2.5",
+            "f227d3cd637bd4e6757ae143935316d062393341",
+            Format::Pytorch,
+            Licence::Apache2,
+            "en",
+            &["pytorch_model.bin", "gliner_config.json", "spm.model"][..],
         ),
         (
             "microsoft-deberta-v3-small-tokenizer",

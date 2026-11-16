@@ -58,3 +58,11 @@ test("entities in one sentence go together, counted by sentence", () => {
   assert.deepEqual(named, ["0-1:2", "0-2:1", "1-2:1"]);
   assert.deepEqual(together(all, of, []), []);
 });
+
+test("an entity named twice in one sentence is counted once for that sentence", () => {
+  // Paris twice and Berlin once in the first sentence, Paris twice alone in the second.
+  const all = [m("Paris", "location", 0), m("Paris", "location", 8), m("Berlin", "location", 16), m("Paris", "location", 30), m("Paris", "location", 40)];
+  const { of } = gather(all);
+  const pairs = together(all, of, [{ start: 0, end: 25 }, { start: 25, end: 50 }]);
+  assert.deepEqual(pairs, [{ from: 0, to: 1, count: 1 }]);
+});

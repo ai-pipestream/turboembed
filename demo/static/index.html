@@ -159,6 +159,11 @@ The engine was never built, but her notes describe how it could compute Bernoull
         <label class="grow">Chunking budgets, name:max:target <input id="projection-budgets" value="small:32:24, large:128:96"></label>
         <button id="projection-run" type="button">Draw</button>
       </div>
+      <div class="row">
+        <label class="grow">Place a query on the map <input id="projection-query" type="search" placeholder="a question or a phrase; it lands among the chunks nearest in meaning" autocomplete="off"></label>
+        <button id="projection-ask" type="button">Place</button>
+      </div>
+      <div id="projection-query-out" role="status"></div>
       <div id="projection-out"></div>
     </details>
     <details class="card" id="analyze-entities" open>

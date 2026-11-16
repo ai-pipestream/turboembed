@@ -9,6 +9,9 @@ import { chromium, type Page } from "playwright";
 
 const BASE = process.env.TURBO_E2E_URL ?? "http://127.0.0.1:8080";
 const OUT = "#projection-out";
+// The figures by their headings: the similarity matrix sits between the map and these two.
+const SEISMOGRAPH = `${OUT} h3:has-text('Topic seismograph') + .figure`;
+const RIVER = `${OUT} h3:has-text('Term river') + p + .figure`;
 
 // Four paragraphs on three subjects; "COBOL" occurs twice.
 const TEXT = [
@@ -57,7 +60,7 @@ test("the document map draws a dot per chunk and links the views with the text",
     assert.equal(await page.locator(`${OUT} svg .dot.lit`).count(), 1);
 
     // The seismograph: the chunks as a band, a mark per cut, and the gaps by arrow key.
-    const seismograph = page.locator(`${OUT} .figure`).nth(1);
+    const seismograph = page.locator(SEISMOGRAPH);
     assert.equal(await seismograph.locator("svg .band").count(), chunks);
     assert.equal((await seismograph.locator("svg .stem, svg path.line").count()) > 0, true);
     assert.equal(await seismograph.locator("svg .cut-mark").count(), chunks);
@@ -69,7 +72,8 @@ test("the document map draws a dot per chunk and links the views with the text",
     // Pointing at the curve picks the gap nearest the pointer and shows the sentence on each side.
     await pad.scrollIntoViewIfNeeded();
     await pad.hover();
-    await page.waitForFunction((out) => (document.querySelectorAll(`${out} .figure`)[1].querySelector(".info")?.textContent ?? "").startsWith("Gap "), OUT);
+    await seismograph.locator(".info", { hasText: "Gap " }).waitFor();
+    assert.equal(((await seismograph.locator(".info").textContent()) ?? "").startsWith("Gap "), true);
     assert.equal(await seismograph.locator(".info .quote").count(), 2);
     await page.mouse.move(0, 0);
     await pad.focus();
@@ -83,7 +87,7 @@ test("the document map draws a dot per chunk and links the views with the text",
     assert.equal(await pad.getAttribute("aria-valuenow"), "1", "the first gap is the left end");
 
     // The river: a stream and a legend key per term, and a term marks its occurrences in the text.
-    const river = page.locator(`${OUT} .figure`).nth(2);
+    const river = page.locator(RIVER);
     const streams = await river.locator("svg .stream").count();
     assert.equal(streams > 0, true);
     assert.equal(await river.locator("button.key").count(), streams);

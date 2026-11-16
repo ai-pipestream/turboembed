@@ -82,25 +82,17 @@ async fn priority_queue_burst_refuses_excess_immediately_without_starving_plain_
     }
 
     // Wait until the bounded queue reaches MAX_QUEUE_DEPTH.
-    let wait_until = tokio::time::Instant::now() + Duration::from_secs(5);
-    loop {
+    wait_for("the queue to fill", NO_ANSWER, || {
         let (iq, bq) = server.priority_queue_depths(NAME).unwrap();
-        if iq + bq == MAX_QUEUE_DEPTH {
-            break;
-        }
-        assert!(tokio::time::Instant::now() < wait_until, "queue did not fill to {MAX_QUEUE_DEPTH}: ({iq}, {bq})");
-        tokio::time::sleep(Duration::from_millis(2)).await;
-    }
+        iq + bq == MAX_QUEUE_DEPTH
+    })
+    .await;
 
-    // A plain call without x-turbo-priority must answer UNAVAILABLE immediately,
-    // proving Tokio's blocking pool is not starved.
+    // A plain call without x-turbo-priority is refused as busy: it is
+    // answered at all only if the queued calls left blocking threads free.
     let mut ks = GrpcInferenceServiceClient::new(shared_ch.clone());
-    let plain_err =
-        tokio::time::timeout(Duration::from_secs(1), ks.model_infer(Request::new(texts_req(NAME, &[b"plain"]))))
-            .await
-            .expect("plain call must not hang behind queued priority calls")
-            .unwrap_err();
-    assert_eq!(plain_err.code(), Code::Unavailable);
+    let plain = within("a plain call behind the queue", NO_ANSWER, ks.model_infer(texts_req(NAME, &[b"plain"])));
+    assert_eq!(plain.await.unwrap_err().code(), Code::Unavailable);
 
     drop(held);
 
@@ -154,118 +146,131 @@ async fn analyze_query_and_rerank_validate_priority_header() {
     server.stop().await;
 }
 
+/// Enough running time that only a call that never answers runs it out. The
+/// stall this guards against is a hang, not a slow call, so nothing here
+/// asserts how long an answer takes.
+const NO_ANSWER: Duration = Duration::from_secs(60);
+
+fn interactive<T>(msg: T) -> Request<T> {
+    let mut req = Request::new(msg);
+    req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static("interactive"));
+    req
+}
+
+fn rerank_req(rerank: &str, embed: &str) -> RerankAndHighlightRequest {
+    let mode = if embed.is_empty() { RerankHighlightMode::None } else { RerankHighlightMode::RangePool };
+    RerankAndHighlightRequest {
+        query: "hello".into(),
+        rerank_model: rerank.into(),
+        embed_model: embed.into(),
+        highlight_mode: mode as i32,
+        candidates: vec![RerankCandidateInputProto {
+            doc_id: "d1".into(),
+            text: "hello world. A second sentence here.".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    }
+}
+
+fn dense_query(model: &str) -> AnalyzeQueryRequest {
+    AnalyzeQueryRequest {
+        query: "hello world".into(),
+        dense_targets: vec![QueryDenseTargetProto { model: model.into(), ..Default::default() }],
+        ..Default::default()
+    }
+}
+
+/// Six model pools are held and each gets a full queue of interactive calls:
+/// four through `AnalyzeQuery`, one through the rerank step of
+/// `RerankAndHighlight`, and one through its highlight step, which queues on
+/// a second pool after the rerank pool let the call through. That is 768
+/// queued calls, more than Tokio's 512 blocking threads. A queued call that
+/// parked a blocking thread (the BLOCK on #2370) could not even fill the
+/// queues, and every other call that needs a blocking thread would wait
+/// behind them for ever.
 #[tokio::test]
 async fn multi_pool_queued_analyze_and_rerank_never_starve_blocking_pool() {
     let rerank_bundle = make_rerank_bundle("PAIR_BERT");
-    let mut models: Vec<ModelConfig> =
-        (0..4).map(|i| ModelConfig { name: Some(format!("e{i}")), ..model_cfg(1) }).collect();
-    models.push(ModelConfig {
+    let rerank_cfg = |name: &str| ModelConfig {
         bundle: rerank_bundle.0.to_str().unwrap().to_string(),
-        name: Some("r0".into()),
-        device: Device::Index(cpu()),
-        precision: 0,
-        max_batch: 0,
-        max_seq: 0,
-        sessions: 1,
-    });
-    models.push(ModelConfig { name: Some("free".into()), ..model_cfg(1) });
+        name: Some(name.into()),
+        ..model_cfg(1)
+    };
+    let embed_cfg = |name: &str| ModelConfig { name: Some(name.into()), ..model_cfg(1) };
+    // `r1` stays free: it only feeds calls on to the held highlight pool `h0`.
+    let held_names = ["e0", "e1", "e2", "e3", "r0", "h0"];
+    let models = vec![
+        embed_cfg("e0"),
+        embed_cfg("e1"),
+        embed_cfg("e2"),
+        embed_cfg("e3"),
+        rerank_cfg("r0"),
+        embed_cfg("h0"),
+        rerank_cfg("r1"),
+        embed_cfg("free"),
+    ];
 
     let server = Server::start(loopback(), models, MAX, Serve::default()).await.unwrap();
     server.load().await.unwrap();
     let endpoint = format!("http://{}", server.local_addr());
     let shared_ch = tonic::transport::Endpoint::from_shared(endpoint).unwrap().connect().await.unwrap();
 
-    let held_pools = [
-        server.hold("e0").unwrap(),
-        server.hold("e1").unwrap(),
-        server.hold("e2").unwrap(),
-        server.hold("e3").unwrap(),
-        server.hold("r0").unwrap(),
-    ];
+    let held_pools: Vec<_> = held_names.iter().map(|name| server.hold(name).unwrap()).collect();
 
-    // Queue MAX_QUEUE_DEPTH calls on each of 5 pools (640 total > 512 Tokio blocking threads).
-    let mut handles = Vec::with_capacity(5 * MAX_QUEUE_DEPTH);
-    for pool_idx in 0..4 {
-        let model_name = format!("e{pool_idx}");
-        for _ in 0..MAX_QUEUE_DEPTH {
-            let ch = shared_ch.clone();
-            let name = model_name.clone();
+    let mut handles = Vec::with_capacity(held_names.len() * MAX_QUEUE_DEPTH);
+    for _ in 0..MAX_QUEUE_DEPTH {
+        for name in &held_names[..4] {
+            let mut client = AnalysisServiceClient::new(shared_ch.clone());
+            let req = interactive(dense_query(name));
+            handles.push(tokio::spawn(async move { client.analyze_query(req).await.map(|_| 0) }));
+        }
+        for (rerank, embed) in [("r0", ""), ("r1", "h0")] {
+            let mut client = AnalysisServiceClient::new(shared_ch.clone());
+            let req = interactive(rerank_req(rerank, embed));
             handles.push(tokio::spawn(async move {
-                let mut client = AnalysisServiceClient::new(ch);
-                let mut req = Request::new(AnalyzeQueryRequest {
-                    query: "hello world".into(),
-                    dense_targets: vec![QueryDenseTargetProto { model: name, ..Default::default() }],
-                    ..Default::default()
-                });
-                req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static("interactive"));
-                client.analyze_query(req).await.map(|_| ())
+                let out = client.rerank_and_highlight(req).await?.into_inner();
+                Ok(out.results.iter().map(|r| r.highlights.len()).sum::<usize>())
             }));
         }
     }
-    for _ in 0..MAX_QUEUE_DEPTH {
-        let ch = shared_ch.clone();
-        handles.push(tokio::spawn(async move {
-            let mut client = AnalysisServiceClient::new(ch);
-            let mut req = Request::new(RerankAndHighlightRequest {
-                query: "hello".into(),
-                rerank_model: "r0".into(),
-                highlight_mode: RerankHighlightMode::None as i32,
-                candidates: vec![RerankCandidateInputProto {
-                    doc_id: "d1".into(),
-                    text: "hello world".into(),
-                    ..Default::default()
-                }],
-                ..Default::default()
-            });
-            req.metadata_mut().insert(PRIORITY_HEADER, MetadataValue::from_static("interactive"));
-            client.rerank_and_highlight(req).await.map(|_| ())
-        }));
-    }
 
-    let wait_until = tokio::time::Instant::now() + Duration::from_secs(10);
-    let pool_names = ["e0", "e1", "e2", "e3", "r0"];
-    loop {
-        let all_full = pool_names.iter().all(|name| {
+    // Every held pool fills to its limit. Calls for `h0` get there one at a
+    // time through the single `r1` session, so this also shows the rerank
+    // step still runs while 640 other calls are queued.
+    wait_for("every held pool's queue to fill", NO_ANSWER, || {
+        held_names.iter().all(|name| {
             let (iq, bq) = server.priority_queue_depths(name).unwrap();
             iq + bq == MAX_QUEUE_DEPTH
-        });
-        if all_full {
-            break;
-        }
-        assert!(tokio::time::Instant::now() < wait_until, "pools did not fill to {MAX_QUEUE_DEPTH}");
-        tokio::time::sleep(Duration::from_millis(2)).await;
-    }
+        })
+    })
+    .await;
 
-    // Plain ModelInfer on a held pool must answer UNAVAILABLE immediately, and
-    // an unheld AnalyzeQuery must complete immediately without blocking-pool starvation.
+    // A plain ModelInfer on a held pool is refused as busy, and calls on
+    // free pools are served, although 768 calls are queued.
     let mut ks = GrpcInferenceServiceClient::new(shared_ch.clone());
-    let plain_err =
-        tokio::time::timeout(Duration::from_secs(1), ks.model_infer(Request::new(texts_req("e0", &[b"plain"]))))
-            .await
-            .expect("plain ModelInfer must not stall")
-            .unwrap_err();
-    assert_eq!(plain_err.code(), Code::Unavailable);
+    let plain = within("a plain ModelInfer on a held pool", NO_ANSWER, ks.model_infer(texts_req("e0", &[b"plain"])));
+    assert_eq!(plain.await.unwrap_err().code(), Code::Unavailable);
 
     let mut analysis = AnalysisServiceClient::new(shared_ch.clone());
-    let free_res = tokio::time::timeout(
-        Duration::from_secs(1),
-        analysis.analyze_query(Request::new(AnalyzeQueryRequest {
-            query: "hello world".into(),
-            dense_targets: vec![QueryDenseTargetProto { model: "free".into(), ..Default::default() }],
-            ..Default::default()
-        })),
-    )
-    .await
-    .expect("unheld AnalyzeQuery must not stall behind 640 queued calls")
-    .unwrap()
-    .into_inner();
-    assert_eq!(free_res.dense_results.len(), 1);
+    let free = within("AnalyzeQuery on a free pool", NO_ANSWER, analysis.analyze_query(dense_query("free")));
+    assert_eq!(free.await.unwrap().into_inner().dense_results.len(), 1);
+    let free = within("ModelInfer on a free pool", NO_ANSWER, ks.model_infer(texts_req("free", &[b"plain"])));
+    assert_eq!(free.await.unwrap().into_inner().outputs.len(), 1);
+
+    // One more queued call on a full pool is refused, not parked.
+    let over = within("a call past the queue limit", NO_ANSWER, analysis.analyze_query(interactive(dense_query("e0"))));
+    assert_eq!(over.await.unwrap_err().code(), Code::Unavailable);
 
     drop(held_pools);
 
+    // Every queued call is then served, and the ones that waited on the
+    // highlight pool come back with their highlights.
+    let mut highlights = 0usize;
     for h in handles {
-        h.await.unwrap().unwrap();
+        highlights += within("a queued call after release", NO_ANSWER, h).await.unwrap().unwrap();
     }
+    assert!(highlights >= MAX_QUEUE_DEPTH, "{highlights} highlights from {MAX_QUEUE_DEPTH} highlight calls");
 
     server.stop().await;
 }

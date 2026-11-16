@@ -7,8 +7,11 @@ import type { Link } from "../viz/link.js";
 import { pieces, type Unit } from "../viz/model.js";
 import { ordered } from "../viz/svg.js";
 
-/** `marks` gives the spans to mark for the term in focus. */
-export function chunkText(text: string, chunks: Unit[], link: Link, marks: (term: string) => [number, number][]): HTMLElement {
+/**
+ * `marks` gives the spans to mark for the term in focus. `near` names
+ * the chunks closest to a query, by position, with what to say of each.
+ */
+export function chunkText(text: string, chunks: Unit[], link: Link, marks: (term: string) => [number, number][], near: Map<number, string> = new Map()): HTMLElement {
   const box = el("div", { class: "doc chunked", tabindex: "0", "aria-label": "The document, by chunk" });
   let drawn: string | null | undefined;
   link.on((f) => {
@@ -21,7 +24,7 @@ export function chunkText(text: string, chunks: Unit[], link: Link, marks: (term
           if (p.chunk === null) return el("span", {}, body);
           const first = !seen.has(p.chunk);
           seen.add(p.chunk);
-          const span = el("span", { class: "ck", "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body);
+          const span = el("span", { class: near.has(p.chunk) ? "ck near" : "ck", title: near.get(p.chunk), "data-chunk": String(p.chunk), style: `--ck: ${ordered(p.chunk, chunks.length)}` }, first ? el("sup", { text: String(p.chunk + 1) }) : null, body);
           span.addEventListener("mouseenter", () => link.chunk(p.chunk));
           return span;
         }),

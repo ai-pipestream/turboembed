@@ -4,15 +4,14 @@
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use turbo::sparse::SparseOptions as Cut;
+use turbo::sparse::{SparseOptions as Cut, SparseTerm};
 use turbo::{
     TURBO_DTYPE_F32, TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_PROMPT_QUERY, TURBO_TASK_EMBED,
     turbo_embed_options, turbo_text,
 };
 use turbo_analysis::ModelRef;
-use turbo_analysis_embed::impacts::ImpactBits;
 use turbo_analysis_embed::{
-    DEFAULT_IMPACT_CLIP_MAX, ImpactQuantizerConfig, VectorTier, build_tier_from_unnormalized, format_token_key,
+    ImpactBits, ImpactQuantizer, VectorTier, build_tier_from_unnormalized, format_vocab_term_key,
     normalize_matryoshka_dims, validate_turboquant_options,
 };
 use turbo_query::OnePassQueryPlan;
@@ -28,6 +27,36 @@ use crate::proto::result::{
 use crate::results::{f32_bytes, f32s, model_to_proto};
 use crate::state::State;
 use crate::stream::run::read_output;
+
+/// Saturation ceiling (`w_max`) used when a SPLADE target asks for impacts
+/// and leaves `impact_clip_max` at 0. Query impacts only score correctly
+/// against document impacts quantized with the same bit width and `w_max`.
+const DEFAULT_IMPACT_W_MAX: f32 = 6.0;
+
+/// Quantizes the query's kept terms with the same [`ImpactQuantizer`] the
+/// document side uses (`#2343`), so both sides share one scale and rounding
+/// rule. Returns the impacts in the order of `term` and the certificate.
+fn quantize_query_impacts(
+    bits: ImpactBits,
+    w_max: f32,
+    term: &[u32],
+    weight: &[f32],
+) -> Result<(Vec<u32>, turbo_analysis_embed::ImpactErrorCertificate)> {
+    let bad = |e: turbo::status::Error| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e.message);
+    let quantizer = ImpactQuantizer::new(bits, w_max).map_err(bad)?;
+    let terms: Vec<SparseTerm> = term.iter().zip(weight).map(|(&term, &weight)| SparseTerm { term, weight }).collect();
+    let quantized = quantizer.quantize_query_terms(&terms, None).map_err(bad)?;
+    let sorted = quantized.impacts();
+    let impacts = term
+        .iter()
+        .map(|&id| {
+            sorted.binary_search_by_key(&id, |&(tid, _)| tid).map(|at| u32::from(sorted[at].1)).map_err(|_| {
+                Failure::new(TURBO_E_INTERNAL, 0, format!("SPLADE term {id} has no positive weight to quantize"))
+            })
+        })
+        .collect::<Result<Vec<u32>>>()?;
+    Ok((impacts, *quantized.certificate()))
+}
 
 fn default_query_opts(normalize: u32) -> turbo_embed_options {
     turbo_embed_options {
@@ -222,7 +251,7 @@ pub(super) async fn encode_splade_targets(
             ));
         }
         let clip_max = if t.impact_clip_max == 0.0 {
-            DEFAULT_IMPACT_CLIP_MAX
+            DEFAULT_IMPACT_W_MAX
         } else if !t.impact_clip_max.is_finite() || t.impact_clip_max <= 0.0 {
             return Err(Failure::new(
                 TURBO_E_INVALID_ARGUMENT,
@@ -266,34 +295,14 @@ pub(super) async fn encode_splade_targets(
             };
             let (impact_bits, impact, impact_scale, impact_clip_max, l1_rounding_bound, dot_slack_bound) =
                 if let Some(b) = bits {
-                    let cfg =
-                        ImpactQuantizerConfig { bits: b, top_k_doc: 0, top_k_query: 0, min_weight: 0.0, clip_max };
-                    let pairs: Vec<(u32, f32)> = st.term.iter().copied().zip(st.weight.iter().copied()).collect();
-                    let q =
-                        cfg.quantize_query_pairs(&pairs).map_err(|e| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e))?;
-                    let impacts: Vec<u32> = st
-                        .term
-                        .iter()
-                        .map(|&id| {
-                            let idx = q.pairs().binary_search_by_key(&id, |&(tid, _)| tid).unwrap_or(0);
-                            u32::from(q.pairs().get(idx).map_or(1, |&(_, imp)| imp))
-                        })
-                        .collect();
-                    (b.bits(), impacts, q.scale, q.clip_max, q.l1_rounding_bound, q.dot_slack_bound)
+                    let (impacts, cert) = quantize_query_impacts(b, clip_max, &st.term, &st.weight)?;
+                    let (l1, dot) = (f64::from(cert.l1_rounding_bound), f64::from(cert.dot_error_bound));
+                    (b.bits(), impacts, cert.scale, cert.w_max, l1, dot)
                 } else {
                     (0, Vec::new(), 0.0, 0.0, 0.0, 0.0)
                 };
             let term_keys = if emit_term_keys {
-                st.term
-                    .iter()
-                    .map(|&id| {
-                        embed
-                            .tokenizer
-                            .piece(id as i32)
-                            .filter(|s| !s.is_empty())
-                            .map_or_else(|| format_token_key(id), str::to_owned)
-                    })
-                    .collect()
+                st.term.iter().map(|&id| format_vocab_term_key(id, Some(&embed.tokenizer))).collect()
             } else {
                 Vec::new()
             };
