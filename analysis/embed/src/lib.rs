@@ -25,6 +25,7 @@ pub mod heads;
 pub mod levels;
 pub mod rerank;
 pub mod sparse;
+pub mod sparse_impact;
 pub use rerank::{RerankAnnotator, Reranked, Shortlist};
 pub mod routing;
 pub use routing::{LatencyBudget, ModelRouter, RoleCapability, RoutingPolicy};
@@ -44,6 +45,10 @@ pub use heads::{
 };
 pub use levels::LevelVectors;
 pub use sparse::{SparseAnnotator, SparseOptions, SparseProvider};
+pub use sparse_impact::{
+    COMPACT_TOKEN_KEY_PREFIX, ImpactBits, ImpactErrorCertificate, ImpactQuantizer, QuantizedSparseTerms, TermKeyMode,
+    format_compact_token_key, format_vocab_term_key,
+};
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
     ChunkVectors, ContextualTokens, Embedder, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,

@@ -33,6 +33,10 @@ use turbo_analysis_layers::{SparseTerms, Subwords};
 
 use crate::encoder::{Encoder, EncoderOptions, Rows};
 use crate::model_ref;
+pub use crate::sparse_impact::{
+    COMPACT_TOKEN_KEY_PREFIX, ImpactBits, ImpactErrorCertificate, ImpactQuantizer, QuantizedSparseTerms, TermKeyMode,
+    format_compact_token_key, format_vocab_term_key,
+};
 
 /// How a `SparseAnnotator` runs its model and cuts the terms.
 #[derive(Clone, Debug)]
@@ -57,6 +61,7 @@ impl Default for SparseOptions {
 /// sparse vector, one unit holding every term. See the module comment.
 pub struct SparseAnnotator {
     state: Mutex<State>,
+    tokenizer: Tokenizer,
     mlm: MlmHead,
     model: ModelRef,
     execution: Execution,
@@ -151,6 +156,7 @@ impl SparseAnnotator {
                     encoder,
                 },
             }),
+            tokenizer,
             mlm,
             model: model_ref(&bundle),
             execution: info.execution,
@@ -171,6 +177,36 @@ impl SparseAnnotator {
 
     pub fn execution(&self) -> &Execution {
         &self.execution
+    }
+
+    /// Returns the bundle's loaded [`Tokenizer`].
+    pub fn tokenizer(&self) -> &Tokenizer {
+        &self.tokenizer
+    }
+
+    /// Returns the bundle vocabulary piece string for `vocab_id`, if in range.
+    pub fn vocab_piece(&self, vocab_id: u32) -> Option<&str> {
+        i32::try_from(vocab_id).ok().and_then(|id| self.tokenizer.piece(id))
+    }
+
+    /// Prunes and quantizes document `SparseTerms<View>` into `u8` or `u16` integer
+    /// impacts with an upper-bound quantization error certificate (`#2343`).
+    pub fn quantize_doc(
+        &self,
+        terms: &SparseTerms<View>,
+        quantizer: &ImpactQuantizer,
+    ) -> Result<QuantizedSparseTerms, CoreError> {
+        quantizer.quantize_doc_layer(terms, turbo_analysis::Ix::new(0), Some(&self.tokenizer))
+    }
+
+    /// Prunes and quantizes query `SparseTerms<View>` into `u8` or `u16` integer
+    /// impacts with an upper-bound quantization error certificate (`#2343`).
+    pub fn quantize_query(
+        &self,
+        terms: &SparseTerms<View>,
+        quantizer: &ImpactQuantizer,
+    ) -> Result<QuantizedSparseTerms, CoreError> {
+        quantizer.quantize_query_layer(terms, turbo_analysis::Ix::new(0), Some(&self.tokenizer))
     }
 
     /// The configuration hash of the terms a step writes: the row length,
