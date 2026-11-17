@@ -113,6 +113,8 @@ export type ViewAlignmentSummary = Message<"turbo.result.v1.ViewAlignmentSummary
   parentView?: number | undefined;
 
   /**
+   * The view's length in UTF-8 bytes; 0 when text_sha256 is empty.
+   *
    * @generated from field: uint32 utf8_bytes = 4;
    */
   utf8Bytes: number;
@@ -120,7 +122,8 @@ export type ViewAlignmentSummary = Message<"turbo.result.v1.ViewAlignmentSummary
   /**
    * SHA-256 of the view's UTF-8 text. Empty when the view's text may not
    * leave under the answer's PII disclosure: an unkeyed digest of a short
-   * text gives the text back by hashing guesses.
+   * text gives the text back by hashing guesses, and its length tells
+   * two values apart.
    *
    * @generated from field: bytes text_sha256 = 5;
    */
@@ -145,8 +148,10 @@ export const ViewAlignmentSummarySchema: GenMessage<ViewAlignmentSummary> = /*@_
  * (no pii_output.full_text), every digest of the source is left out with
  * it: input.raw_bytes_digest and input.source_text_digest are empty, and
  * result.result_id, result.content_digest and result.graph_bytes_len are
- * unset, because the graph bytes hold the source text. Lengths, versions,
- * the binding and the digest of a view whose text may leave are kept.
+ * unset, because the graph bytes hold the source text. The lengths of the
+ * withheld texts (input.raw_bytes_len, input.source_text_len) are 0 too.
+ * Versions, the binding and the digest and length of a view whose text
+ * may leave are kept.
  *
  * @generated from message turbo.result.v1.SearchReplayProvenance
  */

@@ -88,6 +88,9 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
     if input.raw_bytes_digest.is_empty() != input.source_text_digest.is_empty() {
         return Err(bad("provenance.input carries one of raw_bytes_digest and source_text_digest without the other"));
     }
+    if input.source_text_digest.is_empty() && (input.raw_bytes_len != 0 || input.source_text_len != 0) {
+        return Err(bad("provenance.input gives the length of a text and carries no digest of it"));
+    }
     let res = prov.result.as_ref().ok_or_else(|| bad("provenance.result is required"))?;
     check_sha256_len("provenance.result.content_digest", &res.content_digest, true)?;
     if res.content_digest.is_empty() && (!res.result_id.is_empty() || res.graph_bytes_len != 0) {
@@ -100,6 +103,9 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
     for (i, v) in prov.views.iter().enumerate() {
         u16::try_from(v.view_id).map_err(|_| bad(format!("provenance.views[{i}].view_id exceeds u16::MAX")))?;
         check_sha256_len(&format!("provenance.views[{i}].text_sha256"), &v.text_sha256, true)?;
+        if v.text_sha256.is_empty() && v.utf8_bytes != 0 {
+            return Err(bad(format!("provenance.views[{i}] gives utf8_bytes and carries no text_sha256")));
+        }
     }
 
     // Sentences invariant (`sentences:body`): sorted, non-overlapping, in bounds.
