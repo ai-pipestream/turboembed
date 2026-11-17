@@ -48,6 +48,8 @@ pub(super) struct Rows {
     seq: usize,
     ranges: Vec<turbo_token_range>,
     taps: usize,
+    /// turbo_backend.h, `tap_alone`: the first of the taps alone.
+    alone: bool,
     pooling: u32,
     normalize: u32,
     output_dim: usize,
@@ -92,6 +94,7 @@ impl Rows {
             seq: 0,
             ranges,
             taps: 1,
+            alone: false,
             pooling: 0,
             normalize: 0,
             output_dim: 0,
@@ -125,7 +128,7 @@ impl Rows {
         }
         self.seq = s;
         self.ranges.clear();
-        self.taps = 1;
+        (self.taps, self.alone) = (1, false);
         self.pooling = r.pooling;
         self.normalize = r.normalize;
         self.output_dim = r.output_dim as usize;
@@ -142,6 +145,7 @@ impl Rows {
         self.write(r, ids, mask);
         self.ranges.extend_from_slice(ranges);
         self.taps = (r.taps as usize).max(1);
+        self.alone = r.tap_alone == 1;
     }
 
     /// Run the written rows into `out`: a vector per row, or per range
@@ -152,6 +156,9 @@ impl Rows {
         let (seq, h, od) = (self.seq, self.hidden, self.output_dim);
         if !self.ranges.is_empty() && self.taps > 1 {
             let (ranges, count, normalize, taps) = (&self.ranges, self.ranges.len(), self.normalize, self.taps);
+            // One tap alone: the first tap's vectors are the run's, and
+            // the pass ends there.
+            let alone = self.alone;
             for (r, &len) in self.lens.iter().enumerate() {
                 let at = r * seq;
                 let row_states = &mut self.states[at * h..][..len * h];
@@ -166,6 +173,7 @@ impl Rows {
                             mean_from(states, row_mask, h, cols, dst);
                             finish_vec(normalize, dst);
                         }
+                        !alone
                     })
                     .is_err()
                 {

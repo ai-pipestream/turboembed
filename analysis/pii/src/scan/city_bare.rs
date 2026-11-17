@@ -249,6 +249,29 @@ fn accepted(text: &str, start: usize, end: usize) -> bool {
         && !((before_speech(text, end) || person_after(text, end)) && !after_lead_word(text, start, before))
 }
 
+/// Whether the words around `text[start..end]` are those the bare reading
+/// refuses a name for as a person's (#2388): a [`super::city_person`] verb
+/// before it, at a sentence's start too (`Ask Dayton`), or a verb of
+/// speech or a person word after it with no [`LEAD_WORDS`] word before
+/// it. A model's city there is no city either, whatever name it covers.
+pub(crate) fn person_context(text: &str, start: usize, end: usize) -> bool {
+    let before = word_before(text, start);
+    // The verb with its first letter in lower case, as the rules spell it.
+    let verb = |w: &str| {
+        let mut lower = [0u8; 16];
+        let Some(lower) = lower.get_mut(..w.len()) else {
+            return false;
+        };
+        lower.copy_from_slice(w.as_bytes());
+        if let Some(first) = lower.first_mut() {
+            first.make_ascii_lowercase();
+        }
+        std::str::from_utf8(lower).is_ok_and(after_person_verb)
+    };
+    before.is_some_and(|(_, w)| verb(w))
+        || (before_speech(text, end) || person_after(text, end)) && !after_lead_word(text, start, before)
+}
+
 /// The verbs of speech and address a person's name stands before and a
 /// city's seldom does (`Madison said`, `Paris told her`).
 const SPEECH_VERBS: [&str; 12] =

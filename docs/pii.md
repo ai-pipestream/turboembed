@@ -1283,7 +1283,28 @@ after a city label (`Columbus, Ohio`, `City: Columbus`) stays a city
 whatever the head says, and so does a city another scanner finds on the
 same span. On the person-name memo the rules alone score `13` true, `5`
 false and `0` missed cities; with person spans on every person use, `13`,
-`0` and `0` (`places_eval.rs`). Without the head, a policy that needs
+`0` and `0` (`places_eval.rs`).
+
+The head also tags cities of its own, and the person rules above decide
+those too (#2388): a `city` candidate of the head on a name with a
+person verb before it (at a sentence's start as well, `Ask Dayton`), or
+a verb of speech or a person word after it and no sentence-start word
+before it, is rejected with `rule-precedence` and keeps its row in the
+candidates layer, though no rule mention overlaps it. A head city before
+a state or after a city label stays, as does one with no person word
+around it, and with no city scanner among the rules the head's cities
+are left alone. The trained head at threshold `0.50` gave a person span
+to `Madison` alone on the memo and a city span to the other names, which
+read `13` true, `12` false and `0` missed before this rule. With the
+head's spans stood in for (`places_eval.rs`: `first-name` on each person
+use of `Madison`, `city` on every use of the other four names) the memo
+scores `13`, `4` and `0`: the four left are the names standing alone
+that the head gives no person span (`Paris won the race`, `Columbus
+drove home`, `called Salem`, `Dayton answered`), which only better
+person recall of the head settles. The run with the head itself is
+gated (`analysis/tagger/tests/pii_places_person.rs`).
+
+Without the head, a policy that needs
 higher precision on person-heavy text can leave `city` out and keep
 `state` and `county`.
 

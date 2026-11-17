@@ -39,6 +39,17 @@ fn the_last_block_is_the_plain_range_run() {
             "{bundle}"
         );
         assert_ne!(&tapped[..plain.len()], last, "{bundle}: the first block is an earlier layer's");
+        // The first of the layers alone is that first block (#2000), and
+        // with one layer it is the plain run.
+        let mut one = Vec::new();
+        enc.run_layer_alone(&rows, &ranges, layers, &mut one).unwrap();
+        assert_eq!(
+            one.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            tapped[..plain.len()].iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            "{bundle}: the first layer alone"
+        );
+        enc.run_layer_alone(&rows, &ranges, 1, &mut one).unwrap();
+        assert_eq!(one, plain, "{bundle}: one layer alone");
         // The session holds twelve vectors: one range more than fits.
         let over = vec![ranges[1]; 12 / layers as usize + 1];
         let e = enc.run_layer_ranges(&rows, &over, layers, &mut tapped).unwrap_err();

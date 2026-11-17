@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::test_heads::tiny_rerank_bundle;
+
 #[test]
 fn rerank_scores_come_back_in_passage_order() {
     let body = r#"[{"index":2,"score":-1.5},{"index":0,"score":3.25},{"index":1,"score":0.5}]"#;
@@ -53,4 +55,73 @@ fn committed_records_pass_their_check() {
         check(&r).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         assert_eq!(path.file_name().unwrap().to_str().unwrap(), file_name(&r));
     }
+}
+
+#[test]
+fn rerank_cpu_records_no_gpu_clock() {
+    use turbo::TURBO_PRECISION_MODEL;
+
+    let mut passes = 0u32;
+    let mut w = crate::gpu_clock::Window::none();
+    time(1, 2, &mut w, &mut || {
+        passes += 1;
+        Ok(vec![1.0])
+    })
+    .unwrap();
+    assert_eq!(passes, 3);
+    assert_eq!(w.finish(), None);
+
+    let scratch =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-bench-rerank-{}", std::process::id())));
+    let bundle = tiny_rerank_bundle(&scratch);
+    let questions_path = scratch.join("squad.json");
+    let squad = json!({
+        "data": [{
+            "paragraphs": [
+                {"context": "Paris is in France.", "qas": [{"question": "Where is Paris?"}]},
+                {"context": "Berlin is in Germany.", "qas": [{"question": "Where is Berlin?"}]}
+            ]
+        }]
+    });
+    std::fs::write(&questions_path, serde_json::to_vec(&squad).unwrap()).unwrap();
+
+    let plan = RerankPlan {
+        bundle,
+        device: "cpu".into(),
+        precision: TURBO_PRECISION_MODEL,
+        questions: questions_path,
+        requests: 1,
+        passages: 2,
+        warmup: 1,
+        iterations: 2,
+        tei: None,
+    };
+    let p = Provenance { top: String::new(), commit: "c".repeat(40), pushed_to: vec!["origin/main".into()] };
+
+    let cpu_record = measure(&plan, &p, "2026-10-22T00:00:00Z".into()).unwrap();
+    assert_eq!(cpu_record.device.clock, None);
+    check(&cpu_record).unwrap();
+    std::fs::remove_dir_all(&scratch).unwrap();
+}
+
+/// The populated case, over the driver's files in a temporary tree: the
+/// clock is read once after the warmup runs and once after the last timed
+/// run, and not between.
+#[test]
+fn rerank_time_reads_the_clock_after_warmup_and_after_the_last_run() {
+    use crate::gpu_clock::tests::Tree;
+
+    let tree = Tree::new("rerank");
+    let mut calls = 0u32;
+    let mut w = tree.window(1);
+    // Each run leaves its number in act_freq, so a reading says which run
+    // it followed.
+    let (ms, scores) = time(2, 3, &mut w, &mut || {
+        calls += 1;
+        tree.set_act(calls * 100);
+        Ok(vec![calls as f32])
+    })
+    .unwrap();
+    assert_eq!((ms.len(), scores), (3, vec![5.0]));
+    assert_eq!(w.finish(), Tree::clock(200, 500));
 }

@@ -3,7 +3,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use turbo::bundle::Bundle;
 use turbo::tokenizer::Tokenizer;
@@ -11,25 +11,24 @@ use turbo::{
     TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_PROMPT_DOCUMENT, TURBO_PROMPT_QUERY, TURBO_TASK_EXTRACTIVE_QA,
     turbo_embed_options, turbo_text, turbo_token_range,
 };
-use turbo_analysis::{Ix, ModelRef, Span};
+use turbo_analysis::{ModelRef, Span};
 use turbo_analysis_embed::window::{Placed, Plan, Target, Which, pieces_of};
 use turbo_analysis_embed::{
-    HighlightCandidateSpan, Rows, SourcePassage, clean_query_text, score_spans_contextual_maxsim,
-    score_spans_pooled_cosine, score_spans_subword_tokenizer, select_top_non_overlapping,
+    HighlightCandidateSpan, Rows, SourcePassage, clean_query_text, score_spans_pooled_cosine,
+    score_spans_subword_tokenizer, select_top_non_overlapping,
 };
 
 use super::{bad, prepare_source_passage, to_wire_highlights};
 use crate::api::{Failure, Result, TURBO_E_INTERNAL, TURBO_E_UNSUPPORTED_OPTION, field};
 use crate::deadline::Deadline;
 use crate::offsets::OffsetMode;
-use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
 use crate::proto::result::{RerankAndHighlightRequest, RerankHighlightMode, RerankedCandidateProto};
 use crate::results::f32s;
 use crate::state::{Loaded, State};
 use crate::stream::run::read_output;
 use crate::tasks::embed::exec::run_ranges_on_slot;
 
-fn embed_opts(prompt_role: u32, normalize: u32) -> turbo_embed_options {
+pub(super) fn embed_opts(prompt_role: u32, normalize: u32) -> turbo_embed_options {
     turbo_embed_options {
         struct_size: std::mem::size_of::<turbo_embed_options>() as u32,
         truncate: 0,
@@ -41,11 +40,11 @@ fn embed_opts(prompt_role: u32, normalize: u32) -> turbo_embed_options {
         quantization: 0,
         int8_ranges: std::ptr::null(),
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     }
 }
 
-fn build_passages<'a>(
+pub(super) fn build_passages<'a>(
     req: &'a RerankAndHighlightRequest,
     top: &[RerankedCandidateProto],
     offsets: OffsetMode,
@@ -101,7 +100,7 @@ pub(super) async fn attribute_top_k(
         }
         RerankHighlightMode::SubwordMaxsim => {
             if !embed_name.is_empty() {
-                run_contextual_maxsim_highlights(
+                super::maxsim::run_contextual_maxsim_highlights(
                     state,
                     embed_name,
                     req,
@@ -215,7 +214,7 @@ async fn run_range_pool_highlights(
         let mut targets: Vec<u32> = Vec::new();
         let mut flat: Vec<f32> = Vec::new();
         let head_len = head.len() as u32;
-        let dead = deadline.cancel_flag();
+        let dead: &AtomicBool = deadline.cancel_flag();
         let mut p_at = 0usize;
 
         let flush = |rows: &mut Rows,
@@ -284,72 +283,6 @@ async fn run_range_pool_highlights(
     })
     .await
     .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("range_pool highlight task failed: {e}")))?
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn run_contextual_maxsim_highlights(
-    state: &Arc<State>,
-    embed_name: &str,
-    req: &Arc<RerankAndHighlightRequest>,
-    offsets: OffsetMode,
-    mut top: Vec<RerankedCandidateProto>,
-    max_snippets: usize,
-    priority: crate::priority::Priority,
-    deadline: &Deadline,
-) -> Result<(ModelRef, Vec<RerankedCandidateProto>)> {
-    let (_, loaded) = state.ready(embed_name, "")?;
-    let _ = loaded.embed()?;
-    let held = loaded.acquire_async(priority, deadline).await?;
-    let state = Arc::clone(state);
-    let req = Arc::clone(req);
-    let deadline = deadline.clone();
-    tokio::task::spawn_blocking(move || {
-        let embed = loaded.embed()?;
-        crate::priority::check_before_exec(&deadline, &loaded.metrics)?;
-        held.reserve_token_ranges()?;
-        let slot = held.slot();
-        let dead = deadline.cancel_flag();
-
-        let passages = build_passages(&req, &top, offsets)?;
-        let q_clean = clean_query_text(&req.query).map_err(|e| bad(e.to_string()))?;
-        let q_opts = embed_opts(TURBO_PROMPT_QUERY, 0);
-        let q_outcomes = embed.run_token_vectors_batch(
-            &state.stream,
-            dead,
-            slot,
-            &[q_clean.as_str()],
-            &q_opts,
-            OffsetMode::Utf8,
-            0,
-        )?;
-        let Some(ProtoOutcome::TokenVectors(q_tv)) = q_outcomes.into_iter().next() else {
-            return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected TokenVectors outcome for query"));
-        };
-        let dim = q_tv.dim as usize;
-        let q_vecs = f32s(&q_tv.data);
-
-        crate::priority::check_before_exec(&deadline, &loaded.metrics)?;
-        let d_texts: Vec<&str> = passages.iter().map(SourcePassage::clean_text).collect();
-        let d_opts = embed_opts(TURBO_PROMPT_DOCUMENT, 0);
-        let d_outcomes =
-            embed.run_token_vectors_batch(&state.stream, dead, slot, &d_texts, &d_opts, OffsetMode::Utf8, 0)?;
-        drop(held);
-
-        for ((entry, passage), outcome) in top.iter_mut().zip(passages).zip(d_outcomes) {
-            let ProtoOutcome::TokenVectors(d_tv) = outcome else {
-                return Err(Failure::new(TURBO_E_INTERNAL, 0, "expected TokenVectors outcome for candidate"));
-            };
-            let d_vecs = f32s(&d_tv.data);
-            let sub = embed.tokenize_subwords(passage.clean_text())?;
-            let tok_spans: Vec<Span> = (0..sub.spans.len()).map(|k| sub.spans.get(Ix::new(k as u32))).collect();
-            let spans = score_spans_contextual_maxsim(&q_vecs, &d_vecs, dim, &tok_spans, &passage, max_snippets);
-            let cand = &req.candidates[entry.input_index as usize];
-            entry.highlights = to_wire_highlights(cand, offsets, spans);
-        }
-        Ok((embed.model.clone(), top))
-    })
-    .await
-    .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("contextual_maxsim highlight task failed: {e}")))?
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -452,7 +385,3 @@ async fn run_qa_highlights(
     .await
     .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("qa highlight task failed: {e}")))?
 }
-
-#[cfg(test)]
-#[path = "highlight_tests.rs"]
-mod tests;

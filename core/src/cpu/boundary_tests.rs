@@ -125,7 +125,7 @@ fn session(table: &[f32], precision: u32) -> Result<Vec<f32>, (i32, u32, String)
             output_dim: DIM as u32,
             head: 0,
             taps: 0,
-            reserved: 0,
+            tap_alone: 0,
         };
         assert_eq!(unsafe { (BACKEND.embed_write.unwrap())(s, &rows, &mut err) }, 0);
         let mut run: turbo_backend_run = unsafe { std::mem::zeroed() };

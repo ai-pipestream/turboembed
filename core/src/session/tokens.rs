@@ -19,13 +19,7 @@ pub unsafe extern "C" fn turbo_embed_write_tokens(
             let tb = token_batch(batch)?;
             let o = embed_options(s, opts)?;
             no_text_options(&o)?;
-            if o.layers > 1 {
-                return Err(Error::field(
-                    INVALID_ARGUMENT,
-                    9,
-                    format!("layers {}: per-layer taps apply to range writes, not row writes", o.layers),
-                ));
-            }
+            final_layer_alone(&o)?;
             check_tokens(s, &tb, o.max_tokens)?;
             write_rows(s, &mut state, caller_rows(&o, &tb), &o, false)
         })
@@ -109,10 +103,18 @@ unsafe fn write_ranges(
             return Err(Error::new(INVALID_ARGUMENT, "count is 0: a run needs at least one range"));
         }
         check_taps(s, taps)?;
-        if count as u64 * taps as u64 > s.max_ranges as u64 {
+        // turbo.h, field 10: one layer of the taps alone, where the device
+        // reads one alone; the run then writes a vector a range.
+        let alone = o.layer_alone && taps > 1;
+        if alone && s.honored & 1 << 9 == 0 {
+            let why = format!("layer_alone 1: the {} backend reads all of the last layers", s.backend.name());
+            return Err(Error::field(UNSUPPORTED_OPTION, 10, why));
+        }
+        let blocks = if alone { 1 } else { taps };
+        if count as u64 * blocks as u64 > s.max_ranges as u64 {
             return Err(Error::new(
                 CAPACITY,
-                if taps == 1 {
+                if blocks == 1 {
                     format!("{count} ranges is over the session's max_ranges {}", s.max_ranges)
                 } else {
                     format!(
@@ -140,11 +142,11 @@ unsafe fn write_ranges(
             let output_dim = h.classifier.out_dim as u32;
             rows = turbo_backend_embed_rows { head: 1, output_dim, normalize: TURBO_NORMALIZE_NONE, ..rows };
         }
-        rows.taps = taps;
+        (rows.taps, rows.tap_alone) = (taps, alone as u32);
         let b = s.backend;
         let write = backend::offered!(b, embed_write_ranges)?;
         backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
-        record(&mut state, &o, count * taps, rows.output_dim, false);
+        record(&mut state, &o, count * blocks, rows.output_dim, false);
         Ok(())
     }
 }

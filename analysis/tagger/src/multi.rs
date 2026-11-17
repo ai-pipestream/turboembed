@@ -104,6 +104,20 @@ impl Head {
         }
     }
 
+    /// Whether the head, and its tagger, each read the first of `taps`
+    /// layers and no other, through a word reader that takes that layer
+    /// alone (`annotate::first_tap_alone`). A sentence or split head
+    /// reads its taps through a scorer of its own, and says no.
+    pub fn reads_first_tap_alone(&self, taps: usize) -> bool {
+        let one = |s: &HeadSpec| crate::annotate::first_tap_alone(s, taps);
+        match self {
+            Head::Tagger { tagger, .. } => one(tagger.spec()),
+            Head::Parser { parser, .. } => one(parser.spec()),
+            Head::Lemma { lemmatizer, pos } => one(lemmatizer.spec()) && pos.as_ref().is_none_or(|t| one(t.spec())),
+            Head::Sentence { .. } | Head::Split { .. } => false,
+        }
+    }
+
     /// The layer taps the head reads, its tagger's included.
     pub fn taps(&self) -> Vec<usize> {
         match self {

@@ -13,6 +13,7 @@ use turbo_relation::ModalityAnnotator;
 
 use super::{Failure, SearchProjCx};
 use crate::proto::result::{SearchEntityPolarities, SearchLinkedEntity};
+use crate::results::typed::find_aligned_to;
 
 pub(crate) fn boilerplate_kind_str(k: BoilerplateKind) -> &'static str {
     match k {
@@ -89,20 +90,16 @@ fn find_view(doc: &Document, view_id: ViewId) -> Option<&View> {
         .find_map(|k| doc.get_key(&Key::<View>::named(k.name)).filter(|v| v.id() == view_id))
 }
 
+/// The modality layer, or one made here from the tokens; a cue is quoted
+/// from its view, so only layers the disclosure lets leave are read.
 fn resolve_modality_layer(cx: &SearchProjCx<'_>) -> Option<Modality> {
-    if let Some(existing) = cx.doc.get::<Modality>() {
-        if cx.is_layer_withheld(Key::<Modality>::DEFAULT.id(), Some(existing.spans.view())) {
-            return None;
-        }
-        return Some(existing.clone());
+    let doc = cx.doc;
+    if doc.get::<Modality>().is_some() {
+        return cx.kept::<Modality>().cloned();
     }
-    let tokens = cx.doc.get::<Tokens>()?;
-    let tok_view = tokens.spans.view();
-    if cx.is_layer_withheld(Key::<Tokens>::DEFAULT.id(), Some(tok_view)) {
-        return None;
-    }
-    let view = find_view(cx.doc, tok_view)?;
-    let deps = cx.doc.get::<Dependencies>();
+    let tokens = cx.kept::<Tokens>()?;
+    let view = find_view(doc, tokens.spans.view())?;
+    let deps = cx.kept::<Dependencies>();
     ModalityAnnotator::new().annotate((view, tokens, deps)).ok().map(|(m,)| m)
 }
 
@@ -210,17 +207,9 @@ pub(crate) fn project_entities(cx: &SearchProjCx<'_>) -> Result<SearchEntityPola
     let mut uncertain = Vec::new();
 
     for key in cx.doc.layers().filter(|k| k.ty == TypeId::of::<Entities>()) {
-        let Some(ents) = cx.doc.get_key(&Key::<Entities>::named(key.name)) else { continue };
+        let Some(ents) = cx.kept_key(&Key::<Entities>::named(key.name)) else { continue };
+        let linked = find_aligned_to::<LinkedEntities>(cx.doc, key);
         let view = ents.spans.view();
-        if cx.is_layer_withheld(key, Some(view)) {
-            continue;
-        }
-        let linked = cx
-            .doc
-            .layers()
-            .find(|k| k.ty == TypeId::of::<LinkedEntities>() && cx.doc.made_on(*k).first() == Some(&key))
-            .filter(|&lk| !cx.is_layer_withheld(lk, None))
-            .and_then(|lk| cx.doc.get_key(&Key::<LinkedEntities>::named(lk.name)));
         let view_text = cx.doc.text(view);
         for i in 0..ents.len() {
             let ix = Ix::new(i as u32);

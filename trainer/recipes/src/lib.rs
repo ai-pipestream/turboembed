@@ -34,6 +34,7 @@ pub mod distill;
 pub mod eval;
 pub mod fit_cache;
 pub mod germeval;
+pub mod gliner2_eval;
 pub mod gliner_calibrate;
 pub mod gliner_eval;
 pub mod litbank;

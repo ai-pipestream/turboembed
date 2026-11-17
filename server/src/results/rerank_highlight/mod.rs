@@ -2,6 +2,7 @@
 //! validation (`#2342`).
 
 mod highlight;
+mod maxsim;
 mod validate;
 
 use std::path::Path;
