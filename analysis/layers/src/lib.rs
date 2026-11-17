@@ -50,9 +50,9 @@ pub use pii_risk::{
     PiiRisk, PiiRiskKind, PiiRiskLevel, PiiSeverity, PiiSeverityTable, PiiSuggestedRewrite, confidence_weight,
 };
 pub use quality::{
-    GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, MAX_DIAGNOSTIC_REPLACEMENTS,
-    MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, builtin_rule_id,
-    lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on,
+    GrammarCategory, GrammarCheckWork, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics,
+    MAX_DIAGNOSTIC_REPLACEMENTS, MAX_RULE_ID_BYTES, QualityFlags, QualityMetrics, QualityPredicate, SpanQuality,
+    TextQuality, builtin_rule_id, lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on,
 };
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};

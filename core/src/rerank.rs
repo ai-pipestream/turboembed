@@ -53,6 +53,7 @@ pub struct Reranker {
     context: *mut turbo_context,
     model: *mut turbo_model,
     session: *mut turbo_session,
+    warnings: RuntimeWarnings,
     identity: RerankIdentity,
     max_batch: usize,
     backend: String,
@@ -111,6 +112,7 @@ impl Reranker {
             context: ptr::null_mut(),
             model: ptr::null_mut(),
             session: ptr::null_mut(),
+            warnings: RuntimeWarnings::new(),
             identity: RerankIdentity {
                 model_id: String::new(),
                 revision: String::new(),
@@ -121,9 +123,10 @@ impl Reranker {
             backend: String::new(),
             device: 0,
         };
+        let rt_desc = s.warnings.runtime_desc();
         let mut e = error();
         unsafe {
-            check(turbo_runtime_create(ptr::null(), &mut s.runtime, &mut e), &e)?;
+            check(turbo_runtime_create(&rt_desc, &mut s.runtime, &mut e), &e)?;
             let device = match &o.backend {
                 Some(name) => device_of(s.runtime, name)?,
                 None => {
@@ -182,6 +185,11 @@ impl Reranker {
     /// The backend the session runs on ("cpu", "cuda", ...).
     pub fn backend(&self) -> &str {
         &self.backend
+    }
+
+    /// Warning and error messages logged by the session's runtime.
+    pub fn warnings(&self) -> Vec<String> {
+        self.warnings.snapshot()
     }
 
     pub fn identity(&self) -> &RerankIdentity {

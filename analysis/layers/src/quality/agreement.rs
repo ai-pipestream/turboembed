@@ -1,7 +1,7 @@
 //! Syntactic and morphological agreement rules (`SVA-001` and `DET-001`) and
 //! sentence rule orchestration.
 
-use turbo_analysis::{Ix, IxRange, Layer, Span};
+use turbo_analysis::{Ix, IxRange, Layer};
 
 use crate::{Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens};
 
@@ -11,6 +11,8 @@ use super::clause::{
 };
 use super::grammar::{GrammarCategory, GrammarChecker, GrammarDiagnostic};
 use super::morphology::{SubjectPersonNumber, check_and_repair_sva_verb, classify_subject_token};
+use super::sent_ctx::SentCtx;
+use super::work::GrammarCheckWork;
 
 const INTERVENING_ADVERBS: &[&str] = &[
     "not",
@@ -72,75 +74,6 @@ pub(crate) const SVA_AUX_VERBS: &[&str] = &[
     "haven't", "doesn't", "don't",
 ];
 
-pub(crate) struct SentCtx<'a> {
-    pub(crate) checker: &'a GrammarChecker,
-    pub(crate) text: &'a str,
-    pub(crate) tokens: &'a Tokens,
-    pub(crate) pos: &'a PosTags,
-    pub(crate) lemmas: Option<&'a Lemmas>,
-    pub(crate) deps: Option<&'a Dependencies>,
-    pub(crate) morph: Option<&'a MorphFeatures<Tokens>>,
-    pub(crate) dep_children: Vec<Vec<usize>>,
-    pub(crate) range: IxRange<Tokens>,
-}
-
-impl<'a> SentCtx<'a> {
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        checker: &'a GrammarChecker,
-        text: &'a str,
-        tokens: &'a Tokens,
-        pos: &'a PosTags,
-        lemmas: Option<&'a Lemmas>,
-        deps: Option<&'a Dependencies>,
-        morph: Option<&'a MorphFeatures<Tokens>>,
-        range: IxRange<Tokens>,
-    ) -> Self {
-        let start = range.start.get();
-        let end = range.end.get();
-        let mut dep_children = Vec::new();
-        if let Some(d) = deps {
-            dep_children.resize_with(end - start, Vec::new);
-            for (t, head) in d.head.iter().enumerate().take(end).skip(start) {
-                if let Some(h) = head.map(Ix::get)
-                    && (start..end).contains(&h)
-                {
-                    dep_children[h - start].push(t);
-                }
-            }
-        }
-        Self { checker, text, tokens, pos, lemmas, deps, morph, dep_children, range }
-    }
-
-    pub(crate) fn span(&self, i: usize) -> Span {
-        self.tokens.spans.get(Ix::new(i as u32))
-    }
-
-    pub(crate) fn surface(&self, i: usize) -> &'a str {
-        &self.text[self.span(i).range()]
-    }
-
-    pub(crate) fn pos_str(&self, i: usize) -> &'a str {
-        self.pos.tagset.label(self.pos.tags[i])
-    }
-
-    pub(crate) fn lemma_str(&self, i: usize) -> Option<&'a str> {
-        self.lemmas.map(|l| l.lemma.get(i))
-    }
-
-    pub(crate) fn morph_str(&self, i: usize) -> Option<&'a str> {
-        self.morph.map(|m| m.feats.get(i))
-    }
-
-    pub(crate) fn dep_head(&self, i: usize) -> Option<usize> {
-        self.deps.and_then(|d| d.head[i].map(Ix::get))
-    }
-
-    pub(crate) fn dep_rel(&self, i: usize) -> Option<&'a str> {
-        self.deps.map(|d| d.relations.label(d.relation[i]))
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn check_sentence_rules(
     checker: &GrammarChecker,
@@ -151,26 +84,29 @@ pub(crate) fn check_sentence_rules(
     lemmas: Option<&Lemmas>,
     deps: Option<&Dependencies>,
     morph: Option<&MorphFeatures<Tokens>>,
-) -> Vec<GrammarDiagnostic> {
+) -> (Vec<GrammarDiagnostic>, GrammarCheckWork) {
     let mut out = Vec::new();
+    let mut work = GrammarCheckWork::default();
     let sent_count = sentences.len();
     if sent_count == 0 && tokens.len() > 0 {
         let range = IxRange::new(0, tokens.len() as u32);
         let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
         run_on_sentence(&cx, &mut out);
-        return out;
+        work.add(cx.work());
+        return (out, work);
     }
     for s_ix in 0..sent_count {
         let range = tokens.in_sentence(sentences, Ix::new(s_ix as u32));
         if !range.is_empty() {
             let cx = SentCtx::new(checker, text, tokens, pos, lemmas, deps, morph, range);
             run_on_sentence(&cx, &mut out);
+            work.add(cx.work());
         }
     }
-    out
+    (out, work)
 }
 
-fn run_on_sentence(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
+pub(super) fn run_on_sentence(cx: &SentCtx<'_>, out: &mut Vec<GrammarDiagnostic>) {
     if cx.checker.check_article_phonetics {
         check_articles(cx, out);
     }
@@ -278,13 +214,13 @@ fn is_governed_by_preceding_aux_or_to(cx: &SentCtx<'_>, v: usize) -> bool {
 fn resolve_clause_subject(cx: &SentCtx<'_>, v: usize) -> Option<(usize, SubjectPersonNumber)> {
     let start = cx.range.start.get();
     let end = cx.range.end.get();
-    if cx.deps.is_some() {
+    if cx.has_deps() {
         let head_for_subj = match cx.dep_rel(v) {
             Some("cop" | "aux" | "aux:pass" | "auxpass") => cx.dep_head(v).unwrap_or(v),
             _ => v,
         };
         if (start..end).contains(&head_for_subj) {
-            let children = &cx.dep_children[head_for_subj - start];
+            let children = cx.dep_children(head_for_subj);
             if children.iter().any(|&t| cx.dep_rel(t) == Some("expl") || cx.surface(t).eq_ignore_ascii_case("there")) {
                 return None;
             }
@@ -369,7 +305,7 @@ fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Opt
     let mut has_and = false;
     let mut has_disj = false;
 
-    for &t in &cx.dep_children[eff_subj - start] {
+    for &t in cx.dep_children(eff_subj) {
         let low = cx.surface(t).to_ascii_lowercase();
         if matches!(low.as_str(), "or" | "nor" | "either" | "neither") {
             has_disj = true;
@@ -378,7 +314,7 @@ fn resolve_dep_coord_subject(cx: &SentCtx<'_>, eff_subj: usize, v: usize) -> Opt
         }
         if cx.dep_rel(t) == Some("conj") && (start..end).contains(&t) {
             conjuncts.push(t);
-            for &ct in &cx.dep_children[t - start] {
+            for &ct in cx.dep_children(t) {
                 let clow = cx.surface(ct).to_ascii_lowercase();
                 if matches!(clow.as_str(), "or" | "nor" | "either" | "neither") {
                     has_disj = true;

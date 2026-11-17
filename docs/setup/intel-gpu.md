@@ -121,7 +121,8 @@ keeps every row's bits the same alone and among others.
 | `TURBO_LEVELZERO_PROFILE` | Any value: each context times every kernel and copy and logs the totals at debug level when released. A profiled run allocates. |
 
 A build with oneDNN runs it wherever it opens. Where it does not open,
-the backend runs its own kernels and logs a warning.
+the backend runs its own kernels and logs a warning (`turbo-bench` built
+with `levelzero-onednn` prints that warning as one line on `stderr`).
 
 ## Limits
 

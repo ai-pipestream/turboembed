@@ -11,8 +11,8 @@ use turbo_analysis_layers::DateTime;
 use turbo_grammar::engine::Lexed;
 use turbo_grammar::{ENGLISH, ENGLISH_UNITS, Grammar, GrammarAnnotator, Parser, TimeAnnotator};
 
-use super::measure::{Options, goldens_text, median_pass, now, out_dir, record, run, same_tree};
-use super::{Subject, write};
+use super::measure::{ClockedDevice, Options, goldens_text, median_pass, now, out_dir, record, run, same_tree};
+use super::{Subject, ThroughputRecord, write};
 use crate::cpus::{Cpus, SYSFS_CPUS, pin};
 use crate::{BUILD_CHANGES, BUILD_COMMIT, Result, check_build, git};
 
@@ -40,10 +40,28 @@ pub fn cmd(args: &[String]) -> Result<()> {
     let top = Path::new(&before.top).to_owned();
     let (text, source) = goldens_text(&top, &["num", "quantity", "money", "temporal"], FLOOR)?;
     eprintln!("english grammar: {} bytes from inputs/{{num,quantity,money,temporal}}", text.len());
+    let r = measure(&text, source, cpus.as_ref(), rounds, recorded_at, || {
+        let after = git::provenance(&repo)?;
+        same_tree(&before, &after)?;
+        Ok(after)
+    })?;
+    let path = write(&r, &out_dir(out, &before))?;
+    println!("{}", path.display());
+    Ok(())
+}
 
+pub(super) fn measure(
+    text: &str,
+    source: String,
+    cpus: Option<&Cpus>,
+    rounds: u32,
+    recorded_at: String,
+    provenance: impl FnOnce() -> Result<git::Provenance>,
+) -> Result<ThroughputRecord> {
+    let mut device = ClockedDevice::open(5)?;
     let annotator = GrammarAnnotator::english();
-    let (find_units, find_secs) = median_pass(rounds, || {
-        let found = black_box(annotator.find(&text, ViewId::SOURCE));
+    let (find_units, find_secs) = median_pass(&mut device.clock, rounds, || {
+        let found = black_box(annotator.find(text, ViewId::SOURCE));
         Ok((found.numbers.len()
             + found.percents.len()
             + found.ordinals.len()
@@ -52,62 +70,59 @@ pub fn cmd(args: &[String]) -> Result<()> {
     })?;
 
     let mut lexed = Lexed::default();
-    let (lex_units, lex_secs) = median_pass(rounds, || {
-        lexed.lex(&text, &ENGLISH.style());
+    let (lex_units, lex_secs) = median_pass(&mut device.clock, rounds, || {
+        lexed.lex(text, &ENGLISH.style());
         Ok(lexed.len() as u64)
     })?;
 
     let mut parser = Parser::new(&ENGLISH);
-    let (parse_units, parse_secs) = median_pass(rounds, || {
-        parser.parse(&text);
+    let (parse_units, parse_secs) = median_pass(&mut device.clock, rounds, || {
+        parser.parse(text);
         Ok(parser.chart().nodes.len() as u64)
     })?;
 
     let mut units_parser = Parser::new(&ENGLISH_UNITS);
-    let (units_units, units_secs) = median_pass(rounds, || {
-        units_parser.parse(&text);
+    let (units_units, units_secs) = median_pass(&mut device.clock, rounds, || {
+        units_parser.parse(text);
         Ok(units_parser.chart().nodes.len() as u64)
     })?;
 
     let times = TimeAnnotator::english();
     let at = DateTime::parse("2016-11-07T00:00:00");
-    let (time_units, time_secs) = median_pass(rounds, || {
-        let found = black_box(times.find(&text, ViewId::SOURCE, at));
+    let (time_units, time_secs) = median_pass(&mut device.clock, rounds, || {
+        let found = black_box(times.find(text, ViewId::SOURCE, at));
         Ok(found.len() as u64)
     })?;
 
     let runs = vec![
-        run("find", find_units, find_secs, &text),
-        run("lex", lex_units, lex_secs, &text),
-        run("parse", parse_units, parse_secs, &text),
-        run("parse-units", units_units, units_secs, &text),
-        run("times", time_units, time_secs, &text),
+        run("find", find_units, find_secs, text),
+        run("lex", lex_units, lex_secs, text),
+        run("parse", parse_units, parse_secs, text),
+        run("parse-units", units_units, units_secs, text),
+        run("times", time_units, time_secs, text),
     ];
     for r in &runs {
         eprintln!("{}: {} units in {:.4} s (median)", r.phase, r.units, r.seconds);
     }
 
-    let after = git::provenance(&repo)?;
-    same_tree(&before, &after)?;
-    let r = record(
+    let after = provenance()?;
+    Ok(record(
+        device,
         "grammar",
         Subject { name: "english".into(), sha256: String::new(), load_seconds: None },
         source,
-        &text,
-        match &cpus {
+        text,
+        match cpus {
             Some(c) => format!("the tool ran pinned to CPUs {}, the grammar on one thread", c.list),
             None => "the tool ran unpinned, the grammar on one thread".into(),
         },
         format!(
             "turbo-bench grammar{} --rounds {rounds} --repo <repo> --out <dir>",
-            cpus.as_ref().map_or(String::new(), |c| format!(" --cpus {}", c.list))
+            cpus.map_or(String::new(), |c| format!(" --cpus {}", c.list))
         ),
         rounds,
         runs,
         &after,
         recorded_at,
-    )?;
-    let path = write(&r, &out_dir(out, &after))?;
-    println!("{}", path.display());
-    Ok(())
+    ))
 }
