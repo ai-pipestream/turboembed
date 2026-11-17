@@ -57,6 +57,40 @@ impl SuggestCache {
         Ok(arc)
     }
 
+    /// The completions of `prefix` in the stored lexicon `id`.
+    pub(crate) fn complete(
+        &self,
+        store: &super::Store,
+        id: &str,
+        prefix: &str,
+        limit: usize,
+    ) -> Result<Vec<SurfaceCompletionItem>, Status> {
+        let mapped = self.mapped(store, id)?;
+        let lex = MappedSurfaceLexicon::from_bytes(mapped.bytes()).map_err(|e| internal(e.to_string()))?;
+        Ok(lex
+            .suggest_prefix(prefix, limit)
+            .into_iter()
+            .map(|c| SurfaceCompletionItem { surface: c.surface.to_owned(), stem: c.stem.to_owned(), count: c.count })
+            .collect())
+    }
+
+    /// The surfaces of `stem` in the stored lexicon `id`.
+    pub(crate) fn surfaces(
+        &self,
+        store: &super::Store,
+        id: &str,
+        stem: &str,
+        limit: usize,
+    ) -> Result<Vec<StemSurfaceItem>, Status> {
+        let mapped = self.mapped(store, id)?;
+        let lex = MappedSurfaceLexicon::from_bytes(mapped.bytes()).map_err(|e| internal(e.to_string()))?;
+        Ok(lex
+            .stem_surfaces(stem, limit)
+            .into_iter()
+            .map(|s| StemSurfaceItem { surface: s.surface.to_owned(), count: s.count })
+            .collect())
+    }
+
     fn spellchecker(
         &self,
         store: &super::Store,
@@ -221,16 +255,7 @@ pub(super) async fn suggest_prefix(
     let store = svc.store.clone().ok_or_else(|| not_found(&r.artifact_id))?;
     let limit = if r.limit == 0 { DEFAULT_SUGGEST_LIMIT } else { (r.limit as usize).min(MAX_SUGGEST_LIMIT) };
     let cache = Arc::clone(&svc.suggest);
-    let completions = blocking(move || {
-        let mapped = cache.mapped(&store, &r.artifact_id)?;
-        let lex = MappedSurfaceLexicon::from_bytes(mapped.bytes()).map_err(|e| internal(e.to_string()))?;
-        Ok(lex
-            .suggest_prefix(&r.prefix, limit)
-            .into_iter()
-            .map(|c| SurfaceCompletionItem { surface: c.surface.to_owned(), stem: c.stem.to_owned(), count: c.count })
-            .collect())
-    })
-    .await?;
+    let completions = blocking(move || cache.complete(&store, &r.artifact_id, &r.prefix, limit)).await?;
     Ok(Response::new(SuggestPrefixResponse { completions }))
 }
 
@@ -242,16 +267,7 @@ pub(super) async fn lookup_stem_surfaces(
     let store = svc.store.clone().ok_or_else(|| not_found(&r.artifact_id))?;
     let limit = if r.limit == 0 { DEFAULT_SUGGEST_LIMIT } else { (r.limit as usize).min(MAX_SUGGEST_LIMIT) };
     let cache = Arc::clone(&svc.suggest);
-    let surfaces = blocking(move || {
-        let mapped = cache.mapped(&store, &r.artifact_id)?;
-        let lex = MappedSurfaceLexicon::from_bytes(mapped.bytes()).map_err(|e| internal(e.to_string()))?;
-        Ok(lex
-            .stem_surfaces(&r.stem, limit)
-            .into_iter()
-            .map(|s| StemSurfaceItem { surface: s.surface.to_owned(), count: s.count })
-            .collect())
-    })
-    .await?;
+    let surfaces = blocking(move || cache.surfaces(&store, &r.artifact_id, &r.stem, limit)).await?;
     Ok(Response::new(LookupStemSurfacesResponse { surfaces }))
 }
 
@@ -305,6 +321,10 @@ pub(super) async fn spellcheck_query(
     .await?;
     Ok(Response::new(out))
 }
+
+#[cfg(test)]
+#[path = "suggest_warm_tests.rs"]
+mod warm_tests;
 
 #[cfg(test)]
 mod tests {

@@ -9,6 +9,7 @@
 //! checksum with zero heap allocation.
 
 mod load;
+pub use load::image_checks_on_this_thread;
 mod write;
 
 pub use write::{DEFAULT_TOP_K, LexiconBuildError, SurfaceLexiconBuilder};

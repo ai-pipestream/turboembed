@@ -20,10 +20,24 @@ fn bad(table: &'static str, at: usize) -> LexiconImageError {
     LexiconImageError::Table { table, at }
 }
 
+thread_local! {
+    static IMAGE_CHECKS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many images [`MappedSurfaceLexicon::from_bytes`] has checked on the
+/// calling thread. A check reads every table of the image, so it costs in
+/// proportion to the lexicon; a caller that keeps a checked view can show
+/// with this that a lookup does not check again.
+pub fn image_checks_on_this_thread() -> u64 {
+    IMAGE_CHECKS.with(std::cell::Cell::get)
+}
+
 impl<'a> MappedSurfaceLexicon<'a> {
     /// Validates `bytes` and constructs a zero-copy [`MappedSurfaceLexicon`]
-    /// borrowing every table directly in place.
+    /// borrowing every table directly in place. The check reads the whole
+    /// image: keep the view (it is `Copy`) for repeated lookups.
     pub fn from_bytes(bytes: &'a [u8]) -> Result<MappedSurfaceLexicon<'a>, LexiconImageError> {
+        IMAGE_CHECKS.with(|c| c.set(c.get() + 1));
         if bytes.len() < HEADER {
             return Err(LexiconImageError::Short { len: bytes.len() });
         }
