@@ -291,6 +291,26 @@ fn after_lead_word(text: &str, start: usize, word: Option<(usize, &str)>) -> boo
     lead(&line[from..])
 }
 
+/// The [`LEAD_WORDS`] a person's name follows as readily as a place's:
+/// the conjunctions and the words of time (`and Columbus drove`, `before
+/// Dayton answered`).
+const NAME_LEADS: [&str; 9] = ["after", "and", "as", "before", "both", "but", "like", "or", "since"];
+
+/// Whether a word that places a name stands one space or one line break
+/// before `start` (#2398): one of [`LEAD_WORDS`] in any case that is none
+/// of [`NAME_LEADS`] (`went to Paris`, `the Dayton office`).
+pub(crate) fn after_place_word(text: &str, start: usize) -> bool {
+    let before = &text[..start];
+    let Some(before) =
+        before.strip_suffix("\r\n").or_else(|| before.strip_suffix('\n')).or_else(|| before.strip_suffix(' '))
+    else {
+        return false;
+    };
+    let from = before.char_indices().rfind(|&(_, c)| !c.is_ascii_alphabetic()).map_or(0, |(p, c)| p + c.len_utf8());
+    let word = &before[from..];
+    LEAD_WORDS.iter().any(|l| l.eq_ignore_ascii_case(word)) && !NAME_LEADS.iter().any(|l| l.eq_ignore_ascii_case(word))
+}
+
 /// Whether one of [`SPEECH_VERBS`] follows the name at `end` after one
 /// space, so the name is a person's (`Columbus said`, `Salem wrote`).
 fn before_speech(text: &str, end: usize) -> bool {
