@@ -3,7 +3,7 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Span, Status, Tag, View};
+use turbo_analysis::{Ix, Key, KeyId, Layer, Span, Status, Tag, View};
 use turbo_analysis_layers::{
     Aspects, CONVERTED_MONEY, Categories, CategoryScope, Chunks, Containment, DAY_SECONDS, Date, DocumentDate, Money,
     QualityMetrics, Quantities, Sentences, TemporalValue, Temporals, TextQuality, TimeGrain, Times,
@@ -299,8 +299,8 @@ pub(crate) fn project_categories_sentiment(cx: &SearchProjCx<'_>) -> Result<Sear
 
     let mut aspects = Vec::new();
     if let Some(asp) = cx.kept::<Aspects>() {
-        let toks = cx.doc.get_key(&asp.tokens_key);
-        let sents = cx.doc.get_key(&asp.sentences_key);
+        let toks = cx.kept_key(&asp.tokens_key);
+        let sents = cx.kept_key(&asp.sentences_key);
         for i in 0..asp.len() {
             let ix = Ix::new(i as u32);
             let a = asp.get(ix);
@@ -347,10 +347,16 @@ fn quality_metrics_proto(m: QualityMetrics) -> QualityMetricsAnnotation {
     }
 }
 
+/// The state of the layer `key`; one the disclosure holds back reads as
+/// not assessed, so a withheld measurement is never taken for a clean one.
 fn assessment_state_of(
-    doc: &Document,
+    cx: &SearchProjCx<'_>,
     key: KeyId,
 ) -> (SearchAssessmentState, Option<crate::proto::result::LayerError>) {
+    let doc = cx.doc;
+    if !cx.keeps(key) {
+        return (SearchAssessmentState::Unassessed, None);
+    }
     match doc.status(key) {
         None => (SearchAssessmentState::Unassessed, None),
         Some(Status::Complete) => (SearchAssessmentState::Assessed, None),
@@ -388,16 +394,20 @@ pub fn union_span_chars(view_text: &str, spans: &[Span]) -> i64 {
     chars
 }
 
-pub(crate) fn project_quality(doc: &Document) -> Result<SearchQualitySummary, Failure> {
+/// The quality figures of the document. Each is measured on a view's
+/// text (character ratios, readability, damaged characters), so a layer
+/// the disclosure holds back is left out like any other.
+pub(crate) fn project_quality(cx: &SearchProjCx<'_>) -> Result<SearchQualitySummary, Failure> {
+    let doc = cx.doc;
     let noise_key = Key::<Noise>::DEFAULT.id();
     let art_key = Key::<Artifacts>::DEFAULT.id();
     let tq_key = Key::<TextQuality>::DEFAULT.id();
 
-    let (noise_state, noise_error) = assessment_state_of(doc, noise_key);
-    let (artifacts_state, artifacts_error) = assessment_state_of(doc, art_key);
-    let (text_quality_state, _) = assessment_state_of(doc, tq_key);
+    let (noise_state, noise_error) = assessment_state_of(cx, noise_key);
+    let (artifacts_state, artifacts_error) = assessment_state_of(cx, art_key);
+    let (text_quality_state, _) = assessment_state_of(cx, tq_key);
 
-    let (worst_noise_score, union_noise_chars) = match doc.get::<Noise>() {
+    let (worst_noise_score, union_noise_chars) = match cx.kept::<Noise>() {
         Some(n) => {
             let mut worst = 0.0f64;
             let mut spans = Vec::with_capacity(n.len());
@@ -414,8 +424,8 @@ pub(crate) fn project_quality(doc: &Document) -> Result<SearchQualitySummary, Fa
         None => (0.0, 0),
     };
 
-    let artifact_count = doc.get::<Artifacts>().map_or(0, |a| a.len() as i64);
-    let metrics = doc.get::<TextQuality>().map(|tq| quality_metrics_proto(tq.metrics));
+    let artifact_count = cx.kept::<Artifacts>().map_or(0, |a| a.len() as i64);
+    let metrics = cx.kept::<TextQuality>().map(|tq| quality_metrics_proto(tq.metrics));
 
     Ok(SearchQualitySummary {
         noise_state: noise_state as i32,

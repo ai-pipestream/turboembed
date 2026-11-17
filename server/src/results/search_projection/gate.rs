@@ -2,7 +2,11 @@
 //! document holds PII and only a rewrite view's text may leave, a term,
 //! an entity name or a value column made from another view carries that
 //! view's words, so the projection reads a layer only when its whole
-//! lineage may leave ([`disclosure::withheld_layers`]).
+//! lineage may leave ([`disclosure::withheld_layers`]). A figure that is
+//! not text is held to the same rule: a sentence or chunk row, a token
+//! count, a cut reason, a boilerplate mark and a noise, artifact or text
+//! quality figure each describe the text they were measured on, and tell
+//! two values apart that the rewrite made alike.
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
@@ -10,11 +14,12 @@ use std::collections::{HashMap, HashSet};
 use turbo_analysis::{Document, Key, KeyId, Layer, View, ViewId};
 use turbo_analysis_layers::{
     Aspects, Boilerplate, Categories, Chunks, Containment, Dependencies, DocumentDate, Entities, Lemmas, Modality,
-    Money, Pii, Quantities, Sentences, Stems, Temporals, Times, TokenGraph, Tokens,
+    Money, Pii, Quantities, Sentences, Stems, Temporals, TextQuality, Times, TokenGraph, Tokens,
 };
 use turbo_entity_linker::LinkedEntities;
 use turbo_geo::Locations;
 use turbo_group::Sketches;
+use turbo_normalize_layers::{Artifacts, Noise};
 
 use crate::results::disclosure::{self, Disclosure};
 
@@ -62,6 +67,9 @@ impl Gate {
         own::<Boilerplate<Chunks>>(doc, &mut views);
         own::<Sketches<View>>(doc, &mut views);
         own::<Sketches<Chunks>>(doc, &mut views);
+        own::<Noise>(doc, &mut views);
+        own::<Artifacts>(doc, &mut views);
+        own::<TextQuality>(doc, &mut views);
         Gate(Some(disclosure::withheld_layers(doc, disclosure, &views)))
     }
 

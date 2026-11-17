@@ -21,7 +21,7 @@ use std::any::TypeId;
 use std::collections::HashMap;
 
 use turbo_analysis::export::{DocumentGraph, export, import};
-use turbo_analysis::{Document, Execution, Ix, Key, Layer, Provenance, Span, View, ViewId};
+use turbo_analysis::{Document, Execution, Ix, Key, KeyId, Layer, Provenance, Span, View, ViewId};
 use turbo_analysis_layers::{Boilerplate, Chunks, Lemmas, Sentences, Stems, TokenGraph, Tokens};
 use turbo_group::Sketches;
 
@@ -87,6 +87,11 @@ impl<'a> SearchProjCx<'a> {
     /// The layer under `key`, unless the disclosure holds its data back.
     pub(crate) fn kept_key<L: Layer>(&self, key: &Key<L>) -> Option<&'a L> {
         self.doc.get_key(key).filter(|_| self.gate.keeps(key.id()))
+    }
+
+    /// Whether the data of the layer `key` may leave.
+    pub(crate) fn keeps(&self, key: KeyId) -> bool {
+        self.gate.keeps(key)
     }
 
     /// The default instance of `L`, unless the disclosure holds it back.
@@ -215,7 +220,7 @@ pub fn document_to_search_projection_bound(
     let numeric_temporal = columns::project_numeric_temporal(&cx)?;
     let geo_locations = columns::project_geo(&cx)?;
     let categories_sentiment = columns::project_categories_sentiment(&cx)?;
-    let quality = columns::project_quality(doc)?;
+    let quality = columns::project_quality(&cx)?;
     let entities = entities::project_entities(&cx)?;
     let document_sketch = cx.kept::<Sketches<View>>().and_then(|s| sketch_row(s, 0));
 
@@ -249,10 +254,10 @@ pub fn document_to_search_projection_bound(
 }
 
 fn project_sentences(cx: &SearchProjCx<'_>) -> Result<Vec<SearchSentenceRow>, Failure> {
-    let Some(sents) = cx.doc.get::<Sentences>() else {
+    let Some(sents) = cx.kept::<Sentences>() else {
         return Ok(Vec::new());
     };
-    let bp = cx.doc.get::<Boilerplate<Sentences>>();
+    let bp = cx.kept::<Boilerplate<Sentences>>();
     let mut rows = Vec::with_capacity(sents.len());
     let mut prev_end = 0u32;
     for i in 0..sents.len() {
@@ -277,10 +282,10 @@ fn project_sentences(cx: &SearchProjCx<'_>) -> Result<Vec<SearchSentenceRow>, Fa
 }
 
 fn project_chunks(cx: &SearchProjCx<'_>) -> Result<Vec<SearchChunkRow>, Failure> {
-    let Some(chunks) = cx.doc.get::<Chunks>() else {
+    let Some(chunks) = cx.kept::<Chunks>() else {
         return Ok(Vec::new());
     };
-    let bp = cx.doc.get::<Boilerplate<Chunks>>();
+    let bp = cx.kept::<Boilerplate<Chunks>>();
     let sketches = cx.kept::<Sketches<Chunks>>();
     let mut rows = Vec::with_capacity(chunks.len());
     for i in 0..chunks.len() {
