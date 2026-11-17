@@ -230,6 +230,7 @@ pub struct QuantizedSparseTerms {
 
 impl QuantizedSparseTerms {
     /// Builds a validated [`QuantizedSparseTerms`] from decoded wire columns.
+    /// The term ids must rise strictly, as the quantizer writes them.
     #[allow(clippy::too_many_arguments)]
     pub fn from_raw_parts(
         impacts: Vec<(u32, u16)>,
@@ -253,8 +254,17 @@ impl QuantizedSparseTerms {
                 format!("term_key length {} does not match impacts length {}", term_keys.len(), impacts.len()),
             ));
         }
-        if impacts.windows(2).any(|w| w[0].0 >= w[1].0) {
-            return Err(CoreError::new(INVALID_ARGUMENT, "impacts must be sorted by strictly increasing vocab_id"));
+        // `dot_int` and `dot_float` are merge joins over the term ids.
+        if let Some(k) = impacts.windows(2).position(|w| w[0].0 >= w[1].0) {
+            return Err(CoreError::new(
+                INVALID_ARGUMENT,
+                format!(
+                    "impact[{}] (term {}) does not follow term {}: term ids must rise strictly",
+                    k + 1,
+                    impacts[k + 1].0,
+                    impacts[k].0
+                ),
+            ));
         }
         if term_keys.iter().any(String::is_empty) {
             return Err(CoreError::new(INVALID_ARGUMENT, "term_key: every entry must be non-empty"));
