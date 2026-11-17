@@ -9,9 +9,17 @@
 use prost::Message;
 use turbo_analysis::{Analyzer, Document, ViewId, ViewTextDigest};
 use turbo_kserve::offsets::OffsetMode;
-use turbo_kserve::proto::result::{InspectDocumentGraphRequest, TypedDocumentResult, mapping_payload};
+use turbo_kserve::proto::result::analyze_progressive_event::Event;
+use turbo_kserve::proto::result::{
+    AnalyzeProgressiveEvent, InspectDocumentGraphRequest, ProcessingReceipt, ProcessingStatus, TypedDocumentResult,
+    mapping_payload,
+};
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
 use turbo_kserve::results::document::{codecs, export_document_response};
+use turbo_kserve::results::receipt::check::check_receipt_shape;
+use turbo_kserve::results::receipt::stream::{Incomplete, terminal_receipt};
+use turbo_kserve::results::receipt::{self, Operation};
+use turbo_kserve::results::typed::identity::{input_identity_with, result_identity};
 use turbo_kserve::results::typed::scoped::{resolve, scoped_ref};
 use turbo_kserve::results::typed::{
     document_to_typed_with, inspect_document_graph_under, round_trip_typed_document, validate_typed_document,
@@ -251,7 +259,10 @@ fn the_validator_refuses_a_digest_of_withheld_text() {
             },
             &typed,
         );
-        assert!(why.contains("withh"), "{why}");
+        // Refused as a text withheld beside its digests, or, on the masked
+        // view that shows its own text, as an identity only half there.
+        let want = if typed.withheld_text_len.is_some() { "withholds its text" } else { "provenance_digest" };
+        assert!(why.contains(want), "{why}");
         let why = refused(
             &|m| {
                 m.input.as_mut().unwrap().source_text_digest = full.input.as_ref().unwrap().source_text_digest.clone();
@@ -292,6 +303,33 @@ fn the_validator_refuses_a_digest_of_withheld_text() {
         );
         assert!(why.contains("source_text_digest"), "{why}");
     }
+    // Only a PII rewrite view keeps its text digest beside a withheld source.
+    let typed = projected(&doc, MASKED, &REWRITTEN);
+    let why = refused(&|m| m.views[1].annotator = "test:plain".into(), &typed);
+    assert!(why.contains("no PII rewrite view"), "{why}");
+    // Withholding is for a document holding PII: a result with no
+    // turbo:pii layer cannot leave its digests out.
+    let plain = Document::new("nothing to find here".to_owned());
+    let bare = projected(&plain, ViewId::SOURCE, &Disclosure::FINDINGS);
+    let why = refused(
+        &|m| {
+            m.input.as_mut().unwrap().raw_bytes_digest.clear();
+            m.input.as_mut().unwrap().source_text_digest.clear();
+            let result = m.result.as_mut().unwrap();
+            (result.result_id.clear(), result.content_digest.clear(), result.graph_bytes_len = 0);
+            for p in &mut m.provenance {
+                (p.provenance_digest.clear(), p.content_digest = None, p.input_snapshot_digest = None);
+            }
+            let Some(mapping_payload::Payload::Inline(mapping)) = &mut m.mapping.as_mut().unwrap().payload else {
+                panic!("a mapping")
+            };
+            mapping.views[0].text_digest.clear();
+            receipt_too(m);
+            m.receipt.as_mut().unwrap().layers.iter_mut().for_each(|l| l.provenance_digest = None);
+        },
+        &bare,
+    );
+    assert!(why.contains("no turbo:pii layer"), "{why}");
     // An answer that shows the source cannot leave its digests out.
     let shown = projected(&doc, ViewId::SOURCE, &Disclosure::FULL);
     let bare = projected(&doc, ViewId::SOURCE, &Disclosure::FINDINGS);
@@ -320,4 +358,36 @@ fn a_masked_answer_gives_and_resolves_no_scoped_reference() {
     made.result_id.clear();
     made.view_text_digest.clear();
     assert!(resolve(&typed, &made).unwrap_err().message.contains("no result identity"));
+}
+
+/// The receipt of a run cancelled before its PII step wrote a layer: the
+/// pipeline planned findings, so the receipt names the input by length
+/// alone. It is whole and terminal, and half an identity is not.
+#[test]
+fn a_cancelled_receipt_that_withholds_its_input_is_whole() {
+    let doc = Document::new(EMAIL.to_owned());
+    let op = Operation { cancelled: true, ..Operation::start("k") };
+    let r = receipt::build(&op, &doc, input_identity_with(&doc, None, false), None, &[]);
+    let input = r.input.as_ref().unwrap();
+    assert!(input.source_text_digest.is_empty() && input.raw_bytes_digest.is_empty(), "{input:?}");
+    assert!(r.layers.iter().all(|l| l.provenance_digest.is_none()), "{:?}", r.layers);
+    let digest = ViewTextDigest::of_text(EMAIL);
+    assert!(!holds(&r.encode_to_vec(), digest.as_bytes()), "the receipt carries the SHA-256 of the source");
+    assert_eq!(check_receipt_shape(&r).unwrap(), ProcessingStatus::Cancelled);
+    let stream =
+        |r: &ProcessingReceipt| vec![AnalyzeProgressiveEvent { sequence: 1, event: Some(Event::Receipt(r.clone())) }];
+    assert_eq!(terminal_receipt(&stream(&r), "k", EMAIL).unwrap().status, ProcessingStatus::Cancelled as i32);
+    assert_eq!(terminal_receipt(&stream(&r), "k", "another length").unwrap_err(), Incomplete::OtherInput);
+
+    let mut half = r.clone();
+    half.input.as_mut().unwrap().source_text_digest = digest.as_bytes().to_vec();
+    assert!(check_receipt_shape(&half).unwrap_err().message.contains("input digests"));
+    let mut layer = r.clone();
+    layer.layers[0].provenance_digest = Some(vec![7; 32]);
+    assert!(check_receipt_shape(&layer).unwrap_err().message.contains("provenance_digest"));
+    // A receipt names its input and its result by digest together.
+    let mut complete = receipt::build(&Operation::start("k"), &doc, input_identity_with(&doc, None, false), None, &[]);
+    complete.result = Some(result_identity(&graph_bytes(&doc)));
+    assert!(check_receipt_shape(&complete).unwrap_err().message.contains("without the other"));
+    assert_eq!(terminal_receipt(&stream(&complete), "k", EMAIL).unwrap_err(), Incomplete::Malformed);
 }

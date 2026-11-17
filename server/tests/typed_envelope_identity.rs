@@ -57,8 +57,8 @@ fn input_and_view_digests_are_the_sha256_of_the_exact_bytes() {
     assert_eq!(ViewTextDigest::of_text(TEXT).to_hex(), TEXT_SHA256);
 
     let chain = turbo_kserve::results::typed::chain::WireChain::from_payload(typed.mapping.as_ref()).unwrap();
-    assert_eq!(hex(&chain.view(ViewId::SOURCE).unwrap().text_digest), TEXT_SHA256);
-    assert_eq!(hex(&chain.view(ViewId(1)).unwrap().text_digest), PLAIN_SHA256);
+    assert_eq!(hex(&chain.view(ViewId::SOURCE).unwrap().text_digest.unwrap()), TEXT_SHA256);
+    assert_eq!(hex(&chain.view(ViewId(1)).unwrap().text_digest.unwrap()), PLAIN_SHA256);
     assert_eq!(chain.view(ViewId(1)).unwrap().instance, "plain");
 }
 

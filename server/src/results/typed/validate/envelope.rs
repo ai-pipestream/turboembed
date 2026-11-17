@@ -4,6 +4,13 @@
 //! model reference resolves, the inline mapping rebuilds as a view tree
 //! whose target view is the one `raw_text` is in, and every layer's
 //! native view is in that tree.
+//!
+//! A result that withholds the source of a document holding PII carries
+//! no digest of it (#2403): the input digests, the result's digest, id
+//! and length, every provenance entry's digests and the source view's
+//! text digest are absent together, and a view keeps its text digest
+//! only when it is a PII rewrite view. A result that withholds its text
+//! and carries those digests, or shows its text without them, is refused.
 
 use std::collections::HashSet;
 
@@ -13,7 +20,10 @@ use super::super::chain::WireChain;
 use super::super::identity::{ENVELOPE_SCHEMA_VERSION, check_binding, verify_view_text};
 use super::bad;
 use crate::api::Failure;
-use crate::proto::result::{InputIdentity, LayerWireStatus, OffsetMode, ResultIdentity, TypedDocumentResult};
+use crate::proto::result::{
+    InputIdentity, LayerProvenance, LayerWireStatus, OffsetMode, ResultIdentity, TypedDocumentResult,
+};
+use crate::results::disclosure::REWRITE_ANNOTATOR_PREFIX;
 
 fn check_digest(what: &str, digest: &[u8]) -> Result<(), Failure> {
     if digest.len() != 32 {
@@ -22,23 +32,38 @@ fn check_digest(what: &str, digest: &[u8]) -> Result<(), Failure> {
     Ok(())
 }
 
-fn check_input(input: Option<&InputIdentity>) -> Result<(), Failure> {
+/// The input identity is whole: both digests, or neither when the source
+/// is withheld. Returns whether it is withheld.
+fn check_input(input: Option<&InputIdentity>) -> Result<bool, Failure> {
     let Some(input) = input else {
         return Err(bad("the typed document carries no input identity"));
     };
+    check_binding(input.binding.as_ref(), "input.binding")?;
+    if input.raw_bytes_digest.is_empty() != input.source_text_digest.is_empty() {
+        return Err(bad("input carries one of raw_bytes_digest and source_text_digest without the other"));
+    }
+    if input.source_text_digest.is_empty() {
+        return Ok(true);
+    }
     check_digest("input.raw_bytes_digest", &input.raw_bytes_digest)?;
     check_digest("input.source_text_digest", &input.source_text_digest)?;
-    check_binding(input.binding.as_ref(), "input.binding")
+    Ok(false)
 }
 
-fn check_result(result: Option<&ResultIdentity>) -> Result<(), Failure> {
+fn check_result(result: Option<&ResultIdentity>, withheld: bool) -> Result<(), Failure> {
     let Some(result) = result else {
         return Err(bad("the typed document carries no result identity"));
     };
-    check_digest("result.content_digest", &result.content_digest)?;
-    let hex: String = result.content_digest.iter().map(|b| format!("{b:02x}")).collect();
-    if result.result_id != hex {
-        return Err(bad("result.result_id is not the hexadecimal of result.content_digest"));
+    if withheld {
+        if !result.content_digest.is_empty() || !result.result_id.is_empty() || result.graph_bytes_len != 0 {
+            return Err(bad("result names a graph by id, digest or length and the input digests are withheld"));
+        }
+    } else {
+        check_digest("result.content_digest", &result.content_digest)?;
+        let hex: String = result.content_digest.iter().map(|b| format!("{b:02x}")).collect();
+        if result.result_id != hex {
+            return Err(bad("result.result_id is not the hexadecimal of result.content_digest"));
+        }
     }
     if result.envelope_schema_version != ENVELOPE_SCHEMA_VERSION {
         return Err(bad(format!(
@@ -55,11 +80,76 @@ fn check_result(result: Option<&ResultIdentity>) -> Result<(), Failure> {
     Ok(())
 }
 
+/// The three digests of provenance entry `i`: whole, or all absent when
+/// the source is withheld, since each chains the source text digest.
+fn check_provenance_digests(i: usize, p: &LayerProvenance, withheld: bool) -> Result<(), Failure> {
+    if withheld {
+        if !p.provenance_digest.is_empty() || p.content_digest.is_some() || p.input_snapshot_digest.is_some() {
+            return Err(bad(format!(
+                "provenance[{i}] carries a provenance_digest, content_digest or input_snapshot_digest and the \
+                 input digests are withheld"
+            )));
+        }
+        return Ok(());
+    }
+    check_digest(&format!("provenance[{i}].provenance_digest"), &p.provenance_digest)?;
+    if let Some(d) = &p.content_digest {
+        check_digest(&format!("provenance[{i}].content_digest"), d)?;
+    }
+    if let Some(d) = &p.input_snapshot_digest {
+        check_digest(&format!("provenance[{i}].input_snapshot_digest"), d)?;
+    }
+    Ok(())
+}
+
+/// The view text digests of `chain` agree with the input identity. With
+/// the source disclosed every view has one and the source view's is the
+/// input's. With it withheld the message is of a document holding PII,
+/// the source view has none, and a view that has one is a PII rewrite
+/// view, the only text that leaves without the source (#1904).
+fn check_view_digests(msg: &TypedDocumentResult, chain: &WireChain, withheld: bool) -> Result<(), Failure> {
+    let input = msg.input.as_ref().expect("checked by the caller");
+    let source = &chain.views()[0];
+    if !withheld {
+        if let Some(v) = chain.views().iter().find(|v| v.text_digest.is_none()) {
+            return Err(bad(format!("mapping view {} carries no text_digest", v.id.0)));
+        }
+        if source.text_digest.map(|d| d.to_vec()) != Some(input.source_text_digest.clone()) {
+            return Err(bad("input.source_text_digest is not the mapping's source view text_digest"));
+        }
+        return Ok(());
+    }
+    if !msg.layers.iter().any(|l| l.id == <turbo_analysis_layers::Pii as turbo_analysis::Layer>::ID) {
+        return Err(bad("the input digests are withheld and the typed document lists no turbo:pii layer"));
+    }
+    if source.text_digest.is_some() {
+        return Err(bad("the mapping's source view carries a text_digest and the input digests are withheld"));
+    }
+    for v in chain.views().iter().filter(|v| v.text_digest.is_some()) {
+        let rewrite = msg
+            .views
+            .iter()
+            .any(|info| info.instance == v.instance && info.annotator.starts_with(REWRITE_ANNOTATOR_PREFIX));
+        if !rewrite {
+            return Err(bad(format!(
+                "mapping view {} carries a text_digest, the input digests are withheld and it is no PII rewrite view",
+                v.id.0
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Validates the envelope of `msg` against its own views, layers and
 /// model table, and returns the rebuilt view chain for the span checks.
 pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSet<&str>) -> Result<WireChain, Failure> {
-    check_input(msg.input.as_ref())?;
-    check_result(msg.result.as_ref())?;
+    let withheld = check_input(msg.input.as_ref())?;
+    // A text that is withheld is the text of a document whose graph may
+    // not leave, so no digest of its source leaves either (#2403).
+    if msg.withheld_text_len.is_some() && !withheld {
+        return Err(bad("the typed document withholds its text and carries the digests of its source"));
+    }
+    check_result(msg.result.as_ref(), withheld)?;
 
     let mut seen: HashSet<(&str, &str)> = HashSet::with_capacity(msg.provenance.len());
     for (i, p) in msg.provenance.iter().enumerate() {
@@ -72,13 +162,7 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
         if !p.model_ref.is_empty() && !known_models.contains(p.model_ref.as_str()) {
             return Err(bad(format!("provenance[{i}] references unknown model_ref {:?}", p.model_ref)));
         }
-        check_digest(&format!("provenance[{i}].provenance_digest"), &p.provenance_digest)?;
-        if let Some(d) = &p.content_digest {
-            check_digest(&format!("provenance[{i}].content_digest"), d)?;
-        }
-        if let Some(d) = &p.input_snapshot_digest {
-            check_digest(&format!("provenance[{i}].input_snapshot_digest"), d)?;
-        }
+        check_provenance_digests(i, p, withheld)?;
     }
     for v in &msg.views {
         if !seen.contains(&("turbo:view", v.instance.as_str())) {
@@ -132,9 +216,7 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
             input.source_text_len, source.text_len
         )));
     }
-    if input.source_text_digest != source.text_digest {
-        return Err(bad("input.source_text_digest is not the mapping's source view text_digest"));
-    }
+    check_view_digests(msg, &chain, withheld)?;
     let view_u16 = u16::try_from(msg.view).map_err(|_| bad(format!("view {} exceeds u16::MAX", msg.view)))?;
     let target = chain.view(turbo_analysis::ViewId(view_u16))?;
     // A text withheld for PII (#1904) cannot be checked against its digest;
@@ -157,7 +239,10 @@ pub(super) fn validate_envelope(msg: &TypedDocumentResult, known_models: &HashSe
                     target.text_len
                 )));
             }
-            verify_view_text(&format!("mapping view {} text_digest", msg.view), &target.text_digest, &msg.raw_text)?;
+            let Some(digest) = &target.text_digest else {
+                return Err(bad(format!("raw_text is shown and mapping view {} carries no text_digest", msg.view)));
+            };
+            verify_view_text(&format!("mapping view {} text_digest", msg.view), digest, &msg.raw_text)?;
         }
     }
     for l in &msg.layers {

@@ -8,7 +8,7 @@ use std::any::TypeId;
 
 use turbo_analysis::Document;
 use turbo_analysis::export::{DocumentGraph, import};
-use turbo_analysis::{Ix, Key, Layer};
+use turbo_analysis::{Ix, Key, Layer, ViewId};
 use turbo_analysis_layers::{Pii, PiiEdits, PiiKind, Sensitive};
 
 use super::caps::{Form, Forms, Grant, effective};
@@ -77,6 +77,13 @@ impl Planned {
     }
 }
 
+/// What [`project`] gives: the answer with every value withheld, the
+/// mentions that receive one, and, with a plan, the SHA-256 of the source
+/// text those mentions index into, for the audit record. The answer
+/// itself names its input by length alone unless it may carry the source
+/// (#2403).
+pub type Projected = (TypedDocumentResult, Vec<Planned>, Option<[u8; 32]>);
+
 /// The answer to `req` with every value withheld, and the mentions whose
 /// value `asked` may release under `policy`, the release ceilings of
 /// `redaction` and `grant`. `req` asks for values withheld; its other
@@ -91,12 +98,12 @@ pub fn project(
     grant: &Grant,
     redaction: Option<&RedactionPolicy>,
     require_recorded: bool,
-) -> Result<(TypedDocumentResult, Vec<Planned>), Failure> {
+) -> Result<Projected, Failure> {
     let mut typed = inspect_document_graph_under(req, policy)?;
     let mut plan = Vec::new();
     let has_pii = typed.layers.iter().any(|l| l.id == Pii::ID);
     if !has_pii && redaction.is_none() && !require_recorded {
-        return Ok((typed, plan));
+        return Ok((typed, plan, None));
     }
     // The projection imported the same bytes and accepted them.
     let bad = |e: String| Failure::new(TURBO_E_INVALID_ARGUMENT, 0, e);
@@ -108,8 +115,9 @@ pub fn project(
         None => {}
     }
     if !has_pii {
-        return Ok((typed, plan));
+        return Ok((typed, plan, None));
     }
+    let source_digest = *doc.text_digest(ViewId::SOURCE).as_bytes();
     let covers = covers(&doc)?;
     let layers: Vec<(usize, String, usize)> = typed
         .layers
@@ -166,7 +174,7 @@ pub fn project(
             });
         }
     }
-    Ok((typed, plan))
+    Ok((typed, plan, Some(source_digest)))
 }
 
 /// Each default pii mention's covering edit of a named redaction policy,

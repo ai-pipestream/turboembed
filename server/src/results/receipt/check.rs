@@ -1,7 +1,8 @@
 //! The receipt's own consistency (issue #1908), shared by the envelope
 //! validator and the stream check: the schema version, operation key,
 //! attempt id, status, config digest and input identity are present and
-//! well formed; every layer entry is named once, its status, ranges,
+//! well formed (the input digests both there or both withheld, #2403);
+//! every layer entry is named once, its status, ranges,
 //! truncations and error agree; the item counts sum; and the document
 //! status is the one the layers and steps give, CANCELLED being its own
 //! evidence. Binding to a particular envelope or stream is the caller's.
@@ -100,8 +101,18 @@ pub fn check_receipt_shape(r: &ProcessingReceipt) -> Result<ProcessingStatus, Fa
     let Some(input) = &r.input else {
         return Err(bad("the receipt names no input"));
     };
-    if input.raw_bytes_digest.len() != 32 || input.source_text_digest.len() != 32 {
+    // Both digests, or neither when the answer withholds the source
+    // (#2403); then no layer names a provenance digest, which chains the
+    // source text digest, and a result names no graph.
+    let withheld = input.raw_bytes_digest.is_empty() && input.source_text_digest.is_empty();
+    if !withheld && (input.raw_bytes_digest.len() != 32 || input.source_text_digest.len() != 32) {
         return Err(bad("the receipt's input digests are not 32 bytes"));
+    }
+    if withheld && r.layers.iter().any(|l| l.provenance_digest.is_some()) {
+        return Err(bad("the receipt withholds its input digests and a layer carries a provenance_digest"));
+    }
+    if r.result.as_ref().is_some_and(|res| res.content_digest.is_empty() != withheld) {
+        return Err(bad("the receipt carries one of the input and result digests without the other"));
     }
     crate::results::typed::identity::check_binding(input.binding.as_ref(), "receipt.input.binding")?;
     if status == ProcessingStatus::Cancelled && r.result.is_some() {

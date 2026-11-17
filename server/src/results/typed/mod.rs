@@ -327,7 +327,9 @@ fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
 /// `binding` of the input copied into the result's input identity and its
 /// `operation_key` on the receipt of this attempt (issue #1908). The document is exported through
 /// the server's codecs for its result identity: the content digest is of
-/// those TGRF bytes, and a document a codec refuses is refused here.
+/// those TGRF bytes, and a document a codec refuses is refused here. When
+/// the graph may not leave, the envelope and the receipt carry no digest
+/// of the source, of the graph or of a withheld view (#2403).
 pub fn document_to_typed_bound(
     doc_id: &str,
     doc: &Document,
@@ -398,9 +400,12 @@ pub fn document_to_typed_bound(
     }
     let graph = export(doc, codecs()).map_err(|e| bad(format!("document graph export: {e}")))?;
     let graph_bytes = graph.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
-    let provenance = identity::layer_provenances(&mut cx, &graph);
-    let mapping = Some(MappingPayload { payload: Some(mapping_payload::Payload::Inline(chain::inline_mapping(doc)?)) });
-    let (input, result) = (identity::input_identity(doc, binding), identity::result_identity(&graph_bytes));
+    // A digest leaves only with the text it is a digest of (#2403).
+    let provenance = identity::layer_provenances(&mut cx, &graph, disclosure.graph(doc));
+    let inline = chain::inline_mapping(doc, disclosure)?;
+    let mapping = Some(MappingPayload { payload: Some(mapping_payload::Payload::Inline(inline)) });
+    let input = identity::disclosed_input(doc, binding, disclosure);
+    let result = identity::disclosed_result(doc, &graph_bytes, disclosure);
     let receipt = receipt::build(&Operation::start(operation_key), doc, input.clone(), Some(result.clone()), &[]);
 
     let typed = TypedDocumentResult {
