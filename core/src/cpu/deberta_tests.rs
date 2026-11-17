@@ -137,7 +137,7 @@ fn run_taps(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_
         output_dim: HIDDEN as u32,
         head: 0,
         taps,
-        reserved: 0,
+        tap_alone: 0,
     };
     let rc = if ranges.is_empty() {
         unsafe { (BACKEND.embed_write.unwrap())(s, &rows, &mut err) }

@@ -181,7 +181,7 @@ fn embed_rows(batch: u32, seq: u32, pooling: u32) -> turbo_backend_embed_rows {
         output_dim: 2,
         head: 0,
         taps: 0,
-        reserved: 0,
+        tap_alone: 0,
     }
 }
 

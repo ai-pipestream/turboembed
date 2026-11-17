@@ -273,3 +273,35 @@ fn quantized_impacts_and_error_certificates_round_trip_and_refuse_corruptions() 
         assert!(SparseTermsWire::from_msg(&bad).err().unwrap().message.contains("impact_dot_error_bound"));
     }
 }
+
+/// A wire message whose impacts fall or repeat in term id is refused. The
+/// layer check holds the order inside one unit only, so two units of one
+/// term each carried such a list to the merge-join dot products (`#2343`).
+#[test]
+fn impacts_out_of_term_order_or_repeated_are_refused_on_the_wire() {
+    let q = ImpactQuantizer::new(ImpactBits::U8, 3.0).unwrap().with_doc_pruning(2, 0.1).unwrap();
+    let wire = SparseTermsWire::quantize_doc(&single_unit_sample(), "", OffsetMode::Utf8, &q, None).unwrap();
+    let mut msg = wire.to_msg();
+    assert_eq!(msg.term, [3, 9]);
+    (msg.has_span, msg.span_start, msg.span_end) = (Vec::new(), Vec::new(), Vec::new());
+    (msg.occ_start, msg.occ_end, msg.occ_at) = (Vec::new(), Vec::new(), Vec::new());
+    assert!(SparseTermsWire::from_msg(&msg).is_ok());
+
+    let mut falling = msg.clone();
+    falling.row = vec![0, 1, 2];
+    falling.term.swap(0, 1);
+    falling.weight.swap(0, 1);
+    falling.impact.swap(0, 1);
+    let e = SparseTermsWire::from_msg(&falling).err().expect("falling term ids are refused");
+    assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+    assert!(e.message.contains("rise strictly"), "{e:?}");
+
+    let mut repeated = msg.clone();
+    repeated.row = vec![0, 1, 2];
+    repeated.term[1] = repeated.term[0];
+    repeated.weight[1] = repeated.weight[0];
+    repeated.impact[1] = repeated.impact[0];
+    let e = SparseTermsWire::from_msg(&repeated).err().expect("a repeated term id is refused");
+    assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+    assert!(e.message.contains("rise strictly"), "{e:?}");
+}

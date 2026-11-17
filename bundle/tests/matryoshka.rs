@@ -246,7 +246,7 @@ fn options(width: u32, prompt: u32) -> turbo_embed_options {
         quantization: 0,
         int8_ranges: std::ptr::null(),
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     }
 }
 

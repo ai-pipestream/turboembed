@@ -445,7 +445,8 @@ older than the runtime, it lists none and the runtime's log says why.
 - **Capability.** Embed is EXPERIMENTAL at every precision, honoring
   every field of `turbo_embed_options`; `layers` (field 9) reads the
   earlier layers of the BERT, RoBERTa, ModernBERT, nomic-bert and
-  DeBERTa-v2 encoders on a range write (Range pooling, below). MODEL and
+  DeBERTa-v2 encoders on a range write, and `layer_alone` (field 10)
+  one of them alone (Range pooling, below). MODEL and
   EXACT compute in F32
   with F32 FMAs. `TURBO_CUDA_TF32=1`, read when a session is made, puts
   MODEL's GEMMs on the tensor cores of sm_80 and newer instead: they
@@ -756,7 +757,16 @@ older than the runtime, it lists none and the runtime's log says why.
   plain range write, so it is that write's vectors bit for bit, and each
   block is within docs/conformance.md's bounds of the CPU's
   (`core/tests/ranges/layers.rs`). A run with `layers` 0 or 1 launches
-  the first graph, which is as it was: no kernel is added to it. The
+  the first graph, which is as it was: no kernel is added to it. With
+  `layer_alone` (field 10, whose bit the cell sets) the write asks for
+  the first of the T layers alone, and the run is the model cut after
+  that layer: graphs of the first L - T + 1 layers and the final
+  pooling, captured at the first write that asks for that depth and
+  kept until a write asks for another, which replaces them. Nothing
+  after that layer is launched, a ModernBERT's last add takes its
+  final norm there as it does at the model's end, and the vectors are
+  block 0 of the T-layer write bit for bit on the sealed test bundles
+  (`core/tests/ranges/alone.rs`). The
   device is a GPU, so `cpu_threads` (field 6 of `turbo_session_desc`) is 0 alone: any
   other value is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
 - **The span head.** The table sets `token_head`, so an extractive QA

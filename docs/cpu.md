@@ -83,6 +83,21 @@ naming field 9 on
 every device, checked before whether the device reads the earlier
 layers, so a request gets the same code wherever it runs.
 
+`turbo_embed_options.layer_alone` (field 10) with `layers` K above 1
+asks for the first of those K layers alone, layer L - K + 1 (#2000): a
+head trained on one lower layer reads no other. The run is then the
+model cut after that layer, read plainly: the BERT, RoBERTa and
+nomic-bert encoders stop after it, a ModernBERT applies its final_norm
+there, and a DeBERTa-v2 pass ends at its first tap. The rows are
+`[count, dim]`, block 0 of the K-layer write and the cut model's plain
+range write, bit for bit (`core/tests/ranges/alone.rs`), and count
+alone is held to `max_ranges`. The embed cell sets field 10's bit too
+(bit 9, so the cpu's cells read 0b1111111111); CUDA's sets it
+(docs/cuda.md) and the other backends leave it clear, where the write
+is `TURBO_E_UNSUPPORTED_OPTION` naming field 10. A caller that wants
+the layer wherever it runs falls back to the K-layer write and its
+first block, as `turbo_analysis_embed`'s `run_layer_alone` does.
+
 For a static model, a range's vector is the mean of the table rows of
 its live tokens, times their weights where the model has them: the sum
 a row's mean pooling makes, over the range's tokens alone, rounded and

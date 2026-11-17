@@ -12,7 +12,7 @@ fn zero() -> turbo_embed_options {
         quantization: 0,
         int8_ranges: std::ptr::null(),
         layers: 0,
-        reserved: 0,
+        layer_alone: 0,
     }
 }
 

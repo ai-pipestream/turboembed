@@ -185,6 +185,43 @@ effective `Locality` (see the incremental execution section), which
 multiple recognizers or views of the same Rust type to coexist in one
 `Document` without collision.
 
+### Critical-path DAG scheduler and bounded `WorkerPool` (`analysis/core/src/analyzer/dag.rs`, `pool.rs`)
+
+Alongside the deterministic stage inspection returned by `Analyzer::plan()`,
+`Analyzer::builder().build()` constructs a per-step dependency graph (`DagStep`,
+inspected via `Analyzer::dag_plan()`, `predecessors()`, `dependents()`, and
+`critical_path_order()`):
+
+- **Exact `predecessors` and `dependents` edges**: each step records the exact
+  upstream step indices producing its `Reads` inputs and the downstream step
+  indices unlocked upon its completion, ordered by descending critical-path
+  priority (`critical_path_cost`, `transitive_dependents`, and `cost_hint`).
+- **Linguistic dependency parsing on the critical path**: `DependencyAnnotator`
+  (`turbo-depparse:parser`, writing `turbo:dependencies`) declares an elevated
+  `Annotator::cost_hint` (`10`, overridable per step via `Bound::with_cost`),
+  so whenever relation, sentiment-target, clause-chunker, or modality annotators
+  depend on syntactic head-modifier arcs, `turbo-depparse` is scheduled ahead of
+  leaf siblings on the CPU critical path.
+- **Zero-barrier readiness on a bounded shared priority-ordered `WorkerPool`**:
+  the pool is opt-in. `Analyzer::run` on a pipeline built with
+  `Builder::worker_pool` or `Builder::workers`, `Analyzer::run_with_pool`
+  (with a caller-owned pool or the process-wide `WorkerPool::shared()`), and
+  `Analyzer::run_with_workers` dispatch ready steps onto persistent worker threads
+  with shared priority-ordered lanes (request-level FIFO fairness across
+  concurrent callers, critical-path priority within each request). Downstream
+  steps trigger as soon as their specific `predecessors` reach zero
+  (`remaining == 0`) without waiting at coarse stage barriers, while preserving
+  bit-identical layer outputs, `DocumentGraph` wire bytes, and per-document
+  failure/panic isolation across `1`, `2`, `4`, and `8` worker threads. Nested
+  `Analyzer::run` calls from inside a pool worker fall back to `run_staged` so
+  occupied workers never deadlock, and the threads a pipeline spawns for
+  side-by-side steps while a pool worker waits on it (`run_staged`,
+  `run_incremental`, `run_progressive`) count as that worker, so a pipeline
+  nested any number of levels deep stays off the pool. `Analyzer::run` on a
+  pipeline with no pool bound runs `Analyzer::run_staged`, the stage-barrier
+  `std::thread::scope` schedule with threads of its own per run, so concurrent
+  callers (a server's requests) are never limited to one pool's thread count.
+
 ### Content-addressed incremental DAG execution (`analysis/core/src/analyzer/incremental.rs`)
 
 `Analyzer::analyze_incremental` and `Analyzer::run_incremental` execute a

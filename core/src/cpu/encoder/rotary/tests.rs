@@ -124,7 +124,7 @@ impl Model {
             output_dim: H as u32,
             head: 0,
             taps: 0,
-            reserved: 0,
+            tap_alone: 0,
         };
         let mut first = Vec::new();
         for _ in 0..2 {

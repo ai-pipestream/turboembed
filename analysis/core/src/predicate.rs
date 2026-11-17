@@ -335,6 +335,12 @@ impl Step for ConditionalAnnotator {
         ConditionalAnnotator::config_hash(self)
     }
 
+    fn cost_hint(&self) -> u32 {
+        let t = self.when_true.cost_hint();
+        let f = self.when_false.as_ref().map_or(1, |wf| wf.cost_hint());
+        t.max(f).max(1)
+    }
+
     fn is_cacheable(&self) -> bool {
         !self.predicate_name.is_empty()
             && self.predicate_name != "default"

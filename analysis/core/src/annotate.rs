@@ -154,6 +154,13 @@ pub trait Annotator: Send + Sync + 'static {
     fn locality(&self) -> Locality {
         Locality::Document
     }
+
+    /// Relative execution cost hint (`>= 1`) used by [`Analyzer`](crate::Analyzer)'s
+    /// critical-path DAG scheduler to prioritize steps with heavy compute or
+    /// long downstream dependency chains.
+    fn cost_hint(&self) -> u32 {
+        1
+    }
 }
 
 /// An annotator bound to the layer instances it reads and writes: by
@@ -162,11 +169,12 @@ pub struct Bound<A: Annotator> {
     annotator: A,
     reads: Vec<&'static str>,
     writes: Vec<&'static str>,
+    cost_override: Option<u32>,
 }
 
 impl<A: Annotator> Bound<A> {
     pub fn new(annotator: A) -> Bound<A> {
-        Bound { annotator, reads: vec![""; A::Reads::N], writes: vec![""; A::Writes::N] }
+        Bound { annotator, reads: vec![""; A::Reads::N], writes: vec![""; A::Writes::N], cost_override: None }
     }
 
     /// Reads input `slot` from the instance called `name`.
@@ -179,6 +187,29 @@ impl<A: Annotator> Bound<A> {
     pub fn write(mut self, slot: usize, name: &'static str) -> Bound<A> {
         self.writes[slot] = name;
         self
+    }
+
+    /// Overrides the relative execution cost hint used by the critical-path
+    /// DAG scheduler for this bound step.
+    pub fn with_cost(mut self, cost: u32) -> Bound<A> {
+        self.cost_override = Some(cost.max(1));
+        self
+    }
+
+    pub(super) fn effective_cost_hint(&self) -> u32 {
+        if let Some(c) = self.cost_override {
+            return c.max(1);
+        }
+        let base = self.annotator.cost_hint().max(1);
+        if base > 1 {
+            return base;
+        }
+        if A::ID.starts_with("turbo-depparse")
+            || self.effective_writes().iter().any(|k| k.layer.id == "turbo:dependencies")
+        {
+            return 10;
+        }
+        base
     }
 
     pub(super) fn effective_reads(&self) -> (Vec<KeyId>, Vec<bool>) {

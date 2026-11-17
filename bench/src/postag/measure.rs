@@ -150,7 +150,6 @@ pub fn cmd(args: &[String]) -> Result<()> {
     let treebank_bytes = read(&treebank_path)?;
     let text = std::str::from_utf8(&treebank_bytes).map_err(|e| format!("{}: {e}", treebank_path.display()))?;
     let test = conllu(text);
-    let words: usize = test.iter().map(|s| s.words.len()).sum();
     if test.is_empty() {
         return Err(format!("{}: no sentence", treebank_path.display()));
     }
@@ -159,6 +158,11 @@ pub fn cmd(args: &[String]) -> Result<()> {
         BilstmPosTagger::with_numerics(m, n).map_err(|e| format!("{n:?}: {e}"))
     };
     let (packed, parity) = (load(Numerics::Packed)?, load(Numerics::JvmParity)?);
+    let file = treebank_path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_owned();
+    let words: usize = test.iter().map(|s| s.words.len()).sum();
+    let rt = Runtime::create()?;
+    let d = rt.cpu()?.ok_or("this build lists no CPU device")?;
+    let backend = field(&d.backend);
     let (accuracy, drift) = compare(&packed, &parity, &test)?;
     eprintln!(
         "{} sentences, {words} words: packed {} correct, parity {} correct, {} agree; max emission diff {:e}, max \
@@ -188,7 +192,9 @@ pub fn cmd(args: &[String]) -> Result<()> {
     for t in [&packed, &parity] {
         pass(t, &all[..all.len().min(64)], 32)?;
     }
+    let mut clock = crate::gpu_clock::Window::new(&backend, 1);
     let mut times: Vec<[Times; 2]> = configs.iter().map(|_| Default::default()).collect();
+    clock.before_timed();
     for round in 0..rounds {
         for ((n, lengths, set), t) in configs.iter().zip(&mut times) {
             // Packed, parity, parity, packed.
@@ -200,6 +206,7 @@ pub fn cmd(args: &[String]) -> Result<()> {
             eprintln!("round {} of {rounds}: {n} per call, lengths {lengths} done", round + 1);
         }
     }
+    clock.after_timed();
     let runs: Vec<PosRun> = configs
         .iter()
         .zip(times)
@@ -222,23 +229,20 @@ pub fn cmd(args: &[String]) -> Result<()> {
     if after != before {
         return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));
     }
-    let rt = Runtime::create()?;
-    let d = rt.cpu()?.ok_or("this build lists no CPU device")?;
-    let file = treebank_path.file_name().and_then(|f| f.to_str()).unwrap_or("").to_owned();
     let model_ref = packed.model().model_ref();
     let r = PosRecord {
         record_version: super::POS_RECORD_VERSION,
         recorded_at,
         machine: Machine { arch: field(&d.arch), host_cpu: field(&d.name), os: std::env::consts::OS.into() },
         device: Device {
-            backend: field(&d.backend),
+            backend,
             kind: crate::kind_name(d.kind).into(),
             name: field(&d.name),
             vendor: field(&d.vendor),
             driver_version: field(&d.driver_version),
             runtime_version: field(&d.runtime_version),
             memory_total: d.memory_total,
-            clock: None,
+            clock: clock.finish(),
         },
         library: Library {
             version: crate::api::version().split(' ').next().unwrap_or("").into(),
