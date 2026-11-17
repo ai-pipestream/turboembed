@@ -2,14 +2,17 @@
 //! alone carries no unkeyed digest of what it withholds (#2403). The
 //! SHA-256 of the source text, of the raw bytes or of the whole graph
 //! lets a reader recover a short value by hashing guesses, so each is
-//! left out with the text it is the digest of. The masked view's own
-//! digest, and every digest of an answer that may carry the source,
-//! are unchanged.
+//! left out with the text it is the digest of, and so is that text's
+//! length, which a rewrite that does not keep length would otherwise
+//! give away. The rewrite view's own digest and length, and every digest
+//! of an answer that may carry the source, are unchanged.
 
 use prost::Message;
 use turbo_analysis::{Analyzer, Document, ViewId, ViewTextDigest};
 use turbo_kserve::offsets::OffsetMode;
-use turbo_kserve::proto::result::{ProjectSearchDocumentRequest, SearchDocumentProjection};
+use turbo_kserve::proto::result::{
+    InputIdentity, ProjectSearchDocumentRequest, ResultIdentity, SearchDocumentProjection,
+};
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
 use turbo_kserve::results::document::codecs;
 use turbo_kserve::results::search_projection::{
@@ -17,11 +20,14 @@ use turbo_kserve::results::search_projection::{
     validate_search_projection,
 };
 use turbo_pii::PiiDetector;
-use turbo_pii::rewrite::MaskedView;
+use turbo_pii::rewrite::{MaskedView, RedactedView, RewritePolicy, StaticReplacer};
 
 const EMAIL: &str = "alice.planted@example.com";
 /// Another address of the same length and shape.
 const OTHER: &str = "carol.guessed@example.org";
+/// A longer address: a fixed replacement hides the difference.
+const LONGER: &str = "alice.planted.much.longer@example.com";
+/// The rewrite view of either fixture.
 const MASKED: ViewId = ViewId(1);
 const REWRITTEN: Disclosure = Disclosure { rewritten_text: true, full_text: false, detail: false };
 
@@ -29,6 +35,18 @@ const REWRITTEN: Disclosure = Disclosure { rewritten_text: true, full_text: fals
 fn masked(text: &str) -> Document {
     let analyzer =
         Analyzer::builder().add(PiiDetector::cursor()).step(MaskedView::by_kind('*').unwrap().bound()).build().unwrap();
+    let mut docs = vec![Document::new(text.to_owned())];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    docs.pop().unwrap()
+}
+
+/// A document that is only `text`, with its findings and a view where
+/// each finding is the fixed text `[E]`, whatever its length.
+fn redacted(text: &str) -> Document {
+    let step = RedactedView::new(RewritePolicy::new(StaticReplacer::new("[E]"))).bound();
+    let analyzer = Analyzer::builder().add(PiiDetector::cursor()).step(step).build().unwrap();
     let mut docs = vec![Document::new(text.to_owned())];
     for r in analyzer.run(&mut docs) {
         r.unwrap();
@@ -88,10 +106,12 @@ fn a_masked_answer_carries_no_digest_of_the_source() {
         let prov = p.provenance.as_ref().unwrap();
         let input = prov.input.as_ref().unwrap();
         assert!(input.raw_bytes_digest.is_empty() && input.source_text_digest.is_empty(), "{path}: {input:?}");
+        assert_eq!((input.raw_bytes_len, input.source_text_len), (0, 0), "{path}: the source's length left");
         let result = prov.result.as_ref().unwrap();
         assert!(result.content_digest.is_empty() && result.result_id.is_empty(), "{path}: {result:?}");
         let source = prov.views.iter().find(|v| v.view_id == 0).unwrap();
         assert!(source.text_sha256.is_empty(), "{path}: the source view's digest left");
+        assert_eq!(source.utf8_bytes, 0, "{path}: the source view's length left");
     }
 }
 
@@ -102,6 +122,17 @@ fn a_masked_answer_carries_no_digest_of_the_source() {
 fn two_values_of_one_shape_give_the_same_masked_answer() {
     let (a, b) = (masked(EMAIL), masked(OTHER));
     assert_eq!(a.text(MASKED), b.text(MASKED), "the fixture's two addresses mask alike");
+    assert_eq!(projected(&a, &REWRITTEN).encode_to_vec(), projected(&b, &REWRITTEN).encode_to_vec());
+    assert_eq!(handled(&a).encode_to_vec(), handled(&b).encode_to_vec());
+}
+
+/// The same with values of different lengths under a rewrite that does
+/// not keep length: the answer must not give the source's size either.
+#[test]
+fn two_values_of_different_lengths_give_the_same_redacted_answer() {
+    let (a, b) = (redacted(EMAIL), redacted(LONGER));
+    assert_ne!(EMAIL.len(), LONGER.len());
+    assert_eq!((a.text(MASKED), b.text(MASKED)), ("[E]", "[E]"), "the fixture redacts both to one text");
     assert_eq!(projected(&a, &REWRITTEN).encode_to_vec(), projected(&b, &REWRITTEN).encode_to_vec());
     assert_eq!(handled(&a).encode_to_vec(), handled(&b).encode_to_vec());
 }
@@ -153,4 +184,30 @@ fn a_masked_answer_round_trips_and_a_short_digest_is_still_refused() {
     let mut short = p;
     short.provenance.as_mut().unwrap().views[0].text_sha256 = vec![7; 5];
     assert!(round_trip_search_projection(&short).unwrap_err().message.contains("text_sha256"));
+}
+
+/// The validator holds an answer to all or nothing: a digest or a length
+/// of a withheld text never arrives beside the absent ones.
+#[test]
+fn a_half_withheld_identity_is_refused() {
+    let p = projected(&masked(EMAIL), &REWRITTEN);
+    let refused = |edit: &dyn Fn(&mut SearchDocumentProjection)| {
+        let mut m = p.clone();
+        edit(&mut m);
+        round_trip_search_projection(&m).unwrap_err().message
+    };
+    fn input(m: &mut SearchDocumentProjection) -> &mut InputIdentity {
+        m.provenance.as_mut().unwrap().input.as_mut().unwrap()
+    }
+    fn result(m: &mut SearchDocumentProjection) -> &mut ResultIdentity {
+        m.provenance.as_mut().unwrap().result.as_mut().unwrap()
+    }
+    assert!(refused(&|m| input(m).source_text_digest = vec![7; 32]).contains("without the other"));
+    assert!(refused(&|m| input(m).raw_bytes_digest = vec![7; 32]).contains("without the other"));
+    assert!(refused(&|m| input(m).source_text_len = 25).contains("length of a text"));
+    assert!(refused(&|m| input(m).raw_bytes_len = 25).contains("length of a text"));
+    assert!(refused(&|m| result(m).result_id = "ab".into()).contains("no content_digest"));
+    assert!(refused(&|m| result(m).graph_bytes_len = 9).contains("no content_digest"));
+    assert!(refused(&|m| result(m).content_digest = vec![7; 32]).contains("input and result digests"));
+    assert!(refused(&|m| m.provenance.as_mut().unwrap().views[0].utf8_bytes = 25).contains("no text_sha256"));
 }
