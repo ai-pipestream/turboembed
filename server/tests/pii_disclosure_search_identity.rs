@@ -7,7 +7,7 @@
 //! are unchanged.
 
 use prost::Message;
-use turbo_analysis::{Analyzer, Bound, Document, ViewId, ViewTextDigest};
+use turbo_analysis::{Analyzer, Document, ViewId, ViewTextDigest};
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{ProjectSearchDocumentRequest, SearchDocumentProjection};
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
