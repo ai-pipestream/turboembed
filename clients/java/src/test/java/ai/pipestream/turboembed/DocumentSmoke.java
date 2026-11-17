@@ -759,6 +759,7 @@ final class Conformance {
             TypedDocumentResult findings = inspect(stub, graph, view, FINDINGS_ONLY);
             check(findings.getRawText().isEmpty() && findings.hasWithheldTextLen(), "view " + view + " carries its text");
             check(count(findings.toByteArray(), value) == 0, "the findings-only view " + view + " holds the value");
+            noSourceDigest(findings, source, "the findings-only view " + view);
             TypedLayer found = layer(findings, "turbo:pii");
             check(found.getAnnotationsList().equals(layer(view == 0 ? source : masked, "turbo:pii").getAnnotationsList()),
                     "findings-only view " + view + " lists other mentions");
@@ -770,7 +771,31 @@ final class Conformance {
         TypedDocumentResult maskedOnly = inspect(stub, graph, 1, rewritten);
         check(maskedOnly.getRawText().equals(masked.getRawText()), "rewritten_text shows another masked text");
         check(count(maskedOnly.toByteArray(), value) == 0, "the rewritten view holds the value");
+        noSourceDigest(maskedOnly, source, "the rewritten view");
+        check(chainView(maskedOnly, 1).getTextDigest().equals(chainView(masked, 1).getTextDigest()),
+                "the rewritten view lost the digest of the text it shows");
         check(inspect(stub, graph, 0, rewritten).getRawText().isEmpty(), "rewritten_text shows the source text");
+    }
+
+    // An answer that withholds the source carries no unkeyed digest of it
+    // (#2403): a short value comes back by hashing guesses. `full` is the
+    // same result with full_text, whose digests are searched for in the
+    // bytes of `withheld`.
+    static void noSourceDigest(TypedDocumentResult withheld, TypedDocumentResult full, String name) {
+        check(withheld.getInput().getRawBytesDigest().isEmpty() && withheld.getInput().getSourceTextDigest().isEmpty(),
+                name + " carries an input digest");
+        check(withheld.getResult().getResultId().isEmpty() && withheld.getResult().getContentDigest().isEmpty()
+                && withheld.getResult().getGraphBytesLen() == 0, name + " names the graph");
+        check(chainView(withheld, 0).getTextDigest().isEmpty(), name + " carries the source view's text digest");
+        for (LayerProvenance p : withheld.getProvenanceList()) {
+            check(p.getProvenanceDigest().isEmpty() && !p.hasContentDigest() && !p.hasInputSnapshotDigest(),
+                    name + " carries a digest of layer " + p.getLayer());
+        }
+        byte[] bytes = withheld.toByteArray();
+        check(count(bytes, full.getInput().getSourceTextDigest().toByteArray()) == 0,
+                name + " holds the SHA-256 of the source text");
+        check(count(bytes, full.getResult().getContentDigest().toByteArray()) == 0
+                && count(bytes, utf8(full.getResult().getResultId())) == 0, name + " holds the SHA-256 of the graph");
     }
 
     /**

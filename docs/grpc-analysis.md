@@ -641,8 +641,39 @@ value is missing or has no form, is an empty clear value, a token that is
 not 32 bytes or names no key id and version, or a ciphertext that is
 empty, names no key id and version, or names a scheme other than
 `turbo-pii-aes-256-gcm-v1` (#1885).
-The result envelope (#1907) is kept: it carries digests and lengths of
-the texts and the edit chain's offsets, never a text.
+The result envelope (#1907) is kept with its lengths, versions and the
+edit chain's offsets, never a text, and without any digest of what the
+answer withholds (#2403). None of the envelope's digests is keyed, so
+each names its input to anyone who can guess it: the SHA-256 of a short
+source (an address, a phone number, an id) gives the value back by
+hashing candidates, and so does every digest that chains it. A digest
+therefore leaves only with the text it is a digest of. Without
+`full_text`, on a document holding PII:
+
+- `input.raw_bytes_digest` and `input.source_text_digest` are empty;
+  the two lengths and the caller's binding stay.
+- `result.result_id` and `result.content_digest` are empty and
+  `result.graph_bytes_len` is 0, because the graph bytes hold the source
+  text; the two versions stay.
+- every `provenance` entry is listed with its layer, instance, model
+  reference, codec schema and reads, and without `provenance_digest`,
+  `content_digest` and `input_snapshot_digest`: each chains the source
+  text digest. The receipt's layers carry no `provenance_digest` either;
+  its `config_digest`, which is over no text, stays.
+- a view in the mapping keeps its `text_digest` only when its text may
+  leave: the PII rewrite view under `rewritten_text`. The source view's
+  is always empty.
+
+So two documents that differ only in a masked value give byte-identical
+answers apart from the attempt id. A masked answer gives no `ScopedRef`,
+which names its result by the graph digest, and
+`RoundTripTypedDocument` refuses a result that withholds its text and
+carries these digests, one that shows its text without them, and one
+that carries only some of them. The progressive stream's terminal
+receipt follows the same rule, from the first event on for a pipeline
+that plans PII findings. A caller that needs the digests asks for
+`full_text`. `server/tests/pii_disclosure_graph_identity.rs` and
+`pii_disclosure_stream_identity.rs` hold a guess against every answer.
 
 `FormatDocument` of such a document needs `full_text`, since every
 format carries the document text; no format (JSON-LD, markdown or any
@@ -842,7 +873,7 @@ value. A release needs the request's `operation_key` (#1908), as above.
 The
 event carries the operation key and the attempt id the answer's receipt
 names, the input
-digest (the source text's SHA-256), the service fingerprint, the forms in effect per kind, the released mentions by layer
+digest (the source text's SHA-256, taken from the graph: the answer names its source by digest only with `full_text`, #2403), the service fingerprint, the forms in effect per kind, the released mentions by layer
 instance and index with their kind and form, the policy id and the
 SHA-256 of its rules (the server output ceiling and the grant that
 allowed the release, and the digest of the redaction policy the request
@@ -869,6 +900,9 @@ an old result against its original parse, and map any span between any
 two views without the server. Every digest is the raw 32 bytes of a
 SHA-256 and the proto comment on each field says what it is over; a
 digest that is not available is absent, never zero-filled or invented.
+An answer that withholds the source of a document holding PII carries
+no digest of it: see PII output above (#2403). What follows describes
+an answer that may carry the source.
 
 - `input` (`InputIdentity`): the SHA-256 and length of the document's
   original bytes (the decoded file bytes, else the UTF-8 of the source
@@ -937,6 +971,8 @@ digest that is not available is absent, never zero-filled or invented.
   annotation indexes and `model_ref` values are message-local.
   `turbo_kserve::results::typed::scoped` builds and resolves them, and
   refuses a reference into another result or a view whose text changed.
+  A result that withholds its source names no graph, so it gives no
+  reference and none resolves into it.
 
 `RoundTripTypedDocument` validates the envelope with the rest: both
 identities present and whole, `result_id` the hexadecimal of the
@@ -1043,7 +1079,10 @@ internal error) is incomplete whatever it delivered before;
 consumer check: the receipt must be whole and self-consistent, and
 bound to the caller's operation key, the source text it sent and the
 delivered graph; after no graph it must name no result and be CANCELLED
-or FAILED. `RoundTripTypedDocument` applies the same receipt checks and
+or FAILED. A stream that withheld its graph for PII ends with a receipt
+that names the input by length and the result by version, with no
+digest (#2403): it is complete when no graph bytes arrived, and such a
+receipt beside delivered bytes is refused. `RoundTripTypedDocument` applies the same receipt checks and
 binds the receipt to its envelope: the same input and result, and one
 entry per view and layer with the envelope's provenance digest.
 

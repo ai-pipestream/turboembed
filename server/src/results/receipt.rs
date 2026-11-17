@@ -115,7 +115,7 @@ pub fn covers_whole(assessed: &[ByteRange], len: u32) -> bool {
     }
 }
 
-fn layer_receipt(doc: &Document, key: KeyId, source_len: u32, coverage: &[Coverage]) -> LayerReceipt {
+fn layer_receipt(doc: &Document, key: KeyId, source_len: u32, coverage: &[Coverage], digests: bool) -> LayerReceipt {
     let (wire, error) = error::layer_status(doc, key);
     let layer = key.layer.to_string();
     let detector = doc
@@ -153,7 +153,7 @@ fn layer_receipt(doc: &Document, key: KeyId, source_len: u32, coverage: &[Covera
         executed,
         truncations,
         error,
-        provenance_digest: doc.provenance_digest(key).map(|d| d.as_bytes().to_vec()),
+        provenance_digest: doc.provenance_digest(key).filter(|_| digests).map(|d| d.as_bytes().to_vec()),
     }
 }
 
@@ -189,6 +189,9 @@ pub fn document_status(op: &Operation, layers: &[LayerReceipt]) -> ProcessingSta
 /// The receipt of `op` over `doc`, bound to `input` and, when the attempt
 /// produced one, `result`. `coverage` is what producers report beyond
 /// the document; empty means every complete layer assessed its whole text.
+/// An `input` that names its text by length alone, the one of an answer
+/// that withholds the source (#2403), gives a receipt whose layers carry
+/// no provenance digest: each chains the source text digest.
 pub fn build(
     op: &Operation,
     doc: &Document,
@@ -197,7 +200,9 @@ pub fn build(
     coverage: &[Coverage],
 ) -> ProcessingReceipt {
     let source_len = input.source_text_len;
-    let layers: Vec<LayerReceipt> = doc.layers().map(|k| layer_receipt(doc, k, source_len, coverage)).collect();
+    let digests = !input.source_text_digest.is_empty();
+    let layers: Vec<LayerReceipt> =
+        doc.layers().map(|k| layer_receipt(doc, k, source_len, coverage, digests)).collect();
     let status = document_status(op, &layers);
     ProcessingReceipt {
         receipt_schema_version: RECEIPT_SCHEMA_VERSION,

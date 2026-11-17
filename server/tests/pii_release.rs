@@ -148,6 +148,13 @@ async fn a_retried_release_records_one_event() {
     let e = events.values().next().unwrap();
     assert_eq!((e.mentions.len(), e.attempt_id.clone(), e.input_digest.len()), (2, attempt(&first), 32));
     assert_eq!(e.operation_key, "op-retry");
+    // The answer withholds the source and names it by no digest (#2403);
+    // the audit record still names the exact text, from the graph.
+    let input = first.input.as_ref().expect("an input identity");
+    assert!(input.source_text_digest.is_empty() && input.raw_bytes_digest.is_empty(), "{input:?}");
+    assert_eq!(e.input_digest, turbo_analysis::ViewTextDigest::of_text(TEXT).as_bytes());
+    let digest = turbo_analysis::ViewTextDigest::of_text(TEXT);
+    assert!(!first.encode_to_vec().windows(32).any(|w| w == digest.as_bytes()), "the answer carries the digest");
     // Another operation is another event.
     c.inspect_document_graph(ask(PiiValueForm::Token, "op-other")).await.unwrap();
     assert_eq!(audit.events.lock().unwrap().len(), 2);

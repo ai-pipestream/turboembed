@@ -5,7 +5,9 @@
 //! `ViewChain.view`, annotation indexes and `model_ref` values are
 //! message-local; [`scoped_ref`] turns them into a durable reference and
 //! [`resolve`] finds the annotation again, refusing a reference into
-//! another result or a view whose text has changed.
+//! another result or a view whose text has changed. A result that
+//! withholds its source for PII names no graph (#2403): it gives no
+//! reference and none resolves into it.
 
 use super::bad;
 use crate::api::Failure;
@@ -65,6 +67,11 @@ pub fn resolve<'a>(
     r: &ScopedRef,
 ) -> Result<(&'a TypedLayer, &'a TypedAnnotation), Failure> {
     let result_id = msg.result.as_ref().map(|x| x.result_id.as_str()).unwrap_or_default();
+    // A result that withholds its source names no graph (#2403), so no
+    // reference is into it, an empty one least of all.
+    if result_id.is_empty() {
+        return Err(bad("the typed document carries no result identity"));
+    }
     if r.result_id != result_id {
         return Err(bad("the reference is into another result"));
     }
