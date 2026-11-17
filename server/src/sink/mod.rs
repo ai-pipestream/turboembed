@@ -373,3 +373,6 @@ async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Ar
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod item_tests;
