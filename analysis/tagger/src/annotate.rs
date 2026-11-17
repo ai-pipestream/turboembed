@@ -143,30 +143,12 @@ impl HeadRunner {
         let Some(temp) = temperature else {
             return self.decode_tokens(view, tokens, seqs, subwords);
         };
-        let scaled = self.decode_tokens_mass(view, tokens, seqs, subwords, Some(temp), None)?;
-        Ok(scaled.into_iter().map(|(d, _)| d).collect())
-    }
-
-    /// As [`HeadRunner::decode_tokens_temperature`], and beside each
-    /// sequence the share of each word's probability that the labels
-    /// `mass.of` marks hold together, for the words decoded to a label
-    /// `mass.on` marks (0 for the others, and no shares without `mass`).
-    pub(crate) fn decode_tokens_mass(
-        &self,
-        view: &View,
-        tokens: &Tokens,
-        seqs: &[Vec<usize>],
-        subwords: Option<&Subwords>,
-        temperature: Option<f32>,
-        mass: Option<&LabelMass>,
-    ) -> Result<Vec<(Decoded, Vec<f64>)>, String> {
         let pooling = self.tagger.spec().word_pooling;
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
         drop(words);
         let forms = forms_of(view, tokens, seqs);
-        decode_scaled(&self.tagger, &features, &forms, temperature.map_or(1.0, f64::from), mass)
-            .map_err(|e| e.to_string())
+        decode_scaled(&self.tagger, &features, &forms, temp as f64).map_err(|e| e.to_string())
     }
 
     /// The token indices of each sequence of `tokens`, in order: by the
@@ -330,21 +312,12 @@ pub(crate) fn forms_of<'v>(view: &'v View, tokens: &Tokens, seqs: &[Vec<usize>])
     seqs.iter().map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect()).collect()
 }
 
-/// The labels whose shared probability [`HeadRunner::decode_tokens_mass`]
-/// reads (`of`), on the words decoded to one of the labels `on`; each has
-/// a mark per label of the head.
-pub(crate) struct LabelMass {
-    pub of: Vec<bool>,
-    pub on: Vec<bool>,
-}
-
 fn decode_scaled(
     tagger: &TokenTagger,
     features: &[Vec<f32>],
     forms: &[Vec<&str>],
     temperature: f64,
-    mass: Option<&LabelMass>,
-) -> Result<Vec<(Decoded, Vec<f64>)>, CoreError> {
+) -> Result<Vec<Decoded>, CoreError> {
     let (mut scores, mut work) = (Vec::new(), turbo::head::tagger::Work::default());
     let labels = tagger.labels().len();
     let stride = tagger.taps() * tagger.hidden();
@@ -356,7 +329,6 @@ fn decode_scaled(
         tagger.scores_language(f, &word_ids, Some(forms), None, &mut scores, &mut work)?;
         let mut tags = Vec::new();
         tagger.decode(&scores, n, &mut tags)?;
-        let mut shares = Vec::with_capacity(if mass.is_some() { n } else { 0 });
         let prob = tags
             .iter()
             .enumerate()
@@ -364,19 +336,10 @@ fn decode_scaled(
                 let row = &scores[w * labels..][..labels];
                 let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64 * inv_t;
                 let z: f64 = row.iter().map(|&v| (v as f64 * inv_t - m).exp()).sum();
-                if let Some(mass) = mass {
-                    let of = || row.iter().zip(&mass.of).filter(|&(_, &of)| of);
-                    let share = if mass.on.get(t as usize) == Some(&true) {
-                        of().map(|(&v, _)| (v as f64 * inv_t - m).exp()).sum::<f64>() / z
-                    } else {
-                        0.0
-                    };
-                    shares.push(share.clamp(0.0, 1.0));
-                }
                 ((row[t as usize] as f64 * inv_t - m).exp() / z).clamp(0.0, 1.0)
             })
             .collect();
-        out.push((Decoded { tags, prob }, shares));
+        out.push(Decoded { tags, prob });
     }
     Ok(out)
 }
