@@ -116,3 +116,7 @@ pub(super) async fn run_contextual_maxsim_highlights(
 #[cfg(test)]
 #[path = "maxsim_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "highlight_tests.rs"]
+mod call_tests;

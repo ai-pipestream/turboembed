@@ -269,3 +269,101 @@ async fn grpc_project_roundtrip_and_sink_stream_search_projection() {
     assert_eq!(received[0].search_projection.as_ref(), Some(&direct));
     assert_eq!(received[1].doc_id, "doc-standalone");
 }
+
+fn build_pii_source_tokens_doc() -> (turbo_analysis::Document, ViewId) {
+    use turbo_analysis::{Analyzer, IxRange, Tag, TagSet};
+    use turbo_analysis_layers::{Entities, TokenGraph, TokenGraphBuilder, Tokens};
+    use turbo_pii::PiiDetector;
+    use turbo_pii::rewrite::{MASKED, MaskedView};
+    use turbo_tokenize::WordTokenizer;
+
+    let analyzer = Analyzer::builder()
+        .add(PiiDetector::cursor())
+        .step(MaskedView::by_kind('*').unwrap().bound())
+        .add(WordTokenizer::new())
+        .build()
+        .unwrap();
+    let mut doc = Document::new("Contact alice@example.com today.");
+    analyzer.run(std::slice::from_mut(&mut doc)).into_iter().next().unwrap().unwrap();
+
+    // Attach a TokenGraph and Entities on ViewId::SOURCE (simulating source-view lexical/entity layers).
+    let toks = doc.get::<Tokens>().unwrap();
+    let tg = TokenGraphBuilder::from_tokens(doc.text(ViewId::SOURCE), toks, None).unwrap().finish().unwrap();
+    doc.add(&Key::<TokenGraph>::DEFAULT, tg, Provenance::by("test:tg")).unwrap();
+
+    let email_start = doc.text(ViewId::SOURCE).find("alice@example.com").unwrap() as u32;
+    let email_end = email_start + "alice@example.com".len() as u32;
+    let mut ent_spans = Spans::new(ViewId::SOURCE);
+    ent_spans.push(Span::new(email_start, email_end));
+    doc.add(
+        &Key::<Entities>::DEFAULT,
+        Entities {
+            spans: ent_spans,
+            tokens: vec![IxRange::new(1, 2)],
+            kind: vec![Tag(0)],
+            kinds: TagSet::new("ner", &["EMAIL"]),
+            score: vec![0.99],
+        },
+        Provenance::by("test:ner"),
+    )
+    .unwrap();
+
+    let masked_id = doc.get_key(&MASKED).unwrap().id();
+    (doc, masked_id)
+}
+
+#[test]
+fn masked_view_projection_withholds_source_lexical_and_entity_text() {
+    use turbo_kserve::results::disclosure::Disclosure;
+
+    let (doc, masked_id) = build_pii_source_tokens_doc();
+    let disclosure = Disclosure { rewritten_text: true, full_text: false, detail: false };
+    let proj =
+        document_to_search_projection_bound("doc-pii", &doc, masked_id, OffsetMode::Utf8, None, &[], &disclosure)
+            .unwrap();
+    validate_search_projection(&proj).unwrap();
+
+    assert!(
+        !proj.tokens.iter().any(|t| t.term.contains("alice") || t.term.contains("example.com")),
+        "unmasked email leaked into tokens: {:?}",
+        proj.tokens
+    );
+    let ents = proj.entities.as_ref().unwrap();
+    assert!(
+        !ents
+            .affirmed
+            .iter()
+            .chain(&ents.negated)
+            .chain(&ents.uncertain)
+            .any(|e| e.canonical_name.contains("alice") || e.matched_alias.contains("alice")),
+        "unmasked email leaked into entities: {:?}",
+        ents
+    );
+}
+
+#[test]
+fn masked_view_request_handler_enforces_pii_output_policy_lineage() {
+    use turbo_kserve::proto::result::PiiOutputOptions;
+    use turbo_kserve::results::disclosure::PiiOutputPolicy;
+    use turbo_kserve::results::search_projection::project_search_document_under;
+
+    let (doc, masked_id) = build_pii_source_tokens_doc();
+    let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+
+    let policy = PiiOutputPolicy { rewritten_text: true, ..PiiOutputPolicy::NONE };
+    let req = ProjectSearchDocumentRequest {
+        doc_id: "doc-pii-rpc".into(),
+        graph: graph_bytes,
+        view: u32::from(masked_id.0),
+        offsets: ProtoOffsetMode::Utf8 as i32,
+        pii_output: Some(PiiOutputOptions { rewritten_text: true, full_text: false, detail: false, values: 0 }),
+        ..Default::default()
+    };
+    let proj = project_search_document_under(&req, policy).unwrap();
+    validate_search_projection(&proj).unwrap();
+    assert!(
+        !proj.tokens.iter().any(|t| t.term.contains("alice") || t.term.contains("example.com")),
+        "unmasked email leaked into RPC tokens: {:?}",
+        proj.tokens
+    );
+}

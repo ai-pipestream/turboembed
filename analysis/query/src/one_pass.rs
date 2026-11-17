@@ -452,7 +452,6 @@ impl OnePassQueryAnalyzer {
         let joined = target_seq.join(" ");
         let syn_doc = Document::new(joined.as_str());
         let syn_view = syn_doc.require(&Key::<View>::DEFAULT)?;
-        // The field's own tokenizer: its index holds the terms that one makes.
         let syn_tokens = match cf.spec.tokenizer {
             FieldTokenizerKind::Word => self.word_tok.annotate((syn_view, None))?.0,
             FieldTokenizerKind::Whitespace => self.ws_tok.annotate((syn_view, None))?.0,

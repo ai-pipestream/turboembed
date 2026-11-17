@@ -123,7 +123,7 @@ fn source_word_spans(doc: &Document) -> Vec<Span> {
 
 type PrevToken<'a> = Option<(Span, &'a str)>;
 
-fn prev_tokens<'a>(src: &'a str, toks: &[Span], before_start: u32) -> (PrevToken<'a>, PrevToken<'a>) {
+fn prev_tokens<'a>(src: &'a str, toks: &[Span], before_start: u32) -> (PrevToken<'a>, PrevToken<'a>, PrevToken<'a>) {
     let idx = toks.partition_point(|s| s.end <= before_start);
     let p1 = idx.checked_sub(1).and_then(|i| {
         let sp = toks[i];
@@ -131,40 +131,46 @@ fn prev_tokens<'a>(src: &'a str, toks: &[Span], before_start: u32) -> (PrevToken
             && src[sp.end as usize..before_start as usize].chars().all(char::is_whitespace))
         .then_some((sp, &src[sp.range()]))
     });
-    let p2 = match (p1, idx.checked_sub(2)) {
-        (Some((sp1, _)), Some(i2)) => {
-            let sp2 = toks[i2];
-            (sp1.start.saturating_sub(sp2.end) <= 4
-                && src[sp2.end as usize..sp1.start as usize].chars().all(char::is_whitespace))
-            .then_some((sp2, &src[sp2.range()]))
-        }
-        _ => None,
+    let prev_of = |next: PrevToken<'a>, offset: usize| -> PrevToken<'a> {
+        let (sp_next, _) = next?;
+        let sp = toks[idx.checked_sub(offset)?];
+        (sp_next.start.saturating_sub(sp.end) <= 4
+            && src[sp.end as usize..sp_next.start as usize].chars().all(char::is_whitespace))
+        .then_some((sp, &src[sp.range()]))
     };
-    (p1, p2)
+    let p2 = prev_of(p1, 2);
+    let p3 = prev_of(p2, 3);
+    (p1, p2, p3)
 }
 
 fn widen_numeric_cue(src: &str, toks: &[Span], val_span: Span) -> (Span, QueryComparisonOp) {
-    let (p1, p2) = prev_tokens(src, toks, val_span.start);
+    let (p1, p2, p3) = prev_tokens(src, toks, val_span.start);
+    if let (Some((_, w1)), Some((_, w2)), Some((sp3, w3))) = (p1, p2, p3) {
+        let l1 = w1.to_ascii_lowercase();
+        let l2 = w2.to_ascii_lowercase();
+        let l3 = w3.to_ascii_lowercase();
+        let three_word = match (l3.as_str(), l2.as_str(), l1.as_str()) {
+            ("no" | "not", "less" | "fewer" | "lower", "than") => Some(QueryComparisonOp::Gte),
+            ("no" | "not", "more" | "greater" | "higher", "than") => Some(QueryComparisonOp::Lte),
+            _ => None,
+        };
+        if let Some(op) = three_word {
+            return (Span::new(sp3.start, val_span.end), op);
+        }
+    }
     if let (Some((_, w1)), Some((sp2, w2))) = (p1, p2) {
         let l1 = w1.to_ascii_lowercase();
         let l2 = w2.to_ascii_lowercase();
         let two_word = match (l2.as_str(), l1.as_str()) {
+            ("no" | "not", "over" | "above" | "exceeding") => Some(QueryComparisonOp::Lte),
+            ("no" | "not", "under" | "below") => Some(QueryComparisonOp::Gte),
             ("more" | "greater" | "higher", "than") => Some(QueryComparisonOp::Gt),
             ("less" | "fewer" | "lower", "than") => Some(QueryComparisonOp::Lt),
             ("at", "least") | ("no", "less") => Some(QueryComparisonOp::Gte),
-            ("at", "most") | ("up", "to") => Some(QueryComparisonOp::Lte),
+            ("at", "most") | ("up", "to") | ("no", "more") => Some(QueryComparisonOp::Lte),
             _ => None,
         };
         if let Some(op) = two_word {
-            // "no less than" and "not more than": a negation right before a
-            // "... than" bound flips it and keeps the equal case.
-            if l1 == "than"
-                && let (Some((sp3, w3)), _) = prev_tokens(src, toks, sp2.start)
-                && matches!(w3.to_ascii_lowercase().as_str(), "no" | "not")
-            {
-                let negated = if op == QueryComparisonOp::Lt { QueryComparisonOp::Gte } else { QueryComparisonOp::Lte };
-                return (Span::new(sp3.start, val_span.end), negated);
-            }
             return (Span::new(sp2.start, val_span.end), op);
         }
     }
@@ -205,7 +211,7 @@ fn enrich_temporal(
     if let Some(op) = existing_op {
         return (val_span, op, t);
     }
-    if let (Some((sp1, w1)), _) = prev_tokens(src, toks, val_span.start) {
+    if let (Some((sp1, w1)), _, _) = prev_tokens(src, toks, val_span.start) {
         let l1 = w1.to_ascii_lowercase();
         match l1.as_str() {
             "since" | "from" => {
@@ -245,7 +251,7 @@ fn enrich_temporal(
 }
 
 fn widen_place_preposition(src: &str, toks: &[Span], val_span: Span) -> Span {
-    if let (Some((sp1, w1)), _) = prev_tokens(src, toks, val_span.start)
+    if let (Some((sp1, w1)), _, _) = prev_tokens(src, toks, val_span.start)
         && matches!(w1.to_ascii_lowercase().as_str(), "in" | "at" | "near" | "around" | "within")
     {
         return Span::new(sp1.start, val_span.end);

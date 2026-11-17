@@ -50,8 +50,6 @@ pub(crate) struct Store {
     dir: PathBuf,
     index: Mutex<Index>,
     seq: AtomicU64,
-    /// Dictionary and vocabulary bodies read from disk by [`Store::read`].
-    body_reads: AtomicU64,
 }
 
 /// One artifact's descriptor and bytes, as DownloadVocabulary sends them.
@@ -214,12 +212,7 @@ impl Store {
         for vc in scan(&dir.join(VORONOI), read_voronoi, |vc| &vc.artifact_id)? {
             index.voronoi.insert(vc.artifact_id.clone(), vc);
         }
-        Ok(Store {
-            dir: dir.to_owned(),
-            index: Mutex::new(index),
-            seq: AtomicU64::new(0),
-            body_reads: AtomicU64::new(0),
-        })
+        Ok(Store { dir: dir.to_owned(), index: Mutex::new(index), seq: AtomicU64::new(0) })
     }
 
     fn index(&self) -> std::sync::MutexGuard<'_, Index> {
@@ -250,13 +243,8 @@ impl Store {
         self.index().dictionaries.get(id).cloned()
     }
 
-    pub(crate) fn vocabulary(&self, id: &str) -> Option<VocabularyArtifactDescriptor> {
+    pub(crate) fn vocabulary_descriptor(&self, id: &str) -> Option<VocabularyArtifactDescriptor> {
         self.index().vocabularies.get(id).cloned()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn body_reads(&self) -> u64 {
-        self.body_reads.load(Ordering::Relaxed)
     }
 
     pub(crate) fn suggest_file(&self, id: &str) -> Option<(SuggestLexiconArtifactDescriptor, PathBuf)> {
@@ -476,7 +464,6 @@ impl Store {
                 return Ok(None);
             }
         };
-        self.body_reads.fetch_add(1, Ordering::Relaxed);
         let bytes = match fs::read(&path) {
             Ok(b) => b,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),

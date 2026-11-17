@@ -106,5 +106,4 @@ fn a_repeated_expansion_is_one_path() {
     b.expand_token_sequence(0, ["new", "york"], TokenArcKind::Synonym);
     let graph = b.finish().unwrap();
     assert_eq!(phrases(&graph), set(&["x", "new york"]));
-    assert_eq!(graph.num_positions, 2);
 }

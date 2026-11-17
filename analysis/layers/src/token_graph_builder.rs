@@ -198,34 +198,22 @@ impl TokenGraphBuilder {
         if n == 0 {
             return Ok(TokenGraph::new(self.view));
         }
-        // Each alternative of two or more terms gets inner positions of its
-        // own, inside its last token: a path then reads one alternative
-        // whole, never the head of one and the tail of another.
         let mut width = vec![1u32; n];
-        let mut inner = |t: usize, terms: usize| -> u32 {
-            let first = width[t];
-            width[t] = width[t].saturating_add(terms as u32 - 1);
-            first
-        };
-        let split_at: Vec<u32> =
-            (0..n).map(|t| self.splits[t].as_ref().map_or(0, |s| inner(t, s.parts.len()))).collect();
-        let mut expansions: Vec<Vec<(&SingleExpansion, u32)>> = Vec::with_capacity(n);
-        for t in 0..n {
-            let mut kept: Vec<(&SingleExpansion, u32)> = Vec::new();
+        for (t, w) in width.iter_mut().enumerate() {
+            if let Some(split) = &self.splits[t]
+                && split.parts.len() > 1
+            {
+                *w += (split.parts.len() - 1) as u32;
+            }
             for exp in &self.single_expansions[t] {
-                if !kept.iter().any(|(k, _)| k.terms == exp.terms && k.kind == exp.kind) {
-                    kept.push((exp, inner(t, exp.terms.len())));
+                if exp.terms.len() > 1 {
+                    *w += (exp.terms.len() - 1) as u32;
                 }
             }
-            expansions.push(kept);
         }
-        let mut sequences: Vec<(&SpanSequence, u32)> = Vec::new();
         for seq in &self.span_sequences {
-            let same = |k: &SpanSequence| {
-                k.token_range == seq.token_range && k.span == seq.span && k.terms == seq.terms && k.kind == seq.kind
-            };
-            if !sequences.iter().any(|(k, _)| same(k)) {
-                sequences.push((seq, inner(seq.token_range.end - 1, seq.terms.len())));
+            if seq.terms.len() > 1 {
+                width[seq.token_range.end - 1] += (seq.terms.len() - 1) as u32;
             }
         }
 
@@ -240,46 +228,50 @@ impl TokenGraphBuilder {
             pos_offset.push(next);
         }
         let num_positions = *pos_offset.last().unwrap();
+        let mut next_internal: Vec<u32> = pos_offset[..n].iter().map(|&p| p + 1).collect();
 
         let mut raw: Vec<(u32, u32, Span, TokenArcKind, String)> = Vec::with_capacity(n * 2);
-        // The arcs of one alternative from `from` to `to`, through its own
-        // inner positions starting at `first`.
-        let mut chain =
-            |from: u32, to: u32, first: u32, items: &mut dyn Iterator<Item = (Span, TokenArcKind, &str)>| {
-                let mut at = from;
-                let mut next = first;
-                let mut items = items.peekable();
-                while let Some((span, kind, term)) = items.next() {
-                    let end = if items.peek().is_some() { next } else { to };
-                    raw.push((at, end - at, span, kind, term.to_owned()));
-                    at = end;
-                    next = end + 1;
-                }
-            };
         for t in 0..n {
-            let (p, end) = (pos_offset[t], pos_offset[t + 1]);
+            let p = pos_offset[t];
+            let p_end = pos_offset[t + 1];
+            let w = width[t];
             let base_span = self.base_spans[t];
-            let base_term = self.base_terms[t].as_str();
+            let base_term = &self.base_terms[t];
             if let Some(split) = &self.splits[t] {
-                chain(p, end, p, &mut [(base_span, split.whole_kind, base_term)].into_iter());
-                chain(p, end, p + split_at[t], &mut split.parts.iter().map(|x| (x.span, x.kind, x.term.as_str())));
+                raw.push((p, w, base_span, split.whole_kind, base_term.clone()));
+                emit_branch(
+                    &mut raw,
+                    p,
+                    p_end,
+                    &mut next_internal[t],
+                    split.parts.iter().map(|part| (part.span, part.kind, part.term.clone())),
+                );
             } else {
-                chain(p, end, p, &mut [(base_span, TokenArcKind::Primary, base_term)].into_iter());
+                raw.push((p, w, base_span, TokenArcKind::Primary, base_term.clone()));
             }
             for (span, term, kind) in &self.extra_unit_arcs[t] {
-                chain(p, end, p, &mut [(*span, *kind, term.as_str())].into_iter());
+                raw.push((p, w, *span, *kind, term.clone()));
             }
-            for (exp, first) in &expansions[t] {
-                chain(p, end, p + first, &mut exp.terms.iter().map(|w| (base_span, exp.kind, w.as_str())));
+            for exp in &self.single_expansions[t] {
+                emit_branch(
+                    &mut raw,
+                    p,
+                    p_end,
+                    &mut next_internal[t],
+                    exp.terms.iter().map(|word| (base_span, exp.kind, word.clone())),
+                );
             }
         }
-        for (seq, first) in &sequences {
-            let last = seq.token_range.end - 1;
-            chain(
-                pos_offset[seq.token_range.start],
-                pos_offset[last + 1],
-                pos_offset[last] + first,
-                &mut seq.terms.iter().map(|w| (seq.span, seq.kind, w.as_str())),
+        for seq in &self.span_sequences {
+            let p_start = pos_offset[seq.token_range.start];
+            let p_end = pos_offset[seq.token_range.end];
+            let owner = seq.token_range.end - 1;
+            emit_branch(
+                &mut raw,
+                p_start,
+                p_end,
+                &mut next_internal[owner],
+                seq.terms.iter().map(|word| (seq.span, seq.kind, word.clone())),
             );
         }
 
@@ -300,5 +292,31 @@ impl TokenGraphBuilder {
         }
         turbo_analysis::Layer::check(&graph)?;
         Ok(graph)
+    }
+}
+
+fn emit_branch(
+    raw: &mut Vec<(u32, u32, Span, TokenArcKind, String)>,
+    start_pos: u32,
+    end_pos: u32,
+    internal_cursor: &mut u32,
+    items: impl ExactSizeIterator<Item = (Span, TokenArcKind, String)>,
+) {
+    let m = items.len();
+    if m == 0 {
+        return;
+    }
+    if m == 1 {
+        for (span, kind, term) in items {
+            raw.push((start_pos, end_pos - start_pos, span, kind, term));
+        }
+        return;
+    }
+    let first_internal = *internal_cursor;
+    *internal_cursor += (m - 1) as u32;
+    for (j, (span, kind, term)) in items.enumerate() {
+        let pos = if j == 0 { start_pos } else { first_internal + (j as u32 - 1) };
+        let next = if j + 1 == m { end_pos } else { first_internal + j as u32 };
+        raw.push((pos, next - pos, span, kind, term));
     }
 }

@@ -319,3 +319,24 @@ impl OnePassDocumentNlp {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use turbo_namefind::{Dictionary, DictionaryNameFinder};
+
+    use super::*;
+
+    #[test]
+    fn dictionary_finder_binds_to_clean_view_across_normalization() {
+        let dict = Dictionary::from_entries(true, vec![("ORG".to_owned(), vec!["Alphabet".to_owned()])]);
+        let finder = DictionaryNameFinder::new(dict).unwrap();
+        let nlp = OnePassDocumentNlp::builder().with_dictionary_finder(finder).build().unwrap();
+
+        let proj = nlp.analyze("\u{200B}Alphabet builds tools.").unwrap();
+        assert!(
+            proj.affirmed_entities.iter().any(|e| e.kind == "ORG" && e.surface == "Alphabet"),
+            "expected ORG entity for Alphabet, got {:?}",
+            proj.affirmed_entities
+        );
+    }
+}
