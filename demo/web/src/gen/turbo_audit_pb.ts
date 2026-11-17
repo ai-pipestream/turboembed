@@ -271,8 +271,8 @@ export type PiiAccessEvent = Message<"turbo.audit.v1.PiiAccessEvent"> & {
   docId: string;
 
   /**
-   * The SHA-256 of the source text the mentions index into
-   * (InputIdentity.source_text_digest of the answer).
+   * The SHA-256 of the source text the mentions index into: what
+   * InputIdentity.source_text_digest is on an answer that may carry it.
    *
    * @generated from field: bytes input_digest = 11;
    */

@@ -7,6 +7,15 @@
 //! SHA-256 of the TGRF bytes; nothing new is hashed here. The consumer
 //! side, [`verify_input`] and [`verify_result`], refuses a result whose
 //! input or graph bytes are not the ones it names.
+//!
+//! None of these digests is keyed, so each names its input to anyone who
+//! can guess it: a short source (an address, a phone number, an id) comes
+//! back by hashing candidates (#2403). A digest therefore leaves only with
+//! the text it is a digest of. When the document's graph may not leave
+//! ([`Disclosure::graph`]), [`disclosed_input`] and [`disclosed_result`]
+//! give the lengths and versions alone, and no layer or view entry carries
+//! a provenance, content or input snapshot digest: every one of them
+//! chains the source text digest.
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -19,6 +28,7 @@ use crate::api::Failure;
 use crate::proto::result::{
     InputBinding, InputIdentity, LayerInstanceRef, LayerProvenance, ResultIdentity, TypedDocumentResult,
 };
+use crate::results::disclosure::Disclosure;
 
 /// The version of the envelope's messages and rules.
 pub const ENVELOPE_SCHEMA_VERSION: u32 = 1;
@@ -37,6 +47,44 @@ pub fn input_identity(doc: &Document, binding: Option<&InputBinding>) -> InputId
         raw_bytes_len,
         source_text_digest: source.text_digest().as_bytes().to_vec(),
         source_text_len: source.text().len() as u32,
+    }
+}
+
+/// [`input_identity`] as an answer under `disclosure` may carry it: with
+/// both digests when the graph of `doc` may leave, else the binding and
+/// the lengths alone.
+pub fn disclosed_input(doc: &Document, binding: Option<&InputBinding>, disclosure: &Disclosure) -> InputIdentity {
+    input_identity_with(doc, binding, disclosure.graph(doc))
+}
+
+/// [`input_identity`], with its two digests only when `digests`.
+pub fn input_identity_with(doc: &Document, binding: Option<&InputBinding>, digests: bool) -> InputIdentity {
+    let mut input = input_identity(doc, binding);
+    if !digests {
+        input.raw_bytes_digest.clear();
+        input.source_text_digest.clear();
+    }
+    input
+}
+
+/// [`result_identity`] as an answer under `disclosure` may carry it: of
+/// `graph` when the graph of `doc` may leave, else the format and schema
+/// versions alone.
+pub fn disclosed_result(doc: &Document, graph: &[u8], disclosure: &Disclosure) -> ResultIdentity {
+    result_identity_with(graph, disclosure.graph(doc))
+}
+
+/// [`result_identity`] when `digests`, else the format and schema versions
+/// alone: the graph holds the source text, so its digest, the id that is
+/// its hexadecimal, and its length stay with it.
+pub fn result_identity_with(graph: &[u8], digests: bool) -> ResultIdentity {
+    if digests {
+        return result_identity(graph);
+    }
+    ResultIdentity {
+        graph_format_version: u32::from(FORMAT_VERSION),
+        envelope_schema_version: ENVELOPE_SCHEMA_VERSION,
+        ..ResultIdentity::default()
     }
 }
 
@@ -79,8 +127,14 @@ fn layer_ref(key: KeyId) -> LayerInstanceRef {
 
 /// The provenance of every view and layer instance on `cx.doc`, in
 /// document order, with model references registered on `cx` and each
-/// layer's codec schema read from `graph`, the document's export.
-pub(crate) fn layer_provenances(cx: &mut ProjectionCx<'_>, graph: &DocumentGraph) -> Vec<LayerProvenance> {
+/// layer's codec schema read from `graph`, the document's export. With
+/// `digests` false, when the graph may not leave, every entry is listed
+/// without its three digests.
+pub(crate) fn layer_provenances(
+    cx: &mut ProjectionCx<'_>,
+    graph: &DocumentGraph,
+    digests: bool,
+) -> Vec<LayerProvenance> {
     let doc = cx.doc;
     let schemas: HashMap<(&str, &str), u16> =
         graph.layers.iter().map(|l| ((l.layer.as_str(), l.instance.as_str()), l.schema)).collect();
@@ -99,21 +153,21 @@ pub(crate) fn layer_provenances(cx: &mut ProjectionCx<'_>, graph: &DocumentGraph
         } else {
             schemas.get(&(layer.as_str(), key.name)).copied().map(u32::from).unwrap_or_default()
         };
+        let provenance_digest = doc.provenance_digest(key).filter(|_| digests);
+        // Computed from the read layers' content digests here, not read
+        // from the entry, so a document and its re-imported graph agree.
+        let input_snapshot_digest = if !digests || key == Key::<View>::DEFAULT.id() {
+            None
+        } else {
+            doc.provenance(key).and_then(|p| doc.compute_upstream_content_hash(&p.reads))
+        };
         out.push(LayerProvenance {
             layer,
             instance: key.name.to_owned(),
             model_ref,
-            provenance_digest: doc.provenance_digest(key).map(|d| d.as_bytes().to_vec()).unwrap_or_default(),
-            content_digest: doc.content_digest(key).map(|d| d.as_bytes().to_vec()),
-            // Computed from the read layers' content digests here, not read
-            // from the entry, so a document and its re-imported graph agree.
-            input_snapshot_digest: if key == Key::<View>::DEFAULT.id() {
-                None
-            } else {
-                doc.provenance(key)
-                    .and_then(|p| doc.compute_upstream_content_hash(&p.reads))
-                    .map(|d| d.as_bytes().to_vec())
-            },
+            provenance_digest: provenance_digest.map(|d| d.as_bytes().to_vec()).unwrap_or_default(),
+            content_digest: doc.content_digest(key).filter(|_| digests).map(|d| d.as_bytes().to_vec()),
+            input_snapshot_digest: input_snapshot_digest.map(|d| d.as_bytes().to_vec()),
             codec_schema,
             reads,
             on,

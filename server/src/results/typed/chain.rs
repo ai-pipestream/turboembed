@@ -12,6 +12,7 @@ use turbo_analysis::{Alignment, Document, Edit, Key, Span, View, ViewId};
 use super::bad;
 use crate::api::Failure;
 use crate::proto::result::{EditRun, InlineMapping, MappingPayload, ViewChain, mapping_payload};
+use crate::results::disclosure::Disclosure;
 use crate::results::{MAX_MAPPING_EDITS, over};
 
 /// The version of the chain encoding and mapping rules `InlineMapping`
@@ -76,8 +77,11 @@ pub fn decode_runs(what: &str, runs: &[EditRun]) -> Result<Vec<Edit>, Failure> {
 
 /// Every view of `doc` that is there, in `ViewId` order, as the wire
 /// chain: a document whose views hold more than `max_mapping_edits`
-/// native edits in all is refused, never cut down.
-pub fn inline_mapping(doc: &Document) -> Result<InlineMapping, Failure> {
+/// native edits in all is refused, never cut down. A view whose text may
+/// not leave under `disclosure` is listed without its text digest: an
+/// unkeyed digest of a short text gives the text back by hashing guesses
+/// (#2403).
+pub fn inline_mapping(doc: &Document, disclosure: &Disclosure) -> Result<InlineMapping, Failure> {
     let mut views: Vec<ViewChain> = Vec::new();
     let mut total = 0u64;
     for key in doc.layers() {
@@ -96,7 +100,11 @@ pub fn inline_mapping(doc: &Document) -> Result<InlineMapping, Failure> {
             view: u32::from(view.id().0),
             instance: key.name.to_owned(),
             parent: view.parent().map(|p| u32::from(p.0)),
-            text_digest: view.text_digest().as_bytes().to_vec(),
+            text_digest: if disclosure.view_text(doc, view.id()) {
+                view.text_digest().as_bytes().to_vec()
+            } else {
+                Vec::new()
+            },
             text_len: view.text().len() as u32,
             edit_count: edits.len() as u32,
             edits: encode_runs(edits),
@@ -112,7 +120,8 @@ pub struct ChainView {
     pub id: ViewId,
     pub instance: String,
     pub parent: Option<ViewId>,
-    pub text_digest: [u8; 32],
+    /// SHA-256 of the view's text; absent when the text was withheld.
+    pub text_digest: Option<[u8; 32]>,
     pub text_len: u32,
     pub alignment: Alignment,
 }
@@ -162,11 +171,11 @@ impl WireChain {
                 Some(p) if (p as usize) < i => Some(ViewId(p as u16)),
                 Some(p) => return Err(bad(format!("{what} names parent {p}, which is not before it"))),
             };
-            let text_digest: [u8; 32] = v
-                .text_digest
-                .as_slice()
-                .try_into()
-                .map_err(|_| bad(format!("{what} text_digest is {} bytes, not 32", v.text_digest.len())))?;
+            let text_digest: Option<[u8; 32]> = match v.text_digest.len() {
+                0 => None,
+                32 => v.text_digest.as_slice().try_into().ok(),
+                n => return Err(bad(format!("{what} text_digest is {n} bytes, not 32"))),
+            };
             let edits = decode_runs(&what, &v.edits)?;
             total += edits.len() as u64;
             if total > MAX_MAPPING_EDITS {
