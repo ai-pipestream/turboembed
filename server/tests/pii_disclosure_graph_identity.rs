@@ -316,9 +316,12 @@ fn the_validator_refuses_a_digest_of_withheld_text() {
             m.input.as_mut().unwrap().raw_bytes_digest.clear();
             m.input.as_mut().unwrap().source_text_digest.clear();
             let result = m.result.as_mut().unwrap();
-            (result.result_id.clear(), result.content_digest.clear(), result.graph_bytes_len = 0);
+            result.result_id.clear();
+            result.content_digest.clear();
+            result.graph_bytes_len = 0;
             for p in &mut m.provenance {
-                (p.provenance_digest.clear(), p.content_digest = None, p.input_snapshot_digest = None);
+                p.provenance_digest.clear();
+                (p.content_digest, p.input_snapshot_digest) = (None, None);
             }
             let Some(mapping_payload::Payload::Inline(mapping)) = &mut m.mapping.as_mut().unwrap().payload else {
                 panic!("a mapping")
