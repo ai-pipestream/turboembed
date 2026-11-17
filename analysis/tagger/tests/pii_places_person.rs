@@ -1,16 +1,18 @@
-//! #2312, #2388 and #2398 with the trained head: the Places pack and the
+//! #2312 and #2388 with the trained head: the Places pack and the
 //! Nemotron-PII head (#1888) over the person-name memos of `turbo-pii`
 //! (`places-person-names.txt`, gold `labels-places-person.tsv`, and the
-//! held-out `places-person-names-2.txt`). The head gives a person span
-//! to few of the names (`Madison` alone at 0.50 on the first memo) and
-//! its own `city` span to the rest, so the person rules of the city
-//! scanner turn those down wherever a person word stands around the
-//! name (`we asked Columbus`, `Salem, who`), and a name the memo uses
-//! for a person gives way where it stands alone and the head is unsure
-//! of its city (`Paris won the race` at 0.72). What is left is a name
-//! alone the head is sure of (`Columbus drove home` at 0.95). Every city
-//! use is still found. Runs only where `TURBO_NEMOTRON_PII_BUNDLE` names
-//! the assembled bundle, as the head is not in the repository.
+//! held-out `places-person-names-2.txt` of #2398). The head gives a
+//! person span to few of the names (`Madison` alone at 0.50 on the first
+//! memo) and its own `city` span to the rest, so the person rules of the
+//! city scanner turn those down wherever a person word stands around the
+//! name (`we asked Columbus`, `Salem, who`). What is left is the names
+//! standing alone that the head gives no person span (`Paris won the
+//! race`): no more false cities than the rules alone give there, and
+//! every city use is still found. Neither score of the head tells those
+//! names from city uses (#2398, docs/pii.md), so each scored candidate is
+//! printed for the next attempt. Runs only where
+//! `TURBO_NEMOTRON_PII_BUNDLE` names the assembled bundle, as the head is
+//! not in the repository.
 
 use std::path::Path;
 
@@ -107,20 +109,26 @@ fn the_person_rules_turn_down_the_heads_cities_on_people() {
     assert_eq!(read.missed, Vec::<String>::new(), "city uses the head took away");
     // Paragraphs 1 to 4 put a person word next to each name, so the rules
     // decide them whatever the head tags; paragraph 7 has none, and only a
-    // person span of the head or an unsure city on a name the memo uses
-    // for a person settles a name there.
+    // person span of the head settles a name there.
     let alone = read.text.find("\n7. ").unwrap()..read.text.find("\n8. ").unwrap();
     let beside: Vec<usize> = read.false_cities.iter().copied().filter(|s| !alone.contains(s)).collect();
     assert_eq!(read.names(&beside), Vec::<&str>::new(), "false cities next to a person word");
-    // #2398: `Columbus drove home` alone is left, at 0.95.
-    assert!(read.false_cities.len() < 2, "false cities among the names alone: {:?}", read.names(&read.false_cities));
+    let left = read.names(&read.false_cities);
+    assert!(left.len() < 5, "more false cities than the rules alone give: {left:?}");
 }
 
-/// The held-out memo, written before the head was run on it.
+/// The held-out memo of #2398, written before the head was run on it:
+/// every city use is found, and the false cities are the names standing
+/// alone in paragraph 4, no more than the rules alone give.
 #[test]
-fn the_held_out_memo() {
+fn the_held_out_memo_keeps_every_city_use() {
     let Some(read) = read("places-person-names-2.txt", "labels-places-person-2.tsv") else {
         return;
     };
-    let _ = read;
+    assert_eq!(read.missed, Vec::<String>::new(), "city uses the head took away");
+    let alone = read.text.find("\n4. ").unwrap()..read.text.find("\n5. ").unwrap();
+    let beside: Vec<usize> = read.false_cities.iter().copied().filter(|s| !alone.contains(s)).collect();
+    assert_eq!(read.names(&beside), Vec::<&str>::new(), "false cities next to a person word");
+    let left = read.names(&read.false_cities);
+    assert!(left.len() <= 5, "more false cities than the rules alone give: {left:?}");
 }

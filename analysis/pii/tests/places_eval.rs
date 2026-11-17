@@ -177,92 +177,6 @@ fn head_cities_on_names_the_person_rules_refuse_are_no_city() {
     }
 }
 
-/// What the trained head gave on the memo at temperature 1.0938 (the
-/// gated run of `pii_places_person.rs` on 2026-11-17): start, kind and
-/// probability of each candidate on one of the names.
-const HEAD_ON_MEMO: [(u32, &str, f32); 29] = [
-    (106, "first-name", 0.717),
-    (158, "city", 0.943),
-    (207, "city", 0.760),
-    (235, "city", 0.983),
-    (289, "city", 0.532),
-    (336, "first-name", 0.745),
-    (371, "city", 0.731),
-    (405, "city", 0.953),
-    (463, "city", 0.911),
-    (504, "company-name", 0.403),
-    (532, "first-name", 0.796),
-    (567, "city", 0.926),
-    (654, "city", 0.810),
-    (692, "city", 0.873),
-    (703, "city", 0.999),
-    (732, "city", 0.899),
-    (840, "city", 0.990),
-    (882, "city", 0.983),
-    (928, "city", 0.994),
-    (945, "city", 0.990),
-    (969, "city", 0.915),
-    (994, "city", 0.724),
-    (1030, "city", 0.954),
-    (1074, "first-name", 0.877),
-    (1108, "city", 0.758),
-    (1127, "city", 0.807),
-    (1190, "city", 0.849),
-    (1216, "city", 0.989),
-    (1264, "city", 0.851),
-];
-
-/// #2398: with the head's own spans and probabilities, the names the
-/// memo uses for a person elsewhere give way where they stand alone and
-/// the head is unsure of its city (`Paris won` at 0.72, `called Salem`
-/// at 0.76, `Dayton answered` at 0.81). `Columbus drove home` stays a
-/// false city, as the head gives it 0.95, above the city uses with no
-/// place word before them (`Salem is where` at 0.90). Every city use
-/// stays, those under the bar too, as a place word stands before each
-/// (`went to Paris` at 0.81).
-#[test]
-fn names_the_memo_uses_for_people_are_no_city_standing_alone() {
-    let kinds = nemotron_custom_kinds();
-    let rules = pack(Pack::Places);
-    let provenance = ModelProvenance {
-        detector_id: "turbo-tagger:pii",
-        detector_version: "0.1.0",
-        model_id: "turbo-en-nemotron-pii-modernbert-base-1",
-        model_version: "1",
-        calibrated: true,
-    };
-    let opts = ModelResolution {
-        rules: Some(&rules),
-        model_kinds: &kinds,
-        provenance,
-        min_score: Some(0.5),
-        extra_allow: None,
-    };
-    for l in &person_memo() {
-        let spans: Vec<ModelCandidate> = HEAD_ON_MEMO
-            .iter()
-            .map(|&(start, kind, probability)| {
-                let rest = &l.text[start as usize..];
-                let name = PEOPLE.into_iter().find(|n| rest.starts_with(n)).expect("a name of the memo");
-                let kind = PiiKind::parse(kind).or_else(|| kinds.find(kind)).unwrap();
-                ModelCandidate { span: Span::new(start, start + name.len() as u32), kind, probability }
-            })
-            .collect();
-        let (pii, candidates) = resolve_model_with_rules(&l.text, ViewId::SOURCE, &opts, &spans).unwrap();
-        candidates.check_against(&pii).unwrap();
-        let cities: Vec<(u32, u32, &str)> =
-            pii.mentions().filter(|m| m.kind == PiiKind::City).map(|m| (m.span.start, m.span.end, "city")).collect();
-        let false_cities: Vec<&str> =
-            cities.iter().filter(|c| !l.labels.contains(c)).map(|&(s, e, _)| &l.text[s as usize..e as usize]).collect();
-        let missed = l.labels.iter().filter(|g| !cities.contains(g)).count();
-        eprintln!(
-            "\nplaces with the head's spans and scores on the person-name memo: false {false_cities:?}, missed {missed}"
-        );
-        assert_eq!(false_cities, ["Columbus"]);
-        assert_eq!(missed, 0);
-    }
-}
-
 /// The held-out second memo (#2398), written before the PII head was run
 /// on it, and its gold.
 fn second_person_memo() -> Vec<Labelled> {
@@ -275,8 +189,9 @@ fn second_person_memo() -> Vec<Labelled> {
     load_labelled(&docs, "labels-places-person-2.tsv", false)
 }
 
-/// The rules alone on the held-out memo: every city use, and the names
-/// standing alone as false cities, pinned.
+/// The rules alone on the held-out memo: every city use, and the five
+/// names standing alone as false cities, pinned. The trained head read
+/// the same five as cities on 2026-11-17 (`pii_places_person.rs`).
 #[test]
 fn the_held_out_person_memo_with_the_rules_alone() {
     let by_kind = measure_with(&pack(Pack::Places), &second_person_memo());

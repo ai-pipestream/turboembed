@@ -20,8 +20,6 @@ use crate::scan::{BUILTIN_VERSION, Extractor};
 
 mod person_city;
 
-pub use person_city::CITY_OF_PERSON_NAME_MIN;
-
 /// All 55 `Nemotron-PII` label names (`snake_case`) paired with their
 /// canonical `turbo:pii` wire names (`kebab-case`), sorted by `Nemotron-PII`
 /// label name.
@@ -240,12 +238,6 @@ pub struct ModelResolution<'a> {
 /// Madison`, `Salem, who`), with no state after it and no city label
 /// before it, is rejected by rule precedence though no rule mention
 /// overlaps it. Without the city scanner among the rules, it stands.
-///
-/// A person use of a name counts for the name standing alone in the same
-/// text (#2398): where the person rules refuse a name at one place, the
-/// head's bare `city` on it at another, under
-/// [`CITY_OF_PERSON_NAME_MIN`] and with no place word before it, is
-/// rejected the same way, and the bare reading of the rules goes with it.
 pub fn resolve_model_with_rules(
     text: &str,
     view: ViewId,
@@ -315,16 +307,6 @@ pub fn resolve_model_with_rules(
         }
     }
 
-    // A head city the text's own person use of the name outweighs (#2398)
-    // takes the bare reading of the rules with it.
-    let unsure = city_detector.map_or_else(Vec::new, |city| {
-        person_city::unsure_cities_of_person_names(text, &hits, city, model_candidates, &admitted_rules, threshold)
-    });
-    if let Some(city) = city_detector.filter(|_| !unsure.is_empty()) {
-        hits.drop_spans(city, &unsure);
-        admitted_rules.retain(|(span, kind, _)| !(*kind == PiiKind::City && unsure.contains(span)));
-    }
-
     let model_ref =
         hits.detectors_mut().add(provenance.model_id, provenance.model_version).map_err(|e| e.to_string())?;
     hits.begin_detector(provenance.detector_id, provenance.detector_version);
@@ -361,12 +343,10 @@ pub fn resolve_model_with_rules(
         if !overlaps_rule
             && kind == PiiKind::City
             && city_detector.is_some()
-            && (person_city::city_reads_as_person(text, mc.span) || unsure.contains(&mc.span))
+            && person_city::city_reads_as_person(text, mc.span)
         {
             // The person rules of the city scanner refused this name as a
-            // bare city (#2388), here or, for a city the head is unsure
-            // of, elsewhere in the text (#2398), so they refuse the head's
-            // city on it too.
+            // bare city (#2388), so they refuse the head's city on it too.
             let norm = normalize_model_value(kind, covered);
             if hits.add_candidate(start, end, kind, &[PiiEvidence::Shape], score, |s| s.push_str(&norm)) {
                 hits.reject_last(RejectReason::RulePrecedence);
