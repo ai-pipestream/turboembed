@@ -1,5 +1,3 @@
-C:\te\out-1480-20261109-0219\dumps\turbo-chunker-254-200-cohesion-1000-hybrid 
-C:\te\cpu-1970-3e000040\dumps\turbo-chunker-254-200-cohesion-1000-hybrid`
 arguana: 8674 documents, 19926 shared cuts, 4 documents differ (npu/Intel(R) AI Boost/model against cpu/Intel(R) Core(TM) Ultra 7 265T/model)
   test-free-speech-debate-ldhwbmclg-pro02b level 0 after Some(0) before Some(2122): A cuts at [1323], B at [1270], margin A -42 B 42
   training-health-hghpghbus-con02b level 0 after Some(0) before None: A cuts at [731], B at [907], margin A -18 B 18
@@ -33,6 +31,3 @@ scifact: 5183 documents, 14318 shared cuts, 7 documents differ (npu/Intel(R) AI 
   25263942 level 0 after Some(0) before None: A cuts at [726], B at [886], margin A -61 B 61
   27150276 level 0 after Some(0) before None: A cuts at [712], B at [872], margin A -22 B 22
   29689140 level 0 after Some(0) before None: A cuts at [421], B at [716], margin A 7 B -7
-error: process didn't exit successfully: `C:\te\eval-cuts-1981-cpu-2\cargo-target\release\turbo-eval.exe cuts 
-C:\te\out-1480-20261109-0219\dumps\turbo-chunker-254-200-cohesion-1000-hybrid 
-C:\te\cpu-1970-3e000040\dumps\turbo-chunker-254-200-cohesion-1000-hybrid` (exit code: 1)
