@@ -671,6 +671,18 @@ terms) through its own inputs in turn. A vocabulary with an input of
 another view, an input that names none, or no input at all is left out,
 and the stacks are built from the projected view's tokens.
 
+`ProjectSearchDocument` follows the same view rule, and without
+`full_text` its replay provenance carries no digest or length of what it
+withholds (#2403): `input.raw_bytes_digest`, `input.source_text_digest`,
+`result.result_id` and `result.content_digest` are empty,
+`input.raw_bytes_len`, `input.source_text_len` and
+`result.graph_bytes_len` are 0, and a view whose text may not leave is
+listed with no `text_sha256` and `utf8_bytes` 0. An unkeyed SHA-256 of a
+short source gives the source back by hashing guesses, the graph bytes
+hold the source text, and a length tells two values apart when the
+rewrite does not keep it. Versions, the binding and the digest and
+length of the rewrite view the answer is on are kept.
+
 `PiiOutputOptions` on the request (`pii_output`) turns on more:
 
 - `rewritten_text`: the text of the requested view when that view is a

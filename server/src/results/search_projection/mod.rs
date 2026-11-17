@@ -14,6 +14,7 @@
 pub mod columns;
 pub mod entities;
 mod gate;
+mod identity;
 pub mod validate;
 
 use std::any::TypeId;
@@ -29,13 +30,12 @@ use entities::{boilerplate_kind_str, cut_reason_str, token_arc_kind_str};
 use super::disclosure::{Disclosure, PiiOutputPolicy};
 use super::document::codecs;
 use super::model_to_proto;
-use super::typed::identity::{check_binding, input_identity, result_identity};
+use super::typed::identity::check_binding;
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
     ExecutionInfo, InputBinding, ModelProvenance, ProjectSearchDocumentRequest, SearchChunkRow,
     SearchDocumentProjection, SearchLexicalToken, SearchReplayProvenance, SearchSentenceRow, SearchSketchRow,
-    ViewAlignmentSummary,
 };
 use crate::results::{MAX_GRAPH_BYTES, Wire, over};
 
@@ -207,19 +207,7 @@ pub fn document_to_search_projection_bound(
 
     let exported = export(doc, codecs()).map_err(|e| bad(format!("document graph export: {e}")))?;
     let graph_bytes = exported.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
-    let mut views = Vec::new();
-    for k in doc.layers().filter(|k| k.ty == TypeId::of::<View>()) {
-        if let Some(v) = doc.get_key(&Key::<View>::named(k.name)) {
-            views.push(ViewAlignmentSummary {
-                view_id: u32::from(v.id().0),
-                name: k.name.to_owned(),
-                parent_view: v.parent().map(|p| u32::from(p.0)),
-                utf8_bytes: v.text().len() as u32,
-                text_sha256: v.text_digest().as_bytes().to_vec(),
-                lossy: v.alignment().edits().iter().any(|e| !e.parent.is_empty()),
-            });
-        }
-    }
+    let views = identity::views(doc, disclosure);
 
     let sentences = project_sentences(&cx)?;
     let chunks = project_chunks(&cx)?;
@@ -233,8 +221,8 @@ pub fn document_to_search_projection_bound(
 
     let (_, target_text_len) = cx.offsetter.to_wire(target_text, Span::new(0, target_text.len() as u32));
     let provenance = SearchReplayProvenance {
-        input: Some(input_identity(doc, binding)),
-        result: Some(result_identity(&graph_bytes)),
+        input: Some(identity::input(doc, binding, disclosure)),
+        result: Some(identity::result(doc, &graph_bytes, disclosure)),
         views,
         models: cx.models,
         analyzer_config_digest: analyzer_config_digest.to_vec(),

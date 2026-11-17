@@ -61,12 +61,25 @@ message ViewAlignmentSummary
   uint32 view_id = 1;
   string name = 2;
   optional uint32 parent_view = 3;
+  // The view's length in UTF-8 bytes; 0 when text_sha256 is empty.
   uint32 utf8_bytes = 4;
+  // SHA-256 of the view's UTF-8 text. Empty when the view's text may not
+  // leave under the answer's PII disclosure: an unkeyed digest of a short
+  // text gives the text back by hashing guesses, and its length tells
+  // two values apart.
   bytes text_sha256 = 5;
   bool lossy = 6;
 }
 
 // Replay provenance digests attached to a SearchDocumentProjection (#2345).
+// When the document holds PII and the answer may not carry its source text
+// (no pii_output.full_text), every digest of the source is left out with
+// it: input.raw_bytes_digest and input.source_text_digest are empty, and
+// result.result_id, result.content_digest and result.graph_bytes_len are
+// unset, because the graph bytes hold the source text. The lengths of the
+// withheld texts (input.raw_bytes_len, input.source_text_len) are 0 too.
+// Versions, the binding and the digest and length of a view whose text
+// may leave are kept.
 message SearchReplayProvenance
 {
   InputIdentity input = 1;

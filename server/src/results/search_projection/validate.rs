@@ -82,14 +82,30 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
     let prov = msg.provenance.as_ref().ok_or_else(|| bad("provenance is required on SearchDocumentProjection"))?;
     let input = prov.input.as_ref().ok_or_else(|| bad("provenance.input is required"))?;
     check_binding(input.binding.as_ref(), "provenance.input.binding")?;
-    check_sha256_len("provenance.input.raw_bytes_digest", &input.raw_bytes_digest, false)?;
-    check_sha256_len("provenance.input.source_text_digest", &input.source_text_digest, false)?;
+    // A digest is absent when the text it names was withheld (#2403).
+    check_sha256_len("provenance.input.raw_bytes_digest", &input.raw_bytes_digest, true)?;
+    check_sha256_len("provenance.input.source_text_digest", &input.source_text_digest, true)?;
+    if input.raw_bytes_digest.is_empty() != input.source_text_digest.is_empty() {
+        return Err(bad("provenance.input carries one of raw_bytes_digest and source_text_digest without the other"));
+    }
+    if input.source_text_digest.is_empty() && (input.raw_bytes_len != 0 || input.source_text_len != 0) {
+        return Err(bad("provenance.input gives the length of a text and carries no digest of it"));
+    }
     let res = prov.result.as_ref().ok_or_else(|| bad("provenance.result is required"))?;
-    check_sha256_len("provenance.result.content_digest", &res.content_digest, false)?;
+    check_sha256_len("provenance.result.content_digest", &res.content_digest, true)?;
+    if res.content_digest.is_empty() && (!res.result_id.is_empty() || res.graph_bytes_len != 0) {
+        return Err(bad("provenance.result names a graph by id or length and carries no content_digest"));
+    }
+    if res.content_digest.is_empty() != input.source_text_digest.is_empty() {
+        return Err(bad("provenance carries one of the input and result digests without the other"));
+    }
     check_sha256_len("provenance.analyzer_config_digest", &prov.analyzer_config_digest, true)?;
     for (i, v) in prov.views.iter().enumerate() {
         u16::try_from(v.view_id).map_err(|_| bad(format!("provenance.views[{i}].view_id exceeds u16::MAX")))?;
-        check_sha256_len(&format!("provenance.views[{i}].text_sha256"), &v.text_sha256, false)?;
+        check_sha256_len(&format!("provenance.views[{i}].text_sha256"), &v.text_sha256, true)?;
+        if v.text_sha256.is_empty() && v.utf8_bytes != 0 {
+            return Err(bad(format!("provenance.views[{i}] gives utf8_bytes and carries no text_sha256")));
+        }
     }
 
     // Sentences invariant (`sentences:body`): sorted, non-overlapping, in bounds.
