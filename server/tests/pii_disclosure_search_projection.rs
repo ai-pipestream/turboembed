@@ -5,8 +5,10 @@
 //! lineage may leave. Layers made from the masked view are kept.
 
 use prost::Message;
-use turbo_analysis::{Analyzer, Document, IxRange, Key, KeyId, Provenance, Span, Spans, Tag, TagSet, View, ViewId};
-use turbo_analysis_layers::{Entities, TokenGraph, TokenGraphBuilder, Tokens};
+use turbo_analysis::{
+    Analyzer, Bound, Document, IxRange, Key, KeyId, Provenance, Span, Spans, Tag, TagSet, View, ViewId,
+};
+use turbo_analysis_layers::{Entities, NumberNotation, TokenGraph, TokenGraphBuilder, Tokens};
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{ProjectSearchDocumentRequest, SearchDocumentProjection};
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
@@ -14,6 +16,7 @@ use turbo_kserve::results::document::codecs;
 use turbo_kserve::results::search_projection::{
     document_to_search_projection_bound, project_search_document_under, validate_search_projection,
 };
+use turbo_numeric::money::MoneyExtractor;
 use turbo_pii::PiiDetector;
 use turbo_pii::rewrite::{MASKED as MASKED_KEY, MaskedView};
 
@@ -162,5 +165,44 @@ fn layers_made_from_the_masked_view_are_kept() {
         let entities = p.entities.unwrap();
         assert_eq!(entities.affirmed.len(), 1);
         assert_eq!(entities.affirmed[0].canonical_name, "Acme");
+    }
+}
+
+/// The fixture's text with a price in it, and a money layer read from the
+/// source view or from the masked one.
+fn priced(from_masked: bool) -> Document {
+    let money = Bound::new(MoneyExtractor::new(NumberNotation::LatinUs));
+    let money = if from_masked { money.read(0, "masked") } else { money };
+    let analyzer = Analyzer::builder()
+        .add(PiiDetector::cursor())
+        .step(MaskedView::by_kind('*').unwrap().bound())
+        .step(money)
+        .build()
+        .unwrap();
+    let mut docs = vec![Document::new(format!("Write to {EMAIL} about the $5,000 fee"))];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    docs.pop().unwrap()
+}
+
+#[test]
+fn a_value_column_read_from_the_source_is_left_out() {
+    let doc = priced(false);
+    for p in [projected(&doc, &REWRITTEN), handled(&doc)] {
+        assert!(p.numeric_temporal.unwrap().money.is_empty(), "a column made from the source view left");
+    }
+    let full = projected(&doc, &Disclosure::FULL).numeric_temporal.unwrap();
+    assert_eq!(full.money.len(), 1, "{:?}", full.money);
+    assert_eq!(full.money[0].plain_amount, "5000");
+}
+
+#[test]
+fn a_value_column_read_from_the_masked_view_is_kept() {
+    let doc = priced(true);
+    for p in [projected(&doc, &REWRITTEN), handled(&doc)] {
+        let money = p.numeric_temporal.unwrap().money;
+        assert_eq!(money.len(), 1, "{money:?}");
+        assert_eq!((money[0].plain_amount.as_str(), money[0].currency.as_str()), ("5000", "USD"));
     }
 }
