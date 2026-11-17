@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use tonic::{Request, Response, Status, Streaming};
 use turbo_stem::{Algorithm, SnowballAlgorithm, SnowballStemmer};
 use turbo_suggest::{
-    MappedFile, MappedSurfaceLexicon, QuerySpellchecker, SpellcheckConfig, SurfaceLexiconBuilder,
+    CheckedLexiconFile, MappedFile, MappedSurfaceLexicon, QuerySpellchecker, SpellcheckConfig, SurfaceLexiconBuilder,
     lexicon::DEFAULT_TOP_K,
 };
 
@@ -26,7 +26,7 @@ const MAX_QUERY_BYTES: usize = 16 << 10;
 
 #[derive(Default)]
 pub(crate) struct SuggestCache {
-    lexicons: Mutex<BTreeMap<(String, String), Arc<MappedFile>>>,
+    lexicons: Mutex<BTreeMap<(String, String), Arc<CheckedLexiconFile>>>,
     spellcheckers: Mutex<BTreeMap<(String, String, u32), Arc<QuerySpellchecker>>>,
 }
 
@@ -36,7 +36,10 @@ impl SuggestCache {
         self.spellcheckers.lock().unwrap_or_else(|p| p.into_inner()).retain(|(k, _, _), _| k != id);
     }
 
-    fn mapped(&self, store: &super::Store, id: &str) -> Result<Arc<MappedFile>, Status> {
+    /// The stored lexicon `id`, mapped and checked. The check reads the
+    /// whole image, so it runs once here and the checked view is cached
+    /// with the mapping: a lookup on a warm cache walks the trie alone.
+    fn mapped(&self, store: &super::Store, id: &str) -> Result<Arc<CheckedLexiconFile>, Status> {
         let (desc, path) = store.suggest_file(id).ok_or_else(|| not_found(id))?;
         let key = (desc.artifact_id, desc.sha256);
         if let Some(hit) = self.lexicons.lock().unwrap_or_else(|p| p.into_inner()).get(&key) {
@@ -50,9 +53,9 @@ impl SuggestCache {
         if mapped.bytes().len() as u64 != desc.byte_size || turbo_maxent::sha256(mapped.bytes()).to_hex() != key.1 {
             return Err(internal(format!("{}: stored bytes do not match descriptor", path.display())));
         }
-        MappedSurfaceLexicon::from_bytes(mapped.bytes())
+        let checked = CheckedLexiconFile::new(mapped)
             .map_err(|e| internal(format!("{}: invalid lexicon image: {e}", path.display())))?;
-        let arc = Arc::new(mapped);
+        let arc = Arc::new(checked);
         self.lexicons.lock().unwrap_or_else(|p| p.into_inner()).insert(key, Arc::clone(&arc));
         Ok(arc)
     }
@@ -66,8 +69,8 @@ impl SuggestCache {
         limit: usize,
     ) -> Result<Vec<SurfaceCompletionItem>, Status> {
         let mapped = self.mapped(store, id)?;
-        let lex = MappedSurfaceLexicon::from_bytes(mapped.bytes()).map_err(|e| internal(e.to_string()))?;
-        Ok(lex
+        Ok(mapped
+            .view()
             .suggest_prefix(prefix, limit)
             .into_iter()
             .map(|c| SurfaceCompletionItem { surface: c.surface.to_owned(), stem: c.stem.to_owned(), count: c.count })
@@ -83,8 +86,8 @@ impl SuggestCache {
         limit: usize,
     ) -> Result<Vec<StemSurfaceItem>, Status> {
         let mapped = self.mapped(store, id)?;
-        let lex = MappedSurfaceLexicon::from_bytes(mapped.bytes()).map_err(|e| internal(e.to_string()))?;
-        Ok(lex
+        Ok(mapped
+            .view()
             .stem_surfaces(stem, limit)
             .into_iter()
             .map(|s| StemSurfaceItem { surface: s.surface.to_owned(), count: s.count })
