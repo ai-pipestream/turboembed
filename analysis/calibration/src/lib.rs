@@ -7,7 +7,7 @@ mod prediction;
 pub use metadata::DecisionMetadata;
 mod transform;
 pub use prediction::{Abstention, Policy, Prediction, Predictor};
-pub use transform::{PreparedTransform, Transform};
+pub use transform::{PreparedTransform, Transform, logit, sigmoid};
 use turbo_sha256::sha256;
 
 pub type Result<T> = std::result::Result<T, String>;

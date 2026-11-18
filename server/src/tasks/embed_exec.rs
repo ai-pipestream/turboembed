@@ -62,7 +62,7 @@ impl Held {
     }
 }
 
-pub(super) fn check_alive(dead: &AtomicBool) -> Result<()> {
+pub(crate) fn check_alive(dead: &AtomicBool) -> Result<()> {
     if dead.load(Ordering::Acquire) {
         return Err(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"));
     }
@@ -174,7 +174,7 @@ impl TokenRunBufs {
     }
 }
 
-fn run_ranges_on_slot(
+pub(crate) fn run_ranges_on_slot(
     shared: &Shared,
     dead: &AtomicBool,
     slot: &Slot,

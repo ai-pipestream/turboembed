@@ -22,6 +22,8 @@ use std::borrow::Cow;
 pub const SENTENCES: &str = "turbo:sentences";
 /// Token spans.
 pub const TOKENS: &str = "turbo:tokens";
+/// Position-length lexical token lattice.
+pub const TOKEN_GRAPH: &str = "turbo:token-graph";
 /// Model subword pieces.
 pub const SUBWORDS: &str = "turbo:subwords";
 /// Named entities.

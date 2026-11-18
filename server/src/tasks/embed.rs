@@ -7,7 +7,7 @@
 //! `AnalyzeVectors`.
 
 #[path = "embed_exec.rs"]
-mod exec;
+pub(crate) mod exec;
 
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -191,7 +191,7 @@ impl EmbedModel {
         }
     }
 
-    fn tokenize_subwords(&self, text: &str) -> Result<Subwords> {
+    pub(crate) fn tokenize_subwords(&self, text: &str) -> Result<Subwords> {
         let opts = Encode {
             add_special_tokens: false,
             truncation: Truncation::None,
@@ -209,7 +209,7 @@ impl EmbedModel {
         Ok(Subwords { spans, ids, model: self.model.clone(), token: None })
     }
 
-    fn row_ends(&self, prompt_role: u32) -> Result<(Vec<i32>, Vec<i32>)> {
+    pub(crate) fn row_ends(&self, prompt_role: u32) -> Result<(Vec<i32>, Vec<i32>)> {
         let prompt = match prompt_role {
             TURBO_PROMPT_QUERY => PromptRole::Query,
             TURBO_PROMPT_DOCUMENT | 0 => PromptRole::Document,
@@ -221,7 +221,13 @@ impl EmbedModel {
         Ok((head, tail))
     }
 
-    fn window_width(&self, slot: &Slot, opts: &turbo_embed_options, head_len: usize, tail_len: usize) -> Result<u32> {
+    pub(crate) fn window_width(
+        &self,
+        slot: &Slot,
+        opts: &turbo_embed_options,
+        head_len: usize,
+        tail_len: usize,
+    ) -> Result<u32> {
         if opts.max_tokens > slot.info.max_seq {
             let msg = format!("max_tokens {} is over the session's max_seq {}", opts.max_tokens, slot.info.max_seq);
             return Err(Failure::new(TURBO_E_CAPACITY, 2, msg));

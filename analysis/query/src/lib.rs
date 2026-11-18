@@ -14,12 +14,21 @@ pub mod annotators;
 mod extract;
 mod lang_model;
 pub mod model;
+pub mod one_pass;
+mod one_pass_filters;
+pub mod one_pass_types;
 pub mod profile;
+mod units;
 
 pub use annotators::{GazetteerCandidateAnnotator, QueryGrammarAnnotator, QueryTimeAnnotator, default_span_detector};
 pub use model::{
     EntityFilter, FilterEvidence, FilterKind, GlossaryFilter, LanguageEvidence, LanguageSpanEvidence, MoneyFilter,
     PlaceFilter, QuantityFilter, QueryAnalysis, QueryFilter, QueryTerm, TemporalFilter,
+};
+pub use one_pass::{OnePassQueryAnalyzer, OnePassQueryBuilder};
+pub use one_pass_types::{
+    ConvertedMoneyValue, FieldQueryPlan, FieldQuerySpec, FieldTokenizerKind, OnePassQueryPlan, OrdinalQueryTerm,
+    QueryComparisonOp, QuerySynonymMatch, StructuredFilterPayload, StructuredFilterPlan,
 };
 pub use profile::{QueryAnalysisProfile, QueryProfileBuilder};
 pub use turbo_analysis::Span;
@@ -414,77 +423,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
     }
 }
 
-/// The quantity extractor for queries: the default short units
-/// plus their spelled-out English forms, since queries write
-/// `10 kilometers` and `2 kilograms`, not only abbreviations.
-pub(crate) fn query_quantity_extractor(
-    notation: turbo_analysis_layers::NumberNotation,
-) -> turbo_numeric::QuantityExtractor {
-    const LONG_UNITS: [&str; 57] = [
-        "kilometer",
-        "kilometers",
-        "kilometre",
-        "kilometres",
-        "meter",
-        "meters",
-        "metre",
-        "metres",
-        "centimeter",
-        "centimeters",
-        "millimeter",
-        "millimeters",
-        "mile",
-        "miles",
-        "yard",
-        "yards",
-        "inch",
-        "inches",
-        "feet",
-        "kilogram",
-        "kilograms",
-        "gram",
-        "grams",
-        "milligram",
-        "milligrams",
-        "ton",
-        "tons",
-        "liter",
-        "liters",
-        "milliliter",
-        "milliliters",
-        "millisecond",
-        "milliseconds",
-        "microsecond",
-        "microseconds",
-        "minute",
-        "minutes",
-        "hour",
-        "hours",
-        "kilobyte",
-        "kilobytes",
-        "megabyte",
-        "megabytes",
-        "gigabyte",
-        "gigabytes",
-        "terabyte",
-        "terabytes",
-        "petabyte",
-        "petabytes",
-        "kilowatt",
-        "kilowatts",
-        "megawatt",
-        "megawatts",
-        "calorie",
-        "calories",
-        "kilocalorie",
-        "kilocalories",
-    ];
-    turbo_numeric::QuantityExtractor::with_units(
-        turbo_numeric::DEFAULT_UNITS.iter().chain(LONG_UNITS.iter()).copied(),
-        notation,
-    )
-    .unwrap_or_else(|_| turbo_numeric::QuantityExtractor::new(notation))
-}
+pub(crate) use units::query_quantity_extractor;
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

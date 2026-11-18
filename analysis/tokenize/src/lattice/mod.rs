@@ -21,6 +21,7 @@
 //! pronunciation and lemma columns of the format, which OpenNLP leaves in
 //! the feature string.
 
+mod alternatives;
 mod chardef;
 mod dictionary;
 mod entries;
@@ -33,6 +34,7 @@ mod prebuilt;
 mod tokenizer;
 mod trie;
 
+pub use alternatives::LatticeGraphAnnotator;
 pub use dictionary::{DictionaryFiles, EntryId, MecabDictionary};
 pub use entries::Columns;
 pub use error::{CharDefProblem, DictionaryError, DictionaryFile, EntryProblem, NoCandidate};

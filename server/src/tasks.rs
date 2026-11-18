@@ -2,6 +2,7 @@
 //! `TASK_EXTRACTIVE_QA` bundles over gRPC.
 
 pub(crate) mod embed;
+mod multires;
 mod qa;
 mod rerank;
 

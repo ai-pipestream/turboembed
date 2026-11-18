@@ -74,6 +74,7 @@ pub struct Metrics {
     bundle_loads_ok: AtomicU64,
     bundle_loads_err: AtomicU64,
     bundle_unloads: AtomicU64,
+    cancelled_before_exec: AtomicU64,
 }
 
 impl Metrics {
@@ -115,6 +116,17 @@ impl Metrics {
     /// Records a bundle unload (`UnloadBundle`).
     pub fn record_bundle_unload(&self) {
         self.bundle_unloads.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records a request or stream item aborted by deadline/cancellation before
+    /// device execution (`#2346`).
+    pub fn record_cancelled_before_exec(&self) {
+        self.cancelled_before_exec.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Total requests aborted before device execution (`#2346`).
+    pub fn cancelled_before_exec(&self) -> u64 {
+        self.cancelled_before_exec.load(Ordering::Relaxed)
     }
 
     /// Increments the in-flight stream gauge until the returned guard is dropped.
@@ -245,7 +257,7 @@ impl Metrics {
             if let Some(loaded) = served.loaded.get() {
                 loaded_count += 1;
                 let total = loaded.slots.len();
-                let idle = loaded.idle.lock().unwrap_or_else(|e| e.into_inner()).len();
+                let idle = loaded.idle_len();
                 let active = total.saturating_sub(idle);
                 let entry = device_stats.entry(loaded.device).or_insert((0, 0, 0));
                 entry.1 += active;
@@ -298,6 +310,14 @@ impl Metrics {
         let _ = writeln!(out, "# HELP turbo_kserve_loaded_bundles Number of currently loaded model bundles.");
         let _ = writeln!(out, "# TYPE turbo_kserve_loaded_bundles gauge");
         let _ = writeln!(out, "turbo_kserve_loaded_bundles {loaded_count}");
+
+        let cancelled = self.cancelled_before_exec.load(Ordering::Relaxed);
+        let _ = writeln!(
+            out,
+            "# HELP turbo_kserve_cancelled_before_exec_total Requests aborted by deadline or cancellation before device execution."
+        );
+        let _ = writeln!(out, "# TYPE turbo_kserve_cancelled_before_exec_total counter");
+        let _ = writeln!(out, "turbo_kserve_cancelled_before_exec_total {cancelled}");
 
         out
     }

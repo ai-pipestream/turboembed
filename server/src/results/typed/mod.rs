@@ -19,6 +19,7 @@ mod layers_quotations;
 mod layers_sentiment;
 mod layers_shared;
 mod layers_structure;
+mod layers_token_graph;
 pub mod project;
 pub mod scoped;
 mod validate;
@@ -198,21 +199,23 @@ impl<'a> ProjectionCx<'a> {
     }
 }
 
-pub(crate) fn find_aligned_to<A: Layer>(doc: &Document, anchor_key: KeyId) -> Option<&A> {
-    for k in doc.layers() {
-        if k.ty != TypeId::of::<A>() {
-            continue;
-        }
-        let made = doc.made_on(k);
-        let bound_to_anchor = match made.first() {
-            Some(&first) => first == anchor_key,
-            None => k.name == anchor_key.name,
-        };
-        if bound_to_anchor {
-            return doc.get_key(&Key::<A>::named(k.name));
-        }
+/// Whether the side table `key` is the one joined into `anchor`: made on
+/// it, or, when the document records nothing it was made on, of its name.
+/// The PII disclosure judges a joined table by this same rule.
+pub(crate) fn is_aligned_to(doc: &Document, key: KeyId, anchor: KeyId) -> bool {
+    match doc.made_on(key).first() {
+        Some(&first) => first == anchor,
+        None => key.name == anchor.name,
     }
-    None
+}
+
+/// The key of the instance of `A` joined into `anchor_key`.
+pub(crate) fn aligned_key<A: Layer>(doc: &Document, anchor_key: KeyId) -> Option<KeyId> {
+    doc.layers().find(|&k| k.ty == TypeId::of::<A>() && is_aligned_to(doc, k, anchor_key))
+}
+
+pub(crate) fn find_aligned_to<A: Layer>(doc: &Document, anchor_key: KeyId) -> Option<&A> {
+    aligned_key::<A>(doc, anchor_key).and_then(|k| doc.get_key(&Key::<A>::named(k.name)))
 }
 
 pub(crate) fn build_layer<L: Layer>(
@@ -362,6 +365,7 @@ pub fn document_to_typed_bound(
             .or_else(|| layers_pii_edits::project_pii_edits_layer(&mut cx, key))
             .or_else(|| layers_quality::project_quality_layer(&mut cx, key))
             .or_else(|| layers_quotations::project_quotations(&mut cx, key))
+            .or_else(|| layers_token_graph::project_token_graph(&mut cx, key))
             .or_else(|| layers_structure::project_structure_layer(&mut cx, key))
             .or_else(|| layers_shared::project_shared_layer(&mut cx, key))
             .or_else(|| layers_context::project_context_layer(&mut cx, key))

@@ -16,6 +16,8 @@ use turbo::{
 use crate::api::{self, *};
 use crate::config::ModelConfig;
 use crate::metrics::Metrics;
+pub use crate::priority::Held;
+use crate::priority::SessionPool;
 use crate::results::over;
 use crate::status::{SESSION_DESC, describe};
 use crate::stream;
@@ -61,36 +63,8 @@ pub(crate) struct Loaded {
     pub(crate) head_steps: Vec<String>,
     /// Stored vocabulary artifacts bound to this bundle at LoadBundle (#2013).
     pub(crate) vocabulary: crate::vocabulary::ResolvedVocabulary,
-    pub(crate) idle: Mutex<Vec<usize>>,
+    pub(crate) pool: SessionPool,
     pub(crate) metrics: Arc<Metrics>,
-}
-
-/// A session taken from its model's pool, returned when this is dropped.
-pub struct Held {
-    pub(crate) loaded: Arc<Loaded>,
-    pub(crate) index: usize,
-}
-
-impl Held {
-    pub(crate) fn slot(&self) -> &Slot {
-        &self.loaded.slots[self.index]
-    }
-}
-
-impl Drop for Held {
-    fn drop(&mut self) {
-        self.loaded.idle.lock().unwrap_or_else(|e| e.into_inner()).push(self.index);
-    }
-}
-
-impl Loaded {
-    /// An idle session, or TURBO_E_BUSY at once when every one is held.
-    pub(crate) fn take(self: &Arc<Loaded>) -> api::Result<Held> {
-        let index = self.idle.lock().unwrap_or_else(|e| e.into_inner()).pop().ok_or_else(|| {
-            Failure::new(TURBO_E_BUSY, 0, format!("all {} sessions of the model are held", self.slots.len()))
-        })?;
-        Ok(Held { loaded: self.clone(), index })
-    }
 }
 
 /// A model the server serves: its name, its configuration, and its load
@@ -441,7 +415,7 @@ impl State {
                 session,
             });
         }
-        let idle = Mutex::new((0..slots.len()).rev().collect());
+        let pool = SessionPool::new(slots.len());
         let loaded = Loaded {
             slots,
             bundle: c.bundle.clone(),
@@ -454,7 +428,7 @@ impl State {
             revision: api::field(&info.revision),
             head_steps: crate::progressive::heads::available(&c.bundle),
             vocabulary: m.vocabulary.clone(),
-            idle,
+            pool,
             metrics: Arc::clone(&self.metrics),
         };
         // The caller holds the loading mutex: no other load can have set

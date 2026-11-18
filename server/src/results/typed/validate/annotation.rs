@@ -268,6 +268,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::PiiCandidate(c) => pii::candidate(ctx, i, ann, c)?,
         Value::PiiEdit(e) => pii_edits::edit(ctx, i, e)?,
         Value::PiiRisk(r) => pii_risk::risk(ctx, i, ann, r)?,
+        Value::TokenArc(arc) => token_graph::record(ctx, i, ann, arc)?,
         _ => {}
     }
 

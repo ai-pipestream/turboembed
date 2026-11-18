@@ -47,6 +47,39 @@ service TurboVocabularyService
   // vocabulary as learned, in chunks of at most 64 KiB, the descriptor
   // first.
   rpc DownloadVocabulary(DownloadVocabularyRequest) returns (stream VocabularyArtifactChunk) {}
+
+  // Lists compiled stem-to-surface and surface-prefix lexicons (#2341).
+  rpc ListSuggestLexicons(ListSuggestLexiconsRequest) returns (ListSuggestLexiconsResponse) {}
+
+  // Client-streaming builder for a zero-copy stem-to-surface and prefix
+  // lexicon (#2341): one BuildSuggestLexiconHeader followed by either
+  // explicit (surface, stem, count) observations or raw documents.
+  rpc BuildSuggestLexicon(stream BuildSuggestLexiconRequest) returns (SuggestLexiconArtifactDescriptor) {}
+
+  // Completes a surface prefix against a mapped suggest lexicon (#2341),
+  // returning canonical surface completions paired with target stems.
+  rpc SuggestPrefix(SuggestPrefixRequest) returns (SuggestPrefixResponse) {}
+
+  // Looks up canonical surface realizations for an indexed stem (#2341).
+  rpc LookupStemSurfaces(LookupStemSurfacesRequest) returns (LookupStemSurfacesResponse) {}
+
+  // Context-aware multi-word query spellcheck ("Did you mean?", #2341)
+  // backed by a learned vocabulary artifact's unigram and n-gram counts.
+  rpc SpellcheckQuery(SpellcheckQueryRequest) returns (SpellcheckQueryResponse) {}
+
+  // Client-streaming upload of collection-wide (term, df, doc_count) snapshots
+  // (#2346), compiling a deterministic TCIDF001 corpus IDF artifact.
+  rpc ImportCorpusStatistics(stream ImportCorpusStatisticsRequest) returns (CorpusStatisticsArtifactDescriptor) {}
+
+  // Lists stored TCIDF001 corpus IDF statistics artifacts (#2346).
+  rpc ListCorpusStatistics(ListCorpusStatisticsRequest) returns (ListCorpusStatisticsResponse) {}
+
+  // Client-streaming trainer for spherical k-means Voronoi routing centroids
+  // (#2346), exporting a versioned TCENT001 centroid bundle.
+  rpc TrainVoronoiCentroids(stream TrainVoronoiCentroidsRequest) returns (VoronoiCentroidArtifactDescriptor) {}
+
+  // Lists stored TCENT001 Voronoi routing centroid artifacts (#2346).
+  rpc ListVoronoiCentroids(ListVoronoiCentroidsRequest) returns (ListVoronoiCentroidsResponse) {}
 }
 
 message ListDictionaryFormatsRequest {}
@@ -209,5 +242,226 @@ message VocabularyArtifactChunk
     VocabularyArtifactDescriptor vocabulary = 2;
     // Every later frame: the next bytes, at most 64 KiB.
     bytes data = 3;
+    SuggestLexiconArtifactDescriptor suggest_lexicon = 4;
+    CorpusStatisticsArtifactDescriptor corpus_statistics = 5;
+    VoronoiCentroidArtifactDescriptor voronoi_centroids = 6;
   }
+}
+
+message SuggestLexiconArtifactDescriptor
+{
+  string artifact_id = 1;
+  string language = 2;
+  uint64 entry_count = 3;
+  uint64 stem_count = 4;
+  uint64 byte_size = 5;
+  string sha256 = 6;
+}
+
+message ListSuggestLexiconsRequest {}
+
+message ListSuggestLexiconsResponse
+{
+  repeated SuggestLexiconArtifactDescriptor lexicons = 1;
+}
+
+message BuildSuggestLexiconHeader
+{
+  // BCP 47 language tag selecting the server stemmer when raw documents are
+  // streamed (defaults to "en" Snowball English when empty).
+  string language = 1;
+  // Maximum completions stored per folded prefix node (0 uses default 16).
+  uint32 top_k_prefix = 2;
+  // Maximum surface realizations stored per stem (0 uses default 16).
+  uint32 top_k_stem = 3;
+  // When raw documents are streamed, count document frequency (1 per document)
+  // rather than raw term frequency.
+  bool count_doc_freq = 4;
+}
+
+message SuggestObservation
+{
+  string surface = 1;
+  string stem = 2;
+  uint64 count = 3;
+}
+
+message BuildSuggestLexiconRequest
+{
+  oneof frame
+  {
+    BuildSuggestLexiconHeader header = 1;
+    SuggestObservation observation = 2;
+    LearnVocabularyDocument document = 3;
+  }
+}
+
+message SuggestPrefixRequest
+{
+  string artifact_id = 1;
+  string prefix = 2;
+  uint32 limit = 3;
+}
+
+message SurfaceCompletionItem
+{
+  string surface = 1;
+  string stem = 2;
+  uint64 count = 3;
+}
+
+message SuggestPrefixResponse
+{
+  repeated SurfaceCompletionItem completions = 1;
+}
+
+message LookupStemSurfacesRequest
+{
+  string artifact_id = 1;
+  string stem = 2;
+  uint32 limit = 3;
+}
+
+message StemSurfaceItem
+{
+  string surface = 1;
+  uint64 count = 2;
+}
+
+message LookupStemSurfacesResponse
+{
+  repeated StemSurfaceItem surfaces = 1;
+}
+
+enum SpellcheckOffsetMode
+{
+  SPELLCHECK_OFFSET_MODE_UTF8 = 0;
+  SPELLCHECK_OFFSET_MODE_UTF16 = 1;
+  SPELLCHECK_OFFSET_MODE_CODE_POINT = 2;
+}
+
+message SpellcheckSpan
+{
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+message SpellcheckQueryRequest
+{
+  string vocabulary_artifact_id = 1;
+  string query = 2;
+  SpellcheckOffsetMode offsets = 3;
+  repeated SpellcheckSpan protected_spans = 4;
+  uint32 max_edit_distance = 5;
+}
+
+message SpellcheckEditItem
+{
+  SpellcheckSpan span = 1;
+  string original = 2;
+  string replacement = 3;
+  uint32 edit_distance = 4;
+}
+
+message SpellcheckQueryResponse
+{
+  string corrected_query = 1;
+  bool did_change = 2;
+  double confidence = 3;
+  SpellcheckOffsetMode offsets = 4;
+  repeated SpellcheckEditItem edits = 5;
+}
+
+message CorpusStatisticsHeader
+{
+  string language = 1;
+  uint64 doc_count = 2;
+  string name = 3;
+}
+
+message CorpusTermFrequencyEntry
+{
+  string term = 1;
+  uint64 doc_freq = 2;
+}
+
+message CorpusTermFrequencyBatch
+{
+  repeated CorpusTermFrequencyEntry entries = 1;
+}
+
+message ImportCorpusStatisticsRequest
+{
+  oneof frame
+  {
+    CorpusStatisticsHeader header = 1;
+    CorpusTermFrequencyBatch batch = 2;
+  }
+}
+
+message CorpusStatisticsArtifactDescriptor
+{
+  string artifact_id = 1;
+  string language = 2;
+  string name = 3;
+  uint64 doc_count = 4;
+  uint64 term_count = 5;
+  uint64 byte_size = 6;
+  string sha256 = 7;
+}
+
+message ListCorpusStatisticsRequest {}
+
+message ListCorpusStatisticsResponse
+{
+  repeated CorpusStatisticsArtifactDescriptor statistics = 1;
+}
+
+message TrainVoronoiCentroidsHeader
+{
+  string model_id = 1;
+  string model_revision = 2;
+  string model_sha256 = 3;
+  uint32 dim = 4;
+  uint32 num_centroids = 5;
+  uint32 max_iters = 6;
+  uint64 seed = 7;
+  string tag_set_name = 8;
+  double temperature = 9;
+}
+
+message VoronoiSampleBatch
+{
+  repeated float values = 1;
+}
+
+message TrainVoronoiCentroidsRequest
+{
+  oneof frame
+  {
+    TrainVoronoiCentroidsHeader header = 1;
+    VoronoiSampleBatch batch = 2;
+  }
+}
+
+message VoronoiCentroidArtifactDescriptor
+{
+  string artifact_id = 1;
+  string model_id = 2;
+  string model_revision = 3;
+  string model_sha256 = 4;
+  uint32 dim = 5;
+  uint32 num_centroids = 6;
+  uint64 sample_count = 7;
+  double mean_cosine = 8;
+  uint64 byte_size = 9;
+  string sha256 = 10;
+  repeated uint64 cluster_counts = 11;
+}
+
+message ListVoronoiCentroidsRequest {}
+
+message ListVoronoiCentroidsResponse
+{
+  repeated VoronoiCentroidArtifactDescriptor centroids = 1;
 }

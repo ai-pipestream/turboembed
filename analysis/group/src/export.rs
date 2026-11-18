@@ -2,7 +2,7 @@
 //! registration of every layer type its annotators write.
 
 use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, Reader, Writer};
-use turbo_analysis::{Document, Edges, Groups, Layer};
+use turbo_analysis::{Document, Edges, Groups, Layer, View};
 use turbo_analysis_layers::{Boilerplate, Chunks, Sentences, Structure};
 
 use crate::hash::LANES;
@@ -63,6 +63,7 @@ impl<L: Layer> LayerCodec for Sketches<L> {
 /// the boilerplate flags of structure blocks, sentences and chunks.
 pub fn register_codecs(codecs: &mut Codecs) {
     codecs
+        .register::<Sketches<View>>()
         .register::<Sketches<Structure>>()
         .register::<Sketches<Sentences>>()
         .register::<Sketches<Chunks>>()

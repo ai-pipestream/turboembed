@@ -160,6 +160,7 @@ async fn without_the_option_the_item_carries_no_projection() {
         views: listed.views,
         typed: None,
         analyzed: None,
+        search_projection: None,
     };
     assert_eq!(item, want);
     s.stop().await;

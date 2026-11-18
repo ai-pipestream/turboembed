@@ -15,7 +15,9 @@
 pub(crate) mod candidates;
 pub(crate) mod features;
 
-use turbo_analysis::{Annotator, Error, Key, Layer};
+use std::sync::Arc;
+
+use turbo_analysis::{Annotator, CorpusIdf, Error, Key, Layer};
 use turbo_analysis_layers::{Sentences, Terms, Tokens};
 
 use crate::ranked::RankedKeyword;
@@ -32,6 +34,7 @@ pub struct YakeExtractor {
     top_n: usize,
     threshold: f64,
     dedup: Dedup,
+    corpus_idf: Option<Arc<CorpusIdf>>,
 }
 
 impl YakeExtractor {
@@ -46,6 +49,7 @@ impl YakeExtractor {
             top_n: 30,
             threshold: f64::MAX,
             dedup: Dedup::default(),
+            corpus_idf: None,
         }
     }
 
@@ -101,6 +105,13 @@ impl YakeExtractor {
         self
     }
 
+    /// Attaches collection-wide BM25 IDF weights (`#2346`) so rare corpus
+    /// terms outrank ubiquitous boilerplate terms.
+    pub fn with_corpus_idf(mut self, idf: Arc<CorpusIdf>) -> YakeExtractor {
+        self.corpus_idf = Some(idf);
+        self
+    }
+
     /// Every ranked keyphrase of the document, best first. An empty
     /// token or sentence layer yields an empty ranking, never an error;
     /// a configuration that cannot run fails the document.
@@ -133,22 +144,32 @@ impl YakeExtractor {
             return Ok(Vec::new());
         }
         let fold = features::fold(sentences, tokens, terms, self.window_size)?;
-        let tscore = features::score_terms(&fold, &self.stopwords);
+        let mut tscore = features::score_terms(&fold, &self.stopwords);
+        if let Some(idf) = &self.corpus_idf {
+            for (id, score) in tscore.iter_mut().enumerate() {
+                if score.is_finite() {
+                    *score /= idf.rarity_boost(&fold.table.names[id]);
+                }
+            }
+        }
         let accums = candidates::enumerate(&fold, &self.stopwords, self.min_ngram, self.max_ngram);
         let scored = candidates::score(&fold, &tscore, accums, &self.stopwords);
         Ok(candidates::rank(&fold, scored, self.dedup, self.threshold, self.top_n))
     }
 
     pub(crate) fn config_hash(&self) -> u64 {
-        turbo_analysis::Fnv1a::new()
-            .u64(self.window_size as u64)
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.window_size as u64)
             .u64(self.min_ngram as u64)
             .u64(self.max_ngram as u64)
             .u64(self.top_n as u64)
             .f64(self.threshold)
             .u64(self.dedup.config_hash())
-            .u64(self.stopwords.config_hash())
-            .finish()
+            .u64(self.stopwords.config_hash());
+        if let Some(idf) = &self.corpus_idf {
+            h.u64(idf.config_hash());
+        }
+        h.finish()
     }
 }
 

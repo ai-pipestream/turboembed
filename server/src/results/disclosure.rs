@@ -21,6 +21,7 @@
 //! a caller who already holds the input (docs/grpc-analysis.md, PII output).
 
 use std::any::TypeId;
+use std::collections::{HashMap, HashSet};
 
 use turbo_analysis::{Analyzer, Document, Evidence, Key, KeyId, Layer, View, ViewId};
 use turbo_analysis_layers::{Entities, Pii, PiiCandidates, PiiEdits, PiiRisk};
@@ -315,11 +316,23 @@ pub(crate) fn withhold_other_views(layers: &mut [TypedLayer], doc: &Document, di
     }
 }
 
+/// The layers of `doc` whose data may not leave under `disclosure`, for a
+/// surface that reads the document's layers itself: `own` gives the view
+/// each text-anchored layer sits on. Judged as [`withhold_other_views`]
+/// judges a typed layer, an entity layer with its joined side tables.
+pub(crate) fn withheld_layers(doc: &Document, disclosure: &Disclosure, own: &HashMap<KeyId, ViewId>) -> HashSet<KeyId> {
+    let mut lineage = lineage::Lineage::new(doc, disclosure, |k| own.get(&k).copied());
+    doc.layers()
+        .filter(|k| k.ty != TypeId::of::<View>())
+        .filter(|&k| lineage.withheld(k) || joined(doc, k).any(|j| lineage.withheld(j)))
+        .collect()
+}
+
 /// The side tables the typed projection joins into the layer `key`: the
 /// linked names and evidence aligned to an entity layer.
 fn joined(doc: &Document, key: KeyId) -> impl Iterator<Item = KeyId> + '_ {
     let side = [TypeId::of::<LinkedEntities>(), TypeId::of::<Evidence<Entities>>()];
-    doc.layers().filter(move |k| side.contains(&k.ty) && doc.made_on(*k).first() == Some(&key))
+    doc.layers().filter(move |&k| side.contains(&k.ty) && super::typed::is_aligned_to(doc, k, key))
 }
 
 #[path = "disclosure_lineage.rs"]

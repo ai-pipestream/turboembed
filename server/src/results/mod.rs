@@ -10,13 +10,17 @@ use turbo_analysis::ModelRef;
 use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result as proto;
 
+pub mod analyze_query;
 pub mod disclosure;
 pub mod document;
 pub mod extraction;
 pub mod layers;
+pub mod multires;
 pub mod receipt;
 pub mod records;
 pub mod rerank;
+pub mod rerank_highlight;
+pub mod search_projection;
 pub mod sparse;
 pub mod tokens;
 pub mod typed;

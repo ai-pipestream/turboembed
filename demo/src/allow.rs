@@ -42,7 +42,7 @@ const fn stream(m: Method) -> Method {
 }
 
 /// Every method the demo knows.
-pub const METHODS: [Method; 66] = [
+pub const METHODS: [Method; 82] = [
     read("/inference.GRPCInferenceService/ServerLive"),
     read("/inference.GRPCInferenceService/ServerReady"),
     read("/inference.GRPCInferenceService/ModelReady"),
@@ -54,6 +54,7 @@ pub const METHODS: [Method; 66] = [
     write("/turbo.result.v1.AnalysisService/UnloadBundle"),
     read("/turbo.result.v1.AnalysisService/RoundTripSparseTerms"),
     read("/turbo.result.v1.AnalysisService/RoundTripTokenVectors"),
+    read("/turbo.result.v1.AnalysisService/RoundTripMultiResVectors"),
     read("/turbo.result.v1.AnalysisService/RoundTripRerankScores"),
     read("/turbo.result.v1.AnalysisService/RoundTripExtraction"),
     read("/turbo.result.v1.AnalysisService/RoundTripRecords"),
@@ -61,6 +62,12 @@ pub const METHODS: [Method; 66] = [
     read("/turbo.result.v1.AnalysisService/RoundTripDocumentGraph"),
     read("/turbo.result.v1.AnalysisService/InspectDocumentGraph"),
     read("/turbo.result.v1.AnalysisService/RoundTripTypedDocument"),
+    read("/turbo.result.v1.AnalysisService/RoundTripSearchProjection"),
+    read("/turbo.result.v1.AnalysisService/ProjectSearchDocument"),
+    read("/turbo.result.v1.AnalysisService/RoundTripAnalyzeQuery"),
+    read("/turbo.result.v1.AnalysisService/AnalyzeQuery"),
+    read("/turbo.result.v1.AnalysisService/RoundTripRerankAndHighlight"),
+    read("/turbo.result.v1.AnalysisService/RerankAndHighlight"),
     stream(read("/turbo.result.v1.AnalysisService/AnalyzeDocumentProgressive")),
     read("/turbo.result.v1.AnalysisService/InspectDocumentWindow"),
     read("/turbo.result.v1.AnalysisService/ProjectChunks"),
@@ -107,6 +114,15 @@ pub const METHODS: [Method; 66] = [
     stream(read("/turbo.vocabulary.v1.TurboVocabularyService/DownloadVocabulary")),
     upload("/turbo.vocabulary.v1.TurboVocabularyService/ImportDictionary"),
     upload("/turbo.vocabulary.v1.TurboVocabularyService/LearnVocabulary"),
+    read("/turbo.vocabulary.v1.TurboVocabularyService/ListSuggestLexicons"),
+    upload("/turbo.vocabulary.v1.TurboVocabularyService/BuildSuggestLexicon"),
+    read("/turbo.vocabulary.v1.TurboVocabularyService/SuggestPrefix"),
+    read("/turbo.vocabulary.v1.TurboVocabularyService/LookupStemSurfaces"),
+    read("/turbo.vocabulary.v1.TurboVocabularyService/SpellcheckQuery"),
+    upload("/turbo.vocabulary.v1.TurboVocabularyService/ImportCorpusStatistics"),
+    read("/turbo.vocabulary.v1.TurboVocabularyService/ListCorpusStatistics"),
+    upload("/turbo.vocabulary.v1.TurboVocabularyService/TrainVoronoiCentroids"),
+    read("/turbo.vocabulary.v1.TurboVocabularyService/ListVoronoiCentroids"),
     upload("/turbo.search.v1.TurboSearchService/IndexDocuments"),
     upload("/turbo.sink.v1.TurboSinkService/StreamDocuments"),
 ];

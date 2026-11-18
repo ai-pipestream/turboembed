@@ -48,7 +48,9 @@ mod annotate;
 mod detect;
 pub mod export;
 pub mod gold;
+pub mod lattice;
 
 pub use annotate::{AbbreviationAnnotator, detect};
 pub use detect::{Definition, best_long_form, definitions_in};
+pub use lattice::{AbbreviationLatticeAnnotator, emit_abbreviation_lattice};
 pub use turbo_analysis_layers::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};

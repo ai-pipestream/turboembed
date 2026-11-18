@@ -415,3 +415,31 @@ fn tls_and_metrics_come_from_flags_or_environment() {
     assert!(args(&format!("{base} --metrics-listen nowhere")).is_err());
     assert!(args(&format!("{base} --metrics-listen 127.0.0.1:1 --metrics-listen 127.0.0.1:2")).is_err());
 }
+
+#[test]
+fn bearer_token_files_load_and_validate() {
+    let dir =
+        turbo_scratch::Scratch::at(std::env::temp_dir().join(format!("turbo-kserve-tokens-{}", std::process::id())));
+    std::fs::create_dir_all(&dir).unwrap();
+    let infer_path = dir.join("infer.tok");
+    let admin_path = dir.join("admin.tok");
+    let empty_path = dir.join("empty.tok");
+    std::fs::write(&infer_path, "  infer-secret-1  \n").unwrap();
+    std::fs::write(&admin_path, "admin-secret-1\n").unwrap();
+    std::fs::write(&empty_path, "   \n").unwrap();
+
+    let base = "--listen 127.0.0.1:0 --admin";
+    let a = args(&format!(
+        "{base} --bearer-token-file {} --admin-bearer-token-file {}",
+        infer_path.display(),
+        admin_path.display()
+    ))
+    .unwrap();
+    let auth = a.auth.expect("auth should be configured");
+    assert_eq!(auth, crate::auth::AuthConfig::from_tokens(["infer-secret-1"], ["admin-secret-1"]).unwrap());
+
+    assert!(args(&format!("{base} --bearer-token-file {}", empty_path.display())).is_err());
+    assert!(args(&format!("{base} --admin-bearer-token-file {}", empty_path.display())).is_err());
+    assert!(args(&format!("{base} --bearer-token-file {}", dir.join("missing.tok").display())).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -23,7 +23,21 @@ impl VectorAnnotator {
         let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
         let mut guard = self.lock();
         self.plan_batch(annotator, inputs, &mut guard.plan, &mut out);
-        self.finish(annotator, guard, inputs, out)
+        self.finish(annotator, guard, inputs, out, true)
+    }
+
+    /// Runs a batch of `inputs` through one encoder pass and returns full
+    /// `hidden_dim` pooled vectors prior to cutting or L2 normalization
+    /// (`#2344`).
+    pub(crate) fn embed_unnormalized(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+    ) -> Vec<Result<Output, Error>> {
+        let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
+        let mut guard = self.lock();
+        self.plan_batch(annotator, inputs, &mut guard.plan, &mut out);
+        self.finish(annotator, guard, inputs, out, false)
     }
 
     /// A call of `inputs` planned and not run, for `shape_of_plan` to count
@@ -47,16 +61,17 @@ impl VectorAnnotator {
         let Planned { mut plan, out } = planned;
         let mut guard = self.lock();
         std::mem::swap(&mut guard.plan, &mut plan);
-        self.finish(annotator, guard, inputs, out)
+        self.finish(annotator, guard, inputs, out, true)
     }
 
-    /// Runs the plan in `guard` and pools, splits and normalizes into `out`.
+    /// Runs the plan in `guard` and pools, splits and optionally cuts/normalizes into `out`.
     fn finish(
         &self,
         annotator: &'static str,
         mut guard: std::sync::MutexGuard<'_, State>,
         inputs: &[Input<'_>],
         mut out: Vec<Result<Output, Error>>,
+        cut_and_norm: bool,
     ) -> Vec<Result<Output, Error>> {
         let st = &mut *guard;
         if let Err(e) = self.run(st, inputs, &mut out) {
@@ -76,13 +91,15 @@ impl VectorAnnotator {
             }
         }
         drop(guard);
-        for o in out.iter_mut().flatten() {
-            let sentences = o.sentences.as_mut().map(|v| (&mut v.dim, &mut v.data));
-            let rows = sentences.into_iter().chain(o.chunks.as_mut().map(|v| (&mut v.dim, &mut v.data)));
-            let levels = o.levels.iter_mut().flatten().map(|v| (&mut v.dim, &mut v.data));
-            for (d, data) in rows.chain(levels) {
-                cut_and_normalize(data, dim, self.dim as usize, self.l2);
-                *d = self.dim;
+        if cut_and_norm {
+            for o in out.iter_mut().flatten() {
+                let sentences = o.sentences.as_mut().map(|v| (&mut v.dim, &mut v.data));
+                let rows = sentences.into_iter().chain(o.chunks.as_mut().map(|v| (&mut v.dim, &mut v.data)));
+                let levels = o.levels.iter_mut().flatten().map(|v| (&mut v.dim, &mut v.data));
+                for (d, data) in rows.chain(levels) {
+                    cut_and_normalize(data, dim, self.dim as usize, self.l2);
+                    *d = self.dim;
+                }
             }
         }
         out

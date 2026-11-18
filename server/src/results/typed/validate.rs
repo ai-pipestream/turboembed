@@ -15,6 +15,7 @@ mod quality;
 mod quotations;
 mod receipt;
 mod shared;
+mod token_graph;
 
 use std::collections::{HashMap, HashSet};
 
@@ -340,6 +341,7 @@ fn validate_layer(
     let lid = layer.id.as_str();
     quality::layer(layer)?;
     quotations::layer(layer)?;
+    token_graph::layer(layer)?;
     evidence::layer(layer)?;
     pii_edits::layer(msg, text, offsetter, layer, layer_lengths)?;
     for mref in &layer.model_refs {

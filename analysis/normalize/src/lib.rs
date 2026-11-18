@@ -51,6 +51,7 @@ mod fold_runs;
 pub mod german;
 pub mod invisible;
 pub mod language_detection;
+pub mod lattice;
 pub mod markup;
 pub mod mojibake;
 pub mod noise;
@@ -83,6 +84,7 @@ pub use emoji::{EmojiAnnotate, EmojiRemove, EmojiRemoveMode, EmojiToEmoticon, Em
 pub use entities::HtmlEntityDecodeNormalizer;
 pub use german::GermanUmlauts;
 pub use invisible::Invisible;
+pub use lattice::{NormalizeLatticeAnnotator, alignment_join_parts, emit_normalize_lattice};
 pub use markup::HtmlTagStripNormalizer;
 pub use mojibake::Mojibake;
 pub use noise::{Dictionary, NoiseFinding, NoiseScorer, NoiseStats};

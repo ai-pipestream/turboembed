@@ -4,6 +4,7 @@
 
 pub mod analysis;
 pub mod api;
+pub mod auth;
 pub mod capabilities;
 pub mod catalog;
 mod ceiling;
@@ -18,6 +19,7 @@ mod kserve;
 pub mod metrics;
 pub mod offsets;
 pub mod pii_policy;
+pub mod priority;
 pub mod probe;
 pub mod progressive;
 pub mod release;
@@ -32,62 +34,13 @@ pub mod tls;
 mod training;
 pub mod vocabulary;
 
+pub use crate::auth::AuthConfig;
+pub use crate::priority::{MAX_INTERACTIVE_BURST, MAX_QUEUE_DEPTH, PRIORITY_HEADER, Priority};
 pub use crate::state::Held;
 pub use crate::tls::TlsConfig;
 
 /// The messages and services of the protos.
-pub mod proto {
-    #![allow(clippy::all)]
-    tonic::include_proto!("inference");
-    /// The analysis result layer (docs/grpc-analysis.md).
-    pub mod result {
-        pub mod v1 {
-            tonic::include_proto!("turbo.result.v1");
-        }
-        pub use v1::*;
-    }
-    /// Hybrid search, index lifecycle, aliases, and collection drift (issue #1221).
-    pub mod search {
-        pub mod v1 {
-            tonic::include_proto!("turbo.search.v1");
-        }
-        pub use v1::*;
-    }
-    /// The gRPC health checking protocol (`grpc.health.v1.Health`).
-    pub mod health {
-        tonic::include_proto!("grpc.health.v1");
-    }
-    /// The downstream document sink (docs/grpc-sink.md).
-    pub mod sink {
-        pub mod v1 {
-            tonic::include_proto!("turbo.sink.v1");
-        }
-        pub use v1::*;
-    }
-    /// The acknowledged PII access audit (docs/grpc-analysis.md, PII value
-    /// release).
-    pub mod audit {
-        pub mod v1 {
-            tonic::include_proto!("turbo.audit.v1");
-        }
-        pub use v1::*;
-    }
-    /// The vocabulary store's service (docs/grpc-vocabulary.md).
-    pub mod vocabulary {
-        pub mod v1 {
-            tonic::include_proto!("turbo.vocabulary.v1");
-        }
-        pub use v1::*;
-    }
-    /// The model catalog and static model training (docs/grpc-catalog.md,
-    /// docs/grpc-training.md).
-    pub mod training {
-        pub mod v1 {
-            tonic::include_proto!("turbo.training.v1");
-        }
-        pub use v1::*;
-    }
-}
+pub mod proto;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -175,6 +128,7 @@ pub struct Serve {
     /// one minute when `None`.
     pub upload_idle: Option<std::time::Duration>,
     pub sink: Option<SinkConfig>,
+    pub sink_search_projection: Option<sink::SinkTyped>,
     pub sink_receiver: Option<SinkReceiver>,
     /// What a request's PiiOutputOptions may turn on
     /// (`--pii-output-allow`, docs/grpc-analysis.md, PII output).
@@ -190,6 +144,7 @@ pub struct Serve {
     /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
     pub max_stream_bytes: Option<u64>,
     pub tls: Option<TlsConfig>,
+    pub auth: Option<AuthConfig>,
     pub metrics_listen: Option<SocketAddr>,
     /// The encoded redaction policies `turbo-pii:redact` serves by name
     /// (`--pii-policy`), converted at start: their key references resolve
@@ -291,7 +246,8 @@ impl Server {
             state.pii_policies.clone(),
             state.pii_resolver.clone(),
         )?;
-        let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
+        let sink_sp = serve.sink_search_projection;
+        let sink = serve.sink.as_ref().map(|c| SinkForwarder::start_with(c, sink_sp)).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
             admin: serve.admin,
@@ -317,7 +273,7 @@ impl Server {
         ))
         .max_decoding_message_size(max_message_bytes)
         .max_encoding_message_size(max_reply_bytes);
-        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
+        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary::new(store, serve.admin))
             .max_decoding_message_size(max_message_bytes)
             .max_encoding_message_size(max_reply_bytes);
         let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(
@@ -338,6 +294,7 @@ impl Server {
         let task = tokio::spawn(
             builder
                 .layer(metrics::MetricsLayer::new(state.metrics.clone()))
+                .layer(auth::AuthLayer::new(serve.auth))
                 .layer(tower::util::MapRequestLayer::new(ceiling::cap(ceiling)))
                 .add_service(kserve)
                 .add_service(analysis)
@@ -398,6 +355,12 @@ impl Server {
     pub fn hold(&self, model: &str) -> api::Result<Held> {
         let (_, loaded) = self.state.ready(model, "")?;
         loaded.take()
+    }
+
+    /// Current `(interactive_queued, bulk_queued)` waiter counts for `model`.
+    pub fn priority_queue_depths(&self, model: &str) -> api::Result<(usize, usize)> {
+        let (_, loaded) = self.state.ready(model, "")?;
+        Ok(loaded.queue_depths())
     }
 
     /// The streaming bulk analysis call's gauges: model executions
