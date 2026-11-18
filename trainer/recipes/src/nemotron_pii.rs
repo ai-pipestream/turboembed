@@ -11,6 +11,7 @@
 //! `train`), keeping every persona's `us` and `intl` records on the same side
 //! of the boundary (`90,000` `train`, `10,000` `dev`, `100,000` `test`).
 
+pub mod shared_names;
 pub mod spans;
 
 use std::collections::HashMap;
@@ -22,6 +23,10 @@ use crate::corpus::{Corpus, CorpusRecord, Counts, Pin, Sentence, Splits, Task, c
 use crate::{Error, Result};
 
 pub const ID: &str = "nemotron-pii";
+/// The same release with the project's [`shared_names`] documents added to
+/// its training and development splits (#2398); its test split is the
+/// publisher's, so the two score alike.
+pub const ID_NAMES: &str = "nemotron-pii-names";
 pub const NAME: &str = "NVIDIA Nemotron-PII";
 pub const REVISION: &str = "b70ffaf5ff39e079776134c5bf4381f00a9fd1ed";
 pub const HEAD: &str = "pii";
@@ -157,6 +162,26 @@ pub fn intern_type(raw: &str) -> Option<&'static str> {
 /// Returns the coarse PII category for `fine`, or `fine` itself if ungrouped.
 pub fn coarse(fine: &str) -> &str {
     COARSE.iter().find(|(_, members)| members.contains(&fine)).map_or(fine, |(group, _)| group)
+}
+
+/// Reads the pinned `Nemotron-PII` release from `dir` and adds the
+/// [`shared_names`] documents to its training and development splits.
+pub fn read_with_names(dir: &Path, unrecorded: bool) -> Result<Corpus> {
+    let mut corpus = read(dir, unrecorded)?;
+    let (train, dev) = shared_names::documents()?;
+    corpus.splits.train.extend(train);
+    corpus.splits.dev.extend(dev);
+    let r = &mut corpus.record;
+    r.id = ID_NAMES.into();
+    r.name = format!("{NAME} with shared-name sentences");
+    r.split.push_str(&format!(
+        "; plus {} train and {} dev project-written documents on names a person and a city share (Apache-2.0, #2398), appended after the publisher's",
+        shared_names::TRAIN_DOCUMENTS,
+        shared_names::DEV_DOCUMENTS
+    ));
+    r.train = Counts::of(&corpus.splits.train);
+    r.dev = Counts::of(&corpus.splits.dev);
+    Ok(corpus)
 }
 
 /// Reads the pinned `Nemotron-PII` release from `dir`.

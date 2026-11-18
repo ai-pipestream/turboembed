@@ -10,7 +10,7 @@
 //! Madison`, `Salem, who`) is turned down, as the bare reading was.
 
 use turbo_analysis::Span;
-use turbo_analysis_layers::{CustomKinds, PiiDetectorRef};
+use turbo_analysis_layers::{CustomKinds, PiiDetectorRef, PiiKind};
 
 use super::ModelCandidate;
 use crate::hits::Hits;
@@ -23,7 +23,9 @@ const PERSON_KINDS: [&str; 2] = ["first-name", "last-name"];
 /// The spans of the bare city candidates of the `city` detector that lie
 /// inside a person span the head admits (its probability at or above
 /// `threshold`, when one is set), and that no other rule found on the
-/// same span. With no person span, no city is looked at.
+/// same span. With no person span, no city is looked at. A person
+/// candidate under a likelier `city` candidate of the head on the same
+/// span is the head's second reading and counts as no person span.
 pub(super) fn bare_cities_in_persons(
     text: &str,
     hits: &Hits,
@@ -38,6 +40,11 @@ pub(super) fn bare_cities_in_persons(
             mc.probability.is_finite()
                 && threshold.is_none_or(|min| mc.probability.clamp(0.0, 1.0) >= min)
                 && model_kinds.name(mc.kind).is_some_and(|name| PERSON_KINDS.contains(&name))
+                // The head's second reading of a span it calls a city
+                // (#2398) is no person span to settle anything with.
+                && !candidates
+                    .iter()
+                    .any(|c| c.span == mc.span && c.kind == PiiKind::City && c.probability > mc.probability)
         })
         .map(|mc| mc.span)
         .collect();

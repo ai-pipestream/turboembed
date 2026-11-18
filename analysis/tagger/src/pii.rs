@@ -17,7 +17,7 @@ use turbo_pii::{
     register_nemotron_kinds, resolve_model_with_rules, resolve_nemotron_kind,
 };
 
-use crate::annotate::HeadRunner;
+use crate::annotate::{HeadRunner, LabelGroups, NO_GROUP};
 
 /// Detector id recorded in `Pii::detectors` for [`PiiTagger`] candidates.
 pub const PII_TAGGER_DETECTOR: &str = "turbo-tagger:pii";
@@ -27,6 +27,15 @@ pub const PII_TAGGER_DETECTOR: &str = "turbo-tagger:pii";
 /// (`trainer/recipes/records/nemotron-pii-1888/calibration.json`).
 pub const NEMOTRON_PII_TEMPERATURE: f32 = 1.093_758;
 
+/// The least share of probability at which the head's second reading of
+/// a name is given as a candidate of its own (#2398): a person's name
+/// under a span it labels `city`, or a city under one it labels
+/// `first-name` or `last-name`.
+pub const SECOND_READING_MIN: f32 = 0.05;
+
+/// The label groups the second reading is read from, by their index.
+const GROUPS: [&str; 3] = ["city", "first-name", "last-name"];
+
 /// Writes `turbo:pii` and `turbo:pii-candidates` from a bundle's
 /// `SCHEME_BIO` or `SCHEME_BILOU` token-classification head, optionally
 /// combined with [`PiiDetector`] rules that win on overlap.
@@ -34,6 +43,10 @@ pub struct PiiTagger {
     run: HeadRunner,
     custom_kinds: CustomKinds,
     type_kinds: Vec<PiiKind>,
+    /// For each label of the head, its index in [`GROUPS`] or [`NO_GROUP`].
+    groups: LabelGroups,
+    /// The kind of each of [`GROUPS`], where the head has the type.
+    group_kinds: [Option<PiiKind>; 3],
     model_id: String,
     model_version: String,
     temperature: Option<f32>,
@@ -62,12 +75,28 @@ impl PiiTagger {
                 .map_err(|e| CoreError::new(INVALID_ARGUMENT, format!("pii head label {raw:?}: {e}")))?;
             type_kinds.push(kind);
         }
+        let name_of = |k: PiiKind| k.builtin_name().or_else(|| custom_kinds.name(k));
+        let group = |k: PiiKind| GROUPS.iter().position(|g| name_of(k) == Some(g));
+        let group_kinds = GROUPS.map(|g| type_kinds.iter().copied().find(|&k| name_of(k) == Some(g)));
+        // A label's type is what follows its BIO or BILOU letter.
+        let types = run.tagger().types();
+        let group_of = run
+            .tagger()
+            .labels()
+            .iter()
+            .map(|l| {
+                let kind = l.split_once('-').and_then(|(_, t)| types.iter().position(|ty| ty == t));
+                kind.and_then(|i| group(type_kinds[i])).map_or(NO_GROUP, |g| g as u8)
+            })
+            .collect();
         let model_id = format!("{}:{}", run.model().id, run.tagger().spec().name);
         let model_version = run.model().revision.clone();
         Ok(PiiTagger {
             run,
             custom_kinds,
             type_kinds,
+            groups: LabelGroups { of: group_of, count: GROUPS.len() },
+            group_kinds,
             model_id,
             model_version,
             temperature: None,
@@ -142,6 +171,13 @@ impl PiiTagger {
     }
 
     /// Decodes neural PII candidates on `view` before rule resolution.
+    ///
+    /// A name the head reads two ways gives two candidates on one span
+    /// (#2398): after a `city` candidate, the likelier of `first-name` and
+    /// `last-name` at the share of probability the head gives that type on
+    /// the span's words, and after a `first-name` or `last-name` candidate
+    /// a `city` likewise, each only at or above [`SECOND_READING_MIN`].
+    /// The second is always the type with the smaller share of the two.
     pub fn model_candidates(
         &self,
         view: &View,
@@ -149,20 +185,37 @@ impl PiiTagger {
         subwords: Option<&Subwords>,
     ) -> Result<Vec<ModelCandidate>, String> {
         let seqs = HeadRunner::sequences(view, tokens, None)?;
-        let decoded = self.run.decode_tokens_temperature(view, tokens, &seqs, subwords, self.temperature)?;
+        let decoded = self.run.decode_tokens_shares(view, tokens, &seqs, subwords, self.temperature, &self.groups)?;
+        let [city, first, last] = self.group_kinds;
         let mut out = Vec::new();
-        for (s, d) in seqs.iter().zip(&decoded) {
+        for (s, (d, shares)) in seqs.iter().zip(&decoded) {
             for w in self.run.tagger().spans(&d.tags).map_err(|e| e.to_string())? {
                 let (a, b) = (s[w.start as usize], s[w.end as usize - 1]);
                 let start = tokens.spans.get(Ix::new(a as u32)).start;
                 let end = tokens.spans.get(Ix::new(b as u32)).end;
-                let p = &d.prob[w.start as usize..w.end as usize];
+                let words = w.start as usize..w.end as usize;
+                let p = &d.prob[words.clone()];
                 let mean_prob = (p.iter().sum::<f64>() / p.len() as f64).clamp(0.0, 1.0) as f32;
-                out.push(ModelCandidate {
-                    span: Span::new(start, end),
-                    kind: self.type_kinds[w.kind as usize],
-                    probability: mean_prob,
-                });
+                let span = Span::new(start, end);
+                let kind = self.type_kinds[w.kind as usize];
+                out.push(ModelCandidate { span, kind, probability: mean_prob });
+                // The mean share of group `g` over the span's words.
+                let share =
+                    |g: usize| words.clone().map(|i| shares[i * GROUPS.len() + g]).sum::<f32>() / words.len() as f32;
+                // The second reading and the share of the first's own type.
+                let second = if Some(kind) == city {
+                    let (f, l) = (share(1), share(2));
+                    if l > f { last.map(|k| (k, l, share(0))) } else { first.map(|k| (k, f, share(0))) }
+                } else if Some(kind) == first {
+                    city.map(|k| (k, share(0), share(1)))
+                } else if Some(kind) == last {
+                    city.map(|k| (k, share(0), share(2)))
+                } else {
+                    None
+                };
+                if let Some((kind, probability, _)) = second.filter(|&(_, p, own)| p >= SECOND_READING_MIN && p < own) {
+                    out.push(ModelCandidate { span, kind, probability });
+                }
             }
         }
         Ok(out)
