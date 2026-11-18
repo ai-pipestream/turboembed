@@ -2,8 +2,10 @@
 //! stream is complete only when its last event is a whole receipt
 //! (`receipt::check`) bound to the caller's operation and exact input and,
 //! when the stream delivered a complete graph, to exactly those graph
-//! bytes. A receipt after no graph must name no result and be CANCELLED or
-//! FAILED. Anything else, a dropped connection above all, is incomplete,
+//! bytes. A stream that withheld its graph for PII ends with a receipt that
+//! names the input by length and the result by version, with no digest
+//! (#2403), and is complete only if no graph bytes arrived. A receipt
+//! after no graph must name no result and be CANCELLED or FAILED. Anything else, a dropped connection above all, is incomplete,
 //! whatever the stream delivered before.
 
 use turbo_analysis::ViewTextDigest;
@@ -52,8 +54,11 @@ pub fn terminal_receipt<'a>(
         return Err(Incomplete::OtherOperation);
     }
     let input = receipt.input.as_ref().ok_or(Incomplete::Malformed)?;
+    // A stream that withheld its graph for PII names the input by length
+    // alone (#2403); the shape check holds the two digests together.
+    let withheld = input.source_text_digest.is_empty();
     if input.source_text_len as usize != source_text.len()
-        || input.source_text_digest != ViewTextDigest::of_text(source_text).as_bytes()
+        || (!withheld && input.source_text_digest != ViewTextDigest::of_text(source_text).as_bytes())
     {
         return Err(Incomplete::OtherInput);
     }
@@ -62,6 +67,14 @@ pub fn terminal_receipt<'a>(
         _ => None,
     });
     match complete {
+        // The withheld answer delivered no graph bytes and its receipt
+        // names a result with no digest of them. A receipt that withholds
+        // beside delivered bytes, or beside no result, binds nothing.
+        Some(c) if withheld => {
+            if !c.graph.is_empty() || receipt.result.is_none() {
+                return Err(Incomplete::OtherResult);
+            }
+        }
         Some(c) => verify_result(receipt.result.as_ref(), &c.graph).map_err(|_| Incomplete::OtherResult)?,
         None if receipt.result.is_some() => return Err(Incomplete::OtherResult),
         None if !matches!(status, ProcessingStatus::Cancelled | ProcessingStatus::Failed) => {

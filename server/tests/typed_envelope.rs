@@ -40,7 +40,7 @@ fn check_chain(name: &str, doc: &Document) -> WireChain {
     assert_eq!(chain.views().len(), doc.view_count(), "{name}: every view is in the chain");
     for v in chain.views() {
         assert_eq!(v.text_len as usize, doc.text(v.id).len(), "{name}: view {} length", v.id.0);
-        assert_eq!(&v.text_digest, doc.text_digest(v.id).as_bytes(), "{name}: view {} digest", v.id.0);
+        assert_eq!(v.text_digest.as_ref(), Some(doc.text_digest(v.id).as_bytes()), "{name}: view {} digest", v.id.0);
     }
     let n = doc.view_count() as u16;
     for from in 0..n {

@@ -215,7 +215,7 @@ impl Release {
         let g = grant.clone();
         let r = redaction.clone();
         let require = self.require_recorded;
-        let (mut typed, plan) = tokio::task::spawn_blocking(move || {
+        let (mut typed, plan, source_digest) = tokio::task::spawn_blocking(move || {
             plan::project(&req, policy, Forms::of(form), &g, r.as_deref(), require)
         })
         .await
@@ -239,7 +239,11 @@ impl Release {
             }
         }
         let policy_digest = policy_digest(policy, &grant, redaction.as_ref().map(|r| &r.digest)).to_vec();
-        let input_digest = typed.input.as_ref().map(|i| i.source_text_digest.clone()).unwrap_or_default();
+        // From the graph, not the answer: an answer that withholds the
+        // source carries no digest of it (#2403).
+        let Some(input_digest) = source_digest.map(|d| d.to_vec()) else {
+            return Err(Failure::new(TURBO_E_INTERNAL, 0, "a release planned without its source digest".to_owned()));
+        };
         let event_id = audit::event_id(&audit::EventKey {
             service_fingerprint: &service.0,
             operation_key: &operation_key,

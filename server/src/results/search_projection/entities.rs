@@ -13,7 +13,7 @@ use turbo_relation::ModalityAnnotator;
 
 use super::{Failure, SearchProjCx};
 use crate::proto::result::{SearchEntityPolarities, SearchLinkedEntity};
-use crate::results::typed::find_aligned_to;
+use crate::results::typed::aligned_key;
 
 pub(crate) fn boilerplate_kind_str(k: BoilerplateKind) -> &'static str {
     match k {
@@ -127,12 +127,12 @@ fn token_under(deps: &Dependencies, mut tok: usize, ancestor: usize) -> bool {
 /// nominal `H`, only entities governed inside `H`'s dependency subtree inherit
 /// `Negated`, leaving sibling arguments (such as `nsubj` `"Acme Corp"`) affirmed.
 fn nominal_det_excludes_entity(
-    doc: &Document,
+    cx: &SearchProjCx<'_>,
     modality_view: ViewId,
     cue_span: Span,
     ent_tokens: IxRange<Tokens>,
 ) -> bool {
-    let (Some(tokens), Some(deps)) = (doc.get::<Tokens>(), doc.get::<Dependencies>()) else {
+    let (Some(tokens), Some(deps)) = (cx.kept::<Tokens>(), cx.kept::<Dependencies>()) else {
         return false;
     };
     if tokens.spans.view() != modality_view || deps.head.len() != tokens.len() {
@@ -162,7 +162,7 @@ fn nominal_det_excludes_entity(
 }
 
 fn classify_entity_modality(
-    doc: &Document,
+    cx: &SearchProjCx<'_>,
     modality: Option<&Modality>,
     ent_view: ViewId,
     ent_span: Span,
@@ -171,6 +171,7 @@ fn classify_entity_modality(
     let Some(m) = modality else {
         return ("affirmed", "asserted", None);
     };
+    let doc = cx.doc;
     let m_view = m.spans.view();
     let mapped = if ent_view == m_view {
         ent_span
@@ -184,7 +185,7 @@ fn classify_entity_modality(
     let mut resolved_cue = cue;
     if polarity == ModalityPolarity::Negated
         && let Some(c_span) = cue
-        && nominal_det_excludes_entity(doc, m_view, c_span, ent_tokens)
+        && nominal_det_excludes_entity(cx, m_view, c_span, ent_tokens)
     {
         polarity = ModalityPolarity::Affirmed;
         resolved_cue = None;
@@ -208,7 +209,10 @@ pub(crate) fn project_entities(cx: &SearchProjCx<'_>) -> Result<SearchEntityPola
 
     for key in cx.doc.layers().filter(|k| k.ty == TypeId::of::<Entities>()) {
         let Some(ents) = cx.kept_key(&Key::<Entities>::named(key.name)) else { continue };
-        let linked = find_aligned_to::<LinkedEntities>(cx.doc, key);
+        // The disclosure judges the entities with their joined names; a
+        // name table is read only when it may leave on its own too.
+        let linked =
+            aligned_key::<LinkedEntities>(cx.doc, key).and_then(|k| cx.kept_key(&Key::<LinkedEntities>::named(k.name)));
         let view = ents.spans.view();
         let view_text = cx.doc.text(view);
         for i in 0..ents.len() {
@@ -233,7 +237,7 @@ pub(crate) fn project_entities(cx: &SearchProjCx<'_>) -> Result<SearchEntityPola
                 _ => (None, String::new(), surface.to_owned(), surface.to_owned(), ents.score[i]),
             };
             let (polarity, epistemic, cue) =
-                classify_entity_modality(cx.doc, modality.as_ref(), view, span, ents.tokens[i]);
+                classify_entity_modality(cx, modality.as_ref(), view, span, ents.tokens[i]);
             let item = SearchLinkedEntity {
                 entity_index: i as u32,
                 span_start,

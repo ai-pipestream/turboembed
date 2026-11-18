@@ -299,7 +299,8 @@ export type InputIdentity = Message<"turbo.result.v1.InputIdentity"> & {
   /**
    * SHA-256 of the document's original bytes: the decoded file bytes
    * for a document decoded from bytes, else the UTF-8 of the source
-   * view. raw_bytes_len is the length of those bytes.
+   * view. raw_bytes_len is the length of those bytes. Empty, with
+   * source_text_digest, when the source is withheld for PII.
    *
    * @generated from field: bytes raw_bytes_digest = 2;
    */
@@ -314,7 +315,7 @@ export type InputIdentity = Message<"turbo.result.v1.InputIdentity"> & {
 
   /**
    * SHA-256 of the source view's UTF-8 text (view 0), and that text's
-   * length in UTF-8 bytes.
+   * length in UTF-8 bytes. Empty when the source is withheld for PII.
    *
    * @generated from field: bytes source_text_digest = 4;
    */
@@ -343,7 +344,9 @@ export const InputIdentitySchema: GenMessage<InputIdentity> = /*@__PURE__*/
 export type ResultIdentity = Message<"turbo.result.v1.ResultIdentity"> & {
   /**
    * The lowercase hexadecimal of content_digest: two results with one
-   * id hold the same graph bytes.
+   * id hold the same graph bytes. Empty, with content_digest, and
+   * graph_bytes_len 0, when the source is withheld for PII: the graph
+   * bytes hold the source text.
    *
    * @generated from field: string result_id = 1;
    */
@@ -454,7 +457,9 @@ export type LayerProvenance = Message<"turbo.result.v1.LayerProvenance"> & {
    * source bytes digest when the document was decoded from bytes,
    * every view read (instance, text digest) sorted by instance, and
    * every read layer (layer, instance, its own provenance digest)
-   * sorted by layer then instance.
+   * sorted by layer then instance. Empty, and the two digests below
+   * absent, when the source is withheld for PII: all three chain the
+   * source text digest.
    *
    * @generated from field: bytes provenance_digest = 4;
    */
@@ -670,6 +675,8 @@ export type ViewChain = Message<"turbo.result.v1.ViewChain"> & {
 
   /**
    * SHA-256 of this view's UTF-8 text, and its length in UTF-8 bytes.
+   * Empty when the view's text may not leave under the result's PII
+   * disclosure.
    *
    * @generated from field: bytes text_digest = 4;
    */
@@ -894,10 +901,10 @@ export type LayerReceipt = Message<"turbo.result.v1.LayerReceipt"> & {
   error?: LayerError | undefined;
 
   /**
-   * The layer's configuration identity: its LayerProvenance
-   * provenance_digest (rule turbo:provenance-digest:v2, over the
-   * annotator, version, config key and model). Absent for a layer the
-   * graph holds no digest for.
+   * The layer's LayerProvenance provenance_digest (rule
+   * turbo:provenance-digest:v2, which chains the source text digest).
+   * Absent for a layer the graph holds no digest for, and on every
+   * layer when the source is withheld for PII.
    *
    * @generated from field: optional bytes provenance_digest = 10;
    */

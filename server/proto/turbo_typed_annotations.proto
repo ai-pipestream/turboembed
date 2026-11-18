@@ -140,7 +140,14 @@ message PiiReleasePolicy
 //
 // Every digest field holds the raw 32 bytes of a SHA-256, and the
 // field says exactly what the digest is computed over. A digest that
-// is not available is absent, never zero-filled or invented. Offsets
+// is not available is absent, never zero-filled or invented. No digest
+// here is keyed, so each names a short input to anyone who can guess
+// it; a result that withholds the source of a document holding PII (no
+// pii_output.full_text) therefore carries no digest of it (#2403):
+// InputIdentity's two digests, ResultIdentity's id, digest and length,
+// LayerProvenance's three digests, LayerReceipt.provenance_digest and
+// the text_digest of every view whose text may not leave are absent
+// together, and lengths, versions and the binding are kept. Offsets
 // inside the envelope's edit chain are UTF-8 bytes whatever the
 // result's OffsetMode is; OffsetMode applies to annotation spans only.
 
@@ -165,12 +172,13 @@ message InputIdentity
   optional InputBinding binding = 1;
   // SHA-256 of the document's original bytes: the decoded file bytes
   // for a document decoded from bytes, else the UTF-8 of the source
-  // view. raw_bytes_len is the length of those bytes.
+  // view. raw_bytes_len is the length of those bytes. Empty, with
+  // source_text_digest, when the source is withheld for PII.
   bytes raw_bytes_digest = 2;
   // The length of those original bytes.
   uint64 raw_bytes_len = 3;
   // SHA-256 of the source view's UTF-8 text (view 0), and that text's
-  // length in UTF-8 bytes.
+  // length in UTF-8 bytes. Empty when the source is withheld for PII.
   bytes source_text_digest = 4;
   // The source view's length in UTF-8 bytes.
   uint32 source_text_len = 5;
@@ -180,7 +188,9 @@ message InputIdentity
 message ResultIdentity
 {
   // The lowercase hexadecimal of content_digest: two results with one
-  // id hold the same graph bytes.
+  // id hold the same graph bytes. Empty, with content_digest, and
+  // graph_bytes_len 0, when the source is withheld for PII: the graph
+  // bytes hold the source text.
   string result_id = 1;
   // SHA-256 of the exact TGRF bytes DocumentGraph::to_bytes writes for
   // this document, nothing prepended, so `sha256sum` of the graph
@@ -223,7 +233,9 @@ message LayerProvenance
   // source bytes digest when the document was decoded from bytes,
   // every view read (instance, text digest) sorted by instance, and
   // every read layer (layer, instance, its own provenance digest)
-  // sorted by layer then instance.
+  // sorted by layer then instance. Empty, and the two digests below
+  // absent, when the source is withheld for PII: all three chain the
+  // source text digest.
   bytes provenance_digest = 4;
   // SHA-256 content digest of the layer's payload, rule
   // turbo:layer-content:v2 over the layer name, instance, codec
@@ -312,6 +324,8 @@ message ViewChain
   // The parent's view; absent for the source view, which has no edits.
   optional uint32 parent = 3;
   // SHA-256 of this view's UTF-8 text, and its length in UTF-8 bytes.
+  // Empty when the view's text may not leave under the result's PII
+  // disclosure.
   bytes text_digest = 4;
   // The view's text length in UTF-8 bytes.
   uint32 text_len = 5;
@@ -425,10 +439,10 @@ message LayerReceipt
   repeated TruncationReason truncations = 8;
   // Why the layer failed or was skipped; absent on a COMPLETE layer.
   optional LayerError error = 9;
-  // The layer's configuration identity: its LayerProvenance
-  // provenance_digest (rule turbo:provenance-digest:v2, over the
-  // annotator, version, config key and model). Absent for a layer the
-  // graph holds no digest for.
+  // The layer's LayerProvenance provenance_digest (rule
+  // turbo:provenance-digest:v2, which chains the source text digest).
+  // Absent for a layer the graph holds no digest for, and on every
+  // layer when the source is withheld for PII.
   optional bytes provenance_digest = 10;
 }
 

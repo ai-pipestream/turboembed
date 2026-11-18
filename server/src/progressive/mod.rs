@@ -40,7 +40,7 @@ use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_p
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
 use crate::results::receipt::error::{kind_name, of_error};
 use crate::results::receipt::{self, Operation, check_operation_key};
-use crate::results::typed::identity::{bound, check_binding, input_identity, result_identity};
+use crate::results::typed::identity::{bound, check_binding, input_identity_with, result_identity_with};
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
@@ -239,17 +239,18 @@ fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Doc
 }
 
 /// Sends the terminal receipt of `op` over `doc`: `result` is the
-/// identity of the complete graph the client was handed, absent when it
-/// was handed none, and `binding` the caller's, copied as given. Returns
-/// whether the client took it.
+/// identity of the complete graph, absent when there is none, and
+/// `binding` the caller's, copied as given. Without `digests`, when the
+/// graph is withheld, the receipt names the input by its lengths alone
+/// (#2403). Returns whether the client took it.
 fn send_receipt(
     tx: &mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     sequence: u64,
-    (op, binding): (&Operation, Option<&InputBinding>),
+    (op, binding, digests): (&Operation, Option<&InputBinding>, bool),
     doc: &Document,
     result: Option<crate::proto::result::ResultIdentity>,
 ) -> bool {
-    let receipt = receipt::build(op, doc, input_identity(doc, binding), result, &[]);
+    let receipt = receipt::build(op, doc, input_identity_with(doc, binding, digests), result, &[]);
     tx.blocking_send(Ok(AnalyzeProgressiveEvent { sequence, event: Some(Event::Receipt(receipt)) })).is_ok()
 }
 
@@ -278,6 +279,9 @@ fn run_progressive_task(
     // withholds them from the first snapshot on, since the text is the
     // same before the PII step runs as after (#1904).
     let snapshot_graphs = disclosure.full_text || !(holds_pii(&doc) || plans_pii(&analyzer));
+    // The terminal receipt follows the same decision: a pipeline that
+    // plans PII findings names no digest of its input or result, even
+    // when it is cancelled before the PII step wrote its layer (#2403).
     if deadline.is_expired() {
         let _ = tx.blocking_send(Err(deadline_status()));
         return None;
@@ -433,7 +437,7 @@ fn run_progressive_task(
         // The deadline cancelled the run: what ran is on the receipt, and
         // no result was handed over.
         op.cancelled = true;
-        let _ = send_receipt(&tx, seq + 1, (&op, binding.as_ref()), &doc, None);
+        let _ = send_receipt(&tx, seq + 1, (&op, binding.as_ref(), snapshot_graphs), &doc, None);
         let _ = tx.blocking_send(Err(deadline_status()));
         return None;
     }
@@ -450,9 +454,10 @@ fn run_progressive_task(
             // The client's findings projection carries the request's binding.
             complete.findings = complete.findings.map(|f| bound(f, binding.as_ref()));
             seq += 1;
-            // The result is the complete graph whether or not the client
-            // was handed its bytes.
-            let result = result_identity(&full.graph);
+            // The result is the complete graph; a client that was not
+            // handed its bytes is not handed their digest either (#2403).
+            let digests = disclosure.graph(&doc);
+            let result = result_identity_with(&full.graph, digests);
             // What the sink is offered: the bytes, layers and views of the
             // export, and the document they were exported from.
             let exported = DocumentGraphResponse {
@@ -468,7 +473,7 @@ fn run_progressive_task(
             }
             // The terminal receipt; a client that left before it holds an
             // incomplete stream, but it was handed the complete graph.
-            let _ = send_receipt(&tx, seq + 1, (&op, binding.as_ref()), &doc, Some(result));
+            let _ = send_receipt(&tx, seq + 1, (&op, binding.as_ref(), digests), &doc, Some(result));
             Some((exported, doc))
         }
         Err(f) => {

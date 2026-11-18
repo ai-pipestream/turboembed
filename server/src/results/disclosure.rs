@@ -332,7 +332,7 @@ pub(crate) fn withheld_layers(doc: &Document, disclosure: &Disclosure, own: &Has
 /// linked names and evidence aligned to an entity layer.
 fn joined(doc: &Document, key: KeyId) -> impl Iterator<Item = KeyId> + '_ {
     let side = [TypeId::of::<LinkedEntities>(), TypeId::of::<Evidence<Entities>>()];
-    doc.layers().filter(move |k| side.contains(&k.ty) && doc.made_on(*k).first() == Some(&key))
+    doc.layers().filter(move |&k| side.contains(&k.ty) && super::typed::is_aligned_to(doc, k, key))
 }
 
 #[path = "disclosure_lineage.rs"]

@@ -58,3 +58,39 @@ impl MappedFile {
         &self.map
     }
 }
+
+/// A mapped lexicon image with the view that checking it gave, so the
+/// check, which reads every table of the image, is paid once when the
+/// file is mapped and never by a lookup.
+#[cfg(feature = "mmap")]
+pub struct CheckedLexiconFile {
+    /// Borrows `file`'s mapping. Never handed out at this lifetime.
+    view: crate::MappedSurfaceLexicon<'static>,
+    file: MappedFile,
+}
+
+#[cfg(feature = "mmap")]
+impl CheckedLexiconFile {
+    /// Checks the image in `file` and keeps the view with the mapping.
+    pub fn new(file: MappedFile) -> Result<CheckedLexiconFile, crate::LexiconImageError> {
+        let bytes: &[u8] = file.bytes();
+        // SAFETY: `bytes` points into the mapping, which stays at one
+        // address until `file` is dropped, wherever `file` itself moves.
+        // The view made from it lives in the same value as `file`, is
+        // plain borrowed data with no destructor, and leaves only through
+        // `view`, which shortens it to a borrow of `self`.
+        let bytes: &'static [u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) };
+        let view = crate::MappedSurfaceLexicon::from_bytes(bytes)?;
+        Ok(CheckedLexiconFile { view, file })
+    }
+
+    /// The checked view, for as long as this value is borrowed.
+    pub fn view(&self) -> crate::MappedSurfaceLexicon<'_> {
+        self.view
+    }
+
+    /// The mapped bytes the view reads.
+    pub fn bytes(&self) -> &[u8] {
+        self.file.bytes()
+    }
+}

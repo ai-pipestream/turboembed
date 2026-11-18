@@ -16,7 +16,7 @@ pub mod spellcheck;
 
 pub use aligned::ImageBuf;
 #[cfg(feature = "mmap")]
-pub use aligned::MappedFile;
+pub use aligned::{CheckedLexiconFile, MappedFile};
 pub use fold::{canonical_surface_lowercase, fold_surface_key};
 pub use lexicon::{
     LexiconBuildError, LexiconImageError, MappedSurfaceLexicon, StemSurface, SurfaceCompletion, SurfaceLexiconBuilder,
