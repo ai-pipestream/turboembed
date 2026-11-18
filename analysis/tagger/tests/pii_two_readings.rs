@@ -98,6 +98,25 @@ fn layers_cached_before_the_second_reading_are_computed_again() {
     // The hash holds the bar of the second reading: another bar, another hash.
     assert_eq!(current, second_reading_config_hash(before, SECOND_READING_MIN));
     assert_ne!(current, second_reading_config_hash(before, SECOND_READING_MIN + 0.01));
+    assert_cached_layers_recomputed(tagger, before);
+}
+
+/// Revision 1 allowed a second reading to outscore the first. Its
+/// cached layers must not survive the corrected scoring behaviour.
+#[test]
+fn layers_cached_before_the_second_reading_score_fix_are_computed_again() {
+    let (tagger, _) = candidates("pii-two-cache-score-fix", 4.0);
+    // Exact hash formula used before the scoring correction.
+    let before = turbo_analysis::Fnv1a::new()
+        .u64(tagger.single_reading_config_hash())
+        .str("turbo-tagger:pii/second-reading/1")
+        .f32(SECOND_READING_MIN)
+        .finish();
+    assert_cached_layers_recomputed(tagger, before);
+}
+
+fn assert_cached_layers_recomputed(tagger: PiiTagger, before: u64) {
+    let current = tagger.config_hash();
     let analyzer = Analyzer::builder().add(SimpleTokenizer::default()).add(tagger).build().unwrap();
     let mut doc = Document::new(TEXT);
     assert!(analyzer.analyze_incremental(&mut doc).unwrap().was_executed(PiiTagger::ID));

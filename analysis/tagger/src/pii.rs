@@ -35,7 +35,8 @@ pub const SECOND_READING_MIN: f32 = 0.05;
 
 /// Names the second reading's behaviour in the configuration hash; bump
 /// it when what a second reading is changes.
-const SECOND_READING_REVISION: &str = "turbo-tagger:pii/second-reading/1";
+// Revision 2 limits the second reading to scores below the first.
+const SECOND_READING_REVISION: &str = "turbo-tagger:pii/second-reading/2";
 
 /// The configuration hash of a tagger that gives second readings from
 /// the share `min` up, over its hash `before` it gave any.
