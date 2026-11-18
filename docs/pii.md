@@ -1304,6 +1304,83 @@ drove home`, `called Salem`, `Dayton answered`), which only better
 person recall of the head settles. The run with the head itself is
 gated (`analysis/tagger/tests/pii_places_person.rs`).
 
+Three cheaper ways to settle those names were measured with the trained
+head on 2026-11-17 and turned down (#2398), so the gap stays a training
+question:
+
+- A person reading under the head's `city` label. The share of
+  probability the head gives `first-name` and `last-name` on a word it
+  labels `city` is `0.01` to `0.12` on the four people standing alone and
+  up to `0.14` on city uses (`flew from Madison`, `went to Paris`), so no
+  lower bar for a person reading tells them apart.
+- The head's `city` probability. The four people read `0.72`, `0.76`,
+  `0.81` and `0.95`; city uses start at `0.81`.
+- The text's own person uses of the name (`Paris's mother` earlier, so
+  `Paris won the race` is the person), kept to names with no place word
+  before them and a `city` under `0.85`. On the first memo that left `13`
+  true, `1` false and `0` missed. On a second memo written before the
+  head was run on it (`places-person-names-2.txt`, gold in
+  `labels-places-person-2.tsv`) it removed none of the `5` false cities
+  and lost a city use (`We watched Raleigh from the hill` at `0.72`,
+  while the person in `and Raleigh locked up` read `0.86`), so the bar
+  was fitted to the first memo and the rule was not kept. Without the
+  bar the rule would give up `2` of `13` and `3` of `8` city uses by
+  its own conditions, each a city with no place word before it (`Salem
+  is where the old office was`).
+
+The held-out memo stays as a check: the rules alone read `8` true, `5`
+false and `0` missed cities on it (`places_eval.rs`), and the gated test
+prints every scored candidate of the head on both memos. On single
+sentences the head also gave a `first-name` span to cities in subject
+position (`Paris is lovely in the spring` at `0.95`, `Milan has two
+football clubs` at `0.60`), which takes the rules' bare city away by
+the #2312 rule above.
+
+What was kept instead (#2398):
+
+- Both readings. Where the head's first reading of a name is `city` and
+  `first-name` or `last-name` has at least `0.05` of the probability, or
+  the other way round, the tagger gives the second reading as a
+  candidate of its own on the same span with its own score
+  (`SECOND_READING_MIN`, `turbo:pii-candidates`; no message changed). A
+  policy or a reviewer sees `first-name 0.56` beside `city 0.40` and
+  can choose. The second reading is given only below the first one's
+  score, so a score threshold between the two keeps the likelier as the
+  mention and the other as a candidate rejected by the threshold; with
+  no threshold every candidate of the head is a mention, and such a
+  name carries both kinds on one span. A person candidate under a
+  likelier `city` on the same span is no person span for the #2312
+  rule. The tagger's configuration hash holds the second reading and
+  its bar, so layers cached before it are computed again.
+- A refitted head. The training mix `nemotron-pii-names` adds `6,000`
+  generated documents to `Nemotron-PII`
+  (`trainer/recipes/src/nemotron_pii/shared_names.rs`): `48` names a
+  person and a city share, as a person and as a city in the same
+  document, at a sentence's start and inside it, with and without a
+  preposition. None of the memos' names or sentences is used. The
+  candidate `turbo-en-nemotron-pii-modernbert-base-2` (not released;
+  receipts in `trainer/recipes/records/nemotron-pii-names-2398`) read,
+  against the released head:
+
+  | | released head | refitted head |
+  |---|---|---|
+  | `Nemotron-PII` test span F1 | `0.6096` | `0.6185` |
+  | first memo (true, false, missed) | `13`, `4`, `0` | `13`, `4`, `0` |
+  | second memo | `8`, `5`, `0` | `8`, `3`, `0` |
+  | third memo (rules alone `8`, `6`, `0`) | not run | `7`, `4`, `1` |
+  | `22` single sentences on a city | `4` | `19` |
+  | `20` single sentences on a person | `10` | `9` |
+
+  The refit reads cities in subject position (#2410) and some of the
+  people standing alone on names it never saw (`Milan kept score`,
+  `Kingston` on the second memo). It does not move the four people of
+  the first memo, which it still reads as `city` at `0.89` to `0.99`:
+  a head fitted on a frozen encoder follows what the encoder gives for
+  the name. The one city use it loses on the third memo (`back from
+  Vienna`) it reads as `first-name` at `0.56` with `city` at `0.40`
+  beside it. A first refit without the same name in both roles per
+  document lost three city uses after `from` and `to` and was dropped.
+
 Without the head, a policy that needs
 higher precision on person-heavy text can leave `city` out and keep
 `state` and `county`.

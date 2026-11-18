@@ -93,6 +93,7 @@ pub fn corpora() -> Vec<String> {
         masc_pos::ID.to_owned(),
         multiconer::ID.to_owned(),
         nemotron_pii::ID.to_owned(),
+        nemotron_pii::ID_NAMES.to_owned(),
         wnut17::ID.to_owned(),
         litbank::ID.to_owned(),
     ];
@@ -116,6 +117,7 @@ pub fn read_corpus(id: &str, dir: &std::path::Path, unrecorded: bool) -> Result<
         wnut17::ID => wnut17::read(dir, unrecorded),
         multiconer::ID => multiconer::read(dir, unrecorded),
         nemotron_pii::ID => nemotron_pii::read(dir, unrecorded),
+        nemotron_pii::ID_NAMES => nemotron_pii::read_with_names(dir, unrecorded),
         litbank::ID => litbank::read(dir, unrecorded),
         _ => match ud::find(id) {
             Some((bank, column)) => ud::read(&bank, column, dir, unrecorded),
@@ -129,7 +131,7 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
     match id {
         germeval::OUTER => return ("ner_outer", "turboembed:entities"),
         germeval::INNER => return ("ner_inner", "turboembed:entities"),
-        nemotron_pii::ID => return (nemotron_pii::HEAD, nemotron_pii::LAYER),
+        nemotron_pii::ID | nemotron_pii::ID_NAMES => return (nemotron_pii::HEAD, nemotron_pii::LAYER),
         _ => (),
     }
     if let Some(column) = ud_multi::find_column(id) {
@@ -148,7 +150,7 @@ pub fn head(id: &str, task: corpus::Task) -> (&'static str, &'static str) {
 pub fn coarse(id: &str) -> Option<fn(&str) -> &str> {
     match id {
         multiconer::ID => Some(multiconer::coarse as fn(&str) -> &str),
-        nemotron_pii::ID => Some(nemotron_pii::coarse as fn(&str) -> &str),
+        nemotron_pii::ID | nemotron_pii::ID_NAMES => Some(nemotron_pii::coarse as fn(&str) -> &str),
         _ => None,
     }
 }
@@ -159,7 +161,7 @@ pub fn fixed_entity_types(id: &str) -> Option<&'static [&'static str]> {
     match id {
         wnut17::ID => Some(&wnut17::TYPES),
         masc_ne::ID => Some(&masc_ne::TYPES),
-        nemotron_pii::ID => Some(&nemotron_pii::TYPES),
+        nemotron_pii::ID | nemotron_pii::ID_NAMES => Some(&nemotron_pii::TYPES),
         germeval::OUTER | germeval::INNER => Some(&germeval::TYPES),
         _ => None,
     }

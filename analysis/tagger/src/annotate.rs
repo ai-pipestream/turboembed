@@ -139,25 +139,26 @@ impl HeadRunner {
         decode_with(&self.tagger, &features, &forms, None).map_err(|e| e.to_string())
     }
 
-    /// As [`HeadRunner::decode_tokens`], scaling token logits by `1 / temperature`
-    /// when `temperature` is given.
-    pub(crate) fn decode_tokens_temperature(
+    /// As [`HeadRunner::decode_tokens`], scaling token logits by `1 /
+    /// temperature` when one is given, and beside each sequence the share
+    /// of each word's probability that each group of labels holds
+    /// together, as `[words * groups.count]`.
+    pub(crate) fn decode_tokens_shares(
         &self,
         view: &View,
         tokens: &Tokens,
         seqs: &[Vec<usize>],
         subwords: Option<&Subwords>,
         temperature: Option<f32>,
-    ) -> Result<Vec<Decoded>, String> {
-        let Some(temp) = temperature else {
-            return self.decode_tokens(view, tokens, seqs, subwords);
-        };
+        groups: &LabelGroups,
+    ) -> Result<Vec<(Decoded, Vec<f32>)>, String> {
         let pooling = self.tagger.spec().word_pooling;
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
         let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
         drop(words);
         let forms = forms_of(view, tokens, seqs);
-        decode_scaled(&self.tagger, &features, &forms, temp as f64).map_err(|e| e.to_string())
+        decode_scaled(&self.tagger, &features, &forms, temperature.map_or(1.0, f64::from), groups)
+            .map_err(|e| e.to_string())
     }
 
     /// The token indices of each sequence of `tokens`, in order: by the
@@ -321,34 +322,58 @@ pub(crate) fn forms_of<'v>(view: &'v View, tokens: &Tokens, seqs: &[Vec<usize>])
     seqs.iter().map(|s| s.iter().map(|&i| &text[tokens.spans.get(Ix::new(i as u32)).range()]).collect()).collect()
 }
 
+/// The mark of a label in no group ([`LabelGroups`]).
+pub(crate) const NO_GROUP: u8 = u8::MAX;
+
+/// Groups of a head's labels whose shared probability
+/// [`HeadRunner::decode_tokens_shares`] reads.
+pub(crate) struct LabelGroups {
+    /// The group of each label of the head, or [`NO_GROUP`].
+    pub of: Vec<u8>,
+    /// How many groups there are.
+    pub count: usize,
+}
+
 fn decode_scaled(
     tagger: &TokenTagger,
     features: &[Vec<f32>],
     forms: &[Vec<&str>],
     temperature: f64,
-) -> Result<Vec<Decoded>, CoreError> {
+    groups: &LabelGroups,
+) -> Result<Vec<(Decoded, Vec<f32>)>, CoreError> {
     let (mut scores, mut work) = (Vec::new(), turbo::head::tagger::Work::default());
     let labels = tagger.labels().len();
     let stride = tagger.taps() * tagger.hidden();
     let inv_t = 1.0 / temperature;
     let mut out = Vec::with_capacity(features.len());
+    let mut sums = vec![0.0f64; groups.count];
     for (f, forms) in features.iter().zip(forms) {
         let n = f.len() / stride;
         let word_ids: Vec<u32> = (0..n as u32).collect();
         tagger.scores_language(f, &word_ids, Some(forms), None, &mut scores, &mut work)?;
         let mut tags = Vec::new();
         tagger.decode(&scores, n, &mut tags)?;
+        let mut shares = Vec::with_capacity(n * groups.count);
         let prob = tags
             .iter()
             .enumerate()
             .map(|(w, &t)| {
                 let row = &scores[w * labels..][..labels];
                 let m = row.iter().fold(f32::NEG_INFINITY, |a, &b| a.max(b)) as f64 * inv_t;
-                let z: f64 = row.iter().map(|&v| (v as f64 * inv_t - m).exp()).sum();
+                sums.fill(0.0);
+                let mut z = 0.0;
+                for (l, &v) in row.iter().enumerate() {
+                    let e = (v as f64 * inv_t - m).exp();
+                    z += e;
+                    if let Some(sum) = groups.of.get(l).and_then(|&g| sums.get_mut(usize::from(g))) {
+                        *sum += e;
+                    }
+                }
+                shares.extend(sums.iter().map(|&sum| (sum / z).clamp(0.0, 1.0) as f32));
                 ((row[t as usize] as f64 * inv_t - m).exp() / z).clamp(0.0, 1.0)
             })
             .collect();
-        out.push(Decoded { tags, prob });
+        out.push((Decoded { tags, prob }, shares));
     }
     Ok(out)
 }
