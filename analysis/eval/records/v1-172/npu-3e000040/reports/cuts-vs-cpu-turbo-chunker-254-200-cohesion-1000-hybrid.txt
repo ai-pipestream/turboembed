@@ -1,0 +1,33 @@
+arguana: 8674 documents, 19926 shared cuts, 4 documents differ (cpu/Intel(R) Core(TM) Ultra 7 265T/model against npu/Intel(R) AI Boost/model)
+  test-free-speech-debate-ldhwbmclg-pro02b level 0 after Some(0) before Some(2122): A cuts at [1270], B at [1323], margin A 42 B -42
+  training-health-hghpghbus-con02b level 0 after Some(0) before None: A cuts at [907], B at [731], margin A 18 B -18
+  training-international-eplgvhwar-con03b level 0 after Some(0) before None: A cuts at [458], B at [692], margin A -78 B 78
+  training-law-apslpsyhwbbc-pro03b level 0 after Some(0) before None: A cuts at [885], B at [1099], margin A -45 B 45
+nfcorpus: 3633 documents, 10458 shared cuts, 10 documents differ (cpu/Intel(R) Core(TM) Ultra 7 265T/model against npu/Intel(R) AI Boost/model)
+  MED-1170 level 0 after Some(0) before None: A cuts at [1116], B at [763], margin A 57 B -57
+  MED-1663 level 0 after Some(886) before None: A cuts at [1445], B at [1365], margin A 33 B -33
+  MED-1729 level 0 after Some(0) before Some(1964): A cuts at [1124], B at [1045], margin A -43 B 43
+  MED-1787 level 0 after Some(0) before None: A cuts at [458], B at [391], margin A 65 B -65
+  MED-3035 level 0 after Some(0) before None: A cuts at [706], B at [637], margin A -2 B 2
+  MED-3093 level 0 after Some(0) before None: A cuts at [817], B at [959], margin A 33 B -33
+  MED-3779 level 0 after Some(0) before None: A cuts at [593], B at [1022], margin A 195 B -195
+  MED-4516 level 0 after Some(0) before None: A cuts at [800], B at [606], margin A 37 B -37
+  MED-5082 level 0 after Some(0) before None: A cuts at [272], B at [476], margin A -294 B 294
+  MED-937 level 0 after Some(0) before None: A cuts at [676,1599], B at [845,1452], margin A -158 B 158
+qasper: 416 documents, 13071 shared cuts, 6 documents differ (cpu/Intel(R) Core(TM) Ultra 7 265T/model against npu/Intel(R) AI Boost/model)
+  1710.07695 level 0 after Some(7390) before Some(9132): A cuts at [8298], B at [8210], margin A -8 B 8
+  1802.03052 level 0 after Some(0) before Some(2156): A cuts at [1398], B at [1384], margin A -5 B 5
+  1909.00786 level 0 after Some(12619) before Some(14338): A cuts at [13460], B at [13150,13785], margin A 562 B -562
+  1909.13184 level 0 after Some(3940) before Some(5692): A cuts at [4822], B at [4802], margin A 3 B -3
+  2003.07459 level 0 after Some(19007) before Some(20419): A cuts at [19628], B at [19652], margin A -6 B 6
+  2004.04478 level 0 after Some(1660) before Some(3193): A cuts at [2597], B at [2162], margin A 71 B -71
+  2004.04478 level 0 after Some(7164) before Some(8926): A cuts at [8173], B at [8051], margin A 54 B -54
+  2004.04478 level 0 after Some(15405) before Some(16823): A cuts at [16077], B at [15965], margin A 38 B -38
+scifact: 5183 documents, 14318 shared cuts, 7 documents differ (cpu/Intel(R) Core(TM) Ultra 7 265T/model against npu/Intel(R) AI Boost/model)
+  2904102 level 0 after Some(0) before None: A cuts at [773], B at [669], margin A -22 B 22
+  3272084 level 0 after Some(0) before None: A cuts at [949,1981], B at [834,1771], margin A 20 B -20
+  21472388 level 0 after Some(0) before Some(1338): A cuts at [870], B at [758], margin A -37 B 37
+  22194407 level 0 after Some(0) before None: A cuts at [826], B at [625], margin A 59 B -59
+  25263942 level 0 after Some(0) before None: A cuts at [886], B at [726], margin A 61 B -61
+  27150276 level 0 after Some(0) before None: A cuts at [872], B at [712], margin A 22 B -22
+  29689140 level 0 after Some(0) before None: A cuts at [716], B at [421], margin A -7 B 7

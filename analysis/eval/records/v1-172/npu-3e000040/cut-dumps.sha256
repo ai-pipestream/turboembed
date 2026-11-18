@@ -1,0 +1,16 @@
+bf504c8002dcbd2b3e274efa2e7026487d8062363a170b2db7d8ea31f61e0a35  34980033  cpu/turbo-chunker-254-200-hybrid/arguana.cuts
+6e19018bd145520229e0ae8ad8d8fa3660b84ea7ca257eac7655345833027c1b  20082934  cpu/turbo-chunker-254-200-hybrid/nfcorpus.cuts
+c0b72edb8f56e2f9bc57e81024be76d5b3296d96ceac768ace259a03191531fd  31587394  cpu/turbo-chunker-254-200-hybrid/qasper.cuts
+f58b91c47c4858da2ca808cccff47814dfaa32e8e44262cbc27b29d6082faf63  27022454  cpu/turbo-chunker-254-200-hybrid/scifact.cuts
+89611a381b664fa1259e7c48ea8c7af14565cc99dfe3a13778682fa1e238c65c  35061766  cpu/turbo-chunker-254-200-cohesion-1000-hybrid/arguana.cuts
+a756d467d30f0e24d4887e0bbd41593e28cd1e131a19c6e4f27ab6d9cfa45ed3  20116098  cpu/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
+d5579ca4c2c5da38d0ac62ebe93512c3ce91dd47d8cce758cb5f22cb415678b9  31664845  cpu/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
+7022637227585b303264dd43309b1148f7e1a5044e72172bbfd84779f28cc3cd  27069528  cpu/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts
+86abf527ee48126e1545b53f07a03c0e68dfc021a193e782fca79e0a098085f2  34980020  npu/turbo-chunker-254-200-hybrid/arguana.cuts
+609a107cb5fceccb264a1d18a774c1367c066b6e0e3794343d214fdfe8490a00  20082921  npu/turbo-chunker-254-200-hybrid/nfcorpus.cuts
+331cd9d1083ffa48e6687921f8cb8c6fcde14286865655fb612d5970276c13f0  31587381  npu/turbo-chunker-254-200-hybrid/qasper.cuts
+62ad060706634c11e11697b385d1f3b6ad164f204d7ac8393e3f3799e6615833  27022441  npu/turbo-chunker-254-200-hybrid/scifact.cuts
+c1dc7b499f355c427073337221e5f100ab69f97a13bab899a36f77d8bda14ac1  35061753  npu/turbo-chunker-254-200-cohesion-1000-hybrid/arguana.cuts
+47b216af2abdbbfdd7dfa2a975265d6c6d22bc2bfedaa946c5b3de41737dc1fc  20116085  npu/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
+aa6285f9b4dde5d80149cbb8a15206c4a5483f0357720ce8cacc7e5a981c9ea5  31664872  npu/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
+ca8d2d2007f9551d08be5f064638dd5141dc70e8d8b2b5afbcbc54e303557e51  27069515  npu/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts
