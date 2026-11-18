@@ -37,6 +37,14 @@ pub const SECOND_READING_MIN: f32 = 0.05;
 /// it when what a second reading is changes.
 const SECOND_READING_REVISION: &str = "turbo-tagger:pii/second-reading/1";
 
+/// The configuration hash of a tagger that gives second readings from
+/// the share `min` up, over its hash `before` it gave any.
+#[doc(hidden)]
+#[must_use]
+pub fn second_reading_config_hash(before: u64, min: f32) -> u64 {
+    Fnv1a::new().u64(before).str(SECOND_READING_REVISION).f32(min).finish()
+}
+
 /// The label groups the second reading is read from, by their index.
 const GROUPS: [&str; 3] = ["city", "first-name", "last-name"];
 
@@ -180,8 +188,9 @@ impl PiiTagger {
     /// (#2398): after a `city` candidate, the likelier of `first-name` and
     /// `last-name` at the share of probability the head gives that type on
     /// the span's words, and after a `first-name` or `last-name` candidate
-    /// a `city` likewise, each only at or above [`SECOND_READING_MIN`].
-    /// The second is always the type with the smaller share of the two.
+    /// a `city` likewise, each only at or above [`SECOND_READING_MIN`]
+    /// and below the first candidate's probability, so the first is
+    /// always the likelier of the two as scored.
     pub fn model_candidates(
         &self,
         view: &View,
@@ -206,18 +215,20 @@ impl PiiTagger {
                 // The mean share of group `g` over the span's words.
                 let share =
                     |g: usize| words.clone().map(|i| shares[i * GROUPS.len() + g]).sum::<f32>() / words.len() as f32;
-                // The second reading and the share of the first's own type.
                 let second = if Some(kind) == city {
                     let (f, l) = (share(1), share(2));
-                    if l > f { last.map(|k| (k, l, share(0))) } else { first.map(|k| (k, f, share(0))) }
-                } else if Some(kind) == first {
-                    city.map(|k| (k, share(0), share(1)))
-                } else if Some(kind) == last {
-                    city.map(|k| (k, share(0), share(2)))
+                    if l > f { last.map(|k| (k, l)) } else { first.map(|k| (k, f)) }
+                } else if Some(kind) == first || Some(kind) == last {
+                    city.map(|k| (k, share(0)))
                 } else {
                     None
                 };
-                if let Some((kind, probability, _)) = second.filter(|&(_, p, own)| p >= SECOND_READING_MIN && p < own) {
+                // A second reading scores below the first: its share is
+                // that of a whole type (`B-` and `I-`) and the first's score
+                // the probability of one label, so a share may lie above it,
+                // and a reading that outscored the first would stand in its
+                // place wherever a bar lies between the two.
+                if let Some((kind, probability)) = second.filter(|&(_, p)| p >= SECOND_READING_MIN && p < mean_prob) {
                     out.push(ModelCandidate { span, kind, probability });
                 }
             }
@@ -296,8 +307,6 @@ impl Annotator for PiiTagger {
     fn config_hash(&self) -> u64 {
         // The second reading changes what is written, so layers cached
         // before it (or under another bar) are computed again.
-        let mut h = Fnv1a::new();
-        h.u64(self.single_reading_config_hash()).str(SECOND_READING_REVISION).f32(SECOND_READING_MIN);
-        h.finish()
+        second_reading_config_hash(self.single_reading_config_hash(), SECOND_READING_MIN)
     }
 }

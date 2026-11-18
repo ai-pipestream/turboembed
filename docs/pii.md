@@ -1344,9 +1344,14 @@ What was kept instead (#2398):
   candidate of its own on the same span with its own score
   (`SECOND_READING_MIN`, `turbo:pii-candidates`; no message changed). A
   policy or a reviewer sees `first-name 0.56` beside `city 0.40` and
-  can choose; the mention is still the likelier one. A person candidate
-  under a likelier `city` on the same span is no person span for the
-  #2312 rule.
+  can choose. The second reading is given only below the first one's
+  score, so a score threshold between the two keeps the likelier as the
+  mention and the other as a candidate rejected by the threshold; with
+  no threshold every candidate of the head is a mention, and such a
+  name carries both kinds on one span. A person candidate under a
+  likelier `city` on the same span is no person span for the #2312
+  rule. The tagger's configuration hash holds the second reading and
+  its bar, so layers cached before it are computed again.
 - A refitted head. The training mix `nemotron-pii-names` adds `6,000`
   generated documents to `Nemotron-PII`
   (`trainer/recipes/src/nemotron_pii/shared_names.rs`): `48` names a
