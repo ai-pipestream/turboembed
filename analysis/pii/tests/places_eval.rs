@@ -199,3 +199,26 @@ fn the_held_out_person_memo_with_the_rules_alone() {
     eprintln!("\nplaces on the held-out person-name memo: {got:?}");
     assert_eq!(got, [("city", 8, 5, 0)]);
 }
+
+/// The third memo (#2398), written before the refitted head was run on
+/// it, and its gold: other names again, people as subjects inside a
+/// sentence, and a name in both roles in one sentence.
+fn third_person_memo() -> Vec<Labelled> {
+    let docs = [(
+        "places-person-names-3",
+        false,
+        "places-person-names-3.txt",
+        "7694b99c36e3f1648197f71654ef431213c03c71f01857e5cf9f7730a3a48662",
+    )];
+    load_labelled(&docs, "labels-places-person-3.tsv", false)
+}
+
+/// The rules alone on the third memo, pinned: every city use, and six of
+/// the eight person uses as false cities.
+#[test]
+fn the_third_person_memo_with_the_rules_alone() {
+    let by_kind = measure_with(&pack(Pack::Places), &third_person_memo());
+    let got: Vec<(&str, usize, usize, usize)> = by_kind.iter().map(|(k, c)| (*k, c.tp, c.fp, c.fn_)).collect();
+    eprintln!("\nplaces on the third person-name memo: {got:?}");
+    assert_eq!(got, [("city", 8, 6, 0)]);
+}

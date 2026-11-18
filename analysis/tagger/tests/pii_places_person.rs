@@ -132,3 +132,17 @@ fn the_held_out_memo_keeps_every_city_use() {
     let left = read.names(&read.false_cities);
     assert!(left.len() <= 5, "more false cities than the rules alone give: {left:?}");
 }
+
+/// The third memo of #2398, written before the refitted head was run on
+/// it: people as subjects inside a sentence and a name in both roles in
+/// one sentence. Every city use is found, and no more false cities than
+/// the six the rules alone give.
+#[test]
+fn the_third_memo_keeps_every_city_use() {
+    let Some(read) = read("places-person-names-3.txt", "labels-places-person-3.tsv") else {
+        return;
+    };
+    assert_eq!(read.missed, Vec::<String>::new(), "city uses the head took away");
+    let left = read.names(&read.false_cities);
+    assert!(left.len() <= 6, "more false cities than the rules alone give: {left:?}");
+}

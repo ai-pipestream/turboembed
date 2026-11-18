@@ -7,13 +7,16 @@
 //! sentences here put the same names in both roles, as a subject and as
 //! an object, with and without a preposition before them, so the words
 //! around a name decide. Each document is a few sentences drawn by a
-//! fixed generator from the lists below; a person is labelled
+//! fixed generator from the lists below, some joined into one so a name
+//! also stands inside a sentence, and it draws most names from three
+//! shared ones, so the same name is a person and a city in one document
+//! as in the memos; a person is labelled
 //! `first_name` and a city `city`, and nothing else in a sentence is of
 //! any `Nemotron-PII` type (no dates, times, jobs or companies).
 //!
-//! The names of the two person-name memos that score the head
-//! (`places-person-names.txt`, `places-person-names-2.txt` of
-//! `turbo-pii`) are left out, and no sentence of the memos is used, so
+//! The names of the three person-name memos that score the head
+//! (`places-person-names.txt` and its `-2` and `-3` of `turbo-pii`) are
+//! left out, and no sentence of the memos is used, so
 //! the memos stay held out.
 
 use crate::Result;
@@ -93,7 +96,7 @@ pub const CITIES: [&str; 30] = [
 ];
 
 /// Sentences about a person; `{}` is the name, `{2}` a second person.
-pub const PERSON_SENTENCES: [&str; 44] = [
+pub const PERSON_SENTENCES: [&str; 56] = [
     "{} wrote the summary before lunch.",
     "{} walked the dog around the block.",
     "{} mislaid the umbrella again.",
@@ -138,10 +141,22 @@ pub const PERSON_SENTENCES: [&str; 44] = [
     "It was {} who noticed the leak.",
     "My neighbor {} keeps bees.",
     "The idea came from {} and {2}.",
+    "We asked around until {} turned up.",
+    "I waited until {} was ready.",
+    "Nobody left before {} spoke.",
+    "She smiled when {} walked in.",
+    "He said that {} would handle it.",
+    "I think {} already knows.",
+    "We clapped when {} sat down.",
+    "They emailed {} yesterday.",
+    "I ran into {} at the bakery.",
+    "Someone should tell {} soon.",
+    "Ask whether {} can stay late.",
+    "By then {} had left for the day.",
 ];
 
 /// Sentences about a city; `{}` is the name, `{2}` a second city.
-pub const CITY_SENTENCES: [&str; 40] = [
+pub const CITY_SENTENCES: [&str; 52] = [
     "{} gets crowded in summer.",
     "{} has three bridges over the river.",
     "{} is two hours north of here.",
@@ -182,7 +197,23 @@ pub const CITY_SENTENCES: [&str; 40] = [
     "We passed through {} on the way.",
     "The mayor of {} resigned.",
     "Rents in {} keep climbing.",
+    "The bus from {} to {2} takes all day.",
+    "They drove to {} overnight.",
+    "He travels to {} every month.",
+    "Our flight to {} was delayed.",
+    "We arrived in {} before dawn.",
+    "The ferry leaves {} at noon.",
+    "She trained in {} for a year.",
+    "They are moving from {} to {2}.",
+    "A letter came from {} this morning.",
+    "The parcel was sent to {} by mistake.",
+    "We stopped in {} for fuel.",
+    "It is a long way from {} to the border.",
 ];
+
+/// The words that join two sentences into one, so a name also stands
+/// inside a sentence (`..., and Austin paid for the coffee`).
+pub const JOINS: [&str; 6] = [", and ", ", but ", ", so ", " while ", " before ", " after "];
 
 /// Sentences that name nobody and no place.
 pub const PLAIN_SENTENCES: [&str; 12] = [
@@ -210,9 +241,22 @@ impl Lcg {
         ((self.0 >> 33) as usize) % n
     }
 
-    /// A name for a slot: a shared name three times in five, else one of `own`.
-    fn name(&mut self, own: &[&'static str]) -> &'static str {
-        if self.below(5) < 3 { SHARED[self.below(SHARED.len())] } else { own[self.below(own.len())] }
+    /// A name for a slot: three times in five one of the document's shared
+    /// names, so a document has the same name as a person and as a city,
+    /// else one of `own`.
+    fn name(&mut self, pool: &[&'static str; 3], own: &[&'static str]) -> &'static str {
+        if self.below(5) < 3 { pool[self.below(3)] } else { own[self.below(own.len())] }
+    }
+}
+
+/// A sentence template, the names of its own kind and its label.
+type Template = (&'static str, &'static [&'static str], &'static str);
+
+fn template(rng: &mut Lcg) -> Template {
+    match rng.below(9) {
+        0 => (PLAIN_SENTENCES[rng.below(PLAIN_SENTENCES.len())], &[], ""),
+        1..=4 => (PERSON_SENTENCES[rng.below(PERSON_SENTENCES.len())], &PEOPLE, "first_name"),
+        _ => (CITY_SENTENCES[rng.below(CITY_SENTENCES.len())], &CITIES, "city"),
     }
 }
 
@@ -220,31 +264,42 @@ impl Lcg {
 fn document(rng: &mut Lcg) -> (String, Vec<(usize, usize, &'static str)>) {
     let mut text = String::new();
     let mut names = Vec::new();
-    for _ in 0..2 + rng.below(5) {
-        let (template, own, label): (&str, &[&'static str], _) = match rng.below(9) {
-            0 => (PLAIN_SENTENCES[rng.below(PLAIN_SENTENCES.len())], &[], ""),
-            1..=4 => (PERSON_SENTENCES[rng.below(PERSON_SENTENCES.len())], &PEOPLE, "first_name"),
-            _ => (CITY_SENTENCES[rng.below(CITY_SENTENCES.len())], &CITIES, "city"),
-        };
-        if !text.is_empty() {
+    let pool = [(); 3].map(|()| SHARED[rng.below(SHARED.len())]);
+    // Whether the sentence before was left open for a joining word.
+    let mut open = false;
+    for _ in 0..3 + rng.below(5) {
+        let (template, own, label) = template(rng);
+        let mut rest = template;
+        if open {
+            text.push_str(JOINS[rng.below(JOINS.len())]);
+            // A joined sentence starts small, but for a name and `I`.
+            if !rest.starts_with('{') && !rest.starts_with("I ") {
+                text.extend(rest[..1].chars().flat_map(char::to_lowercase));
+                rest = &rest[1..];
+            }
+        } else if !text.is_empty() {
             text.push(' ');
         }
-        let mut rest = template;
         let mut first = "";
         while let Some(at) = rest.find('{') {
             text.push_str(&rest[..at]);
             let close = at + rest[at..].find('}').expect("a closed slot");
             // The second name of a sentence is another than the first.
-            let mut name = rng.name(own);
+            let mut name = rng.name(&pool, own);
             while name == first {
-                name = rng.name(own);
+                name = rng.name(&pool, own);
             }
             first = name;
             names.push((text.len(), text.len() + name.len(), label));
             text.push_str(name);
             rest = &rest[close + 1..];
         }
-        text.push_str(rest);
+        // One sentence in four is joined to the next.
+        open = rng.below(4) == 0;
+        text.push_str(if open { rest.trim_end_matches('.') } else { rest });
+    }
+    if open {
+        text.push('.');
     }
     (text, names)
 }
@@ -279,8 +334,10 @@ mod tests {
     use super::*;
 
     /// The names of the memos that score the head, which stay held out.
-    const MEMO_NAMES: [&str; 10] =
-        ["Paris", "Madison", "Columbus", "Salem", "Dayton", "Adelaide", "Raleigh", "Verona", "Kingston", "Milan"];
+    const MEMO_NAMES: [&str; 15] = [
+        "Paris", "Madison", "Columbus", "Salem", "Dayton", "Adelaide", "Raleigh", "Verona", "Kingston", "Milan",
+        "Vienna", "Kobe", "Denton", "Windsor", "Irvine",
+    ];
 
     #[test]
     fn the_lists_are_sorted_distinct_and_hold_no_name_of_the_memos() {
@@ -335,7 +392,7 @@ mod tests {
     #[test]
     fn no_sentence_of_the_memos_is_a_template() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../analysis/pii/tests/data/human-eval");
-        for file in ["places-person-names.txt", "places-person-names-2.txt"] {
+        for file in ["places-person-names.txt", "places-person-names-2.txt", "places-person-names-3.txt"] {
             let memo = std::fs::read_to_string(dir.join(file)).unwrap().replace('\n', " ");
             for t in PERSON_SENTENCES.iter().chain(&CITY_SENTENCES) {
                 // The words after the name, as far as the next slot.
