@@ -647,7 +647,7 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"
-          # The Windows lanes are skipped on pull requests and in the merge queue.
+          # The Windows test lanes are skipped on pull requests and in the merge queue.
           for r in $RESULTS; do [ "$r" = success ] || [ "$r" = skipped ] || exit 1; done
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
@@ -658,12 +658,14 @@ jobs:
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status
   # text, unix mount paths; the docker runners are Linux-only).
-  # They run on pushes to main, not on pull requests or in the merge
-  # queue: the hosted pool
-  # runs few Windows jobs at once, and six per pull request push queued
-  # every run behind them.
+  # The test lanes run on pushes to main, not on pull requests or in the
+  # merge queue: the hosted pool runs few Windows jobs at once, and six per
+  # pull request push queued every run behind them. windows-lint is one
+  # job, so it also runs on pull requests and in the merge queue: a
+  # Windows-only clippy error otherwise lands green and turns every push
+  # run on main red (#2394, #2432).
   windows-lint:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
