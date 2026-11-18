@@ -6,9 +6,9 @@ mod common;
 
 use common::bundle;
 use serde_json::json;
-use turbo_analysis::{Analyzer, Document, View};
+use turbo_analysis::{Analyzer, Annotator, Document, Key, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{PiiKind, Subwords, Tokens};
+use turbo_analysis_layers::{Pii, PiiCandidates, PiiKind, Subwords, Tokens};
 use turbo_pii::ModelCandidate;
 use turbo_tagger::PiiTagger;
 use turbo_tagger::pii::SECOND_READING_MIN;
@@ -79,4 +79,40 @@ fn a_name_read_two_ways_gives_two_candidates_on_one_span() {
         soft.iter().enumerate().filter(|&(i, c)| i == 0 || soft[i - 1].span != c.span).map(|(_, c)| c).collect();
     assert_eq!(firsts.len(), sharp.len());
     assert!(firsts.iter().zip(&sharp).all(|(a, b)| (a.span, a.kind) == (b.span, b.kind)));
+}
+
+/// Kimi's finding on #2411: the configuration hash did not change with
+/// the second reading, so an incremental run reused layers an earlier
+/// build wrote with one reading a span. A document whose PII layers are
+/// recorded under the earlier hash is computed again, and one recorded
+/// under the tagger's own hash is not.
+#[test]
+fn layers_cached_before_the_second_reading_are_computed_again() {
+    let (tagger, _) = candidates("pii-two-cache", 4.0);
+    let (current, before) = (tagger.config_hash(), tagger.single_reading_config_hash());
+    assert_ne!(current, before);
+    let analyzer = Analyzer::builder().add(SimpleTokenizer::default()).add(tagger).build().unwrap();
+    let mut doc = Document::new(TEXT);
+    assert!(analyzer.analyze_incremental(&mut doc).unwrap().was_executed(PiiTagger::ID));
+    assert!(analyzer.analyze_incremental(&mut doc).unwrap().was_skipped(PiiTagger::ID));
+
+    // Layers as an earlier build recorded them, here with nothing in them.
+    let (pii_key, candidates_key) = (Key::<Pii>::DEFAULT, Key::<PiiCandidates>::DEFAULT);
+    let mut pii_prov = doc.provenance(pii_key.id()).unwrap().clone();
+    let mut candidates_prov = doc.provenance(candidates_key.id()).unwrap().clone();
+    assert_eq!((pii_prov.config, candidates_prov.config), (current, current));
+    pii_prov.config = before;
+    candidates_prov.config = before;
+    let view = doc.get::<View>().unwrap().id();
+    let found = doc.get::<PiiCandidates>().unwrap().candidates().count();
+    assert!(found > 0);
+    doc.remove(pii_key.id());
+    doc.remove(candidates_key.id());
+    doc.add(&pii_key, Pii::new(view), pii_prov).unwrap();
+    doc.add(&candidates_key, PiiCandidates::new(view), candidates_prov).unwrap();
+
+    assert!(analyzer.analyze_incremental(&mut doc).unwrap().was_executed(PiiTagger::ID));
+    assert_eq!(doc.provenance(candidates_key.id()).unwrap().config, current);
+    assert_eq!(doc.get::<PiiCandidates>().unwrap().candidates().count(), found);
+    assert!(analyzer.analyze_incremental(&mut doc).unwrap().was_skipped(PiiTagger::ID));
 }

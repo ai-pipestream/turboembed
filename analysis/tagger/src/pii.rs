@@ -33,6 +33,10 @@ pub const NEMOTRON_PII_TEMPERATURE: f32 = 1.093_758;
 /// `first-name` or `last-name`.
 pub const SECOND_READING_MIN: f32 = 0.05;
 
+/// Names the second reading's behaviour in the configuration hash; bump
+/// it when what a second reading is changes.
+const SECOND_READING_REVISION: &str = "turbo-tagger:pii/second-reading/1";
+
 /// The label groups the second reading is read from, by their index.
 const GROUPS: [&str; 3] = ["city", "first-name", "last-name"];
 
@@ -246,6 +250,30 @@ impl PiiTagger {
         };
         resolve_model_with_rules(view.text(), view.id(), &opts, &raw)
     }
+
+    /// The configuration hash of the tagger before it gave second readings
+    /// (#2398), which [`Annotator::config_hash`] builds on: layers cached
+    /// under it hold one reading a span and are not reused.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn single_reading_config_hash(&self) -> u64 {
+        let mut h = Fnv1a::new();
+        h.str(&self.run.tagger().spec().name).u64(self.run.width() as u64);
+        h.str(&self.model_id).str(&self.model_version);
+        if let Some(t) = self.temperature {
+            h.u8(0x74).f32(t);
+        }
+        if let Some(m) = self.min_score {
+            h.u8(0x6d).f32(m);
+        }
+        if let Some(r) = &self.rules {
+            h.u8(0x72).u64(r.config_hash());
+        }
+        if !self.allow.is_empty() {
+            h.u8(0x61).u64(self.allow.config_hash());
+        }
+        h.finish()
+    }
 }
 
 impl Annotator for PiiTagger {
@@ -266,21 +294,10 @@ impl Annotator for PiiTagger {
     }
 
     fn config_hash(&self) -> u64 {
+        // The second reading changes what is written, so layers cached
+        // before it (or under another bar) are computed again.
         let mut h = Fnv1a::new();
-        h.str(&self.run.tagger().spec().name).u64(self.run.width() as u64);
-        h.str(&self.model_id).str(&self.model_version);
-        if let Some(t) = self.temperature {
-            h.u8(0x74).f32(t);
-        }
-        if let Some(m) = self.min_score {
-            h.u8(0x6d).f32(m);
-        }
-        if let Some(r) = &self.rules {
-            h.u8(0x72).u64(r.config_hash());
-        }
-        if !self.allow.is_empty() {
-            h.u8(0x61).u64(self.allow.config_hash());
-        }
+        h.u64(self.single_reading_config_hash()).str(SECOND_READING_REVISION).f32(SECOND_READING_MIN);
         h.finish()
     }
 }
