@@ -158,7 +158,7 @@ fn two_values_give_the_same_answer_whatever_was_measured_on_the_source() {
     let (a, b) = (analyzed(EMAIL, On::Source), analyzed(OTHER, On::Source));
     assert_eq!(a.text(REWRITE), b.text(REWRITE), "the fixture redacts both alike");
     let (fa, fb) = (projected(&a, &Disclosure::FULL), projected(&b, &Disclosure::FULL));
-    let metrics = |p: &SearchDocumentProjection| p.quality.as_ref().unwrap().metrics.clone();
+    let metrics = |p: &SearchDocumentProjection| p.quality.as_ref().unwrap().metrics;
     assert_ne!(metrics(&fa), metrics(&fb), "the fixture's source metrics differ");
     let tokens = |p: &SearchDocumentProjection| p.chunks.iter().map(|c| c.model_tokens).collect::<Vec<_>>();
     assert_ne!(tokens(&fa), tokens(&fb), "the fixture's source chunk token counts differ");
