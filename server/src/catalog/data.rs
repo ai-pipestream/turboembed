@@ -170,6 +170,38 @@ fn is_gone(e: &std::io::Error) -> bool {
     matches!(e.kind(), ErrorKind::NotFound | ErrorKind::StaleNetworkFileHandle)
 }
 
+/// Windows answers ERROR_ACCESS_DENIED (5) or ERROR_DELETE_PENDING (303)
+/// to an open of a file another process is deleting (#2407). That is a
+/// revoke in flight, not a permission problem.
+#[cfg(windows)]
+fn is_delete_pending(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(5 | 303))
+}
+
+#[cfg(not(windows))]
+fn is_delete_pending(_: &std::io::Error) -> bool {
+    false
+}
+
+/// `open`, retried while it fails as `pending` says; a lasting failure is
+/// returned as it is, so a real access problem still surfaces.
+fn open_past_pending_delete<T>(
+    mut open: impl FnMut() -> std::io::Result<T>,
+    pending: impl Fn(&std::io::Error) -> bool,
+) -> std::io::Result<T> {
+    const TRIES: u32 = 20;
+    let mut tries = 1;
+    loop {
+        match open() {
+            Err(e) if pending(&e) && tries < TRIES => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            other => return other,
+        }
+    }
+}
+
 fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {
     #[cfg(unix)]
     if e.raw_os_error() == Some(libc::ELOOP) {
@@ -200,7 +232,7 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     std::os::windows::fs::OpenOptionsExt::custom_flags(&mut opts, 0x0020_0000); // FILE_FLAG_OPEN_REPARSE_POINT
     // Open once without following symlinks or blocking on a FIFO: a record
     // revoked since read_dir (NotFound, or ESTALE on NFS) is gone, not bad.
-    let mut file = match opts.open(path) {
+    let mut file = match open_past_pending_delete(|| opts.open(path), is_delete_pending) {
         Ok(f) => f,
         Err(e) if is_gone(&e) => return Ok(None),
         Err(e) if is_not_plain_file(&e, path) => return Err(bad("not a plain file".into())),
@@ -402,7 +434,13 @@ mod tests {
             #[cfg(unix)]
             std::os::unix::fs::symlink(&rec_path, &link).unwrap();
             #[cfg(windows)]
-            std::os::windows::fs::symlink_file(&rec_path, &link).unwrap();
+            match std::os::windows::fs::symlink_file(&rec_path, &link) {
+                Ok(()) => {}
+                // ERROR_PRIVILEGE_NOT_HELD: no Developer Mode or
+                // SeCreateSymbolicLinkPrivilege, so no symlink to refuse (#2407).
+                Err(e) if e.raw_os_error() == Some(1314) => return,
+                Err(e) => panic!("{e}"),
+            }
             let e = record(&link, "link.json").unwrap_err().to_string();
             assert!(e.contains("not a plain file"), "{e}");
             let e = data.acceptances().unwrap_err().to_string();
@@ -421,5 +459,31 @@ mod tests {
             assert!(e.contains("not a plain file"), "{e}");
             fs::remove_file(&fifo).unwrap();
         }
+    }
+
+    #[test]
+    fn an_open_during_a_pending_delete_retries_until_the_record_is_gone() {
+        let pending = |e: &std::io::Error| e.kind() == ErrorKind::PermissionDenied;
+        let mut calls = 0;
+        let r: std::io::Result<()> = open_past_pending_delete(
+            || {
+                calls += 1;
+                Err(std::io::Error::from(if calls < 3 { ErrorKind::PermissionDenied } else { ErrorKind::NotFound }))
+            },
+            pending,
+        );
+        assert!(is_gone(&r.unwrap_err()));
+        assert_eq!(calls, 3);
+
+        let mut calls = 0;
+        let r: std::io::Result<()> = open_past_pending_delete(
+            || {
+                calls += 1;
+                Err(std::io::Error::from(ErrorKind::PermissionDenied))
+            },
+            pending,
+        );
+        assert_eq!(r.unwrap_err().kind(), ErrorKind::PermissionDenied, "a lasting denial still surfaces");
+        assert_eq!(calls, 20);
     }
 }
