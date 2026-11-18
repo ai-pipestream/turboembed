@@ -1336,6 +1336,46 @@ position (`Paris is lovely in the spring` at `0.95`, `Milan has two
 football clubs` at `0.60`), which takes the rules' bare city away by
 the #2312 rule above.
 
+What was kept instead (#2398):
+
+- Both readings. Where the head's first reading of a name is `city` and
+  `first-name` or `last-name` has at least `0.05` of the probability, or
+  the other way round, the tagger gives the second reading as a
+  candidate of its own on the same span with its own score
+  (`SECOND_READING_MIN`, `turbo:pii-candidates`; no message changed). A
+  policy or a reviewer sees `first-name 0.56` beside `city 0.40` and
+  can choose; the mention is still the likelier one. A person candidate
+  under a likelier `city` on the same span is no person span for the
+  #2312 rule.
+- A refitted head. The training mix `nemotron-pii-names` adds `6,000`
+  generated documents to `Nemotron-PII`
+  (`trainer/recipes/src/nemotron_pii/shared_names.rs`): `48` names a
+  person and a city share, as a person and as a city in the same
+  document, at a sentence's start and inside it, with and without a
+  preposition. None of the memos' names or sentences is used. The
+  candidate `turbo-en-nemotron-pii-modernbert-base-2` (not released;
+  receipts in `trainer/recipes/records/nemotron-pii-names-2398`) read,
+  against the released head:
+
+  | | released head | refitted head |
+  |---|---|---|
+  | `Nemotron-PII` test span F1 | `0.6096` | `0.6185` |
+  | first memo (true, false, missed) | `13`, `4`, `0` | `13`, `4`, `0` |
+  | second memo | `8`, `5`, `0` | `8`, `3`, `0` |
+  | third memo (rules alone `8`, `6`, `0`) | not run | `7`, `4`, `1` |
+  | `22` single sentences on a city | `4` | `19` |
+  | `20` single sentences on a person | `10` | `9` |
+
+  The refit reads cities in subject position (#2410) and some of the
+  people standing alone on names it never saw (`Milan kept score`,
+  `Kingston` on the second memo). It does not move the four people of
+  the first memo, which it still reads as `city` at `0.89` to `0.99`:
+  a head fitted on a frozen encoder follows what the encoder gives for
+  the name. The one city use it loses on the third memo (`back from
+  Vienna`) it reads as `first-name` at `0.56` with `city` at `0.40`
+  beside it. A first refit without the same name in both roles per
+  document lost three city uses after `from` and `to` and was dropped.
+
 Without the head, a policy that needs
 higher precision on person-heavy text can leave `city` out and keep
 `state` and `county`.
