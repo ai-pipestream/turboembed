@@ -408,7 +408,7 @@ mod tests {
     fn a_cluster_reaching_into_a_second_run_is_cut_before_it() {
         // One grapheme cluster (bytes 0..7): a Latin letter, a Thai mark
         // and a Khmer COENG. The Thai run lies inside the cluster, which
-        // the segment before takes — but only up to where the Khmer run
+        // the segment before takes, but only up to where the Khmer run
         // starts, so no byte is in two segments.
         let text = "a\u{0E31}\u{17D2}";
         assert_eq!(turbo_unicode::grapheme_boundaries(text).collect::<Vec<_>>(), [0, 7]);
