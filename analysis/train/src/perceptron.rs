@@ -30,10 +30,8 @@
 //! - The order of every sum: the events in index order, each repeated as
 //!   often as seen with the parameters updated between the repetitions,
 //!   and the parameters' sums per iteration.
-//! - `UseSkippedAveraging` turns averaging on but changes nothing else:
-//!   OpenNLP computes `useAverage && useSkippedAveraging && (i < 20 ||
-//!   isPerfectSquare(i)) || useAverage`, which is `useAverage`. Every
-//!   iteration is summed.
+//! - `UseSkippedAveraging` turns averaging on and sums only iterations
+//!   1 to 19 and the perfect-square iterations after them.
 //! - The progress monitor hears of iterations 1 to 9 and every tenth.
 //! - The sequence trainer keeps the time of each parameter's last change
 //!   with the value truncated to an `int`, and weights it by `int`
@@ -67,8 +65,8 @@ pub struct PerceptronParams {
     pub iterations: i32,
     /// `UseAverage`, default true; forced on by `UseSkippedAveraging`.
     pub use_average: bool,
-    /// `UseSkippedAveraging`, default false. Kept for the record; it
-    /// changes nothing beyond `use_average` (see the module documentation).
+    /// `UseSkippedAveraging`, default false: sum only the first nineteen
+    /// iterations and the perfect-square ones (see the module documentation).
     pub use_skipped_averaging: bool,
     /// `StepSizeDecrease` when above zero: the fraction the step shrinks
     /// by before each iteration.
@@ -257,6 +255,12 @@ fn argmax(x: &[f64]) -> usize {
     max
 }
 
+/// Whether `n` is a perfect square, by truncating its square root.
+fn is_perfect_square(n: i32) -> bool {
+    let root = (f64::from(n)).sqrt() as i32;
+    root * root == n
+}
+
 /// What a trainer tells after every iteration: the iteration and the
 /// parameters a run stopping there would return.
 pub type Observer<'a> = &'a mut dyn FnMut(&PerceptronIteration, &[f64]);
@@ -379,7 +383,7 @@ pub fn train_model(
         if i < 10 || i % 10 == 0 {
             monitor.finished_iteration(i, correct, total, TrainingMeasure::Accuracy, accuracy);
         }
-        if params.use_average {
+        if params.use_average && (!params.use_skipped_averaging || i < 20 || is_perfect_square(i)) {
             times_summed += 1;
             for (s, &p) in summed.iter_mut().zip(&model.parameters) {
                 *s += p;
