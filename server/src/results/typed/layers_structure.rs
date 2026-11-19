@@ -6,8 +6,8 @@ use std::any::TypeId;
 use turbo_analysis::{Edges, Groups, Ix, Key, KeyId, Layer, Spans, View};
 use turbo_analysis_embed::Answers;
 use turbo_analysis_layers::{
-    Abbreviations, Block, Boilerplate, BoilerplateKind, Boundaries, Calibrated, Categories, Chunks, Confidence, Cut,
-    Entities, Levels, Sentences, Structure, Subwords, TokenVectorWindows, Tokens, Unit, Utf16Spans, Vectors,
+    Abbreviations, Boilerplate, Boundaries, Calibrated, Categories, Chunks, Confidence, Entities, Levels, Sentences,
+    Structure, Subwords, TokenVectorWindows, Tokens, Unit, Utf16Spans, Vectors,
 };
 use turbo_coref::Mentions;
 
@@ -18,52 +18,7 @@ use crate::proto::result::{
     ConfidenceAnnotation, EdgeAnnotation, GroupAnnotation, LevelAnnotation, SpanFragment, StructureAnnotation,
     TokenVectorWindowAnnotation, TypedAnnotation, TypedLayer, Utf16SpanAnnotation, VectorAnnotation,
 };
-
-fn block_name(b: Block) -> &'static str {
-    match b {
-        Block::Section => "section",
-        Block::Heading => "heading",
-        Block::Paragraph => "paragraph",
-        Block::List => "list",
-        Block::ListItem => "list_item",
-        Block::Table => "table",
-        Block::TableRow => "table_row",
-        Block::TableCell => "table_cell",
-        Block::Code => "code",
-        Block::Quote => "quote",
-        Block::Caption => "caption",
-        Block::Footnote => "footnote",
-        Block::PageHeader => "page_header",
-        Block::PageFooter => "page_footer",
-        Block::LooseList => "loose_list",
-        Block::Html => "html",
-    }
-}
-
-fn cut_name(c: Cut) -> String {
-    match c {
-        Cut::DocumentStart => "document_start".to_owned(),
-        Cut::Sentence => "sentence".to_owned(),
-        Cut::Section => "section".to_owned(),
-        Cut::Heading => "heading".to_owned(),
-        Cut::Paragraph => "paragraph".to_owned(),
-        Cut::TopicShift => "topic_shift".to_owned(),
-        Cut::Clause => "clause".to_owned(),
-        Cut::Item => "item".to_owned(),
-        Cut::Inside(b) => format!("inside:{}", block_name(b)),
-        Cut::Overlap(b) => format!("overlap:{}", block_name(b)),
-    }
-}
-
-fn boilerplate_kind_name(k: BoilerplateKind) -> &'static str {
-    match k {
-        BoilerplateKind::Header => "header",
-        BoilerplateKind::Footer => "footer",
-        BoilerplateKind::Navigation => "navigation",
-        BoilerplateKind::Disclaimer => "disclaimer",
-        BoilerplateKind::Template => "template",
-    }
-}
+use crate::results::wire_names;
 
 pub(super) fn aligned_spans<L: Layer>(
     cx: &ProjectionCx<'_>,
@@ -124,7 +79,7 @@ fn project_boilerplate<L: Layer>(cx: &mut ProjectionCx<'_>, key: KeyId, spans_of
                     model_ref: mref.clone(),
                     value: Some(Value::Boilerplate(BoilerplateAnnotation {
                         target_index: i as u32,
-                        kind: l.kind[i].map(|k| boilerplate_kind_name(k).to_owned()),
+                        kind: l.kind[i].map(|k| wire_names::boilerplate_kind(k).to_owned()),
                         score: sc,
                     })),
                 }
@@ -267,7 +222,7 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
                         probability: None,
                         model_ref: mref.clone(),
                         value: Some(Value::Structure(StructureAnnotation {
-                            kind: block_name(l.kind[i]).to_owned(),
+                            kind: wire_names::block(l.kind[i]).to_owned(),
                             parent_index: l.parent[i].map(|p| p.get() as u32),
                             depth: u32::from(l.depth[i]),
                         })),
@@ -293,7 +248,7 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
                             parent_index: l.parent[i].map(|p| p.get() as u32),
                             sentence_start: r.start.get() as u32,
                             sentence_end: r.end.get() as u32,
-                            cut_reason: cut_name(l.cut[i]),
+                            cut_reason: wire_names::cut(l.cut[i]),
                             cost: l.cost[i],
                             model_tokens: l.model_tokens[i],
                             over_budget: l.over_budget[i],
@@ -342,7 +297,7 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
                     value: Some(Value::Boundary(BoundaryAnnotation {
                         sentence_index: i as u32,
                         cost: l.cost[i],
-                        reason: cut_name(l.reason[i]),
+                        reason: wire_names::cut(l.reason[i]),
                     })),
                 })
                 .collect()

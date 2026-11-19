@@ -34,12 +34,6 @@ pub const KNOWN: &[&str] = &[
     "core/src/ffi.rs::new_error",
     "core/src/levelzero.rs::device_count",
     "core/src/qa/session.rs::drop",
-    "server/src/results/analyze_query/mod.rs::grain_str",
-    "server/src/results/search_projection/columns.rs::quality_metrics_proto",
-    "server/src/results/search_projection/entities.rs::block_str",
-    "server/src/results/search_projection/entities.rs::boilerplate_kind_str",
-    "server/src/results/search_projection/entities.rs::epistemic_str",
-    "server/src/results/typed/layers_shared.rs::aligned_anchor_spans",
     "trainer/src/lemma.rs::language_row",
     "trainer/src/relation.rs::new",
 ];

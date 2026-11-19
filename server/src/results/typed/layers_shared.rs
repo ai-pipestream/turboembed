@@ -4,15 +4,15 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Alternatives, Edges, Ix, Key, KeyId, Layer, NBest, Spans, View, ViewId};
+use turbo_analysis::{Alternatives, Edges, Ix, Key, KeyId, Layer, NBest, View, ViewId};
 use turbo_analysis_layers::{
-    AnchoredLayerKind, ArgumentRole, ChunkTags, DeonticKind, Discourse, DocumentEntities, Edus, Entities,
-    EpistemicStatus, Events, Levels, Modality, ModalityPolarity, PosTags, Sentences, SparseTerms, SyntacticRole,
-    Tokens,
+    AnchoredLayerKind, ArgumentRole, ChunkTags, DeonticKind, Discourse, DocumentEntities, Edus, Entities, Events,
+    Levels, Modality, ModalityPolarity, PosTags, Sentences, SparseTerms, SyntacticRole, Tokens,
 };
 use turbo_geo::Locations;
 
 use super::layers_core::token_spans;
+use super::layers_structure::aligned_spans;
 use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
@@ -20,21 +20,12 @@ use crate::proto::result::{
     EntityRelationProto, EventAnnotation, EventArgumentProto, ModalityAnnotation, NBestAnnotation, NBestCandidateProto,
     SpanFragment, SparseTermEntryProto, SparseTermsAnnotation, TypedAnnotation, TypedLayer,
 };
+use crate::results::wire_names;
 
 fn modality_polarity_name(p: ModalityPolarity) -> &'static str {
     match p {
         ModalityPolarity::Affirmed => "affirmed",
         ModalityPolarity::Negated => "negated",
-    }
-}
-
-fn epistemic_name(e: EpistemicStatus) -> &'static str {
-    match e {
-        EpistemicStatus::Asserted => "asserted",
-        EpistemicStatus::Hedged => "hedged",
-        EpistemicStatus::Reported => "reported",
-        EpistemicStatus::Conditional => "conditional",
-        EpistemicStatus::Presupposed => "presupposed",
     }
 }
 
@@ -150,27 +141,6 @@ fn project_nbest<L: Layer>(
     })
 }
 
-fn aligned_anchor_spans<L: Layer>(
-    cx: &ProjectionCx<'_>,
-    key: KeyId,
-    index: usize,
-    spans_of: fn(&L) -> &Spans<L>,
-) -> Vec<SpanFragment> {
-    let target_key = cx
-        .doc
-        .made_on(key)
-        .iter()
-        .find(|k| k.ty == TypeId::of::<L>())
-        .map_or(Key::<L>::DEFAULT, |k| Key::<L>::named(k.name));
-    match cx.doc.get_key(&target_key) {
-        Some(layer) => {
-            let s = spans_of(layer);
-            if index < s.len() { cx.project_spans(s, Ix::new(index as u32)) } else { Vec::new() }
-        }
-        None => Vec::new(),
-    }
-}
-
 fn project_sparse<L: Layer>(
     cx: &mut ProjectionCx<'_>,
     key: KeyId,
@@ -216,7 +186,7 @@ pub(crate) fn project_shared_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
                         model_ref: mref.clone(),
                         value: Some(Value::Modality(ModalityAnnotation {
                             polarity: modality_polarity_name(tag.polarity).to_owned(),
-                            epistemic: epistemic_name(tag.epistemic).to_owned(),
+                            epistemic: wire_names::epistemic(tag.epistemic).to_owned(),
                             deontic: deontic_name(tag.deontic).to_owned(),
                             cue: tag.cue.map(|s| cx.project_wire_span(view, s)),
                             confidence: tag.confidence,
@@ -431,13 +401,11 @@ pub(crate) fn project_shared_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
     }
     if ty == TypeId::of::<NBest<Sentences>>() {
         return Some(project_nbest::<Sentences>(cx, key, |cx, k, i| {
-            aligned_anchor_spans::<Sentences>(cx, k, i, |s| &s.spans)
+            aligned_spans::<Sentences>(cx, k, i, |s| &s.spans)
         }));
     }
     if ty == TypeId::of::<NBest<Entities>>() {
-        return Some(project_nbest::<Entities>(cx, key, |cx, k, i| {
-            aligned_anchor_spans::<Entities>(cx, k, i, |e| &e.spans)
-        }));
+        return Some(project_nbest::<Entities>(cx, key, |cx, k, i| aligned_spans::<Entities>(cx, k, i, |e| &e.spans)));
     }
     None
 }

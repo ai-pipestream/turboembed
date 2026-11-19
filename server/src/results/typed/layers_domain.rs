@@ -7,7 +7,7 @@ use std::any::TypeId;
 use turbo_analysis::{Ix, KeyId, Layer};
 use turbo_analysis_layers::{
     Containment, DocumentDate, Money, Multiplier, NumberNotation, Numbers, Ordinals, Quantities, Regions, ScaleMarker,
-    Temporals, TimeGrain, Times,
+    Temporals, Times,
 };
 use turbo_geo::Locations;
 
@@ -17,6 +17,7 @@ use crate::proto::result::{
     ContainmentChain, DocumentDateAnnotation, MoneyAnnotation, NumberAnnotation, OrdinalAnnotation, PlaceAncestorProto,
     PlaceResolution, QuantityAnnotation, RegionVote, TemporalAnnotation, TimeAnnotation, TypedAnnotation, TypedLayer,
 };
+use crate::results::wire_names;
 
 fn multiplier_name(m: Multiplier) -> &'static str {
     match m {
@@ -40,25 +41,6 @@ fn notation_name(n: NumberNotation) -> &'static str {
     match n {
         NumberNotation::LatinUs => "latin-us",
         NumberNotation::LatinEu => "latin-eu",
-    }
-}
-
-fn time_grain_name(g: TimeGrain) -> &'static str {
-    match g {
-        TimeGrain::Second => "second",
-        TimeGrain::Minute => "minute",
-        TimeGrain::Hour => "hour",
-        TimeGrain::PartOfDay => "part_of_day",
-        TimeGrain::Day => "day",
-        TimeGrain::Week => "week",
-        TimeGrain::Weekend => "weekend",
-        TimeGrain::Month => "month",
-        TimeGrain::Quarter => "quarter",
-        TimeGrain::Half => "half",
-        TimeGrain::Season => "season",
-        TimeGrain::Year => "year",
-        TimeGrain::Decade => "decade",
-        TimeGrain::Century => "century",
     }
 }
 
@@ -191,7 +173,7 @@ pub(crate) fn project_domain_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
                         model_ref: mref.clone(),
                         value: Some(Value::Time(TimeAnnotation {
                             kind: m.kind.name().to_owned(),
-                            grain: time_grain_name(m.grain).to_owned(),
+                            grain: wire_names::time_grain(m.grain).to_owned(),
                             modifier: m.modifier.to_string(),
                             start: m.start,
                             end: m.end,

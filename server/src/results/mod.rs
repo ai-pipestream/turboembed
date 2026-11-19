@@ -24,6 +24,7 @@ pub mod search_projection;
 pub mod sparse;
 pub mod tokens;
 pub mod typed;
+pub(crate) mod wire_names;
 
 /// The most a result message may carry; the capability listing shows
 /// these and a larger message is TURBO_E_CAPACITY naming the limit.
