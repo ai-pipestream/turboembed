@@ -9,8 +9,7 @@
 //! A span without a type is written with the type `default`. Each codec
 //! has a [`SequenceValidator`] that keeps the beam search from producing
 //! outcome sequences the codec cannot decode. All of it follows the
-//! classes of `opennlp.tools.namefind` at the commit this crate follows,
-//! including how they treat outcome sequences no model should produce
+//! classes of `opennlp.tools.namefind` at the commit this crate follows
 //! (see each method).
 
 use std::collections::HashSet;
@@ -168,16 +167,23 @@ impl BilouCodec {
 }
 
 impl SequenceCodec for BilouCodec {
-    /// A `start` opens a span (dropping one still open), `cont` extends
-    /// it, `last` closes it including the `last` token, and `unit` is a
-    /// span of its own token. A span closed by `last` takes the type of the
-    /// outcome before the `last`; a `unit` takes its own.
+    /// A `start` opens a span, `cont` extends it, `last` closes it
+    /// including the `last` token, and `unit` is a span of its own token.
+    /// Any other of `start`, `unit` and `other`, and the end of the
+    /// outcomes, first ends a span still open, before its token, as in
+    /// [`BioCodec`]; any other outcome is skipped. A span closed by
+    /// `last` takes the type of the outcome before the `last`, one ended
+    /// early the type of the outcome before the ending one (or of the
+    /// last outcome, at the end); a `unit` takes its own.
     fn decode(&self, outcomes: &[&str]) -> Vec<Span> {
         let mut spans = Vec::new();
         let mut open: Option<usize> = None;
         let mut end = 0;
         for (i, tag) in outcomes.iter().enumerate() {
             if tag.ends_with(Self::START) {
+                if let Some(start) = open.take() {
+                    spans.push(Span::new(start, end, name_type(outcomes[i - 1])));
+                }
                 open = Some(i);
                 end = i + 1;
             } else if tag.ends_with(Self::CONTINUE) {
@@ -187,8 +193,18 @@ impl SequenceCodec for BilouCodec {
                     spans.push(Span::new(start, end + 1, name_type(outcomes[i - 1])));
                 }
             } else if tag.ends_with(Self::UNIT) {
+                if let Some(start) = open.take() {
+                    spans.push(Span::new(start, end, name_type(outcomes[i - 1])));
+                }
                 spans.push(Span::new(i, i + 1, name_type(tag)));
+            } else if tag.ends_with(Self::OTHER)
+                && let Some(start) = open.take()
+            {
+                spans.push(Span::new(start, end, name_type(outcomes[i - 1])));
             }
+        }
+        if let Some(start) = open {
+            spans.push(Span::new(start, end, name_type(outcomes[outcomes.len() - 1])));
         }
         spans
     }
@@ -364,6 +380,43 @@ mod tests {
         assert_eq!(encoded, ["loc-start", "loc-cont", "loc-last", "other", "person-unit"]);
         let refs: Vec<&str> = encoded.iter().map(String::as_str).collect();
         assert_eq!(BilouCodec.decode(&refs), spans);
+    }
+
+    #[test]
+    fn bilou_other_ends_an_open_span_before_it() {
+        // An `other` ends the span open before it, as in `BioCodec`, so
+        // the span neither covers the `other` token nor is lost; a `last`
+        // after it has no span left to close.
+        assert_eq!(BilouCodec.decode(&["a-start", "a-cont", "other", "a-last"]), [Span::new(0, 2, Some("a"))]);
+        assert_eq!(BilouCodec.decode(&["a-start", "a-cont", "other"]), [Span::new(0, 2, Some("a"))]);
+        assert_eq!(
+            BilouCodec.decode(&["a-start", "other", "b-start", "b-last"]),
+            [Span::new(0, 1, Some("a")), Span::new(2, 4, Some("b"))]
+        );
+        // No span open: `other` alone and after a closed span adds nothing.
+        assert_eq!(BilouCodec.decode(&["other"]), Vec::<Span>::new());
+        assert_eq!(
+            BilouCodec.decode(&["a-start", "a-last", "other", "b-unit"]),
+            [Span::new(0, 2, Some("a")), Span::new(3, 4, Some("b"))]
+        );
+    }
+
+    #[test]
+    fn bilou_start_unit_and_the_end_end_an_open_span() {
+        // As in `BioCodec`, a `start` ends the span open before it instead
+        // of replacing it, a `unit` ends it instead of nesting a span
+        // inside it, and a span still open at the last outcome is kept.
+        assert_eq!(
+            BilouCodec.decode(&["a-start", "b-start", "b-last"]),
+            [Span::new(0, 1, Some("a")), Span::new(1, 3, Some("b"))]
+        );
+        assert_eq!(
+            BilouCodec.decode(&["a-start", "a-cont", "b-unit", "a-last"]),
+            [Span::new(0, 2, Some("a")), Span::new(2, 3, Some("b"))]
+        );
+        assert_eq!(BilouCodec.decode(&["a-start", "a-cont"]), [Span::new(0, 2, Some("a"))]);
+        assert_eq!(BilouCodec.decode(&["a-start"]), [Span::new(0, 1, Some("a"))]);
+        assert_eq!(BilouCodec.decode(&[] as &[&str]), Vec::<Span>::new());
     }
 
     #[test]
