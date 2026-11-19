@@ -2,10 +2,10 @@
 //! `WhitespaceTokenizer.tokenizePos`, splitting at Unicode `White_Space`.
 //!
 //! A unit is a maximal run of characters that are not whitespace. With
-//! `keep_newlines`, every line feed and carriage return is also a unit of
-//! its own, at its own position.
+//! `keep_newlines`, every line break is also a unit of its own, at its
+//! own position.
 
-use turbo_unicode::whitespace::{is_ascii_whitespace, is_whitespace};
+use turbo_unicode::whitespace::{is_ascii_whitespace, is_line_break, is_whitespace};
 
 /// The whitespace units of a text, as byte ranges `(start, end)`.
 pub struct WhitespaceUnits<'a> {
@@ -43,9 +43,10 @@ impl Iterator for WhitespaceUnits<'_> {
             if !ws {
                 break;
             }
-            if self.keep_newlines && matches!(bytes[self.at], b'\n' | b'\r') {
-                self.at += 1;
-                return Some((self.at - 1, self.at));
+            if self.keep_newlines && self.text[self.at..].chars().next().is_some_and(|c| is_line_break(c as u32)) {
+                let start = self.at;
+                self.at += len;
+                return Some((start, self.at));
             }
             self.at += len;
         }
@@ -91,7 +92,8 @@ mod tests {
     fn kept_line_breaks() {
         assert_eq!(units("a\r\n b\n", true), ["a", "\r", "\n", "b", "\n"]);
         assert_eq!(units("\nx", true), ["\n", "x"]);
-        // U+2028 is whitespace but not a kept line break.
-        assert_eq!(units("a\u{2028}b", true), ["a", "b"]);
+        // Every line break is kept, the non-ASCII ones too.
+        assert_eq!(units("a\u{2028}b", true), ["a", "\u{2028}", "b"]);
+        assert_eq!(units("a\u{b}\u{c}\u{85}\u{2029}b", true), ["a", "\u{b}", "\u{c}", "\u{85}", "\u{2029}", "b"]);
     }
 }

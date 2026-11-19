@@ -61,6 +61,17 @@ pub const fn is_ascii_whitespace(byte: u8) -> bool {
     matches!(byte, 0x09..=0x0D | 0x20)
 }
 
+/// The line breaks among the whitespace: line feed, line tabulation,
+/// form feed, carriage return, next line, line separator and paragraph
+/// separator.
+pub const LINE_BREAKS: [u32; 7] = [0x000A, 0x000B, 0x000C, 0x000D, 0x0085, 0x2028, 0x2029];
+
+/// Whether `cp` is one of the [`LINE_BREAKS`].
+#[inline]
+pub const fn is_line_break(cp: u32) -> bool {
+    matches!(cp, 0x000A..=0x000D | 0x0085 | 0x2028 | 0x2029)
+}
+
 /// Whether every character of `text` is whitespace. Empty text is blank.
 #[inline]
 pub fn is_blank(text: &str) -> bool {
@@ -108,6 +119,14 @@ mod tests {
         for cp in [0xD800, 0xDFFF, 'a' as u32, 0x110000] {
             assert!(!is_whitespace(cp), "U+{cp:04X}");
         }
+    }
+
+    #[test]
+    fn line_breaks_are_the_seven() {
+        for cp in 0..=0x10_FFFF {
+            assert_eq!(is_line_break(cp), LINE_BREAKS.contains(&cp), "U+{cp:04X}");
+        }
+        assert!(LINE_BREAKS.iter().all(|&cp| is_whitespace(cp)));
     }
 
     #[test]
