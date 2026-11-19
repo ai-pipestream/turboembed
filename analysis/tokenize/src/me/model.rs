@@ -213,7 +213,7 @@ impl TokenizerModel {
 /// each `T` or `F`.
 fn outcomes(maxent: &MaxentModel) -> Result<[Outcome; 2], ModelError> {
     let names: Vec<&JavaString> = maxent.outcomes().collect();
-    if names.len() != 2 || names.iter().any(|&n| *n != "T" && *n != "F") {
+    if names.len() != 2 || names[0] == names[1] || names.iter().any(|&n| *n != "T" && *n != "F") {
         return Err(ModelError::Outcomes(names.iter().map(|n| n.to_string_lossy()).collect()));
     }
     let outcome = |i: usize| Outcome {
@@ -221,4 +221,49 @@ fn outcomes(maxent: &MaxentModel) -> Result<[Outcome; 2], ModelError> {
         index: maxent.outcome_index(names[i]).expect("the outcome's own name"),
     };
     Ok([outcome(0), outcome(1)])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A trained-bytes classifier with the given outcome names, one
+    /// predicate holding one parameter per outcome.
+    fn classifier(names: &[&str]) -> MaxentModel {
+        fn utf(bytes: &mut Vec<u8>, s: &str) {
+            bytes.extend_from_slice(&(s.len() as u16).to_le_bytes());
+            bytes.extend_from_slice(s.as_bytes());
+        }
+        fn int(bytes: &mut Vec<u8>, v: i32) {
+            bytes.extend_from_slice(&v.to_le_bytes());
+        }
+        let mut bytes = Vec::new();
+        utf(&mut bytes, "TURBO-QN-1");
+        int(&mut bytes, names.len() as i32);
+        for n in names {
+            utf(&mut bytes, n);
+        }
+        int(&mut bytes, 1);
+        utf(&mut bytes, &format!("1{}", (0..names.len()).map(|i| format!(" {i}")).collect::<String>()));
+        int(&mut bytes, 1);
+        utf(&mut bytes, "p");
+        for _ in names {
+            bytes.extend_from_slice(&1.0f64.to_le_bytes());
+        }
+        MaxentModel::from_trained_bytes(&bytes).unwrap()
+    }
+
+    #[test]
+    fn outcomes_are_exactly_t_and_f() {
+        let got = outcomes(&classifier(&["T", "F"])).unwrap();
+        assert_eq!(got.map(|o| (o.split, o.index)), [(true, 0), (false, 1)]);
+        let got = outcomes(&classifier(&["F", "T"])).unwrap();
+        assert_eq!(got.map(|o| (o.split, o.index)), [(false, 0), (true, 1)]);
+        // A repeated outcome is not T and F: both slots would mean the
+        // same decision and read the same probability.
+        for names in [&["T", "T"][..], &["F", "F"][..], &["T", "X"][..], &["T"][..]] {
+            let model = classifier(names);
+            assert!(matches!(outcomes(&model), Err(ModelError::Outcomes(_))), "{names:?}");
+        }
+    }
 }
