@@ -224,9 +224,14 @@ impl<'a> ComplexSegmenter<'a> {
                 }
                 None => cluster,
             };
+            // The segment before the run takes the marks between `i` and
+            // `start`, but never past `end`: where the cluster is cut for
+            // a run of another script, that run is segmented again from
+            // the cut, and extending to `start` would cover it twice.
+            let before = start.min(end);
             if stretch < i {
                 // The UAX #29 segments before the run; the last one takes
-                // the marks between `i` and `start`.
+                // the marks between `i` and `before`.
                 let mut last: Option<(u32, u32)> = None;
                 uax29_stretch(text, stretch, i, &mut |s, e| {
                     if let Some((s0, e0)) = last.replace((s, e)) {
@@ -234,10 +239,10 @@ impl<'a> ComplexSegmenter<'a> {
                     }
                 });
                 if let Some((s0, _)) = last {
-                    segment(s0, start as u32);
+                    segment(s0, before as u32);
                 }
-            } else if i < start {
-                segment(i as u32, start as u32);
+            } else if i < before {
+                segment(i as u32, before as u32);
             }
             i = end;
             stretch = end;
@@ -397,6 +402,20 @@ mod tests {
         });
         assert_eq!(segments(text), words);
         assert_eq!(segments(text), ["\u{1780}\u{17D2}", "\u{1000}", "\u{1001}"]);
+    }
+
+    #[test]
+    fn a_cluster_reaching_into_a_second_run_is_cut_before_it() {
+        // One grapheme cluster (bytes 0..7): a Latin letter, a Thai mark
+        // and a Khmer COENG. The Thai run lies inside the cluster, which
+        // the segment before takes — but only up to where the Khmer run
+        // starts, so no byte is in two segments.
+        let text = "a\u{0E31}\u{17D2}";
+        assert_eq!(turbo_unicode::grapheme_boundaries(text).collect::<Vec<_>>(), [0, 7]);
+        assert_eq!(segments(text), ["a\u{0E31}", "\u{17D2}"]);
+        let mut bounds = Vec::new();
+        bundled().boundaries(text, &mut bounds);
+        assert_eq!(bounds, [0, 4, 7]);
     }
 
     #[test]
