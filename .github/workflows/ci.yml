@@ -637,7 +637,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, proto, bench-throughput, test, fuzz, features, changes, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, changes, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core, windows-cuda]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04
@@ -795,3 +795,50 @@ jobs:
         env:
           CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo --features npu
+
+  # The CUDA backend built with MSVC (#2453), when the change touches what
+  # the backend lanes cover. The hosted runner has no GPU, so this checks
+  # the compile, the link (no CUDA DLL, as on Linux) and that the library
+  # loads and names cuda; the GPU tests run on a Windows machine with an
+  # NVIDIA card (docs/cuda.md, "Windows"; #2454).
+  windows-cuda:
+    needs: changes
+    if: needs.changes.outputs.linux == 'true'
+    runs-on: windows-latest
+    env:
+      CUDA_VERSION: "12.8"
+    steps:
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-cuda
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: ilammy/msvc-dev-cmd@v1
+      # NVIDIA's network installer, silent, with the compiler, the runtime
+      # and the CCCL headers alone.
+      - name: the CUDA toolkit (nvcc, the runtime's headers and static library)
+        run: |
+          $v = $env:CUDA_VERSION
+          Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/$v.0/network_installers/cuda_${v}.0_windows_network.exe" -OutFile cuda.exe
+          $p = Start-Process -FilePath .\cuda.exe -ArgumentList "-s nvcc_$v cudart_$v crt_$v nvvm_$v nvptxcompiler_$v thrust_$v" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
+          $root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$v"
+          & "$root\bin\nvcc.exe" --version
+          "TURBO_CUDA_ROOT=$root" >> $env:GITHUB_ENV
+      - name: clippy (cuda)
+        run: cargo clippy --locked --release -p turbo --features cuda --all-targets -- -D warnings
+      - name: the library builds, links no CUDA DLL, loads and names cuda
+        run: |
+          cargo build --locked --release -p turbo --features cuda
+          if ($LASTEXITCODE) { exit 1 }
+          $deps = dumpbin /dependents target\release\turbo.dll | Out-String
+          $deps
+          if ($deps -match 'cudart|cublas') { "turbo.dll links a CUDA DLL"; exit 1 }
+          $v = python -c "import ctypes, os; l = ctypes.CDLL(os.path.abspath(r'target\release\turbo.dll')); l.turbo_version.restype = ctypes.c_char_p; print(l.turbo_version().decode())"
+          $v
+          if ($v -notmatch 'cuda') { "turbo_version() does not name cuda"; exit 1 }

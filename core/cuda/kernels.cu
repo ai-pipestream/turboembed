@@ -19,6 +19,7 @@
  */
 
 #include "kernels.h"
+#include "portable.h"
 #include "rotary.h"
 
 #include <turbo/turbo.h>
@@ -2976,7 +2977,7 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
             if (t == TILE_SWIZZLED_256x128) return swz_kernel<256, 128, 4, 2, 3, EPI, TOut, false, true>();
         return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, false, true>();
     }
-    __builtin_unreachable();
+    TURBO_UNREACHABLE();
 }
 
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of

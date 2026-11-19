@@ -42,10 +42,8 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const SOURCES: [&str; 6] =
-    ["cuda/kernels.cu", "cuda/deberta.cu", "cuda/backend.cpp", "cuda/autotune.cpp", "cuda/lstm.cu", "cuda/rotary.cpp"];
-const DEPENDS: [&str; 5] = ["cuda/kernels.h", "cuda/deberta.h", "cuda/autotune.h", "cuda/rotary.h", "cuda/rotary.cuh"];
-const API: [&str; 2] = ["../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
+#[path = "build_cuda.rs"]
+mod build_cuda;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -57,7 +55,7 @@ fn main() {
         println!("cargo:rustc-cdylib-link-arg=-Wl,-install_name,@rpath/libturbo.dylib");
     }
     if env::var_os("CARGO_FEATURE_CUDA").is_some() {
-        cuda();
+        build_cuda::cuda();
     }
     if env::var_os("CARGO_FEATURE_LEVELZERO").is_some() {
         levelzero();
@@ -97,96 +95,6 @@ fn kernels_id() {
         }
     }
     println!("cargo:rustc-env=TURBO_KERNELS_ID={h:016x}");
-}
-
-fn cuda() {
-    for f in SOURCES.iter().chain(&DEPENDS).chain(&API) {
-        println!("cargo:rerun-if-changed={f}");
-    }
-    for v in ["TURBO_CUDA_ROOT", "CUDA_PATH", "CUDA_HOME", "TURBO_CUDA_ARCH", "NVCC_CCBIN"] {
-        println!("cargo:rerun-if-env-changed={v}");
-    }
-
-    let root = toolkit_root();
-    let nvcc = root.join("bin/nvcc");
-    if !nvcc.is_file() {
-        fail(&format!(
-            "the cuda feature needs nvcc, and {} is not there: set TURBO_CUDA_ROOT to the CUDA toolkit's directory",
-            nvcc.display()
-        ));
-    }
-    let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| env::consts::ARCH.to_owned());
-    let cublas = env::var_os("CARGO_FEATURE_CUDA_CUBLAS").is_some();
-    let needed = if cublas { "libcudart_static.a and libcublas.so" } else { "libcudart_static.a" };
-    let lib = ["lib64", "lib", &format!("targets/{arch}-linux/lib"), &format!("lib/{arch}-linux-gnu")]
-        .iter()
-        .map(|d| root.join(d))
-        .find(|d| d.join("libcudart_static.a").exists() && (!cublas || d.join("libcublas.so").exists()))
-        .unwrap_or_else(|| {
-            fail(&format!(
-                "no {needed} under {}/lib64, lib, targets/{arch}-linux/lib or lib/{arch}-linux-gnu",
-                root.display()
-            ))
-        });
-    let archs = archs();
-
-    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let list = archs.join(",");
-    std::fs::write(
-        out.join("turbo_cuda_build.h"),
-        format!("/* Written by build.rs. */\n#define TURBO_CUDA_ARCHS \"{list}\"\n"),
-    )
-    .unwrap();
-    let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let include = manifest.join("../include");
-    let cutlass = manifest.join("cuda/cutlass/include");
-    let mut objects = Vec::new();
-    for src in SOURCES {
-        let obj = object(&out, src);
-        let mut cmd = Command::new(&nvcc);
-        cmd.args(["-c", "-O3", "-std=c++17", "-Xcompiler", "-fPIC,-Wall,-Wextra"]);
-        if cublas {
-            cmd.arg("-DTURBO_CUDA_CUBLAS=1");
-        }
-        cmd.arg("-I")
-            .arg(&include)
-            .arg("-isystem")
-            .arg(&cutlass)
-            .arg("-I")
-            .arg(&out)
-            .arg("-o")
-            .arg(&obj)
-            .arg(manifest.join(src));
-        if src.ends_with(".cu") {
-            for (i, a) in archs.iter().enumerate() {
-                let code = if i + 1 == archs.len() { format!("[sm_{a},compute_{a}]") } else { format!("sm_{a}") };
-                cmd.arg("-gencode").arg(format!("arch=compute_{a},code={code}"));
-            }
-        }
-        run(&mut cmd);
-        objects.push(obj);
-    }
-    let archive = out.join("libturbo_cuda.a");
-    let _ = std::fs::remove_file(&archive);
-    let ar = env::var("AR").unwrap_or_else(|_| "ar".to_owned());
-    run(Command::new(ar).arg("crs").arg(&archive).args(&objects));
-
-    println!("cargo:rustc-link-search=native={}", out.display());
-    println!("cargo:rustc-link-lib=static=turbo_cuda");
-    println!("cargo:rustc-link-search=native={}", lib.display());
-    // The runtime linked in, so the library needs the driver alone; the
-    // runtime's own needs after it.
-    println!("cargo:rustc-link-lib=static=cudart_static");
-    for l in ["dl", "pthread", "rt"] {
-        println!("cargo:rustc-link-lib=dylib={l}");
-    }
-    if cublas {
-        // cuBLAS stays the toolkit's shared library, found through its
-        // directory as a run path.
-        println!("cargo:rustc-link-lib=dylib=cublas");
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib.display());
-    }
-    println!("cargo:rustc-link-lib=dylib=stdc++");
 }
 
 /// The levelzero backend's kernels, core/levelzero/encoder.cl, compiled to
@@ -451,36 +359,15 @@ fn records() {
     std::fs::write(out.join("records.rs"), code).unwrap();
 }
 
-fn toolkit_root() -> PathBuf {
-    ["TURBO_CUDA_ROOT", "CUDA_PATH", "CUDA_HOME"]
-        .iter()
-        .find_map(|v| env::var_os(v).filter(|s| !s.is_empty()))
-        .map_or_else(|| PathBuf::from("/usr/local/cuda"), PathBuf::from)
-}
-
-/// TURBO_CUDA_ARCH as numbers nvcc takes after sm_, lowest first.
-fn archs() -> Vec<String> {
-    let given = env::var("TURBO_CUDA_ARCH").unwrap_or_else(|_| "89".to_owned());
-    let mut archs: Vec<String> = given.split(',').map(|a| a.trim().trim_start_matches("sm_").to_owned()).collect();
-    let digits = |a: &str| a.len() >= 2 && a.chars().take_while(char::is_ascii_digit).count() >= 2;
-    if let Some(bad) = archs.iter().find(|a| !digits(a) || !a.chars().all(|c| c.is_ascii_alphanumeric())) {
-        fail(&format!("TURBO_CUDA_ARCH={given}: {bad:?} is not an SM architecture such as 89"));
-    }
-    let number = |a: &String| a.chars().take_while(char::is_ascii_digit).collect::<String>().parse::<u32>().unwrap();
-    archs.sort_by_key(number);
-    archs.dedup();
-    archs
-}
-
 /// A source's object in OUT_DIR, named for its whole path under core/
 /// (cuda/backend.cpp is cuda_backend.o), so no backend's object is
 /// another's when several features are on.
-fn object(out: &Path, src: &str) -> PathBuf {
+pub(crate) fn object(out: &Path, src: &str) -> PathBuf {
     out.join(Path::new(src).with_extension("o").to_string_lossy().replace('/', "_"))
 }
 
 /// Run a compiler step; its warnings are shown, and a failure stops the build.
-fn run(cmd: &mut Command) {
+pub(crate) fn run(cmd: &mut Command) {
     let out = cmd.output().unwrap_or_else(|e| fail(&format!("{cmd:?}: {e}")));
     let stderr = String::from_utf8_lossy(&out.stderr);
     if !out.status.success() {
@@ -491,7 +378,7 @@ fn run(cmd: &mut Command) {
     }
 }
 
-fn fail(message: &str) -> ! {
+pub(crate) fn fail(message: &str) -> ! {
     eprintln!("{message}");
     std::process::exit(1);
 }

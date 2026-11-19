@@ -47,13 +47,13 @@ constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
 #include <mutex>
 #include <new>
 #include <string>
-#include <strings.h>
 #include <utility>
 #include <vector>
 
 #include "autotune.h"
 #include "deberta.h"
 #include "kernels.h"
+#include "portable.h"
 #include "rotary.h"
 
 /* TURBO_CUDA_ARCHS: the architectures build.rs compiled for, as
@@ -78,7 +78,7 @@ int32_t vrefuse(turbo_error *err, int32_t code, uint32_t field, const char *fmt,
     return code;
 }
 
-__attribute__((format(printf, 3, 4))) int32_t refuse(turbo_error *err, int32_t code, const char *fmt, ...) {
+TURBO_PRINTF(3, 4) int32_t refuse(turbo_error *err, int32_t code, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vrefuse(err, code, 0, fmt, ap);
@@ -86,7 +86,7 @@ __attribute__((format(printf, 3, 4))) int32_t refuse(turbo_error *err, int32_t c
     return code;
 }
 
-__attribute__((format(printf, 4, 5))) int32_t refuse_field(turbo_error *err, int32_t code, uint32_t field,
+TURBO_PRINTF(4, 5) int32_t refuse_field(turbo_error *err, int32_t code, uint32_t field,
                                                            const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -465,7 +465,7 @@ struct Context {
     void *workspace = nullptr;
     std::mutex lock;
 
-    __attribute__((format(printf, 3, 4))) void say(uint32_t level, const char *fmt, ...) {
+    TURBO_PRINTF(3, 4) void say(uint32_t level, const char *fmt, ...) {
         if (!log) return;
         // Room for a session's choices line and what the tuner says of it.
         char m[2048];
