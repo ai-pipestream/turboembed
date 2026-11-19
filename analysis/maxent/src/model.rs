@@ -294,7 +294,25 @@ impl MaxentModel {
     /// Turns the sums into probabilities as this kind of model does.
     fn finish(&self, out: &mut [f64]) {
         match self.kind {
-            ModelKind::Gis => exp_normalize(out, 1.0),
+            ModelKind::Gis => {
+                // Shift by the largest sum before exponentiating, so
+                // extreme weights neither overflow nor underflow every
+                // outcome to a NaN ratio.
+                let mut max = f64::NEG_INFINITY;
+                for &x in out.iter() {
+                    if max < x {
+                        max = x;
+                    }
+                }
+                let mut sum = 0.0;
+                for x in out.iter_mut() {
+                    *x = (*x - max).exp();
+                    sum += *x;
+                }
+                for x in out.iter_mut() {
+                    *x /= sum;
+                }
+            }
             ModelKind::Qn => {
                 let lse = log_sum_of_exps(out);
                 for x in out.iter_mut() {

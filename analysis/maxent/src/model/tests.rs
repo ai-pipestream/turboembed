@@ -63,9 +63,37 @@ fn predicates_are_listed_as_modified_utf8() {
 fn gis_adds_the_uniform_prior_then_normalizes() {
     let got = eval(&model(ModelKind::Gis), &["p", "q", "unknown"]);
     let r = log(1.0 / 3.0);
-    let e = [exp(r + 1.0), exp(r + 2.0), exp(r - 0.5)];
+    let max = r + 2.0;
+    let e = [exp(r + 1.0 - max), exp(r + 2.0 - max), exp(r - 0.5 - max)];
     let s = e[0] + e[1] + e[2];
     assert_eq!(got, vec![e[0] / s, e[1] / s, e[2] / s]);
+}
+
+#[test]
+fn gis_probabilities_stay_finite_for_extreme_weights() {
+    for (first, second) in [(-1000.0, -999.0), (1000.0, 999.0)] {
+        let mut predicates = HashMap::default();
+        predicates.insert(Box::from(&b"p"[..]), 0);
+        let outcomes = vec![JavaString::new("a"), JavaString::new("b")];
+        let m = MaxentModel {
+            kind: ModelKind::Gis,
+            outcome_texts: outcome_texts(&outcomes),
+            outcomes,
+            predicates,
+            pred_start: vec![0, 2],
+            pred_outcome: vec![0, 1],
+            pred_param: vec![first, second],
+            start: log(1.0 / 2.0),
+            outcome_totals: Vec::new(),
+            vocabulary: 0.0,
+        };
+        let got = eval(&m, &["p"]);
+        let expected = 1.0 / (1.0 + exp(second - first));
+        assert!((got[0] - expected).abs() < 1e-12, "{got:?}");
+        assert!((got[1] - (1.0 - expected)).abs() < 1e-12, "{got:?}");
+        assert!((got[0] + got[1] - 1.0).abs() < 1e-12, "{got:?}");
+        assert_eq!(best_outcome(&got), if first > second { 0 } else { 1 });
+    }
 }
 
 #[test]
