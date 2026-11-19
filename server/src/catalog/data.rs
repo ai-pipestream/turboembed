@@ -170,9 +170,8 @@ fn is_gone(e: &std::io::Error) -> bool {
     matches!(e.kind(), ErrorKind::NotFound | ErrorKind::StaleNetworkFileHandle)
 }
 
-/// Windows answers ERROR_ACCESS_DENIED (5) or ERROR_DELETE_PENDING (303)
-/// to an open of a file another process is deleting (#2407). That is a
-/// revoke in flight, not a permission problem.
+/// Windows answers ERROR_ACCESS_DENIED (5) or ERROR_DELETE_PENDING (303) to an
+/// open of a file being deleted (#2407): a revoke in flight, not a denial.
 #[cfg(windows)]
 fn is_delete_pending(e: &std::io::Error) -> bool {
     matches!(e.raw_os_error(), Some(5 | 303))
@@ -474,16 +473,26 @@ mod tests {
         );
         assert!(is_gone(&r.unwrap_err()));
         assert_eq!(calls, 3);
+    }
 
-        let mut calls = 0;
-        let r: std::io::Result<()> = open_past_pending_delete(
-            || {
-                calls += 1;
-                Err(std::io::Error::from(ErrorKind::PermissionDenied))
-            },
-            pending,
-        );
-        assert_eq!(r.unwrap_err().kind(), ErrorKind::PermissionDenied, "a lasting denial still surfaces");
-        assert_eq!(calls, 20);
+    #[test]
+    fn only_windows_reads_access_denied_and_delete_pending_as_a_revoke_in_flight() {
+        let os = std::io::Error::from_raw_os_error;
+        let opens = |codes: &[i32]| {
+            let mut calls = 0;
+            let r: std::io::Result<()> = open_past_pending_delete(
+                || {
+                    calls += 1;
+                    Err(os(codes[(calls - 1).min(codes.len() - 1)]))
+                },
+                is_delete_pending,
+            );
+            (r.unwrap_err().raw_os_error(), calls)
+        };
+        let (retries, gone) = if cfg!(windows) { (20, (Some(2), 3)) } else { (1, (Some(5), 1)) };
+        assert_eq!(opens(&[5]), (Some(5), retries), "a lasting denial still surfaces");
+        assert_eq!(opens(&[303]), (Some(303), retries));
+        assert_eq!(opens(&[32]), (Some(32), 1), "a sharing violation is not a revoke");
+        assert_eq!(opens(&[5, 303, 2]), gone, "the delete lands and the record is gone");
     }
 }

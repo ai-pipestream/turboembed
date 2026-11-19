@@ -663,7 +663,8 @@ jobs:
   # pull request push queued every run behind them. windows-lint is one
   # job, so it also runs on pull requests and in the merge queue: a
   # Windows-only clippy error otherwise lands green and turns every push
-  # run on main red (#2394, #2432).
+  # run on main red (#2394, #2432). It also runs the catalog data tests,
+  # whose Windows-only paths nothing else checks before merge (#2407).
   windows-lint:
     if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: windows-latest
@@ -696,6 +697,12 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      # The catalog's Windows-only revoke handling, run on every pull
+      # request since the test shards are not (#2407).
+      - name: test (catalog data)
+        run: |
+          cargo test -p turbo-kserve --lib catalog::data
+          cargo test -p turbo-kserve --test catalog_data
 
   # The crates dealt as in the Linux shards. With windows-fuzz and
   # windows-core, the shards run what `cargo test --workspace` ran.
