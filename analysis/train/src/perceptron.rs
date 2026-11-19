@@ -39,9 +39,9 @@
 //!   with the value truncated to an `int`, and weights it by `int`
 //!   arithmetic.
 //!
-//! `StepSizeDecrease` above zero shrinks the step by that fraction before
-//! every iteration; OpenNLP takes the value as a fraction, though its
-//! check allows up to 100.
+//! `StepSizeDecrease` is a fraction in (0, 1]: the step is multiplied
+//! by 1 - decrease before every iteration. Values outside that range
+//! are refused, since a decrease above 1 would flip the step's sign.
 
 use std::collections::HashMap;
 
@@ -101,13 +101,12 @@ impl PerceptronParams {
         }
         let decrease = params.get_double(Key::STEP_SIZE_DECREASE)?.unwrap_or(0.0);
         let tolerance = params.get_double(Key::TOLERANCE)?.unwrap_or(DEFAULT_TOLERANCE);
-        let step_size_decrease = if decrease > 0.0 {
-            if decrease > 100.0 {
-                return Err(Error::StepSizeDecrease(decrease));
-            }
+        let step_size_decrease = if decrease == 0.0 {
+            None
+        } else if 0.0 < decrease && decrease <= 1.0 {
             Some(decrease)
         } else {
-            None
+            return Err(Error::StepSizeDecrease(decrease));
         };
         if tolerance < 0.0 {
             return Err(Error::Tolerance(tolerance));

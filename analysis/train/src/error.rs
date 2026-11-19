@@ -55,8 +55,8 @@ pub enum Error {
     /// `PerceptronTrainer.setTolerance` refuses a negative tolerance
     /// (`IllegalArgumentException`).
     Tolerance(f64),
-    /// `PerceptronTrainer.setStepSizeDecrease` refuses a decrease over 100
-    /// (`IllegalArgumentException`).
+    /// `PerceptronTrainer.setStepSizeDecrease` refuses a decrease that is
+    /// not a fraction in (0, 1] (`IllegalArgumentException`).
     StepSizeDecrease(f64),
     /// `PerceptronModelWriter` drops every zero parameter, and when none is
     /// left `computeOutcomePatterns` reads the first of no predicates
@@ -155,7 +155,7 @@ impl fmt::Display for Error {
                 write!(f, "tolerance must be a positive number but is {}!", crate::text::double_to_string(*t))
             }
             Error::StepSizeDecrease(d) => {
-                write!(f, "decrease must be between 0 and 100 but is {}!", crate::text::double_to_string(*d))
+                write!(f, "decrease must be larger than 0 and at most 1 but is {}!", crate::text::double_to_string(*d))
             }
             Error::NoParameters => f.write_str("every parameter is zero, which PerceptronModelWriter cannot write"),
             Error::SequenceLength { expected, got } => {

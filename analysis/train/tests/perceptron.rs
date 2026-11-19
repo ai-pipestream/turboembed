@@ -65,9 +65,17 @@ fn params_come_from_the_training_parameters_and_are_validated() {
     p.put(Key::USE_SKIPPED_AVERAGING, true);
     let got = PerceptronParams::from_training_parameters(&p).unwrap();
     assert!(got.use_average && got.use_skipped_averaging);
+    // A decrease is a fraction: the step is multiplied by 1 - decrease,
+    // so anything outside (0, 1] is refused instead of flipping its sign.
+    p.put(Key::STEP_SIZE_DECREASE, 1.0);
+    assert_eq!(PerceptronParams::from_training_parameters(&p).unwrap().step_size_decrease, Some(1.0));
+    p.put(Key::STEP_SIZE_DECREASE, 6.0);
+    assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(6.0)));
     p.put(Key::STEP_SIZE_DECREASE, 101.0);
     assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(101.0)));
     p.put(Key::STEP_SIZE_DECREASE, -1.0);
+    assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(-1.0)));
+    p.put(Key::STEP_SIZE_DECREASE, 0.0);
     assert_eq!(PerceptronParams::from_training_parameters(&p).unwrap().step_size_decrease, None);
     p.put(Key::TOLERANCE, -0.5);
     assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::Tolerance(-0.5)));
