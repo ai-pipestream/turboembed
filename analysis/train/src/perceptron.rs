@@ -39,9 +39,11 @@
 //!   with the value truncated to an `int`, and weights it by `int`
 //!   arithmetic.
 //!
-//! `StepSizeDecrease` is a fraction in (0, 1]: the step is multiplied
-//! by 1 - decrease before every iteration. Values outside that range
-//! are refused, since a decrease above 1 would flip the step's sign.
+//! `StepSizeDecrease` is a fraction in [0, 1): the step is multiplied
+//! by 1 - decrease before every iteration, and zero disables the decay.
+//! Values outside that range are refused, since a decrease of 1 would
+//! zero the step before the first update and one above 1 would flip
+//! its sign.
 
 use std::collections::HashMap;
 
@@ -103,7 +105,7 @@ impl PerceptronParams {
         let tolerance = params.get_double(Key::TOLERANCE)?.unwrap_or(DEFAULT_TOLERANCE);
         let step_size_decrease = if decrease == 0.0 {
             None
-        } else if 0.0 < decrease && decrease <= 1.0 {
+        } else if 0.0 < decrease && decrease < 1.0 {
             Some(decrease)
         } else {
             return Err(Error::StepSizeDecrease(decrease));
