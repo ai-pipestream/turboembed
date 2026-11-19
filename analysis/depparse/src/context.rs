@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::{ArcStandardState, Position, Result, error};
 use turbo_analysis_layers::WordOrTokenAnchor;
 
@@ -71,6 +73,20 @@ impl DependencyContextGenerator {
             }
             _ => "*NULL*".into(),
         };
+        // The values the combined features join, with the separators
+        // in them escaped so different configurations cannot combine
+        // into the same feature. The single-value features below keep
+        // the values as they are.
+        let es0w = escape(s0w);
+        let es0t = escape(s0t);
+        let es1w = escape(s1w);
+        let es1t = escape(s1t);
+        let es2t = escape(s2t);
+        let eb0w = escape(b0w);
+        let eb0t = escape(b0t);
+        let eb1t = escape(b1t);
+        let es0lct = escape(s0lct);
+        let es1rct = escape(s1rct);
         Ok(vec![
             format!("s0w={s0w}"),
             format!("s0t={s0t}"),
@@ -82,20 +98,20 @@ impl DependencyContextGenerator {
             format!("b1w={b1w}"),
             format!("b1t={b1t}"),
             format!("b2t={b2t}"),
-            format!("s0wt={s0w}/{s0t}"),
-            format!("s1wt={s1w}/{s1t}"),
-            format!("b0wt={b0w}/{b0t}"),
-            format!("s0w,b0w={s0w}|{b0w}"),
-            format!("s0t,b0t={s0t}|{b0t}"),
-            format!("s0w,b0t={s0w}|{b0t}"),
-            format!("s0t,b0w={s0t}|{b0w}"),
-            format!("s0wt,b0t={s0w}/{s0t}|{b0t}"),
-            format!("s1t,s0t={s1t}|{s0t}"),
-            format!("s1t,s0w={s1t}|{s0w}"),
-            format!("s1w,s0t={s1w}|{s0t}"),
-            format!("s1t,s0t,b0t={s1t}|{s0t}|{b0t}"),
-            format!("s0t,b0t,b1t={s0t}|{b0t}|{b1t}"),
-            format!("s2t,s1t,s0t={s2t}|{s1t}|{s0t}"),
+            format!("s0wt={es0w}/{es0t}"),
+            format!("s1wt={es1w}/{es1t}"),
+            format!("b0wt={eb0w}/{eb0t}"),
+            format!("s0w,b0w={es0w}|{eb0w}"),
+            format!("s0t,b0t={es0t}|{eb0t}"),
+            format!("s0w,b0t={es0w}|{eb0t}"),
+            format!("s0t,b0w={es0t}|{eb0w}"),
+            format!("s0wt,b0t={es0w}/{es0t}|{eb0t}"),
+            format!("s1t,s0t={es1t}|{es0t}"),
+            format!("s1t,s0w={es1t}|{es0w}"),
+            format!("s1w,s0t={es1w}|{es0t}"),
+            format!("s1t,s0t,b0t={es1t}|{es0t}|{eb0t}"),
+            format!("s0t,b0t,b1t={es0t}|{eb0t}|{eb1t}"),
+            format!("s2t,s1t,s0t={es2t}|{es1t}|{es0t}"),
             format!("s0lct={s0lct}"),
             format!("s0rct={s0rct}"),
             format!("s1lct={s1lct}"),
@@ -103,15 +119,31 @@ impl DependencyContextGenerator {
             format!("s0lcl={s0lcl}"),
             format!("s0rcl={s0rcl}"),
             format!("s1rcl={s1rcl}"),
-            format!("s1t,s1rct,s0t={s1t}|{s1rct}|{s0t}"),
-            format!("s0t,s0lct,b0t={s0t}|{s0lct}|{b0t}"),
+            format!("s1t,s1rct,s0t={es1t}|{es1rct}|{es0t}"),
+            format!("s0t,s0lct,b0t={es0t}|{es0lct}|{eb0t}"),
             format!("s0deps={s0deps}"),
             format!("s1deps={s1deps}"),
             format!("dist={dist}"),
-            format!("dist,s0t,b0t={dist}|{s0t}|{b0t}"),
+            format!("dist,s0t,b0t={dist}|{es0t}|{eb0t}"),
         ])
     }
 }
+/// `value` with every `\`, `/` and `|` in it preceded by a `\`, so a
+/// feature joining several values with those separators reads one way.
+fn escape(value: &str) -> Cow<'_, str> {
+    if !value.contains(['\\', '/', '|']) {
+        return Cow::Borrowed(value);
+    }
+    let mut out = String::with_capacity(value.len() + 4);
+    for c in value.chars() {
+        if matches!(c, '\\' | '/' | '|') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    Cow::Owned(out)
+}
+
 fn value<'a, A>(values: &[&'a str], p: Position<A>) -> &'a str {
     match p {
         Position::Root => "*ROOT*",
