@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use turbo_analysis::Span;
 
 use super::DirectoryError;
-use crate::masc::java::decode_utf8;
+use crate::masc::text::decode_utf8;
 use crate::ner::TokenSpans;
 use crate::sample::DocumentSample;
 use crate::source::{Field, check_len};

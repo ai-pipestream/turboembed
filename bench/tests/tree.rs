@@ -7,14 +7,19 @@
 //! key block (tree/secrets.rs), no committed file names an OpenNLP 1.5
 //! model or pins or addresses an OpenNLP 2.5 one (tree/retired_opennlp.rs),
 //! the demo has no JSON front end (tree/front_end.rs), the v1-172 NPU
-//! README describes its committed cut reports (tree/cut_reports.rs), and
-//! every committed Rust file is built by something (tree/orphans.rs).
+//! README describes its committed cut reports (tree/cut_reports.rs),
+//! every committed Rust file is built by something (tree/orphans.rs), and no
+//! function is written twice inside one crate (tree/duplicates.rs).
 
 mod common;
 #[path = "tree/cut_reports.rs"]
 mod cut_reports;
 #[path = "tree/dependencies.rs"]
 mod dependencies;
+#[path = "tree/duplicates.rs"]
+mod duplicates;
+#[path = "tree/duplicates_known.rs"]
+mod duplicates_known;
 #[path = "tree/front_end.rs"]
 mod front_end;
 #[path = "tree/opennlp.rs"]

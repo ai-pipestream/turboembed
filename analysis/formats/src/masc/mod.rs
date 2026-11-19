@@ -145,7 +145,6 @@ mod chunks;
 mod corpus;
 mod document;
 mod error;
-pub(crate) mod java;
 mod logical;
 pub mod samples;
 pub(crate) mod text;

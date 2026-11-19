@@ -18,7 +18,7 @@ use turbo_analysis::Span;
 use super::dom::{self, Element, Node};
 use super::error::CorpusError;
 use crate::error::FormatError;
-use crate::masc::java::{equals_ignore_case_ascii, parse_int};
+use crate::masc::text::{equals_ignore_case_ascii, parse_int};
 use crate::sample::SentenceSample;
 use crate::source::{check_len, utf16_cut, utf16_len};
 
