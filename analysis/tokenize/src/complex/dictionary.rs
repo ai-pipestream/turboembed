@@ -96,7 +96,7 @@ impl<'a> Dictionary<'a> {
         for i in 0..count as usize {
             let first = read_u32(bytes, 8 + 8 * i)?;
             let end = read_u32(bytes, 12 + 8 * i)?;
-            if first >= end || end > 0x11_0000 || (i > 0 && first < previous_end) {
+            if first >= end || end > 0x11_0000 || (first < 0xE000 && end > 0xD800) || (i > 0 && first < previous_end) {
                 return Err(DictionaryError::Alphabet);
             }
             if size + (end - first) > ALPHABET_MAX {
@@ -290,6 +290,17 @@ mod tests {
             wide.extend_from_slice(&v.to_le_bytes());
         }
         assert_eq!(Dictionary::from_bytes(&wide).unwrap_err(), DictionaryError::Alphabet);
+        // A range reaching into the surrogates is refused: no character
+        // has those code points, so counting them as alphabet positions
+        // would put every later character at a different position in
+        // `for_each_word` than in `symbol`.
+        for range in [[1u32, 0xD800, 0xD801], [1, 0xDFF0, 0xE002], [1, 0x41, 0xE000]] {
+            let mut surrogates = MAGIC.to_vec();
+            for v in range {
+                surrogates.extend_from_slice(&v.to_le_bytes());
+            }
+            assert_eq!(Dictionary::from_bytes(&surrogates).unwrap_err(), DictionaryError::Alphabet, "{range:?}");
+        }
         let empty = file(&[]);
         let dict = Dictionary::from_bytes(&empty).unwrap();
         assert_eq!(dict.alphabet_len(), 5);
