@@ -376,7 +376,10 @@ impl<'a> Lstm<'a> {
                 let bw_k = dot_hunits(bw, &self.time_w[1][k]);
                 *w = (fw_k + bw_k) + self.time_b[k];
             }
-            if weights[2] > weights[0] && weights[2] > weights[1] && weights[2] > weights[3] {
+            // A boundary follows a character whose best class ends a
+            // word: E (2), or S (3), a word of that one character.
+            let ends_word = |k: usize| weights.iter().enumerate().all(|(j, &w)| j == k || weights[k] > w);
+            if ends_word(2) || ends_word(3) {
                 emit(scratch.chars[i].1);
             }
         }
@@ -439,5 +442,13 @@ mod tests {
         thai.segment_with("รถไฟฟ้า", &mut scratch, |b| second.push(b));
         assert_eq!((scratch.chars.capacity(), scratch.h_fw.capacity(), scratch.h_bw.capacity()), cap);
         assert_eq!(second, [6, 12, 21]);
+    }
+
+    #[test]
+    fn a_single_character_word_ends_at_its_character() {
+        // The middle character is classified S (a word of one character):
+        // the boundary after it is emitted, not only boundaries after E.
+        let thai = Lstm::from_bytes(bundled_lstm(ComplexScript::Thai)).unwrap();
+        assert_eq!(segments(&thai, "\u{0E01}\u{0E2F}\u{0E01}"), ["\u{0E01}", "\u{0E2F}", "\u{0E01}"]);
     }
 }
