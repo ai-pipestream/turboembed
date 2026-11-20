@@ -28,6 +28,8 @@ mod opennlp;
 mod orphans;
 #[path = "tree/retired_opennlp.rs"]
 mod retired_opennlp;
+#[path = "tree/rust_lex.rs"]
+mod rust_lex;
 #[path = "tree/secrets.rs"]
 mod secrets;
 

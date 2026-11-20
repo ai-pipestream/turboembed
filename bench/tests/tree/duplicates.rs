@@ -5,148 +5,83 @@
 //!
 //! The check reads each crate's `src/` (not its tests, and not generated
 //! files), takes every function body of [`MIN_LINES`] code lines or more,
-//! and fails when two files of one crate hold the same body, comments and
-//! indentation aside. The copies known when the check was written are in
+//! and fails when two files of one crate hold the same body: the same
+//! tokens (`rust_lex.rs`), so comments, line breaks and indentation do not
+//! count and the contents of a string do. The copies known when the check was written are in
 //! `duplicates_known.rs`; that list may only shrink.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use crate::duplicates_known::KNOWN;
+use crate::duplicates_known::{KNOWN, KNOWN_AT_MOST};
+use crate::rust_lex::{Kind, Token, closing, tokens};
 
 /// Bodies shorter than this are not compared: below it sit the trait
 /// methods and one-line wrappers every implementor has to repeat.
 pub const MIN_LINES: usize = 8;
 
-/// The index just past the string, character or comment that starts at
-/// `at`, or `None` when `at` starts none of them.
-fn skip_quiet(text: &str, at: usize) -> Option<usize> {
-    if !text.is_char_boundary(at) {
-        return None;
-    }
-    let bytes = text.as_bytes();
-    let rest = &text[at..];
-    if rest.starts_with("//") {
-        return Some(at + rest.find('\n').unwrap_or(rest.len()));
-    }
-    if let Some(inside) = rest.strip_prefix("/*") {
-        return Some(at + inside.find("*/").map_or(rest.len(), |end| end + 4));
-    }
-    if bytes[at] == b'"' {
-        // a raw string ends at the quote followed by its count of `#`
-        let hashes = bytes[..at].iter().rev().take_while(|&&b| b == b'#').count();
-        if at > hashes && bytes[at - hashes - 1] == b'r' {
-            let close = format!("\"{}", "#".repeat(hashes));
-            return Some(at + 1 + rest[1..].find(&close).map_or(rest.len() - 1, |end| end + close.len()));
+/// The index of the `{` that opens the body of the function whose `fn`
+/// is at `at`, or `None` for a declaration without one. A brace inside the
+/// signature's own brackets (`[u8; { N }]`, `Foo<{ N + 1 }>`) is not it.
+fn body_open(tokens: &[Token<'_>], at: usize) -> Option<usize> {
+    let mut angles = 0usize;
+    let mut i = at + 2;
+    while i < tokens.len() {
+        let t = &tokens[i];
+        if t.is('(') || t.is('[') {
+            i = closing(tokens, i);
+        } else if t.is('-') && tokens.get(i + 1).is_some_and(|n| n.is('>')) {
+            i += 1;
+        } else if t.is('<') {
+            angles += 1;
+        } else if t.is('>') {
+            angles = angles.saturating_sub(1);
+        } else if t.is('{') && angles > 0 {
+            i = closing(tokens, i);
+        } else if t.is('{') {
+            return Some(i);
+        } else if t.is(';') || t.is('}') {
+            return None;
         }
-        let mut i = at + 1;
-        while i < bytes.len() && bytes[i] != b'"' {
-            i += if bytes[i] == b'\\' { 2 } else { 1 };
-        }
-        return Some((i + 1).min(bytes.len()));
-    }
-    if bytes[at] == b'\'' {
-        // 'x' and '\n' are characters; 'a in `&'a str` is a lifetime
-        let mut chars = rest[1..].char_indices();
-        let (_, first) = chars.next()?;
-        if first == '\\' {
-            // the escaped character is skipped, so that '\'' ends at its second quote
-            let tail = rest.get(3..)?;
-            return Some(at + 3 + tail.find('\'').map_or(tail.len(), |end| end + 1));
-        }
-        let (next, second) = chars.next()?;
-        return (second == '\'').then_some(at + 1 + next + 1);
+        i += 1;
     }
     None
 }
 
-/// Every function of `text` that has a body: its name, and the body from
-/// its opening brace to the matching one.
-pub fn functions(text: &str) -> Vec<(&str, &str)> {
-    let ident = |c: char| c.is_alphanumeric() || c == '_';
-    let bytes = text.as_bytes();
+/// Every function of `tokens` that has a body: its name, and the tokens
+/// of the body from its opening brace to the matching one. Functions
+/// written inside another function's body are read too.
+pub fn functions<'t, 'a>(tokens: &'t [Token<'a>]) -> Vec<(&'a str, &'t [Token<'a>])> {
     let mut out = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        if let Some(next) = skip_quiet(text, i) {
-            i = next;
-            continue;
+    for at in 0..tokens.len().saturating_sub(1) {
+        let name = &tokens[at + 1];
+        if tokens[at].word("fn")
+            && name.kind == Kind::Word
+            && let Some(open) = body_open(tokens, at)
+        {
+            out.push((name.text, &tokens[open..=closing(tokens, open)]));
         }
-        let word = text[i..].starts_with("fn") && !text[..i].chars().next_back().is_some_and(ident);
-        let after = &text[(i + 2).min(text.len())..];
-        let name = after.trim_start();
-        if !word || name.len() == after.len() {
-            i += text[i..].chars().next().map_or(1, char::len_utf8);
-            continue;
-        }
-        let name = &name[..name.find(|c: char| !ident(c)).unwrap_or(name.len())];
-        // the signature ends at `{` (a body) or at `;` outside brackets
-        let mut j = i + 2;
-        let mut nest = 0usize;
-        let mut open = None;
-        while j < bytes.len() {
-            if let Some(next) = skip_quiet(text, j) {
-                j = next;
-                continue;
-            }
-            match bytes[j] {
-                b'(' | b'[' => nest += 1,
-                b')' | b']' => nest = nest.saturating_sub(1),
-                b';' if nest == 0 => break,
-                b'{' => {
-                    open = Some(j);
-                    break;
-                }
-                _ => {}
-            }
-            j += 1;
-        }
-        let Some(open) = open else {
-            i = j.max(i + 2);
-            continue;
-        };
-        let mut depth = 0usize;
-        let mut k = open;
-        while k < bytes.len() {
-            if let Some(next) = skip_quiet(text, k) {
-                k = next;
-                continue;
-            }
-            match bytes[k] {
-                b'{' => depth += 1,
-                b'}' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-                _ => {}
-            }
-            k += 1;
-        }
-        if !name.is_empty() && k < bytes.len() {
-            out.push((name, &text[open..=k]));
-        }
-        // functions nested in this body are read too
-        i = open + 1;
     }
     out
 }
 
-/// The code lines of a body: trimmed, without blank and comment lines.
-pub fn code_lines(body: &str) -> Vec<&str> {
-    body.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with("//")).collect()
+/// How many lines of a body carry code. Blank lines and lines that hold
+/// only a comment have no token; a string over several lines counts once.
+pub fn code_lines(body: &[Token<'_>]) -> usize {
+    body.iter().map(|t| t.line).collect::<BTreeSet<_>>().len()
 }
 
 /// Each body that two or more of `files` (path and text, all of one
-/// crate) share, as `first path::name` and every place it is written.
+/// crate) share, as `first path::name` and every place it is written. Two
+/// bodies are the same when their tokens are: comments, line breaks and
+/// indentation do not count, the contents of a string do.
 pub fn shared_bodies(files: &[(&str, &str)]) -> BTreeMap<String, Vec<String>> {
+    let read: Vec<(&str, Vec<Token<'_>>)> = files.iter().map(|(path, text)| (*path, tokens(text))).collect();
     let mut by_body: BTreeMap<Vec<&str>, Vec<(&str, &str)>> = BTreeMap::new();
-    for (path, text) in files {
-        for (name, body) in functions(text) {
-            let lines = code_lines(body);
-            if lines.len() >= MIN_LINES {
-                by_body.entry(lines).or_default().push((path, name));
+    for (path, tokens) in &read {
+        for (name, body) in functions(tokens) {
+            if code_lines(body) >= MIN_LINES {
+                by_body.entry(body.iter().map(|t| t.text).collect()).or_default().push((path, name));
             }
         }
     }
@@ -231,17 +166,30 @@ fn the_known_list_only_shrinks() {
     sorted.sort();
     sorted.dedup();
     assert_eq!(sorted, KNOWN, "duplicates_known.rs is sorted and has no entry twice");
+    // a new copy cannot be waved through by listing it: the count has a ceiling
+    assert!(KNOWN.len() <= KNOWN_AT_MOST, "duplicates_known.rs grew to {} entries", KNOWN.len());
+    assert_eq!(KNOWN.len(), KNOWN_AT_MOST, "lower KNOWN_AT_MOST to the number of entries left");
 }
 
 const BODY: &str =
     "{\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    a + b + c + d + e\n}";
+
+fn names(source: &str) -> Vec<&str> {
+    functions(&tokens(source)).iter().map(|(name, _)| *name).collect()
+}
+
+fn body_text(source: &str, name: &str) -> String {
+    let read = tokens(source);
+    let found = functions(&read).into_iter().find(|(n, _)| *n == name).expect("the function is read");
+    found.1.iter().map(|t| t.text).collect::<Vec<_>>().join(" ")
+}
 
 #[test]
 fn functions_are_read_past_strings_characters_and_comments() {
     let text = r##"
         trait T { fn declared(&self) -> [u8; 4]; fn given(&self) -> u8 { 1 } }
         // fn commented() { }
-        /* fn blocked() { } */
+        /* fn blocked() { } /* fn nested() { } */ fn still_blocked() { } */
         const S: &str = "fn quoted() { }";
         fn braces<'a>(s: &'a str) -> usize {
             let open = '{';
@@ -251,24 +199,54 @@ fn functions_are_read_past_strings_characters_and_comments() {
             fn inner() { }
             s.len() // }
         }
-        fn après() -> usize { 0 }
+        type Pointer = fn(u8) -> u8;
+        fn après() -> usize { let café = 0; café }
     "##;
-    let found = functions(text);
-    let names: Vec<&str> = found.iter().map(|(name, _)| *name).collect();
-    assert_eq!(names, ["given", "braces", "inner", "après"]);
-    assert!(found[1].1.starts_with('{') && found[1].1.trim_end().ends_with("// }\n        }"), "{}", found[1].1);
-    assert_eq!(found[3].1, "{ 0 }");
+    assert_eq!(names(text), ["given", "braces", "inner", "après"]);
+    assert!(body_text(text, "braces").ends_with("s . len ( ) }"));
+    assert_eq!(body_text(text, "après"), "{ let café = 0 ; café }");
 }
 
 #[test]
-fn the_same_body_in_two_files_is_reported_whatever_its_comments_and_indentation() {
+fn source_cut_anywhere_is_read_without_a_panic() {
+    // every prefix of awkward source: unclosed strings, comments, brackets and bodies
+    let text = "fn café<'a, const N: usize>(s: &'a str) -> [u8; { N }] { let 名 = r#\"}\"#; /* a /* b */ c */ \
+                let q = '\\''; let b = b'}'; match s { \"é\" => [0; N], _ => { fn inner() {} [1; N] } } }";
+    for (end, _) in text.char_indices() {
+        let read = tokens(&text[..end]);
+        for (_, body) in functions(&read) {
+            assert!(body.first().is_some_and(|t| t.is('{')));
+        }
+    }
+    assert_eq!(names(text), ["café", "inner"]);
+}
+
+#[test]
+fn a_brace_in_the_signature_is_not_the_body() {
+    let text = "fn f<const N: usize>() -> [u8; { N }] { [0; N] }\n\
+                fn g(x: Wide<{ 1 + 2 }>) -> Wide<{ 3 }> where Wide<{ 3 }>: Copy { x.grow() }\n\
+                fn h<F: Fn() -> u8>(f: F) -> u8 { f() }";
+    assert_eq!(body_text(text, "f"), "{ [ 0 ; N ] }");
+    assert_eq!(body_text(text, "g"), "{ x . grow ( ) }");
+    assert_eq!(body_text(text, "h"), "{ f ( ) }");
+}
+
+#[test]
+fn the_same_body_in_two_files_is_reported_whatever_its_comments_and_layout() {
     let a = format!("fn first() -> i32 {BODY}\nfn short() -> i32 {{\n    1\n}}\n");
-    let commented = BODY.replace("    let c = 3;", "        // the third\n\n        let c = 3;");
-    let b =
-        format!("impl X {{\n    pub(crate) fn second(&self) -> i32 {commented}\n}}\nfn short() -> i32 {{\n    1\n}}\n");
-    let found = shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", &b)]);
     let places: Vec<String> = vec!["c/src/a.rs::first".into(), "c/src/b.rs::second".into()];
-    assert_eq!(found, BTreeMap::from([("c/src/a.rs::first".to_owned(), places)]));
+    let expected = BTreeMap::from([("c/src/a.rs::first".to_owned(), places)]);
+    for changed in [
+        // a comment on a line of its own, a blank line and other indentation
+        BODY.replace("    let c = 3;", "        // the third\n\n        let c = 3;"),
+        // a comment after the code, and a block comment standing alone
+        BODY.replace("let c = 3;", "let c = 3; // the third").replace("    let d", "    /* the fourth */\n    let d"),
+        // a statement broken over two lines
+        BODY.replace("let b = 2;", "let b =\n        2;"),
+    ] {
+        let b = format!("impl X {{\n    pub(crate) fn second(&self) -> i32 {changed}\n}}\n");
+        assert_eq!(shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", &b)]), expected, "{changed}");
+    }
 }
 
 #[test]
@@ -276,10 +254,28 @@ fn a_changed_line_a_short_body_and_one_file_alone_are_not_reported() {
     let a = format!("fn first() -> i32 {BODY}\nfn again() -> i32 {BODY}\n");
     let changed = format!("fn other() -> i32 {}\n", BODY.replace("let e = 5;", "let e = 6;"));
     assert!(shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", &changed)]).is_empty());
-    assert_eq!(code_lines(BODY).len(), MIN_LINES, "the fixture sits exactly on the limit");
+    assert_eq!(code_lines(&tokens(BODY)), MIN_LINES, "the fixture sits exactly on the limit");
     let shorter = BODY.replace("    let e = 5;\n", "").replace(" + e", "");
     let (x, y) = (format!("fn f() -> i32 {shorter}"), format!("fn g() -> i32 {shorter}"));
     assert!(shared_bodies(&[("c/src/a.rs", &x), ("c/src/b.rs", &y)]).is_empty());
+    // comment lines do not lift a short body over the limit
+    let padded = shorter.replace("    let a", "    // one\n    // two\n    let a");
+    let (x, y) = (format!("fn f() -> i32 {padded}"), format!("fn g() -> i32 {padded}"));
+    assert!(shared_bodies(&[("c/src/a.rs", &x), ("c/src/b.rs", &y)]).is_empty());
+}
+
+#[test]
+fn strings_that_differ_only_in_their_spaces_are_different_bodies() {
+    let with = |indent: &str| {
+        let text = format!("r#\"\n{indent}line\n\"#");
+        format!(
+            "fn f() -> &'static str {}",
+            BODY.replace("a + b + c + d + e", &format!("let _ = a + b + c + d + e;\n    {text}"))
+        )
+    };
+    let (two, four) = (with("  "), with("    "));
+    assert!(shared_bodies(&[("c/src/a.rs", &two), ("c/src/b.rs", &four)]).is_empty());
+    assert_eq!(shared_bodies(&[("c/src/a.rs", &two), ("c/src/b.rs", &two)]).len(), 1);
 }
 
 #[test]

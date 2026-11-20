@@ -3,6 +3,10 @@
 //! written. Folding one into a single function removes its line here; no
 //! line is ever added.
 
+/// The number of entries below. It is lowered with each entry removed and
+/// never raised: a new copy is fixed, not listed.
+pub const KNOWN_AT_MOST: usize = 32;
+
 pub const KNOWN: &[&str] = &[
     "analysis/doccat/src/categorizer.rs::all_results",
     "analysis/encoding/src/detect/cjk/chinese.rs::maybe_set_as_pending",
