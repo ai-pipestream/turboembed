@@ -105,7 +105,8 @@ impl Walk<'_> {
         let tokens = tokens(text);
         // one entry per open brace: the directory an inline module adds, or nothing
         let mut open: Vec<Option<String>> = Vec::new();
-        let mut path: Option<&str> = None;
+        // every path the attributes before a declaration give it, one per platform
+        let mut paths: Vec<&str> = Vec::new();
         let mut i = 0;
         while i < tokens.len() {
             let t = &tokens[i];
@@ -113,44 +114,48 @@ impl Walk<'_> {
             let inline = || open.iter().flatten().map(String::as_str).collect::<Vec<_>>().join("/");
             if t.is('#') {
                 let (found, end) = path_attribute(&tokens, i);
-                path = found.or(path);
+                paths.extend(found);
                 i = end;
             } else if t.word("mod") && tokens.get(i + 1).is_some_and(|n| n.kind == Kind::Word) {
                 let name = tokens[i + 1].text;
                 match tokens.get(i + 2) {
-                    Some(end) if end.is(';') => match path.take() {
-                        // a path is taken from the file's own directory, or from
-                        // the inline module's when the declaration is inside one
-                        Some(p) => {
-                            let inside = inline();
-                            let from = if inside.is_empty() { parent(file).to_owned() } else { join(mod_dir, &inside) };
+                    Some(end) if end.is(';') && paths.is_empty() => {
+                        let dir = join(&join(mod_dir, &inline()), name);
+                        self.visit(&format!("{dir}.rs"), &dir);
+                        self.visit(&format!("{dir}/mod.rs"), &dir);
+                    }
+                    // a path is taken from the file's own directory, or from
+                    // the inline module's when the declaration is inside one
+                    Some(end) if end.is(';') => {
+                        let inside = inline();
+                        let from = if inside.is_empty() { parent(file).to_owned() } else { join(mod_dir, &inside) };
+                        for p in std::mem::take(&mut paths) {
                             let target = join(&from, p);
                             let dir = parent(&target).to_owned();
                             self.visit(&target, &dir);
                         }
-                        None => {
-                            let dir = join(&join(mod_dir, &inline()), name);
-                            self.visit(&format!("{dir}.rs"), &dir);
-                            self.visit(&format!("{dir}/mod.rs"), &dir);
-                        }
-                    },
+                    }
                     Some(brace) if brace.is('{') => {
-                        open.push(Some(path.take().unwrap_or(name).to_owned()));
+                        open.push(Some(paths.first().copied().unwrap_or(name).to_owned()));
+                        paths.clear();
                         i += 2;
                     }
                     _ => {}
                 }
             } else if t.word("include") && tokens.get(i + 1).is_some_and(|n| n.is('!')) {
                 if let Some(included) = tokens.get(i + 3).and_then(Token::string) {
-                    let here = join(mod_dir, &inline());
-                    self.visit(&join(parent(file), included), &here);
+                    // the modules an included file declares are files of its
+                    // own directory, whatever module includes it
+                    let target = join(parent(file), included);
+                    let dir = parent(&target).to_owned();
+                    self.visit(&target, &dir);
                 }
             } else if t.is('{') {
                 open.push(None);
             } else if t.is('}') {
                 open.pop();
             } else if t.is(';') {
-                path = None;
+                paths.clear();
             }
             i += 1;
         }
@@ -175,6 +180,22 @@ pub fn orphans(
     files.keys().filter(|path| !reached.contains(path.as_str())).cloned().collect()
 }
 
+/// Reads the Cargo manifest of `dir`: a manifest with a `[package]` makes
+/// `dir` a crate (a virtual workspace has no targets of its own), and each
+/// `path = "x.rs"` or `build = "x.rs"` in it names a target.
+pub fn manifest(dir: &str, text: &str, crates: &mut BTreeSet<String>, manifest_paths: &mut BTreeSet<String>) {
+    if !text.lines().any(|l| l.trim() == "[package]") {
+        return;
+    }
+    crates.insert(dir.to_owned());
+    let names_a_file = |l: &&str| ["path", "build"].iter().any(|key| l.trim_start().starts_with(key));
+    for line in text.lines().filter(names_a_file) {
+        if let Some(target) = line.split('"').nth(1).filter(|t| t.ends_with(".rs")) {
+            manifest_paths.insert(join(dir, target));
+        }
+    }
+}
+
 type Tree = (BTreeMap<String, String>, BTreeSet<String>, BTreeSet<String>);
 
 /// The committed Rust files of the workspace's crates, the crates'
@@ -197,12 +218,7 @@ fn committed(root: &Path) -> Tree {
             files.insert(p.to_owned(), text);
             continue;
         }
-        crates.insert(parent(p).to_owned());
-        for line in text.lines().filter(|l| l.trim_start().starts_with("path")) {
-            if let Some(target) = line.split('"').nth(1).filter(|t| t.ends_with(".rs")) {
-                manifest_paths.insert(join(parent(p), target));
-            }
-        }
+        manifest(parent(p), &text, &mut crates, &mut manifest_paths);
     }
     (files, crates, manifest_paths)
 }

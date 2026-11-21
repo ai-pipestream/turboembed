@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::orphans;
+use super::{manifest, orphans};
 
 fn tree(files: &[(&str, &str)]) -> BTreeMap<String, String> {
     files.iter().map(|(p, t)| ((*p).to_owned(), (*t).to_owned())).collect()
@@ -43,9 +43,9 @@ fn each_way_of_naming_a_file_counts() {
         // a file named by #[path] looks for its own modules beside itself
         ("a/src/elsewhere/by_path.rs", "mod beside;\n"),
         ("a/src/elsewhere/beside.rs", ""),
-        // an included file's modules belong to the module that includes it
+        // an included file's modules are files of its own directory
         ("a/src/parts/included.rs", "mod from_include;\n"),
-        ("a/src/plain/from_include.rs", ""),
+        ("a/src/parts/from_include.rs", ""),
         ("a/tests/t.rs", "#[cfg_attr(test, path = \"../src/shared.rs\")]\nmod shared;\nmod common;\n"),
         ("a/tests/common/mod.rs", ""),
         ("a/src/shared.rs", ""),
@@ -144,4 +144,52 @@ fn a_crate_inside_another_crate_has_its_own_targets() {
     ];
     let crates = BTreeSet::from(["a".to_owned(), "a/inner".to_owned()]);
     assert_eq!(orphans(&tree(&files), &crates, &BTreeSet::new()), ["a-extra/src/lib.rs", "a/other/tests/t.rs"]);
+}
+
+#[test]
+fn a_module_of_an_included_file_is_looked_for_beside_that_file() {
+    // rustc 1.99 names src/parts/leaf.rs for these, also from inside an inline module
+    let files = [
+        ("a/src/lib.rs", "mod plain;\n"),
+        ("a/src/plain.rs", "include!(\"parts/one.rs\");\nmod inl { include!(\"parts/two.rs\"); }\n"),
+        ("a/src/parts/one.rs", "mod leaf;\n"),
+        ("a/src/parts/two.rs", "mod twig;\n"),
+        ("a/src/parts/leaf.rs", ""),
+        ("a/src/parts/twig.rs", ""),
+        // where the includer's own modules live: not where these are read from
+        ("a/src/plain/leaf.rs", ""),
+        ("a/src/plain/inl/twig.rs", ""),
+    ];
+    assert_eq!(found(&files), ["a/src/plain/inl/twig.rs", "a/src/plain/leaf.rs"]);
+}
+
+#[test]
+fn every_path_of_a_module_with_one_per_platform_is_followed() {
+    let files = [
+        (
+            "a/src/lib.rs",
+            "#[cfg_attr(unix, path = \"sys/unix.rs\")]\n#[cfg_attr(windows, path = \"sys/windows.rs\")]\nmod sys;\nmod next;\n",
+        ),
+        ("a/src/sys/unix.rs", "mod fd;\n"),
+        ("a/src/sys/fd.rs", ""),
+        ("a/src/sys/windows.rs", ""),
+        ("a/src/next.rs", ""),
+        // the paths end with their module: a later one is found by its name
+        ("a/src/sys/other.rs", ""),
+    ];
+    assert_eq!(found(&files), ["a/src/sys/other.rs"]);
+}
+
+#[test]
+fn a_manifest_gives_a_crate_only_when_it_is_a_package() {
+    let (mut crates, mut paths) = (BTreeSet::new(), BTreeSet::new());
+    // a virtual workspace has no targets: its examples/ holds crates, not examples
+    manifest("", "[workspace]\nmembers = [\"a\"]\n[workspace.package]\nedition = \"2024\"\n", &mut crates, &mut paths);
+    assert!(crates.is_empty() && paths.is_empty());
+    let text = "[package]\nname = \"a\"\nbuild = \"gen/script.rs\"\n\n[[bin]]\nname = \"t\"\npath = \"tools/t.rs\"\n\n[dependencies]\nb = { path = \"../b\" }\n";
+    manifest("a", text, &mut crates, &mut paths);
+    assert_eq!(crates, BTreeSet::from(["a".to_owned()]));
+    assert_eq!(paths, BTreeSet::from(["a/gen/script.rs".to_owned(), "a/tools/t.rs".to_owned()]));
+    let files = [("a/gen/script.rs", ""), ("a/tools/t.rs", ""), ("examples/stray.rs", ""), ("tests/stray.rs", "")];
+    assert_eq!(orphans(&tree(&files), &crates, &paths), ["examples/stray.rs", "tests/stray.rs"]);
 }
