@@ -64,10 +64,10 @@ impl TokenizerMe {
     /// token boundary falls there; a token's probability is the product
     /// of the best outcome's probability at every position inside it,
     /// its closing split included. When the model splits a unit that the
-    /// abbreviation dictionary lists, the Java emits the unit from the
-    /// current token start to its end and jumps forward by the number of
-    /// dots in the unit; that is reproduced, including the spans that
-    /// overlap.
+    /// abbreviation dictionary lists, the unit is emitted from the current
+    /// token start to its end and the cursor jumps forward by the number
+    /// of dots in the unit; decisions resume after the new token's first
+    /// character. The emitted spans can overlap.
     ///
     /// The one difference from the Java: a split between the two halves
     /// of a character outside the Basic Multilingual Plane is not a UTF-8
@@ -130,8 +130,9 @@ impl TokenizerMe {
                     }
                     start = next.byte_offset();
                     at = next;
-                    prob = 1.0;
-                    continue;
+                    // Fall through to the step below: the next decision
+                    // is after the new token's first character, as after
+                    // any other split, never at its start.
                 } else if at.char_start() {
                     out.push((span(base + start, base + at.byte_offset()), prob));
                     start = at.byte_offset();
