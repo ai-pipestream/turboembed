@@ -4,6 +4,15 @@ const REPLACEMENT: char = '\u{FFFD}';
 
 /// Decodes as the JDK's UTF-8 reader does: each malformed sequence becomes
 /// one U+FFFD, preserving the annotation's UTF-16 offset boundaries.
+///
+/// Where a sequence ends differs from `String::from_utf8_lossy` (which
+/// follows the Unicode recommendation of maximal subparts), and every
+/// replacement shifts the UTF-16 offsets the annotation counts in. An
+/// encoded surrogate is three bytes and one U+FFFD (`ED A0 80`, where
+/// `from_utf8_lossy` gives three), and a three byte lead with one
+/// continuation byte followed by something else is two (`ED A0 41` is
+/// U+FFFD and `A`). A sequence cut short by the end of the input is one
+/// U+FFFD, however many bytes it has.
 pub(crate) fn decode_utf8(bytes: &[u8]) -> String {
     let cont = |b: u8| b & 0xC0 == 0x80;
     let mut out = String::with_capacity(bytes.len());
@@ -68,6 +77,10 @@ pub(crate) fn decode_utf8(bytes: &[u8]) -> String {
     out
 }
 
+/// An optional `+` or `-`, then one or more digits, in the `i32` range. A
+/// digit is a decimal digit (`Nd`) of the Basic Multilingual Plane, so `٣`
+/// and `３` are digits and one outside the BMP is not. `None` for anything
+/// else.
 pub(crate) fn parse_int(s: &str) -> Option<i32> {
     let (negative, digits) = match s.as_bytes().first()? {
         b'-' => (true, &s[1..]),
@@ -94,10 +107,14 @@ pub(crate) fn parse_int(s: &str) -> Option<i32> {
 
 pub(crate) use turbo_unicode::java::equals_ignore_case as equals_ignore_case_ascii;
 
+/// The runs of characters other than a space, in order.
 pub(crate) fn split_on_spaces(value: &str) -> Vec<&str> {
     value.split(' ').filter(|s| !s.is_empty()).collect()
 }
 
+/// The fields every space separates: leading and doubled spaces give empty
+/// fields, the empty fields at the end are removed, and an empty value is
+/// one empty field.
 pub(crate) fn split_space(value: &str) -> Vec<&str> {
     if value.is_empty() {
         return vec![""];
@@ -167,7 +184,10 @@ mod tests {
         assert!(!equals_ignore_case_ascii("g:region", "region"));
         assert!(!equals_ignore_case_ascii("r\u{e9}gion", "region"));
         assert_eq!(split_on_spaces(" 1  2 "), ["1", "2"]);
+        assert!(split_on_spaces("   ").is_empty());
         assert_eq!(split_space("1  2 "), ["1", "", "2"]);
+        assert_eq!(split_space(" 1 2"), ["", "1", "2"]);
         assert_eq!(split_space(""), [""]);
+        assert!(split_space("   ").is_empty());
     }
 }

@@ -6,38 +6,19 @@ use std::any::TypeId;
 use turbo_analysis::{Ix, Key, KeyId, Layer, Span, Status, Tag, View};
 use turbo_analysis_layers::{
     Aspects, CONVERTED_MONEY, Categories, CategoryScope, Chunks, Containment, DAY_SECONDS, Date, DocumentDate, Money,
-    QualityMetrics, Quantities, Sentences, TemporalValue, Temporals, TextQuality, TimeGrain, Times,
+    Quantities, Sentences, TemporalValue, Temporals, TextQuality, Times,
 };
 use turbo_geo::Locations;
 use turbo_normalize_layers::{Artifacts, Noise};
 
 use super::{Failure, SearchProjCx};
 use crate::proto::result::{
-    CategoryScoreProto, PlaceAncestorProto, QualityMetricsAnnotation, SearchAspectSummary, SearchAssessmentState,
-    SearchCategoryRow, SearchCategorySentiment, SearchGeoBbox, SearchGeoPoint, SearchMoneyValue,
-    SearchNumericTemporalColumns, SearchQualitySummary, SearchQuantityValue, SearchTemporalRange, SearchTimeRange,
-    SearchUtcDate,
+    CategoryScoreProto, PlaceAncestorProto, SearchAspectSummary, SearchAssessmentState, SearchCategoryRow,
+    SearchCategorySentiment, SearchGeoBbox, SearchGeoPoint, SearchMoneyValue, SearchNumericTemporalColumns,
+    SearchQualitySummary, SearchQuantityValue, SearchTemporalRange, SearchTimeRange, SearchUtcDate,
 };
 use crate::results::receipt::error::layer_status;
-
-fn time_grain_str(g: TimeGrain) -> &'static str {
-    match g {
-        TimeGrain::Second => "second",
-        TimeGrain::Minute => "minute",
-        TimeGrain::Hour => "hour",
-        TimeGrain::PartOfDay => "part_of_day",
-        TimeGrain::Day => "day",
-        TimeGrain::Week => "week",
-        TimeGrain::Weekend => "weekend",
-        TimeGrain::Month => "month",
-        TimeGrain::Quarter => "quarter",
-        TimeGrain::Half => "half",
-        TimeGrain::Season => "season",
-        TimeGrain::Year => "year",
-        TimeGrain::Decade => "decade",
-        TimeGrain::Century => "century",
-    }
-}
+use crate::results::wire_names;
 
 fn date_epoch_seconds(d: Date) -> i64 {
     d.epoch_day().saturating_mul(DAY_SECONDS)
@@ -176,7 +157,7 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
                 span_start,
                 span_end,
                 kind: m.kind.name().to_owned(),
-                grain: time_grain_str(m.grain).to_owned(),
+                grain: wire_names::time_grain(m.grain).to_owned(),
                 timex: m.timex.to_owned(),
                 start_epoch_ms: m.start,
                 end_epoch_ms: m.end,
@@ -330,23 +311,6 @@ pub(crate) fn project_categories_sentiment(cx: &SearchProjCx<'_>) -> Result<Sear
     Ok(SearchCategorySentiment { categories, sentiment_label, sentiment_score, aspects })
 }
 
-fn quality_metrics_proto(m: QualityMetrics) -> QualityMetricsAnnotation {
-    QualityMetricsAnnotation {
-        composite_score: Some(m.composite_score),
-        mtld_lexical_diversity: Some(m.mtld_lexical_diversity),
-        flesch_kincaid_grade: Some(m.flesch_kincaid_grade),
-        automated_readability_index: Some(m.automated_readability_index),
-        coleman_liau_index: Some(m.coleman_liau_index),
-        information_density: Some(m.information_density),
-        alpha_ratio: Some(m.alpha_ratio),
-        digit_ratio: Some(m.digit_ratio),
-        symbol_ratio: Some(m.symbol_ratio),
-        whitespace_ratio: Some(m.whitespace_ratio),
-        replacement_ratio: Some(m.replacement_ratio),
-        flags: u32::from(m.flags.0),
-    }
-}
-
 /// The state of the layer `key`; one the disclosure holds back reads as
 /// not assessed, so a withheld measurement is never taken for a clean one.
 fn assessment_state_of(
@@ -425,7 +389,7 @@ pub(crate) fn project_quality(cx: &SearchProjCx<'_>) -> Result<SearchQualitySumm
     };
 
     let artifact_count = cx.kept::<Artifacts>().map_or(0, |a| a.len() as i64);
-    let metrics = cx.kept::<TextQuality>().map(|tq| quality_metrics_proto(tq.metrics));
+    let metrics = cx.kept::<TextQuality>().map(|tq| wire_names::quality_metrics(tq.metrics));
 
     Ok(SearchQualitySummary {
         noise_state: noise_state as i32,

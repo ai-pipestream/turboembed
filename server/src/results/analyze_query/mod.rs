@@ -5,7 +5,7 @@ mod validate;
 
 use std::sync::Arc;
 
-use turbo_analysis_layers::{Date, TimeGrain};
+use turbo_analysis_layers::Date;
 use turbo_matcher::PhraseSynonymExpander;
 use turbo_query::{
     FieldQueryPlan, FieldQuerySpec, FieldTokenizerKind, OnePassQueryAnalyzer, OrdinalQueryTerm, QuerySynonymMatch,
@@ -21,6 +21,7 @@ use crate::proto::result::{
     QuerySynonymRuleProto, QueryTemporalFilterProto, QueryTermFormProto, SearchGeoBbox,
     query_structured_filter_proto::Payload as FilterPayloadProto,
 };
+use crate::results::wire_names;
 use crate::state::State;
 
 fn bad(msg: impl Into<String>) -> Failure {
@@ -82,25 +83,6 @@ fn compile_field_spec(p: &QueryFieldProfileProto) -> Result<FieldQuerySpec> {
     Ok(spec)
 }
 
-fn grain_str(g: TimeGrain) -> &'static str {
-    match g {
-        TimeGrain::Second => "second",
-        TimeGrain::Minute => "minute",
-        TimeGrain::Hour => "hour",
-        TimeGrain::PartOfDay => "part_of_day",
-        TimeGrain::Day => "day",
-        TimeGrain::Week => "week",
-        TimeGrain::Weekend => "weekend",
-        TimeGrain::Month => "month",
-        TimeGrain::Quarter => "quarter",
-        TimeGrain::Half => "half",
-        TimeGrain::Season => "season",
-        TimeGrain::Year => "year",
-        TimeGrain::Decade => "decade",
-        TimeGrain::Century => "century",
-    }
-}
-
 fn map_span(offsetter: &Offsetter, text: &str, start: u32, end: u32) -> (u32, u32) {
     let w = offsetter.column_to_wire(text, &[start, end]);
     (w[0], w[1])
@@ -154,7 +136,7 @@ fn filter_to_proto(offsetter: &Offsetter, text: &str, f: &StructuredFilterPlan) 
             duration_ms: t.duration_ms,
             value_text: t.value_text.clone(),
             kind: t.kind.name().to_owned(),
-            grain: grain_str(t.grain).to_owned(),
+            grain: wire_names::time_grain(t.grain).to_owned(),
             origin: t.origin.name().to_owned(),
             ambiguous: t.ambiguous,
         }),

@@ -5,8 +5,7 @@ use std::any::TypeId;
 
 use turbo_analysis::{Annotator, Document, Ix, IxRange, Key, Layer, Span, View, ViewId};
 use turbo_analysis_layers::{
-    Block, BoilerplateKind, Cut, Dependencies, Entities, EpistemicStatus, Modality, ModalityPolarity, ModalityTag,
-    TokenArcKind, Tokens,
+    Dependencies, Entities, EpistemicStatus, Modality, ModalityPolarity, ModalityTag, TokenArcKind, Tokens,
 };
 use turbo_entity_linker::LinkedEntities;
 use turbo_relation::ModalityAnnotator;
@@ -14,52 +13,7 @@ use turbo_relation::ModalityAnnotator;
 use super::{Failure, SearchProjCx};
 use crate::proto::result::{SearchEntityPolarities, SearchLinkedEntity};
 use crate::results::typed::aligned_key;
-
-pub(crate) fn boilerplate_kind_str(k: BoilerplateKind) -> &'static str {
-    match k {
-        BoilerplateKind::Header => "header",
-        BoilerplateKind::Footer => "footer",
-        BoilerplateKind::Navigation => "navigation",
-        BoilerplateKind::Disclaimer => "disclaimer",
-        BoilerplateKind::Template => "template",
-    }
-}
-
-fn block_str(b: Block) -> &'static str {
-    match b {
-        Block::Section => "section",
-        Block::Heading => "heading",
-        Block::Paragraph => "paragraph",
-        Block::List => "list",
-        Block::ListItem => "list_item",
-        Block::Table => "table",
-        Block::TableRow => "table_row",
-        Block::TableCell => "table_cell",
-        Block::Code => "code",
-        Block::Quote => "quote",
-        Block::Caption => "caption",
-        Block::Footnote => "footnote",
-        Block::PageHeader => "page_header",
-        Block::PageFooter => "page_footer",
-        Block::LooseList => "loose_list",
-        Block::Html => "html",
-    }
-}
-
-pub(crate) fn cut_reason_str(c: Cut) -> String {
-    match c {
-        Cut::DocumentStart => "document_start".to_owned(),
-        Cut::Sentence => "sentence".to_owned(),
-        Cut::Section => "section".to_owned(),
-        Cut::Heading => "heading".to_owned(),
-        Cut::Paragraph => "paragraph".to_owned(),
-        Cut::TopicShift => "topic_shift".to_owned(),
-        Cut::Clause => "clause".to_owned(),
-        Cut::Item => "item".to_owned(),
-        Cut::Inside(b) => format!("inside:{}", block_str(b)),
-        Cut::Overlap(b) => format!("overlap:{}", block_str(b)),
-    }
-}
+use crate::results::wire_names;
 
 pub(crate) fn token_arc_kind_str(k: TokenArcKind) -> &'static str {
     match k {
@@ -71,16 +25,6 @@ pub(crate) fn token_arc_kind_str(k: TokenArcKind) -> &'static str {
         TokenArcKind::AbbreviationShort => "abbreviation_short",
         TokenArcKind::AbbreviationLong => "abbreviation_long",
         TokenArcKind::Synonym => "synonym",
-    }
-}
-
-fn epistemic_str(e: EpistemicStatus) -> &'static str {
-    match e {
-        EpistemicStatus::Asserted => "asserted",
-        EpistemicStatus::Hedged => "hedged",
-        EpistemicStatus::Reported => "reported",
-        EpistemicStatus::Conditional => "conditional",
-        EpistemicStatus::Presupposed => "presupposed",
     }
 }
 
@@ -198,7 +142,7 @@ fn classify_entity_modality(
     } else {
         "affirmed"
     };
-    (bucket, epistemic_str(epistemic), cue_str)
+    (bucket, wire_names::epistemic(epistemic), cue_str)
 }
 
 pub(crate) fn project_entities(cx: &SearchProjCx<'_>) -> Result<SearchEntityPolarities, Failure> {

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use super::annotation::{BratAnnotation, Parsed, parse_annotations};
 use crate::error::FormatError;
-use crate::masc::java::decode_utf8;
+use crate::masc::text::decode_utf8;
 use crate::source::{check_len, compare_utf16};
 
 /// A brat document (`BratDocument`): a text and its annotations.

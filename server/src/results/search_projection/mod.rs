@@ -25,12 +25,13 @@ use turbo_analysis::{Document, Execution, Ix, Key, KeyId, Layer, Provenance, Spa
 use turbo_analysis_layers::{Boilerplate, Chunks, Lemmas, Sentences, Stems, TokenGraph, Tokens};
 use turbo_group::Sketches;
 
-use entities::{boilerplate_kind_str, cut_reason_str, token_arc_kind_str};
+use entities::token_arc_kind_str;
 
 use super::disclosure::{Disclosure, PiiOutputPolicy};
 use super::document::codecs;
 use super::model_to_proto;
 use super::typed::identity::check_binding;
+use super::wire_names;
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
@@ -267,7 +268,7 @@ fn project_sentences(cx: &SearchProjCx<'_>) -> Result<Vec<SearchSentenceRow>, Fa
         }
         prev_end = prev_end.max(end);
         let (boilerplate_kind, boilerplate_score) = match bp.filter(|b| i < b.len()) {
-            Some(b) => (b.kind[i].map(|k| boilerplate_kind_str(k).to_owned()), Some(b.score[i])),
+            Some(b) => (b.kind[i].map(|k| wire_names::boilerplate_kind(k).to_owned()), Some(b.score[i])),
             None => (None, None),
         };
         rows.push(SearchSentenceRow {
@@ -292,7 +293,7 @@ fn project_chunks(cx: &SearchProjCx<'_>) -> Result<Vec<SearchChunkRow>, Failure>
         let (span_start, span_end) = cx.map_to_wire(chunks.spans.view(), chunks.spans.get(Ix::new(i as u32)))?;
         let sr = chunks.sentences[i];
         let (boilerplate_kind, boilerplate_score) = match bp.filter(|b| i < b.len()) {
-            Some(b) => (b.kind[i].map(|k| boilerplate_kind_str(k).to_owned()), Some(b.score[i])),
+            Some(b) => (b.kind[i].map(|k| wire_names::boilerplate_kind(k).to_owned()), Some(b.score[i])),
             None => (None, None),
         };
         rows.push(SearchChunkRow {
@@ -303,7 +304,7 @@ fn project_chunks(cx: &SearchProjCx<'_>) -> Result<Vec<SearchChunkRow>, Failure>
             parent_index: chunks.parent[i].map(|p| p.get() as u32),
             sentence_start: sr.start.get() as u32,
             sentence_end: sr.end.get() as u32,
-            cut_reason: cut_reason_str(chunks.cut[i]),
+            cut_reason: wire_names::cut(chunks.cut[i]),
             cut_margin: chunks.cost[i],
             model_tokens: chunks.model_tokens[i],
             over_budget: chunks.over_budget[i],
