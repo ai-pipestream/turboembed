@@ -65,9 +65,22 @@ fn params_come_from_the_training_parameters_and_are_validated() {
     p.put(Key::USE_SKIPPED_AVERAGING, true);
     let got = PerceptronParams::from_training_parameters(&p).unwrap();
     assert!(got.use_average && got.use_skipped_averaging);
+    // A decrease is a fraction: the step is multiplied by 1 - decrease,
+    // so anything outside [0, 1) is refused instead of flipping its sign
+    // or zeroing the step before the first update.
+    p.put(Key::STEP_SIZE_DECREASE, 1.0);
+    assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(1.0)));
+    p.put(Key::STEP_SIZE_DECREASE, f64::INFINITY);
+    assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(f64::INFINITY)));
+    p.put(Key::STEP_SIZE_DECREASE, f64::NAN);
+    assert!(matches!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(d)) if d.is_nan()));
+    p.put(Key::STEP_SIZE_DECREASE, 6.0);
+    assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(6.0)));
     p.put(Key::STEP_SIZE_DECREASE, 101.0);
     assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(101.0)));
     p.put(Key::STEP_SIZE_DECREASE, -1.0);
+    assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::StepSizeDecrease(-1.0)));
+    p.put(Key::STEP_SIZE_DECREASE, 0.0);
     assert_eq!(PerceptronParams::from_training_parameters(&p).unwrap().step_size_decrease, None);
     p.put(Key::TOLERANCE, -0.5);
     assert_eq!(PerceptronParams::from_training_parameters(&p), Err(Error::Tolerance(-0.5)));
@@ -199,10 +212,37 @@ fn a_shorter_run_is_a_prefix_and_averaging_is_the_mean() {
         assert_eq!(means[k], mean, "after iteration {}", k + 1);
     }
     assert_eq!(model.all_parameters(), &means[5][..]);
-    // Skipped averaging changes nothing.
+    // Every one of six iterations is inside the first twenty, so skipped
+    // averaging sums the same iterations here.
     let skipped = PerceptronParams { use_skipped_averaging: true, ..averaged };
     let same = train_model(&index, &skipped, &mut TrainingConfiguration::default(), &stop, None).unwrap();
     assert_eq!(same, model);
+}
+
+#[test]
+fn skipped_averaging_sums_the_first_nineteen_and_square_iterations() {
+    let index = index();
+    let stop = IterDeltaAccuracyUnderTolerance { tolerance: 0.0 };
+    let raw = PerceptronParams { iterations: 25, use_average: false, tolerance: 0.0, ..PerceptronParams::default() };
+    let mut raws = Vec::new();
+    train_model(&index, &raw, &mut TrainingConfiguration::default(), &stop, Some(&mut |_, p| raws.push(p.to_vec())))
+        .unwrap();
+    let skipped = PerceptronParams { use_average: true, use_skipped_averaging: true, ..raw };
+    let model = train_model(&index, &skipped, &mut TrainingConfiguration::default(), &stop, None).unwrap();
+    // Iterations 1 to 19 and 25 are summed, 20 of 25.
+    let mut sum = vec![0.0; raws[0].len()];
+    for (k, r) in raws.iter().enumerate() {
+        if k < 19 || k + 1 == 25 {
+            for (s, x) in sum.iter_mut().zip(r) {
+                *s += x;
+            }
+        }
+    }
+    let mean: Vec<f64> = sum.iter().map(|s| s / 20.0).collect();
+    assert_eq!(model.all_parameters(), &mean[..]);
+    let averaged = PerceptronParams { use_average: true, ..raw };
+    let every = train_model(&index, &averaged, &mut TrainingConfiguration::default(), &stop, None).unwrap();
+    assert_ne!(every, model);
 }
 
 #[test]
