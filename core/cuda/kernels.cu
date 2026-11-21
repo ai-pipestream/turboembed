@@ -3044,13 +3044,15 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
     if (t == TILE_DEFAULT && f16) t = TILE_EIGHT_WARPS;
     if (t == TILE_EIGHT_WARPS) t = wide && f16 ? TILE_128x128 : TILE_128x64;
     if (t == TILE_256x128 && sizeof(TOut) == 4) t = TILE_128x128_4W;
+    // Outside the switch: nvcc's front end in MSVC mode rejects an
+    // `if constexpr` directly under a case label (#2453).
+    if constexpr (sizeof(TOut) == 2)
+        if (t == TILE_256x128) return mma_kernel<256, 128, 4, 2, 3, EPI, TOut, TIn>();
     switch (t) {
     case TILE_64x64: return mma_kernel<64, 64, 2, 2, 4, EPI, TOut, TIn>();
     case TILE_128x128: return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn>();
     case TILE_128x128_4W: return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
-    case TILE_256x128:
-        if constexpr (sizeof(TOut) == 2) return mma_kernel<256, 128, 4, 2, 3, EPI, TOut, TIn>();
-        return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
+    case TILE_256x128: return mma_kernel<128, 128, 2, 2, 3, EPI, TOut, TIn>();
     default: return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn>();
     }
 }
