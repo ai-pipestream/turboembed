@@ -804,7 +804,9 @@ jobs:
   windows-cuda:
     needs: changes
     if: needs.changes.outputs.linux == 'true'
-    runs-on: windows-latest
+    # windows-2022: its Visual Studio 2022 is an MSVC that CUDA 12.8
+    # supports; windows-latest carries Visual Studio 2026.
+    runs-on: windows-2022
     env:
       CUDA_VERSION: "12.8"
     steps:
@@ -819,16 +821,26 @@ jobs:
           key: windows-cuda
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: ilammy/msvc-dev-cmd@v1
-      # NVIDIA's network installer, silent, with the compiler, the runtime
-      # and the CCCL headers alone.
+      # NVIDIA's redistributable archives for the compiler, the runtime
+      # and the CCCL headers, each checked against the release manifest's
+      # SHA-256, unpacked into one toolkit root.
       - name: the CUDA toolkit (nvcc, the runtime's headers and static library)
         run: |
-          $v = $env:CUDA_VERSION
-          Invoke-WebRequest -Uri "https://developer.download.nvidia.com/compute/cuda/$v.0/network_installers/cuda_${v}.0_windows_network.exe" -OutFile cuda.exe
-          $p = Start-Process -FilePath .\cuda.exe -ArgumentList "-s nvcc_$v cudart_$v crt_$v nvvm_$v nvptxcompiler_$v thrust_$v" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
-          $root = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$v"
+          $base = "https://developer.download.nvidia.com/compute/cuda/redist"
+          $manifest = Invoke-RestMethod "$base/redistrib_$env:CUDA_VERSION.0.json"
+          $root = "$env:RUNNER_TEMP\cuda"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          foreach ($c in "cuda_nvcc", "cuda_cudart", "cuda_cccl") {
+            $a = $manifest.$c.'windows-x86_64'
+            $zip = "$env:RUNNER_TEMP\$c.zip"
+            Invoke-WebRequest "$base/$($a.relative_path)" -OutFile $zip
+            if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $a.sha256) { "${c}: SHA-256 mismatch"; exit 1 }
+            Expand-Archive $zip "$env:RUNNER_TEMP\unpacked" -Force
+            $dir = Get-ChildItem "$env:RUNNER_TEMP\unpacked" -Directory | Where-Object Name -like "$c-*"
+            Copy-Item "$($dir.FullName)\*" $root -Recurse -Force
+          }
           & "$root\bin\nvcc.exe" --version
+          if ($LASTEXITCODE) { exit 1 }
           "TURBO_CUDA_ROOT=$root" >> $env:GITHUB_ENV
       - name: clippy (cuda)
         run: cargo clippy --locked --release -p turbo --features cuda --all-targets -- -D warnings
