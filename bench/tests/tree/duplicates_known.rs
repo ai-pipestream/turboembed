@@ -5,7 +5,7 @@
 
 /// The number of entries below. It is lowered with each entry removed and
 /// never raised: a new copy is fixed, not listed.
-pub const KNOWN_AT_MOST: usize = 32;
+pub const KNOWN_AT_MOST: usize = 24;
 
 pub const KNOWN: &[&str] = &[
     "analysis/doccat/src/categorizer.rs::all_results",
@@ -13,8 +13,6 @@ pub const KNOWN: &[&str] = &[
     "analysis/formats/src/ad/names.rs::next",
     "analysis/formats/src/conll/names.rs::cover",
     "analysis/formats/src/conllu/mod.rs::block",
-    "analysis/formats/src/conllu/words.rs::escape_conllu_spaces",
-    "analysis/goldens-tool/src/docker.rs::current_user",
     "analysis/grammar/src/lang/en/mod.rs::output",
     "analysis/grammar/src/lang/en/time/date/named.rs::b_week_of",
     "analysis/grammar/src/lang/es/unit/lexicon.rs::entries",
@@ -28,13 +26,7 @@ pub const KNOWN: &[&str] = &[
     "analysis/train-components/src/chunk.rs::package_chunker_model",
     "analysis/train-components/src/sentdetect.rs::package_sentence_model",
     "analysis/train-recipes/src/litbank.rs::files",
-    "analysis/train/src/perceptron.rs::argmax",
-    "analysis/unicode/src/casemap.rs::lower",
-    "analysis/unicode/src/casemap.rs::upper",
-    "bench/src/postag/mod.rs::write",
-    "bench/src/tag/mod.rs::slug",
     "core/src/cpu/deberta.rs::config",
-    "core/src/cpu/model.rs::f16_to_f32",
     "core/src/ffi.rs::new_error",
     "core/src/levelzero.rs::device_count",
     "core/src/qa/session.rs::drop",

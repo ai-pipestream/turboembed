@@ -55,6 +55,7 @@ use crate::monitor::{
     TrainingMeasure,
 };
 use crate::params::{DEFAULT_CUTOFF, DEFAULT_ITERATIONS, DEFAULT_TOLERANCE, Key, TrainerType, TrainingParameters};
+use crate::qn::argmax;
 
 #[path = "perceptron_sequence.rs"]
 mod sequence;
@@ -244,17 +245,6 @@ impl PerceptronModel {
         let n = self.outcome_labels.len();
         &mut self.parameters[p as usize * n + o]
     }
-}
-
-/// `ArrayMath.argmax`: the first index of the largest value.
-fn argmax(x: &[f64]) -> usize {
-    let mut max = 0;
-    for (i, &v) in x.iter().enumerate().skip(1) {
-        if x[max] < v {
-            max = i;
-        }
-    }
-    max
 }
 
 /// What a trainer tells after every iteration: the iteration and the

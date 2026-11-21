@@ -267,22 +267,34 @@ pub fn report(r: &Record) -> String {
     out
 }
 
-/// Write the record under its own name in `dir`, through the core's
-/// parser first; an existing record of that name is never replaced.
-pub fn write(r: &Record, dir: &Path) -> Result<PathBuf> {
-    let name = record::file_name(r)?;
+/// The record as the bytes of its file: indented JSON and a final newline.
+pub(crate) fn record_bytes(r: &impl serde::Serialize) -> Result<Vec<u8>> {
     let mut bytes = serde_json::to_vec_pretty(r).map_err(|e| e.to_string())?;
     bytes.push(b'\n');
-    Record::parse(&name, &bytes)?;
+    Ok(bytes)
+}
+
+/// Writes `bytes` as the new file `name` in `dir`, which is made when it
+/// is missing; an existing file of that name is never replaced.
+pub(crate) fn create_new(dir: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
     fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let path = dir.join(&name);
+    let path = dir.join(name);
     let mut f = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&path)
         .map_err(|e| format!("{}: {e}; a record is never replaced", path.display()))?;
-    std::io::Write::write_all(&mut f, &bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+    std::io::Write::write_all(&mut f, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(path)
+}
+
+/// Write the record under its own name in `dir`, through the core's
+/// parser first; an existing record of that name is never replaced.
+pub fn write(r: &Record, dir: &Path) -> Result<PathBuf> {
+    let name = record::file_name(r)?;
+    let bytes = record_bytes(r)?;
+    Record::parse(&name, &bytes)?;
+    create_new(dir, &name, &bytes)
 }
 
 #[cfg(test)]
@@ -302,5 +314,23 @@ mod tests {
         ] {
             assert_eq!(utc(UNIX_EPOCH + Duration::from_secs(secs)), want, "{secs}");
         }
+    }
+
+    #[test]
+    fn a_record_file_is_made_once_with_its_directory_and_never_replaced() {
+        let dir = std::env::temp_dir().join(format!("turbo-bench-create-new-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let bytes = super::record_bytes(&serde_json::json!({"b": 1, "a": [2]})).unwrap();
+        assert_eq!(bytes, b"{\n  \"a\": [\n    2\n  ],\n  \"b\": 1\n}\n");
+        // the directory is made, two levels deep
+        let path = super::create_new(&dir.join("deep"), "r.json", &bytes).unwrap();
+        assert_eq!(path, dir.join("deep").join("r.json"));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        // the same name again fails and leaves the first file as it was
+        let e = super::create_new(&dir.join("deep"), "r.json", b"other").unwrap_err();
+        assert!(e.contains("r.json") && e.ends_with("a record is never replaced"), "{e}");
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        super::create_new(&dir.join("deep"), "s.json", b"other").unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
