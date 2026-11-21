@@ -232,15 +232,16 @@ fn remove_by_rename(path: &Path, remove: impl FnOnce(&Path) -> std::io::Result<(
             Err(e) => return Err(io(&gone, e)),
         }
     };
-    match fs::rename(path, &gone) {
+    // The record pending another server's delete is waited out as a read does.
+    match open_past_pending_delete(|| fs::rename(path, &gone), is_delete_pending) {
         Ok(()) => {}
         Err(e) => {
             let _ = fs::remove_file(&gone); // Our empty reservation, not a record.
             return if is_gone(&e) { Ok(false) } else { Err(io(path, e)) };
         }
     }
-    // No retry of sharing or permission errors. Only the renamed file may
-    // now remain delete-pending; the record name is already free.
+    // The delete is not retried: only the renamed file can be left
+    // pending, and the record name is already free.
     match remove(&gone) {
         Ok(()) => Ok(true),
         Err(e) if is_gone(&e) => Ok(true),
