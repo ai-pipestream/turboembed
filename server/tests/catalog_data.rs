@@ -303,24 +303,28 @@ fn a_record_revoked_while_another_server_reads_is_simply_gone() {
     let r = Requirement::of(Licence::CcBySa40).unwrap();
     let (alice, bob): (UserId, UserId) = ("alice".parse().unwrap(), "bob".parse().unwrap());
     writer.record(&bob, &r, &Shown::default()).unwrap();
-    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let flips = {
-        let (done, r, alice) = (done.clone(), r.clone(), alice.clone());
-        std::thread::spawn(move || {
+    std::thread::scope(|scope| {
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let flips = scope.spawn(|| {
+            // Close the channel on either success or panic, so a failed
+            // writer cannot leave the reader spinning forever.
+            let _finished = tx;
             for _ in 0..2000 {
                 writer.record(&alice, &r, &Shown::default()).unwrap();
                 assert!(writer.revoke(&alice, &r).unwrap());
             }
-            done.store(true, std::sync::atomic::Ordering::SeqCst);
-        })
-    };
-    let mut reads = 0;
-    while !done.load(std::sync::atomic::Ordering::SeqCst) {
-        let a = reader.acceptances().unwrap_or_else(|e| panic!("read {reads}: {e}"));
-        assert!(a.has(&bob, &r));
-        reads += 1;
-    }
-    flips.join().unwrap();
+        });
+        let mut reads = 0;
+        while matches!(rx.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty)) {
+            let a = reader.acceptances().unwrap_or_else(|e| panic!("read {reads}: {e}"));
+            assert!(a.has(&bob, &r));
+            reads += 1;
+        }
+        // Also joined on a reader panic, before Dir::drop removes the data.
+        // Otherwise the teardown can give a still-running writer NotFound
+        // and obscure the first failure.
+        flips.join().unwrap();
+    });
     assert!(!reader.acceptances().unwrap().has(&alice, &r));
 }
 

@@ -145,6 +145,9 @@ impl DataDir {
     /// Removes `who`'s acceptance of `r`; whether there was one.
     pub fn revoke(&self, who: &UserId, r: &Requirement) -> Result<bool, ZooError> {
         let (_, path) = self.key(who, r);
+        if cfg!(windows) {
+            return remove_by_rename(&path, |p| fs::remove_file(p));
+        }
         match fs::remove_file(&path) {
             Ok(()) => Ok(true),
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(false),
@@ -201,6 +204,50 @@ fn open_past_pending_delete<T>(
     }
 }
 
+static REVOKES: AtomicU64 = AtomicU64::new(0);
+
+/// Removes the record `path` by renaming it to a name the listing passes
+/// over and then removing that name with `remove`; whether there was one.
+/// A Windows delete without POSIX semantics leaves the name in place until
+/// the last handle to the file closes, and meanwhile every open of that
+/// name, and every rename onto it, is refused (#2450). A rename frees the
+/// name at once, also while a reader has the file open, so only the renamed
+/// file can be left pending its delete.
+fn remove_by_rename(path: &Path, remove: impl FnOnce(&Path) -> std::io::Result<()>) -> Result<bool, ZooError> {
+    let io = |p: &Path, e: std::io::Error| ZooError::Io { path: p.to_path_buf(), message: e.to_string() };
+    let base = path.file_name().unwrap_or_default().to_owned();
+    let gone = loop {
+        let mut name = base.clone();
+        name.push(format!(".revoked.{}.{}", std::process::id(), REVOKES.fetch_add(1, Ordering::Relaxed)));
+        let gone = path.with_file_name(name);
+        // Reserve the name: a stale file from a reused pid is passed over,
+        // never overwritten. The rename replaces only our empty reservation.
+        match fs::OpenOptions::new().write(true).create_new(true).open(&gone) {
+            Ok(f) => {
+                drop(f);
+                break gone;
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) if is_gone(&e) => return Ok(false),
+            Err(e) => return Err(io(&gone, e)),
+        }
+    };
+    match fs::rename(path, &gone) {
+        Ok(()) => {}
+        Err(e) => {
+            let _ = fs::remove_file(&gone); // Our empty reservation, not a record.
+            return if is_gone(&e) { Ok(false) } else { Err(io(path, e)) };
+        }
+    }
+    // No retry of sharing or permission errors. Only the renamed file may
+    // now remain delete-pending; the record name is already free.
+    match remove(&gone) {
+        Ok(()) => Ok(true),
+        Err(e) if is_gone(&e) => Ok(true),
+        Err(e) => Err(io(&gone, e)),
+    }
+}
+
 fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {
     #[cfg(unix)]
     if e.raw_os_error() == Some(libc::ELOOP) {
@@ -228,7 +275,13 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::custom_flags(&mut opts, libc::O_NOFOLLOW | libc::O_NONBLOCK);
     #[cfg(windows)]
-    std::os::windows::fs::OpenOptionsExt::custom_flags(&mut opts, 0x0020_0000); // FILE_FLAG_OPEN_REPARSE_POINT
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        opts.custom_flags(0x0020_0000); // FILE_FLAG_OPEN_REPARSE_POINT
+        // The default, kept explicit: a reader shares delete, so a revoke
+        // can rename the record away while it is being read.
+        opts.share_mode(1 | 2 | 4); // FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+    }
     // Open once without following symlinks or blocking on a FIFO: a record
     // revoked since read_dir (NotFound, or ESTALE on NFS) is gone, not bad.
     let mut file = match open_past_pending_delete(|| opts.open(path), is_delete_pending) {
@@ -458,6 +511,102 @@ mod tests {
             assert!(e.contains("not a plain file"), "{e}");
             fs::remove_file(&fifo).unwrap();
         }
+    }
+
+    #[test]
+    fn a_revoke_by_rename_frees_the_name_while_a_reader_holds_the_record() {
+        let dir = scratch("revoke-held");
+        let data = DataDir::open(&*dir).unwrap();
+        let r = Requirement::of(Licence::CcBySa40).unwrap();
+        let alice: UserId = "alice".parse().unwrap();
+        data.record(&alice, &r, &Shown::default()).unwrap();
+        let (key, path) = data.key(&alice, &r);
+        let names = || {
+            let mut v: Vec<String> =
+                fs::read_dir(data.records()).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+            v.sort();
+            v
+        };
+        // A reader in the middle of the record, as another server listing.
+        let mut held = fs::File::open(&path).unwrap();
+        assert!(remove_by_rename(&path, |p| fs::remove_file(p)).unwrap());
+        assert!(record(&path, &key).unwrap().is_none(), "gone at once, not pending");
+        assert!(!data.acceptances().unwrap().has(&alice, &r));
+        data.record(&alice, &r, &Shown::default()).unwrap();
+        assert!(data.acceptances().unwrap().has(&alice, &r), "the name takes a new record at once");
+        let mut old = Vec::new();
+        held.read_to_end(&mut old).unwrap();
+        assert!(Acceptances::parse(&old).unwrap().has(&alice, &r), "the reader still reads what it opened");
+        drop(held);
+        assert_eq!(names(), [key]);
+        assert!(remove_by_rename(&path, |p| fs::remove_file(p)).unwrap());
+        assert!(!remove_by_rename(&path, |p| fs::remove_file(p)).unwrap(), "nothing left to revoke");
+        assert!(names().is_empty(), "no renamed file is left behind: {:?}", names());
+    }
+
+    /// A delete without POSIX semantics, which leaves the name pending
+    /// until the last handle closes, as DeleteFileW does when it falls back.
+    #[cfg(windows)]
+    fn legacy_delete(p: &Path) -> std::io::Result<()> {
+        use std::ffi::c_void;
+        use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn SetFileInformationByHandle(handle: *mut c_void, class: i32, info: *const c_void, size: u32) -> i32;
+        }
+        let f = fs::OpenOptions::new().access_mode(0x0001_0000).open(p)?; // DELETE
+        let delete: u8 = 1; // FILE_DISPOSITION_INFO.DeleteFile, a BOOLEAN
+        // SAFETY: a live handle, and a one-byte FILE_DISPOSITION_INFO for
+        // FileDispositionInfo (4), the class without POSIX semantics.
+        let ok = unsafe { SetFileInformationByHandle(f.as_raw_handle(), 4, std::ptr::from_ref(&delete).cast(), 1) };
+        if ok == 0 { Err(std::io::Error::last_os_error()) } else { Ok(()) }
+    }
+
+    /// The writer side of the revoke race (#2450), made deterministic: a
+    /// reader holds the record while it is deleted without POSIX semantics.
+    #[cfg(windows)]
+    #[test]
+    fn a_record_deleted_while_held_on_windows_leaves_its_name_free() {
+        let dir = scratch("revoke-held-win");
+        let data = DataDir::open(&*dir).unwrap();
+        let r = Requirement::of(Licence::CcBySa40).unwrap();
+        let (alice, bob): (UserId, UserId) = ("alice".parse().unwrap(), "bob".parse().unwrap());
+        data.record(&bob, &r, &Shown::default()).unwrap();
+        let (key, path) = data.key(&alice, &r);
+
+        // What a delete of the record name itself did: the name stays,
+        // opens of it are refused, and recording it again fails.
+        data.record(&alice, &r, &Shown::default()).unwrap();
+        let held = fs::File::open(&path).unwrap();
+        legacy_delete(&path).unwrap();
+        assert!(is_delete_pending(&fs::File::open(&path).unwrap_err()));
+        assert!(data.record(&alice, &r, &Shown::default()).is_err());
+        drop(held);
+        assert_eq!(fs::File::open(&path).unwrap_err().kind(), ErrorKind::NotFound);
+
+        for _ in 0..50 {
+            data.record(&alice, &r, &Shown::default()).unwrap();
+            let held = fs::File::open(&path).unwrap();
+            let mut tombstone = PathBuf::new();
+            let removed = remove_by_rename(&path, |gone| {
+                tombstone = gone.to_path_buf();
+                legacy_delete(gone)
+            });
+            assert!(removed.unwrap());
+            let pending = fs::File::open(&tombstone).unwrap_err();
+            assert!(is_delete_pending(&pending), "the renamed file is pending its delete: {pending}");
+            // No retry needed: an open of the record name is NotFound, never denied.
+            assert_eq!(fs::File::open(&path).unwrap_err().kind(), ErrorKind::NotFound);
+            assert!(record(&path, &key).unwrap().is_none());
+            let a = data.acceptances().unwrap();
+            assert!(a.has(&bob, &r) && !a.has(&alice, &r));
+            data.record(&alice, &r, &Shown::default()).unwrap();
+            assert!(data.revoke(&alice, &r).unwrap());
+            drop(held);
+            assert_eq!(fs::File::open(&tombstone).unwrap_err().kind(), ErrorKind::NotFound);
+        }
+        assert!(!data.revoke(&alice, &r).unwrap());
     }
 
     #[test]
