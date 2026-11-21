@@ -19,6 +19,7 @@
  */
 
 #include "kernels.h"
+#include "portable.h"
 #include "rotary.h"
 
 #include <turbo/turbo.h>
@@ -2976,7 +2977,7 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
             if (t == TILE_SWIZZLED_256x128) return swz_kernel<256, 128, 4, 2, 3, EPI, TOut, false, true>();
         return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, false, true>();
     }
-    __builtin_unreachable();
+    TURBO_UNREACHABLE();
 }
 
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
@@ -3025,19 +3026,23 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
             if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
             return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn, true>();
         }
-        if constexpr (!rotary_epilogue(EPI)) switch (t) {
-        case TILE_SWIZZLED:
-        case TILE_SWIZZLED_8W:
-        case TILE_SWIZZLED_256x128:
-        case TILE_SWIZZLED_ROWS:
-        case TILE_F16_WHOLE_K:
-        case TILE_F16_WHOLE_K_3:
-        case TILE_F16_WHOLE_K_ROWS:
-        case TILE_F16_WHOLE_K_256: return swz_for<TOut, EPI, false>(t);
-        case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
-        case TILE_CT: return ct_kernel<EPI, TOut, false>();
-        case TILE_CT_K: return ct_kernel<EPI, TOut, true>();
-        default: break;
+        // Braced: nvcc's front end in MSVC mode loses its place in a
+        // discarded `if constexpr` whose statement is a bare switch (#2453).
+        if constexpr (!rotary_epilogue(EPI)) {
+            switch (t) {
+            case TILE_SWIZZLED:
+            case TILE_SWIZZLED_8W:
+            case TILE_SWIZZLED_256x128:
+            case TILE_SWIZZLED_ROWS:
+            case TILE_F16_WHOLE_K:
+            case TILE_F16_WHOLE_K_3:
+            case TILE_F16_WHOLE_K_ROWS:
+            case TILE_F16_WHOLE_K_256: return swz_for<TOut, EPI, false>(t);
+            case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
+            case TILE_CT: return ct_kernel<EPI, TOut, false>();
+            case TILE_CT_K: return ct_kernel<EPI, TOut, true>();
+            default: break;
+            }
         }
     }
     if (t == TILE_DEFAULT && f16) t = TILE_EIGHT_WARPS;

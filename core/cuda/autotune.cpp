@@ -12,7 +12,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <strings.h>
 
 namespace turbo_cuda {
 

@@ -637,7 +637,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, proto, bench-throughput, test, fuzz, features, changes, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, changes, backends-linux, backends-macos, java-jni, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core, windows-cuda]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04
@@ -795,3 +795,68 @@ jobs:
         env:
           CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo --features npu
+
+  # The CUDA backend built with MSVC (#2453), when the change touches what
+  # the backend lanes cover. The hosted runner has no GPU, so this checks
+  # the compile, the link (no CUDA DLL, as on Linux) and that the library
+  # loads and names cuda; the GPU tests run on a Windows machine with an
+  # NVIDIA card (docs/cuda.md, "Windows"; #2454).
+  windows-cuda:
+    needs: changes
+    if: needs.changes.outputs.linux == 'true'
+    # windows-2022: its Visual Studio 2022 is an MSVC that CUDA 12.8
+    # supports; windows-latest carries Visual Studio 2026.
+    runs-on: windows-2022
+    env:
+      CUDA_VERSION: "12.8"
+    steps:
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-cuda
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: ilammy/msvc-dev-cmd@v1
+      # NVIDIA's redistributable archives for the compiler, the runtime
+      # and the CCCL headers, each checked against the release manifest's
+      # SHA-256, unpacked into one toolkit root.
+      - name: the CUDA toolkit (nvcc, the runtime's headers and static library)
+        run: |
+          $base = "https://developer.download.nvidia.com/compute/cuda/redist"
+          $manifest = Invoke-RestMethod "$base/redistrib_$env:CUDA_VERSION.0.json"
+          $root = "$env:RUNNER_TEMP\cuda"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          foreach ($c in "cuda_nvcc", "cuda_cudart", "cuda_cccl") {
+            $a = $manifest.$c.'windows-x86_64'
+            $zip = "$env:RUNNER_TEMP\$c.zip"
+            Invoke-WebRequest "$base/$($a.relative_path)" -OutFile $zip
+            if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $a.sha256) { "${c}: SHA-256 mismatch"; exit 1 }
+            Expand-Archive $zip "$env:RUNNER_TEMP\unpacked" -Force
+            $dir = Get-ChildItem "$env:RUNNER_TEMP\unpacked" -Directory | Where-Object Name -like "$c-*"
+            Copy-Item "$($dir.FullName)\*" $root -Recurse -Force
+          }
+          & "$root\bin\nvcc.exe" --version
+          if ($LASTEXITCODE) { exit 1 }
+          "TURBO_CUDA_ROOT=$root" >> $env:GITHUB_ENV
+      - name: clippy (cuda)
+        run: cargo clippy --locked --release -p turbo --features cuda --all-targets -- -D warnings
+      # LNK4098 is a second C runtime in the link (cudart_static.lib asks
+      # for the static one); rustc shows linker output as warnings that
+      # -D warnings does not turn into errors, so it is checked here.
+      - name: the library and the server build with one C runtime, the library links no CUDA DLL, loads and names cuda
+        run: |
+          $log = cargo build --locked --release -p turbo -p turbo-kserve --features turbo/cuda 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          $log
+          if ($code) { exit 1 }
+          if ($log -match 'LNK4098') { "a link has two C runtimes (LNK4098)"; exit 1 }
+          $deps = dumpbin /dependents target\release\turbo.dll | Out-String
+          $deps
+          if ($deps -match 'cudart|cublas') { "turbo.dll links a CUDA DLL"; exit 1 }
+          $v = python -c "import ctypes, os; l = ctypes.CDLL(os.path.abspath(r'target\release\turbo.dll')); l.turbo_version.restype = ctypes.c_char_p; print(l.turbo_version().decode())"
+          $v
+          if ($v -notmatch 'cuda') { "turbo_version() does not name cuda"; exit 1 }
