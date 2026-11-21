@@ -14,7 +14,6 @@ use super::env::{DEFAULT_DEMO_USER, ENV_DEMO_TOKEN, ENV_DEMO_TOKEN_FILE, ENV_DEM
 
 const SERVER_BIN_NAME: &str = "turbo-kserve";
 const DEMO_BIN_NAME: &str = "turbo-kserve-demo";
-const TOKEN_RANDOM_BYTES: usize = 24;
 
 pub(super) async fn run(args: Vec<String>) -> ExitCode {
     if let Err(msg) = check_start_args(&args) {
@@ -58,6 +57,9 @@ fn populate_demo_defaults(
 #[cfg(unix)]
 fn generate_token() -> Result<String, String> {
     use std::io::Read;
+    // Only the unix generator reads random bytes; a const at module level
+    // is dead code on Windows and fails clippy there (#2394).
+    const TOKEN_RANDOM_BYTES: usize = 24;
     let mut file = std::fs::File::open("/dev/urandom").map_err(|e| format!("/dev/urandom: {e}"))?;
     let mut buf = [0u8; TOKEN_RANDOM_BYTES];
     file.read_exact(&mut buf).map_err(|e| format!("/dev/urandom: {e}"))?;
