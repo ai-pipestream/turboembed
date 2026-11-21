@@ -12,6 +12,7 @@ use super::{
     DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
     sanitize_single_line,
 };
+use crate::conllu::words::escape_conllu_spaces;
 use crate::error::FormatError;
 
 const REQUIRED_LAYERS: &[&str] = &["turbo:tokens"];
@@ -282,20 +283,4 @@ fn build_misc(space_part: Option<&str>, offsets: ExportOffsetMode, start: u32, e
         (None, ExportOffsetMode::CodePoint) => format!("TokenRangeCp={start}:{end}"),
         (Some(sp), ExportOffsetMode::CodePoint) => format!("{sp}|TokenRangeCp={start}:{end}"),
     }
-}
-
-fn escape_conllu_spaces(gap: &str) -> String {
-    let mut out = String::with_capacity(gap.len() * 2);
-    for c in gap.chars() {
-        match c {
-            ' ' => out.push_str("\\s"),
-            '\t' => out.push_str("\\t"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '|' => out.push_str("\\p"),
-            '\\' => out.push_str("\\\\"),
-            c => out.push(c),
-        }
-    }
-    out
 }

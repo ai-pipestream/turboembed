@@ -75,7 +75,7 @@ pub fn generate_with(
 }
 
 /// `uid:gid` of the calling user, from `id`, or nothing where `id` is missing.
-fn current_user() -> Option<String> {
+pub(crate) fn current_user() -> Option<String> {
     let id = |flag: &str| {
         Command::new("id")
             .arg(flag)

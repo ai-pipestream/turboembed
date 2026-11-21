@@ -250,7 +250,7 @@ pub fn misc_spaces_in_token(misc: &str) -> Option<String> {
 
 /// The inverse of [`unescape_conllu_spaces`]: the whitespace between two
 /// tokens as a `SpacesAfter` value.
-pub(super) fn escape_conllu_spaces(gap: &str) -> String {
+pub(crate) fn escape_conllu_spaces(gap: &str) -> String {
     let mut out = String::with_capacity(gap.len() * 2);
     for c in gap.chars() {
         match c {

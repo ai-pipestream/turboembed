@@ -123,23 +123,8 @@ impl Model {
     }
 }
 
-/// An IEEE half to the single it names exactly.
-pub(super) fn f16_to_f32(h: u16) -> f32 {
-    let sign = if h & 0x8000 != 0 { -1.0 } else { 1.0 };
-    let exp = (h >> 10) & 0x1f;
-    let man = (h & 0x3ff) as u32;
-    match exp {
-        // Zero and subnormals: man * 2^-24, exact in F32.
-        0 => sign * man as f32 * f32::from_bits(0x3380_0000),
-        0x1f => f32::from_bits(((h as u32 & 0x8000) << 16) | 0x7f80_0000 | (man << 13)),
-        e => f32::from_bits(((h as u32 & 0x8000) << 16) | ((e as u32 + 112) << 23) | (man << 13)),
-    }
-}
-
-/// A bfloat16 is the top half of the single it names.
-pub(super) fn bf16_to_f32(h: u16) -> f32 {
-    f32::from_bits((h as u32) << 16)
-}
+// The half and bfloat16 widenings are the head reader's: one copy for both.
+pub(super) use crate::head::{bf16_to_f32, f16_to_f32};
 
 pub(super) unsafe extern "C" fn model_load(
     _ctx: *mut c_void,

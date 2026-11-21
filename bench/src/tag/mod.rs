@@ -20,6 +20,7 @@ use turbo::record::{self, Device, Library, Machine};
 
 use crate::Result;
 use crate::postag::Treebank;
+use crate::throughput::slug;
 
 /// The version of `TagRecord`.
 pub const TAG_RECORD_VERSION: u32 = 1;
@@ -93,18 +94,6 @@ pub struct Speed {
 pub const CPU_TIERS: [(&str, &str, &[&str]); 3] =
     [("exact", "JvmParity", &["f64", "f32"]), ("model", "Packed", &["f64", "f32"]), ("fastest", "Packed", &["f16"])];
 
-fn slug(s: &str) -> String {
-    let mut out = String::new();
-    for c in s.chars() {
-        if c.is_ascii_alphanumeric() {
-            out.push(c.to_ascii_lowercase());
-        } else if !out.is_empty() && !out.ends_with('-') {
-            out.push('-');
-        }
-    }
-    out.trim_end_matches('-').to_owned()
-}
-
 /// The record's file name: machine, backend, tier, model and commit.
 pub fn file_name(r: &TagRecord) -> String {
     format!(
@@ -174,17 +163,7 @@ pub fn check(r: &TagRecord) -> Result<()> {
 /// Write the record under `dir`, checked; a record is never replaced.
 pub fn write(r: &TagRecord, dir: &Path) -> Result<PathBuf> {
     check(r)?;
-    let mut bytes = serde_json::to_vec_pretty(r).map_err(|e| e.to_string())?;
-    bytes.push(b'\n');
-    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let path = dir.join(file_name(r));
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&path)
-        .map_err(|e| format!("{}: {e}; a record is never replaced", path.display()))?;
-    std::io::Write::write_all(&mut f, &bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(path)
+    crate::create_new(dir, &file_name(r), &crate::record_bytes(r)?)
 }
 
 /// `turbo-bench tag`, with its arguments after the subcommand.

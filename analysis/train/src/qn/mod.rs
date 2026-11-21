@@ -417,7 +417,7 @@ pub fn training_accuracy(index: &DataIndex, point: &[f64]) -> f64 {
 }
 
 /// `ArrayMath.argmax`: the first index of the largest value.
-fn argmax(x: &[f64]) -> usize {
+pub(crate) fn argmax(x: &[f64]) -> usize {
     let mut max = 0;
     for (i, &v) in x.iter().enumerate().skip(1) {
         if x[max] < v {
