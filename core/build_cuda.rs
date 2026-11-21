@@ -28,11 +28,16 @@ struct Host {
 fn host() -> Host {
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_else(|_| env::consts::ARCH.to_owned());
     if msvc() {
-        // /MD: the dynamic C runtime, as rustc links it; /EHsc: C++
-        // exceptions; /Zc:__cplusplus: the real language level, which
-        // CUTLASS reads; /bigobj: the kernels' template instances.
+        // /MD or /MT: the C runtime rustc links, dynamic unless the
+        // target has crt-static; /EHsc: C++ exceptions; /Zc:__cplusplus:
+        // the real language level, which CUTLASS reads; /bigobj: the
+        // kernels' template instances.
         return Host {
-            host_flags: "/MD,/EHsc,/Zc:__cplusplus,/bigobj,/W3",
+            host_flags: if crt_static() {
+                "/MT,/EHsc,/Zc:__cplusplus,/bigobj,/W3"
+            } else {
+                "/MD,/EHsc,/Zc:__cplusplus,/bigobj,/W3"
+            },
             lib_dirs: vec!["lib/x64".to_owned()],
             cudart: "cudart_static.lib",
             cublas: "cublas.lib",
@@ -53,6 +58,10 @@ fn host() -> Host {
 
 fn msvc() -> bool {
     env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
+}
+
+fn crt_static() -> bool {
+    env::var("CARGO_CFG_TARGET_FEATURE").is_ok_and(|f| f.split(',').any(|x| x == "crt-static"))
 }
 
 pub(crate) fn cuda() {
@@ -127,6 +136,14 @@ pub(crate) fn cuda() {
     // runtime's own needs after it. MSVC's C++ and C runtimes come with
     // the objects' default libraries.
     println!("cargo:rustc-link-lib=static=cudart_static");
+    // NVIDIA builds cudart_static.lib with /MT, so it asks for LIBCMT,
+    // the static C runtime; with the dynamic one that is a second C
+    // runtime (LNK4098). This crate's own links drop it here, and
+    // backend.cpp carries the same directive for a program that links
+    // the crate (#2453).
+    if msvc() && !crt_static() {
+        println!("cargo:rustc-link-arg=/NODEFAULTLIB:libcmt");
+    }
     if !msvc() {
         for l in ["dl", "pthread", "rt"] {
             println!("cargo:rustc-link-lib=dylib={l}");

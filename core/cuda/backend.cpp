@@ -60,6 +60,12 @@ constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
  * TURBO_CUDA_ARCH gave them. */
 #include "turbo_cuda_build.h"
 
+#if defined(_MSC_VER) && defined(_DLL)
+/* cudart_static.lib is built with /MT and asks for LIBCMT; under /MD
+ * (_DLL) every link that takes this object drops it (#2453). */
+#pragma comment(linker, "/NODEFAULTLIB:libcmt")
+#endif
+
 using namespace turbo_cuda;
 
 namespace {

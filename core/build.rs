@@ -376,6 +376,10 @@ pub(crate) fn run(cmd: &mut Command) {
     for line in stderr.lines().filter(|l| !l.trim().is_empty()) {
         println!("cargo:warning={line}");
     }
+    // MSVC's cl.exe writes its warnings to stdout, after the source's name.
+    for line in String::from_utf8_lossy(&out.stdout).lines().filter(|l| l.contains(": warning ")) {
+        println!("cargo:warning={line}");
+    }
 }
 
 pub(crate) fn fail(message: &str) -> ! {

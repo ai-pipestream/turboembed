@@ -844,10 +844,16 @@ jobs:
           "TURBO_CUDA_ROOT=$root" >> $env:GITHUB_ENV
       - name: clippy (cuda)
         run: cargo clippy --locked --release -p turbo --features cuda --all-targets -- -D warnings
-      - name: the library builds, links no CUDA DLL, loads and names cuda
+      # LNK4098 is a second C runtime in the link (cudart_static.lib asks
+      # for the static one); rustc shows linker output as warnings that
+      # -D warnings does not turn into errors, so it is checked here.
+      - name: the library and the server build with one C runtime, the library links no CUDA DLL, loads and names cuda
         run: |
-          cargo build --locked --release -p turbo --features cuda
-          if ($LASTEXITCODE) { exit 1 }
+          $log = cargo build --locked --release -p turbo -p turbo-kserve --features turbo/cuda 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          $log
+          if ($code) { exit 1 }
+          if ($log -match 'LNK4098') { "a link has two C runtimes (LNK4098)"; exit 1 }
           $deps = dumpbin /dependents target\release\turbo.dll | Out-String
           $deps
           if ($deps -match 'cudart|cublas') { "turbo.dll links a CUDA DLL"; exit 1 }
