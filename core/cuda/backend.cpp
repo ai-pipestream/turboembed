@@ -208,7 +208,7 @@ void copy_str(char *dst, size_t len, const char *src) {
 }
 
 void *host_malloc(size_t n) {
-    void *p = aligned_alloc(HOST_ALIGN, round_up(n, HOST_ALIGN));
+    void *p = turbo_aligned_alloc(HOST_ALIGN, round_up(n, HOST_ALIGN));
     if (p) counted_host();
     return p;
 }
@@ -698,7 +698,7 @@ void buffer_release(void *buf) {
             DeviceScope scope(b->ctx->ordinal);
             cudaError_t e = cudaSuccess;
             switch (b->placement) {
-            case TURBO_PLACE_HOST: free(b->ptr); break;
+            case TURBO_PLACE_HOST: turbo_aligned_free(b->ptr); break;
             case TURBO_PLACE_PINNED: e = cudaFreeHost(b->ptr); break;
             default: e = cudaFree(b->ptr);
             }
