@@ -106,8 +106,8 @@ pub fn simple_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Span>) 
             out.push(Span { start, end: at });
             start = at;
         }
-        if options.keep_newlines && (b == b'\n' || b == b'\r') {
-            out.push(Span { start: at, end: at + 1 });
+        if options.keep_newlines && whitespace::is_line_break(cp) {
+            out.push(Span { start: at, end: at + len as u32 });
         }
         state = class;
         prev = if cp >= 0x1_0000 { NONE } else { cp };
@@ -232,7 +232,8 @@ mod tests {
         out.clear();
         simple_spans("ab \nc", NEWLINES, &mut out);
         assert_eq!(out, [Span::new(0, 2), Span::new(3, 4), Span::new(4, 5)]);
-        // U+2028 and U+0085 are whitespace but not kept.
-        assert_eq!(tokens("a\u{2028}\u{85}b", NEWLINES), ["a", "b"]);
+        // Every line break is kept, the non-ASCII ones too.
+        assert_eq!(tokens("a\u{2028}\u{85}b", NEWLINES), ["a", "\u{2028}", "\u{85}", "b"]);
+        assert_eq!(tokens("a\u{b}\u{c}\u{2029}b", NEWLINES), ["a", "\u{b}", "\u{c}", "\u{2029}", "b"]);
     }
 }

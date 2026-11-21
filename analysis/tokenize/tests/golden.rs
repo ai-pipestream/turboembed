@@ -86,27 +86,25 @@ fn whitespace() {
     spans_match("whitespace", WHITESPACE, whitespace_spans, false);
 }
 
-#[test]
-fn whitespace_newlines() {
-    spans_match("whitespace+keep-new-lines", WHITESPACE, whitespace_spans, true);
-}
-
-/// The simple tokenizer with new lines kept. The Java has two defects in
-/// this mode (it throws when a line break comes before the first token,
-/// and gives a line break after whitespace the span of the whitespace),
-/// which the port fixes. So the expectation for each input is worked out
-/// independently: the plain simple tokens from the golden without new
-/// lines (a line break is whitespace, so never inside a token), plus a
-/// one-byte token at every line feed and carriage return. Where the Java
-/// output equals that, the Rust output is compared with the Java output;
-/// where it does not, the Rust output is compared with the corrected
-/// expectation, and the inputs where that happened must be exactly the
-/// ones listed, so a new difference cannot pass unnoticed.
-fn simple_newlines(name: &str, plain_name: &str, affected: &[&str]) {
+/// A tokenizer with new lines kept, compared against an expectation
+/// worked out independently: the plain tokens from the golden without
+/// new lines (a line break is whitespace, so never inside a token),
+/// plus a token at every line break. Where the Java output equals that,
+/// the Rust output is compared with the Java output; where it does not,
+/// the Rust output is compared with the corrected expectation, and the
+/// inputs where that happened must be exactly the ones listed, so a new
+/// difference cannot pass unnoticed.
+fn newlines(
+    name: &str,
+    plain_name: &str,
+    class: &str,
+    run: fn(&str, TokenizerOptions, &mut Vec<Span>),
+    affected: &[&str],
+) {
     let options = TokenizerOptions { keep_newlines: true };
-    let plain = cases(plain_name, SIMPLE, false);
+    let plain = cases(plain_name, class, false);
     let mut differs = Vec::new();
-    for case in cases(name, SIMPLE, true) {
+    for case in cases(name, class, true) {
         let p = plain.iter().find(|p| p.name() == case.name()).expect("the same input without new lines");
         let text = &case.text;
         let plain_spans: Vec<(u32, u32)> = expected(p).iter().map(|e| e.utf8).collect();
@@ -116,7 +114,7 @@ fn simple_newlines(name: &str, plain_name: &str, affected: &[&str]) {
             .map(|(a, b)| Expect { utf8: (a, b), utf16: (unit(a), unit(b)), ty: None })
             .collect();
         let mut out = Vec::new();
-        simple_spans(text, options, &mut out);
+        run(text, options, &mut out);
         let rust = actual(text, &out, None);
         if case.golden.header.error.is_none() && expected(&case) == corrected {
             assert_eq!(rust, expected(&case), "{}", case.path.display());
@@ -125,12 +123,23 @@ fn simple_newlines(name: &str, plain_name: &str, affected: &[&str]) {
             assert_eq!(rust, corrected, "{} (corrected)", case.path.display());
         }
     }
-    assert_eq!(differs, affected, "{name}: the inputs the Java defects affect");
+    assert_eq!(differs, affected, "{name}: the inputs where the Java output differs");
+}
+
+#[test]
+fn whitespace_newlines() {
+    newlines("whitespace+keep-new-lines", "whitespace", WHITESPACE, whitespace_spans, &["line-separators"]);
 }
 
 #[test]
 fn simple_newlines_unicode() {
-    simple_newlines("simple+keep-new-lines", "simple", &["leading-trailing", "whitespace-only"]);
+    newlines(
+        "simple+keep-new-lines",
+        "simple",
+        SIMPLE,
+        simple_spans,
+        &["leading-trailing", "line-separators", "whitespace-only"],
+    );
 }
 
 #[test]

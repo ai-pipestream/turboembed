@@ -26,7 +26,7 @@ use turbo_unicode::GeneralCategory;
 use turbo_unicode::category::general_category;
 use turbo_unicode::java::code_point::{is_alphabetic, is_digit};
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
-use turbo_unicode::whitespace::is_whitespace;
+use turbo_unicode::whitespace::{is_line_break, is_whitespace};
 
 use crate::format::Golden;
 
@@ -191,18 +191,17 @@ pub fn whole_character_spans(text: &str, spans: &[JvmSpan]) -> Result<Vec<JvmSpa
     Ok(out)
 }
 
-/// What `SimpleTokenizer` with `keepNewLines` should return, worked out
-/// from the plain simple tokens of the same text (a line break is
-/// whitespace, so never inside a token): those spans plus a one byte span
-/// at every line feed and carriage return, in text order. The Java has
-/// two defects in this mode, which [`jvm_simple_newline_spans`] models
-/// and the port fixes; where the Java output equals this expectation, the
-/// two agree.
+/// What a tokenizer with `keepNewLines` should return, worked out from
+/// the plain tokens of the same text (a line break is whitespace, so
+/// never inside a token): those spans plus a span at every line break,
+/// in text order. The Java has defects in this mode, which
+/// [`jvm_simple_newline_spans`] models for the simple tokenizer; where
+/// the Java output equals this expectation, the two agree.
 pub fn simple_newline_spans(text: &str, plain: &[(u32, u32)]) -> Vec<(u32, u32)> {
     let mut out: Vec<(u32, u32)> = plain.to_vec();
-    for (i, b) in text.bytes().enumerate() {
-        if b == b'\n' || b == b'\r' {
-            out.push((i as u32, i as u32 + 1));
+    for (i, c) in text.char_indices() {
+        if is_line_break(c as u32) {
+            out.push((i as u32, i as u32 + c.len_utf8() as u32));
         }
     }
     out.sort_unstable();

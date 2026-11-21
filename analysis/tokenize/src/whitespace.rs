@@ -1,6 +1,6 @@
 //! OpenNLP's `WhitespaceTokenizer`: a token is a run of characters
-//! without the Unicode `White_Space` property. With `keep_newlines`, every line feed and carriage
-//! return is also a token of its own.
+//! without the Unicode `White_Space` property. With `keep_newlines`,
+//! every line break is also a token of its own.
 //!
 //! The scan works on bytes, through a 256-entry table: an ASCII byte is
 //! whitespace or not by the table alone, and only the four lead bytes that
@@ -63,7 +63,7 @@ pub fn whitespace_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Spa
             match table[b as usize] {
                 TOKEN => break,
                 SPACE => {
-                    if options.keep_newlines && (b == b'\n' || b == b'\r') {
+                    if options.keep_newlines && whitespace::is_line_break(u32::from(b)) {
                         out.push(Span { start: i as u32, end: i as u32 + 1 });
                     }
                     i += 1;
@@ -72,6 +72,9 @@ pub fn whitespace_spans(text: &str, options: TokenizerOptions, out: &mut Vec<Spa
                     let (cp, len) = decode(bytes, i);
                     if !whitespace::is_whitespace(cp) {
                         break;
+                    }
+                    if options.keep_newlines && whitespace::is_line_break(cp) {
+                        out.push(Span { start: i as u32, end: i as u32 + len as u32 });
                     }
                     i += len;
                 }
@@ -193,7 +196,12 @@ mod tests {
         let o = TokenizerOptions { keep_newlines: true };
         let mut out = Vec::new();
         whitespace_spans("\nab \r\ncd\u{2028}e", o, &mut out);
-        let expected = [(0, 1), (1, 3), (4, 5), (5, 6), (6, 8), (11, 12)];
+        let expected = [(0, 1), (1, 3), (4, 5), (5, 6), (6, 8), (8, 11), (11, 12)];
         assert_eq!(out, expected.map(|(s, e)| Span::new(s, e)));
+        // Every line break is kept: LF, VT, FF, CR, NEL, LS and PS.
+        assert_eq!(
+            tokens("a\u{b}b\u{c}c\u{85}d\u{2029}e", o),
+            ["a", "\u{b}", "b", "\u{c}", "c", "\u{85}", "d", "\u{2029}", "e"]
+        );
     }
 }

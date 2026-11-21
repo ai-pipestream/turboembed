@@ -63,7 +63,7 @@ pub use whitespace::{WhitespaceTokenizer, whitespace_spans};
 /// ([`turbo_unicode::whitespace::is_whitespace`]).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TokenizerOptions {
-    /// Emit every line feed and carriage return as a token of its own.
+    /// Emit every line break as a token of its own.
     pub keep_newlines: bool,
 }
 
