@@ -493,8 +493,9 @@ Production endpoint overrides follow strict transport rules:
   `https://host` for self-hosted S3-compatible stores (such as RustFS)
   with `max_redirects(0)`.
 - `GoogleDrive::with` allows HTTPS or the same explicit loopback HTTP
-  authorities as OCI. Each redirect must stay on the configured scheme
-  and authority, and only the initial request carries credentials.
+  authorities as OCI. List redirects stay on the API endpoint. Media redirects may use another
+  HTTPS authority, or an explicit loopback HTTP authority when the API endpoint
+  uses loopback HTTP. Only the initial request carries credentials.
 
 A zoo server lists the imported bundles when it is started with that
 file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
@@ -735,7 +736,8 @@ another way overrides it (#1613).
   the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
   shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
   of them is required. Neither ever travels in a URL, and a redirect is
-  followed only on the same endpoint and unsigned. `GoogleDrive::with` takes
+  followed unsigned. List replies stay on the API endpoint, while media
+  downloads may redirect to a separate HTTPS content server. `GoogleDrive::with` takes
   another endpoint; a plain `http://` one sends the token in clear text
   and is only for a stand-in on loopback in tests. It
   reads and does not keep: a library puts its own `file://` store first

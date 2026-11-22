@@ -4,13 +4,15 @@
 //! is looked for at `<artifact-id>/<path>`, the zoo cache's own layout,
 //! so a copied cache serves as well.
 
+mod endpoint;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use serde::Deserialize;
 
 use super::oauth::Renewing;
-use super::transport::{Transport, is_loopback_authority, origin};
+use super::transport::{Transport, origin};
 use crate::index::{Artifact, File, Url};
 
 /// The Drive API's own address.
@@ -20,6 +22,12 @@ const FOLDER: &str = "application/vnd.google-apps.folder";
 
 /// The most `files.list` pages read for one name.
 const PAGES: usize = 20;
+
+#[derive(Clone, Copy)]
+enum Query<'a> {
+    List(&'a str),
+    Media,
+}
 
 /// How a request to Drive is signed in.
 #[derive(Clone)]
@@ -65,7 +73,8 @@ impl std::fmt::Debug for DriveAuth {
 /// included. Each file is found with one `files.list` query per folder
 /// on the way (folder ids are remembered once found) and read with one
 /// `files.get?alt=media`. The token or key travels in a header, never
-/// in a URL. Redirects stay on the configured endpoint and carry neither.
+/// in a URL. List redirects stay on the API endpoint. Media redirects may use
+/// another content server. All redirected requests are unsigned.
 pub struct GoogleDrive {
     address: String,
     root: String,
@@ -104,13 +113,7 @@ impl GoogleDrive {
     pub fn with(address: &str, endpoint: Option<&str>, auth: DriveAuth) -> Result<GoogleDrive, String> {
         let (root, under) = parse(address)?;
         let base = endpoint.unwrap_or(DRIVE_ENDPOINT).trim_end_matches('/');
-        let https = base.strip_prefix("https://");
-        let authority = https.or_else(|| base.strip_prefix("http://"));
-        if !authority.is_some_and(|a| {
-            !a.contains('@')
-                && a.parse::<ureq::http::uri::Authority>().is_ok()
-                && (https.is_some() || is_loopback_authority(a))
-        }) {
+        if !endpoint::valid(base, true) {
             return Err(format!("{address}: expected an HTTPS endpoint or an explicit loopback HTTP endpoint"));
         }
         let secret = match &auth {
@@ -122,7 +125,8 @@ impl GoogleDrive {
             return Err(format!("{address}: the token or key is empty or holds spaces or control characters"));
         }
         let agent = ureq::Agent::config_builder()
-            .https_only(https.is_some())
+            .https_only(base.starts_with("https://"))
+            .redirect_auth_headers(ureq::config::RedirectAuthHeaders::Never)
             .max_redirects(0)
             .accept_encoding("identity")
             .build()
@@ -146,7 +150,7 @@ impl GoogleDrive {
     /// `limit` bytes of the body. A redirect is followed unsigned, so the
     /// token or key never leaves the API's own host. With a stored grant,
     /// a 401 renews the token and asks once more. Errors name the path.
-    fn call(&self, path: &str, query: &str, limit: u64) -> Result<Vec<u8>, String> {
+    fn call(&self, path: &str, query: Query<'_>, limit: u64) -> Result<Vec<u8>, String> {
         match self.send(path, query, limit, false) {
             Err((true, _)) if matches!(self.auth, DriveAuth::Refresh(_)) => self.send(path, query, limit, true),
             r => r,
@@ -156,8 +160,12 @@ impl GoogleDrive {
 
     /// One signed GET, as [`GoogleDrive::call`] makes it; an error says
     /// whether Drive answered 401.
-    fn send(&self, path: &str, query: &str, limit: u64, renew: bool) -> Result<Vec<u8>, (bool, String)> {
-        let url = format!("{}{path}?{query}&supportsAllDrives=true", self.base);
+    fn send(&self, path: &str, query: Query<'_>, limit: u64, renew: bool) -> Result<Vec<u8>, (bool, String)> {
+        let params = match query {
+            Query::List(parameters) => parameters,
+            Query::Media => "alt=media",
+        };
+        let url = format!("{}{path}?{params}&supportsAllDrives=true", self.base);
         let bearer = |t: &str| self.agent.get(&url).header("Authorization", format!("Bearer {t}"));
         let req = match &self.auth {
             DriveAuth::Token(t) => bearer(t),
@@ -176,7 +184,7 @@ impl GoogleDrive {
             let to = to.ok_or_else(|| (false, format!("{}{path}: a redirect with no Location", self.base)))?;
             let (base, relative) = origin(&current);
             let to = resolve(base, relative, to);
-            if !origin(&to).0.eq_ignore_ascii_case(&self.base) {
+            if !endpoint::allows_redirect(&self.base, &to, matches!(query, Query::Media)) {
                 return Err((false, format!("{}{path}: redirect outside the Drive endpoint", self.base)));
             }
             let follow = |e: ureq::Error| (false, format!("{}{path}: following its redirect: {e}", self.base));
@@ -204,7 +212,7 @@ impl GoogleDrive {
         // the bound keeps a server that always sends a token from looping.
         for _ in 0..PAGES {
             let query = format!("q={}&fields={fields}&pageSize=1000&includeItemsFromAllDrives=true{page}", encode(&q));
-            let body = self.call("/drive/v3/files", &query, 1 << 20)?;
+            let body = self.call("/drive/v3/files", Query::List(&query), 1 << 20)?;
             let list: List =
                 serde_json::from_slice(&body).map_err(|e| format!("{}: a files.list reply: {e}", self.address))?;
             let pick = match &want {
@@ -269,7 +277,7 @@ impl Transport for GoogleDrive {
         cached.extend(file.path.as_str().split('/'));
         for path in [vec!["blobs", "sha256", hex.as_str()], cached] {
             if let Some(id) = self.find(&path, file.size)? {
-                return self.call(&format!("/drive/v3/files/{id}"), "alt=media", file.size.saturating_add(1));
+                return self.call(&format!("/drive/v3/files/{id}"), Query::Media, file.size.saturating_add(1));
             }
         }
         Err(format!("{}: no blobs/sha256/{hex} and no {}/{}", self.address, artifact.id.as_str(), file.path.as_str()))
