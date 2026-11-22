@@ -182,9 +182,11 @@ fn is_hex_of(id: &str, digest: &[u8]) -> bool {
     id.len() == 2 * digest.len()
         && id
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .zip(digest)
-            .all(|(pair, &b)| pair[0] == DIGITS[usize::from(b >> 4)] && pair[1] == DIGITS[usize::from(b & 15)])
+            .all(|(&[hi, lo], &b)| hi == DIGITS[usize::from(b >> 4)] && lo == DIGITS[usize::from(b & 15)])
 }
 
 /// Refuses a source view digest that does not go with `input`:
