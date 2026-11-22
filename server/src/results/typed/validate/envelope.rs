@@ -14,10 +14,8 @@
 
 use std::collections::HashSet;
 
-use turbo_analysis::export::FORMAT_VERSION;
-
 use super::super::chain::WireChain;
-use super::super::identity::{ENVELOPE_SCHEMA_VERSION, check_binding, verify_view_text};
+use super::super::identity::{check_binding, verify_view_text};
 use super::bad;
 use crate::api::Failure;
 use crate::proto::result::{
@@ -54,27 +52,7 @@ fn check_result(result: Option<&ResultIdentity>, withheld: bool) -> Result<(), F
     let Some(result) = result else {
         return Err(bad("the typed document carries no result identity"));
     };
-    withheld_identity::check_result("", result, withheld)?;
-    if !withheld {
-        check_digest("result.content_digest", &result.content_digest)?;
-        let hex: String = result.content_digest.iter().map(|b| format!("{b:02x}")).collect();
-        if result.result_id != hex {
-            return Err(bad("result.result_id is not the hexadecimal of result.content_digest"));
-        }
-    }
-    if result.envelope_schema_version != ENVELOPE_SCHEMA_VERSION {
-        return Err(bad(format!(
-            "envelope schema version {} is not the served {ENVELOPE_SCHEMA_VERSION}",
-            result.envelope_schema_version
-        )));
-    }
-    if result.graph_format_version != u32::from(FORMAT_VERSION) {
-        return Err(bad(format!(
-            "graph format version {} is not the served {FORMAT_VERSION}",
-            result.graph_format_version
-        )));
-    }
-    Ok(())
+    withheld_identity::check_result("", result, withheld)
 }
 
 /// The three digests of provenance entry `i`: whole, or all absent when
@@ -111,17 +89,14 @@ fn check_view_digests(msg: &TypedDocumentResult, chain: &WireChain, withheld: bo
         if let Some(v) = chain.views().iter().find(|v| v.text_digest.is_none()) {
             return Err(bad(format!("mapping view {} carries no text_digest", v.id.0)));
         }
-        if source.text_digest.map(|d| d.to_vec()) != Some(input.source_text_digest.clone()) {
-            return Err(bad("input.source_text_digest is not the mapping's source view text_digest"));
-        }
-        return Ok(());
+        let digest = source.text_digest.as_ref().map(|d| &d[..]).unwrap_or_default();
+        return withheld_identity::check_source_view("the mapping's source view text_digest", digest, input, false);
     }
     if !msg.layers.iter().any(|l| l.id == <turbo_analysis_layers::Pii as turbo_analysis::Layer>::ID) {
         return Err(bad("the input digests are withheld and the typed document lists no turbo:pii layer"));
     }
-    if source.text_digest.is_some() {
-        return Err(bad("the mapping's source view carries a text_digest and the input digests are withheld"));
-    }
+    let digest = source.text_digest.as_ref().map(|d| &d[..]).unwrap_or_default();
+    withheld_identity::check_source_view("the mapping's source view text_digest", digest, input, true)?;
     for v in chain.views().iter().filter(|v| v.text_digest.is_some()) {
         let rewrite = msg
             .views

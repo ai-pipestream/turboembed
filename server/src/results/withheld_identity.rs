@@ -11,7 +11,9 @@
 //!   [`result`] for a receipt made without one, [`view`] for each listed
 //!   view;
 //! - what is read back: [`check_input`] and [`check_result`], which hold
-//!   an identity to all or nothing.
+//!   an identity to all or nothing and a shown result to its digest and
+//!   the served versions, and [`check_source_view`], which holds the
+//!   source view's listed digest to the input's.
 //!
 //! The typed projection (`InspectDocumentGraph`, the findings of a
 //! withheld graph, sink items), the search projection
@@ -134,16 +136,69 @@ pub fn check_input(at: &str, input: &InputIdentity, lengths: WithheldLengths) ->
     Ok(withheld)
 }
 
-/// Refuses a result identity that does not go with its input's:
-/// `withheld` is what [`check_input`] returned. A result with no digest
-/// names no graph by id or length either, and the result's digest is
-/// there exactly when the input's are.
+/// Refuses a result identity that does not go with its input's, or is
+/// not one the server makes: `withheld` is what [`check_input`]
+/// returned. A result with no digest names no graph by id or length
+/// either, and the result's digest is there exactly when the input's
+/// are. A shown result's digest is 32 bytes and its id is that digest's
+/// lowercase hexadecimal. Either way it carries the served graph format
+/// and envelope schema versions. That the digest is the one of a
+/// particular graph is [`crate::results::typed::identity::verify_result`]'s.
 pub fn check_result(at: &str, result: &ResultIdentity, withheld: bool) -> Result<(), Failure> {
     if result.content_digest.is_empty() && (!result.result_id.is_empty() || result.graph_bytes_len != 0) {
         return Err(bad(format!("{at}result names a graph by id or length and carries no content_digest")));
     }
     if result.content_digest.is_empty() != withheld {
         return Err(bad(format!("{at}input and result digests are given one without the other")));
+    }
+    if !withheld {
+        let digest = &result.content_digest;
+        if digest.len() != 32 {
+            return Err(bad(format!("{at}result.content_digest is {} bytes, not the 32 of a SHA-256", digest.len())));
+        }
+        if !is_hex_of(&result.result_id, digest) {
+            return Err(bad(format!("{at}result.result_id is not the hexadecimal of {at}result.content_digest")));
+        }
+    }
+    if result.envelope_schema_version != ENVELOPE_SCHEMA_VERSION {
+        return Err(bad(format!(
+            "{at}result envelope schema version {} is not the served {ENVELOPE_SCHEMA_VERSION}",
+            result.envelope_schema_version
+        )));
+    }
+    if result.graph_format_version != u32::from(FORMAT_VERSION) {
+        return Err(bad(format!(
+            "{at}result graph format version {} is not the served {FORMAT_VERSION}",
+            result.graph_format_version
+        )));
+    }
+    Ok(())
+}
+
+/// Whether `id` is the lowercase hexadecimal of `digest`, two digits a
+/// byte.
+fn is_hex_of(id: &str, digest: &[u8]) -> bool {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    id.len() == 2 * digest.len()
+        && id
+            .as_bytes()
+            .chunks_exact(2)
+            .zip(digest)
+            .all(|(pair, &b)| pair[0] == DIGITS[usize::from(b >> 4)] && pair[1] == DIGITS[usize::from(b & 15)])
+}
+
+/// Refuses a source view digest that does not go with `input`:
+/// `digest` is the text digest the answer lists for its source view
+/// (empty when it lists none) and `withheld` is what [`check_input`]
+/// returned. A withheld source is listed with no digest; a shown one
+/// with the input's own `source_text_digest`. `what` names the field
+/// for the refusal.
+pub fn check_source_view(what: &str, digest: &[u8], input: &InputIdentity, withheld: bool) -> Result<(), Failure> {
+    if withheld && !digest.is_empty() {
+        return Err(bad(format!("{what} is listed and the input digests are withheld")));
+    }
+    if !withheld && digest != input.source_text_digest.as_slice() {
+        return Err(bad(format!("{what} is not the input's source_text_digest")));
     }
     Ok(())
 }

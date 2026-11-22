@@ -90,7 +90,8 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
     // carries no span of the source (`WithheldLengths::Zeroed`).
     let withheld = withheld_identity::check_input("provenance.", input, WithheldLengths::Zeroed)?;
     let res = prov.result.as_ref().ok_or_else(|| bad("provenance.result is required"))?;
-    check_sha256_len("provenance.result.content_digest", &res.content_digest, true)?;
+    // A shown result is a 32 byte digest, the id that is its hexadecimal
+    // and the served versions, as on every other reader (#2494).
     withheld_identity::check_result("provenance.", res, withheld)?;
     check_sha256_len("provenance.analyzer_config_digest", &prov.analyzer_config_digest, true)?;
     for (i, v) in prov.views.iter().enumerate() {
@@ -99,7 +100,25 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
         if v.text_sha256.is_empty() && v.utf8_bytes != 0 {
             return Err(bad(format!("provenance.views[{i}] gives utf8_bytes and carries no text_sha256")));
         }
+        // A shown source shows every view's text, so each is listed with
+        // its digest. A withheld one may still list a rewrite view's;
+        // which view is a rewrite is the typed envelope's to say.
+        if !withheld && v.text_sha256.is_empty() {
+            return Err(bad(format!("provenance.views[{i}] carries no text_sha256 and the source is shown")));
+        }
     }
+    // The views are held to the input identity: the source view is listed,
+    // with the input's own digest when the source is shown and none when
+    // it is withheld.
+    let Some(source) = prov.views.iter().find(|v| v.view_id == 0) else {
+        return Err(bad("provenance.views lists no source view (view_id 0)"));
+    };
+    withheld_identity::check_source_view(
+        "provenance.views source view text_sha256",
+        &source.text_sha256,
+        input,
+        withheld,
+    )?;
 
     // Sentences invariant (`sentences:body`): sorted, non-overlapping, in bounds.
     let mut prev_sent_end = 0u32;
