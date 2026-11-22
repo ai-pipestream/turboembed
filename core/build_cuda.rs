@@ -109,6 +109,11 @@ pub(crate) fn cuda() {
         if cublas {
             cmd.arg("-DTURBO_CUDA_CUBLAS=1");
         }
+        if msvc() {
+            // MSVC deprecates the standard fopen and getenv (C4996) in
+            // favour of its own _s functions; the standard ones stay.
+            cmd.arg("-D_CRT_SECURE_NO_WARNINGS");
+        }
         cmd.arg("-I")
             .arg(&include)
             .arg("-isystem")
