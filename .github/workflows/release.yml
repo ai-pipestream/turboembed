@@ -26,6 +26,7 @@ on:
       - "clients/**"
       - "examples/docling/**"
       - "scripts/package-proto-stubs.sh"
+      - "scripts/maven-ci.sh"
 
 permissions:
   contents: write
@@ -536,6 +537,10 @@ jobs:
           name: proto-and-stubs
           path: proto-stubs-dist/*
           if-no-files-found: error
+      # setup-java saves its Maven cache after the job's ordinary steps.
+      - name: keep transient Maven misses out of the saved cache
+        if: always()
+        run: scripts/maven-ci.sh clean-cache
 
   publish:
     if: github.event_name == 'push'
