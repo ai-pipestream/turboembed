@@ -13,6 +13,7 @@ use super::bad;
 use crate::api::Failure;
 use crate::proto::result::{EditRun, InlineMapping, MappingPayload, ViewChain, mapping_payload};
 use crate::results::disclosure::Disclosure;
+use crate::results::withheld_identity::{self, WithheldLengths};
 use crate::results::{MAX_MAPPING_EDITS, over};
 
 /// The version of the chain encoding and mapping rules `InlineMapping`
@@ -96,16 +97,14 @@ pub fn inline_mapping(doc: &Document, disclosure: &Disclosure) -> Result<InlineM
         if total > MAX_MAPPING_EDITS {
             return Err(over("max_mapping_edits", "typed document mapping edits", total));
         }
+        let shown = disclosure.view_text(doc, view.id());
+        let (text_len, text_digest) = withheld_identity::view(view, shown, WithheldLengths::Kept);
         views.push(ViewChain {
             view: u32::from(view.id().0),
             instance: key.name.to_owned(),
             parent: view.parent().map(|p| u32::from(p.0)),
-            text_digest: if disclosure.view_text(doc, view.id()) {
-                view.text_digest().as_bytes().to_vec()
-            } else {
-                Vec::new()
-            },
-            text_len: view.text().len() as u32,
+            text_digest,
+            text_len,
             edit_count: edits.len() as u32,
             edits: encode_runs(edits),
         });

@@ -26,6 +26,7 @@ use crate::proto::result::{
     ByteRange, DetectorRef, InputIdentity, LayerReceipt, LayerWireStatus, ProcessingReceipt, ProcessingStatus,
     ResultIdentity, TruncationReason,
 };
+use crate::results::withheld_identity;
 
 /// The version of the receipt's messages and rules.
 pub const RECEIPT_SCHEMA_VERSION: u32 = 1;
@@ -200,7 +201,7 @@ pub fn build(
     coverage: &[Coverage],
 ) -> ProcessingReceipt {
     let source_len = input.source_text_len;
-    let digests = !input.source_text_digest.is_empty();
+    let digests = !withheld_identity::is_withheld(&input);
     let layers: Vec<LayerReceipt> =
         doc.layers().map(|k| layer_receipt(doc, k, source_len, coverage, digests)).collect();
     let status = document_status(op, &layers);

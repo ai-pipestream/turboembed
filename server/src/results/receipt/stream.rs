@@ -14,6 +14,7 @@ use super::check::check_receipt_shape;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{AnalyzeProgressiveEvent, ProcessingReceipt, ProcessingStatus};
 use crate::results::typed::identity::verify_result;
+use crate::results::withheld_identity;
 
 /// Why a stream is not complete.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,7 +57,7 @@ pub fn terminal_receipt<'a>(
     let input = receipt.input.as_ref().ok_or(Incomplete::Malformed)?;
     // A stream that withheld its graph for PII names the input by length
     // alone (#2403); the shape check holds the two digests together.
-    let withheld = input.source_text_digest.is_empty();
+    let withheld = withheld_identity::is_withheld(input);
     if input.source_text_len as usize != source_text.len()
         || (!withheld && input.source_text_digest != ViewTextDigest::of_text(source_text).as_bytes())
     {

@@ -24,6 +24,7 @@ use crate::proto::result::{
     InputIdentity, LayerProvenance, LayerWireStatus, OffsetMode, ResultIdentity, TypedDocumentResult,
 };
 use crate::results::disclosure::REWRITE_ANNOTATOR_PREFIX;
+use crate::results::withheld_identity::{self, WithheldLengths};
 
 fn check_digest(what: &str, digest: &[u8]) -> Result<(), Failure> {
     if digest.len() != 32 {
@@ -39,10 +40,9 @@ fn check_input(input: Option<&InputIdentity>) -> Result<bool, Failure> {
         return Err(bad("the typed document carries no input identity"));
     };
     check_binding(input.binding.as_ref(), "input.binding")?;
-    if input.raw_bytes_digest.is_empty() != input.source_text_digest.is_empty() {
-        return Err(bad("input carries one of raw_bytes_digest and source_text_digest without the other"));
-    }
-    if input.source_text_digest.is_empty() {
+    // The source lengths stay on a withheld identity: the findings'
+    // spans are counted in that text (`WithheldLengths::Kept`).
+    if withheld_identity::check_input("", input, WithheldLengths::Kept)? {
         return Ok(true);
     }
     check_digest("input.raw_bytes_digest", &input.raw_bytes_digest)?;
@@ -54,11 +54,8 @@ fn check_result(result: Option<&ResultIdentity>, withheld: bool) -> Result<(), F
     let Some(result) = result else {
         return Err(bad("the typed document carries no result identity"));
     };
-    if withheld {
-        if !result.content_digest.is_empty() || !result.result_id.is_empty() || result.graph_bytes_len != 0 {
-            return Err(bad("result names a graph by id, digest or length and the input digests are withheld"));
-        }
-    } else {
+    withheld_identity::check_result("", result, withheld)?;
+    if !withheld {
         check_digest("result.content_digest", &result.content_digest)?;
         let hex: String = result.content_digest.iter().map(|b| format!("{b:02x}")).collect();
         if result.result_id != hex {
