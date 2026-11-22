@@ -7,7 +7,7 @@ use turbo_unicode::java::{is_digit, is_letter, lowercase_code_points, to_upper_c
 
 use super::contraction::contract;
 use super::metadata;
-use super::sentence::{AdSentence, SentenceRead, SentenceStream};
+use super::sentence::{AdSentence, SentenceStream};
 use super::tree::{Leaf, is_ws};
 use super::{AdError, NullAt};
 use crate::error::FormatError;
@@ -152,7 +152,6 @@ pub struct AdNameReader<'a> {
     /// the last.
     literary_id: i32,
     literary_name: Rc<str>,
-    done: bool,
 }
 
 impl<'a> AdNameReader<'a> {
@@ -165,7 +164,6 @@ impl<'a> AdNameReader<'a> {
             text_id: -1,
             literary_id: -1,
             literary_name: "".into(),
-            done: false,
         })
     }
 
@@ -390,16 +388,8 @@ impl<'a> Iterator for AdNameReader<'a> {
     type Item = Result<NameSample<'a>, FormatError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        match self.sentences.read() {
-            Some(SentenceRead::Sentence(s)) => Some(self.sample(s)),
-            Some(SentenceRead::Failed) | None => {
-                self.done = true;
-                None
-            }
-        }
+        let s = self.sentences.sentence()?;
+        Some(self.sample(s))
     }
 }
 

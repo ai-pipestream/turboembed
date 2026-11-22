@@ -198,27 +198,13 @@ impl<'a> ConlluReader<'a> {
     pub fn new(source: &'a str) -> Result<ConlluReader<'a>, FormatError> {
         Ok(ConlluReader { lines: Lines::new(source)? })
     }
-
-    /// `ParagraphStream.read`: the next run of lines that are not of
-    /// length zero.
-    fn block(&mut self) -> Vec<Line<'a>> {
-        let mut block = Vec::new();
-        for line in self.lines.by_ref() {
-            if !line.text().is_empty() {
-                block.push(line);
-            } else if !block.is_empty() {
-                break;
-            }
-        }
-        block
-    }
 }
 
 impl<'a> Iterator for ConlluReader<'a> {
     type Item = Result<Sentence<'a>, FormatError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let block = self.block();
+        let block = self.lines.paragraph();
         let (first, last) = (block.first()?, block.last()?);
         let source = Span::new(first.span().start, last.span().end);
         Some(read_sentence(&block, first.number, source))

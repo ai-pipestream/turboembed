@@ -1,51 +1,11 @@
 //! The CoNLL-2002 and CoNLL-2003 name readers.
 
-use turbo_analysis::Span;
-
 use super::{Conll02Language, Conll03Language, DOCSTART, EntityTypes, name_type};
 use crate::error::FormatError;
+use crate::ner::{Sentence, Tag};
 use crate::sample::{Name, NameSample};
-use crate::source::{Field, Line, Lines, split_fields};
+use crate::source::{Lines, split_fields};
 
-/// A name tag and the line it is on.
-#[derive(Copy, Clone, Debug)]
-struct Tag<'a> {
-    text: &'a str,
-    line: u32,
-}
-
-/// The lines of a sentence read so far.
-#[derive(Default)]
-struct Sentence<'a> {
-    tokens: Vec<Field<'a>>,
-    tags: Vec<Tag<'a>>,
-    clear_adaptive_data: bool,
-    /// From the start of the first line read to the end of the last.
-    source: Option<Span>,
-    first_line: u32,
-}
-
-impl<'a> Sentence<'a> {
-    fn cover(&mut self, line: &Line<'a>) {
-        let span = line.span();
-        match self.source {
-            None => {
-                self.source = Some(span);
-                self.first_line = line.number;
-            }
-            Some(s) => self.source = Some(Span::new(s.start, span.end)),
-        }
-    }
-
-    fn sample(self, names: Result<Vec<Name<'static>>, FormatError>) -> Result<NameSample<'a>, FormatError> {
-        let source = self.source.expect("a sentence with tokens has lines");
-        NameSample::new(self.tokens, names?, self.clear_adaptive_data, source, self.first_line)
-    }
-}
-
-/// The name of tokens `begin..end` whose first tag is `tag`
-/// (`Conll02NameSampleStream.extract`): the type is the tag after its
-/// two-character prefix.
 fn extract(begin: usize, end: i64, tag: Tag<'_>) -> Result<Name<'static>, FormatError> {
     let kind = &tag.text[2..];
     let kind = name_type(kind).ok_or_else(|| FormatError::UnknownNameType { line: tag.line, kind: kind.to_owned() })?;
@@ -194,7 +154,7 @@ impl<'a> Iterator for Conll02Reader<'a> {
             }
             if !s.tokens.is_empty() {
                 let names = conll02_names(&s.tags, self.types);
-                return Some(s.sample(names));
+                return s.sample(names);
             }
             if at_end {
                 return None;
@@ -269,7 +229,7 @@ impl<'a> Iterator for Conll03Reader<'a> {
             }
             if !s.tokens.is_empty() {
                 let names = conll03_names(&s.tags, self.types);
-                return Some(s.sample(names));
+                return s.sample(names);
             }
             if at_end {
                 return None;

@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 use turbo_analysis::Span;
 
-use super::sentence::{AdSentence, SentenceRead, SentenceStream};
+use super::sentence::{AdSentence, SentenceStream};
 use super::tree::{Leaf, is_ws};
 use crate::error::FormatError;
 use crate::sample::PosSample;
@@ -27,18 +27,12 @@ pub struct AdPosReader<'a> {
     sentences: SentenceStream<'a>,
     expand_me: bool,
     include_features: bool,
-    done: bool,
 }
 
 impl<'a> AdPosReader<'a> {
     /// A reader of `source`, which must fit `u32` offsets.
     pub fn new(source: &'a str, expand_me: bool, include_features: bool) -> Result<AdPosReader<'a>, FormatError> {
-        Ok(AdPosReader {
-            sentences: SentenceStream::new(Lines::new(source)?),
-            expand_me,
-            include_features,
-            done: false,
-        })
+        Ok(AdPosReader { sentences: SentenceStream::new(Lines::new(source)?), expand_me, include_features })
     }
 
     fn sample(&self, sentence: AdSentence<'a>) -> Result<PosSample<'a>, FormatError> {
@@ -120,16 +114,8 @@ impl<'a> Iterator for AdPosReader<'a> {
     type Item = Result<PosSample<'a>, FormatError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        match self.sentences.read() {
-            Some(SentenceRead::Sentence(s)) => Some(self.sample(s)),
-            Some(SentenceRead::Failed) | None => {
-                self.done = true;
-                None
-            }
-        }
+        let s = self.sentences.sentence()?;
+        Some(self.sample(s))
     }
 }
 
