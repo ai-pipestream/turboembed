@@ -77,7 +77,13 @@ type Change = (&'static str, fn(&mut ResultIdentity));
 
 /// What each reader refuses on a shown result. Only the id, or only a
 /// version, is changed: the digest and length still name the graph.
-const SHOWN: [Change; 7] = [
+const SHOWN: [Change; 8] = [
+    // A digest one byte short, named consistently by its own id: only
+    // the digest's length can refuse it.
+    ("a 31 byte digest with its own id", |r| {
+        r.content_digest.pop();
+        r.result_id = r.content_digest.iter().map(|b| format!("{b:02x}")).collect();
+    }),
     ("another id", |r| r.result_id = "0".repeat(64)),
     ("an id one digit short", |r| {
         r.result_id.pop();
