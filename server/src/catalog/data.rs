@@ -12,7 +12,9 @@
 //!   its licence check.
 //! - `private/acceptances/<key>.json`: one acceptance per file, named by
 //!   the SHA-256 of its user and terms, so servers that record at once
-//!   never rewrite each other's file.
+//!   never rewrite each other's file. On Windows a revoke renames the file
+//!   to `<key>.json.revoked.<pid>.<n>` before deleting it (#2450); the
+//!   listing passes such a name over and removes one that was left behind.
 //!
 //! Every file is written whole under a temporary name and renamed into
 //! place, so a reader never sees part of one and two servers writing the
@@ -113,10 +115,14 @@ impl DataDir {
             let e = e.map_err(|e| ZooError::Io { path: dir.clone(), message: e.to_string() })?;
             let Some(name) = e.file_name().to_str().map(str::to_owned) else { continue };
             // A record still being written ends in its temporary suffix.
-            if name.ends_with(".json")
-                && let Some(a) = record(&e.path(), &name)?
-            {
-                found.push((a.accepted_at, name, a));
+            if name.ends_with(".json") {
+                if let Some(a) = record(&e.path(), &name)? {
+                    found.push((a.accepted_at, name, a));
+                }
+            } else if self.writable && is_revoked_name(&name) {
+                // Left by a revoke that could not delete it, or that stopped
+                // before it did. One still held stays for a later listing.
+                let _ = fs::remove_file(e.path());
             }
         }
         found.sort_by(|x, y| (x.0, &x.1).cmp(&(y.0, &y.1)));
@@ -175,6 +181,8 @@ fn is_gone(e: &std::io::Error) -> bool {
 
 /// Windows answers ERROR_ACCESS_DENIED (5) or ERROR_DELETE_PENDING (303) to an
 /// open of a file being deleted (#2407): a revoke in flight, not a denial.
+/// ERROR_SHARING_VIOLATION (32) is left out on purpose: it is another
+/// process holding the file without sharing, and it surfaces at once.
 #[cfg(windows)]
 fn is_delete_pending(e: &std::io::Error) -> bool {
     matches!(e.raw_os_error(), Some(5 | 303))
@@ -185,17 +193,19 @@ fn is_delete_pending(_: &std::io::Error) -> bool {
     false
 }
 
+/// How often an operation refused as a pending delete refuses is tried.
+const PENDING_TRIES: u32 = 20;
+
 /// `open`, retried while it fails as `pending` says; a lasting failure is
 /// returned as it is, so a real access problem still surfaces.
 fn open_past_pending_delete<T>(
     mut open: impl FnMut() -> std::io::Result<T>,
     pending: impl Fn(&std::io::Error) -> bool,
 ) -> std::io::Result<T> {
-    const TRIES: u32 = 20;
     let mut tries = 1;
     loop {
         match open() {
-            Err(e) if pending(&e) && tries < TRIES => {
+            Err(e) if pending(&e) && tries < PENDING_TRIES => {
                 tries += 1;
                 std::thread::sleep(std::time::Duration::from_millis(1));
             }
@@ -206,6 +216,43 @@ fn open_past_pending_delete<T>(
 
 static REVOKES: AtomicU64 = AtomicU64::new(0);
 
+/// Whether `name` is a record a revoke renamed away, or the name reserved
+/// for one: `<key>.json.revoked.<pid>.<n>`.
+fn is_revoked_name(name: &str) -> bool {
+    name.contains(".json.revoked.")
+}
+
+fn create_new(p: &Path) -> std::io::Result<()> {
+    fs::OpenOptions::new().write(true).create_new(true).open(p).map(drop)
+}
+
+/// Reserves, with `create`, a name beside the record `path` that the
+/// listing passes over; none when the directory is gone. A file left under
+/// a pid that came round again is passed over, never overwritten. On
+/// Windows one still held open and pending its delete refuses the create
+/// as `pending` says, not as a name that exists, so it is passed over too,
+/// a bounded number of times: a lasting denial still surfaces.
+fn reserve(
+    path: &Path,
+    mut create: impl FnMut(&Path) -> std::io::Result<()>,
+    pending: impl Fn(&std::io::Error) -> bool,
+) -> Result<Option<PathBuf>, ZooError> {
+    let base = path.file_name().unwrap_or_default().to_owned();
+    let mut refused = 1;
+    loop {
+        let mut name = base.clone();
+        name.push(format!(".revoked.{}.{}", std::process::id(), REVOKES.fetch_add(1, Ordering::Relaxed)));
+        let gone = path.with_file_name(name);
+        match create(&gone) {
+            Ok(()) => return Ok(Some(gone)),
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => {}
+            Err(e) if pending(&e) && refused < PENDING_TRIES => refused += 1,
+            Err(e) if is_gone(&e) => return Ok(None),
+            Err(e) => return Err(ZooError::Io { path: gone, message: e.to_string() }),
+        }
+    }
+}
+
 /// Removes the record `path` by renaming it to a name the listing passes
 /// over and then removing that name with `remove`; whether there was one.
 /// A Windows delete without POSIX semantics leaves the name in place until
@@ -214,39 +261,26 @@ static REVOKES: AtomicU64 = AtomicU64::new(0);
 /// name at once, also while a reader has the file open, so only the renamed
 /// file can be left pending its delete.
 fn remove_by_rename(path: &Path, remove: impl FnOnce(&Path) -> std::io::Result<()>) -> Result<bool, ZooError> {
-    let io = |p: &Path, e: std::io::Error| ZooError::Io { path: p.to_path_buf(), message: e.to_string() };
-    let base = path.file_name().unwrap_or_default().to_owned();
-    let gone = loop {
-        let mut name = base.clone();
-        name.push(format!(".revoked.{}.{}", std::process::id(), REVOKES.fetch_add(1, Ordering::Relaxed)));
-        let gone = path.with_file_name(name);
-        // Reserve the name: a stale file from a reused pid is passed over,
-        // never overwritten. The rename replaces only our empty reservation.
-        match fs::OpenOptions::new().write(true).create_new(true).open(&gone) {
-            Ok(f) => {
-                drop(f);
-                break gone;
-            }
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
-            Err(e) if is_gone(&e) => return Ok(false),
-            Err(e) => return Err(io(&gone, e)),
-        }
-    };
+    // The rename replaces only our empty reservation.
+    let Some(gone) = reserve(path, create_new, is_delete_pending)? else { return Ok(false) };
     // The record pending another server's delete is waited out as a read does.
-    match open_past_pending_delete(|| fs::rename(path, &gone), is_delete_pending) {
-        Ok(()) => {}
-        Err(e) => {
-            let _ = fs::remove_file(&gone); // Our empty reservation, not a record.
-            return if is_gone(&e) { Ok(false) } else { Err(io(path, e)) };
-        }
+    if let Err(e) = open_past_pending_delete(|| fs::rename(path, &gone), is_delete_pending) {
+        let _ = fs::remove_file(&gone); // Our empty reservation, not a record.
+        return if is_gone(&e) {
+            Ok(false)
+        } else {
+            Err(ZooError::Io { path: path.to_path_buf(), message: e.to_string() })
+        };
     }
-    // The delete is not retried: only the renamed file can be left
-    // pending, and the record name is already free.
-    match remove(&gone) {
-        Ok(()) => Ok(true),
-        Err(e) if is_gone(&e) => Ok(true),
-        Err(e) => Err(io(&gone, e)),
+    // The rename revoked the acceptance for every reader, so a delete that
+    // fails does not fail the revoke, and it is not retried: the record
+    // name is free, and the next listing removes what is left here.
+    if let Err(e) = remove(&gone)
+        && !is_gone(&e)
+    {
+        eprintln!("turbo-kserve: revoke: {}: {e}; left for a later listing to remove", gone.display());
     }
+    Ok(true)
 }
 
 fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {

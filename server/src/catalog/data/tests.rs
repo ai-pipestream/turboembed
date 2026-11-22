@@ -176,6 +176,10 @@ fn a_record_deleted_while_held_on_windows_leaves_its_name_free() {
         let a = data.acceptances().unwrap();
         assert!(a.has(&bob, &r) && !a.has(&alice, &r));
         data.record(&alice, &r, &Shown::default()).unwrap();
+        // The next reservation asks for the pending name itself, as under a
+        // pid that came round again: refused, not AlreadyExists, and passed over.
+        let n: u64 = tombstone.extension().unwrap().to_str().unwrap().parse().unwrap();
+        REVOKES.store(n, Ordering::Relaxed);
         assert!(data.revoke(&alice, &r).unwrap());
         drop(held);
         assert_eq!(fs::File::open(&tombstone).unwrap_err().kind(), ErrorKind::NotFound);
@@ -217,4 +221,94 @@ fn only_windows_reads_access_denied_and_delete_pending_as_a_revoke_in_flight() {
     assert_eq!(opens(&[303]), (Some(303), retries));
     assert_eq!(opens(&[32]), (Some(32), 1), "a sharing violation is not a revoke");
     assert_eq!(opens(&[5, 303, 2]), gone, "the delete lands and the record is gone");
+}
+
+fn names(data: &DataDir) -> Vec<String> {
+    let mut v: Vec<String> =
+        fs::read_dir(data.records()).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+    v.sort();
+    v
+}
+
+/// Once the rename is done the acceptance is revoked for every reader, so
+/// a failed delete of the renamed file is not a failed revoke; the next
+/// listing by a server that can write removes what was left.
+#[test]
+fn a_revoke_whose_renamed_file_cannot_be_deleted_is_done_and_the_listing_sweeps_it() {
+    let dir = scratch("revoke-left");
+    let data = DataDir::open(&*dir).unwrap();
+    let r = Requirement::of(Licence::CcBySa40).unwrap();
+    let (alice, bob): (UserId, UserId) = ("alice".parse().unwrap(), "bob".parse().unwrap());
+    data.record(&alice, &r, &Shown::default()).unwrap();
+    data.record(&bob, &r, &Shown::default()).unwrap();
+    let (key, path) = data.key(&alice, &r);
+    let (bob_key, _) = data.key(&bob, &r);
+
+    // The delete is refused, as by a scanner that opened the renamed file.
+    let refused = |_: &Path| Err(std::io::Error::from_raw_os_error(32));
+    assert!(remove_by_rename(&path, refused).unwrap(), "the revoke took effect at the rename");
+    assert!(record(&path, &key).unwrap().is_none());
+    let left = names(&data);
+    assert_eq!(left.len(), 2, "{left:?}");
+    assert!(left.iter().any(|n| is_revoked_name(n) && n.starts_with(&key)), "{left:?}");
+    assert!(!remove_by_rename(&path, refused).unwrap(), "a retry answers that nothing was accepted");
+    assert_eq!(names(&data), left, "a revoke of nothing leaves no reservation");
+
+    // A server that cannot write the directory lists it and removes nothing.
+    let reader = DataDir { root: data.root.clone(), writable: false };
+    assert!(reader.acceptances().unwrap().has(&bob, &r));
+    assert_eq!(names(&data), left);
+
+    let a = data.acceptances().unwrap();
+    assert!(a.has(&bob, &r) && !a.has(&alice, &r));
+    assert_eq!(names(&data), [bob_key], "the listing swept the renamed file and nothing else");
+}
+
+/// A reserved name still pending its delete (a reader holds a renamed file
+/// left under a pid that came round again) is refused as Windows refuses
+/// it, not as a name that exists; the reservation moves on to the next.
+#[test]
+fn a_reservation_passes_over_a_name_pending_its_delete_but_not_a_lasting_denial() {
+    let dir = scratch("reserve");
+    let path = dir.join("k.json");
+    let pending = |e: &std::io::Error| e.raw_os_error() == Some(5);
+    let mut asked = Vec::new();
+    let got = reserve(
+        &path,
+        |p| {
+            asked.push(p.to_path_buf());
+            match asked.len() {
+                1 | 2 => Err(std::io::Error::from_raw_os_error(5)),
+                3 => Err(std::io::Error::from(ErrorKind::AlreadyExists)),
+                _ => Ok(()),
+            }
+        },
+        pending,
+    )
+    .unwrap();
+    assert_eq!(asked.len(), 4);
+    assert_eq!(got.as_ref(), asked.last());
+    asked.dedup();
+    assert_eq!(asked.len(), 4, "each try is a new name");
+    assert!(asked.iter().all(|p| is_revoked_name(p.file_name().unwrap().to_str().unwrap())));
+
+    // A directory that refuses every create is an error, not an endless loop.
+    let mut tries = 0;
+    let e = reserve(
+        &path,
+        |_| {
+            tries += 1;
+            Err(std::io::Error::from_raw_os_error(5))
+        },
+        pending,
+    )
+    .unwrap_err();
+    assert!(matches!(e, ZooError::Io { .. }), "{e}");
+    assert_eq!(tries, 20);
+
+    // The directory gone means there is no record to revoke.
+    assert!(reserve(&path, |_| Err(std::io::Error::from(ErrorKind::NotFound)), pending).unwrap().is_none());
+    // The real create reserves an empty file beside the record.
+    let real = reserve(&path, create_new, is_delete_pending).unwrap().unwrap();
+    assert_eq!(fs::read(&real).unwrap(), b"");
 }
