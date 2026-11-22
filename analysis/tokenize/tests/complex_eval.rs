@@ -280,9 +280,9 @@ fn dictionary_and_lstm_against_gold() {
     // myPOS commit f1a620ba271cae3d8658441eb626450fca09cdfa: the numbers in
     // docs/segmentation.md.
     assert_eq!(thai_dict, Score { sentences: 1000, gold: 21640, returned: 24761, correct: 17095 });
-    assert_eq!(thai_lstm, Score { sentences: 1000, gold: 21640, returned: 23372, correct: 17847 });
+    assert_eq!(thai_lstm, Score { sentences: 1000, gold: 21640, returned: 23375, correct: 17853 });
     assert_eq!(burmese_dict, Score { sentences: 43196, gold: 468105, returned: 558677, correct: 358106 });
-    assert_eq!(burmese_lstm, Score { sentences: 43196, gold: 468105, returned: 558493, correct: 297365 });
+    assert_eq!(burmese_lstm, Score { sentences: 43196, gold: 468105, returned: 597900, correct: 326584 });
 
     if let Ok(kh_path) = std::env::var("TURBO_KHPOS") {
         let khmer = std::fs::read_to_string(kh_path).unwrap();
@@ -294,7 +294,7 @@ fn dictionary_and_lstm_against_gold() {
         assert_eq!(kh_def, kh_dict);
         // ye-kyaw-thu/khPOS commit 0211405c145b0a340ad558569bd06c946b2296b4
         assert_eq!(kh_dict, Score { sentences: 12000, gold: 121294, returned: 125258, correct: 92253 });
-        assert_eq!(kh_lstm, Score { sentences: 12000, gold: 121294, returned: 122853, correct: 85097 });
+        assert_eq!(kh_lstm, Score { sentences: 12000, gold: 121294, returned: 123475, correct: 86101 });
     }
 
     if let Ok(lao_path) = std::env::var("TURBO_LAO_POS") {
@@ -309,6 +309,6 @@ fn dictionary_and_lstm_against_gold() {
         assert_eq!(lao_def, lao_dict_lo);
         // ye-kyaw-thu/SeqLabeling commit 8025a122e95422901e0907f0fc8ca4b5c1c34235
         assert_eq!(lao_dict, Score { sentences: 4613, gold: 64882, returned: 73125, correct: 45471 });
-        assert_eq!(lao_lstm, Score { sentences: 4613, gold: 64882, returned: 74433, correct: 44019 });
+        assert_eq!(lao_lstm, Score { sentences: 4613, gold: 64882, returned: 75937, correct: 44597 });
     }
 }
