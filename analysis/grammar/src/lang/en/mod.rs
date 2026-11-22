@@ -51,6 +51,17 @@ pub(crate) const REL: Dim = Dim(23);
 pub(crate) const PCT: Dim = Dim(24);
 pub(crate) const DIMS: u16 = 25;
 
+/// What the number dims stand for, in English and in each language whose
+/// number grammar uses the same dims.
+pub(crate) fn number_output(dim: Dim) -> Option<Output> {
+    match dim {
+        NUM => Some(Output::Number),
+        ORD | REL => Some(Output::Ordinal),
+        PCT => Some(Output::Percent),
+        _ => None,
+    }
+}
+
 /// An ordinal word that is only `first` or `second`, which never names a
 /// denominator (`a second` is no half).
 pub(crate) const SIMPLE: u8 = flag::GRAMMAR;
@@ -112,12 +123,7 @@ impl Grammar for English {
     }
 
     fn output(&self, dim: Dim) -> Option<Output> {
-        match dim {
-            NUM => Some(Output::Number),
-            ORD | REL => Some(Output::Ordinal),
-            PCT => Some(Output::Percent),
-            _ => None,
-        }
+        number_output(dim)
     }
 
     fn keep(&self, output: Output, node: &Node, ctx: &Ctx<'_>) -> bool {

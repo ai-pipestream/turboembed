@@ -1,35 +1,11 @@
 use super::*;
-use crate::engine::Entry;
-use crate::unit::{
-    Age, Area, Information, Length, Minor, Per, Volume,
-    currency::{CODES, code},
-};
+use crate::unit::{Age, Area, Information, Length, Minor, Per, Volume};
 
-pub(super) struct Word {
-    pub word: &'static str,
-    pub unit: Unit,
-    pub flags: u8,
-}
-const fn w(word: &'static str, unit: Unit, flags: u8) -> Word {
-    Word { word, unit, flags }
-}
-const fn l(word: &'static str, unit: Length) -> Word {
-    w(word, Unit::Length(unit), 0)
-}
-const fn v(word: &'static str, unit: Volume) -> Word {
-    w(word, Unit::Volume(unit), 0)
-}
-const fn g(word: &'static str, unit: Weight) -> Word {
-    w(word, Unit::Weight(unit), 0)
-}
 const fn c(word: &'static str, unit: Generic) -> Word {
     w(word, Unit::Currency(CurrencyUnit::Generic(unit)), BARE | PREFIX)
 }
 const fn iso(word: &'static str, code: [u8; 3]) -> Word {
     w(word, Unit::Currency(CurrencyUnit::Code(turbo_analysis_layers::Currency::new(code).unwrap())), BARE | PREFIX)
-}
-const fn t(word: &'static str, unit: Temperature, flags: u8) -> Word {
-    w(word, Unit::Temperature(unit), flags)
 }
 pub(super) const WORDS: &[Word] = &[
     l("km", Length::Kilometer),
@@ -211,15 +187,11 @@ pub(super) const COUNTRIES: &[(&str, Generic, &str)] = &[
     ("messicano", Generic::Peso, "mxn"),
     ("messicani", Generic::Peso, "mxn"),
 ];
-pub(super) fn entries() -> Vec<Entry> {
-    let e = |word, dim, value, flags| Entry { word, dim, value, flags };
-    let mut out: Vec<_> = WORDS.iter().enumerate().map(|(i, w)| e(w.word, RAW, i as i64, w.flags)).collect();
-    out.extend(CODES.iter().enumerate().map(|(i, (c, _))| e(c, CODE, i as i64, PREFIX)));
-    out.extend(TIMES.iter().enumerate().map(|(i, (w, _))| e(w, TIME, i as i64, 0)));
-    out.extend(COUNTRIES.iter().enumerate().map(|(i, (w, _, _))| e(w, COUNTRY, i as i64, 0)));
-    out.extend([("c", 0), ("f", 1)].map(|(w, i)| e(w, SCALE_WORD, i, 0)));
-    out
-}
-pub(super) fn coded(s: &str) -> Option<Unit> {
-    Some(Unit::Currency(CurrencyUnit::Code(code(s)?)))
+
+/// The unit tables of this language.
+pub(super) struct Words;
+impl UnitWords for Words {
+    const WORDS: &'static [Word] = WORDS;
+    const TIMES: &'static [(&'static str, Per)] = TIMES;
+    const COUNTRIES: &'static [(&'static str, Generic, &'static str)] = COUNTRIES;
 }

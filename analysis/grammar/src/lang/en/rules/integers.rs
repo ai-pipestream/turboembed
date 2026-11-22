@@ -80,3 +80,17 @@ pub(in crate::lang) fn b_neg_sign(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let n = num(&v[0]);
     Some(Value::Num(Num { value: n.value.negated(), ..n }))
 }
+
+/// A spelled number times a scale word above its grain: `due milioni`.
+pub(in crate::lang) fn b_word_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let mut n = *v[0].num()?;
+    let exponent = v[1].term()?.0;
+    if n.grain >= exponent as i8 || n.value.is_negative() {
+        return None;
+    }
+    n.value = n.value.shift(exponent as i32)?;
+    n.kind = crate::value::NumKind::of(n.value);
+    n.grain = exponent as i8;
+    n.flags = (n.flags & !crate::value::flag::GRAMMAR) | SPELLED;
+    Some(Value::Num(n))
+}

@@ -37,14 +37,16 @@ pub(in crate::lang) use predicates::{
 
 mod integers;
 use integers::*;
-pub(in crate::lang) use integers::{b_dozen, b_neg_sign, b_neg_word, b_numeral_int, b_numeral_scale, b_same, suffix};
+pub(in crate::lang) use integers::{
+    b_dozen, b_neg_sign, b_neg_word, b_numeral_int, b_numeral_scale, b_same, b_word_scale, suffix,
+};
 
 mod fractions;
 use fractions::*;
 pub(in crate::lang) use fractions::{
-    b_caret, b_digit_fraction, b_digit_word, b_fraction_of_dozen, b_fraction_of_scale, b_minus, b_mixed, b_more_digits,
-    b_over, b_part_of, b_plus, b_point, b_scale_and_fraction, b_scale_plus_fraction, b_sign_minus, b_sign_plus,
-    b_ten_power, b_times_ten_power, b_vulgar,
+    b_and_fraction, b_caret, b_digit_fraction, b_digit_word, b_fraction_of_dozen, b_fraction_of_scale, b_minus,
+    b_mixed, b_more_digits, b_over, b_part_of, b_plus, b_point, b_scale_and_fraction, b_scale_plus_fraction,
+    b_sign_minus, b_sign_plus, b_ten_power, b_times_ten_power, b_vulgar,
 };
 
 mod ordinals;

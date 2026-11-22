@@ -174,7 +174,7 @@ pub(crate) static RULES: &[Rule] = &[
         &[word("la"), word("ultima"), word("semana"), node(DE), node(MONTHD)],
         |v, c| en::b_last_week(&v[1..], c),
     ),
-    rr("period_week_of", PERIOD, &[word("la"), word("semana"), node(DE), node(DATE)], b_week_of),
+    rr("period_week_of", PERIOD, &[word("la"), word("semana"), node(DE), node(DATE)], en::b_week_of),
     rr("period_week_of_dom", PERIOD, &[word("la"), word("semana"), node(DE), node(MDAY)], |v, c| {
         emit_date(c, DateSpec::WeekOf { month: 0, day: u8::try_from(term(v.last()?).0).ok()? })
     }),
@@ -182,25 +182,25 @@ pub(crate) static RULES: &[Rule] = &[
         "period_week_que_inicia",
         PERIOD,
         &[word("la"), word("semana"), word("que"), word("inicia"), word("el"), node(DATE)],
-        b_week_of,
+        en::b_week_of,
     ),
     rr(
         "period_week_que_comienza",
         PERIOD,
         &[word("la"), word("semana"), word("que"), word("comienza"), word("el"), node(DATE)],
-        b_week_of,
+        en::b_week_of,
     ),
     rr(
         "period_week_que_va",
         PERIOD,
         &[word("la"), word("semana"), word("que"), word("va"), node(DE), node(DATE)],
-        b_week_of,
+        en::b_week_of,
     ),
     rr(
         "period_week_a_partir",
         PERIOD,
         &[word("la"), word("semana"), word("a"), word("partir"), node(DE), node(DATE)],
-        b_week_of,
+        en::b_week_of,
     ),
     rr("qtr", QTR, &[word("t"), glued(DIG)], en::b_qtr),
     rr("period_quarter", PERIOD, &[node(QTR)], en::b_quarter),

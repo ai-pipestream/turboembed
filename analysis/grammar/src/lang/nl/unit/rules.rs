@@ -2,14 +2,12 @@ use super::*;
 use crate::dec::Dec;
 use crate::engine::{Build, Item, glued, glued_word, node, node_if, opt_word, word};
 use crate::lang::nl::{NUM, SCALE};
-use crate::unit::{Angle, Area, CurrencyUnit, Generic, Information, Per, Rate, Speed, Volume, currency::CODES};
+use crate::unit::{Angle, Area, CurrencyUnit, Generic, Information, Rate, Volume};
 use crate::value::Quantity;
+use lexicon::Words;
 
 const fn r(name: &'static str, dim: Dim, items: &'static [Item], build: Build) -> Rule {
     Rule { name, dim, items, weight: 0, build }
-}
-fn quantity(value: Dec, unit: Unit) -> Option<Value> {
-    Some(Value::Quantity(Quantity::new(value, unit)))
 }
 fn currency(v: &Value) -> bool {
     matches!(v.unit(), Some(Unit::Currency(_)))
@@ -78,16 +76,6 @@ fn raw(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     }
     Some(Value::Unit(unit))
 }
-fn coded(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
-    let code = CODES.get(v[0].term()?.0 as usize)?.0;
-    // Ambiguous short currency codes require capitals.
-    if matches!(code, "all" | "cop" | "dem" | "esp" | "las" | "mad" | "pen" | "son" | "try")
-        && ctx.raw(ctx.start).chars().any(turbo_unicode::props::lowercase)
-    {
-        return None;
-    }
-    Some(Value::Unit(lexicon::coded(code)?))
-}
 fn square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Unit::Length(l) = v[0].unit()? else { return None };
     Some(Value::Unit(Unit::Area(Area::Square(l))))
@@ -108,22 +96,13 @@ fn letter_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
         Temperature::Fahrenheit
     })))
 }
-fn speed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let per = lexicon::TIMES.get(v[1].term()?.0 as usize)?.1;
-    let u = match v[0].unit()? {
-        Unit::Length(l) if matches!(per, Per::Second | Per::Minute | Per::Hour) => Unit::Speed(Speed::Per(l, per)),
-        Unit::Information(i) => Unit::Rate(Rate::Information(i, per)),
-        _ => return None,
-    };
-    Some(Value::Unit(u))
-}
 fn money_rate(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Value::Quantity(q) = v[0] else { return None };
     let Unit::Currency(c) = q.unit() else { return None };
     quantity(q.value(), Unit::Rate(Rate::Currency(c, lexicon::TIMES.get(v[1].term()?.0 as usize)?.1)))
 }
 fn cny_tenths(q: Quantity) -> bool {
-    Some(q.unit()) == lexicon::coded("cny") && q.value().shift(1).is_some_and(|n| n.is_integer())
+    Some(q.unit()) == code_unit("cny") && q.value().shift(1).is_some_and(|n| n.is_integer())
 }
 fn hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let Value::Quantity(q) = v[0] else { return None };
@@ -172,8 +151,7 @@ pub(super) const RULES: &[Rule] = &[
     r("nl_unit_code_dollar", UNIT, &[node(CODE), glued_word("$")], coded),
     r("nl_unit_country", UNIT, &[node(COUNTRY), node_if(UNIT, currency)], |v, _| {
         let (_, generic, code) = lexicon::COUNTRIES.get(v[0].term()?.0 as usize)?;
-        (v[1].unit()? == Unit::Currency(CurrencyUnit::Generic(*generic)))
-            .then(|| Value::Unit(lexicon::coded(code).unwrap()))
+        (v[1].unit()? == Unit::Currency(CurrencyUnit::Generic(*generic))).then(|| Value::Unit(code_unit(code).unwrap()))
     }),
     r("nl_unit_square", UNIT, &[word("vierkante"), node_if(UNIT, length)], square),
     r("nl_unit_square_num", UNIT, &[node_if(UNIT, length), crate::engine::glued_if(NUMERAL, two)], square),
@@ -198,8 +176,8 @@ pub(super) const RULES: &[Rule] = &[
     r("nl_unit_age_life", UNIT, &[node(UNIT), word("leeftijd")], |v, _| {
         matches!(v[0].unit()?, Unit::Age(_)).then_some(v[0])
     }),
-    r("nl_unit_rate", UNIT, &[node(UNIT), word("per"), node(TIME)], speed),
-    r("nl_unit_rate_slash", UNIT, &[node(UNIT), word("/"), node(TIME)], speed),
+    r("nl_unit_rate", UNIT, &[node(UNIT), word("per"), node(TIME)], speed::<Words>),
+    r("nl_unit_rate_slash", UNIT, &[node(UNIT), word("/"), node(TIME)], speed::<Words>),
     r("nl_unit_amount", QTY, &[node(NUM), node(UNIT)], amount),
     r("nl_unit_half", QTY, &[word("een"), word("halve"), node(UNIT)], |v, ctx| {
         with_unit(Dec::new(5, 1)?, v[0].unit()?, ctx)
