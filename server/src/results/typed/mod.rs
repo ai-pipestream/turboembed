@@ -39,6 +39,7 @@ use super::document::codecs;
 use super::model_to_proto;
 use super::receipt::error::layer_status;
 use super::receipt::{self, Operation, check_operation_key};
+use super::withheld_identity::{self, WithheldLengths};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::{
@@ -408,8 +409,7 @@ pub fn document_to_typed_bound(
     let provenance = identity::layer_provenances(&mut cx, &graph, disclosure.graph(doc));
     let inline = chain::inline_mapping(doc, disclosure)?;
     let mapping = Some(MappingPayload { payload: Some(mapping_payload::Payload::Inline(inline)) });
-    let input = identity::disclosed_input(doc, binding, disclosure);
-    let result = identity::disclosed_result(doc, &graph_bytes, disclosure);
+    let (input, result) = withheld_identity::identities(doc, binding, &graph_bytes, disclosure, WithheldLengths::Kept);
     let receipt = receipt::build(&Operation::start(operation_key), doc, input.clone(), Some(result.clone()), &[]);
 
     let typed = TypedDocumentResult {

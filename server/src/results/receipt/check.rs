@@ -15,6 +15,7 @@ use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::proto::result::{
     LayerError, LayerErrorKind, LayerReceipt, ProcessingReceipt, ProcessingStatus, TruncationReason,
 };
+use crate::results::withheld_identity::{self, WithheldLengths};
 
 pub(crate) fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
@@ -103,16 +104,18 @@ pub fn check_receipt_shape(r: &ProcessingReceipt) -> Result<ProcessingStatus, Fa
     };
     // Both digests, or neither when the answer withholds the source
     // (#2403); then no layer names a provenance digest, which chains the
-    // source text digest, and a result names no graph.
-    let withheld = input.raw_bytes_digest.is_empty() && input.source_text_digest.is_empty();
+    // source text digest, and a result names no graph, by digest, id or
+    // length (#2408). A receipt keeps its source lengths: its assessed
+    // ranges are counted in that text.
+    let withheld = withheld_identity::check_input("receipt.", input, WithheldLengths::Kept)?;
     if !withheld && (input.raw_bytes_digest.len() != 32 || input.source_text_digest.len() != 32) {
         return Err(bad("the receipt's input digests are not 32 bytes"));
     }
     if withheld && r.layers.iter().any(|l| l.provenance_digest.is_some()) {
         return Err(bad("the receipt withholds its input digests and a layer carries a provenance_digest"));
     }
-    if r.result.as_ref().is_some_and(|res| res.content_digest.is_empty() != withheld) {
-        return Err(bad("the receipt carries one of the input and result digests without the other"));
+    if let Some(result) = &r.result {
+        withheld_identity::check_result("receipt.", result, withheld)?;
     }
     crate::results::typed::identity::check_binding(input.binding.as_ref(), "receipt.input.binding")?;
     if status == ProcessingStatus::Cancelled && r.result.is_some() {

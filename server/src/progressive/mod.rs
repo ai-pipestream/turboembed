@@ -5,6 +5,8 @@
 //! sequence numbers as each branch completes.
 
 mod config;
+#[cfg(test)]
+mod deadline_receipt_tests;
 mod normalize;
 pub mod profiles;
 pub mod seed;

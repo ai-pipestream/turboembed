@@ -11,11 +11,12 @@
 //! None of these digests is keyed, so each names its input to anyone who
 //! can guess it: a short source (an address, a phone number, an id) comes
 //! back by hashing candidates (#2403). A digest therefore leaves only with
-//! the text it is a digest of. When the document's graph may not leave
-//! ([`Disclosure::graph`]), [`disclosed_input`] and [`disclosed_result`]
-//! give the lengths and versions alone, and no layer or view entry carries
-//! a provenance, content or input snapshot digest: every one of them
-//! chains the source text digest.
+//! the text it is a digest of. That rule is
+//! [`crate::results::withheld_identity`]'s, for this envelope and for the
+//! search projection alike: when the document's graph may not leave, the
+//! input and result identities give the lengths and versions alone. Here,
+//! no layer or view entry then carries a provenance, content or input
+//! snapshot digest: every one of them chains the source text digest.
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -28,7 +29,7 @@ use crate::api::Failure;
 use crate::proto::result::{
     InputBinding, InputIdentity, LayerInstanceRef, LayerProvenance, ResultIdentity, TypedDocumentResult,
 };
-use crate::results::disclosure::Disclosure;
+use crate::results::withheld_identity::{self, WithheldLengths};
 
 /// The version of the envelope's messages and rules.
 pub const ENVELOPE_SCHEMA_VERSION: u32 = 1;
@@ -50,42 +51,17 @@ pub fn input_identity(doc: &Document, binding: Option<&InputBinding>) -> InputId
     }
 }
 
-/// [`input_identity`] as an answer under `disclosure` may carry it: with
-/// both digests when the graph of `doc` may leave, else the binding and
-/// the lengths alone.
-pub fn disclosed_input(doc: &Document, binding: Option<&InputBinding>, disclosure: &Disclosure) -> InputIdentity {
-    input_identity_with(doc, binding, disclosure.graph(doc))
-}
-
-/// [`input_identity`], with its two digests only when `digests`.
+/// [`input_identity`] for a receipt made without a projection, under
+/// this envelope's contract ([`WithheldLengths::Kept`]): with its two
+/// digests only when `digests`, and its lengths either way.
 pub fn input_identity_with(doc: &Document, binding: Option<&InputBinding>, digests: bool) -> InputIdentity {
-    let mut input = input_identity(doc, binding);
-    if !digests {
-        input.raw_bytes_digest.clear();
-        input.source_text_digest.clear();
-    }
-    input
+    withheld_identity::input(doc, binding, digests, WithheldLengths::Kept)
 }
 
-/// [`result_identity`] as an answer under `disclosure` may carry it: of
-/// `graph` when the graph of `doc` may leave, else the format and schema
-/// versions alone.
-pub fn disclosed_result(doc: &Document, graph: &[u8], disclosure: &Disclosure) -> ResultIdentity {
-    result_identity_with(graph, disclosure.graph(doc))
-}
-
-/// [`result_identity`] when `digests`, else the format and schema versions
-/// alone: the graph holds the source text, so its digest, the id that is
-/// its hexadecimal, and its length stay with it.
+/// [`result_identity`] when `digests`, else as
+/// [`withheld_identity::result`] withholds it.
 pub fn result_identity_with(graph: &[u8], digests: bool) -> ResultIdentity {
-    if digests {
-        return result_identity(graph);
-    }
-    ResultIdentity {
-        graph_format_version: u32::from(FORMAT_VERSION),
-        envelope_schema_version: ENVELOPE_SCHEMA_VERSION,
-        ..ResultIdentity::default()
-    }
+    withheld_identity::result(graph, digests)
 }
 
 /// Refuses a caller's `binding` that names a parse artifact digest and no

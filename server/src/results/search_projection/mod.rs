@@ -226,9 +226,10 @@ pub fn document_to_search_projection_bound(
     let document_sketch = cx.kept::<Sketches<View>>().and_then(|s| sketch_row(s, 0));
 
     let (_, target_text_len) = cx.offsetter.to_wire(target_text, Span::new(0, target_text.len() as u32));
+    let (input, result) = identity::identities(doc, binding, &graph_bytes, disclosure);
     let provenance = SearchReplayProvenance {
-        input: Some(identity::input(doc, binding, disclosure)),
-        result: Some(identity::result(doc, &graph_bytes, disclosure)),
+        input: Some(input),
+        result: Some(result),
         views,
         models: cx.models,
         analyzer_config_digest: analyzer_config_digest.to_vec(),

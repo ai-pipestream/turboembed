@@ -682,6 +682,18 @@ that plans PII findings. A caller that needs the digests asks for
 `full_text`. `server/tests/pii_disclosure_graph_identity.rs` and
 `pii_disclosure_stream_identity.rs` hold a guess against every answer.
 
+One module, `server/src/results/withheld_identity.rs`, writes and checks
+these input and result identities for this envelope, for
+`ProjectSearchDocument` and for every receipt, so the rule is the same
+on each (#2408). The surfaces differ in one named parameter,
+`WithheldLengths`: this envelope and its receipts keep the source
+lengths, because finding spans, the edit chain's offsets and the
+assessed ranges are counted in that text; `ProjectSearchDocument`, which
+carries no source span, zeroes them (below).
+`server/tests/pii_disclosure_identity_surfaces.rs` holds the two
+projections to that one difference, and
+`pii_disclosure_identity_rule.rs` covers the module.
+
 `FormatDocument` of such a document needs `full_text`, since every
 format carries the document text; no format (JSON-LD, markdown or any
 other) writes a mention's value. `PiiMention.normalized` (3) is kept for
@@ -1101,7 +1113,10 @@ delivered graph; after no graph it must name no result and be CANCELLED
 or FAILED. A stream that withheld its graph for PII ends with a receipt
 that names the input by length and the result by version, with no
 digest (#2403): it is complete when no graph bytes arrived, and such a
-receipt beside delivered bytes is refused. `RoundTripTypedDocument` applies the same receipt checks and
+receipt beside delivered bytes is refused. So is one that leaves the
+digests out and still names the graph by `result_id`, which is the
+digest in hexadecimal, or by `graph_bytes_len` (#2408).
+`RoundTripTypedDocument` applies the same receipt checks and
 binds the receipt to its envelope: the same input and result, and one
 entry per view and layer with the envelope's provenance digest.
 
