@@ -13,6 +13,7 @@
 //! [`fetch`]: crate::models::fetch
 
 use crate::command::run;
+use crate::docker::current_user;
 use crate::models::sha512_file;
 use crate::paths;
 use std::fs;
@@ -81,17 +82,4 @@ fn check(path: &Path) -> Result<(), String> {
         return Err(format!("{}: SHA-512 is {actual}, the recipe has {POOLED_SHA512}", path.display()));
     }
     Ok(())
-}
-
-/// `uid:gid` of the calling user, so the files written are theirs.
-fn current_user() -> Option<String> {
-    let id = |flag: &str| {
-        Command::new("id")
-            .arg(flag)
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_owned())
-    };
-    Some(format!("{}:{}", id("-u")?, id("-g")?))
 }

@@ -17,13 +17,8 @@ mod word_classes;
 
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
-use crate::props::bits;
-use crate::tables::case::{
-    LOWER_KEYS, LOWER_VALUES, SPECIAL_LOWER_KEYS, SPECIAL_LOWER_VALUES, UPPER_KEYS, UPPER_VALUES,
-};
+use crate::tables::case::{SPECIAL_LOWER_KEYS, SPECIAL_LOWER_VALUES};
 use crate::tables::category::DECIMAL_ZEROS;
-use crate::tables::props::{HAS_LOWER, HAS_UPPER};
-use crate::trie::find;
 pub use codepoint_strings::{
     eq_lowercase_code_points, lowercase_code_points, lowercase_code_points_changes, to_lowercase_code_points,
 };
@@ -106,26 +101,14 @@ pub fn is_supplementary(c: char) -> bool {
 /// when it has none.
 #[inline]
 pub fn to_lower_char(c: char) -> char {
-    if c.is_ascii() {
-        return c.to_ascii_lowercase();
-    }
-    if bits(c) & HAS_LOWER == 0 {
-        return c;
-    }
-    find(&LOWER_KEYS, &LOWER_VALUES, c as u32).unwrap_or(c)
+    crate::casemap::lower(c)
 }
 
 /// `Character.toUpperCase(int)`: the simple uppercase mapping, `c` itself
 /// when it has none.
 #[inline]
 pub fn to_upper_char(c: char) -> char {
-    if c.is_ascii() {
-        return c.to_ascii_uppercase();
-    }
-    if bits(c) & HAS_UPPER == 0 {
-        return c;
-    }
-    find(&UPPER_KEYS, &UPPER_VALUES, c as u32).unwrap_or(c)
+    crate::casemap::upper(c)
 }
 
 /// `String.toLowerCase(Locale.ROOT)`, appended to `out`: the simple
