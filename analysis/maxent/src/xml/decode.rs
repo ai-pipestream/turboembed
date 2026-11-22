@@ -2,20 +2,24 @@ use super::*;
 /// Decodes the document's bytes to text: UTF-8 (with or without a byte
 /// order mark) unless the XML declaration names US-ASCII or ISO-8859-1.
 pub fn decode(bytes: &[u8]) -> Result<Cow<'_, str>> {
+    decode_as(bytes)
+}
+
+/// Decodes the document's bytes into text as [`decode`] does, constructing
+/// errors via [`XmlError`].
+pub fn decode_as<E: XmlError>(bytes: &[u8]) -> std::result::Result<Cow<'_, str>, E> {
     if bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xFF, 0xFE]) {
-        return Err(Error::XmlEncoding("UTF-16".into()));
+        return Err(E::xml_encoding("UTF-16".into()));
     }
     let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]).unwrap_or(bytes);
     let encoding = declared_encoding(bytes);
-    let utf8 = |bytes| {
-        std::str::from_utf8(bytes)
-            .map_err(|e| Error::Xml { offset: e.valid_up_to(), message: "the document is not valid UTF-8" })
-    };
+    let utf8 =
+        |bytes| std::str::from_utf8(bytes).map_err(|e| E::xml(e.valid_up_to(), "the document is not valid UTF-8"));
     match encoding.map(|e| e.to_ascii_uppercase()) {
         None => Ok(Cow::Borrowed(utf8(bytes)?)),
         Some(e) if e == b"UTF-8" || e == b"UTF8" => Ok(Cow::Borrowed(utf8(bytes)?)),
         Some(e) if e == b"US-ASCII" || e == b"ASCII" => match bytes.iter().position(|b| !b.is_ascii()) {
-            Some(offset) => Err(Error::Xml { offset, message: "a byte above 0x7F in a US-ASCII document" }),
+            Some(offset) => Err(E::xml(offset, "a byte above 0x7F in a US-ASCII document")),
             None => Ok(Cow::Borrowed(utf8(bytes)?)),
         },
         Some(e) if e == b"ISO-8859-1" || e == b"LATIN1" || e == b"ISO8859-1" || e == b"ISO_8859-1" => {
@@ -23,7 +27,7 @@ pub fn decode(bytes: &[u8]) -> Result<Cow<'_, str>> {
         }
         Some(_) => {
             let name = encoding.expect("matched Some");
-            Err(Error::XmlEncoding(String::from_utf8_lossy(name).into()))
+            Err(E::xml_encoding(String::from_utf8_lossy(name).into_owned()))
         }
     }
 }
@@ -59,8 +63,8 @@ fn declared_encoding(bytes: &[u8]) -> Option<&[u8]> {
 }
 
 /// XMLDecl: version first, then optional encoding and standalone.
-pub(super) fn validate_declaration(declaration: &str) -> Result<()> {
-    let bad = || Error::Xml { offset: 0, message: "invalid XML declaration" };
+pub(super) fn validate_declaration<E: XmlError>(declaration: &str) -> std::result::Result<(), E> {
+    let bad = || E::xml(0, "invalid XML declaration");
     let mut rest = &declaration[5..];
     let mut fields = Vec::new();
     while !rest.is_empty() {

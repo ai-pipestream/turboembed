@@ -43,7 +43,7 @@ pub(in crate::masc) fn valid_span(start: i32, end: i32) -> bool {
 pub(in crate::masc) fn read_xml(
     bytes: &[u8],
     file: AnnotationFile,
-    handler: &mut impl Handler,
+    handler: &mut impl Handler<xml::Error>,
 ) -> Result<(), MascError> {
     let fail = |cause| MascError::Annotation { file, cause };
     let text = xml::decode(bytes).map_err(fail)?;
@@ -53,7 +53,7 @@ pub(in crate::masc) fn read_xml(
 /// `MascWordParser`: every `region` element (any case) is a quark.
 struct Segments(Vec<Quark>);
 
-impl Handler for Segments {
+impl Handler<xml::Error> for Segments {
     fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         if !equals_ignore_case_ascii(name, "region") {
             return Ok(());
@@ -90,7 +90,7 @@ pub(super) fn parse_segments(bytes: &[u8]) -> Result<Vec<Quark>, MascError> {
 /// region, the first two fields of its anchors split at each space.
 struct Sentences(Vec<(i32, i32)>);
 
-impl Handler for Sentences {
+impl Handler<xml::Error> for Sentences {
     fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         if !equals_ignore_case_ascii(name, "region") {
             return Ok(());
@@ -156,7 +156,7 @@ pub(super) struct Penn {
     annotations: Vec<i32>,
 }
 
-impl Handler for Penn {
+impl Handler<xml::Error> for Penn {
     fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         match name {
             "node" => {
@@ -238,7 +238,7 @@ pub(super) struct NamedEntities {
     pub(super) warnings: Vec<MascWarning>,
 }
 
-impl Handler for NamedEntities {
+impl Handler<xml::Error> for NamedEntities {
     fn start_element(&mut self, name: &str, a: &[Attribute<'_>], at: usize) -> crate::xml::Result<()> {
         match name {
             "a" => {
@@ -314,7 +314,7 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, crate:
     fn file_element(name: &str) -> bool {
         equals_ignore_case_ascii(name, "annotation") || equals_ignore_case_ascii(name, "primaryData")
     }
-    impl Handler for Header {
+    impl Handler<xml::Error> for Header {
         fn start_element(&mut self, name: &str, a: &[Attribute<'_>], _: usize) -> crate::xml::Result<()> {
             if file_element(name) {
                 self.loc = attr(a, "loc").map(str::to_owned);
@@ -347,3 +347,7 @@ pub(crate) fn parse_header(text: &str) -> Result<Option<Vec<HeaderFile>>, crate:
         files
     }))
 }
+
+#[cfg(test)]
+#[path = "xml_tests.rs"]
+mod tests;

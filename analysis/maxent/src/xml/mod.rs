@@ -31,6 +31,24 @@ use std::collections::HashSet;
 
 use crate::error::{Error, Result};
 
+/// Errors constructed by [`decode_as`] and [`parse_with`].
+pub trait XmlError {
+    /// A well-formedness or decoding failure at UTF-8 byte `offset`.
+    fn xml(offset: usize, message: &'static str) -> Self;
+    /// A refused character encoding from a byte-order mark or XML declaration.
+    fn xml_encoding(name: String) -> Self;
+}
+
+impl XmlError for Error {
+    fn xml(offset: usize, message: &'static str) -> Self {
+        Error::Xml { offset, message }
+    }
+
+    fn xml_encoding(name: String) -> Self {
+        Error::XmlEncoding(name.into_boxed_str())
+    }
+}
+
 /// One attribute of an element: its local name and its value with
 /// references resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,12 +58,12 @@ pub struct Attribute<'a> {
 }
 
 /// Receives the document's content in order.
-pub trait Handler {
+pub trait Handler<E = Error> {
     /// An element starts. `name` is its local name.
-    fn start_element(&mut self, name: &str, attributes: &[Attribute<'_>], offset: usize) -> Result<()>;
+    fn start_element(&mut self, name: &str, attributes: &[Attribute<'_>], offset: usize) -> std::result::Result<(), E>;
     /// An element ends (also called right after `start_element` for an
     /// empty-element tag).
-    fn end_element(&mut self, name: &str, offset: usize) -> Result<()>;
+    fn end_element(&mut self, name: &str, offset: usize) -> std::result::Result<(), E>;
     /// Character data inside the root element. One run of text may arrive
     /// in several calls.
     fn characters(&mut self, text: &str);
@@ -94,7 +112,7 @@ pub enum Names {
 
 /// Parses a decoded document, calling `handler` for its content with
 /// local names.
-pub fn parse(text: &str, handler: &mut impl Handler) -> Result<()> {
+pub fn parse<E: XmlError>(text: &str, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
     parse_with(text, Names::Local, handler)
 }
 
@@ -105,7 +123,7 @@ const SCANNED_ATTRIBUTES: usize = 16;
 mod decode;
 mod parser;
 mod text;
-pub use decode::decode;
+pub use decode::{decode, decode_as};
 pub use parser::parse_with;
 use text::*;
 #[cfg(test)]

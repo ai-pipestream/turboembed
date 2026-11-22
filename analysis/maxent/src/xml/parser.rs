@@ -1,9 +1,9 @@
 use super::*;
 /// Parses a decoded document, calling `handler` for its content with the
 /// `names` asked for. `xmlns` attributes are not reported either way.
-pub fn parse_with(text: &str, names: Names, handler: &mut impl Handler) -> Result<()> {
+pub fn parse_with<E: XmlError>(text: &str, names: Names, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
     if let Some((offset, _)) = text.char_indices().find(|&(_, c)| !is_xml_char(c)) {
-        return Err(Error::Xml { offset, message: "a character XML does not allow" });
+        return Err(E::xml(offset, "a character XML does not allow"));
     }
     let mut p = Parser {
         text,
@@ -46,15 +46,15 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn err<T>(&self, offset: usize, message: &'static str) -> Result<T> {
-        Err(Error::Xml { offset, message })
+    fn err<T, E: XmlError>(&self, offset: usize, message: &'static str) -> std::result::Result<T, E> {
+        Err(E::xml(offset, message))
     }
 
     fn rest(&self) -> &'a str {
         &self.text[self.pos..]
     }
 
-    fn document(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn document<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         if self.rest().starts_with("<?xml") && self.rest()[5..].starts_with(|c: char| c.is_ascii_whitespace()) {
             let declaration = self.skip_past("?>", "the XML declaration is not closed")?;
             super::decode::validate_declaration(declaration)?;
@@ -90,7 +90,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Moves past the next `end`, or fails with `message`.
-    fn skip_past(&mut self, end: &str, message: &'static str) -> Result<&'a str> {
+    fn skip_past<E: XmlError>(&mut self, end: &str, message: &'static str) -> std::result::Result<&'a str, E> {
         let rest = self.rest();
         match rest.find(end) {
             Some(i) => {
@@ -101,7 +101,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn comment(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn comment<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 4;
         let body = self.skip_past("-->", "a comment is not closed")?;
@@ -112,7 +112,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn processing_instruction(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn processing_instruction<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 2;
         let body = self.skip_past("?>", "a processing instruction is not closed")?;
@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn cdata(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn cdata<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 9;
         let body = self.skip_past("]]>", "a CDATA section is not closed")?;
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn name(&mut self) -> Result<&'a str> {
+    fn name<E: XmlError>(&mut self) -> std::result::Result<&'a str, E> {
         let rest = self.rest();
         let mut chars = rest.char_indices();
         match chars.next() {
@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
         self.pos > start
     }
 
-    fn start_tag(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn start_tag<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         if self.stack.is_empty() && self.root_seen {
             return self.err(start, "a second root element");
@@ -196,13 +196,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn open(&mut self, name: &'a str, start: usize, handler: &mut impl Handler) -> Result<()> {
+    fn open<E>(&mut self, name: &'a str, start: usize, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         self.stack.push(name);
         self.root_seen = true;
         handler.start_element(self.reported(name), &self.attributes, start)
     }
 
-    fn attribute(&mut self) -> Result<()> {
+    fn attribute<E: XmlError>(&mut self) -> std::result::Result<(), E> {
         let at = self.pos;
         let qualified = self.name()?;
         self.skip_spaces();
@@ -244,7 +244,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn end_tag(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn end_tag<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         self.pos += 2;
         let name = self.name()?;
@@ -264,7 +264,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn text(&mut self, handler: &mut impl Handler) -> Result<()> {
+    fn text<E: XmlError>(&mut self, handler: &mut impl Handler<E>) -> std::result::Result<(), E> {
         let start = self.pos;
         let len = self.rest().find('<').unwrap_or(self.rest().len());
         self.pos += len;

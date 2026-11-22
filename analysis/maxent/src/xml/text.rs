@@ -26,7 +26,7 @@ pub(super) fn local(name: &str) -> &str {
     name.split_once(':').map_or(name, |(_, local)| local)
 }
 /// Passes text to the handler with `\r\n` and lone `\r` turned into `\n`.
-pub(super) fn emit_normalized(mut text: &str, handler: &mut impl Handler) {
+pub(super) fn emit_normalized<E>(mut text: &str, handler: &mut impl Handler<E>) {
     while let Some(cr) = text.find('\r') {
         if cr > 0 {
             handler.characters(&text[..cr]);
@@ -42,9 +42,9 @@ pub(super) fn emit_normalized(mut text: &str, handler: &mut impl Handler) {
 
 /// Resolves the entity or character reference at the start of `text`,
 /// giving the character and the length of the reference.
-pub(super) fn reference(text: &str, offset: usize) -> Result<(char, usize)> {
+pub(super) fn reference<E: XmlError>(text: &str, offset: usize) -> std::result::Result<(char, usize), E> {
     let Some(semi) = text.find(';') else {
-        return Err(Error::Xml { offset, message: "a reference is not closed by ';'" });
+        return Err(E::xml(offset, "a reference is not closed by ';'"));
     };
     let body = &text[1..semi];
     let c = match body {
@@ -61,16 +61,11 @@ pub(super) fn reference(text: &str, offset: usize) -> Result<(char, usize)> {
             } else if let Some(dec) = body.strip_prefix('#') {
                 (!dec.is_empty() && dec.bytes().all(|b| b.is_ascii_digit())).then(|| dec.parse::<u32>().ok()).flatten()
             } else {
-                return Err(Error::Xml { offset, message: "an entity other than the five XML defines" });
+                return Err(E::xml(offset, "an entity other than the five XML defines"));
             };
             match value.and_then(char::from_u32).filter(|&c| is_xml_char(c)) {
                 Some(c) => c,
-                None => {
-                    return Err(Error::Xml {
-                        offset,
-                        message: "a character reference to a character XML does not allow",
-                    });
-                }
+                None => return Err(E::xml(offset, "a character reference to a character XML does not allow")),
             }
         }
     };
@@ -80,7 +75,7 @@ pub(super) fn reference(text: &str, offset: usize) -> Result<(char, usize)> {
 /// An attribute value with references resolved and each tab, line feed
 /// and carriage return (a `\r\n` pair counting as one) replaced by a
 /// space. A character reference to whitespace is kept as it is.
-pub(super) fn attribute_value(raw: &str, offset: usize) -> Result<Cow<'_, str>> {
+pub(super) fn attribute_value<E: XmlError>(raw: &str, offset: usize) -> std::result::Result<Cow<'_, str>, E> {
     if !raw.bytes().any(|b| matches!(b, b'&' | b'\t' | b'\n' | b'\r')) {
         return Ok(Cow::Borrowed(raw));
     }
