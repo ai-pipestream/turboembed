@@ -492,11 +492,9 @@ Production endpoint overrides follow strict transport rules:
 - `S3Bucket::with` intentionally allows `http://host:port` as well as
   `https://host` for self-hosted S3-compatible stores (such as RustFS)
   with `max_redirects(0)`.
-- `GoogleDrive::with` (`analysis/zoo/src/fetch/drive.rs`) currently
-  allows any `http://host:port` and relaxes `https_only` on its redirect
-  agent `plain`; tightening it to match `OciRegistry::with`'s
-  loopback-only `http://` and per-hop validation is tracked as a
-  separate cleanup item.
+- `GoogleDrive::with` allows HTTPS or the same explicit loopback HTTP
+  authorities as OCI. Each redirect must stay on the configured scheme
+  and authority, and only the initial request carries credentials.
 
 A zoo server lists the imported bundles when it is started with that
 file (`--catalog-index`, docs/grpc-catalog.md), and serves their files
@@ -737,7 +735,7 @@ another way overrides it (#1613).
   the caller runs), or else `GOOGLE_API_KEY`, enough for a folder
   shared with anyone who has the link (sent as `X-Goog-Api-Key`); one
   of them is required. Neither ever travels in a URL, and a redirect is
-  followed over HTTPS only and unsigned. `GoogleDrive::with` takes
+  followed only on the same endpoint and unsigned. `GoogleDrive::with` takes
   another endpoint; a plain `http://` one sends the token in clear text
   and is only for a stand-in on loopback in tests. It
   reads and does not keep: a library puts its own `file://` store first

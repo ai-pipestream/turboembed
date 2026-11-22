@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use super::Sources;
 use super::drive::resolve;
-use super::transport::{Http, Transport};
+use super::transport::{Http, Transport, is_loopback_authority, origin};
 use crate::digest::Sha256;
 use crate::index::Url;
 
@@ -21,30 +21,8 @@ const MANIFESTS: &str =
 /// The most redirects one request is followed through.
 const REDIRECTS: usize = 10;
 
-/// `url` as its `scheme://host[:port]` and the path and query after it.
-fn origin(url: &str) -> (&str, &str) {
-    let after = url.find("://").map_or(0, |at| at + 3);
-    url.split_at(url[after..].find('/').map_or(url.len(), |at| after + at))
-}
-
 /// The most a manifest or a token reply may be.
 const SMALL: u64 = 4 << 20;
-
-/// Whether `authority` is an explicit loopback host with a non-zero port
-/// (`127.0.0.1:<port>`, `[::1]:<port>`, or `localhost:<port>`) and no
-/// userinfo (`@`).
-fn is_loopback_authority(authority: &str) -> bool {
-    if authority.contains('@') {
-        return false;
-    }
-    let port = authority
-        .strip_prefix("127.0.0.1:")
-        .or_else(|| authority.strip_prefix("[::1]:"))
-        .or_else(|| authority.strip_prefix("localhost:"));
-    port.is_some_and(|p| {
-        !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) && p.parse::<u16>().is_ok_and(|n| n > 0)
-    })
-}
 
 /// OCI registries, read without credentials. As a [`Transport`] it serves
 /// a file whose address is a blob of a registry

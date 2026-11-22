@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use super::oauth::Renewing;
-use super::transport::Transport;
+use super::transport::{Transport, is_loopback_authority, origin};
 use crate::index::{Artifact, File, Url};
 
 /// The Drive API's own address.
@@ -65,17 +65,15 @@ impl std::fmt::Debug for DriveAuth {
 /// included. Each file is found with one `files.list` query per folder
 /// on the way (folder ids are remembered once found) and read with one
 /// `files.get?alt=media`. The token or key travels in a header, never
-/// in a URL. A redirect is followed over HTTPS only and carries neither.
+/// in a URL. Redirects stay on the configured endpoint and carry neither.
 pub struct GoogleDrive {
     address: String,
     root: String,
     under: Vec<String>,
     base: String,
     auth: DriveAuth,
-    /// Sends the signed request and follows no redirect.
-    signed: ureq::Agent,
-    /// Follows a redirect, unsigned.
-    plain: ureq::Agent,
+    /// Redirects are handled manually so each destination can be checked.
+    agent: ureq::Agent,
     /// Folder ids found so far, by their path below the store root.
     folders: Mutex<HashMap<Vec<String>, String>>,
 }
@@ -106,9 +104,14 @@ impl GoogleDrive {
     pub fn with(address: &str, endpoint: Option<&str>, auth: DriveAuth) -> Result<GoogleDrive, String> {
         let (root, under) = parse(address)?;
         let base = endpoint.unwrap_or(DRIVE_ENDPOINT).trim_end_matches('/');
-        let rest = base.strip_prefix("https://").or_else(|| base.strip_prefix("http://"));
-        if rest.is_none_or(|r| r.is_empty() || r.contains(['/', '?', '#', '@'])) {
-            return Err(format!("{address}: the endpoint {base} is http:// or https:// with a host and port alone"));
+        let https = base.strip_prefix("https://");
+        let authority = https.or_else(|| base.strip_prefix("http://"));
+        if !authority.is_some_and(|a| {
+            !a.contains('@')
+                && a.parse::<ureq::http::uri::Authority>().is_ok()
+                && (https.is_some() || is_loopback_authority(a))
+        }) {
+            return Err(format!("{address}: expected an HTTPS endpoint or an explicit loopback HTTP endpoint"));
         }
         let secret = match &auth {
             DriveAuth::Token(s) | DriveAuth::ApiKey(s) => s,
@@ -118,23 +121,19 @@ impl GoogleDrive {
         if secret.is_empty() || !secret.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(format!("{address}: the token or key is empty or holds spaces or control characters"));
         }
-        let agent = |redirects| {
-            ureq::Agent::config_builder()
-                .https_only(base.starts_with("https://"))
-                .max_redirects(redirects)
-                .redirect_auth_headers(ureq::config::RedirectAuthHeaders::Never)
-                .accept_encoding("identity")
-                .build()
-                .into()
-        };
+        let agent = ureq::Agent::config_builder()
+            .https_only(https.is_some())
+            .max_redirects(0)
+            .accept_encoding("identity")
+            .build()
+            .into();
         Ok(GoogleDrive {
             address: address.to_owned(),
             root,
             under,
             base: base.to_owned(),
             auth,
-            signed: agent(0),
-            plain: agent(10),
+            agent,
             folders: Mutex::new(HashMap::new()),
         })
     }
@@ -159,20 +158,31 @@ impl GoogleDrive {
     /// whether Drive answered 401.
     fn send(&self, path: &str, query: &str, limit: u64, renew: bool) -> Result<Vec<u8>, (bool, String)> {
         let url = format!("{}{path}?{query}&supportsAllDrives=true", self.base);
-        let bearer = |t: &str| self.signed.get(&url).header("Authorization", format!("Bearer {t}"));
+        let bearer = |t: &str| self.agent.get(&url).header("Authorization", format!("Bearer {t}"));
         let req = match &self.auth {
             DriveAuth::Token(t) => bearer(t),
             DriveAuth::Refresh(r) => bearer(&r.bearer(renew).map_err(|e| (false, format!("{}: {e}", self.address)))?),
-            DriveAuth::ApiKey(k) => self.signed.get(&url).header("X-Goog-Api-Key", k.as_str()),
+            DriveAuth::ApiKey(k) => self.agent.get(&url).header("X-Goog-Api-Key", k.as_str()),
         };
         let fail = |e: ureq::Error| (matches!(e, ureq::Error::StatusCode(401)), format!("{}{path}: {e}", self.base));
         let mut resp = req.call().map_err(fail)?;
-        if resp.status().is_redirection() {
+        let mut current = url;
+        let mut hops = 0;
+        while resp.status().is_redirection() {
+            if hops == 10 {
+                return Err((false, format!("{}{path}: more than 10 redirects", self.base)));
+            }
             let to = resp.headers().get("location").and_then(|v| v.to_str().ok());
             let to = to.ok_or_else(|| (false, format!("{}{path}: a redirect with no Location", self.base)))?;
-            let to = resolve(&self.base, &url[self.base.len()..], to);
+            let (base, relative) = origin(&current);
+            let to = resolve(base, relative, to);
+            if !origin(&to).0.eq_ignore_ascii_case(&self.base) {
+                return Err((false, format!("{}{path}: redirect outside the Drive endpoint", self.base)));
+            }
             let follow = |e: ureq::Error| (false, format!("{}{path}: following its redirect: {e}", self.base));
-            resp = self.plain.get(&to).call().map_err(follow)?;
+            resp = self.agent.get(&to).call().map_err(follow)?;
+            current = to;
+            hops += 1;
         }
         resp.body_mut().with_config().limit(limit).read_to_vec().map_err(fail)
     }
@@ -287,8 +297,7 @@ struct Listed {
 /// as an absolute URL (RFC 3986 section 5.2): an absolute address as it
 /// is, `//host/x` on the request's scheme, `/x` on its host, and any
 /// other reference beside the request's last path segment, with `.` and
-/// `..` segments removed. Whether the result may be fetched (HTTPS only
-/// for an HTTPS endpoint) is the unsigned agent's check.
+/// `..` segments removed. The caller checks the destination before fetching it.
 pub(super) fn resolve(base: &str, path: &str, location: &str) -> String {
     // A scheme can only precede the first path, query or fragment delimiter.
     // In particular, an absolute URL inside a query is not this URI's scheme.
