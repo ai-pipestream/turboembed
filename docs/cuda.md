@@ -12,7 +12,8 @@ feature of the `turbo` crate links it, and `turbo_version()` then says
 
 ## Requirements
 
-- Linux, with the NVIDIA driver loaded and a GPU it lists.
+- Linux or Windows x86_64, with the NVIDIA driver loaded and a GPU it
+  lists. Windows builds with MSVC (Windows, below).
 - To build: the CUDA toolkit, 12.x or 13.x: nvcc, the runtime's
   headers and `libcudart_static.a` in its library directory, and with
   `cuda-cublas` the cuBLAS headers and `libcublas.so` as well.
@@ -21,7 +22,8 @@ feature of the `turbo` crate links it, and `turbo_version()` then says
   with (for 13.x, a 580 driver or newer; for 12.x, 525 or newer). A
   build with `cuda-cublas` needs the toolkit's `libcublas.so.<major>` on
   the machine as well.
-- A host C++ compiler nvcc accepts (gcc or clang, C++17).
+- A host C++ compiler nvcc accepts (gcc or clang on Linux, MSVC on
+  Windows, C++17).
 - A GPU whose architecture the build targets. The default is sm_89, an
   RTX 4080 (sm_89) for example. The highest architecture built also
   carries its PTX, which a newer GPU compiles when the library loads; an
@@ -427,6 +429,28 @@ rlib with that feature finds cuBLAS through `LD_LIBRARY_PATH` or a run
 path of its own. Without a driver, or with no GPU, the
 backend lists no device and the runtime is made as usual. With a driver
 older than the runtime, it lists none and the runtime's log says why.
+
+### Windows
+
+nvcc drives MSVC's `cl.exe` there, so the build runs in a shell with
+the Visual Studio environment set (a "Developer PowerShell for VS
+2022", or `vcvars64.bat`): `cl.exe` and `lib.exe`, which archives the
+objects, are found on PATH. The toolkit's installer sets `CUDA_PATH`,
+which serves as the root; the libraries are read from `lib\x64`
+(`cudart_static.lib`, and `cublas.lib` with `cuda-cublas`).
+
+```
+$env:TURBO_CUDA_ROOT = $env:CUDA_PATH
+cargo build -p turbo --release --features cuda
+```
+
+The runtime is linked in as on Linux, so `turbo.dll` needs the driver
+alone (`dumpbin /dependents` lists no CUDA DLL). With `cuda-cublas`,
+cuBLAS's DLL is found through PATH. The host code's few gcc extensions
+are spelled for both compilers in `core/cuda/portable.h` (#2453). CI's
+`windows-cuda` lane builds this on a hosted runner without a GPU; the
+GPU tests run on a Windows machine with an NVIDIA card, by the runbook
+in #2454.
 
 ## What it does
 

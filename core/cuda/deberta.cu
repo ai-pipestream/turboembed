@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
+#include <math_constants.h>
 #include <mutex>
 
 namespace turbo_cuda {
@@ -141,7 +142,7 @@ __global__ void __launch_bounds__(GENERAL_THREADS) attention_general_kernel(Debe
             if (lane == 0) score[j] = (c2c + c2p + p2c) * a.scale;
         }
         __syncthreads();
-        float mx = -INFINITY;
+        float mx = -CUDART_INF_F;
         for (int j = tid; j < len; j += GENERAL_THREADS)
             if (!live || kb[j] == 0.0f) mx = fmaxf(mx, score[j]);
         mx = block_reduce<true>(mx, red);
@@ -214,7 +215,7 @@ template <int HD, int QD, int KD> __global__ void __launch_bounds__(QD) attentio
             q[d] = qr[d] * a.scale;
             acc[d] = 0.0f;
         }
-        float m = -INFINITY, l = 0.0f;
+        float m = -CUDART_INF_F, l = 0.0f;
         for (int j0 = 0; j0 < len; j0 += KD) {
             const int n = min(KD, len - j0), dlo = i0 - (j0 + KD - 1);
             const int blo = a.buckets[max(-a.span, min(a.span, dlo)) + a.span];

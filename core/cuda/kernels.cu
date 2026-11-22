@@ -19,12 +19,14 @@
  */
 
 #include "kernels.h"
+#include "portable.h"
 #include "rotary.h"
 
 #include <turbo/turbo.h>
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
+#include <math_constants.h>
 
 #include <cfloat>
 #include <type_traits>
@@ -472,8 +474,8 @@ __global__ void __launch_bounds__(ROW_BLOCK)
     for (int t = blockIdx.x * ROW_WARPS + (threadIdx.x >> 5); t < tokens; t += gridDim.x * ROW_WARPS) {
         float *row = x ? x + (size_t)t * hidden : nullptr;
         __half *row16 = x16 ? x16 + (size_t)t * hidden : nullptr;
-        const float *pr = PROD16 ? nullptr : y + (size_t)t * hidden;
-        const __half *pr16 = PROD16 ? y16 + (size_t)t * hidden : nullptr;
+        [[maybe_unused]] const float *pr = PROD16 ? nullptr : y + (size_t)t * hidden;
+        [[maybe_unused]] const __half *pr16 = PROD16 ? y16 + (size_t)t * hidden : nullptr;
         float v[V][4];
 #pragma unroll
         for (int i = 0; i < V; i++) {
@@ -1149,7 +1151,7 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
         }
         at = begin;
 
-        size_t col[8];
+        [[maybe_unused]] size_t col[8];
 #pragma unroll
         for (int j = 0; j < 8; j++) {
             const int c = n0 + tx + TX * j;
@@ -1489,7 +1491,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
     // F16 accumulators, with ACC16, over each ACC16_STEPS k steps (64
     // terms), then added into acc; the chunks are whole k steps from k 0
     // on, so a tile's sum is the same whichever blocks share it.
-    constexpr int ACC16_STEPS = 64 / MMA_K;
+    [[maybe_unused]] constexpr int ACC16_STEPS = 64 / MMA_K;
     extern __shared__ __align__(16) unsigned char gemm_sm[];
     TIn *As = reinterpret_cast<TIn *>(gemm_sm);
     TIn *Bs = As + STAGES * BM * MMA_LD;
@@ -1531,7 +1533,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
 #pragma unroll
                 for (int e = 0; e < 4; e++) acc[i][j][e] = 0.0f;
 
-        uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
+        [[maybe_unused]] uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
         if constexpr (ACC16) {
 #pragma unroll
             for (int i = 0; i < MI; i++)
@@ -1853,7 +1855,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
     // ADD_LN on a tile of whole rows (N <= BN, which the plan sees to):
     // the LayerNorm in the epilogue, from registers.
     constexpr bool ROW_LN = EPI == EPI_ADD_LN && BN == ROW_LN_WIDTH;
-    __shared__ float row_sums[ROW_LN ? 2 : 1][ROW_LN ? BM : 1][WN];
+    [[maybe_unused]] __shared__ float row_sums[ROW_LN ? 2 : 1][ROW_LN ? BM : 1][WN];
     static_assert(!DB || KK == 2, "the fragments alternate between two sets, the next step's first in set 0");
     extern __shared__ __align__(16) unsigned char gemm_sm[];
     __half *As = reinterpret_cast<__half *>(gemm_sm);
@@ -1911,7 +1913,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
     // its barrier, then reads A's fragments and B's a pair of n8 tiles at
     // a time, each pair's MMAs issued as it arrives.
     uint32_t af[DB ? 2 : 1][MI][4], bf[DB ? 2 : 1][NI][2];
-    auto fragments = [&](int f, int stage, int kk) {
+    [[maybe_unused]] auto fragments = [&](int f, int stage, int kk) {
         f %= DB ? 2 : 1;
         const __half *as = As + stage * BM * MMA_K, *bs = Bs + stage * BN * MMA_K;
 #pragma unroll
@@ -1978,7 +1980,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
         }
         // One k step, or with ACC16 the steps to the end of a chunk of
         // ACC16_STEPS (or of the segment), summed in F16 and then added.
-        uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
+        [[maybe_unused]] uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
         if constexpr (ACC16) {
 #pragma unroll
             for (int i = 0; i < MI; i++)
@@ -2112,7 +2114,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
 #pragma unroll
                     for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
         }
-        auto total = [&](int i, int j, int e) -> float { return acc[i][j][e]; };
+        [[maybe_unused]] auto total = [&](int i, int j, int e) -> float { return acc[i][j][e]; };
 
         // The finished tile, from registers.
         const int n0 = (tile % nt) * BN, m0 = (tile / nt) * BM;
@@ -2298,7 +2300,7 @@ __global__ void __launch_bounds__(WM *WN * 32, (swz_min_blocks<BM, BN, STAGES>()
             // Their head-major place (QKV) is worked out once for all the
             // rows, outside the loops over them: its divisions compile to
             // a call, which the loops must not hold.
-            const bool whole = EPI != EPI_QKV || g.head_dim % 8 == 0;
+            [[maybe_unused]] const bool whole = EPI != EPI_QKV || g.head_dim % 8 == 0;
             static_for<NI / 4>([&](auto JQ) {
                 const int c = cw + (JQ.value * 4 + tq) * 8;
                 [[maybe_unused]] size_t col = 0;
@@ -2379,8 +2381,7 @@ __global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
                   NI = WTN / 8;
     constexpr int MMA_K = 32, SLOT = BM * BN;
     constexpr bool ACC16 = WHOLE, ROW_LN = false;
-    __shared__ float row_sums[1][1][WN]; // the LayerNorm-in-the-GEMM path, which this kernel has not
-    (void)row_sums;
+    [[maybe_unused]] __shared__ float row_sums[1][1][WN]; // the LayerNorm-in-the-GEMM path, which this kernel has not
     using Cfg = CtCfg<std::conditional_t<WHOLE, cutlass::half_t, float>>;
     using Mma = typename Cfg::Mma;
     extern __shared__ __align__(16) unsigned char gemm_sm[];
@@ -2394,7 +2395,7 @@ __global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
     // The warps as MmaMultistage places them: down the tile first.
     const int wm = warp % WM, wn = warp / WM, gq = lane >> 2, tq = lane & 3;
     float acc[MI][NI][4];
-    uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
+    [[maybe_unused]] uint32_t hacc[ACC16 ? MI : 1][ACC16 ? NI : 1][2];
     auto first_fragments = [&]() {};
     const typename Cfg::IteratorA::Params pA{cutlass::layout::RowMajor(K)};
     const typename Cfg::IteratorB::Params pB{cutlass::layout::ColumnMajor(K)};
@@ -2488,7 +2489,7 @@ __global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
 #pragma unroll
                     for (int e = 0; e < 4; e++) acc[i][j][e] += __ldcg(slot + ((i * NI + j) * 4 + e) * NT);
         }
-        auto total = [&](int i, int j, int e) -> float { return acc[i][j][e]; };
+        [[maybe_unused]] auto total = [&](int i, int j, int e) -> float { return acc[i][j][e]; };
 
         // The finished tile, from registers.
         const int cw = n0 + wn * WTN;
@@ -2673,7 +2674,7 @@ __global__ void __launch_bounds__(128, 2) gemm_ct_kernel(GemmArgs g) {
             // Their head-major place (QKV) is worked out once for all the
             // rows, outside the loops over them: its divisions compile to
             // a call, which the loops must not hold.
-            const bool whole = EPI != EPI_QKV || g.head_dim % 8 == 0;
+            [[maybe_unused]] const bool whole = EPI != EPI_QKV || g.head_dim % 8 == 0;
             static_for<NI / 4>([&](auto JQ) {
                 const int c = cw + (JQ.value * 4 + tq) * 8;
                 [[maybe_unused]] size_t col = 0;
@@ -2821,7 +2822,7 @@ __global__ void __launch_bounds__((cs_threads<BM, WM>()), MINB) gemm_cs_kernel(G
 
         // The finished tile, from registers, as the FMA kernel stores it.
         const int r0 = m0 + wm * WM + lr * LM, c0 = n0 + wn * 64 + lc * LN;
-        size_t col[IN][LN];
+        [[maybe_unused]] size_t col[IN][LN];
 #pragma unroll
         for (int mma_n = 0; mma_n < IN; mma_n++)
 #pragma unroll
@@ -2976,7 +2977,7 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
             if (t == TILE_SWIZZLED_256x128) return swz_kernel<256, 128, 4, 2, 3, EPI, TOut, false, true>();
         return swz_kernel<128, 128, 2, 2, 3, EPI, TOut, false, true>();
     }
-    __builtin_unreachable();
+    TURBO_UNREACHABLE();
 }
 
 /* The FMA kernel's tiles, 8 x 8 outputs to a thread but the 16 x 8 of
@@ -3025,19 +3026,23 @@ template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
             if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
             return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn, true>();
         }
-        if constexpr (!rotary_epilogue(EPI)) switch (t) {
-        case TILE_SWIZZLED:
-        case TILE_SWIZZLED_8W:
-        case TILE_SWIZZLED_256x128:
-        case TILE_SWIZZLED_ROWS:
-        case TILE_F16_WHOLE_K:
-        case TILE_F16_WHOLE_K_3:
-        case TILE_F16_WHOLE_K_ROWS:
-        case TILE_F16_WHOLE_K_256: return swz_for<TOut, EPI, false>(t);
-        case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
-        case TILE_CT: return ct_kernel<EPI, TOut, false>();
-        case TILE_CT_K: return ct_kernel<EPI, TOut, true>();
-        default: break;
+        // Braced: nvcc's front end in MSVC mode loses its place in a
+        // discarded `if constexpr` whose statement is a bare switch (#2453).
+        if constexpr (!rotary_epilogue(EPI)) {
+            switch (t) {
+            case TILE_SWIZZLED:
+            case TILE_SWIZZLED_8W:
+            case TILE_SWIZZLED_256x128:
+            case TILE_SWIZZLED_ROWS:
+            case TILE_F16_WHOLE_K:
+            case TILE_F16_WHOLE_K_3:
+            case TILE_F16_WHOLE_K_ROWS:
+            case TILE_F16_WHOLE_K_256: return swz_for<TOut, EPI, false>(t);
+            case TILE_SWIZZLED_8W_F16_ACCUMULATE: return swz_for<TOut, EPI, true>(TILE_SWIZZLED_8W);
+            case TILE_CT: return ct_kernel<EPI, TOut, false>();
+            case TILE_CT_K: return ct_kernel<EPI, TOut, true>();
+            default: break;
+            }
         }
     }
     if (t == TILE_DEFAULT && f16) t = TILE_EIGHT_WARPS;
@@ -3294,7 +3299,7 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
         }
 #pragma unroll
         for (int c = 0; c < HD; c++) o[c] = 0.0f;
-        float m = -INFINITY, l = 0.0f;
+        float m = -CUDART_INF_F, l = 0.0f;
         // A sliding window's keys: those some query of the block reads.
         const int w = a.window, wb = a.back;
         const int k_lo = w < 0 ? 0 : max(0, it.q0 - wb);
@@ -3317,7 +3322,7 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
                     const int j = j0 + u;
                     s[u] = j < khi ? dot_row<HD>(qr, Ks + (size_t)j * HD) * a.scale + (it.holes ? kbs[j] : 0.0f) +
                                          (w >= 0 && off_band(q, c0 + j, w, wb) ? -1e30f : 0.0f)
-                                   : -INFINITY;
+                                   : -CUDART_INF_F;
                 }
                 float mx = m;
 #pragma unroll
@@ -3354,7 +3359,7 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
         }
         __syncthreads();
         if (ks == 0 && q < it.n) {
-            float mm = -INFINITY;
+            float mm = -CUDART_INF_F;
 #pragma unroll
             for (int s = 0; s < KSPLITS; s++) mm = fmaxf(mm, merge[(size_t)(s * 2 + grp) * (HD + 2) * 32 + lane]);
             float L = 0.0f;
@@ -3510,7 +3515,7 @@ __device__ __forceinline__ void tiled_item(const AttnArgs &a, const Item &it, in
     float o[QPT][W], m[QPT], l[QPT];
 #pragma unroll
     for (int i = 0; i < QPT; i++) {
-        m[i] = -INFINITY;
+        m[i] = -CUDART_INF_F;
         l[i] = 0.0f;
 #pragma unroll
         for (int w = 0; w < W; w++) o[i][w] = 0.0f;
@@ -3614,7 +3619,7 @@ __device__ __forceinline__ void tiled_item(const AttnArgs &a, const Item &it, in
         }
 #pragma unroll
         for (int i = 0; i < QPT; i++) {
-            float mx = -INFINITY;
+            float mx = -CUDART_INF_F;
 #pragma unroll
             for (int j = 0; j < 4; j++) {
                 if (whole) {
@@ -3623,7 +3628,7 @@ __device__ __forceinline__ void tiled_item(const AttnArgs &a, const Item &it, in
                     const int k = 4 * tx + j;
                     s[i][j] = k < cn ? s[i][j] * a.scale + kbs[j] +
                                            (w >= 0 && off_band(it.q0 + QPT * ty + i, c0 + k, w, wb) ? -1e30f : 0.0f)
-                                     : -INFINITY;
+                                     : -CUDART_INF_F;
                 }
                 mx = fmaxf(mx, s[i][j]);
             }
@@ -3748,7 +3753,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
         for (int j = 0; j < DN; j++)
 #pragma unroll
             for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
-        float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
+        float m[2] = {-CUDART_INF_F, -CUDART_INF_F}, l[2] = {0.0f, 0.0f};
 
         const int w = a.window, wb = a.back;
         const int k_lo = w < 0 ? 0 : max(0, it.q0 - wb);
@@ -3798,7 +3803,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
                         const int key = k0 + j * 8 + (lane & 3) * 2 + (e & 1);
                         float v = s[j][e] * a.scale;
                         if (key >= cn)
-                            v = -INFINITY;
+                            v = -CUDART_INF_F;
                         else if (it.holes)
                             v += kbs[key];
                         if (w >= 0 && key < cn &&
@@ -3953,7 +3958,7 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
                                          float (&m)[MT][2], float (&l)[MT][2], const __half *Ks, const __half *Vs,
                                          const float *kb, int cn, int holes, float sl2, int lane, int q0,
                                          int k0, int w, int wb) {
-    constexpr int LD = D + 8, DK = D / 16, DN = D / 8, NJ = KEYS / 8, NK = KEYS / 16;
+    [[maybe_unused]] constexpr int LD = D + 8, DK = D / 16, DN = D / 8, NJ = KEYS / 8, NK = KEYS / 16;
     float s[MT][NJ][4];
     if constexpr (!EXACT) {
 #pragma unroll
@@ -4017,7 +4022,7 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
                     const int key = j * 8 + (lane & 3) * 2 + (e & 1);
                     const bool out = w >= 0 && off_band(q0 + t * 16 + (lane >> 2) + (e >> 1) * 8, k0 + key, w, wb);
                     if (key >= cn) {
-                        v = -INFINITY;
+                        v = -CUDART_INF_F;
                     } else if (EXACT) {
                         if (holes) v += kb[key];
                         if (out) v += -1e30f;
@@ -4221,7 +4226,7 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
             for (int j = 0; j < DN; j++)
 #pragma unroll
                 for (int e = 0; e < OW; e++) o[t][j][e] = OT(0);
-            m[t][0] = m[t][1] = -INFINITY;
+            m[t][0] = m[t][1] = -CUDART_INF_F;
             l[t][0] = l[t][1] = 0.0f;
         }
 

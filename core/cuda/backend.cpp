@@ -47,18 +47,24 @@ constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
 #include <mutex>
 #include <new>
 #include <string>
-#include <strings.h>
 #include <utility>
 #include <vector>
 
 #include "autotune.h"
 #include "deberta.h"
 #include "kernels.h"
+#include "portable.h"
 #include "rotary.h"
 
 /* TURBO_CUDA_ARCHS: the architectures build.rs compiled for, as
  * TURBO_CUDA_ARCH gave them. */
 #include "turbo_cuda_build.h"
+
+#if defined(_MSC_VER) && defined(_DLL)
+/* cudart_static.lib is built with /MT and asks for LIBCMT; under /MD
+ * (_DLL) every link that takes this object drops it (#2453). */
+#pragma comment(linker, "/NODEFAULTLIB:libcmt")
+#endif
 
 using namespace turbo_cuda;
 
@@ -78,7 +84,7 @@ int32_t vrefuse(turbo_error *err, int32_t code, uint32_t field, const char *fmt,
     return code;
 }
 
-__attribute__((format(printf, 3, 4))) int32_t refuse(turbo_error *err, int32_t code, const char *fmt, ...) {
+TURBO_PRINTF(3, 4) int32_t refuse(turbo_error *err, int32_t code, const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
     vrefuse(err, code, 0, fmt, ap);
@@ -86,7 +92,7 @@ __attribute__((format(printf, 3, 4))) int32_t refuse(turbo_error *err, int32_t c
     return code;
 }
 
-__attribute__((format(printf, 4, 5))) int32_t refuse_field(turbo_error *err, int32_t code, uint32_t field,
+TURBO_PRINTF(4, 5) int32_t refuse_field(turbo_error *err, int32_t code, uint32_t field,
                                                            const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
@@ -208,7 +214,7 @@ void copy_str(char *dst, size_t len, const char *src) {
 }
 
 void *host_malloc(size_t n) {
-    void *p = aligned_alloc(HOST_ALIGN, round_up(n, HOST_ALIGN));
+    void *p = turbo_aligned_alloc(HOST_ALIGN, round_up(n, HOST_ALIGN));
     if (p) counted_host();
     return p;
 }
@@ -465,7 +471,7 @@ struct Context {
     void *workspace = nullptr;
     std::mutex lock;
 
-    __attribute__((format(printf, 3, 4))) void say(uint32_t level, const char *fmt, ...) {
+    TURBO_PRINTF(3, 4) void say(uint32_t level, const char *fmt, ...) {
         if (!log) return;
         // Room for a session's choices line and what the tuner says of it.
         char m[2048];
@@ -698,7 +704,7 @@ void buffer_release(void *buf) {
             DeviceScope scope(b->ctx->ordinal);
             cudaError_t e = cudaSuccess;
             switch (b->placement) {
-            case TURBO_PLACE_HOST: free(b->ptr); break;
+            case TURBO_PLACE_HOST: turbo_aligned_free(b->ptr); break;
             case TURBO_PLACE_PINNED: e = cudaFreeHost(b->ptr); break;
             default: e = cudaFree(b->ptr);
             }
