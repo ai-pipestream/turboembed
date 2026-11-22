@@ -49,7 +49,15 @@ type Seen = Arc<Mutex<Vec<(String, Vec<String>)>>>;
 
 /// Serves `tree` until the test ends, one request per connection.
 fn stand_in(tree: Vec<Entry>) -> (String, Seen) {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    serve(move |target| answer(&tree, target))
+}
+
+fn serve(reply: impl Fn(&str) -> (&'static str, String, Vec<u8>) + Send + 'static) -> (String, Seen) {
+    serve_on("127.0.0.1:0", reply)
+}
+
+fn serve_on(bind: &str, reply: impl Fn(&str) -> (&'static str, String, Vec<u8>) + Send + 'static) -> (String, Seen) {
+    let listener = TcpListener::bind(bind).unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
     let seen: Seen = Arc::new(Mutex::new(Vec::new()));
     let log = seen.clone();
@@ -70,7 +78,7 @@ fn stand_in(tree: Vec<Entry>) -> (String, Seen) {
                 headers.push(h.trim_end().to_ascii_lowercase());
             }
             log.lock().unwrap().push((target.clone(), headers));
-            let (status, extra, body) = answer(&tree, &target);
+            let (status, extra, body) = reply(&target);
             let head =
                 format!("HTTP/1.1 {status}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n", body.len());
             conn.write_all(head.as_bytes()).unwrap();
@@ -318,4 +326,119 @@ fn bad_addresses_endpoints_and_credentials_are_refused_before_any_request() {
     let url = "https://example.org/x".parse().unwrap();
     let drive = GoogleDrive::with("gdrive://id", None, token()).unwrap();
     assert!(drive.get(&url, 8).unwrap_err().contains("not its address"));
+}
+
+#[test]
+fn drive_http_requires_an_explicit_loopback_port() {
+    let open = |endpoint| GoogleDrive::with("gdrive://top", Some(endpoint), DriveAuth::ApiKey("fixture".into()));
+    for valid in ["http://127.0.0.1:80", "http://localhost:443", "http://[::1]:1234"] {
+        assert!(open(valid).is_ok(), "{valid}");
+    }
+    for invalid in ["http://example.org:80", "http://localhost", "http://localhost:0", "http://user@localhost:80"] {
+        assert!(open(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn drive_checks_the_origin_before_each_redirect_request() {
+    let (other, other_seen) = serve(|_| ("200 OK", String::new(), b"{}".to_vec()));
+    for first in [true, false] {
+        let other = other.clone();
+        let (endpoint, seen) = serve(move |target| {
+            let next = if first || target == "/again" { other.as_str() } else { "/again" };
+            ("302 Found", format!("Location: {next}\r\n"), Vec::new())
+        });
+        let drive = GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::ApiKey("fixture".into())).unwrap();
+        let index = index();
+        let artifact = index.get("hello").unwrap();
+        let error = drive.get_file(artifact, &artifact.files[0]).unwrap_err();
+        assert!(other_seen.lock().unwrap().is_empty());
+        assert!(error.contains("redirect outside the Drive endpoint"), "{error}");
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), if first { 1 } else { 2 });
+        assert!(seen[0].1.contains(&"x-goog-api-key: fixture".into()));
+        if !first {
+            assert!(!seen[1].1.iter().any(|h| h.starts_with("authorization:") || h.starts_with("x-goog-api-key:")));
+        }
+    }
+}
+
+#[test]
+fn a_drive_redirect_loop_stops_after_ten_unsigned_requests() {
+    let (endpoint, seen) = serve(|_| ("302 Found", "Location: /again\r\n".into(), Vec::new()));
+    let drive = GoogleDrive::with("gdrive://top", Some(&endpoint), DriveAuth::Token("fixture".into())).unwrap();
+    let index = index();
+    let artifact = index.get("hello").unwrap();
+    let error = drive.get_file(artifact, &artifact.files[0]).unwrap_err();
+    assert!(error.contains("more than 10 redirects"), "{error}");
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 11);
+    assert!(seen[0].1.contains(&"authorization: bearer fixture".into()));
+    for (path, headers) in &seen[1..] {
+        assert_eq!(path, "/again");
+        assert!(!headers.iter().any(|h| h.starts_with("authorization:") || h.starts_with("x-goog-api-key:")));
+    }
+}
+
+#[test]
+fn drive_checks_endpoint_authorities() {
+    let open = |endpoint| GoogleDrive::with("gdrive://top", Some(endpoint), DriveAuth::Token("fixture".into()));
+    for valid in ["https://example.org", "https://example.org:443", "https://[::1]:9443"] {
+        assert!(open(valid).is_ok(), "{valid}");
+    }
+    for invalid in [
+        "https://:443",
+        "https://:",
+        "https://[]:443",
+        "https://example.org:",
+        "https://example.org:0",
+        "https://example.org:65536",
+        "https://example.org:notaport",
+        "http://127.0.0.1.example.org:80",
+        "http://127.0.0.1:80@example.org",
+        "http://[::ffff:127.0.0.1]:80",
+        "HTTP://127.0.0.1:80",
+    ] {
+        assert!(open(invalid).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn drive_reads_unsigned_media_from_another_origin() {
+    for (bind, status) in [
+        ("127.0.0.1:0", "301 Moved Permanently"),
+        ("[::1]:0", "302 Found"),
+        ("127.0.0.1:0", "303 See Other"),
+        ("[::1]:0", "307 Temporary Redirect"),
+        ("127.0.0.1:0", "308 Permanent Redirect"),
+    ] {
+        let (content, downloads) = serve_on(bind, |path| match path {
+            "/objects/start" => ("307 Temporary Redirect", "Location: data\r\n".into(), Vec::new()),
+            "/objects/data" => ("200 OK", String::new(), TEXT.to_vec()),
+            _ => ("404 Not Found", String::new(), Vec::new()),
+        });
+        let tree = blob_tree(TEXT);
+        let (api, requests) = serve(move |path| {
+            if path.starts_with("/drive/v3/files/fileid?alt=media") {
+                (status, format!("Location: {content}/objects/start\r\n"), Vec::new())
+            } else {
+                answer(&tree, path)
+            }
+        });
+        let index = index();
+        let artifact = index.get("hello").unwrap();
+        for (auth, header) in [
+            (DriveAuth::ApiKey("fixture".into()), "x-goog-api-key: fixture"),
+            (DriveAuth::Token("fixture".into()), "authorization: bearer fixture"),
+        ] {
+            let drive = GoogleDrive::with("gdrive://top", Some(&api), auth).unwrap();
+            assert_eq!(drive.get_file(artifact, &artifact.files[0]).unwrap(), TEXT);
+            assert!(requests.lock().unwrap().last().unwrap().1.iter().any(|h| h == header));
+        }
+        let downloads = downloads.lock().unwrap();
+        assert_eq!(downloads.len(), 4);
+        for (_, headers) in downloads.iter() {
+            assert!(!headers.iter().any(|h| h.starts_with("authorization:") || h.starts_with("x-goog-api-key:")));
+        }
+    }
 }

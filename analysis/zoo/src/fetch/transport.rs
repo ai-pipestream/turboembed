@@ -6,6 +6,30 @@ use std::str::FromStr;
 use super::{unpack, verify};
 use crate::index::{Artifact, File, Url};
 
+/// `url` as its `scheme://host[:port]` and the path and query after it.
+#[cfg(feature = "http")]
+pub(super) fn origin(url: &str) -> (&str, &str) {
+    let after = url.find("://").map_or(0, |at| at + 3);
+    url.split_at(url[after..].find(['/', '?', '#']).map_or(url.len(), |at| after + at))
+}
+
+/// Whether `authority` is an explicit loopback host with a non-zero port
+/// (`127.0.0.1:<port>`, `[::1]:<port>`, or `localhost:<port>`) and no
+/// userinfo (`@`).
+#[cfg(feature = "http")]
+pub(super) fn is_loopback_authority(authority: &str) -> bool {
+    if authority.contains('@') {
+        return false;
+    }
+    let port = authority
+        .strip_prefix("127.0.0.1:")
+        .or_else(|| authority.strip_prefix("[::1]:"))
+        .or_else(|| authority.strip_prefix("localhost:"));
+    port.is_some_and(|p| {
+        !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) && p.parse::<u16>().is_ok_and(|n| n > 0)
+    })
+}
+
 /// Fetches the bytes at an address. The zoo verifies whatever it returns,
 /// so a transport needs no checks of its own; `size` is the most the zoo
 /// takes from the address, so a transport can stop reading once more than
