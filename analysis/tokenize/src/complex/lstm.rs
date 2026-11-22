@@ -28,7 +28,8 @@
 //! `components/segmenter/src/complex/lstm/mod.rs`, Unicode-3.0), with the same
 //! grapheme-cluster invariant as [`Dictionary::segment`](super::Dictionary::segment):
 //! any boundary that would fall inside an extended grapheme cluster moves to
-//! the end of that cluster.
+//! the end of that cluster. One difference: a boundary also follows a
+//! character classified `S`, which that iterator does not emit.
 
 use std::cell::RefCell;
 use std::fmt;
