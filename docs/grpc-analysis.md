@@ -1420,7 +1420,8 @@ scheduler, or the input reader that dies ends it with INTERNAL, naming
 the worker and not the panic's text (issue #2516). A stream that ends OK
 has answered every document it was sent before the half-close. Input
 that fails ends the stream with the input's own status: a message over
-`max_message_bytes` or the stream's byte ceiling names that limit, a
+`max_message_bytes` or the stream's byte ceiling is RESOURCE_EXHAUSTED
+naming that limit, with no `turbo-code`, as docs/grpc.md says, a
 message that does not decode is reported as such, and only the client's
 own cancel answers CANCELLED (issue #2517).
 

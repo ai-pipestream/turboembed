@@ -74,12 +74,18 @@ pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 /// without it is that one, and is answered RESOURCE_EXHAUSTED as other gRPC
 /// servers answer it: OUT_OF_RANGE is TURBO_E_CAPACITY's (docs/kserve.md).
 pub(crate) fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
-    let h = r.headers_mut();
+    too_large_status(r.headers_mut());
+    r
+}
+
+/// [`too_large`] on one header block: a response's headers, or the
+/// trailers a streaming reply ends with, where a refusal of a message
+/// read mid-stream arrives (#2517).
+pub(crate) fn too_large_status(h: &mut http::HeaderMap) {
     let out_of_range = (Code::OutOfRange as i32).to_string();
     if h.get("grpc-status").is_some_and(|v| v.as_bytes() == out_of_range.as_bytes()) && !h.contains_key("turbo-code") {
         h.insert("grpc-status", (Code::ResourceExhausted as i32).into());
     }
-    r
 }
 
 /// A server answering gRPC on its listener: the Open Inference Protocol

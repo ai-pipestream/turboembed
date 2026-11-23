@@ -53,10 +53,20 @@ async fn a_message_over_the_limit_names_the_limit_not_a_cancel() {
     })
     .await;
     assert_ne!(e.code(), Code::Cancelled, "the server's own limit reported as the client's cancel: {e:?}");
+    // docs/grpc.md: a message over --max-message-bytes is RESOURCE_EXHAUSTED
+    // with no turbo-code on every service, a stream's trailers included;
+    // OUT_OF_RANGE is TURBO_E_CAPACITY's.
+    assert_eq!(e.code(), Code::ResourceExhausted, "{e:?}");
+    assert!(e.metadata().get("turbo-code").is_none(), "{e:?}");
     assert!(
         e.message().contains("too large") || e.message().contains(&LIMIT.to_string()),
         "the limit is not named: {e:?}"
     );
     drop(stream.tx);
+    let m = s.metrics();
+    assert!(
+        m.contains(r#"method="AnalyzeStream",code="RESOURCE_EXHAUSTED"} 1"#),
+        "the metric records the status the client saw: {m}"
+    );
     s.stop().await;
 }
