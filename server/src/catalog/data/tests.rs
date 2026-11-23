@@ -204,6 +204,11 @@ fn an_open_during_a_pending_delete_retries_until_the_record_is_gone() {
 
 #[test]
 fn only_windows_reads_access_denied_and_delete_pending_as_a_revoke_in_flight() {
+    assert!(is_delete_pending_code(Some(5)));
+    assert!(is_delete_pending_code(Some(303)));
+    assert!(!is_delete_pending_code(Some(32)));
+    assert!(!is_delete_pending_code(Some(2)));
+    assert!(!is_delete_pending_code(None));
     let os = std::io::Error::from_raw_os_error;
     let opens = |codes: &[i32]| {
         let mut calls = 0;
@@ -221,6 +226,42 @@ fn only_windows_reads_access_denied_and_delete_pending_as_a_revoke_in_flight() {
     assert_eq!(opens(&[303]), (Some(303), retries));
     assert_eq!(opens(&[32]), (Some(32), 1), "a sharing violation is not a revoke");
     assert_eq!(opens(&[5, 303, 2]), gone, "the delete lands and the record is gone");
+}
+
+#[test]
+fn record_retries_a_pending_delete_but_refuses_a_directory_at_once() {
+    let dir = scratch("record-pending");
+    let data = DataDir::open(&*dir).unwrap();
+    let r = Requirement::of(Licence::CcBySa40).unwrap();
+    let alice: UserId = "alice".parse().unwrap();
+    data.record(&alice, &r, &Shown::default()).unwrap();
+    let (key, path) = data.key(&alice, &r);
+    let pending = |e: &std::io::Error| is_delete_pending_code(e.raw_os_error());
+    let os = std::io::Error::from_raw_os_error;
+    let mut calls = 0;
+    let opened = record_with(&path, &key, pending, |opts, path| {
+        calls += 1;
+        match calls {
+            1 => Err(os(5)),
+            2 => Err(os(303)),
+            _ => opts.open(path),
+        }
+    })
+    .unwrap();
+    assert!(opened.is_some());
+    assert_eq!(calls, 3, "the record reader itself retries both pending codes");
+
+    let subdir = data.records().join("dir.json");
+    fs::create_dir(&subdir).unwrap();
+    calls = 0;
+    let e = record_with(&subdir, "dir.json", pending, |_, _| {
+        calls += 1;
+        Err(os(5))
+    })
+    .unwrap_err()
+    .to_string();
+    assert!(e.contains("not a plain file"), "{e}");
+    assert_eq!(calls, 1, "a directory is not a revoke in flight");
 }
 
 fn names(data: &DataDir) -> Vec<String> {

@@ -248,6 +248,9 @@ impl Server {
         )?;
         let sink_sp = serve.sink_search_projection;
         let sink = serve.sink.as_ref().map(|c| SinkForwarder::start_with(c, sink_sp)).transpose()?;
+        if let Some(s) = &sink {
+            state.metrics.bind_sink(s.clone());
+        }
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
             admin: serve.admin,
@@ -433,7 +436,13 @@ impl Server {
     /// watch ends at once, and a call still open after `grace` (a stream
     /// its caller never closes) is cut. Answers whether every call ended
     /// by itself.
-    pub async fn stop_within(mut self, grace: std::time::Duration) -> bool {
+    pub async fn stop_within(self, grace: std::time::Duration) -> bool {
+        self.stop_reporting(grace).await.clean
+    }
+
+    /// [`Self::stop_within`], answering with the sink forwarder's final
+    /// counts as well: what the stop left unsent is in them (#2513).
+    pub async fn stop_reporting(mut self, grace: std::time::Duration) -> Stopped {
         self.state.shutdown();
         self.search_registry.stopping.send_replace(true);
         if let Some(s) = self.stop.take() {
@@ -450,7 +459,16 @@ impl Server {
         if let Some(m) = self.metrics_task.take() {
             let _ = m.await;
         }
-        self.close_sink(std::time::Duration::from_secs(10)).await;
-        clean
+        let sink = self.close_sink(std::time::Duration::from_secs(10)).await;
+        Stopped { clean, sink }
     }
+}
+
+/// How a server stopped.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stopped {
+    /// Whether every call ended by itself within the grace.
+    pub clean: bool,
+    /// The sink forwarder's final counts; `None` without a sink.
+    pub sink: Option<SinkStats>,
 }
