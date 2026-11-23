@@ -124,5 +124,11 @@ async fn labels_that_leave_no_room_for_text_are_over_a_limit_of_their_own() {
     }
     let shown = format!("{failure:?} {failed:?}");
     assert!(!shown.contains("Ann") && !shown.contains("kind1"), "{shown}");
+    // The failed step is counted with its status, and the steps before it
+    // as done (#2517 F11): the call itself still ends OK.
+    let m = server.metrics();
+    let failed = "turbo_kserve_steps_total{step=\"turbo:gliner\",outcome=\"failed\",turbo_code=\"TURBO_E_CAPACITY\"} 1";
+    let done = "turbo_kserve_steps_total{step=\"turbo:subwords\",outcome=\"ok\",turbo_code=\"TURBO_OK\"} 1";
+    assert!(m.lines().any(|l| l == failed) && m.lines().any(|l| l == done), "{m}");
     server.stop().await;
 }

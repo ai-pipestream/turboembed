@@ -122,8 +122,21 @@ async fn rpc_failure_cascade_keeps_every_layer_batch_importable() {
             Event::Receipt(_) => {}
         }
     }
+    let metrics = server.metrics();
     server.stop().await;
     assert!(reported_skip);
+    // Each step is counted once (#2517 F11): the deferred skip, which
+    // stores its skipped outputs after the failure names it, is not
+    // counted again, and never as ok.
+    let counted: Vec<&str> = metrics.lines().filter(|l| l.starts_with("turbo_kserve_steps_total{")).collect();
+    for step in STEPS {
+        let series: Vec<&&str> = counted.iter().filter(|l| l.contains(&format!("step=\"{step}\""))).collect();
+        assert!(series.len() == 1 && series[0].ends_with(" 1"), "{step} is not counted once: {counted:?}");
+    }
+    for (step, outcome) in [("turbo-stem:terms", "failed"), ("turbo-keywords:yake", "skipped")] {
+        let want = format!("step=\"{step}\",outcome=\"{outcome}\"");
+        assert!(counted.iter().any(|l| l.contains(&want)), "no {want} in {counted:?}");
+    }
     let complete = complete.expect("a failed branch still yields a terminal graph");
     check_snapshot(&complete.graph).unwrap();
     assert_eq!(complete.graph, graph(&expected));

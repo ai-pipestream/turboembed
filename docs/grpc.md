@@ -334,6 +334,8 @@ interface. It exposes these metrics:
 | `turbo_kserve_bundle_unloads_total` | counter | none | Unloaded model bundles. |
 | `turbo_kserve_loaded_bundles` | gauge | none | Currently loaded model bundles. |
 | `turbo_kserve_cancelled_before_exec_total` | counter | none | Calls cancelled or expired (`grpc-timeout`) before touching a device session. |
+| `turbo_kserve_documents_total` | counter | `method`, `outcome`, `turbo_code` | Documents answered inside an `AnalyzeStream` call: `outcome` is `ok` or `failed`, and `turbo_code` the failure's status name (`TURBO_OK` for a result). A stream whose every document failed is still one OK call in `turbo_kserve_rpc_requests_total`, so alert on this one. |
+| `turbo_kserve_steps_total` | counter | `step`, `outcome`, `turbo_code` | `AnalyzeDocumentProgressive` steps: `ok`, `failed` with its status, or `skipped`: a step it depends on failed, carrying that failure's status, or the step stored skipped outputs on its own, with `TURBO_OK`. Each step is counted once per call. |
 | `turbo_kserve_sink_offered_total` | counter | none | Completed documents offered to the sink queue. The `turbo_kserve_sink_*` series exist only with `--sink-endpoint` ([grpc-sink.md](grpc-sink.md)). |
 | `turbo_kserve_sink_forwarded_total` | counter | none | Documents sent on a sink call that is open or acknowledged them as received. |
 | `turbo_kserve_sink_accepted_total` | counter | none | Documents the sink's summaries counted accepted. |
