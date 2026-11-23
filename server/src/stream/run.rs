@@ -17,7 +17,7 @@ use turbo::{
 use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
-use crate::proto::result::{AnalyzeOutput, InputBinding};
+use crate::proto::result::{AnalyzeOutput, AnalyzeVectors, InputBinding, InputTokens, VectorCodesResult};
 use crate::results::disclosure::Disclosure;
 use crate::results::document::export_document_response;
 use crate::results::multires::MultiResRequestOptions;
@@ -53,11 +53,30 @@ pub(crate) struct Doc {
     pub(crate) room: Room,
 }
 
-/// The computed payload for one document in a batch.
+/// The computed payload for one document in a batch: its vector or
+/// codes with what the tokenizer made of its text (#2511), or an
+/// outcome already whole.
 pub(crate) enum RowPayload {
-    Vector(prost::bytes::Bytes),
-    Codes(prost::bytes::Bytes),
+    Vector(prost::bytes::Bytes, Option<InputTokens>),
+    Codes(prost::bytes::Bytes, Option<InputTokens>),
     Outcome(Box<ProtoOutcome>),
+}
+
+impl RowPayload {
+    /// The document's outcome: a vector or its codes under the batch's
+    /// model, version, width and quantization.
+    pub(crate) fn outcome(self, model: &str, version: &str, dim: u32, quantization: u32) -> ProtoOutcome {
+        let (model, version) = (model.to_owned(), version.to_owned());
+        match self {
+            RowPayload::Vector(data, tokens) => {
+                ProtoOutcome::Vectors(AnalyzeVectors { model, version, dim, data, quantization, tokens })
+            }
+            RowPayload::Codes(data, tokens) => {
+                ProtoOutcome::VectorCodes(VectorCodesResult { model, version, dim, data, quantization, tokens })
+            }
+            RowPayload::Outcome(outcome) => *outcome,
+        }
+    }
 }
 
 /// One document's answer: its row or its failure, with the queue room
@@ -162,6 +181,15 @@ pub(crate) fn run(
     if let Err(f) = slot.session.write_text(&texts, opts) {
         return fail(f, docs, permits);
     }
+    // What each text came to against the limit, told beside its row.
+    let tokens = match slot.session.row_tokens(docs.len()) {
+        Ok(t) if t.len() == docs.len() => t,
+        Ok(t) => {
+            let f = Failure::new(TURBO_E_INTERNAL, 0, format!("{} row token counts for {} texts", t.len(), docs.len()));
+            return fail(f, docs, permits);
+        }
+        Err(f) => return fail(f, docs, permits),
+    };
     if dead.load(Ordering::Acquire) {
         return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
     }
@@ -190,16 +218,25 @@ pub(crate) fn run(
     let rows: Vec<Row> = slices
         .into_iter()
         .zip(docs)
-        .map(|(c, d)| Row {
+        .zip(tokens.iter().map(input_tokens))
+        .map(|((c, d), tokens)| Row {
             seq: d.seq,
             id: d.id,
             binding: d.binding,
-            payload: if output == AnalyzeOutput::VectorCodes { RowPayload::Codes(c) } else { RowPayload::Vector(c) },
+            payload: match output {
+                AnalyzeOutput::VectorCodes => RowPayload::Codes(c, Some(tokens)),
+                _ => RowPayload::Vector(c, Some(tokens)),
+            },
             room: d.room,
             window: permits.next().expect("one window permit per document"),
         })
         .collect();
     Outcome { model, version, dim, quantization, rows: Ok(rows) }
+}
+
+/// One row's token counts, as the wire carries them.
+pub(crate) fn input_tokens(t: &turbo::turbo_row_tokens) -> InputTokens {
+    InputTokens { kept: t.kept, seen: (t.seen_known != 0).then_some(t.seen), truncated: t.truncated != 0 }
 }
 
 #[allow(clippy::too_many_arguments)]

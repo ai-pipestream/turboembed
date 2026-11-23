@@ -142,6 +142,21 @@ pub struct Encode {
     pub prompt: PromptRole,
 }
 
+/// What one text came to against its token budget (issue #2511): a row
+/// that was cut says so, so no caller takes the vector of a text's first
+/// tokens for the vector of the text.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RowTokens {
+    /// Tokens in the row, special tokens included.
+    pub kept: u32,
+    /// Tokens the whole text gives, special tokens included. None when
+    /// the text was cut by characters before it was tokenized, as a
+    /// static model does under TRUNCATE_RIGHT: the count was never made.
+    pub seen: Option<u32>,
+    /// Whether part of the text is not in the row.
+    pub truncated: bool,
+}
+
 /// Where a token came from: the bytes `[start, end)` of the caller's
 /// text, with any whitespace at either end left out unless the token is
 /// nothing else. A token that came from no character of the text, a

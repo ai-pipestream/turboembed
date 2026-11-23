@@ -156,6 +156,16 @@ pub struct turbo_result_info {
     pub tokenizer_sha256: [c_char; 72],
 }
 
+/// What turbo_embed_write_text made of one text (turbo.h).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct turbo_row_tokens {
+    pub kept: u32,
+    pub seen: u32,
+    pub seen_known: u32,
+    pub truncated: u32,
+}
+
 const SESSION_MAGIC: u64 = 0x7475_7262_6f73_7331; // "turboss1"
 const RESULT_MAGIC: u64 = 0x7475_7262_6f72_7331; // "turbors1"
 
@@ -206,6 +216,9 @@ struct State {
     /// with the session.
     ids: Vec<i32>,
     mask: Vec<i32>,
+    /// What the last turbo_embed_write_text made of each text, one per
+    /// row; empty after any other write (turbo_session_row_tokens).
+    row_tokens: Vec<turbo_row_tokens>,
     rerank: Option<rerank::PairBatch>,
     scores: Vec<f32>,
     pooled: Vec<f32>,

@@ -21,7 +21,7 @@ use tonic::Status;
 use crate::api::Failure;
 use crate::deadline::{Deadline, deadline_status};
 use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse, InputBinding};
-use crate::stream::run::{self, Doc, Outcome, RowPayload, Whole};
+use crate::stream::run::{self, Doc, Outcome, Whole};
 use crate::stream::{BatchKey, Dead, Envelope, Room, Shared};
 
 /// The header as the scheduler holds it.
@@ -350,26 +350,8 @@ impl Engine {
         match rows {
             Ok(rows) => {
                 for row in rows {
-                    let mut response = match row.payload {
-                        RowPayload::Vector(data) => {
-                            let (model, version) = (model.clone(), version.clone());
-                            ok_response(
-                                row.id,
-                                crate::proto::result::AnalyzeVectors { model, version, dim, data, quantization },
-                            )
-                        }
-                        RowPayload::Codes(data) => {
-                            let (model, version) = (model.clone(), version.clone());
-                            let codes =
-                                crate::proto::result::VectorCodesResult { model, version, dim, data, quantization };
-                            let outcome = crate::proto::result::analyze_stream_response::Outcome::VectorCodes(codes);
-                            AnalyzeStreamResponse { id: row.id, outcome: Some(outcome), binding: None }
-                        }
-                        RowPayload::Outcome(outcome) => {
-                            AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome), binding: None }
-                        }
-                    };
-                    response.binding = row.binding;
+                    let outcome = Some(row.payload.outcome(&model, &version, dim, quantization));
+                    let response = AnalyzeStreamResponse { id: row.id, outcome, binding: row.binding };
                     let pending = Pending { response, room: Some(row.room), window: Some(row.window) };
                     if self.enqueue(row.seq, pending, answers).await.is_err() {
                         return Err(());
@@ -450,15 +432,6 @@ impl Engine {
         drop(pending.room);
         drop(pending.window);
         Ok(())
-    }
-}
-
-/// The response for one document's vectors.
-fn ok_response(id: String, vectors: crate::proto::result::AnalyzeVectors) -> AnalyzeStreamResponse {
-    AnalyzeStreamResponse {
-        id,
-        outcome: Some(crate::proto::result::analyze_stream_response::Outcome::Vectors(vectors)),
-        binding: None,
     }
 }
 

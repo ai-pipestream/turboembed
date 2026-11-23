@@ -75,6 +75,13 @@ impl Tokenizer {
     /// The same row, appended to `out`, which an error leaves as it was:
     /// a batch's rows can share one buffer.
     pub fn encode_into(&self, text: &str, opts: Encode, out: &mut Vec<i32>) -> Result<()> {
+        self.encode_into_counted(text, opts, out).map(|_| ())
+    }
+
+    /// `encode_into`, answering with what the text came to against
+    /// `max_tokens`: the tokens kept, the tokens the whole text gives,
+    /// and whether it was cut.
+    pub fn encode_into_counted(&self, text: &str, opts: Encode, out: &mut Vec<i32>) -> Result<RowTokens> {
         let start = out.len();
         let r = self.append_row(text, opts, out);
         if r.is_err() {
@@ -93,10 +100,10 @@ impl Tokenizer {
         span_extent(text.len(), self.prefix(opts.prompt).len())?;
         let start = ids.len();
         let r = self.append_row(text, opts, &mut Spanned { ids, spans });
-        if r.is_err() {
+        if let Err(e) = r {
             ids.truncate(start);
             spans.truncate(start);
-            return r;
+            return Err(e);
         }
         // Spans are into the text with the prompt's prefix in front.
         let prefix = self.prefix(opts.prompt).len() as u32;
@@ -108,7 +115,7 @@ impl Tokenizer {
         Ok(())
     }
 
-    pub(super) fn append_row<S: Sink>(&self, text: &str, opts: Encode, out: &mut S) -> Result<()> {
+    pub(super) fn append_row<S: Sink>(&self, text: &str, opts: Encode, out: &mut S) -> Result<RowTokens> {
         let specials = if opts.add_special_tokens { self.specials_per_sequence() } else { 0 };
         if opts.max_tokens < specials {
             return Err(Error::field(
@@ -131,25 +138,39 @@ impl Tokenizer {
             out.push(id, || NOWHERE);
         }
         let body = out.len();
+        // What the whole text gives, where it is tokenized whole, and
+        // whether any of it is left out of the row.
+        let (mut seen, mut cut) = (None, false);
         match &self.stat {
             None => self.text_ids(&text, out),
             Some(st) => {
                 match opts.truncation {
                     Truncation::Right => {
-                        self.text_ids(char_prefix(&text, budget.saturating_mul(st.median_chars)), out);
+                        let prefix = char_prefix(&text, budget.saturating_mul(st.median_chars));
+                        self.text_ids(prefix, out);
+                        cut = prefix.len() < text.len() || out.len() - body > budget;
                         out.truncate(body + budget);
                     }
                     Truncation::Left => {
                         self.text_ids(&text, out);
+                        seen = Some(out.len() - body);
+                        cut = out.len() - body > budget;
                         out.drain(body..out.len().saturating_sub(budget).max(body));
                     }
-                    Truncation::None => self.text_ids(&text, out),
+                    Truncation::None => {
+                        self.text_ids(&text, out);
+                        seen = Some(out.len() - body);
+                    }
                 }
                 let unk = self.unk_id;
                 out.retain_from(body, |id| id != unk);
             }
         }
         let len = out.len() - body;
+        if self.stat.is_none() {
+            seen = Some(len);
+        }
+        cut |= len > budget;
         if len > budget {
             match opts.truncation {
                 Truncation::None => {
@@ -180,7 +201,8 @@ impl Tokenizer {
                 }
             }
         }
-        Ok(())
+        let seen = seen.map(|n| (n as u64 + specials as u64).min(u32::MAX as u64) as u32);
+        Ok(RowTokens { kept: (out.len() - start).min(u32::MAX as usize) as u32, seen, truncated: cut })
     }
 
     /// The text `ids` stand for, as the tokenizer file's decoder writes

@@ -225,6 +225,17 @@ impl Session {
         check(|e| unsafe { turbo_embed_write_text(self.as_ptr(), texts.as_ptr(), count, opts, e) })
     }
 
+    /// What the last write_text made of each text (#2511).
+    pub fn row_tokens(&self, rows: usize) -> Result<Vec<turbo_row_tokens>> {
+        let mut out = vec![turbo_row_tokens::default(); rows];
+        let mut n = 0u32;
+        let cap =
+            u32::try_from(rows).map_err(|_| Failure::new(TURBO_E_INVALID_SHAPE, 0, "more rows than a uint32_t"))?;
+        check(|e| unsafe { turbo_session_row_tokens(self.as_ptr(), out.as_mut_ptr(), cap, &mut n, e) })?;
+        out.truncate(n as usize);
+        Ok(out)
+    }
+
     pub fn write_tokens(&self, batch: &turbo_token_batch, opts: &turbo_embed_options) -> Result<()> {
         check(|e| unsafe { turbo_embed_write_tokens(self.as_ptr(), batch, opts, e) })
     }

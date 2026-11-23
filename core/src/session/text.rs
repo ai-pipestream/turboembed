@@ -1,6 +1,7 @@
 //! Text-batch tokenization and writes into session buffers.
 
 use super::*;
+use crate::tokenizer::RowTokens;
 
 /// A run's Part, or the first error among its texts.
 pub(super) type Rows = Result<Part>;
@@ -146,12 +147,17 @@ pub unsafe extern "C" fn turbo_embed_write_text(
             let e = Encode { add_special_tokens: true, truncation: o.truncation, max_tokens, prompt: o.prompt };
             let text_count = array_len::<turbo_text>(count as u64, "texts")?;
             let texts = std::slice::from_raw_parts(texts, text_count);
+            // What each text came to against max_tokens, told by
+            // turbo_session_row_tokens: a cut row is never silent (#2511).
+            let counted: Vec<std::sync::OnceLock<RowTokens>> = (0..text_count).map(|_| Default::default()).collect();
             let one = |i: usize, t: turbo_text, out: &mut Vec<i32>| -> Result<()> {
                 let start = out.len();
-                tok.encode_into(text(t, &format_args!("texts[{i}]"))?, e, out).map_err(|mut err| {
-                    err.message = format!("texts[{i}]: {}", err.message);
-                    err
-                })?;
+                let row =
+                    tok.encode_into_counted(text(t, &format_args!("texts[{i}]"))?, e, out).map_err(|mut err| {
+                        err.message = format!("texts[{i}]: {}", err.message);
+                        err
+                    })?;
+                let _ = counted[i].set(row);
                 let len = out.len() - start;
                 // A static model's template may have no special tokens, so
                 // a text can give none: its vector is the zero vector. An
@@ -183,10 +189,54 @@ pub unsafe extern "C" fn turbo_embed_write_text(
                 mask[..row.len()].fill(1);
                 mask[row.len()..].fill(0);
             }
+            state.row_tokens.extend(counted.iter().map(|c| {
+                let row = c.get().copied().unwrap_or_default();
+                turbo_row_tokens {
+                    kept: row.kept,
+                    seen: row.seen.unwrap_or(0),
+                    seen_known: row.seen.is_some() as u32,
+                    truncated: row.truncated as u32,
+                }
+            }));
             let mut r = backend_rows(&o, count, seq as u32, seq as u32);
             r.ids = state.ids.as_ptr();
             r.mask = state.mask.as_ptr();
             write_rows(s, state, r, &o, true)
+        })
+    }
+}
+
+/// # Safety
+/// `out` holds `capacity` entries; other pointers are NULL or valid for
+/// the call, as turbo.h says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_session_row_tokens(
+    s: *mut turbo_session,
+    out: *mut turbo_row_tokens,
+    capacity: u32,
+    count: *mut u32,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let s = &session(s)?.inner;
+            let state = s.lock()?;
+            let rows = &state.row_tokens;
+            if !state.written.is_some_and(|w| w.tokenized && w.batch as usize == rows.len()) {
+                return Err(Error::new(INVALID_STATE, "the session's last write was not turbo_embed_write_text"));
+            }
+            if out.is_null() || count.is_null() {
+                return Err(Error::new(INVALID_ARGUMENT, "out or count is NULL"));
+            }
+            if (capacity as usize) < rows.len() {
+                return Err(Error::new(
+                    CAPACITY,
+                    format!("capacity {capacity} is under the {} rows written", rows.len()),
+                ));
+            }
+            std::ptr::copy_nonoverlapping(rows.as_ptr(), out, rows.len());
+            *count = rows.len() as u32;
+            Ok(())
         })
     }
 }
