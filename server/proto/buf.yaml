@@ -19,3 +19,10 @@ breaking:
   ignore:
     - open_inference_grpc.proto
     - health.proto
+  # #2517 F13 gives SearchTemporalRange epoch bounds and the money and
+  # quantity f64 values explicit presence, so a value that cannot be told is
+  # absent instead of a stand-in 0. Implicit to explicit presence is wire
+  # compatible. Drop this entry once that change is on main.
+  ignore_only:
+    FIELD_SAME_CARDINALITY:
+      - turbo_search_projection.proto

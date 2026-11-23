@@ -334,6 +334,17 @@ interface. It exposes these metrics:
 | `turbo_kserve_bundle_unloads_total` | counter | none | Unloaded model bundles. |
 | `turbo_kserve_loaded_bundles` | gauge | none | Currently loaded model bundles. |
 | `turbo_kserve_cancelled_before_exec_total` | counter | none | Calls cancelled or expired (`grpc-timeout`) before touching a device session. |
+| `turbo_kserve_sink_offered_total` | counter | none | Completed documents offered to the sink queue. The `turbo_kserve_sink_*` series exist only with `--sink-endpoint` ([grpc-sink.md](grpc-sink.md)). |
+| `turbo_kserve_sink_forwarded_total` | counter | none | Documents sent on a sink call that is open or acknowledged them as received. |
+| `turbo_kserve_sink_accepted_total` | counter | none | Documents the sink's summaries counted accepted. |
+| `turbo_kserve_sink_rejected_total` | counter | none | Documents the sink's summaries counted rejected. |
+| `turbo_kserve_sink_dropped_total` | counter | none | Documents dropped because the sink queue was full. |
+| `turbo_kserve_sink_refused_total` | counter | none | Document graphs refused before the sink queue. |
+| `turbo_kserve_sink_unconfirmed_total` | counter | none | Documents sent on a sink call that ended without acknowledging them. |
+| `turbo_kserve_sink_abandoned_total` | counter | none | Documents left in the sink queue when a stop ended the drain. |
+| `turbo_kserve_sink_failed_calls_total` | counter | none | Sink calls that ended in an error. |
+| `turbo_kserve_sink_queued_items` | gauge | none | Documents waiting in the sink queue. |
+| `turbo_kserve_sink_queued_bytes` | gauge | none | Encoded bytes waiting in the sink queue. |
 
 Bearer token authentication (`--bearer-token` / `--bearer-token-file` /
 `--admin-bearer-token` / `--admin-bearer-token-file` or

@@ -180,8 +180,17 @@ async fn main() -> ExitCode {
     // grace period is cut, so a stream nobody closes cannot hold the stop.
     eprintln!("turbo-kserve: stopping on {name}");
     server.drain();
-    if !server.stop_within(turbo_kserve::STOP_GRACE).await {
+    let stopped = server.stop_reporting(turbo_kserve::STOP_GRACE).await;
+    if !stopped.clean {
         eprintln!("turbo-kserve: calls still open after {} s were cut", turbo_kserve::STOP_GRACE.as_secs());
+    }
+    // The sink leg's last word: a document a client was answered for and
+    // no sink is known to hold is said here, not only counted (#2513).
+    if let Some(sink) = &stopped.sink {
+        eprintln!("turbo-kserve: sink: {sink}");
+        if sink.undelivered() > 0 {
+            eprintln!("turbo-kserve: sink: {} documents are not known to have reached the sink", sink.undelivered());
+        }
     }
     eprintln!("turbo-kserve: stopped");
     ExitCode::SUCCESS

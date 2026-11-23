@@ -187,14 +187,18 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
     if let Some(nt) = &msg.numeric_temporal {
         for (i, m) in nt.money.iter().enumerate() {
             check_wire_span(&format!("money[{i}].span"), m.span_start, m.span_end, text_len)?;
-            check_finite(&format!("money[{i}].amount_f64"), m.amount_f64)?;
+            if let Some(v) = m.amount_f64 {
+                check_finite(&format!("money[{i}].amount_f64"), v)?;
+            }
             if m.currency.is_empty() {
                 return Err(bad(format!("money[{i}].currency must not be empty")));
             }
         }
         for (i, q) in nt.quantities.iter().enumerate() {
             check_wire_span(&format!("quantities[{i}].span"), q.span_start, q.span_end, text_len)?;
-            check_finite(&format!("quantities[{i}].value_f64"), q.value_f64)?;
+            if let Some(v) = q.value_f64 {
+                check_finite(&format!("quantities[{i}].value_f64"), v)?;
+            }
         }
         if let Some(dd) = &nt.document_date
             && (dd.month == 0 || dd.month > 12 || dd.day == 0 || dd.day > 31)
@@ -203,11 +207,12 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
         }
         for (i, tr) in nt.temporals.iter().enumerate() {
             check_wire_span(&format!("temporals[{i}].span"), tr.span_start, tr.span_end, text_len)?;
-            if tr.start_epoch_seconds > tr.end_epoch_seconds {
-                return Err(bad(format!(
-                    "temporals[{i}] epoch range [{}..{}) is inverted",
-                    tr.start_epoch_seconds, tr.end_epoch_seconds
-                )));
+            match (tr.start_epoch_seconds, tr.end_epoch_seconds) {
+                (Some(s), Some(e)) if s > e => {
+                    return Err(bad(format!("temporals[{i}] epoch range [{s}..{e}) is inverted")));
+                }
+                (Some(_), Some(_)) | (None, None) => {}
+                _ => return Err(bad(format!("temporals[{i}] has one epoch bound without the other"))),
             }
         }
         for (i, tm) in nt.times.iter().enumerate() {

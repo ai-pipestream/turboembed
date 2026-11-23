@@ -96,13 +96,19 @@ fn single_pass_projection_preserves_source_offsets_polarity_and_quality_across_m
         let nt = proj.numeric_temporal.as_ref().unwrap();
         assert_eq!(nt.money.len(), 2);
         assert!(
-            nt.money.iter().any(|m| m.currency == "EUR" && !m.ecb_converted && (m.amount_f64 - 100.0).abs() < 1e-6)
+            nt.money
+                .iter()
+                .any(|m| m.currency == "EUR" && !m.ecb_converted && (m.amount_f64.unwrap() - 100.0).abs() < 1e-6)
         );
-        assert!(nt.money.iter().any(|m| m.currency == "USD" && m.ecb_converted && (m.amount_f64 - 108.5).abs() < 1e-6));
+        assert!(
+            nt.money
+                .iter()
+                .any(|m| m.currency == "USD" && m.ecb_converted && (m.amount_f64.unwrap() - 108.5).abs() < 1e-6)
+        );
         assert_eq!(nt.quantities[0].unit, "kg");
-        assert!((nt.quantities[0].value_f64 - 0.5).abs() < 1e-6);
+        assert!((nt.quantities[0].value_f64.unwrap() - 0.5).abs() < 1e-6);
         assert_eq!(nt.document_date.as_ref().unwrap().iso, "2026-05-01");
-        assert!(nt.temporals[0].end_epoch_seconds > nt.temporals[0].start_epoch_seconds);
+        assert!(nt.temporals[0].end_epoch_seconds.unwrap() > nt.temporals[0].start_epoch_seconds.unwrap());
 
         assert_eq!(proj.geo_locations.len(), 1);
         assert_eq!(proj.geo_locations[0].canonical_name, "Berlin");

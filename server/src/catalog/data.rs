@@ -179,18 +179,17 @@ fn is_gone(e: &std::io::Error) -> bool {
     matches!(e.kind(), ErrorKind::NotFound | ErrorKind::StaleNetworkFileHandle)
 }
 
+/// Whether a raw OS error is one of the two pending-delete codes.
+fn is_delete_pending_code(code: Option<i32>) -> bool {
+    matches!(code, Some(5 | 303))
+}
+
 /// Windows answers ERROR_ACCESS_DENIED (5) or ERROR_DELETE_PENDING (303) to an
 /// open of a file being deleted (#2407): a revoke in flight, not a denial.
 /// ERROR_SHARING_VIOLATION (32) is left out on purpose: it is another
 /// process holding the file without sharing, and it surfaces at once.
-#[cfg(windows)]
 fn is_delete_pending(e: &std::io::Error) -> bool {
-    matches!(e.raw_os_error(), Some(5 | 303))
-}
-
-#[cfg(not(windows))]
-fn is_delete_pending(_: &std::io::Error) -> bool {
-    false
+    cfg!(windows) && is_delete_pending_code(e.raw_os_error())
 }
 
 /// How often an operation refused as a pending delete refuses is tried.
@@ -296,6 +295,15 @@ fn is_not_plain_file(e: &std::io::Error, path: &Path) -> bool {
 /// gone. A file that is not one record, or not the record its name says,
 /// is an error that names it.
 fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
+    record_with(path, name, is_delete_pending, |opts, path| opts.open(path))
+}
+
+fn record_with(
+    path: &Path,
+    name: &str,
+    pending: impl Fn(&std::io::Error) -> bool,
+    mut open: impl FnMut(&fs::OpenOptions, &Path) -> std::io::Result<fs::File>,
+) -> Result<Option<Acceptance>, ZooError> {
     let bad = |m: String| ZooError::Acceptances(format!("{}: {m}; remove it to accept again", path.display()));
     let io = |e: std::io::Error| ZooError::Io { path: path.to_path_buf(), message: e.to_string() };
     #[cfg(not(any(unix, windows)))]
@@ -319,7 +327,10 @@ fn record(path: &Path, name: &str) -> Result<Option<Acceptance>, ZooError> {
     }
     // Open once without following symlinks or blocking on a FIFO: a record
     // revoked since read_dir (NotFound, or ESTALE on NFS) is gone, not bad.
-    let mut file = match open_past_pending_delete(|| opts.open(path), is_delete_pending) {
+    // A directory that Windows refuses with a pending-delete code is not
+    // retried: it is not a record being revoked.
+    let pending = |e: &std::io::Error| pending(e) && !fs::symlink_metadata(path).is_ok_and(|m| m.is_dir());
+    let mut file = match open_past_pending_delete(|| open(&opts, path), pending) {
         Ok(f) => f,
         Err(e) if is_gone(&e) => return Ok(None),
         Err(e) if is_not_plain_file(&e, path) => return Err(bad("not a plain file".into())),

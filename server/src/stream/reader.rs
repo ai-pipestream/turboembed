@@ -199,10 +199,15 @@ pub(crate) async fn run(
                     input_closed = true;
                     continue;
                 }
-                // The client cancelled or went away: what is queued for
-                // this stream is dropped, not drained.
-                Err(_) => {
-                    let _ = work.try_send(Envelope::Abort(Status::cancelled("the client cancelled the stream")));
+                // The input failed: the client cancelled or went away, or
+                // a message broke a limit or did not decode. What is queued
+                // for this stream is dropped, not drained, and the stream
+                // ends with the input's own status, so a message over the
+                // limit names the limit instead of passing for a cancel
+                // (#2517). The abort waits for room: dropped, the engine
+                // would see a reader that ended without a word.
+                Err(status) => {
+                    let _ = work.send(Envelope::Abort(status)).await;
                     return;
                 }
             },

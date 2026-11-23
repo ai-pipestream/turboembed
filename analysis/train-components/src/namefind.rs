@@ -80,7 +80,7 @@ use turbo_train::{
 };
 
 use crate::error::{Error, Result};
-use crate::package::{FACTORY_KEY, Stamp, add_artifacts};
+use crate::package::{FACTORY_KEY, Stamp, packaged};
 use crate::postag::java_strings;
 
 /// `TokenNameFinderModel.COMPONENT_NAME`.
@@ -304,15 +304,9 @@ pub fn package_name_model(
     beam_size: i32,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.manifest(COMPONENT_NAME, factory.language());
-    manifest.set_training(report);
-    for (k, v) in factory.manifest_entries() {
-        manifest.set(&k, &v);
-    }
+    let mut manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
     manifest.set(BEAM_SIZE_KEY, &beam_size.to_string());
-    let mut package = ModelPackage::new(manifest);
-    add_artifacts(&mut package, vec![(MODEL_ENTRY, model_bytes), (DESCRIPTOR_ENTRY, factory.descriptor().to_vec())])?;
-    Ok(package)
+    packaged(manifest, vec![(MODEL_ENTRY, model_bytes), (DESCRIPTOR_ENTRY, factory.descriptor().to_vec())])
 }
 
 /// `NameFinderME.train(languageCode, kind, samples, params, factory)` with
