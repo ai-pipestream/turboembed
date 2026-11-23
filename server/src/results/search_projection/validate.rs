@@ -187,14 +187,18 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
     if let Some(nt) = &msg.numeric_temporal {
         for (i, m) in nt.money.iter().enumerate() {
             check_wire_span(&format!("money[{i}].span"), m.span_start, m.span_end, text_len)?;
-            check_finite(&format!("money[{i}].amount_f64"), m.amount_f64)?;
+            if let Some(v) = m.amount_f64 {
+                check_finite(&format!("money[{i}].amount_f64"), v)?;
+            }
             if m.currency.is_empty() {
                 return Err(bad(format!("money[{i}].currency must not be empty")));
             }
         }
         for (i, q) in nt.quantities.iter().enumerate() {
             check_wire_span(&format!("quantities[{i}].span"), q.span_start, q.span_end, text_len)?;
-            check_finite(&format!("quantities[{i}].value_f64"), q.value_f64)?;
+            if let Some(v) = q.value_f64 {
+                check_finite(&format!("quantities[{i}].value_f64"), v)?;
+            }
         }
         if let Some(dd) = &nt.document_date
             && (dd.month == 0 || dd.month > 12 || dd.day == 0 || dd.day > 31)

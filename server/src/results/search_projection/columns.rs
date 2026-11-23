@@ -36,7 +36,8 @@ fn temporal_epoch_bounds(val: TemporalValue) -> Option<(i64, i64)> {
             let jan4 = Date::new(year, 1, 4)?;
             let weekday = (jan4.epoch_day() + 3).rem_euclid(7);
             let mon = jan4.plus_days(-weekday)?.plus_weeks(i64::from(week.saturating_sub(1)))?;
-            Some(span(mon, mon.plus_days(7)))
+            // Week 53 of a 52-week year names no day; it is not next year's week 1.
+            (mon.iso_week() == (year, week)).then(|| span(mon, mon.plus_days(7)))
         }
         TemporalValue::Month { year, month } => {
             let first = Date::new(year, month, 1)?;
@@ -54,6 +55,11 @@ fn temporal_epoch_bounds(val: TemporalValue) -> Option<(i64, i64)> {
     }
 }
 
+/// An f64 that holds the value, or none when the value overflows f64.
+fn finite(v: f64) -> Option<f64> {
+    Some(v).filter(|v| v.is_finite())
+}
+
 fn push_money_layer(
     cx: &SearchProjCx<'_>,
     layer: &Money,
@@ -64,9 +70,9 @@ fn push_money_layer(
     for i in 0..layer.len() {
         let ix = Ix::new(i as u32);
         let (span_start, span_end) = cx.map_to_wire(view, layer.spans.get(ix))?;
-        // The nearest f64 of the exact decimal; one past the f64 range is
-        // infinite, which the validator refuses, never a stand-in 0.
-        let amount_f64 = layer.amount(ix).to_f64();
+        // The nearest f64 of the exact decimal, or none past the f64 range;
+        // `plain_amount` holds the exact value either way.
+        let amount_f64 = finite(layer.amount(ix).to_f64());
         let plain_amount = layer.amount(ix).to_plain_string();
         out.push(SearchMoneyValue {
             span_start,
@@ -100,7 +106,7 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
             let (unit_str, dec_ref) =
                 if base.is_empty() { (q.unit(ix), q.value(ix)) } else { (base, q.normalized_value(ix)) };
             let plain_value = dec_ref.to_plain_string();
-            let value_f64 = dec_ref.to_f64();
+            let value_f64 = finite(dec_ref.to_f64());
             quantities.push(SearchQuantityValue {
                 span_start,
                 span_end,
@@ -418,5 +424,22 @@ mod tests {
         let ok = TemporalValue::Month { year: 2026, month: 7 };
         // 2026-07-01 and 2026-08-01, UTC.
         assert_eq!(temporal_epoch_bounds(ok), Some((1_782_864_000, 1_785_542_400)));
+        assert_eq!(temporal_epoch_bounds(TemporalValue::Day(Date::new(1970, 1, 1).unwrap())), Some((0, 86_400)));
+    }
+
+    // 2025 has 52 ISO weeks, so 2025-W53 names no day and must not become
+    // 2026-W01; 2026 has 53, so 2026-W53 is 2026-12-28 to 2027-01-04.
+    #[test]
+    fn only_a_week_the_year_has_gets_bounds() {
+        assert_eq!(temporal_epoch_bounds(TemporalValue::Week { year: 2025, week: 53 }), None);
+        assert_eq!(temporal_epoch_bounds(TemporalValue::Week { year: 2025, week: 0 }), None);
+        assert_eq!(
+            temporal_epoch_bounds(TemporalValue::Week { year: 2026, week: 53 }),
+            Some((1_798_416_000, 1_799_020_800))
+        );
+        assert_eq!(
+            temporal_epoch_bounds(TemporalValue::Week { year: 2026, week: 1 }),
+            Some((1_766_966_400, 1_767_571_200))
+        );
     }
 }
