@@ -13,9 +13,16 @@ use std::path::{Path, PathBuf};
 
 use common::*;
 use serde_json::Value;
+use tokio_stream::StreamExt;
 use turbo_kserve::config::{Device, ModelConfig};
 use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+use turbo_kserve::proto::result::analyze_progressive_event::Event;
+use turbo_kserve::proto::result::analyze_stream_request::Kind;
 use turbo_kserve::proto::result::analyze_stream_response::Outcome;
+use turbo_kserve::proto::result::{
+    AnalyzeDocument, AnalyzeOptions, AnalyzeOutput, AnalyzePipelineRequest, AnalyzeQueryRequest, AnalyzeStreamRequest,
+    OffsetMode as ProtoOffsetMode, QueryDenseTargetProto,
+};
 use turbo_kserve::{Serve, Server};
 
 /// The tokenizer's id of "zebra", whose row is poisoned.
@@ -67,6 +74,8 @@ fn poisoned() -> Poisoned {
     std::fs::write(&table, &bytes).unwrap();
     let manifest = dir.join("manifest.json");
     let mut m: Value = serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    // A prefix tier, so multires vectors and AnalyzeQuery have one to ask for.
+    m["embed"]["output_dims"] = serde_json::json!([8, 16]);
     for f in m["files"].as_array_mut().unwrap() {
         if f["path"] == "weights/static.safetensors" {
             f["sha256"] = Value::String(turbo_sha256::sha256(&bytes).to_hex());
@@ -141,5 +150,89 @@ async fn a_static_text_of_no_tokens_says_it_kept_none() {
     assert!(v.data.iter().all(|&b| b == 0), "a row of no tokens is the zero vector");
     let Outcome::Vectors(v) = &got["hello"] else { panic!("hello: {:?}", got["hello"]) };
     assert!(v.tokens.unwrap().kept > 0);
+    s.stop().await;
+}
+
+/// Every float embedding output fails the poisoned document with
+/// TURBO_E_INTERNAL, not only pooled vectors: a broken model is the
+/// server's fault, never the request's (TURBO_E_INVALID_ARGUMENT).
+#[tokio::test]
+async fn token_and_multires_vectors_fail_a_non_finite_document() {
+    let bundle = poisoned();
+    let (s, mut a, _) = serve(&bundle.0).await;
+    for output in [AnalyzeOutput::TokenVectors, AnalyzeOutput::MultiresVectors] {
+        let mut stream = open_stream(&mut a, 0, 0, 0).await;
+        // Multires asks for a prefix tier too; token vectors take no options.
+        let opts = (output == AnalyzeOutput::MultiresVectors)
+            .then(|| AnalyzeOptions { matryoshka_dims: vec![8], ..Default::default() });
+        for (id, text) in [("hello", "hello there"), ("zebra", "a zebra")] {
+            let doc = AnalyzeDocument {
+                id: id.into(),
+                model: MODEL.into(),
+                text: text.as_bytes().to_vec(),
+                options: opts.clone(),
+                output: output as i32,
+                offsets: ProtoOffsetMode::Utf8 as i32,
+                binding: None,
+                vocabulary: None,
+            };
+            stream.tx.send(AnalyzeStreamRequest { kind: Some(Kind::Document(doc)) }).await.unwrap();
+            stream.sent.push(id.into());
+        }
+        let got = by_id(stream.half_close()).await;
+        assert!(!matches!(got["hello"], Outcome::Failure(_)), "{output:?} hello: {:?}", got["hello"]);
+        let Outcome::Failure(f) = &got["zebra"] else { panic!("{output:?}: a NaN row answered: {:?}", got["zebra"]) };
+        assert_eq!(f.turbo_code, turbo_kserve::api::TURBO_E_INTERNAL, "{output:?}: {f:?}");
+        assert!(f.message.contains("not finite"), "{output:?}: {f:?}");
+    }
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn analyze_query_refuses_a_non_finite_dense_vector() {
+    let bundle = poisoned();
+    let (s, mut a, _) = serve(&bundle.0).await;
+    let req = |query: &str| AnalyzeQueryRequest {
+        query: query.into(),
+        default_language: "en".into(),
+        dense_targets: vec![QueryDenseTargetProto {
+            target_id: "dense".into(),
+            model: MODEL.into(),
+            matryoshka_dims: vec![8],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let ok = a.analyze_query(req("hello there")).await.unwrap().into_inner();
+    assert!(!ok.dense_results[0].full.as_ref().unwrap().data.is_empty());
+    let e = a.analyze_query(req("a zebra")).await.unwrap_err();
+    assert_eq!(e.code(), tonic::Code::Internal, "{e:?}");
+    assert!(e.message().contains("not finite"), "{e:?}");
+    s.stop().await;
+}
+
+/// The progressive path reports a broken chunk vector as its step's
+/// failure with TURBO_E_INTERNAL; the graph it completes holds no such
+/// vector layer.
+#[tokio::test]
+async fn a_progressive_document_with_a_non_finite_chunk_vector_fails_its_step() {
+    let bundle = poisoned();
+    let (s, mut a, _) = serve(&bundle.0).await;
+    let req = AnalyzePipelineRequest {
+        doc_id: "zebra".into(),
+        text: "a zebra".into(),
+        offsets: ProtoOffsetMode::Utf8 as i32,
+        profile: "default-v1".into(),
+        ..Default::default()
+    };
+    let mut events = a.analyze_document_progressive(req).await.unwrap().into_inner();
+    let mut failures = Vec::new();
+    while let Some(item) = events.next().await {
+        if let Some(Event::StepFailed(f)) = item.unwrap().event {
+            failures.push(f);
+        }
+    }
+    let f = failures.iter().find(|f| f.step_id == "turbo:chunk-vectors").expect("a NaN chunk vector passed");
+    assert_eq!(f.failure.as_ref().unwrap().turbo_code, turbo_kserve::api::TURBO_E_INTERNAL, "{f:?}");
     s.stop().await;
 }

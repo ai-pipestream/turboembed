@@ -1392,8 +1392,13 @@ its id:
   A vector of a cut text never passes for the whole text's. `kept` 0
   is a text that gave no tokens, which a static model answers with the
   zero vector (issue #2517). A float row holding a NaN or an infinity
-  is never sent: that document answers `AnalyzeFailure` with
-  `TURBO_E_INTERNAL`, and the others in its batch are unaffected. A `quantization` other than 0 or
+  is never sent, under any output: the core refuses an embed run whose
+  vectors are not finite (`turbo_session_run` and `turbo_result_read`),
+  so that document answers `AnalyzeFailure` with `TURBO_E_INTERNAL` for
+  pooled, token, and multi-resolution vectors alike, and the others in
+  its batch are unaffected. `AnalyzeQuery` fails the call with
+  `TURBO_E_INTERNAL`, and `AnalyzeDocumentProgressive` reports the
+  vector step's `AnalysisStepFailure` with `TURBO_E_INTERNAL`. A `quantization` other than 0 or
   `TURBO_QUANTIZE_NONE` with a sparse-terms, token-vectors, or
   document-graph `output`
   is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output

@@ -1,7 +1,10 @@
 //! The finiteness check on embedding rows (issue #2517). A NaN or an
 //! infinity in a vector is a broken run, never an answer: the rerank
-//! path already refuses non-finite encoder output, and the embed paths
-//! check every float row before it is sent.
+//! path already refuses non-finite encoder output, and the core refuses
+//! an embed run whose F32 vectors are not finite (`turbo_session_run`,
+//! `turbo_result_read`). These checks stay for what the core does not
+//! see: vectors handed over in place by `turbo_result_buffer`, and F16 or
+//! BF16 output.
 
 use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 

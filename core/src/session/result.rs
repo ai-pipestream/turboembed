@@ -28,6 +28,10 @@ pub unsafe extern "C" fn turbo_session_run(
             } else {
                 backend::check(b, "session_run", |err| (s.run)(s.raw, &mut r, err))?;
                 check_run(b, &r, w.tokenized)?;
+                if !r.host.is_null() && s.model.info.task == TURBO_TASK_EMBED {
+                    let n = w.batch as usize * w.output_dim as usize;
+                    finite_rows(std::slice::from_raw_parts(r.host as *const f32, n), w.output_dim as usize)?;
+                }
                 if w.quantization != Quantization::F32 {
                     quantized(s, &mut state, &w, &mut r)?;
                 }
@@ -128,6 +132,9 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
         let bytes = n as u64 * 4;
         backend::check(b, "buffer_read", |err| unsafe { read(r.output, staged.as_mut_ptr().cast(), bytes, err) })?;
         r.d2h_bytes += bytes;
+        if s.model.info.task == TURBO_TASK_EMBED {
+            finite_rows(&staged[..n], dim)?;
+        }
         &staged[..n]
     } else {
         unsafe { std::slice::from_raw_parts(r.host as *const f32, n) }
@@ -140,6 +147,23 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
     r.host = out.as_mut_ptr().cast();
     r.placement = TURBO_PLACE_HOST;
     Ok(())
+}
+
+/// Every value of `v`, rows of `dim`, is finite. A NaN or an infinity in
+/// an embedding is a broken run, never a vector (#2517 F12): the run is
+/// TURBO_E_INTERNAL naming the first such row.
+pub(super) fn finite_rows(v: &[f32], dim: usize) -> Result<()> {
+    match v.iter().position(|x| !x.is_finite()) {
+        None => Ok(()),
+        Some(at) => Err(Error::new(
+            INTERNAL,
+            format!(
+                "the model's output for row {} is not finite at dimension {}: the run is broken",
+                at / dim.max(1),
+                at % dim.max(1)
+            ),
+        )),
+    }
 }
 
 /// What the backend reported is something turbo.h can say.
@@ -220,6 +244,11 @@ pub unsafe extern "C" fn turbo_result_read(
                     )
                 })?;
                 backend::check(b, "buffer_read", |err| read(r.output, dst, bytes, err))?;
+                let i = &r.info;
+                if i.task == TURBO_TASK_EMBED && i.dtype == TURBO_DTYPE_F32 {
+                    let n = i.batch as usize * i.dim as usize;
+                    finite_rows(std::slice::from_raw_parts(dst as *const f32, n), i.dim as usize)?;
+                }
             } else {
                 std::ptr::copy_nonoverlapping(r.host as *const u8, dst as *mut u8, bytes as usize);
             }

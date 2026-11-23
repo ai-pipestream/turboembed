@@ -95,3 +95,13 @@ fn a_layer_count_is_judged_against_the_model_before_the_device() {
     let e = taps_refusal(3, enc(TURBO_FAMILY_BERT), false, "x").unwrap_err();
     assert_eq!(e.message, "layers 3: the model has 1 to 2 to read");
 }
+
+#[test]
+fn a_non_finite_value_names_its_row_and_dimension() {
+    assert!(result::finite_rows(&[0.0, -1.5, 2.0, 0.25], 2).is_ok());
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        let e = result::finite_rows(&[0.0, 1.0, 2.0, bad], 2).unwrap_err();
+        assert_eq!(e.code, INTERNAL);
+        assert!(e.message.contains("row 1") && e.message.contains("dimension 1"), "{}", e.message);
+    }
+}
