@@ -20,7 +20,8 @@ use turbo_kserve::proto::result::analyze_progressive_event::Event;
 use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::proto::result::{
     AnalyzePipelineRequest, DocumentGraphRequest, DocumentGraphResponse, FormatDocumentRequest,
-    InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, TypedDocumentResult, pii_value,
+    InspectDocumentGraphRequest, OffsetMode, PiiOutputOptions, PiiValueForm, TypedDocumentResult, TypedResultOptions,
+    pii_value,
 };
 use turbo_kserve::proto::sink::DocumentSinkItem;
 use turbo_kserve::results::disclosure::{Disclosure, PiiOutputPolicy};
@@ -67,14 +68,21 @@ fn options(full_text: bool, rewritten_text: bool) -> Option<PiiOutputOptions> {
 /// Runs the PII scan and mask steps on TEXT under `pii_output` and answers
 /// every event's encoded bytes and the complete answer.
 async fn progressive(s: &Server, pii_output: Option<PiiOutputOptions>) -> (Vec<Vec<u8>>, DocumentGraphResponse) {
-    let req = AnalyzePipelineRequest {
+    run(s, pii_request(pii_output)).await
+}
+
+fn pii_request(pii_output: Option<PiiOutputOptions>) -> AnalyzePipelineRequest {
+    AnalyzePipelineRequest {
         doc_id: "doc-pii".into(),
         text: TEXT.into(),
         offsets: OffsetMode::Utf8 as i32,
         steps: vec!["turbo-pii:pii".into(), "turbo-pii:masked".into()],
         pii_output,
         ..Default::default()
-    };
+    }
+}
+
+async fn run(s: &Server, req: AnalyzePipelineRequest) -> (Vec<Vec<u8>>, DocumentGraphResponse) {
     let mut stream = client(s).await.analyze_document_progressive(req).await.unwrap().into_inner();
     let (mut events, mut complete) = (Vec::new(), None);
     while let Some(ev) = stream.next().await {
@@ -131,6 +139,24 @@ async fn progressive_events_and_the_complete_answer_hold_no_value_by_default() {
     let findings = complete.findings.expect("the findings stand in for the graph");
     assert!(findings.raw_text.is_empty());
     assert_findings(&findings);
+    s.stop().await;
+}
+
+/// The typed projection a progressive call asks for (#2517 F15) is under
+/// the request's disclosure, on the source view and on the masked one.
+#[tokio::test]
+async fn the_typed_projection_on_the_complete_event_holds_no_value_by_default() {
+    let s = server(Serve::default()).await;
+    for view in [0, MASKED] {
+        let typed_result = Some(TypedResultOptions { view, offsets: OffsetMode::Utf8 as i32 });
+        let (events, complete) = run(&s, AnalyzePipelineRequest { typed_result, ..pii_request(None) }).await;
+        for (i, bytes) in events.iter().enumerate() {
+            assert!(!holds(bytes, PLANTED), "view {view}: event {i} carries the planted value");
+        }
+        let typed = complete.typed.expect("the typed projection");
+        assert!(typed.raw_text.is_empty(), "view {view}: {typed:?}");
+        assert_findings(&typed);
+    }
     s.stop().await;
 }
 

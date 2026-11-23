@@ -28,6 +28,7 @@ fn request(typed_result: Option<TypedResultOptions>) -> AnalyzePipelineRequest {
             parse_artifact_digest: vec![7; 32],
         }),
         typed_result,
+        operation_key: "op-typed".into(),
         ..Default::default()
     }
 }
@@ -59,11 +60,13 @@ async fn the_complete_event_carries_the_typed_projection_it_was_asked_for() {
             view: 0,
             offsets: OffsetMode::Utf16 as i32,
             binding: request(None).binding,
+            operation_key: "op-typed".into(),
             ..Default::default()
         })
         .await
         .unwrap()
         .into_inner();
+    assert_eq!(typed.receipt.as_ref().map(|r| r.operation_key.as_str()), Some("op-typed"));
     // Each projection's receipt is its own attempt; all else is equal.
     let attempt = |mut t: turbo_kserve::proto::result::TypedDocumentResult| {
         t.receipt.as_mut().expect("a receipt").attempt_id.clear();

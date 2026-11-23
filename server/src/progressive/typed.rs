@@ -26,14 +26,16 @@ pub(super) fn target(options: &TypedResultOptions) -> Result<Target, Failure> {
     Ok(Target { view: ViewId(view), offsets: OffsetMode::from_proto(options.offsets)? })
 }
 
-/// The projection of `doc`, under the request's disclosure and with its
-/// binding, as InspectDocumentGraph answers for the same graph.
+/// The projection of `doc`, under the request's disclosure, with its
+/// binding and its operation key on the receipt, as InspectDocumentGraph
+/// answers for the same graph.
 pub(super) fn project(
     doc_id: &str,
     doc: &Document,
     t: Target,
     binding: Option<&InputBinding>,
+    operation_key: &str,
     disclosure: &Disclosure,
 ) -> Result<TypedDocumentResult, Failure> {
-    document_to_typed_bound(doc_id, doc, t.view, t.offsets, binding, "", disclosure)
+    document_to_typed_bound(doc_id, doc, t.view, t.offsets, binding, operation_key, disclosure)
 }

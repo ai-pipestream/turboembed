@@ -451,7 +451,7 @@ fn run_progressive_task(
     // (docs/grpc-sink.md); the client is answered under the request's.
     let full = export_document_response(&doc, &Disclosure::FULL);
     let answered = if disclosure.graph(&doc) { full.clone() } else { export_document_response(&doc, &disclosure) };
-    let projected = typed.map(|t| typed::project(&doc_id, &doc, t, binding.as_ref(), &disclosure)).transpose();
+    let projected = typed.map(|t| typed::project(&doc_id, &doc, t, binding.as_ref(), &op.key, &disclosure)).transpose();
     match full.and_then(|full| answered.and_then(|complete| projected.map(|t| (full, complete, t)))) {
         Ok((full, mut complete, projected)) => {
             // The client's findings projection carries the request's binding.

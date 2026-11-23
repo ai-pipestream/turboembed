@@ -52,8 +52,8 @@ read. A request that sets `typed_result` (`TypedResultOptions`: `view`
 and `offsets`, issue #2517 F15) gets the typed projection of that final
 graph in `DocumentGraphResponse.typed` on the same event: the
 `TypedDocumentResult` `InspectDocumentGraph` answers for the same graph,
-view and offsets, under the request's `pii_output` and with its
-`binding`. A `view` past `u16::MAX` is `TURBO_E_INVALID_ARGUMENT` naming
+view and offsets, under the request's `pii_output`, with its
+`binding`, and with its `operation_key` on the receipt. A `view` past `u16::MAX` is `TURBO_E_INVALID_ARGUMENT` naming
 field 18 before anything runs, and a view the graph does not hold fails
 the stream when the projection is made. Unset, `typed` is absent.
 
