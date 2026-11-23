@@ -18,8 +18,6 @@ mod cut_reports;
 mod dependencies;
 #[path = "tree/duplicates.rs"]
 mod duplicates;
-#[path = "tree/duplicates_known.rs"]
-mod duplicates_known;
 #[path = "tree/front_end.rs"]
 mod front_end;
 #[path = "tree/opennlp.rs"]
