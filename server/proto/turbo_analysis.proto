@@ -843,6 +843,34 @@ message AnalyzeVectors
 
   // TURBO_QUANTIZE_* of data: what the document asked for, 0 as given.
   uint32 quantization = 5;
+
+  // What the tokenizer made of the document's text: the vector is of
+  // the tokens kept, and `truncated` says when that is not the whole
+  // text (issue #2511).
+  InputTokens tokens = 6;
+}
+
+// What the bundle's tokenizer made of one text against the token limit
+// of the request: `max_tokens`, or the bundle's max_seq. Under
+// TURBO_TRUNCATE_MODEL, RIGHT or LEFT a longer text is embedded from
+// the tokens kept alone; this says so, where the vector by itself does
+// not (issue #2511). TURBO_TRUNCATE_NONE refuses such a text instead.
+message InputTokens
+{
+  // Tokens the model read, special tokens included. 0 is a text that
+  // gave no tokens: a static model answers it with the zero vector,
+  // which this marks (issue #2517); an encoder refuses it.
+  uint32 kept = 1;
+
+  // Tokens the whole text gives, special tokens included. Absent when
+  // the text was cut by characters before it was tokenized, as a static
+  // model does under TURBO_TRUNCATE_RIGHT: the count was never made.
+  // A static model leaves unknown tokens out of its row and out of this
+  // count alike, so truncated is set exactly when kept is under seen.
+  optional uint32 seen = 2;
+
+  // Whether part of the text was not read by the model.
+  bool truncated = 3;
 }
 
 // The quantized codes of one document's pooled vector: the same row
@@ -869,6 +897,9 @@ message VectorCodesResult
   // TURBO_QUANTIZE_* of data: TURBO_QUANTIZE_INT8 or
   // TURBO_QUANTIZE_UBINARY, what the document asked for.
   uint32 quantization = 5;
+
+  // What the tokenizer made of the document's text, as on AnalyzeVectors.
+  InputTokens tokens = 6;
 }
 
 // One vector resolution tier (full, Matryoshka prefix, or sentence tier)

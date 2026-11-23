@@ -239,6 +239,16 @@ fn infer_embed(
             slot.session.write_tokens(&b, opts)?
         }
     }
+    // Rows cut at the token limit: a text request answers how many, so
+    // no vector of a text's first tokens passes for the whole text's
+    // (#2511). Read before the run, which holds the session's result.
+    // Token requests are the caller's own rows.
+    let truncated_rows = match &plan.rows {
+        Rows::Texts(texts, _) => {
+            Some(slot.session.row_tokens(texts.len())?.iter().filter(|t| t.truncated != 0).count())
+        }
+        _ => None,
+    };
     check_before_exec(deadline, &loaded.metrics)?;
     loaded.metrics.record_batch_size(batch_len);
     let result = slot.session.run()?;
@@ -253,15 +263,23 @@ fn infer_embed(
         _ => Data::Read(result.read(first.bytes)?),
     };
     let info = result.info()?;
+    let mut parameters = result_parameters(&info);
+    if let Some(cut) = truncated_rows {
+        parameters.insert("truncated_rows".into(), int(cut as u64));
+    }
     let datatype = datatype(info.dtype).ok_or_else(|| {
         Failure::new(TURBO_E_INTERNAL, 0, format!("the result's dtype {} has no datatype in the protocol", info.dtype))
     })?;
     let vectors = Vectors { data, _result: result, _held: held };
+    // A NaN or an infinity is a broken run, never an answer (#2517).
+    if let Some((r, d)) = crate::finite::first_bad_row(vectors.as_ref(), info.dtype, info.dim) {
+        return Err(Failure::new(TURBO_E_INTERNAL, 0, crate::finite::message(Some(r), d)));
+    }
     Ok(ModelInferResponse {
         model_name: served.name.clone(),
         model_version: loaded.revision.clone(),
         id: req.id.clone(),
-        parameters: result_parameters(&info),
+        parameters,
         outputs: vec![InferOutputTensor {
             name: "vectors".into(),
             datatype: datatype.into(),

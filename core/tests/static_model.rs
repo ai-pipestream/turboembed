@@ -380,3 +380,57 @@ fn a_changed_table_is_refused() {
 
 #[path = "static_model/dtypes.rs"]
 mod dtypes;
+
+/// Under TURBO_TRUNCATE_RIGHT a static model tokenizes a character
+/// prefix; when that prefix is the whole text, the whole count is known
+/// and told, and a text of no tokens says it kept none (issues #2511,
+/// #2517). Before, seen was unknown for every such row.
+#[test]
+fn a_whole_static_text_tells_its_count() {
+    let l = load(&bundle());
+    let s = session(&l);
+    let mut o = opts(TURBO_POOLING_MODEL, TURBO_NORMALIZE_MODEL);
+    o.truncate = TURBO_TRUNCATE_RIGHT;
+    s.write_text(&["", "hello there"], Some(&o)).unwrap();
+    let mut rows = [turbo_row_tokens::default(); 2];
+    let (mut n, mut err) = (0u32, new_error());
+    let rc = unsafe { turbo_session_row_tokens(s.0, rows.as_mut_ptr(), 2, &mut n, &mut err) };
+    assert_eq!((rc, n), (0, 2));
+    assert_eq!((rows[0].kept, rows[0].seen, rows[0].seen_known, rows[0].truncated), (0, 0, 1, 0), "{rows:?}");
+    assert_eq!((rows[1].seen_known, rows[1].truncated), (1, 0), "{rows:?}");
+    assert_eq!(rows[1].kept, rows[1].seen, "{rows:?}");
+}
+
+/// A static model leaves unknown tokens out of its row and out of its
+/// count alike, under every truncation: a text whose only tokens are
+/// unknown kept none of none, a known text of unknown tokens is whole,
+/// and `truncated` is set exactly when known tokens were left out.
+#[test]
+fn unknown_tokens_count_nowhere_and_cuts_are_told() {
+    let l = load(&bundle());
+    let s = session(&l);
+    let rows = |truncate: u32, max_tokens: u32, texts: &[&str]| {
+        let mut o = opts(TURBO_POOLING_MODEL, TURBO_NORMALIZE_MODEL);
+        o.truncate = truncate;
+        o.max_tokens = max_tokens;
+        s.write_text(texts, Some(&o)).unwrap_or_else(|e| panic!("{e:?}"));
+        let mut out = [turbo_row_tokens::default(); 4];
+        let (mut n, mut err) = (0u32, new_error());
+        let rc = unsafe { turbo_session_row_tokens(s.0, out.as_mut_ptr(), 4, &mut n, &mut err) };
+        assert_eq!(rc, 0);
+        out[..n as usize].iter().map(|r| (r.kept, r.seen, r.seen_known, r.truncated)).collect::<Vec<_>>()
+    };
+    let snow = "\u{2603}\u{2603}";
+    let long = "hello there ".repeat(40);
+    for t in [TURBO_TRUNCATE_RIGHT, TURBO_TRUNCATE_LEFT, TURBO_TRUNCATE_NONE] {
+        let got = rows(t, 32, &[snow, "hello \u{2603} there"]);
+        assert_eq!(got[0], (0, 0, 1, 0), "truncate {t}: unknown tokens alone");
+        assert_eq!((got[1].0, got[1].1, got[1].3), (2, 2, 0), "truncate {t}: an unknown token among known ones");
+    }
+    // A long text: RIGHT tokenizes a prefix by characters, so its whole
+    // count is unknown; LEFT counts it whole. Both are cut.
+    let right = rows(TURBO_TRUNCATE_RIGHT, 32, &[&long])[0];
+    assert_eq!((right.0, right.2, right.3), (32, 0, 1), "{right:?}");
+    let left = rows(TURBO_TRUNCATE_LEFT, 32, &[&long])[0];
+    assert_eq!((left.0, left.1, left.2, left.3), (32, 80, 1, 1), "{left:?}");
+}

@@ -28,6 +28,10 @@ pub unsafe extern "C" fn turbo_session_run(
             } else {
                 backend::check(b, "session_run", |err| (s.run)(s.raw, &mut r, err))?;
                 check_run(b, &r, w.tokenized)?;
+                if !r.host.is_null() && s.model.info.task == TURBO_TASK_EMBED {
+                    let bytes = w.batch as usize * w.output_dim as usize * 4;
+                    finite_rows(std::slice::from_raw_parts(r.host as *const u8, bytes), w.output_dim as usize)?;
+                }
                 if w.quantization != Quantization::F32 {
                     quantized(s, &mut state, &w, &mut r)?;
                 }
@@ -128,6 +132,9 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
         let bytes = n as u64 * 4;
         backend::check(b, "buffer_read", |err| unsafe { read(r.output, staged.as_mut_ptr().cast(), bytes, err) })?;
         r.d2h_bytes += bytes;
+        if s.model.info.task == TURBO_TASK_EMBED {
+            finite_rows(unsafe { std::slice::from_raw_parts(staged.as_ptr().cast::<u8>(), n * 4) }, dim)?;
+        }
         &staged[..n]
     } else {
         unsafe { std::slice::from_raw_parts(r.host as *const f32, n) }
@@ -140,6 +147,24 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
     r.host = out.as_mut_ptr().cast();
     r.placement = TURBO_PLACE_HOST;
     Ok(())
+}
+
+/// Every value of `v`, rows of `dim`, is finite. A NaN or an infinity in
+/// an embedding is a broken run, never a vector (#2517 F12): the run is
+/// TURBO_E_INTERNAL naming the first such row.
+/// `v` is the rows' little-endian f32 bytes, at any alignment.
+pub(super) fn finite_rows(v: &[u8], dim: usize) -> Result<()> {
+    match v.as_chunks::<4>().0.iter().position(|b| !f32::from_le_bytes(*b).is_finite()) {
+        None => Ok(()),
+        Some(at) => Err(Error::new(
+            INTERNAL,
+            format!(
+                "the model's output for row {} is not finite at dimension {}: the run is broken",
+                at / dim.max(1),
+                at % dim.max(1)
+            ),
+        )),
+    }
 }
 
 /// What the backend reported is something turbo.h can say.
@@ -220,12 +245,20 @@ pub unsafe extern "C" fn turbo_result_read(
                     )
                 })?;
                 backend::check(b, "buffer_read", |err| read(r.output, dst, bytes, err))?;
+                // The copy is counted even when what it copied is refused.
+                r.read.fetch_add(bytes, Ordering::Relaxed);
+                let i = &r.info;
+                if i.task == TURBO_TASK_EMBED && i.dtype == TURBO_DTYPE_F32 {
+                    // dst is any caller's bytes, with no alignment promised:
+                    // read as bytes, never as f32.
+                    finite_rows(std::slice::from_raw_parts(dst as *const u8, bytes as usize), i.dim as usize)?;
+                }
             } else {
                 std::ptr::copy_nonoverlapping(r.host as *const u8, dst as *mut u8, bytes as usize);
+                // turbo.h counts a read in d2h_bytes, whether or not the
+                // copy crossed a bus: on a CPU it is a copy within host memory.
+                r.read.fetch_add(bytes, Ordering::Relaxed);
             }
-            // turbo.h counts a read in d2h_bytes, whether or not the copy
-            // crossed a bus: on a CPU it is a copy within host memory.
-            r.read.fetch_add(bytes, Ordering::Relaxed);
             if let Some(w) = written.as_mut() {
                 *w = bytes;
             }

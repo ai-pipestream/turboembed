@@ -670,6 +670,29 @@ int32_t turbo_session_get_info(turbo_session *s, turbo_session_info *out, turbo_
 int32_t turbo_embed_write_text(turbo_session *s, const turbo_text *texts, uint32_t count,
                                const turbo_embed_options *opts, turbo_error *err);
 
+/* What turbo_embed_write_text made of one text against max_tokens. A row
+ * that was cut says so here: under TURBO_TRUNCATE_MODEL, RIGHT or LEFT a
+ * text longer than the limit is embedded from the tokens kept alone, and
+ * the vector by itself does not show it. */
+typedef struct turbo_row_tokens {
+    uint32_t kept;         /* tokens in the row, special tokens included */
+    uint32_t seen;         /* tokens the whole text gives, special tokens included;
+                              meaningful when seen_known is 1 */
+    uint32_t seen_known;   /* 0 when the text was cut by characters before it was
+                              tokenized, as a static model does under
+                              TURBO_TRUNCATE_RIGHT: the count was never made */
+    uint32_t truncated;    /* 1 when part of the text is not in the row */
+} turbo_row_tokens;
+
+/* One entry per row of the session's last turbo_embed_write_text, in the
+ * order of its texts; *count is the rows written. TURBO_E_INVALID_STATE
+ * when the last write was not turbo_embed_write_text, TURBO_E_CAPACITY
+ * when capacity is under the rows written. Valid until the next write,
+ * across turbo_session_run and the result's release; TURBO_E_BUSY while
+ * a result holds the session, like every session call. */
+int32_t turbo_session_row_tokens(turbo_session *s, turbo_row_tokens *out, uint32_t capacity,
+                                 uint32_t *count, turbo_error *err);
+
 /* Write rows the caller tokenized. opts may be NULL. */
 int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_embed_options *opts, turbo_error *err);
@@ -743,7 +766,12 @@ int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch
  * since the last run, or after a failed write, is TURBO_E_INVALID_STATE.
  * The result holds the session until it and every buffer from
  * turbo_result_buffer are released; until then a write or run on the
- * session is TURBO_E_BUSY. */
+ * session is TURBO_E_BUSY. An embed run whose F32 vectors are in host
+ * memory, or are copied back to be quantized on the host, and hold a NaN
+ * or an infinity is TURBO_E_INTERNAL naming the first such row: a vector
+ * that is not finite is a broken run, never an answer. Vectors left in
+ * device memory are checked by turbo_result_read; neither
+ * turbo_result_buffer nor codes made on the device are checked. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
 /* Cross-encoder reranking, on the CPU or through the CUDA, Level Zero or
@@ -833,7 +861,10 @@ int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_err
  * After turbo_embed_write_ranges, batch is the count of ranges written and
  * a row is a range's vector. */
 
-/* Copy the vectors into dst (capacity bytes). Counted in d2h_bytes. */
+/* Copy the vectors into dst (capacity bytes). Counted in d2h_bytes.
+ * F32 embed vectors copied from device memory that hold a NaN or an
+ * infinity are TURBO_E_INTERNAL naming the first such row, as for
+ * turbo_session_run; dst then holds what was copied. */
 int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_t *written, turbo_error *err);
 
 /* The vectors where they are, without a copy. The buffer keeps the result alive. */

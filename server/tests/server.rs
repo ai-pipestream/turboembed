@@ -232,6 +232,9 @@ async fn texts_match_the_reference() {
             assert_eq!(p("backend"), st("cpu"));
             assert_eq!(p("stage_count"), int(7));
             assert_eq!(p("stage.EMBED_STAGE_TOKENIZE"), st("STAGE_HOST"));
+            // The two long reference texts fill all 64 token slots: cut.
+            let cut = group.iter().filter(|k| k.ids.len() == 64 && k.text.len() > 500).count();
+            assert_eq!(p("truncated_rows"), int(cut as i64));
             assert!(matches!(p("placement"), ParameterChoice::StringParam(ref x) if x.starts_with("PLACE_")));
             let mut keys: Vec<&str> = resp.parameters.keys().map(String::as_str).collect();
             keys.sort();
@@ -255,6 +258,7 @@ async fn texts_match_the_reference() {
                 "artifact_sha256",
                 "tokenizer_sha256",
                 "stage_count",
+                "truncated_rows",
                 "stage.EMBED_STAGE_TOKENIZE",
                 "stage.EMBED_STAGE_UPLOAD",
                 "stage.EMBED_STAGE_LOOKUP",

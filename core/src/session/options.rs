@@ -224,6 +224,8 @@ pub(super) fn begin_write(s: &SessionInner) -> Result<MutexGuard<'_, State>> {
     let mut state = s.lock()?;
     state.written = None;
     state.rerank = None;
+    state.row_tokens.clear();
+    state.text_rows = false;
     if !matches!(s.model.info.task, TURBO_TASK_EMBED | TURBO_TASK_EXTRACTIVE_QA) {
         return Err(Error::new(UNSUPPORTED_TASK, "the model's task is not embed"));
     }
