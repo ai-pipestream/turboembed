@@ -7,6 +7,7 @@ use turbo::{TURBO_TASK_EMBED, turbo_model_info};
 use turbo_analysis::ModelRef;
 use turbo_analysis_embed::{RERANK_CALIBRATION_LABELS, RerankCalibrator};
 use turbo_calibration::{Calibration as ProbCalibration, DataIdentity, Identity, Task, Transform};
+use turbo_scratch::Scratch;
 
 use super::{BundleCalibration, Calibrator, resolve_with_bundle};
 use crate::api::TURBO_E_INVALID_ARGUMENT;
@@ -15,21 +16,12 @@ use crate::proto::result::rerank_calibration_spec_proto::Kind as CalKind;
 
 static DIR_SERIAL: AtomicUsize = AtomicUsize::new(0);
 
-struct TempDir(std::path::PathBuf);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let id = format!("{tag}-{}-{}", std::process::id(), DIR_SERIAL.fetch_add(1, Ordering::Relaxed));
-        let path = std::env::temp_dir().join("turbo-rerank-cal-unit").join(id);
-        std::fs::create_dir_all(&path).unwrap();
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
+fn scratch_dir(tag: &str) -> Scratch {
+    let id =
+        format!("turbo-rerank-cal-unit-{tag}-{}-{}", std::process::id(), DIR_SERIAL.fetch_add(1, Ordering::Relaxed));
+    let dir = Scratch::at(std::env::temp_dir().join(id));
+    std::fs::create_dir(dir.path()).unwrap();
+    dir
 }
 
 fn sample_mref() -> ModelRef {
@@ -58,10 +50,10 @@ fn sample_tcal(mref: &ModelRef, domain: &str, hash: u64, temp: f64) -> Vec<u8> {
 
 #[test]
 fn non_rerank_task_skips_sidecar_and_absent_uses_uncalibrated() {
-    let dir = TempDir::new("non-rerank");
-    std::fs::write(dir.0.join("calibration.tcal"), b"garbage").unwrap();
+    let dir = scratch_dir("non-rerank");
+    std::fs::write(dir.join("calibration.tcal"), b"garbage").unwrap();
     let info: turbo_model_info = unsafe { std::mem::zeroed() };
-    let bc = BundleCalibration::load_for_task(TURBO_TASK_EMBED, dir.0.to_str().unwrap(), &info);
+    let bc = BundleCalibration::load_for_task(TURBO_TASK_EMBED, dir.to_str().unwrap(), &info);
     assert!(matches!(bc, BundleCalibration::Absent));
 
     let mref = sample_mref();
@@ -72,13 +64,13 @@ fn non_rerank_task_skips_sidecar_and_absent_uses_uncalibrated() {
 
 #[test]
 fn present_default_sidecar_is_shared_across_warm_calls_after_file_removal() {
-    let dir = TempDir::new("present-default");
+    let dir = scratch_dir("present-default");
     let mref = sample_mref();
     let bytes = sample_tcal(&mref, "search", 0, 2.5);
-    let sidecar = dir.0.join("calibration.tcal");
+    let sidecar = dir.join("calibration.tcal");
     std::fs::write(&sidecar, &bytes).unwrap();
 
-    let bc = BundleCalibration::load_from_dir(&dir.0, &mref);
+    let bc = BundleCalibration::load_from_dir(dir.path(), &mref);
     // Remove sidecar from disk so warm resolution cannot perform filesystem reads.
     std::fs::remove_file(&sidecar).unwrap();
 
@@ -102,13 +94,13 @@ fn present_default_sidecar_is_shared_across_warm_calls_after_file_removal() {
 
 #[test]
 fn non_default_domain_and_hash_bind_against_cached_bytes_without_disk() {
-    let dir = TempDir::new("custom-domain");
+    let dir = scratch_dir("custom-domain");
     let mref = sample_mref();
     let bytes = sample_tcal(&mref, "legal", 42, 1.8);
-    let sidecar = dir.0.join("calibration.tcal");
+    let sidecar = dir.join("calibration.tcal");
     std::fs::write(&sidecar, &bytes).unwrap();
 
-    let bc = BundleCalibration::load_from_dir(&dir.0, &mref);
+    let bc = BundleCalibration::load_from_dir(dir.path(), &mref);
     std::fs::remove_file(&sidecar).unwrap();
 
     // Default ("search", 0) fails identity check cleanly.
@@ -129,11 +121,11 @@ fn non_default_domain_and_hash_bind_against_cached_bytes_without_disk() {
 
 #[test]
 fn malformed_sidecar_reports_invalid_argument_unless_request_overrides() {
-    let dir = TempDir::new("malformed");
+    let dir = scratch_dir("malformed");
     let mref = sample_mref();
-    std::fs::write(dir.0.join("calibration.tcal"), b"not-tcal").unwrap();
+    std::fs::write(dir.join("calibration.tcal"), b"not-tcal").unwrap();
 
-    let bc = BundleCalibration::load_from_dir(&dir.0, &mref);
+    let bc = BundleCalibration::load_from_dir(dir.path(), &mref);
     let err = resolve_with_bundle(&bc, &mref, None).err().expect("malformed sidecar error");
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
     assert!(err.message.contains("unknown calibration format"), "{}", err.message);
