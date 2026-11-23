@@ -46,6 +46,52 @@ fn the_binary_prints_what_the_runtime_logs() {
     assert!(lines.iter().any(|l| l == said), "no {said:?} in {lines:#?}");
 }
 
+/// A closed stderr does not take the server down. The runtime's callback
+/// used eprintln!, which panics when the write fails, and a panic cannot
+/// unwind out of the extern "C" callback, so the first runtime line after
+/// the reader went away aborted the process. The runtime is made by the
+/// first load, whose device listing says an info line on stderr.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_closed_stderr_does_not_abort_the_server() {
+    use std::io::{BufRead, BufReader};
+    use turbo_kserve::proto::result::LoadBundleRequest;
+    use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_turbo-kserve"))
+        .args(["--admin", "--listen", "127.0.0.1:0"])
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut err = BufReader::new(child.stderr.take().unwrap());
+    let mut addr = None;
+    loop {
+        let mut line = String::new();
+        assert!(err.read_line(&mut line).unwrap() > 0, "the server exited before ready");
+        if let Some(a) = line.trim().strip_prefix("turbo-kserve: listening on ") {
+            addr = Some(a.to_owned());
+        }
+        if line.trim() == "turbo-kserve: ready" {
+            break;
+        }
+    }
+    // Only the child's stderr closes; the harness's own stays open.
+    drop(err);
+    let mut a = AnalysisServiceClient::connect(format!("http://{}", addr.expect("a listening line"))).await.unwrap();
+    let req = LoadBundleRequest {
+        name: "tiny".into(),
+        bundle: tiny().to_str().unwrap().into(),
+        sessions: 1,
+        device: cpu(),
+        ..Default::default()
+    };
+    let got = a.load_bundle(req).await;
+    let exited = child.try_wait().unwrap();
+    let _ = child.kill();
+    let _ = child.wait();
+    assert_eq!(exited, None, "the server died after its stderr closed");
+    got.unwrap();
+}
+
 /// A CPU runtime that loads the tiny bundle has nothing to warn about,
 /// and the listing says so with typed fields: no entry, none dropped.
 #[tokio::test]

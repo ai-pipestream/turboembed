@@ -137,4 +137,46 @@ mod tests {
         assert_eq!(kept[0].message, "warning 0");
         assert_eq!(dropped, 7);
     }
+
+    /// What the server's own runtime logged reaches the capability
+    /// listing over gRPC: kept entries with their level, and the count
+    /// past the cap. Planted through the runtime's callback, since a CPU
+    /// build has no real warning to raise.
+    #[tokio::test]
+    async fn the_capability_listing_carries_what_the_runtime_logged() {
+        use crate::config::{DEFAULT_MAX_MESSAGE_BYTES, Device, ModelConfig};
+        use crate::proto::result::CapabilitiesRequest;
+        use crate::proto::result::analysis_service_client::AnalysisServiceClient;
+        let rt = crate::api::Runtime::create().unwrap();
+        let cpu = (0..16).find(|&i| rt.device_info(i).is_ok_and(|d| d.kind == turbo::TURBO_DEVICE_CPU)).unwrap();
+        drop(rt);
+        let model = ModelConfig {
+            bundle: concat!(env!("CARGO_MANIFEST_DIR"), "/../testdata/tiny-bert-bundle").into(),
+            name: None,
+            device: Device::Index(cpu),
+            precision: 0,
+            max_batch: 0,
+            max_seq: 0,
+            sessions: 1,
+        };
+        let addr = "127.0.0.1:0".parse().unwrap();
+        let s =
+            crate::Server::start(addr, vec![model], DEFAULT_MAX_MESSAGE_BYTES, crate::Serve::default()).await.unwrap();
+        s.load().await.unwrap();
+        let log = s.state.runtime.get().expect("the load made the runtime").log().clone();
+        say(&log, LOG_ERROR, "a planted error");
+        for i in 0..MAX_RUNTIME_WARNINGS + 2 {
+            say(&log, LOG_WARNING, &format!("planted warning {i}"));
+        }
+        let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+        let caps = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+        assert_eq!(caps.runtime_warnings.len(), MAX_RUNTIME_WARNINGS);
+        let first = &caps.runtime_warnings[0];
+        assert_eq!((first.level, first.message.as_str()), (RuntimeLogLevel::Error as i32, "a planted error"));
+        let last = caps.runtime_warnings.last().unwrap();
+        let want = format!("planted warning {}", MAX_RUNTIME_WARNINGS - 2);
+        assert_eq!((last.level, last.message.as_str()), (RuntimeLogLevel::Warning as i32, want.as_str()));
+        assert_eq!(caps.runtime_warnings_dropped, 3);
+        s.stop().await;
+    }
 }
