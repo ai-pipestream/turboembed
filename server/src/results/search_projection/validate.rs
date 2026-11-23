@@ -203,11 +203,12 @@ pub fn validate_search_projection(msg: &SearchDocumentProjection) -> Result<(), 
         }
         for (i, tr) in nt.temporals.iter().enumerate() {
             check_wire_span(&format!("temporals[{i}].span"), tr.span_start, tr.span_end, text_len)?;
-            if tr.start_epoch_seconds > tr.end_epoch_seconds {
-                return Err(bad(format!(
-                    "temporals[{i}] epoch range [{}..{}) is inverted",
-                    tr.start_epoch_seconds, tr.end_epoch_seconds
-                )));
+            match (tr.start_epoch_seconds, tr.end_epoch_seconds) {
+                (Some(s), Some(e)) if s > e => {
+                    return Err(bad(format!("temporals[{i}] epoch range [{s}..{e}) is inverted")));
+                }
+                (Some(_), Some(_)) | (None, None) => {}
+                _ => return Err(bad(format!("temporals[{i}] has one epoch bound without the other"))),
             }
         }
         for (i, tm) in nt.times.iter().enumerate() {

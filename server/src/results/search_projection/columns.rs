@@ -24,40 +24,32 @@ fn date_epoch_seconds(d: Date) -> i64 {
     d.epoch_day().saturating_mul(DAY_SECONDS)
 }
 
-fn temporal_epoch_bounds(val: TemporalValue) -> (i64, i64) {
+/// The value's half-open `[start, end)` in epoch seconds, or `None` when
+/// no calendar date holds it (a year past the date range): never 0, which
+/// a range filter reads as 1970-01-01 (#2517). An end past the last date
+/// is `i64::MAX`, unbounded.
+fn temporal_epoch_bounds(val: TemporalValue) -> Option<(i64, i64)> {
+    let span = |first: Date, next: Option<Date>| (date_epoch_seconds(first), next.map_or(i64::MAX, date_epoch_seconds));
     match val {
-        TemporalValue::Day(d) => {
-            let start = date_epoch_seconds(d);
-            let end = d.plus_days(1).map_or(i64::MAX, date_epoch_seconds);
-            (start, end)
-        }
+        TemporalValue::Day(d) => Some(span(d, d.plus_days(1))),
         TemporalValue::Week { year, week } => {
-            let Some(jan4) = Date::new(year, 1, 4) else { return (0, 0) };
+            let jan4 = Date::new(year, 1, 4)?;
             let weekday = (jan4.epoch_day() + 3).rem_euclid(7);
-            let Some(w1_mon) = jan4.plus_days(-weekday) else { return (0, 0) };
-            let Some(mon) = w1_mon.plus_weeks(i64::from(week.saturating_sub(1))) else { return (0, 0) };
-            let start = date_epoch_seconds(mon);
-            let end = mon.plus_days(7).map_or(i64::MAX, date_epoch_seconds);
-            (start, end)
+            let mon = jan4.plus_days(-weekday)?.plus_weeks(i64::from(week.saturating_sub(1)))?;
+            Some(span(mon, mon.plus_days(7)))
         }
         TemporalValue::Month { year, month } => {
-            let Some(first) = Date::new(year, month, 1) else { return (0, 0) };
-            let start = date_epoch_seconds(first);
-            let end = first.plus_months(1).map_or(i64::MAX, date_epoch_seconds);
-            (start, end)
+            let first = Date::new(year, month, 1)?;
+            Some(span(first, first.plus_months(1)))
         }
         TemporalValue::Quarter { year, quarter } => {
             let month = quarter.saturating_sub(1).saturating_mul(3).saturating_add(1);
-            let Some(first) = Date::new(year, month, 1) else { return (0, 0) };
-            let start = date_epoch_seconds(first);
-            let end = first.plus_months(3).map_or(i64::MAX, date_epoch_seconds);
-            (start, end)
+            let first = Date::new(year, month, 1)?;
+            Some(span(first, first.plus_months(3)))
         }
         TemporalValue::Year(year) => {
-            let Some(first) = Date::new(year, 1, 1) else { return (0, 0) };
-            let start = date_epoch_seconds(first);
-            let end = first.plus_years(1).map_or(i64::MAX, date_epoch_seconds);
-            (start, end)
+            let first = Date::new(year, 1, 1)?;
+            Some(span(first, first.plus_years(1)))
         }
     }
 }
@@ -72,8 +64,10 @@ fn push_money_layer(
     for i in 0..layer.len() {
         let ix = Ix::new(i as u32);
         let (span_start, span_end) = cx.map_to_wire(view, layer.spans.get(ix))?;
+        // The nearest f64 of the exact decimal; one past the f64 range is
+        // infinite, which the validator refuses, never a stand-in 0.
+        let amount_f64 = layer.amount(ix).to_f64();
         let plain_amount = layer.amount(ix).to_plain_string();
-        let amount_f64 = plain_amount.parse::<f64>().unwrap_or(0.0);
         out.push(SearchMoneyValue {
             span_start,
             span_end,
@@ -106,7 +100,7 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
             let (unit_str, dec_ref) =
                 if base.is_empty() { (q.unit(ix), q.value(ix)) } else { (base, q.normalized_value(ix)) };
             let plain_value = dec_ref.to_plain_string();
-            let value_f64 = plain_value.parse::<f64>().unwrap_or(0.0);
+            let value_f64 = dec_ref.to_f64();
             quantities.push(SearchQuantityValue {
                 span_start,
                 span_end,
@@ -133,15 +127,15 @@ pub(crate) fn project_numeric_temporal(cx: &SearchProjCx<'_>) -> Result<SearchNu
             let ix = Ix::new(i as u32);
             let (span_start, span_end) = cx.map_to_wire(view, t.spans.get(ix))?;
             let val = t.value(ix);
-            let (start_epoch_seconds, end_epoch_seconds) = temporal_epoch_bounds(val);
+            let bounds = temporal_epoch_bounds(val);
             temporals.push(SearchTemporalRange {
                 span_start,
                 span_end,
                 granularity: t.granularity[i].name().to_owned(),
                 origin: t.origin[i].name().to_owned(),
                 iso: val.to_string(),
-                start_epoch_seconds,
-                end_epoch_seconds,
+                start_epoch_seconds: bounds.map(|b| b.0),
+                end_epoch_seconds: bounds.map(|b| b.1),
             });
         }
     }
@@ -402,4 +396,27 @@ pub(crate) fn project_quality(cx: &SearchProjCx<'_>) -> Result<SearchQualitySumm
         noise_error,
         artifacts_error,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A temporal value the layer accepts but no date holds (a year past
+    // the date range) has no epoch bounds; it used to project as
+    // 1970-01-01, which a range filter matches (#2517 F13).
+    #[test]
+    fn a_value_no_date_holds_has_no_bounds() {
+        for v in [
+            TemporalValue::Month { year: 1_000_000_000, month: 1 },
+            TemporalValue::Quarter { year: 1_000_000_000, quarter: 1 },
+            TemporalValue::Year(1_000_000_000),
+            TemporalValue::Week { year: 1_000_000_000, week: 1 },
+        ] {
+            assert_eq!(temporal_epoch_bounds(v), None, "{v}");
+        }
+        let ok = TemporalValue::Month { year: 2026, month: 7 };
+        // 2026-07-01 and 2026-08-01, UTC.
+        assert_eq!(temporal_epoch_bounds(ok), Some((1_782_864_000, 1_785_542_400)));
+    }
 }

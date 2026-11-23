@@ -185,8 +185,11 @@ message SearchTemporalRange
   string granularity = 3;
   string origin = 4;
   string iso = 5;
-  int64 start_epoch_seconds = 6;
-  int64 end_epoch_seconds = 7;
+  // Both unset when no calendar date holds the value (a year past the
+  // date range): `iso` still names it, and no range filter matches it.
+  // Never 0 for "unknown", which is 1970-01-01.
+  optional int64 start_epoch_seconds = 6;
+  optional int64 end_epoch_seconds = 7;
 }
 
 // Resolved sub-day or interval time expression (`Times`, UTC epoch ms).

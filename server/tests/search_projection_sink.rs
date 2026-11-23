@@ -102,7 +102,7 @@ fn single_pass_projection_preserves_source_offsets_polarity_and_quality_across_m
         assert_eq!(nt.quantities[0].unit, "kg");
         assert!((nt.quantities[0].value_f64 - 0.5).abs() < 1e-6);
         assert_eq!(nt.document_date.as_ref().unwrap().iso, "2026-05-01");
-        assert!(nt.temporals[0].end_epoch_seconds > nt.temporals[0].start_epoch_seconds);
+        assert!(nt.temporals[0].end_epoch_seconds.unwrap() > nt.temporals[0].start_epoch_seconds.unwrap());
 
         assert_eq!(proj.geo_locations.len(), 1);
         assert_eq!(proj.geo_locations[0].canonical_name, "Berlin");
