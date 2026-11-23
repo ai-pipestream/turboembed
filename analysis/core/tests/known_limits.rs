@@ -179,6 +179,7 @@ fn every_crate_over_limit_name_is_in_known_limits() {
                 | "analysis/core/src/export/error_wire.rs"
                 | "analysis/core/src/export/provenance.rs"
                 | "analysis/core/src/export/records.rs"
+                | "server/src/progressive/failure.rs"
                 | "server/src/progressive/mod.rs"
                 | "server/src/results/receipt/error.rs"
         ) || rel_path.ends_with("_tests.rs")
