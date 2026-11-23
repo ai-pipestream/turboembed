@@ -5,12 +5,13 @@
 //! answer by outcome and turbo status, and each progressive step by its
 //! outcome.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::sync::Mutex;
 
-use crate::proto::result::AnalyzeProgressiveEvent;
 use crate::proto::result::analyze_progressive_event::Event;
+use crate::proto::result::analyze_stream_response::Outcome;
+use crate::proto::result::{AnalyzeProgressiveEvent, AnalyzeStreamResponse};
 
 /// What became of one progressive step.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -91,19 +92,47 @@ impl Outcomes {
     }
 }
 
-/// Counts a step's event: a completed step, or a failed one and each
-/// step it left unrun (#2517 F11).
-pub(crate) fn count_step(metrics: &super::Metrics, msg: &AnalyzeProgressiveEvent) {
-    match &msg.event {
-        Some(Event::LayersReady(b)) => metrics.record_step(&b.completed_step, StepOutcome::Ok, 0),
-        Some(Event::StepFailed(f)) => {
-            let code = f.failure.as_ref().map_or(crate::api::TURBO_E_INTERNAL, |x| x.turbo_code);
-            metrics.record_step(&f.step_id, StepOutcome::Failed, code);
-            for s in &f.skipped_dependents {
-                metrics.record_step(s, StepOutcome::Skipped, code);
+/// A stream answer's failure status, None when it succeeded.
+pub(crate) fn failure_code(r: &AnalyzeStreamResponse) -> Option<i32> {
+    match &r.outcome {
+        Some(Outcome::Failure(f)) => Some(f.turbo_code),
+        _ => None,
+    }
+}
+
+/// What one progressive run has counted, so each step is counted once
+/// (#2517 F11). A failure names the steps it leaves unrun; one of them
+/// that still waits on another input runs later and stores skipped
+/// outputs, and that later event must not count it again, or as ok.
+#[derive(Default)]
+pub(crate) struct StepTally {
+    skipped: HashSet<String>,
+}
+
+impl StepTally {
+    /// Counts a step's event: a completed step, a step that stored
+    /// skipped outputs (`wrote_skipped`), or a failed one and each step
+    /// it left unrun.
+    pub(crate) fn count(&mut self, metrics: &super::Metrics, msg: &AnalyzeProgressiveEvent, wrote_skipped: bool) {
+        match &msg.event {
+            Some(Event::LayersReady(b)) if !wrote_skipped => metrics.record_step(&b.completed_step, StepOutcome::Ok, 0),
+            // A step that declined on its own carries no failure's status.
+            Some(Event::LayersReady(b)) => self.skip(metrics, &b.completed_step, 0),
+            Some(Event::StepFailed(f)) => {
+                let code = f.failure.as_ref().map_or(crate::api::TURBO_E_INTERNAL, |x| x.turbo_code);
+                metrics.record_step(&f.step_id, StepOutcome::Failed, code);
+                for s in &f.skipped_dependents {
+                    self.skip(metrics, s, code);
+                }
             }
+            _ => {}
         }
-        _ => {}
+    }
+
+    fn skip(&mut self, metrics: &super::Metrics, step: &str, code: i32) {
+        if self.skipped.insert(step.to_owned()) {
+            metrics.record_step(step, StepOutcome::Skipped, code);
+        }
     }
 }
 

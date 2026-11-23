@@ -335,7 +335,7 @@ interface. It exposes these metrics:
 | `turbo_kserve_loaded_bundles` | gauge | none | Currently loaded model bundles. |
 | `turbo_kserve_cancelled_before_exec_total` | counter | none | Calls cancelled or expired (`grpc-timeout`) before touching a device session. |
 | `turbo_kserve_documents_total` | counter | `method`, `outcome`, `turbo_code` | Documents answered inside an `AnalyzeStream` call: `outcome` is `ok` or `failed`, and `turbo_code` the failure's status name (`TURBO_OK` for a result). A stream whose every document failed is still one OK call in `turbo_kserve_rpc_requests_total`, so alert on this one. |
-| `turbo_kserve_steps_total` | counter | `step`, `outcome`, `turbo_code` | `AnalyzeDocumentProgressive` steps: `ok`, `failed` with its status, or `skipped` because a step it depends on failed, carrying that failure's status. |
+| `turbo_kserve_steps_total` | counter | `step`, `outcome`, `turbo_code` | `AnalyzeDocumentProgressive` steps: `ok`, `failed` with its status, or `skipped`: a step it depends on failed, carrying that failure's status, or the step stored skipped outputs on its own, with `TURBO_OK`. Each step is counted once per call. |
 
 Bearer token authentication (`--bearer-token` / `--bearer-token-file` /
 `--admin-bearer-token` / `--admin-bearer-token-file` or

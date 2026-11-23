@@ -18,7 +18,7 @@ use tonic::Code;
 use crate::state::State;
 
 pub(crate) use self::http::{MetricsLayer, start_http_listener};
-pub(crate) use self::outcomes::{StepOutcome, count_step};
+pub(crate) use self::outcomes::{StepOutcome, StepTally, failure_code};
 
 const LATENCY_BUCKETS: [f64; 14] =
     [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];

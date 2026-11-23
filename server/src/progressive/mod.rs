@@ -317,7 +317,7 @@ fn run_progressive_task(
         return None;
     }
 
-    let mut docs = vec![doc];
+    let (mut docs, mut tally) = (vec![doc], crate::metrics::StepTally::default());
     analyzer.run_progressive(&mut docs, &cancel, |ev| {
         if cancel.load(Ordering::Relaxed) {
             return;
@@ -341,6 +341,11 @@ fn run_progressive_task(
         let written_names: HashSet<(String, String)> =
             ev.timing.written.iter().map(|k| (k.layer.to_string(), k.name.to_owned())).collect();
 
+        let wrote_skipped = ev
+            .timing
+            .written
+            .iter()
+            .any(|&k| matches!(current_doc.status(k), Some(turbo_analysis::Status::Skipped(_))));
         let msg = if let Some(err) = ev.failure {
             let affected_layers = snap_graph
                 .layers
@@ -430,7 +435,7 @@ fn run_progressive_task(
             }
         };
 
-        crate::metrics::count_step(&metrics, &msg);
+        tally.count(&metrics, &msg, wrote_skipped);
         if tx.blocking_send(Ok(msg)).is_err() {
             cancel.store(true, Ordering::Relaxed);
         }
