@@ -7,8 +7,8 @@
 //! lineage may leave. The same layers made from the rewrite view are kept.
 
 use prost::Message;
-use turbo_analysis::{Analyzer, Bound, Document, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewId};
-use turbo_analysis_layers::{Chunks, Cut, Entities, Sentences, Tokens};
+use turbo_analysis::{Analyzer, Bound, Document, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewId};
+use turbo_analysis_layers::{Chunks, Cut, Dependencies, Entities, Modality, Sentences, Tokens};
 use turbo_entity_linker::LinkedEntities;
 use turbo_kserve::offsets::OffsetMode;
 use turbo_kserve::proto::result::{ProjectSearchDocumentRequest, SearchAssessmentState, SearchDocumentProjection};
@@ -22,6 +22,7 @@ use turbo_normalize::noise::NoiseScorer;
 use turbo_normalize_layers::TextQualityAnnotator;
 use turbo_pii::PiiDetector;
 use turbo_pii::rewrite::{REDACTED, RedactedView, RewritePolicy, StaticReplacer};
+use turbo_relation::ModalityAnnotator;
 use turbo_sentdetect::RuleSentenceDetector;
 use turbo_tokenize::uax29::UntypedWordTokenizer;
 
@@ -230,4 +231,146 @@ fn linked_names_read_from_the_source_do_not_leave_with_rewrite_view_entities() {
     }
     let full = projected(&doc, &Disclosure::FULL).entities.unwrap();
     assert_eq!(full.affirmed[0].canonical_name, EMAIL, "with the full text the name is joined: {full:?}");
+}
+
+const CUE_EMAIL: &str = "cannot-reply@example.com";
+
+fn redacted_tokens_doc(text: String, source_modality: bool) -> Document {
+    let mut builder = Analyzer::builder()
+        .add(PiiDetector::cursor())
+        .step(RedactedView::new(RewritePolicy::new(StaticReplacer::new("[E]"))).bound())
+        .step(Bound::new(RuleSentenceDetector::new("eng")).read(0, REDACTED.name))
+        .step(Bound::new(UntypedWordTokenizer::default()).read(0, REDACTED.name));
+    if source_modality {
+        builder = builder
+            .step(Bound::new(RuleSentenceDetector::new("eng")).write(0, "source"))
+            .step(Bound::new(UntypedWordTokenizer::default()).read(1, "source").write(0, "source"))
+            .step(Bound::new(ModalityAnnotator::new()).read(1, "source"));
+    }
+    let analyzer = builder.build().unwrap();
+    let mut docs = vec![Document::new(text)];
+    for r in analyzer.run(&mut docs) {
+        r.unwrap();
+    }
+    docs.pop().unwrap()
+}
+
+fn add_rewrite_entities(doc: &mut Document, words: &[(&str, Tag, f64)], labels: &[&str]) {
+    let rewrite_text = doc.text(REWRITE).to_owned();
+    let tok_spans = doc.get::<Tokens>().unwrap().spans.clone();
+    let mut spans = Spans::new(REWRITE);
+    let mut tokens = Vec::with_capacity(words.len());
+    let mut kind = Vec::with_capacity(words.len());
+    let mut score = Vec::with_capacity(words.len());
+    for &(word, tag, sc) in words {
+        let t = tok_spans.iter().find_map(|(i, sp)| (&rewrite_text[sp.range()] == word).then_some(i.get())).unwrap();
+        spans.push(tok_spans.get(Ix::new(t as u32)));
+        tokens.push(IxRange::new(t as u32, t as u32 + 1));
+        kind.push(tag);
+        score.push(sc);
+    }
+    doc.add(
+        &Key::<Entities>::DEFAULT,
+        Entities { spans, tokens, kind, kinds: TagSet::new("ner", labels), score },
+        Provenance { on: vec![Key::<Tokens>::DEFAULT.id()], ..Provenance::by("test:ner") },
+    )
+    .unwrap();
+}
+
+fn modality_doc(source_modality: bool) -> Document {
+    let mut doc =
+        redacted_tokens_doc(format!("Write to {CUE_EMAIL} about Acme, but proceed without Globex."), source_modality);
+    add_rewrite_entities(&mut doc, &[("Acme", Tag(0), 0.95), ("Globex", Tag(0), 0.92)], &["ORG"]);
+    doc
+}
+
+/// When `Modality` was computed on the source view, the disclosure withholds
+/// it so no cue from the source text can leave; the projection recomputes
+/// modality from the kept rewrite-view tokens just as when no `Modality`
+/// layer was stored (#2420).
+#[test]
+fn withheld_source_modality_recomputes_split_from_rewrite_view() {
+    let with_source = modality_doc(true);
+    let without_source = modality_doc(false);
+    assert_eq!(with_source.get::<Modality>().unwrap().spans.view(), ViewId::SOURCE);
+    assert!(without_source.get::<Modality>().is_none());
+    assert_eq!(with_source.text(REWRITE), "Write to [E] about Acme, but proceed without Globex.");
+
+    // Under full disclosure, the stored source Modality layer is kept and its
+    // cue inside the source email ("cannot") negates "Acme".
+    let full = projected(&with_source, &Disclosure::FULL).entities.unwrap();
+    assert!(full.affirmed.is_empty(), "{full:?}");
+    assert_eq!(full.negated.len(), 2, "{full:?}");
+    assert_eq!((full.negated[0].canonical_name.as_str(), full.negated[0].cue.as_deref()), ("Acme", Some("cannot")));
+    assert_eq!((full.negated[1].canonical_name.as_str(), full.negated[1].cue.as_deref()), ("Globex", Some("without")));
+
+    let expected = projected(&without_source, &REWRITTEN).entities.unwrap();
+    assert_eq!(expected.affirmed.len(), 1);
+    assert_eq!(expected.negated.len(), 1);
+
+    for (path, p) in [("function", projected(&with_source, &REWRITTEN)), ("handler", handled(&with_source))] {
+        assert!(!holds(&p, CUE_EMAIL), "{path}: source PII left");
+        assert!(!holds(&p, "cannot"), "{path}: source cue text left: {:?}", p.entities);
+        let ents = p.entities.unwrap();
+        assert_eq!(ents, expected, "{path}: withheld source Modality suppressed rewrite-view split");
+        assert_eq!((ents.affirmed[0].canonical_name.as_str(), ents.affirmed[0].cue.as_deref()), ("Acme", None));
+        assert_eq!(
+            (ents.negated[0].canonical_name.as_str(), ents.negated[0].cue.as_deref()),
+            ("Globex", Some("without"))
+        );
+    }
+}
+
+fn parsed_modality_doc(source_modality: bool) -> Document {
+    let mut doc =
+        redacted_tokens_doc(format!("Write to {CUE_EMAIL} about Beta. Acme found no fraud."), source_modality);
+    let rewrite_text = doc.text(REWRITE).to_owned();
+    let tok_spans = doc.get::<Tokens>().unwrap().spans.clone();
+    let n = tok_spans.len();
+    let tok_ix = |word: &str| {
+        tok_spans.iter().find_map(|(i, sp)| (&rewrite_text[sp.range()] == word).then_some(i.get())).unwrap()
+    };
+    let (acme, found, no_tok, fraud) = (tok_ix("Acme"), tok_ix("found"), tok_ix("no"), tok_ix("fraud"));
+    let rels = TagSet::new("ud", &["root", "nsubj", "obj", "det", "dep"]);
+    let mut head = vec![Some(Ix::new(0)); n];
+    let mut relation = vec![Tag(4); n];
+    head[0] = None;
+    relation[0] = Tag(0);
+    head[found] = None;
+    relation[found] = Tag(0);
+    head[acme] = Some(Ix::new(found as u32));
+    relation[acme] = Tag(1);
+    head[fraud] = Some(Ix::new(found as u32));
+    relation[fraud] = Tag(2);
+    head[no_tok] = Some(Ix::new(fraud as u32));
+    relation[no_tok] = Tag(3);
+    doc.add(
+        &Key::<Dependencies>::DEFAULT,
+        Dependencies { head, relation, relations: rels },
+        Provenance { on: vec![Key::<Tokens>::DEFAULT.id()], ..Provenance::by("test:dep") },
+    )
+    .unwrap();
+    add_rewrite_entities(
+        &mut doc,
+        &[("Beta", Tag(0), 0.95), ("Acme", Tag(0), 0.94), ("fraud", Tag(1), 0.91)],
+        &["ORG", "CONCEPT"],
+    );
+    doc
+}
+
+#[test]
+fn withheld_source_modality_recomputes_with_kept_dependencies() {
+    let with_source = parsed_modality_doc(true);
+    let without_source = parsed_modality_doc(false);
+    let expected = projected(&without_source, &REWRITTEN).entities.unwrap();
+    for (path, p) in [("function", projected(&with_source, &REWRITTEN)), ("handler", handled(&with_source))] {
+        assert!(!holds(&p, CUE_EMAIL), "{path}: source PII left");
+        assert!(!holds(&p, "cannot"), "{path}: source cue text left");
+        let ents = p.entities.unwrap();
+        assert_eq!(ents, expected, "{path}");
+        let affirmed_names: Vec<&str> = ents.affirmed.iter().map(|e| e.canonical_name.as_str()).collect();
+        assert_eq!(affirmed_names, vec!["Beta", "Acme"], "{path}: {ents:?}");
+        assert_eq!(ents.negated.len(), 1, "{path}: {ents:?}");
+        assert_eq!((ents.negated[0].canonical_name.as_str(), ents.negated[0].cue.as_deref()), ("fraud", Some("no")));
+    }
 }

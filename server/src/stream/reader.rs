@@ -150,8 +150,9 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<R
 }
 
 /// Reads and admits until the input closes, the client cancels, or the
-/// engine dies. Dropping the sender ends the engine's input; the
-/// staged document and the backlog go with it.
+/// engine dies. The input's half-close is handed over as
+/// [`Envelope::End`] once the backlog is admitted; dropping the sender
+/// without it tells the engine the reader was lost.
 pub(crate) async fn run(
     state: Arc<State>,
     shared: Arc<Shared>,
@@ -169,7 +170,12 @@ pub(crate) async fn run(
         }
         let mut document = match backlog.pop_front() {
             Some(d) => d,
-            None if input_closed => return,
+            // The one clean end of the input: without it the engine
+            // takes the closed channel for a reader that died.
+            None if input_closed => {
+                let _ = work.send(Envelope::End).await;
+                return;
+            }
             None => match inbound.message().await {
                 Ok(Some(r)) => match r.kind {
                     Some(Kind::Document(d)) => d,
