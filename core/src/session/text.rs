@@ -201,7 +201,13 @@ pub unsafe extern "C" fn turbo_embed_write_text(
             let mut r = backend_rows(&o, count, seq as u32, seq as u32);
             r.ids = state.ids.as_ptr();
             r.mask = state.mask.as_ptr();
-            write_rows(s, state, r, &o, true)
+            // The counts are told only once the write has succeeded.
+            let wrote = write_rows(s, state, r, &o, true);
+            match wrote {
+                Ok(()) => state.text_rows = true,
+                Err(_) => state.row_tokens.clear(),
+            }
+            wrote
         })
     }
 }
@@ -222,7 +228,7 @@ pub unsafe extern "C" fn turbo_session_row_tokens(
             let s = &session(s)?.inner;
             let state = s.lock()?;
             let rows = &state.row_tokens;
-            if !state.written.is_some_and(|w| w.tokenized && w.batch as usize == rows.len()) {
+            if !state.text_rows {
                 return Err(Error::new(INVALID_STATE, "the session's last write was not turbo_embed_write_text"));
             }
             if out.is_null() || count.is_null() {

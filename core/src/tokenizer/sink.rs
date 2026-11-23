@@ -41,6 +41,10 @@ impl Sink for Vec<i32> {
         Vec::truncate(self, kept);
     }
 
+    fn count_from(&self, at: usize, keep: impl Fn(i32) -> bool) -> usize {
+        self[at..].iter().filter(|&&id| keep(id)).count()
+    }
+
     fn split_off(&mut self, at: usize) -> (Vec<i32>, Vec<Span>) {
         (Vec::split_off(self, at), Vec::new())
     }
@@ -100,6 +104,10 @@ impl Sink for Spanned<'_> {
             }
         }
         self.truncate(kept);
+    }
+
+    fn count_from(&self, at: usize, keep: impl Fn(i32) -> bool) -> usize {
+        self.ids[at..].iter().filter(|&&id| keep(id)).count()
     }
 
     fn split_off(&mut self, at: usize) -> (Vec<i32>, Vec<Span>) {
