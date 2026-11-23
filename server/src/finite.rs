@@ -9,12 +9,10 @@ use turbo::{TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 /// `dtype`, that is NaN or infinite. Integer codes are always finite.
 pub(crate) fn first_non_finite(bytes: &[u8], dtype: u32) -> Option<usize> {
     match dtype {
-        TURBO_DTYPE_F32 => {
-            bytes.chunks_exact(4).position(|b| !f32::from_le_bytes([b[0], b[1], b[2], b[3]]).is_finite())
-        }
+        TURBO_DTYPE_F32 => bytes.as_chunks::<4>().0.iter().position(|b| !f32::from_le_bytes(*b).is_finite()),
         // Half and bfloat16 are not finite when every exponent bit is set.
-        TURBO_DTYPE_F16 => bytes.chunks_exact(2).position(|b| u16::from_le_bytes([b[0], b[1]]) & 0x7c00 == 0x7c00),
-        TURBO_DTYPE_BF16 => bytes.chunks_exact(2).position(|b| u16::from_le_bytes([b[0], b[1]]) & 0x7f80 == 0x7f80),
+        TURBO_DTYPE_F16 => bytes.as_chunks::<2>().0.iter().position(|b| u16::from_le_bytes(*b) & 0x7c00 == 0x7c00),
+        TURBO_DTYPE_BF16 => bytes.as_chunks::<2>().0.iter().position(|b| u16::from_le_bytes(*b) & 0x7f80 == 0x7f80),
         _ => None,
     }
 }
