@@ -63,15 +63,26 @@ a slow sink stay in the queue and in its counts, and each is numbered
 then: sequences follow the order items are sent in, whatever stream
 completed them. A call that fails is counted as it fails, also while no
 item is waiting, and a new one opens half a second later; the items it
-had taken are lost with it. `Server::sink_stats` gives the counts:
-offered, forwarded (taken by a call to send), dropped (refused by a full
-queue), refused (document graphs refused before the queue), abandoned (left in the queue when a close stopped the drain),
+had taken are not sent again. Every call that ends is settled against
+the sink's summary: what it had taken and the summary does not count
+received, all of it when the call failed, moves from forwarded to
+unconfirmed. `Server::sink_stats` gives the counts:
+offered, forwarded (taken by a call that is open or acknowledged them),
+accepted and rejected (summed from the sinks' summaries), dropped
+(refused by a full queue), refused (document graphs refused before the
+queue), unconfirmed (sent on a call that ended without acknowledging
+them), abandoned (left in the queue when a close stopped the drain),
 queued items and bytes, failed calls with the last
-error, and the last summary a sink answered with. When the server
+error, and the last summary a sink answered with. The same counts are
+the `turbo_kserve_sink_*` series of every `/metrics` scrape
+([grpc.md](grpc.md)), and the binary prints them on one line as it
+stops, with a second line when any document is not known to have
+reached the sink (issue #2513). When the server
 stops, it closes the queue and waits up to 10 seconds for what the queue
 holds to be sent and the sink's summary to arrive, then stops the drain
 and counts what the queue still holds as abandoned, so a sink that is down is not retried after the server stops; `Server::close_sink`
-does that on its own and answers with the final counts.
+does that on its own and answers with the final counts, and
+`Server::stop_reporting` answers with them after a stop.
 
 ## Forwarding document graphs
 
