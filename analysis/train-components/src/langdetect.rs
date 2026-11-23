@@ -35,7 +35,7 @@ use turbo_train::{
 };
 
 use crate::error::Result;
-use crate::package::{FACTORY_KEY, Stamp, add_artifacts};
+use crate::package::{FACTORY_KEY, Stamp, packaged};
 
 pub mod context;
 pub mod cross_validate;
@@ -187,14 +187,8 @@ pub fn package_language_model(
     model_bytes: Vec<u8>,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.manifest(COMPONENT_NAME, LANGUAGE);
-    manifest.set_training(report);
-    for (k, v) in factory.manifest_entries() {
-        manifest.set(&k, &v);
-    }
-    let mut package = ModelPackage::new(manifest);
-    add_artifacts(&mut package, vec![(MODEL_ENTRY, model_bytes)])?;
-    Ok(package)
+    let manifest = stamp.trained_manifest(COMPONENT_NAME, LANGUAGE, report, factory.manifest_entries());
+    packaged(manifest, vec![(MODEL_ENTRY, model_bytes)])
 }
 
 /// `LanguageDetectorME.train(samples, params, factory)`: the events of

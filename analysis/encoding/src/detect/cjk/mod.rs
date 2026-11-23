@@ -47,6 +47,20 @@ pub(super) fn problematic_lead(b: u8) -> bool {
     matches!(b, 0x91..=0x97 | 0x9A | 0x8A | 0x9B | 0x8B | 0x9E | 0x8E | 0xB0)
 }
 
+/// `maybe_set_as_pending`: the score `s` of a character whose lead byte
+/// Latin text could also hold, unless it follows a CJK (or Hangul)
+/// character, waits in `pending` for the next character, which takes it
+/// up or, as an ASCII letter, discards it. Returns the score to add now.
+pub(super) fn pend(pending: &mut Option<i64>, after_cjk: bool, ambiguous_lead: bool, s: i64) -> i64 {
+    assert!(pending.is_none());
+    if after_cjk || !ambiguous_lead {
+        s
+    } else {
+        *pending = Some(s);
+        0
+    }
+}
+
 // GBK and EUC-KR
 pub(super) fn more_problematic_lead(b: u8) -> bool {
     problematic_lead(b) || b == 0x82 || b == 0x84 || b == 0x85 || b == 0xA0
@@ -74,13 +88,7 @@ impl EucKrCandidate {
     }
 
     fn maybe_set_as_pending(&mut self, s: i64) -> i64 {
-        assert!(self.pending_score.is_none());
-        if self.prev == LatinKorean::Hangul || !more_problematic_lead(self.prev_byte) {
-            s
-        } else {
-            self.pending_score = Some(s);
-            0
-        }
+        pend(&mut self.pending_score, self.prev == LatinKorean::Hangul, more_problematic_lead(self.prev_byte), s)
     }
 
     pub(super) fn feed(&mut self, buffer: &[u8], last: bool) -> Option<i64> {
@@ -224,5 +232,27 @@ impl EucKrCandidate {
             return None;
         }
         Some(score)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pend;
+
+    #[test]
+    fn a_score_waits_only_after_an_ambiguous_lead_outside_cjk() {
+        let mut pending = None;
+        assert_eq!(pend(&mut pending, true, true, 7), 7);
+        assert_eq!(pend(&mut pending, false, false, 7), 7);
+        assert_eq!(pending, None);
+        assert_eq!(pend(&mut pending, false, true, 7), 0);
+        assert_eq!(pending, Some(7));
+    }
+
+    #[test]
+    #[should_panic]
+    fn a_second_score_never_waits_behind_the_first() {
+        let mut pending = Some(1);
+        pend(&mut pending, true, false, 7);
     }
 }

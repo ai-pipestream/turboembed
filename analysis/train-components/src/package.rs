@@ -2,7 +2,7 @@
 //! and the order the JVM writes the zip entries in.
 
 use turbo_train::package::OPENNLP_VERSION;
-use turbo_train::{Manifest, ModelPackage, TimeZone};
+use turbo_train::{Manifest, ModelPackage, TimeZone, TrainingReport};
 
 use crate::error::Result;
 
@@ -34,6 +34,30 @@ impl Stamp<'_> {
     pub fn manifest(&self, component: &str, language: &str) -> Manifest {
         Manifest::new(component, language, self.timestamp_ms).with_version(self.version).with_zone(self.zone)
     }
+
+    /// The manifest of a trained model: [`Stamp::manifest`], then the
+    /// entries of the training `report`, then `entries` (the factory's).
+    pub fn trained_manifest(
+        &self,
+        component: &str,
+        language: &str,
+        report: &TrainingReport,
+        entries: Vec<(String, String)>,
+    ) -> Manifest {
+        let mut manifest = self.manifest(component, language);
+        manifest.set_training(report);
+        for (k, v) in entries {
+            manifest.set(&k, &v);
+        }
+        manifest
+    }
+}
+
+/// The package of `manifest` and `artifacts`, added by [`add_artifacts`].
+pub fn packaged(manifest: Manifest, artifacts: Vec<(&str, Vec<u8>)>) -> Result<ModelPackage> {
+    let mut package = ModelPackage::new(manifest);
+    add_artifacts(&mut package, artifacts)?;
+    Ok(package)
 }
 
 /// The manifest key `serializer-class-<entry>`.

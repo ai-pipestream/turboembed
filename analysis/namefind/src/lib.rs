@@ -93,6 +93,7 @@ pub mod merge;
 pub mod name;
 pub mod regex_finder;
 pub mod rules;
+mod step_inputs;
 
 pub use builtin::BuiltIn;
 pub use consensus::{Consensus, ConsensusEntityMerger, EntityMergePolicy, Vote, consensus};

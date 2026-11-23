@@ -10,7 +10,7 @@ use turbo_train::trainer::{self, TrainedModel};
 use turbo_train::{Event, ModelPackage, TrainerType, TrainingConfiguration, TrainingParameters, TrainingReport};
 
 use crate::error::{Error, Result};
-use crate::package::{FACTORY_KEY, Stamp, add_artifacts};
+use crate::package::{FACTORY_KEY, Stamp, packaged};
 use crate::postag::{BEAM_SIZE_KEY, java_strings};
 
 /// `ChunkerModel.COMPONENT_NAME`.
@@ -125,15 +125,9 @@ pub fn package_chunker_model(
     beam_size: i32,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.manifest(COMPONENT_NAME, factory.language());
-    manifest.set_training(report);
-    for (k, v) in factory.manifest_entries() {
-        manifest.set(&k, &v);
-    }
+    let mut manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
     manifest.set(BEAM_SIZE_KEY, &beam_size.to_string());
-    let mut package = ModelPackage::new(manifest);
-    add_artifacts(&mut package, vec![(MODEL_ENTRY, model_bytes)])?;
-    Ok(package)
+    packaged(manifest, vec![(MODEL_ENTRY, model_bytes)])
 }
 
 /// `ChunkerME.train(languageCode, samples, mlParams, factory)`.

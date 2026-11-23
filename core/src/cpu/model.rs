@@ -59,7 +59,7 @@ impl Model {
     pub(super) fn deberta(&self, tensors: &[&[f32]]) -> Result<std::sync::Arc<crate::deberta::Encoder>, String> {
         self.deberta
             .get_or_init(|| {
-                let config = super::deberta::config(&self.desc);
+                let config = crate::deberta::Config::of_backend(&self.desc);
                 crate::deberta::Encoder::from_table(config, tensors).map(std::sync::Arc::new).map_err(|e| e.message)
             })
             .clone()

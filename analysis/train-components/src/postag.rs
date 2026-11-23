@@ -192,11 +192,7 @@ pub fn package_pos_model(
     beam_size: i32,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.manifest(COMPONENT_NAME, factory.language());
-    manifest.set_training(report);
-    for (k, v) in factory.manifest_entries() {
-        manifest.set(&k, &v);
-    }
+    let mut manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
     manifest.set(BEAM_SIZE_KEY, &beam_size.to_string());
     let mut package = ModelPackage::new(manifest);
     let mut artifacts = Vec::new();

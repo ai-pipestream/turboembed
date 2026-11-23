@@ -74,6 +74,23 @@ pub enum DlDoccatError {
     Backend(String),
 }
 
+/// `AbstractModel.getAllOutcomes`: each of `categories` outcomes as
+/// `name[0.1234]`, two spaces apart, or nothing when `results` is empty or
+/// not one score per category.
+pub(crate) fn all_outcomes<'a>(results: &[f64], categories: usize, name: impl Fn(usize) -> Option<&'a str>) -> String {
+    if results.len() != categories || results.is_empty() {
+        return String::new();
+    }
+    let mut sb = String::new();
+    for (i, &p) in results.iter().enumerate() {
+        if i > 0 {
+            sb.push_str("  ");
+        }
+        let _ = write!(sb, "{}[{p:.4}]", name(i).unwrap_or(""));
+    }
+    sb
+}
+
 impl fmt::Display for DlDoccatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -359,18 +376,7 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
     /// Formats all category outcomes and their probabilities as
     /// `cat0[0.1234]  cat1[0.8766]`.
     pub fn all_results(&self, results: &[f64]) -> String {
-        if results.len() != self.number_of_categories() || results.is_empty() {
-            return String::new();
-        }
-        let mut sb = String::new();
-        for (i, &p) in results.iter().enumerate() {
-            if i > 0 {
-                sb.push_str("  ");
-            }
-            let name = self.get_category(i).unwrap_or("");
-            let _ = write!(sb, "{name}[{p:.4}]");
-        }
-        sb
+        all_outcomes(results, self.number_of_categories(), |i| self.get_category(i))
     }
 
     /// Categorizes `text` and returns a map from category name to score
@@ -427,5 +433,20 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
             hash.str(cat);
         }
         hash.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::all_outcomes;
+
+    #[test]
+    fn all_outcomes_are_one_score_per_category() {
+        let names = ["neg", "pos"];
+        let name = |i: usize| names.get(i).copied();
+        assert_eq!(all_outcomes(&[0.12345, 0.87655], 2, name), "neg[0.1235]  pos[0.8766]");
+        assert_eq!(all_outcomes(&[0.5], 2, name), "");
+        assert_eq!(all_outcomes(&[], 0, name), "");
+        assert_eq!(all_outcomes(&[0.25, 0.75], 2, |i| (i == 1).then_some("only")), "[0.2500]  only[0.7500]");
     }
 }

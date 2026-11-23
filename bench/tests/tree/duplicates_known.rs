@@ -5,19 +5,6 @@
 
 /// The number of entries below. It is lowered with each entry removed and
 /// never raised: a new copy is fixed, not listed.
-pub const KNOWN_AT_MOST: usize = 12;
+pub const KNOWN_AT_MOST: usize = 0;
 
-pub const KNOWN: &[&str] = &[
-    "analysis/doccat/src/categorizer.rs::all_results",
-    "analysis/encoding/src/detect/cjk/chinese.rs::maybe_set_as_pending",
-    "analysis/namefind/src/consensus.rs::compute",
-    "analysis/train-components/src/chunk.rs::package_chunker_model",
-    "analysis/train-components/src/sentdetect.rs::package_sentence_model",
-    "analysis/train-recipes/src/litbank.rs::files",
-    "core/src/cpu/deberta.rs::config",
-    "core/src/ffi.rs::new_error",
-    "core/src/levelzero.rs::device_count",
-    "core/src/qa/session.rs::drop",
-    "trainer/src/lemma.rs::language_row",
-    "trainer/src/relation.rs::new",
-];
+pub const KNOWN: &[&str] = &[];

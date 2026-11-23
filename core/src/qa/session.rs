@@ -51,12 +51,7 @@ pub struct ExtractiveQa {
 unsafe impl Send for ExtractiveQa {}
 impl Drop for ExtractiveQa {
     fn drop(&mut self) {
-        unsafe {
-            turbo_session_release(self.session);
-            turbo_model_release(self.model);
-            turbo_context_release(self.context);
-            turbo_runtime_release(self.runtime);
-        }
+        unsafe { crate::ffi::release_session_chain(self.session, self.model, self.context, self.runtime) };
     }
 }
 fn error() -> turbo_error {

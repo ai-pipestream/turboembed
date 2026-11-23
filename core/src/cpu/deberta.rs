@@ -10,28 +10,12 @@
 
 use std::sync::Arc;
 
-use crate::backend::{TURBO_DEBERTA_EMBEDDING_TENSORS, turbo_backend_embed_rows, turbo_backend_model};
-use crate::deberta::{Config, Encoder, Workspace};
+use crate::backend::{TURBO_DEBERTA_EMBEDDING_TENSORS, turbo_backend_embed_rows};
+use crate::deberta::{Encoder, Workspace};
 use crate::session::turbo_token_range;
 use crate::{TURBO_NORMALIZE_L2, TURBO_POOLING_CLS, TURBO_POOLING_LAST};
 
 use super::pool::Pool;
-
-/// The encoder's configuration from the backend's description: the
-/// architecture, with max_positions as the longest sequence.
-pub(super) fn config(d: &turbo_backend_model) -> Config {
-    Config {
-        hidden: d.hidden as usize,
-        intermediate: d.intermediate as usize,
-        heads: d.heads as usize,
-        layers: d.layers as usize,
-        vocabulary: d.vocab_size as usize,
-        max_sequence: d.max_positions as usize,
-        position_buckets: d.position_buckets as usize,
-        max_relative_positions: d.max_relative_positions as usize,
-        layer_norm_eps: d.layer_norm_eps,
-    }
-}
 
 /// The tensors a DeBERTa-v2 model of `layers` layers hands model_load.
 pub(super) fn tensor_count(layers: u32) -> u64 {

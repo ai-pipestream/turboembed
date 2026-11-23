@@ -29,16 +29,16 @@ use turbo_train::{
 };
 use turbo_unicode::Utf16Cursor;
 
-use crate::dictionary::AbbreviationDictionary;
+use crate::dictionary::{AbbreviationDictionary, abbreviations_then};
 use crate::error::{Error, Result};
-use crate::package::{DICTIONARY_SERIALIZER, FACTORY_KEY, Stamp, add_artifacts, serializer_class_key};
+use crate::package::{DICTIONARY_SERIALIZER, FACTORY_KEY, Stamp, packaged, serializer_class_key};
 
 /// `TokenizerModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = "TokenizerME";
 /// `TokenizerModel.TOKENIZER_MODEL_ENTRY`.
 pub const MODEL_ENTRY: &str = "token.model";
 /// `TokenizerModel.ABBREVIATIONS_ENTRY_NAME`.
-pub const ABBREVIATIONS_ENTRY: &str = "abbreviations.dictionary";
+pub use crate::dictionary::ABBREVIATIONS_ENTRY;
 /// The factory class the manifest names.
 pub const FACTORY: &str = "opennlp.tools.tokenize.TokenizerFactory";
 /// `TokenizerFactory.USE_ALPHA_NUMERIC_OPTIMIZATION`.
@@ -278,19 +278,8 @@ pub fn package_tokenizer_model(
     model_bytes: Vec<u8>,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.manifest(COMPONENT_NAME, factory.language());
-    manifest.set_training(report);
-    for (k, v) in factory.manifest_entries() {
-        manifest.set(&k, &v);
-    }
-    let mut package = ModelPackage::new(manifest);
-    let mut artifacts = Vec::new();
-    if let Some(dictionary) = factory.abbreviations() {
-        artifacts.push((ABBREVIATIONS_ENTRY, dictionary.serialize()?));
-    }
-    artifacts.push((MODEL_ENTRY, model_bytes));
-    add_artifacts(&mut package, artifacts)?;
-    Ok(package)
+    let manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
+    packaged(manifest, abbreviations_then(factory.abbreviations(), (MODEL_ENTRY, model_bytes))?)
 }
 
 /// `TokenizerME.train(samples, factory, mlParams)`: the events of
