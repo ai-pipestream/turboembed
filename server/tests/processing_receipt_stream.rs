@@ -65,7 +65,10 @@ async fn the_stream_ends_with_a_receipt_and_a_cut_stream_is_incomplete() {
     assert_eq!(terminal_receipt(&extra, "batch-7/doc-1", TEXT).unwrap_err(), Incomplete::EventsAfterReceipt);
     let mut forged = events.clone();
     if let Some(Event::Receipt(r)) = &mut forged.last_mut().unwrap().event {
-        r.result.as_mut().unwrap().content_digest[0] ^= 1;
+        // Another graph, named consistently: its id is its digest.
+        let result = r.result.as_mut().unwrap();
+        result.content_digest[0] ^= 1;
+        result.result_id = result.content_digest.iter().map(|b| format!("{b:02x}")).collect();
     }
     assert_eq!(terminal_receipt(&forged, "batch-7/doc-1", TEXT).unwrap_err(), Incomplete::OtherResult);
     server.stop().await;
