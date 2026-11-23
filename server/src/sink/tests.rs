@@ -141,3 +141,21 @@ async fn enqueue_gap_on_one_forwarder_does_not_stall_another() {
     assert_eq!(parked.stats().dropped, 0, "{:?}", parked.stats());
     assert_eq!(free.stats().dropped, 0, "{:?}", free.stats());
 }
+
+/// A sink's summary counts no more than the call sent it: a peer that
+/// answers u64::MAX inflates nothing and overflows nothing.
+#[test]
+fn a_summary_counts_no_more_than_the_call_sent() {
+    let c = Counters::default();
+    c.forwarded.store(3, Ordering::Relaxed);
+    let huge = DocumentSinkSummary {
+        received_count: u64::MAX,
+        accepted_count: u64::MAX,
+        rejected_count: u64::MAX,
+        ..Default::default()
+    };
+    settle(&c, 3, Some(&huge));
+    let read = |a: &std::sync::atomic::AtomicU64| a.load(Ordering::Relaxed);
+    assert_eq!((read(&c.forwarded), read(&c.unconfirmed)), (3, 0));
+    assert_eq!((read(&c.accepted), read(&c.rejected)), (3, 3));
+}

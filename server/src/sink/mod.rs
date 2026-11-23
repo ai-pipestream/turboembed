@@ -389,12 +389,15 @@ fn end_call(
 /// counts received moves from forwarded to unconfirmed, all of it when
 /// the call failed and answered with no summary.
 fn settle(c: &Counters, taken: u64, summary: Option<&DocumentSinkSummary>) {
-    let unconfirmed = taken - summary.map_or(0, |s| s.received_count.min(taken));
+    let received = summary.map_or(0, |s| s.received_count.min(taken));
+    let unconfirmed = taken - received;
     c.forwarded.fetch_sub(unconfirmed, Ordering::Relaxed);
     c.unconfirmed.fetch_add(unconfirmed, Ordering::Relaxed);
+    // The sink's own counts are bounded by what it received from this
+    // call: a peer answering a huge count cannot inflate them.
     if let Some(s) = summary {
-        c.accepted.fetch_add(s.accepted_count, Ordering::Relaxed);
-        c.rejected.fetch_add(s.rejected_count, Ordering::Relaxed);
+        c.accepted.fetch_add(s.accepted_count.min(received), Ordering::Relaxed);
+        c.rejected.fetch_add(s.rejected_count.min(received), Ordering::Relaxed);
     }
 }
 
@@ -407,21 +410,23 @@ impl Stream for Feed {
             if self.call.ended.load(Ordering::Acquire) {
                 return Poll::Ready(None);
             }
-            let polled = rx.poll_recv(cx);
-            if matches!(polled, Poll::Ready(Some(_))) {
+            let mut polled = rx.poll_recv(cx);
+            // An item is taken and counted in one step under the queue
+            // lock, which the call's settlement also holds: a settlement
+            // never sees an item in `taken` that is not yet in
+            // `forwarded`, so `forwarded` never wraps below zero.
+            if let Poll::Ready(Some((item, bytes))) = &mut polled {
                 self.call.taken.fetch_add(1, Ordering::AcqRel);
+                let c = &self.c;
+                c.queued.fetch_sub(1, Ordering::Relaxed);
+                c.queued_bytes.fetch_sub(*bytes, Ordering::AcqRel);
+                item.sequence = c.sequence.fetch_add(1, Ordering::Relaxed) + 1;
+                c.forwarded.fetch_add(1, Ordering::Relaxed);
             }
             polled
         };
         match polled {
-            Poll::Ready(Some((mut item, bytes))) => {
-                let c = &self.c;
-                c.queued.fetch_sub(1, Ordering::Relaxed);
-                c.queued_bytes.fetch_sub(bytes, Ordering::AcqRel);
-                item.sequence = c.sequence.fetch_add(1, Ordering::Relaxed) + 1;
-                c.forwarded.fetch_add(1, Ordering::Relaxed);
-                Poll::Ready(Some(item))
-            }
+            Poll::Ready(Some((item, _))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => {
                 self.closed.store(true, Ordering::Release);
                 Poll::Ready(None)

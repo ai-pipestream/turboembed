@@ -13,7 +13,9 @@ impl SinkStats {
     /// at a full queue, refused before it, left in it at a stop, sent on
     /// a call that never acknowledged them, or rejected by the sink.
     pub fn undelivered(&self) -> u64 {
-        self.dropped + self.refused + self.abandoned + self.unconfirmed + self.rejected
+        [self.refused, self.abandoned, self.unconfirmed, self.rejected]
+            .into_iter()
+            .fold(self.dropped, u64::saturating_add)
     }
 }
 
@@ -98,5 +100,11 @@ mod tests {
         );
         assert_eq!(SinkStats::default().undelivered(), 0);
         assert!(!SinkStats::default().to_string().contains("last error"));
+    }
+
+    #[test]
+    fn the_undelivered_sum_saturates() {
+        let stats = SinkStats { rejected: u64::MAX, unconfirmed: 1, dropped: 1, ..Default::default() };
+        assert_eq!(stats.undelivered(), u64::MAX);
     }
 }
