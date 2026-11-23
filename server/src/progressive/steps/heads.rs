@@ -240,14 +240,16 @@ impl Selection {
 
 /// The head steps the bundle at `dir` provides (at least one head it
 /// takes; several need a selection), in step order: the bundle's
-/// `Capabilities` entry lists them, and the all-heads step runs them.
-pub fn available(dir: &str) -> Vec<String> {
-    let Ok(bundle) = Bundle::open(Path::new(dir)) else { return Vec::new() };
-    HeadStep::ALL
+/// `Capabilities` entry lists them, and the all-heads step runs them. A
+/// manifest that cannot be read fails with the bundle's error: an empty
+/// list would serve the bundle without the heads it has (#2517).
+pub fn available(dir: &str) -> Result<Vec<String>, crate::api::Failure> {
+    let bundle = Bundle::open(Path::new(dir)).map_err(|e| crate::api::Failure::new(e.code, e.field, e.message))?;
+    Ok(HeadStep::ALL
         .into_iter()
         .filter(|s| bundle.manifest.heads.iter().any(|h| s.takes(h)))
         .map(|s| s.name().to_owned())
-        .collect()
+        .collect())
 }
 
 /// Whether `name` is a head step, so the pipeline needs an embed bundle.

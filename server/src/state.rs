@@ -353,7 +353,7 @@ impl State {
             }
         };
         let c = &m.config;
-        let select_task = crate::tasks::peek_task(&c.bundle);
+        let select_task = crate::tasks::peek_task(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let device = match c.device {
             crate::config::Device::Index(i) => i,
             crate::config::Device::Select => rt.select(select_task).map_err(fail("turbo_runtime_select", &[]))?,
@@ -415,6 +415,7 @@ impl State {
                 session,
             });
         }
+        let head_steps = crate::progressive::heads::available(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
         let pool = SessionPool::new(slots.len());
         let loaded = Loaded {
             slots,
@@ -426,7 +427,7 @@ impl State {
             task: info.task,
             device,
             revision: api::field(&info.revision),
-            head_steps: crate::progressive::heads::available(&c.bundle),
+            head_steps,
             vocabulary: m.vocabulary.clone(),
             pool,
             metrics: Arc::clone(&self.metrics),
