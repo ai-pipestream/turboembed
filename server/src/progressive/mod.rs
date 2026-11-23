@@ -7,6 +7,7 @@
 mod config;
 #[cfg(test)]
 mod deadline_receipt_tests;
+mod failure;
 mod normalize;
 pub mod profiles;
 pub mod seed;
@@ -40,7 +41,7 @@ use crate::proto::result::{
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
-use crate::results::receipt::error::{kind_name, of_error};
+use crate::results::receipt::error::of_error;
 use crate::results::receipt::{self, Operation, check_operation_key};
 use crate::results::typed::identity::{bound, check_binding, input_identity_with, result_identity_with};
 use crate::sink::SinkForwarder;
@@ -367,18 +368,7 @@ fn run_progressive_task(
                     failure: Some(AnalyzeFailure {
                         turbo_code: error.turbo_code,
                         field: 0,
-                        // A code name, never the error's text: an annotator's
-                        // detail can quote the document (issue #1908). An
-                        // input over a limit says which and by how much,
-                        // counts only (#2125, #2134).
-                        message: match &err {
-                            turbo_analysis::Error::OverLimit { limit, max, got, .. }
-                                if turbo_analysis::error::known_limit(limit).is_some() =>
-                            {
-                                format!("step '{}' failed: over its {limit} {max}, got {got}", ev.timing.step_id)
-                            }
-                            _ => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
-                        },
+                        message: failure::step_message(ev.timing.step_id, &err, kind),
                     }),
                     skipped_dependents: ev.skipped_dependents.into_iter().map(str::to_owned).collect(),
                     layers: affected_layers,
