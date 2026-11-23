@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::JoinSet;
 use tokio::time::Instant;
 use tonic::Status;
 
@@ -22,7 +22,7 @@ use crate::api::Failure;
 use crate::deadline::{Deadline, deadline_status};
 use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse, InputBinding};
 use crate::stream::run::{self, Doc, Outcome, RowPayload, Whole};
-use crate::stream::{BatchKey, Dead, Envelope, Room, Shared};
+use crate::stream::{BatchKey, Dead, Envelope, Room, Shared, guard};
 
 /// The header as the scheduler holds it.
 #[derive(Debug)]
@@ -143,7 +143,11 @@ impl Engine {
                         let _ = answers.send(Err(status)).await;
                         break;
                     }
-                    None => input_ended = true,
+                    Some(Envelope::End) => input_ended = true,
+                    None => {
+                        guard::reader_lost(&answers, &dead).await;
+                        break;
+                    }
                 },
                 outcome = self.inflight.join_next(), if !self.inflight.is_empty() => match outcome {
                     Some(Ok(outcome)) => {
@@ -157,7 +161,7 @@ impl Engine {
                         }
                     }
                     Some(Err(e)) => {
-                        let _ = answers.send(Err(Status::internal(format!("a batch's task failed: {e}")))).await;
+                        let _ = answers.send(Err(guard::batch_failed(&e))).await;
                         break;
                     }
                     None => {}
@@ -481,13 +485,15 @@ fn failure_response(id: String, binding: Option<InputBinding>, failure: Failure)
     }
 }
 
-/// A running engine, started by the handler.
+/// A running engine, started by the handler and watched: a panic in
+/// it ends the stream INTERNAL, never with a clean OK (issue #2516).
 pub(crate) fn start(
     shared: Arc<Shared>,
     config: Config,
     work: mpsc::Receiver<Envelope>,
     answers: mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
     dead: Arc<Dead>,
-) -> JoinHandle<()> {
-    tokio::spawn(Engine::new(shared, config).run(work, answers, dead))
+) {
+    let worker = tokio::spawn(Engine::new(shared, config).run(work, answers.clone(), dead.clone()));
+    guard::watch(worker, "the stream's scheduler", answers, dead);
 }
