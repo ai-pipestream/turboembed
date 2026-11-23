@@ -8,6 +8,7 @@
 //! queued, never what a session is already running.
 
 mod engine;
+pub(crate) mod guard;
 pub(crate) mod handler;
 mod reader;
 pub(crate) mod run;
@@ -78,12 +79,15 @@ pub(crate) type BatchKey = (
 /// What the reader hands the engine for one stream message: an
 /// admitted document holding its queue room, a document that failed
 /// validation or admission holding the room it was admitted with (the
-/// room frees when its answer is sent), or the stream-ending refusal
-/// for a misplaced header or a reset.
+/// room frees when its answer is sent), the stream-ending refusal for
+/// a misplaced header or a reset, or the input's half-close. `End` is
+/// the only clean end of the input: a reader that stops without it has
+/// died, and the engine ends the stream INTERNAL (issue #2516).
 pub(crate) enum Envelope {
     Doc(Doc),
     Failed { id: String, binding: Option<InputBinding>, failure: Failure, room: Option<Room> },
     Abort(Status),
+    End,
 }
 
 /// Documents one stream may have queued, not yet executing; the
