@@ -25,6 +25,14 @@ pub(crate) fn panicked(what: &str) -> Status {
     Status::internal(format!("{what} panicked: the stream ended early and what it had not answered is lost"))
 }
 
+/// The status a stream ends with when one of its batch tasks did not
+/// return: a panic is named as the batch task's and never quotes its
+/// payload, which tokio's `JoinError` display would (#1908); a task
+/// cancelled at shutdown says so.
+pub(crate) fn batch_failed(e: &tokio::task::JoinError) -> Status {
+    if e.is_panic() { panicked("a batch task") } else { Status::internal("a batch task was cancelled") }
+}
+
 /// Runs a blocking stream task. A panic in it is sent on `reply` as
 /// INTERNAL and answers `None`; `reply` is dropped on the way out, so
 /// the stream has ended when this returns.
@@ -123,6 +131,18 @@ mod tests {
         assert!(!status.message().contains("quoting the document"), "{status:?}");
         assert!(dead.is_set());
         assert!(answers.recv().await.is_none());
+    }
+
+    /// A batch task that panics ends its stream naming the task, never
+    /// with the panic's payload, which the JoinError's own text carries.
+    #[tokio::test]
+    async fn a_batch_task_that_panics_is_named_without_its_payload() {
+        let e = tokio::task::spawn_blocking(|| panic!("quoting the document text")).await.unwrap_err();
+        assert!(e.to_string().contains("quoting the document text"), "the JoinError carries it: {e}");
+        let status = batch_failed(&e);
+        assert_eq!(status.code(), Code::Internal, "{status:?}");
+        assert!(status.message().contains("a batch task panicked"), "{status:?}");
+        assert!(!status.message().contains("quoting the document"), "{status:?}");
     }
 
     #[tokio::test]

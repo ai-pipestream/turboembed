@@ -161,7 +161,7 @@ impl Engine {
                         }
                     }
                     Some(Err(e)) => {
-                        let _ = answers.send(Err(Status::internal(format!("a batch's task failed: {e}")))).await;
+                        let _ = answers.send(Err(guard::batch_failed(&e))).await;
                         break;
                     }
                     None => {}
