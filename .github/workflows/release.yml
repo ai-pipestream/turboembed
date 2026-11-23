@@ -30,6 +30,16 @@ on:
 permissions:
   contents: write
 
+# A new push to a pull request cancels the release build still going on
+# its older head, as ci.yml's runs do. Without it every push to a pull
+# request that touches these paths left a whole release build (Linux,
+# macOS, Windows, Android and the images, all on hosted runners) queued
+# behind the newer one, and a stack of such pushes kept the hosted pool
+# full for hours. Tag pushes and manual runs are never cancelled.
+concurrency:
+  group: release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   # The toolkit the library is built with: its static runtime is linked
