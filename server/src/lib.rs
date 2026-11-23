@@ -24,6 +24,7 @@ pub mod probe;
 pub mod progressive;
 pub mod release;
 pub mod results;
+pub mod runtime_log;
 pub mod search;
 pub mod sink;
 pub mod state;

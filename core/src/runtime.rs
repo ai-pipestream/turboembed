@@ -27,12 +27,18 @@ impl Runtime {
                 self.log(LOG_WARNING, &e.message);
                 continue;
             }
+            let before = self.devices.len();
             for ordinal in 0..n {
                 match probe(b, ordinal) {
                     Ok(info) => self.devices.push(Device { backend: b, ordinal, info }),
                     Err(e) => self.log(LOG_WARNING, &e.message),
                 }
             }
+            // Said for every linked backend, so a log shows where each
+            // device index came from and which backend gave none (#2512).
+            let listed = self.devices.len() - before;
+            let unit = if listed == 1 { "device" } else { "devices" };
+            self.log(LOG_INFO, &format!("the {} backend lists {listed} {unit}", b.name()));
         }
         Ok(())
     }
