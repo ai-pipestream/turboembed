@@ -380,3 +380,23 @@ fn a_changed_table_is_refused() {
 
 #[path = "static_model/dtypes.rs"]
 mod dtypes;
+
+/// Under TURBO_TRUNCATE_RIGHT a static model tokenizes a character
+/// prefix; when that prefix is the whole text, the whole count is known
+/// and told, and a text of no tokens says it kept none (issues #2511,
+/// #2517). Before, seen was unknown for every such row.
+#[test]
+fn a_whole_static_text_tells_its_count() {
+    let l = load(&bundle());
+    let s = session(&l);
+    let mut o = opts(TURBO_POOLING_MODEL, TURBO_NORMALIZE_MODEL);
+    o.truncate = TURBO_TRUNCATE_RIGHT;
+    s.write_text(&["", "hello there"], Some(&o)).unwrap();
+    let mut rows = [turbo_row_tokens::default(); 2];
+    let (mut n, mut err) = (0u32, new_error());
+    let rc = unsafe { turbo_session_row_tokens(s.0, rows.as_mut_ptr(), 2, &mut n, &mut err) };
+    assert_eq!((rc, n), (0, 2));
+    assert_eq!((rows[0].kept, rows[0].seen, rows[0].seen_known, rows[0].truncated), (0, 0, 1, 0), "{rows:?}");
+    assert_eq!((rows[1].seen_known, rows[1].truncated), (1, 0), "{rows:?}");
+    assert_eq!(rows[1].kept, rows[1].seen, "{rows:?}");
+}

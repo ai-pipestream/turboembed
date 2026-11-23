@@ -1663,7 +1663,9 @@ export const AnalyzeVectorsSchema: GenMessage<AnalyzeVectors> = /*@__PURE__*/
  */
 export type InputTokens = Message<"turbo.result.v1.InputTokens"> & {
   /**
-   * Tokens the model read, special tokens included.
+   * Tokens the model read, special tokens included. 0 is a text that
+   * gave no tokens: a static model answers it with the zero vector,
+   * which this marks (issue #2517); an encoder refuses it.
    *
    * @generated from field: uint32 kept = 1;
    */
@@ -1673,6 +1675,8 @@ export type InputTokens = Message<"turbo.result.v1.InputTokens"> & {
    * Tokens the whole text gives, special tokens included. Absent when
    * the text was cut by characters before it was tokenized, as a static
    * model does under TURBO_TRUNCATE_RIGHT: the count was never made.
+   * A static model counts here the unknown tokens it leaves out of the
+   * row, so kept can be under seen with nothing truncated.
    *
    * @generated from field: optional uint32 seen = 2;
    */

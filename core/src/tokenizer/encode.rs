@@ -146,9 +146,14 @@ impl Tokenizer {
             Some(st) => {
                 match opts.truncation {
                     Truncation::Right => {
+                        // Only a prefix by characters is tokenized; when
+                        // it is the whole text, the whole count is known.
                         let prefix = char_prefix(&text, budget.saturating_mul(st.median_chars));
+                        let whole = prefix.len() == text.len();
                         self.text_ids(prefix, out);
-                        cut = prefix.len() < text.len() || out.len() - body > budget;
+                        let n = out.len() - body;
+                        seen = whole.then_some(n);
+                        cut = !whole || n > budget;
                         out.truncate(body + budget);
                     }
                     Truncation::Left => {

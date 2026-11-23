@@ -152,6 +152,8 @@ pub struct RowTokens {
     /// Tokens the whole text gives, special tokens included. None when
     /// the text was cut by characters before it was tokenized, as a
     /// static model does under TRUNCATE_RIGHT: the count was never made.
+    /// A static model counts here the unknown tokens it then leaves out
+    /// of the row, so `kept` can be under `seen` with nothing truncated.
     pub seen: Option<u32>,
     /// Whether part of the text is not in the row.
     pub truncated: bool,
