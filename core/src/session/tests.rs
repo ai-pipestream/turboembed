@@ -98,9 +98,14 @@ fn a_layer_count_is_judged_against_the_model_before_the_device() {
 
 #[test]
 fn a_non_finite_value_names_its_row_and_dimension() {
-    assert!(result::finite_rows(&[0.0, -1.5, 2.0, 0.25], 2).is_ok());
+    let bytes = |v: &[f32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+    assert!(result::finite_rows(&bytes(&[0.0, -1.5, 2.0, 0.25]), 2).is_ok());
     for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
-        let e = result::finite_rows(&[0.0, 1.0, 2.0, bad], 2).unwrap_err();
+        // One byte in, so the rows start off any f32 alignment, as a
+        // caller's dst may (turbo_result_read promises none).
+        let mut unaligned = vec![0u8];
+        unaligned.extend(bytes(&[0.0, 1.0, 2.0, bad]));
+        let e = result::finite_rows(&unaligned[1..], 2).unwrap_err();
         assert_eq!(e.code, INTERNAL);
         assert!(e.message.contains("row 1") && e.message.contains("dimension 1"), "{}", e.message);
     }
