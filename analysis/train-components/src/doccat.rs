@@ -19,7 +19,7 @@ use turbo_train::{
 };
 
 use crate::error::Result;
-use crate::package::{Stamp, add_artifacts};
+use crate::package::{Stamp, packaged};
 
 /// A trained document categorizer model: the classifier, what the trainer
 /// reports, and the `.bin` file.
@@ -51,14 +51,8 @@ pub fn package_doccat_model(
     model_bytes: Vec<u8>,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.manifest(COMPONENT_NAME, language);
-    manifest.set_training(report);
-    for (k, v) in factory.manifest_entries() {
-        manifest.set(&k, &v);
-    }
-    let mut package = ModelPackage::new(manifest);
-    add_artifacts(&mut package, vec![(MODEL_ENTRY, model_bytes)])?;
-    Ok(package)
+    let manifest = stamp.trained_manifest(COMPONENT_NAME, language, report, factory.manifest_entries());
+    packaged(manifest, vec![(MODEL_ENTRY, model_bytes)])
 }
 
 /// `DocumentCategorizerME.train(language, samples, params, factory)`: the

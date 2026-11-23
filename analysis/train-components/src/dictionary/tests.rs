@@ -226,3 +226,12 @@ fn from_census_names_refuses_names_that_differ_only_in_case() {
 fn from_census_names_reports_leading_space_error() {
     assert!(matches!(AbbreviationDictionary::from_census_names(" SMITH 1.006\n"), Err(Error::Format(_))));
 }
+
+#[test]
+fn abbreviations_come_before_the_model_entry_when_there_are_any() {
+    let model = || ("x.model", vec![1u8, 2]);
+    assert_eq!(abbreviations_then(None, model()).unwrap(), [model()]);
+    let dictionary = AbbreviationDictionary::new(true, [vec!["Mr.".to_owned()]]).unwrap();
+    let artifacts = abbreviations_then(Some(&dictionary), model()).unwrap();
+    assert_eq!(artifacts, [(ABBREVIATIONS_ENTRY, dictionary.serialize().unwrap()), model()]);
+}

@@ -2,7 +2,7 @@
 //! (`src/lib.rs`, Copyright Mozilla Foundation, licensed under Apache-2.0 or
 //! MIT; see NOTICE).
 
-use super::{HalfWidthKatakana, LatinCj, cjk_extra_score, problematic_lead};
+use super::{HalfWidthKatakana, LatinCj, cjk_extra_score, pend, problematic_lead};
 use crate::detect::data;
 use crate::detect::scores::*;
 use crate::detect::stream::{EucJpStream, ShiftJisStream};
@@ -29,13 +29,7 @@ impl ShiftJisCandidate {
     }
 
     fn maybe_set_as_pending(&mut self, s: i64) -> i64 {
-        assert!(self.pending_score.is_none());
-        if self.prev == LatinCj::Cj || !problematic_lead(self.prev_byte) {
-            s
-        } else {
-            self.pending_score = Some(s);
-            0
-        }
+        pend(&mut self.pending_score, self.prev == LatinCj::Cj, problematic_lead(self.prev_byte), s)
     }
 
     pub(in crate::detect) fn feed(&mut self, buffer: &[u8], last: bool) -> Option<i64> {

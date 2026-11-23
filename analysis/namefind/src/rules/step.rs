@@ -4,8 +4,10 @@
 use std::any::Any;
 
 use turbo_analysis::annotate::{AnchorUse, Annotator, Refs, Step};
-use turbo_analysis::{Document, Error, Fnv1a, Key, KeyId, Provenance, Status};
+use turbo_analysis::{Document, Error, Fnv1a, Key, KeyId, Provenance};
 use turbo_analysis_layers::{Entities, Money, Quantities, Temporals, Times, Tokens};
+
+use crate::step_inputs::per_document;
 
 use super::{
     TimeEntityFilter, money_to_entities, quantities_to_entities, rule_entities, temporals_to_entities,
@@ -214,21 +216,7 @@ impl Step for RuleEntityProjector {
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
-        let out: Out = docs
-            .iter()
-            .map(|d| {
-                for k in self.reads() {
-                    match d.status(k) {
-                        Some(Status::Complete) => {}
-                        Some(Status::Skipped(why)) => return Err(Error::Skipped(format!("{k} was skipped: {why}"))),
-                        Some(Status::Failed(e)) => return Err(Error::Skipped(format!("{k} failed: {e}"))),
-                        None => return Err(Error::Missing(k)),
-                    }
-                }
-                self.build(d)
-            })
-            .collect();
-        Box::new(out)
+        per_document(docs, &self.reads(), |d| self.build(d))
     }
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {

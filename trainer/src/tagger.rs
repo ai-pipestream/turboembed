@@ -20,7 +20,7 @@ use crate::adamw::AdamW;
 use crate::adapter::{self, Shape};
 use crate::real::Real;
 use crate::rng::Rng;
-use crate::shapes::{checked_shapes, fits};
+use crate::shapes::{checked_shapes, fits, language_row};
 use crate::{crf, linear, xent};
 
 /// The weights of one head, `params[i]` named `names[i]`.
@@ -214,21 +214,7 @@ impl<R: Real> Tagger<R> {
     }
 
     fn language_row(&self, row: Option<u32>) -> Result<Option<usize>> {
-        let Some(language) = &self.spec.language else {
-            return match row {
-                Some(_) => Err(invalid("trainer: a language given to a head without a language input")),
-                None => Ok(None),
-            };
-        };
-        let row = match row {
-            Some(row) => row as usize,
-            None if language.languages.len() == 1 => 0,
-            None => return Err(invalid("trainer: a multilingual example needs a language")),
-        };
-        if row >= language.languages.len() {
-            return Err(invalid(format!("trainer: language row {row} is out of range")));
-        }
-        Ok(Some(row))
+        language_row(self.spec.language.as_ref(), row)
     }
 
     /// Joins encoder features, the selected language and hashed word text.

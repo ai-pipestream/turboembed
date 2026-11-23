@@ -57,6 +57,7 @@ pub mod depparse;
 pub mod error;
 pub mod fineweb;
 pub mod flores;
+pub mod github_files;
 pub mod langdetect;
 pub mod langdetect_web;
 pub mod langid;

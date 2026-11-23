@@ -66,26 +66,13 @@ unsafe impl Send for Reranker {}
 
 impl Drop for Reranker {
     fn drop(&mut self) {
-        unsafe {
-            turbo_session_release(self.session);
-            turbo_model_release(self.model);
-            turbo_context_release(self.context);
-            turbo_runtime_release(self.runtime);
-        }
+        unsafe { crate::ffi::release_session_chain(self.session, self.model, self.context, self.runtime) };
     }
 }
 
 fn string(chars: &[c_char]) -> String {
     String::from_utf8_lossy(&chars.iter().take_while(|&&c| c != 0).map(|&c| c.to_ne_bytes()[0]).collect::<Vec<_>>())
         .into_owned()
-}
-fn error() -> turbo_error {
-    turbo_error {
-        struct_size: size_of::<turbo_error>() as u32,
-        code: 0,
-        field: 0,
-        message: [0; TURBO_ERROR_MESSAGE_LEN],
-    }
 }
 fn check(code: i32, e: &turbo_error) -> Result<()> {
     if code == 0 { Ok(()) } else { Err(Error::field(code, e.field, string(&e.message))) }
@@ -124,7 +111,7 @@ impl Reranker {
             device: 0,
         };
         let rt_desc = s.warnings.runtime_desc();
-        let mut e = error();
+        let mut e = crate::ffi::new_error();
         unsafe {
             check(turbo_runtime_create(&rt_desc, &mut s.runtime, &mut e), &e)?;
             let device = match &o.backend {
@@ -177,7 +164,7 @@ impl Reranker {
     pub fn device_info(&self) -> Result<turbo_device_info> {
         let mut d: turbo_device_info = unsafe { std::mem::zeroed() };
         d.struct_size = size_of::<turbo_device_info>() as u32;
-        let mut e = error();
+        let mut e = crate::ffi::new_error();
         check(unsafe { turbo_runtime_device_info(self.runtime, self.device, &mut d, &mut e) }, &e)?;
         Ok(d)
     }
@@ -209,7 +196,7 @@ impl Reranker {
         for batch in pairs.chunks(self.max_batch) {
             let inputs: Vec<_> =
                 batch.iter().map(|&(q, p)| turbo_text_pair { query: text(q), passage: text(p) }).collect();
-            let mut e = error();
+            let mut e = crate::ffi::new_error();
             let mut result = OwnedResult(ptr::null_mut());
             unsafe {
                 check(turbo_rerank_write_pairs(self.session, inputs.as_ptr(), inputs.len() as u32, &opts, &mut e), &e)?;
@@ -238,7 +225,7 @@ impl Reranker {
 }
 /// The index of the first device whose backend is `name`.
 unsafe fn device_of(rt: *mut turbo_runtime, name: &str) -> Result<u32> {
-    let mut e = error();
+    let mut e = crate::ffi::new_error();
     let mut n = 0;
     check(unsafe { turbo_runtime_device_count(rt, &mut n, &mut e) }, &e)?;
     for i in 0..n {
