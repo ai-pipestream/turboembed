@@ -1389,7 +1389,11 @@ its id:
   the model, `seen` is how many the whole text has (absent when the
   text was cut by characters before tokenizing, so its full count is
   unknown), and `truncated` is set when `kept` is less than the text.
-  A vector of a cut text never passes for the whole text's. A `quantization` other than 0 or
+  A vector of a cut text never passes for the whole text's. `kept` 0
+  is a text that gave no tokens, which a static model answers with the
+  zero vector (issue #2517). A float row holding a NaN or an infinity
+  is never sent: that document answers `AnalyzeFailure` with
+  `TURBO_E_INTERNAL`, and the others in its batch are unaffected. A `quantization` other than 0 or
   `TURBO_QUANTIZE_NONE` with a sparse-terms, token-vectors, or
   document-graph `output`
   is `TURBO_E_UNSUPPORTED_OPTION` naming field 7, as is a codes output
