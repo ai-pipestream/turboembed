@@ -75,12 +75,20 @@ pub struct Metrics {
     bundle_loads_err: AtomicU64,
     bundle_unloads: AtomicU64,
     cancelled_before_exec: AtomicU64,
+    /// The forwarder to the downstream sink, when the server has one:
+    /// its counts are part of every scrape (issue #2513).
+    sink: std::sync::OnceLock<Arc<crate::sink::SinkForwarder>>,
 }
 
 impl Metrics {
     /// Creates an empty [`Metrics`] registry.
     pub fn new() -> Arc<Self> {
         Arc::new(Self::default())
+    }
+
+    /// Makes the sink forwarder's counts part of every scrape.
+    pub(crate) fn bind_sink(&self, sink: Arc<crate::sink::SinkForwarder>) {
+        let _ = self.sink.set(sink);
     }
 
     /// Records completion of one gRPC call.
@@ -318,6 +326,10 @@ impl Metrics {
         );
         let _ = writeln!(out, "# TYPE turbo_kserve_cancelled_before_exec_total counter");
         let _ = writeln!(out, "turbo_kserve_cancelled_before_exec_total {cancelled}");
+
+        if let Some(sink) = self.sink.get() {
+            crate::sink::render(&mut out, &sink.stats());
+        }
 
         out
     }
