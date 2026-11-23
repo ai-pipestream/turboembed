@@ -74,15 +74,25 @@ fn sized<T>() -> T {
 
 // Runtime, context and model may be used from any thread (turbo.h,
 // Conventions).
-pub struct Runtime(*mut turbo_runtime);
+pub struct Runtime(*mut turbo_runtime, std::sync::Arc<crate::runtime_log::RuntimeLog>);
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
 impl Runtime {
+    /// A runtime that logs to stderr and keeps its warnings (#2512). What
+    /// is made from it is released before it: the log is its callback's
+    /// user data and lives as long as this handle.
     pub fn create() -> Result<Runtime> {
+        let log = crate::runtime_log::RuntimeLog::new();
+        let desc = log.desc();
         let mut rt = ptr::null_mut();
-        check(|e| unsafe { turbo_runtime_create(ptr::null(), &mut rt, e) })?;
-        Ok(Runtime(rt))
+        check(|e| unsafe { turbo_runtime_create(&desc, &mut rt, e) })?;
+        Ok(Runtime(rt, log))
+    }
+
+    /// What the library logged on this runtime.
+    pub fn log(&self) -> &crate::runtime_log::RuntimeLog {
+        &self.1
     }
 
     pub fn device_info(&self, index: u32) -> Result<turbo_device_info> {

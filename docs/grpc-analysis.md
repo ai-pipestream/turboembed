@@ -514,6 +514,18 @@ asking. One request's load, answer, and rollback carry the exact
 registration it made: a same-named replacement is a different
 registration and is never touched.
 
+`CapabilitiesResponse.runtime_warnings` (field 5, issue #2512) lists
+what the runtime logged at warning or error level since the server
+created it, oldest first, each a `RuntimeLogEntry` of a
+`RuntimeLogLevel` and the library's message: a backend whose probe
+failed, a device whose description could not be read, a kernel path or
+a tuning cache the library gave up on. At most 64 are kept, and
+`runtime_warnings_dropped` (field 6) counts the ones after them. The
+server also prints every runtime message of info level and above on
+stderr as `turbo-kserve: runtime: <level>: <message>`, among them one
+line for each linked backend with the number of devices it lists. The
+first load creates the runtime, so both fields are empty before it.
+
 ## A client call
 
 With [grpcurl](https://github.com/fullstorydev/grpcurl), against a server
