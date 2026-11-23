@@ -144,31 +144,33 @@ impl Tokenizer {
         match &self.stat {
             None => self.text_ids(&text, out),
             Some(st) => {
-                match opts.truncation {
+                // Under TRUNCATE_RIGHT only a prefix by characters is
+                // tokenized; when it is the whole text, the whole count
+                // is known.
+                let whole = match opts.truncation {
                     Truncation::Right => {
-                        // Only a prefix by characters is tokenized; when
-                        // it is the whole text, the whole count is known.
                         let prefix = char_prefix(&text, budget.saturating_mul(st.median_chars));
-                        let whole = prefix.len() == text.len();
                         self.text_ids(prefix, out);
-                        let n = out.len() - body;
-                        seen = whole.then_some(n);
-                        cut = !whole || n > budget;
-                        out.truncate(body + budget);
+                        prefix.len() == text.len()
                     }
-                    Truncation::Left => {
+                    Truncation::Left | Truncation::None => {
                         self.text_ids(&text, out);
-                        seen = Some(out.len() - body);
-                        cut = out.len() - body > budget;
-                        out.drain(body..out.len().saturating_sub(budget).max(body));
+                        true
                     }
-                    Truncation::None => {
-                        self.text_ids(&text, out);
-                        seen = Some(out.len() - body);
-                    }
-                }
+                };
+                // The row leaves unknown tokens out, so the count does
+                // too, as Tokenizer::count does; the row itself is cut
+                // first and cleaned after, as before.
                 let unk = self.unk_id;
+                let known = out.count_from(body, |id| id != unk);
+                match opts.truncation {
+                    Truncation::Right => out.truncate(body + budget),
+                    Truncation::Left => out.drain(body..out.len().saturating_sub(budget).max(body)),
+                    Truncation::None => {}
+                }
                 out.retain_from(body, |id| id != unk);
+                seen = whole.then_some(known);
+                cut = !whole || known > out.len() - body;
             }
         }
         let len = out.len() - body;

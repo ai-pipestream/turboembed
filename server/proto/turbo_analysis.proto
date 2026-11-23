@@ -865,8 +865,8 @@ message InputTokens
   // Tokens the whole text gives, special tokens included. Absent when
   // the text was cut by characters before it was tokenized, as a static
   // model does under TURBO_TRUNCATE_RIGHT: the count was never made.
-  // A static model counts here the unknown tokens it leaves out of the
-  // row, so kept can be under seen with nothing truncated.
+  // A static model leaves unknown tokens out of its row and out of this
+  // count alike, so truncated is set exactly when kept is under seen.
   optional uint32 seen = 2;
 
   // Whether part of the text was not read by the model.

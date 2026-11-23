@@ -65,6 +65,13 @@ fn a_cut_text_is_told_row_by_row() {
     // The bundle's max_seq is 64: TURBO_TRUNCATE_MODEL keeps that many.
     assert_eq!((rows[1].kept, rows[1].truncated, rows[1].seen_known), (64, 1, 1), "{rows:?}");
     assert!(rows[1].seen > 64, "{rows:?}");
+    // The counts stay readable until the next write: a result holds the
+    // session (busy, like every session call), and once it is released
+    // the same counts are read again.
+    let out = s.run().unwrap();
+    assert_eq!(row_tokens(&s).err().unwrap().code, BUSY);
+    drop(out);
+    assert_eq!(row_tokens(&s).unwrap(), rows, "the counts outlive the run");
     // Left truncation keeps as many and reports the same whole count.
     s.write_text(&[PARAGRAPH], Some(&opts(|o| o.truncate = TURBO_TRUNCATE_LEFT))).unwrap();
     let left = row_tokens(&s).unwrap();

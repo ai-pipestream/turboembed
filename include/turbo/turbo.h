@@ -687,7 +687,9 @@ typedef struct turbo_row_tokens {
 /* One entry per row of the session's last turbo_embed_write_text, in the
  * order of its texts; *count is the rows written. TURBO_E_INVALID_STATE
  * when the last write was not turbo_embed_write_text, TURBO_E_CAPACITY
- * when capacity is under the rows written. Valid until the next write. */
+ * when capacity is under the rows written. Valid until the next write,
+ * across turbo_session_run and the result's release; TURBO_E_BUSY while
+ * a result holds the session, like every session call. */
 int32_t turbo_session_row_tokens(turbo_session *s, turbo_row_tokens *out, uint32_t capacity,
                                  uint32_t *count, turbo_error *err);
 

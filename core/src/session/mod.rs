@@ -217,8 +217,11 @@ struct State {
     ids: Vec<i32>,
     mask: Vec<i32>,
     /// What the last turbo_embed_write_text made of each text, one per
-    /// row; empty after any other write (turbo_session_row_tokens).
+    /// row (turbo_session_row_tokens). `text_rows` says they are there:
+    /// set when that write succeeds, cleared when any write begins, and
+    /// kept across the run, so they stay readable until the next write.
     row_tokens: Vec<turbo_row_tokens>,
+    text_rows: bool,
     rerank: Option<rerank::PairBatch>,
     scores: Vec<f32>,
     pooled: Vec<f32>,
