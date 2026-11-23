@@ -211,3 +211,21 @@ async fn a_server_without_a_sink_reports_none() {
     let (s, _) = common::serve().await;
     assert_eq!(s.stop_reporting(turbo_kserve::STOP_GRACE).await.sink, None);
 }
+
+/// A sink that takes items and never answers: the call is still open
+/// when the stop's wait runs out, so nothing acknowledged what it sent.
+/// The stop settles that call too (review of 6cc9ed0a).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_stop_against_a_sink_that_never_answers_counts_its_items_unconfirmed() {
+    let receiver = SinkReceiver::new(|_| std::thread::sleep(Duration::from_secs(4)));
+    let serve = Serve { sink_receiver: Some(receiver), ..Serve::default() };
+    let sink = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await.unwrap();
+    let s = teeing(format!("http://{}", sink.local_addr()), 16).await;
+    analyze(&s, "hung", 3).await;
+    until(&s, |st| st.forwarded == 3).await;
+    let stats = s.close_sink(Duration::from_millis(500)).await.unwrap();
+    assert_eq!((stats.forwarded, stats.unconfirmed, stats.abandoned), (0, 3, 0), "{stats:?}");
+    assert_eq!(stats.undelivered(), 3, "{stats:?}");
+    s.stop().await;
+    sink.stop().await;
+}

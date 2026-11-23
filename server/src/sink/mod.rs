@@ -116,6 +116,9 @@ struct Counters {
     queued_bytes: AtomicU64,
     failed_calls: AtomicU64,
     last: Mutex<(Option<String>, Option<DocumentSinkSummary>)>,
+    /// The call open now, so a close that stops the drain mid-call can
+    /// settle it.
+    open_call: Mutex<Option<Arc<Call>>>,
 }
 
 /// A queued item and the bytes it is counted at.
@@ -308,6 +311,12 @@ impl SinkForwarder {
             t.abort();
             let _ = t.await;
             let c = &self.counters;
+            // The call open at the abort never answered: nothing it sent
+            // was acknowledged (#2513).
+            let open = c.open_call.lock().unwrap_or_else(|p| p.into_inner()).take();
+            if let Some(call) = open {
+                end_call(&self.rx, c, &call, None);
+            }
             let mut rx = self.rx.lock().unwrap_or_else(|p| p.into_inner());
             rx.close();
             while let Ok((_, bytes)) = rx.try_recv() {
@@ -351,6 +360,29 @@ struct Feed {
 struct Call {
     taken: AtomicU64,
     ended: AtomicBool,
+    /// Set by whichever settles the call: its drain when it returns, or
+    /// a close that stopped the drain first. A call is settled once.
+    settled: AtomicBool,
+}
+
+/// Ends `call`, so its feed takes nothing more, and settles it once
+/// against `summary`; true when this was the settling.
+fn end_call(
+    rx: &Mutex<mpsc::Receiver<Queued>>,
+    c: &Counters,
+    call: &Call,
+    summary: Option<&DocumentSinkSummary>,
+) -> bool {
+    let taken = {
+        let _queue = rx.lock().unwrap_or_else(|p| p.into_inner());
+        call.ended.store(true, Ordering::Release);
+        call.taken.load(Ordering::Acquire)
+    };
+    if call.settled.swap(true, Ordering::AcqRel) {
+        return false;
+    }
+    settle(c, taken, summary);
+    true
 }
 
 /// Settles an ended call: what it took beyond what the sink's summary
@@ -408,23 +440,20 @@ async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Ar
     loop {
         let mut client = TurboSinkServiceClient::new(channel.clone());
         let call = Arc::new(Call::default());
+        *c.open_call.lock().unwrap_or_else(|p| p.into_inner()) = Some(call.clone());
         let feed = Feed { rx: rx.clone(), c: c.clone(), closed: closed.clone(), call: call.clone() };
         let ended = client.stream_documents(feed).await;
-        let taken = {
-            let _queue = rx.lock().unwrap_or_else(|p| p.into_inner());
-            call.ended.store(true, Ordering::Release);
-            call.taken.load(Ordering::Acquire)
-        };
+        c.open_call.lock().unwrap_or_else(|p| p.into_inner()).take();
         {
             let mut last = c.last.lock().unwrap_or_else(|p| p.into_inner());
             match ended {
                 Ok(summary) => {
                     let summary = summary.into_inner();
-                    settle(&c, taken, Some(&summary));
+                    end_call(&rx, &c, &call, Some(&summary));
                     last.1 = Some(summary);
                 }
                 Err(e) => {
-                    settle(&c, taken, None);
+                    end_call(&rx, &c, &call, None);
                     c.failed_calls.fetch_add(1, Ordering::Relaxed);
                     last.0 = Some(e.to_string());
                 }

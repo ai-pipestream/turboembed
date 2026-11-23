@@ -66,7 +66,8 @@ item is waiting, and a new one opens half a second later; the items it
 had taken are not sent again. Every call that ends is settled against
 the sink's summary: what it had taken and the summary does not count
 received, all of it when the call failed, moves from forwarded to
-unconfirmed. `Server::sink_stats` gives the counts:
+unconfirmed, and so does a call still open when a close stops the
+drain at its deadline. `Server::sink_stats` gives the counts:
 offered, forwarded (taken by a call that is open or acknowledged them),
 accepted and rejected (summed from the sinks' summaries), dropped
 (refused by a full queue), refused (document graphs refused before the
