@@ -1116,7 +1116,8 @@ exactly-once execution.
 The progressive stream ends with the receipt: after `complete`, or, when
 a deadline cancels the run, as a CANCELLED receipt before the deadline
 status. A stream that ends without one (a dropped connection, an
-internal error) is incomplete whatever it delivered before;
+internal error) is incomplete whatever it delivered before, and a run
+that panics ends it with INTERNAL, never OK (issue #2516);
 `turbo_kserve::results::receipt::stream::terminal_receipt` is the
 consumer check: the receipt must be whole and self-consistent, and
 bound to the caller's operation key, the source text it sent and the
@@ -1439,6 +1440,11 @@ A failed document never ends the stream; unknown model, unknown option
 value, missing MLM head, and an over-limit document all answer this way,
 and a batch whose write fails is retried one document at a time so the
 failure lands on its document alone.
+
+What does end the stream is never reported as OK: a batch task, the
+scheduler, or the input reader that dies ends it with INTERNAL, naming
+the worker and not the panic's text (issue #2516). A stream that ends OK
+has answered every document it was sent before the half-close.
 
 Documents waiting on the same load with the same output kind, offset
 mode, and options gather into one batch up to the bundle's `batch_limit`,

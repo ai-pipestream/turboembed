@@ -48,6 +48,7 @@ use crate::results::typed::identity::{bound, check_binding, input_identity_with,
 use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
+use crate::stream::guard::reply_on_panic;
 
 use crate::pii_policy;
 pub use profiles::{
@@ -127,10 +128,12 @@ pub(crate) async fn start_progressive(
 
     let (sink_doc_id, binding, metrics) = (doc_id.clone(), req.binding.clone(), state.metrics.clone());
     tokio::task::spawn_blocking(move || {
-        // The task owns the stream's one sender, so the reply has ended
-        // when it returns.
+        // The run owns the stream's senders, so the reply has ended when
+        // it returns; a panic in it ends the reply INTERNAL (#2516).
         let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone(), typed, metrics };
-        let delivered = run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
+        let reply = tx.clone();
+        let run = move || run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
+        let delivered = reply_on_panic(reply, "the progressive analysis task", run).flatten();
         if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
             // A refusal is counted in the forwarder's stats.
             let _ = sink.offer_exported(&sink_doc_id, exported, &doc, binding.as_ref());
