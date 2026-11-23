@@ -34,15 +34,15 @@ fn find_view(doc: &Document, view_id: ViewId) -> Option<&View> {
         .find_map(|k| doc.get_key(&Key::<View>::named(k.name)).filter(|v| v.id() == view_id))
 }
 
-/// The modality layer, or one made here from the tokens; a cue is quoted
-/// from its view, so only layers the disclosure lets leave are read.
+/// The kept modality layer, or one made here from the kept tokens and
+/// dependencies when none may leave; a cue is quoted from its view, so
+/// only layers the disclosure lets leave are read.
 fn resolve_modality_layer(cx: &SearchProjCx<'_>) -> Option<Modality> {
-    let doc = cx.doc;
-    if doc.get::<Modality>().is_some() {
-        return cx.kept::<Modality>().cloned();
+    if let Some(m) = cx.kept::<Modality>() {
+        return Some(m.clone());
     }
     let tokens = cx.kept::<Tokens>()?;
-    let view = find_view(doc, tokens.spans.view())?;
+    let view = find_view(cx.doc, tokens.spans.view())?;
     let deps = cx.kept::<Dependencies>();
     ModalityAnnotator::new().annotate((view, tokens, deps)).ok().map(|(m,)| m)
 }
