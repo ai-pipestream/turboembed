@@ -7,6 +7,7 @@
 mod config;
 #[cfg(test)]
 mod deadline_receipt_tests;
+mod failure;
 mod normalize;
 pub mod profiles;
 pub mod seed;
@@ -31,7 +32,7 @@ use turbo_analysis::{Analyzer, Document};
 use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
 use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
-use crate::metrics::{DocGuard, StreamGuard};
+use crate::metrics::{DocGuard, Metrics, StreamGuard};
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
@@ -41,7 +42,7 @@ use crate::proto::result::{
 use crate::results::MAX_GRAPH_BYTES;
 use crate::results::disclosure::{Disclosure, PiiOutputPolicy, holds_pii, plans_pii};
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
-use crate::results::receipt::error::{kind_name, of_error};
+use crate::results::receipt::error::of_error;
 use crate::results::receipt::{self, Operation, check_operation_key};
 use crate::results::typed::identity::{bound, check_binding, input_identity_with, result_identity_with};
 use crate::sink::SinkForwarder;
@@ -124,11 +125,11 @@ pub(crate) async fn start_progressive(
     let proto_offsets = offsets.to_proto();
     let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
-    let (sink_doc_id, binding) = (doc_id.clone(), req.binding.clone());
+    let (sink_doc_id, binding, metrics) = (doc_id.clone(), req.binding.clone(), state.metrics.clone());
     tokio::task::spawn_blocking(move || {
         // The task owns the stream's one sender, so the reply has ended
         // when it returns.
-        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone(), typed };
+        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone(), typed, metrics };
         let delivered = run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
         if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
             // A refusal is counted in the forwarder's stats.
@@ -267,6 +268,7 @@ struct Answer {
     disclosure: Disclosure,
     binding: Option<InputBinding>,
     typed: Option<typed::Target>,
+    metrics: Arc<Metrics>,
 }
 
 fn run_progressive_task(
@@ -278,7 +280,7 @@ fn run_progressive_task(
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
-    let Answer { doc_id, offsets: proto_offsets, disclosure, binding, typed } = answer;
+    let Answer { doc_id, offsets: proto_offsets, disclosure, binding, typed, metrics } = answer;
     // Whether snapshots may carry graph bytes is decided for the request
     // before anything streams: a pipeline that will write PII findings
     // withholds them from the first snapshot on, since the text is the
@@ -319,7 +321,7 @@ fn run_progressive_task(
         return None;
     }
 
-    let mut docs = vec![doc];
+    let (mut docs, mut tally) = (vec![doc], crate::metrics::StepTally::default());
     analyzer.run_progressive(&mut docs, &cancel, |ev| {
         if cancel.load(Ordering::Relaxed) {
             return;
@@ -343,6 +345,11 @@ fn run_progressive_task(
         let written_names: HashSet<(String, String)> =
             ev.timing.written.iter().map(|k| (k.layer.to_string(), k.name.to_owned())).collect();
 
+        let wrote_skipped = ev
+            .timing
+            .written
+            .iter()
+            .any(|&k| matches!(current_doc.status(k), Some(turbo_analysis::Status::Skipped(_))));
         let msg = if let Some(err) = ev.failure {
             let affected_layers = snap_graph
                 .layers
@@ -364,18 +371,7 @@ fn run_progressive_task(
                     failure: Some(AnalyzeFailure {
                         turbo_code: error.turbo_code,
                         field: 0,
-                        // A code name, never the error's text: an annotator's
-                        // detail can quote the document (issue #1908). An
-                        // input over a limit says which and by how much,
-                        // counts only (#2125, #2134).
-                        message: match &err {
-                            turbo_analysis::Error::OverLimit { limit, max, got, .. }
-                                if turbo_analysis::error::known_limit(limit).is_some() =>
-                            {
-                                format!("step '{}' failed: over its {limit} {max}, got {got}", ev.timing.step_id)
-                            }
-                            _ => format!("step '{}' failed: {}", ev.timing.step_id, kind_name(kind)),
-                        },
+                        message: failure::step_message(ev.timing.step_id, &err, kind),
                     }),
                     skipped_dependents: ev.skipped_dependents.into_iter().map(str::to_owned).collect(),
                     layers: affected_layers,
@@ -432,6 +428,7 @@ fn run_progressive_task(
             }
         };
 
+        tally.count(&metrics, &msg, wrote_skipped);
         if tx.blocking_send(Ok(msg)).is_err() {
             cancel.store(true, Ordering::Relaxed);
         }

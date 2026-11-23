@@ -446,7 +446,9 @@ impl Engine {
         pending: Pending,
         answers: &mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
     ) -> std::result::Result<(), ()> {
+        let failed = crate::metrics::failure_code(&pending.response);
         answers.send(Ok(pending.response)).await.map_err(|_| ())?;
+        self.shared.metrics.record_document("AnalyzeStream", failed);
         drop(pending.room);
         drop(pending.window);
         Ok(())
