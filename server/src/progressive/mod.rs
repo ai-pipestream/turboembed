@@ -30,7 +30,7 @@ use turbo_analysis::{Analyzer, Document};
 use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
 use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
-use crate::metrics::{DocGuard, StreamGuard};
+use crate::metrics::{DocGuard, Metrics, StreamGuard};
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
@@ -122,11 +122,11 @@ pub(crate) async fn start_progressive(
     let proto_offsets = offsets.to_proto();
     let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
-    let (sink_doc_id, binding) = (doc_id.clone(), req.binding.clone());
+    let (sink_doc_id, binding, metrics) = (doc_id.clone(), req.binding.clone(), state.metrics.clone());
     tokio::task::spawn_blocking(move || {
         // The task owns the stream's one sender, so the reply has ended
         // when it returns.
-        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone() };
+        let answer = Answer { doc_id, offsets: proto_offsets, disclosure, binding: binding.clone(), metrics };
         let delivered = run_progressive_task(answer, doc, analyzer, task_cancel, task_deadline, tx, op);
         if let (Some(sink), Some((exported, doc))) = (sink, delivered) {
             // A refusal is counted in the forwarder's stats.
@@ -264,6 +264,7 @@ struct Answer {
     offsets: i32,
     disclosure: Disclosure,
     binding: Option<InputBinding>,
+    metrics: Arc<Metrics>,
 }
 
 fn run_progressive_task(
@@ -275,7 +276,7 @@ fn run_progressive_task(
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
-    let Answer { doc_id, offsets: proto_offsets, disclosure, binding } = answer;
+    let Answer { doc_id, offsets: proto_offsets, disclosure, binding, metrics } = answer;
     // Whether snapshots may carry graph bytes is decided for the request
     // before anything streams: a pipeline that will write PII findings
     // withholds them from the first snapshot on, since the text is the
@@ -429,6 +430,7 @@ fn run_progressive_task(
             }
         };
 
+        crate::metrics::count_step(&metrics, &msg);
         if tx.blocking_send(Ok(msg)).is_err() {
             cancel.store(true, Ordering::Relaxed);
         }
