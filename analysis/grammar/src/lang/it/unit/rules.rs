@@ -2,14 +2,11 @@ use super::*;
 use crate::dec::Dec;
 use crate::engine::{Build, Item, glued, glued_word, node, node_if, opt_word, word};
 use crate::lang::it::{NUM, SCALE};
-use crate::unit::{Area, Information, Length, Minor, Per, Rate, Speed, Volume, currency::CODES};
-use crate::value::Quantity;
+use crate::unit::{Area, Minor, Rate, Volume};
+use lexicon::Words;
 
 const fn r(name: &'static str, dim: Dim, items: &'static [Item], build: Build) -> Rule {
     Rule { name, dim, items, weight: 0, build }
-}
-fn quantity(value: Dec, unit: Unit) -> Option<Value> {
-    Some(Value::Quantity(Quantity::new(value, unit)))
 }
 fn currency(v: &Value) -> bool {
     matches!(v.unit(), Some(Unit::Currency(_)))
@@ -55,37 +52,10 @@ fn prefix_amount(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     }
     quantity(v[1].num()?.value, unit)
 }
-fn raw(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
-    let (i, _) = v[0].term()?;
-    let entry = lexicon::WORDS.get(i as usize)?;
-    if matches!(entry.word, "o" | "oc" | "of" | "ok") && !ctx.raw(ctx.start).starts_with('º') {
-        return None;
-    }
-    let mut unit = entry.unit;
-    if ctx.raw(ctx.start).ends_with('B') {
-        unit = match unit {
-            Unit::Information(Information::Megabit) => Unit::Information(Information::Megabyte),
-            Unit::Information(Information::Gigabit) => Unit::Information(Information::Gigabyte),
-            Unit::Information(Information::Kilobit) => Unit::Information(Information::Kilobyte),
-            u => u,
-        };
-    }
-    Some(Value::Unit(unit))
-}
-fn coded(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
-    let code = CODES.get(v[0].term()?.0 as usize)?.0;
-    // Codes that are ordinary Italian words are codes only in capitals.
-    if matches!(code, "all" | "cop" | "dem" | "esp" | "las" | "mad" | "pen" | "son" | "try")
-        && ctx.raw(ctx.start).chars().any(turbo_unicode::props::lowercase)
-    {
-        return None;
-    }
-    Some(Value::Unit(lexicon::coded(code)?))
-}
 fn country(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (_, generic, code) = lexicon::COUNTRIES.get(v[1].term()?.0 as usize)?;
     (v[0].unit()? == Unit::Currency(CurrencyUnit::Generic(*generic)))
-        .then(|| Value::Unit(lexicon::coded(code).expect("currency code")))
+        .then(|| Value::Unit(code_unit(code).expect("currency code")))
 }
 fn square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Unit::Length(l) = v[0].unit()? else { return None };
@@ -106,15 +76,6 @@ fn letter_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     } else {
         Temperature::Fahrenheit
     })))
-}
-fn speed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let per = lexicon::TIMES.get(v[1].term()?.0 as usize)?.1;
-    let u = match v[0].unit()? {
-        Unit::Length(l) if matches!(per, Per::Second | Per::Minute | Per::Hour) => Unit::Speed(Speed::Per(l, per)),
-        Unit::Information(i) => Unit::Rate(Rate::Information(i, per)),
-        _ => return None,
-    };
-    Some(Value::Unit(u))
 }
 fn money_rate(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Value::Quantity(q) = v[0] else { return None };
@@ -148,7 +109,7 @@ fn hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
                 matches!(c, CurrencyUnit::Generic(Generic::Dollar | Generic::Peso))
                     || ["usd", "cad", "aud", "nzd", "hkd", "mxn", "eur", "brl"]
                         .iter()
-                        .any(|s| lexicon::coded(s) == Some(Unit::Currency(c)))
+                        .any(|s| code_unit(s) == Some(Unit::Currency(c)))
             }
             _ => m.major().0.currency() == c.currency() && c.currency().is_some(),
         };
@@ -167,26 +128,14 @@ fn amount_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let exponent = v[2].term()?.0;
     quantity(v[0].num()?.value.shift(exponent as i32)?, v[1].unit()?)
 }
-fn compound(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let (Value::Quantity(a), Value::Quantity(b)) = (v[0], v[1]) else { return None };
-    let divisor = match (a.unit(), b.unit()) {
-        (Unit::Length(Length::Foot), Unit::Length(Length::Inch)) => 12,
-        (Unit::Weight(Weight::Pound), Unit::Weight(Weight::Ounce)) => 16,
-        _ => return None,
-    };
-    if a.value().is_negative() || b.value().is_negative() || b.value() >= Dec::from_i64(divisor) {
-        return None;
-    }
-    quantity(a.value().checked_add(b.value().checked_div(Dec::from_i64(divisor))?)?, a.unit())
-}
 fn fixed_currency(code: &str) -> Option<Value> {
-    Some(Value::Unit(lexicon::coded(code)?))
+    Some(Value::Unit(code_unit(code)?))
 }
 pub(super) const RULES: &[Rule] = &[
     r("it_unit_quadri", UNIT, &[node_if(UNIT, length), word("quadri")], square),
-    r("it_unit_all_ora", UNIT, &[node(UNIT), word("all"), word("'"), node(TIME)], speed),
-    r("it_unit_all_ora_curly", UNIT, &[node(UNIT), word("all"), word("’"), node(TIME)], speed),
-    r("it_unit_al_time", UNIT, &[node(UNIT), word("al"), node(TIME)], speed),
+    r("it_unit_all_ora", UNIT, &[node(UNIT), word("all"), word("'"), node(TIME)], speed::<Words>),
+    r("it_unit_all_ora_curly", UNIT, &[node(UNIT), word("all"), word("’"), node(TIME)], speed::<Words>),
+    r("it_unit_al_time", UNIT, &[node(UNIT), word("al"), node(TIME)], speed::<Words>),
     r(
         "it_unit_age_context",
         QTY,
@@ -195,7 +144,7 @@ pub(super) const RULES: &[Rule] = &[
     ),
     r("it_unit_half", QTY, &[word("mezza"), node(UNIT)], |v, _| quantity(Dec::new(5, 1)?, v[0].unit()?)),
     r("it_unit_half_masc", QTY, &[word("mezzo"), node(UNIT)], |v, _| quantity(Dec::new(5, 1)?, v[0].unit()?)),
-    r("it_unit_word", UNIT, &[node(RAW)], raw),
+    r("it_unit_word", UNIT, &[node(RAW)], raw::<Words>),
     r("it_unit_code", UNIT, &[node(CODE)], coded),
     r("it_unit_code_dollar", UNIT, &[node(CODE), glued_word("$")], coded),
     r("it_unit_canadian_sign", UNIT, &[word("c"), word("$")], |_, _| fixed_currency("cad")),
@@ -205,10 +154,10 @@ pub(super) const RULES: &[Rule] = &[
     r("it_unit_country", UNIT, &[node_if(UNIT, currency), node(COUNTRY)], country),
     r("it_unit_hongkong", UNIT, &[node_if(UNIT, currency), word("di"), word("hong"), word("kong")], |v, _| {
         (v[0].unit()? == Unit::Currency(CurrencyUnit::Generic(Generic::Dollar)))
-            .then_some(Value::Unit(lexicon::coded("hkd")?))
+            .then_some(Value::Unit(code_unit("hkd")?))
     }),
     r("it_unit_dutch_guilder", UNIT, &[node_if(UNIT, currency), word("olandesi")], |v, _| {
-        (v[0].unit()? == lexicon::coded("nlg")?).then_some(v[0])
+        (v[0].unit()? == code_unit("nlg")?).then_some(v[0])
     }),
     r("it_unit_square", UNIT, &[node_if(UNIT, length), word("quadrato")], square),
     r("it_unit_squares", UNIT, &[node_if(UNIT, length), word("quadrati")], square),
@@ -232,8 +181,8 @@ pub(super) const RULES: &[Rule] = &[
     r("it_unit_angle", UNIT, &[node_if(UNIT, degree)], |_, _| Some(Value::Unit(Unit::Angle(Angle::Degree)))),
     r("it_unit_scale", UNIT, &[node_if(UNIT, degree), node(UNIT)], scale),
     r("it_unit_scale_letter", UNIT, &[node_if(UNIT, degree), node(SCALE_WORD)], letter_scale),
-    r("it_unit_rate", UNIT, &[node(UNIT), word("per"), node(TIME)], speed),
-    r("it_unit_rate_slash", UNIT, &[node(UNIT), word("/"), node(TIME)], speed),
+    r("it_unit_rate", UNIT, &[node(UNIT), word("per"), node(TIME)], speed::<Words>),
+    r("it_unit_rate_slash", UNIT, &[node(UNIT), word("/"), node(TIME)], speed::<Words>),
     r("it_unit_amount", QTY, &[node(NUM), opt_word("di"), node(UNIT)], amount),
     r("it_unit_hyphen", QTY, &[node(NUM), glued_word("-"), glued(UNIT)], amount),
     r("it_unit_money_before", QTY, &[node_if(UNIT, currency), node(NUM)], prefix_amount),

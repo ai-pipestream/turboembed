@@ -118,7 +118,7 @@ pub(in crate::lang) fn b_holiday_weekend_year(v: &[Value], c: &Ctx<'_>) -> Optio
     emit_date(c, DateSpec::HolidayWeekend { holiday, year })
 }
 
-/// `the week of April 10th`, `w/c Feb 4`.
+/// `the week of April 10th`, `w/c Feb 4`, `la semana del 4 de febrero`.
 pub(in crate::lang) fn b_week_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     match date_of(c, v.last()?)? {
         DateSpec::Cal { year: YearRef::Any, month, day, weekday: 0 } if day > 0 => {

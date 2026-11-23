@@ -211,16 +211,6 @@ pub(super) fn b_holiday_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     en::b_holiday_of_year(&[v[0], *v.last()?], c)
 }
 
-/// `la semana del 4 de febrero`.
-pub(super) fn b_week_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
-    match date_of(c, v.last()?)? {
-        DateSpec::Cal { year: YearRef::Any, month, day, weekday: 0 } if day > 0 => {
-            emit_date(c, DateSpec::WeekOf { month, day })
-        }
-        _ => None,
-    }
-}
-
 /// `el día 21 de este mes`.
 pub(super) fn b_day_this_month(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     en::b_rel_month_day(&[v[0], *v.last()?], c)

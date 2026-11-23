@@ -5,23 +5,11 @@
 
 /// The number of entries below. It is lowered with each entry removed and
 /// never raised: a new copy is fixed, not listed.
-pub const KNOWN_AT_MOST: usize = 24;
+pub const KNOWN_AT_MOST: usize = 12;
 
 pub const KNOWN: &[&str] = &[
     "analysis/doccat/src/categorizer.rs::all_results",
     "analysis/encoding/src/detect/cjk/chinese.rs::maybe_set_as_pending",
-    "analysis/formats/src/ad/names.rs::next",
-    "analysis/formats/src/conll/names.rs::cover",
-    "analysis/formats/src/conllu/mod.rs::block",
-    "analysis/grammar/src/lang/en/mod.rs::output",
-    "analysis/grammar/src/lang/en/time/date/named.rs::b_week_of",
-    "analysis/grammar/src/lang/es/unit/lexicon.rs::entries",
-    "analysis/grammar/src/lang/es/unit/rules.rs::coded",
-    "analysis/grammar/src/lang/es/unit/rules.rs::compound",
-    "analysis/grammar/src/lang/es/unit/rules.rs::raw",
-    "analysis/grammar/src/lang/es/unit/rules.rs::speed",
-    "analysis/grammar/src/lang/it/numbers.rs::and_fraction",
-    "analysis/grammar/src/lang/it/numbers.rs::scale",
     "analysis/namefind/src/consensus.rs::compute",
     "analysis/train-components/src/chunk.rs::package_chunker_model",
     "analysis/train-components/src/sentdetect.rs::package_sentence_model",

@@ -104,31 +104,6 @@ fn sum(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let value = a.value.checked_add(b.value)?;
     Some(Value::Num(Num { value, kind: NumKind::of(value), grain: b.grain, flags: a.flags | b.flags }))
 }
-fn scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let mut n = *v[0].num()?;
-    let exponent = v[1].term()?.0;
-    if n.grain >= exponent as i8 || n.value.is_negative() {
-        return None;
-    }
-    n.value = n.value.shift(exponent as i32)?;
-    n.kind = NumKind::of(n.value);
-    n.grain = exponent as i8;
-    n.flags = (n.flags & !flag::GRAMMAR) | flag::SPELLED;
-    Some(Value::Num(n))
-}
-// A proper fraction after a million-scale word belongs to that scale.
-// Keep its grain so an explicit smaller scale attaches to the fraction
-// first: "one billion and half a million" must not multiply the whole.
-fn and_fraction(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
-    let grain = v[0].num()?.grain;
-    if grain >= 6 && en::proper_fraction(&v[1]) {
-        let mut n = *en::b_scale_and_fraction(v, ctx)?.num()?;
-        n.grain = grain;
-        Some(Value::Num(n))
-    } else {
-        en::b_mixed(v, ctx)
-    }
-}
 fn large(v: &Value) -> bool {
     v.num().is_some_and(|n| n.grain >= 3)
 }
@@ -137,7 +112,7 @@ pub(super) const RULES: &[Rule] = &[
     r("pt_num_digits", &[node(NUMERAL)], en::b_same),
     r("pt_num_sum", &[node(NUM), word("e"), node(NUM)], sum),
     r("pt_num_scale_sum", &[node_if(NUM, large), node(NUM)], sum),
-    r("pt_num_scale", &[node(NUM), node(SCALE)], scale),
+    r("pt_num_scale", &[node(NUM), node(SCALE)], en::b_word_scale),
     r("pt_num_thousand", &[word("mil")], |_, _| {
         Some(Value::Num(Num { value: Dec::from_i64(1000), kind: NumKind::Integer, grain: 3, flags: flag::SPELLED }))
     }),
@@ -160,7 +135,7 @@ pub(super) const RULES: &[Rule] = &[
     r(
         "pt_num_and_half",
         &[node_if(NUM, en::non_negative_integer), word("e"), node_if(NUM, en::positive_fraction)],
-        and_fraction,
+        en::b_and_fraction,
     ),
     r("pt_num_negative", &[word("menos"), node_if(NUM, en::non_negative)], |v, _| {
         let mut n = *v[0].num()?;

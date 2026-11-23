@@ -61,6 +61,10 @@ pub(crate) const SIGN: Dim = Dim(21);
 pub(crate) const ORD: Dim = Dim(22);
 pub(crate) const REL: Dim = Dim(23);
 pub(crate) const PCT: Dim = Dim(24);
+const _: () = {
+    use crate::lang::en;
+    assert!(NUM.0 == en::NUM.0 && ORD.0 == en::ORD.0 && REL.0 == en::REL.0 && PCT.0 == en::PCT.0);
+};
 pub(crate) const DIMS: u16 = 25;
 
 /// An ordinal word that names no denominator: `primero`, `segundo`,
@@ -127,12 +131,7 @@ impl Grammar for Spanish {
     }
 
     fn output(&self, dim: Dim) -> Option<Output> {
-        match dim {
-            NUM => Some(Output::Number),
-            ORD | REL => Some(Output::Ordinal),
-            PCT => Some(Output::Percent),
-            _ => None,
-        }
+        crate::lang::en::number_output(dim)
     }
 
     fn keep(&self, output: Output, node: &Node, ctx: &Ctx<'_>) -> bool {

@@ -10,7 +10,7 @@ use crate::engine::{Ctx, Item, Kind, Rule, glued, glued_word, node, opt_word, wo
 use crate::lang::en::time::clock::dig_len;
 use crate::lang::en::time::date as en;
 use crate::lang::en::time::lexicon::{self as words, rel};
-use crate::lang::en::time::{date_of, emit_date, r, term, term_value, year_ref};
+use crate::lang::en::time::{emit_date, r, term, term_value, year_ref};
 use crate::time::spec::{DateSpec, YearKind, YearRef};
 use crate::value::Value;
 

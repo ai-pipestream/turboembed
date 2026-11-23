@@ -167,6 +167,20 @@ impl<'a> Lines<'a> {
     pub fn source(&self) -> &'a str {
         self.source
     }
+
+    /// `ParagraphStream.read`: the next run of lines that are not of
+    /// length zero, empty at the end of the text.
+    pub(crate) fn paragraph(&mut self) -> Vec<Line<'a>> {
+        let mut block = Vec::new();
+        for line in self.by_ref() {
+            if !line.text().is_empty() {
+                block.push(line);
+            } else if !block.is_empty() {
+                break;
+            }
+        }
+        block
+    }
 }
 
 impl<'a> Iterator for Lines<'a> {
@@ -374,5 +388,16 @@ mod tests {
         assert_eq!(utf16_cut("\u{1F600}x", 2), Ok(Some(4)));
         assert_eq!(utf16_cut("a\u{1F600}", 2), Ok(None));
         assert_eq!(utf16_cut("\u{e9}\u{e9}x", 2), Ok(Some(4)));
+    }
+
+    #[test]
+    fn paragraphs_are_runs_of_lines_that_are_not_empty() {
+        let mut lines = Lines::new("\n\na\nb\n\n\n c\r\n\n").unwrap();
+        let texts = |b: Vec<Line<'static>>| b.iter().map(|l| (l.text(), l.number)).collect::<Vec<_>>();
+        assert_eq!(texts(lines.paragraph()), [("a", 3), ("b", 4)]);
+        // a line of spaces is not of length zero
+        assert_eq!(texts(lines.paragraph()), [(" c", 7)]);
+        assert!(lines.paragraph().is_empty());
+        assert!(lines.paragraph().is_empty());
     }
 }

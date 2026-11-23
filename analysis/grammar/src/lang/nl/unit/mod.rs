@@ -4,19 +4,12 @@ mod rules;
 
 use super::{DIMS, DUTCH, NUMERAL};
 use crate::engine::{Ctx, Dim, Grammar, Kind, Lexicon, Node, NumeralStyle, Output, Rule, WordForms};
+use crate::lang::unit_pack::{self, *};
 use crate::unit::{Angle, Temperature, Unit};
 use crate::value::Value;
 use std::sync::OnceLock;
 
-const RAW: Dim = Dim(DIMS);
-const UNIT: Dim = Dim(DIMS + 1);
-const QTY: Dim = Dim(DIMS + 2);
-const CODE: Dim = Dim(DIMS + 3);
-const SCALE_WORD: Dim = Dim(DIMS + 4);
-const TIME: Dim = Dim(DIMS + 5);
-const COUNTRY: Dim = Dim(DIMS + 6);
-const BARE: u8 = 1;
-const PREFIX: u8 = 2;
+const _: () = assert!(DIMS == NUMBER_DIMS, "the unit dims follow the number grammar's");
 
 /// Dutch measures, money, temperatures and ages, with original source offsets.
 pub struct DutchUnits {
@@ -32,7 +25,7 @@ impl Grammar for DutchUnits {
     fn lexicon(&self) -> &Lexicon {
         self.lexicon.get_or_init(|| {
             let mut entries = super::lexicon::ENTRIES.to_vec();
-            entries.extend(lexicon::entries());
+            entries.extend(unit_pack::entries::<lexicon::Words>());
             Lexicon::new(&entries)
         })
     }
@@ -44,7 +37,7 @@ impl Grammar for DutchUnits {
         })
     }
     fn dims(&self) -> u16 {
-        DIMS + 7
+        UNIT_DIMS
     }
     fn numeral(&self) -> Dim {
         NUMERAL

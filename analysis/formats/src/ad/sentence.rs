@@ -62,6 +62,9 @@ pub(crate) struct SentenceStream<'a> {
     text: Option<Field<'a>>,
     metadata: Option<Rc<str>>,
     buffer: Vec<Line<'a>>,
+    /// Whether [`SentenceStream::sentence`] has met the end or a failed
+    /// sentence.
+    ended: bool,
 }
 
 impl<'a> SentenceStream<'a> {
@@ -74,6 +77,7 @@ impl<'a> SentenceStream<'a> {
             text: None,
             metadata: None,
             buffer: Vec::new(),
+            ended: false,
         }
     }
 
@@ -110,6 +114,22 @@ impl<'a> SentenceStream<'a> {
             }
             if !started && !self.buffer.is_empty() {
                 return Some(self.parse());
+            }
+        }
+    }
+
+    /// The next sentence, or `None` from the first sentence the parser
+    /// gave up on onwards: the name and part-of-speech readers take a
+    /// failed sentence, as Java's take its `null`, for the end of the text.
+    pub fn sentence(&mut self) -> Option<AdSentence<'a>> {
+        if self.ended {
+            return None;
+        }
+        match self.read() {
+            Some(SentenceRead::Sentence(s)) => Some(s),
+            Some(SentenceRead::Failed) | None => {
+                self.ended = true;
+                None
             }
         }
     }
@@ -273,5 +293,20 @@ mod tests {
         assert_eq!(b.metadata.as_deref(), Some("CP1-2 p=1 ref=x"));
         assert_eq!(b.tree.leaves().count(), 0);
         assert!(s.read().is_none());
+    }
+
+    #[test]
+    fn sentence_stops_at_the_first_failed_sentence() {
+        let good = "<s>\nSOURCE: ref=x\nCP1-2 Um texto.\nSTA:fcl\n=H:n('texto' M S) texto\n</s>\n";
+        let src = format!("{good}<s>\nSTA:fcl\n</s>\n{good}");
+        let mut read = SentenceStream::new(Lines::new(&src).unwrap());
+        assert!(matches!(read.read(), Some(SentenceRead::Sentence(_))));
+        assert!(matches!(read.read(), Some(SentenceRead::Failed)));
+        assert!(matches!(read.read(), Some(SentenceRead::Sentence(_))), "read goes past a failed sentence");
+        let mut fused = SentenceStream::new(Lines::new(&src).unwrap());
+        assert_eq!(fused.sentence().and_then(|s| s.text).unwrap().as_str(), "Um texto.");
+        assert!(fused.sentence().is_none(), "the failed sentence ends the text");
+        assert!(fused.sentence().is_none(), "and nothing after it is read");
+        assert!(SentenceStream::new(Lines::new("").unwrap()).sentence().is_none());
     }
 }

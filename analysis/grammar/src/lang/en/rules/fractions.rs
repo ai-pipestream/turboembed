@@ -39,6 +39,21 @@ pub(in crate::lang) fn b_scale_and_fraction(v: &[Value], _: &Ctx<'_>) -> Option<
     fraction(w.value.checked_add(f.value.checked_mul(pow10(i64::from(w.grain)))?)?, w.flags | f.flags)
 }
 
+/// A number and a fraction. A proper fraction after a million-scale word
+/// belongs to that scale, and keeps its grain so an explicit smaller scale
+/// attaches to the fraction first: "one billion and half a million" must
+/// not multiply the whole.
+pub(in crate::lang) fn b_and_fraction(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    let grain = v[0].num()?.grain;
+    if grain >= 6 && proper_fraction(&v[1]) {
+        let mut n = *b_scale_and_fraction(v, ctx)?.num()?;
+        n.grain = grain;
+        Some(Value::Num(n))
+    } else {
+        b_mixed(v, ctx)
+    }
+}
+
 /// `one billion and three quarters million`: a fractional part below the
 /// whole's last scale.
 pub(in crate::lang) fn b_scale_plus_fraction(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
