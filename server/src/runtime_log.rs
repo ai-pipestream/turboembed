@@ -8,6 +8,7 @@
 //! listing's typed `runtime_warnings`.
 
 use std::ffi::c_void;
+use std::io::Write as _;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -36,11 +37,12 @@ impl RuntimeLog {
         Arc::new(RuntimeLog::default())
     }
 
-    /// The descriptor that makes a runtime log here. The runtime, and
-    /// every context, model and session made from it, must be released
-    /// before the last `Arc` of this log is dropped: the callback's user
-    /// data is this allocation.
-    pub fn desc(self: &Arc<Self>) -> turbo_runtime_desc {
+    /// The descriptor that makes a runtime log here. The callback's user
+    /// data is this allocation, so it must outlive the runtime and every
+    /// handle made from it, which `api` keeps by holding an `Arc` of it
+    /// in each of them. Crate-only, so no caller gets the raw pointer
+    /// without that.
+    pub(crate) fn desc(self: &Arc<Self>) -> turbo_runtime_desc {
         turbo_runtime_desc {
             struct_size: size_of::<turbo_runtime_desc>() as u32,
             reserved: 0,
@@ -64,7 +66,10 @@ impl RuntimeLog {
             // Debug and anything newer: said for a developer's own sink.
             _ => return,
         };
-        eprintln!("turbo-kserve: runtime: {name}: {message}");
+        // Never eprintln!, which panics when stderr is closed: a panic
+        // cannot unwind out of the extern "C" callback and would abort
+        // the process. A line that cannot be written is still kept.
+        let _ = writeln!(std::io::stderr(), "turbo-kserve: runtime: {name}: {message}");
         let Some(level) = kept else { return };
         let mut entries = self.kept.lock().unwrap_or_else(|p| p.into_inner());
         if entries.len() < MAX_RUNTIME_WARNINGS {

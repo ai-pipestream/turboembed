@@ -56,3 +56,36 @@ async fn the_capability_listing_carries_the_runtime_warnings() {
     assert_eq!(caps.runtime_warnings_dropped, 0);
     s.stop().await;
 }
+
+/// The log is the callback's user data, and the core keeps a runtime
+/// alive as long as anything made from it, any of which can log. So the
+/// log lives until the last handle made from the runtime is released,
+/// not until the runtime handle is dropped.
+#[test]
+fn the_log_outlives_the_runtime_handle_while_its_children_live() {
+    use turbo_kserve::api::Runtime;
+    let rt = Runtime::create().unwrap();
+    let log = std::sync::Arc::downgrade(rt.log());
+    let ctx = rt.context(cpu()).unwrap();
+    let model = ctx.load(tiny().to_str().unwrap()).unwrap();
+    // Every field 0 is the model's own value; only the size is set.
+    let mut desc: turbo::turbo_session_desc = unsafe { std::mem::zeroed() };
+    desc.struct_size = size_of::<turbo::turbo_session_desc>() as u32;
+    let session = model.session(&desc).unwrap();
+    drop(rt);
+    assert!(log.upgrade().is_some(), "the log was freed while a context, model and session live");
+    drop(ctx);
+    drop(model);
+    assert!(log.upgrade().is_some(), "the log was freed while a session lives");
+    // The session still writes and runs; its result holds the log too.
+    let t = "hello";
+    let text = turbo::turbo_text { ptr: t.as_ptr().cast(), len: t.len() as u64 };
+    let mut opts: turbo::turbo_embed_options = unsafe { std::mem::zeroed() };
+    opts.struct_size = size_of::<turbo::turbo_embed_options>() as u32;
+    session.write_text(&[text], &opts).unwrap();
+    let out = session.run().unwrap();
+    drop(session);
+    assert!(log.upgrade().is_some(), "the log was freed while a result lives");
+    drop(out);
+    assert!(log.upgrade().is_none(), "the last handle released the log");
+}

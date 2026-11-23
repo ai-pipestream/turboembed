@@ -523,8 +523,11 @@ a tuning cache the library gave up on. At most 64 are kept, and
 `runtime_warnings_dropped` (field 6) counts the ones after them. The
 server also prints every runtime message of info level and above on
 stderr as `turbo-kserve: runtime: <level>: <message>`, among them one
-line for each linked backend with the number of devices it lists. The
-first load creates the runtime, so both fields are empty before it.
+line for each linked backend that answered a device count, with the
+number it lists. The first load creates the runtime, so both fields are
+empty before it. `Capabilities` is not an admin call, and a message can
+name a file on the server (a kernel or tuning cache path), so any caller
+that may list capabilities reads those paths.
 
 ## A client call
 
