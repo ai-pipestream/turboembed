@@ -374,6 +374,12 @@ jobs:
           scripts/test-in-scratch.sh
           cargo test -p turbo-kserve --features pii-reversible --lib
           --test pii_reversible --test pii_policy_strategies --test pii_policy_refusals --test pii_policy_digest --test pii_encryption_keys
+      # A release build skips the typed projection's validation (#1906),
+      # and the PII value release relies on it before its audit call, so
+      # it validates there itself (#2541). The other server tests run in
+      # debug, where the projection validates anyway.
+      - name: test (server pii release, release build)
+        run: scripts/test-in-scratch.sh cargo test --release -p turbo-kserve --test pii_release_policy
       - name: test (fuzz command)
         run: scripts/test-in-scratch.sh cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host
