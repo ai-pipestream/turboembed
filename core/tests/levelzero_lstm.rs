@@ -3,7 +3,9 @@
 //! that is then freed or written, so the next run on the same workspace is
 //! the CPU form's again and every allocation is freed when the LSTMs and
 //! workspaces go. Without a listed device it fails;
-//! TURBO_TEST_REQUIRE_LEVELZERO=0 lets it say it was skipped, and pass.
+//! TURBO_TEST_REQUIRE_LEVELZERO=0 lets it say it was skipped, and pass. No
+//! other error is skipped: a driver that is there and did not answer, or
+//! weights the LSTM refuses, fail the test with or without the variable.
 
 #![cfg(feature = "levelzero")]
 
@@ -20,6 +22,53 @@ fn values(seed: &mut u64, n: usize, scale: f32) -> Vec<f32> {
         .collect()
 }
 
+/// The LSTM on levelzero device 0, or None after saying the test is
+/// skipped. Only a device that is not listed (DEVICE_NOT_FOUND) is
+/// skipped, and only under TURBO_TEST_REQUIRE_LEVELZERO=0; every other
+/// error fails the test.
+fn on_device(input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Option<Lstm> {
+    match Lstm::new(Device::LevelZero(0), input, hidden, dirs) {
+        Ok(l) => Some(l),
+        Err(e) if e.code == turbo::status::DEVICE_NOT_FOUND => {
+            assert!(
+                turbo_pins::device_skip_allowed("levelzero"),
+                "no LSTM on levelzero device 0 ({}); TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip",
+                e.message
+            );
+            println!("skipped: no LSTM on levelzero device 0 ({})", e.message);
+            None
+        }
+        Err(e) => panic!("no LSTM on levelzero device 0: {e}"),
+    }
+}
+
+/// An error that is not a missing device fails the test: weights one
+/// value short are refused before the device is looked up, on a host with
+/// a device and on one without.
+#[test]
+#[should_panic(expected = "no LSTM on levelzero device 0: ")]
+fn refused_weights_fail_the_test() {
+    let (input, hidden) = (3, 2);
+    let g = 4 * hidden;
+    let (w, u, b) = (vec![0.1; g * input - 1], vec![0.1; g * hidden], vec![0.1; g]);
+    let dirs = [Weights { w: &w, u: &u, b: &b, reverse: false }];
+    on_device(input, hidden, &dirs);
+}
+
+/// The same under TURBO_TEST_REQUIRE_LEVELZERO=0, which lets a missing
+/// device skip and nothing else.
+#[test]
+fn refused_weights_fail_the_test_under_the_opt_out() {
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "refused_weights_fail_the_test", "--nocapture"])
+        .env("TURBO_TEST_REQUIRE_LEVELZERO", "0")
+        .output()
+        .unwrap();
+    let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    assert!(out.status.success(), "{text}");
+    assert!(text.contains("1 passed") && !text.contains("skipped:"), "{text}");
+}
+
 #[test]
 fn a_run_failed_partway_leaves_the_workspace_and_memory_whole() {
     let (input, hidden) = (30, 24);
@@ -31,17 +80,8 @@ fn a_run_failed_partway_leaves_the_workspace_and_memory_whole() {
         (values(&mut seed, g * input, 0.4), values(&mut seed, g * hidden, 0.4), values(&mut seed, g, 0.5));
     let dirs = [Weights { w: &w0, u: &u0, b: &b0, reverse: false }, Weights { w: &w1, u: &u1, b: &b1, reverse: true }];
     let before = turbo::levelzero::live_allocations();
-    let lstm = match Lstm::new(Device::LevelZero(0), input, hidden, &dirs) {
-        Ok(l) => l,
-        Err(e) => {
-            assert!(
-                turbo_pins::device_skip_allowed("levelzero"),
-                "no LSTM on levelzero device 0 ({}); TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip",
-                e.message
-            );
-            println!("skipped: no LSTM on levelzero device 0 ({})", e.message);
-            return;
-        }
+    let Some(lstm) = on_device(input, hidden, &dirs) else {
+        return;
     };
     let lengths = [40, 33, 12, 1];
     let rows: usize = lengths.iter().sum();
