@@ -228,7 +228,7 @@ mod scoring;
 mod wire;
 pub use examples::category_sentence_centroids;
 pub(crate) use math::{argmax_tag, fnv1a, sigmoid, softmax_in_place};
-pub(crate) use wire::{Cursor, write_str};
+pub(crate) use wire::{Cursor, in_memory, read_all, write_str};
 #[cfg(test)]
 mod tests;
 

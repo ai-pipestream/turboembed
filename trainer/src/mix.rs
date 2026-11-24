@@ -46,6 +46,36 @@ pub(crate) fn check_mix_layers(spec: &HeadSpec, layers: usize) -> Result<()> {
     Ok(())
 }
 
+/// A mixed head's tensors by suffix: the head's, then the mix's logits
+/// and gain, the last two of `params`.
+pub(crate) fn mix_tensors(mut head: Vec<(String, Vec<f32>)>, params: &[Vec<f32>]) -> Vec<(String, Vec<f32>)> {
+    let k = params.len() - 2;
+    head.push(("mix.weight".into(), params[k].clone()));
+    head.push(("mix.gamma".into(), params[k + 1].clone()));
+    head
+}
+
+/// One optimizer step on a mixed head's `params`, then the head's own
+/// tensors, all but the mix's two, handed back to it by `set_head`.
+pub(crate) fn mix_step(
+    opt: &mut AdamW<f32>,
+    params: &mut [Vec<f32>],
+    grads: &mut [Vec<f32>],
+    decay: &[bool],
+    set_head: impl FnOnce(Vec<Vec<f32>>) -> Result<()>,
+) -> Result<f64> {
+    let norm = opt.step(params, grads, decay)?;
+    set_head(params[..params.len() - 2].to_vec())?;
+    Ok(norm)
+}
+
+/// A mixed head's weight decay: the head's, and none for the mix's logits
+/// and gain.
+pub(crate) fn mix_decays(mut head: Vec<bool>) -> Vec<bool> {
+    head.extend([false, false]);
+    head
+}
+
 pub(crate) fn weights_of<R: Real>(logits: &[R], gamma: R) -> (Vec<R>, R) {
     let max = logits.iter().map(|v| v.to_f64()).fold(f64::NEG_INFINITY, f64::max);
     let e: Vec<f64> = logits.iter().map(|v| (v.to_f64() - max).exp()).collect();
@@ -167,11 +197,7 @@ impl MixTagger<f32> {
     /// Each tensor of the head and its mix by suffix (`tagger::tensors`),
     /// ready for `TokenTagger::from_tensors` or a safetensors file.
     pub fn tensors(&self) -> Vec<(String, Vec<f32>)> {
-        let k = self.head_len();
-        let mut out = self.tagger.tensors();
-        out.push(("mix.weight".into(), self.params[k].clone()));
-        out.push(("mix.gamma".into(), self.params[k + 1].clone()));
-        out
+        mix_tensors(self.tagger.tensors(), &self.params)
     }
 
     /// A [`TokenTagger`] carrying `layer_mix` and these weights.
@@ -209,18 +235,13 @@ impl Model for MixTagger<f32> {
         MixTagger::set_params(self, params)
     }
     fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64> {
-        let norm = opt.step(&mut self.params, grads, decay)?;
-        let k = self.head_len();
-        self.tagger.set_params(self.params[..k].to_vec())?;
-        Ok(norm)
+        mix_step(opt, &mut self.params, grads, decay, |p| self.tagger.set_params(p))
     }
     fn zero_grads(&self) -> Vec<Vec<f32>> {
         MixTagger::zero_grads(self)
     }
     fn decays(&self) -> Vec<bool> {
-        let mut d = self.tagger.decays();
-        d.extend([false, false]);
-        d
+        mix_decays(self.tagger.decays())
     }
     fn loss(&self, e: &MixExample, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
         let forms: Option<Vec<&str>> = (!e.forms.is_empty()).then(|| e.forms.iter().map(String::as_str).collect());
@@ -285,4 +306,38 @@ pub fn fit_mix(
         }
     }
     fit::train(model, &mut rng, train, dev, c, on_best)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adamw::Settings;
+
+    #[test]
+    fn the_mix_tensors_follow_the_head_and_take_no_decay() {
+        let head = vec![("out.weight".to_string(), vec![1.0f32])];
+        let params = vec![vec![1.0], vec![0.5, 0.5], vec![2.0]];
+        let names: Vec<_> = mix_tensors(head, &params).into_iter().collect();
+        assert_eq!(
+            names,
+            [("out.weight".into(), vec![1.0]), ("mix.weight".into(), vec![0.5, 0.5]), ("mix.gamma".into(), vec![2.0])]
+        );
+        assert_eq!(mix_decays(vec![true, false]), [true, false, false, false]);
+    }
+
+    #[test]
+    fn a_mix_step_hands_the_head_its_own_tensors_after_the_step() {
+        let mut params = vec![vec![1.0f32, 1.0], vec![0.0, 0.0], vec![1.0]];
+        let mut grads = vec![vec![1.0f32, 1.0], vec![0.0, 0.0], vec![0.0]];
+        let mut opt = AdamW::new(Settings::default(), &[2, 2, 1]).unwrap();
+        let mut given = None;
+        let norm = mix_step(&mut opt, &mut params, &mut grads, &[true, false, false], |p| {
+            given = Some(p);
+            Ok(())
+        })
+        .unwrap();
+        assert!(norm > 0.0);
+        assert!(params[0][0] < 1.0, "the step moved the head's weights");
+        assert_eq!(given, Some(vec![params[0].clone()]));
+    }
 }

@@ -68,10 +68,7 @@ impl<'a> Name<'a> {
     /// `Span.toString`: `[start..end)`, then a space and the type when
     /// there is one.
     pub fn java_string(&self) -> String {
-        match self.kind {
-            Some(k) => format!("[{}..{}) {k}", self.start, self.end),
-            None => format!("[{}..{})", self.start, self.end),
-        }
+        crate::evaluate::LabeledSpan::from(self).java_string()
     }
 }
 

@@ -22,9 +22,7 @@ impl LabelCentroids {
 
     /// Serializes these centroids into an in-memory byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        self.write_to(&mut buf).expect("writing to Vec<u8> cannot fail");
-        buf
+        in_memory(|buf| self.write_to(buf))
     }
 
     /// Writes these centroids to `path` in the `TCENT001` binary format.
@@ -76,10 +74,8 @@ impl LabelCentroids {
     }
 
     /// Reads `LabelCentroids` from any reader in the `TCENT001` format.
-    pub fn read_from<R: Read>(mut r: R) -> Result<LabelCentroids, String> {
-        let mut buf = Vec::new();
-        r.read_to_end(&mut buf).map_err(|e| e.to_string())?;
-        Self::from_bytes(&buf)
+    pub fn read_from<R: Read>(r: R) -> Result<LabelCentroids, String> {
+        Self::from_bytes(&read_all(r)?)
     }
 
     /// Loads `LabelCentroids` from `path`.

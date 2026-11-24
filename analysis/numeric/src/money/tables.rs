@@ -8,7 +8,7 @@ use turbo_unicode::java;
 use crate::scan::{byte_at, char_at, whitespace_at, word_end};
 
 /// A currency code from a literal the tables know to be well formed.
-const fn code(c: &[u8; 3]) -> Currency {
+pub(crate) const fn code(c: &[u8; 3]) -> Currency {
     match Currency::new(*c) {
         Some(c) => c,
         None => panic!("a code of three ASCII capital letters"),

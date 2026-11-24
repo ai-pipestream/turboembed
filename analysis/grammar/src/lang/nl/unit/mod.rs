@@ -23,18 +23,10 @@ impl Grammar for DutchUnits {
         "nl-units"
     }
     fn lexicon(&self) -> &Lexicon {
-        self.lexicon.get_or_init(|| {
-            let mut entries = super::lexicon::ENTRIES.to_vec();
-            entries.extend(unit_pack::entries::<lexicon::Words>());
-            Lexicon::new(&entries)
-        })
+        crate::lang::concat_lexicon(&self.lexicon, super::lexicon::ENTRIES, unit_pack::entries::<lexicon::Words>)
     }
     fn rules(&self) -> &'static [Rule] {
-        RULES.get_or_init(|| {
-            let mut rules = DUTCH.rules().to_vec();
-            rules.extend_from_slice(rules::RULES);
-            rules
-        })
+        crate::lang::concat_rules(&RULES, &[DUTCH.rules(), rules::RULES])
     }
     fn dims(&self) -> u16 {
         UNIT_DIMS

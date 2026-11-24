@@ -11,10 +11,11 @@ use crate::engine::{Ctx, Grammar, Item, Rule, exact, glued, glued_if, glued_word
 use crate::lang::en::rules::{
     after_currency, b_caret, b_digit_fraction, b_digit_word, b_end_minus_one, b_fraction_of_scale, b_minus, b_mixed,
     b_more_digits, b_neg_sign, b_neg_word, b_numeral_int, b_numeral_scale, b_percent_after, b_percent_before, b_plus,
-    b_point, b_same, b_scale_and_fraction, b_scale_plus_fraction, b_sign_minus, b_sign_plus, b_ten_power,
+    b_point, b_same, b_scale, b_scale_and_fraction, b_scale_plus_fraction, b_sign_minus, b_sign_plus, b_ten_power,
     b_times_ten_power, b_vulgar, digit_proper_fraction, digits_non_negative, digits_only, fraction, int, integer,
     is_num, is_ten, non_negative, non_negative_integer, not_integer, num, ord, positive, positive_fraction,
-    positive_integer, pow10, proper_fraction, relative, spelled_only, spelled_positive_fraction, suffix, term,
+    positive_integer, pow10, proper_fraction, relative, spelled_only, spelled_positive_fraction, suffix, sum_unless,
+    term,
 };
 use crate::value::flag::{DIGITS, PLURAL, SPELLED};
 use crate::value::{Num, NumKind, Ordinal, Value};
@@ -138,20 +139,8 @@ fn b_bare_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     int(pow10(s), s as i8, SPELLED)
 }
 
-fn b_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let (m, s) = (num(&v[0]), term(&v[1]).0);
-    if !(m.grain == 0 && digits_only(&m)) && m.value >= pow10(s) {
-        return None;
-    }
-    int(m.value.checked_mul(pow10(s))?, s as i8, m.flags | SPELLED)
-}
-
 fn b_sum(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
-    let (l, r) = (num(&v[0]), num(&v[1]));
-    if r.grain >= l.grain || r.value >= pow10(i64::from(l.grain)) || before_multiplier(ctx, l.grain) {
-        return None;
-    }
-    int(l.value.checked_add(r.value)?, r.grain, l.flags | r.flags)
+    sum_unless(v, ctx, before_multiplier)
 }
 
 fn b_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {

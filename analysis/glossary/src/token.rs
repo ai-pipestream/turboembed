@@ -304,15 +304,8 @@ pub(crate) fn check_tokens(text: &str, tokens: &Tokens) -> Result<(), MatchError
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::glossary;
     use turbo_analysis::ViewId;
-
-    fn glossary(entries: &[(&str, &str)]) -> Glossary {
-        let mut g = Glossary::new();
-        for (id, term) in entries {
-            g.push(id, term).unwrap();
-        }
-        g
-    }
 
     /// Words split at spaces, hyphens and commas; a lone "," or "-" is a token.
     fn tokens(text: &str) -> Tokens {

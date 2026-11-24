@@ -14,7 +14,7 @@ use turbo_analysis_layers::{Sentences, Tokens};
 use turbo_tokenize_layers::{WordType, WordTypes};
 
 use super::bundled;
-use crate::uax29::tokenizer::push_word;
+use crate::uax29::tokenizer::{push_word, typed, untyped};
 use crate::unit::tokenize_units;
 
 /// Appends the word tokens of `text` to `spans`, as byte spans of `text`,
@@ -76,9 +76,7 @@ impl Annotator for DictionaryWordTokenizer {
     type Writes = (Tokens, WordTypes);
 
     fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens, WordTypes), Error> {
-        let mut kind = Vec::new();
-        let tokens = self.tokenize(view, sentences, &mut kind)?;
-        Ok((tokens, WordTypes { kind }))
+        typed(|kind| self.tokenize(view, sentences, kind))
     }
 
     fn config_hash(&self) -> u64 {
@@ -97,8 +95,7 @@ impl Annotator for UntypedDictionaryWordTokenizer {
     type Writes = (Tokens,);
 
     fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens,), Error> {
-        let mut kind = Vec::new();
-        Ok((self.0.tokenize(view, sentences, &mut kind)?,))
+        untyped(|kind| self.0.tokenize(view, sentences, kind))
     }
 
     fn config_hash(&self) -> u64 {

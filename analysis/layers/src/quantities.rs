@@ -134,11 +134,7 @@ impl Quantities {
 
     /// The written value of mention `i`.
     pub fn value(&self, i: Ix<Quantities>) -> DecimalRef<'_> {
-        DecimalRef {
-            negative: self.negative[i.get()],
-            digits: self.coefficient.get(i.get()),
-            scale: self.scale[i.get()].into(),
-        }
+        crate::columns::decimal_at(&self.negative, &self.coefficient, &self.scale, i.get())
     }
 
     /// The written unit of mention `i`: the token, or [`PERCENT`].

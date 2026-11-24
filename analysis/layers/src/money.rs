@@ -128,11 +128,7 @@ impl Money {
 
     /// The amount of mention `i`.
     pub fn amount(&self, i: Ix<Money>) -> DecimalRef<'_> {
-        DecimalRef {
-            negative: self.negative[i.get()],
-            digits: self.coefficient.get(i.get()),
-            scale: self.scale[i.get()].into(),
-        }
+        crate::columns::decimal_at(&self.negative, &self.coefficient, &self.scale, i.get())
     }
 
     /// The rate denominator unit symbol of mention `i` (`Some("h")` for

@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::{Activation, FeatureLayout, FeedforwardDependencyModel, NeuralWeights, Vocabulary};
+use crate::model::{write_len, write_str};
 use crate::{Error, LabelEncoding, Result, Transition, error};
 use turbo_analysis::ModelRef;
 
@@ -107,18 +108,6 @@ impl FeedforwardDependencyModel {
             sha256: turbo_sha256::sha256(&bytes).to_hex(),
         })
     }
-}
-
-fn write_len(out: &mut Vec<u8>, n: usize) -> Result<()> {
-    let n = u32::try_from(n).map_err(|_| error("count exceeds u32"))?;
-    out.extend_from_slice(&n.to_le_bytes());
-    Ok(())
-}
-
-fn write_str(out: &mut Vec<u8>, s: &str) -> Result<()> {
-    write_len(out, s.len())?;
-    out.extend_from_slice(s.as_bytes());
-    Ok(())
 }
 
 fn write_vocab_map(out: &mut Vec<u8>, map: &BTreeMap<String, usize>) -> Result<()> {

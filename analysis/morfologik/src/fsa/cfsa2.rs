@@ -102,16 +102,7 @@ impl Cfsa2Reader {
         Err(MorfologikError::invalid_argument("CFSA2 variable-length integer exceeds 32 bits"))
     }
 
-    /// Passes every accepted byte sequence to `action` in stored order.
-    pub fn for_each_sequence<F>(&self, mut action: F)
-    where
-        F: FnMut(&[u8]),
-    {
-        let _: Result<(), std::convert::Infallible> = self.try_for_each_sequence(|seq| {
-            action(seq);
-            Ok(())
-        });
-    }
+    sequence_walks!();
 
     /// Passes every accepted byte sequence to `action`, stopping early on the first error.
     pub fn try_for_each_sequence<F, E>(&self, action: F) -> Result<(), E>
@@ -119,13 +110,6 @@ impl Cfsa2Reader {
         F: FnMut(&[u8]) -> Result<(), E>,
     {
         try_traverse_all(self, action)
-    }
-
-    /// Collects all accepted byte sequences in stored order.
-    pub fn sequences(&self) -> Vec<Vec<u8>> {
-        let mut out = Vec::new();
-        self.for_each_sequence(|seq| out.push(seq.to_vec()));
-        out
     }
 }
 

@@ -18,13 +18,7 @@
 
 use turbo_analysis_layers::{Currency, NumberNotation};
 
-/// A currency code from a literal the table knows to be well formed.
-const fn code(c: &[u8; 3]) -> Currency {
-    match Currency::new(*c) {
-        Some(c) => c,
-        None => panic!("a code of three ASCII capital letters"),
-    }
-}
+use crate::money::code;
 
 /// `(country_code, number_notation, money_notation, optional_money_symbol_override)`.
 pub(crate) type RegionConfig = ([u8; 2], NumberNotation, NumberNotation, Option<(char, Currency)>);

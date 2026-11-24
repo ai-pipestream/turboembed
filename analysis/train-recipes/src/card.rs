@@ -470,9 +470,7 @@ impl ModelCard {
 
     /// The card as written: pretty JSON with a final newline.
     pub fn to_json(&self) -> String {
-        let mut s = serde_json::to_string_pretty(self).expect("a card serializes");
-        s.push('\n');
-        s
+        crate::card_json(self)
     }
 
     /// Reads a card written by [`write_model_dir`]. Its `card_version` is

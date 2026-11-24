@@ -33,7 +33,7 @@
 
 use turbo_unicode::modified_utf8::push_modified_utf8;
 
-use super::context::{ContextGenerator, Gram, OPENNLP_MAX, OPENNLP_MIN, grow, home_slot};
+use super::context::{ContextGenerator, Gram, OPENNLP_MAX, OPENNLP_MIN, gram_bytes, grow, home_slot};
 use super::detector::Ranking;
 
 /// Configuration for [`LanguageDetector::probing_predict_languages_with`](super::LanguageDetector::probing_predict_languages_with),
@@ -173,9 +173,7 @@ impl ProbingContext {
     }
 
     fn gram_bytes(&self, g: u32) -> &[u8] {
-        let g = g as usize;
-        let start = if g == 0 { 0 } else { self.ends[g - 1] as usize };
-        &self.bytes[start..self.ends[g] as usize]
+        gram_bytes(&self.bytes, &self.ends, g)
     }
 
     /// Whether [`features`](Self::features) is in deterministic order across

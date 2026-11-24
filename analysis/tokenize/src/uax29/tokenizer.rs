@@ -20,6 +20,20 @@ use super::word_type::word_type;
 use crate::unit::tokenize_units;
 use crate::utf8::decode;
 
+/// The tokens `tokenize` makes and the word type of each.
+pub(crate) fn typed(
+    tokenize: impl FnOnce(&mut Vec<WordType>) -> Result<Tokens, Error>,
+) -> Result<(Tokens, WordTypes), Error> {
+    let mut kind = Vec::new();
+    let tokens = tokenize(&mut kind)?;
+    Ok((tokens, WordTypes { kind }))
+}
+
+/// The tokens `tokenize` makes, without their word types.
+pub(crate) fn untyped(tokenize: impl FnOnce(&mut Vec<WordType>) -> Result<Tokens, Error>) -> Result<(Tokens,), Error> {
+    Ok((tokenize(&mut Vec::new())?,))
+}
+
 /// Appends the word tokens of `text` to `spans`, as byte spans of `text`,
 /// and the type of each to `types`. `max_token_length` is in UTF-16 code
 /// units.
@@ -126,9 +140,7 @@ impl Annotator for WordTokenizer {
     type Writes = (Tokens, WordTypes);
 
     fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens, WordTypes), Error> {
-        let mut kind = Vec::new();
-        let tokens = self.tokenize(view, sentences, &mut kind)?;
-        Ok((tokens, WordTypes { kind }))
+        typed(|kind| self.tokenize(view, sentences, kind))
     }
 
     fn config_hash(&self) -> u64 {
@@ -152,8 +164,7 @@ impl Annotator for UntypedWordTokenizer {
     type Writes = (Tokens,);
 
     fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(Tokens,), Error> {
-        let mut kind = Vec::new();
-        Ok((self.0.tokenize(view, sentences, &mut kind)?,))
+        untyped(|kind| self.0.tokenize(view, sentences, kind))
     }
 
     fn config_hash(&self) -> u64 {
@@ -177,6 +188,19 @@ mod tests {
     }
 
     use WordType::*;
+
+    #[test]
+    fn typed_keeps_the_types_the_tokenizer_wrote_and_untyped_drops_them() {
+        let make = |kind: &mut Vec<WordType>| {
+            kind.extend([Numeric, Emoji]);
+            Ok(Tokens { spans: turbo_analysis::Spans::new(turbo_analysis::ViewId::SOURCE), sentence: None })
+        };
+        let (_, types) = typed(make).unwrap();
+        assert_eq!(types.kind, [Numeric, Emoji]);
+        assert!(untyped(make).is_ok());
+        let failed = untyped(|_| Err(Error::Annotator { annotator: "t", detail: "x".into() }));
+        assert!(failed.is_err());
+    }
 
     #[test]
     fn words_are_kept_and_typed() {

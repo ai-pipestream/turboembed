@@ -115,6 +115,13 @@ pub trait Step: Send + Sync {
     /// document is recorded as skipped or failed there, and the first
     /// failure is that document's result.
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]);
+    /// Computes and stores on one document, and returns its result.
+    fn run_one(&self, doc: &mut Document) -> Result<(), Error> {
+        let out = self.compute(std::slice::from_ref(doc));
+        let mut status = [Ok(())];
+        self.store(out, std::slice::from_mut(doc), &mut status);
+        status.into_iter().next().unwrap()
+    }
 }
 
 impl<A: Annotator> Step for Bound<A> {

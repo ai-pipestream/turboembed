@@ -125,9 +125,7 @@ impl Annotator for SentenceTagger {
     type Writes = (Sentences,);
 
     fn annotate(&self, (view, tokens, subwords): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.sentences(view, tokens, subwords)
-            .map(|s| (s,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.sentences(view, tokens, subwords))
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -238,9 +236,7 @@ impl Annotator for WordTagger {
     type Writes = (Words,);
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.words(view, tokens, sentences, subwords)
-            .map(|w| (w,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.words(view, tokens, sentences, subwords))
     }
 
     fn model(&self) -> Option<ModelRef> {

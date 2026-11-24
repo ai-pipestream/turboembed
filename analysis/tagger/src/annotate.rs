@@ -12,7 +12,7 @@ use turbo::bundle::Bundle;
 use turbo::head::TokenTagger;
 use turbo::manifest::{HeadKind, HeadSpec, Scheme};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
-use turbo_analysis::{Execution, Ix, IxRange, Layer as _, ModelRef, Span, Spans, TagSet, View};
+use turbo_analysis::{Error, Execution, Ix, IxRange, Layer as _, ModelRef, Span, Spans, TagSet, View};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tag, Tokens};
 
@@ -31,6 +31,12 @@ pub use turbo::head::run::{Decoded, same_layer};
 
 pub(crate) fn refuse(m: String) -> CoreError {
     CoreError::new(INVALID_ARGUMENT, m)
+}
+
+/// The one layer an annotator made, or why it could not, as the error
+/// of the annotator `annotator`.
+pub(crate) fn one_layer<T>(annotator: &'static str, made: Result<T, String>) -> Result<(T,), Error> {
+    made.map(|layer| (layer,)).map_err(|detail| Error::Annotator { annotator, detail })
 }
 
 /// The head of `bundle` named `name`, or, with no name, the one head that
@@ -376,4 +382,16 @@ fn decode_scaled(
         out.push((Decoded { tags, prob }, shares));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod one_layer_tests {
+    use super::*;
+
+    #[test]
+    fn one_layer_wraps_the_layer_or_names_the_annotator_in_the_error() {
+        assert_eq!(one_layer("tagger", Ok::<_, String>(7)), Ok((7,)));
+        let err = one_layer::<u8>("tagger", Err("no head".into())).unwrap_err();
+        assert_eq!(err, Error::Annotator { annotator: "tagger", detail: "no head".into() });
+    }
 }

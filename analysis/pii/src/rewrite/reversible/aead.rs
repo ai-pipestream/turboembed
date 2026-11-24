@@ -174,17 +174,13 @@ impl AesGcmEncryptor {
 
     /// The token of `value` of the kind named `kind`.
     pub fn token(&self, kind: &str, value: &str) -> Result<String, CryptError> {
-        let mut out = String::new();
-        self.write_token(kind, value, &mut out)?;
-        Ok(out)
+        crate::rewrite::written(|out| self.write_token(kind, value, out))
     }
 
     /// The token of `value` with `kind` written as given, its case kept
     /// ([`AesGcmEncryptor::write_exact_token`]).
     pub fn exact_token(&self, kind: &str, value: &str) -> Result<String, CryptError> {
-        let mut out = String::new();
-        self.write_exact_token(kind, value, &mut out)?;
-        Ok(out)
+        crate::rewrite::written(|out| self.write_exact_token(kind, value, out))
     }
 
     /// The kind as the token writes it (`EMAIL`, or as given by

@@ -38,7 +38,7 @@ pub(in crate::lang) use predicates::{
 mod integers;
 use integers::*;
 pub(in crate::lang) use integers::{
-    b_dozen, b_neg_sign, b_neg_word, b_numeral_int, b_numeral_scale, b_same, b_word_scale, suffix,
+    b_dozen, b_neg_sign, b_neg_word, b_numeral_int, b_numeral_scale, b_same, b_scale, b_word_scale, suffix, sum_unless,
 };
 
 mod fractions;
