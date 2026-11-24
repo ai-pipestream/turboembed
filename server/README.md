@@ -23,7 +23,7 @@ the dictionary and corpus vocabulary store.
 ```
 cargo run --release -p turbo-kserve -- \
     --listen 0.0.0.0:8081 \
-    --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2
+    --model bundle=testdata/tiny-bert-bundle,device=cpu,sessions=2
 ```
 
 `proto/open_inference_grpc.proto` is vendored from the Open Inference

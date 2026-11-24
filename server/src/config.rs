@@ -1,6 +1,6 @@
 //! The server's configuration (docs/kserve.md, Serving a bundle), from the
 //! command line and the environment: one `--model` per model,
-//! `bundle=PATH,device=INDEX|select,sessions=N[,name=NAME][,precision=P][,max_batch=N][,max_seq=N]`.
+//! `bundle=PATH,device=cpu|BACKEND:N|INDEX|select,sessions=N[,name=NAME][,precision=P][,max_batch=N][,max_seq=N]`.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -129,7 +129,7 @@ pub const ENV_TLS_KEY: &str = "TURBO_KSERVE_TLS_KEY";
 pub const ENV_TLS_CLIENT_CA: &str = "TURBO_KSERVE_TLS_CLIENT_CA";
 pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
-pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
+pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=cpu|BACKEND:N|INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
 [--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE] [--catalog-store URL | --catalog-data DIR] [--catalog-prefetch permissive] [--zoo]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N] [--sink-documents] [--sink-search-projection] \

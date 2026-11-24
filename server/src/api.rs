@@ -101,6 +101,12 @@ impl Runtime {
         &self.1
     }
 
+    pub fn device_count(&self) -> Result<u32> {
+        let mut n = 0;
+        check(|e| unsafe { turbo_runtime_device_count(self.0, &mut n, e) })?;
+        Ok(n)
+    }
+
     pub fn device_info(&self, index: u32) -> Result<turbo_device_info> {
         let mut info: turbo_device_info = sized();
         check(|e| unsafe { turbo_runtime_device_info(self.0, index, &mut info, e) })?;

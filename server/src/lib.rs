@@ -10,6 +10,7 @@ pub mod catalog;
 mod ceiling;
 pub mod config;
 pub mod deadline;
+pub mod device;
 pub mod format;
 mod health;
 mod infer;

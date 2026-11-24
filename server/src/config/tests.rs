@@ -17,7 +17,7 @@ fn a_model() {
         [ModelConfig {
             bundle: "/b/tiny".into(),
             name: None,
-            device: Device::Index(0),
+            device: Device::Position(0),
             precision: 0,
             max_batch: 0,
             max_seq: 0,
@@ -31,6 +31,22 @@ fn a_model() {
     let m = &a.models[0];
     assert_eq!((m.device, m.precision, m.max_batch, m.max_seq), (Device::Select, 2, 8, 128));
     assert_eq!(m.name(), Some("x"));
+}
+
+#[test]
+fn a_device_is_named_by_its_backend() {
+    use crate::device::Named;
+    let d = |v: &str| {
+        args(&format!("--listen 127.0.0.1:0 --model bundle=/b/x,device={v},sessions=1")).map(|a| a.models[0].device)
+    };
+    assert_eq!(d("cpu").unwrap(), Device::Named(Named { backend: "cpu", ordinal: 0 }));
+    assert_eq!(d("cuda").unwrap(), Device::Named(Named { backend: "cuda", ordinal: 0 }));
+    assert_eq!(d("levelzero:1").unwrap(), Device::Named(Named { backend: "levelzero", ordinal: 1 }));
+    assert_eq!(d("3").unwrap(), Device::Position(3));
+    for bad in ["gpu", "cpu:0", "cuda:", "-1", ""] {
+        let e = d(bad).unwrap_err();
+        assert!(e.contains("--model device") && e.contains("cuda[:N]"), "{bad:?}: {e}");
+    }
 }
 
 #[test]
@@ -82,7 +98,7 @@ fn the_environment_fills_in_absent_flags() {
     assert_eq!(a.listen, "127.0.0.1:9000".parse().unwrap());
     assert_eq!(a.max_message_bytes, 4096);
     assert_eq!(names(&a.models).unwrap(), ["a", "b"]);
-    assert_eq!((a.models[1].device, a.models[1].sessions), (Device::Index(1), 2));
+    assert_eq!((a.models[1].device, a.models[1].sessions), (Device::Position(1), 2));
 
     // A flag replaces its variable; one --model replaces every model
     // of the variable.
@@ -296,7 +312,7 @@ fn refusals() {
         "--listen 127.0.0.1:0 --model bundle=x,sessions=1",
         "--listen 127.0.0.1:0 --model device=0,sessions=1",
         "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=0",
-        "--listen 127.0.0.1:0 --model bundle=x,device=cpu,sessions=1",
+        "--listen 127.0.0.1:0 --model bundle=x,device=gpu,sessions=1",
         "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1,precision=TURBO_PRECISION_EXACT",
         "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1,precision=precision_exact",
         "--listen 127.0.0.1:0 --model bundle=x,device=0,sessions=1,max_batch=-1",

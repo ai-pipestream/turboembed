@@ -523,7 +523,7 @@ jobs:
         run: |
           cargo build --locked --release -p turbo-kserve
           target/release/turbo-kserve --listen 127.0.0.1:18089 \
-            --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2 &
+            --model bundle=testdata/tiny-bert-bundle,device=cpu,sessions=2 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           for _ in $(seq 60); do

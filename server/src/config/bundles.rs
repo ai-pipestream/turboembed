@@ -22,7 +22,7 @@ pub(super) fn discover(dir: &str, models: &mut Vec<ModelConfig>) -> Result<(), S
         let cfg = ModelConfig {
             bundle,
             name: None,
-            device: Device::Index(0),
+            device: Device::Position(0),
             precision: 0,
             max_batch: 0,
             max_seq: 0,

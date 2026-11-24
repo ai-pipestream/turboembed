@@ -178,7 +178,7 @@ jobs:
         run: |
           cargo build --locked -p turbo-kserve
           target/debug/turbo-kserve --listen 127.0.0.1:18089 \
-            --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2 &
+            --model bundle=testdata/tiny-bert-bundle,device=cpu,sessions=2 &
           SERVER_PID=$!
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
           for _ in $(seq 60); do
@@ -380,6 +380,12 @@ jobs:
       # debug, where the projection validates anyway.
       - name: test (server pii release, release build)
         run: scripts/test-in-scratch.sh cargo test --release -p turbo-kserve --test pii_release_policy
+      # The server with the npu backend linked on a host with no Intel NPU:
+      # the backend lists no device, so the runtime's device 0 is the CPU,
+      # and a numbered or npu-named device must be refused, not loaded on
+      # the CPU (#2508).
+      - name: test (server device names, npu linked)
+        run: scripts/test-in-scratch.sh cargo test -p turbo-kserve --features npu --test device_named
       - name: test (fuzz command)
         run: scripts/test-in-scratch.sh cargo test -p turbo-goldens-tool --features fuzz
       # The encoder trainer's CUDA kernels as plain C++ on the host

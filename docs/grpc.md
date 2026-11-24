@@ -46,7 +46,7 @@ needs nothing beside it.
 
 ```
 turbo-kserve --listen 0.0.0.0:8081 \
-    --model bundle=/models/bge-small-en-v1.5,device=0,sessions=4
+    --model bundle=/models/bge-small-en-v1.5,device=cuda:0,sessions=4
 ```
 
 The server answers gRPC as soon as it listens: `ServerLive` is true
@@ -93,7 +93,7 @@ itself.
 | `--admin-bearer-token-file PATH` | File holding an admin bearer token authorizing both read/inference and state-mutating admin RPCs (trimmed); repeat for multiple files. | Off. |
 | `--metrics-listen ADDR:PORT` | Serve Prometheus metrics in text exposition format (`0.0.4`) on `GET /metrics` over HTTP. | Off. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` or `--zoo` is set. |
-| `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
+| `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on runtime device 0 (refused while a linked backend lists no device, as below) with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
 | `--max-stream-bytes N` | The most bytes one call's request carries in all, every frame and its five-byte prefix counted; the frame that passes it ends the call with `RESOURCE_EXHAUSTED`. At least `--max-message-bytes`. | 2 GiB. |
 | `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), the search service's `PersistIndex` and snapshot `CreateIndex` (docs/grpc-search.md), the vocabulary store's writes (docs/grpc-vocabulary.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), the training service's `TrainStaticModel`, `DeleteStaticModel`, `TrainComponent` and `StreamingTraining` (docs/grpc-training.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
@@ -125,7 +125,7 @@ itself.
 | Setting | Meaning | Absent |
 |---|---|---|
 | `bundle` | The bundle directory (docs/bundle.md). | Required. |
-| `device` | A runtime device index, or `select` for the device `turbo_runtime_select` picks for embedding. `select` never picks a CPU; on a host with no other device, name the CPU's index. | Required. |
+| `device` | The device by name: `cpu`, or a backend and its ordinal there, `cuda:0`, `levelzero:0`, `metal:0`, `hailo:0` or `npu:0` (the backend alone is its device 0). Or `select` for the device `turbo_runtime_select` picks for the bundle's task, or a runtime device index (Device names and indices, below). `select` never picks a CPU for embedding; on a host with no other device, name `cpu`. | Required. |
 | `sessions` | How many sessions the model has. One request holds one; a request that finds none idle is refused at once with `UNAVAILABLE`, which a client may retry. | Required, at least 1. |
 | `name` | The model name requests use. | The last component of the bundle path. |
 | `precision` | The tier every session of this model runs at: `PRECISION_MODEL`, `PRECISION_FASTEST` or `PRECISION_EXACT` (docs/autotune.md). | `PRECISION_MODEL`. |
@@ -142,14 +142,30 @@ two tiers, serve it twice under two names:
 
 ```
 turbo-kserve --listen 0.0.0.0:8081 \
-    --model bundle=/models/bge-small-en-v1.5,device=0,sessions=4 \
-    --model name=bge-small-en-v1.5-fastest,bundle=/models/bge-small-en-v1.5,device=0,sessions=4,precision=PRECISION_FASTEST
+    --model bundle=/models/bge-small-en-v1.5,device=cuda:0,sessions=4 \
+    --model name=bge-small-en-v1.5-fastest,bundle=/models/bge-small-en-v1.5,device=cuda:0,sessions=4,precision=PRECISION_FASTEST
 ```
+
+### Device names and indices
+
+A named device loads there or not at all. `device=cuda:0` is the first
+device the cuda backend lists; when the runtime lists no such device,
+because the backend is not in the build, the driver is missing or too
+old, or the device node is not there, the model is refused with
+`TURBO_E_DEVICE_NOT_FOUND` naming what the runtime does list, and the
+server exits at startup. It never loads on another device.
+`LoadBundle` takes the same choice as `device_name`, a backend
+(`DEVICE_BACKEND_*`) and an ordinal.
 
 Device indices are the runtime's: every device of each linked backend,
 in the order `turbo_version()` lists the backends, the cpu last. With
 the cpu backend alone, the CPU is device 0; `turbo_runtime_device_info`
-reports each index's kind and name.
+reports each index's kind and name. An index is a position, so when a
+linked backend lists no device every later device moves up: on a CUDA
+build started without its GPU, index 0 is the CPU. An index (`device=N`,
+`LoadBundle.device`, `--bundle-dir`) is therefore refused with
+`TURBO_E_DEVICE_NOT_FOUND` while any linked backend lists no device;
+name the device instead.
 
 ### Message and stream limits
 
@@ -215,7 +231,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
-TURBO_KSERVE_MODELS='bundle=/models/a,device=0,sessions=4;bundle=/models/b,device=0,sessions=2' \
+TURBO_KSERVE_MODELS='bundle=/models/a,device=cuda:0,sessions=4;bundle=/models/b,device=cuda:0,sessions=2' \
 turbo-kserve
 ```
 
