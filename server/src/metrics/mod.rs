@@ -2,6 +2,7 @@
 //! HTTP `/metrics` exposition endpoint (issue `#1300`).
 
 mod http;
+mod outcomes;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -17,6 +18,7 @@ use tonic::Code;
 use crate::state::State;
 
 pub(crate) use self::http::{MetricsLayer, start_http_listener};
+pub(crate) use self::outcomes::{StepOutcome, StepTally, failure_code};
 
 const LATENCY_BUCKETS: [f64; 14] =
     [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
@@ -75,6 +77,7 @@ pub struct Metrics {
     bundle_loads_err: AtomicU64,
     bundle_unloads: AtomicU64,
     cancelled_before_exec: AtomicU64,
+    outcomes: outcomes::Outcomes,
     /// The forwarder to the downstream sink, when the server has one:
     /// its counts are part of every scrape (issue #2513).
     sink: std::sync::OnceLock<Arc<crate::sink::SinkForwarder>>,
@@ -130,6 +133,17 @@ impl Metrics {
     /// device execution (`#2346`).
     pub fn record_cancelled_before_exec(&self) {
         self.cancelled_before_exec.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records one document answered inside a streaming call: `None` for
+    /// a result, the turbo status for a failure (#2517 F11).
+    pub(crate) fn record_document(&self, method: &'static str, turbo_code: Option<i32>) {
+        self.outcomes.document(method, turbo_code);
+    }
+
+    /// Records one progressive step's outcome (#2517 F11).
+    pub(crate) fn record_step(&self, step: &str, outcome: StepOutcome, turbo_code: i32) {
+        self.outcomes.step(step, outcome, turbo_code);
     }
 
     /// Total requests aborted before device execution (`#2346`).
@@ -327,6 +341,7 @@ impl Metrics {
         let _ = writeln!(out, "# TYPE turbo_kserve_cancelled_before_exec_total counter");
         let _ = writeln!(out, "turbo_kserve_cancelled_before_exec_total {cancelled}");
 
+        self.outcomes.render(&mut out);
         if let Some(sink) = self.sink.get() {
             crate::sink::render(&mut out, &sink.stats());
         }
