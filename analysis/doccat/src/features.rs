@@ -106,6 +106,13 @@ pub fn for_each_feature(
     }
 }
 
+/// What `extract` appends to a new list.
+fn collected(extract: impl FnOnce(&mut Vec<String>)) -> Vec<String> {
+    let mut out = Vec::new();
+    extract(&mut out);
+    out
+}
+
 /// Trait for extracting document-level context features from tokenized text,
 /// ported from `opennlp.tools.doccat.FeatureGenerator`.
 pub trait DoccatFeatureGenerator: Send + Sync + fmt::Debug {
@@ -114,9 +121,7 @@ pub trait DoccatFeatureGenerator: Send + Sync + fmt::Debug {
 
     /// Convenience helper that returns the extracted features as a new `Vec<String>`.
     fn collect_features(&self, text: &[&str], extra_information: &BTreeMap<String, String>) -> Vec<String> {
-        let mut out = Vec::new();
-        self.extract_features(text, extra_information, &mut out);
-        out
+        collected(|out| self.extract_features(text, extra_information, out))
     }
 }
 
@@ -389,9 +394,7 @@ impl DoccatContextGenerator {
     /// Returns all context features for `text` and `extra_information`
     /// (`DocumentCategorizerContextGenerator.getContext`).
     pub fn context(&self, text: &[&str], extra_information: &BTreeMap<String, String>) -> Vec<String> {
-        let mut out = Vec::new();
-        self.extract_features(text, extra_information, &mut out);
-        out
+        collected(|out| self.extract_features(text, extra_information, out))
     }
 }
 

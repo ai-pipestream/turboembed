@@ -61,6 +61,7 @@ impl PrebuiltImage {
 /// records below. No references, booleans or enums may be stored this way.
 pub(crate) unsafe trait Row: Copy + fmt::Debug + Send + Sync {}
 // SAFETY: integer types admit all bit patterns.
+unsafe impl Row for u8 {}
 unsafe impl Row for u32 {}
 unsafe impl Row for u16 {}
 unsafe impl Row for i16 {}
@@ -103,6 +104,14 @@ impl<T> Table<T> {
         }
     }
 }
+impl<T: Copy> Table<T> {
+    pub(crate) fn extend_from_slice(&mut self, values: &[T]) {
+        match self {
+            Self::Owned(v) => v.extend_from_slice(values),
+            Self::Shared { .. } => unreachable!("immutable image"),
+        }
+    }
+}
 impl<T: Row> Table<T> {
     pub(super) fn mapped(image: &PrebuiltImage, offset: usize, bytes: usize) -> Result<Self, PrebuiltError> {
         let end = offset.checked_add(bytes).ok_or(PrebuiltError::Invalid("table length"))?;
@@ -133,17 +142,19 @@ impl<T: Row> Deref for Table<T> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum Text {
-    Owned(String),
-    Shared { _image: PrebuiltImage, pointer: *const u8, len: usize },
+/// UTF-8 text, in the storage of a byte table: owned while a dictionary
+/// is built, shared once it is mapped from an image.
+#[derive(Clone)]
+pub(crate) struct Text(Table<u8>);
+
+impl fmt::Debug for Text {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Text").field(&&**self).finish()
+    }
 }
-// SAFETY: shared bytes are immutable and retained by the image owner.
-unsafe impl Send for Text {}
-unsafe impl Sync for Text {}
 impl From<String> for Text {
     fn from(s: String) -> Self {
-        Self::Owned(s)
+        Self(Table::Owned(s.into_bytes()))
     }
 }
 impl Text {
@@ -153,29 +164,20 @@ impl Text {
             .get(offset..offset.checked_add(len).ok_or(PrebuiltError::Invalid("text length"))?)
             .ok_or(PrebuiltError::Invalid("text bounds"))?;
         std::str::from_utf8(bytes).map_err(|_| PrebuiltError::Invalid("text UTF-8"))?;
-        Ok(Self::Shared { _image: image.clone(), pointer: bytes.as_ptr(), len })
+        Ok(Self(Table::Shared { _image: image.clone(), pointer: bytes.as_ptr(), len }))
     }
     pub(crate) fn push_str(&mut self, s: &str) {
-        match self {
-            Self::Owned(v) => v.push_str(s),
-            Self::Shared { .. } => unreachable!("immutable image"),
-        }
+        self.0.extend_from_slice(s.as_bytes());
     }
     pub(crate) fn shrink_to_fit(&mut self) {
-        if let Self::Owned(v) = self {
-            v.shrink_to_fit();
-        }
+        self.0.shrink_to_fit();
     }
 }
 impl Deref for Text {
     type Target = str;
     fn deref(&self) -> &str {
-        match self {
-            Self::Owned(s) => s,
-            Self::Shared { pointer, len, .. } => {
-                // SAFETY: mapped checked UTF-8 and bounds; the image is immutable.
-                unsafe { std::str::from_utf8_unchecked(std::slice::from_raw_parts(*pointer, *len)) }
-            }
-        }
+        // SAFETY: owned bytes come from a String and grow by whole strs;
+        // mapped checked the shared bytes' UTF-8 and the image is immutable.
+        unsafe { std::str::from_utf8_unchecked(&self.0) }
     }
 }

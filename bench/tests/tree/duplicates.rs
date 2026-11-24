@@ -5,12 +5,15 @@
 //!
 //! The check reads each crate's `src/` (not its tests, and not generated
 //! files), takes every function body of [`MIN_LINES`] code lines or more,
-//! and fails when two files of one crate hold the same body: the same
-//! tokens (`rust_lex.rs`), so comments, line breaks and indentation do not
-//! count and the contents of a string do. There is no list of known copies:
-//! the last of those the check found when it was written were folded by
-//! #2499 and #2506, the shorter ones when the limit came down from eight
-//! lines to five by #2530, and a new copy is fixed, not listed.
+//! and fails when one crate holds the same body twice, in two files or in
+//! one (#2518): the same tokens (`rust_lex.rs`), so comments, line breaks
+//! and indentation do not count and the contents of a string do. The
+//! same method written for two types counts, whatever the types: the
+//! shared part moves to a function both call. There is no list of known
+//! copies: the last of those the check found when it was written were
+//! folded by #2499 and #2506, the shorter ones when the limit came down
+//! from eight lines to five by #2530, the ones inside one file by #2518,
+//! and a new copy is fixed, not listed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -49,10 +52,10 @@ fn body_open(tokens: &[Token<'_>], at: usize) -> Option<usize> {
     None
 }
 
-/// Every function of `tokens` that has a body: its name, and the tokens
-/// of the body from its opening brace to the matching one. Functions
-/// written inside another function's body are read too.
-pub fn functions<'t, 'a>(tokens: &'t [Token<'a>]) -> Vec<(&'a str, &'t [Token<'a>])> {
+/// Every function of `tokens` that has a body: the token of its name,
+/// and the tokens of the body from its opening brace to the matching one.
+/// Functions written inside another function's body are read too.
+pub fn functions<'t, 'a>(tokens: &'t [Token<'a>]) -> Vec<(&'t Token<'a>, &'t [Token<'a>])> {
     let mut out = Vec::new();
     for at in 0..tokens.len().saturating_sub(1) {
         let name = &tokens[at + 1];
@@ -60,7 +63,7 @@ pub fn functions<'t, 'a>(tokens: &'t [Token<'a>]) -> Vec<(&'a str, &'t [Token<'a
             && name.kind == Kind::Word
             && let Some(open) = body_open(tokens, at)
         {
-            out.push((name.text, &tokens[open..=closing(tokens, open)]));
+            out.push((name, &tokens[open..=closing(tokens, open)]));
         }
     }
     out
@@ -72,26 +75,29 @@ pub fn code_lines(body: &[Token<'_>]) -> usize {
     body.iter().map(|t| t.line).collect::<BTreeSet<_>>().len()
 }
 
-/// Each body that two or more of `files` (path and text, all of one
-/// crate) share, as `first path::name` and every place it is written. Two
-/// bodies are the same when their tokens are: comments, line breaks and
-/// indentation do not count, the contents of a string do.
+/// Each body written in two or more places of `files` (path and text,
+/// all of one crate), in two files or twice in one, as its first place and
+/// every place it is written. A place is `path:line::name`, the line that
+/// of the name: two methods of one file can share a name. Two bodies are
+/// the same when their tokens are: comments, line breaks and indentation
+/// do not count, the contents of a string do.
 pub fn shared_bodies(files: &[(&str, &str)]) -> BTreeMap<String, Vec<String>> {
     let read: Vec<(&str, Vec<Token<'_>>)> = files.iter().map(|(path, text)| (*path, tokens(text))).collect();
-    let mut by_body: BTreeMap<Vec<&str>, Vec<(&str, &str)>> = BTreeMap::new();
+    let mut by_body: BTreeMap<Vec<&str>, Vec<(&str, u32, &str)>> = BTreeMap::new();
     for (path, tokens) in &read {
         for (name, body) in functions(tokens) {
             if code_lines(body) >= MIN_LINES {
-                by_body.entry(body.iter().map(|t| t.text).collect()).or_default().push((path, name));
+                by_body.entry(body.iter().map(|t| t.text).collect()).or_default().push((path, name.line, name.text));
             }
         }
     }
     let mut out = BTreeMap::new();
     for mut places in by_body.into_values() {
         places.sort();
-        if places.iter().map(|(path, _)| path).collect::<BTreeSet<_>>().len() > 1 {
-            let key = format!("{}::{}", places[0].0, places[0].1);
-            out.insert(key, places.iter().map(|(path, name)| format!("{path}::{name}")).collect());
+        if places.len() > 1 {
+            let places: Vec<String> =
+                places.iter().map(|(path, line, name)| format!("{path}:{line}::{name}")).collect();
+            out.insert(places[0].clone(), places);
         }
     }
     out
@@ -149,7 +155,7 @@ fn no_function_is_written_twice_in_one_crate() {
     let fresh: Vec<String> = found.values().map(|places| places.join("\n    = ")).collect();
     assert!(
         fresh.is_empty(),
-        "the same body of {MIN_LINES} or more lines is in two files of one crate; keep one and call it:\n  {}",
+        "the same body of {MIN_LINES} or more lines is written twice in one crate; keep one and call it:\n  {}",
         fresh.join("\n  ")
     );
 }
@@ -157,12 +163,12 @@ fn no_function_is_written_twice_in_one_crate() {
 const BODY: &str = "{\n    let b = 2;\n    let c = 3;\n    b + c\n}";
 
 fn names(source: &str) -> Vec<&str> {
-    functions(&tokens(source)).iter().map(|(name, _)| *name).collect()
+    functions(&tokens(source)).iter().map(|(name, _)| name.text).collect()
 }
 
 fn body_text(source: &str, name: &str) -> String {
     let read = tokens(source);
-    let found = functions(&read).into_iter().find(|(n, _)| *n == name).expect("the function is read");
+    let found = functions(&read).into_iter().find(|(n, _)| n.text == name).expect("the function is read");
     found.1.iter().map(|t| t.text).collect::<Vec<_>>().join(" ")
 }
 
@@ -216,8 +222,8 @@ fn a_brace_in_the_signature_is_not_the_body() {
 #[test]
 fn the_same_body_in_two_files_is_reported_whatever_its_comments_and_layout() {
     let a = format!("fn first() -> i32 {BODY}\nfn short() -> i32 {{\n    1\n}}\n");
-    let places: Vec<String> = vec!["c/src/a.rs::first".into(), "c/src/b.rs::second".into()];
-    let expected = BTreeMap::from([("c/src/a.rs::first".to_owned(), places)]);
+    let places: Vec<String> = vec!["c/src/a.rs:1::first".into(), "c/src/b.rs:2::second".into()];
+    let expected = BTreeMap::from([("c/src/a.rs:1::first".to_owned(), places)]);
     for changed in [
         // a comment on a line of its own, a blank line and other indentation
         BODY.replace("    let c = 3;", "        // the third\n\n        let c = 3;"),
@@ -232,18 +238,42 @@ fn the_same_body_in_two_files_is_reported_whatever_its_comments_and_layout() {
 }
 
 #[test]
-fn a_changed_line_a_short_body_and_one_file_alone_are_not_reported() {
-    let a = format!("fn first() -> i32 {BODY}\nfn again() -> i32 {BODY}\n");
+fn the_same_body_twice_in_one_file_is_reported() {
+    // two functions of one file, alone in the crate and beside another file
+    let a = format!("fn first() -> i32 {BODY}\n\nfn again() -> i32 {BODY}\n");
+    let places: Vec<String> = vec!["c/src/a.rs:1::first".into(), "c/src/a.rs:7::again".into()];
+    let expected = BTreeMap::from([("c/src/a.rs:1::first".to_owned(), places)]);
+    assert_eq!(shared_bodies(&[("c/src/a.rs", &a)]), expected);
+    let other = "fn unrelated() -> i32 {\n    7\n}\n";
+    assert_eq!(shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", other)]), expected);
+    // one method written for two types: the name is the same, the line tells them apart
+    let twice = format!(
+        "impl T for X {{\n    fn sum(&self) -> i32 {BODY}\n}}\nimpl T for Y {{\n    fn sum(&self) -> i32 {BODY}\n}}\n"
+    );
+    let places: Vec<String> = vec!["c/src/t.rs:2::sum".into(), "c/src/t.rs:9::sum".into()];
+    assert_eq!(shared_bodies(&[("c/src/t.rs", &twice)]).into_values().collect::<Vec<_>>(), [places]);
+    // a third copy in another file joins the same report
+    let third = format!("fn third() -> i32 {BODY}\n");
+    let all = shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", &third)]);
+    assert_eq!(all["c/src/a.rs:1::first"], ["c/src/a.rs:1::first", "c/src/a.rs:7::again", "c/src/b.rs:1::third"]);
+}
+
+#[test]
+fn a_changed_line_and_a_short_body_are_not_reported() {
+    let a = format!("fn first() -> i32 {BODY}\n");
     let changed = format!("fn other() -> i32 {}\n", BODY.replace("let c = 3;", "let c = 4;"));
     assert!(shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", &changed)]).is_empty());
+    assert!(shared_bodies(&[("c/src/a.rs", &format!("{a}{changed}"))]).is_empty());
     assert_eq!(code_lines(&tokens(BODY)), MIN_LINES, "the fixture sits exactly on the limit");
     let shorter = BODY.replace("    let c = 3;\n", "").replace(" + c", "");
     let (x, y) = (format!("fn f() -> i32 {shorter}"), format!("fn g() -> i32 {shorter}"));
     assert!(shared_bodies(&[("c/src/a.rs", &x), ("c/src/b.rs", &y)]).is_empty());
+    assert!(shared_bodies(&[("c/src/a.rs", &format!("{x}\n{y}"))]).is_empty());
     // comment lines do not lift a short body over the limit
     let padded = shorter.replace("    let b", "    // one\n    // two\n    let b");
     let (x, y) = (format!("fn f() -> i32 {padded}"), format!("fn g() -> i32 {padded}"));
     assert!(shared_bodies(&[("c/src/a.rs", &x), ("c/src/b.rs", &y)]).is_empty());
+    assert!(shared_bodies(&[("c/src/a.rs", &format!("{x}\n{y}"))]).is_empty());
 }
 
 #[test]
