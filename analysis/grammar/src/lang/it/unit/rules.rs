@@ -2,7 +2,7 @@ use super::*;
 use crate::dec::Dec;
 use crate::engine::{Build, Item, glued, glued_word, node, node_if, opt_word, word};
 use crate::lang::it::{NUM, SCALE};
-use crate::unit::{Area, Minor, Rate, Volume};
+use crate::unit::{Area, Minor, Volume};
 use lexicon::Words;
 
 const fn r(name: &'static str, dim: Dim, items: &'static [Item], build: Build) -> Rule {
@@ -29,13 +29,6 @@ fn minor(v: &Value) -> bool {
 fn whole_money(v: &Value) -> bool {
     matches!(v, Value::Quantity(q) if matches!(q.unit(), Unit::Currency(c) if c.has_hundredths()) && q.value().is_integer() && !q.value().is_negative())
 }
-fn amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let (value, unit) = (v[0].num()?.value, v[1].unit()?);
-    if matches!(unit, Unit::Age(_)) && value.is_negative() {
-        return None;
-    }
-    quantity(value, unit)
-}
 fn prefix_amount(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let w = ctx.word(ctx.start);
     let unit = v[0].unit()?;
@@ -52,11 +45,6 @@ fn prefix_amount(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     }
     quantity(v[1].num()?.value, unit)
 }
-fn country(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let (_, generic, code) = lexicon::COUNTRIES.get(v[1].term()?.0 as usize)?;
-    (v[0].unit()? == Unit::Currency(CurrencyUnit::Generic(*generic)))
-        .then(|| Value::Unit(code_unit(code).expect("currency code")))
-}
 fn square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Unit::Length(l) = v[0].unit()? else { return None };
     Some(Value::Unit(Unit::Area(Area::Square(l))))
@@ -64,23 +52,6 @@ fn square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 fn cubic(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Unit::Length(l) = v[0].unit()? else { return None };
     Some(Value::Unit(Unit::Volume(Volume::Cubic(l))))
-}
-fn scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let u = v[1].unit()?;
-    matches!(u, Unit::Temperature(Temperature::Celsius | Temperature::Fahrenheit | Temperature::Kelvin))
-        .then_some(Value::Unit(u))
-}
-fn letter_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    Some(Value::Unit(Unit::Temperature(if v[1].term()?.0 == 0 {
-        Temperature::Celsius
-    } else {
-        Temperature::Fahrenheit
-    })))
-}
-fn money_rate(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let Value::Quantity(q) = v[0] else { return None };
-    let Unit::Currency(c) = q.unit() else { return None };
-    quantity(q.value(), Unit::Rate(Rate::Currency(c, lexicon::TIMES.get(v[1].term()?.0 as usize)?.1)))
 }
 fn hundredths(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let Value::Quantity(q) = v[0] else { return None };
@@ -151,7 +122,7 @@ pub(super) const RULES: &[Rule] = &[
     r("it_unit_hkd_sign", UNIT, &[word("hk"), word("$")], |_, _| fixed_currency("hkd")),
     r("it_unit_us_sign", UNIT, &[word("us"), word("$")], |_, _| fixed_currency("usd")),
     r("it_unit_usd_sign", UNIT, &[word("u"), glued_word("$"), glued_word("d")], |_, _| fixed_currency("usd")),
-    r("it_unit_country", UNIT, &[node_if(UNIT, currency), node(COUNTRY)], country),
+    r("it_unit_country", UNIT, &[node_if(UNIT, currency), node(COUNTRY)], country::<Words>),
     r("it_unit_hongkong", UNIT, &[node_if(UNIT, currency), word("di"), word("hong"), word("kong")], |v, _| {
         (v[0].unit()? == Unit::Currency(CurrencyUnit::Generic(Generic::Dollar)))
             .then_some(Value::Unit(code_unit("hkd")?))
@@ -196,7 +167,7 @@ pub(super) const RULES: &[Rule] = &[
     r("it_unit_money_con", QTY, &[node_if(QTY, whole_money), word("con"), node(NUM), node_if(UNIT, minor)], hundredths),
     r("it_unit_money_bare", QTY, &[node_if(QTY, whole_money), opt_word("e"), node(NUM)], hundredths),
     r("it_unit_money_bare_con", QTY, &[node_if(QTY, whole_money), word("con"), node(NUM)], hundredths),
-    r("it_unit_money_rate", QTY, &[node(QTY), word("per"), node(TIME)], money_rate),
-    r("it_unit_money_rate_slash", QTY, &[node(QTY), word("/"), node(TIME)], money_rate),
+    r("it_unit_money_rate", QTY, &[node(QTY), word("per"), node(TIME)], money_rate::<Words>),
+    r("it_unit_money_rate_slash", QTY, &[node(QTY), word("/"), node(TIME)], money_rate::<Words>),
     r("it_unit_compound", QTY, &[node(QTY), opt_word("e"), node(QTY)], compound),
 ];

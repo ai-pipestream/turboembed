@@ -1,9 +1,5 @@
 use super::*;
 
-pub(super) fn int(value: Dec, grain: i8, flags: u8) -> Option<Value> {
-    Some(Value::Num(Num { value, kind: NumKind::Integer, grain, flags }))
-}
-
 pub(super) fn fraction(value: Dec, flags: u8) -> Option<Value> {
     Some(Value::Num(Num::new(value, NumKind::Fraction, flags)))
 }
@@ -143,11 +139,7 @@ pub(super) fn b_bare_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 }
 
 pub(super) fn b_sum(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
-    let (l, r) = (num(&v[0]), num(&v[1]));
-    if r.grain >= l.grain || r.value >= pow10(i64::from(l.grain)) || before_multiplier(ctx, l.grain) {
-        return None;
-    }
-    int(l.value.checked_add(r.value)?, r.grain, l.flags | r.flags)
+    en::sum_unless(v, ctx, before_multiplier)
 }
 
 pub(super) fn b_dozen(v: &[Value], _: &Ctx<'_>) -> Option<Value> {

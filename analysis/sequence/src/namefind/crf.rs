@@ -3,6 +3,7 @@
 //! `other` history; adaptive state is cleared before every sentence.
 use super::{DefaultNameContext, FoundName, NameCodec};
 use crate::crf::{CrfError, CrfSequenceModel, FeatureRow};
+use crate::featuregen::FeatureGenerator;
 use crate::{ContextGenerator, Features, PatternMode};
 use std::borrow::BorrowMut;
 use turbo_maxent::{JavaString, ModelFile};
@@ -23,9 +24,7 @@ impl DefaultNameContext {
         (0..tokens.len())
             .map(|i| {
                 features.clear();
-                for g in &mut self.generators {
-                    g.create_features(&mut features, tokens, i, &prior);
-                }
+                self.generators.create_features(&mut features, tokens, i, &prior);
                 features
                     .iter()
                     .map(|b| (JavaString::from_modified_utf8(b).expect("Features emits modified UTF-8"), 1.0))

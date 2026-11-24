@@ -6,7 +6,6 @@ use std::sync::atomic::Ordering;
 use super::*;
 use crate::levelzero::ze::{self, Handle};
 use crate::status::RUNTIME;
-use crate::turbo_text;
 
 impl Context {
     /// oneDNN for the linear layers, opened on this context the first
@@ -35,10 +34,7 @@ impl Context {
     }
 
     pub fn say(&self, level: u32, message: &str) {
-        if let Some(f) = self.log {
-            let t = turbo_text { ptr: message.as_ptr() as *const _, len: message.len() as u64 };
-            unsafe { f(self.log_user_data, level, t) };
-        }
+        crate::ze::say(self.log, self.log_user_data, level, message);
     }
 
     /// The encoder's module, built for this device the first time.

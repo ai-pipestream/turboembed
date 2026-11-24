@@ -42,7 +42,7 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
-use super::error::{File, LineError, ModelError};
+use super::error::{File, LineError, ModelError, once};
 use super::text::{double_to_string, lines, parse_double, parse_int};
 use super::weighting::{FeatureSelection, Scaling, TermWeighting};
 use crate::features::FeatureGenerator;
@@ -161,14 +161,6 @@ struct Records {
     generators: Vec<FeatureGenerator>,
     categories: Vec<String>,
     vocabulary: Vocabulary,
-}
-
-fn once<T>(slot: &mut Option<T>, field: &'static str, value: T) -> Result<(), LineError> {
-    if slot.is_some() {
-        return Err(LineError::Repeated(field));
-    }
-    *slot = Some(value);
-    Ok(())
 }
 
 impl Records {

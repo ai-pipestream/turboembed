@@ -78,17 +78,15 @@ impl Drop for Rt {
     }
 }
 
-/// TURBO_TEST_REQUIRE_CUDA=1: a test that finds no device fails.
-pub fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1")
-}
-
 /// The first CUDA device, or None after saying the test is skipped.
 pub fn cuda_device(test: &str) -> Option<u32> {
     let rt = Rt::new();
     let d = first_of(rt.0, "cuda");
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("cuda"),
+            "{test}: the cuda backend lists no device; TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+        );
         println!("{test}: skipped: the cuda feature is on and the cuda backend lists no device");
     }
     d

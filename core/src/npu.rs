@@ -193,22 +193,6 @@ fn arch(vendor_id: u32, device_id: u32) -> String {
     }
 }
 
-/// Level Zero only promises that driverVersion increases. Intel's driver
-/// packs major, minor and build into it; another vendor's is shown as is.
-fn driver_version(vendor_id: u32, v: u32) -> String {
-    match vendor_id {
-        0x8086 => format!("{}.{}.{}", v >> 24, (v >> 16) & 0xff, v & 0xffff),
-        _ => v.to_string(),
-    }
-}
-
-fn vendor(vendor_id: u32) -> String {
-    match vendor_id {
-        0x8086 => "Intel".to_owned(),
-        v => format!("0x{v:04x}"),
-    }
-}
-
 /// The NPU drivers and their devices, found once per process: the loader
 /// and zeInitDrivers are process-wide, and devices do not come and go.
 pub(crate) struct Driver {
@@ -253,10 +237,7 @@ unsafe impl Send for Device {}
 /// driver fixed underneath a running process is seen by the next one.
 fn driver() -> Result<Option<&'static Driver>, &'static str> {
     static DRIVER: OnceLock<Result<Option<Driver>, String>> = OnceLock::new();
-    match DRIVER.get_or_init(Driver::open) {
-        Ok(d) => Ok(d.as_ref()),
-        Err(e) => Err(e),
-    }
+    crate::ze::opened(&DRIVER, Driver::open)
 }
 
 impl Driver {
@@ -403,8 +384,8 @@ impl Driver {
                     memory_total: mem.iter().map(|m| m.total_size).sum(),
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
-                    vendor: vendor(p.vendor_id),
-                    driver_version: driver_version(p.vendor_id, props.driver_version),
+                    vendor: crate::ze::vendor(p.vendor_id),
+                    driver_version: crate::ze::driver_version(p.vendor_id, props.driver_version),
                 });
             }
         }
@@ -471,8 +452,6 @@ mod tests {
         assert_eq!(arch(0x8086, 0xb03e), "ptl-npu");
         assert_eq!(arch(0x8086, 0x1234), "intel-npu-1234");
         assert_eq!(arch(0x10de, 0x2704), "10de-2704");
-        assert_eq!(vendor(0x8086), "Intel");
-        assert_eq!(driver_version(0x8086, 0x0103_909c), "1.3.37020");
     }
 
     #[test]

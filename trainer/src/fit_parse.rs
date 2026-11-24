@@ -9,7 +9,7 @@ use turbo::status::{Result, invalid};
 
 use crate::adamw::AdamW;
 use crate::fit::{Config, Model, OnBest, Report, check_config, train};
-use crate::mix::{check_mix_layers, mix_grad, mix_layers, weights_of};
+use crate::mix::{check_mix_layers, mix_decays, mix_grad, mix_layers, mix_step, mix_tensors, weights_of};
 use crate::parser::{Parser, Work};
 use crate::real::Real;
 use crate::rng::Rng;
@@ -275,11 +275,7 @@ impl MixParser<f32> {
 
     /// Each tensor of the head and its mix by suffix.
     pub fn tensors(&self) -> Vec<(String, Vec<f32>)> {
-        let k = self.head_len();
-        let mut out = self.head.tensors();
-        out.push(("mix.weight".into(), self.params[k].clone()));
-        out.push(("mix.gamma".into(), self.params[k + 1].clone()));
-        out
+        mix_tensors(self.head.tensors(), &self.params)
     }
 
     /// A [`BiaffineParser`] carrying `layer_mix` and these weights.
@@ -301,18 +297,13 @@ impl Model for MixParser<f32> {
         MixParser::set_params(self, params)
     }
     fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64> {
-        let norm = opt.step(&mut self.params, grads, decay)?;
-        let k = self.head_len();
-        self.head.set_params(self.params[..k].to_vec())?;
-        Ok(norm)
+        mix_step(opt, &mut self.params, grads, decay, |p| self.head.set_params(p))
     }
     fn zero_grads(&self) -> Vec<Vec<f32>> {
         MixParser::zero_grads(self)
     }
     fn decays(&self) -> Vec<bool> {
-        let mut d = self.head.decays();
-        d.extend([false, false]);
-        d
+        mix_decays(self.head.decays())
     }
     fn loss(&self, e: &MixParseExample, grads: &mut [Vec<f32>], w: &mut Work<f32>) -> Result<(f64, usize)> {
         Ok((MixParser::loss(self, &e.layers, &e.heads, &e.rels, grads, w)?, e.heads.len()))

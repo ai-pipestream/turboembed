@@ -141,6 +141,43 @@ pub(crate) fn compound(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     quantity(a.value().checked_add(b.value().checked_div(Dec::from_i64(divisor))?)?, a.unit())
 }
 
+/// A number and the unit after it; an age is never negative.
+pub(crate) fn amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let (value, unit) = (v[0].num()?.value, v[1].unit()?);
+    if matches!(unit, Unit::Age(_)) && value.is_negative() {
+        return None;
+    }
+    quantity(value, unit)
+}
+
+/// A generic currency and a country word of `L` that names it: the
+/// country's own currency (`dólar` `canadiense`).
+pub(crate) fn country<L: UnitWords>(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let (_, generic, code) = L::COUNTRIES.get(v[1].term()?.0 as usize)?;
+    (v[0].unit()? == Unit::Currency(CurrencyUnit::Generic(*generic)))
+        .then(|| Value::Unit(code_unit(code).expect("currency code")))
+}
+
+/// A degree and the temperature scale after it.
+pub(crate) fn scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let u = v[1].unit()?;
+    matches!(u, Unit::Temperature(Temperature::Celsius | Temperature::Fahrenheit | Temperature::Kelvin))
+        .then_some(Value::Unit(u))
+}
+
+/// A degree and the scale letter after it: `c` Celsius, `f` Fahrenheit.
+pub(crate) fn letter_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let scale = if v[1].term()?.0 == 0 { Temperature::Celsius } else { Temperature::Fahrenheit };
+    Some(Value::Unit(Unit::Temperature(scale)))
+}
+
+/// An amount of money per a unit of time of `L`.
+pub(crate) fn money_rate<L: UnitWords>(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let Value::Quantity(q) = v[0] else { return None };
+    let Unit::Currency(c) = q.unit() else { return None };
+    quantity(q.value(), Unit::Rate(Rate::Currency(c, L::TIMES.get(v[1].term()?.0 as usize)?.1)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

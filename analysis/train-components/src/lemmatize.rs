@@ -17,13 +17,16 @@ use turbo_train::{
 };
 
 use crate::error::Result;
-use crate::package::{FACTORY_KEY, Stamp, packaged};
-use crate::postag::{BEAM_SIZE_KEY, beam_size, java_strings};
+use crate::package::{BeamModel, FACTORY_KEY, Stamp};
+use crate::postag::{beam_size, java_strings};
 
 /// `LemmatizerModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = "StatisticalLemmatizer";
 /// `LemmatizerModel.LEMMATIZER_MODEL_ENTRY_NAME`.
 pub const MODEL_ENTRY: &str = "lemmatizer.model";
+
+/// What this component's package holds.
+const MODEL: BeamModel = BeamModel { component: COMPONENT_NAME, entry: MODEL_ENTRY };
 /// The factory class the manifest names.
 pub const FACTORY: &str = "opennlp.tools.lemmatizer.LemmatizerFactory";
 /// `LemmatizerME.DEFAULT_BEAM_SIZE`.
@@ -152,9 +155,7 @@ pub fn package_lemmatizer_model(
     beam_size: i32,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
-    manifest.set(BEAM_SIZE_KEY, &beam_size.to_string());
-    packaged(manifest, vec![(MODEL_ENTRY, model_bytes)])
+    MODEL.package(factory.language(), factory.manifest_entries(), report, model_bytes, beam_size, stamp)
 }
 
 /// `LemmatizerME.train(languageCode, samples, params, factory)` with an

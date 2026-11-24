@@ -24,6 +24,8 @@ const MAX_SUGGEST_LIMIT: usize = 256;
 const DEFAULT_SUGGEST_LIMIT: usize = 10;
 const MAX_QUERY_BYTES: usize = 16 << 10;
 
+/// In-memory cache of validated suggest lexicons and query spellcheckers,
+/// keyed by `(artifact_id, sha256)` so store replacements load fresh entries.
 #[derive(Default)]
 pub(crate) struct SuggestCache {
     lexicons: Mutex<BTreeMap<(String, String), Arc<CheckedLexiconFile>>>,
@@ -36,9 +38,19 @@ impl SuggestCache {
         self.spellcheckers.lock().unwrap_or_else(|p| p.into_inner()).retain(|(k, _, _), _| k != id);
     }
 
-    /// The stored lexicon `id`, mapped and checked. The check reads the
-    /// whole image, so it runs once here and the checked view is cached
-    /// with the mapping: a lookup on a warm cache walks the trie alone.
+    /// Returns the stored lexicon `id`, mapped and validated.
+    ///
+    /// A cold miss maps `<id>.slex`, verifies its byte length and `sha256`
+    /// against the descriptor, validates every table once via
+    /// [`CheckedLexiconFile::new`], and caches the entry under
+    /// `(artifact_id, sha256)`. A warm hit trusts the mapped bytes for the
+    /// lifetime of the cache entry and never re-hashes or re-checks them, so
+    /// each lookup walks the trie alone.
+    ///
+    /// Store-managed replacement writes a new file and updates the descriptor
+    /// `sha256`, missing the cache key and validating the new image anew.
+    /// Mutating or truncating a mapped `.slex` file in place violates
+    /// [`MappedFile::open`]'s safety contract and is not detected.
     fn mapped(&self, store: &super::Store, id: &str) -> Result<Arc<CheckedLexiconFile>, Status> {
         let (desc, path) = store.suggest_file(id).ok_or_else(|| not_found(id))?;
         let key = (desc.artifact_id, desc.sha256);

@@ -197,10 +197,7 @@ impl Opinions {
 
     /// All opinions in order, with their index.
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (Ix<Opinions>, Opinion)> + '_ {
-        (0..self.tokens.len() as u32).map(|i| {
-            let ix = Ix::new(i);
-            (ix, self.get(ix))
-        })
+        crate::columns::indexed(self.tokens.len(), |ix| self.get(ix))
     }
 }
 

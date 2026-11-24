@@ -4,11 +4,8 @@ use std::cell::RefCell;
 
 use super::RuleScratch;
 
-/// The most elements a per-thread buffer keeps between calls. A split
-/// that grows one past this hands it back to the allocator afterwards, so
-/// a thread that once handled a very large document does not hold that
-/// document's peak memory for the rest of its life.
-pub(crate) const RETAINED: usize = 1 << 16;
+pub(crate) use crate::retain::RETAINED;
+use crate::retain::release;
 
 thread_local! {
     /// The buffers of the rule annotator, one set per thread, so that a
@@ -34,12 +31,6 @@ pub(crate) fn with_rule_scratch<R>(f: impl FnOnce(&mut RuleScratch) -> R) -> R {
 #[cfg(test)]
 pub(crate) fn retained_capacity() -> usize {
     RULE_SCRATCH.with_borrow(|s| s.largest_capacity())
-}
-
-fn release<T>(v: &mut Vec<T>) {
-    if v.capacity() > RETAINED {
-        drop(std::mem::take(v));
-    }
 }
 
 impl RuleScratch {

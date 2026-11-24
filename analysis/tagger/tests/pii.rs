@@ -139,10 +139,10 @@ fn pii_tagger_validates_temperature_and_score_threshold_bounds() {
 }
 
 #[test]
+#[ignore = "needs the assembled Nemotron PII bundle in TURBO_NEMOTRON_PII_BUNDLE"]
 fn assembled_nemotron_pii_bundle_detects_contextual_and_structured_pii() {
-    let Some(bundle_path) = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE") else {
-        return;
-    };
+    let bundle_path = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE")
+        .expect("TURBO_NEMOTRON_PII_BUNDLE names the assembled Nemotron PII bundle");
     let bundle_dir = turbo_pins::require(std::path::Path::new(&bundle_path));
     let requested = std::env::var("TURBO_TEST_DEVICE").unwrap_or_else(|_| "cpu".to_owned());
     let device = match requested.as_str() {

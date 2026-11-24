@@ -766,7 +766,12 @@ int32_t turbo_embed_write_layer_ranges(turbo_session *s, const turbo_token_batch
  * since the last run, or after a failed write, is TURBO_E_INVALID_STATE.
  * The result holds the session until it and every buffer from
  * turbo_result_buffer are released; until then a write or run on the
- * session is TURBO_E_BUSY. */
+ * session is TURBO_E_BUSY. An embed run whose F32 vectors are in host
+ * memory, or are copied back to be quantized on the host, and hold a NaN
+ * or an infinity is TURBO_E_INTERNAL naming the first such row: a vector
+ * that is not finite is a broken run, never an answer. Vectors left in
+ * device memory are checked by turbo_result_read; neither
+ * turbo_result_buffer nor codes made on the device are checked. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
 /* Cross-encoder reranking, on the CPU or through the CUDA, Level Zero or
@@ -856,7 +861,10 @@ int32_t turbo_result_get_info(turbo_result *r, turbo_result_info *out, turbo_err
  * After turbo_embed_write_ranges, batch is the count of ranges written and
  * a row is a range's vector. */
 
-/* Copy the vectors into dst (capacity bytes). Counted in d2h_bytes. */
+/* Copy the vectors into dst (capacity bytes). Counted in d2h_bytes.
+ * F32 embed vectors copied from device memory that hold a NaN or an
+ * infinity are TURBO_E_INTERNAL naming the first such row, as for
+ * turbo_session_run; dst then holds what was copied. */
 int32_t turbo_result_read(turbo_result *r, void *dst, uint64_t capacity, uint64_t *written, turbo_error *err);
 
 /* The vectors where they are, without a copy. The buffer keeps the result alive. */

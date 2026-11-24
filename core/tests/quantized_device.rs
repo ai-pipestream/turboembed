@@ -11,10 +11,11 @@
 //! nothing to d2h_bytes or h2d_bytes, only the codes buffer (and the
 //! int8 ranges' buffer) to device_allocs.
 //!
-//! Without TURBO_TEST_DEVICE, or when the backend lists no device, a test
-//! says it was skipped and passes. With TURBO_TEST_REQUIRE_<BACKEND>=1
-//! (CUDA, LEVELZERO or METAL) it fails instead, so a device run cannot
-//! pass by finding no device.
+//! Without TURBO_TEST_DEVICE a test says it was skipped and passes, and
+//! with TURBO_TEST_REQUIRE_<BACKEND>=1 (CUDA, LEVELZERO or METAL) it fails
+//! instead. When the backend TURBO_TEST_DEVICE names lists no device the
+//! test fails, unless TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip, so a
+//! device run cannot pass by finding no device.
 
 mod common;
 
@@ -79,7 +80,10 @@ fn backend(test: &str) -> Option<&'static str> {
     let d = first_of(rt, name);
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(var), "{test}: TURBO_TEST_REQUIRE_{var}=1 and the {name} backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed(name),
+            "{test}: the {name} backend lists no device; TURBO_TEST_REQUIRE_{var}=0 lets the test skip"
+        );
         println!("{test}: skipped: the {name} backend lists no device");
         return None;
     }
@@ -197,4 +201,67 @@ fn device_codes_are_the_codes_of_the_same_devices_f32_vectors() {
             check(backend, &format!("{what} ranges"), ranged, w, &mut staged);
         }
     }
+}
+
+/// The small BERT with every embedding LayerNorm bias NaN, so every row it
+/// makes is NaN from the first layer on.
+fn poisoned(name: &str) -> Fixture {
+    let mut f = Fixture::model(name);
+    let mut w = tiny_weights(0);
+    let bias = w.iter_mut().find(|t| t.name == "embeddings.LayerNorm.bias").expect("the embedding norm's bias");
+    bias.data = bias.data.as_chunks::<4>().0.iter().flat_map(|_| f32::NAN.to_le_bytes()).collect();
+    f.weights("weights/model.safetensors", &w);
+    f
+}
+
+/// What a run of `l`'s model, F32 or coded as `quantization`, answers: a
+/// broken run is refused, by the run or by the read, never sent (#2517).
+fn refusal(l: &Loaded, dir: &std::path::Path, what: &str, quantization: u32) -> Failure {
+    let tok = Tok::create(dir).unwrap();
+    let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
+    let t = Tokens::new(&rows, 0);
+    let s = Session::create(l.m, None).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    let ranges = [vec![-1.0f32; 8], vec![1.0f32; 8]].concat();
+    let r = (quantization == TURBO_QUANTIZE_INT8).then_some(&ranges[..]);
+    s.write_tokens(&t.batch(), Some(&with(8, quantization, r))).unwrap();
+    let r = match s.run() {
+        Err(e) => return e,
+        Ok(r) => r,
+    };
+    let info = r.info();
+    let mut out = vec![0u8; info.bytes as usize];
+    let mut err = new_error();
+    let rc = unsafe { turbo_result_read(r.0, out.as_mut_ptr().cast(), info.bytes, ptr::null_mut(), &mut err) };
+    assert_ne!(rc, 0, "{what}: a run that is not finite was answered: {out:?}");
+    failure(rc, &err)
+}
+
+fn refused_everywhere(l: &Loaded, dir: &std::path::Path, backend: &str) {
+    for (quantization, name) in
+        [(TURBO_QUANTIZE_NONE, "f32"), (TURBO_QUANTIZE_INT8, "int8"), (TURBO_QUANTIZE_UBINARY, "ubinary")]
+    {
+        let what = format!("{backend} {name}");
+        let e = refusal(l, dir, &what, quantization);
+        assert_eq!(e.code, turbo::status::INTERNAL, "{what}: {e:?}");
+        // Every value of the poisoned model is NaN; the host names the
+        // first, a device kernel any one it stored.
+        let named = if backend == "cpu" { "row 0 is not finite at dimension 0" } else { "is not finite at dimension" };
+        assert!(e.message.contains(named), "{what}: {}", e.message);
+    }
+}
+
+#[test]
+fn a_run_that_is_not_finite_is_refused_on_the_host() {
+    let f = poisoned("quantized-not-finite-cpu");
+    let l = f.load_on(cpu).unwrap_or_else(|e| panic!("{e:?}"));
+    refused_everywhere(&l, &f.dir, "cpu");
+}
+
+#[test]
+fn a_run_that_is_not_finite_is_refused_on_the_device_whatever_its_codes() {
+    let test = "a_run_that_is_not_finite_is_refused_on_the_device_whatever_its_codes";
+    let Some(backend) = backend(test) else { return };
+    let f = poisoned("quantized-not-finite-device");
+    let l = f.load_on(|rt| first_of(rt, backend).expect("a device")).unwrap_or_else(|e| panic!("{e:?}"));
+    refused_everywhere(&l, &f.dir, backend);
 }

@@ -52,11 +52,7 @@ impl Grammar for JapaneseUnits {
         })
     }
     fn rules(&self) -> &'static [Rule] {
-        RULES.get_or_init(|| {
-            let mut r = cjk::RULES.to_vec();
-            r.extend_from_slice(rules::RULES);
-            r
-        })
+        crate::lang::concat_rules(&RULES, &[cjk::RULES, rules::RULES])
     }
     fn dims(&self) -> u16 {
         cjk::DIMS + 4

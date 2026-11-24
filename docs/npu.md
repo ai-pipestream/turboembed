@@ -498,8 +498,7 @@ tests, the same environment variables,
 `cargo test -p turbo --features npu` from a shell whose PATH finds
 `ze_loader.dll`. A machine where Device Manager shows "Intel(R) AI
 Boost" but the backend lists nothing has a loader or NPU driver
-problem, and `TURBO_TEST_REQUIRE_NPU=1` makes the tests say so instead
-of passing.
+problem, and the tests say so by failing.
 
 The sealed test bundles under `testdata/` are verified by size and
 SHA-256 on every load, so their bytes must come out of a checkout
@@ -529,11 +528,11 @@ or reclone.
 
 ## Testing on an NPU machine
 
-From the workspace root. `TURBO_TEST_REQUIRE_NPU=1` makes every test in
-`core/tests/npu.rs` that needs a device fail when the backend lists
-none, where without it the test passes with a line saying it was
-skipped; set it on an NPU machine, so a run that found no device cannot
-pass.
+From the workspace root. Every test in `core/tests/npu.rs` that needs a
+device fails when the backend lists none: a build with the npu backend
+that finds no NPU has run nothing on one. `TURBO_TEST_REQUIRE_NPU=0`
+lets such a test pass with a line saying it was skipped, for a host
+that has no NPU.
 
 ```
 export TURBO_TEST_REQUIRE_NPU=1
@@ -567,8 +566,9 @@ lists `openvino-embeddings-f16` first, reports lookup on the host.
 GitHub Actions does not run this backend on an NPU. The `test (npu)`
 step in `.github/workflows/ci.yml` is `cargo test -p turbo --features npu`
 on `ubuntu-24.04`. That machine has no Intel NPU driver and no
-`/dev/accel` node. The job does not pass `--include-ignored` and does
-not set `TURBO_TEST_REQUIRE_NPU`.
+`/dev/accel` node. The job does not pass `--include-ignored` and sets
+`TURBO_TEST_REQUIRE_NPU=0`, which lets the tests that find no device
+say they were skipped.
 
 What that job does run: the library tests that need no device (the IR
 container, the build flags, the host gather, and the native descriptor)

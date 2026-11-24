@@ -9,7 +9,8 @@
 //! tokens (`rust_lex.rs`), so comments, line breaks and indentation do not
 //! count and the contents of a string do. There is no list of known copies:
 //! the last of those the check found when it was written were folded by
-//! #2499 and #2506, and a new copy is fixed, not listed.
+//! #2499 and #2506, the shorter ones when the limit came down from eight
+//! lines to five by #2530, and a new copy is fixed, not listed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -18,7 +19,7 @@ use crate::rust_lex::{Kind, Token, closing, tokens};
 
 /// Bodies shorter than this are not compared: below it sit the trait
 /// methods and one-line wrappers every implementor has to repeat.
-pub const MIN_LINES: usize = 8;
+pub const MIN_LINES: usize = 5;
 
 /// The index of the `{` that opens the body of the function whose `fn`
 /// is at `at`, or `None` for a declaration without one. A brace inside the
@@ -153,8 +154,7 @@ fn no_function_is_written_twice_in_one_crate() {
     );
 }
 
-const BODY: &str =
-    "{\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n    let e = 5;\n    a + b + c + d + e\n}";
+const BODY: &str = "{\n    let b = 2;\n    let c = 3;\n    b + c\n}";
 
 fn names(source: &str) -> Vec<&str> {
     functions(&tokens(source)).iter().map(|(name, _)| *name).collect()
@@ -222,7 +222,7 @@ fn the_same_body_in_two_files_is_reported_whatever_its_comments_and_layout() {
         // a comment on a line of its own, a blank line and other indentation
         BODY.replace("    let c = 3;", "        // the third\n\n        let c = 3;"),
         // a comment after the code, and a block comment standing alone
-        BODY.replace("let c = 3;", "let c = 3; // the third").replace("    let d", "    /* the fourth */\n    let d"),
+        BODY.replace("let c = 3;", "let c = 3; // the third").replace("    b + c", "    /* the sum */\n    b + c"),
         // a statement broken over two lines
         BODY.replace("let b = 2;", "let b =\n        2;"),
     ] {
@@ -234,14 +234,14 @@ fn the_same_body_in_two_files_is_reported_whatever_its_comments_and_layout() {
 #[test]
 fn a_changed_line_a_short_body_and_one_file_alone_are_not_reported() {
     let a = format!("fn first() -> i32 {BODY}\nfn again() -> i32 {BODY}\n");
-    let changed = format!("fn other() -> i32 {}\n", BODY.replace("let e = 5;", "let e = 6;"));
+    let changed = format!("fn other() -> i32 {}\n", BODY.replace("let c = 3;", "let c = 4;"));
     assert!(shared_bodies(&[("c/src/a.rs", &a), ("c/src/b.rs", &changed)]).is_empty());
     assert_eq!(code_lines(&tokens(BODY)), MIN_LINES, "the fixture sits exactly on the limit");
-    let shorter = BODY.replace("    let e = 5;\n", "").replace(" + e", "");
+    let shorter = BODY.replace("    let c = 3;\n", "").replace(" + c", "");
     let (x, y) = (format!("fn f() -> i32 {shorter}"), format!("fn g() -> i32 {shorter}"));
     assert!(shared_bodies(&[("c/src/a.rs", &x), ("c/src/b.rs", &y)]).is_empty());
     // comment lines do not lift a short body over the limit
-    let padded = shorter.replace("    let a", "    // one\n    // two\n    let a");
+    let padded = shorter.replace("    let b", "    // one\n    // two\n    let b");
     let (x, y) = (format!("fn f() -> i32 {padded}"), format!("fn g() -> i32 {padded}"));
     assert!(shared_bodies(&[("c/src/a.rs", &x), ("c/src/b.rs", &y)]).is_empty());
 }
@@ -250,10 +250,7 @@ fn a_changed_line_a_short_body_and_one_file_alone_are_not_reported() {
 fn strings_that_differ_only_in_their_spaces_are_different_bodies() {
     let with = |indent: &str| {
         let text = format!("r#\"\n{indent}line\n\"#");
-        format!(
-            "fn f() -> &'static str {}",
-            BODY.replace("a + b + c + d + e", &format!("let _ = a + b + c + d + e;\n    {text}"))
-        )
+        format!("fn f() -> &'static str {}", BODY.replace("    b + c", &format!("    let _ = b + c;\n    {text}")))
     };
     let (two, four) = (with("  "), with("    "));
     assert!(shared_bodies(&[("c/src/a.rs", &two), ("c/src/b.rs", &four)]).is_empty());

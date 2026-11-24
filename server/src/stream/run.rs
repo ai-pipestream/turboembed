@@ -223,9 +223,10 @@ pub(crate) fn run(
             seq: d.seq,
             id: d.id,
             binding: d.binding,
-            payload: match output {
-                AnalyzeOutput::VectorCodes => RowPayload::Codes(c, Some(tokens)),
-                _ => RowPayload::Vector(c, Some(tokens)),
+            payload: if output == AnalyzeOutput::VectorCodes {
+                RowPayload::Codes(c, Some(tokens))
+            } else {
+                RowPayload::Vector(c, Some(tokens))
             },
             room: d.room,
             window: permits.next().expect("one window permit per document"),

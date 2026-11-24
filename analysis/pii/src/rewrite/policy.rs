@@ -324,8 +324,7 @@ impl RewritePolicy {
     /// kind given to [`RewritePolicy::with`] afterwards indexes. Drops the
     /// overrides of custom kinds made under an earlier table.
     pub fn with_custom_kinds(mut self, kinds: CustomKinds) -> RewritePolicy {
-        self.overrides.retain(|(k, _)| !k.is_custom());
-        self.custom_kinds = kinds;
+        super::replace_custom_kinds(&mut self.overrides, &mut self.custom_kinds, kinds);
         self
     }
 

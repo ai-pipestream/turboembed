@@ -93,3 +93,40 @@ fn sentence_reader_with_zero_per_sample_returns_none_even_on_empty_corpus() {
     let mut reader = MascSentenceReader::new(&corpus, 0);
     assert!(reader.read().unwrap().is_none());
 }
+
+/// A reader of scripted reads that counts how often it was asked.
+struct Scripted {
+    reads: Vec<Result<Option<u8>, MascError>>,
+    calls: usize,
+    done: bool,
+}
+
+impl Scripted {
+    fn read(&mut self) -> Result<Option<u8>, MascError> {
+        self.calls += 1;
+        self.reads.remove(0)
+    }
+    fn next(&mut self) -> Option<Result<u8, MascError>> {
+        fused(self, |r| &mut r.done, Self::read)
+    }
+}
+
+#[test]
+fn fused_ends_at_the_null_document_and_reads_no_more() {
+    let path = std::path::PathBuf::from("x");
+    let reads = vec![Ok(Some(1)), Err(MascError::NotADirectory { path }), Err(MascError::NullDocument), Ok(Some(2))];
+    let mut r = Scripted { reads, calls: 0, done: false };
+    assert!(matches!(r.next(), Some(Ok(1))));
+    assert!(matches!(r.next(), Some(Err(MascError::NotADirectory { .. }))));
+    assert!(r.next().is_none());
+    assert!(r.next().is_none());
+    assert_eq!(r.calls, 3, "no read after the end");
+}
+
+#[test]
+fn fused_ends_at_the_end_of_the_reads() {
+    let mut r = Scripted { reads: vec![Ok(None)], calls: 0, done: false };
+    assert!(r.next().is_none());
+    assert!(r.next().is_none());
+    assert_eq!(r.calls, 1);
+}

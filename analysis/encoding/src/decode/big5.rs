@@ -63,10 +63,6 @@ impl Stepper for Big5 {
     }
 
     fn eof(&mut self) -> Option<Step> {
-        if self.lead == 0 {
-            return None;
-        }
-        self.lead = 0;
-        Some(Step::Error { restore: 0 })
+        super::lead_at_eof(&mut self.lead)
     }
 }

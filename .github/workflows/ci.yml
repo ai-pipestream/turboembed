@@ -412,14 +412,16 @@ jobs:
         run: |
           if [ -n "${CORE_SCRATCH:-}" ]; then rm -rf "$CORE_SCRATCH"; fi
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
-      # The job does not pass --include-ignored and does not set
-      # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
-      # stay ignored and a missing device is a skip. There is no
+      # The job does not pass --include-ignored and sets
+      # TURBO_TEST_REQUIRE_NPU=0, so the device tests in core/tests/npu.rs
+      # stay ignored and a missing device is a skip, not the failure it is
+      # without that variable. There is no
       # self-hosted NPU runner. A green job is not a device run.
       # docs/npu.md, "Host-only blocker".
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
+          TURBO_TEST_REQUIRE_NPU: "0"
         run: scripts/test-in-scratch.sh cargo nextest run -p turbo --features npu
       - name: no feature test leaves files in the temp directory
         run: |
@@ -790,10 +792,12 @@ jobs:
         env:
           CARGO_TARGET_DIR: target/core
         run: cargo test -p turbo --no-fail-fast
-      # Host-only: no NPU on the runner, so the device tests stay ignored.
+      # Host-only: no NPU on the runner, so the device tests stay ignored
+      # and TURBO_TEST_REQUIRE_NPU=0 lets the rest skip.
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
+          TURBO_TEST_REQUIRE_NPU: "0"
         run: cargo test -p turbo --features npu
 
   # The CUDA backend built with MSVC (#2453), when the change touches what

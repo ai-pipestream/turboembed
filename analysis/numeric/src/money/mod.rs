@@ -21,6 +21,7 @@ mod ecb;
 mod extract;
 mod natural;
 mod tables;
+pub(crate) use tables::code;
 
 use std::fmt;
 
