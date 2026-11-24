@@ -12,9 +12,10 @@
 //! on an Arc Pro B70.
 //!
 //! Built with the `levelzero` feature only. TURBO_TEST_DEVICE=levelzero
-//! runs the test on the first levelzero device; without it the test says
-//! it was skipped. With TURBO_TEST_REQUIRE_LEVELZERO=1 a test that finds
-//! no levelzero device, or is not told to use one, fails instead.
+//! runs the test on the first levelzero device; without it the test says it
+//! was skipped. A test told to use one fails when the backend lists none,
+//! unless TURBO_TEST_REQUIRE_LEVELZERO=0 lets it skip; with
+//! TURBO_TEST_REQUIRE_LEVELZERO=1 a test not told to use one fails too.
 
 #![cfg(feature = "levelzero")]
 

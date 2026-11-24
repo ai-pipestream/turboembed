@@ -5,13 +5,12 @@
 //! compiler. tests/conformance.rs with TURBO_TEST_DEVICE=npu holds the
 //! vectors to the bundle's reference.
 //!
-//! Built with the `npu` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none; nothing is run
-//! on anything else in its place. With TURBO_TEST_REQUIRE_NPU=1 it fails
-//! instead, so a run on an NPU machine cannot pass by finding no device.
-//! The tests that need a bundle with an IR for the npu backend are
-//! ignored unless asked for, and read it from TURBO_TEST_BUNDLE.
-//! docs/npu.md says how to run them.
+//! Built with the `npu` feature only. A test that needs a device fails when
+//! the backend lists none; nothing is run on anything else in its place.
+//! TURBO_TEST_REQUIRE_NPU=0 lets it say it was skipped, and pass. The tests
+//! that need a bundle with an IR for the npu backend are ignored unless
+//! asked for, and read it from TURBO_TEST_BUNDLE. docs/npu.md says how to
+//! run them.
 
 #![cfg(feature = "npu")]
 

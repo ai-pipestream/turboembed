@@ -14,8 +14,8 @@
 //! SKIPS, and passes, on any checkout that is not a clean pushed commit,
 //! the only tree the tool measures from: a green run there has checked
 //! nothing. TURBO_BENCH_REQUIRE_RECORD=1 makes that a failure instead.
-//! Skips the same way where the backend lists no device
-//! (TURBO_TEST_REQUIRE_LEVELZERO=1 fails instead).
+//! Where the backend lists no device it fails, unless
+//! TURBO_TEST_REQUIRE_LEVELZERO=0 lets it skip.
 
 #![cfg(feature = "levelzero-onednn")]
 
@@ -104,8 +104,10 @@ fn fallback_lines(target: &Path, args: &[&str], choices: Option<&str>) -> Vec<St
 fn each_measuring_command_says_once_when_onednn_cannot_open() {
     let test = "each_measuring_command_says_once_when_onednn_cannot_open";
     if turbo_bench::api::Runtime::create().unwrap().find("levelzero").is_err() {
-        let required = std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1");
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "{test}: the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("{test}: skipped: the levelzero-onednn feature is on and the levelzero backend lists no device");
         return;
     }

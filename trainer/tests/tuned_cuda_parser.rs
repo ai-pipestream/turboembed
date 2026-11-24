@@ -1,5 +1,7 @@
 //! The tuned parser's CUDA path against its CPU reference, including
 //! subword pooling, dropout, loss scaling and trainable adapter slots.
+//! With the `cuda` feature a machine with no CUDA device fails the tests,
+//! unless TURBO_TEST_REQUIRE_CUDA=0 lets them skip.
 
 #![cfg(any(feature = "cuda", feature = "cuda-shim"))]
 
@@ -60,8 +62,10 @@ fn device(test: &str) -> Option<i32> {
     match CudaEncoder::device_count() {
         Ok(n) if n > 0 => Some(0),
         other => {
-            let required = std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| !v.is_empty() && v != "0");
-            assert!(!required, "{test}: CUDA was required but no device is available: {other:?}");
+            assert!(
+                turbo_pins::device_skip_allowed("cuda"),
+                "{test}: no CUDA device is available ({other:?}); TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+            );
             eprintln!("{test}: skipped, no CUDA device");
             None
         }

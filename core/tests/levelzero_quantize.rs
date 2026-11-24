@@ -1,8 +1,8 @@
 //! Level Zero int8 and ubinary kernels against `core/src/quantize.rs`.
 //!
 //! Built with the `levelzero` feature only. Needs
-//! TURBO_TEST_DEVICE=levelzero; with TURBO_TEST_REQUIRE_LEVELZERO=1 it
-//! fails when none is listed. Device receipts:
+//! TURBO_TEST_DEVICE=levelzero, and then fails when the backend lists no
+//! device, unless TURBO_TEST_REQUIRE_LEVELZERO=0 lets it skip. Device receipts:
 //!   TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 \
 //!     cargo test -p turbo --features levelzero levelzero_quantize -- --nocapture
 

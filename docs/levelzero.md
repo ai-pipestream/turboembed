@@ -620,8 +620,10 @@ needs a device fails when the backend lists none: a build with the
 levelzero backend that finds no GPU has run nothing on one.
 `TURBO_TEST_REQUIRE_LEVELZERO=0` lets such a test pass with a line
 saying it was skipped, for a host that has no Intel GPU.
-`TURBO_TEST_REQUIRE_LEVELZERO=1` also fails the tests that run only
-under `TURBO_TEST_DEVICE=levelzero` when that is not set; set it on a
+Some tests run only under `TURBO_TEST_DEVICE=levelzero` and say they
+were skipped without it, so a green run with neither variable set is not
+a full device run. `TURBO_TEST_REQUIRE_LEVELZERO=1` fails those tests
+when `TURBO_TEST_DEVICE` is not set; set both on a
 machine with an Intel GPU.
 
 ```

@@ -9,9 +9,9 @@
 //! CPU at cosine 0.999 with every forced kernel choice.
 //!
 //! Built with the `metal` feature only, on macOS: the tests run on the
-//! first metal device, and say they were skipped when the backend lists
-//! none, as tests/metal.rs's do. With TURBO_TEST_REQUIRE_METAL=1 a test
-//! that finds no metal device fails instead.
+//! first metal device, and fail when the backend lists none, as
+//! tests/metal.rs's do. TURBO_TEST_REQUIRE_METAL=0 lets them say they were
+//! skipped, and pass.
 
 #![cfg(feature = "metal")]
 
@@ -42,8 +42,8 @@ fn required() -> bool {
 
 /// The first metal device, or None after saying the test is skipped.
 /// Without TURBO_TEST_DEVICE=metal every test here is skipped; with it, a
-/// runtime listing no metal device fails the test when
-/// TURBO_TEST_REQUIRE_METAL is set.
+/// runtime listing no metal device fails the test, unless
+/// TURBO_TEST_REQUIRE_METAL=0 lets it skip.
 fn device(test: &str) -> Option<u32> {
     match std::env::var("TURBO_TEST_DEVICE").as_deref() {
         Ok("metal") => {}

@@ -2,9 +2,9 @@
 //! and the CPU backend, one window per run and windows batched, with the
 //! span head on the device, as tests/cuda_qa.rs holds CUDA.
 //!
-//! Built with the `levelzero` feature only. A test that needs a device says
-//! it was skipped, and passes, when the backend lists none. With
-//! TURBO_TEST_REQUIRE_LEVELZERO=1 it fails instead.
+//! Built with the `levelzero` feature only. A test that needs a device
+//! fails when the backend lists none. TURBO_TEST_REQUIRE_LEVELZERO=0 lets
+//! it say it was skipped, and pass.
 
 #![cfg(feature = "levelzero")]
 

@@ -4,10 +4,9 @@
 //! computes in and what a run reports, and its vectors against the
 //! bundle's reference within the int8 floor.
 //!
-//! Built with the `hailo` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none; nothing is run on
-//! anything else in its place. With TURBO_TEST_REQUIRE_HAILO=1 it fails
-//! instead, so a run on a Hailo machine cannot pass by finding no device.
+//! Built with the `hailo` feature only. A test that needs a device fails
+//! when the backend lists none; nothing is run on anything else in its
+//! place. TURBO_TEST_REQUIRE_HAILO=0 lets it say it was skipped, and pass.
 //! The tests that need a bundle with a HEF are ignored unless asked for,
 //! and read it from TURBO_TEST_BUNDLE. docs/hailo.md says how to run them.
 

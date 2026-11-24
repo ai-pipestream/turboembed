@@ -7,8 +7,8 @@
 //! the issue saw TURBO_E_OUT_OF_MEMORY from the copy.
 //!
 //! Built with the `levelzero` feature only. Without a listed device the
-//! test says it was skipped; with TURBO_TEST_REQUIRE_LEVELZERO=1 it fails
-//! instead.
+//! test fails; TURBO_TEST_REQUIRE_LEVELZERO=0 lets it say it was skipped,
+//! and pass.
 
 #![cfg(feature = "levelzero")]
 

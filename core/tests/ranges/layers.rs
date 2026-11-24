@@ -197,7 +197,8 @@ fn agree_on(backend: &str, precision: u32, dir: &Path, deep: u32) {
 
 /// Every device whose cell sets field 9's bit, on every family the CPU
 /// reads the layers of, at MODEL and FASTEST, against the CPU; a device
-/// that is not listed is skipped, unless TURBO_TEST_REQUIRE_<BACKEND>=1.
+/// that is in the build and not listed fails the test, unless
+/// TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip.
 #[test]
 fn every_layer_on_a_device_matches_the_cpu() {
     for backend in devices().into_iter().filter(|b| READS_LAYERS.contains(b)) {

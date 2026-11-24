@@ -885,8 +885,10 @@ a device that runs embed fails when there is none: a build with the
 metal backend that finds no GPU has run nothing on one.
 `TURBO_TEST_REQUIRE_METAL=0` lets such a test pass with a line saying it
 was skipped, for a host whose GPU does not run embed.
-`TURBO_TEST_REQUIRE_METAL=1` also fails the tests that run only under
-`TURBO_TEST_DEVICE=metal` when that is not set; set it on Apple silicon.
+Some tests run only under `TURBO_TEST_DEVICE=metal` and say they were
+skipped without it, so a green run with neither variable set is not a
+full device run. `TURBO_TEST_REQUIRE_METAL=1` fails those tests when
+`TURBO_TEST_DEVICE` is not set; set both on Apple silicon.
 
 ```
 export TURBO_TEST_REQUIRE_METAL=1

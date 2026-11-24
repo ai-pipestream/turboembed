@@ -1,11 +1,11 @@
-//! The encoder on a CUDA device against the CPU encoder (#1519): the
-//! states and every weight's gradient within a stated tolerance, the
-//! same under dropout at a place, with adapters on the top layer and
-//! the base frozen, and under bfloat16 compute; and the weights put
-//! after a step. Built for the `cuda` feature, where it runs on the
-//! first device the runtime lists (TURBO_TEST_REQUIRE_CUDA=1 makes a
-//! machine without one fail instead of skipping), or `cuda-shim`, where
-//! the same kernels run as C++ on the host.
+//! The encoder on a CUDA device against the CPU encoder (#1519): the states
+//! and every weight's gradient within a stated tolerance, the same under
+//! dropout at a place, with adapters on the top layer and the base frozen,
+//! and under bfloat16 compute; and the weights put after a step. Built for
+//! the `cuda` feature, where it runs on the first device the runtime lists
+//! (a machine without one fails, unless TURBO_TEST_REQUIRE_CUDA=0 lets the
+//! test skip), or `cuda-shim`, where the same kernels run as C++ on the
+//! host.
 
 #![cfg(any(feature = "cuda", feature = "cuda-shim"))]
 

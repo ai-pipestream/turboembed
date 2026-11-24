@@ -3,10 +3,9 @@
 //! host memory, and weights read where the core holds them.
 //!
 //! Built with the `metal` feature only, on macOS. A test that needs a
-//! device that runs the kernels says it was skipped, and passes, when the
-//! backend lists none; nothing is run on anything else in its place. With
-//! TURBO_TEST_REQUIRE_METAL=1 it fails instead. docs/metal.md says how to
-//! run them.
+//! device that runs the kernels fails when the backend lists none; nothing
+//! is run on anything else in its place. TURBO_TEST_REQUIRE_METAL=0 lets it
+//! say it was skipped, and pass. docs/metal.md says how to run them.
 
 #![cfg(feature = "metal")]
 

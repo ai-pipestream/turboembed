@@ -1,8 +1,8 @@
 //! Metal int8 and ubinary kernels against `core/src/quantize.rs`.
 //!
-//! Built with the `metal` feature only. Needs TURBO_TEST_DEVICE=metal;
-//! with TURBO_TEST_REQUIRE_METAL=1 it fails when none is listed. Device
-//! receipts:
+//! Built with the `metal` feature only. Needs TURBO_TEST_DEVICE=metal, and
+//! then fails when the backend lists no device, unless
+//! TURBO_TEST_REQUIRE_METAL=0 lets it skip. Device receipts:
 //!   TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 \
 //!     cargo test -p turbo --features metal metal_quantize -- --nocapture
 

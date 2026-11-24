@@ -5,9 +5,9 @@
 //! has one attention kernel for the family, so there is no choice to force.
 //!
 //! Built with the `metal` feature only, on macOS: the tests run on the
-//! first metal device, and say they were skipped when the backend lists
-//! none, as tests/metal.rs's do. With TURBO_TEST_REQUIRE_METAL=1 a test
-//! that finds no metal device fails instead.
+//! first metal device, and fail when the backend lists none, as
+//! tests/metal.rs's do. TURBO_TEST_REQUIRE_METAL=0 lets them say they were
+//! skipped, and pass.
 
 #![cfg(feature = "metal")]
 

@@ -1,8 +1,8 @@
 //! CUDA int8 and ubinary kernels against `core/src/quantize.rs`.
 //!
-//! Built with the `cuda` feature only. Needs a device named by
-//! TURBO_TEST_DEVICE=cuda; with TURBO_TEST_REQUIRE_CUDA=1 it fails when
-//! none is listed. Device receipts:
+//! Built with the `cuda` feature only. Needs TURBO_TEST_DEVICE=cuda, and
+//! then fails when the backend lists no device, unless
+//! TURBO_TEST_REQUIRE_CUDA=0 lets it skip. Device receipts:
 //!   TURBO_TEST_DEVICE=cuda TURBO_TEST_REQUIRE_CUDA=1 \
 //!     cargo test -p turbo --features cuda cuda_quantize -- --nocapture
 

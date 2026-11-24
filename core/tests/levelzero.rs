@@ -9,10 +9,9 @@
 //! backend's range write for every other range.
 //!
 //! Built with the `levelzero` feature only. A test that needs a device
-//! says it was skipped, and passes, when the backend lists none; nothing is
-//! run on anything else in its place. With TURBO_TEST_REQUIRE_LEVELZERO=1
-//! it fails instead, so a run on a machine with an Intel GPU cannot pass by
-//! finding none. docs/levelzero.md says how to run them.
+//! fails when the backend lists none; nothing is run on anything else in
+//! its place. TURBO_TEST_REQUIRE_LEVELZERO=0 lets it say it was skipped,
+//! and pass. docs/levelzero.md says how to run them.
 
 #![cfg(feature = "levelzero")]
 

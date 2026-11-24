@@ -9,8 +9,9 @@
 //!
 //! Built with the `cuda` feature only. TURBO_TEST_DEVICE=cuda runs the
 //! tests on the first cuda device; without it they say they were skipped,
-//! as the other device tests do. With TURBO_TEST_REQUIRE_CUDA=1 a test
-//! that finds no cuda device, or is not told to use one, fails instead.
+//! as the other device tests do. A test told to use one fails when the
+//! backend lists none, unless TURBO_TEST_REQUIRE_CUDA=0 lets it skip; with
+//! TURBO_TEST_REQUIRE_CUDA=1 a test not told to use one fails too.
 
 #![cfg(feature = "cuda")]
 
@@ -48,7 +49,9 @@ fn required() -> bool {
 }
 
 /// Whether the test runs: TURBO_TEST_DEVICE=cuda and a cuda device listed;
-/// else it says it is skipped, or fails under TURBO_TEST_REQUIRE_CUDA.
+/// without the variable it says it is skipped, or fails under
+/// TURBO_TEST_REQUIRE_CUDA=1; with it and no device listed it fails, unless
+/// TURBO_TEST_REQUIRE_CUDA=0 lets it skip.
 fn device(test: &str) -> bool {
     match std::env::var("TURBO_TEST_DEVICE").as_deref() {
         Ok("cuda") => {}

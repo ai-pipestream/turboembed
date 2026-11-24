@@ -5,8 +5,9 @@
 //!
 //! Built with the `cuda` feature only. TURBO_TEST_DEVICE=cuda runs the
 //! tests on the first cuda device; without it they say they were skipped,
-//! as the other device tests do. With TURBO_TEST_REQUIRE_CUDA=1 a test
-//! that finds no cuda device, or is not told to use one, fails instead.
+//! as the other device tests do. A test told to use one fails when the
+//! backend lists none, unless TURBO_TEST_REQUIRE_CUDA=0 lets it skip; with
+//! TURBO_TEST_REQUIRE_CUDA=1 a test not told to use one fails too.
 
 #![cfg(feature = "cuda")]
 

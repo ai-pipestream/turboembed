@@ -1,9 +1,9 @@
-//! turbo::device::lstm on Level Zero, where a run fails partway (#860):
-//! an append refused after others were queued leaves nothing running on
-//! memory that is then freed or written, so the next run on the same
-//! workspace is the CPU form's again and every allocation is freed when
-//! the LSTMs and workspaces go. Without a listed device it says it was
-//! skipped; with TURBO_TEST_REQUIRE_LEVELZERO=1 it fails instead.
+//! turbo::device::lstm on Level Zero, where a run fails partway (#860): an
+//! append refused after others were queued leaves nothing running on memory
+//! that is then freed or written, so the next run on the same workspace is
+//! the CPU form's again and every allocation is freed when the LSTMs and
+//! workspaces go. Without a listed device it fails;
+//! TURBO_TEST_REQUIRE_LEVELZERO=0 lets it say it was skipped, and pass.
 
 #![cfg(feature = "levelzero")]
 
@@ -33,11 +33,15 @@ fn a_run_failed_partway_leaves_the_workspace_and_memory_whole() {
     let before = turbo::levelzero::live_allocations();
     let lstm = match Lstm::new(Device::LevelZero(0), input, hidden, &dirs) {
         Ok(l) => l,
-        Err(e) if std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").as_deref() != Ok("1") => {
+        Err(e) => {
+            assert!(
+                turbo_pins::device_skip_allowed("levelzero"),
+                "no LSTM on levelzero device 0 ({}); TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip",
+                e.message
+            );
             println!("skipped: no LSTM on levelzero device 0 ({})", e.message);
             return;
         }
-        Err(e) => panic!("TURBO_TEST_REQUIRE_LEVELZERO=1: {}", e.message),
     };
     let lengths = [40, 33, 12, 1];
     let rows: usize = lengths.iter().sum();

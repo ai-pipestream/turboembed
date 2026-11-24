@@ -2,10 +2,9 @@
 //! 128 queries on whole chunks and holes, layer norm in the GEMMs, and
 //! both FMA attentions.
 //!
-//! Built with the `cuda` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none; nothing is run
-//! on anything else in its place. With TURBO_TEST_REQUIRE_CUDA=1 it fails
-//! instead, so a run on a GPU machine cannot pass by finding no GPU.
+//! Built with the `cuda` feature only. A test that needs a device fails
+//! when the backend lists none; nothing is run on anything else in its
+//! place. TURBO_TEST_REQUIRE_CUDA=0 lets it say it was skipped, and pass.
 //! docs/cuda.md says how to run them; tests/cuda_support/ holds what the
 //! files share.
 
