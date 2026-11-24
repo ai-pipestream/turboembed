@@ -1,17 +1,21 @@
 //! Pluggable [`KbProvider`] backends ([`CatalogProvider`], [`GazetteerProvider`],
 //! [`WordNetProvider`], and [`GlossaryProvider`]) for candidate generation.
 
+mod gazetteer;
+mod wordnet;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use turbo_geo::{FuzzyStringScorer, Gazetteer};
 use turbo_glossary_layers::Glossary;
 use turbo_matcher::FuzzyMatchPolicy;
 use turbo_vector_index::Space;
-use turbo_wordnet::{HypernymTyper, LexicalKnowledgeBase, Synset, WordNetPos, WordNetRelation};
 
 use crate::kb::KnowledgeBase;
-use crate::similarity::{alias_similarity, extract_context_terms, fold_alias};
+use crate::similarity::{alias_similarity, fold_alias};
+
+pub use gazetteer::GazetteerProvider;
+pub use wordnet::WordNetProvider;
 
 /// An unscored candidate entity produced by a [`KbProvider`].
 #[derive(Clone, Debug, PartialEq)]
@@ -235,227 +239,6 @@ impl KbProvider for CatalogProvider {
 
     fn fingerprint(&self) -> u64 {
         self.kb.fingerprint()
-    }
-}
-
-/// [`KbProvider`] adapter over any [`turbo_geo::Gazetteer`].
-#[derive(Clone, Debug)]
-pub struct GazetteerProvider<G> {
-    provider_id: String,
-    gazetteer: G,
-    fuzzy_scorer: FuzzyStringScorer,
-}
-
-impl<G: Gazetteer> GazetteerProvider<G> {
-    pub fn new(provider_id: impl Into<String>, gazetteer: G) -> Self {
-        Self { provider_id: provider_id.into(), gazetteer, fuzzy_scorer: FuzzyStringScorer::default() }
-    }
-
-    pub fn gazetteer(&self) -> &G {
-        &self.gazetteer
-    }
-
-    fn entry_to_candidate(&self, entry: &turbo_geo::Entry<'_>, alias_prior: f64, sim: f64) -> RawCandidate {
-        let kb_id = format!("{}:{}", entry.source(), entry.record_id());
-        let pop = entry.population() as f64;
-        let popularity_prior = if pop > 0.0 { ((pop + 1.0).log10() / 8.0).clamp(0.1, 1.0) } else { 0.25 };
-        let mut entity_types = vec!["GPE".to_owned(), "LOC".to_owned()];
-        if let Some(fc) = entry.feature_class() {
-            entity_types.push(fc.to_owned());
-            if fc == "POI" {
-                entity_types.push("FAC".to_owned());
-            }
-        }
-        let mut terms = extract_context_terms(entry.name());
-        if let Some(cc) = entry.country_code() {
-            terms.push(cc.to_ascii_lowercase());
-        }
-        for c in entry.containment() {
-            terms.extend(extract_context_terms(c));
-        }
-        for alt in entry.alternate_names() {
-            terms.extend(extract_context_terms(alt));
-        }
-        terms.sort_unstable();
-        terms.dedup();
-
-        let mut related_ids = Vec::new();
-        if let Some(cc) = entry.country_code() {
-            related_ids.push(format!("country:{cc}"));
-        }
-        for c in entry.containment() {
-            related_ids.push(format!("region:{}", fold_alias(c)));
-        }
-
-        RawCandidate {
-            kb_id,
-            provider_id: self.provider_id.clone(),
-            canonical_name: entry.name().to_owned(),
-            matched_alias: entry.name().to_owned(),
-            alias_prior: alias_prior.clamp(0.0, 1.0),
-            popularity_prior,
-            match_similarity: sim.clamp(0.0, 1.0),
-            entity_types,
-            context_terms: terms,
-            related_ids,
-            vector_score: None,
-        }
-    }
-}
-
-impl<G: Gazetteer + Send + Sync> KbProvider for GazetteerProvider<G> {
-    fn provider_id(&self) -> &str {
-        &self.provider_id
-    }
-
-    fn generate_candidates(
-        &self,
-        mention_text: &str,
-        _query_vector: Option<(&Space, &[f32])>,
-        max_candidates: usize,
-        fuzzy_threshold: f64,
-    ) -> Vec<RawCandidate> {
-        if max_candidates == 0 || mention_text.trim().is_empty() {
-            return Vec::new();
-        }
-        let entries = self.gazetteer.lookup(mention_text);
-        if entries.is_empty() {
-            return Vec::new();
-        }
-        let total_weight: f64 = entries
-            .iter()
-            .enumerate()
-            .map(|(rank, e)| {
-                let pop_w = ((e.population() as f64) + 10.0).log10();
-                pop_w / ((rank + 1) as f64)
-            })
-            .sum();
-
-        let threshold = fuzzy_threshold.clamp(0.0, 1.0);
-        let mut out = Vec::new();
-        for (rank, entry) in entries.iter().enumerate() {
-            let sim = self.fuzzy_scorer.score_entry(mention_text, entry).max(if threshold <= 1.0 { 1.0 } else { 0.0 });
-            let pop_w = ((entry.population() as f64) + 10.0).log10() / ((rank + 1) as f64);
-            let prior = if total_weight > 0.0 { pop_w / total_weight } else { 1.0 / (entries.len() as f64) };
-            out.push(self.entry_to_candidate(entry, prior, sim));
-            if out.len() >= max_candidates {
-                break;
-            }
-        }
-        out
-    }
-
-    fn lookup_by_id(&self, kb_id: &str) -> Option<RawCandidate> {
-        let (source, record_id) = kb_id.split_once(':')?;
-        let entry = self.gazetteer.by_id(source, record_id)?;
-        Some(self.entry_to_candidate(&entry, 1.0, 1.0))
-    }
-}
-
-/// [`KbProvider`] adapter over any [`turbo_wordnet::LexicalKnowledgeBase`].
-#[derive(Clone, Debug)]
-pub struct WordNetProvider<L: LexicalKnowledgeBase> {
-    provider_id: String,
-    lexicon: L,
-    typer: Option<HypernymTyper<L>>,
-}
-
-impl<L: LexicalKnowledgeBase + Clone> WordNetProvider<L> {
-    pub fn new(provider_id: impl Into<String>, lexicon: L) -> Self {
-        Self { provider_id: provider_id.into(), lexicon, typer: None }
-    }
-
-    pub fn with_hypernym_typer(mut self, typer: HypernymTyper<L>) -> Self {
-        self.typer = Some(typer);
-        self
-    }
-
-    fn synset_to_candidate(&self, synset: &Synset, matched_alias: &str, rank: usize, total: usize) -> RawCandidate {
-        let rank_weight = 1.0 / ((rank + 1) as f64);
-        let norm: f64 = (0..total.max(1)).map(|i| 1.0 / ((i + 1) as f64)).sum();
-        let alias_prior = (rank_weight / norm.max(1e-9)).clamp(0.0, 1.0);
-        let popularity_prior = (1.0 / (1.0 + 0.35 * (rank as f64))).clamp(0.1, 1.0);
-
-        let mut entity_types = vec![synset.pos().file_suffix().to_ascii_uppercase(), "CONCEPT".to_owned()];
-        if let Some(typer) = &self.typer
-            && let Some(label) = typer.type_synset(synset.id())
-        {
-            entity_types.push(label.to_owned());
-        }
-
-        let mut context_terms = extract_context_terms(synset.gloss());
-        for lemma in synset.lemmas() {
-            context_terms.extend(extract_context_terms(lemma));
-        }
-        context_terms.sort_unstable();
-        context_terms.dedup();
-
-        let mut related_ids = Vec::new();
-        for rel in [
-            WordNetRelation::Hypernym,
-            WordNetRelation::InstanceHypernym,
-            WordNetRelation::MemberHolonym,
-            WordNetRelation::PartHolonym,
-            WordNetRelation::DomainTopic,
-        ] {
-            for target in synset.related(rel) {
-                related_ids.push(target.clone());
-            }
-        }
-
-        let canonical_name = synset.lemmas().first().cloned().unwrap_or_else(|| synset.id().to_owned());
-        RawCandidate {
-            kb_id: synset.id().to_owned(),
-            provider_id: self.provider_id.clone(),
-            canonical_name,
-            matched_alias: matched_alias.to_owned(),
-            alias_prior,
-            popularity_prior,
-            match_similarity: 1.0,
-            entity_types,
-            context_terms,
-            related_ids,
-            vector_score: None,
-        }
-    }
-}
-
-impl<L: LexicalKnowledgeBase + Clone + Send + Sync> KbProvider for WordNetProvider<L> {
-    fn provider_id(&self) -> &str {
-        &self.provider_id
-    }
-
-    fn generate_candidates(
-        &self,
-        mention_text: &str,
-        _query_vector: Option<(&Space, &[f32])>,
-        max_candidates: usize,
-        _fuzzy_threshold: f64,
-    ) -> Vec<RawCandidate> {
-        if max_candidates == 0 || mention_text.trim().is_empty() {
-            return Vec::new();
-        }
-        let mut synsets = Vec::new();
-        for pos in [WordNetPos::Noun, WordNetPos::Verb, WordNetPos::Adjective, WordNetPos::Adverb] {
-            for s in self.lexicon.lookup(mention_text, pos) {
-                if !synsets.iter().any(|existing: &&Synset| existing.id() == s.id()) {
-                    synsets.push(s);
-                }
-            }
-        }
-        let total = synsets.len();
-        synsets
-            .into_iter()
-            .take(max_candidates)
-            .enumerate()
-            .map(|(rank, s)| self.synset_to_candidate(s, mention_text, rank, total))
-            .collect()
-    }
-
-    fn lookup_by_id(&self, kb_id: &str) -> Option<RawCandidate> {
-        let synset = self.lexicon.synset(kb_id)?;
-        let name = synset.lemmas().first().map_or(kb_id, String::as_str);
-        Some(self.synset_to_candidate(synset, name, 0, 1))
     }
 }
 
