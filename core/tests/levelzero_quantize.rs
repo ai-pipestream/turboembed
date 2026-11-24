@@ -20,6 +20,7 @@ fn cases() -> Vec<(usize, Vec<f32>, Vec<f32>)> {
         (1, vec![f32::NAN], vec![0.0, 1.0]),
         (1, vec![f32::INFINITY], vec![0.0, 1.0]),
         (1, vec![f32::NEG_INFINITY], vec![0.0, 1.0]),
+        (4, vec![1.0, 2.0, f32::NAN, 3.0], vec![0.0; 8]),
         (4, vec![1.0, -1.0, 0.0, -0.0], vec![-2.0, -1.0, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0]),
         (
             9,
@@ -107,17 +108,29 @@ fn levelzero_codes_match_host_byte_for_byte() {
     assert!(b.buffer_quantize.is_some(), "levelzero offers buffer_quantize");
     for (dim, x, ranges) in cases() {
         for (q, code) in [(Quantization::Int8, TURBO_QUANTIZE_INT8), (Quantization::UBinary, TURBO_QUANTIZE_UBINARY)] {
+            let what = format!("levelzero {q:?} dim {dim} x={x:?}");
             let want = host_codes(q, &x, dim, &ranges);
             let mut got = vec![0u8; want.len()];
-            let run = quantize_via_table(b, code, &x, &ranges, dim, &mut got);
-            assert_eq!(got, want, "levelzero {q:?} dim {dim} x={x:?}");
-            // The codes buffer, and for int8 the pinned ranges, which are
-            // the only bytes sent; nothing is read back or made on the host.
+            let done = quantize_via_table(b, code, &x, &ranges, dim, &mut got);
+            // A value that is NaN or infinite is a broken run: refused,
+            // naming the first one, never coded (#2517).
+            if let Some(at) = x.iter().position(|v| !v.is_finite()) {
+                let e = done.err().unwrap_or_else(|| panic!("{what}: a value that is not finite was coded"));
+                assert_eq!(e.code, turbo::status::INTERNAL, "{what}: {e:?}");
+                let named = format!("row 0 is not finite at dimension {at}");
+                assert!(e.message.contains(&named), "{what}: {}", e.message);
+                continue;
+            }
+            let run = done.unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            assert_eq!(got, want, "{what}");
+            // The codes buffer, the finiteness check's device and pinned
+            // words, and for int8 the pinned ranges. The ranges and the
+            // check's word are the bytes sent, the check's word the only
+            // bytes read back; nothing is made on the host.
             let int8 = q == Quantization::Int8;
-            let what = format!("levelzero {q:?} dim {dim}");
-            assert_eq!(run.device_allocs, if int8 { 2 } else { 1 }, "{what}: device_allocs");
-            assert_eq!(run.h2d_bytes, if int8 { (2 * dim * 4) as u64 } else { 0 }, "{what}: h2d_bytes");
-            assert_eq!((run.host_allocs, run.d2h_bytes), (0, 0), "{what}: host_allocs and d2h_bytes");
+            assert_eq!(run.device_allocs, if int8 { 4 } else { 3 }, "{what}: device_allocs");
+            assert_eq!(run.h2d_bytes, 4 + if int8 { (2 * dim * 4) as u64 } else { 0 }, "{what}: h2d_bytes");
+            assert_eq!((run.host_allocs, run.d2h_bytes), (0, 4), "{what}: host_allocs and d2h_bytes");
         }
     }
 }
@@ -129,7 +142,7 @@ fn quantize_via_table(
     ranges: &[f32],
     dim: usize,
     out: &mut [u8],
-) -> turbo::backend::turbo_backend_run {
+) -> Result<turbo::backend::turbo_backend_run, Failure> {
     let mut err = new_error();
     let mut run: turbo::backend::turbo_backend_run = unsafe { std::mem::zeroed() };
     let mut ctx = std::ptr::null_mut();
@@ -161,16 +174,13 @@ fn quantize_via_table(
         std::ptr::copy_nonoverlapping(x.as_ptr(), host.cast::<f32>(), x.len());
     }
     let ranges_ptr = if quantization == TURBO_QUANTIZE_INT8 { ranges.as_ptr() } else { std::ptr::null() };
-    assert_eq!(
-        unsafe { (b.buffer_quantize.unwrap())(buf, quantization, ranges_ptr, 1, dim as u32, &mut run, &mut err) },
-        0,
-        "{:?}",
-        failure(0, &err)
-    );
-    unsafe {
-        std::ptr::copy_nonoverlapping(host.cast::<u8>(), out.as_mut_ptr(), out.len());
+    let rc = unsafe { (b.buffer_quantize.unwrap())(buf, quantization, ranges_ptr, 1, dim as u32, &mut run, &mut err) };
+    if rc == 0 {
+        unsafe {
+            std::ptr::copy_nonoverlapping(host.cast::<u8>(), out.as_mut_ptr(), out.len());
+        }
     }
     unsafe { (b.buffer_release.unwrap())(buf) };
     unsafe { (b.context_release.unwrap())(ctx) };
-    run
+    if rc == 0 { Ok(run) } else { Err(failure(rc, &err)) }
 }

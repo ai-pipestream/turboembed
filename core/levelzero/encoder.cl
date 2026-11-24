@@ -2000,6 +2000,17 @@ float divide_rn(float a, float b) {
 
 /* int8 and ubinary codes, bit for bit with core/src/quantize.rs. out is a
  * separate buffer so the write never races the read of x. */
+/* The flat index of the first of the n values of x that is NaN or
+ * infinite, as an atomic minimum into *at, which the host sets to INT_MAX
+ * first. buffer_quantize runs it before it codes an embed result, so a
+ * broken run is refused, never coded (#2517). The exponent bits are read,
+ * not isfinite, so no math flag can fold the test away. */
+__kernel void first_non_finite(__global const float *x, int n, __global int *at) {
+    for (long i = (long)get_global_id(0); i < n; i += (long)get_global_size(0)) {
+        if ((as_uint(x[i]) & 0x7f800000u) == 0x7f800000u) atomic_min(at, (int)i);
+    }
+}
+
 __kernel void quantize_int8(__global const float *x, __global const float *ranges, __global char *out, int rows,
                             int dim) {
     const size_t n = (size_t)rows * (size_t)dim;

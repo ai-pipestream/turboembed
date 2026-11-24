@@ -580,6 +580,10 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
  * bytes. */
 cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out);
 cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out);
+/* The flat index of the first of x's n values that is NaN or infinite, as
+ * an atomic minimum into the device int *at, which the caller sets to
+ * INT32_MAX first; *at is left INT32_MAX when every value is finite. */
+cudaError_t first_non_finite(cudaStream_t s, const float *x, int32_t n, int32_t *at);
 
 cudaError_t kernels_run_here();
 
