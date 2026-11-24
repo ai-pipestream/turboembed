@@ -283,7 +283,7 @@ fn run_progressive_task(
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     mut op: Operation,
 ) -> Option<(DocumentGraphResponse, Document)> {
-    let Answer { doc_id, offsets: proto_offsets, disclosure, binding, typed, metrics } = answer;
+    let Answer { mut doc_id, offsets: proto_offsets, disclosure, binding, typed, metrics } = answer;
     // Whether snapshots may carry graph bytes is decided for the request
     // before anything streams: a pipeline that will write PII findings
     // withholds them from the first snapshot on, since the text is the
@@ -313,7 +313,8 @@ fn run_progressive_task(
     let started = AnalyzeProgressiveEvent {
         sequence: seq,
         event: Some(Event::Started(AnalysisStarted {
-            doc_id: doc_id.clone(),
+            // Kept only for a typed projection to name; moved otherwise.
+            doc_id: if typed.is_some() { doc_id.clone() } else { std::mem::take(&mut doc_id) },
             offsets: proto_offsets,
             step_ids: analyzer.step_ids().into_iter().map(str::to_owned).collect(),
             views: initial_export.views.iter().map(|r| view_info(&initial_export, r)).collect(),
@@ -454,7 +455,11 @@ fn run_progressive_task(
     // (docs/grpc-sink.md); the client is answered under the request's.
     let full = export_document_response(&doc, &Disclosure::FULL);
     let answered = if disclosure.graph(&doc) { full.clone() } else { export_document_response(&doc, &disclosure) };
-    let projected = typed.map(|t| typed::project(&doc_id, &doc, t, binding.as_ref(), &op.key, &disclosure)).transpose();
+    let projected = match (&full, typed) {
+        (Ok(f), Some(t)) => typed::project(&doc_id, &f.graph, t, binding.as_ref(), &op.key, &disclosure).map(Some),
+        // Unasked, or the export failed, which is the stream's answer.
+        _ => Ok(None),
+    };
     match full.and_then(|full| answered.and_then(|complete| projected.map(|t| (full, complete, t)))) {
         Ok((full, mut complete, projected)) => {
             // The client's findings projection carries the request's binding.

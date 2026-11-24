@@ -53,9 +53,14 @@ and `offsets`, issue #2517 F15) gets the typed projection of that final
 graph in `DocumentGraphResponse.typed` on the same event: the
 `TypedDocumentResult` `InspectDocumentGraph` answers for the same graph,
 view and offsets, under the request's `pii_output`, with its
-`binding`, and with its `operation_key` on the receipt. A `view` past `u16::MAX` is `TURBO_E_INVALID_ARGUMENT` naming
-field 18 before anything runs, and a view the graph does not hold fails
-the stream when the projection is made. Unset, `typed` is absent.
+`binding`, and with its `operation_key` on the receipt. It is made from
+the final graph's exported bytes, as `InspectDocumentGraph` makes it, so
+its layers, provenance and receipt come in the graph's order, not the
+order the steps wrote them. A `view` past `u16::MAX` is
+`TURBO_E_INVALID_ARGUMENT` naming field 18 before anything runs, and a
+view the graph does not hold fails the stream `TURBO_E_INVALID_ARGUMENT`
+when the projection is made, after every step ran, with no Complete
+event. Unset, `typed` is absent.
 
 A request may specify either an explicit `steps` list or a named, versioned
 `profile` (`AnalyzeDocumentProgressiveRequest.profile`). `Capabilities` lists
