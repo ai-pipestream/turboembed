@@ -410,6 +410,38 @@ fn sessions_on_one_context_run_from_many_threads() {
     });
 }
 
+/// Sessions opened (each capturing its graphs) while another thread makes
+/// and releases contexts: releasing a context's cuBLAS handle synchronizes
+/// the device, which must not land inside another thread's capture.
+#[test]
+fn sessions_open_while_other_contexts_come_and_go() {
+    let _t = turn();
+    let test = "sessions_open_while_other_contexts_come_and_go";
+    let Some(device) = cuda_device(test) else { return };
+    if !cublas_or_skip(test, "making contexts beside a capture") {
+        return;
+    }
+    let l = on_cuda(&tiny_bundle());
+    let m = l.m as usize;
+    let done = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let rt = Rt::new();
+            while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                drop(context(&rt, device));
+            }
+        });
+        for i in 0..200 {
+            let opened = Session::create(m as *mut turbo_model, None);
+            if opened.is_err() {
+                done.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            assert!(opened.is_ok(), "session {i}: {:?}", opened.err());
+        }
+        done.store(true, std::sync::atomic::Ordering::Relaxed);
+    });
+}
+
 /// An output_dim the bundle lists is cut, then normalized, on the device.
 #[test]
 fn an_output_dim_is_cut_then_normalized_on_the_device() {
