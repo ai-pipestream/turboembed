@@ -9,6 +9,7 @@ use device_support::*;
 use turbo::safetensors::File;
 use turbo_analysis::ModelRef;
 use turbo_relation::encoder::{DebertaEncoder, EncoderStates};
+use turbo_relation::gliner2::heads::sigmoid;
 use turbo_relation::{gliner2, glirel};
 use turbo_scratch::Scratch;
 
@@ -66,15 +67,11 @@ fn gliner2_relations_score_as_on_the_cpu_encoder() {
             if a.len() > 1 {
                 held.extend(same_decisions(&a, &b, BOUND, text));
             }
-            // Extraction at a threshold half of the spans pass, none at it.
-            let sig = |x: f32| 1.0 / (1.0 + (-x).exp());
-            let t = midpoint(a.iter().flat_map(|r| r.iter().map(|&x| sig(x))).collect());
+            // Extraction at a threshold half of the spans pass.
+            let t = midpoint(a.iter().flat_map(|r| r.iter().map(|&x| sigmoid(x))).collect());
             let (x, y) = (cpu.extract(text, &labels, t).unwrap(), on.extract(text, &labels, t).unwrap());
-            let ends = |v: &[gliner2::Extracted]| {
-                v.iter().map(|x| (x.label, x.head.start, x.head.end, x.tail.start, x.tail.end)).collect::<Vec<_>>()
-            };
-            assert_eq!(ends(&x), ends(&y), "{text}: extracted relations at {t}");
-            found += x.len();
+            let counts: Vec<usize> = want.labels.iter().map(|l| l.count).collect();
+            found += same_extractions(&counts, &a, &b, t, (&x, &y), text);
         }
     }
     assert!(found > 0, "no relation extracted on either side");
@@ -89,6 +86,47 @@ fn gliner2_relations_score_as_on_the_cpu_encoder() {
         x.precision,
         reps()
     );
+}
+
+/// The relations `extract` gave at `t` on the CPU (`x.0`) and the device
+/// (`x.1`), instance by instance in the order it gives them, from the head
+/// and tail rows `a` and `b` of each label's `counts` instances. They are
+/// compared where the CPU's choice is clear: the best span of the head row
+/// and of the tail row each holds its margin ([`decisions`]), and each
+/// row's best logit is more than twice the bound from `t`'s. A device
+/// within the bound may take either side of a closer call, as
+/// [`same_decisions`] allows. Returns the relations compared.
+fn same_extractions(
+    counts: &[usize],
+    a: &[&[f32]],
+    b: &[&[f32]],
+    t: f32,
+    x: (&[gliner2::Extracted], &[gliner2::Extracted]),
+    text: &str,
+) -> usize {
+    let held = decisions(a, BOUND);
+    let at_t = (t / (1.0 - t)).ln();
+    let top = |r: &[f32]| r.iter().copied().filter(|v| v.is_finite()).fold(f32::NEG_INFINITY, f32::max);
+    // Whether `decode` extracts from the row: a span at or over `t`.
+    let over = |r: &[f32]| r.iter().any(|&v| v.is_finite() && sigmoid(v) >= t);
+    let clear = |r: &[f32]| (top(r) - at_t).abs() > 2.0 * BOUND * top(r).abs().max(1.0);
+    let ends = |e: &gliner2::Extracted| (e.label, e.head.start, e.head.end, e.tail.start, e.tail.end);
+    let (mut xs, mut ys) = (x.0.iter(), x.1.iter());
+    let (mut row, mut compared) = (0, 0);
+    for (label, &count) in counts.iter().enumerate() {
+        for inst in 0..count {
+            let (h, tl) = (row, row + 1);
+            let want = (over(a[h]) && over(a[tl])).then(|| xs.next().expect("a cpu relation per instance"));
+            let got = (over(b[h]) && over(b[tl])).then(|| ys.next().expect("a device relation per instance"));
+            if held[h].is_some() && held[tl].is_some() && clear(a[h]) && clear(a[tl]) {
+                assert_eq!(want.map(ends), got.map(ends), "{text}: label {label} instance {inst}: relation at {t}");
+                compared += usize::from(want.is_some());
+            }
+            row += 2;
+        }
+    }
+    assert!(xs.next().is_none() && ys.next().is_none(), "{text}: relations past the instances");
+    compared
 }
 
 #[test]
