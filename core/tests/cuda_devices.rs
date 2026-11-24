@@ -72,7 +72,10 @@ fn the_devices_listed_are_the_drivers() {
     assert_eq!(unsafe { turbo_runtime_device_count(rt.0, &mut n, null_err()) }, 0);
     let listed: Vec<turbo_device_info> = (0..n).map(|i| rt.info(i)).filter(|d| field(&d.backend) == "cuda").collect();
     if listed.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("cuda"),
+            "the cuda backend lists no device; TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+        );
         println!("the cuda backend lists no device: nothing to check but that the runtime was made");
         assert!(n >= 1, "the cpu is still listed");
         return;

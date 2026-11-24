@@ -53,7 +53,10 @@ fn device(test: &str) -> Option<u32> {
     let d = first_of(rt, "cuda");
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("cuda"),
+            "{test}: the cuda backend lists no device; TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+        );
         println!("{test}: skipped: the cuda backend lists no device");
     }
     d

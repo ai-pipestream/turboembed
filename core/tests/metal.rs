@@ -43,7 +43,10 @@ fn the_gpu_is_listed_with_what_metal_says_about_it() {
     let rt = Rt::new();
     let metal = rt.metal();
     if metal.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "the metal backend lists no device; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         return println!("skipped: the metal backend lists no device");
     }
     for (ordinal, &i) in metal.iter().enumerate() {
@@ -88,7 +91,10 @@ fn ordinals_name_the_same_device_in_every_runtime() {
 fn nothing_but_memory_free_differs_between_queries() {
     let rt = Rt::new();
     let Some(&i) = rt.metal().first() else {
-        assert!(!required(), "TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "the metal backend lists no device; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         return println!("skipped: the metal backend lists no device");
     };
     let (mut a, mut b) = (rt.info(i), rt.info(i));
@@ -123,7 +129,10 @@ fn the_table_refuses_an_ordinal_it_did_not_list() {
 fn a_reason_fits_the_buffer_it_is_given() {
     let b = table();
     if Rt::new().metal().is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "the metal backend lists no device; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         return println!("skipped: the metal backend lists no device");
     }
     let (mut st, mut dt, mut oh) = (0, 0, 0);

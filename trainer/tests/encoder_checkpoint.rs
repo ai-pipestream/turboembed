@@ -183,15 +183,14 @@ mod cuda {
     use super::*;
     use turbo_trainer::encoder::cuda::CudaEncoder;
 
-    fn required() -> bool {
-        std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| !v.is_empty() && v != "0")
-    }
-
     fn device(test: &str) -> Option<i32> {
         match CudaEncoder::device_count() {
             Ok(n) if n > 0 => Some(0),
             other => {
-                assert!(!required(), "{test}: TURBO_TEST_REQUIRE_CUDA=1 and the runtime lists no device: {other:?}");
+                assert!(
+                    turbo_pins::device_skip_allowed("cuda"),
+                    "{test}: the runtime lists no device: {other:?}; TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+                );
                 eprintln!("{test}: skipped, the runtime lists no device");
                 None
             }

@@ -38,8 +38,10 @@ fn gpu_device(test: &str) -> Option<u32> {
     let d = first_of(rt, "metal");
     unsafe { turbo::turbo_runtime_release(rt) };
     if d.is_none() {
-        let required = std::env::var("TURBO_TEST_REQUIRE_METAL").is_ok_and(|v| v == "1");
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "{test}: the metal backend lists no device; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         println!("{test}: skipped: the metal feature is on and the metal backend lists no device");
     }
     d

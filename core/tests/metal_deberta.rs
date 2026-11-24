@@ -33,10 +33,6 @@ fn turn() -> MutexGuard<'static, ()> {
     ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_METAL").is_ok_and(|v| !v.is_empty() && v != "0")
-}
-
 /// The first metal device, or None after saying the test is skipped, as
 /// tests/metal.rs skips: the metal feature is on and the backend lists no
 /// device. TURBO_TEST_DEVICE, when set, must name metal.
@@ -51,7 +47,10 @@ fn device(test: &str) -> Option<u32> {
     let d = first_of(rt, "metal");
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "{test}: the metal backend lists no device; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         println!("{test}: skipped: the metal backend lists no device");
     }
     d

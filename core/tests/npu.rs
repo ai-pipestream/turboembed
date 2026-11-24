@@ -63,17 +63,15 @@ impl Drop for Rt {
     }
 }
 
-/// TURBO_TEST_REQUIRE_NPU=1: a test that finds no device fails.
-fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_NPU").is_ok_and(|v| v == "1")
-}
-
 /// The runtime's first npu device, or None after saying the test is
 /// skipped.
 fn npu_device(rt: &Rt, test: &str) -> Option<u32> {
     let d = rt.npu().first().copied();
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_NPU=1 and the npu backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("npu"),
+            "{test}: the npu backend lists no device; TURBO_TEST_REQUIRE_NPU=0 lets the test skip"
+        );
         println!("{test}: skipped: the npu feature is on and the npu backend lists no device");
     }
     d
@@ -113,7 +111,10 @@ fn the_devices_listed_are_npus_that_answered_the_graph_probe() {
     let rt = Rt::new();
     let listed = rt.npu();
     if listed.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_NPU=1 and the npu backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("npu"),
+            "the npu backend lists no device; TURBO_TEST_REQUIRE_NPU=0 lets the test skip"
+        );
         println!("the npu backend lists no device: nothing to check but that the runtime was made");
         return;
     }

@@ -38,8 +38,10 @@ fn models_load_at_once_on_several_contexts() {
     let listed = first_of(rt, "levelzero").is_some();
     unsafe { turbo::turbo_runtime_release(rt) };
     if !listed {
-        let required = std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1");
-        assert!(!required, "TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("skipped: the levelzero backend lists no device");
         return;
     }

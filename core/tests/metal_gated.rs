@@ -59,7 +59,10 @@ fn device(test: &str) -> Option<u32> {
     let d = first_of(rt, "metal");
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_METAL=1 and the metal backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "{test}: the metal backend lists no device; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         println!("{test}: skipped: the metal backend lists no device");
     }
     d

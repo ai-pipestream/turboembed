@@ -201,17 +201,15 @@ impl Drop for Rt {
     }
 }
 
-/// TURBO_TEST_REQUIRE_LEVELZERO=1: a test that finds no device fails.
-fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1")
-}
-
 /// The first levelzero device, or None after saying the test is skipped.
 fn gpu_device(test: &str) -> Option<u32> {
     let rt = Rt::new();
     let d = first_of(rt.0, "levelzero");
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "{test}: the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("{test}: skipped: the levelzero feature is on and the levelzero backend lists no device");
     }
     d

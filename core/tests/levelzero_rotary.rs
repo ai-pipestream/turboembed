@@ -58,7 +58,10 @@ fn device(test: &str) -> bool {
     let d = first_of(rt, "levelzero");
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "{test}: the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("{test}: skipped: the levelzero backend lists no device");
     }
     d.is_some()

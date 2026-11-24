@@ -74,17 +74,15 @@ impl Drop for Rt {
     }
 }
 
-/// TURBO_TEST_REQUIRE_HAILO=1: a test that finds no device fails.
-fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_HAILO").is_ok_and(|v| v == "1")
-}
-
 /// The runtime's first hailo device, or None after saying the test is
 /// skipped.
 fn hailo_device(rt: &Rt, test: &str) -> Option<u32> {
     let d = rt.hailo().first().copied();
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_HAILO=1 and the hailo backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("hailo"),
+            "{test}: the hailo backend lists no device; TURBO_TEST_REQUIRE_HAILO=0 lets the test skip"
+        );
         println!("{test}: skipped: the hailo feature is on and the hailo backend lists no device");
     }
     d
@@ -142,7 +140,10 @@ fn the_devices_listed_are_the_ones_hailort_scans() {
     let listed = rt.hailo();
     let scanned = scanned();
     if listed.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_HAILO=1 and the hailo backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("hailo"),
+            "the hailo backend lists no device; TURBO_TEST_REQUIRE_HAILO=0 lets the test skip"
+        );
         assert!(scanned.is_empty(), "HailoRT scans {scanned:?} and the backend lists none: see the runtime's log");
         println!("the hailo backend lists no device: nothing to check but that the runtime was made");
         return;

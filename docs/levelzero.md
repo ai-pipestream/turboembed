@@ -615,11 +615,14 @@ copies by 0.012 to 0.016 ms, and oneDNN's LayerNorms by up to 0.05 ms.
 
 ## Testing on a machine with an Intel GPU
 
-From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
-in `core/tests/levelzero.rs` that needs a device fail when the backend
-lists none, where without it the test passes with a line saying it was
-skipped; set it on a machine with an Intel GPU, so a run that found none
-cannot pass.
+From the workspace root. Every test in `core/tests/levelzero*.rs` that
+needs a device fails when the backend lists none: a build with the
+levelzero backend that finds no GPU has run nothing on one.
+`TURBO_TEST_REQUIRE_LEVELZERO=0` lets such a test pass with a line
+saying it was skipped, for a host that has no Intel GPU.
+`TURBO_TEST_REQUIRE_LEVELZERO=1` also fails the tests that run only
+under `TURBO_TEST_DEVICE=levelzero` when that is not set; set it on a
+machine with an Intel GPU.
 
 ```
 export TURBO_TEST_REQUIRE_LEVELZERO=1

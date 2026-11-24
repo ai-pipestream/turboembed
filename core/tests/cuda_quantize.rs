@@ -90,7 +90,10 @@ fn require_or_skip(test: &str, backend: &str, var: &str) -> bool {
     let d = first_of(rt, backend);
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_{var}=1 and the {backend} backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed(backend),
+            "{test}: the {backend} backend lists no device; TURBO_TEST_REQUIRE_{var}=0 lets the test skip"
+        );
         println!("{test}: skipped: the {backend} backend lists no device");
         return false;
     }
