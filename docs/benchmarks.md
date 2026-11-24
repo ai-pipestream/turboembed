@@ -1264,8 +1264,10 @@ machine, backend, mode, subject and commit:
   name in it: the commands run name the real paths, and the records name
   only the placeholders.
 - `tree.rs`: the committed records, range records and part-of-speech
-  records against their names and checks, the paths the docs name, and
-  no host path in committed text.
+  records against their names and checks, the paths the docs name,
+  no host path in committed text, and the evaluation records under
+  `analysis/eval/records` as clean text: UTF-8 with LF line ends, no
+  host path, and no build tool output outside the logs.
 - `runners.rs`: the reference programs' commands, argument by argument;
   their output parsed from examples in the form TEI, trtexec and
   benchmark_app print it; which programs each backend gets; and the
