@@ -210,26 +210,31 @@ fn poisoned(name: &str) -> Fixture {
     f
 }
 
-/// What a run of `l`'s model, F32 or coded as `quantization`, answers: a
-/// broken run is refused, by the run or by the read, never sent (#2517).
-fn refusal(l: &Loaded, dir: &std::path::Path, what: &str, quantization: u32) -> Failure {
+/// What a run of model `m`, F32 or coded as `quantization`, answers: the
+/// bytes read, or the refusal of the run or of the read.
+fn answer(m: *mut turbo_model, dir: &std::path::Path, what: &str, quantization: u32) -> Result<Vec<u8>, Failure> {
     let tok = Tok::create(dir).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let t = Tokens::new(&rows, 0);
-    let s = Session::create(l.m, None).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    let s = Session::create(m, None).unwrap_or_else(|e| panic!("{what}: {e:?}"));
     let ranges = [vec![-1.0f32; 8], vec![1.0f32; 8]].concat();
     let r = (quantization == TURBO_QUANTIZE_INT8).then_some(&ranges[..]);
     s.write_tokens(&t.batch(), Some(&with(8, quantization, r))).unwrap();
-    let r = match s.run() {
-        Err(e) => return e,
-        Ok(r) => r,
-    };
+    let r = s.run()?;
     let info = r.info();
     let mut out = vec![0u8; info.bytes as usize];
     let mut err = new_error();
     let rc = unsafe { turbo_result_read(r.0, out.as_mut_ptr().cast(), info.bytes, ptr::null_mut(), &mut err) };
-    assert_ne!(rc, 0, "{what}: a run that is not finite was answered: {out:?}");
-    failure(rc, &err)
+    if rc == 0 { Ok(out) } else { Err(failure(rc, &err)) }
+}
+
+/// What a run of `l`'s model answers: a broken run is refused, by the run
+/// or by the read, never sent (#2517).
+fn refusal(l: &Loaded, dir: &std::path::Path, what: &str, quantization: u32) -> Failure {
+    match answer(l.m, dir, what, quantization) {
+        Err(e) => e,
+        Ok(out) => panic!("{what}: a run that is not finite was answered: {out:?}"),
+    }
 }
 
 fn refused_everywhere(l: &Loaded, dir: &std::path::Path, backend: &str) {
@@ -260,4 +265,18 @@ fn a_run_that_is_not_finite_is_refused_on_the_device_whatever_its_codes() {
     let f = poisoned("quantized-not-finite-device");
     let l = f.load_on(|rt| first_of(rt, backend).expect("a device")).unwrap_or_else(|e| panic!("{e:?}"));
     refused_everywhere(&l, &f.dir, backend);
+    // A finite model on the same context is coded after the refusals: the
+    // check word the context keeps is set again before every launch, so no
+    // earlier run's bad value is read.
+    let good = Fixture::model("quantized-finite-after-refusal");
+    good.write();
+    let mut m = ptr::null_mut();
+    let mut err = new_error();
+    let rc = unsafe { turbo_model_load(l.ctx, text(good.dir.to_str().unwrap()), &mut m, &mut err) };
+    assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    let good_model = Loaded::model(m);
+    for (quantization, name) in [(TURBO_QUANTIZE_INT8, "int8"), (TURBO_QUANTIZE_UBINARY, "ubinary")] {
+        let what = format!("{backend} {name} after the refusals");
+        answer(good_model.m, &good.dir, &what, quantization).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    }
 }
