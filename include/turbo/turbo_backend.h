@@ -625,8 +625,8 @@ typedef struct turbo_backend {
      * before it calls. When run is not NULL the call adds its own
      * allocations to its host_allocs and device_allocs, the bytes it
      * sends to the device (the int8 ranges, where the device has memory
-     * of its own) to its h2d_bytes, and any bytes it reads back (such a
-     * check's) to its d2h_bytes. */
+     * of its own) to its h2d_bytes, and any bytes it reads back to its
+     * d2h_bytes. */
     int32_t (*buffer_quantize)(void *buf, uint32_t quantization, const float *int8_ranges,
                                uint32_t rows, uint32_t dim, turbo_backend_run *run, turbo_error *err);
 } turbo_backend;

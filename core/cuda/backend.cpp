@@ -469,11 +469,12 @@ struct Context {
     cudaStream_t stream = nullptr;
     cublasHandle_t blas = nullptr;
     void *workspace = nullptr;
-    /* buffer_quantize's word for the first value that is not finite, on
-     * the device, and its pinned host copy; kept at INT32_MAX between
-     * runs, so a run that finds none writes nothing to it. */
-    int32_t *bad = nullptr;
+    /* buffer_quantize's check word: mapped, pinned host memory the
+     * quantize kernels store the index of a value that is not finite in,
+     * and the device's address for it. The host sets it to INT32_MAX
+     * before each launch, so a run of finite values sends nothing back. */
     int32_t *bad_host = nullptr;
+    int32_t *bad = nullptr;
     std::mutex lock;
 
     TURBO_PRINTF(3, 4) void say(uint32_t level, const char *fmt, ...) {
@@ -500,7 +501,6 @@ void release_context(Context *c) {
 #endif
     if (c->stream) cudaStreamDestroy(c->stream);
     if (c->workspace) cudaFree(c->workspace);
-    if (c->bad) cudaFree(c->bad);
     if (c->bad_host) cudaFreeHost(c->bad_host);
     delete c;
 }
@@ -516,12 +516,11 @@ int32_t context_create(uint32_t ordinal, turbo_log_fn log, void *log_user_data, 
             cudaDeviceProp p;
             TRY_CUDA(cudaGetDeviceProperties(&p, (int)ordinal), "cudaGetDeviceProperties");
             TRY_CUDA(cudaStreamCreateWithFlags(&c->stream, cudaStreamNonBlocking), "cudaStreamCreateWithFlags");
-            TRY_CUDA(device_malloc(reinterpret_cast<void **>(&c->bad), sizeof *c->bad), "buffer_quantize's check word");
-            TRY_CUDA(cudaMallocHost(reinterpret_cast<void **>(&c->bad_host), sizeof *c->bad_host),
-                     "buffer_quantize's check word on the host");
-            *c->bad_host = INT32_MAX;
-            TRY_CUDA(cudaMemcpy(c->bad, c->bad_host, sizeof *c->bad, cudaMemcpyHostToDevice),
+            TRY_CUDA(cudaHostAlloc(reinterpret_cast<void **>(&c->bad_host), sizeof *c->bad_host, cudaHostAllocMapped),
                      "buffer_quantize's check word");
+            *c->bad_host = INT32_MAX;
+            TRY_CUDA(cudaHostGetDevicePointer(reinterpret_cast<void **>(&c->bad), c->bad_host, 0),
+                     "the device's address for buffer_quantize's check word");
 #ifdef TURBO_CUDA_CUBLAS
             TRY_CUDA(device_malloc(&c->workspace, CUBLAS_WORKSPACE), "the cuBLAS workspace");
             TRY_CUBLAS(cublasCreate(&c->blas), "cublasCreate");
@@ -783,14 +782,15 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
  * the leading bytes of the same buffer, matching core/src/quantize.rs.
  * A temporary device allocation holds the codes so the write never races
  * the read of the floats. A value that is NaN or infinite is refused
- * TURBO_E_INTERNAL, naming its row and dimension: the kernels mark the
- * first in the context's check word, read back with the codes. When run
+ * TURBO_E_INTERNAL, naming a row and dimension that hold one: the
+ * kernels store its index straight into the context's check word, which
+ * lives in mapped host memory, so nothing is copied back for it. When run
  * is not NULL the allocations made here and the int8 ranges sent to the
- * device are added to it, and the check word's 4 bytes to d2h_bytes. */
+ * device are added to it. */
 int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
                         turbo_backend_run *run, turbo_error *err) {
     const uint64_t host0 = host_here, device0 = device_here;
-    uint64_t sent = 0, fetched = 0;
+    uint64_t sent = 0;
     const int32_t status = guarded(err, [&]() -> int32_t {
         Buffer *b = static_cast<Buffer *>(buf);
         if (rows == 0 || dim == 0) return TURBO_OK;
@@ -818,6 +818,9 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         cudaStream_t s = c->stream;
         void *codes = nullptr;
         TRY_CUDA(device_malloc(&codes, code_bytes), "codes for buffer_quantize");
+        // Set before every launch, so no earlier run's value can be read.
+        volatile int32_t *word = c->bad_host;
+        *word = INT32_MAX;
         float *ranges_dev = nullptr;
         int32_t rc = TURBO_OK;
         if (quantization == TURBO_QUANTIZE_INT8) {
@@ -840,27 +843,18 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         }
         if (rc == TURBO_OK) {
             cudaError_t e = cudaMemcpyAsync(b->ptr, codes, code_bytes, cudaMemcpyDeviceToDevice, s);
-            if (e == cudaSuccess) e = cudaMemcpyAsync(c->bad_host, c->bad, sizeof *c->bad, cudaMemcpyDeviceToHost, s);
             const cudaError_t done = cudaStreamSynchronize(s);
             if (e != cudaSuccess) rc = cuda_failed(err, e, "copying codes into the output buffer");
             else if (done != cudaSuccess) rc = cuda_failed(err, done, "copying codes into the output buffer");
-            else fetched = sizeof *c->bad;
         } else {
             (void)cudaStreamSynchronize(s);
         }
-        if (rc == TURBO_OK && *c->bad_host != INT32_MAX) {
-            const uint32_t at = (uint32_t)*c->bad_host;
-            // Back to INT32_MAX for the context's next run.
-            *c->bad_host = INT32_MAX;
-            const cudaError_t e = cudaMemcpyAsync(c->bad, c->bad_host, sizeof *c->bad, cudaMemcpyHostToDevice, s);
-            const cudaError_t done = cudaStreamSynchronize(s);
-            if (e != cudaSuccess || done != cudaSuccess)
-                rc = cuda_failed(err, e != cudaSuccess ? e : done, "resetting buffer_quantize's check word");
-            else
-                rc = refuse(err, TURBO_E_INTERNAL,
-                            "the model's output for row %u is not finite at dimension %u: the run is broken",
-                            at / dim, at % dim);
-        }
+        const int32_t at = *word;
+        *word = INT32_MAX;
+        if (rc == TURBO_OK && at != INT32_MAX)
+            rc = refuse(err, TURBO_E_INTERNAL,
+                        "the model's output for row %u is not finite at dimension %u: the run is broken",
+                        (uint32_t)at / dim, (uint32_t)at % dim);
         if (ranges_dev) cudaFree(ranges_dev);
         cudaFree(codes);
         return rc;
@@ -868,10 +862,7 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
     if (run) {
         run->host_allocs += host_here - host0;
         run->device_allocs += device_here - device0;
-        if (status == TURBO_OK) {
-            run->h2d_bytes += sent;
-            run->d2h_bytes += fetched;
-        }
+        if (status == TURBO_OK) run->h2d_bytes += sent;
     }
     return status;
 }

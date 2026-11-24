@@ -155,10 +155,7 @@ fn check(backend: &str, what: &str, mut write: impl FnMut(&turbo_embed_options) 
         // buffer_quantize only the codes cross the bus, and no staging
         // alloc is made for the f32 vectors.
         let device = fi.placement == TURBO_PLACE_DEVICE;
-        // cuda's and levelzero's buffer_quantize read back the context's
-        // word for a value that is not finite (#2517) with the codes.
-        let word = if device { 4 } else { 0 };
-        let fetched = if device { batch as u64 * q.row_bytes(dim) as u64 } else { 0 } + word;
+        let fetched = if device { batch as u64 * q.row_bytes(dim) as u64 } else { 0 };
         assert_eq!(qi.d2h_bytes, fi.d2h_bytes + fetched, "{what}: d2h_bytes, f32 placement {}", fi.placement);
         assert_eq!(qi.host_allocs, fi.host_allocs, "{what}: host_allocs (codes need no f32 staging)");
         let int8 = q == Quantization::Int8;
@@ -242,7 +239,10 @@ fn refused_everywhere(l: &Loaded, dir: &std::path::Path, backend: &str) {
         let what = format!("{backend} {name}");
         let e = refusal(l, dir, &what, quantization);
         assert_eq!(e.code, turbo::status::INTERNAL, "{what}: {e:?}");
-        assert!(e.message.contains("row 0 is not finite at dimension 0"), "{what}: {}", e.message);
+        // Every value of the poisoned model is NaN; the host names the
+        // first, a device kernel any one it stored.
+        let named = if backend == "cpu" { "row 0 is not finite at dimension 0" } else { "is not finite at dimension" };
+        assert!(e.message.contains(named), "{what}: {}", e.message);
     }
 }
 
