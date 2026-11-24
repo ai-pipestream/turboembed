@@ -156,7 +156,10 @@ old, or the device node is not there, the model is refused with
 `TURBO_E_DEVICE_NOT_FOUND` naming what the runtime does list, and the
 server exits at startup. It never loads on another device.
 `LoadBundle` takes the same choice as `device_name`, a backend
-(`DEVICE_BACKEND_*`) and an ordinal.
+(`DEVICE_BACKEND_*`) and an ordinal. The GLiNER and GLiNER2 relation
+package loaders run on CPU: they accept a named `cpu` and refuse any named
+accelerator with `TURBO_E_DEVICE_NOT_FOUND`. For these loaders, `select`
+and legacy numeric settings keep their existing CPU behavior.
 
 Device indices are the runtime's: every device of each linked backend,
 in the order `turbo_version()` lists the backends, the cpu last. With
