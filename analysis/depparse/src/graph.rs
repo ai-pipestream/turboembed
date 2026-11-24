@@ -63,12 +63,24 @@ pub struct PathStep<'a, A: WordOrTokenAnchor = Tokens> {
     pub direction: ArcDirection,
     pub relation: &'a str,
 }
+
+/// Outcome of a bounded shortest-path search in a [`DependencyGraph`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PathSearch {
+    /// Whether `u` and `v` connected within the caller's arc bound.
+    pub found: bool,
+    /// Parent-arc lookups performed during the search and path build.
+    pub arc_reads: usize,
+}
+
 /// An immutable validated forest, indexed in both directions. `new` requires a
 /// single sentence tree; `from_layer` permits a document forest, including empty.
 pub struct DependencyGraph<A: WordOrTokenAnchor = Tokens> {
     layer: Dependencies<A>,
     children: Vec<Vec<Ix<A>>>,
     roots: Vec<Ix<A>>,
+    depth: Vec<u32>,
+    root_of: Vec<u32>,
     pub(crate) label_encoding: crate::LabelEncoding,
 }
 impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
@@ -77,6 +89,8 @@ impl<A: WordOrTokenAnchor> Clone for DependencyGraph<A> {
             layer: self.layer.clone(),
             children: self.children.clone(),
             roots: self.roots.clone(),
+            depth: self.depth.clone(),
+            root_of: self.root_of.clone(),
             label_encoding: self.label_encoding,
         }
     }
@@ -120,10 +134,11 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
     pub fn from_layer(layer: Dependencies<A>) -> Result<Self> {
         layer.check().map_err(error)?;
         layer.check_forest().map_err(error)?;
-        if layer.head.len() > u32::MAX as usize {
+        let n = layer.head.len();
+        if n > u32::MAX as usize {
             return Err(error("too many nodes"));
         }
-        let mut children = vec![Vec::new(); layer.head.len()];
+        let mut children = vec![Vec::new(); n];
         let mut roots = Vec::new();
         for (i, head) in layer.head.iter().enumerate() {
             let node = Ix::new(i as u32);
@@ -133,7 +148,23 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                 roots.push(node);
             }
         }
-        Ok(Self { layer, children, roots, label_encoding: crate::LabelEncoding::Plain })
+        let mut depth = vec![0u32; n];
+        let mut root_of = vec![0u32; n];
+        let mut stack = Vec::new();
+        for &root in &roots {
+            let root_id = root.get() as u32;
+            root_of[root.get()] = root_id;
+            stack.push(root);
+            while let Some(u) = stack.pop() {
+                let next_depth = depth[u.get()] + 1;
+                for &child in &children[u.get()] {
+                    depth[child.get()] = next_depth;
+                    root_of[child.get()] = root_id;
+                    stack.push(child);
+                }
+            }
+        }
+        Ok(Self { layer, children, roots, depth, root_of, label_encoding: crate::LabelEncoding::Plain })
     }
     pub fn to_layer(&self) -> Dependencies<A> {
         self.layer.clone()
@@ -263,49 +294,87 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
         }
         true
     }
-    fn ancestors(&self, node: Ix<A>) -> Result<Vec<Ix<A>>> {
-        self.arc(node)?;
-        let mut out = Vec::new();
-        let mut at = Some(node);
-        while let Some(n) = at {
-            out.push(n);
-            at = self.layer.head[n.get()];
-        }
-        Ok(out)
+    fn read_head(&self, node: Ix<A>, arc_reads: &mut usize) -> Option<Ix<A>> {
+        *arc_reads += 1;
+        self.layer.head[node.get()]
     }
-    pub fn lowest_common_ancestor(&self, u: Ix<A>, v: Ix<A>) -> Result<Option<Ix<A>>> {
-        let a = self.ancestors(u)?;
-        let b = self.ancestors(v)?;
-        let mut common = None;
-        for (a, b) in a.iter().rev().zip(b.iter().rev()) {
-            if a != b {
-                break;
+
+    fn lca_bounded(&self, u: Ix<A>, v: Ix<A>, max_len: Option<usize>, arc_reads: &mut usize) -> Result<Option<Ix<A>>> {
+        if u.get() >= self.len() || v.get() >= self.len() {
+            return Err(error("node out of range"));
+        }
+        if self.root_of[u.get()] != self.root_of[v.get()] {
+            return Ok(None);
+        }
+        let cap = max_len.unwrap_or(usize::MAX);
+        let (mut a, mut b) = (u, v);
+        let (da, db) = (self.depth[a.get()], self.depth[b.get()]);
+        let mut steps = da.abs_diff(db) as usize;
+        if steps > cap {
+            return Ok(None);
+        }
+        for _ in 0..da.saturating_sub(db) {
+            a = self.read_head(a, arc_reads).expect("non-root node has head");
+        }
+        for _ in 0..db.saturating_sub(da) {
+            b = self.read_head(b, arc_reads).expect("non-root node has head");
+        }
+        while a != b {
+            steps = steps.saturating_add(2);
+            if steps > cap {
+                return Ok(None);
             }
-            common = Some(*a);
+            a = self.read_head(a, arc_reads).expect("connected nodes share an ancestor");
+            b = self.read_head(b, arc_reads).expect("connected nodes share an ancestor");
         }
-        Ok(common)
+        Ok(Some(a))
     }
-    /// `None` means distinct trees; invalid node indexes return an error.
-    pub fn shortest_path(&self, u: Ix<A>, v: Ix<A>) -> Result<Option<Vec<PathStep<'_, A>>>> {
-        let Some(lca) = self.lowest_common_ancestor(u, v)? else { return Ok(None) };
-        let mut out = Vec::new();
+
+    pub fn lowest_common_ancestor(&self, u: Ix<A>, v: Ix<A>) -> Result<Option<Ix<A>>> {
+        self.lca_bounded(u, v, None, &mut 0)
+    }
+
+    /// Writes the shortest undirected path from `u` to `v` into `out`,
+    /// clearing `out` first. `max_len` bounds the maximum arc count when set;
+    /// distinct trees or paths longer than `max_len` return `found = false`.
+    /// Invalid node indexes return an error.
+    pub fn shortest_path_into<'a>(
+        &'a self,
+        u: Ix<A>,
+        v: Ix<A>,
+        max_len: Option<usize>,
+        out: &mut Vec<PathStep<'a, A>>,
+    ) -> Result<PathSearch> {
+        out.clear();
+        let mut arc_reads = 0;
+        let Some(lca) = self.lca_bounded(u, v, max_len, &mut arc_reads)? else {
+            return Ok(PathSearch { found: false, arc_reads });
+        };
+        let up_len = (self.depth[u.get()] - self.depth[lca.get()]) as usize;
+        let down_len = (self.depth[v.get()] - self.depth[lca.get()]) as usize;
+        out.reserve(up_len + down_len);
         let mut n = u;
         while n != lca {
-            let arc = self.arc(n)?;
-            let head = arc.head.expect("ancestor exists");
-            out.push(PathStep { from: n, to: head, direction: ArcDirection::ToHead, relation: arc.relation });
+            let head = self.read_head(n, &mut arc_reads).expect("ancestor exists");
+            let relation = self.layer.relations.label(self.layer.relation[n.get()]);
+            out.push(PathStep { from: n, to: head, direction: ArcDirection::ToHead, relation });
             n = head;
         }
-        let mut tail = Vec::new();
         let mut n = v;
         while n != lca {
-            let arc = self.arc(n)?;
-            let head = arc.head.expect("ancestor exists");
-            tail.push(PathStep { from: head, to: n, direction: ArcDirection::ToDependent, relation: arc.relation });
+            let head = self.read_head(n, &mut arc_reads).expect("ancestor exists");
+            let relation = self.layer.relations.label(self.layer.relation[n.get()]);
+            out.push(PathStep { from: head, to: n, direction: ArcDirection::ToDependent, relation });
             n = head;
         }
-        out.extend(tail.into_iter().rev());
-        Ok(Some(out))
+        out[up_len..].reverse();
+        Ok(PathSearch { found: true, arc_reads })
+    }
+
+    /// `None` means distinct trees; invalid node indexes return an error.
+    pub fn shortest_path(&self, u: Ix<A>, v: Ix<A>) -> Result<Option<Vec<PathStep<'_, A>>>> {
+        let mut out = Vec::new();
+        Ok(self.shortest_path_into(u, v, None, &mut out)?.found.then_some(out))
     }
 }
 

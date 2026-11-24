@@ -23,11 +23,12 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Edge, Edges, Error, Ix, Layer, Refs, Span, Spans, Tag, TagSet, View};
-use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphPosTags, Sentences, Tokens, WordOrTokenAnchor};
-use turbo_depparse::ArcDirection;
+use turbo_analysis_layers::{Dependencies, Entities, Lemmas, MorphPosTags, Sentences, Tokens, Word, WordOrTokenAnchor};
+use turbo_depparse::{ArcDirection, PathStep};
 
 use crate::layer::Relations;
 use crate::pattern::RelationPattern;
+use crate::work::RelationWork;
 
 /// Extracts typed relations by matching [`RelationPattern`] rules
 /// against dependency paths between entity heads.
@@ -39,6 +40,76 @@ pub struct RelationAnnotator<A: WordOrTokenAnchor = Tokens> {
     /// be matched; `None` is unbounded.
     pub max_path_len: Option<usize>,
     _anchor: PhantomData<fn() -> A>,
+}
+
+struct MatchContext<'a, A: WordOrTokenAnchor> {
+    words: &'a [Word<'a>],
+    entities: &'a Entities,
+    pos: Option<&'a A::Pos>,
+    lemmas: Option<&'a Lemmas>,
+}
+
+impl<A: WordOrTokenAnchor> MatchContext<'_, A> {
+    fn entity_label(&self, e: Ix<Entities>) -> &str {
+        self.entities.kinds.label(self.entities.kind[e.get()])
+    }
+
+    fn matches(&self, pattern: &RelationPattern, pair: (u32, u32), pivot: Ix<A>, path: &[PathStep<'_, A>]) -> bool {
+        if pattern.steps().len() != path.len()
+            || !pattern
+                .steps()
+                .iter()
+                .zip(path)
+                .all(|(step, arc)| step.up == (arc.direction == ArcDirection::ToHead) && step.label == arc.relation)
+        {
+            return false;
+        }
+        let (s, o) = pair;
+        if pattern.subject_kind.as_deref().is_some_and(|k| k != self.entity_label(Ix::new(s)))
+            || pattern.object_kind.as_deref().is_some_and(|k| k != self.entity_label(Ix::new(o)))
+        {
+            return false;
+        }
+        if let Some(trigger) = &pattern.trigger
+            && !turbo_unicode::java::eq_lowercase_code_points(self.words[pivot.get()].form, trigger)
+        {
+            return false;
+        }
+        if let Some(want) = &pattern.pivot_pos
+            && self.pos.and_then(|p| p.label(pivot.get())) != Some(want.as_str())
+        {
+            return false;
+        }
+        if let (Some(want), Some(lemmas)) = (&pattern.pivot_lemma, self.lemmas)
+            && lemmas.lemma.get(self.words[pivot.get()].tokens.start.get()) != want
+        {
+            return false;
+        }
+        true
+    }
+}
+
+/// Deduplicates matched `(from, to, kind)` edges emitted for a single
+/// `(subject, object)` pair in place, sorting by `kind` and retaining the
+/// highest score for each kind. Because pairs are visited in strictly
+/// increasing `(subject, object)` order, `edges` stays globally sorted by
+/// `(from, to, kind)` without a hash table.
+fn coalesce_pair_edges(edges: &mut Vec<Edge<Entities, Entities>>, start: usize, edge_ops: &mut usize) {
+    if edges.len() - start <= 1 {
+        return;
+    }
+    edges[start..].sort_by_key(|e| e.kind);
+    let mut write = start;
+    for read in (start + 1)..edges.len() {
+        *edge_ops += 1;
+        if edges[write].kind == edges[read].kind {
+            edges[write].score = edges[write].score.max(edges[read].score);
+        } else {
+            write += 1;
+            edges[write] = edges[read];
+        }
+    }
+    edges.truncate(write + 1);
 }
 
 impl<A: WordOrTokenAnchor> RelationAnnotator<A> {
@@ -73,82 +144,66 @@ impl<A: WordOrTokenAnchor> RelationAnnotator<A> {
     fn fail(&self, detail: String) -> Error {
         Error::Annotator { annotator: <Self as Annotator>::ID, detail }
     }
-}
 
-impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
-    const ID: &'static str = "turbo:relation-annotator";
-    type Reads = (View, Sentences, A, Tokens, Dependencies<A>, Entities, Option<A::Pos>, Option<Lemmas>);
-    type Writes = (Relations, Edges<Entities, Entities>);
-
-    fn annotate(
+    /// Runs pattern matching on `inputs` and returns deterministic
+    /// [`RelationWork`] counters alongside the extracted layers.
+    pub fn annotate_with_work(
         &self,
         (view, sentences, anchor, tokens, dependencies, entities, pos, lemmas): Refs<'_, Self>,
-    ) -> Result<Self::Writes, Error> {
+    ) -> Result<(<Self as Annotator>::Writes, RelationWork), Error> {
         if let Some(p) = pos {
             p.check().map_err(|d| self.fail(d))?;
         }
-        let crate::prepare::Prepared { words, graph, entity_heads, word_sentence } = crate::prepare::prepare::<A>(
-            <Self as Annotator>::ID,
-            crate::prepare::Inputs {
-                view,
-                sentences,
-                anchor,
-                tokens,
-                dependencies,
-                entities,
-                pos_present: pos.is_some(),
-                lemmas,
-                needs_pos: self.patterns.iter().any(|p| p.pivot_pos.is_some()),
-                needs_lemma: self.patterns.iter().any(|p| p.pivot_lemma.is_some()),
-            },
-        )?;
+        let crate::prepare::Prepared { words, graph, entity_heads, word_sentence, head_probes } =
+            crate::prepare::prepare::<A>(
+                <Self as Annotator>::ID,
+                crate::prepare::Inputs {
+                    view,
+                    sentences,
+                    anchor,
+                    tokens,
+                    dependencies,
+                    entities,
+                    pos_present: pos.is_some(),
+                    lemmas,
+                    needs_pos: self.patterns.iter().any(|p| p.pivot_pos.is_some()),
+                    needs_lemma: self.patterns.iter().any(|p| p.pivot_lemma.is_some()),
+                },
+            )?;
         let fail = |detail: String| self.fail(detail);
+        let mut work = RelationWork { head_probes, ..RelationWork::default() };
+
+        let max_pattern_steps = self.patterns.iter().map(|p| p.steps().len()).max().unwrap_or(0);
+        let path_cap = Some(self.max_path_len.map_or(max_pattern_steps, |cap| cap.min(max_pattern_steps)));
+        let cx = MatchContext { words: &words, entities, pos, lemmas };
 
         let mut spans = Spans::new(view.id());
         let (mut subject, mut object, mut kind, mut score) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-        let entity_label = |e: Ix<Entities>| entities.kinds.label(entities.kind[e.get()]);
+        let mut edges: Vec<Edge<Entities, Entities>> = Vec::new();
+        let mut path = Vec::with_capacity(max_pattern_steps);
         let by_sentence = crate::prepare::by_sentence(&entity_heads, &word_sentence, sentences.spans.len());
+
         for s in 0..entities.spans.len() as u32 {
-            let Some(sent) = entity_heads[s as usize].and_then(|h| word_sentence[h.get()]) else { continue };
+            let Some(sh) = entity_heads[s as usize] else { continue };
+            let Some(sent) = word_sentence[sh.get()] else { continue };
             for &o in &by_sentence[sent] {
+                work.pair_visits += 1;
                 if s == o {
                     continue;
                 }
-                let (Some(sh), Some(oh)) = (entity_heads[s as usize], entity_heads[o as usize]) else { continue };
-                if sh == oh || word_sentence[sh.get()] != word_sentence[oh.get()] || word_sentence[sh.get()].is_none() {
+                let Some(oh) = entity_heads[o as usize] else { continue };
+                if sh == oh {
                     continue;
                 }
-                let Some(path) = graph.shortest_path(sh, oh).map_err(|e| fail(e.to_string()))? else { continue };
-                if self.max_path_len.is_some_and(|cap| path.len() > cap) {
+                let search = graph.shortest_path_into(sh, oh, path_cap, &mut path).map_err(|e| fail(e.to_string()))?;
+                work.arc_reads += search.arc_reads;
+                if !search.found {
                     continue;
                 }
                 let pivot = path.iter().take_while(|p| p.direction == ArcDirection::ToHead).last().map_or(sh, |p| p.to);
+                let pair_edges_start = edges.len();
                 for (p, pattern) in self.patterns.iter().enumerate() {
-                    if pattern.steps().len() != path.len()
-                        || !pattern.steps().iter().zip(&path).all(|(step, arc)| {
-                            step.up == (arc.direction == ArcDirection::ToHead) && step.label == arc.relation
-                        })
-                    {
-                        continue;
-                    }
-                    if pattern.subject_kind.as_deref().is_some_and(|k| k != entity_label(Ix::new(s)))
-                        || pattern.object_kind.as_deref().is_some_and(|k| k != entity_label(Ix::new(o)))
-                    {
-                        continue;
-                    }
-                    if let Some(trigger) = &pattern.trigger
-                        && !turbo_unicode::java::eq_lowercase_code_points(words[pivot.get()].form, trigger)
-                    {
-                        continue;
-                    }
-                    if let Some(want) = &pattern.pivot_pos
-                        && pos.and_then(|p| p.label(pivot.get())) != Some(want.as_str())
-                    {
-                        continue;
-                    }
-                    if let (Some(want), Some(lemmas)) = (&pattern.pivot_lemma, lemmas)
-                        && lemmas.lemma.get(words[pivot.get()].tokens.start.get()) != want
-                    {
+                    if !cx.matches(pattern, (s, o), pivot, &path) {
                         continue;
                     }
                     let (se, oe) = (entities.spans.get(Ix::new(s)), entities.spans.get(Ix::new(o)));
@@ -157,32 +212,25 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
                     object.push(Ix::new(o));
                     kind.push(self.tags[p]);
                     score.push(pattern.confidence);
+                    edges.push(Edge::new(Ix::new(s), Ix::new(o), self.tags[p], pattern.confidence));
+                    work.edge_ops += 1;
                 }
+                coalesce_pair_edges(&mut edges, pair_edges_start, &mut work.edge_ops);
             }
         }
         let relations = Relations { spans, subject, object, kind, kinds: Arc::clone(&self.kinds), score };
         relations.check().map_err(fail)?;
-        // The edge layer holds each (subject, object, type) once,
-        // at the best confidence any mention of it carries (the
-        // layer itself stores edges sorted). The index keeps this
-        // linear in the mention count.
-        let mut edges: Vec<Edge<Entities, Entities>> = Vec::new();
-        let mut index = std::collections::HashMap::new();
-        for (i, _) in relations.spans.iter() {
-            let (s, o, _, sc) = relations.mention(i);
-            let edge = Edge::new(s, o, relations.kind[i.get()], sc);
-            match index.entry((edge.from, edge.to, edge.kind)) {
-                std::collections::hash_map::Entry::Occupied(at) => {
-                    let e: &mut Edge<Entities, Entities> = &mut edges[*at.get()];
-                    e.score = e.score.max(edge.score);
-                }
-                std::collections::hash_map::Entry::Vacant(at) => {
-                    at.insert(edges.len());
-                    edges.push(edge);
-                }
-            }
-        }
-        Ok((relations, Edges::new(Arc::clone(&self.kinds), edges)))
+        Ok(((relations, Edges::new(Arc::clone(&self.kinds), edges)), work))
+    }
+}
+
+impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
+    const ID: &'static str = "turbo:relation-annotator";
+    type Reads = (View, Sentences, A, Tokens, Dependencies<A>, Entities, Option<A::Pos>, Option<Lemmas>);
+    type Writes = (Relations, Edges<Entities, Entities>);
+
+    fn annotate(&self, inputs: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_with_work(inputs).map(|(writes, _)| writes)
     }
 
     fn config_hash(&self) -> u64 {

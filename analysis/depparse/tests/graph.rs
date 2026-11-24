@@ -2,8 +2,8 @@ use turbo_analysis::{Document, Ix, Key, Layer, Provenance, Span, Spans, Tag, Tag
 use turbo_analysis_layers::{Dependencies, PosTags, Tokens, Words};
 use turbo_depparse::{
     ArcDirection, ArcStandardOracle, ArcStandardState, DependencyCrossValidator, DependencyEvaluator, DependencyGraph,
-    DependencyModel, DependencyParser, DependencyParserME, DependencySample, LabelEncoding, Position, Result,
-    Transition,
+    DependencyModel, DependencyParser, DependencyParserME, DependencySample, LabelEncoding, PathSearch, Position,
+    Result, Transition,
 };
 use turbo_train::{Key as TrainKey, TrainingParameters};
 
@@ -264,4 +264,52 @@ fn linear_model_trains_roundtrips_bytes_and_resolves_bidirectional_offsets() {
     assert_eq!(arcs[1].children, &[Ix::new(0), Ix::new(2)]);
     assert_eq!(parsed.incoming_arcs(Ix::new(1)).unwrap().len(), 2);
     assert_eq!(parsed.subtree_span(Ix::new(1), view, tokens, tokens).unwrap(), Span::new(0, 11));
+}
+
+#[test]
+fn shortest_path_into_bounds_arc_reads_by_path_length_not_tree_depth() {
+    // Chain 0 <- 1 <- ... <- 3999, plus two sibling leaves 4000 and 4001 attached to 3999.
+    let chain_len = 4_000u32;
+    let mut heads: Vec<Option<Ix<Tokens>>> = (0..chain_len).map(|i| (i > 0).then(|| Ix::new(i - 1))).collect();
+    heads.push(Some(Ix::new(chain_len - 1)));
+    heads.push(Some(Ix::new(chain_len - 1)));
+    let mut rels: Vec<String> = (0..chain_len).map(|i| if i == 0 { "root".into() } else { "ccomp".into() }).collect();
+    rels.push("nsubj".into());
+    rels.push("obj".into());
+    let g = DependencyGraph::<Tokens>::new(heads, rels).unwrap();
+
+    let (u, v) = (Ix::new(chain_len), Ix::new(chain_len + 1));
+    assert_eq!(g.lowest_common_ancestor(u, v).unwrap(), Some(Ix::new(chain_len - 1)));
+
+    let mut path = Vec::new();
+    let hit = g.shortest_path_into(u, v, None, &mut path).unwrap();
+    // 2 head reads to find the LCA at 3999 + 2 head reads to emit the 2 path steps.
+    assert_eq!(hit, PathSearch { found: true, arc_reads: 4 });
+    assert_eq!(path.len(), 2);
+    assert_eq!((path[0].direction, path[0].relation), (ArcDirection::ToHead, "nsubj"));
+    assert_eq!((path[1].direction, path[1].relation), (ArcDirection::ToDependent, "obj"));
+
+    // Depth difference 4000 exceeds cap 2: rejected in O(1) with zero arc reads.
+    let far = g.shortest_path_into(Ix::new(0), u, Some(2), &mut path).unwrap();
+    assert_eq!(far, PathSearch { found: false, arc_reads: 0 });
+    assert!(path.is_empty());
+
+    // Self-path with cap 0 succeeds with zero steps and zero arc reads; cap 1 on 2-step path rejects.
+    assert_eq!(g.shortest_path_into(u, u, Some(0), &mut path).unwrap(), PathSearch { found: true, arc_reads: 0 });
+    assert!(path.is_empty());
+    assert_eq!(g.shortest_path_into(u, v, Some(1), &mut path).unwrap(), PathSearch { found: false, arc_reads: 0 });
+
+    // Equal-depth cousins (depth 2000 each) meeting only at root 0: cap 4 stops after 4 arc reads.
+    let mut cousin_heads = vec![None];
+    cousin_heads.extend((1..=2_000).map(|i| Some(Ix::new(if i == 1 { 0 } else { i - 1 }))));
+    cousin_heads.extend((2_001..=4_000).map(|i| Some(Ix::new(if i == 2_001 { 0 } else { i - 1 }))));
+    let cousins = DependencyGraph::<Tokens>::new(cousin_heads, vec!["dep".into(); 4_001]).unwrap();
+    let miss = cousins.shortest_path_into(Ix::new(2_000), Ix::new(4_000), Some(4), &mut path).unwrap();
+    assert_eq!(miss, PathSearch { found: false, arc_reads: 4 });
+
+    // Out-of-range nodes fail even when equal or capped at 0.
+    let oob = Ix::new(99_999);
+    assert!(g.lowest_common_ancestor(oob, oob).is_err());
+    assert!(g.shortest_path_into(oob, oob, Some(0), &mut path).is_err());
+    assert!(g.shortest_path_into(Ix::new(0), oob, Some(0), &mut path).is_err());
 }
