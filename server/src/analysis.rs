@@ -94,11 +94,16 @@ impl AnalysisService for Analysis {
                 bundles.push(relation_capabilities(&m.name, model, &m.vocabulary));
             }
         }
+        // No runtime yet, before the first load: nothing was logged.
+        let (runtime_warnings, runtime_warnings_dropped) =
+            self.state.runtime.get().map(|rt| rt.log().warnings()).unwrap_or_default();
         Ok(Response::new(CapabilitiesResponse {
             bundles,
             limits: Some(result_limits()),
             server: Some(server_limits()),
             profiles: progressive::profile_capabilities(),
+            runtime_warnings,
+            runtime_warnings_dropped,
         }))
     }
 

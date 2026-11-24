@@ -151,6 +151,37 @@ message CapabilitiesResponse
   // (#1302): each profile's immutable step list, produced layers, and
   // required bundle capabilities.
   repeated ProfileCapabilities profiles = 4;
+
+  // What the runtime logged at warning or error level since the server
+  // created it, oldest first (issue #2512): a backend whose probe
+  // failed, a device whose description could not be read, a kernel path
+  // or a cache the library gave up on. Empty while no bundle has been
+  // loaded, since the first load creates the runtime. At most 64
+  // entries are kept.
+  repeated RuntimeLogEntry runtime_warnings = 5;
+
+  // How many warnings and errors came after the 64 kept in
+  // runtime_warnings and are not in it. They were printed on the
+  // server's stderr like every other.
+  uint64 runtime_warnings_dropped = 6;
+}
+
+// The level of one message the runtime logged.
+enum RuntimeLogLevel
+{
+  RUNTIME_LOG_LEVEL_UNSPECIFIED = 0;
+  RUNTIME_LOG_LEVEL_ERROR = 1;
+  RUNTIME_LOG_LEVEL_WARNING = 2;
+}
+
+// One message the runtime logged at warning or error level.
+message RuntimeLogEntry
+{
+  RuntimeLogLevel level = 1;
+
+  // The library's message as it was logged. It names backends, devices
+  // and files of the server, never a document's text.
+  string message = 2;
 }
 
 // One named, versioned analysis profile served by AnalyzeDocumentProgressive

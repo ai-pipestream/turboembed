@@ -24,6 +24,7 @@ pub mod probe;
 pub mod progressive;
 pub mod release;
 pub mod results;
+pub mod runtime_log;
 pub mod search;
 pub mod sink;
 pub mod state;
@@ -74,12 +75,18 @@ pub const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 /// without it is that one, and is answered RESOURCE_EXHAUSTED as other gRPC
 /// servers answer it: OUT_OF_RANGE is TURBO_E_CAPACITY's (docs/kserve.md).
 pub(crate) fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
-    let h = r.headers_mut();
+    too_large_status(r.headers_mut());
+    r
+}
+
+/// [`too_large`] on one header block: a response's headers, or the
+/// trailers a streaming reply ends with, where a refusal of a message
+/// read mid-stream arrives (#2517).
+pub(crate) fn too_large_status(h: &mut http::HeaderMap) {
     let out_of_range = (Code::OutOfRange as i32).to_string();
     if h.get("grpc-status").is_some_and(|v| v.as_bytes() == out_of_range.as_bytes()) && !h.contains_key("turbo-code") {
         h.insert("grpc-status", (Code::ResourceExhausted as i32).into());
     }
-    r
 }
 
 /// A server answering gRPC on its listener: the Open Inference Protocol
@@ -248,6 +255,9 @@ impl Server {
         )?;
         let sink_sp = serve.sink_search_projection;
         let sink = serve.sink.as_ref().map(|c| SinkForwarder::start_with(c, sink_sp)).transpose()?;
+        if let Some(s) = &sink {
+            state.metrics.bind_sink(s.clone());
+        }
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
             admin: serve.admin,
@@ -433,7 +443,13 @@ impl Server {
     /// watch ends at once, and a call still open after `grace` (a stream
     /// its caller never closes) is cut. Answers whether every call ended
     /// by itself.
-    pub async fn stop_within(mut self, grace: std::time::Duration) -> bool {
+    pub async fn stop_within(self, grace: std::time::Duration) -> bool {
+        self.stop_reporting(grace).await.clean
+    }
+
+    /// [`Self::stop_within`], answering with the sink forwarder's final
+    /// counts as well: what the stop left unsent is in them (#2513).
+    pub async fn stop_reporting(mut self, grace: std::time::Duration) -> Stopped {
         self.state.shutdown();
         self.search_registry.stopping.send_replace(true);
         if let Some(s) = self.stop.take() {
@@ -450,7 +466,16 @@ impl Server {
         if let Some(m) = self.metrics_task.take() {
             let _ = m.await;
         }
-        self.close_sink(std::time::Duration::from_secs(10)).await;
-        clean
+        let sink = self.close_sink(std::time::Duration::from_secs(10)).await;
+        Stopped { clean, sink }
     }
+}
+
+/// How a server stopped.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stopped {
+    /// Whether every call ended by itself within the grace.
+    pub clean: bool,
+    /// The sink forwarder's final counts; `None` without a sink.
+    pub sink: Option<SinkStats>,
 }

@@ -2,7 +2,6 @@
 //! `SpanCategorizer`), ported from `opennlp.tools.doccat.DocumentCategorizerME`.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -123,18 +122,7 @@ impl DocumentCategorizerME {
     /// `cat0[0.1234]  cat1[0.8766]`, matching `DocumentCategorizerME.getAllResults`
     /// (`AbstractModel.getAllOutcomes`).
     pub fn all_results(&self, results: &[f64]) -> String {
-        if results.len() != self.number_of_categories() || results.is_empty() {
-            return String::new();
-        }
-        let mut sb = String::new();
-        for (i, &p) in results.iter().enumerate() {
-            if i > 0 {
-                sb.push_str("  ");
-            }
-            let name = self.get_category(i).unwrap_or("");
-            let _ = write!(sb, "{name}[{p:.4}]");
-        }
-        sb
+        crate::dl::all_outcomes(results, self.number_of_categories(), |i| self.get_category(i))
     }
 
     /// Categorizes `text` and returns a map from category name to score

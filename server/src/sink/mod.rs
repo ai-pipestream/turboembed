@@ -7,9 +7,14 @@
 //! opening a new one after a failure. The call takes each item from the
 //! queue itself, as it sends it, so what waits is the queue's and counted
 //! there, and the sequence follows the order the items are sent in.
+//! Every call that ends is settled against the sink's summary: what it
+//! had taken and the sink did not acknowledge is counted unconfirmed,
+//! never forwarded (issue #2513). The counts are Prometheus series
+//! (report.rs) and the stop's last line.
 
 mod document;
 mod receiver;
+mod report;
 
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -27,6 +32,7 @@ use turbo_analysis::Document;
 pub use document::SinkTyped;
 pub(crate) use document::no_sink;
 pub use receiver::{MAX_SUMMARY_ERRORS, SinkReceiver};
+pub(crate) use report::render;
 
 use crate::api::Failure;
 use crate::proto::result::analyze_stream_response::Outcome;
@@ -65,9 +71,18 @@ pub struct SinkConfig {
 pub struct SinkStats {
     /// Completed answers offered to the queue.
     pub offered: u64,
-    /// Taken by a StreamDocuments call to send. Items a call held when it
-    /// failed are lost with it; the sink's summary says what it accepted.
+    /// Taken by a StreamDocuments call to send, in a call still open or
+    /// acknowledged as received by the summary of one that ended.
     pub forwarded: u64,
+    /// Taken by a call that ended without acknowledging them: the call
+    /// failed before its summary, or its summary counted fewer received
+    /// than it was sent. The sink may hold some; none is confirmed, and
+    /// none is sent again.
+    pub unconfirmed: u64,
+    /// What the sinks' summaries counted accepted and rejected, summed
+    /// over the calls that ended with one.
+    pub accepted: u64,
+    pub rejected: u64,
     /// Refused by a full queue.
     pub dropped: u64,
     /// Document graphs refused before the queue: a graph that does not
@@ -91,6 +106,9 @@ struct Counters {
     sequence: AtomicU64,
     offered: AtomicU64,
     forwarded: AtomicU64,
+    unconfirmed: AtomicU64,
+    accepted: AtomicU64,
+    rejected: AtomicU64,
     dropped: AtomicU64,
     refused: AtomicU64,
     abandoned: AtomicU64,
@@ -98,6 +116,9 @@ struct Counters {
     queued_bytes: AtomicU64,
     failed_calls: AtomicU64,
     last: Mutex<(Option<String>, Option<DocumentSinkSummary>)>,
+    /// The call open now, so a close that stops the drain mid-call can
+    /// settle it.
+    open_call: Mutex<Option<Arc<Call>>>,
 }
 
 /// A queued item and the bytes it is counted at.
@@ -263,6 +284,9 @@ impl SinkForwarder {
         SinkStats {
             offered: c.offered.load(Ordering::Relaxed),
             forwarded: c.forwarded.load(Ordering::Relaxed),
+            unconfirmed: c.unconfirmed.load(Ordering::Relaxed),
+            accepted: c.accepted.load(Ordering::Relaxed),
+            rejected: c.rejected.load(Ordering::Relaxed),
             dropped: c.dropped.load(Ordering::Relaxed),
             refused: c.refused.load(Ordering::Relaxed),
             abandoned: c.abandoned.load(Ordering::Relaxed),
@@ -287,6 +311,12 @@ impl SinkForwarder {
             t.abort();
             let _ = t.await;
             let c = &self.counters;
+            // The call open at the abort never answered: nothing it sent
+            // was acknowledged (#2513).
+            let open = c.open_call.lock().unwrap_or_else(|p| p.into_inner()).take();
+            if let Some(call) = open {
+                end_call(&self.rx, c, &call, None);
+            }
             let mut rx = self.rx.lock().unwrap_or_else(|p| p.into_inner());
             rx.close();
             while let Ok((_, bytes)) = rx.try_recv() {
@@ -319,22 +349,84 @@ struct Feed {
     rx: Arc<Mutex<mpsc::Receiver<Queued>>>,
     c: Arc<Counters>,
     closed: Arc<AtomicBool>,
+    call: Arc<Call>,
+}
+
+/// What one call took, and whether it has ended. Both are read and
+/// written under the queue's lock, so a feed the transport still holds
+/// after its call ended takes nothing more: every item a call takes is
+/// in the count the call is settled with.
+#[derive(Default)]
+struct Call {
+    taken: AtomicU64,
+    ended: AtomicBool,
+    /// Set by whichever settles the call: its drain when it returns, or
+    /// a close that stopped the drain first. A call is settled once.
+    settled: AtomicBool,
+}
+
+/// Ends `call`, so its feed takes nothing more, and settles it once
+/// against `summary`; true when this was the settling.
+fn end_call(
+    rx: &Mutex<mpsc::Receiver<Queued>>,
+    c: &Counters,
+    call: &Call,
+    summary: Option<&DocumentSinkSummary>,
+) -> bool {
+    let taken = {
+        let _queue = rx.lock().unwrap_or_else(|p| p.into_inner());
+        call.ended.store(true, Ordering::Release);
+        call.taken.load(Ordering::Acquire)
+    };
+    if call.settled.swap(true, Ordering::AcqRel) {
+        return false;
+    }
+    settle(c, taken, summary);
+    true
+}
+
+/// Settles an ended call: what it took beyond what the sink's summary
+/// counts received moves from forwarded to unconfirmed, all of it when
+/// the call failed and answered with no summary.
+fn settle(c: &Counters, taken: u64, summary: Option<&DocumentSinkSummary>) {
+    let received = summary.map_or(0, |s| s.received_count.min(taken));
+    let unconfirmed = taken - received;
+    c.forwarded.fetch_sub(unconfirmed, Ordering::Relaxed);
+    c.unconfirmed.fetch_add(unconfirmed, Ordering::Relaxed);
+    // The sink's own counts are bounded by what it received from this
+    // call: a peer answering a huge count cannot inflate them.
+    if let Some(s) = summary {
+        c.accepted.fetch_add(s.accepted_count.min(received), Ordering::Relaxed);
+        c.rejected.fetch_add(s.rejected_count.min(received), Ordering::Relaxed);
+    }
 }
 
 impl Stream for Feed {
     type Item = DocumentSinkItem;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<DocumentSinkItem>> {
-        let polled = self.rx.lock().unwrap_or_else(|p| p.into_inner()).poll_recv(cx);
-        match polled {
-            Poll::Ready(Some((mut item, bytes))) => {
+        let polled = {
+            let mut rx = self.rx.lock().unwrap_or_else(|p| p.into_inner());
+            if self.call.ended.load(Ordering::Acquire) {
+                return Poll::Ready(None);
+            }
+            let mut polled = rx.poll_recv(cx);
+            // An item is taken and counted in one step under the queue
+            // lock, which the call's settlement also holds: a settlement
+            // never sees an item in `taken` that is not yet in
+            // `forwarded`, so `forwarded` never wraps below zero.
+            if let Poll::Ready(Some((item, bytes))) = &mut polled {
+                self.call.taken.fetch_add(1, Ordering::AcqRel);
                 let c = &self.c;
                 c.queued.fetch_sub(1, Ordering::Relaxed);
-                c.queued_bytes.fetch_sub(bytes, Ordering::AcqRel);
+                c.queued_bytes.fetch_sub(*bytes, Ordering::AcqRel);
                 item.sequence = c.sequence.fetch_add(1, Ordering::Relaxed) + 1;
                 c.forwarded.fetch_add(1, Ordering::Relaxed);
-                Poll::Ready(Some(item))
             }
+            polled
+        };
+        match polled {
+            Poll::Ready(Some((item, _))) => Poll::Ready(Some(item)),
             Poll::Ready(None) => {
                 self.closed.store(true, Ordering::Release);
                 Poll::Ready(None)
@@ -352,13 +444,21 @@ async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Ar
     let closed = Arc::new(AtomicBool::new(false));
     loop {
         let mut client = TurboSinkServiceClient::new(channel.clone());
-        let feed = Feed { rx: rx.clone(), c: c.clone(), closed: closed.clone() };
+        let call = Arc::new(Call::default());
+        *c.open_call.lock().unwrap_or_else(|p| p.into_inner()) = Some(call.clone());
+        let feed = Feed { rx: rx.clone(), c: c.clone(), closed: closed.clone(), call: call.clone() };
         let ended = client.stream_documents(feed).await;
+        c.open_call.lock().unwrap_or_else(|p| p.into_inner()).take();
         {
             let mut last = c.last.lock().unwrap_or_else(|p| p.into_inner());
             match ended {
-                Ok(summary) => last.1 = Some(summary.into_inner()),
+                Ok(summary) => {
+                    let summary = summary.into_inner();
+                    end_call(&rx, &c, &call, Some(&summary));
+                    last.1 = Some(summary);
+                }
                 Err(e) => {
+                    end_call(&rx, &c, &call, None);
                     c.failed_calls.fetch_add(1, Ordering::Relaxed);
                     last.0 = Some(e.to_string());
                 }

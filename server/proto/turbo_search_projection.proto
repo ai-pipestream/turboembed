@@ -150,7 +150,9 @@ message SearchMoneyValue
   uint32 span_start = 1;
   uint32 span_end = 2;
   string currency = 3;
-  double amount_f64 = 4;
+  // Nearest f64 of `plain_amount`; absent when the amount lies past the f64
+  // range. `plain_amount` always holds the exact decimal.
+  optional double amount_f64 = 4;
   string plain_amount = 5;
   string per = 6;
   bool ecb_converted = 7;
@@ -162,7 +164,9 @@ message SearchQuantityValue
   uint32 span_start = 1;
   uint32 span_end = 2;
   string unit = 3;
-  double value_f64 = 4;
+  // Nearest f64 of `plain_value`; absent when the value lies past the f64
+  // range. `plain_value` always holds the exact decimal.
+  optional double value_f64 = 4;
   string plain_value = 5;
   bool is_percent = 6;
 }
@@ -185,8 +189,11 @@ message SearchTemporalRange
   string granularity = 3;
   string origin = 4;
   string iso = 5;
-  int64 start_epoch_seconds = 6;
-  int64 end_epoch_seconds = 7;
+  // Both unset when no calendar date holds the value (a year past the
+  // date range): `iso` still names it, and no range filter matches it.
+  // Never 0 for "unknown", which is 1970-01-01.
+  optional int64 start_epoch_seconds = 6;
+  optional int64 end_epoch_seconds = 7;
 }
 
 // Resolved sub-day or interval time expression (`Times`, UTC epoch ms).

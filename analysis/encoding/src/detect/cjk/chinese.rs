@@ -1,7 +1,7 @@
 //! GBK and Big5 CJK candidates, ported from chardetng 0.1.17 (`src/lib.rs`,
 //! Copyright Mozilla Foundation, licensed under Apache-2.0 or MIT; see NOTICE).
 
-use super::{LatinCj, cjk_extra_score, more_problematic_lead, problematic_lead};
+use super::{LatinCj, cjk_extra_score, more_problematic_lead, pend, problematic_lead};
 use crate::detect::data;
 use crate::detect::scores::*;
 use crate::detect::stream::{Big5Stream, GbkStream};
@@ -19,13 +19,7 @@ impl GbkCandidate {
     }
 
     fn maybe_set_as_pending(&mut self, s: i64) -> i64 {
-        assert!(self.pending_score.is_none());
-        if self.prev == LatinCj::Cj || !more_problematic_lead(self.prev_byte) {
-            s
-        } else {
-            self.pending_score = Some(s);
-            0
-        }
+        pend(&mut self.pending_score, self.prev == LatinCj::Cj, more_problematic_lead(self.prev_byte), s)
     }
 
     pub(in crate::detect) fn feed(&mut self, buffer: &[u8], last: bool) -> Option<i64> {
@@ -217,13 +211,7 @@ impl Big5Candidate {
     }
 
     fn maybe_set_as_pending(&mut self, s: i64) -> i64 {
-        assert!(self.pending_score.is_none());
-        if self.prev == LatinCj::Cj || !problematic_lead(self.prev_byte) {
-            s
-        } else {
-            self.pending_score = Some(s);
-            0
-        }
+        pend(&mut self.pending_score, self.prev == LatinCj::Cj, problematic_lead(self.prev_byte), s)
     }
 
     pub(in crate::detect) fn feed(&mut self, buffer: &[u8], last: bool) -> Option<i64> {

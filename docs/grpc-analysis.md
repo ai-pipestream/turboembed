@@ -514,6 +514,21 @@ asking. One request's load, answer, and rollback carry the exact
 registration it made: a same-named replacement is a different
 registration and is never touched.
 
+`CapabilitiesResponse.runtime_warnings` (field 5, issue #2512) lists
+what the runtime logged at warning or error level since the server
+created it, oldest first, each a `RuntimeLogEntry` of a
+`RuntimeLogLevel` and the library's message: a backend whose probe
+failed, a device whose description could not be read, a kernel path or
+a tuning cache the library gave up on. At most 64 are kept, and
+`runtime_warnings_dropped` (field 6) counts the ones after them. The
+server also prints every runtime message of info level and above on
+stderr as `turbo-kserve: runtime: <level>: <message>`, among them one
+line for each linked backend that answered a device count, with the
+number it lists. The first load creates the runtime, so both fields are
+empty before it. `Capabilities` is not an admin call, and a message can
+name a file on the server (a kernel or tuning cache path), so any caller
+that may list capabilities reads those paths.
+
 ## A client call
 
 With [grpcurl](https://github.com/fullstorydev/grpcurl), against a server
@@ -1424,7 +1439,12 @@ failure lands on its document alone.
 What does end the stream is never reported as OK: a batch task, the
 scheduler, or the input reader that dies ends it with INTERNAL, naming
 the worker and not the panic's text (issue #2516). A stream that ends OK
-has answered every document it was sent before the half-close.
+has answered every document it was sent before the half-close. Input
+that fails ends the stream with the input's own status: a message over
+`max_message_bytes` or the stream's byte ceiling is RESOURCE_EXHAUSTED
+naming that limit, with no `turbo-code`, as docs/grpc.md says, a
+message that does not decode is reported as such, and only the client's
+own cancel answers CANCELLED (issue #2517).
 
 Documents waiting on the same load with the same output kind, offset
 mode, and options gather into one batch up to the bundle's `batch_limit`,

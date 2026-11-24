@@ -124,6 +124,46 @@ pub(crate) fn new_error() -> turbo_error {
     }
 }
 
+/// A backend's `device_count`: the number of devices its driver lists
+/// (none without a driver), or, when loading the driver failed, a refusal
+/// with `DEVICE_UNAVAILABLE` and why.
+///
+/// # Safety
+/// `out` is valid for a write; `err` is NULL or valid for the call.
+#[cfg(any(feature = "levelzero", feature = "npu"))]
+pub(crate) unsafe fn write_device_count(
+    listed: std::result::Result<Option<usize>, &str>,
+    out: *mut u32,
+    err: *mut turbo_error,
+) -> i32 {
+    match listed {
+        Ok(n) => {
+            unsafe { *out = n.unwrap_or(0) as u32 };
+            0
+        }
+        Err(message) => unsafe { backend::refuse(err, status::DEVICE_UNAVAILABLE, message) },
+    }
+}
+
+/// Releases a session and what it was made from, in that order: the
+/// session, its model, the context and the runtime.
+///
+/// # Safety
+/// Each handle is NULL or live and not released elsewhere.
+pub(crate) unsafe fn release_session_chain(
+    session: *mut turbo_session,
+    model: *mut turbo_model,
+    context: *mut turbo_context,
+    runtime: *mut turbo_runtime,
+) {
+    unsafe {
+        turbo_session_release(session);
+        turbo_model_release(model);
+        turbo_context_release(context);
+        turbo_runtime_release(runtime);
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn turbo_status_name(code: i32) -> *const c_char {
     status::name(code).as_ptr()

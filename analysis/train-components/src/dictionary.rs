@@ -179,6 +179,25 @@ impl AbbreviationDictionary {
     }
 }
 
+/// The entry an abbreviation dictionary is stored under in a sentence or
+/// tokenizer model (`ABBREVIATIONS_ENTRY_NAME`).
+pub const ABBREVIATIONS_ENTRY: &str = "abbreviations.dictionary";
+
+/// The artifacts of a model that may carry an abbreviation dictionary, in
+/// the JVM's zip order: the dictionary's entry when there is one, then
+/// `model` (its entry name and bytes).
+pub fn abbreviations_then<'a>(
+    dictionary: Option<&AbbreviationDictionary>,
+    model: (&'a str, Vec<u8>),
+) -> Result<Vec<(&'a str, Vec<u8>)>> {
+    let mut artifacts = Vec::new();
+    if let Some(dictionary) = dictionary {
+        artifacts.push((ABBREVIATIONS_ENTRY, dictionary.serialize()?));
+    }
+    artifacts.push(model);
+    Ok(artifacts)
+}
+
 /// `DictionaryBuilderTool`: reads one entry per line with
 /// [`AbbreviationDictionary::parse_one_entry_per_line`] and serializes the
 /// dictionary to XML bytes identical to `Dictionary.serialize`.
