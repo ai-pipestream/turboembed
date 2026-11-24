@@ -199,10 +199,10 @@ fn every_test_that_loads_a_model_from_a_path_checks_its_pin() {
             continue;
         }
         seen += 1;
-        if !text.contains("turbo_pins::") {
+        if !checks_a_pin(&text) {
             vars.sort();
             vars.dedup();
-            bad.push(format!("{name}: reads {} and never calls turbo_pins", vars.join(", ")));
+            bad.push(format!("{name}: reads {} and never calls turbo_pins::require", vars.join(", ")));
         }
     }
     assert!(seen >= 40, "found {seen} sources");
@@ -211,6 +211,35 @@ fn every_test_that_loads_a_model_from_a_path_checks_its_pin() {
         "a test that loads a model from a path must pass it through turbo_pins::require:\n{}",
         bad.join("\n")
     );
+}
+
+/// Whether `text` passes a model through a pin check: `turbo_pins::require`
+/// or one of `require_current`, `require_in` and `require_list`, written
+/// with the crate's name. Any other item of the crate (a digest, a lookup,
+/// a test helper that reads no model) checks no pin.
+fn checks_a_pin(text: &str) -> bool {
+    text.contains("turbo_pins::require")
+}
+
+#[test]
+fn the_lint_knows_a_pin_check_from_another_turbo_pins_call() {
+    for yes in [
+        "let b = turbo_pins::require(path);",
+        "turbo_pins::require_current(&dir)",
+        "turbo_pins::require_in(root, &NAMES)",
+        "for b in turbo_pins::require_list(&list) {",
+    ] {
+        assert!(checks_a_pin(yes), "{yes}");
+    }
+    for no in [
+        "let (_, hex) = turbo_pins::digest(&dir)?;",
+        "if turbo_pins::retired(name) {",
+        "turbo_pins::lookup(&hex).is_some()",
+        "use turbo_pins::Kind;",
+        "let path = std::env::var(\"TURBO_TEST_BUNDLE\").unwrap();",
+    ] {
+        assert!(!checks_a_pin(no), "{no}");
+    }
 }
 
 #[test]
