@@ -769,12 +769,15 @@ int32_t buffer_read(void *buf, void *dst, uint64_t bytes, turbo_error *err) {
 /* int8 or ubinary codes of the first rows * dim F32 values of buf, into
  * the leading bytes of the same buffer, matching core/src/quantize.rs.
  * A temporary device allocation holds the codes so the write never races
- * the read of the floats. When run is not NULL the allocations made
- * here and the int8 ranges sent to the device are added to it. */
+ * the read of the floats. A value that is NaN or infinite is refused
+ * TURBO_E_INTERNAL, naming its row and dimension, never coded. When run
+ * is not NULL the allocations made here, the int8 ranges and the check's
+ * 4 bytes sent to the device, and the check's 4 bytes read back, are
+ * added to it. */
 int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_ranges, uint32_t rows, uint32_t dim,
                         turbo_backend_run *run, turbo_error *err) {
     const uint64_t host0 = host_here, device0 = device_here;
-    uint64_t sent = 0;
+    uint64_t sent = 0, fetched = 0;
     const int32_t status = guarded(err, [&]() -> int32_t {
         Buffer *b = static_cast<Buffer *>(buf);
         if (rows == 0 || dim == 0) return TURBO_OK;
@@ -793,32 +796,47 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         if (b->bytes < code_bytes)
             return refuse(err, TURBO_E_INVALID_ARGUMENT, "buffer of %llu bytes is under the %llu code bytes",
                           (unsigned long long)b->bytes, (unsigned long long)code_bytes);
+        if (floats > (uint64_t)INT32_MAX)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "%llu F32 values to quantize is over 2^31 - 1",
+                          (unsigned long long)floats);
         ON_DEVICE(b->ctx->ordinal);
         std::lock_guard<std::mutex> g(b->ctx->lock);
         cudaStream_t s = b->ctx->stream;
         void *codes = nullptr;
         TRY_CUDA(device_malloc(&codes, code_bytes), "codes for buffer_quantize");
+        // The first value that is NaN or infinite, found before any is
+        // coded: such a run is broken, and its codes would pass for a
+        // vector's (#2517). at stays INT32_MAX when every value is finite.
+        int32_t at = INT32_MAX;
+        int32_t *at_dev = nullptr;
+        const cudaError_t fe = device_malloc(reinterpret_cast<void **>(&at_dev), sizeof at);
+        if (fe != cudaSuccess) {
+            cudaFree(codes);
+            return cuda_failed(err, fe, "the finiteness check for buffer_quantize");
+        }
         float *ranges_dev = nullptr;
         int32_t rc = TURBO_OK;
-        if (quantization == TURBO_QUANTIZE_INT8) {
+        {
+            cudaError_t e = cudaMemcpyAsync(at_dev, &at, sizeof at, cudaMemcpyHostToDevice, s);
+            if (e == cudaSuccess) e = first_non_finite(s, static_cast<const float *>(b->ptr), (int32_t)floats, at_dev);
+            if (e == cudaSuccess) e = cudaMemcpyAsync(&at, at_dev, sizeof at, cudaMemcpyDeviceToHost, s);
+            if (e != cudaSuccess) rc = cuda_failed(err, e, "the finiteness check for buffer_quantize");
+            else sent = sizeof at, fetched = sizeof at;
+        }
+        if (rc == TURBO_OK && quantization == TURBO_QUANTIZE_INT8) {
             const uint64_t rb = (uint64_t)dim * 2 * 4;
-            const cudaError_t ae = device_malloc(reinterpret_cast<void **>(&ranges_dev), rb);
-            if (ae != cudaSuccess) {
-                cudaFree(codes);
-                return cuda_failed(err, ae, "int8_ranges for buffer_quantize");
+            cudaError_t e = device_malloc(reinterpret_cast<void **>(&ranges_dev), rb);
+            if (e != cudaSuccess) {
+                rc = cuda_failed(err, e, "int8_ranges for buffer_quantize");
+            } else if ((e = cudaMemcpyAsync(ranges_dev, int8_ranges, rb, cudaMemcpyHostToDevice, s)) != cudaSuccess) {
+                rc = cuda_failed(err, e, "copying int8_ranges to the device");
+            } else {
+                sent += rb;
+                e = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows, (int)dim,
+                                  static_cast<int8_t *>(codes));
+                if (e != cudaSuccess) rc = cuda_failed(err, e, "quantize_int8");
             }
-            const cudaError_t ce =
-                cudaMemcpyAsync(ranges_dev, int8_ranges, rb, cudaMemcpyHostToDevice, s);
-            if (ce != cudaSuccess) {
-                cudaFree(ranges_dev);
-                cudaFree(codes);
-                return cuda_failed(err, ce, "copying int8_ranges to the device");
-            }
-            sent = rb;
-            const cudaError_t qe = quantize_int8(s, static_cast<const float *>(b->ptr), ranges_dev, (int)rows,
-                                                 (int)dim, static_cast<int8_t *>(codes));
-            if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_int8");
-        } else {
+        } else if (rc == TURBO_OK) {
             const cudaError_t qe =
                 quantize_ubinary(s, static_cast<const float *>(b->ptr), (int)rows, (int)dim, static_cast<uint8_t *>(codes));
             if (qe != cudaSuccess) rc = cuda_failed(err, qe, "quantize_ubinary");
@@ -831,14 +849,22 @@ int32_t buffer_quantize(void *buf, uint32_t quantization, const float *int8_rang
         } else {
             (void)cudaStreamSynchronize(s);
         }
+        if (rc == TURBO_OK && at != INT32_MAX)
+            rc = refuse(err, TURBO_E_INTERNAL,
+                        "the model's output for row %u is not finite at dimension %u: the run is broken",
+                        (unsigned)((uint32_t)at / dim), (unsigned)((uint32_t)at % dim));
         if (ranges_dev) cudaFree(ranges_dev);
+        cudaFree(at_dev);
         cudaFree(codes);
         return rc;
     });
     if (run) {
         run->host_allocs += host_here - host0;
         run->device_allocs += device_here - device0;
-        if (status == TURBO_OK) run->h2d_bytes += sent;
+        if (status == TURBO_OK) {
+            run->h2d_bytes += sent;
+            run->d2h_bytes += fetched;
+        }
     }
     return status;
 }

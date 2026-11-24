@@ -4791,6 +4791,23 @@ cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, 
     return cudaGetLastError();
 }
 
+/* The flat index of the first of the n values of x that is NaN or
+ * infinite, as an atomic minimum into *at, which the caller sets to
+ * INT32_MAX first: buffer_quantize refuses an embed result holding one
+ * rather than coding it (#2517). The exponent bits are read, so no math
+ * flag can fold the test away. */
+__global__ void first_non_finite_kernel(const float *x, int32_t n, int32_t *at) {
+    for (int64_t i = (int64_t)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (int64_t)gridDim.x * blockDim.x) {
+        if ((__float_as_uint(x[i]) & 0x7f800000u) == 0x7f800000u) atomicMin(at, (int32_t)i);
+    }
+}
+
+cudaError_t first_non_finite(cudaStream_t s, const float *x, int32_t n, int32_t *at) {
+    if (n <= 0) return cudaSuccess;
+    first_non_finite_kernel<<<elementwise_blocks((size_t)n), 256, 0, s>>>(x, n, at);
+    return cudaGetLastError();
+}
+
 cudaError_t kernels_run_here() {
     cudaFuncAttributes a;
     return cudaFuncGetAttributes(&a, pack_rows_kernel);
