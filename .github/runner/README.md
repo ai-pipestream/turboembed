@@ -60,6 +60,37 @@ A host with docker but no gh login is driven from one that has both, with
 `DOCKER=ssh -T <host> docker` in the settings file; the image must be
 loaded on that host.
 
+## Disk
+
+Give every runner a work volume of its own. Without one, a job's
+checkout, `target/` and temporary files go to the container's writable
+layer under /var/lib/docker, on the host's root filesystem, shared with
+every other runner and everything else on the host. When that filesystem
+fills, every running job fails at once (#2552).
+
+work-volumes.sh, run as root, makes a preallocated ext4 image per runner
+under BASE, adds a loop mount for it to /etc/fstab and mounts it:
+
+    sudo sh .github/runner/work-volumes.sh /work/turbo-ci 150G x86-64-1 x86-64-2
+
+Then name the mount in each runner's settings file:
+
+    WORK_DIR=/work/turbo-ci/x86-64-1
+
+supervise.sh mounts WORK_DIR as the runner's `_work` directory, points
+TMPDIR into it, and empties it before and after every job. A job that
+fills it fails alone, and the host's root filesystem is untouched. The
+volume's root holds a `.turbo-ci-volume` marker; when it is missing, as
+when the image is not mounted, the runner takes no job rather than
+falling back to the root filesystem. Keep BASE on a local disk, never on
+a network share: a Rust build writes many small files and takes file
+locks. With `DOCKER=ssh ...`, BASE and the image are on that host; where
+its firmware owns /etc/fstab, mount the image from a systemd unit
+instead.
+
+The images are preallocated, so each one's size is reserved on BASE's
+filesystem whether or not a job is running.
+
 Name runners by architecture, not by host name: runner names show in the
 public job logs.
 
