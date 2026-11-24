@@ -92,14 +92,22 @@ async fn a_closed_stderr_does_not_abort_the_server() {
     got.unwrap();
 }
 
-/// A CPU runtime that loads the tiny bundle has nothing to warn about,
-/// and the listing says so with typed fields: no entry, none dropped.
+/// The listing carries the runtime's warnings, typed, and no others. A
+/// runtime warns while it lists its devices when a linked backend's probe
+/// fails (a loader with no driver behind it, a driver older than the
+/// runtime), so what the server lists is what a runtime made here logged:
+/// loading the tiny bundle on the CPU adds nothing. A build with the cpu
+/// backend alone has no probe to fail, and lists no entry, none dropped.
 #[tokio::test]
 async fn the_capability_listing_carries_the_runtime_warnings() {
+    let (own, own_dropped) = turbo_kserve::api::Runtime::create().unwrap().log().warnings();
+    if turbo_kserve::api::version().split_whitespace().skip(1).eq(["cpu"]) {
+        assert_eq!((&own, own_dropped), (&Vec::<RuntimeLogEntry>::new(), 0));
+    }
     let (s, mut c) = serve().await;
     let caps = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
-    assert_eq!(caps.runtime_warnings, Vec::<RuntimeLogEntry>::new());
-    assert_eq!(caps.runtime_warnings_dropped, 0);
+    assert_eq!(caps.runtime_warnings, own);
+    assert_eq!(caps.runtime_warnings_dropped, own_dropped);
     s.stop().await;
 }
 
