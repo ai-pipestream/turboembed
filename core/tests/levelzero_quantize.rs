@@ -123,13 +123,12 @@ fn levelzero_codes_match_host_byte_for_byte() {
             }
             let run = done.unwrap_or_else(|e| panic!("{what}: {e:?}"));
             assert_eq!(got, want, "{what}");
-            // The codes buffer, the finiteness check's device and pinned
-            // words, and for int8 the pinned ranges. The ranges and the
-            // check's word are the bytes sent, the check's word the only
-            // bytes read back; nothing is made on the host.
+            // The codes buffer, and for int8 the pinned ranges, which are
+            // the only bytes sent; the context's check word (#2517) is the
+            // only bytes read back, and nothing is made on the host.
             let int8 = q == Quantization::Int8;
-            assert_eq!(run.device_allocs, if int8 { 4 } else { 3 }, "{what}: device_allocs");
-            assert_eq!(run.h2d_bytes, 4 + if int8 { (2 * dim * 4) as u64 } else { 0 }, "{what}: h2d_bytes");
+            assert_eq!(run.device_allocs, if int8 { 2 } else { 1 }, "{what}: device_allocs");
+            assert_eq!(run.h2d_bytes, if int8 { (2 * dim * 4) as u64 } else { 0 }, "{what}: h2d_bytes");
             assert_eq!((run.host_allocs, run.d2h_bytes), (0, 4), "{what}: host_allocs and d2h_bytes");
         }
     }
