@@ -4740,9 +4740,18 @@ cudaError_t narrow_f16(cudaStream_t s, const float *src, size_t n, uint16_t *dst
  * to a byte, the first dimension in the top bit, a short last byte padded
  * with 0. */
 
-__global__ void quantize_int8_kernel(const float *x, const float *ranges, int rows, int dim, int8_t *out) {
+/* Whether a value is NaN or infinite, by its exponent bits, so no math
+ * flag can fold the test away. With bad set, the quantize kernels keep the
+ * flat index of the first such value in *bad, an atomic minimum the host
+ * keeps at INT32_MAX between runs: a broken run is refused, never coded
+ * (#2517). */
+__device__ inline bool not_finite(float v) { return (__float_as_uint(v) & 0x7f800000u) == 0x7f800000u; }
+
+__global__ void quantize_int8_kernel(const float *x, const float *ranges, int rows, int dim, int8_t *out,
+                                     int32_t *bad) {
     const size_t n = (size_t)rows * (size_t)dim;
     for (size_t i = (size_t)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (size_t)gridDim.x * blockDim.x) {
+        if (bad && not_finite(x[i])) atomicMin(bad, (int32_t)i);
         const int d = (int)(i % (size_t)dim);
         const float lo = ranges[d];
         const float hi = ranges[(size_t)dim + (size_t)d];
@@ -4755,7 +4764,7 @@ __global__ void quantize_int8_kernel(const float *x, const float *ranges, int ro
     }
 }
 
-__global__ void quantize_ubinary_kernel(const float *x, int rows, int dim, uint8_t *out) {
+__global__ void quantize_ubinary_kernel(const float *x, int rows, int dim, uint8_t *out, int32_t *bad) {
     const int row_bytes = (dim + 7) / 8;
     const size_t n = (size_t)rows * (size_t)row_bytes;
     for (size_t bi = (size_t)blockIdx.x * blockDim.x + threadIdx.x; bi < n; bi += (size_t)gridDim.x * blockDim.x) {
@@ -4766,45 +4775,31 @@ __global__ void quantize_ubinary_kernel(const float *x, int rows, int dim, uint8
         uint8_t byte = 0;
         for (int i = 0; i < 8; i++) {
             const int d = base + i;
-            if (d < dim && row[d] > 0.0f) byte = (uint8_t)(byte | (0x80u >> i));
+            if (d >= dim) break;
+            if (bad && not_finite(row[d])) atomicMin(bad, (int32_t)((size_t)r * (size_t)dim + (size_t)d));
+            if (row[d] > 0.0f) byte = (uint8_t)(byte | (0x80u >> i));
         }
         out[bi] = byte;
     }
 }
 
-cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out) {
+cudaError_t quantize_int8(cudaStream_t s, const float *x, const float *ranges, int rows, int dim, int8_t *out,
+                          int32_t *bad) {
     if (rows <= 0 || dim <= 0) return cudaSuccess;
     const size_t n = (size_t)rows * (size_t)dim;
     const int threads = 256;
     const int blocks = (int)((n + (size_t)threads - 1) / (size_t)threads);
-    quantize_int8_kernel<<<blocks, threads, 0, s>>>(x, ranges, rows, dim, out);
+    quantize_int8_kernel<<<blocks, threads, 0, s>>>(x, ranges, rows, dim, out, bad);
     return cudaGetLastError();
 }
 
-cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out) {
+cudaError_t quantize_ubinary(cudaStream_t s, const float *x, int rows, int dim, uint8_t *out, int32_t *bad) {
     if (rows <= 0 || dim <= 0) return cudaSuccess;
     const int row_bytes = (dim + 7) / 8;
     const size_t n = (size_t)rows * (size_t)row_bytes;
     const int threads = 256;
     const int blocks = (int)((n + (size_t)threads - 1) / (size_t)threads);
-    quantize_ubinary_kernel<<<blocks, threads, 0, s>>>(x, rows, dim, out);
-    return cudaGetLastError();
-}
-
-/* The flat index of the first of the n values of x that is NaN or
- * infinite, as an atomic minimum into *at, which the caller sets to
- * INT32_MAX first: buffer_quantize refuses an embed result holding one
- * rather than coding it (#2517). The exponent bits are read, so no math
- * flag can fold the test away. */
-__global__ void first_non_finite_kernel(const float *x, int32_t n, int32_t *at) {
-    for (int64_t i = (int64_t)blockIdx.x * blockDim.x + threadIdx.x; i < n; i += (int64_t)gridDim.x * blockDim.x) {
-        if ((__float_as_uint(x[i]) & 0x7f800000u) == 0x7f800000u) atomicMin(at, (int32_t)i);
-    }
-}
-
-cudaError_t first_non_finite(cudaStream_t s, const float *x, int32_t n, int32_t *at) {
-    if (n <= 0) return cudaSuccess;
-    first_non_finite_kernel<<<elementwise_blocks((size_t)n), 256, 0, s>>>(x, n, at);
+    quantize_ubinary_kernel<<<blocks, threads, 0, s>>>(x, rows, dim, out, bad);
     return cudaGetLastError();
 }
 

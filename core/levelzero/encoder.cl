@@ -2000,21 +2000,17 @@ float divide_rn(float a, float b) {
 
 /* int8 and ubinary codes, bit for bit with core/src/quantize.rs. out is a
  * separate buffer so the write never races the read of x. */
-/* The flat index of the first of the n values of x that is NaN or
- * infinite, as an atomic minimum into *at, which the host sets to INT_MAX
- * first. buffer_quantize runs it before it codes an embed result, so a
- * broken run is refused, never coded (#2517). The exponent bits are read,
- * not isfinite, so no math flag can fold the test away. */
-__kernel void first_non_finite(__global const float *x, int n, __global int *at) {
-    for (long i = (long)get_global_id(0); i < n; i += (long)get_global_size(0)) {
-        if ((as_uint(x[i]) & 0x7f800000u) == 0x7f800000u) atomic_min(at, (int)i);
-    }
-}
+/* The quantize kernels keep the flat index of the first value that is NaN
+ * or infinite in *bad, an atomic minimum the host keeps at INT_MAX between
+ * runs: a broken run is refused, never coded (#2517). isfinite, as
+ * lstm_step uses: these kernels build with no fast-math flag. */
+static inline bool not_finite(float v) { return !isfinite(v); }
 
 __kernel void quantize_int8(__global const float *x, __global const float *ranges, __global char *out, int rows,
-                            int dim) {
+                            int dim, __global int *bad) {
     const size_t n = (size_t)rows * (size_t)dim;
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) {
+        if (not_finite(x[i])) atomic_min(bad, (int)i);
         const int d = (int)(i % (size_t)dim);
         const float lo = ranges[d];
         const float hi = ranges[(size_t)dim + (size_t)d];
@@ -2027,7 +2023,7 @@ __kernel void quantize_int8(__global const float *x, __global const float *range
     }
 }
 
-__kernel void quantize_ubinary(__global const float *x, __global uchar *out, int rows, int dim) {
+__kernel void quantize_ubinary(__global const float *x, __global uchar *out, int rows, int dim, __global int *bad) {
     const int row_bytes = (dim + 7) / 8;
     const size_t n = (size_t)rows * (size_t)row_bytes;
     for (size_t bi = get_global_id(0); bi < n; bi += get_global_size(0)) {
@@ -2038,7 +2034,9 @@ __kernel void quantize_ubinary(__global const float *x, __global uchar *out, int
         uchar byte = 0;
         for (int i = 0; i < 8; i++) {
             const int d = base + i;
-            if (d < dim && row[d] > 0.0f) byte = (uchar)(byte | (0x80u >> i));
+            if (d >= dim) break;
+            if (not_finite(row[d])) atomic_min(bad, r * dim + d);
+            if (row[d] > 0.0f) byte = (uchar)(byte | (0x80u >> i));
         }
         out[bi] = byte;
     }

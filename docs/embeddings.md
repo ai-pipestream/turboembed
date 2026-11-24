@@ -178,10 +178,9 @@ sentence-transformers' `quantize_embeddings` makes
   `TURBO_E_INTERNAL`, naming the first row and dimension, at every
   quantization, never coded (#2517). The core checks vectors it sees on
   the host (host and shared results, and device results it reads back);
-  CUDA's and Level Zero's `buffer_quantize` check device vectors before
-  coding them, on the device. That check adds one device word (Level Zero
-  also a pinned one) to `device_allocs`, and 4 bytes each to `h2d_bytes`
-  and `d2h_bytes`.
+  CUDA's and Level Zero's quantize kernels check device vectors as they
+  code them, marking the first bad value in a word the context keeps;
+  reading it back with the codes adds 4 bytes to `d2h_bytes`.
 
 ```mermaid
 sequenceDiagram

@@ -164,6 +164,11 @@ pub(crate) struct Context {
     /// first need; None where it could not open.
     #[cfg(feature = "levelzero-onednn")]
     dnnl: std::sync::OnceLock<Option<super::onednn::Dnnl>>,
+    /// buffer_quantize's word for the first value that is not finite, in
+    /// DEVICE memory, and its PINNED host copy; kept at i32::MAX between
+    /// runs, so a run that finds none writes nothing to it (#2517).
+    bad: *mut c_void,
+    bad_host: *mut c_void,
 }
 
 // The handles are the driver's, for any thread; the log function is the
@@ -207,6 +212,11 @@ impl Drop for Context {
         // context, so they go before it.
         #[cfg(feature = "levelzero-onednn")]
         drop(self.dnnl.take());
+        for (p, what) in [(self.bad, "buffer_quantize's check word"), (self.bad_host, "its host copy")] {
+            if !p.is_null() {
+                self.free(p, what);
+            }
+        }
         let module = self.module.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(Ok(m)) = module.take() {
             unsafe { (self.api.module_destroy)(m.0) };
@@ -264,6 +274,8 @@ pub(crate) unsafe fn create(
         log_user_data,
         #[cfg(feature = "levelzero-onednn")]
         dnnl: std::sync::OnceLock::new(),
+        bad: std::ptr::null_mut(),
+        bad_host: std::ptr::null_mut(),
     });
     let q = ctx.queue.get_mut().unwrap_or_else(|p| p.into_inner());
     let pd = ze::EventPoolDesc {
@@ -291,6 +303,14 @@ pub(crate) unsafe fn create(
     ze("zeCommandListCreateImmediate", unsafe {
         (api.command_list_create_immediate)(handle, dev.handle, &queue_desc(), &mut q.list)
     })?;
+    ctx.bad = ctx.alloc_device(4)?;
+    ctx.bad_host = ctx.alloc_pinned(4)?;
+    unsafe { ctx.bad_host.cast::<i32>().write(i32::MAX) };
+    {
+        let mut q = ctx.lock_queue()?;
+        unsafe { ctx.copy(&mut q, ctx.bad, ctx.bad_host, 4)? };
+        ctx.sync(&mut q)?;
+    }
     let faults = crate::ze::page_faults_off().describe();
     ctx.say(LOG_DEBUG, &format!("levelzero context on device {ordinal} ({}): one in-order queue, {faults}", dev.name));
     unsafe { *out = Box::into_raw(ctx) as *mut c_void };

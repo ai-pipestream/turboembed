@@ -155,23 +155,16 @@ fn check(backend: &str, what: &str, mut write: impl FnMut(&turbo_embed_options) 
         // buffer_quantize only the codes cross the bus, and no staging
         // alloc is made for the f32 vectors.
         let device = fi.placement == TURBO_PLACE_DEVICE;
-        // cuda's and levelzero's buffer_quantize first find any value that
-        // is not finite (#2517): a device word (levelzero also a pinned
-        // one), 4 bytes sent and 4 read back.
-        let (word_allocs, word) = match (device, backend) {
-            (true, "cuda") => (1, 4),
-            (true, "levelzero") => (2, 4),
-            _ => (0, 0),
-        };
-        let fetched = if device { batch as u64 * q.row_bytes(dim) as u64 } else { 0 };
-        let fetched = fetched + word;
+        // cuda's and levelzero's buffer_quantize read back the context's
+        // word for a value that is not finite (#2517) with the codes.
+        let word = if device { 4 } else { 0 };
+        let fetched = if device { batch as u64 * q.row_bytes(dim) as u64 } else { 0 } + word;
         assert_eq!(qi.d2h_bytes, fi.d2h_bytes + fetched, "{what}: d2h_bytes, f32 placement {}", fi.placement);
         assert_eq!(qi.host_allocs, fi.host_allocs, "{what}: host_allocs (codes need no f32 staging)");
         let int8 = q == Quantization::Int8;
-        let allocs = if int8 { 2 } else { 1 } + word_allocs;
-        assert_eq!(qi.device_allocs, fi.device_allocs + allocs, "{what}: device_allocs");
-        let sent = if device && int8 { dim as u64 * 2 * 4 } else { 0 } + word;
-        assert_eq!(qi.h2d_bytes, fi.h2d_bytes + sent, "{what}: h2d_bytes (the int8 ranges, the check's word)");
+        assert_eq!(qi.device_allocs, fi.device_allocs + if int8 { 2 } else { 1 }, "{what}: device_allocs");
+        let sent = if device && int8 { dim as u64 * 2 * 4 } else { 0 };
+        assert_eq!(qi.h2d_bytes, fi.h2d_bytes + sent, "{what}: h2d_bytes (the int8 ranges)");
         *staged |= device;
         println!("{what}: f32 placement {} d2h {} -> {}", fi.placement, fi.d2h_bytes, qi.d2h_bytes);
     }
