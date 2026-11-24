@@ -385,11 +385,11 @@ why the window is measured per board.
 
 ## Testing on a Hailo machine
 
-From the workspace root. `TURBO_TEST_REQUIRE_HAILO=1` makes every test in
-`core/tests/hailo.rs` that needs a device fail when the backend lists
-none, where without it the test passes with a line saying it was
-skipped; set it on a Hailo machine, so a run that found no device cannot
-pass.
+From the workspace root. Every test in `core/tests/hailo.rs` that needs a
+device fails when the backend lists none: a build with the hailo
+backend that finds no device has run nothing on one.
+`TURBO_TEST_REQUIRE_HAILO=0` lets such a test pass with a line saying it
+was skipped, for a host that has no Hailo device.
 
 ```
 export TURBO_TEST_REQUIRE_HAILO=1

@@ -12,7 +12,7 @@ use std::borrow::BorrowMut;
 use crate::beam::{BEAM_SIZE_PROPERTY, BeamSearch, ContextGenerator, SequenceValidator, manifest_beam_size};
 use crate::codec::{BilouCodec, BilouValidator, BioCodec, BioValidator, SequenceCodec, Span};
 use crate::error::{Error, Result};
-use crate::featuregen::{AdditionalContext, BoxedGenerator, Window, descriptor};
+use crate::featuregen::{AdditionalContext, Aggregated, BoxedGenerator, FeatureGenerator, Window, descriptor};
 use crate::features::Features;
 use crate::pattern::{PatternMode, token_feature};
 use turbo_maxent::{MaxentModel, ModelFile};
@@ -35,13 +35,13 @@ pub const DEFAULT_DESCRIPTOR: &str = include_str!("descriptors/ner-default-featu
 /// token (`pow=`) and with the token's class (`powf=`), and the outcome
 /// before that (`ppo=`). A missing outcome is `other`.
 pub struct DefaultNameContext {
-    generators: Vec<BoxedGenerator>,
+    generators: Aggregated,
     mode: PatternMode,
 }
 
 impl DefaultNameContext {
     pub fn new(generators: Vec<BoxedGenerator>, mode: PatternMode) -> DefaultNameContext {
-        DefaultNameContext { generators, mode }
+        DefaultNameContext { generators: Aggregated::new(generators), mode }
     }
 
     /// The context generator `NameFinderME` builds for a model: the
@@ -70,39 +70,29 @@ impl DefaultNameContext {
     /// When the lengths differ, as Java throws.
     pub fn update_adaptive_data(&mut self, tokens: &[&str], outcomes: &[&str]) {
         assert_eq!(tokens.len(), outcomes.len(), "The tokens and outcome arrays MUST have the same size!");
-        for g in &mut self.generators {
-            g.update_adaptive_data(tokens, outcomes);
-        }
+        self.generators.update_adaptive_data(tokens, outcomes);
     }
 
     /// Forgets the document so far (`clearAdaptiveData`).
     pub fn clear_adaptive_data(&mut self) {
-        for g in &mut self.generators {
-            g.clear_adaptive_data();
-        }
+        self.generators.clear_adaptive_data();
     }
 
     /// Sets the additional context of the next sentence
     /// (`NameFinderME.find(tokens, additionalContext)`); an empty slice
     /// for none.
     pub fn set_additional_context(&mut self, context: &[Vec<String>]) {
-        for g in &mut self.generators {
-            g.set_additional_context(context);
-        }
+        self.generators.set_additional_context(context);
     }
 }
 
 impl<'a> ContextGenerator<&'a str> for DefaultNameContext {
     fn start_sequence(&mut self) {
-        for g in &mut self.generators {
-            g.start_sequence();
-        }
+        self.generators.start_sequence();
     }
 
     fn context(&mut self, index: usize, sequence: &[&'a str], prior: &[&str], out: &mut Features) {
-        for g in &mut self.generators {
-            g.create_features(out, sequence, index, prior);
-        }
+        self.generators.create_features(out, sequence, index, prior);
         let po = if index > 0 { prior[index - 1] } else { BioCodec::OTHER };
         let ppo = if index > 1 { prior[index - 2] } else { BioCodec::OTHER };
         let token = sequence[index];

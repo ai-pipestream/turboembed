@@ -84,10 +84,7 @@ impl Annotator for PosTagger {
     type Writes = (PosTags,);
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.run
-            .pos_tags(view, tokens, sentences, subwords, &self.tagset)
-            .map(|t| (t,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.run.pos_tags(view, tokens, sentences, subwords, &self.tagset))
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -132,10 +129,7 @@ impl Annotator for EntityTagger {
     type Writes = (Entities,);
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.run
-            .entities(view, tokens, sentences, subwords, &self.kinds)
-            .map(|e| (e,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.run.entities(view, tokens, sentences, subwords, &self.kinds))
     }
 
     fn model(&self) -> Option<ModelRef> {

@@ -106,7 +106,10 @@ async fn cuda_qa_long_context_matches_single_window_runs() {
     let rt = Runtime::create().unwrap();
     let device = (0..16).find(|&i| rt.device_info(i).is_ok_and(|d| field(&d.backend) == "cuda"));
     let Some(device) = device else {
-        assert!(!std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| !v.is_empty() && v != "0"), "CUDA required");
+        assert!(
+            turbo_pins::device_skip_allowed("cuda"),
+            "the cuda backend lists no device; TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+        );
         eprintln!("CUDA unavailable; skipped");
         return;
     };

@@ -29,11 +29,7 @@ fn minutes(v: &Value) -> Option<i64> {
 
 /// An hour and `m` minutes after it: `siete y media`.
 fn after(c: &Ctx<'_>, v: &Value, m: i64) -> Option<Value> {
-    let k = clock_of(c, v)?;
-    if k.shown != Shown::Hour || !(1..60).contains(&m) {
-        return None;
-    }
-    emit_clock(c, Clock { minute: m as u8, shown: Shown::Minute, ..k })
+    en::minutes_past(c, m, v)
 }
 
 /// `m` minutes before an hour: `seis menos cinco` is 5:55.

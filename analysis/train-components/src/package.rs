@@ -51,6 +51,21 @@ impl Stamp<'_> {
         }
         manifest
     }
+
+    /// [`trained_manifest`](Self::trained_manifest) with the `BeamSize`
+    /// a sequence model decodes with.
+    pub fn trained_beam_manifest(
+        &self,
+        component: &str,
+        language: &str,
+        report: &TrainingReport,
+        entries: Vec<(String, String)>,
+        beam_size: i32,
+    ) -> Manifest {
+        let mut manifest = self.trained_manifest(component, language, report, entries);
+        manifest.set(crate::postag::BEAM_SIZE_KEY, &beam_size.to_string());
+        manifest
+    }
 }
 
 /// The package of `manifest` and `artifacts`, added by [`add_artifacts`].
@@ -58,6 +73,30 @@ pub fn packaged(manifest: Manifest, artifacts: Vec<(&str, Vec<u8>)>) -> Result<M
     let mut package = ModelPackage::new(manifest);
     add_artifacts(&mut package, artifacts)?;
     Ok(package)
+}
+
+/// A sequence model packaged as its one model entry and the beam size it
+/// decodes with, as the chunker and the lemmatizer are.
+pub(crate) struct BeamModel {
+    pub component: &'static str,
+    pub entry: &'static str,
+}
+
+impl BeamModel {
+    /// The package of `model_bytes`, trained for `language` as `report`
+    /// says, with the factory's manifest `entries`.
+    pub(crate) fn package(
+        &self,
+        language: &str,
+        entries: Vec<(String, String)>,
+        report: &TrainingReport,
+        model_bytes: Vec<u8>,
+        beam_size: i32,
+        stamp: Stamp<'_>,
+    ) -> Result<ModelPackage> {
+        let manifest = stamp.trained_beam_manifest(self.component, language, report, entries, beam_size);
+        packaged(manifest, vec![(self.entry, model_bytes)])
+    }
 }
 
 /// The manifest key `serializer-class-<entry>`.

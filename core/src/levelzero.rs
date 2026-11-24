@@ -238,22 +238,6 @@ fn arch(vendor_id: u32, device_id: u32) -> String {
     }
 }
 
-/// Level Zero only promises that driverVersion increases. Intel's driver
-/// packs major, minor and build into it; another vendor's is shown as is.
-fn driver_version(vendor_id: u32, v: u32) -> String {
-    match vendor_id {
-        0x8086 => format!("{}.{}.{}", v >> 24, (v >> 16) & 0xff, v & 0xffff),
-        _ => v.to_string(),
-    }
-}
-
-fn vendor(vendor_id: u32) -> String {
-    match vendor_id {
-        0x8086 => "Intel".to_owned(),
-        v => format!("0x{v:04x}"),
-    }
-}
-
 /// The drivers and their GPUs, found once per process: the loader and
 /// zeInitDrivers are process-wide, and devices do not come and go.
 pub(crate) struct Driver {
@@ -293,10 +277,7 @@ unsafe impl Send for Driver {}
 /// an error. Err when the driver is there and answers wrongly.
 fn driver() -> Result<Option<&'static Driver>, &'static str> {
     static DRIVER: OnceLock<Result<Option<Driver>, String>> = OnceLock::new();
-    match DRIVER.get_or_init(Driver::open) {
-        Ok(d) => Ok(d.as_ref()),
-        Err(e) => Err(e),
-    }
+    crate::ze::opened(&DRIVER, Driver::open)
 }
 
 impl Driver {
@@ -387,8 +368,8 @@ impl Driver {
                     block_io: block_io(p.vendor_id, ip.ip_version),
                     arch: arch(p.vendor_id, p.device_id),
                     name: ze::string(&p.name),
-                    vendor: vendor(p.vendor_id),
-                    driver_version: driver_version(p.vendor_id, props.driver_version),
+                    vendor: crate::ze::vendor(p.vendor_id),
+                    driver_version: crate::ze::driver_version(p.vendor_id, props.driver_version),
                 });
             }
         }
@@ -468,10 +449,6 @@ mod tests {
         assert_eq!(arch(0x8086, 0xe223), "b70");
         assert_eq!(arch(0x8086, 0xe20b), "intel-e20b");
         assert_eq!(arch(0x10de, 0x2704), "10de-2704");
-        assert_eq!(vendor(0x8086), "Intel");
-        assert_eq!(vendor(0x10de), "0x10de");
-        assert_eq!(driver_version(0x8086, 0x0103_909c), "1.3.37020");
-        assert_eq!(driver_version(0x10de, 0x0103_909c), "17010844");
     }
 
     #[test]

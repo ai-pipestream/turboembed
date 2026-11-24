@@ -74,8 +74,11 @@ fn the_devices_listed_are_the_kernels() {
     let listed = rt.listed();
     if listed.is_empty() {
         // No GPU, or one without the compute runtime: the listing says
-        // nothing about the kernel's unless a device is required.
-        assert!(!required(), "TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        // nothing about the kernel's, and the test skips only when told to.
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("the_devices_listed_are_the_kernels: skipped: the levelzero backend lists no device");
         return;
     }

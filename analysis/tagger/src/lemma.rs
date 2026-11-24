@@ -171,9 +171,7 @@ impl Annotator for Lemmatizer {
     type Writes = (Lemmas,);
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.lemmas(view, tokens, sentences, subwords)
-            .map(|l| (l,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.lemmas(view, tokens, sentences, subwords))
     }
 
     fn model(&self) -> Option<ModelRef> {

@@ -1,8 +1,8 @@
 //! Level Zero int8 and ubinary kernels against `core/src/quantize.rs`.
 //!
 //! Built with the `levelzero` feature only. Needs
-//! TURBO_TEST_DEVICE=levelzero; with TURBO_TEST_REQUIRE_LEVELZERO=1 it
-//! fails when none is listed. Device receipts:
+//! TURBO_TEST_DEVICE=levelzero, and then fails when the backend lists no
+//! device, unless TURBO_TEST_REQUIRE_LEVELZERO=0 lets it skip. Device receipts:
 //!   TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 \
 //!     cargo test -p turbo --features levelzero levelzero_quantize -- --nocapture
 
@@ -91,7 +91,10 @@ fn require_or_skip(test: &str, backend: &str, var: &str) -> bool {
     let d = first_of(rt, backend);
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_{var}=1 and the {backend} backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed(backend),
+            "{test}: the {backend} backend lists no device; TURBO_TEST_REQUIRE_{var}=0 lets the test skip"
+        );
         println!("{test}: skipped: the {backend} backend lists no device");
         return false;
     }

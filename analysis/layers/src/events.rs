@@ -126,9 +126,7 @@ impl Default for Events {
 
 impl PartialEq for Events {
     fn eq(&self, other: &Self) -> bool {
-        self.spans.view() == other.spans.view()
-            && self.iter().eq(other.iter())
-            && self.spans.iter().all(|(ix, _)| self.spans.fragments(ix).eq(other.spans.fragments(ix)))
+        crate::columns::same_spans(&self.spans, &other.spans) && self.iter().eq(other.iter())
     }
 }
 

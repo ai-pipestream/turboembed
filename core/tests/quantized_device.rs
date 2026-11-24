@@ -11,10 +11,11 @@
 //! nothing to d2h_bytes or h2d_bytes, only the codes buffer (and the
 //! int8 ranges' buffer) to device_allocs.
 //!
-//! Without TURBO_TEST_DEVICE, or when the backend lists no device, a test
-//! says it was skipped and passes. With TURBO_TEST_REQUIRE_<BACKEND>=1
-//! (CUDA, LEVELZERO or METAL) it fails instead, so a device run cannot
-//! pass by finding no device.
+//! Without TURBO_TEST_DEVICE a test says it was skipped and passes, and
+//! with TURBO_TEST_REQUIRE_<BACKEND>=1 (CUDA, LEVELZERO or METAL) it fails
+//! instead. When the backend TURBO_TEST_DEVICE names lists no device the
+//! test fails, unless TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip, so a
+//! device run cannot pass by finding no device.
 
 mod common;
 
@@ -79,7 +80,10 @@ fn backend(test: &str) -> Option<&'static str> {
     let d = first_of(rt, name);
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(var), "{test}: TURBO_TEST_REQUIRE_{var}=1 and the {name} backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed(name),
+            "{test}: the {name} backend lists no device; TURBO_TEST_REQUIRE_{var}=0 lets the test skip"
+        );
         println!("{test}: skipped: the {name} backend lists no device");
         return None;
     }

@@ -20,6 +20,16 @@ pub use text::TextSpans;
 #[cfg(test)]
 mod tests;
 
+/// Continuous spans `(start, end)` over the source view, for tests.
+#[cfg(test)]
+pub(crate) fn of_pairs<L>(items: &[(u32, u32)]) -> Spans<L> {
+    let mut s = Spans::new(crate::text::ViewId::SOURCE);
+    for &(a, b) in items {
+        s.push(Span::new(a, b));
+    }
+    s
+}
+
 /// Bytes `[start, end)` of one text view.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Span {

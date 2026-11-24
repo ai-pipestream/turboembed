@@ -77,7 +77,13 @@ fn cancelled_by_its_deadline(pii: bool, disclosure: Disclosure) -> Vec<Result<An
     assert_eq!(plans_pii(&analyzer), pii);
     let mut op = Operation::start(KEY);
     op.requested_steps = analyzer.step_ids().into_iter().map(str::to_owned).collect();
-    let answer = Answer { doc_id: "d".into(), offsets: OffsetMode::Utf8.to_proto(), disclosure, binding: None };
+    let answer = Answer {
+        doc_id: "d".into(),
+        offsets: OffsetMode::Utf8.to_proto(),
+        disclosure,
+        binding: None,
+        metrics: crate::metrics::Metrics::new(),
+    };
     let (tx, mut rx) = mpsc::channel(32);
     assert!(!cancel.load(Ordering::Acquire), "the deadline is live when the run starts");
     let delivered = run_progressive_task(answer, Document::new(TEXT.to_owned()), analyzer, cancel, deadline, tx, op);

@@ -95,11 +95,7 @@ mod tests {
     struct L;
 
     fn spans(items: &[(u32, u32)]) -> Spans<L> {
-        let mut s = Spans::new(ViewId::SOURCE);
-        for &(a, b) in items {
-            s.push(Span::new(a, b));
-        }
-        s
+        crate::span::of_pairs(items)
     }
 
     #[test]

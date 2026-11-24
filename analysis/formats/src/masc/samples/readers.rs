@@ -5,7 +5,7 @@ use turbo_analysis::Span;
 use super::super::corpus::MascCorpus;
 use super::super::document::MascDocument;
 use super::super::error::{MascError, MascStream};
-use super::{Cursor, MascSample, MascSentenceSample, cover, next_of, token_fields};
+use super::{Cursor, MascSample, MascSentenceSample, cover, fused, token_fields};
 use crate::sample::{Name, NameSample, SentenceSample};
 
 /// `MascNamedEntitySampleStream`: a name sample per sentence of the
@@ -60,11 +60,7 @@ impl<'c> Iterator for MascNameReader<'c> {
     type Item = Result<MascSample<NameSample<'c>>, MascError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        let read = self.read();
-        next_of(&mut self.done, read)
+        fused(self, |r| &mut r.done, Self::read)
     }
 }
 
@@ -137,10 +133,6 @@ impl<'c> Iterator for MascSentenceReader<'c> {
     type Item = Result<MascSentenceSample<'c>, MascError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        let read = self.read();
-        next_of(&mut self.done, read)
+        fused(self, |r| &mut r.done, Self::read)
     }
 }

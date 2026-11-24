@@ -49,10 +49,8 @@ impl TokenVectors {
     }
 
     /// Attaches reference view text and wire [`OffsetMode`].
-    pub fn with_offsets(mut self, text: impl Into<String>, offsets: OffsetMode) -> Self {
-        self.text = text.into();
-        self.offsets = offsets;
-        self
+    pub fn with_offsets(self, text: impl Into<String>, offsets: OffsetMode) -> Self {
+        Self { text: text.into(), offsets, ..self }
     }
 
     /// The vectors layer this result's rows make, checked.

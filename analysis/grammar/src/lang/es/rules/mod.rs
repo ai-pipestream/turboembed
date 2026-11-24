@@ -10,7 +10,7 @@ use crate::dec::Dec;
 use crate::engine::{Ctx, Grammar, Item, Kind, Rule, glued, glued_if, glued_word, node, node_if, opt_word, word};
 use crate::lang::en::rules as en;
 use crate::lang::en::rules::{
-    digit_proper_fraction, integer, is_num, is_ten, non_negative, non_negative_integer, not_integer, num, ord,
+    digit_proper_fraction, int, integer, is_num, is_ten, non_negative, non_negative_integer, not_integer, num, ord,
     positive, positive_fraction, positive_integer, pow10, proper_fraction, spelled_only, spelled_positive_fraction,
     term,
 };

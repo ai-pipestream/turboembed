@@ -365,13 +365,15 @@ fn model_ref_from_bytes(bytes: &[u8]) -> ModelRef {
     ModelRef { id: "turbo:depparse-linear".into(), revision: "1".into(), sha256: turbo_sha256::sha256(bytes).to_hex() }
 }
 
-fn write_len(out: &mut Vec<u8>, n: usize) -> Result<()> {
+/// Writes `n` as a little-endian `u32`.
+pub(crate) fn write_len(out: &mut Vec<u8>, n: usize) -> Result<()> {
     let n = u32::try_from(n).map_err(|_| error("count exceeds u32"))?;
     out.extend_from_slice(&n.to_le_bytes());
     Ok(())
 }
 
-fn write_str(out: &mut Vec<u8>, s: &str) -> Result<()> {
+/// Writes `s` as its byte length and its bytes.
+pub(crate) fn write_str(out: &mut Vec<u8>, s: &str) -> Result<()> {
     write_len(out, s.len())?;
     out.extend_from_slice(s.as_bytes());
     Ok(())

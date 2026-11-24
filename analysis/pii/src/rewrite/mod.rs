@@ -96,3 +96,43 @@ pub(crate) fn absolute(span: Span, rel: usize) -> u32 {
 pub(crate) fn kind_name(kinds: &CustomKinds, kind: PiiKind) -> &str {
     kinds.name(kind).unwrap_or("")
 }
+
+/// What `write` writes into an empty string, or its error.
+pub(crate) fn written<E>(write: impl FnOnce(&mut String) -> Result<(), E>) -> Result<String, E> {
+    let mut out = String::new();
+    write(&mut out)?;
+    Ok(out)
+}
+
+/// Puts `kinds` in `table` and drops the `overrides` of custom kinds,
+/// which indexed the table it replaces.
+pub(crate) fn replace_custom_kinds<T>(overrides: &mut Vec<(PiiKind, T)>, table: &mut CustomKinds, kinds: CustomKinds) {
+    overrides.retain(|(k, _)| !k.is_custom());
+    *table = kinds;
+}
+
+#[cfg(test)]
+mod shared_tests {
+    use super::*;
+
+    #[test]
+    fn written_keeps_the_text_or_the_error() {
+        let ok = written(|out| {
+            out.push_str("EMAIL-1");
+            Ok::<_, ()>(())
+        });
+        assert_eq!(ok, Ok("EMAIL-1".to_string()));
+        assert_eq!(written(|_| Err("no key")), Err("no key"));
+    }
+
+    #[test]
+    fn replacing_the_kind_table_drops_only_custom_overrides() {
+        let mut kinds = CustomKinds::default();
+        let custom = kinds.add("BADGE").unwrap();
+        let mut overrides = vec![(PiiKind::Email, 1), (custom, 2)];
+        let mut table = kinds.clone();
+        replace_custom_kinds(&mut overrides, &mut table, CustomKinds::default());
+        assert_eq!(overrides, [(PiiKind::Email, 1)]);
+        assert_eq!(table, CustomKinds::default());
+    }
+}

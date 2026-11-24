@@ -153,6 +153,7 @@ mod calibrated;
 mod categories;
 #[cfg(test)]
 mod categories_tests;
+mod columns;
 mod containment;
 #[cfg(test)]
 mod core_tests;
