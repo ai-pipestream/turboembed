@@ -7,9 +7,9 @@
     "--network",
     "none",
     "-v",
-    "/work/ud-data:/gold:ro",
+    "<gold-dir>:/gold:ro",
     "-v",
-    "/tmp/trankit-tp:/out",
+    "<out-dir>:/out",
     "turbo-peer-trankit:1.1.2-en",
     "/gold/en_ewt-ud-test.conllu",
     "/out/trankit.conllu"
@@ -21,7 +21,7 @@
     "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "sentences_per_run": 2077,
-  "output_file": "/tmp/trankit-tp/trankit.conllu",
+  "output_file": "<out-dir>/trankit.conllu",
   "runs": [
     {
       "seconds": 134.46853522400488,

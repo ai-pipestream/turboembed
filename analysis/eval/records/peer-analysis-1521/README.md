@@ -400,6 +400,12 @@ beside these records. The timing is the whole command, model load
 included. A receipt is only comparable at like host load, which is
 why every run's load is in the file.
 
+A receipt holds no directory of the machine that made it. The
+command ran with the real directories; the recorded `command` and
+`output_file` name each one by a placeholder: `<gold-dir>` and
+`<out-dir>` for the host side of the two bind mounts, after the
+directory each has in the container.
+
 The first receipt is `throughput/gliner-wnut17.json`, the GLiNER
 peer command above over the 1287 WNUT-17 sentences, 20 runs on
 2026-10-29 from a clean tree at commit `e8e445c52db1`: min
