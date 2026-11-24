@@ -1724,7 +1724,9 @@ export type InputTokens = Message<"turbo.result.v1.InputTokens"> & {
    * the text was cut by characters before it was tokenized, as a static
    * model does under TURBO_TRUNCATE_RIGHT: the count was never made.
    * A static model leaves unknown tokens out of its row and out of this
-   * count alike, so truncated is set exactly when kept is under seen.
+   * count alike, so where seen is set, truncated is set exactly when kept
+   * is under seen; where it is absent, truncated says the character cut
+   * dropped text, even text that would have given no tokens.
    *
    * @generated from field: optional uint32 seen = 2;
    */
