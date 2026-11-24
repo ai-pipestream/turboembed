@@ -95,6 +95,8 @@ mod mapped;
 mod matcher;
 mod read;
 mod select;
+#[cfg(test)]
+mod test_support;
 mod text;
 mod token;
 mod token_fuzzy;

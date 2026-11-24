@@ -304,8 +304,8 @@ pub fn package_name_model(
     beam_size: i32,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
-    manifest.set(BEAM_SIZE_KEY, &beam_size.to_string());
+    let manifest =
+        stamp.trained_beam_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries(), beam_size);
     packaged(manifest, vec![(MODEL_ENTRY, model_bytes), (DESCRIPTOR_ENTRY, factory.descriptor().to_vec())])
 }
 

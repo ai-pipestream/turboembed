@@ -963,10 +963,14 @@ CPU is refused with UNSUPPORTED.
 ## Testing on a GPU machine
 
 With `TURBO_CUDA_ROOT` set as above, from the workspace root.
-`TURBO_TEST_REQUIRE_CUDA=1` makes every test in `core/tests/cuda_*.rs` that
-needs a device fail when the backend lists none, where without it the
-test passes with a line saying it was skipped; set it on a GPU machine,
-so a run that found no GPU cannot pass.
+Every test in `core/tests/cuda_*.rs` that needs a device fails when the
+backend lists none: a build with the cuda backend that finds no GPU has
+run nothing on one. `TURBO_TEST_REQUIRE_CUDA=0` lets such a test pass
+with a line saying it was skipped, for a host that has no GPU.
+Some tests run only under `TURBO_TEST_DEVICE=cuda` and say they were
+skipped without it, so a green run with neither variable set is not a
+full device run. `TURBO_TEST_REQUIRE_CUDA=1` fails those tests when
+`TURBO_TEST_DEVICE` is not set; set both on a GPU machine.
 
 ```
 export TURBO_TEST_REQUIRE_CUDA=1

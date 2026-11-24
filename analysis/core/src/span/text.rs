@@ -17,6 +17,13 @@ pub struct TextSpans<'a> {
     pub frag_item_end: &'a [u32],
 }
 
+/// The flat fragment index range of item `idx`, given each item's
+/// fragment end.
+pub(super) fn frag_range(frag_item_end: &[u32], idx: usize) -> Range<usize> {
+    let start = if idx == 0 { 0 } else { frag_item_end[idx - 1] as usize };
+    start..frag_item_end[idx] as usize
+}
+
 impl<'a> TextSpans<'a> {
     /// Whether the `start` column is in non-decreasing text order.
     pub fn is_start_ordered(&self) -> bool {
@@ -31,9 +38,7 @@ impl<'a> TextSpans<'a> {
     /// The flat fragment index range `start_f..end_f` for item `idx` when
     /// `!self.frag_item_end.is_empty()`.
     pub fn item_frag_range(&self, idx: usize) -> Range<usize> {
-        let start = if idx == 0 { 0 } else { self.frag_item_end[idx - 1] as usize };
-        let end = self.frag_item_end[idx] as usize;
-        start..end
+        frag_range(self.frag_item_end, idx)
     }
 
     /// Checks the span columns, the fragment table (when present), and the

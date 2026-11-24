@@ -59,12 +59,19 @@ impl MappedFile {
     }
 }
 
+#[cfg(feature = "mmap")]
+const fn assert_copy_without_drop<T: Copy>() {
+    assert!(!std::mem::needs_drop::<T>());
+}
+
 /// A mapped lexicon image with the view that checking it gave, so the
 /// check, which reads every table of the image, is paid once when the
 /// file is mapped and never by a lookup.
 #[cfg(feature = "mmap")]
 pub struct CheckedLexiconFile {
-    /// Borrows `file`'s mapping. Never handed out at this lifetime.
+    /// Borrows `file`'s mapping. Declared before `file` and never handed
+    /// out at `'static`; [`CheckedLexiconFile::view`] shortens the lifetime
+    /// to `&self`.
     view: crate::MappedSurfaceLexicon<'static>,
     file: MappedFile,
 }
@@ -73,18 +80,40 @@ pub struct CheckedLexiconFile {
 impl CheckedLexiconFile {
     /// Checks the image in `file` and keeps the view with the mapping.
     pub fn new(file: MappedFile) -> Result<CheckedLexiconFile, crate::LexiconImageError> {
+        const {
+            assert_copy_without_drop::<crate::MappedSurfaceLexicon<'static>>();
+        }
         let bytes: &[u8] = file.bytes();
-        // SAFETY: `bytes` points into the mapping, which stays at one
-        // address until `file` is dropped, wherever `file` itself moves.
-        // The view made from it lives in the same value as `file`, is
-        // plain borrowed data with no destructor, and leaves only through
-        // `view`, which shortens it to a borrow of `self`.
+        // SAFETY: `bytes` points into `file`'s `Mmap`, whose virtual address
+        // stays stable across moves of `file` until `file` is dropped.
+        // `assert_copy_without_drop` pins at compile time that
+        // `MappedSurfaceLexicon` is `Copy` and `!needs_drop`, so `view` holds
+        // only plain borrows with no drop glue (and is also declared before
+        // `file`). `view` is private and exposed only through `Self::view`,
+        // which ties the returned lifetime to `&self`.
         let bytes: &'static [u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) };
         let view = crate::MappedSurfaceLexicon::from_bytes(bytes)?;
         Ok(CheckedLexiconFile { view, file })
     }
 
-    /// The checked view, for as long as this value is borrowed.
+    /// The checked view, tied to the borrow of `self` so the internal
+    /// `'static` lifetime cannot escape.
+    ///
+    /// ```
+    /// use turbo_suggest::{CheckedLexiconFile, MappedSurfaceLexicon};
+    ///
+    /// fn borrow_tied(checked: &CheckedLexiconFile) -> MappedSurfaceLexicon<'_> {
+    ///     checked.view()
+    /// }
+    /// ```
+    ///
+    /// ```compile_fail
+    /// use turbo_suggest::{CheckedLexiconFile, MappedSurfaceLexicon};
+    ///
+    /// fn escape(checked: &CheckedLexiconFile) -> MappedSurfaceLexicon<'static> {
+    ///     checked.view()
+    /// }
+    /// ```
     pub fn view(&self) -> crate::MappedSurfaceLexicon<'_> {
         self.view
     }
@@ -92,5 +121,66 @@ impl CheckedLexiconFile {
     /// The mapped bytes the view reads.
     pub fn bytes(&self) -> &[u8] {
         self.file.bytes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ImageBuf;
+
+    #[test]
+    fn image_buf_preserves_bytes_and_eight_byte_alignment() {
+        let payload = b"TSUGLEX1-unaligned-tail";
+        let buf = ImageBuf::copy_from(payload);
+        assert_eq!(buf.bytes(), payload);
+        assert_eq!(buf.bytes().as_ptr().align_offset(8), 0);
+    }
+
+    #[cfg(feature = "mmap")]
+    #[test]
+    fn checked_lexicon_file_validates_once_survives_move_and_rejects_corruption() {
+        use super::{CheckedLexiconFile, MappedFile};
+        use crate::lexicon::image_checks_on_this_thread;
+        use crate::{LexiconImageError, SurfaceLexiconBuilder};
+
+        struct TempDir(std::path::PathBuf);
+        impl Drop for TempDir {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+
+        let dir = TempDir(std::env::temp_dir().join(format!("turbo-suggest-checked-{}", std::process::id())));
+        let _ = std::fs::remove_dir_all(&dir.0);
+        std::fs::create_dir_all(&dir.0).unwrap();
+
+        let mut builder = SurfaceLexiconBuilder::new();
+        builder.observe("running", "run", 9);
+        builder.observe("runner", "run", 4);
+        let valid_bytes = builder.build_bytes().unwrap();
+
+        let good_path = dir.0.join("good.slex");
+        std::fs::write(&good_path, &valid_bytes).unwrap();
+        // SAFETY: `good_path` is owned by this test and is never modified or truncated.
+        let file = unsafe { MappedFile::open(&good_path) }.unwrap();
+
+        let before = image_checks_on_this_thread();
+        let checked = CheckedLexiconFile::new(file).unwrap();
+        assert_eq!(image_checks_on_this_thread() - before, 1);
+
+        let boxed = Box::new(checked);
+        let after_check = image_checks_on_this_thread();
+        assert_eq!(boxed.bytes(), valid_bytes.as_slice());
+        assert_eq!(boxed.view().best_surface_for_stem("run"), Some("running"));
+        assert_eq!(boxed.view().suggest_prefix("run", 4).len(), 2);
+        assert_eq!(image_checks_on_this_thread(), after_check);
+
+        let mut bad_bytes = valid_bytes;
+        *bad_bytes.last_mut().unwrap() ^= 0xff;
+        let bad_path = dir.0.join("bad.slex");
+        std::fs::write(&bad_path, &bad_bytes).unwrap();
+        // SAFETY: `bad_path` is owned by this test and is never modified or truncated.
+        let bad_file = unsafe { MappedFile::open(&bad_path) }.unwrap();
+        assert!(matches!(CheckedLexiconFile::new(bad_file), Err(LexiconImageError::Checksum)));
     }
 }

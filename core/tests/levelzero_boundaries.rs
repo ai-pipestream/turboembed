@@ -4,8 +4,8 @@
 //! copies or writes anything.
 //!
 //! Built with the `levelzero` feature only. A test that needs a device
-//! says it was skipped, and passes, when the backend lists none; with
-//! TURBO_TEST_REQUIRE_LEVELZERO=1 it fails instead.
+//! fails when the backend lists none. TURBO_TEST_REQUIRE_LEVELZERO=0 lets
+//! it say it was skipped, and pass.
 
 #![cfg(feature = "levelzero")]
 
@@ -49,8 +49,10 @@ fn context(test: &str) -> Option<*mut c_void> {
     let (mut n, mut err) = (0u32, error());
     assert_eq!(unsafe { (b.device_count)(&mut n, &mut err) }, 0, "{}", message(&err));
     if n == 0 {
-        let required = std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1");
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "{test}: the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("{test}: skipped: the levelzero backend lists no device");
         return None;
     }

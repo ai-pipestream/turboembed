@@ -5,6 +5,9 @@
 
 use std::ffi::{c_char, c_void};
 
+mod common;
+pub(crate) use common::{driver_version, opened, say, vendor};
+
 pub type Handle = *mut c_void;
 pub type Status = i32;
 

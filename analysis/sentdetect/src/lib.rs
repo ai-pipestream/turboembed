@@ -30,6 +30,7 @@ pub mod inventory;
 pub mod me;
 pub mod newline;
 pub mod paragraph;
+mod retain;
 pub mod rules;
 
 mod abbreviation;

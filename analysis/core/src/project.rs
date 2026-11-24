@@ -135,10 +135,7 @@ impl<L: ProjectableLayer> ProjectView<L> {
 
     /// Runs this projection step on a single document.
     pub fn annotate_doc(&self, doc: &mut Document) -> Result<(), Error> {
-        let out = self.compute(std::slice::from_ref(doc));
-        let mut status = [Ok(())];
-        self.store(out, std::slice::from_mut(doc), &mut status);
-        status.into_iter().next().unwrap()
+        self.run_one(doc)
     }
 
     fn all_reads(&self) -> Vec<KeyId> {

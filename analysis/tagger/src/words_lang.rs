@@ -146,9 +146,7 @@ impl Annotator for WordSplitter {
     type Writes = (Words,);
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.words(view, tokens, sentences, subwords)
-            .map(|w| (w,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.words(view, tokens, sentences, subwords))
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -288,9 +286,7 @@ impl Annotator for LanguageTagger {
     type Writes = (LanguageSpans,);
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.language_spans(view, tokens, sentences, subwords)
-            .map(|l| (l,))
-            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        crate::annotate::one_layer(Self::ID, self.language_spans(view, tokens, sentences, subwords))
     }
 
     fn model(&self) -> Option<ModelRef> {

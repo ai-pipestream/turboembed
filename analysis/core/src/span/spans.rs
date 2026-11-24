@@ -198,9 +198,7 @@ impl<L> Spans<L> {
     }
 
     fn frag_range(&self, idx: usize) -> Range<usize> {
-        let start = if idx == 0 { 0 } else { self.frag_item_end[idx - 1] as usize };
-        let end = self.frag_item_end[idx] as usize;
-        start..end
+        super::text::frag_range(&self.frag_item_end, idx)
     }
 
     /// How many fragments item `i` has (1 when continuous).

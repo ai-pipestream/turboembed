@@ -229,6 +229,13 @@ pub fn first_of(rt: *mut turbo_runtime, backend: &str) -> Option<u32> {
     })
 }
 
+/// Whether the backend named is in this build, as turbo_version() lists
+/// it: a backend that is and lists no device has a device test to fail.
+pub fn linked(backend: &str) -> bool {
+    let version = unsafe { std::ffi::CStr::from_ptr(turbo_version()) }.to_string_lossy();
+    version.split_whitespace().skip(1).any(|b| b == backend)
+}
+
 /// A fixed-size C string field as a String.
 pub fn field(b: &[std::ffi::c_char]) -> String {
     let bytes: Vec<u8> = b.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();

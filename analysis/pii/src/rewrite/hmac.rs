@@ -118,9 +118,7 @@ impl HmacTokenizer {
     /// The token of `value` of the kind named `kind`, such as
     /// `EMAIL-3f2a1c9d7e4b6a20`.
     pub fn token(&self, kind: &str, value: &str) -> Result<String, TokenizerError> {
-        let mut out = String::new();
-        self.write_token(kind, value, &mut out)?;
-        Ok(out)
+        crate::rewrite::written(|out| self.write_token(kind, value, out))
     }
 
     /// Replaces every mention of `pii`, a layer over `src`, with its

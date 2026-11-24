@@ -23,7 +23,7 @@ use crate::linear;
 use crate::logspace::logsumexp;
 use crate::real::{Real, dot};
 use crate::rng::Rng;
-use crate::shapes::{checked_shapes, fits, seeded};
+use crate::shapes::{checked_shapes, fits, replace_params, seeded};
 
 /// A gold relation: entity `head` to entity `tail` of its sequence, and
 /// its label.
@@ -92,11 +92,7 @@ impl<R: Real> Relations<R> {
 
     /// Replaces every weight, refused unless each tensor keeps its length.
     pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
-        if params.len() != self.params.len() || params.iter().zip(&self.params).any(|(a, b)| a.len() != b.len()) {
-            return Err(invalid(format!("trainer: weights do not match the tensors of head {:?}", self.spec.name)));
-        }
-        self.params = params;
-        Ok(())
+        replace_params(&self.spec.name, &mut self.params, params)
     }
 
     /// One optimizer step on the weights; returns the gradient norm

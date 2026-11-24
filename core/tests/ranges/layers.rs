@@ -121,16 +121,16 @@ fn a_layer_range_write_refuses_what_it_cannot_take() {
 /// The backends whose embed cell sets field 9's bit.
 const READS_LAYERS: [&str; 4] = ["cpu", "cuda", "metal", "levelzero"];
 
-/// The device backends this build lists, failing where
-/// TURBO_TEST_REQUIRE_<BACKEND>=1 names one it does not.
+/// The device backends this build lists, failing where one is in this
+/// build and lists no device, unless TURBO_TEST_REQUIRE_<BACKEND>=0 lets
+/// the test skip.
 pub(super) fn devices() -> Vec<&'static str> {
     ["cuda", "metal", "levelzero"]
         .into_iter()
         .filter(|b| {
-            let required = std::env::var(format!("TURBO_TEST_REQUIRE_{}", b.to_uppercase())).is_ok_and(|v| v == "1");
             assert!(
-                !required || listed(b),
-                "TURBO_TEST_REQUIRE_{}=1 and the backend lists no device",
+                listed(b) || !linked(b) || turbo_pins::device_skip_allowed(b),
+                "the {b} backend is in this build and lists no device; TURBO_TEST_REQUIRE_{}=0 lets the test skip",
                 b.to_uppercase()
             );
             listed(b)
@@ -197,7 +197,8 @@ fn agree_on(backend: &str, precision: u32, dir: &Path, deep: u32) {
 
 /// Every device whose cell sets field 9's bit, on every family the CPU
 /// reads the layers of, at MODEL and FASTEST, against the CPU; a device
-/// that is not listed is skipped, unless TURBO_TEST_REQUIRE_<BACKEND>=1.
+/// that is in the build and not listed fails the test, unless
+/// TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip.
 #[test]
 fn every_layer_on_a_device_matches_the_cpu() {
     for backend in devices().into_iter().filter(|b| READS_LAYERS.contains(b)) {

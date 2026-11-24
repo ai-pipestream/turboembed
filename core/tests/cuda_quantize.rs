@@ -1,8 +1,8 @@
 //! CUDA int8 and ubinary kernels against `core/src/quantize.rs`.
 //!
-//! Built with the `cuda` feature only. Needs a device named by
-//! TURBO_TEST_DEVICE=cuda; with TURBO_TEST_REQUIRE_CUDA=1 it fails when
-//! none is listed. Device receipts:
+//! Built with the `cuda` feature only. Needs TURBO_TEST_DEVICE=cuda, and
+//! then fails when the backend lists no device, unless
+//! TURBO_TEST_REQUIRE_CUDA=0 lets it skip. Device receipts:
 //!   TURBO_TEST_DEVICE=cuda TURBO_TEST_REQUIRE_CUDA=1 \
 //!     cargo test -p turbo --features cuda cuda_quantize -- --nocapture
 
@@ -90,7 +90,10 @@ fn require_or_skip(test: &str, backend: &str, var: &str) -> bool {
     let d = first_of(rt, backend);
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_{var}=1 and the {backend} backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed(backend),
+            "{test}: the {backend} backend lists no device; TURBO_TEST_REQUIRE_{var}=0 lets the test skip"
+        );
         println!("{test}: skipped: the {backend} backend lists no device");
         return false;
     }

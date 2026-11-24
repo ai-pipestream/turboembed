@@ -10,9 +10,9 @@
 //! race`): no more false cities than the rules alone give there, and
 //! every city use is still found. Neither score of the head tells those
 //! names from city uses (#2398, docs/pii.md), so each scored candidate is
-//! printed for the next attempt. Runs only where
-//! `TURBO_NEMOTRON_PII_BUNDLE` names the assembled bundle, as the head is
-//! not in the repository.
+//! printed for the next attempt. Ignored, as the head is not in the
+//! repository: run with `-- --ignored` where `TURBO_NEMOTRON_PII_BUNDLE`
+//! names the assembled bundle, and without it the tests fail.
 
 use std::path::Path;
 
@@ -58,10 +58,11 @@ impl Read {
     }
 }
 
-/// Runs the head with the Places pack over a memo, or nothing without
-/// the bundle. Prints every scored candidate, for the record.
-fn read(file: &str, labels: &str) -> Option<Read> {
-    let bundle_path = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE")?;
+/// Runs the head with the Places pack over a memo. Prints every scored
+/// candidate, for the record.
+fn read(file: &str, labels: &str) -> Read {
+    let bundle_path = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE")
+        .expect("TURBO_NEMOTRON_PII_BUNDLE names the assembled Nemotron PII bundle");
     let bundle_dir = turbo_pins::require(Path::new(&bundle_path));
     let tagger = PiiTagger::open(&bundle_dir, None, &EncoderOptions::default())
         .unwrap()
@@ -108,14 +109,13 @@ fn read(file: &str, labels: &str) -> Option<Read> {
     println!("city tp {} fp {} fn {}", cities.len() - false_cities.len(), false_cities.len(), missed.len());
     let read = Read { text, false_cities, missed, unread };
     println!("false cities: {:?}", read.names(&read.false_cities));
-    Some(read)
+    read
 }
 
 #[test]
+#[ignore = "needs the assembled Nemotron PII bundle in TURBO_NEMOTRON_PII_BUNDLE"]
 fn the_person_rules_turn_down_the_heads_cities_on_people() {
-    let Some(read) = read("places-person-names.txt", "labels-places-person.tsv") else {
-        return;
-    };
+    let read = read("places-person-names.txt", "labels-places-person.tsv");
     assert_eq!(read.missed, Vec::<String>::new(), "city uses the head took away");
     // Paragraphs 1 to 4 put a person word next to each name, so the rules
     // decide them whatever the head tags; paragraph 7 has none, and only a
@@ -131,10 +131,9 @@ fn the_person_rules_turn_down_the_heads_cities_on_people() {
 /// every city use is found, and the false cities are the names standing
 /// alone in paragraph 4, no more than the rules alone give.
 #[test]
+#[ignore = "needs the assembled Nemotron PII bundle in TURBO_NEMOTRON_PII_BUNDLE"]
 fn the_held_out_memo_keeps_every_city_use() {
-    let Some(read) = read("places-person-names-2.txt", "labels-places-person-2.tsv") else {
-        return;
-    };
+    let read = read("places-person-names-2.txt", "labels-places-person-2.tsv");
     assert_eq!(read.missed, Vec::<String>::new(), "city uses the head took away");
     let alone = read.text.find("\n4. ").unwrap()..read.text.find("\n5. ").unwrap();
     let beside: Vec<usize> = read.false_cities.iter().copied().filter(|s| !alone.contains(s)).collect();
@@ -151,10 +150,9 @@ fn the_held_out_memo_keeps_every_city_use() {
 /// and no city; that use still carries the head's `city` reading among
 /// the candidates, and no other city use is lost.
 #[test]
+#[ignore = "needs the assembled Nemotron PII bundle in TURBO_NEMOTRON_PII_BUNDLE"]
 fn the_third_memo_loses_no_city_use_without_a_city_reading() {
-    let Some(read) = read("places-person-names-3.txt", "labels-places-person-3.tsv") else {
-        return;
-    };
+    let read = read("places-person-names-3.txt", "labels-places-person-3.tsv");
     assert_eq!(read.unread, Vec::<String>::new(), "city uses with no city reading left");
     assert!(read.missed.len() <= 1, "city uses the head took away: {:?}", read.missed);
     let left = read.names(&read.false_cities);

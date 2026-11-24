@@ -13,6 +13,7 @@ use crate::eos::Position;
 use crate::features::Features;
 use crate::inventory::{AbbreviationInventories, AbbreviationInventory, Verdict};
 use crate::me::model::SentenceModel;
+use crate::retain::{RETAINED, release};
 use crate::scan::{decode, find_whitespace, skip_whitespace, trim};
 use crate::{WHITESPACE_HASH, check_len, fold_hash};
 
@@ -84,12 +85,6 @@ impl Scratch {
         .into_iter()
         .max()
         .unwrap_or(0)
-    }
-}
-
-fn release<T>(v: &mut Vec<T>) {
-    if v.capacity() > RETAINED {
-        drop(std::mem::take(v));
     }
 }
 
@@ -291,12 +286,6 @@ impl SentenceDetector {
         }
     }
 }
-
-/// The most elements a per-thread buffer keeps between calls. A detection
-/// that grows one past this hands it back to the allocator afterwards, so
-/// a thread that once handled a very large document does not hold that
-/// document's peak memory for the rest of its life.
-pub(crate) const RETAINED: usize = 1 << 16;
 
 thread_local! {
     /// The buffers of the annotator, one set per thread, so that a

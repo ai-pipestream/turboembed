@@ -257,19 +257,13 @@ impl<A> Spans<A> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::span::Spans;
-    use crate::text::ViewId;
 
     struct A;
     struct B;
 
     fn layer<L>(items: &[(u32, u32)]) -> Spans<L> {
-        let mut s = Spans::new(ViewId::SOURCE);
-        for &(a, b) in items {
-            s.push(Span::new(a, b));
-        }
-        s
+        crate::span::of_pairs(items)
     }
 
     fn contained(outer: &Spans<A>, inner: &Spans<B>) -> Vec<Vec<u32>> {

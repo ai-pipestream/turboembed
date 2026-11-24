@@ -1,10 +1,9 @@
 //! The CUDA backend's devices, its capability, and its buffers in every
 //! placement, with import and export of CUDA pointers.
 //!
-//! Built with the `cuda` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none; nothing is run
-//! on anything else in its place. With TURBO_TEST_REQUIRE_CUDA=1 it fails
-//! instead, so a run on a GPU machine cannot pass by finding no GPU.
+//! Built with the `cuda` feature only. A test that needs a device fails
+//! when the backend lists none; nothing is run on anything else in its
+//! place. TURBO_TEST_REQUIRE_CUDA=0 lets it say it was skipped, and pass.
 //! docs/cuda.md says how to run them; tests/cuda_support/ holds what the
 //! files share.
 
@@ -72,7 +71,10 @@ fn the_devices_listed_are_the_drivers() {
     assert_eq!(unsafe { turbo_runtime_device_count(rt.0, &mut n, null_err()) }, 0);
     let listed: Vec<turbo_device_info> = (0..n).map(|i| rt.info(i)).filter(|d| field(&d.backend) == "cuda").collect();
     if listed.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_CUDA=1 and the cuda backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("cuda"),
+            "the cuda backend lists no device; TURBO_TEST_REQUIRE_CUDA=0 lets the test skip"
+        );
         println!("the cuda backend lists no device: nothing to check but that the runtime was made");
         assert!(n >= 1, "the cpu is still listed");
         return;

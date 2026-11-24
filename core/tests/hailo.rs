@@ -4,10 +4,9 @@
 //! computes in and what a run reports, and its vectors against the
 //! bundle's reference within the int8 floor.
 //!
-//! Built with the `hailo` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none; nothing is run on
-//! anything else in its place. With TURBO_TEST_REQUIRE_HAILO=1 it fails
-//! instead, so a run on a Hailo machine cannot pass by finding no device.
+//! Built with the `hailo` feature only. A test that needs a device fails
+//! when the backend lists none; nothing is run on anything else in its
+//! place. TURBO_TEST_REQUIRE_HAILO=0 lets it say it was skipped, and pass.
 //! The tests that need a bundle with a HEF are ignored unless asked for,
 //! and read it from TURBO_TEST_BUNDLE. docs/hailo.md says how to run them.
 
@@ -74,17 +73,15 @@ impl Drop for Rt {
     }
 }
 
-/// TURBO_TEST_REQUIRE_HAILO=1: a test that finds no device fails.
-fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_HAILO").is_ok_and(|v| v == "1")
-}
-
 /// The runtime's first hailo device, or None after saying the test is
 /// skipped.
 fn hailo_device(rt: &Rt, test: &str) -> Option<u32> {
     let d = rt.hailo().first().copied();
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_HAILO=1 and the hailo backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("hailo"),
+            "{test}: the hailo backend lists no device; TURBO_TEST_REQUIRE_HAILO=0 lets the test skip"
+        );
         println!("{test}: skipped: the hailo feature is on and the hailo backend lists no device");
     }
     d
@@ -142,7 +139,10 @@ fn the_devices_listed_are_the_ones_hailort_scans() {
     let listed = rt.hailo();
     let scanned = scanned();
     if listed.is_empty() {
-        assert!(!required(), "TURBO_TEST_REQUIRE_HAILO=1 and the hailo backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("hailo"),
+            "the hailo backend lists no device; TURBO_TEST_REQUIRE_HAILO=0 lets the test skip"
+        );
         assert!(scanned.is_empty(), "HailoRT scans {scanned:?} and the backend lists none: see the runtime's log");
         println!("the hailo backend lists no device: nothing to check but that the runtime was made");
         return;

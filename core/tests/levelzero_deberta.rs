@@ -4,9 +4,10 @@
 //!
 //! Built with the `levelzero` feature only. TURBO_TEST_DEVICE=levelzero
 //! runs the tests on the first levelzero device; without it they say they
-//! were skipped, as the other device tests do. With
-//! TURBO_TEST_REQUIRE_LEVELZERO=1 a test that finds no levelzero device,
-//! or is not told to use one, fails instead.
+//! were skipped, as the other device tests do. A test told to use one fails
+//! when the backend lists none, unless TURBO_TEST_REQUIRE_LEVELZERO=0 lets
+//! it skip; with TURBO_TEST_REQUIRE_LEVELZERO=1 a test not told to use one
+//! fails too.
 
 #![cfg(feature = "levelzero")]
 
@@ -53,7 +54,10 @@ fn device(test: &str) -> Option<u32> {
     let d = first_of(rt, "levelzero");
     unsafe { turbo_runtime_release(rt) };
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "{test}: the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("{test}: skipped: the levelzero backend lists no device");
     }
     d
