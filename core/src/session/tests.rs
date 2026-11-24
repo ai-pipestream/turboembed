@@ -95,3 +95,43 @@ fn a_layer_count_is_judged_against_the_model_before_the_device() {
     let e = taps_refusal(3, enc(TURBO_FAMILY_BERT), false, "x").unwrap_err();
     assert_eq!(e.message, "layers 3: the model has 1 to 2 to read");
 }
+
+#[test]
+fn a_non_finite_value_names_its_row_and_dimension() {
+    let bytes = |v: &[f32]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+    assert!(result::finite_rows(&bytes(&[0.0, -1.5, 2.0, 0.25]), 2).is_ok());
+    for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        // One byte in, so the rows start off any f32 alignment, as a
+        // caller's dst may (turbo_result_read promises none).
+        let mut unaligned = vec![0u8];
+        unaligned.extend(bytes(&[0.0, 1.0, 2.0, bad]));
+        let e = result::finite_rows(&unaligned[1..], 2).unwrap_err();
+        assert_eq!(e.code, INTERNAL);
+        assert!(e.message.contains("row 1") && e.message.contains("dimension 1"), "{}", e.message);
+    }
+}
+
+#[test]
+fn a_device_result_read_back_for_codes_is_refused_when_not_finite() {
+    // The values a DEVICE run reads back before the host codes them
+    // (INT8, UBINARY): a NaN there would code like any other value.
+    let mut staged = vec![0.0f32; 4];
+    for bad in [f32::NAN, f32::INFINITY] {
+        let e = result::read_back(&mut staged, 2, true, |dst| {
+            dst.copy_from_slice(&[0.0, 1.0, bad, 2.0]);
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(e.code, INTERNAL);
+        assert!(e.message.contains("row 1") && e.message.contains("dimension 0"), "{}", e.message);
+    }
+    let fine = [0.5, -1.0, 2.0, 3.0];
+    let got = result::read_back(&mut staged, 2, true, |dst| {
+        dst.copy_from_slice(&fine);
+        Ok(())
+    });
+    assert_eq!(got.unwrap(), &fine);
+    // The read's own failure is what the run answers.
+    let e = result::read_back(&mut staged, 2, true, |_| Err(Error::new(INTERNAL, "the read failed"))).unwrap_err();
+    assert_eq!(e.message, "the read failed");
+}

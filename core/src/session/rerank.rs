@@ -56,6 +56,8 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
             let s = &session(session_ptr)?.inner;
             let mut state = s.lock()?;
             state.written = None;
+            state.row_tokens.clear();
+            state.text_rows = false;
             state.rerank = None;
             if s.model.info.task != TURBO_TASK_RERANK {
                 return Err(Error::new(UNSUPPORTED_TASK, "model task is not rerank"));

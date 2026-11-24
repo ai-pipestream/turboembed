@@ -164,6 +164,11 @@ pub(crate) struct Context {
     /// first need; None where it could not open.
     #[cfg(feature = "levelzero-onednn")]
     dnnl: std::sync::OnceLock<Option<super::onednn::Dnnl>>,
+    /// buffer_quantize's check word, in PINNED host memory the quantize
+    /// kernels store the index of a value that is not finite in; set to
+    /// i32::MAX before each launch, so a run of finite values sends
+    /// nothing back (#2517).
+    bad: *mut c_void,
 }
 
 // The handles are the driver's, for any thread; the log function is the
@@ -207,6 +212,9 @@ impl Drop for Context {
         // context, so they go before it.
         #[cfg(feature = "levelzero-onednn")]
         drop(self.dnnl.take());
+        if !self.bad.is_null() {
+            self.free(self.bad, "buffer_quantize's check word");
+        }
         let module = self.module.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(Ok(m)) = module.take() {
             unsafe { (self.api.module_destroy)(m.0) };
@@ -264,6 +272,7 @@ pub(crate) unsafe fn create(
         log_user_data,
         #[cfg(feature = "levelzero-onednn")]
         dnnl: std::sync::OnceLock::new(),
+        bad: std::ptr::null_mut(),
     });
     let q = ctx.queue.get_mut().unwrap_or_else(|p| p.into_inner());
     let pd = ze::EventPoolDesc {
@@ -291,6 +300,7 @@ pub(crate) unsafe fn create(
     ze("zeCommandListCreateImmediate", unsafe {
         (api.command_list_create_immediate)(handle, dev.handle, &queue_desc(), &mut q.list)
     })?;
+    ctx.bad = ctx.alloc_pinned(4)?;
     let faults = crate::ze::page_faults_off().describe();
     ctx.say(LOG_DEBUG, &format!("levelzero context on device {ordinal} ({}): one in-order queue, {faults}", dev.name));
     unsafe { *out = Box::into_raw(ctx) as *mut c_void };

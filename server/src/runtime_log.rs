@@ -141,7 +141,9 @@ mod tests {
     /// What the server's own runtime logged reaches the capability
     /// listing over gRPC: kept entries with their level, and the count
     /// past the cap. Planted through the runtime's callback, since a CPU
-    /// build has no real warning to raise.
+    /// build has no real warning to raise. A build with a backend whose
+    /// probe fails on this machine has warnings of its own first, and
+    /// they come ahead of the planted lines and count toward the cap.
     #[tokio::test]
     async fn the_capability_listing_carries_what_the_runtime_logged() {
         use crate::config::{DEFAULT_MAX_MESSAGE_BYTES, Device, ModelConfig};
@@ -164,6 +166,8 @@ mod tests {
             crate::Server::start(addr, vec![model], DEFAULT_MAX_MESSAGE_BYTES, crate::Serve::default()).await.unwrap();
         s.load().await.unwrap();
         let log = s.state.runtime.get().expect("the load made the runtime").log().clone();
+        let (own, own_dropped) = log.warnings();
+        assert!(own.len() + 2 < MAX_RUNTIME_WARNINGS && own_dropped == 0, "the runtime's own warnings: {own:?}");
         say(&log, LOG_ERROR, "a planted error");
         for i in 0..MAX_RUNTIME_WARNINGS + 2 {
             say(&log, LOG_WARNING, &format!("planted warning {i}"));
@@ -171,12 +175,15 @@ mod tests {
         let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
         let caps = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
         assert_eq!(caps.runtime_warnings.len(), MAX_RUNTIME_WARNINGS);
-        let first = &caps.runtime_warnings[0];
+        assert_eq!(caps.runtime_warnings[..own.len()], own[..]);
+        let first = &caps.runtime_warnings[own.len()];
         assert_eq!((first.level, first.message.as_str()), (RuntimeLogLevel::Error as i32, "a planted error"));
+        // The cap holds the runtime's own lines, the planted error and
+        // the first planted warnings; the rest of them are counted.
         let last = caps.runtime_warnings.last().unwrap();
-        let want = format!("planted warning {}", MAX_RUNTIME_WARNINGS - 2);
+        let want = format!("planted warning {}", MAX_RUNTIME_WARNINGS - own.len() - 2);
         assert_eq!((last.level, last.message.as_str()), (RuntimeLogLevel::Warning as i32, want.as_str()));
-        assert_eq!(caps.runtime_warnings_dropped, 3);
+        assert_eq!(caps.runtime_warnings_dropped, own.len() as u64 + 3);
         s.stop().await;
     }
 }

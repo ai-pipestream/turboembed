@@ -55,6 +55,7 @@ pub(crate) struct Loaded {
     pub(crate) model_info: turbo_model_info,
     pub(crate) embed: OnceLock<api::Result<crate::tasks::EmbedModel>>,
     pub(crate) qa: Option<crate::tasks::QaModel>,
+    pub(crate) rerank_calibration: crate::results::rerank_highlight::BundleCalibration,
     pub(crate) model: Model,
     pub(crate) task: u32,
     pub(crate) device: u32,
@@ -416,6 +417,8 @@ impl State {
             });
         }
         let head_steps = crate::progressive::heads::available(&c.bundle).map_err(fail("turbo_model_load", &[]))?;
+        let rerank_calibration =
+            crate::results::rerank_highlight::BundleCalibration::load_for_task(info.task, &c.bundle, &info);
         let pool = SessionPool::new(slots.len());
         let loaded = Loaded {
             slots,
@@ -423,6 +426,7 @@ impl State {
             model_info: info,
             embed: OnceLock::new(),
             qa,
+            rerank_calibration,
             model,
             task: info.task,
             device,

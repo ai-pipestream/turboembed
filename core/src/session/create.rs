@@ -255,6 +255,8 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
         written: None,
         ids: vec![0; rows],
         mask: vec![0; rows],
+        row_tokens: Vec::with_capacity(max_batch as usize),
+        text_rows: false,
         rerank: None,
         scores: vec![0.0; max_batch as usize],
         pooled: vec![0.0; mi.dim as usize],

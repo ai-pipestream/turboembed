@@ -280,6 +280,10 @@ is the only one on the way out.
 Either way the result, and its buffer, are released once the response
 is encoded, and only then is the session free again.
 
+A float result holding a NaN or an infinity is never sent: the core
+refuses the run, and the call fails `TURBO_E_INTERNAL`, naming the first
+row and dimension that is not finite (issue #2517).
+
 `outputs` in the request may be empty, meaning every output, or name
 `vectors` once. Another name is `TURBO_E_INVALID_ARGUMENT`.
 
@@ -301,6 +305,7 @@ counter above the largest `int64_t` is clamped to it.
 | `backend`, `arch`, `runtime_version`, `manifest_sha256`, `artifact_sha256`, `tokenizer_sha256` | the same |
 
 | `stage_count` | the same |
+| `truncated_rows` | `TASK_EMBED` text requests only: how many rows were cut at the session's token limit (`turbo_session_row_tokens`, issue #2511); absent for token requests, whose rows are the caller's own |
 | `stage.<stage>` | `stage[i]` for each i below `stage_count`, keyed by the task's stage constant without `TURBO_` (`stage.EMBED_STAGE_TOKENIZE`), valued by the `TURBO_STAGE_*` constant without `TURBO_` (`STAGE_HOST`) |
 
 ## Parameters
