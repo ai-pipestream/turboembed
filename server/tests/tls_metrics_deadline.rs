@@ -264,6 +264,9 @@ async fn prometheus_metrics_endpoint_exposes_all_server_metric_families() {
         "missing Prometheus content-type header: {raw}"
     );
 
+    // The bundles were loaded on the CPU, whose runtime index is 0 only
+    // in a build with no GPU backend.
+    let device = cpu();
     for expected in [
         "turbo_kserve_rpc_requests_total{service=\"inference.GRPCInferenceService\",method=\"ModelInfer\",code=\"OK\"} 1",
         "turbo_kserve_rpc_requests_total{service=\"turbo.result.v1.AnalysisService\",method=\"AnalyzeStream\",code=\"OK\"} 1",
@@ -273,9 +276,9 @@ async fn prometheus_metrics_endpoint_exposes_all_server_metric_families() {
         "turbo_kserve_queued_documents 0",
         "turbo_kserve_queued_bytes 0",
         "turbo_kserve_batch_size_count 2",
-        "turbo_kserve_device_queue_depth{device=\"0\"} 0",
-        "turbo_kserve_device_active_sessions{device=\"0\"} 0",
-        "turbo_kserve_device_idle_sessions{device=\"0\"} 2",
+        &format!("turbo_kserve_device_queue_depth{{device=\"{device}\"}} 0"),
+        &format!("turbo_kserve_device_active_sessions{{device=\"{device}\"}} 0"),
+        &format!("turbo_kserve_device_idle_sessions{{device=\"{device}\"}} 2"),
         "turbo_kserve_bundle_loads_total{status=\"ok\"} 2",
         "turbo_kserve_bundle_unloads_total 1",
         "turbo_kserve_loaded_bundles 1",
