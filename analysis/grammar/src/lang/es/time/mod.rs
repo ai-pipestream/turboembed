@@ -79,6 +79,10 @@ pub(crate) const ADPOINT: Dim = Dim(NUMBER_DIMS + 41);
 pub(crate) const ATPOINT: Dim = Dim(NUMBER_DIMS + 42);
 const DIMS: u16 = NUMBER_DIMS + 43;
 
+/// The dims whose values are times.
+const TIME_OUTPUT: [Dim; 17] =
+    [BARE, CLOCK, PARTD, DATE, HOL, MONTHD, PERIOD, DT, DTP, DUR, TRANGE, RANGE, SET, MODED, WD, DOM, MD];
+
 /// The Spanish time grammar.
 pub struct SpanishTimes {
     lexicon: OnceLock<Lexicon>,
@@ -105,21 +109,14 @@ impl Grammar for SpanishTimes {
     }
 
     fn lexicon(&self) -> &Lexicon {
-        self.lexicon.get_or_init(|| {
-            let mut entries = super::lexicon::ENTRIES.to_vec();
-            entries.extend_from_slice(lexicon::ENTRIES);
-            Lexicon::new(&entries)
-        })
+        crate::lang::concat_lexicon(&self.lexicon, super::lexicon::ENTRIES, || lexicon::ENTRIES.to_vec())
     }
 
     fn rules(&self) -> &'static [Rule] {
-        RULES.get_or_init(|| {
-            let mut all = SPANISH.rules().to_vec();
-            for part in [clock::RULES, date::RULES, compose::RULES, duration::RULES, set::RULES, range::RULES] {
-                all.extend_from_slice(part);
-            }
-            all
-        })
+        crate::lang::concat_rules(
+            &RULES,
+            &[SPANISH.rules(), clock::RULES, date::RULES, compose::RULES, duration::RULES, set::RULES, range::RULES],
+        )
     }
 
     fn dims(&self) -> u16 {
@@ -139,11 +136,7 @@ impl Grammar for SpanishTimes {
     }
 
     fn output(&self, dim: Dim) -> Option<Output> {
-        match dim {
-            BARE | CLOCK | PARTD | DATE | HOL | MONTHD | PERIOD | DT | DTP | DUR | TRANGE | RANGE | SET | MODED
-            | WD | DOM | MD => Some(Output::Time),
-            _ => None,
-        }
+        TIME_OUTPUT.contains(&dim).then_some(Output::Time)
     }
 
     fn time_zone_context(&self, dim: Dim) -> bool {

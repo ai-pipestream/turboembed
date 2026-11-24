@@ -141,9 +141,7 @@ impl ContextGenerator {
     }
 
     fn gram_bytes(&self, g: u32) -> &[u8] {
-        let g = g as usize;
-        let start = if g == 0 { 0 } else { self.ends[g - 1] as usize };
-        &self.bytes[start..self.ends[g] as usize]
+        gram_bytes(&self.bytes, &self.ends, g)
     }
 
     /// Whether [`features`](Self::features) is in deterministic order (always
@@ -225,6 +223,14 @@ pub(crate) fn home_slot(hash: i32, slots: usize) -> usize {
     (product >> (64 - slots.trailing_zeros())) as usize
 }
 
+/// The bytes of gram `g` of grams stored end to end in `bytes`, each
+/// ending at its entry of `ends`.
+pub(crate) fn gram_bytes<'a>(bytes: &'a [u8], ends: &[u32], g: u32) -> &'a [u8] {
+    let g = g as usize;
+    let start = if g == 0 { 0 } else { ends[g - 1] as usize };
+    &bytes[start..ends[g] as usize]
+}
+
 /// Doubles the slot table and puts every gram back.
 pub(crate) fn grow(slots: &mut Vec<u32>, grams: &[Gram]) {
     let size = slots.len() * 2;
@@ -272,5 +278,18 @@ fn insert(slots: &mut [u32], grams: &mut Vec<Gram>, units: &[u16], gram: &[u16],
             }
         }
         slot = (slot + 1) & mask;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gram_bytes_slices_each_gram_from_its_end() {
+        let (bytes, ends) = (b"abcde", [1, 3, 5]);
+        assert_eq!(gram_bytes(bytes, &ends, 0), b"a");
+        assert_eq!(gram_bytes(bytes, &ends, 1), b"bc");
+        assert_eq!(gram_bytes(bytes, &ends, 2), b"de");
     }
 }

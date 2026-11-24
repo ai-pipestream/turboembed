@@ -20,7 +20,7 @@ use crate::adamw::AdamW;
 use crate::adapter::{self, Shape};
 use crate::real::Real;
 use crate::rng::Rng;
-use crate::shapes::{checked_shapes, fits, language_row};
+use crate::shapes::{checked_shapes, decays_of, fits, language_row, replace_params};
 use crate::{crf, linear, xent};
 
 /// The weights of one head, `params[i]` named `names[i]`.
@@ -109,12 +109,7 @@ impl<R: Real> Tagger<R> {
 
     /// Replaces every weight, refused unless each tensor keeps its length.
     pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
-        let lens: Vec<usize> = self.params.iter().map(Vec::len).collect();
-        if params.len() != lens.len() || params.iter().zip(&lens).any(|(p, &n)| p.len() != n) {
-            return Err(invalid(format!("trainer: weights do not match the tensors of head {:?}", self.spec.name)));
-        }
-        self.params = params;
-        Ok(())
+        replace_params(&self.spec.name, &mut self.params, params)
     }
 
     /// One optimizer step on the weights; returns the gradient norm
@@ -139,10 +134,7 @@ impl<R: Real> Tagger<R> {
     /// Whether tensor i takes weight decay: matrices do, biases and CRF
     /// scores do not.
     pub fn decays(&self) -> Vec<bool> {
-        self.names
-            .iter()
-            .map(|n| n.ends_with(".w") || n.ends_with(".u") || n == "out.weight" || n == "language.embedding")
-            .collect()
+        decays_of(&self.names)
     }
 
     pub fn zero_grads(&self) -> Vec<Vec<R>> {

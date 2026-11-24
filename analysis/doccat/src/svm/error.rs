@@ -14,6 +14,15 @@ pub enum File {
     Sidecar,
 }
 
+/// Sets `slot` to `value`, or says `field` was given twice.
+pub(crate) fn once<T>(slot: &mut Option<T>, field: &'static str, value: T) -> Result<(), LineError> {
+    if slot.is_some() {
+        return Err(LineError::Repeated(field));
+    }
+    *slot = Some(value);
+    Ok(())
+}
+
 /// What is wrong with one line of a model file.
 #[derive(Clone, Debug, PartialEq)]
 pub enum LineError {
@@ -118,5 +127,18 @@ impl std::error::Error for ModelError {
             ModelError::Io { error, .. } => Some(error),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_field_is_set_once_and_refused_the_second_time() {
+        let mut slot = None;
+        assert_eq!(once(&mut slot, "nr_class", 2), Ok(()));
+        assert_eq!(once(&mut slot, "nr_class", 3), Err(LineError::Repeated("nr_class")));
+        assert_eq!(slot, Some(2));
     }
 }

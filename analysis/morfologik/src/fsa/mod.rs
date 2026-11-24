@@ -1,6 +1,30 @@
 //! FSA5 and CFSA2 finite-state automaton readers, ported from OpenNLP 3.x's
 //! `FsaSequenceReader`, `FSA5Reader`, `CFSA2Reader`, and `FsaTraversal`.
 
+/// `for_each_sequence` and `sequences` of a reader, written over its
+/// `try_for_each_sequence`.
+macro_rules! sequence_walks {
+    () => {
+        /// Passes every accepted byte sequence to `action` in stored order.
+        pub fn for_each_sequence<F>(&self, mut action: F)
+        where
+            F: FnMut(&[u8]),
+        {
+            let _: Result<(), std::convert::Infallible> = self.try_for_each_sequence(|seq| {
+                action(seq);
+                Ok(())
+            });
+        }
+
+        /// Collects all accepted byte sequences in stored order.
+        pub fn sequences(&self) -> Vec<Vec<u8>> {
+            let mut out = Vec::new();
+            self.for_each_sequence(|seq| out.push(seq.to_vec()));
+            out
+        }
+    };
+}
+
 mod cfsa2;
 
 pub use cfsa2::Cfsa2Reader;
@@ -51,16 +75,7 @@ impl FsaReader {
         }
     }
 
-    /// Passes every accepted byte sequence to `action` in the automaton's stored order.
-    pub fn for_each_sequence<F>(&self, action: F)
-    where
-        F: FnMut(&[u8]),
-    {
-        match self {
-            Self::Fsa5(reader) => reader.for_each_sequence(action),
-            Self::Cfsa2(reader) => reader.for_each_sequence(action),
-        }
-    }
+    sequence_walks!();
 
     /// Passes every accepted byte sequence to `action`, stopping early on the first error.
     pub fn try_for_each_sequence<F, E>(&self, action: F) -> Result<(), E>
@@ -71,13 +86,6 @@ impl FsaReader {
             Self::Fsa5(reader) => reader.try_for_each_sequence(action),
             Self::Cfsa2(reader) => reader.try_for_each_sequence(action),
         }
-    }
-
-    /// Collects all accepted byte sequences in stored order.
-    pub fn sequences(&self) -> Vec<Vec<u8>> {
-        let mut out = Vec::new();
-        self.for_each_sequence(|seq| out.push(seq.to_vec()));
-        out
     }
 
     /// Traverses the automaton from the root along `word` followed by `separator`,
@@ -335,16 +343,7 @@ impl Fsa5Reader {
         Ok(arc + length)
     }
 
-    /// Passes every accepted byte sequence to `action` in stored order.
-    pub fn for_each_sequence<F>(&self, mut action: F)
-    where
-        F: FnMut(&[u8]),
-    {
-        let _: Result<(), std::convert::Infallible> = self.try_for_each_sequence(|seq| {
-            action(seq);
-            Ok(())
-        });
-    }
+    sequence_walks!();
 
     /// Passes every accepted byte sequence to `action`, stopping early on the first error.
     pub fn try_for_each_sequence<F, E>(&self, action: F) -> Result<(), E>
@@ -352,13 +351,6 @@ impl Fsa5Reader {
         F: FnMut(&[u8]) -> Result<(), E>,
     {
         try_traverse_all(self, action)
-    }
-
-    /// Collects all accepted byte sequences in stored order.
-    pub fn sequences(&self) -> Vec<Vec<u8>> {
-        let mut out = Vec::new();
-        self.for_each_sequence(|seq| out.push(seq.to_vec()));
-        out
     }
 }
 

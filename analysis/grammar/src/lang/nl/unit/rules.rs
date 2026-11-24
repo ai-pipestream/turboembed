@@ -2,7 +2,7 @@ use super::*;
 use crate::dec::Dec;
 use crate::engine::{Build, Item, glued, glued_word, node, node_if, opt_word, word};
 use crate::lang::nl::{NUM, SCALE};
-use crate::unit::{Angle, Area, CurrencyUnit, Generic, Information, Rate, Volume};
+use crate::unit::{Angle, Area, CurrencyUnit, Generic, Information, Volume};
 use crate::value::Quantity;
 use lexicon::Words;
 
@@ -83,23 +83,6 @@ fn square(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 fn cubic(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let Unit::Length(l) = v[0].unit()? else { return None };
     Some(Value::Unit(Unit::Volume(Volume::Cubic(l))))
-}
-fn scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let u = v[1].unit()?;
-    matches!(u, Unit::Temperature(Temperature::Celsius | Temperature::Fahrenheit | Temperature::Kelvin))
-        .then_some(Value::Unit(u))
-}
-fn letter_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    Some(Value::Unit(Unit::Temperature(if v[1].term()?.0 == 0 {
-        Temperature::Celsius
-    } else {
-        Temperature::Fahrenheit
-    })))
-}
-fn money_rate(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
-    let Value::Quantity(q) = v[0] else { return None };
-    let Unit::Currency(c) = q.unit() else { return None };
-    quantity(q.value(), Unit::Rate(Rate::Currency(c, lexicon::TIMES.get(v[1].term()?.0 as usize)?.1)))
 }
 fn cny_tenths(q: Quantity) -> bool {
     Some(q.unit()) == code_unit("cny") && q.value().shift(1).is_some_and(|n| n.is_integer())
@@ -192,6 +175,6 @@ pub(super) const RULES: &[Rule] = &[
         hundredths,
     ),
     r("nl_unit_money_bare", QTY, &[node_if(QTY, whole_money), opt_word("en"), node(NUM)], hundredths),
-    r("nl_unit_money_rate", QTY, &[node(QTY), word("per"), node(TIME)], money_rate),
-    r("nl_unit_money_rate_slash", QTY, &[node(QTY), word("/"), node(TIME)], money_rate),
+    r("nl_unit_money_rate", QTY, &[node(QTY), word("per"), node(TIME)], money_rate::<Words>),
+    r("nl_unit_money_rate_slash", QTY, &[node(QTY), word("/"), node(TIME)], money_rate::<Words>),
 ];

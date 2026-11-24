@@ -155,15 +155,20 @@ pub(super) fn cover(doc: &MascDocument, sentence: &MascSentence, fields: &[Field
     }
 }
 
-/// Fuses an iterator over reads at the end and at the null document.
-fn next_of<T>(done: &mut bool, read: Result<Option<T>, MascError>) -> Option<Result<T, MascError>> {
-    if *done {
+/// The next sample of a reader whose `done` flag `done` picks out: `read`
+/// until it ends or meets the null document, then `None` for good.
+fn fused<R, T>(
+    reader: &mut R,
+    done: fn(&mut R) -> &mut bool,
+    read: fn(&mut R) -> Result<Option<T>, MascError>,
+) -> Option<Result<T, MascError>> {
+    if *done(reader) {
         return None;
     }
-    match read {
+    match read(reader) {
         Ok(Some(s)) => Some(Ok(s)),
         Ok(None) | Err(MascError::NullDocument) => {
-            *done = true;
+            *done(reader) = true;
             None
         }
         Err(e) => Some(Err(e)),
@@ -230,11 +235,7 @@ impl<'c> Iterator for MascPosReader<'c> {
     type Item = Result<MascSample<PosSample<'c>>, MascError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        let read = self.read();
-        next_of(&mut self.done, read)
+        fused(self, |r| &mut r.done, Self::read)
     }
 }
 
@@ -369,10 +370,6 @@ impl<'c> Iterator for MascTokenReader<'c> {
     type Item = Result<MascSample<TokenSample<'c>>, MascError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.done {
-            return None;
-        }
-        let read = self.read();
-        next_of(&mut self.done, read)
+        fused(self, |r| &mut r.done, Self::read)
     }
 }

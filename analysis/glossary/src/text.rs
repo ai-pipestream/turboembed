@@ -362,14 +362,7 @@ impl TextMatcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn glossary(entries: &[(&str, &str)]) -> Glossary {
-        let mut g = Glossary::new();
-        for (id, term) in entries {
-            g.push(id, term).unwrap();
-        }
-        g
-    }
+    use crate::test_support::glossary;
 
     fn every_offset(text: &str) -> Boundaries {
         Boundaries::from_offsets(text.len() as u32, 0..=text.len() as u32)

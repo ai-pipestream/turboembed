@@ -14,7 +14,7 @@
 //! reads must be given rather than left at zero.
 
 use super::model::{Kernel, LibsvmModel, PairwiseSigmoid, SparseRows, SvmType};
-use crate::svm::error::{File, LineError, ModelError};
+use crate::svm::error::{File, LineError, ModelError, once};
 use crate::svm::text::{lines, parse_double, parse_int};
 
 /// The number of `prob_density_marks` LIBSVM writes.
@@ -69,15 +69,6 @@ struct Header {
     prob_b: Option<Vec<f64>>,
     density_marks: Option<Vec<f64>>,
     n_sv: Option<Vec<i32>>,
-}
-
-/// Sets `slot` once.
-fn once<T>(slot: &mut Option<T>, field: &'static str, value: T) -> Result<(), LineError> {
-    if slot.is_some() {
-        return Err(LineError::Repeated(field));
-    }
-    *slot = Some(value);
-    Ok(())
 }
 
 impl Header {

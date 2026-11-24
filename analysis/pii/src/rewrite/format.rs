@@ -253,8 +253,7 @@ impl StaticReplacer {
     /// custom kind given to [`StaticReplacer::with`] afterwards indexes.
     /// Drops overrides of custom kinds made under an earlier table.
     pub fn with_custom_kinds(mut self, kinds: CustomKinds) -> StaticReplacer {
-        self.overrides.retain(|(k, _)| !k.is_custom());
-        self.custom_kinds = kinds;
+        super::replace_custom_kinds(&mut self.overrides, &mut self.custom_kinds, kinds);
         self
     }
 

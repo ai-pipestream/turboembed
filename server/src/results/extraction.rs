@@ -61,10 +61,8 @@ impl Extraction {
     }
 
     /// Attaches reference view text and wire [`OffsetMode`].
-    pub fn with_offsets(mut self, text: impl Into<String>, offsets: OffsetMode) -> Self {
-        self.text = text.into();
-        self.offsets = offsets;
-        self
+    pub fn with_offsets(self, text: impl Into<String>, offsets: OffsetMode) -> Self {
+        Self { text: text.into(), offsets, ..self }
     }
 
     /// The layout checks that keep the rebuild below from slicing or

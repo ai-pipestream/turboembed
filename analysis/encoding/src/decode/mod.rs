@@ -139,6 +139,12 @@ pub(crate) enum Step {
     Error { restore: u8 },
 }
 
+/// The end of input for a decoder that holds at most a lead byte: an
+/// error if one was pending, which it clears.
+pub(crate) fn lead_at_eof(lead: &mut u8) -> Option<Step> {
+    if std::mem::take(lead) == 0 { None } else { Some(Step::Error { restore: 0 }) }
+}
+
 /// A decoder that takes one byte at a time, in the standard's terms.
 pub(crate) trait Stepper {
     /// Whether an ASCII byte outside a sequence always decodes to itself,
@@ -203,4 +209,17 @@ pub(crate) fn drive<S: Stepper>(src: &[u8], mut s: S, out: &mut DecodeBuilder<'_
         }
     }
     errors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pending_lead_at_eof_is_one_error_and_is_cleared() {
+        let mut lead = 0x81;
+        assert_eq!(lead_at_eof(&mut lead), Some(Step::Error { restore: 0 }));
+        assert_eq!(lead, 0);
+        assert_eq!(lead_at_eof(&mut lead), None);
+    }
 }
