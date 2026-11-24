@@ -15,3 +15,8 @@ bundle/recipes/*.jsonl -text
 # The evaluation readers' samples are read byte for byte: one has CRLF
 # line endings on purpose, and the Qasper sample is a gzip archive.
 analysis/eval/tests/data/** -text
+
+# The evaluation records are checked as committed, byte for byte: LF line
+# ends and no byte order mark (bench/tests/tree/eval_records.rs). A clone
+# with core.autocrlf must not rewrite them on the way out.
+analysis/eval/records/** -text

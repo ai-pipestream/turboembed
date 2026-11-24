@@ -37,6 +37,64 @@ fn write_text_refuses_what_it_cannot_take() {
     assert_eq!((e.code, e.field), (INVALID_ARGUMENT, 2), "{e:?}");
 }
 
+/// What a write made of each text, read back (issue #2511).
+fn row_tokens(s: &Session) -> std::result::Result<Vec<turbo_row_tokens>, Failure> {
+    let mut rows = [turbo_row_tokens::default(); 8];
+    let (mut n, mut err) = (0u32, new_error());
+    let rc = unsafe { turbo_session_row_tokens(s.0, rows.as_mut_ptr(), rows.len() as u32, &mut n, &mut err) };
+    if rc != 0 {
+        return Err(failure(rc, &err));
+    }
+    Ok(rows[..n as usize].to_vec())
+}
+
+/// A text cut at the limit says so beside its row: the tokens kept, the
+/// tokens the whole text gives, and that it was cut. Before, the write
+/// succeeded and nothing told a cut row from a whole one.
+#[test]
+fn a_cut_text_is_told_row_by_row() {
+    let l = tiny();
+    let s = Session::create(l.m, Some(&session_desc(2, 64, 0))).unwrap();
+    // Nothing was written yet.
+    assert_eq!(row_tokens(&s).err().unwrap().code, INVALID_STATE);
+    s.write_text(&["short", PARAGRAPH], None).unwrap();
+    let rows = row_tokens(&s).unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!((rows[0].truncated, rows[0].seen_known), (0, 1), "{rows:?}");
+    assert_eq!(rows[0].kept, rows[0].seen, "{rows:?}");
+    // The bundle's max_seq is 64: TURBO_TRUNCATE_MODEL keeps that many.
+    assert_eq!((rows[1].kept, rows[1].truncated, rows[1].seen_known), (64, 1, 1), "{rows:?}");
+    assert!(rows[1].seen > 64, "{rows:?}");
+    // The counts stay readable until the next write: a result holds the
+    // session (busy, like every session call), and once it is released
+    // the same counts are read again.
+    let out = s.run().unwrap();
+    assert_eq!(row_tokens(&s).err().unwrap().code, BUSY);
+    drop(out);
+    assert_eq!(row_tokens(&s).unwrap(), rows, "the counts outlive the run");
+    // Left truncation keeps as many and reports the same whole count.
+    s.write_text(&[PARAGRAPH], Some(&opts(|o| o.truncate = TURBO_TRUNCATE_LEFT))).unwrap();
+    let left = row_tokens(&s).unwrap();
+    assert_eq!(left, [rows[1]]);
+    // A capacity under the rows written is refused, never a short answer.
+    let (mut n, mut one) = (0u32, turbo_row_tokens::default());
+    s.write_text(&["a", "b"], None).unwrap();
+    assert_eq!(unsafe { turbo_session_row_tokens(s.0, &mut one, 1, &mut n, null_err()) }, CAPACITY);
+    // A write of the caller's own tokens has no text to have cut.
+    let (ids, mask) = ([101i32, 102], [1i32, 1]);
+    let batch = turbo_token_batch {
+        struct_size: size_of::<turbo_token_batch>() as u32,
+        batch: 1,
+        seq: 2,
+        row_stride: 2,
+        ids: ids.as_ptr(),
+        mask: mask.as_ptr(),
+        types: ptr::null(),
+    };
+    assert_eq!(unsafe { turbo_embed_write_tokens(s.0, &batch, ptr::null(), null_err()) }, 0);
+    assert_eq!(row_tokens(&s).err().unwrap().code, INVALID_STATE);
+}
+
 #[test]
 fn every_option_is_checked_by_name() {
     let l = tiny();

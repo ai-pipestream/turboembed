@@ -38,6 +38,25 @@ pub(crate) fn fits<R>(spec: &HeadSpec, shapes: &Shapes, params: &[Vec<R>]) -> Re
     Ok(())
 }
 
+/// Replaces the weights of the head named `head`, refused unless each
+/// tensor keeps its length.
+pub(crate) fn replace_params<R>(head: &str, params: &mut Vec<Vec<R>>, new: Vec<Vec<R>>) -> Result<()> {
+    if new.len() != params.len() || new.iter().zip(params.iter()).any(|(a, b)| a.len() != b.len()) {
+        return Err(invalid(format!("trainer: weights do not match the tensors of head {head:?}")));
+    }
+    *params = new;
+    Ok(())
+}
+
+/// Whether each named tensor takes weight decay: matrices and the
+/// language embedding do; biases, CRF scores and tag embeddings do not.
+pub(crate) fn decays_of(names: &[String]) -> Vec<bool> {
+    names
+        .iter()
+        .map(|n| n.ends_with(".w") || n.ends_with(".u") || n == "out.weight" || n == "language.embedding")
+        .collect()
+}
+
 /// Seeded initial weights for `shapes`: Xavier-uniform matrices, and zero
 /// vectors but for each LSTM forget gate's biases (1).
 pub(crate) fn seeded<R: Real>(shapes: &Shapes, rng: &mut Rng) -> Vec<Vec<R>> {
@@ -94,6 +113,23 @@ mod tests {
         assert!(language_row(Some(&two), None).is_err());
         assert_eq!(language_row(Some(&two), Some(1)).unwrap(), Some(1));
         assert!(language_row(Some(&two), Some(2)).is_err());
+    }
+
+    #[test]
+    fn weights_are_replaced_only_when_every_tensor_keeps_its_length() {
+        let mut params = vec![vec![0.0f32; 2], vec![0.0; 3]];
+        assert!(replace_params("pos", &mut params, vec![vec![1.0; 2]]).is_err(), "a tensor missing");
+        assert!(replace_params("pos", &mut params, vec![vec![1.0; 3], vec![1.0; 2]]).is_err(), "lengths swapped");
+        assert_eq!(params, [vec![0.0; 2], vec![0.0; 3]], "a refused replace keeps the weights");
+        replace_params("pos", &mut params, vec![vec![1.0; 2], vec![2.0; 3]]).unwrap();
+        assert_eq!(params, [vec![1.0; 2], vec![2.0; 3]]);
+    }
+
+    #[test]
+    fn matrices_and_the_language_embedding_take_decay() {
+        let names = ["l0.w", "l0.b", "lstm.u", "out.weight", "out.bias", "language.embedding", "tag.embedding"];
+        let names: Vec<String> = names.map(String::from).to_vec();
+        assert_eq!(decays_of(&names), [true, false, true, true, false, true, false]);
     }
 
     #[test]

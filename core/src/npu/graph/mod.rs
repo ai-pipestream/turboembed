@@ -23,7 +23,7 @@ use super::ze::{self, GraphExt, Handle};
 use super::{Device, Driver};
 use crate::backend::{refuse, refuse_field};
 use crate::status::{OUT_OF_MEMORY, PANIC, RUNTIME, UNSUPPORTED};
-use crate::{turbo_error, turbo_log_fn, turbo_text};
+use crate::{turbo_error, turbo_log_fn};
 
 mod accept;
 mod args;
@@ -157,10 +157,7 @@ const LOG_DEBUG: u32 = 3;
 
 impl Context {
     fn say(&self, level: u32, message: &str) {
-        if let Some(f) = self.log {
-            let t = turbo_text { ptr: message.as_ptr() as *const _, len: message.len() as u64 };
-            unsafe { f(self.log_user_data, level, t) };
-        }
+        crate::ze::say(self.log, self.log_user_data, level, message);
     }
 
     /// `bytes` of host memory the device reads directly.

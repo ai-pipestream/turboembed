@@ -115,7 +115,7 @@ fn filter_rejects_equal_source_and_target_and_filters_survivors() {
     assert_eq!(err_doc, Error::Pipeline("target must differ from source".into()));
 
     let mut doc = Document::new("a lengthy pair of words");
-    Bound::new(WordProducer).compute_and_store_one(&mut doc).unwrap();
+    Bound::new(WordProducer).run_one(&mut doc).unwrap();
 
     let filter = FilterAnnotator::new(WORDS, LONG_WORDS, |w, ix| w.values[ix.get()].len() > 4).unwrap();
     assert_eq!(filter.reads(), vec![WORDS.id()]);
@@ -127,14 +127,14 @@ fn filter_rejects_equal_source_and_target_and_filters_survivors() {
 
     // Empty source layer produces an empty target layer.
     let mut empty_doc = Document::new("");
-    Bound::new(WordProducer).compute_and_store_one(&mut empty_doc).unwrap();
+    Bound::new(WordProducer).run_one(&mut empty_doc).unwrap();
     FilterAnnotator::new(WORDS, LONG_WORDS, |_, _| true).unwrap().annotate_doc(&mut empty_doc).unwrap();
     assert_eq!(empty_doc.get_key(&LONG_WORDS).unwrap().len(), 0);
     assert_eq!(empty_doc.status(LONG_WORDS.id()), Some(&Status::Complete));
 
     // All-rejecting filter produces an empty target layer.
     let mut reject_doc = Document::new("a lengthy pair of words");
-    Bound::new(WordProducer).compute_and_store_one(&mut reject_doc).unwrap();
+    Bound::new(WordProducer).run_one(&mut reject_doc).unwrap();
     FilterAnnotator::new(WORDS, LONG_WORDS, |_, _| false).unwrap().annotate_doc(&mut reject_doc).unwrap();
     assert_eq!(reject_doc.get_key(&LONG_WORDS).unwrap().len(), 0);
     assert_eq!(reject_doc.status(LONG_WORDS.id()), Some(&Status::Complete));
@@ -272,7 +272,7 @@ fn conditional_annotator_branches_skips_and_checks_requirements_and_provenance()
 
     // 4. Skip path collides with pre-existing provided layer.
     let mut dup_doc = Document::new("two words");
-    Bound::new(WordProducer).compute_and_store_one(&mut dup_doc).unwrap();
+    Bound::new(WordProducer).run_one(&mut dup_doc).unwrap();
     let skip_dup = ConditionalAnnotator::from_annotator("never", |_| false, WordProducer);
     assert_eq!(skip_dup.annotate_doc(&mut dup_doc), Err(Error::Duplicate(WORDS.id())));
 
@@ -291,7 +291,7 @@ fn conditional_annotator_branches_skips_and_checks_requirements_and_provenance()
     let union_cond = ConditionalAnnotator::if_else("pick", |_| true, branch_a, branch_b).unwrap();
     assert_eq!(union_cond.reads(), vec![WORDS.id(), OTHER_WORDS.id()]);
     let mut only_words = Document::new("two words");
-    Bound::new(WordProducer).compute_and_store_one(&mut only_words).unwrap();
+    Bound::new(WordProducer).run_one(&mut only_words).unwrap();
     assert_eq!(union_cond.annotate_doc(&mut only_words), Err(Error::Missing(OTHER_WORDS.id())));
 
     // 7. Deterministic config_hash changes when predicate name or branch changes.
@@ -392,14 +392,3 @@ fn concurrent_and_batched_analyzer_pipelines_with_conditional_and_filter() {
         }
     }
 }
-
-trait StepSingleExt: Step {
-    fn compute_and_store_one(&self, doc: &mut Document) -> Result<(), Error> {
-        let out = self.compute(std::slice::from_ref(doc));
-        let mut status = [Ok(())];
-        self.store(out, std::slice::from_mut(doc), &mut status);
-        status.into_iter().next().unwrap()
-    }
-}
-
-impl<S: Step> StepSingleExt for S {}

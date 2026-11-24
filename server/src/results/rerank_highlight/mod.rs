@@ -1,71 +1,35 @@
 //! `AnalysisService::RerankAndHighlight` execution and wire round-trip
 //! validation (`#2342`).
 
+mod calibrator;
 mod highlight;
 mod maxsim;
 mod validate;
 
-use std::path::Path;
+pub(crate) use calibrator::BundleCalibration;
+
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use turbo::{TURBO_DTYPE_F32, TURBO_TASK_RERANK, turbo_rerank_options, turbo_text, turbo_text_pair};
 use turbo_analysis::{ModelRef, Span};
-use turbo_analysis_embed::{RerankCalibrator, SourcePassage};
-use turbo_calibration::Transform;
+use turbo_analysis_embed::SourcePassage;
 
 use crate::api::{
     Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_UNSUPPORTED_OPTION, field,
 };
 use crate::deadline::Deadline;
 use crate::offsets::{OffsetMode, Offsetter};
-use crate::proto::result::rerank_calibration_spec_proto::Kind as CalKind;
 use crate::proto::result::{
-    RerankAndHighlightRequest, RerankAndHighlightResponse, RerankCalibrationSpecProto, RerankCandidateInputProto,
-    RerankHighlightMode, RerankedCandidateProto, SemanticHighlightSpanProto,
+    RerankAndHighlightRequest, RerankAndHighlightResponse, RerankCandidateInputProto, RerankHighlightMode,
+    RerankedCandidateProto, SemanticHighlightSpanProto,
 };
 use crate::results::{MAX_RERANK_ITEMS, f32s, model_to_proto, over};
-use crate::state::{Loaded, State};
+use crate::state::State;
 use crate::stream::run::read_output;
 
 fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
-}
-
-fn build_calibrator(
-    loaded: &Loaded,
-    mref: &ModelRef,
-    spec: Option<&RerankCalibrationSpecProto>,
-) -> Result<RerankCalibrator> {
-    if let Some(s) = spec
-        && let Some(kind) = &s.kind
-    {
-        let domain = if s.domain.trim().is_empty() { "search" } else { s.domain.trim() };
-        return match kind {
-            CalKind::Temperature(t) => RerankCalibrator::from_transform(Transform::Temperature(*t)).map_err(bad),
-            CalKind::Platt(p) => {
-                RerankCalibrator::from_transform(Transform::Platt { slope: p.slope, intercept: p.intercept })
-                    .map_err(bad)
-            }
-            CalKind::Isotonic(iso) => RerankCalibrator::from_transform(Transform::Isotonic {
-                upper: iso.upper.clone(),
-                value: iso.value.clone(),
-            })
-            .map_err(bad),
-            CalKind::TcalArtifact(bytes) => {
-                RerankCalibrator::from_tcal_bytes(bytes, mref, domain, s.inference_hash).map_err(bad)
-            }
-        };
-    }
-    let sidecar = Path::new(&loaded.bundle).join("calibration.tcal");
-    if sidecar.is_file() {
-        let bytes = std::fs::read(&sidecar)
-            .map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, format!("read {}: {e}", sidecar.display())))?;
-        let domain = spec.map(|s| s.domain.trim()).filter(|d| !d.is_empty()).unwrap_or("search");
-        let hash = spec.map_or(0, |s| s.inference_hash);
-        return RerankCalibrator::from_tcal_bytes(&bytes, mref, domain, hash).map_err(bad);
-    }
-    Ok(RerankCalibrator::uncalibrated())
 }
 
 pub(super) fn prepare_source_passage<'a>(
@@ -144,7 +108,7 @@ pub(crate) async fn rerank_and_highlight(
     let mi = &rerank_loaded.model_info;
     let rerank_mref =
         ModelRef { id: field(&mi.model_id), revision: field(&mi.revision), sha256: field(&mi.manifest_sha256) };
-    let calibrator = build_calibrator(&rerank_loaded, &rerank_mref, req.calibration.as_ref())?;
+    let calibrator = calibrator::resolve_calibrator(&rerank_loaded, &rerank_mref, req.calibration.as_ref())?;
 
     if req.candidates.is_empty() {
         return Ok(RerankAndHighlightResponse {
@@ -213,7 +177,7 @@ pub(crate) async fn rerank_and_highlight(
 
         let mut results = Vec::with_capacity(req_c.candidates.len());
         for (idx, (cand, &raw_logit)) in req_c.candidates.iter().zip(&logits).enumerate() {
-            let cal = calibrator.score(raw_logit).map_err(bad)?;
+            let cal = calibrator.score(raw_logit)?;
             results.push(RerankedCandidateProto {
                 input_index: idx as u32,
                 doc_id: cand.doc_id.clone(),

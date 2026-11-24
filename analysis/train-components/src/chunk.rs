@@ -10,13 +10,16 @@ use turbo_train::trainer::{self, TrainedModel};
 use turbo_train::{Event, ModelPackage, TrainerType, TrainingConfiguration, TrainingParameters, TrainingReport};
 
 use crate::error::{Error, Result};
-use crate::package::{FACTORY_KEY, Stamp, packaged};
+use crate::package::{BeamModel, FACTORY_KEY, Stamp};
 use crate::postag::{BEAM_SIZE_KEY, java_strings};
 
 /// `ChunkerModel.COMPONENT_NAME`.
 pub const COMPONENT_NAME: &str = "ChunkerME";
 /// `ChunkerModel.CHUNKER_MODEL_ENTRY_NAME`.
 pub const MODEL_ENTRY: &str = turbo_sequence::chunker::MODEL_ENTRY_NAME;
+
+/// What this component's package holds.
+const MODEL: BeamModel = BeamModel { component: COMPONENT_NAME, entry: MODEL_ENTRY };
 /// The factory class the manifest names.
 pub const FACTORY: &str = "opennlp.tools.chunker.ChunkerFactory";
 /// `ChunkerME.DEFAULT_BEAM_SIZE`.
@@ -125,9 +128,7 @@ pub fn package_chunker_model(
     beam_size: i32,
     stamp: Stamp<'_>,
 ) -> Result<ModelPackage> {
-    let mut manifest = stamp.trained_manifest(COMPONENT_NAME, factory.language(), report, factory.manifest_entries());
-    manifest.set(BEAM_SIZE_KEY, &beam_size.to_string());
-    packaged(manifest, vec![(MODEL_ENTRY, model_bytes)])
+    MODEL.package(factory.language(), factory.manifest_entries(), report, model_bytes, beam_size, stamp)
 }
 
 /// `ChunkerME.train(languageCode, samples, mlParams, factory)`.

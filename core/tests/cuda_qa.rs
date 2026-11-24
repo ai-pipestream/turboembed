@@ -1,9 +1,9 @@
 //! Extractive QA on CUDA against the transformers reference logits and the
 //! CPU backend, one window per run and windows batched.
 //!
-//! Built with the `cuda` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none. With
-//! TURBO_TEST_REQUIRE_CUDA=1 it fails instead.
+//! Built with the `cuda` feature only. A test that needs a device fails
+//! when the backend lists none. TURBO_TEST_REQUIRE_CUDA=0 lets it say it
+//! was skipped, and pass.
 
 #![cfg(feature = "cuda")]
 

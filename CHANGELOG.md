@@ -463,6 +463,11 @@ stubs must be regenerated.
 
 ### Fixed
 
+- `InspectDocumentGraph` with `pii_output.values`: a release build
+  validates the projection before it plans a release, as a debug build
+  does, so a graph whose `turbo:pii-edits` name a rule with no policy
+  digest is `INVALID_ARGUMENT` before any audit call. A release build
+  wrote the audit event for it and released the values (#2541).
 - cuda, built with `cuda-cublas`: `turbo_session_create` could fail with
   `TURBO_E_RUNTIME` (`cudaErrorStreamCaptureInvalidated`) when another
   thread released a context at the same time, because `cublasDestroy`

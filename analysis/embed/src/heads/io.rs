@@ -7,7 +7,7 @@ use std::path::Path;
 use turbo_analysis::{ModelRef, Tag, TagSet};
 
 use super::{ClassifierHead, DenseLayer, HEAD_MAGIC, HeadMode, HiddenActivation};
-use crate::centroids::{Cursor, write_str};
+use crate::centroids::{Cursor, in_memory, read_all, write_str};
 
 impl ClassifierHead {
     /// Serializes this head to the plain typed `THEAD001` binary format.
@@ -37,9 +37,7 @@ impl ClassifierHead {
 
     /// Serializes this head into an in-memory byte vector.
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        self.write_to(&mut buf).expect("writing to Vec<u8> cannot fail");
-        buf
+        in_memory(|buf| self.write_to(buf))
     }
 
     /// Writes this head to `path` in the `THEAD001` binary format.
@@ -136,10 +134,8 @@ impl ClassifierHead {
     }
 
     /// Reads a `ClassifierHead` from any reader in the `THEAD001` format.
-    pub fn read_from<R: Read>(mut r: R) -> Result<ClassifierHead, String> {
-        let mut buf = Vec::new();
-        r.read_to_end(&mut buf).map_err(|e| e.to_string())?;
-        Self::from_bytes(&buf)
+    pub fn read_from<R: Read>(r: R) -> Result<ClassifierHead, String> {
+        Self::from_bytes(&read_all(r)?)
     }
 
     /// Loads a `ClassifierHead` from `path`.

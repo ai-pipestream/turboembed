@@ -33,7 +33,8 @@ fn banded_fixture(name: &str, lookahead: u32) -> Fixture {
 }
 
 /// Each backend of BANDED this machine lists, the CPU always, failing
-/// where TURBO_TEST_REQUIRE_<BACKEND>=1 names one it does not, with the
+/// where one is in this build and lists no device (unless
+/// TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip), with the
 /// precisions to run it at and the largest difference allowed at each:
 /// the CPU at its default, a device at MODEL (F32) and FASTEST (F16 where
 /// the model's widths allow it, docs/levelzero.md).
@@ -42,9 +43,12 @@ fn banded_devices() -> Vec<(&'static str, u32, f64)> {
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
     let mut out = vec![("cpu", TURBO_PRECISION_MODEL, 1e-5)];
     for b in BANDED.into_iter().filter(|&b| b != "cpu") {
-        let required = std::env::var(format!("TURBO_TEST_REQUIRE_{}", b.to_uppercase())).is_ok_and(|v| v == "1");
         if first_of(rt, b).is_none() {
-            assert!(!required, "TURBO_TEST_REQUIRE_{}=1 and the backend lists no device", b.to_uppercase());
+            assert!(
+                !linked(b) || turbo_pins::device_skip_allowed(b),
+                "the {b} backend is in this build and lists no device; TURBO_TEST_REQUIRE_{}=0 lets the test skip",
+                b.to_uppercase()
+            );
             println!("{b}: skipped: no device");
             continue;
         }
@@ -230,7 +234,9 @@ fn a_band_of_no_keys_is_refused_at_load() {
 /// Every device's backend but the CPU's, CUDA's, Level Zero's and Metal's runs whole
 /// rows, so rule 6 skips the banded artifact there before any file of it is read. The weights
 /// are left out of the bundle: the CPU, which runs the band, opens them
-/// and finds none, and every other backend refuses with the reason.
+/// and finds none, and every other backend refuses with the reason. Where
+/// the backend does not load the artifact's format either, that reason
+/// comes first and is the one a load gives.
 #[test]
 fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
     let mut f = Fixture::model("lookahead-skipped");
@@ -249,6 +255,18 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
     assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
     assert!(e.message.contains(&why), "{}", e.message);
 
+    // A load asks with the backend's own formats, and the format is looked
+    // at before the band: npu loads no raw weights, so that is the reason a
+    // load on it gives, with the same code and still before any file is read.
+    let Some(table) = backend::linked().iter().find(|t| t.name() == b) else {
+        return println!("{b}: skipped: the backend is not in this build");
+    };
+    let e = turbo::model::choose(&bundle.manifest, b, table.formats(), "").unwrap_err();
+    let first = format!("weights-f32: FORMAT_SAFETENSORS is not a format the {b} backend loads");
+    assert_eq!(e.code, BUNDLE_NO_ARTIFACT, "{}", e.message);
+    assert!(e.message.contains(&first), "{}", e.message);
+    assert!(!e.message.contains("lookahead"), "{}", e.message);
+
     // The same through turbo_model_load where this machine has such a device.
     let mut rt = std::ptr::null_mut();
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
@@ -256,7 +274,7 @@ fn a_banded_artifact_is_skipped_unread_where_attention_takes_no_band() {
     unsafe { turbo_runtime_release(rt) };
     if present {
         let e = f.load_on(|rt| first_of(rt, b).unwrap()).err().unwrap();
-        assert!(e.is(BUNDLE_NO_ARTIFACT, &format!("the {b} backend has no limited-lookahead attention")), "{e:?}");
+        assert!(e.is(BUNDLE_NO_ARTIFACT, &first), "{e:?}");
     }
 }
 

@@ -91,6 +91,7 @@ fn answer(id: &str) -> AnalyzeStreamResponse {
         dim: 1,
         data: vec![0, 0, 128, 63].into(),
         quantization: 0,
+        tokens: None,
     };
     AnalyzeStreamResponse { binding: None, id: id.into(), outcome: Some(Outcome::Vectors(vectors)) }
 }

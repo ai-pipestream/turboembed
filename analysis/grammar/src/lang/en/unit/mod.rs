@@ -125,11 +125,7 @@ impl Grammar for EnglishUnits {
     }
 
     fn rules(&self) -> &'static [Rule] {
-        RULES.get_or_init(|| {
-            let mut all = ENGLISH.rules().to_vec();
-            all.extend_from_slice(rules::RULES);
-            all
-        })
+        crate::lang::concat_rules(&RULES, &[ENGLISH.rules(), rules::RULES])
     }
 
     fn dims(&self) -> u16 {

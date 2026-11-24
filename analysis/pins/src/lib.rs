@@ -11,9 +11,13 @@
 //! changed or swapped file fails loudly instead of being measured. The
 //! tree test of this crate checks that every such test does.
 
+mod device;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+
+pub use device::device_skip_allowed;
 
 /// The pin list beside this crate.
 pub const MODELS: &str = include_str!("../models.txt");

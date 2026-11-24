@@ -24,7 +24,7 @@ pub(super) fn b_a_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     int(pow10(s), s as i8, SPELLED)
 }
 
-pub(super) fn b_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+pub(in crate::lang) fn b_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (m, s) = (num(&v[0]), term(&v[1]).0);
     // A plain digit integer takes any scale (`322 thousand`); otherwise
     // the multiplicand is below the scale, so `two hundred thousand`
@@ -36,8 +36,14 @@ pub(super) fn b_scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 }
 
 pub(super) fn b_sum(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    sum_unless(v, ctx, before_multiplier)
+}
+
+/// A number and a smaller one after it (`twenty` `three`), unless the
+/// pair comes before a word `before` says multiplies its first part.
+pub(in crate::lang) fn sum_unless(v: &[Value], ctx: &Ctx<'_>, before: fn(&Ctx<'_>, i8) -> bool) -> Option<Value> {
     let (l, r) = (num(&v[0]), num(&v[1]));
-    if r.grain >= l.grain || r.value >= pow10(i64::from(l.grain)) || before_multiplier(ctx, l.grain) {
+    if r.grain >= l.grain || r.value >= pow10(i64::from(l.grain)) || before(ctx, l.grain) {
         return None;
     }
     int(l.value.checked_add(r.value)?, r.grain, l.flags | r.flags)

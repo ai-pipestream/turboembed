@@ -93,6 +93,13 @@ use namefind::NameRecipe;
 use postag::PosRecipe;
 use segmentation::{Component, SegmentationRecipe};
 
+/// A card as written: pretty JSON with a final newline.
+pub(crate) fn card_json(card: &impl serde::Serialize) -> String {
+    let mut s = serde_json::to_string_pretty(card).expect("a card serializes");
+    s.push('\n');
+    s
+}
+
 /// A model a recipe trained, and what it was trained from.
 #[derive(Debug, Clone)]
 pub struct Trained {
@@ -438,4 +445,16 @@ pub fn run(
     };
     let card = ModelCard::new(recipe, &trained, corpus, held_out, &gate);
     Ok(Outcome { trained, gate, card })
+}
+
+#[cfg(test)]
+mod card_json_tests {
+    #[test]
+    fn a_card_is_pretty_json_with_a_final_newline() {
+        #[derive(serde::Serialize)]
+        struct Card {
+            name: &'static str,
+        }
+        assert_eq!(super::card_json(&Card { name: "x" }), "{\n  \"name\": \"x\"\n}\n");
+    }
 }
