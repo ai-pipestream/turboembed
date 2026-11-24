@@ -280,9 +280,9 @@ is the only one on the way out.
 Either way the result, and its buffer, are released once the response
 is encoded, and only then is the session free again.
 
-A float result holding a NaN or an infinity is never sent: the call
-fails `TURBO_E_INTERNAL`, naming the first row and dimension that is not
-finite (issue #2517).
+A float result holding a NaN or an infinity is never sent: the core
+refuses the run, and the call fails `TURBO_E_INTERNAL`, naming the first
+row and dimension that is not finite (issue #2517).
 
 `outputs` in the request may be empty, meaning every output, or name
 `vectors` once. Another name is `TURBO_E_INVALID_ARGUMENT`.

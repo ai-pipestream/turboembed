@@ -110,3 +110,28 @@ fn a_non_finite_value_names_its_row_and_dimension() {
         assert!(e.message.contains("row 1") && e.message.contains("dimension 1"), "{}", e.message);
     }
 }
+
+#[test]
+fn a_device_result_read_back_for_codes_is_refused_when_not_finite() {
+    // The values a DEVICE run reads back before the host codes them
+    // (INT8, UBINARY): a NaN there would code like any other value.
+    let mut staged = vec![0.0f32; 4];
+    for bad in [f32::NAN, f32::INFINITY] {
+        let e = result::read_back(&mut staged, 2, true, |dst| {
+            dst.copy_from_slice(&[0.0, 1.0, bad, 2.0]);
+            Ok(())
+        })
+        .unwrap_err();
+        assert_eq!(e.code, INTERNAL);
+        assert!(e.message.contains("row 1") && e.message.contains("dimension 0"), "{}", e.message);
+    }
+    let fine = [0.5, -1.0, 2.0, 3.0];
+    let got = result::read_back(&mut staged, 2, true, |dst| {
+        dst.copy_from_slice(&fine);
+        Ok(())
+    });
+    assert_eq!(got.unwrap(), &fine);
+    // The read's own failure is what the run answers.
+    let e = result::read_back(&mut staged, 2, true, |_| Err(Error::new(INTERNAL, "the read failed"))).unwrap_err();
+    assert_eq!(e.message, "the read failed");
+}

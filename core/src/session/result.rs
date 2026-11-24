@@ -129,13 +129,13 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
             *staged = vec![0.0; codes.len()];
             r.host_allocs += 1;
         }
-        let bytes = n as u64 * 4;
-        backend::check(b, "buffer_read", |err| unsafe { read(r.output, staged.as_mut_ptr().cast(), bytes, err) })?;
+        let (bytes, output) = (n as u64 * 4, r.output);
+        let embed = s.model.info.task == TURBO_TASK_EMBED;
+        let src = read_back(&mut staged[..n], dim, embed, |dst| {
+            backend::check(b, "buffer_read", |err| unsafe { read(output, dst.as_mut_ptr().cast(), bytes, err) })
+        })?;
         r.d2h_bytes += bytes;
-        if s.model.info.task == TURBO_TASK_EMBED {
-            finite_rows(unsafe { std::slice::from_raw_parts(staged.as_ptr().cast::<u8>(), n * 4) }, dim)?;
-        }
-        &staged[..n]
+        src
     } else {
         unsafe { std::slice::from_raw_parts(r.host as *const f32, n) }
     };
@@ -147,6 +147,23 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
     r.host = out.as_mut_ptr().cast();
     r.placement = TURBO_PLACE_HOST;
     Ok(())
+}
+
+/// A DEVICE result's f32 values, `read` into `staged` for the host to code.
+/// An embed run's values are checked here, the only check on this path:
+/// a NaN or an infinity would otherwise come back as ordinary-looking
+/// codes (#2517 F12).
+pub(super) fn read_back(
+    staged: &mut [f32],
+    dim: usize,
+    embed: bool,
+    read: impl FnOnce(&mut [f32]) -> Result<()>,
+) -> Result<&[f32]> {
+    read(staged)?;
+    if embed {
+        finite_rows(unsafe { std::slice::from_raw_parts(staged.as_ptr().cast::<u8>(), size_of_val(staged)) }, dim)?;
+    }
+    Ok(staged)
 }
 
 /// Every value of `v`, rows of `dim`, is finite. A NaN or an infinity in

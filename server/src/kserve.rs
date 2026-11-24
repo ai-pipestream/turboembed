@@ -271,10 +271,6 @@ fn infer_embed(
         Failure::new(TURBO_E_INTERNAL, 0, format!("the result's dtype {} has no datatype in the protocol", info.dtype))
     })?;
     let vectors = Vectors { data, _result: result, _held: held };
-    // A NaN or an infinity is a broken run, never an answer (#2517).
-    if let Some((r, d)) = crate::finite::first_bad_row(vectors.as_ref(), info.dtype, info.dim) {
-        return Err(Failure::new(TURBO_E_INTERNAL, 0, crate::finite::message(Some(r), d)));
-    }
     Ok(ModelInferResponse {
         model_name: served.name.clone(),
         model_version: loaded.revision.clone(),

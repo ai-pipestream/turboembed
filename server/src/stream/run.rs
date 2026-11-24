@@ -17,9 +17,7 @@ use turbo::{
 use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
-use crate::proto::result::{
-    AnalyzeFailure, AnalyzeOutput, AnalyzeVectors, InputBinding, InputTokens, VectorCodesResult,
-};
+use crate::proto::result::{AnalyzeOutput, AnalyzeVectors, InputBinding, InputTokens, VectorCodesResult};
 use crate::results::disclosure::Disclosure;
 use crate::results::document::export_document_response;
 use crate::results::multires::MultiResRequestOptions;
@@ -225,15 +223,10 @@ pub(crate) fn run(
             seq: d.seq,
             id: d.id,
             binding: d.binding,
-            // A NaN or an infinity fails its document alone (#2517).
-            payload: match (output, crate::finite::first_non_finite(&c, dtype)) {
-                (_, Some(d)) => RowPayload::Outcome(Box::new(ProtoOutcome::Failure(AnalyzeFailure {
-                    turbo_code: TURBO_E_INTERNAL,
-                    field: 0,
-                    message: crate::finite::message(None, d),
-                }))),
-                (AnalyzeOutput::VectorCodes, None) => RowPayload::Codes(c, Some(tokens)),
-                (_, None) => RowPayload::Vector(c, Some(tokens)),
+            payload: if output == AnalyzeOutput::VectorCodes {
+                RowPayload::Codes(c, Some(tokens))
+            } else {
+                RowPayload::Vector(c, Some(tokens))
             },
             room: d.room,
             window: permits.next().expect("one window permit per document"),
