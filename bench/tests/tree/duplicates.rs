@@ -7,13 +7,13 @@
 //! files), takes every function body of [`MIN_LINES`] code lines or more,
 //! and fails when two files of one crate hold the same body: the same
 //! tokens (`rust_lex.rs`), so comments, line breaks and indentation do not
-//! count and the contents of a string do. The copies known when the check was written are in
-//! `duplicates_known.rs`; that list may only shrink.
+//! count and the contents of a string do. There is no list of known copies:
+//! the last of those the check found when it was written were folded by
+//! #2499 and #2506, and a new copy is fixed, not listed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use crate::duplicates_known::{KNOWN, KNOWN_AT_MOST};
 use crate::rust_lex::{Kind, Token, closing, tokens};
 
 /// Bodies shorter than this are not compared: below it sit the trait
@@ -145,30 +145,12 @@ fn committed(root: &Path) -> (usize, BTreeMap<String, Vec<String>>) {
 fn no_function_is_written_twice_in_one_crate() {
     let (seen, found) = committed(&crate::common::workspace());
     assert!(seen > 1000, "the source scan is too narrow: {seen} files");
-    let fresh: Vec<String> = found
-        .iter()
-        .filter(|(key, _)| !KNOWN.contains(&key.as_str()))
-        .map(|(_, places)| places.join("\n    = "))
-        .collect();
+    let fresh: Vec<String> = found.values().map(|places| places.join("\n    = ")).collect();
     assert!(
         fresh.is_empty(),
         "the same body of {MIN_LINES} or more lines is in two files of one crate; keep one and call it:\n  {}",
         fresh.join("\n  ")
     );
-}
-
-#[test]
-fn the_known_list_only_shrinks() {
-    let (_, found) = committed(&crate::common::workspace());
-    let gone: Vec<&str> = KNOWN.iter().copied().filter(|key| !found.contains_key(*key)).collect();
-    assert!(gone.is_empty(), "no longer duplicated; remove from duplicates_known.rs:\n  {}", gone.join("\n  "));
-    let mut sorted = KNOWN.to_vec();
-    sorted.sort();
-    sorted.dedup();
-    assert_eq!(sorted, KNOWN, "duplicates_known.rs is sorted and has no entry twice");
-    // a new copy cannot be waved through by listing it: the count has a ceiling
-    assert!(KNOWN.len() <= KNOWN_AT_MOST, "duplicates_known.rs grew to {} entries", KNOWN.len());
-    assert_eq!(KNOWN.len(), KNOWN_AT_MOST, "lower KNOWN_AT_MOST to the number of entries left");
 }
 
 const BODY: &str =

@@ -57,21 +57,7 @@ pub(super) unsafe fn check_load(d: *const turbo_backend_model) -> Res<()> {
             format!("tensor_count {}: a DeBERTa-v2 of {} layers has {expected}", d.tensor_count, d.layers),
         ));
     }
-    config(d).check().map_err(|e| fail(INVALID_ARGUMENT, e.message))
-}
-
-fn config(d: &turbo_backend_model) -> Config {
-    Config {
-        hidden: d.hidden as usize,
-        intermediate: d.intermediate as usize,
-        heads: d.heads as usize,
-        layers: d.layers as usize,
-        vocabulary: d.vocab_size as usize,
-        max_sequence: d.max_positions as usize,
-        position_buckets: d.position_buckets as usize,
-        max_relative_positions: d.max_relative_positions as usize,
-        layer_norm_eps: d.layer_norm_eps,
-    }
+    Config::of_backend(d).check().map_err(|e| fail(INVALID_ARGUMENT, e.message))
 }
 
 /// A session at `precision` on a DeBERTa-v2 model: MODEL and EXACT run in

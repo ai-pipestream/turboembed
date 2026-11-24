@@ -78,13 +78,7 @@ pub fn backend() -> &'static turbo_backend {
 }
 
 unsafe extern "C" fn device_count(out: *mut u32, err: *mut turbo_error) -> i32 {
-    match driver() {
-        Ok(d) => {
-            unsafe { *out = d.map_or(0, |d| d.devices.len() as u32) };
-            0
-        }
-        Err(message) => unsafe { refuse(err, DEVICE_UNAVAILABLE, message) },
-    }
+    unsafe { crate::ffi::write_device_count(driver().map(|d| d.map(|d| d.devices.len())), out, err) }
 }
 
 /// The listed device at ordinal, or the status refusing it.

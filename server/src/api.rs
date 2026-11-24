@@ -74,15 +74,31 @@ fn sized<T>() -> T {
 
 // Runtime, context and model may be used from any thread (turbo.h,
 // Conventions).
-pub struct Runtime(*mut turbo_runtime);
+pub struct Runtime(*mut turbo_runtime, Log);
+
+/// The runtime's log, held by every handle made from the runtime: the
+/// core keeps a runtime alive as long as anything made from it, and any
+/// of those can log, so the log's allocation (the callback's user data)
+/// lives until the last of them is released (#2512). Each handle drops
+/// it after its own release call.
+pub type Log = std::sync::Arc<crate::runtime_log::RuntimeLog>;
 unsafe impl Send for Runtime {}
 unsafe impl Sync for Runtime {}
 
 impl Runtime {
+    /// A runtime that logs to stderr and keeps its warnings (#2512). The
+    /// log lives as long as this handle and every handle made from it.
     pub fn create() -> Result<Runtime> {
+        let log = crate::runtime_log::RuntimeLog::new();
+        let desc = log.desc();
         let mut rt = ptr::null_mut();
-        check(|e| unsafe { turbo_runtime_create(ptr::null(), &mut rt, e) })?;
-        Ok(Runtime(rt))
+        check(|e| unsafe { turbo_runtime_create(&desc, &mut rt, e) })?;
+        Ok(Runtime(rt, log))
+    }
+
+    /// What the library logged on this runtime.
+    pub fn log(&self) -> &Log {
+        &self.1
     }
 
     pub fn device_info(&self, index: u32) -> Result<turbo_device_info> {
@@ -106,7 +122,7 @@ impl Runtime {
     pub fn context(&self, device: u32) -> Result<Context> {
         let mut c = ptr::null_mut();
         check(|e| unsafe { turbo_context_create(self.0, device, &mut c, e) })?;
-        Ok(Context(c))
+        Ok(Context(c, self.1.clone()))
     }
 }
 
@@ -116,7 +132,7 @@ impl Drop for Runtime {
     }
 }
 
-pub struct Context(*mut turbo_context);
+pub struct Context(*mut turbo_context, Log);
 unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 
@@ -124,7 +140,7 @@ impl Context {
     pub fn load(&self, bundle_path: &str) -> Result<Model> {
         let mut m = ptr::null_mut();
         check(|e| unsafe { turbo_model_load(self.0, text(bundle_path), &mut m, e) })?;
-        Ok(Model(m))
+        Ok(Model(m, self.1.clone()))
     }
 
     /// A packed [rows, cols] buffer of `dtype` at `placement`.
@@ -139,7 +155,7 @@ impl Context {
         };
         let mut b = ptr::null_mut();
         check(|e| unsafe { turbo_buffer_alloc(self.0, &desc, &mut b, e) })?;
-        Ok(Buffer(b))
+        Ok(Buffer(b, self.1.clone()))
     }
 }
 
@@ -149,7 +165,7 @@ impl Drop for Context {
     }
 }
 
-pub struct Model(*mut turbo_model);
+pub struct Model(*mut turbo_model, Log);
 unsafe impl Send for Model {}
 unsafe impl Sync for Model {}
 
@@ -163,7 +179,7 @@ impl Model {
     pub fn session(&self, desc: &turbo_session_desc) -> Result<Session> {
         let mut s = ptr::null_mut();
         check(|e| unsafe { turbo_session_create(self.0, desc, &mut s, e) })?;
-        Ok(Session(std::sync::atomic::AtomicPtr::new(s)))
+        Ok(Session(std::sync::atomic::AtomicPtr::new(s), self.1.clone()))
     }
 }
 
@@ -173,7 +189,10 @@ impl Drop for Model {
     }
 }
 
-pub struct Buffer(*mut turbo_buffer);
+pub struct Buffer(
+    *mut turbo_buffer,
+    #[expect(dead_code, reason = "held so the runtime's log outlives this buffer's release")] Log,
+);
 // A buffer is released from whichever thread drops the response that holds
 // it; it has one owner at a time.
 unsafe impl Send for Buffer {}
@@ -196,7 +215,7 @@ impl Drop for Buffer {
 /// A session. Writes and runs go only through the one request that holds it
 /// in the model's pool; turbo_session_get_info reads what was fixed at
 /// turbo_session_create.
-pub struct Session(std::sync::atomic::AtomicPtr<turbo_session>);
+pub struct Session(std::sync::atomic::AtomicPtr<turbo_session>, Log);
 unsafe impl Send for Session {}
 unsafe impl Sync for Session {}
 
@@ -260,7 +279,7 @@ impl Session {
     pub fn run(&self) -> Result<Output> {
         let mut r = ptr::null_mut();
         check(|e| unsafe { turbo_session_run(self.as_ptr(), &mut r, e) })?;
-        Ok(Output(r))
+        Ok(Output(r, self.1.clone()))
     }
 }
 
@@ -274,7 +293,7 @@ impl Drop for Session {
 }
 
 /// A run's result.
-pub struct Output(*mut turbo_result);
+pub struct Output(*mut turbo_result, Log);
 unsafe impl Send for Output {}
 unsafe impl Sync for Output {}
 
@@ -299,7 +318,7 @@ impl Output {
     pub fn buffer(&self) -> Result<Buffer> {
         let mut b = ptr::null_mut();
         check(|e| unsafe { turbo_result_buffer(self.0, &mut b, e) })?;
-        Ok(Buffer(b))
+        Ok(Buffer(b, self.1.clone()))
     }
 }
 

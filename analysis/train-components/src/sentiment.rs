@@ -24,7 +24,7 @@ use turbo_train::{
 };
 
 use crate::error::Result;
-use crate::package::{FACTORY_KEY, Stamp, add_artifacts};
+use crate::package::{FACTORY_KEY, Stamp, packaged};
 
 /// `SentimentEventStream` over a factory's context generator.
 #[derive(Debug)]
@@ -93,9 +93,7 @@ pub fn package_sentiment_model(
     let mut manifest = stamp.manifest(COMPONENT, language);
     manifest.set_training(report);
     manifest.set(FACTORY_KEY, factory.class());
-    let mut package = ModelPackage::new(manifest);
-    add_artifacts(&mut package, vec![(MODEL_ENTRY, model_bytes)])?;
-    Ok(package)
+    packaged(manifest, vec![(MODEL_ENTRY, model_bytes)])
 }
 
 /// `SentimentME.train(language, samples, params, factory)`: the events of

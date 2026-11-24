@@ -18,7 +18,7 @@ use crate::adapter::{self, Shape};
 use crate::logspace::softmax;
 use crate::real::{Real, dot};
 use crate::rng::Rng;
-use crate::shapes::{checked_shapes, fits};
+use crate::shapes::{checked_shapes, fits, seeded};
 
 /// A gold span: words `first..=last` of its sequence and its label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,21 +50,7 @@ impl<R: Real> Spans<R> {
     /// width embeddings, zero biases but for each LSTM forget gate's (1).
     pub fn new(spec: &HeadSpec, hidden: usize, rng: &mut Rng) -> Result<Self> {
         let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
-        let mut params = Vec::with_capacity(shapes.len());
-        for ((suffix, shape), n) in &shapes {
-            let n = *n;
-            let v = if shape.len() == 2 {
-                let limit = (6.0 / (shape[0] + shape[1]) as f64).sqrt();
-                (0..n).map(|_| R::from_f64(rng.uniform(limit))).collect()
-            } else if suffix.starts_with("lstm.") {
-                let h = n / 4;
-                (0..n).map(|i| if (h..2 * h).contains(&i) { R::ONE } else { R::ZERO }).collect()
-            } else {
-                vec![R::ZERO; n]
-            };
-            params.push(v);
-        }
-        Self::with_params(spec, hidden, params)
+        Self::with_params(spec, hidden, seeded(&shapes, rng))
     }
 
     /// A head from given weights, in `tensors` order.

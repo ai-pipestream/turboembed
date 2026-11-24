@@ -30,11 +30,12 @@ use std::sync::Arc;
 use turbo_analysis::annotate::{AnchorUse, Step};
 use turbo_analysis::export::LayerRef;
 use turbo_analysis::{
-    Document, Error, Evidence, FilterRule, Ix, Key, KeyId, Layer, Producer, Provenance, Span, Spans, Status, Support,
+    Document, Error, Evidence, FilterRule, Ix, Key, KeyId, Layer, Producer, Provenance, Span, Spans, Support,
 };
 use turbo_analysis_layers::{Entities, Tokens};
 
 use crate::merge::union_kinds;
+use crate::step_inputs::per_document;
 
 /// How the candidates of several recognizers become one layer.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -396,21 +397,7 @@ impl Step for ConsensusEntityMerger {
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
-        let out: Out = docs
-            .iter()
-            .map(|d| {
-                for k in self.reads() {
-                    match d.status(k) {
-                        Some(Status::Complete) => {}
-                        Some(Status::Skipped(why)) => return Err(Error::Skipped(format!("{k} was skipped: {why}"))),
-                        Some(Status::Failed(e)) => return Err(Error::Skipped(format!("{k} failed: {e}"))),
-                        None => return Err(Error::Missing(k)),
-                    }
-                }
-                self.build(d)
-            })
-            .collect();
-        Box::new(out)
+        per_document(docs, &self.reads(), |d| self.build(d))
     }
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {

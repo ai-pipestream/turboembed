@@ -205,11 +205,14 @@ impl<B: Body<Data = Bytes>> Body for MetricsBody<B> {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match self.inner.as_mut().poll_frame(cx) {
-            Poll::Ready(Some(Ok(frame))) => {
-                if let Some(trailers) = frame.trailers_ref()
-                    && let Some(c) = parse_grpc_status(trailers)
-                {
-                    self.code = Some(c);
+            Poll::Ready(Some(Ok(mut frame))) => {
+                if let Some(trailers) = frame.trailers_mut() {
+                    // A stream's trailers get the same mapping as headers,
+                    // so the wire status and the recorded one agree.
+                    crate::too_large_status(trailers);
+                    if let Some(c) = parse_grpc_status(trailers) {
+                        self.code = Some(c);
+                    }
                 }
                 Poll::Ready(Some(Ok(frame)))
             }
