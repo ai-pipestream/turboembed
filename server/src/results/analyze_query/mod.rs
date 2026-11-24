@@ -1,7 +1,10 @@
 //! Unified one-pass `AnalyzeQuery` execution and wire conversion (`#2339`).
 
+mod cache;
 mod encode;
 mod validate;
+
+pub(crate) use cache::AnalyzerCache;
 
 use std::sync::Arc;
 
@@ -203,6 +206,30 @@ fn filter_to_proto(offsetter: &Offsetter, text: &str, f: &StructuredFilterPlan) 
     }
 }
 
+/// Compiles the analyzer of `req`'s profile.
+fn build_analyzer(req: &AnalyzeQueryRequest) -> Result<OnePassQueryAnalyzer> {
+    let mut builder = OnePassQueryAnalyzer::builder();
+    if !req.default_language.trim().is_empty() {
+        builder = builder.with_default_language(req.default_language.trim());
+    }
+    if !req.reference_date_iso.trim().is_empty() {
+        builder = builder.with_reference_date(parse_iso_date(req.reference_date_iso.trim())?);
+    }
+    if let Some(syns) = compile_synonyms(&req.global_synonyms)? {
+        builder = builder.with_synonyms(syns);
+    }
+    for fp in &req.field_profiles {
+        builder = builder.add_field(compile_field_spec(fp)?);
+    }
+    builder.build().map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))
+}
+
+/// The analyzer of `req`'s profile: the one `kept` holds for it, or a new
+/// one, which `kept` then holds (#2418).
+fn analyzer_for(kept: &AnalyzerCache, req: &AnalyzeQueryRequest) -> Result<Arc<OnePassQueryAnalyzer>> {
+    kept.get_or_build(cache::profile_key(req), || build_analyzer(req))
+}
+
 /// Executes one-pass `AnalyzeQuery` against `state` (`#2339`).
 pub(crate) async fn analyze_query(
     state: Arc<State>,
@@ -211,22 +238,10 @@ pub(crate) async fn analyze_query(
     deadline: crate::deadline::Deadline,
 ) -> Result<AnalyzeQueryResponse> {
     crate::priority::check_before_exec(&deadline, &state.metrics)?;
+    let planning = Arc::clone(&state);
     let (req, offsets, plan) = tokio::task::spawn_blocking(move || {
         let offsets = OffsetMode::from_proto(req.offsets)?;
-        let mut builder = OnePassQueryAnalyzer::builder();
-        if !req.default_language.trim().is_empty() {
-            builder = builder.with_default_language(req.default_language.trim());
-        }
-        if !req.reference_date_iso.trim().is_empty() {
-            builder = builder.with_reference_date(parse_iso_date(req.reference_date_iso.trim())?);
-        }
-        if let Some(syns) = compile_synonyms(&req.global_synonyms)? {
-            builder = builder.with_synonyms(syns);
-        }
-        for fp in &req.field_profiles {
-            builder = builder.add_field(compile_field_spec(fp)?);
-        }
-        let analyzer = builder.build().map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
+        let analyzer = analyzer_for(&planning.query_analyzers, &req)?;
         let plan = analyzer.analyze(&req.query).map_err(|e| Failure::new(TURBO_E_INTERNAL, 0, e.to_string()))?;
         Ok::<_, Failure>((req, offsets, plan))
     })
@@ -256,3 +271,6 @@ pub(crate) async fn analyze_query(
         splade_results,
     })
 }
+
+#[cfg(test)]
+mod tests;
