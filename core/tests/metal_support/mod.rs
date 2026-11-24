@@ -97,11 +97,6 @@ impl Drop for Rt {
     }
 }
 
-/// TURBO_TEST_REQUIRE_METAL=1: a test that finds no device fails.
-pub fn required() -> bool {
-    std::env::var("TURBO_TEST_REQUIRE_METAL").is_ok_and(|v| v == "1")
-}
-
 /// The first Metal device that runs embed, if any.
 pub fn runs_embed(rt: *mut turbo_runtime) -> Option<u32> {
     let rt = std::mem::ManuallyDrop::new(Rt(rt));
@@ -114,7 +109,10 @@ pub fn metal_device(test: &str) -> Option<u32> {
     let rt = Rt::new();
     let d = runs_embed(rt.0);
     if d.is_none() {
-        assert!(!required(), "{test}: TURBO_TEST_REQUIRE_METAL=1 and no metal device runs embed");
+        assert!(
+            turbo_pins::device_skip_allowed("metal"),
+            "{test}: no metal device runs embed; TURBO_TEST_REQUIRE_METAL=0 lets the test skip"
+        );
         println!("{test}: skipped: no metal device runs embed");
     }
     d

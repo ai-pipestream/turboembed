@@ -2,8 +2,9 @@
 //! person and a city share, the name once a person and once a city.
 //! Prints what the head reads on each name, with its second reading, and
 //! what the head with the Places pack makes of it, and counts how many
-//! names get the reading the sentence means. Runs only where
-//! `TURBO_NEMOTRON_PII_BUNDLE` names the assembled bundle. The floors
+//! names get the reading the sentence means. Ignored: run with
+//! `-- --ignored` where `TURBO_NEMOTRON_PII_BUNDLE` names the assembled
+//! bundle, and without it the test fails. The floors
 //! are those of `turbo-en-nemotron-pii-modernbert-base-1`.
 
 use std::path::Path;
@@ -109,10 +110,10 @@ fn count(tagger: &Analyzer, with_rules: &Analyzer, sentences: &[(&str, &str)], w
 }
 
 #[test]
+#[ignore = "needs the assembled Nemotron PII bundle in TURBO_NEMOTRON_PII_BUNDLE"]
 fn single_sentences_on_names_a_person_and_a_city_share() {
-    let Some(bundle_path) = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE") else {
-        return;
-    };
+    let bundle_path = std::env::var_os("TURBO_NEMOTRON_PII_BUNDLE")
+        .expect("TURBO_NEMOTRON_PII_BUNDLE names the assembled Nemotron PII bundle");
     let bundle_dir = turbo_pins::require(Path::new(&bundle_path));
     let open = || {
         PiiTagger::open(&bundle_dir, None, &EncoderOptions::default())

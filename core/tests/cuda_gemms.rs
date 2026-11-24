@@ -1,10 +1,9 @@
 //! The CUDA backend's GEMMs: against cuBLAS, F16 sums over the whole of
 //! k, and every tile and stream-K mode giving the same vectors.
 //!
-//! Built with the `cuda` feature only. A test that needs a device says it
-//! was skipped, and passes, when the backend lists none; nothing is run
-//! on anything else in its place. With TURBO_TEST_REQUIRE_CUDA=1 it fails
-//! instead, so a run on a GPU machine cannot pass by finding no GPU.
+//! Built with the `cuda` feature only. A test that needs a device fails
+//! when the backend lists none; nothing is run on anything else in its
+//! place. TURBO_TEST_REQUIRE_CUDA=0 lets it say it was skipped, and pass.
 //! docs/cuda.md says how to run them; tests/cuda_support/ holds what the
 //! files share.
 

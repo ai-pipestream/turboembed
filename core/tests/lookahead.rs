@@ -33,7 +33,8 @@ fn banded_fixture(name: &str, lookahead: u32) -> Fixture {
 }
 
 /// Each backend of BANDED this machine lists, the CPU always, failing
-/// where TURBO_TEST_REQUIRE_<BACKEND>=1 names one it does not, with the
+/// where one is in this build and lists no device (unless
+/// TURBO_TEST_REQUIRE_<BACKEND>=0 lets it skip), with the
 /// precisions to run it at and the largest difference allowed at each:
 /// the CPU at its default, a device at MODEL (F32) and FASTEST (F16 where
 /// the model's widths allow it, docs/levelzero.md).
@@ -42,9 +43,12 @@ fn banded_devices() -> Vec<(&'static str, u32, f64)> {
     assert_eq!(unsafe { turbo_runtime_create(std::ptr::null(), &mut rt, &mut new_error()) }, 0);
     let mut out = vec![("cpu", TURBO_PRECISION_MODEL, 1e-5)];
     for b in BANDED.into_iter().filter(|&b| b != "cpu") {
-        let required = std::env::var(format!("TURBO_TEST_REQUIRE_{}", b.to_uppercase())).is_ok_and(|v| v == "1");
         if first_of(rt, b).is_none() {
-            assert!(!required, "TURBO_TEST_REQUIRE_{}=1 and the backend lists no device", b.to_uppercase());
+            assert!(
+                !linked(b) || turbo_pins::device_skip_allowed(b),
+                "the {b} backend is in this build and lists no device; TURBO_TEST_REQUIRE_{}=0 lets the test skip",
+                b.to_uppercase()
+            );
             println!("{b}: skipped: no device");
             continue;
         }

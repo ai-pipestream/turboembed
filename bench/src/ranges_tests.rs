@@ -140,15 +140,17 @@ fn ranges_time_reads_the_clock_after_warmup_and_after_the_last_round() {
 }
 
 /// On a levelzero device the range record carries the clock the driver
-/// reports. Skipped where the backend lists no device, unless
-/// TURBO_TEST_REQUIRE_LEVELZERO=1.
+/// reports. Fails where the backend lists no device, unless
+/// TURBO_TEST_REQUIRE_LEVELZERO=0 lets it skip.
 #[cfg(feature = "levelzero")]
 #[test]
 fn a_levelzero_range_record_carries_the_gpu_clock() {
     let test = "a_levelzero_range_record_carries_the_gpu_clock";
     if crate::api::Runtime::create().unwrap().find("levelzero").is_err() {
-        let required = std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1");
-        assert!(!required, "{test}: TURBO_TEST_REQUIRE_LEVELZERO=1 and the levelzero backend lists no device");
+        assert!(
+            turbo_pins::device_skip_allowed("levelzero"),
+            "{test}: the levelzero backend lists no device; TURBO_TEST_REQUIRE_LEVELZERO=0 lets the test skip"
+        );
         println!("{test}: skipped: the levelzero feature is on and the levelzero backend lists no device");
         return;
     }

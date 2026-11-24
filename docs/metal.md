@@ -880,10 +880,15 @@ at MODEL (151 the second). The times are in `load-time.txt` there.
 
 ## Testing
 
-From the workspace root. `TURBO_TEST_REQUIRE_METAL=1` makes every test in
-`core/tests/metal*.rs` that needs a device that runs embed fail when there
-is none, where without it the test passes with a line saying it was
-skipped; set it on Apple silicon, so a run that found no GPU cannot pass.
+From the workspace root. Every test in `core/tests/metal*.rs` that needs
+a device that runs embed fails when there is none: a build with the
+metal backend that finds no GPU has run nothing on one.
+`TURBO_TEST_REQUIRE_METAL=0` lets such a test pass with a line saying it
+was skipped, for a host whose GPU does not run embed.
+Some tests run only under `TURBO_TEST_DEVICE=metal` and say they were
+skipped without it, so a green run with neither variable set is not a
+full device run. `TURBO_TEST_REQUIRE_METAL=1` fails those tests when
+`TURBO_TEST_DEVICE` is not set; set both on Apple silicon.
 
 ```
 export TURBO_TEST_REQUIRE_METAL=1
