@@ -82,6 +82,7 @@ fn cancelled_by_its_deadline(pii: bool, disclosure: Disclosure) -> Vec<Result<An
         offsets: OffsetMode::Utf8.to_proto(),
         disclosure,
         binding: None,
+        typed: None,
         metrics: crate::metrics::Metrics::new(),
     };
     let (tx, mut rx) = mpsc::channel(32);
